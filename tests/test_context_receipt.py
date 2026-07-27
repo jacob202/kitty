@@ -56,6 +56,7 @@ def _checkpoint_metadata(
     updated_at: str = "2026-07-17T11:00:00Z",
     schema_version: int = 1,
     recommendations: list[dict] | None = None,
+    parallel_work: list[dict] | None = None,
 ) -> str:
     payload = {
         "schema_version": schema_version,
@@ -78,6 +79,8 @@ def _checkpoint_metadata(
     }
     if recommendations is not None:
         payload["recommendations"] = recommendations
+    if parallel_work is not None:
+        payload["parallel_work"] = parallel_work
     return f"# Checkpoint\n\n<!-- {marker}\n" + json.dumps(payload, indent=2) + "\n-->\n"
 
 
@@ -413,7 +416,10 @@ def test_schema_version_two_carries_recommendations_into_the_receipt(tmp_path: P
             first_deferred="2026-07-20",
         ),
     ]
-    _write_checkpoint_pair(repo, head, schema_version=2, recommendations=recommendations)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, recommendations=recommendations,
+        parallel_work=[{"kind": "pr", "ref": "#276"}],
+    )
 
     levels = _levels(repo)
     receipt = build_context_receipt(repo, expected_canonical=repo, now=NOW)
@@ -432,6 +438,7 @@ def test_deferred_recommendation_without_release_check_fails(tmp_path: Path):
         repo,
         head,
         schema_version=2,
+        parallel_work=[],
         recommendations=[
             _recommendation(
                 status="deferred",
@@ -454,6 +461,7 @@ def test_duplicate_recommendation_ids_fail(tmp_path: Path):
         repo,
         head,
         schema_version=2,
+        parallel_work=[],
         recommendations=[_recommendation(), _recommendation(deferred_count=3)],
     )
 
@@ -474,3 +482,34 @@ def test_receipt_requires_roadmap_authority(tmp_path: Path):
     levels = _levels(repo)
 
     assert levels["docs:authority_map"] == "FAIL"
+
+
+def test_schema_two_requires_the_carry_forward_fields(tmp_path: Path):
+    # An omitted field in a v2 checkpoint is malformed, not empty — otherwise
+    # the version bump silently loses the state it exists to carry.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(repo, head, schema_version=2)
+
+    levels = _levels(repo)
+
+    assert levels["state:metadata"] == "FAIL"
+    assert levels["handoff:metadata"] == "FAIL"
+
+
+def test_schema_two_accepts_explicitly_empty_carry_forward(tmp_path: Path):
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(repo, head, schema_version=2, recommendations=[], parallel_work=[])
+
+    assert _levels(repo)["state:metadata"] == "PASS"
+
+
+def test_parallel_work_entry_must_name_what_and_where(tmp_path: Path):
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, recommendations=[],
+        parallel_work=[{"kind": "pr", "touches": ["gateway"]}],
+    )
+
+    levels = _levels(repo)
+
+    assert levels["state:metadata"] == "FAIL"

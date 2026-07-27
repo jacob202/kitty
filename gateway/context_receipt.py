@@ -60,6 +60,8 @@ _REQUIRED_MISSION_KEYS = {
     "authority",
 }
 _SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS = {1, 2}
+_REQUIRED_V2_CHECKPOINT_KEYS = {"parallel_work", "recommendations"}
+_REQUIRED_PARALLEL_WORK_KEYS = {"kind", "ref"}
 _RECOMMENDATION_STATUSES = {"ready", "deferred"}
 _REQUIRED_RECOMMENDATION_KEYS = {"id", "what", "status"}
 _ACTIVE_CHECKPOINT_STATUSES = {"in_progress", "blocked", "awaiting_review"}
@@ -230,6 +232,24 @@ def _load_json_comment(path: Path, marker: str) -> dict[str, Any]:
     return payload
 
 
+def _validate_parallel_work(relative_path: Path, value: Any) -> None:
+    """Each entry must at least name what the other work is and where it lives."""
+    if value is None:
+        return
+    if not isinstance(value, list):
+        raise ValueError(f"{relative_path} parallel_work must be a list")
+    for index, entry in enumerate(value):
+        where = f"{relative_path} parallel_work[{index}]"
+        if not isinstance(entry, dict):
+            raise ValueError(f"{where} must be a JSON object")
+        missing = sorted(_REQUIRED_PARALLEL_WORK_KEYS - set(entry))
+        if missing:
+            raise ValueError(f"{where} is missing keys: {missing}")
+        for key in sorted(_REQUIRED_PARALLEL_WORK_KEYS):
+            if not isinstance(entry.get(key), str) or not entry[key].strip():
+                raise ValueError(f"{where} {key} must be a non-empty string")
+
+
 def _validate_recommendations(relative_path: Path, value: Any) -> None:
     """Enforce that a deferred recommendation says how it gets released.
 
@@ -286,6 +306,16 @@ def _load_checkpoint(repo_root: Path, relative_path: Path, marker: str) -> dict[
             f"{sorted(_SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS)}, "
             f"got {payload.get('schema_version')!r}"
         )
+    if payload["schema_version"] >= 2:
+        # An omitted field in a v2 checkpoint is malformed, not empty: the whole
+        # point of the version bump is that carry-forward state is present.
+        missing_v2 = sorted(_REQUIRED_V2_CHECKPOINT_KEYS - set(payload))
+        if missing_v2:
+            raise ValueError(
+                f"{relative_path} schema_version 2 checkpoint is missing keys: {missing_v2}; "
+                "write [] rather than omitting them"
+            )
+        _validate_parallel_work(relative_path, payload.get("parallel_work"))
     _validate_recommendations(relative_path, payload.get("recommendations"))
     for key in ("completed_items", "blockers", "invalidation_conditions"):
         value = payload.get(key)

@@ -49,8 +49,10 @@ Rules for reading it:
 
 ## 2. Evaluate carried recommendations
 
-For each recommendation the survey printed under CARRIED RECOMMENDATIONS, run its
-`release_check` command:
+For each **`deferred`** recommendation the survey printed under CARRIED
+RECOMMENDATIONS, run its `release_check` command. A `ready` entry has no
+`release_check` by design — carry it forward untouched, never re-derive its
+status from a command that does not exist.
 
 - Exit 0 → it's unblocked. Promote it to `ready` and consider it for this
   session's next move.
@@ -129,10 +131,12 @@ how a session ends with zero forward motion.
 
 Every `deferred` recommendation needs a `release_check`: a shell command that
 exits 0 exactly when the blocker is gone. Prefer checks that survive a machine
-change:
+change **and the deletion of the branch they describe** — a check that resolves
+`origin/<feature-branch>` fails once the PR merges and the branch is deleted,
+which re-defers the recommendation exactly when it should have been released:
 
 ```bash
-git merge-base --is-ancestor origin/<branch> origin/main   # branch landed
+git merge-base --is-ancestor <commit-sha> origin/main      # that commit landed
 gh pr view <N> --json state -q '.state=="MERGED"' | grep -q true   # PR merged
 ./kitty builder queue show <task-id> --json | grep -q '"state": "done"'
 test -f <path>                                             # artifact exists
@@ -223,13 +227,21 @@ Write `.claude/STATE.md`. Must include the JSON frontmatter block exactly:
 <patterns or gotchas that were relevant this session — bullet list>
 ```
 
+When `invalidation_conditions` or `next_action` mention a pull request, fill in
+`pull_request` with its metadata. A null `pull_request` means the receipt never
+consults GitHub, so a merged or closed PR cannot invalidate the checkpoint and
+cold start keeps presenting a finished action as live.
+
 `recommendations` is the carry-forward channel. It is the ONLY one — do not open
 a separate notes file for future session-end runs. Reuse a recommendation's `id`
 when re-deferring it so the count is real; a new slug for the same idea resets
 the history and hides that it's been stuck for weeks.
 
 Reading an older `schema_version: 1` STATE.md is fine — it simply has no
-`recommendations` to carry. Always write version 2.
+`recommendations` to carry. Always write version 2, and always include both
+`parallel_work` and `recommendations`: write `[]` when there genuinely is
+nothing, so an omitted field reads as a malformed checkpoint rather than as an
+empty one.
 
 ## 8. Git status
 

@@ -29,15 +29,34 @@ else
 fi
 
 hr "WORKTREES"
-git worktree list 2>&1 || echo "UNAVAILABLE: git worktree list failed"
+if ! WORKTREES=$(git worktree list --porcelain 2>&1); then
+  echo "UNAVAILABLE: git worktree list failed: $WORKTREES"
+else
+  # A registration line alone hides the uncommitted edits a recommendation
+  # could collide with, so probe each worktree's status too. Read-only.
+  echo "$WORKTREES" | awk '/^worktree /{print $2}' | while IFS= read -r wt; do
+    [[ -z "$wt" ]] && continue
+    branch=$(git -C "$wt" branch --show-current 2>&1)
+    printf '%s  [%s]\n' "$wt" "$branch"
+    if ! st=$(git -C "$wt" status --short 2>&1); then
+      printf '  UNAVAILABLE: status failed: %s\n' "$st"
+    elif [[ -z "${st// /}" ]]; then
+      echo '  clean'
+    else
+      printf '%s\n' "$st" | sed 's/^/  /'
+    fi
+  done
+fi
 
 hr "UNMERGED BRANCHES vs $BASE"
 if ! git rev-parse --verify --quiet "$BASE" >/dev/null; then
   echo "UNAVAILABLE: $BASE does not exist locally — run 'git fetch origin' first."
   BRANCHES=""
 else
-  BRANCHES=$(git branch -a --no-merged "$BASE" --format='%(refname:short)' 2>/dev/null \
-    | grep -v '^origin/HEAD' | head -n "$MAX_BRANCHES")
+  ALL_BRANCHES=$(git branch -a --no-merged "$BASE" --format='%(refname:short)' 2>/dev/null \
+    | grep -v '^origin/HEAD')
+  TOTAL_BRANCHES=$(printf '%s\n' "$ALL_BRANCHES" | grep -c . || true)
+  BRANCHES=$(printf '%s\n' "$ALL_BRANCHES" | head -n "$MAX_BRANCHES")
   if [[ -z "${BRANCHES// /}" ]]; then
     echo "none — every branch is merged into $BASE"
   else
@@ -52,6 +71,11 @@ else
       shown=$((shown + 1))
     done <<< "$BRANCHES"
     [[ "$shown" -eq 0 ]] && echo "none carrying work — unmerged refs exist but none differ from $BASE"
+    # Silent truncation would let a colliding branch vanish from the survey.
+    if [[ "$TOTAL_BRANCHES" -gt "$MAX_BRANCHES" ]]; then
+      echo "TRUNCATED: $TOTAL_BRANCHES unmerged refs, only the first $MAX_BRANCHES inspected."
+      echo "           Raise MAX_BRANCHES and re-run before trusting this section."
+    fi
   fi
 fi
 
@@ -68,11 +92,22 @@ else
 fi
 
 hr "BUILDER QUEUE"
-if [[ ! -x ./kitty ]]; then
-  echo "UNAVAILABLE: ./kitty not executable from $(pwd)"
+# NOT `./kitty builder queue status`: that path calls init_db(), which creates
+# the directory and schema and runs migrations. A survey must never mutate
+# Builder's authoritative store, and an absent database is unknown state rather
+# than an empty queue. builder_status is the supported read-only projection —
+# the same one gateway/context_receipt.py uses.
+BUILDER_DB="data/kittybuilder/builder_queue.db"
+if [[ ! -f "$BUILDER_DB" ]]; then
+  echo "UNAVAILABLE: $BUILDER_DB does not exist — Builder state is unknown, not empty."
 else
-  ./kitty builder queue status --json 2>&1 | head -40 \
-    || echo "UNAVAILABLE: builder queue status failed — see error above."
+  python3 -c '
+import json, sys
+from pathlib import Path
+from gateway import builder_status
+summary = builder_status.build_control_plane_summary(db_path=Path(sys.argv[1]))
+print(json.dumps(summary.get("queue"), indent=2))
+' "$BUILDER_DB" 2>&1 || echo "UNAVAILABLE: read-only Builder projection failed — see error above."
 fi
 
 hr "CROSS-TOOL CLAIMS (~/kb/NOW.md)"
@@ -103,7 +138,7 @@ for r in recs:
     print(f"    check:   {r.get('release_check','-')}")
 PY
 else
-  echo "no previous .claude/STATE.md"
+  echo "UNAVAILABLE: .claude/STATE.md is missing — carried recommendations could not be recovered."
 fi
 
 printf '\n== END SURVEY ==\n'
