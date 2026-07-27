@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
@@ -251,6 +252,18 @@ def validate_dispatch(dispatch: Dispatch) -> list[str]:
     if dispatch.risk_class == "blocker" and not (dispatch.blocker_evidence or "").strip():
         errors.append("risk_class 'blocker' requires blocker_evidence naming the verified failure")
     return errors
+
+
+def default_db_path() -> Path:
+    """Where receipts live, resolved at call time.
+
+    ``KITTY_COMPUTE_GOVERNOR_DB`` redirects the store. An isolated worktree, an
+    Orca checkout, and a test run each need their own receipts: the allowance is
+    keyed on initiative/packet/base SHA, which collide across checkouts of the
+    same repository.
+    """
+    override = os.environ.get("KITTY_COMPUTE_GOVERNOR_DB")
+    return Path(override) if override else COMPUTE_GOVERNOR_DB
 
 
 def connect(db_path: Path | str = COMPUTE_GOVERNOR_DB) -> sqlite3.Connection:

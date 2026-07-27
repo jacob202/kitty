@@ -28,8 +28,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from gateway.paths import COMPUTE_GOVERNOR_DB
-
 # ---------------------------------------------------------------------------
 # JSON argument parsers (strict)
 # ---------------------------------------------------------------------------
@@ -1382,6 +1380,12 @@ def _cmd_initiative_record(args: argparse.Namespace) -> int:
     return 0
 
 
+def _governor_db_path(args: argparse.Namespace) -> Path:
+    from gateway.compute_governor import default_db_path
+
+    return Path(args.governor_db) if args.governor_db else default_db_path()
+
+
 def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
     from gateway.builder_attempt import AttemptError
     from gateway.builder_loop import LoopError, run_packet
@@ -1411,7 +1415,7 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
             timeout_seconds=args.timeout,
             # Governed by default at the CLI boundary: a real dispatch pays real
             # money, so the receipt check is opt-out, not opt-in.
-            governor_db=None if args.no_governor else COMPUTE_GOVERNOR_DB,
+            governor_db=None if args.no_governor else _governor_db_path(args),
             governor_override=args.governor_override,
         )
     except (LoopError, RunnerError, AttemptError, ValueError) as exc:
@@ -1462,6 +1466,9 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
             gate=args.gate,
             max_initiative_attempts=args.max_attempts,
             max_runtime_seconds=args.max_runtime,
+            # The autonomous runner is the path most likely to repeat itself:
+            # it picks the next eligible packet without a human in the loop.
+            governor_db=None if args.no_governor else _governor_db_path(args),
         )
     except (ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1867,6 +1874,7 @@ COMMANDS: list[CommandSpec] = [
                  _a("--provider", "provider identifier (metadata)"),
                  _a("--timeout", "worker timeout in seconds", type=int, default=3600),
                  _a("--no-governor", "skip the compute governor gate (spend without a receipt check)", action="store_true"),
+                 _a("--governor-db", "receipts database (default: KITTY_COMPUTE_GOVERNOR_DB, else data/compute_governor/receipts.db)", default=None),
                  _a("--governor-override", "human reason to re-authorize a pass that already settled at this base SHA"),
                  _a("--watch", "print launch, attempt, artifact, and final state updates", action="store_true"),
                  _a("--json", "output JSON", action="store_true")]),
@@ -1896,6 +1904,8 @@ COMMANDS: list[CommandSpec] = [
                  _a("--timeout", "worker timeout in seconds", type=int, default=3600),
                  _a("--publish", "run KB-S4b publish (operator-gated push + PR) on each succeeded packet", action="store_true"),
                  _a("--gate", "with --publish: 'auto' (default, CP-06 evidence-gated auto-merge + auto-revert) or 'manual' (park at awaiting_review for a human merge)", default="auto", choices=["auto", "manual"]),
+                 _a("--no-governor", "skip the compute governor gate (spend without a receipt check)", action="store_true"),
+                 _a("--governor-db", "receipts database (default: KITTY_COMPUTE_GOVERNOR_DB, else data/compute_governor/receipts.db)", default=None),
                  _a("--max-attempts", "per-initiative attempt budget; exceeding it pauses the initiative", type=int, default=None),
                  _a("--max-runtime", "per-initiative wall-clock budget (seconds); exceeding it pauses the initiative", type=int, default=None),
                  _a("--json", "output JSON", action="store_true")]),
