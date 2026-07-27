@@ -1,31 +1,114 @@
-# HANDOFF
+# Handoff — session-end survey and compute governor, both signed off, both draft
 
-## What was done this session (2026-07-27)
+<!-- kitty-handoff
+{
+  "schema_version": 2,
+  "updated_at": "2026-07-27T05:25:00Z",
+  "head_sha": "16c39cff1da34f620cf75804ca91a3ccc8d7876a",
+  "branch": "claude/session-end-recommendations-xsd0ss",
+  "worktree": ".",
+  "status": "valid",
+  "completed_items": [
+    "Hardened .agents/skills/session-end/SKILL.md: survey first, evaluate carried release checks, at most three ranked recommendations, life projects before code",
+    "Added scripts/session_end_survey.sh - read-only inventory of worktrees, unmerged branches and the paths they touch, open PRs including drafts, the Builder queue, ~/kb/NOW.md, and carried recommendations",
+    "Checkpoint schema_version 2 adds parallel_work and recommendations, enforced by gateway/context_receipt.py",
+    "Aligned the AGENTS.md session-end protocol with the skill and named the skill its authority",
+    "ADR 0022 accepted, registered as D21, docs/adr/README.md updated",
+    "Re-walked SKILL_REGISTRY.md: the heading claimed 7 skills, the table listed 6, the directory held 9",
+    "Built gateway/compute_governor.py: per-(task_type, subject_ref, head_sha) receipts, enforced dispatch descriptors, three priced routes, reserve floors, weekly local ledger",
+    "Wired the governor into run_packet, run_initiative, and both Builder CLI entry points, on by default at the CLI",
+    "Derived the weekly budget from the DeepSeek V4 snapshot prices: CAD 6.00/week",
+    "Cleared three failures inherited from origin/main: ruff on insight_loop, mypy on routes/knowledge.py, and the checkpoint JSON blocks this file restores"
+  ],
+  "blockers": [
+    "gh is not installed in this container, so the survey could not verify the open-PR queue; PR state came from the GitHub MCP tools instead",
+    "~/kb is not present in this container, so no wiki entry, INDEX line, or NOW.md update was written - this session's durable knowledge is still unextracted",
+    "DeepSeek V4 pricing could not be re-verified against the live provider page; outbound web search requires approval in this environment"
+  ],
+  "next_action": "Merge PR #276, then merge origin/main into PR #278 and resolve the AGENTS.md and gateway/ overlap.",
+  "invalidation_conditions": [
+    "HEAD changes beyond 16c39cff1da34f620cf75804ca91a3ccc8d7876a except the checkpoint commit that records this file",
+    "PR #276 or #278 merges, closes, or takes new commits",
+    "origin/main advances past 00e005b3c3bf88573b38e4448470d678d4821fce"
+  ],
+  "active_mission": "docs/ACTIVE_MISSION.md",
+  "pull_request": null
+}
+-->
 
-- Swept oldest open issues in `jacob202/kitty` (confirmed namespace via `gh repo list`; all `gh` calls used `env -u GITHUB_TOKEN` to dodge a stale ambient PAT).
-- **#158 (SSRF + path traversal, T2) — FIXED & committed** (`5490900`).
-  - `gateway/routes/capture.py`: local capture paths must resolve inside approved roots (DATA_DIR, captures, desktop, knowledge/inbox) else 403.
-  - `gateway/routes/knowledge.py`: block private/loopback/link-local/metadata IPs and non-http(s) schemes; manually follow redirects with per-hop re-validation (`MAX_REDIRECTS=5`).
-  - Added regression tests: path restriction, traversal, SSRF (localhost/metadata/non-http), and redirect-to-private-IP blocking. 30 tests pass (test_capture + test_knowledge_routes).
-  - **Left for Jacob/Codex sign-off (per issue body):** UI `dev:tailnet` 0.0.0.0 bind exposure and proxy gateway-secret injection (`gateway/kitty-chat/src/app/proxy/[...path]/route.ts`). Default `next dev` is 127.0.0.1 — safe.
-- **#159 (failed workers report completion, T2) — already fixed in code** at `f1ca471` ("fix(builder): preserve worker failure states"), with passing tests (`test_llm_failure_finishes_agent_as_failed`, `test_stop_cancels_registered_agent_task`, `test_execute_records_failed_when_worker_raises`). Recommend closing as stale-vs-code.
-- Committed `scripts/session_end_survey.sh` (user-added to the commit; was untracked/pre-existing).
+## What was done
 
-## In-flight / next move
+- `.agents/skills/session-end/SKILL.md` — rewritten. Runs `scripts/session_end_survey.sh`
+  first, evaluates each carried `release_check`, then produces at most three
+  ranked recommendations with life projects ahead of code (ADR 0016).
+- `scripts/session_end_survey.sh` — read-only field inventory. Unreachable
+  sources print `UNAVAILABLE` with a reason instead of an empty section.
+- `gateway/context_receipt.py` — checkpoint `schema_version: 2` with
+  `parallel_work` and `recommendations`. A deferred recommendation with no
+  `release_check`, or a duplicate id, fails the continuity gate.
+- `AGENTS.md` — the session-end protocol matches the skill and names it authority.
+- `docs/adr/0022-*.md` — Accepted, registered as D21.
+- `SKILL_REGISTRY.md` — re-walked; `expert-swarm` marked UNVERIFIED pending
+  Jacob's confirm rather than archived unilaterally.
+- `gateway/compute_governor.py` + `_cli.py` — receipts keyed on
+  `(task_type, subject_ref, head_sha)`, enforced dispatch descriptors, three
+  priced routes (free ladder / V4 Flash / V4 Pro), reserve floors plus an
+  affordability check, weekly local ledger. Wired into `run_packet`,
+  `run_initiative`, and both Builder CLI commands, on by default at the CLI.
 
-- **#160 (memory persistence, T1/T2) — FIXED & committed** (`9d6b841`). Root cause: `consolidate_session` existed but its persistence was only proven via a mock in `test_chat_completions.py` — the heavy Mem0 path needs a live LLM+embedder, so a *closed session* never provably persisted. Added `SESSION_CONSOLIDATION_LOG` (JSONL) written by `consolidate_session` on every close (incl. empty sessions), independent of Mem0. `dream_insights`/`save_dream_insights` already persisted to a real file with solid tests, so it was non-no-op already. Added 2 tests proving the record is written. 44 tests pass (test_memory + test_dream_insights + test_chat_completions).
-- #161 (e2e move-in test) depends on #160.
-- #127 (KittyBuilder queue) is a standing workflow command — likely stale, verify before acting.
-- #270 / #274 are newer initiatives already in flight (see kb NOW.md).
+## In-flight / WIP
+
+- PR #276 (this branch) and PR #278 (`claude/compute-governor-receipts`), both
+  draft, both signed off by Jacob in a comment (GitHub blocks owner
+  self-approval, so there is no formal review approval on either).
+
+## Other work in flight (not mine)
+
+- `origin/main` advanced to `00e005b` mid-session with `gateway/insight_loop.py`
+  and a rewritten checkpoint pair from another session. That work is theirs;
+  only its CI breakage was touched here.
 
 ## Blockers
 
-- None technical. #158's LAN/tailnet exposure + proxy secret need human sign-off before fully closing.
+- `gh` is not installed in this container. The survey's PR section reports
+  `UNAVAILABLE`; PR state came from the GitHub MCP tools.
+- `~/kb` is absent, so no wiki entry, INDEX line, or NOW.md update was written.
+- DeepSeek V4 pricing could not be re-verified against the live page; outbound
+  web search needs approval here.
 
-## Files changed
+## Next move
 
-- `gateway/routes/capture.py` (path allow-list) — committed 5490900
-- `gateway/routes/knowledge.py` (SSRF + redirect re-validation) — committed 5490900
-- `tests/test_capture.py` (+2 regression tests) — committed 5490900
-- `tests/test_knowledge_routes.py` (+6 SSRF tests, FakeStreamResponse fix) — committed 5490900
-- `scripts/session_end_survey.sh` — committed 78571d2
+Merge PR #276. Then merge `origin/main` into PR #278 and resolve the
+`AGENTS.md` and `gateway/` overlap.
+
+## Deferred, and what releases them
+
+- `extract-session-kb` — write the ~/kb wiki entry and INDEX line — blocked by
+  `~/kb` being absent here — unblocks when `test -d ~/kb` exits 0.
+- `rebase-278-onto-276` — merge main into #278 and resolve the overlap —
+  blocked by #276 not merging — unblocks when
+  `git merge-base --is-ancestor origin/claude/session-end-recommendations-xsd0ss origin/main`
+  exits 0.
+
+## Files changed this session
+
+- `.agents/skills/session-end/SKILL.md`, `scripts/session_end_survey.sh`
+- `AGENTS.md`, `SKILL_REGISTRY.md`, `docs/FREE_WORKERS.md`
+- `docs/adr/0022-session-end-carry-forward-recommendations.md`, `docs/adr/README.md`, `docs/DECISIONS.md`
+- `gateway/context_receipt.py`, `tests/test_context_receipt.py`
+- `gateway/compute_governor.py`, `gateway/compute_governor_cli.py`, `tests/test_compute_governor.py`
+- `gateway/builder_loop.py`, `gateway/builder_run.py`, `gateway/builder_cli.py`, `tests/test_builder_loop.py`, `tests/conftest.py`
+- `gateway/paths.py`, `kitty`, `config/compute_governor.json`
+- Inherited-breakage fixes: `gateway/insight_loop.py`, `tests/test_insight_loop.py`, `gateway/routes/knowledge.py`
+
+## Verification
+
+- `pytest tests/ -q` on #278: 3103 passed, 7 failed. Five are the pre-existing
+  canonical-path failures (`test_check_continuity_state`, `test_resume_script`),
+  which reproduce on the unmodified tree; the sixth and seventh were the
+  inherited cold-start acceptance failure this checkpoint pair fixes.
+- `pytest tests/test_compute_governor.py tests/test_builder_loop.py -q`: 100 passed.
+- `ruff check gateway/ tests/ mcp/`: clean. `mypy gateway/ mcp/`: clean of
+  errors in every file this session touched.
+- `bash scripts/session_end_survey.sh`: ran end to end; `gh` and `~/kb` correctly
+  reported `UNAVAILABLE`.
