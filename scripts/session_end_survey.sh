@@ -58,8 +58,12 @@ if ! git rev-parse --verify --quiet "$BASE" >/dev/null; then
   echo "UNAVAILABLE: $BASE does not exist locally — run 'git fetch origin' first."
   BRANCHES=""
 else
-  ALL_BRANCHES=$(git branch -a --no-merged "$BASE" --format='%(refname:short)' 2>/dev/null \
-    | grep -v '^origin/HEAD')
+  # An enumeration failure must not read as "everything is merged".
+  if ! RAW_BRANCHES=$(git branch -a --no-merged "$BASE" --format='%(refname:short)' 2>&1); then
+    echo "UNAVAILABLE: cannot enumerate branches against $BASE: $RAW_BRANCHES"
+    RAW_BRANCHES=""
+  fi
+  ALL_BRANCHES=$(printf '%s\n' "$RAW_BRANCHES" | grep -v '^origin/HEAD' || true)
   TOTAL_BRANCHES=$(printf '%s\n' "$ALL_BRANCHES" | grep -c . || true)
   BRANCHES=$(printf '%s\n' "$ALL_BRANCHES" | head -n "$MAX_BRANCHES")
   if [[ -z "${BRANCHES// /}" ]]; then
@@ -123,7 +127,12 @@ hr "BUILDER QUEUE"
 # Builder's authoritative store, and an absent database is unknown state rather
 # than an empty queue. builder_status is the supported read-only projection —
 # the same one gateway/context_receipt.py uses.
-BUILDER_DB="data/kittybuilder/builder_queue.db"
+# Builder's database lives in the canonical checkout's untracked data/ dir.
+# `git worktree` does not populate that, so a relative path from an isolated
+# Orca worktree would report Builder unavailable while the real queue has work.
+CANONICAL_ROOT=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)")
+[[ -z "$CANONICAL_ROOT" || "$CANONICAL_ROOT" == "." ]] && CANONICAL_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+BUILDER_DB="$CANONICAL_ROOT/data/kittybuilder/builder_queue.db"
 if [[ ! -f "$BUILDER_DB" ]]; then
   echo "UNAVAILABLE: $BUILDER_DB does not exist — Builder state is unknown, not empty."
 else

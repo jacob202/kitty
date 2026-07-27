@@ -580,24 +580,6 @@ def test_pr_head_may_lag_by_the_checkpoint_commit_itself(tmp_path: Path):
     assert levels["handoff:pull_request"] == "PASS"
 
 
-def test_pr_head_lagging_by_real_work_still_fails(tmp_path: Path):
-    # The allowance is narrow: a commit touching anything but the checkpoint
-    # files means the recorded PR head is genuinely stale.
-    repo, head = _repo(tmp_path)
-    _write_checkpoint_pair(repo, head, pull_request={"number": 276, "state": "OPEN", "head_sha": head})
-    _write(repo / "gateway/thing.py", "x = 1\n")
-    _git(repo, "add", ".")
-    _git(repo, "commit", "-m", "feat: real work")
-    live_head = _git(repo, "rev-parse", "HEAD")
-
-    levels = _levels(
-        repo,
-        github_lookup=lambda _number: {"state": "OPEN", "headRefOid": live_head},
-    )
-
-    assert levels["state:pull_request"] == "FAIL"
-
-
 def test_a_ready_recommendation_may_not_keep_blocker_fields(tmp_path: Path):
     # A stale blocked_by left behind on promotion reads as a live blocker.
     repo, head = _repo(tmp_path)
@@ -617,3 +599,60 @@ def test_a_recommendation_without_a_class_is_rejected(tmp_path: Path):
     _write_checkpoint_pair(repo, head, schema_version=2, parallel_work=[], recommendations=[entry])
 
     assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_pr_head_may_lag_by_ordinary_advancement(tmp_path: Path):
+    # A recorded PR head is what the head WAS, not a claim about what it is.
+    # Requiring currency made a checkpoint that names its own PR impossible:
+    # committing it moves the head, and so does every later push.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(repo, head, pull_request={"number": 276, "state": "OPEN", "head_sha": head})
+    _write(repo / "gateway/thing.py", "x = 1\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "feat: more work on the same PR")
+    live_head = _git(repo, "rev-parse", "HEAD")
+
+    levels = _levels(
+        repo, github_lookup=lambda _n: {"state": "OPEN", "headRefOid": live_head}
+    )
+
+    assert levels["state:pull_request"] == "PASS"
+
+
+def test_pr_head_orphaned_by_a_force_push_still_fails(tmp_path: Path):
+    # Not-an-ancestor means the recorded commit is gone from the PR's history.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(repo, head, pull_request={"number": 276, "state": "OPEN", "head_sha": head})
+
+    levels = _levels(
+        repo, github_lookup=lambda _n: {"state": "OPEN", "headRefOid": "0" * 40}
+    )
+
+    assert levels["state:pull_request"] == "FAIL"
+
+
+def test_life_work_ranked_below_code_work_is_rejected(tmp_path: Path):
+    # ADR 0016 is an ordering rule, so it cannot be checked one entry at a time.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, parallel_work=[],
+        recommendations=[
+            _recommendation(id="ship-the-feature", **{"class": "code"}),
+            _recommendation(id="reply-to-odsp", **{"class": "life"}),
+        ],
+    )
+
+    assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_life_work_ranked_first_is_accepted(tmp_path: Path):
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, parallel_work=[],
+        recommendations=[
+            _recommendation(id="reply-to-odsp", **{"class": "life"}),
+            _recommendation(id="ship-the-feature", **{"class": "code"}),
+        ],
+    )
+
+    assert _levels(repo)["state:metadata"] == "PASS"

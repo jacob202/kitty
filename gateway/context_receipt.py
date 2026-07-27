@@ -291,6 +291,7 @@ def _validate_recommendations(relative_path: Path, value: Any) -> None:
             f"contract allows at most {_MAX_RECOMMENDATIONS} ranked next steps"
         )
     seen: set[str] = set()
+    saw_code = False
     for index, entry in enumerate(value):
         where = f"{relative_path} recommendations[{index}]"
         if not isinstance(entry, dict):
@@ -301,6 +302,8 @@ def _validate_recommendations(relative_path: Path, value: Any) -> None:
         for key in ("id", "what", "why"):
             if not isinstance(entry.get(key), str) or not entry[key].strip():
                 raise ValueError(f"{where} {key} must be a non-empty string")
+        if not isinstance(entry["class"], str):
+            raise ValueError(f"{where} class must be a string")
         if entry["class"] not in _RECOMMENDATION_CLASSES:
             raise ValueError(
                 f"{where} class must be one of {sorted(_RECOMMENDATION_CLASSES)}, "
@@ -312,6 +315,13 @@ def _validate_recommendations(relative_path: Path, value: Any) -> None:
                 "deferred_count stays truthful"
             )
         seen.add(entry["id"])
+        if entry["class"] == "life" and saw_code:
+            raise ValueError(
+                f"{where} is life work ranked below code work; life projects come "
+                "first (ADR 0016)"
+            )
+        if entry["class"] == "code":
+            saw_code = True
         if not isinstance(entry["status"], str):
             raise ValueError(f"{where} status must be a string")
         if entry["status"] not in _RECOMMENDATION_STATUSES:
@@ -727,19 +737,33 @@ def _checkpoint_checks(
             else:
                 live_state = live.get("state")
                 live_head = live.get("headRefOid")
-                # Recording the PR head is self-referential: committing the
-                # checkpoint moves the head past the value it just wrote, so
-                # strict equality can never hold for the commit that carries the
-                # checkpoint. Accept the recorded head when the only commits
-                # between it and the live head are checkpoint-only — the same
-                # rule the HEAD check already applies.
+                # `pull_request.head_sha` records what the PR's head WAS when the
+                # checkpoint was written. It cannot record what the head will be:
+                # committing the checkpoint moves the head past it, and so does
+                # every later push. Requiring currency here made a checkpoint that
+                # names its own PR permanently invalid, and narrowing the
+                # allowance to checkpoint-only commits only delayed that by one
+                # commit.
+                #
+                # What actually invalidates the claim is the PR's STATE changing,
+                # or the recorded commit no longer being in the PR's history at
+                # all (a force-push or rebase orphaned it). Ordinary advancement
+                # is not a contradiction — the checkpoint's own `head_sha` field
+                # is what tracks staleness of its content.
                 head_ok = live_head == expected_head
                 head_detail = ""
                 if not head_ok and isinstance(live_head, str) and live_head:
-                    fresh, head_detail = _checkpoint_head_is_fresh(
-                        repo_root, str(expected_head), live_head
+                    ancestor = _git(
+                        repo_root,
+                        ["merge-base", "--is-ancestor", str(expected_head), live_head],
+                        required=False,
                     )
-                    head_ok = fresh
+                    head_ok = ancestor.returncode == 0
+                    head_detail = (
+                        f"PR advanced from the recorded {str(expected_head)[:12]}"
+                        if head_ok
+                        else f"recorded {str(expected_head)[:12]} is not in PR #{number}'s history"
+                    )
                 if live_state != expected_state or not head_ok:
                     checks.append(
                         ContinuityCheck(
