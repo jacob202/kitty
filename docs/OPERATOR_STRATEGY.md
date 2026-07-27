@@ -259,8 +259,11 @@ document per project.
 
 Route by task class, not vibes — extending `domain_router`:
 
-- **Local models (MLX):** persona chat, triage classification, summarization
-  of private material that shouldn't leave the machine.
+- ~~**Local models (MLX):** persona chat, triage classification, summarization
+  of private material that shouldn't leave the machine.~~ **Aspirational, not
+  built** — [ADR 0022](adr/0022-retire-privacy-boundary.md). Persona chat,
+  triage and summarization all run on cloud models. The only live MLX path is
+  `POST /knowledge/expert`.
 - **Sonnet-class cloud:** drafting (emails, briefs, summaries), routine
   enrichment where quality matters and content is approved to leave.
 - **Opus/Fable-class:** planning, architecture, strategy, packet authoring,
@@ -312,9 +315,9 @@ The loops, named:
 - **Action-on-behalf loop:** signal or capture arrives → triage → action
   proposed with preview + tier → auto (T0) / draft (T1) / approval (T2) →
   execute → record result → surface in "what changed."
-- **Tool-routing loop:** task classified → local vs. cloud vs. executor
-  decision (with the privacy boundary applied) → run → result and cost
-  recorded (token accounting already exists in `token_usage_log.py`).
+- **Tool-routing loop:** task classified → model tier chosen → run → result
+  and cost recorded (token accounting already exists in `token_usage_log.py`).
+  There is no privacy boundary in this decision; ADR 0022 retired it.
 
 ---
 
@@ -408,11 +411,14 @@ and friends move behind a "system" view — they're operator tooling, not home.
 
 (Defined in §5.9; the operating rules:)
 
-- Routing is a table, not folklore: task class → allowed tiers of model →
-  privacy class of data it may carry. Lives in config, versioned.
-- Local-first is a default with teeth: triage, persona, and private-material
+- Routing is a table, not folklore: task class → allowed tiers of model.
+  Lives in config, versioned. (The "privacy class of data it may carry"
+  column is retired — ADR 0022.)
+- ~~Local-first is a default with teeth: triage, persona, and private-material
   summarization run local; if the local model is down, those tasks fail loud
-  rather than silently escalating to cloud.
+  rather than silently escalating to cloud.~~ **Never implemented; retired by
+  [ADR 0022](adr/0022-retire-privacy-boundary.md).** These run on cloud models.
+  The fail-loud-on-local-down pattern survives only in `/knowledge/expert`.
 - Cloud reasoning (Sonnet/Opus/Fable-class) is for drafting, planning, and
   strategy — content either non-sensitive or explicitly approved to leave.
 - Code executors receive packets, not conversations. A packet = title,

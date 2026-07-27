@@ -17,10 +17,13 @@ Gemini → NVIDIA. Keys come from the environment or .env.
 Exit codes are a contract the caller relies on (see
 .claude/skills/second-opinion/SKILL.md):
   0  an opinion was produced
-  2  expected unavailability — no key, or every provider unreachable
-  3  a defect in this script — a malformed provider payload, a bug. Never
-     silently skipped: an unusable provider and a broken script must not
-     look the same to the caller.
+  2  expected unavailability — no key set, or every provider unreachable:
+     transport failure, 401/403, 408, 429, or 5xx. Retrying later or fixing
+     a key resolves these.
+  3  a defect in this script or its config — a malformed provider payload,
+     or a deterministic 4xx such as a bad model name. These fail identically
+     forever, so they must never be skipped as if a provider were merely
+     down.
 """
 
 import os
@@ -68,6 +71,26 @@ def _load_dotenv() -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
+def _is_unavailability(exc: "requests.RequestException") -> bool:
+    """True when the provider is unreachable or temporarily unusable.
+
+    Transport errors (no response at all), auth rejections, rate limits, and
+    5xx are unavailability — retrying later or fixing a key resolves them.
+
+    A deterministic 4xx (bad model name, malformed request schema) is a defect
+    in this script or its config: it will fail identically forever. Skipping
+    that silently would hide a permanently broken integration behind the same
+    exit code as "no API key", so it must reach exit 3.
+    """
+    resp = getattr(exc, "response", None)
+    status = getattr(resp, "status_code", None)
+    if status is None:
+        return True  # no response: connection, DNS, timeout
+    if status in (401, 403, 408, 429) or status >= 500:
+        return True
+    return False
+
+
 def _openai_compatible(base: str, key: str, model: str, question: str) -> str:
     try:
         resp = requests.post(
@@ -85,6 +108,8 @@ def _openai_compatible(base: str, key: str, model: str, question: str) -> str:
         )
         resp.raise_for_status()
     except requests.RequestException as exc:
+        if not _is_unavailability(exc):
+            raise
         raise ProviderUnavailable(str(exc)) from exc
     # Decoding is deliberately outside the try: requests.exceptions.JSONDecodeError
     # subclasses RequestException, and a malformed body is a defect, not an
@@ -106,6 +131,8 @@ def _gemini(key: str, question: str) -> str:
         )
         resp.raise_for_status()
     except requests.RequestException as exc:
+        if not _is_unavailability(exc):
+            raise
         raise ProviderUnavailable(str(exc)) from exc
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
 
