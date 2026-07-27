@@ -2,7 +2,7 @@
 
 <!-- kitty-handoff
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "updated_at": "2026-07-27T05:25:00Z",
   "head_sha": "16c39cff1da34f620cf75804ca91a3ccc8d7876a",
   "branch": "claude/session-end-recommendations-xsd0ss",

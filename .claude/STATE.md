@@ -2,7 +2,7 @@
 
 <!-- kitty-state
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "updated_at": "2026-07-27T05:25:00Z",
   "head_sha": "16c39cff1da34f620cf75804ca91a3ccc8d7876a",
   "branch": "claude/session-end-recommendations-xsd0ss",
@@ -31,14 +31,28 @@
       "kind": "pr",
       "ref": "#276",
       "owner": "this session",
-      "touches": [".agents", "AGENTS.md", "SKILL_REGISTRY.md", "docs", "gateway", "scripts"],
+      "touches": [
+        ".agents",
+        "AGENTS.md",
+        "SKILL_REGISTRY.md",
+        "docs",
+        "gateway",
+        "scripts"
+      ],
       "observed_at": "2026-07-27T05:20:00Z"
     },
     {
       "kind": "pr",
       "ref": "#278",
       "owner": "this session",
-      "touches": ["AGENTS.md", "config", "docs", "gateway", "kitty", "tests"],
+      "touches": [
+        "AGENTS.md",
+        "config",
+        "docs",
+        "gateway",
+        "kitty",
+        "tests"
+      ],
       "observed_at": "2026-07-27T05:20:00Z"
     }
   ],
