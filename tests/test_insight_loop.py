@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from gateway import action_queue, insight_loop, signal_store, todo_store
 from gateway import db as kitty_db
-from gateway.paths import ACTION_TIERS_FILE
 
 
 @pytest.fixture(autouse=True)
@@ -304,7 +301,7 @@ class TestGetMetrics:
     def test_counts_by_status_and_category(self) -> None:
         a = insight_loop.capture(text="a", category="task", explicit_consent=True)
         b = insight_loop.capture(text="b", category="task", explicit_consent=True)
-        c = insight_loop.capture(text="c", category="reference", explicit_consent=True)
+        insight_loop.capture(text="c", category="reference", explicit_consent=True)
         insight_loop.mark_returned(a)
         insight_loop.respond(a, "act")
         insight_loop.mark_returned(b)
