@@ -8,9 +8,11 @@ Nothing here writes to mem0, memory_graph, or the SQLite spine. The
 output is a review file. Approval into always-on memory is out of scope
 for phase 1 (packet 024 phases 2–3).
 
-Privacy: cloud tier is refused. This is a local-first mine — recovery /
-mental-health / grief material must never leak to a cloud model just
-because the source transcript mentioned it.
+Privacy: **this sends transcript text to a cloud model.** ADR 0022 retired
+the D10 local-only boundary, so the refuse-cloud guard this module used to
+carry is gone. Recovery, mental-health and grief material in a source
+transcript WILL reach the configured provider. Choose sources accordingly —
+nothing here filters them.
 
 Usage:
     python3 -m scripts.curation.extract_chat_goldmine \\
@@ -229,13 +231,13 @@ class ExtractionParseError(RuntimeError):
 
 # ── LLM adapter ──────────────────────────────────────────────────────────────
 
-def _gateway_llm(privacy_tier: str) -> Callable[[list[dict], str], str]:
-    """Return a callable that hits the gateway's LLM hub with strict-JSON format."""
-    if privacy_tier != "local":
-        raise SystemExit(
-            "refusing non-local privacy tier. transcripts may contain "
-            "sensitive personal material; keep the mine local."
-        )
+def _gateway_llm() -> Callable[[list[dict], str], str]:
+    """Return a callable that hits the gateway's LLM hub with strict-JSON format.
+
+    ADR 0022 retired the D10 local-only tier, so this reaches a cloud provider.
+    Transcripts can hold sensitive personal material — that is now an accepted
+    property of running the mine, not something this function prevents.
+    """
     from gateway.llm_client import call_llm  # noqa: PLC0415  # local so --dry-run works standalone
 
     def _call(messages: list[dict], model: str) -> str:
@@ -246,8 +248,6 @@ def _gateway_llm(privacy_tier: str) -> Callable[[list[dict], str], str]:
             max_tokens=3000,
             response_format={"type": "json_object"},
             operation="idea_mine.extract",
-            privacy_tier="local",
-            content_class="journal",
         )
 
     return _call
@@ -286,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{c.source} :: {c.title or '(untitled)'} :: {len(c.text)} chars")
         return 0
 
-    llm = _gateway_llm(privacy_tier="local")
+    llm = _gateway_llm()
     out_path = args.out or _default_out_path()
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

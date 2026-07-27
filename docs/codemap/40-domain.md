@@ -50,18 +50,22 @@ any client. The capture path is durable without the gateway being up.
 (mail, web monitor) and emits deduped signal rows. No webhooks, no push.
 
 **Expert pack** — a curated knowledge base for a specific domain (car,
-body, etc.) indexed in ChromaDB. The expert retrieval path is local-only
-per [ADR-0011](../adr/0011-privacy-boundary-in-llm-router.md).
+body, etc.) indexed in ChromaDB. The expert retrieval path still runs on
+the local MLX loopback — now a deliberate implementation choice, not a
+privacy mandate, since [ADR-0022](../adr/0022-retire-privacy-boundary.md)
+retired ADR-0011.
 
 **Inbox** — `data/inbox.jsonl`. Append-only, line-oriented, the capture
 contract. Downstream code promotes inbox entries into richer stores
 (todos, signals, journal).
 
-**Journal** — Kitty's reflective log. Local-only content class; never
-sent to cloud models.
+**Journal** — Kitty's reflective log. Journal text is sent to cloud
+models like any other content; the local-only class it used to carry was
+retired by [ADR-0022](../adr/0022-retire-privacy-boundary.md).
 
 **Knowledge** — the long-term reference corpus. Vectors live in
-ChromaDB; the source excerpts are local-only content class.
+ChromaDB. Source excerpts are read by the local MLX expert path, but they
+carry no local-only guarantee — that content class is retired.
 
 **Memory** — the personal semantic memory layer (mem0). Used for
 "remember this" facts that should resurface in future prompts.
@@ -71,10 +75,11 @@ ChromaDB; the source excerpts are local-only content class.
 spec_candidate, active_packet, after_move_in, parked, reject) and a
 visible demo contract.
 
-**Privacy boundary** — the rule that journal, mail-body, health-admin,
-and uploaded-document content never reaches a cloud model, even when a
-cloud model would otherwise be fine for the call. Enforced in
-`call_llm` ([ADR-0011](../adr/0011-privacy-boundary-in-llm-router.md)).
+**Privacy boundary** — *retired.* It named a rule that journal,
+mail-body, health-admin and uploaded-document content never reached a
+cloud model. `call_llm` never actually implemented the routing, and
+[ADR-0022](../adr/0022-retire-privacy-boundary.md) dropped the claim
+rather than build it. Kitty makes no local-only data guarantee.
 
 **Project** — a long-running initiative that Kitty tracks. Has a
 `resume()` composer that returns its current state. Cross-project

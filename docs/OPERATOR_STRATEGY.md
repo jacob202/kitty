@@ -259,8 +259,11 @@ document per project.
 
 Route by task class, not vibes — extending `domain_router`:
 
-- **Local models (MLX):** persona chat, triage classification, summarization
-  of private material that shouldn't leave the machine.
+- ~~**Local models (MLX):** persona chat, triage classification, summarization
+  of private material that shouldn't leave the machine.~~ **Aspirational, not
+  built** — [ADR 0022](adr/0022-retire-privacy-boundary.md). Persona chat,
+  triage and summarization all run on cloud models. The only live MLX path is
+  `POST /knowledge/expert`.
 - **Sonnet-class cloud:** drafting (emails, briefs, summaries), routine
   enrichment where quality matters and content is approved to leave.
 - **Opus/Fable-class:** planning, architecture, strategy, packet authoring,
@@ -269,9 +272,12 @@ Route by task class, not vibes — extending `domain_router`:
   they receive **executor-ready packets** (title, scope, files, acceptance,
   verification) generated from the action queue, and their output comes back
   as PRs through normal CI + review.
-- A privacy boundary rides the router: data classes (email bodies, journal,
+- ~~A privacy boundary rides the router: data classes (email bodies, journal,
   health/admin docs) are tagged local-only unless the specific task's
-  approval says otherwise. This is decision D-privacy (§17).
+  approval says otherwise. This is decision D-privacy (§17).~~
+  **Retired 2026-07-27 by [ADR 0022](adr/0022-retire-privacy-boundary.md).**
+  The boundary only ever raised on an explicit opt-in string and never routed
+  anything locally; Kitty makes no local-only data guarantee.
 
 ### 5.10 Interface model
 
@@ -309,9 +315,9 @@ The loops, named:
 - **Action-on-behalf loop:** signal or capture arrives → triage → action
   proposed with preview + tier → auto (T0) / draft (T1) / approval (T2) →
   execute → record result → surface in "what changed."
-- **Tool-routing loop:** task classified → local vs. cloud vs. executor
-  decision (with the privacy boundary applied) → run → result and cost
-  recorded (token accounting already exists in `token_usage_log.py`).
+- **Tool-routing loop:** task classified → model tier chosen → run → result
+  and cost recorded (token accounting already exists in `token_usage_log.py`).
+  There is no privacy boundary in this decision; ADR 0022 retired it.
 
 ---
 
@@ -405,11 +411,14 @@ and friends move behind a "system" view — they're operator tooling, not home.
 
 (Defined in §5.9; the operating rules:)
 
-- Routing is a table, not folklore: task class → allowed tiers of model →
-  privacy class of data it may carry. Lives in config, versioned.
-- Local-first is a default with teeth: triage, persona, and private-material
+- Routing is a table, not folklore: task class → allowed tiers of model.
+  Lives in config, versioned. (The "privacy class of data it may carry"
+  column is retired — ADR 0022.)
+- ~~Local-first is a default with teeth: triage, persona, and private-material
   summarization run local; if the local model is down, those tasks fail loud
-  rather than silently escalating to cloud.
+  rather than silently escalating to cloud.~~ **Never implemented; retired by
+  [ADR 0022](adr/0022-retire-privacy-boundary.md).** These run on cloud models.
+  The fail-loud-on-local-down pattern survives only in `/knowledge/expert`.
 - Cloud reasoning (Sonnet/Opus/Fable-class) is for drafting, planning, and
   strategy — content either non-sensitive or explicitly approved to leave.
 - Code executors receive packets, not conversations. A packet = title,
@@ -832,11 +841,13 @@ Each week ends shippable; no packet depends on a later one.
 2. **Connector shape:** all external feeds are cron-polled adapters emitting
    deduped signal rows; no webhooks, no push, no per-connector bespoke
    tables. `web_monitor.py`'s private DB is grandfathered until it migrates.
-3. **Privacy boundary in the router:** define data classes (journal, mail
+3. ~~**Privacy boundary in the router:** define data classes (journal, mail
    bodies, health/admin docs = local-only by default; calendar titles,
    todo text = cloud-permitted) and enforce at `llm_client` routing, not by
-   convention. This is the decision that keeps "local-first" true once cloud
-   models do the drafting.
+   convention.~~ **Retired 2026-07-27 by
+   [ADR 0022](adr/0022-retire-privacy-boundary.md).** It shipped as a label,
+   not a route — the "local" tier called cloud models for the whole time it
+   existed. Jacob chose to drop the claim rather than build the route.
 
 ## 18. What not to build yet
 

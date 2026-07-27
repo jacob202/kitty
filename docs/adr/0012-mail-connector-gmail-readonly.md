@@ -1,7 +1,11 @@
 # ADR-0012: Mail Connector Uses The Gmail API, Read-Only
 
-**Status:** Accepted
+**Status:** Accepted; `mail_body` local-only clause retired 2026-07-27 by [ADR 0022](0022-retire-privacy-boundary.md)
 **Date:** 2026-07-02 (decided by Jacob; §16.2 in `docs/OPERATOR_STRATEGY.md`)
+
+> **Partial supersession.** The read-only Gmail scope below still stands. The
+> `mail_body` = local-only clause does not: it depended on ADR 0011, which ADR
+> 0022 retired. Mail bodies may reach cloud LLMs.
 
 ## Context
 
@@ -26,10 +30,12 @@ What this commits to:
 - Read-only scope (`gmail.readonly`). Sending stays off the table
   until the action queue has earned trust (per §16.2 — draft-only
   regardless of transport).
-- Mail **bodies are `mail_body` class = local-only** under
+- ~~Mail **bodies are `mail_body` class = local-only** under
   ADR-0011. The Gmail API fetches them, but they must not be
   routed to cloud LLMs. Fetching via Google was accepted;
-  processing stays local.
+  processing stays local.~~ **Retired by ADR 0022** — there is no
+  local-only class any more, and `mail_body` processing may use a
+  cloud model. The read-only fetch scope is unaffected.
 - Connector shape follows §17.2: cron-polled adapter emitting
   deduped signal rows. No webhooks, no push.
 

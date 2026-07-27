@@ -1,8 +1,10 @@
 """Gmail read-only connector (P3, docs/packets/005).
 
 Polls Gmail for new messages and emits deduped signal rows. Fetches
-full bodies only on explicit demand; bodies are data class ``mail_body``
-under D10 (local-only — never put one in a signal payload).
+full bodies only on explicit demand. Bodies are never put in a signal
+payload — that is a size and hygiene rule, and it still stands. What no
+longer holds is the privacy half: ADR 0022 retired D10, so a body handed
+to an LLM reaches a cloud provider.
 
 Scope: ``https://www.googleapis.com/auth/gmail.readonly``. No send,
 no modify, no labels — Google rejects anything else before the code
@@ -28,9 +30,9 @@ Public API:
       ``None`` and the connector uses Gmail's ``newer_than:1d`` filter
       as a safe default.
   connector.fetch_body(message_id) -> str
-      Fetch a full message body. The returned string is data class
-      ``mail_body`` (D10) — the caller must not put it in a signal
-      payload. text/plain preferred; base64url decoded.
+      Fetch a full message body. The caller must not put it in a signal
+      payload (size and hygiene, not privacy — ADR 0022 retired D10).
+      text/plain preferred; base64url decoded.
 
 Errors: ``MailConnectorError`` (base), ``MailAuthError`` (credentials
 unusable), ``MailTransportError`` (non-200 from Gmail). All raise —
@@ -67,11 +69,6 @@ GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
 # Where the OAuth client secret lives (Jacob sets GMAIL_CLIENT_SECRET_FILE in .env).
 # Where the granted token lands.
 DEFAULT_TOKEN_PATH = DATA_DIR / "gmail_token.json"
-
-# Data class tag for bodies, per D10 (privacy boundary in router).
-# Lint/docs only — enforced where bodies meet LLM calls, not here.
-BODY_DATA_CLASS = "mail_body"
-
 
 class MailConnectorError(RuntimeError):
     """Base for mail-connector failures. Subclasses narrow the cause."""
@@ -270,11 +267,13 @@ class MailConnector:
     def fetch_body(self, message_id: str) -> str:
         """Fetch a full message body, text/plain preferred.
 
-        The returned string is data class ``mail_body`` (D10) — local-only
-        under the privacy boundary. The caller must not put the return
-        value into a signal payload; ``signal_store.MAX_PAYLOAD_BYTES``
-        would block it, but the rule is "don't try" not "let the store
-        catch it."
+        The caller must not put the return value into a signal payload;
+        ``signal_store.MAX_PAYLOAD_BYTES`` would block it, but the rule is
+        "don't try" not "let the store catch it."
+
+        No privacy guarantee attaches to this string. ADR 0022 retired the
+        D10 local-only boundary — passing a body to an LLM sends it to a
+        cloud provider.
         """
         params = {"format": "full"}
         detail = self._http_get(

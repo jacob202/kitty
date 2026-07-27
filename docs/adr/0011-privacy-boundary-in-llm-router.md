@@ -1,7 +1,12 @@
 # ADR-0011: Privacy Boundary In The LLM Router
 
-**Status:** Accepted
+**Status:** Superseded by [ADR 0022](0022-retire-privacy-boundary.md) (2026-07-27)
 **Date:** 2026-07-02 (from `docs/OPERATOR_STRATEGY.md` §17.3, via packet 012)
+
+> **Superseded.** The enforcement described below was only ever half-built:
+> `privacy_tier="local"` never selected a local model, so the four "local-only"
+> classes reached cloud providers throughout this ADR's life. ADR 0022 retires
+> the boundary rather than completing it. Read this file as history.
 
 ## Context
 
