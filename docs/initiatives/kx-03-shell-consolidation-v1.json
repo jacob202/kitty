@@ -14,7 +14,7 @@
         "src/lib/views.ts exports the typed registry consumed by Rail, BottomNav, and CommandPalette from one source",
         "All 14 existing views remain reachable and render identically (screenshot diff noted in PR)",
         "Non-active surfaces are code-split (verify via next build output showing separate chunks)",
-        "make ui-test passes; npm run build passes"
+        "make ui-test passes; make ui-build passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/app/page.tsx",
@@ -39,7 +39,7 @@
         "images/studio render as one Studio surface; providers reachable only under Settings",
         "Terminal drawer opens from any surface via TerminalStrip and a palette command",
         "All old activeView ids resolve (redirect) rather than 404 or blank-render",
-        "make ui-test passes; npm run build passes; screenshot of rail + each merged surface attached to PR"
+        "make ui-test passes; make ui-build passes; screenshot of rail + each merged surface attached to PR"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/lib/views.ts",
@@ -59,7 +59,7 @@
         "Repo root contains no 'tokens 2.css', no design zip/tarball, no 'KITTY 2.md', no PLAN.html",
         "A written diff summary of tokens.css vs 'tokens 2.css' appears in the PR body with the merge decision per delta",
         "globals.css theme variables provably trace to design-system/tokens.css (import or generation marker)",
-        "npm run build passes; UI renders identically (screenshot diff noted in PR)"
+        "make ui-build passes; UI renders identically (screenshot diff noted in PR)"
       ],
       "allowed_paths": [
         "tokens 2.css",
@@ -83,7 +83,7 @@
         "Unit tests assert the two forbidden combinations cannot occur",
         "State visibly transitions during a real chat stream and a failed request in the smoke run",
         "Reduced-motion disables blink/animation loops",
-        "make ui-test passes; npm run build passes"
+        "make ui-test passes; make ui-build passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/CrayonCat.tsx",
