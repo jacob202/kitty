@@ -13,8 +13,8 @@
 
 ## In-flight / next move
 
-- **#160 (memory persistence, T1/T2) — FIXED & committed** (`9d6b841`). Root cause: `consolidate_session` existed but its persistence was only proven via a mock in `test_chat_completions.py` — the heavy Mem0 path needs a live LLM+embedder, so a *closed session* never provably persisted. Added `SESSION_CONSOLIDATION_LOG` (JSONL) written by `consolidate_session` on every close (incl. empty sessions), independent of Mem0. `dream_insights`/`save_dream_insights` already persisted to a real file with solid tests, so it was non-no-op already. Added 2 tests proving the record is written. 44 tests pass (test_memory + test_dream_insights + test_chat_completions).
-- #161 (e2e move-in test) depends on #160.
+- **PR #278 CI re-run triggered** (`gh run rerun 30237737266` → new run `30238785944`, in_progress) after confirming the `pytest` regression was already fixed upstream at commit `ddb2537` ("make the receipts store redirectable and isolate it in tests"). Earlier failing check was against stale commit `aeaea53`.
+- #161 (e2e move-in test) is the next actionable bug after the #158/#160 security/memory sweep.
 - #127 (KittyBuilder queue) is a standing workflow command — likely stale, verify before acting.
 - #270 / #274 are newer initiatives already in flight (see kb NOW.md).
 
@@ -29,3 +29,5 @@
 - `tests/test_capture.py` (+2 regression tests) — committed 5490900
 - `tests/test_knowledge_routes.py` (+6 SSRF tests, FakeStreamResponse fix) — committed 5490900
 - `scripts/session_end_survey.sh` — committed 78571d2
+- `gateway/memory.py` (session consolidation log) — committed 9d6b841
+- `tests/test_memory.py` (+2 persistence tests) — committed 9d6b841
