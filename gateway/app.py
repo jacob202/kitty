@@ -67,6 +67,7 @@ async def lifespan(app: FastAPI):
 
     inbox_task = asyncio.create_task(_inbox_watch())
     try:
+        import gateway.cron as cron
         from gateway.cron import register_action
         from gateway.cron import start as cron_start
 
@@ -150,8 +151,14 @@ async def lifespan(app: FastAPI):
                 text = suggestions[0].get("text", "")
                 push_to_jacob(text, kind="info", title="Life Suggestion")
 
+        async def _action_insights_return_due():
+            from gateway.insight_loop import return_due
+            await return_due()
+
         register_action("life.evening_reflection", _action_life_evening_reflection)
         register_action("life.morning_proactive", _action_life_morning_proactive)
+        register_action("insights.return_due", _action_insights_return_due)
+        cron.schedule("insights return due", "insights.return_due", "interval", "15")
         cron_start()
     except Exception:
         logger.exception("cron system registration failed — all background jobs disabled")

@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import time
 from typing import Any, Optional
 
 from gateway.errors import StorageUnavailable
 from gateway.paths import DATA_DIR
+
+# Durable, file-backed record of every session consolidation. This persists
+# independent of the Mem0 stack (which needs a live LLM + embedder), so a
+# closed session always leaves an auditable trail even when the heavy backend
+# is unavailable. See issue #160.
+SESSION_CONSOLIDATION_LOG = DATA_DIR / "session_consolidation_log.jsonl"
 
 
 class MemoryError(StorageUnavailable):
@@ -374,18 +382,52 @@ def delete_memory(memory_id: str) -> bool:
     return True
 
 
+def write_session_consolidation_record(
+    session_id: str, user_msgs: list[str], stored: bool
+) -> None:
+    """Append a durable consolidation record to the session log.
+
+    Persists regardless of Mem0 availability so a closed session always leaves
+    an auditable trail (issue #160). Failures here are logged, never swallowed
+    into a fake success — but they must not mask the caller's own result.
+    """
+    record = {
+        "session_id": session_id or "anonymous",
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "user_message_count": len(user_msgs),
+        "stored_to_memory": stored,
+        "topics": [m[:120] for m in user_msgs[-20:]],
+    }
+    try:
+        SESSION_CONSOLIDATION_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with SESSION_CONSOLIDATION_LOG.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        logger.info(
+            "Wrote session consolidation record for %s (%d user msgs)",
+            session_id or "<anonymous>",
+            len(user_msgs),
+        )
+    except Exception as exc:  # pragma: no cover - defensive; logging only
+        logger.error("Failed to write session consolidation record: %s", exc)
+
+
 def consolidate_session(session_id: str, messages: list[dict]) -> bool:
     """Extract key facts from a closed session and persist to long-term memory.
 
     Reads user messages from the session, creates a summary, and stores
     it via add_memory(). Returns True if facts were stored and False when the
     session has no user content. Raises MemoryError on persistence failure.
+
+    A durable record is always written to the session consolidation log so the
+    act of closing a session is provably persisted (issue #160), independent of
+    whether the Mem0 backend accepted the entry.
     """
     if not messages:
         logger.info(
             "Session %s closed with no messages — nothing to consolidate",
             session_id or "<anonymous>",
         )
+        write_session_consolidation_record(session_id, [], False)
         return False
 
     user_msgs = [
@@ -396,6 +438,7 @@ def consolidate_session(session_id: str, messages: list[dict]) -> bool:
             "Session %s closed with no user messages — nothing to consolidate",
             session_id or "<anonymous>",
         )
+        write_session_consolidation_record(session_id, [], False)
         return False
 
     # Build a concise session summary from user messages
@@ -417,12 +460,14 @@ def consolidate_session(session_id: str, messages: list[dict]) -> bool:
                 "Session %s produced no new long-term memory changes",
                 session_id or "<anonymous>",
             )
+            write_session_consolidation_record(session_id, user_msgs, False)
             return False
         logger.info(
             "Session %s consolidated: %d user messages stored",
             session_id or "<anonymous>",
             len(user_msgs),
         )
+        write_session_consolidation_record(session_id, user_msgs, True)
         return True
     except Exception as exc:
         raise _memory_failure(

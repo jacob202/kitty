@@ -37,6 +37,33 @@ ALLOWED_MIME_TYPES = {
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 
+def _capture_allowed_roots() -> list[Path]:
+    """Return current allowed capture roots (respects runtime DATA_DIR changes)."""
+    from gateway.paths import DATA_DIR as _DATA_DIR
+
+    return [
+        _DATA_DIR,
+        _DATA_DIR / "captures",
+        _DATA_DIR / "desktop",
+        _DATA_DIR / "knowledge" / "inbox",
+    ]
+
+
+def _is_path_allowed(path: Path) -> bool:
+    """Validate that a local path is within approved capture roots."""
+    try:
+        resolved = path.resolve()
+    except Exception:
+        return False
+    for root in _capture_allowed_roots():
+        try:
+            if root.exists() and resolved.is_relative_to(root.resolve()):
+                return True
+        except Exception:
+            continue
+    return False
+
+
 class CapturePathRequest(BaseModel):
     """Body for POST /capture/file when providing a local filesystem path."""
 
@@ -201,6 +228,10 @@ async def post_capture_file(
             raise HTTPException(status_code=404, detail=f"file not found: {source}")
         if not source.is_file():
             raise HTTPException(status_code=400, detail=f"not a file: {source}")
+        if not _is_path_allowed(source):
+            raise HTTPException(
+                status_code=403, detail=f"path not in allowed capture roots: {source}"
+            )
         if source.stat().st_size > MAX_CAPTURE_BYTES:
             raise HTTPException(
                 status_code=413, detail=f"file exceeds {MAX_CAPTURE_BYTES} bytes"
