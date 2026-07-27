@@ -56,7 +56,13 @@ status from a command that does not exist.
 
 - Exit 0 → it's unblocked. Promote it to `ready` and consider it for this
   session's next move.
-- Non-zero → still blocked. Carry it forward with `deferred_count + 1`.
+- Exit 1 → the predicate ran and said no. Still blocked; carry it forward with
+  `deferred_count + 1`.
+- **Could not run at all** — command not found (127), auth failure, network
+  error, killed by a signal — → the predicate was never evaluated. Carry it
+  forward **unchanged**, do NOT increment `deferred_count`, and report it as
+  `UNAVAILABLE` in the confirmation. A missing `gh` is not evidence that a PR
+  failed to merge.
 - `deferred_count` reaching 3 → say it out loud in chat: *"we've been here before
   — what's actually in the way?"* Three deferrals means the blocker is not the
   real problem. Do not silently defer a fourth time.
@@ -231,6 +237,11 @@ When `invalidation_conditions` or `next_action` mention a pull request, fill in
 `pull_request` with its metadata. A null `pull_request` means the receipt never
 consults GitHub, so a merged or closed PR cannot invalidate the checkpoint and
 cold start keeps presenting a finished action as live.
+
+At most three recommendations, and `parallel_work` must be identical in STATE
+and HANDOFF — the continuity gate enforces the cap but compares only identity
+and action fields across the pair, so a divergence here passes
+`checkpoint:agreement` while the two files contradict each other.
 
 `recommendations` is the carry-forward channel. It is the ONLY one — do not open
 a separate notes file for future session-end runs. Reuse a recommendation's `id`

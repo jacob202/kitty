@@ -418,7 +418,7 @@ def test_schema_version_two_carries_recommendations_into_the_receipt(tmp_path: P
     ]
     _write_checkpoint_pair(
         repo, head, schema_version=2, recommendations=recommendations,
-        parallel_work=[{"kind": "pr", "ref": "#276"}],
+        parallel_work=[{"kind": "pr", "ref": "#276", "owner": "another session", "touches": ["gateway"], "observed_at": "2026-07-26T12:00:00Z"}],
     )
 
     levels = _levels(repo)
@@ -507,9 +507,55 @@ def test_parallel_work_entry_must_name_what_and_where(tmp_path: Path):
     repo, head = _repo(tmp_path)
     _write_checkpoint_pair(
         repo, head, schema_version=2, recommendations=[],
-        parallel_work=[{"kind": "pr", "touches": ["gateway"]}],
+        parallel_work=[{"kind": "pr", "touches": ["gateway"]}],  # missing ref/owner/observed_at
     )
 
     levels = _levels(repo)
 
     assert levels["state:metadata"] == "FAIL"
+
+
+def test_null_carry_forward_fields_are_rejected_for_v2(tmp_path: Path):
+    # Present-but-null loses the array exactly as thoroughly as omitting it.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(repo, head, schema_version=2, recommendations=None, parallel_work=None)
+    path = repo / ".claude/STATE.md"
+    path.write_text(
+        path.read_text().replace('"pull_request": null', '"pull_request": null,\n  "parallel_work": null,\n  "recommendations": null'),
+        encoding="utf-8",
+    )
+
+    assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_more_than_three_recommendations_is_rejected(tmp_path: Path):
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, parallel_work=[],
+        recommendations=[_recommendation(id=f"rec-{n}") for n in range(4)],
+    )
+
+    assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_a_recommendation_without_deferred_count_is_rejected(tmp_path: Path):
+    # A missing count would resurface long-stuck work as "deferred x0".
+    repo, head = _repo(tmp_path)
+    entry = _recommendation()
+    del entry["deferred_count"]
+    _write_checkpoint_pair(repo, head, schema_version=2, parallel_work=[], recommendations=[entry])
+
+    assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_non_scalar_schema_version_fails_loud_instead_of_crashing(tmp_path: Path):
+    # An unhashable value would raise TypeError past _safe_load and abort the
+    # whole receipt instead of reporting a metadata failure.
+    repo, head = _repo(tmp_path)
+    path = repo / ".claude/STATE.md"
+    path.write_text(
+        path.read_text().replace('"schema_version": 1', '"schema_version": {"n": 1}'),
+        encoding="utf-8",
+    )
+
+    assert _levels(repo)["state:metadata"] == "FAIL"

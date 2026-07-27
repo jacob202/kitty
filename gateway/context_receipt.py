@@ -61,7 +61,10 @@ _REQUIRED_MISSION_KEYS = {
 }
 _SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS = {1, 2}
 _REQUIRED_V2_CHECKPOINT_KEYS = {"parallel_work", "recommendations"}
-_REQUIRED_PARALLEL_WORK_KEYS = {"kind", "ref"}
+_REQUIRED_PARALLEL_WORK_KEYS = {"kind", "ref", "owner", "touches", "observed_at"}
+# The session-end contract caps the ranked next-step channel at three. Without
+# this the carry-forward field quietly becomes an unbounded backlog.
+_MAX_RECOMMENDATIONS = 3
 _RECOMMENDATION_STATUSES = {"ready", "deferred"}
 _REQUIRED_RECOMMENDATION_KEYS = {"id", "what", "status"}
 _ACTIVE_CHECKPOINT_STATUSES = {"in_progress", "blocked", "awaiting_review"}
@@ -245,9 +248,17 @@ def _validate_parallel_work(relative_path: Path, value: Any) -> None:
         missing = sorted(_REQUIRED_PARALLEL_WORK_KEYS - set(entry))
         if missing:
             raise ValueError(f"{where} is missing keys: {missing}")
-        for key in sorted(_REQUIRED_PARALLEL_WORK_KEYS):
+        for key in ("kind", "ref", "owner", "observed_at"):
             if not isinstance(entry.get(key), str) or not entry[key].strip():
                 raise ValueError(f"{where} {key} must be a non-empty string")
+        touches = entry.get("touches")
+        if not isinstance(touches, list) or not all(
+            isinstance(item, str) and item.strip() for item in touches
+        ):
+            raise ValueError(
+                f"{where} touches must be a list of non-empty strings — without it the "
+                "next session cannot tell which paths might collide"
+            )
 
 
 def _validate_recommendations(relative_path: Path, value: Any) -> None:
@@ -261,6 +272,11 @@ def _validate_recommendations(relative_path: Path, value: Any) -> None:
         return
     if not isinstance(value, list):
         raise ValueError(f"{relative_path} recommendations must be a list")
+    if len(value) > _MAX_RECOMMENDATIONS:
+        raise ValueError(
+            f"{relative_path} carries {len(value)} recommendations; the session-end "
+            f"contract allows at most {_MAX_RECOMMENDATIONS} ranked next steps"
+        )
     seen: set[str] = set()
     for index, entry in enumerate(value):
         where = f"{relative_path} recommendations[{index}]"
@@ -278,12 +294,21 @@ def _validate_recommendations(relative_path: Path, value: Any) -> None:
                 "deferred_count stays truthful"
             )
         seen.add(entry["id"])
+        if not isinstance(entry["status"], str):
+            raise ValueError(f"{where} status must be a string")
         if entry["status"] not in _RECOMMENDATION_STATUSES:
             raise ValueError(
                 f"{where} status {entry['status']!r} is not one of "
                 f"{sorted(_RECOMMENDATION_STATUSES)}"
             )
-        count = entry.get("deferred_count", 0)
+        # Defaulting a missing count to 0 would let a long-stuck item reappear
+        # as "deferred x0" and skip the third-deferral escalation entirely.
+        if "deferred_count" not in entry:
+            raise ValueError(
+                f"{where} must declare deferred_count; a missing count hides repeatedly "
+                "deferred work"
+            )
+        count = entry["deferred_count"]
         if not isinstance(count, int) or isinstance(count, bool) or count < 0:
             raise ValueError(f"{where} deferred_count must be a non-negative integer")
         if entry["status"] != "deferred":
@@ -300,11 +325,21 @@ def _load_checkpoint(repo_root: Path, relative_path: Path, marker: str) -> dict[
     missing = sorted(_REQUIRED_CHECKPOINT_KEYS - set(payload))
     if missing:
         raise ValueError(f"{relative_path} checkpoint metadata is missing keys: {missing}")
-    if payload.get("schema_version") not in _SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS:
+    # A list or dict here is unhashable: `x in frozenset` raises TypeError,
+    # which _safe_load does not catch, so ./kitty context --agent would abort
+    # instead of reporting a metadata failure with a cause.
+    if not isinstance(payload.get("schema_version"), int) or isinstance(
+        payload.get("schema_version"), bool
+    ):
+        raise ValueError(
+            f"{relative_path} checkpoint schema_version must be an integer, "
+            f"got {type(payload.get('schema_version')).__name__}"
+        )
+    if payload["schema_version"] not in _SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS:
         raise ValueError(
             f"{relative_path} checkpoint schema_version must be one of "
             f"{sorted(_SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS)}, "
-            f"got {payload.get('schema_version')!r}"
+            f"got {payload['schema_version']!r}"
         )
     if payload["schema_version"] >= 2:
         # An omitted field in a v2 checkpoint is malformed, not empty: the whole
@@ -314,6 +349,14 @@ def _load_checkpoint(repo_root: Path, relative_path: Path, marker: str) -> dict[
             raise ValueError(
                 f"{relative_path} schema_version 2 checkpoint is missing keys: {missing_v2}; "
                 "write [] rather than omitting them"
+            )
+        # Present-but-null loses the carry-forward array just as thoroughly as
+        # omitting the key, and both validators below treat None as "absent".
+        null_v2 = sorted(k for k in _REQUIRED_V2_CHECKPOINT_KEYS if payload[k] is None)
+        if null_v2:
+            raise ValueError(
+                f"{relative_path} schema_version 2 keys must be lists, not null: {null_v2}; "
+                "write [] for an intentionally empty value"
             )
         _validate_parallel_work(relative_path, payload.get("parallel_work"))
     _validate_recommendations(relative_path, payload.get("recommendations"))

@@ -34,7 +34,12 @@ if ! WORKTREES=$(git worktree list --porcelain 2>&1); then
 else
   # A registration line alone hides the uncommitted edits a recommendation
   # could collide with, so probe each worktree's status too. Read-only.
-  echo "$WORKTREES" | awk '/^worktree /{print $2}' | while IFS= read -r wt; do
+  # Strip the literal prefix rather than splitting on whitespace: a worktree
+  # path containing a space would otherwise probe a directory that does not
+  # exist and report a healthy worktree as unavailable.
+  printf '%s\n' "$WORKTREES" | while IFS= read -r line; do
+    [[ "$line" != worktree\ * ]] && continue
+    wt="${line#worktree }"
     [[ -z "$wt" ]] && continue
     branch=$(git -C "$wt" branch --show-current 2>&1)
     printf '%s  [%s]\n' "$wt" "$branch"
@@ -63,9 +68,12 @@ else
     shown=0
     while IFS= read -r b; do
       [[ -z "$b" ]] && continue
-      dirs=$(git diff --name-only "$BASE...$b" 2>/dev/null | cut -d/ -f1 | sort -u | head -6 | paste -sd, -)
+      all_dirs=$(git diff --name-only "$BASE...$b" 2>/dev/null | cut -d/ -f1 | sort -u)
       # A branch with no diff against the base carries no work to collide with.
-      [[ -z "${dirs// /}" ]] && continue
+      [[ -z "${all_dirs// /}" ]] && continue
+      # Every touched path is listed: a collision hidden behind a cap is exactly
+      # the failure this inventory exists to prevent.
+      dirs=$(printf '%s\n' "$all_dirs" | paste -sd, -)
       meta=$(git log -1 --format='%cr by %an' "$b" 2>&1)
       printf '%s  [%s]  touches: %s\n' "$b" "$meta" "$dirs"
       shown=$((shown + 1))
@@ -82,10 +90,12 @@ fi
 hr "OPEN PULL REQUESTS (drafts included)"
 if ! command -v gh >/dev/null 2>&1; then
   echo "UNAVAILABLE: gh not installed — check open PRs another way before claiming the queue is empty."
-elif ! gh auth status >/dev/null 2>&1; then
-  echo "UNAVAILABLE: gh not authenticated (check for a stale GITHUB_TOKEN)."
+# A stale ambient GITHUB_TOKEN overrides keyring auth and makes a working
+# setup look unauthenticated, so probe and query without it (AGENTS.md).
+elif ! env -u GITHUB_TOKEN gh auth status >/dev/null 2>&1; then
+  echo "UNAVAILABLE: gh not authenticated even with GITHUB_TOKEN unset."
 else
-  gh pr list --state open --limit 20 \
+  env -u GITHUB_TOKEN gh pr list --state open --limit 20 \
     --json number,title,isDraft,headRefName,updatedAt,author \
     --template '{{range .}}#{{.number}} {{if .isDraft}}[DRAFT] {{end}}{{.title}} ({{.headRefName}}, {{.author.login}}, {{.updatedAt}}){{"\n"}}{{end}}' 2>&1 \
     || echo "UNAVAILABLE: gh pr list failed — see error above."
@@ -106,13 +116,20 @@ import json, sys
 from pathlib import Path
 from gateway import builder_status
 summary = builder_status.build_control_plane_summary(db_path=Path(sys.argv[1]))
-print(json.dumps(summary.get("queue"), indent=2))
+# Aggregate counts cannot say WHICH Builder work is in flight, which is what a
+# recommendation might duplicate. Initiatives carry that identity.
+print(json.dumps({
+    "queue": summary.get("queue"),
+    "initiatives": summary.get("initiatives"),
+}, indent=2, default=str))
 ' "$BUILDER_DB" 2>&1 || echo "UNAVAILABLE: read-only Builder projection failed — see error above."
 fi
 
 hr "CROSS-TOOL CLAIMS (~/kb/NOW.md)"
 if [[ -f "$HOME/kb/NOW.md" ]]; then
-  tail -n 30 "$HOME/kb/NOW.md"
+  # The skill bounds NOW.md at ~50 lines, and the active-project and
+  # parallel-work claims live at the top. Tailing it would drop exactly those.
+  cat "$HOME/kb/NOW.md"
 else
   echo "UNAVAILABLE: $HOME/kb/NOW.md not found — the KB is a separate repo and is not present here."
 fi

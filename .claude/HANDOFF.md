@@ -38,7 +38,36 @@
     "state": "OPEN",
     "head_sha": "22e05a0fb2bb6c15468e091481b56b81054819d8"
   },
-  "parallel_work": [],
+  "parallel_work": [
+    {
+      "kind": "pr",
+      "ref": "#276",
+      "owner": "this session",
+      "touches": [
+        ".agents",
+        "AGENTS.md",
+        "SKILL_REGISTRY.md",
+        "docs",
+        "gateway",
+        "scripts"
+      ],
+      "observed_at": "2026-07-27T05:20:00Z"
+    },
+    {
+      "kind": "pr",
+      "ref": "#278",
+      "owner": "this session",
+      "touches": [
+        "AGENTS.md",
+        "config",
+        "docs",
+        "gateway",
+        "kitty",
+        "tests"
+      ],
+      "observed_at": "2026-07-27T05:20:00Z"
+    }
+  ],
   "recommendations": [
     {
       "id": "merge-276-then-reconcile-278",
