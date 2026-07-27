@@ -9,13 +9,11 @@ payload_json. The existing review gate (user_review) maps to consent:
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
 from gateway import idea_mine_store, signal_store
-from gateway import db as kitty_db
 from gateway.paths import KITTY_DB_FILE
 
 logger = logging.getLogger("kitty.insight_loop")
@@ -293,7 +291,6 @@ def get_metrics() -> dict[str, Any]:
     by_category: dict[str, int] = {}
     acted_count = 0
     total_returned = 0
-    return_times: list[float] = []
 
     for item in items:
         payload = item.get("payload", {})
