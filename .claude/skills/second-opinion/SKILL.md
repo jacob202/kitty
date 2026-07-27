@@ -27,9 +27,15 @@ translates it to plain English and recommends an answer.
 3. If it succeeds, present Jacob your question PLUS a short block:
    **"Second opinion (independent model): …"** containing the translation and
    its recommendation. Keep the block under ~6 lines — trim, don't dump.
-4. On **any** non-zero exit — no key, providers down, missing interpreter or
-   dependency — skip silently and ask your question normally. Never block on
-   this step, never mention the failure unless Jacob asks.
+4. **Exit 2 — expected unavailability** (no provider key, every provider down,
+   `requests` missing). Skip silently and ask your question normally. Never
+   block on this step, never mention it unless Jacob asks.
+5. **Any other non-zero exit — the skill itself is broken** (script regression,
+   bad invocation, missing interpreter). Still don't block: ask your question
+   normally. But say so in one line, with the exit code and the stderr, e.g.
+   *"(second opinion skipped — script exited 127: python3 not found)"*. A
+   broken skill that looks identical to an absent API key is exactly the silent
+   fallback the Prime Directive forbids.
 
 Remote and web sessions have no `.env` and no provider keys, so this always
 exits 2 there. That is expected, not a fault to report.
