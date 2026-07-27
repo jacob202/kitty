@@ -75,10 +75,11 @@ carry no local-only guarantee — that content class is retired.
 spec_candidate, active_packet, after_move_in, parked, reject) and a
 visible demo contract.
 
-**Privacy boundary** — the rule that journal, mail-body, health-admin,
-and uploaded-document content never reaches a cloud model, even when a
-cloud model would otherwise be fine for the call. Enforced in
-`call_llm` ([ADR-0011](../adr/0011-privacy-boundary-in-llm-router.md)).
+**Privacy boundary** — *retired.* It named a rule that journal,
+mail-body, health-admin and uploaded-document content never reached a
+cloud model. `call_llm` never actually implemented the routing, and
+[ADR-0022](../adr/0022-retire-privacy-boundary.md) dropped the claim
+rather than build it. Kitty makes no local-only data guarantee.
 
 **Project** — a long-running initiative that Kitty tracks. Has a
 `resume()` composer that returns its current state. Cross-project

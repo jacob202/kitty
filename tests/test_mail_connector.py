@@ -198,7 +198,8 @@ class TestPollEmitsSignals:
 class TestPollSnippetOnly:
     def test_payload_never_contains_body(self):
         # Even if the Gmail response includes a body in payload.body, the
-        # signal must carry only metadata. This is the D10 contract.
+        # signal must carry only metadata — bodies would blow the payload
+        # size budget. (Not a privacy rule; ADR 0022 retired D10.)
         detail = _detail_response("m1")
         detail["payload"]["body"] = {"data": "BODY_SHOULD_NOT_LEAK"}
         script = _HttpScript(entries=[_list_response(["m1"]), detail])
@@ -328,9 +329,7 @@ class TestFetchBody:
 
         assert body == body_text
 
-    def test_fetch_body_data_class_is_mail_body(self):
-        # The D10 contract: the return value is data class "mail_body".
-        # We assert it via the module constant, not a magic string.
+    def test_fetch_body_decodes_base64url_text_plain(self):
         encoded = base64.urlsafe_b64encode(b"hi").decode("ascii").rstrip("=")
         detail = {
             "id": "m1",
@@ -341,12 +340,8 @@ class TestFetchBody:
 
         body = connector.fetch_body("m1")
 
-        # The contract is: this string is data class mail_body. We don't
-        # pin the class name in code, but the module constant does.
         assert isinstance(body, str)
         assert body == "hi"
-        # The body must not contain anything a signal would ever carry.
-        assert body not in json.dumps({"x": 1})  # trivially true; documents the rule.
 
     def test_fetch_body_empty_on_no_text_parts(self):
         detail = {

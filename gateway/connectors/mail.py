@@ -30,9 +30,9 @@ Public API:
       ``None`` and the connector uses Gmail's ``newer_than:1d`` filter
       as a safe default.
   connector.fetch_body(message_id) -> str
-      Fetch a full message body. The returned string is data class
-      ``mail_body`` (D10) — the caller must not put it in a signal
-      payload. text/plain preferred; base64url decoded.
+      Fetch a full message body. The caller must not put it in a signal
+      payload (size and hygiene, not privacy — ADR 0022 retired D10).
+      text/plain preferred; base64url decoded.
 
 Errors: ``MailConnectorError`` (base), ``MailAuthError`` (credentials
 unusable), ``MailTransportError`` (non-200 from Gmail). All raise —
@@ -69,11 +69,6 @@ GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
 # Where the OAuth client secret lives (Jacob sets GMAIL_CLIENT_SECRET_FILE in .env).
 # Where the granted token lands.
 DEFAULT_TOKEN_PATH = DATA_DIR / "gmail_token.json"
-
-# Data class tag for bodies, per D10 (privacy boundary in router).
-# Lint/docs only — enforced where bodies meet LLM calls, not here.
-BODY_DATA_CLASS = "mail_body"
-
 
 class MailConnectorError(RuntimeError):
     """Base for mail-connector failures. Subclasses narrow the cause."""

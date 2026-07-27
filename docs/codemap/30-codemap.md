@@ -62,7 +62,7 @@ re-think.
 | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | **No product logic in routes**                                          | `gateway/routes/*.py` is thin; logic lives in domain modules.                                                     |
 | **No direct context reads in routes or prompt code**                    | All reads go through `memory_graph` ([ADR-0004](../adr/0004-memory-graph-owns-context-reads.md)).                 |
-| **No remote LLM call without `call_llm`**                               | Bypassing the privacy boundary is a privacy incident ([ADR-0011](../adr/0011-privacy-boundary-in-llm-router.md)). |
+| **No remote LLM call without `call_llm`**                               | It is the single choke point for routing, fallbacks, and token/telemetry logging. Bypassing it loses all three. (It no longer enforces a privacy boundary — [ADR-0022](../adr/0022-retire-privacy-boundary.md) retired that.) |
 | **No new memory substrate in Phase B**                                  | One storage story, one operating story ([ADR-0006](../adr/0006-phase-b-is-consolidation.md)).                     |
 | **No `storage_router` methods for stores that don't have a write seam** | The router is thin; it does not become a port ([ADR-0008](../adr/0008-storage-router-thin-write-seam.md)).        |
 | **No autonomous outbound action without a queue row**                   | Tier T0 may self-execute; T1+ requires approval.                                                                  |
