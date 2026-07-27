@@ -8,9 +8,11 @@ Nothing here writes to mem0, memory_graph, or the SQLite spine. The
 output is a review file. Approval into always-on memory is out of scope
 for phase 1 (packet 024 phases 2–3).
 
-Privacy: cloud tier is refused. This is a local-first mine — recovery /
-mental-health / grief material must never leak to a cloud model just
-because the source transcript mentioned it.
+Privacy: **this sends transcript text to a cloud model.** ADR 0022 retired
+the D10 local-only boundary, so the refuse-cloud guard this module used to
+carry is gone. Recovery, mental-health and grief material in a source
+transcript WILL reach the configured provider. Choose sources accordingly —
+nothing here filters them.
 
 Usage:
     python3 -m scripts.curation.extract_chat_goldmine \\

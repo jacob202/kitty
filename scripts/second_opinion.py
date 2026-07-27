@@ -48,6 +48,14 @@ Your job, in under 200 words, no jargon:
 Be direct. If the question is unnecessary or answerable from common sense, say so."""
 
 
+class ProviderUnavailable(RuntimeError):
+    """No provider could be reached — missing key, network, or HTTP failure.
+
+    Deliberately narrow: a malformed response is a defect, not unavailability,
+    and must not be squashed into the same exit code.
+    """
+
+
 def _load_dotenv() -> None:
     env_file = REPO_ROOT / ".env"
     if not env_file.exists():
@@ -61,44 +69,45 @@ def _load_dotenv() -> None:
 
 
 def _openai_compatible(base: str, key: str, model: str, question: str) -> str:
-    resp = requests.post(
-        f"{base}/chat/completions",
-        headers={"Authorization": f"Bearer {key}"},
-        json={
-            "model": model,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": question},
-            ],
-            "max_tokens": 500,
-        },
-        timeout=60,
-    )
-    resp.raise_for_status()
+    try:
+        resp = requests.post(
+            f"{base}/chat/completions",
+            headers={"Authorization": f"Bearer {key}"},
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": question},
+                ],
+                "max_tokens": 500,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        raise ProviderUnavailable(str(exc)) from exc
+    # Decoding is deliberately outside the try: requests.exceptions.JSONDecodeError
+    # subclasses RequestException, and a malformed body is a defect, not an
+    # unreachable provider. It must reach exit 3, not be skipped as exit 2.
     return resp.json()["choices"][0]["message"]["content"].strip()
 
 
 def _gemini(key: str, question: str) -> str:
     model = os.environ.get("KITTY_GEMINI_MODEL", "gemini-2.5-flash")
-    resp = requests.post(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-        params={"key": key},
-        json={
-            "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-            "contents": [{"parts": [{"text": question}]}],
-        },
-        timeout=60,
-    )
-    resp.raise_for_status()
+    try:
+        resp = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+            params={"key": key},
+            json={
+                "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+                "contents": [{"parts": [{"text": question}]}],
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        raise ProviderUnavailable(str(exc)) from exc
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-
-
-class ProviderUnavailable(RuntimeError):
-    """No provider could be reached — missing key, network, or HTTP failure.
-
-    Deliberately narrow: a malformed response is a defect, not unavailability,
-    and must not be squashed into the same exit code.
-    """
 
 
 def get_second_opinion(question: str) -> tuple[str, str]:
@@ -117,14 +126,14 @@ def get_second_opinion(question: str) -> tuple[str, str]:
             return f"openrouter/{model}", _openai_compatible(
                 "https://openrouter.ai/api/v1", key, model, question
             )
-        except requests.RequestException as exc:
+        except ProviderUnavailable as exc:
             errors.append(f"openrouter: {exc}")
 
     key = os.environ.get("GEMINI_API_KEY")
     if key:
         try:
             return "gemini", _gemini(key, question)
-        except requests.RequestException as exc:
+        except ProviderUnavailable as exc:
             errors.append(f"gemini: {exc}")
 
     key = os.environ.get("NVIDIA_API_KEY")
@@ -133,7 +142,7 @@ def get_second_opinion(question: str) -> tuple[str, str]:
         model = os.environ.get("NVIDIA_CHAT_MODEL", "deepseek-ai/deepseek-v4-pro")
         try:
             return f"nvidia/{model}", _openai_compatible(base, key, model, question)
-        except requests.RequestException as exc:
+        except ProviderUnavailable as exc:
             errors.append(f"nvidia: {exc}")
 
     if errors:

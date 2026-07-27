@@ -1,8 +1,10 @@
 """Gmail read-only connector (P3, docs/packets/005).
 
 Polls Gmail for new messages and emits deduped signal rows. Fetches
-full bodies only on explicit demand; bodies are data class ``mail_body``
-under D10 (local-only — never put one in a signal payload).
+full bodies only on explicit demand. Bodies are never put in a signal
+payload — that is a size and hygiene rule, and it still stands. What no
+longer holds is the privacy half: ADR 0022 retired D10, so a body handed
+to an LLM reaches a cloud provider.
 
 Scope: ``https://www.googleapis.com/auth/gmail.readonly``. No send,
 no modify, no labels — Google rejects anything else before the code
@@ -270,11 +272,13 @@ class MailConnector:
     def fetch_body(self, message_id: str) -> str:
         """Fetch a full message body, text/plain preferred.
 
-        The returned string is data class ``mail_body`` (D10) — local-only
-        under the privacy boundary. The caller must not put the return
-        value into a signal payload; ``signal_store.MAX_PAYLOAD_BYTES``
-        would block it, but the rule is "don't try" not "let the store
-        catch it."
+        The caller must not put the return value into a signal payload;
+        ``signal_store.MAX_PAYLOAD_BYTES`` would block it, but the rule is
+        "don't try" not "let the store catch it."
+
+        No privacy guarantee attaches to this string. ADR 0022 retired the
+        D10 local-only boundary — passing a body to an LLM sends it to a
+        cloud provider.
         """
         params = {"format": "full"}
         detail = self._http_get(

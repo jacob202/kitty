@@ -68,9 +68,11 @@ the knowledge base) so it can be recalled in a future prompt or brief.
 
 - Send mail, label mail, archive mail, delete mail. Read-only Gmail
   only ([ADR-0012](../adr/0012-mail-connector-gmail-readonly.md)).
-- Route journal, mail-body, health-admin, or uploaded-document content
-  to cloud models. Local-only is enforced in `call_llm`
-  ([ADR-0011](../adr/0011-privacy-boundary-in-llm-router.md)).
+- ~~Route journal, mail-body, health-admin, or uploaded-document content
+  to cloud models.~~ **No longer true** — ADR 0011 was retired by
+  [ADR-0022](../adr/0022-retire-privacy-boundary.md). `call_llm` enforces no
+  local-only boundary; these classes reach the configured cloud provider.
+  Only `POST /knowledge/expert` still runs locally, via the MLX loopback.
 - Take an autonomous outbound action without a recorded queue row and
   (for T1+) a human approval.
 - Open an app unprompted. Jacob is phone-first; pushes go to him, not
