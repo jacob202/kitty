@@ -37,16 +37,9 @@ logger = logging.getLogger("kitty.next_step")
 
 NEXT_STEP_DB_FILE = KITTY_DB_FILE
 
-# Injected callable: (prompt, privacy_tier, content_class) -> raw model text.
+# Injected callable: (prompt) -> raw model text.
 # Parsing/validation is this module's job, same seam as triage.LlmFn.
-LlmFn = Callable[[str, str, str | None], str]
-
-# kind -> (privacy_tier, content_class). Anything not listed defaults to
-# local-only (D10: fail toward privacy).
-_PRIVACY_BY_KIND: dict[str, tuple[str, str | None]] = {
-    "code": ("cloud_ok", None),
-}
-_DEFAULT_PRIVACY: tuple[str, str | None] = ("local", "health_admin")
+LlmFn = Callable[[str], str]
 
 _SYSTEM_PROMPT = (
     "You're Kitty: direct, honest, never flattering. For the project below, "
@@ -85,9 +78,8 @@ def generate(project_id: int, llm_fn: LlmFn | None = None) -> dict[str, Any]:
     resumed = project_resume.resume(project_id)
     previous = get(project_id)
 
-    privacy_tier, content_class = _PRIVACY_BY_KIND.get(project["kind"], _DEFAULT_PRIVACY)
     prompt = _build_prompt(project, resumed)
-    raw = call(prompt, privacy_tier, content_class)
+    raw = call(prompt)
     parsed = _parse_response(raw)
 
     generated_at = time.time()
@@ -161,7 +153,7 @@ def _build_prompt(project: dict[str, Any], resumed: dict[str, Any]) -> str:
     )
 
 
-def _default_llm(prompt: str, privacy_tier: str, content_class: str | None) -> str:
+def _default_llm(prompt: str) -> str:
     from gateway.llm_client import call_llm
 
     system = _SYSTEM_PROMPT
@@ -181,8 +173,6 @@ def _default_llm(prompt: str, privacy_tier: str, content_class: str | None) -> s
         temperature=0.3,
         response_format={"type": "json_object"},
         operation="next_step.generate",
-        privacy_tier=privacy_tier,
-        content_class=content_class,
     )
 
 

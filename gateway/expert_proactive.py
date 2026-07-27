@@ -258,7 +258,7 @@ New insight: {new_headline}
 Are these two insights describing the exact same underlying issue/event, just phrased differently?
 Reply only YES or NO."""
             try:
-                res = llm_client.call_llm([{"role": "user", "content": prompt}], privacy_tier="cloud_ok", content_class=None).strip()
+                res = llm_client.call_llm([{"role": "user", "content": prompt}]).strip()
                 if res == "YES":
                     return True
             except Exception:
@@ -317,7 +317,7 @@ If this insight is semantically identical to any recent signal, reply with 'ABOR
 """
 
     try:
-        response = llm_client.call_llm([{"role": "user", "content": router_prompt}], privacy_tier="cloud_ok", content_class=None).strip()
+        response = llm_client.call_llm([{"role": "user", "content": router_prompt}]).strip()
     except Exception as e:
         logger.error(f"[cycle={cycle_id}] Expert {expert_id} failed to evaluate: {e}")
         return
@@ -380,7 +380,7 @@ Provide your final insight formatted exactly as:
 If this insight is semantically identical to any recent signal, reply with 'ABORT'.
 """
         try:
-            response = llm_client.call_llm([{"role": "user", "content": synthesis_prompt}], privacy_tier="cloud_ok", content_class=None).strip()
+            response = llm_client.call_llm([{"role": "user", "content": synthesis_prompt}]).strip()
         except Exception as e:
             logger.error(f"[cycle={cycle_id}] Expert {expert_id} failed synthesis: {e}")
             return

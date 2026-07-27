@@ -20,7 +20,7 @@ def client(monkeypatch, tmp_path):
     monkeypatch.setattr(
         next_step,
         "_default_llm",
-        lambda prompt, privacy_tier, content_class: json.dumps(
+        lambda prompt: json.dumps(
             {"step": "stub step", "why": "stub why", "recent_win": "", "delegable": False}
         ),
     )
@@ -73,7 +73,7 @@ def test_refresh_returns_composed_sources_and_next_step(client):
 
 
 def test_refresh_degrades_when_the_model_is_unavailable(client, monkeypatch):
-    def broken_llm(prompt, privacy_tier, content_class):
+    def broken_llm(prompt):
         raise next_step.NextStepError("model unreachable")
 
     monkeypatch.setattr(next_step, "_default_llm", broken_llm)
@@ -92,7 +92,7 @@ def test_refresh_does_not_push_when_generation_fails(client, monkeypatch):
     pushes = []
     monkeypatch.setattr(projects_route, "push_to_jacob", lambda *a, **k: pushes.append(a) or True)
 
-    def broken_llm(prompt, privacy_tier, content_class):
+    def broken_llm(prompt):
         raise next_step.NextStepError("model unreachable")
 
     monkeypatch.setattr(next_step, "_default_llm", broken_llm)

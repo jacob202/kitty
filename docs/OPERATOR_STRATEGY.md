@@ -269,9 +269,12 @@ Route by task class, not vibes — extending `domain_router`:
   they receive **executor-ready packets** (title, scope, files, acceptance,
   verification) generated from the action queue, and their output comes back
   as PRs through normal CI + review.
-- A privacy boundary rides the router: data classes (email bodies, journal,
+- ~~A privacy boundary rides the router: data classes (email bodies, journal,
   health/admin docs) are tagged local-only unless the specific task's
-  approval says otherwise. This is decision D-privacy (§17).
+  approval says otherwise. This is decision D-privacy (§17).~~
+  **Retired 2026-07-27 by [ADR 0022](adr/0022-retire-privacy-boundary.md).**
+  The boundary only ever raised on an explicit opt-in string and never routed
+  anything locally; Kitty makes no local-only data guarantee.
 
 ### 5.10 Interface model
 
@@ -832,11 +835,13 @@ Each week ends shippable; no packet depends on a later one.
 2. **Connector shape:** all external feeds are cron-polled adapters emitting
    deduped signal rows; no webhooks, no push, no per-connector bespoke
    tables. `web_monitor.py`'s private DB is grandfathered until it migrates.
-3. **Privacy boundary in the router:** define data classes (journal, mail
+3. ~~**Privacy boundary in the router:** define data classes (journal, mail
    bodies, health/admin docs = local-only by default; calendar titles,
    todo text = cloud-permitted) and enforce at `llm_client` routing, not by
-   convention. This is the decision that keeps "local-first" true once cloud
-   models do the drafting.
+   convention.~~ **Retired 2026-07-27 by
+   [ADR 0022](adr/0022-retire-privacy-boundary.md).** It shipped as a label,
+   not a route — the "local" tier called cloud models for the whole time it
+   existed. Jacob chose to drop the claim rather than build the route.
 
 ## 18. What not to build yet
 

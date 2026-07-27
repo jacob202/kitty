@@ -1,8 +1,8 @@
 """Deadline extraction from health/admin documents and mail signals (P7, docs/packets/017).
 
-All extraction runs local-only (privacy_tier="local", content_class="health_admin")
-to satisfy D10. Callers provide an injected `llm_fn` for tests; the default uses
-the local model route via gateway.llm_client.
+Extraction runs through the shared cloud model route. ADR 0022 retired the D10
+local-only boundary, so this content reaches a cloud provider like any other.
+Callers provide an injected `llm_fn` for tests.
 
 Public API:
   extract_from_text(text, *, source, source_id=None, llm_fn=None) -> list[dict]
@@ -20,7 +20,7 @@ from gateway import deadline_store
 
 logger = logging.getLogger("kitty.deadline_extractor")
 
-LlmFn = Callable[[str, str, str | None], str]
+LlmFn = Callable[[str], str]
 
 _SYSTEM_PROMPT = (
     "You extract deadlines, obligations, and amounts from administrative documents "
@@ -39,7 +39,7 @@ class DeadlineExtractorError(RuntimeError):
     """Raised when extraction fails in a way the caller should surface, not drop."""
 
 
-def _default_llm(prompt: str, privacy_tier: str, content_class: str | None) -> str:
+def _default_llm(prompt: str) -> str:
     from gateway.llm_client import call_llm
 
     return call_llm(
@@ -51,8 +51,6 @@ def _default_llm(prompt: str, privacy_tier: str, content_class: str | None) -> s
         temperature=0.1,
         response_format={"type": "json_object"},
         operation="deadline.extract",
-        privacy_tier=privacy_tier,
-        content_class=content_class,
     )
 
 
@@ -130,7 +128,7 @@ def extract_from_text(
         "Return only the JSON array described in your instructions.\n\n"
         f"{text[:8000]}"
     )
-    raw = call(prompt, "local", "health_admin")
+    raw = call(prompt)
     items = _parse_llm_response(raw)
 
     results: list[dict[str, Any]] = []

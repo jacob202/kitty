@@ -229,13 +229,13 @@ class ExtractionParseError(RuntimeError):
 
 # ── LLM adapter ──────────────────────────────────────────────────────────────
 
-def _gateway_llm(privacy_tier: str) -> Callable[[list[dict], str], str]:
-    """Return a callable that hits the gateway's LLM hub with strict-JSON format."""
-    if privacy_tier != "local":
-        raise SystemExit(
-            "refusing non-local privacy tier. transcripts may contain "
-            "sensitive personal material; keep the mine local."
-        )
+def _gateway_llm() -> Callable[[list[dict], str], str]:
+    """Return a callable that hits the gateway's LLM hub with strict-JSON format.
+
+    ADR 0022 retired the D10 local-only tier, so this reaches a cloud provider.
+    Transcripts can hold sensitive personal material — that is now an accepted
+    property of running the mine, not something this function prevents.
+    """
     from gateway.llm_client import call_llm  # noqa: PLC0415  # local so --dry-run works standalone
 
     def _call(messages: list[dict], model: str) -> str:
@@ -246,8 +246,6 @@ def _gateway_llm(privacy_tier: str) -> Callable[[list[dict], str], str]:
             max_tokens=3000,
             response_format={"type": "json_object"},
             operation="idea_mine.extract",
-            privacy_tier="local",
-            content_class="journal",
         )
 
     return _call
@@ -286,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{c.source} :: {c.title or '(untitled)'} :: {len(c.text)} chars")
         return 0
 
-    llm = _gateway_llm(privacy_tier="local")
+    llm = _gateway_llm()
     out_path = args.out or _default_out_path()
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

@@ -61,9 +61,7 @@ async def journal_synthesize(request: Request):
         "stream": False,
         "messages": [{"role": "system", "content": synthesis_system}] + messages,
     }
-    data = await chat_completions_non_stream(
-        payload, privacy_tier="local", content_class="journal"
-    )
+    data = await chat_completions_non_stream(payload)
     entry = extract_assistant_text(data)
     if entry:
         save_journal_entry(entry, theme=theme, session_id=session_id)
@@ -81,9 +79,7 @@ async def journal_chat(payload: JournalChatRequest):
         llm_messages.append({"role": "system", "content": payload.system_prompt})
     llm_messages.extend(payload.messages)
     data = await chat_completions_non_stream(
-        {"model": model, "stream": False, "messages": llm_messages},
-        privacy_tier="local",
-        content_class="journal",
+        {"model": model, "stream": False, "messages": llm_messages}
     )
     return {"reply": extract_assistant_text(data)}
 

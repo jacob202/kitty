@@ -19,13 +19,14 @@ What survives the audit is worth building — roughly 40% of the spec, sequenced
 below. The rest should be dropped, retargeted, or deferred until the current
 `docs/ROADMAP.md` Phase 1 (trust foundation, honest gates) is closed.
 
-**The audit also turned up a live bug that outranks everything in the spec.**
-Kitty's D10 privacy boundary (ADR 0011) is implemented as a *label* with no
-routing behind it: `privacy_tier="local"` does not select a local model, so
+**The audit also turned up a live bug that outranked everything in the spec.**
+Kitty's D10 privacy boundary (ADR 0011) was implemented as a *label* with no
+routing behind it: `privacy_tier="local"` did not select a local model, so
 journal entries, benefits and medical-admin documents, and most next-step
-prompts are being sent to DeepSeek via OpenRouter today, while the module
-docstrings and the ADR both say they stay on the Mac. Details in
-"The one idea worth rescuing" below. That is Phase 1.
+prompts were being sent to DeepSeek via OpenRouter, while the module docstrings
+and the ADR both said they stayed on the Mac. Jacob resolved this on 2026-07-27
+by retiring the boundary (ADR 0022) rather than building the missing route —
+see Phase 1. The analysis that found it is preserved below.
 
 ### Governance finding — read this first
 
@@ -131,7 +132,13 @@ directory the archivist never writes. This is a live false signal.
 
 ---
 
-## The one idea worth rescuing — and the live bug it exposes
+## The one idea worth rescuing — and the live bug it exposed
+
+> **Resolved 2026-07-27.** Jacob retired the boundary rather than completing it
+> (ADR 0022). The section below is the analysis that found the gap, kept as the
+> evidence behind that decision. It describes the code as it stood at `8ceccc6`,
+> before Phase 1 shipped — the present-tense claims are no longer current.
+
 
 The spec's "run some things on a local model" instinct is correct. Its stated
 reasons (latency, cost, an intent router) are the weak ones. The strong reason is
@@ -212,33 +219,37 @@ Land this audit as a planning input. Decide, with Jacob, which phases enter
 - **Accepts when:** the approved subset appears in `docs/ROADMAP.md` with exit criteria
 - **Blocks:** every phase below
 
-### Phase 1 — Close the D10 privacy route
+### Phase 1 — Retire the D10 boundary ✅ done
 
-Make `privacy_tier="local"` mean what ADR 0011 says it means. This is a
-correctness and privacy fix, not a feature, so it belongs inside the current
-`docs/ROADMAP.md` Phase 1 trust work rather than competing with it.
+**Decided 2026-07-27 (Jacob): drop the boundary, don't build the local route.**
+Recorded as ADR 0022, superseding ADR 0011.
 
-1. **Extract the local caller.** Lift `_call_local_expert_model`
-   (`gateway/knowledge.py:368`) into a shared `gateway/local_model.py`, keeping
-   its retry-once and loud-failure behaviour. `knowledge.py` then calls the
-   shared function; its tested behaviour must not change.
-2. **Dispatch on the tier.** In `call_llm`, when
-   `privacy_tier == "local"` and `content_class in PRIVACY_LOCAL_ONLY`, route to
-   the MLX loopback instead of LiteLLM. Everything else keeps its current path —
-   this is deliberately the narrowest possible change to the hub.
-3. **Fail loud.** MLX unavailable raises; it never degrades to cloud. ADR 0011
-   already requires this for `/knowledge/expert`; it now applies to all four classes.
-4. **Fix the inverted test.** `test_call_llm_passes_through_when_local` currently
-   asserts private content reaches the cloud provider. It must assert the
-   opposite, and a new test must prove that MLX being down raises rather than
-   falling back.
-5. **Correct the false docstring** at `gateway/deadline_extractor.py:3-5` once the
-   route it describes actually exists.
+The reasoning: Kitty should use local resources where they're efficient but not
+accept quality handicaps imposed by 8 GB of hardware. The four protected classes
+include the most judgment-heavy paths in the product — journal reflection and
+next-step advice. Serving those from a local 4B to honour a guarantee that was
+never actually in force trades real output quality for a property the system did
+not have.
 
-- **Files:** `gateway/local_model.py` (new), `gateway/llm_client.py`, `gateway/knowledge.py`, `gateway/deadline_extractor.py`, `tests/test_llm_privacy_boundary.py`, `tests/test_knowledge_experts.py`
-- **Accepts when:** `python3.12 -m pytest tests/ -q` passes with the corrected contract; a journal write with MLX running is served locally and never contacts LiteLLM; the same write with MLX stopped returns a visible error
-- **Risk:** medium. It changes which model answers journal, mail, health/admin and next-step prompts — Qwen3.5-4B will be noticeably weaker than DeepSeek V4 Pro on those. That is the correct trade under ADR 0011, but Jacob should see it before it lands, and quality on the `next_step` path in particular is worth eyeballing.
-- **Note:** `next_step.py:49` defaults *every* non-`code` project to `health_admin`. That is the D10 fail-toward-privacy default working as designed, but it means this change moves most next-step generation onto the local model at once. Consider whether that default is still the right classification, separately from this fix.
+Shipped:
+
+1. Removed `PRIVACY_LOCAL_ONLY`, `PrivacyBoundaryError` and
+   `enforce_privacy_boundary` from `gateway/llm_client.py`.
+2. Removed `privacy_tier` / `content_class` from `call_llm`,
+   `chat_completions_non_stream`, and every call site and injected-callable seam.
+3. Removed `next_step._PRIVACY_BY_KIND`, so non-`code` projects are no longer
+   classified `health_admin` by default.
+4. Corrected the docstrings that claimed local-only execution, and deleted
+   `tests/test_llm_privacy_boundary.py` — it asserted the inverted contract.
+5. `POST /knowledge/expert` keeps its MLX loopback path, now an explicitly chosen
+   local feature rather than a privacy mandate.
+
+- **Accepts when:** full `pytest` suite green with the new contract; no
+  `privacy_tier` / `PRIVACY_LOCAL_ONLY` / `enforce_privacy_boundary` references
+  remain in `gateway/`
+- **Open follow-up:** should `/knowledge/expert` also get a cloud option? Under
+  the same "no hardware handicaps" reasoning it probably should, but it is a
+  working tested path and changing it is a separate decision.
 
 ### Phase 2 — SQLite correctness and execution bounds
 
@@ -356,16 +367,11 @@ If the gate is not met, close this out as "Chroma retained, decision recorded" i
 
 ## Open decisions for Jacob
 
-1. **Close the D10 privacy route now?** Recommended: yes. It is a correctness fix
-   to an accepted ADR, not a feature, so it belongs inside the current trust work
-   rather than competing with it. The cost is that journal, mail, health/admin and
-   most next-step answers move from DeepSeek V4 Pro to a local 4B — visibly weaker
-   output in exchange for the privacy guarantee Kitty already claims to provide.
-   That trade is ADR 0011's to make, but Jacob should see the quality drop coming.
-2. **Is `health_admin` still the right default for every non-`code` project?**
-   `next_step.py:49` sends all of them local. Correct under fail-toward-privacy,
-   but it means Phase 1 moves most next-step generation onto the small model at
-   once. Narrowing that default is a separate, smaller decision.
+1. ~~Close the D10 privacy route?~~ **Resolved 2026-07-27: no — retired instead
+   (ADR 0022).** Decisions 1 and 2 below are closed by that.
+2. **Should `/knowledge/expert` get a cloud option?** It is now the only local
+   model path left. Under the same reasoning that retired D10 it probably should,
+   but it works today and changing it is its own decision.
 3. **Does anything else enter `docs/ROADMAP.md` before trust work closes?**
    Recommendation: Phase 2 only. Small, local, improves the gates.
 4. **Is there a felt retrieval problem?** If exact-match search failures are not

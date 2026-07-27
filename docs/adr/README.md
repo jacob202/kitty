@@ -20,7 +20,7 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0008 | [StorageRouter Is A Thin Write-Side Seam, Not A Port](0008-storage-router-thin-write-seam.md)  | Accepted                       | 2026-07-02 |
 | 0009 | [Lint Is High-Signal Only; E501 Not Enforced](0009-lint-high-signal-only-e501-not-enforced.md) | Accepted                       | 2026-07-02 |
 | 0010 | [Kitty Is A Personal Operating Layer](0010-kitty-is-personal-operating-layer.md)               | Accepted; amended 2026-07-26   | 2026-07-01 |
-| 0011 | [Privacy Boundary In The LLM Router](0011-privacy-boundary-in-llm-router.md)                   | Accepted                       | 2026-07-02 |
+| 0011 | [Privacy Boundary In The LLM Router](0011-privacy-boundary-in-llm-router.md)                   | Superseded by 0022             | 2026-07-02 |
 | 0012 | [Mail Connector Uses The Gmail API, Read-Only](0012-mail-connector-gmail-readonly.md)          | Accepted                       | 2026-07-02 |
 | 0013 | [Phone-First Delivery And The Move-In Bar](0013-phone-first-delivery-move-in-bar.md)           | Accepted; amended 2026-07-26   | 2026-07-04 |
 | 0014 | [Magic Kitty: Cross-Project Insight](0014-magic-kitty-cross-project-insight.md)                | Accepted                       | 2026-07-05 |
@@ -31,6 +31,7 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0019 | [Audit-Harvest Ratifications](0019-audit-harvest-ratifications.md)                             | Accepted                       | 2026-07-24 |
 | 0020 | [One Canonical Roadmap and Planning Ownership](0020-one-canonical-roadmap.md)                  | Accepted                       | 2026-07-26 |
 | 0021 | [Proactive Builder Execution and Model Policy](0021-proactive-builder-execution.md)            | Accepted                       | 2026-07-26 |
+| 0022 | [Retire The D10 Local-Only Privacy Boundary](0022-retire-privacy-boundary.md)                  | Accepted                       | 2026-07-27 |
 
 Historical decision detail remains in
 [`docs/retired/DECISIONS_AND_ROADMAP.md`](../retired/DECISIONS_AND_ROADMAP.md).
