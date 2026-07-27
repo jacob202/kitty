@@ -68,7 +68,14 @@ else
     shown=0
     while IFS= read -r b; do
       [[ -z "$b" ]] && continue
-      all_dirs=$(git diff --name-only "$BASE...$b" 2>/dev/null | cut -d/ -f1 | sort -u)
+      # A failed diff (shallow clone, missing object, no merge base) must not
+      # be read as "this branch touches nothing" — that hides a live collision.
+      if ! raw_diff=$(git diff --name-only "$BASE...$b" 2>&1); then
+        printf '%s  UNAVAILABLE: cannot diff against %s: %s\n' "$b" "$BASE" "$raw_diff"
+        shown=$((shown + 1))
+        continue
+      fi
+      all_dirs=$(printf '%s\n' "$raw_diff" | cut -d/ -f1 | sort -u)
       # A branch with no diff against the base carries no work to collide with.
       [[ -z "${all_dirs// /}" ]] && continue
       # Every touched path is listed: a collision hidden behind a cap is exactly
@@ -95,10 +102,19 @@ if ! command -v gh >/dev/null 2>&1; then
 elif ! env -u GITHUB_TOKEN gh auth status >/dev/null 2>&1; then
   echo "UNAVAILABLE: gh not authenticated even with GITHUB_TOKEN unset."
 else
-  env -u GITHUB_TOKEN gh pr list --state open --limit 20 \
+  PR_LIMIT=100
+  if ! PRS=$(env -u GITHUB_TOKEN gh pr list --state open --limit "$PR_LIMIT" \
     --json number,title,isDraft,headRefName,updatedAt,author \
-    --template '{{range .}}#{{.number}} {{if .isDraft}}[DRAFT] {{end}}{{.title}} ({{.headRefName}}, {{.author.login}}, {{.updatedAt}}){{"\n"}}{{end}}' 2>&1 \
-    || echo "UNAVAILABLE: gh pr list failed — see error above."
+    --template '{{range .}}#{{.number}} {{if .isDraft}}[DRAFT] {{end}}{{.title}} ({{.headRefName}}, {{.author.login}}, {{.updatedAt}}){{"\n"}}{{end}}' 2>&1); then
+    echo "UNAVAILABLE: gh pr list failed: $PRS"
+  else
+    printf '%s\n' "$PRS"
+    # --limit is a maximum fetched, not a page size: hitting it means the
+    # inventory may be short a colliding PR and cannot be called complete.
+    if [[ "$(printf '%s\n' "$PRS" | grep -c '^#')" -ge "$PR_LIMIT" ]]; then
+      echo "TRUNCATED: hit the --limit of $PR_LIMIT open PRs; raise it before trusting this section."
+    fi
+  fi
 fi
 
 hr "BUILDER QUEUE"

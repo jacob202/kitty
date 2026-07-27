@@ -66,7 +66,20 @@ _REQUIRED_PARALLEL_WORK_KEYS = {"kind", "ref", "owner", "touches", "observed_at"
 # this the carry-forward field quietly becomes an unbounded backlog.
 _MAX_RECOMMENDATIONS = 3
 _RECOMMENDATION_STATUSES = {"ready", "deferred"}
-_REQUIRED_RECOMMENDATION_KEYS = {"id", "what", "status"}
+_REQUIRED_RECOMMENDATION_KEYS = {
+    "id",
+    "what",
+    "why",
+    "class",
+    "status",
+    "blocked_by",
+    "release_check",
+    "deferred_count",
+    "first_deferred",
+}
+# Life work outranks code work (ADR 0016); losing `class` silently destroys that
+# ordering while the checkpoint still validates.
+_RECOMMENDATION_CLASSES = {"life", "code"}
 _ACTIVE_CHECKPOINT_STATUSES = {"in_progress", "blocked", "awaiting_review"}
 _TERMINAL_CHECKPOINT_STATUSES = {"complete", "cancelled", "superseded"}
 _MISSION_STATUSES = {
@@ -285,9 +298,14 @@ def _validate_recommendations(relative_path: Path, value: Any) -> None:
         missing = sorted(_REQUIRED_RECOMMENDATION_KEYS - set(entry))
         if missing:
             raise ValueError(f"{where} is missing keys: {missing}")
-        for key in ("id", "what"):
+        for key in ("id", "what", "why"):
             if not isinstance(entry.get(key), str) or not entry[key].strip():
                 raise ValueError(f"{where} {key} must be a non-empty string")
+        if entry["class"] not in _RECOMMENDATION_CLASSES:
+            raise ValueError(
+                f"{where} class must be one of {sorted(_RECOMMENDATION_CLASSES)}, "
+                f"got {entry['class']!r} — life-first ranking depends on it"
+            )
         if entry["id"] in seen:
             raise ValueError(
                 f"{where} id {entry['id']!r} is duplicated; reuse one entry so "
@@ -312,8 +330,16 @@ def _validate_recommendations(relative_path: Path, value: Any) -> None:
         if not isinstance(count, int) or isinstance(count, bool) or count < 0:
             raise ValueError(f"{where} deferred_count must be a non-negative integer")
         if entry["status"] != "deferred":
+            # A ready entry must not carry blocker fields: a stale blocked_by
+            # left behind on promotion reads as a live blocker to the next
+            # session.
+            for key in ("blocked_by", "release_check", "first_deferred"):
+                if entry[key] is not None:
+                    raise ValueError(
+                        f"{where} is ready, so {key} must be null, got {entry[key]!r}"
+                    )
             continue
-        for key in ("blocked_by", "release_check"):
+        for key in ("blocked_by", "release_check", "first_deferred"):
             if not isinstance(entry.get(key), str) or not entry[key].strip():
                 raise ValueError(
                     f"{where} is deferred, so {key} must be a non-empty string"
@@ -701,13 +727,27 @@ def _checkpoint_checks(
             else:
                 live_state = live.get("state")
                 live_head = live.get("headRefOid")
-                if live_state != expected_state or live_head != expected_head:
+                # Recording the PR head is self-referential: committing the
+                # checkpoint moves the head past the value it just wrote, so
+                # strict equality can never hold for the commit that carries the
+                # checkpoint. Accept the recorded head when the only commits
+                # between it and the live head are checkpoint-only — the same
+                # rule the HEAD check already applies.
+                head_ok = live_head == expected_head
+                head_detail = ""
+                if not head_ok and isinstance(live_head, str) and live_head:
+                    fresh, head_detail = _checkpoint_head_is_fresh(
+                        repo_root, str(expected_head), live_head
+                    )
+                    head_ok = fresh
+                if live_state != expected_state or not head_ok:
                     checks.append(
                         ContinuityCheck(
                             "FAIL",
                             f"{prefix}:pull_request",
                             f"PR #{number} expected {expected_state}@{expected_head}, "
-                            f"live state is {live_state}@{live_head}",
+                            f"live state is {live_state}@{live_head}"
+                            + (f" ({head_detail})" if head_detail else ""),
                         )
                     )
                 else:
@@ -715,7 +755,8 @@ def _checkpoint_checks(
                         ContinuityCheck(
                             "PASS",
                             f"{prefix}:pull_request",
-                            f"PR #{number} is OPEN at {expected_head}",
+                            f"PR #{number} is OPEN at {expected_head}"
+                            + (f" ({head_detail})" if head_detail else ""),
                         )
                     )
     return checks

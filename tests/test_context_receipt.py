@@ -559,3 +559,61 @@ def test_non_scalar_schema_version_fails_loud_instead_of_crashing(tmp_path: Path
     )
 
     assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_pr_head_may_lag_by_the_checkpoint_commit_itself(tmp_path: Path):
+    # Recording the PR head is self-referential: committing the checkpoint moves
+    # the head past the value it just wrote. A checkpoint-only commit in between
+    # must stay valid, or no checkpoint that names its own PR can ever pass.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(repo, head, pull_request={"number": 276, "state": "OPEN", "head_sha": head})
+    _git(repo, "add", ".claude/STATE.md", ".claude/HANDOFF.md")
+    _git(repo, "commit", "-m", "docs(session): checkpoint")
+    live_head = _git(repo, "rev-parse", "HEAD")
+
+    levels = _levels(
+        repo,
+        github_lookup=lambda _number: {"state": "OPEN", "headRefOid": live_head},
+    )
+
+    assert levels["state:pull_request"] == "PASS"
+    assert levels["handoff:pull_request"] == "PASS"
+
+
+def test_pr_head_lagging_by_real_work_still_fails(tmp_path: Path):
+    # The allowance is narrow: a commit touching anything but the checkpoint
+    # files means the recorded PR head is genuinely stale.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(repo, head, pull_request={"number": 276, "state": "OPEN", "head_sha": head})
+    _write(repo / "gateway/thing.py", "x = 1\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "feat: real work")
+    live_head = _git(repo, "rev-parse", "HEAD")
+
+    levels = _levels(
+        repo,
+        github_lookup=lambda _number: {"state": "OPEN", "headRefOid": live_head},
+    )
+
+    assert levels["state:pull_request"] == "FAIL"
+
+
+def test_a_ready_recommendation_may_not_keep_blocker_fields(tmp_path: Path):
+    # A stale blocked_by left behind on promotion reads as a live blocker.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, parallel_work=[],
+        recommendations=[_recommendation(status="ready", blocked_by="an old reason")],
+    )
+
+    assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_a_recommendation_without_a_class_is_rejected(tmp_path: Path):
+    # Life-first ranking (ADR 0016) is impossible without it.
+    repo, head = _repo(tmp_path)
+    entry = _recommendation()
+    del entry["class"]
+    _write_checkpoint_pair(repo, head, schema_version=2, parallel_work=[], recommendations=[entry])
+
+    assert _levels(repo)["state:metadata"] == "FAIL"
