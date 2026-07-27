@@ -116,6 +116,7 @@ export function TopBar({
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <button
           onClick={onCommandPalette}
+          title="command palette — search or jump anywhere"
           style={chipBtnStyle}
         >⌘K</button>
         <ProjectSelector
