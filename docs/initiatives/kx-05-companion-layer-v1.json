@@ -15,7 +15,7 @@
         "Import wizard accepts a ChatGPT conversations.json and lists extracted items with approve/skip per item",
         "Approved items are queryable in chat within one turn (memory evidence line shows the source) and are stored in idea_mine_items with user_review='approved'",
         "Skipped items are remembered as skipped (user_review='skipped') and not re-offered on the next import",
-        "make ui-test passes; npm run build passes; python3.12 -m pytest tests/ -q passes"
+        "make ui-test passes; make ui-build passes; python3.12 -m pytest tests/ -q passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/OnboardingModal.tsx",
@@ -48,7 +48,7 @@
         "A fix button executes through the action queue at T0 (no approval prompt); every execution is logged (verified by a test that the audit log contains the action_id, kind, and timestamp)",
         "New action kinds added by this packet are declared at T0 in config/action_tiers.json and the gateway picks them up on restart",
         "No user-facing string contains './kitty', 'POST /', 'curl', or a filesystem path (snapshot test)",
-        "make ui-test passes; npm run build passes; python3.12 -m pytest tests/ -q passes"
+        "make ui-test passes; make ui-build passes; python3.12 -m pytest tests/ -q passes"
       ],
       "allowed_paths": [
         "gateway/routes/",
@@ -81,7 +81,7 @@
         "needs-decision initiatives render actionable cards; deciding one unblocks the queue end-to-end in the smoke run",
         "Builder pane renders attention-first by default (one needs-you card + decision cards + a 'see all' link), not the full initiative grid",
         "packetNeedsAttention (or its successor) excludes operator-cancelled tasks; unit test covers the 2026-07-23 zombie sweep case",
-        "make ui-test passes; npm run build passes; python3.12 -m pytest tests/ -q passes"
+        "make ui-test passes; make ui-build passes; python3.12 -m pytest tests/ -q passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/BuilderSurface.tsx",
@@ -111,7 +111,7 @@
         "Selecting an expert in chat visibly scopes the turn; the answer carries at least one citation card naming the source book",
         "Citation cards expand to the passage and source path",
         "An expert with an empty collection shows the empty state and import link instead of a broken answer",
-        "make ui-test passes; npm run build passes; python3.12 -m pytest tests/ -q passes"
+        "make ui-test passes; make ui-build passes; python3.12 -m pytest tests/ -q passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/HomeState.tsx",
@@ -142,7 +142,7 @@
         "Smalltalk turns produce no memory-evidence line; a real recall turn still shows it",
         "Status strip tolerates a single failed probe without changing state (fake-timers test)",
         "Resume card shows the actual next action text, never a raw markdown heading",
-        "make ui-test passes; npm run build passes"
+        "make ui-test passes; make ui-build passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/ActiveTaskCards.tsx",

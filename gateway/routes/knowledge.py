@@ -7,9 +7,11 @@ seams. No silent success: every ingest response carries an explicit
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import re
+import socket
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -35,6 +37,54 @@ URL_DOWNLOAD_TIMEOUT_SECONDS = 30
 URL_DOWNLOAD_MAX_BYTES = 200 * 1024 * 1024
 URL_DOWNLOAD_DIR = KNOWLEDGE_DIR / "inbox"
 URL_DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# --- SSRF Protection ---
+
+
+def _is_private_ip(ip: str) -> bool:
+    """Check if an IP address is private/internal (RFC 1918, loopback, link-local, etc.)."""
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        return (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_reserved
+            or ip_obj.is_unspecified
+        )
+    except ValueError:
+        return True  # Treat unparseable as unsafe
+
+
+def _resolve_and_validate_host(host: str) -> list[str]:
+    """Resolve hostname to IPs and validate none are private/internal."""
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as exc:
+        raise HTTPException(status_code=400, detail=f"could not resolve host: {exc}")
+    ips = {info[4][0] for info in infos}
+    for ip in ips:
+        if _is_private_ip(ip):
+            raise HTTPException(
+                status_code=403,
+                detail=f"access to private/internal IP {ip} is forbidden",
+            )
+    return list(ips)
+
+
+def _validate_url_security(url: str) -> None:
+    """Validate URL against SSRF: block private IPs, localhost, and non-HTTP(S) schemes."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(
+            status_code=400, detail=f"unsupported url scheme: {parsed.scheme!r}"
+        )
+    host = parsed.hostname or ""
+    if not host:
+        raise HTTPException(status_code=400, detail="url missing hostname")
+    _resolve_and_validate_host(host)
 
 
 # --- Request/Response Schemas ---
@@ -300,11 +350,12 @@ async def _resolve_target(
         return p, False, None
 
     assert body.url is not None  # validated by IngestRequest
-    parsed = urlparse(body.url)
-    if parsed.scheme not in ("http", "https"):
-        return None, False, f"unsupported url scheme: {parsed.scheme!r}"
+    _validate_url_security(body.url)
 
     return await _download_url(body.url)
+
+
+MAX_REDIRECTS = 5
 
 
 async def _download_url(url: str) -> tuple[Optional[Path], bool, Optional[str]]:
@@ -315,33 +366,58 @@ async def _download_url(url: str) -> tuple[Optional[Path], bool, Optional[str]]:
     ``URL_DOWNLOAD_TIMEOUT_SECONDS`` and ``URL_DOWNLOAD_MAX_BYTES`` (200 MB
     hard cap) — same as the prior ``requests``-based implementation.
     See docs/AUDIT_FULL_ENGINEERING_2026-07-20.md §2.1.
+
+    Redirects are followed manually (``follow_redirects=False``) so every
+    hop is re-validated against SSRF targets — an attacker-controlled public
+    URL must not be able to bounce the gateway into localhost or the LAN.
     """
     try:
         async with httpx.AsyncClient(timeout=URL_DOWNLOAD_TIMEOUT_SECONDS) as client:
-            async with client.stream(
-                "GET", url, follow_redirects=True
-            ) as resp:
-                resp.raise_for_status()
-                filename = _safe_filename(url, resp)
-                target = URL_DOWNLOAD_DIR / filename
-                written = 0
-                with target.open("wb") as out:
-                    async for chunk in resp.aiter_bytes(chunk_size=64 * 1024):
-                        if not chunk:
-                            continue
-                        written += len(chunk)
-                        if written > URL_DOWNLOAD_MAX_BYTES:
-                            out.close()
-                            target.unlink(missing_ok=True)
+            current_url = url
+            for _hop in range(MAX_REDIRECTS + 1):
+                _validate_url_security(current_url)
+                async with client.stream(
+                    "GET", current_url, follow_redirects=False
+                ) as resp:
+                    if resp.status_code in (301, 302, 303, 307, 308):
+                        location = resp.headers.get("location")
+                        if not location:
                             return None, False, (
-                                f"download exceeded {URL_DOWNLOAD_MAX_BYTES} bytes"
+                                f"redirect from {current_url} missing Location header"
                             )
-                        out.write(chunk)
-        return target, True, None
+                        current_url = str(httpx.URL(current_url).join(location))
+                        continue
+                    resp.raise_for_status()
+                    return await _stream_response_to_disk(current_url, resp)
+            return None, False, f"too many redirects (>{MAX_REDIRECTS}) for {url}"
+    except HTTPException as exc:
+        return None, False, f"blocked url: {exc.detail}"
     except httpx.HTTPError as exc:
         return None, False, f"download failed: {exc}"
     except OSError as exc:
         return None, False, f"could not write download: {exc}"
+
+
+async def _stream_response_to_disk(
+    url: str, resp: httpx.Response
+) -> tuple[Optional[Path], bool, Optional[str]]:
+    """Stream an already-validated response body into URL_DOWNLOAD_DIR."""
+    filename = _safe_filename(url, resp)
+    target = URL_DOWNLOAD_DIR / filename
+    written = 0
+    with target.open("wb") as out:
+        async for chunk in resp.aiter_bytes(chunk_size=64 * 1024):
+            if not chunk:
+                continue
+            written += len(chunk)
+            if written > URL_DOWNLOAD_MAX_BYTES:
+                out.close()
+                target.unlink(missing_ok=True)
+                return None, False, (
+                    f"download exceeded {URL_DOWNLOAD_MAX_BYTES} bytes"
+                )
+            out.write(chunk)
+    return target, True, None
 
 
 _SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._-]+")

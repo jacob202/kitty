@@ -15,7 +15,7 @@
         "ArtifactCard renders each type with correct visual model (image=thumbnail, document=excerpt, etc.)",
         "EmptyState and LoadingSkeleton are single implementations with content projection",
         "make ui-test passes with new component tests",
-        "npm run build passes"
+        "make ui-build passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/shared/",
@@ -38,7 +38,7 @@
         "UserMenu shows theme toggle and settings link; avatar replaces the standalone 'j' circle",
         "lib/navigation.tsx exports a useNavigation hook with view, setView, and isMobile",
         "make ui-test passes",
-        "npm run build passes",
+        "make ui-build passes",
         "No horizontal overflow at 320px on any view"
       ],
       "allowed_paths": [
@@ -67,7 +67,7 @@
         "Desktop: two-column layout; Mobile: single-column stacked",
         "Screenshot evidence at 320px, 375px, 768px, 1440px",
         "make ui-test passes",
-        "npm run build passes"
+        "make ui-build passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/HomeState.tsx",
@@ -94,7 +94,7 @@
         "No visual regressions: all 3 themes look correct, no layout breaks",
         "Screenshot evidence of before/after for each theme at 1440px",
         "make ui-test passes",
-        "npm run build passes"
+        "make ui-build passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/app/globals.css",
@@ -119,7 +119,7 @@
         "Interactive elements have min 44px touch targets on mobile",
         "Screenshot evidence at 320px and 375px for every view",
         "make ui-test passes",
-        "npm run build passes"
+        "make ui-build passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/",
@@ -145,7 +145,7 @@
         "Dialog focus is trapped; Escape closes and returns focus",
         "Keyboard-only navigation of primary flows (home→chat→compose→send)",
         "make ui-test passes",
-        "npm run build passes"
+        "make ui-build passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/app/globals.css",

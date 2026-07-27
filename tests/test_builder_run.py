@@ -281,12 +281,14 @@ class TestStopClassIntegration:
             db_path=db_path,
             repo_root=repo,
         )
-        assert summary["outcome"] == "paused"
-        assert summary["stop_class"] == br.STOP_NEEDS_DECISION
+        assert summary["outcome"] == "idle"
+        assert summary["exhausted"] == 1
 
         status = bi.initiative_status(INITIATIVE, db_path=db_path)
         assert status["stop_class"] == br.STOP_NEEDS_DECISION
-        assert "needs_decision" in status["pause_reason"]
+        # The continue path does not call pause_initiative; the reason is
+        # durable in stop_class_reason instead of pause_reason.
+        assert status.get("stop_class_reason")
 
         conn = bq.connect(db_path)
         try:
@@ -343,9 +345,10 @@ class TestStopClassIntegration:
             db_path=db_path,
             repo_root=repo,
         )
-        assert summary["outcome"] == "paused"
-        assert summary["stop_class"] == br.STOP_ROUTINE
+        assert summary["outcome"] == "idle"
+        assert summary["exhausted"] == 1
         status = bi.initiative_status(INITIATIVE, db_path=db_path)
+        assert status["state"] == bi.INITIATIVE_FAILED
         assert status["stop_class"] == br.STOP_ROUTINE
 
     def test_same_signature_exhaustion_needs_decision_ambiguous(
@@ -384,13 +387,115 @@ class TestStopClassIntegration:
             db_path=db_path,
             repo_root=repo,
         )
-        assert summary["outcome"] == "paused"
-        assert summary["stop_class"] == br.STOP_NEEDS_DECISION
+        assert summary["outcome"] == "idle"
+        assert summary["exhausted"] == 1
 
         status = bi.initiative_status(INITIATIVE, db_path=db_path)
+        assert status["state"] == bi.INITIATIVE_FAILED
         assert status["stop_class"] == br.STOP_NEEDS_DECISION
         assert status["stop_class_reason"] == "requirement may be ambiguous"
-        assert "requirement may be ambiguous" in status["pause_reason"]
+        # stop_class_reason is the durable surface; pause_reason is not set
+        # because the continue path skips pause_initiative.
+
+    def test_exhausted_packet_does_not_stop_unrelated_packet(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        failing = _packet("P1")
+        failing["acceptance_criteria"] = ["impossible.txt exists"]
+        failing["validation_commands"] = ["test -f impossible.txt"]
+        succeeding = _packet("P2")
+        _apply(db_path, [failing, succeeding], repo_root=repo)
+
+        worker = tmp_path / "selective.sh"
+        worker.write_text(
+            "#!/bin/sh\nset -e\n"
+            "packet_id=$(python3 -c "
+            "\"import json; print(json.load(open('$KB_BUNDLE_PATH'))['packet_id'])\")\n"
+            "if [ \"$packet_id\" = \"P2\" ]; then echo ok > done.txt; fi\n"
+            f"printf '%s\\n' '{_GOOD_IMPL}' > \"$KB_RESULT_PATH\"\n",
+            encoding="utf-8",
+        )
+        worker.chmod(0o755)
+
+        summary = br.run_initiative(
+            INITIATIVE,
+            worker_command=["/bin/sh", str(worker)],
+            db_path=db_path,
+            repo_root=repo,
+        )
+
+        assert summary["outcome"] == "idle", summary
+        assert summary["exhausted"] == 1
+        assert summary["succeeded"] == 1
+        assert [item["packet_id"] for item in summary["processed"]] == ["P1", "P2"]
+        status = bi.initiative_status(INITIATIVE, db_path=db_path)
+        assert status["state"] == bi.INITIATIVE_FAILED
+        assert status["exhausted"] == ["P1"]
+        # Without publish, the success path does not transition the task to
+        # DONE — P2 succeeded in the run summary but stays at its runner
+        # terminal state.  The critical invariant is that P2 *ran and succeeded*
+        # despite P1's exhaustion, not that its task state reached DONE.
+        assert "P2" not in status["exhausted"]
+        assert "P2" not in (status.get("blocked") or [])
+
+    def test_worker_provider_exhaustion_pauses_without_consuming_attempt_budget(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        _apply(db_path, [_packet("P1"), _packet("P2")], repo_root=repo)
+        unavailable = tmp_path / "provider-unavailable.sh"
+        unavailable.write_text("#!/bin/sh\nexit 75\n", encoding="utf-8")
+        unavailable.chmod(0o755)
+
+        summary = br.run_initiative(
+            INITIATIVE,
+            worker_command=["/bin/sh", str(unavailable)],
+            db_path=db_path,
+            repo_root=repo,
+        )
+
+        assert summary["outcome"] == "paused"
+        assert "provider exhaustion" in summary["reason"]
+        assert summary["processed"][0]["outcome"] == br.bl.LOOP_PROVIDER_EXHAUSTED
+        attempts = br.ba.list_attempts(INITIATIVE, "P1", db_path=db_path)
+        assert [attempt["outcome"] for attempt in attempts] == [br.ba.ATTEMPT_CRASHED]
+        status = bi.initiative_status(INITIATIVE, db_path=db_path)
+        assert status["state"] == bi.INITIATIVE_PAUSED
+        assert status["eligible"] == ["P1", "P2"]
+
+    def test_reviewer_provider_exhaustion_is_resumable(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        _apply(db_path, [_packet("P1")], repo_root=repo)
+        unavailable_review = tmp_path / "review-provider-unavailable.sh"
+        unavailable_review.write_text("#!/bin/sh\nexit 75\n", encoding="utf-8")
+        unavailable_review.chmod(0o755)
+
+        committing_worker = tmp_path / "committing-worker.sh"
+        committing_worker.write_text(
+            "#!/bin/sh\nset -e\n"
+            "echo ok > done.txt\n"
+            "git add done.txt\n"
+            "git -c user.email=t@t -c user.name=t commit -q -m \"[P1] implementation\"\n"
+            f"printf '%s\\n' '{_GOOD_IMPL}' > \"$KB_RESULT_PATH\"\n",
+            encoding="utf-8",
+        )
+        committing_worker.chmod(0o755)
+
+        summary = br.run_initiative(
+            INITIATIVE,
+            worker_command=["/bin/sh", str(committing_worker)],
+            review_command=["/bin/sh", str(unavailable_review)],
+            db_path=db_path,
+            repo_root=repo,
+        )
+
+        assert summary["outcome"] == "paused"
+        assert "provider exhaustion" in summary["reason"]
+        attempts = br.ba.list_attempts(INITIATIVE, "P1", db_path=db_path)
+        assert [attempt["outcome"] for attempt in attempts] == [br.ba.ATTEMPT_CRASHED]
+        status = bi.initiative_status(INITIATIVE, db_path=db_path)
+        assert status["state"] == bi.INITIATIVE_PAUSED
+        assert status["eligible"] == ["P1"]
 
 
 class TestCp06AutoMerge:

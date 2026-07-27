@@ -15,7 +15,7 @@
         "Asking 'anything to flag' in chat returns the same feed as cards with working dismiss/snooze buttons",
         "Dismiss action updates signal_store.mark_processed and (for expert signals) increments expert_snooze for the topic_hash",
         "Snooze action calls the existing /experts/{expert_id}/snooze endpoint (no new mutation path)",
-        "make ui-test passes; npm run build passes; python3.12 -m pytest tests/ -q passes"
+        "make ui-test passes; make ui-build passes; python3.12 -m pytest tests/ -q passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/RepairsCard.tsx",
@@ -40,7 +40,7 @@
         "No user-facing string contains 'POST /state/snapshot', 'ui.tailnet', 'Tailscale is running', or 'use ./kitty' (snapshot test)",
         "The phone-access card has a fix button that opens the Tailscale app or shows a graceful 'not installed on this Mac' empty state",
         "The what-changed card has a 'mark baseline' action that POSTs to /state/snapshot without showing the route in the UI",
-        "make ui-test passes; npm run build passes; python3.12 -m pytest tests/ -q passes"
+        "make ui-test passes; make ui-build passes; python3.12 -m pytest tests/ -q passes"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/HomeState.tsx",

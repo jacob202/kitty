@@ -26,12 +26,18 @@ logger = logging.getLogger("kitty.idea_mine_store")
 
 IDEA_MINE_DB_FILE = KITTY_DB_FILE
 
+# Sentinel for call-time default resolution (Python evaluates default parameter
+# values at definition time, so a patched module-level variable won't cascade to
+# a default-parameter function.  Use ``_UNSET`` to force runtime lookup.)
+_UNSET = object()
+
 OBJECT_TYPES = {
     "project_thread",
     "idea_seed",
     "decision_recovered",
     "preference_or_taste",
     "prompt_or_workflow",
+    "insight",
 }
 SENSITIVITIES = {"normal", "personal", "sensitive", "quiet"}
 REVIEW_STATES = {"unreviewed", "approved", "edited", "rejected", "keep_quiet"}
@@ -43,8 +49,10 @@ SURFACEABLE_REVIEW_STATES = {"approved", "edited"}
 SUPPRESSED_REVIEW_STATES = {"rejected", "keep_quiet"}
 
 
-def init_db(db_file: Path = IDEA_MINE_DB_FILE) -> None:
+def init_db(db_file: Path = _UNSET) -> None:  # type: ignore[assignment]
     """Apply pending migrations. Idempotent."""
+    if db_file is _UNSET:
+        db_file = IDEA_MINE_DB_FILE
     kitty_db.migrate(db_file=db_file)
 
 
@@ -63,7 +71,9 @@ def _validate_item(item: dict[str, Any]) -> None:
         raise ValueError(f"bad user_review: {item.get('user_review')!r}")
 
 
-def insert_item(item: dict[str, Any], *, db_file: Path = IDEA_MINE_DB_FILE) -> int:
+def insert_item(item: dict[str, Any], *, db_file: Path = _UNSET) -> int:  # type: ignore[assignment]
+    if db_file is _UNSET:
+        db_file = IDEA_MINE_DB_FILE
     """Insert one extraction item. Returns the new row id."""
     _validate_item(item)
     object_type = item["object_type"]
@@ -87,7 +97,9 @@ def insert_item(item: dict[str, Any], *, db_file: Path = IDEA_MINE_DB_FILE) -> i
         return row_id
 
 
-def import_from_jsonl(path: str | Path, *, db_file: Path = IDEA_MINE_DB_FILE) -> int:
+def import_from_jsonl(path: str | Path, *, db_file: Path = _UNSET) -> int:  # type: ignore[assignment]
+    if db_file is _UNSET:
+        db_file = IDEA_MINE_DB_FILE
     """Read a JSONL file from the extractor and insert each item.
 
     Fail loud: a malformed line raises instead of being silently skipped.
@@ -112,8 +124,10 @@ def list_items(
     object_type: str | None = None,
     review: str | None = None,
     *,
-    db_file: Path = IDEA_MINE_DB_FILE,
+    db_file: Path = _UNSET,  # type: ignore[assignment]
 ) -> list[dict[str, Any]]:
+    if db_file is _UNSET:
+        db_file = IDEA_MINE_DB_FILE
     """Return rows as dicts with ``payload`` (parsed) and row metadata."""
     clauses: list[str] = []
     params: list[Any] = []
@@ -131,7 +145,9 @@ def list_items(
     return [_row_to_dict(row) for row in rows]
 
 
-def get_item(item_id: int, *, db_file: Path = IDEA_MINE_DB_FILE) -> dict[str, Any] | None:
+def get_item(item_id: int, *, db_file: Path = _UNSET) -> dict[str, Any] | None:  # type: ignore[assignment]
+    if db_file is _UNSET:
+        db_file = IDEA_MINE_DB_FILE
     with kitty_db.connect(db_file) as conn:
         row = conn.execute(
             "SELECT * FROM idea_mine_items WHERE id = ?", (item_id,)
@@ -143,8 +159,10 @@ def set_review(
     item_id: int,
     review_state: str,
     *,
-    db_file: Path = IDEA_MINE_DB_FILE,
+    db_file: Path = _UNSET,  # type: ignore[assignment]
 ) -> bool:
+    if db_file is _UNSET:
+        db_file = IDEA_MINE_DB_FILE
     """Update an item's review state. Returns False if the item is missing."""
     if review_state not in REVIEW_STATES:
         raise ValueError(f"bad user_review: {review_state!r}")
@@ -171,7 +189,9 @@ def is_surfaceable(item: dict[str, Any]) -> bool:
     return review in SURFACEABLE_REVIEW_STATES
 
 
-def surfaceable_items(*, db_file: Path = IDEA_MINE_DB_FILE) -> list[dict[str, Any]]:
+def surfaceable_items(*, db_file: Path = _UNSET) -> list[dict[str, Any]]:  # type: ignore[assignment]
+    if db_file is _UNSET:
+        db_file = IDEA_MINE_DB_FILE
     """Return only items that may appear in future context."""
     placeholders = ", ".join("?" for _ in SURFACEABLE_REVIEW_STATES)
     with kitty_db.connect(db_file) as conn:
@@ -185,10 +205,12 @@ def surfaceable_items(*, db_file: Path = IDEA_MINE_DB_FILE) -> list[dict[str, An
 
 def export_approved_to_inbox(
     *,
-    db_file: Path = IDEA_MINE_DB_FILE,
+    db_file: Path = _UNSET,  # type: ignore[assignment]
     inbox_file: Path = INBOX_FILE,
     dry_run: bool = False,
 ) -> list[int]:
+    if db_file is _UNSET:
+        db_file = IDEA_MINE_DB_FILE
     """Hand reviewed (surfaceable, un-exported) items to the inbox pipeline.
 
     Approved items become inbox entries so they flow through the existing
@@ -242,6 +264,29 @@ def _item_to_inbox_text(item: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def update_payload(
+    item_id: int,
+    payload_updates: dict[str, Any],
+    *,
+    db_file: Path = _UNSET,  # type: ignore[assignment]
+) -> bool:
+    if db_file is _UNSET:
+        db_file = IDEA_MINE_DB_FILE
+    """Merge `payload_updates` into an item's payload_json. Returns False if missing."""
+    item = get_item(item_id, db_file=db_file)
+    if item is None:
+        return False
+    merged = {**item["payload"], **payload_updates}
+    now = _now_iso()
+    with kitty_db.connect(db_file) as conn:
+        cur = conn.execute(
+            "UPDATE idea_mine_items SET payload_json = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(merged, ensure_ascii=False), now, item_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
 def _row_to_dict(row: Any) -> dict[str, Any]:
     d = dict(row)
     payload = json.loads(d.pop("payload_json", "{}"))
@@ -263,6 +308,7 @@ __all__ = [
     "list_items",
     "get_item",
     "set_review",
+    "update_payload",
     "is_surfaceable",
     "surfaceable_items",
     "export_approved_to_inbox",

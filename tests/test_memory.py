@@ -1,5 +1,6 @@
 """Tests for Kitty memory layer."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -92,3 +93,50 @@ def test_memory_roundtrip():
     results = search_memory("bicycle", limit=3)
     texts = [r.get("memory", r.get("text", "")) for r in results]
     assert any("bicycle" in t.lower() for t in texts), f"Expected bicycle in: {texts}"
+
+
+class TestSessionConsolidationPersistence:
+    """Issue #160 — a closed session must actually write a consolidation record."""
+
+    def test_closed_session_writes_consolidation_record(self, tmp_path, monkeypatch):
+        from gateway import memory as mem_module
+
+        log = tmp_path / "session_consolidation_log.jsonl"
+        monkeypatch.setattr(mem_module, "SESSION_CONSOLIDATION_LOG", log)
+        # Simulate Mem0 accepting the entry.
+        monkeypatch.setattr(
+            mem_module, "add_memory", lambda text, namespace="sessions", metadata=None: True
+        )
+
+        messages = [
+            {"role": "user", "content": "Let's migrate the gateway to FastAPI"},
+            {"role": "assistant", "content": "Sure, here is a plan"},
+            {"role": "user", "content": "Also wire up the session-end hook"},
+        ]
+        result = mem_module.consolidate_session("sess-123", messages)
+
+        assert result is True
+        assert log.exists()
+        lines = log.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 1
+        record = json.loads(lines[0])
+        assert record["session_id"] == "sess-123"
+        assert record["user_message_count"] == 2
+        assert record["stored_to_memory"] is True
+        assert any("FastAPI" in t for t in record["topics"])
+
+    def test_empty_session_records_no_consolidation(self, tmp_path, monkeypatch):
+        from gateway import memory as mem_module
+
+        log = tmp_path / "session_consolidation_log.jsonl"
+        monkeypatch.setattr(mem_module, "SESSION_CONSOLIDATION_LOG", log)
+        monkeypatch.setattr(
+            mem_module, "add_memory", lambda text, namespace="sessions", metadata=None: False
+        )
+
+        assert mem_module.consolidate_session("sess-empty", []) is False
+        # Record is written even when there is nothing to store, so the close is auditable.
+        assert log.exists()
+        record = json.loads(log.read_text(encoding="utf-8").strip().splitlines()[0])
+        assert record["user_message_count"] == 0
+        assert record["stored_to_memory"] is False

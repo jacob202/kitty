@@ -216,6 +216,7 @@ def test_ingest_url_download_succeeds(client, mock_kb_collection):
     # _download_url is httpx.AsyncClient.stream-based (audit §2.1); fake the
     # async client + streaming response pair it enters.
     class FakeStreamResponse:
+        status_code = 200
         headers = {"content-type": "text/plain"}
 
         def raise_for_status(self):
@@ -245,6 +246,13 @@ def test_ingest_url_download_succeeds(client, mock_kb_collection):
             return FakeStreamCM()
 
     cms.append(patch("gateway.routes.knowledge.httpx.AsyncClient", FakeAsyncClient))
+    # Keep the test hermetic: SSRF validation resolves DNS for real hosts.
+    cms.append(
+        patch(
+            "gateway.routes.knowledge._resolve_and_validate_host",
+            lambda host: ["93.184.216.34"],
+        )
+    )
     _enter_all(cms)
     try:
         r = client.post(
@@ -500,3 +508,104 @@ def test_expert_route_rejects_whitespace_query(client):
     )
 
     assert response.status_code == 422
+
+
+# --- SSRF protection regression tests (issue #158) ---
+
+
+class TestSSRFProtection:
+    def test_private_ip_detection(self):
+        assert knowledge_route._is_private_ip("127.0.0.1")
+        assert knowledge_route._is_private_ip("10.0.0.5")
+        assert knowledge_route._is_private_ip("172.16.1.1")
+        assert knowledge_route._is_private_ip("192.168.1.10")
+        assert knowledge_route._is_private_ip("169.254.169.254")  # link-local / metadata
+        assert knowledge_route._is_private_ip("0.0.0.0")
+        assert knowledge_route._is_private_ip("::1")
+        assert knowledge_route._is_private_ip("not-an-ip")  # unparseable = unsafe
+        assert not knowledge_route._is_private_ip("93.184.216.34")
+        assert not knowledge_route._is_private_ip("8.8.8.8")
+
+    def test_ingest_rejects_localhost_url(self, client):
+        r = client.post(
+            "/knowledge/ingest", json={"url": "http://127.0.0.1:8000/admin"}
+        )
+        assert r.status_code == 403
+        assert "private/internal" in r.json()["detail"]
+
+    def test_ingest_rejects_localhost_hostname(self, client):
+        r = client.post(
+            "/knowledge/ingest", json={"url": "http://localhost:8000/secrets"}
+        )
+        assert r.status_code == 403
+
+    def test_ingest_rejects_metadata_endpoint(self, client):
+        r = client.post(
+            "/knowledge/ingest", json={"url": "http://169.254.169.254/latest/meta-data/"}
+        )
+        assert r.status_code == 403
+
+    def test_ingest_rejects_non_http_scheme(self, client):
+        r = client.post(
+            "/knowledge/ingest", json={"url": "file:///etc/passwd"}
+        )
+        # Route-level validation rejects the scheme before any download.
+        assert r.status_code in (400, 422)
+
+    def test_redirect_to_private_ip_is_blocked(self, client, mock_kb_collection):
+        """A public URL redirecting to localhost must not be followed."""
+
+        class FakeRedirectResponse:
+            status_code = 302
+            headers = {"location": "http://127.0.0.1:8000/internal"}
+
+            def raise_for_status(self):
+                return None
+
+            async def aiter_bytes(self, chunk_size=None):
+                yield b""
+
+        class FakeStreamCM:
+            async def __aenter__(self):
+                return FakeRedirectResponse()
+
+            async def __aexit__(self, *args):
+                return False
+
+        class FakeAsyncClient:
+            def __init__(self, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+            def stream(self, method, url, **kwargs):
+                return FakeStreamCM()
+
+        real_validate = knowledge_route._resolve_and_validate_host
+
+        def fake_resolve(host):
+            # First hop (example.com) is public; localhost resolves for real
+            # and must be caught by the real private-IP check.
+            if host == "example.com":
+                return ["93.184.216.34"]
+            return real_validate(host)
+
+        with (
+            patch("gateway.routes.knowledge.httpx.AsyncClient", FakeAsyncClient),
+            patch(
+                "gateway.routes.knowledge._resolve_and_validate_host",
+                side_effect=fake_resolve,
+            ),
+        ):
+            r = client.post(
+                "/knowledge/ingest", json={"url": "https://example.com/doc.pdf"}
+            )
+
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["status"] == "failed"
+        assert "blocked url" in payload["reason"]

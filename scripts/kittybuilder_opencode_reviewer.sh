@@ -148,7 +148,7 @@ done
 
 if [[ -z "${chosen_model}" ]]; then
   echo "ERROR: every free reviewer model failed without producing ${local_review}: ${models[*]}" >&2
-  exit 1
+  exit 75
 fi
 echo "Free review completed with ${chosen_model}."
 

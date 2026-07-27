@@ -1,77 +1,31 @@
-# Handoff — Canonical next work is Phase 1 Outcome 6 on the Mac
+# HANDOFF
 
-<!-- kitty-handoff
-{
-  "schema_version": 1,
-  "updated_at": "2026-07-26T21:14:00Z",
-  "head_sha": "cf919b6aa1796a4eee9cb79f2fd007382579a693",
-  "branch": "docs/session-end-2026-07-26",
-  "worktree": ".",
-  "status": "valid",
-  "completed_items": [
-    "Reviewed scheduled tasks, all open pull requests including drafts, recent commits, open issues, active mission, roadmap, and session-end rules",
-    "Merged PR #272 after correcting its KTF-002 checksum gate to the macOS-compatible shasum command and verifying final CI",
-    "Closed stale planning PR #271 as superseded and preserved its strongest acceptance rules on issue #270",
-    "Consolidated the canonical execution order and evidence requirements into issue #274",
-    "Recorded the final review, durable KB sync payload, security caution, and canonical next-model prompt in docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md"
-  ],
-  "blockers": [
-    "The authoritative Builder queue, worktrees, provider state, and immutable initiative hashes are local to the canonical Mac and were not verifiable from GitHub",
-    "The separate ~/kb repository was unavailable; the prepared durable KB payload still requires local merge and indexing",
-    "Kitty Chat tailnet/LAN mode remains unsafe to use for this proof until security issue #158 is revalidated and resolved"
-  ],
-  "next_action": "On the canonical Mac, sync clean main, inspect the local Builder queue and immutable KTF-002 state, sync the pending ~/kb payload from docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md, then execute issue #274 exactly.",
-  "invalidation_conditions": [
-    "HEAD changes beyond cf919b6aa1796a4eee9cb79f2fd007382579a693 except the checkpoint-only commit that records STATE and HANDOFF",
-    "a new correction PR or issue claims that KTF-001, KTF-002, KTF-003, issue #274, or their gates are defective",
-    "the local Builder database already contains ktf-002-acceptance-prose-v1 with a manifest hash different from corrected main",
-    "issue #274 execution begins, pauses, or completes"
-  ],
-  "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
-}
--->
+## What was done this session (2026-07-27)
 
-## What was done
+- Swept oldest open issues in `jacob202/kitty` (confirmed namespace via `gh repo list`; all `gh` calls used `env -u GITHUB_TOKEN` to dodge a stale ambient PAT).
+- **#158 (SSRF + path traversal, T2) — FIXED & committed** (`5490900`).
+  - `gateway/routes/capture.py`: local capture paths must resolve inside approved roots (DATA_DIR, captures, desktop, knowledge/inbox) else 403.
+  - `gateway/routes/knowledge.py`: block private/loopback/link-local/metadata IPs and non-http(s) schemes; manually follow redirects with per-hop re-validation (`MAX_REDIRECTS=5`).
+  - Added regression tests: path restriction, traversal, SSRF (localhost/metadata/non-http), and redirect-to-private-IP blocking. 30 tests pass (test_capture + test_knowledge_routes).
+  - **Left for Jacob/Codex sign-off (per issue body):** UI `dev:tailnet` 0.0.0.0 bind exposure and proxy gateway-secret injection (`gateway/kitty-chat/src/app/proxy/[...path]/route.ts`). Default `next dev` is 127.0.0.1 — safe.
+- **#159 (failed workers report completion, T2) — already fixed in code** at `f1ca471` ("fix(builder): preserve worker failure states"), with passing tests (`test_llm_failure_finishes_agent_as_failed`, `test_stop_cancels_registered_agent_task`, `test_execute_records_failed_when_worker_raises`). Recommend closing as stale-vs-code.
+- Committed `scripts/session_end_survey.sh` (user-added to the commit; was untracked/pre-existing).
 
-- Reviewed the active ChatGPT schedules. The set is coherent and does not justify another automation; notification delivery currently reports disabled for all active tasks.
-- Searched the full open-PR queue including drafts and found correction PR #272 plus planning PR #271.
-- Reviewed #272 and found a second defect in the proposed correction: `sha256sum` is not the canonical macOS command. Replaced it with `shasum -a 256 -c`, reran CI, marked the PR ready, and merged it as `8ff26b8f08fa186af13678d6fe6821ed36b0493c`.
-- Reviewed #271 and closed it as superseded because its checkpoint files were stale and its planning content duplicated the active mission and issue #270. Preserved its strongest acceptance rules as a durable amendment on issue #270.
-- Rewrote issue #274 as the sole canonical execution sequence: local-state inspection, KTF-003 repair, post-merge proof, Outcome 6 daylight run, evidence bundle, then issue #270.
-- Added `docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md` with the final repository/schedule review, pending KB payload, security caution, and next-model prompt.
+## In-flight / next move
 
-## In-flight / WIP
-
-- This session-end branch contains the closeout note plus refreshed `.claude/STATE.md` and `.claude/HANDOFF.md`.
-- Issue #274 remains open and unexecuted because the authoritative Builder database, worktrees, OpenCode providers, and credentials live on the canonical Mac.
-- Issue #270 is intentionally deferred until Outcome 6 is complete.
-- The durable KB entries listed in the closeout note still need to be merged into the separate local `~/kb` repository.
+- **#160 (memory persistence, T1/T2) — FIXED & committed** (`9d6b841`). Root cause: `consolidate_session` existed but its persistence was only proven via a mock in `test_chat_completions.py` — the heavy Mem0 path needs a live LLM+embedder, so a *closed session* never provably persisted. Added `SESSION_CONSOLIDATION_LOG` (JSONL) written by `consolidate_session` on every close (incl. empty sessions), independent of Mem0. `dream_insights`/`save_dream_insights` already persisted to a real file with solid tests, so it was non-no-op already. Added 2 tests proving the record is written. 44 tests pass (test_memory + test_dream_insights + test_chat_completions).
+- #161 (e2e move-in test) depends on #160.
+- #127 (KittyBuilder queue) is a standing workflow command — likely stale, verify before acting.
+- #270 / #274 are newer initiatives already in flight (see kb NOW.md).
 
 ## Blockers
 
-- GitHub cannot establish whether `ktf-002-acceptance-prose-v1` was already applied locally before #272 changed its immutable manifest hash. The next session must check before applying it.
-- GitHub cannot prove local queue integrity, stale attempts, leases, worktree cleanliness, provider availability, or final report state.
-- Security issue #158 is not resolved for explicit tailnet/LAN mode. Use localhost only during the proof.
+- None technical. #158's LAN/tailnet exposure + proxy secret need human sign-off before fully closing.
 
-## Next move
+## Files changed
 
-On the canonical Mac, sync clean `main`, inspect the local Builder queue and immutable KTF-002 state, sync the pending `~/kb` payload from `docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md`, then execute issue #274 exactly.
-
-## Files changed this session
-
-- `docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md`
-- `.claude/STATE.md`
-- `.claude/HANDOFF.md`
-- GitHub issue #270 acceptance amendment
-- GitHub issue #274 canonical execution sequence
-- PR #272 manifest command and description
-
-## Verification
-
-- Repository-wide open-PR search after cleanup: no open PRs before this session-end PR.
-- Final reviewed main commit: `8ff26b8f08fa186af13678d6fe6821ed36b0493c`.
-- PR #272 final head `d2f2c29ab20771e04e8279c0dcbf87daff7449b1`: PR Agent Review passed, PR Description Check passed, full Tests workflow passed.
-- Current `gateway/kitty-chat/package.json`: default dev/start bind `127.0.0.1`; explicit tailnet scripts bind `0.0.0.0`.
-- Current proxy route injects the gateway bearer secret into forwarded requests and does not itself implement an application-level origin/auth check; localhost-only use is the safe boundary for this proof.
-- No local Kitty commands, Builder mutations, queue inspection, or `~/kb` writes were claimed from this GitHub-only environment.
+- `gateway/routes/capture.py` (path allow-list) — committed 5490900
+- `gateway/routes/knowledge.py` (SSRF + redirect re-validation) — committed 5490900
+- `tests/test_capture.py` (+2 regression tests) — committed 5490900
+- `tests/test_knowledge_routes.py` (+6 SSRF tests, FakeStreamResponse fix) — committed 5490900
+- `scripts/session_end_survey.sh` — committed 78571d2

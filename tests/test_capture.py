@@ -52,7 +52,8 @@ class TestCaptureFile:
         assert inbox_lines[0]["capture_id"] == body["capture_id"]
 
     def test_capture_local_path_queues_and_writes_inbox(self, client, tmp_path):
-        txt = tmp_path / "note.txt"
+        txt = tmp_path / "data" / "captures" / "note.txt"
+        txt.parent.mkdir(parents=True, exist_ok=True)
         txt.write_text("hello world")
 
         response = client.post("/capture/file", data={"path": str(txt)})
@@ -114,5 +115,27 @@ class TestCaptureFile:
         assert response.status_code == 413
 
     def test_capture_rejects_nonexistent_path(self, client, tmp_path):
-        response = client.post("/capture/file", data={"path": str(tmp_path / "missing.pdf")})
+        response = client.post("/capture/file", data={"path": str(tmp_path / "data" / "captures" / "missing.pdf")})
         assert response.status_code == 404
+
+    def test_capture_rejects_path_outside_allowed_roots(self, client, tmp_path):
+        """Regression for issue #158: arbitrary local paths must be rejected."""
+        outside = tmp_path / "outside" / "secrets.txt"
+        outside.parent.mkdir(parents=True, exist_ok=True)
+        outside.write_text("sensitive content")
+
+        response = client.post("/capture/file", data={"path": str(outside)})
+
+        assert response.status_code == 403
+        assert "allowed capture roots" in response.json()["detail"]
+
+    def test_capture_rejects_traversal_out_of_allowed_root(self, client, tmp_path):
+        """Path traversal (`captures/../../`) must not escape the allowed roots."""
+        (tmp_path / "data" / "captures").mkdir(parents=True, exist_ok=True)
+        outside = tmp_path / "evil.txt"
+        outside.write_text("outside data dir")
+        sneaky = tmp_path / "data" / "captures" / ".." / ".." / "evil.txt"
+
+        response = client.post("/capture/file", data={"path": str(sneaky)})
+
+        assert response.status_code == 403
