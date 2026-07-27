@@ -166,6 +166,21 @@ surprise bill.
 ./kitty governor receipts                # what was actually spent, per pass
 ```
 
+### Where the gate actually fires
+
+`run_packet` consults the governor when it is given a `governor_db`, right after
+the packet's durable base SHA is resolved and before any attempt is created. A
+refusal appends a `compute_governor_refused` event to the task and raises, so
+the reason is durable rather than a log line.
+
+`./kitty builder initiative run-packet` passes it **by default** — a real
+dispatch spends real money, so the receipt check is opt-out (`--no-governor`),
+not opt-in. `--governor-override "<reason>"` re-authorizes a pass that already
+settled at this base SHA, and lands as its own visible receipt rather than
+being folded into the first one. Library callers that omit `governor_db` are
+ungoverned, which keeps the loop's unit tests exercising loop behaviour rather
+than budget behaviour.
+
 The weekly ledger is **Kitty's own arithmetic over its token ledger**. It is an
 estimate for steering, not a provider invoice, and it never equals a provider's
 meter.

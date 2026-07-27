@@ -28,6 +28,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from gateway.paths import COMPUTE_GOVERNOR_DB
+
 # ---------------------------------------------------------------------------
 # JSON argument parsers (strict)
 # ---------------------------------------------------------------------------
@@ -1407,6 +1409,10 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
             model=args.model,
             provider=args.provider,
             timeout_seconds=args.timeout,
+            # Governed by default at the CLI boundary: a real dispatch pays real
+            # money, so the receipt check is opt-out, not opt-in.
+            governor_db=None if args.no_governor else COMPUTE_GOVERNOR_DB,
+            governor_override=args.governor_override,
         )
     except (LoopError, RunnerError, AttemptError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1860,6 +1866,8 @@ COMMANDS: list[CommandSpec] = [
                  _a("--model", "model identifier (metadata)"),
                  _a("--provider", "provider identifier (metadata)"),
                  _a("--timeout", "worker timeout in seconds", type=int, default=3600),
+                 _a("--no-governor", "skip the compute governor gate (spend without a receipt check)", action="store_true"),
+                 _a("--governor-override", "human reason to re-authorize a pass that already settled at this base SHA"),
                  _a("--watch", "print launch, attempt, artifact, and final state updates", action="store_true"),
                  _a("--json", "output JSON", action="store_true")]),
     CommandSpec("initiative-run-validation", "initiative", "run-validation",

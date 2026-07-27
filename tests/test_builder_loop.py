@@ -1790,3 +1790,107 @@ class TestCrashSafeLeaseRecovery:
         )
         assert result["outcome"] == "succeeded"
         assert ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path) == original_sha
+
+
+class TestComputeGovernorGate:
+    """The governor is wired into run_packet but stays opt-in for callers."""
+
+    def test_ungoverned_by_default(self, repo: Path, db_path: Path, tmp_path: Path):
+        # Library callers and tests keep the old behaviour: no governor_db,
+        # no gate, no receipt. The CLI and runner are what turn it on.
+        _apply(db_path, repo_root=repo)
+
+        result = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=_good_worker(tmp_path),
+            review_command=_approve_reviewer(tmp_path),
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+
+    def test_a_settled_packet_is_refused_at_the_same_base_sha(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        governor_db = tmp_path / "governor" / "receipts.db"
+        _apply(db_path, repo_root=repo)
+
+        first = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=_good_worker(tmp_path),
+            review_command=_approve_reviewer(tmp_path),
+            repo_root=repo,
+            db_path=db_path,
+            governor_db=governor_db,
+        )
+        assert first["outcome"] == bl.LOOP_SUCCEEDED
+
+        # Re-queue the task so Builder's own state machine would allow a rerun;
+        # the governor is what stops it, not the queue.
+        bq.operator_release_task(
+            first["task_id"], reason="test rerun", db_path=db_path
+        )
+
+        with pytest.raises(bl.LoopError, match="compute governor"):
+            bl.run_packet(
+                INITIATIVE,
+                PACKET,
+                worker_command=_good_worker(tmp_path),
+                review_command=_approve_reviewer(tmp_path),
+                repo_root=repo,
+                db_path=db_path,
+                governor_db=governor_db,
+            )
+
+    def test_a_refusal_is_recorded_as_a_durable_event(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        governor_db = tmp_path / "governor" / "receipts.db"
+        _apply(db_path, repo_root=repo)
+        first = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            review_command=_approve_reviewer(tmp_path),
+            repo_root=repo, db_path=db_path, governor_db=governor_db,
+        )
+        task_id = first["task_id"]
+        bq.operator_release_task(task_id, reason="test rerun", db_path=db_path)
+
+        with pytest.raises(bl.LoopError):
+            bl.run_packet(
+                INITIATIVE, PACKET,
+                worker_command=_good_worker(tmp_path),
+                review_command=_approve_reviewer(tmp_path),
+                repo_root=repo, db_path=db_path, governor_db=governor_db,
+            )
+
+        kinds = [e["type"] for e in bq.list_events(task_id, db_path=db_path)]
+        assert "compute_governor_refused" in kinds
+
+    def test_a_human_override_reauthorizes_the_rerun(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        governor_db = tmp_path / "governor" / "receipts.db"
+        _apply(db_path, max_attempts=4, repo_root=repo)
+        first = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            review_command=_approve_reviewer(tmp_path),
+            repo_root=repo, db_path=db_path, governor_db=governor_db,
+        )
+        bq.operator_release_task(
+            first["task_id"], reason="test rerun", db_path=db_path
+        )
+
+        second = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            review_command=_approve_reviewer(tmp_path),
+            repo_root=repo, db_path=db_path, governor_db=governor_db,
+            governor_override="Jacob: base moved underneath us",
+        )
+
+        assert second["outcome"] == bl.LOOP_SUCCEEDED

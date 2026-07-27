@@ -35,7 +35,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from gateway.paths import COMPUTE_GOVERNOR_DB
+from gateway.paths import COMPUTE_GOVERNOR_DB, ROOT
 from gateway.token_spend_report import PRICE_REGISTRY_USD_PER_MTOKENS, USD_TO_CAD
 
 # Dispatch classes the governor understands. A planning pass and an independent
@@ -118,9 +118,14 @@ CREATE TABLE IF NOT EXISTS work_receipts (
 
 -- One completed pass per task type per unchanged subject+SHA. A retry that
 -- ended in failure does not consume the allowance; a settled pass does.
+--
+-- Override-authorized passes are excluded from the constraint. A human saying
+-- "spend again" is exactly the case the allowance is not meant to block, and
+-- each override lands as its own visible receipt rather than being silently
+-- folded into the first one.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_receipts_settled_pass
     ON work_receipts(task_type, subject_ref, head_sha)
-    WHERE outcome = 'settled';
+    WHERE outcome = 'settled' AND override_reason IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_receipts_created ON work_receipts(created_at);
 """
@@ -315,6 +320,9 @@ def record_receipt(
         raise GovernorError(f"outcome must be one of {sorted(_OUTCOMES)}, got {outcome!r}")
     if retries < 0:
         raise GovernorError("retries must not be negative")
+    # An empty override string is not an override: it must be NULL so the
+    # partial unique index still guards the un-overridden allowance.
+    override_reason = (override_reason or "").strip() or None
     stamp = (now or datetime.now(timezone.utc)).isoformat()
     with connect(db_path) as conn:
         try:
@@ -567,6 +575,9 @@ def estimate_pass_cost_cad(route: str) -> float:
         output_tokens=shape["output"],
     )
 
+
+# Reserve thresholds live here so the loop, the CLI, and the tests read one file.
+ROOT_CONFIG_PATH = ROOT / "config" / "compute_governor.json"
 
 # Derived, not guessed. At snapshot prices one cheap pass costs ~CAD 0.0146 and
 # one frontier pass ~CAD 0.0895. A working week of ~10 tasks x 3 head SHAs x

@@ -9,9 +9,9 @@ from datetime import date
 from pathlib import Path
 
 from gateway import compute_governor as cg
-from gateway.paths import COMPUTE_GOVERNOR_DB, ROOT
+from gateway.paths import COMPUTE_GOVERNOR_DB
 
-DEFAULT_CONFIG_PATH = ROOT / "config" / "compute_governor.json"
+DEFAULT_CONFIG_PATH = cg.ROOT_CONFIG_PATH
 
 
 def _load_dispatch(source: str) -> cg.Dispatch:
