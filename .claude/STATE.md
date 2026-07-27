@@ -92,9 +92,10 @@
     }
   ],
   "invalidation_conditions": [
-    "HEAD changes beyond 16c39cff1da34f620cf75804ca91a3ccc8d7876a except the checkpoint commit that records this file",
-    "PR #276 or #278 merges, closes, or takes new commits",
-    "origin/main advances past 00e005b3c3bf88573b38e4448470d678d4821fce"
+    "HEAD changes beyond the recorded head_sha except the checkpoint commit that records this file",
+    "PR #276 or #278 merges or closes",
+    "a force-push orphans the recorded pull_request.head_sha from PR #276's history",
+    "origin/main advances past the recorded base_sha"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
@@ -102,7 +103,8 @@
     "url": "https://github.com/jacob202/kitty/pull/276",
     "state": "OPEN",
     "head_sha": "22e05a0fb2bb6c15468e091481b56b81054819d8"
-  }
+  },
+  "base_sha": "00e005b3c3bf88573b38e4448470d678d4821fce"
 }
 -->
 

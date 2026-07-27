@@ -656,3 +656,51 @@ def test_life_work_ranked_first_is_accepted(tmp_path: Path):
     )
 
     assert _levels(repo)["state:metadata"] == "PASS"
+
+
+def test_empty_touches_is_rejected(tmp_path: Path):
+    # all() over an empty list is vacuously true, so this validated while
+    # telling the next session nothing about what could collide.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, recommendations=[],
+        parallel_work=[{
+            "kind": "pr", "ref": "#276", "owner": "another session",
+            "touches": [], "observed_at": "2026-07-26T12:00:00Z",
+        }],
+    )
+
+    assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_a_recorded_base_sha_is_actually_compared(tmp_path: Path):
+    # "invalid once origin/main advances" stored as prose is unenforceable —
+    # nothing reads it, so the receipt stays ok while the checkpoint says it is
+    # stale. Recording it structurally makes the claim testable.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(repo, head)
+    for path in (repo / ".claude/STATE.md", repo / ".claude/HANDOFF.md"):
+        path.write_text(
+            path.read_text().replace(
+                '"active_mission"', '"base_sha": "' + "0" * 40 + '",\n  "active_mission"'
+            ),
+            encoding="utf-8",
+        )
+
+    levels = _levels(repo)
+
+    assert levels["state:base_sha"] == "WARN"
+
+
+def test_a_matching_base_sha_passes(tmp_path: Path):
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(repo, head)
+    for path in (repo / ".claude/STATE.md", repo / ".claude/HANDOFF.md"):
+        path.write_text(
+            path.read_text().replace(
+                '"active_mission"', f'"base_sha": "{head}",\n  "active_mission"'
+            ),
+            encoding="utf-8",
+        )
+
+    assert _levels(repo)["state:base_sha"] == "PASS"

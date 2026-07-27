@@ -265,7 +265,10 @@ def _validate_parallel_work(relative_path: Path, value: Any) -> None:
             if not isinstance(entry.get(key), str) or not entry[key].strip():
                 raise ValueError(f"{where} {key} must be a non-empty string")
         touches = entry.get("touches")
-        if not isinstance(touches, list) or not all(
+        # `all()` over an empty list is vacuously true, so an empty inventory
+        # would validate while telling the next session nothing about what
+        # could collide.
+        if not isinstance(touches, list) or not touches or not all(
             isinstance(item, str) and item.strip() for item in touches
         ):
             raise ValueError(
@@ -396,6 +399,9 @@ def _load_checkpoint(repo_root: Path, relative_path: Path, marker: str) -> dict[
             )
         _validate_parallel_work(relative_path, payload.get("parallel_work"))
     _validate_recommendations(relative_path, payload.get("recommendations"))
+    base = payload.get("base_sha")
+    if base is not None and (not isinstance(base, str) or not base.strip()):
+        raise ValueError(f"{relative_path} base_sha must be a non-empty string or absent")
     for key in ("completed_items", "blockers", "invalidation_conditions"):
         value = payload.get(key)
         if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
@@ -562,6 +568,39 @@ def _checkpoint_head_is_fresh(repo_root: Path, recorded_head: str, head: str) ->
     )
 
 
+def _base_sha_check(
+    repo_root: Path,
+    *,
+    prefix: str,
+    metadata: dict[str, Any],
+) -> list[ContinuityCheck]:
+    """Compare a recorded base against live origin/main.
+
+    A checkpoint that declares "invalid once origin/main advances" and stores
+    that only as prose is unenforceable — nothing reads it, so the receipt stays
+    ok while the checkpoint says it is stale. Recording the base structurally
+    makes the claim testable.
+    """
+    recorded = metadata.get("base_sha")
+    if not recorded:
+        return []
+    live = _git(repo_root, ["rev-parse", "--verify", "origin/main"], required=False)
+    if live.returncode != 0:
+        return [ContinuityCheck("WARN", f"{prefix}:base_sha", "origin/main does not resolve locally")]
+    live_sha = live.stdout.strip()
+    if live_sha == recorded:
+        return [ContinuityCheck("PASS", f"{prefix}:base_sha", f"origin/main is still {recorded[:12]}")]
+    # Advancing is normal and the checkpoint's content may still be usable, so
+    # this is advisory — but it must be visible, not silent.
+    return [
+        ContinuityCheck(
+            "WARN",
+            f"{prefix}:base_sha",
+            f"origin/main advanced from the recorded {recorded[:12]} to {live_sha[:12]}",
+        )
+    ]
+
+
 def _checkpoint_checks(
     repo_root: Path,
     *,
@@ -604,6 +643,8 @@ def _checkpoint_checks(
         else:
             fresh, detail = _checkpoint_head_is_fresh(repo_root, recorded_head, head)
             checks.append(ContinuityCheck("PASS" if fresh else "WARN", f"{prefix}:head", detail))
+
+    checks.extend(_base_sha_check(repo_root, prefix=prefix, metadata=metadata))
 
     recorded_branch = str(metadata["branch"])
     if branch is None:

@@ -113,6 +113,18 @@ else
     echo "UNAVAILABLE: gh pr list failed: $PRS"
   else
     printf '%s\n' "$PRS"
+    # A PR whose head is not a local remote-tracking branch has no entry in the
+    # branch section above, so without this its collision scope is unknown.
+    while IFS= read -r pr_line; do
+      [[ "$pr_line" != \#* ]] && continue
+      pr_num="${pr_line%% *}"; pr_num="${pr_num#\#}"
+      if pr_files=$(env -u GITHUB_TOKEN gh pr view "$pr_num" --json files \
+        --jq '[.files[].path] | map(split("/")[0]) | unique | join(",")' 2>&1); then
+        printf '     #%s touches: %s\n' "$pr_num" "${pr_files:-<none>}"
+      else
+        printf '     #%s touches: UNAVAILABLE: %s\n' "$pr_num" "$pr_files"
+      fi
+    done <<< "$PRS"
     # --limit is a maximum fetched, not a page size: hitting it means the
     # inventory may be short a colliding PR and cannot be called complete.
     if [[ "$(printf '%s\n' "$PRS" | grep -c '^#')" -ge "$PR_LIMIT" ]]; then

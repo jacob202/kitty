@@ -27,9 +27,10 @@
   ],
   "next_action": "Merge PR #276, then merge origin/main into PR #278 and resolve the AGENTS.md and gateway/ overlap.",
   "invalidation_conditions": [
-    "HEAD changes beyond 16c39cff1da34f620cf75804ca91a3ccc8d7876a except the checkpoint commit that records this file",
-    "PR #276 or #278 merges, closes, or takes new commits",
-    "origin/main advances past 00e005b3c3bf88573b38e4448470d678d4821fce"
+    "HEAD changes beyond the recorded head_sha except the checkpoint commit that records this file",
+    "PR #276 or #278 merges or closes",
+    "a force-push orphans the recorded pull_request.head_sha from PR #276's history",
+    "origin/main advances past the recorded base_sha"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
@@ -102,7 +103,8 @@
       "deferred_count": 0,
       "first_deferred": null
     }
-  ]
+  ],
+  "base_sha": "00e005b3c3bf88573b38e4448470d678d4821fce"
 }
 -->
 
