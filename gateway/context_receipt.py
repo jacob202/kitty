@@ -80,6 +80,15 @@ _REQUIRED_RECOMMENDATION_KEYS = {
 # Life work outranks code work (ADR 0016); losing `class` silently destroys that
 # ordering while the checkpoint still validates.
 _RECOMMENDATION_CLASSES = {"life", "code"}
+
+# `.claude/STATE.md` is tracked and shared, and session end runs its deferred
+# entries' release_check commands. A checkpoint written by another contributor,
+# another agent, or a pull request is therefore arbitrary code that executes
+# when Jacob says "wrap up". These characters are the shell primitives that turn
+# a predicate into a payload — chaining, redirection, substitution. A predicate
+# needs none of them; anything that does requires Jacob's explicit approval and
+# must not be recorded as an auto-run check.
+_SHELL_METACHARACTERS = (";", "|", "&", "`", "$(", ">", "<", "\n", "\r")
 _ACTIVE_CHECKPOINT_STATUSES = {"in_progress", "blocked", "awaiting_review"}
 _TERMINAL_CHECKPOINT_STATUSES = {"complete", "cancelled", "superseded"}
 _MISSION_STATUSES = {
@@ -357,6 +366,13 @@ def _validate_recommendations(relative_path: Path, value: Any) -> None:
                 raise ValueError(
                     f"{where} is deferred, so {key} must be a non-empty string"
                 )
+        found = [m for m in _SHELL_METACHARACTERS if m in entry["release_check"]]
+        if found:
+            raise ValueError(
+                f"{where} release_check contains shell metacharacters {found}; session "
+                "end executes this command, and a checkpoint is shared, tracked data. "
+                "Use a single predicate, or get Jacob's approval and run it by hand."
+            )
 
 
 def _load_checkpoint(repo_root: Path, relative_path: Path, marker: str) -> dict[str, Any]:
@@ -804,12 +820,26 @@ def _checkpoint_checks(
                         for sha in (str(expected_head), live_head)
                     )
                     if not have_both:
+                        # Ancestry may be unknowable here, but the PR's STATE
+                        # came from GitHub and is authoritative. A merged or
+                        # closed PR invalidates the checkpoint regardless of
+                        # what this repository has fetched.
+                        if live_state != expected_state:
+                            checks.append(
+                                ContinuityCheck(
+                                    "FAIL",
+                                    f"{prefix}:pull_request",
+                                    f"PR #{number} expected {expected_state}, live state is "
+                                    f"{live_state}",
+                                )
+                            )
+                            return checks
                         checks.append(
                             ContinuityCheck(
                                 "WARN",
                                 f"{prefix}:pull_request",
-                                f"PR #{number} head {live_head[:12]} is not in this local "
-                                "repository; ancestry unverifiable without a fetch",
+                                f"PR #{number} is {live_state} but head {live_head[:12]} is not "
+                                "in this local repository; ancestry unverifiable without a fetch",
                             )
                         )
                         return checks
@@ -1121,6 +1151,10 @@ def inspect_continuity(
             "active_mission",
             "next_action",
             "pull_request",
+            # The receipt publishes STATE's copy of these, so a divergent
+            # HANDOFF would sit in the same receipt contradicting it.
+            "parallel_work",
+            "recommendations",
         )
         disagreements = [field for field in agreement_fields if state.get(field) != handoff.get(field)]
         if disagreements:
