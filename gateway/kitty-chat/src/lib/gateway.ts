@@ -1790,3 +1790,57 @@ export async function fetchSignals(): Promise<RepairsPayload> {
     return { ok: false, checks_run: 0, issues: 0, repairs: [], error: describeFetchError(err, null) }
   }
 }
+
+// ── Insight loop (issue #270, IL-03) ───────────────────────────────────────────
+
+/** Lifecycle fields carried inside an insight item's payload. */
+export interface GatewayLoopInsightPayload {
+  summary: string
+  category: string
+  return_policy: string
+  return_at: string | null
+  status: string
+  returned_count: number
+  last_returned_at: string | null
+  action_id: number | null
+  outcome: string | null
+}
+
+/** One insight-lifecycle item as returned by /insight-loop/*. */
+export interface GatewayLoopInsight {
+  id: number
+  object_type: string
+  source_ref: string | null
+  user_review: string
+  payload: GatewayLoopInsightPayload
+}
+
+export type LoopInsightChoice = 'act' | 'snooze' | 'archive'
+
+export async function fetchInsightLoopDue(): Promise<GatewayLoopInsight[]> {
+  const payload = await gfetch<unknown>('/insight-loop/due')
+  if (!isRecord(payload) || !Array.isArray(payload.insights)) {
+    throw new Error('Gateway /insight-loop/due returned an invalid payload')
+  }
+  return payload.insights as GatewayLoopInsight[]
+}
+
+/** Record Jacob's response to a returned insight. `snooze` requires
+ *  snoozeUntil (ISO datetime); `archive` defaults to not_useful server-side. */
+export async function respondToLoopInsight(
+  itemId: number,
+  choice: LoopInsightChoice,
+  opts: { snoozeUntil?: string; archiveReason?: string } = {},
+): Promise<GatewayLoopInsight> {
+  const params = new URLSearchParams({ choice })
+  if (opts.snoozeUntil) params.set('snooze_until', opts.snoozeUntil)
+  if (opts.archiveReason) params.set('archive_reason', opts.archiveReason)
+  const payload = await gfetch<unknown>(
+    `/insight-loop/insight/${itemId}/respond?${params.toString()}`,
+    { method: 'POST' },
+  )
+  if (!isRecord(payload) || !isRecord(payload.insight)) {
+    throw new Error('Gateway /insight-loop respond returned an invalid payload')
+  }
+  return payload.insight as unknown as GatewayLoopInsight
+}

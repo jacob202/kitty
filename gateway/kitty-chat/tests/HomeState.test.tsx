@@ -33,6 +33,10 @@ vi.mock('../src/components/CapturePanel', () => ({
   CapturePanel: () => <div data-testid="capture-panel" />,
 }));
 
+vi.mock('../src/components/InsightReturnCard', () => ({
+  InsightReturnCard: () => <div data-testid="insight-return-card" />,
+}));
+
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));

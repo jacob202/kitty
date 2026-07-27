@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText } from '@/lib/ui';
 import { CapturePanel } from '@/components/CapturePanel';
 import { BuilderGlance } from '@/components/BuilderSurface';
+import { InsightReturnCard } from '@/components/InsightReturnCard';
 import { useDashboardConfig } from '@/hooks/useDashboardConfig';
 import {
   useStateChanges,
@@ -1537,6 +1538,7 @@ export function HomeState({
         <WhatsNext preferredName={preferredName} onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       )}
       {visibleTiles['needs-you'] !== false && <NeedsYou onDecideInChat={onDecideInChat} />}
+      {visibleTiles['insight-loop'] !== false && <InsightReturnCard />}
       {visibleTiles['deadlines'] !== false && <Deadlines />}
       {visibleTiles['phone-access'] !== false && <PhoneAccessCard />}
       {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}

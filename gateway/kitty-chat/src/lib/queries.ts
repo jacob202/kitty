@@ -21,6 +21,9 @@ import {
   toggleGatewayLoop,
   fetchGatewayInsights,
   dismissGatewayInsight,
+  fetchInsightLoopDue,
+  respondToLoopInsight,
+  type LoopInsightChoice,
   fetchGatewayPrompts,
   // monitors
   fetchGatewayMonitors,
@@ -321,13 +324,44 @@ export function useDismissInsight() {
   })
 }
 
+// ── Insight loop (issue #270, IL-03) ───────────────────────────────────────────
+
+export function useInsightLoopDue() {
+  return useQuery({
+    queryKey: ['insight-loop', 'due'],
+    queryFn: fetchInsightLoopDue,
+    refetchInterval: 60_000,
+  })
+}
+
+export function useRespondToLoopInsight() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      itemId,
+      choice,
+      snoozeUntil,
+      archiveReason,
+    }: {
+      itemId: number
+      choice: LoopInsightChoice
+      snoozeUntil?: string
+      archiveReason?: string
+    }) => respondToLoopInsight(itemId, choice, { snoozeUntil, archiveReason }),
+    // 'act' creates a todo via the action queue, so the day list is stale too.
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['insight-loop'] })
+      qc.invalidateQueries({ queryKey: ['todos'] })
+    },
+  })
+}
+
 export function usePrompts() {
   return useQuery({
     queryKey: ['prompts'],
     queryFn: fetchGatewayPrompts,
     staleTime: 5 * 60_000,
-  })
-}
+  })}
 
 // ── Monitors ────────────────────────────────────────────────────────────────
 

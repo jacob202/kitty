@@ -13,6 +13,7 @@ interface Props {
 const DASHBOARD_TILES: { id: string; label: string }[] = [
   { id: 'whats-next', label: "What's Next" },
   { id: 'needs-you', label: 'Needs You' },
+  { id: 'insight-loop', label: 'Back to You' },
   { id: 'deadlines', label: 'Deadlines' },
   { id: 'active-projects', label: 'Active Projects' },
   { id: 'what-changed', label: 'What Changed' },
