@@ -8,16 +8,24 @@ Given the question (and optional context), a second, independent model returns:
   3. one clear recommendation and why.
 
 Usage:
-    python3.11 scripts/second_opinion.py "Question text with options A/B/C"
-    echo "long question" | python3.11 scripts/second_opinion.py
+    python3 scripts/second_opinion.py "Question text with options A/B/C"
+    echo "long question" | python3 scripts/second_opinion.py
 
 Provider order mirrors the gateway fallback chain (cheap first): OpenRouter →
-Gemini → NVIDIA. Keys come from the environment or .env. No key → exit 2 with a
-note, so callers can skip the step gracefully.
+Gemini → NVIDIA. Keys come from the environment or .env.
+
+Exit codes are a contract the caller relies on (see
+.claude/skills/second-opinion/SKILL.md):
+  0  an opinion was produced
+  2  expected unavailability — no key, or every provider unreachable
+  3  a defect in this script — a malformed provider payload, a bug. Never
+     silently skipped: an unusable provider and a broken script must not
+     look the same to the caller.
 """
 
 import os
 import sys
+import traceback
 from pathlib import Path
 
 try:
@@ -85,8 +93,20 @@ def _gemini(key: str, question: str) -> str:
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
 
 
+class ProviderUnavailable(RuntimeError):
+    """No provider could be reached — missing key, network, or HTTP failure.
+
+    Deliberately narrow: a malformed response is a defect, not unavailability,
+    and must not be squashed into the same exit code.
+    """
+
+
 def get_second_opinion(question: str) -> tuple[str, str]:
-    """Return (provider_label, opinion). Raises RuntimeError if no provider works."""
+    """Return (provider_label, opinion).
+
+    Raises ``ProviderUnavailable`` when no provider answers. Any other
+    exception is a real defect and is left to propagate.
+    """
     _load_dotenv()
     errors = []
 
@@ -97,14 +117,14 @@ def get_second_opinion(question: str) -> tuple[str, str]:
             return f"openrouter/{model}", _openai_compatible(
                 "https://openrouter.ai/api/v1", key, model, question
             )
-        except Exception as exc:  # noqa: BLE001 — fall through the chain
+        except requests.RequestException as exc:
             errors.append(f"openrouter: {exc}")
 
     key = os.environ.get("GEMINI_API_KEY")
     if key:
         try:
             return "gemini", _gemini(key, question)
-        except Exception as exc:  # noqa: BLE001
+        except requests.RequestException as exc:
             errors.append(f"gemini: {exc}")
 
     key = os.environ.get("NVIDIA_API_KEY")
@@ -113,12 +133,14 @@ def get_second_opinion(question: str) -> tuple[str, str]:
         model = os.environ.get("NVIDIA_CHAT_MODEL", "deepseek-ai/deepseek-v4-pro")
         try:
             return f"nvidia/{model}", _openai_compatible(base, key, model, question)
-        except Exception as exc:  # noqa: BLE001
+        except requests.RequestException as exc:
             errors.append(f"nvidia: {exc}")
 
     if errors:
-        raise RuntimeError("all providers failed: " + "; ".join(errors))
-    raise RuntimeError("no provider key set (OPENROUTER_API_KEY / GEMINI_API_KEY / NVIDIA_API_KEY)")
+        raise ProviderUnavailable("all providers unreachable: " + "; ".join(errors))
+    raise ProviderUnavailable(
+        "no provider key set (OPENROUTER_API_KEY / GEMINI_API_KEY / NVIDIA_API_KEY)"
+    )
 
 
 def main() -> int:
@@ -128,9 +150,13 @@ def main() -> int:
         return 1
     try:
         provider, opinion = get_second_opinion(question)
-    except RuntimeError as exc:
+    except ProviderUnavailable as exc:
         print(f"second opinion unavailable — {exc}", file=sys.stderr)
         return 2
+    except Exception:
+        print("second opinion FAILED — defect in this script, not unavailability:", file=sys.stderr)
+        traceback.print_exc()
+        return 3
     print(f"[second opinion via {provider}]\n\n{opinion}")
     return 0
 

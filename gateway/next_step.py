@@ -13,9 +13,9 @@ exposed for whichever future surface resolves an action tied to a step
 (see docs/packets/016 "too broad if": this packet does not auto-propose
 such actions, so nothing calls invalidate() automatically yet).
 
-D10: kind="code" projects are cloud-ok (git/commit text, not a local-only
-class); every other kind defaults to local-only until a project names a
-more specific content class — fail toward privacy, not away from it.
+Every project kind routes the same way. ADR 0022 retired the D10 local-only
+boundary, so the old "code is cloud-ok, everything else defaults to
+health_admin" split is gone — these prompts reach a cloud provider.
 
 Public API:
   generate(project_id, llm_fn=None) -> dict
