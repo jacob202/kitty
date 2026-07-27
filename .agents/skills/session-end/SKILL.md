@@ -81,11 +81,13 @@ predicate of a known shape:
 ```bash
 test -d|-f|-e <path>
 git merge-base --is-ancestor <sha> <ref>
-git rev-parse --verify <ref>
+git rev-parse --verify --quiet <ref>
 ```
 
-That is the whole list, and the shapes are exact — a bare `git rev-parse` exits
-0 unconditionally and would promote a still-blocked item to `ready`.
+That is the whole list, and the shapes are exact. A bare `git rev-parse` exits 0
+unconditionally and would promote a still-blocked item to `ready`; `--verify`
+without `--quiet` exits **128** on a missing ref, which reads as "could not
+run" and would freeze the deferral count instead of advancing it.
 
 **No Builder command may be an auto-run check.** Every `./kitty builder queue`
 subcommand routes through `_init_queue_db()`, which creates the database and
@@ -176,7 +178,7 @@ which re-defers the recommendation exactly when it should have been released:
 
 ```bash
 git merge-base --is-ancestor <commit-sha> origin/main      # that commit landed
-git rev-parse --verify <ref>                               # that ref exists
+git rev-parse --verify --quiet <ref>                       # that ref exists
 test -f <path>                                             # artifact exists
 test -d <path>                                             # directory present
 ```

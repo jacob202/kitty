@@ -162,7 +162,9 @@ BUILDER_DB="$CANONICAL_ROOT/data/kittybuilder/builder_queue.db"
 if [[ ! -f "$BUILDER_DB" ]]; then
   echo "UNAVAILABLE: $BUILDER_DB does not exist — Builder state is unknown, not empty."
 else
-  python3 -c '
+  # PYTHONPATH, not cwd: invoked from a subdirectory, `from gateway import ...`
+  # would fail and the authoritative queue would read as UNAVAILABLE.
+  PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}" python3 -c '
 import json, sys
 from pathlib import Path
 from gateway import builder_status

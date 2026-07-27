@@ -108,7 +108,11 @@ _SHELL_METACHARACTERS = (";", "|", "&", "`", "$(", ">", "<", "\n", "\r")
 _ALLOWED_RELEASE_CHECK_SHAPES: tuple[tuple[tuple[str | None, ...], int], ...] = (
     (("test", None, None), 3),
     (("git", "merge-base", "--is-ancestor", None, None), 5),
-    (("git", "rev-parse", "--verify", None), 4),
+    # --quiet is not cosmetic: without it a missing ref exits 128, which the
+    # skill maps to "could not run" — so a genuinely blocked item would be
+    # carried unchanged forever and never reach the third-deferral escalation.
+    # Verified against this repo's git: bare --verify exits 128, --quiet exits 1.
+    (("git", "rev-parse", "--verify", "--quiet", None), 5),
 )
 # `test` is the one entry whose danger lives in its flags rather than its name.
 _ALLOWED_TEST_FLAGS = ("-d", "-e", "-f")

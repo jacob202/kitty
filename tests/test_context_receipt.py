@@ -871,3 +871,35 @@ def test_a_bare_git_rev_parse_release_check_is_rejected(tmp_path: Path):
     )
 
     assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_rev_parse_without_quiet_is_rejected(tmp_path: Path):
+    # Verified against this repo's git: `git rev-parse --verify <missing>` exits
+    # 128, which the skill maps to "could not run" — so a blocked item would be
+    # carried unchanged forever and never hit the third-deferral escalation.
+    # `--quiet` exits 1, which is the "still blocked" the skill expects.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, parallel_work=[],
+        recommendations=[_recommendation(
+            status="deferred", blocked_by="waiting",
+            release_check="git rev-parse --verify refs/heads/nope",
+            first_deferred="2026-07-26",
+        )],
+    )
+
+    assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_rev_parse_with_quiet_is_accepted(tmp_path: Path):
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, parallel_work=[],
+        recommendations=[_recommendation(
+            status="deferred", blocked_by="waiting",
+            release_check="git rev-parse --verify --quiet refs/heads/nope",
+            first_deferred="2026-07-26",
+        )],
+    )
+
+    assert _levels(repo)["state:metadata"] == "PASS"
