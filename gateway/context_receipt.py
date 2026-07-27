@@ -794,6 +794,25 @@ def _checkpoint_checks(
                 head_ok = live_head == expected_head
                 head_detail = ""
                 if not head_ok and isinstance(live_head, str) and live_head:
+                    # `git context` deliberately never fetches, so a head
+                    # pushed from another machine is simply absent here.
+                    # merge-base exits 1 for "not an ancestor" but 128 when it
+                    # cannot resolve an object — treating both as orphaned turns
+                    # an unfetched commit into a false FAIL.
+                    have_both = all(
+                        _git(repo_root, ["cat-file", "-e", f"{sha}^{{commit}}"], required=False).returncode == 0
+                        for sha in (str(expected_head), live_head)
+                    )
+                    if not have_both:
+                        checks.append(
+                            ContinuityCheck(
+                                "WARN",
+                                f"{prefix}:pull_request",
+                                f"PR #{number} head {live_head[:12]} is not in this local "
+                                "repository; ancestry unverifiable without a fetch",
+                            )
+                        )
+                        return checks
                     ancestor = _git(
                         repo_root,
                         ["merge-base", "--is-ancestor", str(expected_head), live_head],

@@ -1,7 +1,11 @@
 # KB payload — 2026-07-27
 
 Staged because `~/kb` is not present in this container. Merge these into the
-knowledge base on the canonical Mac, then delete this file.
+knowledge base on the canonical Mac.
+
+Leave this file in place afterwards. Deleting a tracked file needs Jacob's
+explicit confirmation (AGENTS.md) — a successful merge into `~/kb` is not that
+authorization. Ask, or leave it as a record of what was merged.
 
 Target: `~/kb/wiki/2026-07-27-red-base-branch-poisons-every-pr.md`
 Plus one line under the Wiki section of `~/kb/INDEX.md`.

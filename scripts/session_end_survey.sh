@@ -12,7 +12,9 @@
 set -uo pipefail
 
 BASE="${1:-origin/main}"
-MAX_BRANCHES=8
+# Overridable: the truncation warning below is only actionable if raising
+# this does not require editing a tracked script.
+MAX_BRANCHES="${MAX_BRANCHES:-8}"
 
 hr() { printf '\n== %s ==\n' "$1"; }
 
@@ -93,7 +95,7 @@ else
     # Silent truncation would let a colliding branch vanish from the survey.
     if [[ "$TOTAL_BRANCHES" -gt "$MAX_BRANCHES" ]]; then
       echo "TRUNCATED: $TOTAL_BRANCHES unmerged refs, only the first $MAX_BRANCHES inspected."
-      echo "           Raise MAX_BRANCHES and re-run before trusting this section."
+      echo "           Re-run with MAX_BRANCHES=$TOTAL_BRANCHES to inspect them all."
     fi
   fi
 fi

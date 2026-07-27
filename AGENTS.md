@@ -97,7 +97,7 @@ this checklist; this section is its summary and must not diverge from it.
 
 1. **Survey the field** — run `bash scripts/session_end_survey.sh`. Read-only inventory of worktrees, unmerged branches and the paths they touch, open PRs **including drafts**, the Builder queue, `~/kb/NOW.md` claims, and recommendations carried from the previous `.claude/STATE.md`. A section printing `UNAVAILABLE` is unverified, not clean. Other agents' work is theirs — name it, don't claim it.
 
-2. **Evaluate carried recommendations** — run each carried `release_check`. Exit 0 promotes it to `ready`; otherwise carry it with `deferred_count + 1`. At 3 deferrals, say out loud that the stated blocker is not the real one.
+2. **Evaluate carried recommendations** — run the `release_check` of each **deferred** entry; a `ready` entry has none. Exit 0 promotes it to `ready`; exit 1 carries it with `deferred_count + 1`. A check that could not run at all (command missing, auth failure, network, signal) was never evaluated: carry the entry forward unchanged, do NOT increment, and report it `UNAVAILABLE`. At 3 deferrals, say out loud that the stated blocker is not the real one.
 
 3. **Extract knowledge** — review the session for durable findings (patterns, gotchas, tool config changes, architecture decisions). Write `~/kb/wiki/YYYY-MM-DD-slug.md` with source, date, why it matters, verified-by. Append one line to `~/kb/INDEX.md`. Skip ephemera (task shuffles, typo fixes). If you got something wrong and Jacob corrected you, write `~/kb/corrections/YYYY-MM-DD-slug.md` instead. **The KB is `~/kb` (absolute), a separate repo — never write to a repo-relative `kb/` path.**
 

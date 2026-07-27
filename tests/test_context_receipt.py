@@ -620,12 +620,20 @@ def test_pr_head_may_lag_by_ordinary_advancement(tmp_path: Path):
 
 
 def test_pr_head_orphaned_by_a_force_push_still_fails(tmp_path: Path):
-    # Not-an-ancestor means the recorded commit is gone from the PR's history.
+    # A real orphan: both commits exist locally and the recorded one is simply
+    # not in the live head's history. A SHA that is merely absent locally is a
+    # different case and must not read as orphaned — see the test below.
     repo, head = _repo(tmp_path)
     _write_checkpoint_pair(repo, head, pull_request={"number": 276, "state": "OPEN", "head_sha": head})
+    _git(repo, "checkout", "-q", "--orphan", "rewritten")
+    _write(repo / "unrelated.txt", "rewritten history\n")
+    _git(repo, "add", "unrelated.txt")
+    _git(repo, "commit", "-q", "-m", "force-pushed replacement")
+    diverged = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-q", "main")
 
     levels = _levels(
-        repo, github_lookup=lambda _n: {"state": "OPEN", "headRefOid": "0" * 40}
+        repo, github_lookup=lambda _n: {"state": "OPEN", "headRefOid": diverged}
     )
 
     assert levels["state:pull_request"] == "FAIL"
@@ -704,3 +712,18 @@ def test_a_matching_base_sha_passes(tmp_path: Path):
         )
 
     assert _levels(repo)["state:base_sha"] == "PASS"
+
+
+def test_an_unfetched_pr_head_is_unverifiable_not_orphaned(tmp_path: Path):
+    # `git context` never fetches, so a head pushed from another machine is
+    # simply absent locally. merge-base exits 1 for "not an ancestor" but 128
+    # when it cannot resolve the object — conflating them turns an ordinary
+    # push from the Mac into a false FAIL on this machine.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(repo, head, pull_request={"number": 276, "state": "OPEN", "head_sha": head})
+
+    levels = _levels(
+        repo, github_lookup=lambda _n: {"state": "OPEN", "headRefOid": "f" * 40}
+    )
+
+    assert levels["state:pull_request"] == "WARN"
