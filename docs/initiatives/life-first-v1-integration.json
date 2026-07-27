@@ -15,7 +15,7 @@
         "Home 'What's Next' card uses /projects/next-steps",
         "Integration tests cover life-before-code, self-dev cap when life present, and only-code unchanged behavior",
         "python3.12 -m pytest tests/test_next_step.py tests/test_brief.py -q passes",
-        "npm run build in gateway/kitty-chat passes",
+        "make ui-build passes",
         "npm test -- --run in gateway/kitty-chat passes"
       ],
       "allowed_paths": [

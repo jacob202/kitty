@@ -13,7 +13,7 @@
         "Zero component-local card/badge CSS remains in the Work surface files",
         "Complete/skip actions persist and reflect in the Home resume view (KX-01-03 wiring intact)",
         "320px layout has no horizontal scroll and touch targets are at least 40px",
-        "make ui-test passes; npm run build passes; before/after screenshots in PR"
+        "make ui-test passes; make ui-build passes; before/after screenshots in PR"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/TaskPanel.tsx",
@@ -33,7 +33,7 @@
         "Every Builder queue state renders through StatusBadge's vocabulary, no bespoke status colors",
         "No behavioral diff: identical API calls before/after (assert in test or note request log in PR)",
         "BuilderSurface.tsx shrinks by at least 250 lines from primitive reuse",
-        "make ui-test passes; npm run build passes; before/after screenshots in PR"
+        "make ui-test passes; make ui-build passes; before/after screenshots in PR"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/BuilderSurface.tsx",
@@ -52,7 +52,7 @@
         "One generation form implementation remains (grep proves no duplicated submit logic)",
         "Gallery items render via ArtifactCard image type with provenance",
         "In-flight generations show live StatusBadge state",
-        "make ui-test passes; npm run build passes; before/after screenshots in PR"
+        "make ui-test passes; make ui-build passes; before/after screenshots in PR"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/ImageStudio.tsx",
@@ -73,7 +73,7 @@
         "Projects and documents share one list/card implementation with a type filter",
         "Preview opens in ui/Dialog with keyboard dismiss and focus return",
         "Empty and loading states via shared components only",
-        "make ui-test passes; npm run build passes; before/after screenshots in PR"
+        "make ui-test passes; make ui-build passes; before/after screenshots in PR"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/ProjectsPanel.tsx",
@@ -93,7 +93,7 @@
         "Providers reachable only via Settings tab; provider health uses StatusBadge vocabulary",
         "Skills tab lists the unrouted agents/tools/tutor entries with a working launch path",
         "No bespoke form styling remains in Settings files",
-        "make ui-test passes; npm run build passes; before/after screenshots in PR"
+        "make ui-test passes; make ui-build passes; before/after screenshots in PR"
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/SettingsPanel.tsx",
@@ -119,7 +119,7 @@
         "Audit doc covers all 7 surfaces with explicit pass/fix/accept per criterion",
         "Repo-wide grep for 6-digit hex in src/components returns only tokens-file references or documented accepts",
         "Any inline fixes are single-line token/primitive swaps, listed in the PR body",
-        "make ui-test passes; npm run build passes"
+        "make ui-test passes; make ui-build passes"
       ],
       "allowed_paths": [
         "docs/plans/KX_COHERENCE_AUDIT.md",
