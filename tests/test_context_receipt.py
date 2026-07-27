@@ -839,3 +839,35 @@ def test_a_malformed_recorded_pr_sha_fails_rather_than_warning(tmp_path: Path):
     levels = _levels(repo, github_lookup=lambda _n: {"state": "OPEN", "headRefOid": "f" * 40})
 
     assert levels["state:pull_request"] == "FAIL"
+
+
+def test_a_builder_queue_release_check_is_rejected(tmp_path: Path):
+    # Every ./kitty builder queue subcommand routes through _init_queue_db(),
+    # which creates the database and runs migrations. A "read-only" check must
+    # not mutate Builder's authoritative store.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, parallel_work=[],
+        recommendations=[_recommendation(
+            status="deferred", blocked_by="waiting",
+            release_check="./kitty builder queue show KTF-002 --json",
+            first_deferred="2026-07-26",
+        )],
+    )
+
+    assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_a_bare_git_rev_parse_release_check_is_rejected(tmp_path: Path):
+    # `git rev-parse` with no argument exits 0 unconditionally, so a prefix
+    # match would promote a still-blocked recommendation to ready.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, parallel_work=[],
+        recommendations=[_recommendation(
+            status="deferred", blocked_by="waiting",
+            release_check="git rev-parse", first_deferred="2026-07-26",
+        )],
+    )
+
+    assert _levels(repo)["state:metadata"] == "FAIL"

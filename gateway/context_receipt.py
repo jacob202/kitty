@@ -95,15 +95,23 @@ _SHELL_METACHARACTERS = (";", "|", "&", "`", "$(", ">", "<", "\n", "\r")
 # `python3 payload.py` need none. Only these command shapes may be executed
 # automatically. Each entry is a required token prefix; anything else needs
 # Jacob's approval and a manual run.
-_ALLOWED_RELEASE_CHECK_PREFIXES: tuple[tuple[str, ...], ...] = (
-    ("test",),
-    ("git", "merge-base", "--is-ancestor"),
-    ("git", "rev-parse"),
-    ("gh", "pr", "view"),
-    ("./kitty", "builder", "queue", "show"),
+# Full shapes, not prefixes: a prefix match accepts `git rev-parse` bare, which
+# exits 0 unconditionally and would promote a still-blocked recommendation to
+# ready. Each entry is (tokens..., exact_length) where a token of None matches
+# any single argument.
+#
+# `./kitty builder queue show` is deliberately NOT here. Every queue subcommand
+# routes through _init_queue_db(), which creates the database and runs
+# migrations — the same mutation-in-a-read-path defect already fixed in the
+# survey. There is no non-initializing CLI form, so no Builder command may be an
+# auto-run check.
+_ALLOWED_RELEASE_CHECK_SHAPES: tuple[tuple[tuple[str | None, ...], int], ...] = (
+    (("test", None, None), 3),
+    (("git", "merge-base", "--is-ancestor", None, None), 5),
+    (("git", "rev-parse", "--verify", None), 4),
 )
 # `test` is the one entry whose danger lives in its flags rather than its name.
-_ALLOWED_TEST_FLAGS = {"-d", "-f", "-e"}
+_ALLOWED_TEST_FLAGS = ("-d", "-e", "-f")
 _ACTIVE_CHECKPOINT_STATUSES = {"in_progress", "blocked", "awaiting_review"}
 _TERMINAL_CHECKPOINT_STATUSES = {"complete", "cancelled", "superseded"}
 _MISSION_STATUSES = {
@@ -301,6 +309,13 @@ def _validate_parallel_work(relative_path: Path, value: Any) -> None:
             )
 
 
+def _describe_allowed_release_checks() -> list[str]:
+    return [
+        " ".join("<arg>" if token is None else token for token in shape)
+        for shape, _length in _ALLOWED_RELEASE_CHECK_SHAPES
+    ]
+
+
 def _validate_release_check(where: str, command: str) -> None:
     """Allow only the read-only predicate shapes session end may auto-execute.
 
@@ -321,21 +336,24 @@ def _validate_release_check(where: str, command: str) -> None:
         raise ValueError(f"{where} release_check is not parseable as a command: {exc}") from exc
     if not tokens:
         raise ValueError(f"{where} release_check is empty")
-    for prefix in _ALLOWED_RELEASE_CHECK_PREFIXES:
-        if tuple(tokens[: len(prefix)]) == prefix:
+    for shape, length in _ALLOWED_RELEASE_CHECK_SHAPES:
+        if len(tokens) != length:
+            continue
+        if all(want is None or want == got for want, got in zip(shape, tokens)):
             break
     else:
         raise ValueError(
-            f"{where} release_check {tokens[0]!r} is not an allowed predicate. Permitted "
-            f"forms: {[' '.join(p) for p in _ALLOWED_RELEASE_CHECK_PREFIXES]}. Anything "
-            "else needs Jacob's approval and a manual run."
+            f"{where} release_check {command!r} is not an allowed predicate. Permitted "
+            f"forms: {_describe_allowed_release_checks()}. A `gh pr view` check needs "
+            "network and credentials, and no Builder command is permitted because every "
+            "queue subcommand initializes and migrates its database. Anything else needs "
+            "Jacob's approval and a manual run."
         )
-    if tokens[0] == "test":
-        if len(tokens) != 3 or tokens[1] not in sorted(_ALLOWED_TEST_FLAGS):
-            raise ValueError(
-                f"{where} release_check must be `test {sorted(_ALLOWED_TEST_FLAGS)} <path>`, "
-                f"got {tokens!r}"
-            )
+    if tokens[0] == "test" and tokens[1] not in _ALLOWED_TEST_FLAGS:
+        raise ValueError(
+            f"{where} release_check must be `test {'|'.join(_ALLOWED_TEST_FLAGS)} <path>`, "
+            f"got {tokens!r}"
+        )
 
 
 def _validate_recommendations(relative_path: Path, value: Any) -> None:

@@ -27,8 +27,11 @@ printf 'root:   %s\n' "$(git rev-parse --show-toplevel 2>&1)"
 printf 'common: %s\n' "$(git rev-parse --git-common-dir 2>&1)"
 printf 'branch: %s\n' "$(git branch --show-current 2>&1)"
 printf 'head:   %s\n' "$(git log --oneline -1 2>&1)"
-DIRTY=$(git status --short 2>&1)
-if [[ -z "${DIRTY// /}" ]]; then
+# Capture the status before classifying the output: a failed probe printed
+# under "dirty:" reads as a change listing, and an empty failure reads as clean.
+if ! DIRTY=$(git status --short 2>&1); then
+  printf 'dirty:  UNAVAILABLE: git status failed: %s\n' "$DIRTY"
+elif [[ -z "${DIRTY// /}" ]]; then
   echo 'dirty:  clean'
 else
   printf 'dirty:\n%s\n' "$DIRTY"

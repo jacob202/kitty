@@ -79,18 +79,27 @@ the moment he says "wrap up". Only run a check that is a single read-only
 predicate of a known shape:
 
 ```bash
-test -d/-f/-e <path>
+test -d|-f|-e <path>
 git merge-base --is-ancestor <sha> <ref>
 git rev-parse --verify <ref>
-gh pr view <N> --json state ...
-./kitty builder queue show <task-id> --json
 ```
 
-The continuity gate **enforces that list as an allowlist**, not merely a
-metacharacter blacklist: it parses the command and rejects anything whose
-leading tokens are not one of the forms above, plus `test` with any flag other
-than `-d`/`-f`/`-e`. A blacklist alone would have permitted `rm -rf <path>` and
-`python3 payload.py`, neither of which needs a metacharacter.
+That is the whole list, and the shapes are exact — a bare `git rev-parse` exits
+0 unconditionally and would promote a still-blocked item to `ready`.
+
+**No Builder command may be an auto-run check.** Every `./kitty builder queue`
+subcommand routes through `_init_queue_db()`, which creates the database and
+runs migrations, so a "read-only" check would mutate Builder's authoritative
+store. `gh pr view` is also out: it needs network and credentials, which is not
+what a local predicate should require. Check those by hand and set the status
+yourself.
+
+The continuity gate **enforces that list as an allowlist of exact shapes**, not
+a metacharacter blacklist and not a prefix match: it parses the command and
+rejects anything that is not one of the forms above at the exact argument count,
+plus `test` with any flag other than `-d`/`-f`/`-e`. A blacklist alone would
+have permitted `rm -rf <path>`; a prefix match would have permitted bare
+`git rev-parse` and `./kitty builder queue show --help`.
 
 Anything outside those shapes: show Jacob the command and get approval before
 running it. Never widen this by pattern-matching intent from the surrounding
@@ -167,10 +176,15 @@ which re-defers the recommendation exactly when it should have been released:
 
 ```bash
 git merge-base --is-ancestor <commit-sha> origin/main      # that commit landed
-gh pr view <N> --json state -q '.state=="MERGED"' | grep -q true   # PR merged
-./kitty builder queue show <task-id> --json | grep -q '"state": "done"'
+git rev-parse --verify <ref>                               # that ref exists
 test -f <path>                                             # artifact exists
+test -d <path>                                             # directory present
 ```
+
+Only these run automatically — see the allowlist above. A PR's merge state or a
+Builder task's state has to be checked by hand and the status set yourself,
+because `gh` needs credentials and every Builder queue command migrates its
+database.
 
 ## 6. Write HANDOFF.md
 
