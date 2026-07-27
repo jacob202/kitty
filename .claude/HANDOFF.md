@@ -1,56 +1,31 @@
-# Handoff — Outcome 6 daylight proof complete, #274 closed
+# HANDOFF
 
-<!-- kitty-handoff
-{
-  "schema_version": 1,
-  "updated_at": "2026-07-27T01:00:00Z",
-  "head_sha": "d071598f646b2e38efc90b991d5c4eab08dd29f6",
-  "branch": "main",
-  "worktree": ".",
-  "status": "valid",
-  "completed_items": [
-    "KTF-003 Outcome 6 code merged (KTF-FE-04 + KTF-FE-05) via prior session",
-    "KTF-003 post-merge proof: 34/34 targeted tests pass on updated main",
-    "KTF-001 KTF-FE-01-roadmap-authority-contract: PR #279 merged (a45f161)",
-    "KTF-001 KTF-FE-02-daylight-proof-checkpoint: correctly exhausted (precondition superseded)",
-    "KTF-002 KTF-FE-03-acceptance-prose-honesty: PR #280 merged (d071598)",
-    "Provider exhaustion boundary: exit 75 → durable pause → resume → success",
-    "All Outcome 6 boundaries exercised and evidence captured",
-    "Issue #274 closed with verified evidence"
-  ],
-  "blockers": [],
-  "next_action": "Move to issue #270: Phase 1 real human-loop proof.",
-  "invalidation_conditions": [
-    "new correction PR claims KTF-003 or its daylight proof is defective"
-  ],
-  "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
-}
--->
+## What was done this session (2026-07-27)
 
-## What was done
+- Swept oldest open issues in `jacob202/kitty` (confirmed namespace via `gh repo list`; all `gh` calls used `env -u GITHUB_TOKEN` to dodge a stale ambient PAT).
+- **#158 (SSRF + path traversal, T2) — FIXED & committed** (`5490900`).
+  - `gateway/routes/capture.py`: local capture paths must resolve inside approved roots (DATA_DIR, captures, desktop, knowledge/inbox) else 403.
+  - `gateway/routes/knowledge.py`: block private/loopback/link-local/metadata IPs and non-http(s) schemes; manually follow redirects with per-hop re-validation (`MAX_REDIRECTS=5`).
+  - Added regression tests: path restriction, traversal, SSRF (localhost/metadata/non-http), and redirect-to-private-IP blocking. 30 tests pass (test_capture + test_knowledge_routes).
+  - **Left for Jacob/Codex sign-off (per issue body):** UI `dev:tailnet` 0.0.0.0 bind exposure and proxy gateway-secret injection (`gateway/kitty-chat/src/app/proxy/[...path]/route.ts`). Default `next dev` is 127.0.0.1 — safe.
+- **#159 (failed workers report completion, T2) — already fixed in code** at `f1ca471` ("fix(builder): preserve worker failure states"), with passing tests (`test_llm_failure_finishes_agent_as_failed`, `test_stop_cancels_registered_agent_task`, `test_execute_records_failed_when_worker_raises`). Recommend closing as stale-vs-code.
+- Committed `scripts/session_end_survey.sh` (user-added to the commit; was untracked/pre-existing).
 
-Daylight Builder pass across all Outcome 6 boundaries:
+## In-flight / next move
 
-1. **Post-merge proof**: 34/34 targeted tests pass on updated main (`d071598`).
-2. **KTF-001**: KTF-FE-01 succeeded through full delivery path (PR #279 merged `a45f161`). KTF-FE-02 correctly exhausted (OLD_NEXT anchor superseded by KTF-003) — unrelated failure did not stop KTF-FE-01.
-3. **KTF-002**: KTF-FE-03 succeeded through full delivery path (PR #280 merged `d071598`). All 6 sha256 gates pass.
-4. **Provider exhaustion**: Synthetic exit-75 test proved durable resumable pause — attempt crashed (budget-neutral), task released to queued, resume selected same packet without charging failure.
-5. **Final report**: `data/kittybuilder/reports/outcome-6-daylight-proof.md`
+- **#160 (memory persistence, T1/T2) — NOT started.** Inspect `gateway/memory.py`, `gateway/memory_consolidation.py`, `gateway/dream_insights.py`; the insight-storage path may be a no-op. This is the next actionable bug after #158.
+- #161 (e2e move-in test) depends on #160.
+- #127 (KittyBuilder queue) is a standing workflow command — likely stale, verify before acting.
+- #270 / #274 are newer initiatives already in flight (see kb NOW.md).
 
-## Next move
+## Blockers
 
-Move to issue #270: real human-loop proof. Name one real pilot obligation, write its outcome contract and failure conditions, preserve correction/postponement/approval boundaries, and measure whether Kitty advanced the life obligation.
+- None technical. #158's LAN/tailnet exposure + proxy secret need human sign-off before fully closing.
 
-## Files changed this session
+## Files changed
 
-- `.claude/HANDOFF.md` — updated
-- `.claude/STATE.md` — updated
-- `data/kittybuilder/reports/outcome-6-daylight-proof.md` — new report
-
-## Verification
-
-- `python3.12 -m pytest tests/test_builder_run.py tests/test_kittybuilder_opencode_adapters.py -q` → 34 passed
-- PR #279: lint, typecheck, pytest, hygiene, kitty-chat, browser-smoke all pass
-- PR #280: lint, typecheck, pytest, hygiene, kitty-chat, browser-smoke all pass
-- sha256 gate: all 6 files OK
+- `gateway/routes/capture.py` (path allow-list) — committed 5490900
+- `gateway/routes/knowledge.py` (SSRF + redirect re-validation) — committed 5490900
+- `tests/test_capture.py` (+2 regression tests) — committed 5490900
+- `tests/test_knowledge_routes.py` (+6 SSRF tests, FakeStreamResponse fix) — committed 5490900
+- `scripts/session_end_survey.sh` — committed 78571d2
