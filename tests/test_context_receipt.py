@@ -784,3 +784,58 @@ def test_divergent_carry_forward_between_state_and_handoff_fails(tmp_path: Path)
     )
 
     assert _levels(repo)["checkpoint:agreement"] == "FAIL"
+
+
+def test_an_arbitrary_executable_release_check_is_rejected(tmp_path: Path):
+    # Blacklisting metacharacters does not stop `rm -rf` — it needs none.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, parallel_work=[],
+        recommendations=[_recommendation(
+            status="deferred", blocked_by="waiting",
+            release_check="rm -rf /tmp/kitty", first_deferred="2026-07-26",
+        )],
+    )
+
+    assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_an_allowlisted_git_release_check_is_accepted(tmp_path: Path):
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, parallel_work=[],
+        recommendations=[_recommendation(
+            status="deferred", blocked_by="waiting",
+            release_check=f"git merge-base --is-ancestor {head} origin/main",
+            first_deferred="2026-07-26",
+        )],
+    )
+
+    assert _levels(repo)["state:metadata"] == "PASS"
+
+
+def test_test_with_a_disallowed_flag_is_rejected(tmp_path: Path):
+    # `test -x` would probe for an executable, which is not a state predicate.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, schema_version=2, parallel_work=[],
+        recommendations=[_recommendation(
+            status="deferred", blocked_by="waiting",
+            release_check="test -x /usr/bin/anything", first_deferred="2026-07-26",
+        )],
+    )
+
+    assert _levels(repo)["state:metadata"] == "FAIL"
+
+
+def test_a_malformed_recorded_pr_sha_fails_rather_than_warning(tmp_path: Path):
+    # A malformed SHA fails cat-file exactly like an unfetched one, but it is a
+    # broken checkpoint and must not inherit the unverifiable allowance.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo, head, pull_request={"number": 276, "state": "OPEN", "head_sha": "not-a-sha"}
+    )
+
+    levels = _levels(repo, github_lookup=lambda _n: {"state": "OPEN", "headRefOid": "f" * 40})
+
+    assert levels["state:pull_request"] == "FAIL"

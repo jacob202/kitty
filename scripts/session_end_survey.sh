@@ -12,6 +12,10 @@
 set -uo pipefail
 
 BASE="${1:-origin/main}"
+# Anchored, not relative: invoked from a subdirectory, a relative .claude path
+# resolves against that subdirectory and the checkpoint reads as missing — so
+# the carried recommendations vanish and get overwritten on the next write.
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 # Overridable: the truncation warning below is only actionable if raising
 # this does not require editing a tracked script.
 MAX_BRANCHES="${MAX_BRANCHES:-8}"
@@ -62,13 +66,18 @@ if ! git rev-parse --verify --quiet "$BASE" >/dev/null; then
 else
   # An enumeration failure must not read as "everything is merged".
   if ! RAW_BRANCHES=$(git branch -a --no-merged "$BASE" --format='%(refname:short)' 2>&1); then
+    # Do NOT fall through: the clean-result path below would then also print
+    # "every branch is merged", contradicting the failure just reported.
     echo "UNAVAILABLE: cannot enumerate branches against $BASE: $RAW_BRANCHES"
     RAW_BRANCHES=""
+    ENUMERATION_FAILED=1
   fi
   ALL_BRANCHES=$(printf '%s\n' "$RAW_BRANCHES" | grep -v '^origin/HEAD' || true)
   TOTAL_BRANCHES=$(printf '%s\n' "$ALL_BRANCHES" | grep -c . || true)
   BRANCHES=$(printf '%s\n' "$ALL_BRANCHES" | head -n "$MAX_BRANCHES")
-  if [[ -z "${BRANCHES// /}" ]]; then
+  if [[ "${ENUMERATION_FAILED:-0}" == "1" ]]; then
+    :  # already reported UNAVAILABLE above; no clean result to claim
+  elif [[ -z "${BRANCHES// /}" ]]; then
     echo "none — every branch is merged into $BASE"
   else
     shown=0
@@ -174,16 +183,25 @@ else
 fi
 
 hr "CARRIED RECOMMENDATIONS (previous .claude/STATE.md)"
-if [[ -f .claude/STATE.md ]]; then
-  python3 - <<'PY' 2>&1 || echo "UNAVAILABLE: could not parse the kitty-state block."
-import json, pathlib, re, sys
-text = pathlib.Path(".claude/STATE.md").read_text()
+if [[ -f "$REPO_ROOT/.claude/STATE.md" ]]; then
+  REPO_ROOT="$REPO_ROOT" python3 - <<'PY' 2>&1 || echo "UNAVAILABLE: could not parse the kitty-state block."
+import json, os, pathlib, re, sys
+text = pathlib.Path(os.environ["REPO_ROOT"], ".claude/STATE.md").read_text()
 m = re.search(r"<!--\s*kitty-state\s*(\{.*?\})\s*-->", text, re.S)
 if not m:
     print("UNAVAILABLE: no kitty-state JSON block in .claude/STATE.md")
     sys.exit(0)
 state = json.loads(m.group(1))
-recs = state.get("recommendations") or []
+recs = state.get("recommendations")
+if recs is None and state.get("schema_version", 1) >= 2:
+    print("UNAVAILABLE: schema_version 2 checkpoint has no recommendations key; "
+          "carry-forward state is corrupt, not empty")
+    sys.exit(0)
+if recs is not None and not isinstance(recs, list):
+    print(f"UNAVAILABLE: recommendations is {type(recs).__name__}, not a list; "
+          "carry-forward state is corrupt, not empty")
+    sys.exit(0)
+recs = recs or []
 if not recs:
     print("none carried (previous STATE.md predates the recommendations field, or had none)")
 for r in recs:
@@ -194,7 +212,7 @@ for r in recs:
     print(f"    check:   {r.get('release_check','-')}")
 PY
 else
-  echo "UNAVAILABLE: .claude/STATE.md is missing — carried recommendations could not be recovered."
+  echo "UNAVAILABLE: $REPO_ROOT/.claude/STATE.md is missing — carried recommendations could not be recovered."
 fi
 
 printf '\n== END SURVEY ==\n'

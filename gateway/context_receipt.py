@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import sqlite3
 import subprocess
@@ -89,6 +90,20 @@ _RECOMMENDATION_CLASSES = {"life", "code"}
 # needs none of them; anything that does requires Jacob's explicit approval and
 # must not be recorded as an auto-run check.
 _SHELL_METACHARACTERS = (";", "|", "&", "`", "$(", ">", "<", "\n", "\r")
+
+# Blacklisting metacharacters is not enough: `rm -rf /tmp/kitty` and
+# `python3 payload.py` need none. Only these command shapes may be executed
+# automatically. Each entry is a required token prefix; anything else needs
+# Jacob's approval and a manual run.
+_ALLOWED_RELEASE_CHECK_PREFIXES: tuple[tuple[str, ...], ...] = (
+    ("test",),
+    ("git", "merge-base", "--is-ancestor"),
+    ("git", "rev-parse"),
+    ("gh", "pr", "view"),
+    ("./kitty", "builder", "queue", "show"),
+)
+# `test` is the one entry whose danger lives in its flags rather than its name.
+_ALLOWED_TEST_FLAGS = {"-d", "-f", "-e"}
 _ACTIVE_CHECKPOINT_STATUSES = {"in_progress", "blocked", "awaiting_review"}
 _TERMINAL_CHECKPOINT_STATUSES = {"complete", "cancelled", "superseded"}
 _MISSION_STATUSES = {
@@ -286,6 +301,43 @@ def _validate_parallel_work(relative_path: Path, value: Any) -> None:
             )
 
 
+def _validate_release_check(where: str, command: str) -> None:
+    """Allow only the read-only predicate shapes session end may auto-execute.
+
+    A checkpoint is shared, tracked data, and session end runs this command with
+    Jacob's credentials. Rejecting shell metacharacters stops chaining, but an
+    allowlist is what stops `rm -rf` — an arbitrary executable needs no
+    metacharacters at all.
+    """
+    found = [m for m in _SHELL_METACHARACTERS if m in command]
+    if found:
+        raise ValueError(
+            f"{where} release_check contains shell metacharacters {found}; session end "
+            "executes this command, and a checkpoint is shared, tracked data."
+        )
+    try:
+        tokens = shlex.split(command)
+    except ValueError as exc:
+        raise ValueError(f"{where} release_check is not parseable as a command: {exc}") from exc
+    if not tokens:
+        raise ValueError(f"{where} release_check is empty")
+    for prefix in _ALLOWED_RELEASE_CHECK_PREFIXES:
+        if tuple(tokens[: len(prefix)]) == prefix:
+            break
+    else:
+        raise ValueError(
+            f"{where} release_check {tokens[0]!r} is not an allowed predicate. Permitted "
+            f"forms: {[' '.join(p) for p in _ALLOWED_RELEASE_CHECK_PREFIXES]}. Anything "
+            "else needs Jacob's approval and a manual run."
+        )
+    if tokens[0] == "test":
+        if len(tokens) != 3 or tokens[1] not in sorted(_ALLOWED_TEST_FLAGS):
+            raise ValueError(
+                f"{where} release_check must be `test {sorted(_ALLOWED_TEST_FLAGS)} <path>`, "
+                f"got {tokens!r}"
+            )
+
+
 def _validate_recommendations(relative_path: Path, value: Any) -> None:
     """Enforce that a deferred recommendation says how it gets released.
 
@@ -366,13 +418,7 @@ def _validate_recommendations(relative_path: Path, value: Any) -> None:
                 raise ValueError(
                     f"{where} is deferred, so {key} must be a non-empty string"
                 )
-        found = [m for m in _SHELL_METACHARACTERS if m in entry["release_check"]]
-        if found:
-            raise ValueError(
-                f"{where} release_check contains shell metacharacters {found}; session "
-                "end executes this command, and a checkpoint is shared, tracked data. "
-                "Use a single predicate, or get Jacob's approval and run it by hand."
-            )
+        _validate_release_check(where, entry["release_check"])
 
 
 def _load_checkpoint(repo_root: Path, relative_path: Path, marker: str) -> dict[str, Any]:
@@ -815,6 +861,20 @@ def _checkpoint_checks(
                     # merge-base exits 1 for "not an ancestor" but 128 when it
                     # cannot resolve an object — treating both as orphaned turns
                     # an unfetched commit into a false FAIL.
+                    # An unfetched SHA and a malformed one both fail cat-file.
+                    # Only the former earns the unverifiable allowance; the
+                    # latter is a broken checkpoint and must not disable the
+                    # orphan check.
+                    if not _SHA_PATTERN.fullmatch(str(expected_head)):
+                        checks.append(
+                            ContinuityCheck(
+                                "FAIL",
+                                f"{prefix}:pull_request",
+                                f"pull_request.head_sha is not a full lowercase SHA: "
+                                f"{expected_head!r}",
+                            )
+                        )
+                        return checks
                     have_both = all(
                         _git(repo_root, ["cat-file", "-e", f"{sha}^{{commit}}"], required=False).returncode == 0
                         for sha in (str(expected_head), live_head)

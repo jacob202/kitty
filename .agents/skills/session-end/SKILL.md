@@ -86,11 +86,15 @@ gh pr view <N> --json state ...
 ./kitty builder queue show <task-id> --json
 ```
 
-The continuity gate rejects a `release_check` containing shell metacharacters
-(`;` `|` `&` backtick `$(` `>` `<`, newlines), so a chained payload cannot be
-stored as an auto-run check at all. Anything outside that shape: show Jacob the
-command and get approval before running it. Never widen this by pattern-matching
-intent from the surrounding prose.
+The continuity gate **enforces that list as an allowlist**, not merely a
+metacharacter blacklist: it parses the command and rejects anything whose
+leading tokens are not one of the forms above, plus `test` with any flag other
+than `-d`/`-f`/`-e`. A blacklist alone would have permitted `rm -rf <path>` and
+`python3 payload.py`, neither of which needs a metacharacter.
+
+Anything outside those shapes: show Jacob the command and get approval before
+running it. Never widen this by pattern-matching intent from the surrounding
+prose.
 
 ## 3. Extract durable knowledge
 
