@@ -9,10 +9,11 @@
     "Swept oldest issues in jacob202/kitty (namespace + gh token footgun resolved)",
     "#158 SSRF + path-traversal fixed and committed (5490900) with regression tests",
     "Committed scripts/session_end_survey.sh (78571d2)",
+    "#160 memory persistence fixed and committed (9d6b841): closed sessions now provably persist",
     "Recorded gh namespace/token + #159-already-fixed findings to ~/kb"
   ],
   "blockers": [
     "#158 UI 0.0.0.0/tailnet exposure + proxy gateway-secret need Jacob/Codex sign-off"
   ],
-  "next_action": "Address #160 (memory persistence) in gateway/memory.py, memory_consolidation.py, dream_insights.py; then #161 e2e test"
+  "next_action": "Address #161 (move-in e2e test); recommend closing #159 as stale-vs-code; decide on push"
 }

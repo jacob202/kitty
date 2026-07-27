@@ -13,7 +13,7 @@
 
 ## In-flight / next move
 
-- **#160 (memory persistence, T1/T2) — NOT started.** Inspect `gateway/memory.py`, `gateway/memory_consolidation.py`, `gateway/dream_insights.py`; the insight-storage path may be a no-op. This is the next actionable bug after #158.
+- **#160 (memory persistence, T1/T2) — FIXED & committed** (`9d6b841`). Root cause: `consolidate_session` existed but its persistence was only proven via a mock in `test_chat_completions.py` — the heavy Mem0 path needs a live LLM+embedder, so a *closed session* never provably persisted. Added `SESSION_CONSOLIDATION_LOG` (JSONL) written by `consolidate_session` on every close (incl. empty sessions), independent of Mem0. `dream_insights`/`save_dream_insights` already persisted to a real file with solid tests, so it was non-no-op already. Added 2 tests proving the record is written. 44 tests pass (test_memory + test_dream_insights + test_chat_completions).
 - #161 (e2e move-in test) depends on #160.
 - #127 (KittyBuilder queue) is a standing workflow command — likely stale, verify before acting.
 - #270 / #274 are newer initiatives already in flight (see kb NOW.md).
