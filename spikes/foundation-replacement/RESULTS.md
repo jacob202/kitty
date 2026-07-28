@@ -7,9 +7,17 @@ Do not choose a foundation from feature lists. Run the same workflows and attach
 | Candidate | Reuse model | License gate | Prototype status | Initial observation |
 |---|---|---:|---|---|
 | Current Kitty + assistant-ui | package-based UI foundation | PASS — MIT | Existing baseline | Maximum product/UI control; Kitty still owns substantial application plumbing. |
-| LibreChat | full application fork or thin upstream-tracking fork | PASS — MIT expected and runtime-checked | Bootstrap ready; execution evidence pending | Broad multi-provider/agent surface, but brings MongoDB, MeiliSearch, RAG services, auth, and strong app assumptions. |
-| AnythingLLM | full application fork or thin upstream-tracking fork | PASS — MIT expected and runtime-checked | Bootstrap ready; execution evidence pending | Strong workspace, document, memory, routing, agent, and scheduled-task concepts; fit with Kitty's project model must be tested. |
+| LibreChat | full application fork or thin upstream-tracking fork | PASS — MIT runtime-checked | **Boot verified in CI** against a Kitty-compatible Gateway | Broad multi-provider/agent surface, but brings MongoDB, MeiliSearch, RAG services, auth, and strong app assumptions. |
+| AnythingLLM | full application fork or thin upstream-tracking fork | PASS — MIT runtime-checked | **Boot verified in CI** against a Kitty-compatible Gateway | Strong workspace, document, memory, routing, agent, and scheduled-task concepts; fit with Kitty's project model must be tested. |
 | Open WebUI | none | FAIL for this project rule | Excluded | Current custom license is not accepted as a rebrandable Kitty foundation. No source is copied or fetched. |
+
+## Prototype boot evidence
+
+GitHub Actions run `30335640205` launched both pinned candidates through the checked-in bootstrap against a mock Gateway exposing Kitty's `/health` and `/v1/models` compatibility surface. Both application home pages returned successfully, container evidence was captured, and the stacks shut down cleanly.
+
+The first AnythingLLM attempt exposed a real portability bug: its SQLite storage bind mount was not writable when the image's default UID differed from the host. The bootstrap now writes the host UID/GID into the disposable candidate environment and creates the required storage directories before launch. The corrected AnythingLLM boot then passed.
+
+This proves that the launch/configuration path works. It does **not** yet prove product fit, personal continuity, real model calls, tool permissions, mobile UX, or upstream maintenance cost. Those require the shared workflows below against Jacob's real Kitty instance.
 
 ## Shared test contract
 
@@ -108,9 +116,9 @@ Weighted score is evidence, not authority. Record any hard disqualifier separate
 
 ## Decision record
 
-**Selected foundation:** pending execution evidence
+**Selected foundation:** pending real-project execution evidence
 
-**Why:** pending
+**Why:** both external candidates now boot, but bootability is not product fit.
 
 **What is retained from current Kitty:** pending
 
