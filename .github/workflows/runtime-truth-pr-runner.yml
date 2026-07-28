@@ -39,14 +39,17 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import textwrap
 
           workflow = Path('.github/workflows/runtime-truth-repair.yml').read_text()
           start_marker = "          python - <<'PY'\n"
           end_marker = "\n          PY\n\n      - name: Validate Python and launcher"
           start = workflow.index(start_marker) + len(start_marker)
           end = workflow.index(end_marker, start)
-          script = textwrap.dedent(workflow[start:end])
+          extracted = workflow[start:end]
+          script = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in extracted.splitlines()
+          ) + '\n'
           Path('/tmp/runtime_truth_repair.py').write_text(script)
           PY
           python /tmp/runtime_truth_repair.py > /tmp/runtime-truth-repair.log 2>&1
