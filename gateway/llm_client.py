@@ -598,6 +598,53 @@ def _call_provider(
         return ""
 
 
+def selected_provider_name() -> str | None:
+    """Return Jacob's exact provider selection, or None for automatic routing."""
+    from gateway.provider_prefs import active_provider, is_disabled
+
+    name = active_provider()
+    if name is None:
+        return None
+    if name not in PROVIDERS:
+        raise ProviderChainExhausted([f"selected provider {name!r} is unknown"])
+    if is_disabled(name):
+        raise ProviderChainExhausted([f"selected provider {name!r} is disabled"])
+    if name == "agentrouter" and _is_agentrouter_disabled():
+        raise ProviderChainExhausted(["selected provider 'agentrouter' is disabled by environment"])
+    if not provider_is_configured(PROVIDERS[name]):
+        raise ProviderChainExhausted([f"selected provider {name!r} is not configured"])
+    return name
+
+
+def call_selected_provider(
+    provider_name: str,
+    messages: list[dict],
+    *,
+    request_model: str | None,
+    max_tokens: int,
+    temperature: float,
+    timeout: int,
+    response_format: dict[str, Any] | None = None,
+    operation: str = "llm.call",
+    metadata: dict[str, Any] | None = None,
+) -> str:
+    """Call exactly one provider. Explicit selection never silently falls elsewhere."""
+    out = _call_provider(
+        PROVIDERS[provider_name],
+        messages,
+        max_tokens,
+        temperature,
+        timeout,
+        response_format,
+        operation=operation,
+        metadata=metadata,
+        request_model=request_model,
+    )
+    if not out:
+        raise ProviderChainExhausted([f"selected provider {provider_name!r} returned no response"])
+    return out
+
+
 def call_llm(
     messages: list[dict],
     model: str | None = None,
@@ -624,6 +671,20 @@ def call_llm(
         model = route_model(user_msg)
 
     model = normalize_litellm_request_model(model) or route_model("")
+
+    selected = selected_provider_name()
+    if selected is not None:
+        return call_selected_provider(
+            selected,
+            messages,
+            request_model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=timeout,
+            response_format=response_format,
+            operation=operation,
+            metadata=metadata,
+        )
 
     try:
         payload = {
@@ -751,8 +812,29 @@ def extract_assistant_text(data: object) -> str:
 
 
 async def chat_completions_non_stream(payload: dict[str, Any]) -> dict[str, Any]:
-    """Async chat completion — LiteLLM first, sync fallback chain on failure."""
+    """Async chat completion with exact-provider selection or automatic routing."""
     import asyncio
+
+    selected = selected_provider_name()
+    if selected is not None:
+        messages = payload.get("messages") or []
+        request_model = normalize_litellm_request_model(payload.get("model")) or route_model("")
+        text = await asyncio.to_thread(
+            call_selected_provider,
+            selected,
+            messages,
+            request_model=request_model,
+            max_tokens=int(payload.get("max_tokens") or 1500),
+            temperature=float(payload.get("temperature") or 0.7),
+            timeout=int(payload.get("timeout") or 60),
+            response_format=payload.get("response_format"),
+            operation="chat.completions.create",
+            metadata={"route": "gateway_chat_selected_provider"},
+        )
+        return {
+            "choices": [{"message": {"role": "assistant", "content": text}}],
+            "model": selected,
+        }
 
     from gateway.http_client import get_http_client
 
@@ -803,7 +885,34 @@ async def chat_completions_non_stream(payload: dict[str, Any]) -> dict[str, Any]
 
 
 async def iter_chat_completions_stream(payload: dict[str, Any]):
-    """Stream SSE chunks from LiteLLM. Streaming does not use the fallback chain."""
+    """Stream from LiteLLM, or emit an exact selected-provider response as SSE."""
+    selected = selected_provider_name()
+    if selected is not None:
+        import asyncio
+
+        messages = payload.get("messages") or []
+        request_model = normalize_litellm_request_model(payload.get("model")) or route_model("")
+        text = await asyncio.to_thread(
+            call_selected_provider,
+            selected,
+            messages,
+            request_model=request_model,
+            max_tokens=int(payload.get("max_tokens") or 1500),
+            temperature=float(payload.get("temperature") or 0.7),
+            timeout=int(payload.get("timeout") or 60),
+            response_format=payload.get("response_format"),
+            operation="chat.completions.create",
+            metadata={"route": "gateway_chat_selected_provider"},
+        )
+        direct_chunk = {
+            "id": "chatcmpl-kitty-selected-provider",
+            "object": "chat.completion.chunk",
+            "model": selected,
+            "choices": [{"index": 0, "delta": {"role": "assistant", "content": text}, "finish_reason": None}],
+        }
+        yield b"data: " + json.dumps(direct_chunk).encode("utf-8") + b"\n\n"
+        yield b"data: [DONE]\n\n"
+        return
 
     from gateway.http_client import get_http_client
 

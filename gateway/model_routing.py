@@ -146,6 +146,7 @@ def describe_providers() -> dict[str, Any]:
 
     prefs = load_preferences()
     disabled = set(prefs["disabled"])
+    active = str(prefs.get("active", "auto"))
     order = effective_provider_order()
 
     providers = []
@@ -162,6 +163,7 @@ def describe_providers() -> dict[str, Any]:
                 "configured": configured,
                 "disabled": name in disabled,
                 "position": order.index(name) if name in order else None,
+                "active": active == name,
             }
         )
 
@@ -178,7 +180,13 @@ def describe_providers() -> dict[str, Any]:
             f"first choice '{order[0]}' has no key, so calls actually start at '{usable[0]}'"
         )
 
+    if active != "auto":
+        chosen = next((p for p in providers if p["name"] == active), None)
+        if chosen is None or not chosen["configured"] or chosen["disabled"]:
+            warnings.append(f"selected provider {active!r} is not ready; chat will fail loudly")
+
     return {
+        "active": active,
         "order": order,
         "providers": providers,
         "warnings": warnings,

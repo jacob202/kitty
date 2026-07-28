@@ -39,6 +39,7 @@ beforeEach(() => {
   (useProviders as Mock).mockReturnValue({
     ...EMPTY_QUERY,
     data: {
+      active: 'auto',
       order: ['local', 'openrouter'],
       providers: [
         provider('local', { requires_key: false, api_key_env: [], position: 0 }),
@@ -55,8 +56,8 @@ afterEach(cleanup);
 describe('provider call order', () => {
   it('lists the chain in call order', () => {
     render(<ProviderCenter />);
-    expect(screen.getByText('local')).toBeInTheDocument();
-    expect(screen.getByText('openrouter')).toBeInTheDocument();
+    expect(screen.getAllByText('local').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('openrouter').length).toBeGreaterThan(0);
   });
 
   it('marks a provider with no key as not ready', () => {
@@ -72,7 +73,7 @@ describe('provider call order', () => {
   it('moving a provider up saves the swapped order', () => {
     render(<ProviderCenter />);
     fireEvent.click(screen.getByLabelText('Move openrouter up'));
-    expect(save).toHaveBeenCalledWith({ order: ['openrouter', 'local'], disabled: [] });
+    expect(save).toHaveBeenCalledWith({ order: ['openrouter', 'local'], disabled: [], active: 'auto' });
   });
 
   it('cannot move the first provider up', () => {
@@ -88,7 +89,7 @@ describe('provider call order', () => {
   it('turning a provider off saves it as disabled', () => {
     render(<ProviderCenter />);
     fireEvent.click(screen.getByLabelText('Disable openrouter'));
-    expect(save).toHaveBeenCalledWith({ order: ['local', 'openrouter'], disabled: ['openrouter'] });
+    expect(save).toHaveBeenCalledWith({ order: ['local', 'openrouter'], disabled: ['openrouter'], active: 'auto' });
   });
 
   it('turning a disabled provider back on clears it', () => {
@@ -106,7 +107,7 @@ describe('provider call order', () => {
     });
     render(<ProviderCenter />);
     fireEvent.click(screen.getByLabelText('Enable openrouter'));
-    expect(save).toHaveBeenCalledWith({ order: ['local'], disabled: [] });
+    expect(save).toHaveBeenCalledWith({ order: ['local'], disabled: [], active: 'auto' });
   });
 
   it('surfaces a rejected save instead of looking successful', () => {

@@ -473,6 +473,7 @@ async def api_providers():
 class ProviderPrefsRequest(BaseModel):
     order: list[str] = Field(default_factory=list)
     disabled: list[str] = Field(default_factory=list)
+    active: str = "auto"
 
 
 @router.post("/api/providers")
@@ -483,7 +484,12 @@ async def api_providers_set(payload: ProviderPrefsRequest):
     from gateway.provider_prefs import save_preferences
 
     try:
-        save_preferences(payload.order, payload.disabled, known=tuple(PROVIDERS.keys()))
+        save_preferences(
+            payload.order,
+            payload.disabled,
+            known=tuple(PROVIDERS.keys()),
+            active=payload.active,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
