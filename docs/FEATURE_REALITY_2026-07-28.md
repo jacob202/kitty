@@ -14,6 +14,12 @@ This document separates implemented capability from integrated daily-use experie
 
 Kitty is not empty scaffolding. It has several real, tested subsystems. The failure is product integration: capabilities were built in parallel, surfaced inconsistently, and documented through stale snapshots. Preserve the tested engines; replace or simplify the shell and wiring where dogfooding proves they fail.
 
+A missing path in a web index is not evidence that a subsystem does not exist. Reviews must inspect current `main`, search renamed paths, and distinguish backend capability from an end-to-end supported workflow before recommending deletion.
+
+## Foundation history
+
+Open WebUI was previously the intended commodity chat shell with Kitty layered above it. The repository deliberately removed that integration in June 2026 and made `kitty-chat` the sole frontend. That was an architectural choice, not proof that the earlier approach was imaginary or inherently invalid. Future foundation decisions must compare working candidates while preserving Kitty-owned context, memory, projects, permissions, routing, Tutor, Image Lab, and KittyBuilder capabilities.
+
 ## Hard rule
 
 No public or canonical document may call a feature shipped merely because backend code exists. Use these states:
