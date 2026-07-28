@@ -1,0 +1,118 @@
+name: AgentRouter.org alignment worker
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  align:
+    if: github.head_ref == 'fix/dogfood-provider-chat-shell-2026-07-28'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/dogfood-provider-chat-shell-2026-07-28
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Apply documented AgentRouter.org contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('gateway/llm_client.py')
+          text = path.read_text()
+          text = text.replace(
+              'for env_name in ("AGENTROUTER_API_KEY", "AGENT_ROUTER_TOKEN"):',
+              'for env_name in ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY"):',
+          )
+          text = text.replace('or "gpt-5.4-mini"', 'or "gpt-5.5"')
+          text = text.replace('model_default="gpt-5.4-mini"', 'model_default="gpt-5.5"')
+          text = text.replace(
+              'api_key_env=("AGENTROUTER_API_KEY", "AGENT_ROUTER_TOKEN"),',
+              'api_key_env=("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY"),',
+          )
+          start = text.index('def _agentrouter_client_rejected')
+          end = text.index('def _resolve_provider_api_key')
+          text = text[:start] + text[end:]
+          text = text.replace(
+              '        # AgentRouter .env values are prone to multi-line paste errors; the\n'
+              '        # dedicated resolver warns and takes the first line instead of silently\n'
+              '        # shipping a corrupt Bearer token.\n'
+              '        key_resolver=resolve_agentrouter_api_key,\n'
+              '        model_resolver=lambda request_model: agentrouter_model_for_request(request_model),\n'
+              '        request_mutator=_agentrouter_request_mutator,\n'
+              '        post_processor=_agentrouter_post_processor,\n',
+              '        # AgentRouter.org documents a standard OpenAI-compatible Bearer-token API.\n'
+              '        # Accept its canonical AGENT_ROUTER_TOKEN name and Kitty\'s legacy alias.\n'
+              '        key_resolver=resolve_agentrouter_api_key,\n'
+              '        model_resolver=lambda request_model: agentrouter_model_for_request(request_model),\n',
+          )
+          path.write_text(text)
+
+          path = Path('tests/test_agentrouter_config.py')
+          text = path.read_text().replace('gpt-5.4-mini', 'gpt-5.5')
+          text = text.replace(
+              '    monkeypatch.delenv("AGENTROUTER_API_KEY", raising=False)\n'
+              '    monkeypatch.delenv("AGENT_ROUTER_TOKEN", raising=False)\n'
+              '    monkeypatch.setenv("AGENTROUTER_API_KEY", \'  "sk-primary"  \')\n'
+              '    assert lc.resolve_agentrouter_api_key() == "sk-primary"\n\n'
+              '    monkeypatch.delenv("AGENTROUTER_API_KEY", raising=False)\n'
+              '    monkeypatch.setenv("AGENT_ROUTER_TOKEN", "sk-token")\n'
+              '    assert lc.resolve_agentrouter_api_key() == "sk-token"\n',
+              '    monkeypatch.delenv("AGENTROUTER_API_KEY", raising=False)\n'
+              '    monkeypatch.delenv("AGENT_ROUTER_TOKEN", raising=False)\n'
+              '    monkeypatch.setenv("AGENT_ROUTER_TOKEN", \'  "sk-canonical"  \')\n'
+              '    monkeypatch.setenv("AGENTROUTER_API_KEY", "sk-legacy")\n'
+              '    assert lc.resolve_agentrouter_api_key() == "sk-canonical"\n\n'
+              '    monkeypatch.delenv("AGENT_ROUTER_TOKEN", raising=False)\n'
+              '    assert lc.resolve_agentrouter_api_key() == "sk-legacy"\n',
+          )
+          path.write_text(text)
+
+          path = Path('tests/test_llm_client.py')
+          text = path.read_text().replace(
+              'patch.dict("os.environ", {"AGENTROUTER_API_KEY": "sk-test-key"})',
+              'patch.dict("os.environ", {"AGENT_ROUTER_TOKEN": "sk-test-key"})',
+              1,
+          )
+          path.write_text(text)
+
+          path = Path('.env.example')
+          text = path.read_text()
+          start = text.index('# AgentRouter —')
+          end = text.index('# Librarian / knowledge ingestion')
+          replacement = '''# AgentRouter.org — OpenAI-compatible chat provider used by Kitty and coding wrappers.
+# Canonical variable from the AgentRouter Codex documentation:
+AGENT_ROUTER_TOKEN=
+# Legacy Kitty alias remains accepted, but do not set both:
+# AGENTROUTER_API_KEY=
+AGENTROUTER_API_BASE=https://agentrouter.org/v1
+# OpenAI-compatible default documented for OpenCode.
+AGENTROUTER_MODEL=gpt-5.5
+# Claude Code instead uses ANTHROPIC_BASE_URL=https://agentrouter.org (no /v1)
+# and ANTHROPIC_AUTH_TOKEN set to the same key.
+
+'''
+          path.write_text(text[:start] + replacement + text[end:])
+          Path('.agentrouter-alignment-trigger').unlink(missing_ok=True)
+          PY
+      - name: Validate integration
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff pytest pytest-asyncio
+          ruff check gateway/ tests/
+          pytest -q tests/test_agentrouter_config.py tests/test_llm_client.py tests/test_active_provider_routing.py tests/test_provider_prefs.py
+      - name: Commit product changes
+        run: |
+          git config user.name 'Kitty integration worker'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: align AgentRouter.org API contract'
+          git push origin HEAD:fix/dogfood-provider-chat-shell-2026-07-28
