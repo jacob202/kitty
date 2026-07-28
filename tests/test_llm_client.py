@@ -526,7 +526,7 @@ def test_call_llm_full_fallback_exhaustion_raises():
         )
 
 
-def test_call_llm_partial_fallback_second_provider_succeeds():
+def test_call_llm_partial_fallback_second_provider_succeeds(all_provider_keys):
     """First provider fails, second provider succeeds."""
     from gateway.llm_client import call_llm
 

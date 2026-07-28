@@ -1,4 +1,4 @@
-# ADR 0022: Session-End Recommendations Carry Forward In The Checkpoint
+# ADR 0023: Session-End Recommendations Carry Forward In The Checkpoint
 
 - **Status:** Accepted
 - **Date:** 2026-07-26

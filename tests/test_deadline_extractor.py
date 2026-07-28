@@ -9,9 +9,7 @@ from gateway import deadline_extractor
 
 
 def _fake_llm(response: list[dict]):
-    def llm_fn(prompt: str, privacy_tier: str, content_class: str | None) -> str:
-        assert privacy_tier == "local"
-        assert content_class == "health_admin"
+    def llm_fn(prompt: str) -> str:
         return json.dumps({"deadlines": response})
 
     return llm_fn
@@ -60,10 +58,8 @@ def test_extract_from_mail_signal_only_mail_source():
 def test_extract_from_mail_signal_reads_payload():
     captured = {}
 
-    def llm_fn(prompt: str, privacy_tier: str, content_class: str | None) -> str:
+    def llm_fn(prompt: str) -> str:
         captured["prompt"] = prompt
-        assert privacy_tier == "local"
-        assert content_class == "health_admin"
         return '{"deadlines": [{"due_date": "2026-09-01", "obligation": "Pay tuition", "confidence": "medium"}]}'
 
     signal = {
@@ -78,7 +74,7 @@ def test_extract_from_mail_signal_reads_payload():
 
 
 def test_extract_raises_on_invalid_json():
-    def llm_fn(_prompt: str, _tier: str, _cls: str | None) -> str:
+    def llm_fn(_prompt: str) -> str:
         return "not json"
 
     with pytest.raises(deadline_extractor.DeadlineExtractorError):
@@ -86,7 +82,7 @@ def test_extract_raises_on_invalid_json():
 
 
 def test_extract_raises_on_non_array():
-    def llm_fn(_prompt: str, _tier: str, _cls: str | None) -> str:
+    def llm_fn(_prompt: str) -> str:
         return '{"foo": "bar"}'
 
     with pytest.raises(deadline_extractor.DeadlineExtractorError):

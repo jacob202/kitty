@@ -14,7 +14,7 @@ from gateway import deadline_extractor, deadline_store, knowledge, signal_store
 
 logger = logging.getLogger("kitty.deadline_sweep")
 
-LlmFn = Callable[[str, str, str | None], str]
+LlmFn = Callable[[str], str]
 PushFn = Callable[..., bool]
 
 

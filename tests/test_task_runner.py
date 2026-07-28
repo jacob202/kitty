@@ -128,3 +128,42 @@ async def test_execute_records_failed_when_worker_raises():
     task = get(task_id)
     assert task["status"] == "failed"
     assert "ingestion backend unavailable" in task["error"]
+
+
+class TestApiIdentity:
+    """The API surface must expose task_id — the UI reads that key, and when it
+    was missing every cancel button POSTed to /task/undefined/cancel."""
+
+    def test_get_returns_task_id(self):
+        task_id = create("identity check", task_type="research", run_immediately=False)
+        assert get(task_id)["task_id"] == task_id
+
+    def test_list_tasks_returns_task_id(self):
+        task_id = create("identity list check", task_type="research", run_immediately=False)
+        listed = next(t for t in list_tasks(limit=50) if t["id"] == task_id)
+        assert listed["task_id"] == task_id
+
+    def test_not_found_still_carries_task_id(self):
+        assert get("nosuchid")["task_id"] == "nosuchid"
+
+
+class TestReconcileStale:
+    def test_orphaned_tasks_are_failed_not_left_scheduled(self):
+        from gateway.task_runner import reconcile_stale
+
+        queued = create("orphan me", task_type="research", run_immediately=False)
+        reconciled = reconcile_stale()
+
+        assert reconciled >= 1
+        task = get(queued)
+        assert task["status"] == "failed"
+        assert "orphaned by a gateway restart" in task["error"]
+
+    def test_finished_tasks_are_left_alone(self):
+        from gateway.task_runner import reconcile_stale
+
+        task_id = create("already done", task_type="research", run_immediately=False)
+        cancel(task_id)
+        reconcile_stale()
+
+        assert get(task_id)["status"] == "cancelled"

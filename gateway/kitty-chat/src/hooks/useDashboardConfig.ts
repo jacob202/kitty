@@ -39,6 +39,7 @@ function defaultTiles(): Record<string, boolean> {
   return {
     'whats-next': true,
     'needs-you': true,
+    'insight-loop': true,
     deadlines: true,
     'active-projects': true,
     'what-changed': true,

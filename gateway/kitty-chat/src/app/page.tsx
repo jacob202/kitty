@@ -54,7 +54,17 @@ export default function KittyChat() {
       {k.isMobile && k.mobileSidebarOpen && (k.activeView === 'chat' || k.activeView === 'home') && (
         <>
           <div onClick={() => k.setMobileSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.6)', zIndex: 40 }} />
-          <div style={{ position: 'fixed', inset: '0 auto 0 0', width: 'min(320px, 84vw)',         height: '100dvh', zIndex: 50, boxShadow: 'var(--shadow)' }}>
+          <div
+            data-testid="mobile-chat-drawer"
+            style={{
+              position: 'fixed', inset: '0 auto 0 0', width: 'min(320px, 84vw)',
+              height: '100dvh', zIndex: 50, boxShadow: 'var(--shadow)',
+              // The sidebar's own --surface is translucent by design on desktop,
+              // where it sits in flow. Floating it over the page needs a solid
+              // backer or the whole app reads through it.
+              background: 'var(--surface-solid)',
+            }}
+          >
             <SessionSidebar
               chats={k.chats} activeChatId={k.activeChatId}
               onSelectChat={k.handleSelectChat}
@@ -70,7 +80,11 @@ export default function KittyChat() {
         activeModel={k.activeModel} onSend={k.handleRuntimeSend}
         onCancel={k.handleStop} onReload={k.handleRetry}
       >
-        <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', background: 'var(--bg)' }}>
+        <main style={{
+          flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
+          minHeight: 0, overflow: 'hidden', background: 'var(--bg)',
+          ...(k.isMobile ? { paddingBottom: 'var(--bottom-nav-height)' } : {}),
+        }}>
           <TopBar
             activeModel={k.activeModel} models={k.availableModels} onSelectModel={k.handleSelectModel}
             isStreaming={k.isStreaming} modelFromGateway={k.modelGateway.live}

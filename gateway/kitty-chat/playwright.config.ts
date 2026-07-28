@@ -1,5 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Container images often ship a Chromium that predates the pinned Playwright
+// build. Point at it rather than downloading a second copy on every run.
+const launchOptions = process.env.PLAYWRIGHT_CHROMIUM_PATH
+  ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
+  : undefined;
+
 export default defineConfig({
   testDir: './tests/smoke',
   timeout: 30_000,
@@ -7,6 +13,7 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:4000',
     trace: 'on-first-retry',
+    ...(launchOptions ? { launchOptions } : {}),
   },
   projects: [
     {

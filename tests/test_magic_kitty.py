@@ -134,14 +134,8 @@ def test_discover_connections_caches_valid_empty_result(monkeypatch):
     assert third["generated_at"] >= first["generated_at"]
 
 
-def test_discover_connections_uses_local_privacy_tier_for_synthesis(monkeypatch):
-    """D10: cross-project synthesis must stay local-tier, never cloud.
-
-    Magic Kitty aggregates every active project, including benefits-admin
-    (health_admin content). Assert the captured call_llm kwargs prove a cloud
-    leak is structurally impossible for this route — mirrors 016's privacy
-    acceptance criterion.
-    """
+def test_discover_connections_routes_synthesis_to_the_default_model(monkeypatch):
+    """ADR 0022 retired D10, so synthesis has no privacy tier — only a model."""
     monkeypatch.setattr(
         magic_kitty.project_store,
         "list_projects",
@@ -171,9 +165,9 @@ def test_discover_connections_uses_local_privacy_tier_for_synthesis(monkeypatch)
     magic_kitty.discover_connections()
 
     _, kwargs = mock_call_llm.call_args
-    assert kwargs.get("privacy_tier") == "local", kwargs
-    assert kwargs.get("content_class") == "health_admin", kwargs
     assert kwargs.get("model") == "kitty-default", kwargs
+    assert "privacy_tier" not in kwargs, kwargs
+    assert "content_class" not in kwargs, kwargs
 
 
 def test_discover_connections_does_not_cache_llm_failure(monkeypatch):

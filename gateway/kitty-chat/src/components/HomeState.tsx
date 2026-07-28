@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText } from '@/lib/ui';
 import { CapturePanel } from '@/components/CapturePanel';
 import { BuilderGlance } from '@/components/BuilderSurface';
+import { InsightReturnCard } from '@/components/InsightReturnCard';
 import { useDashboardConfig } from '@/hooks/useDashboardConfig';
 import {
   useStateChanges,
@@ -199,6 +200,19 @@ function RepairsCard() {
   }
 
   const issues = repairs.data.repairs.filter((r) => r.severity !== 'ok')
+
+  // Zero checks run is not a clean bill of health — it means nothing was
+  // measured. Saying "everything looks healthy" there sat directly above a
+  // "gateway is not reachable" banner and made the whole panel untrustworthy.
+  if (issues.length === 0 && repairs.data.checks_run === 0) {
+    return (
+      <SectionCard title="system">
+        <div role="status" style={emptyState}>
+          nothing was checked — the gateway didn&apos;t run any health checks
+        </div>
+      </SectionCard>
+    )
+  }
 
   if (issues.length === 0) {
     return (
@@ -1537,6 +1551,7 @@ export function HomeState({
         <WhatsNext preferredName={preferredName} onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       )}
       {visibleTiles['needs-you'] !== false && <NeedsYou onDecideInChat={onDecideInChat} />}
+      {visibleTiles['insight-loop'] !== false && <InsightReturnCard />}
       {visibleTiles['deadlines'] !== false && <Deadlines />}
       {visibleTiles['phone-access'] !== false && <PhoneAccessCard />}
       {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}

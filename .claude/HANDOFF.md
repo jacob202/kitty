@@ -168,7 +168,7 @@ Merge PR #276. Then merge `origin/main` into PR #278 and resolve the
 
 - `.agents/skills/session-end/SKILL.md`, `scripts/session_end_survey.sh`
 - `AGENTS.md`, `SKILL_REGISTRY.md`, `docs/FREE_WORKERS.md`
-- `docs/adr/0022-session-end-carry-forward-recommendations.md`, `docs/adr/README.md`, `docs/DECISIONS.md`
+- `docs/adr/0023-session-end-carry-forward-recommendations.md`, `docs/adr/README.md`, `docs/DECISIONS.md`
 - `gateway/context_receipt.py`, `tests/test_context_receipt.py`
 - `gateway/compute_governor.py`, `gateway/compute_governor_cli.py`, `tests/test_compute_governor.py`
 - `gateway/builder_loop.py`, `gateway/builder_run.py`, `gateway/builder_cli.py`, `tests/test_builder_loop.py`, `tests/conftest.py`

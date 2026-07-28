@@ -495,7 +495,7 @@ def test_get_next_steps_section_orders_life_first_and_skips_ungenerated(tmp_path
 
     import json
 
-    def llm(prompt, privacy_tier, content_class):
+    def llm(prompt):
         return json.dumps({"step": "s", "why": "w", "delegable": False})
 
     next_step.generate(code["id"], llm_fn=llm)
@@ -523,7 +523,7 @@ def test_get_next_steps_section_caps_self_dev_when_life_present(tmp_path, monkey
 
     import json
 
-    def llm(prompt, privacy_tier, content_class):
+    def llm(prompt):
         return json.dumps({"step": "s", "why": "w", "delegable": False})
 
     for proj in (life, kitty_a, kitty_b, other_code):
@@ -554,7 +554,7 @@ def test_projects_next_steps_route_orders_life_first(tmp_path, monkeypatch):
 
     import json
 
-    def llm(prompt, privacy_tier, content_class):
+    def llm(prompt):
         return json.dumps({"step": "s", "why": "w", "delegable": False})
 
     next_step.generate(code["id"], llm_fn=llm)

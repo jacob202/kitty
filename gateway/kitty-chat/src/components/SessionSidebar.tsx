@@ -28,7 +28,7 @@ const SECTION_COLORS: Record<string, string> = {
   earlier: 'var(--c-purple)',
 }
 
-export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat }: Props) {
+export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat, width = 268 }: Props) {
   const [search, setSearch] = useState('')
 
   const sorted = [...chats].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
@@ -52,7 +52,8 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
 
   return (
     <aside style={{
-      width: 268,
+      width,
+      height: '100%',
       background: 'var(--surface)',
       borderRight: '1.5px solid var(--line)',
       display: 'flex',
