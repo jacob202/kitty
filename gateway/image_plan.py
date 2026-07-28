@@ -11,7 +11,7 @@ and approve before generation begins — it never calls a renderer on its own.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 

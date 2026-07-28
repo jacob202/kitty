@@ -20,7 +20,6 @@ from gateway.llm_client import (
     chat_completions_non_stream,
     iter_chat_completions_stream,
     log_chat_trace,
-    route_model,
     selected_provider_name,
 )
 from gateway.memory_graph import MemoryEvidence
@@ -296,7 +295,7 @@ async def chat_completions(request: Request):
   {
       "conversation_id": conversation_id,
       "provider_selected": provider_label,
-      "client_model_requested": model_from_request,
+      "client_model_requested": route_decision.requested_model,
       "model_routed": model,
       "message_count": len(enriched),
       "message_content_chars": upstream_chars,
@@ -413,7 +412,7 @@ async def chat_completions(request: Request):
         lifecycle_headers = {
             "X-Kitty-Runtime-Revision": runtime_manifest["revision"],
             "X-Kitty-Model-Selected": model,
-            "X-Kitty-Model-Requested": str(model_from_request),
+            "X-Kitty-Model-Requested": str(route_decision.requested_model),
             "X-Kitty-Provider-Selected": provider_label,
             "X-Kitty-Tools-State": "unavailable",
         }

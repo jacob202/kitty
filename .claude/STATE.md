@@ -71,7 +71,7 @@
   "pull_request": {
     "number": 289,
     "state": "OPEN",
-    "head_sha": "13aa8cd32d0c6f5e88205f1b69d241054cd28b9f"
+    "head_sha": "224d7bd4533cd637d861a433499e0acd073fd66b"
   }
 }
 -->

@@ -55,6 +55,7 @@ vi.mock('../src/lib/queries', () => ({
   useProjectNextSteps: vi.fn(),
   useWhatsNextSteps: vi.fn(),
   useGatewayHealth: vi.fn(),
+  useGatewayWeather: vi.fn(),
   useGatewayModels: vi.fn(),
   useChatsPersistence: vi.fn(),
   useSessionContext: vi.fn(),
