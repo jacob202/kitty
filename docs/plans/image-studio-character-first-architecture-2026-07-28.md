@@ -1052,7 +1052,7 @@ The most important correction is strategic:
 - Google Gemini pricing: https://ai.google.dev/gemini-api/docs/pricing
 - Google Generative AI Prohibited Use Policy: https://policies.google.com/terms/generative-ai/use-policy
 - OpenAI GPT Image 2 model: https://developers.openai.com/api/docs/models/gpt-image-2
-- OpenAI Usage Policies: https://openai.com/policies/usage-policies/
+- OpenAI Usage Policies: `openai.com/policies/usage-policies`
 - Black Forest Labs FLUX.2 overview: https://docs.bfl.ai/flux_2/flux2_overview
 - Black Forest Labs pricing: https://docs.bfl.ai/quick_start/pricing
 - Black Forest Labs Usage Policy: https://bfl.ai/legal/usage-policy
