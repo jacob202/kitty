@@ -122,8 +122,8 @@ Immediate discovered Studio contract repairs:
 
 | Task | Dispatch | State | Required disposition |
 | --- | --- | --- | --- |
-| `task_d55e5ed58966` | `ctx_b453d4b457f6` | active in proven `term_834dc3b6` session | Wait for `worker_done`; inspect diff before any other writer touches its files. |
-| `task_25543048a25b` | none yet | ready | Dispatch only after the active stale-recovery task completes, using the same proven session. It owns `builder_run.py`, `builder_status.py`, `test_builder_run.py`, and `test_builder_status.py`. |
+| `task_d55e5ed58966` | `ctx_b453d4b457f6` | completed | Its stale-recovery repair was inspected and committed as `160806f fix(builder): fence stale attempt recovery`. |
+| `task_25543048a25b` | proven `term_834dc3b6` session | completed | Its cancellation repair was inspected and committed as `08de685 fix(builder): preserve cancellation outcomes`. |
 | `task_4a10b406a5e9` | `ctx_0501d3bc50dd` | blocked | New-terminal startup produced no work; superseded by `task_d55e5ed58966`. Preserve history, do not reuse. |
 | `task_66658e84d90c` | `ctx_1777bd8eaed8` | blocked | New-terminal startup produced no work; superseded by `task_25543048a25b`. Preserve history, do not reuse. |
 | `task_38303796bac9` | `ctx_3b73e1141f57` | blocked | Architecture terminal never started. It is not an approval and must not be waited on indefinitely. |
@@ -140,9 +140,16 @@ was already captured; it is needed before a later canonical queue mutation.
 
 ## Immediate execution sequence
 
-### A. Finish stale-attempt recovery (direct specialist lane)
+### A. Stale-attempt recovery (completed)
 
-When `task_d55e5ed58966` completes:
+Completed in `160806f fix(builder): fence stale attempt recovery`. The focused
+regression command remains unexecuted pending `/qg`:
+
+```bash
+python3.12 -m pytest tests/test_builder_attempt.py tests/test_builder_loop.py tests/test_builder_initiative.py -q
+```
+
+The completed lane:
 
 1. Check `git status --short --branch` and `git diff --name-only` before
    reading the diff. Expected writer-owned paths are
@@ -159,10 +166,17 @@ When `task_d55e5ed58966` completes:
    `fix(builder): prove stale attempt recovery`.
 6. Record the exact focused gate command the next `/qg` must execute.
 
-### B. Finish cancellation truthfulness (direct specialist lane)
+### B. Cancellation truthfulness (completed)
 
-Only after A's writer has completed and its diff is committed, dispatch
-`task_25543048a25b` to the same known-good Orca session. It must:
+Completed in `08de685 fix(builder): preserve cancellation outcomes`. It keeps
+`LOOP_CANCELLED` distinct from exhaustion, preserves cancellation provenance in
+the status projection, and adds focused coverage. Its unexecuted `/qg` command:
+
+```bash
+python3.12 -m pytest tests/test_builder_run.py tests/test_builder_status.py -q
+```
+
+The completed lane required:
 
 1. Keep `LOOP_CANCELLED` distinct from exhaustion in `builder_run.py`.
 2. Preserve cancellation reason/event provenance in `builder_status.py` without
@@ -216,5 +230,8 @@ fresh supported state and source evidence decide eligibility.
 - `3dc7a29 docs(builder): add worker continuation contract`
 - `ea941b6 docs(image): record Genevolve adaptation plan`
 - `8ab6754 docs(builder): record unavailable phase gate`
+- `435325f docs(builder): add execution continuation`
+- `160806f fix(builder): fence stale attempt recovery`
+- `08de685 fix(builder): preserve cancellation outcomes`
 
 Commit this continuation packet before resuming any code mutation.
