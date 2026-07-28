@@ -1,11 +1,6 @@
 version: 1.3.13
 cache: true
 
-interface:
-  endpointsMenu: true
-  modelSelect: true
-  presets: true
-
 endpoints:
   custom:
     - name: "Kitty"
