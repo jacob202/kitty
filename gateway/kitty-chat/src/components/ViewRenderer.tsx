@@ -37,6 +37,7 @@ interface ViewRendererProps {
     preferredName: string
     onDecideInChat: (entry: any) => void
     onNavigate: (view: string) => void
+    onExpertClick?: (expert: any) => void
   }
   builderProps?: { onBack: () => void }
   workProps?: { isMobile: boolean }
