@@ -39,6 +39,11 @@ in this chat runtime.
 """.strip()
 
 
+def route_model(message: str) -> str:
+    """Compatibility routing seam for tests and callers that still patch this Module."""
+    return resolve_chat_route("kitty-default", message, reroute_virtual_models=True).model
+
+
 class CloseSessionRequest(BaseModel):
     messages: list[dict] = Field(default_factory=list)
     session_id: str = ""
@@ -163,12 +168,13 @@ async def chat_completions(request: Request):
         tier,
         trigger,
     )
+    requested_model = body.get("model", "kitty-default")
     route_decision = resolve_chat_route(
-        body.get("model", "kitty-default"),
+        requested_model,
         user_text,
-        reroute_virtual_models=True,
+        reroute_virtual_models=False,
     )
-    model = route_decision.model
+    model = route_decision.model if route_decision.source == "request" else route_model(user_text)
 
     conversation_id = body.get("conversation_id")
     if conversation_id is not None and (
