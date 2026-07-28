@@ -79,6 +79,7 @@ def build_image_plan(
     references: list[ReferenceProvenance] = []
     resolved_character_path: str | None = None
 
+    char = None
     if character_id:
         try:
             char = ic.get_character(character_id)
@@ -113,9 +114,15 @@ def build_image_plan(
             )
         resolved_tags.append(tag)
 
-    # TODO: in a future phase, refine the prompt with character context
-    # and selected guidance.  For now, the refined prompt is the original.
-    refined = prompt.strip()
+    # Build a refined prompt from character context and guidance tags.
+    char_name = getattr(char, "name", None) if char else None
+    char_desc = getattr(char, "description", None) if char else None
+    refined = _refine_prompt(
+        prompt.strip(),
+        character_name=char_name,
+        character_desc=char_desc,
+        guidance_tags=resolved_tags,
+    )
 
     return ImagePlan(
         original_prompt=prompt.strip(),
@@ -151,3 +158,63 @@ def _primary_character_ref_path(char: Any) -> str | None:
             continue
         return ref.storage_path
     return None
+
+
+def _refine_prompt(
+    prompt: str,
+    *,
+    character_name: str | None = None,
+    character_desc: str | None = None,
+    guidance_tags: list[str] | None = None,
+) -> str:
+    """Build a refined prompt by appending character context and guidance.
+
+    The original prompt is always preserved verbatim.  Character context and
+    guidance are appended as separate sentences so the renderer can parse them
+    independently — never modify the user's text.
+    """
+    from gateway.image_guidance import get_guidance
+
+    parts: list[str] = [prompt]
+
+    if character_name:
+        context = f"Subject: {character_name}."
+        if character_desc:
+            context += f" {character_desc}"
+        parts.append(context)
+
+    for tag in (guidance_tags or []):
+        guidance = get_guidance(tag)
+        if guidance is None:
+            continue
+        instructions = _extract_guidance_instructions(guidance)
+        if instructions:
+            parts.append(instructions)
+
+    return " ".join(parts)
+
+
+def _extract_guidance_instructions(guidance_md: str) -> str:
+    """Pull out the actionable prompt-writing advice from a guidance file.
+
+    Skips the renderer/model metadata header, section headings, and
+    the Source/Version footer. Returns only the bullet-list
+    instructions as a single sentence block.
+    """
+    lines: list[str] = []
+    for line in guidance_md.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("**Renderer:**") or stripped.startswith("**Model:**"):
+            continue
+        if stripped.startswith("#") or stripped.startswith("---"):
+            continue
+        if stripped.startswith("Version:") or stripped.startswith("Source:"):
+            continue
+        if stripped.startswith("- "):
+            instruction = stripped[2:].strip()
+            lines.append(instruction)
+    if not lines:
+        return ""
+    return "Guidance: " + ". ".join(lines[:6]) + "."

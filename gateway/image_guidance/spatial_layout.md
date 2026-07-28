@@ -1,5 +1,10 @@
 # Spatial Layout Guidance
 
+**Renderer:** ComfyUI (SDXL Turbo / SD3) — tested and effective.
+**Model:** `kitty-default` routes through `image_recipes.auto_route()`.
+Draw Things compatibility unknown — its A1111 adapter may parse
+positioning differently.
+
 ## Composition
 
 - Describe the **overall scene structure** before listing objects.
@@ -29,5 +34,5 @@
 
 ---
 
-Version: 1.0
+Version: 1.0 — Kitty ComfyUI-tested
 Source: kitty/image_guidance/spatial_layout.md

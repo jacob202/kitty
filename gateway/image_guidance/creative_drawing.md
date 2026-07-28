@@ -1,5 +1,10 @@
 # Creative Drawing Guidance
 
+**Renderer:** ComfyUI (SDXL Turbo / SD3) — strongest at stylistic range.
+**Model:** `kitty-default` routes through `image_recipes.auto_route()`.
+Draw Things: supported through loaded checkpoints; style fidelity depends on
+the checkpoint's training data (anime checkpoints don't do oil painting).
+
 ## Opening
 
 - Describe the **artistic medium and style** first: "A pencil sketch," "An oil painting," "A vector illustration."

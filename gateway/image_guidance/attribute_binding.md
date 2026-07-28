@@ -1,5 +1,10 @@
 # Attribute Binding Guidance
 
+**Renderer:** ComfyUI (SDXL Turbo / SD3) — color binding most reliable.
+**Model:** `kitty-default` routes through `image_recipes.auto_route()`.
+SDXL Turbo (fewer steps) has stronger color binding than SD3 (more steps, more
+creative drift). If colors bleed, try a Turbo recipe.
+
 ## What It Is
 
 Attribute binding means assigning the right properties to the right objects

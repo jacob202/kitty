@@ -1,5 +1,11 @@
 # Anatomy & Body Coherence Guidance
 
+**Renderer:** ComfyUI (SDXL Turbo / SD3) — anatomy improves with more steps.
+**Model:** `kitty-default` routes through `image_recipes.auto_route()`.
+Use `quality` tier (8+ steps, CFG ~4.5) for character work — `speed` tier
+(6 steps, CFG ~1.5) produces anatomy that's fast but less coherent.
+Draw Things: SD1.5-based checkpoints have worse hands/faces; SDXL-based are better.
+
 ## Proportions
 
 - Specify **body proportions** explicitly when they matter: "tall and slender,"
