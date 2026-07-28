@@ -516,6 +516,7 @@ export interface GatewayProvider {
 }
 
 export interface GatewayProviderChain {
+  active: string
   order: string[]
   providers: GatewayProvider[]
   warnings: string[]
@@ -530,11 +531,12 @@ export async function fetchGatewayProviders(): Promise<GatewayProviderChain> {
 export async function saveGatewayProviders(
   order: string[],
   disabled: string[],
+  active = 'auto',
 ): Promise<GatewayProviderChain> {
   return await gfetch<GatewayProviderChain>('/api/providers', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ order, disabled }),
+    body: JSON.stringify({ order, disabled, active }),
   })
 }
 

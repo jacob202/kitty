@@ -285,6 +285,7 @@ function ProviderChain() {
 
   const providers = chainQuery.data?.providers ?? []
   const order = chainQuery.data?.order ?? []
+  const active = chainQuery.data?.active ?? 'auto'
 
   function move(name: string, delta: number) {
     const next = [...order]
@@ -292,14 +293,14 @@ function ProviderChain() {
     const to = from + delta
     if (from < 0 || to < 0 || to >= next.length) return
     ;[next[from], next[to]] = [next[to], next[from]]
-    save.mutate({ order: next, disabled: providers.filter(p => p.disabled).map(p => p.name) })
+    save.mutate({ order: next, disabled: providers.filter(p => p.disabled).map(p => p.name), active })
   }
 
   function toggle(name: string, disabled: boolean) {
     const nextDisabled = disabled
       ? [...providers.filter(p => p.disabled).map(p => p.name), name]
       : providers.filter(p => p.disabled && p.name !== name).map(p => p.name)
-    save.mutate({ order, disabled: nextDisabled })
+    save.mutate({ order, disabled: nextDisabled, active: nextDisabled.includes(active) ? 'auto' : active })
   }
 
   return (
@@ -310,7 +311,32 @@ function ProviderChain() {
         next call — no restart.
       </p>
 
-      {chainQuery.isLoading && <p style={mutedStyle}>reading provider chain…</p>}
+      <label style={{ ...rowNoteStyle, display: 'grid', gap: 6 }}>
+active provider
+<select
+aria-label="Active provider"
+value={active}
+disabled={save.isPending || chainQuery.isLoading}
+onChange={(event) => save.mutate({
+  order,
+  disabled: providers.filter(p => p.disabled).map(p => p.name),
+  active: event.target.value,
+})}
+style={{ ...optionStyle, maxWidth: 320 }}
+>
+<option value="auto">auto — LiteLLM, then fallbacks</option>
+{providers.map(provider => (
+  <option key={provider.name} value={provider.name} disabled={!provider.configured || provider.disabled}>
+    {provider.name}{provider.configured ? '' : ' (not configured)'}
+  </option>
+))}
+</select>
+<span style={mutedStyle}>
+Selecting a provider forces normal chat through that provider. Auto keeps Kitty routing and fallbacks.
+</span>
+</label>
+
+{chainQuery.isLoading && <p style={mutedStyle}>reading provider chain…</p>}
       {chainQuery.isError && (
         <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
           couldn&apos;t read the provider chain —{' '}
@@ -395,6 +421,16 @@ function StatusDot({ ok, okLabel, badLabel }: { ok: boolean; okLabel: string; ba
       {ok ? okLabel : badLabel}
     </span>
   )
+}
+
+const optionStyle: CSSProperties = {
+background: 'var(--surface-2)',
+border: '1.5px solid var(--line)',
+borderRadius: 8,
+padding: '8px 10px',
+fontFamily: 'var(--font-mono)',
+fontSize: 11,
+color: 'var(--ink)',
 }
 
 const titleStyle: CSSProperties = {

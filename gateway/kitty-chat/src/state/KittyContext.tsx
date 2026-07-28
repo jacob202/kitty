@@ -352,8 +352,17 @@ export function KittyProvider({ children }: { children: ReactNode }) {
             }
           } catch { return legacyChat(c) }
         }))
-        setChats(recovered)
-      })
+        const ordered = [...recovered].sort(
+(a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+)
+setChats(ordered)
+const remembered = window.localStorage.getItem('kitty-active-chat-id')
+setActiveChatId(
+remembered && ordered.some((chat) => chat.id === remembered)
+  ? remembered
+  : ordered[0]?.id ?? null,
+)
+})
       .catch(() => {})
   }, [])
 
@@ -400,8 +409,12 @@ export function KittyProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    if (chats.length > 0 && !activeChatId) setActiveChatId(chats[0].id)
-  }, [chats, activeChatId])
+if (chats.length > 0 && !activeChatId) setActiveChatId(chats[0].id)
+}, [chats, activeChatId])
+
+useEffect(() => {
+if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChatId)
+}, [activeChatId])
 
   useEffect(() => {
     if (!availableModels.length) return

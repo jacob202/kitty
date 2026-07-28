@@ -37,9 +37,10 @@ export const VIEWS: Record<ViewId, ViewEntry> = {
   tutor:     { component: PlaceholderView, title: 'Tutor',    icon: 'settings', railSlot: false },
 }
 
-export const RAIL_VIEWS: ViewId[] = ['home', 'chat', 'work', 'studio', 'builder', 'library', 'settings']
+export const RAIL_VIEWS: ViewId[] = ['home', 'chat', 'work', 'studio', 'library', 'settings']
 
 export const REDIRECTS: Record<string, ViewId> = {
+  builder: 'work',
   tasks: 'work',
   tools: 'settings',
   terminal: 'settings',

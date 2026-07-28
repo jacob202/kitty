@@ -151,8 +151,8 @@ export function useProviders() {
 export function useSaveProviders() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ order, disabled }: { order: string[]; disabled: string[] }) =>
-      saveGatewayProviders(order, disabled),
+    mutationFn: ({ order, disabled, active }: { order: string[]; disabled: string[]; active: string }) =>
+      saveGatewayProviders(order, disabled, active),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['providers'] })
       qc.invalidateQueries({ queryKey: ['model-routing'] })

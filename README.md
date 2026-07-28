@@ -1,9 +1,9 @@
 # Kitty
 # Kitty 🐾
 
-Jacob's local-first AI companion. Runs on the Mac, keeps data on the Mac, and aims for **daily-use reliability over spectacle** — start cleanly, capture a thought fast, resurface it later, don't lose anything.
+Jacob's provider-independent personal AI operating layer. Kitty keeps its own context, memory, projects, permissions, and tools while routing work across interchangeable local and cloud models. The current priority is restoring **daily-use reliability**: the backend capabilities are ahead of the product shell.
 
-> **Status:** Phases B and C shipped · ~580+ tests passing · Python 3.12 + Next.js · personal project, not packaged for public use.
+> **Status:** substantial backend capabilities, inconsistent daily-use product · Python 3.12 + Next.js · personal project, not packaged for public use. See [`docs/FEATURE_REALITY_2026-07-28.md`](docs/FEATURE_REALITY_2026-07-28.md) for what works, what is partial, and what is only planned.
 >
 > **Coming back cold?** Read [`START_HERE.md`](START_HERE.md) first — it's the front door for agents and future-Jacob. This README is the map; `START_HERE.md` → `docs/PROJECT_STATUS.md` → `docs/ARCHITECTURE.md` is the deep path.
 
@@ -49,7 +49,7 @@ kitty
 │   └── kitty-chat/       #   Next.js UI
 ├── soul/                 # identity — kitty.md + specialists/ (analyst, coder, companion, creative, researcher)
 ├── contracts/            # interface contracts/schemas between layers
-├── backend/ · gateway/ · mcp/imagen/   # services + image-gen MCP
+├── mcp/imagen/           # image-generation MCP (Gemini, Imagen, DALL-E, ComfyUI, Draw Things)
 ├── docs/                 # canonical design docs (start with PROJECT_STATUS + ARCHITECTURE)
 ├── scripts/ · tests/ · config/ · data/ · logs/ · prompts/
 ├── AGENTS.md · CLAUDE.md · CODEX.md     # per-agent instructions
@@ -114,7 +114,7 @@ Phase B consolidated app-owned episodic state behind one SQLite story via a thin
 
 ## Model routing
 
-`llm_client` + LiteLLM route through a provider fallback chain, all keyed in `.env`: **AgentRouter** (preferred first hop) → Anthropic / Gemini / OpenAI / NVIDIA NIM → **OpenRouter** (free-tier + last-resort). Set only the keys you have; unset providers are skipped.
+`llm_client` supports LiteLLM plus direct local, OpenAI, NVIDIA, AgentRouter, OpenRouter, and Gemini providers. In **Settings → Providers**, choose `auto` for Kitty routing/fallbacks or force one configured provider for normal chat. Unset providers are skipped; an explicitly selected but unavailable provider fails loudly instead of silently spending somewhere else.
 
 ---
 
