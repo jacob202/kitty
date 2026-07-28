@@ -1,0 +1,87 @@
+name: Finalize dogfood recovery
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.head_ref == 'fix/dogfood-provider-chat-shell-2026-07-28'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/dogfood-provider-chat-shell-2026-07-28
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: gateway/kitty-chat/package-lock.json
+      - name: Apply repair
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          lines = Path('.github/workflows/dogfood-repair-apply.yml').read_text().splitlines()
+          start = next(i for i, line in enumerate(lines) if line.strip() == "python - <<'PY'") + 1
+          end = next(i for i in range(start, len(lines)) if lines[i].strip() == 'PY')
+          extracted = [line[10:] if line.startswith('          ') else line.lstrip() for line in lines[start:end]]
+          path = Path('/tmp/apply_dogfood_repair.py')
+          path.write_text('\n'.join(extracted) + '\n')
+          compile(path.read_text(), str(path), 'exec')
+          PY
+          python /tmp/apply_dogfood_repair.py
+          python - <<'PY'
+          from pathlib import Path
+
+          test = Path('tests/test_active_provider_routing.py')
+          text = test.read_text()
+          text = text.replace(
+              '    assert chunks[-1] == b"data: [DONE]\\\\n\\\\n"',
+              '    assert chunks[-1] == b"data: [DONE]" + bytes([10, 10])',
+          )
+          test.write_text(text)
+
+          llm = Path('gateway/llm_client.py')
+          text = llm.read_text()
+          text = text.replace(
+              '        chunk = {\n            "id": "chatcmpl-kitty-selected-provider",',
+              '        direct_chunk = {\n            "id": "chatcmpl-kitty-selected-provider",',
+              1,
+          )
+          text = text.replace('json.dumps(chunk).encode("utf-8")', 'json.dumps(direct_chunk).encode("utf-8")', 1)
+          llm.write_text(text)
+          PY
+      - name: Validate Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff pytest pytest-asyncio
+          ruff check gateway/ tests/ mcp/
+          pytest -q tests/test_provider_prefs.py tests/test_active_provider_routing.py tests/test_llm_client.py tests/test_chat_completions.py
+      - name: Validate frontend
+        working-directory: gateway/kitty-chat
+        run: |
+          npm ci
+          npm test -- --run
+          npm run build
+      - name: Commit final patch
+        run: |
+          rm .github/workflows/dogfood-repair-apply.yml
+          rm .github/workflows/dogfood-repair-run.yml
+          rm .github/workflows/finalize-dogfood-recovery.yml
+          git config user.name 'Kitty repair worker'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: make provider choice real and consolidate work [dogfood-repair]'
+          git push origin HEAD:fix/dogfood-provider-chat-shell-2026-07-28
