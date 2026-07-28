@@ -128,7 +128,7 @@ export function StatusBar({
         </span>
         {pwaState === 'available' && onPwaInstall && (
           <button type="button" onClick={onPwaInstall} disabled={pwaInstalling} style={retryBtnStyle}>
-            {pwaInstalling ? 'installing...' : 'install'}
+            {pwaInstalling ? 'installing...' : 'install as app'}
           </button>
         )}
       </div>

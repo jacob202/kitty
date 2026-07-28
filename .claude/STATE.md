@@ -2,7 +2,7 @@
 
 <!-- kitty-state
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "updated_at": "2026-07-27T05:25:00Z",
   "head_sha": "16c39cff1da34f620cf75804ca91a3ccc8d7876a",
   "branch": "claude/session-end-recommendations-xsd0ss",
@@ -58,24 +58,24 @@
   ],
   "recommendations": [
     {
+      "id": "merge-276-then-reconcile-278",
+      "what": "Merge PR #276, then merge origin/main into PR #278 and resolve the AGENTS.md and gateway/ overlap",
+      "why": "Both PRs are signed off; #276 first keeps the overlap resolvable in one direction",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    },
+    {
       "id": "extract-session-kb",
-      "what": "On the Mac, write the ~/kb wiki entry for the inherited-red-main lesson and append its INDEX line",
-      "why": "This session produced durable knowledge that no checkpoint file carries",
+      "what": "Merge docs/session-notes/2026-07-27-kb-payload.md into ~/kb and append its INDEX lines",
+      "why": "The payload is staged but the knowledge base is not reachable from this container",
       "class": "code",
       "status": "deferred",
       "blocked_by": "~/kb is a separate repo and is not present in this container",
       "release_check": "test -d ~/kb",
-      "deferred_count": 0,
-      "first_deferred": "2026-07-27"
-    },
-    {
-      "id": "rebase-278-onto-276",
-      "what": "After #276 merges, merge origin/main into #278 and resolve the AGENTS.md and gateway/ overlap",
-      "why": "Both branches edit AGENTS.md and gateway/; whichever lands second conflicts",
-      "class": "code",
-      "status": "deferred",
-      "blocked_by": "PR #276 has not merged",
-      "release_check": "git fetch -q origin main && git merge-base --is-ancestor origin/claude/session-end-recommendations-xsd0ss origin/main",
       "deferred_count": 0,
       "first_deferred": "2026-07-27"
     },
@@ -92,12 +92,19 @@
     }
   ],
   "invalidation_conditions": [
-    "HEAD changes beyond 16c39cff1da34f620cf75804ca91a3ccc8d7876a except the checkpoint commit that records this file",
-    "PR #276 or #278 merges, closes, or takes new commits",
-    "origin/main advances past 00e005b3c3bf88573b38e4448470d678d4821fce"
+    "HEAD changes beyond the recorded head_sha except the checkpoint commit that records this file",
+    "PR #276 or #278 merges or closes",
+    "a force-push orphans the recorded pull_request.head_sha from PR #276's history",
+    "origin/main advances past the recorded base_sha"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": {
+    "number": 276,
+    "url": "https://github.com/jacob202/kitty/pull/276",
+    "state": "OPEN",
+    "head_sha": "22e05a0fb2bb6c15468e091481b56b81054819d8"
+  },
+  "base_sha": "00e005b3c3bf88573b38e4448470d678d4821fce"
 }
 -->
 

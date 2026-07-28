@@ -75,7 +75,7 @@ export function Rail({ activeView = 'home', onViewChange, theme = 'cosmic', onTo
 
       <button
         onClick={onToggleTheme}
-        title="day / night"
+        title={theme === 'cosmic' ? 'theme: cosmic — switch to day' : theme === 'day' ? 'theme: day — switch to night' : 'theme: night — switch to cosmic'}
         style={{
           width: 46, height: 46, borderRadius: 12,
           border: 'none', background: 'transparent',

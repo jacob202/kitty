@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import sqlite3
 import subprocess
@@ -59,6 +60,62 @@ _REQUIRED_MISSION_KEYS = {
     "base_sha",
     "authority",
 }
+_SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS = {1, 2}
+_REQUIRED_V2_CHECKPOINT_KEYS = {"parallel_work", "recommendations"}
+_REQUIRED_PARALLEL_WORK_KEYS = {"kind", "ref", "owner", "touches", "observed_at"}
+# The session-end contract caps the ranked next-step channel at three. Without
+# this the carry-forward field quietly becomes an unbounded backlog.
+_MAX_RECOMMENDATIONS = 3
+_RECOMMENDATION_STATUSES = {"ready", "deferred"}
+_REQUIRED_RECOMMENDATION_KEYS = {
+    "id",
+    "what",
+    "why",
+    "class",
+    "status",
+    "blocked_by",
+    "release_check",
+    "deferred_count",
+    "first_deferred",
+}
+# Life work outranks code work (ADR 0016); losing `class` silently destroys that
+# ordering while the checkpoint still validates.
+_RECOMMENDATION_CLASSES = {"life", "code"}
+
+# `.claude/STATE.md` is tracked and shared, and session end runs its deferred
+# entries' release_check commands. A checkpoint written by another contributor,
+# another agent, or a pull request is therefore arbitrary code that executes
+# when Jacob says "wrap up". These characters are the shell primitives that turn
+# a predicate into a payload — chaining, redirection, substitution. A predicate
+# needs none of them; anything that does requires Jacob's explicit approval and
+# must not be recorded as an auto-run check.
+_SHELL_METACHARACTERS = (";", "|", "&", "`", "$(", ">", "<", "\n", "\r")
+
+# Blacklisting metacharacters is not enough: `rm -rf /tmp/kitty` and
+# `python3 payload.py` need none. Only these command shapes may be executed
+# automatically. Each entry is a required token prefix; anything else needs
+# Jacob's approval and a manual run.
+# Full shapes, not prefixes: a prefix match accepts `git rev-parse` bare, which
+# exits 0 unconditionally and would promote a still-blocked recommendation to
+# ready. Each entry is (tokens..., exact_length) where a token of None matches
+# any single argument.
+#
+# `./kitty builder queue show` is deliberately NOT here. Every queue subcommand
+# routes through _init_queue_db(), which creates the database and runs
+# migrations — the same mutation-in-a-read-path defect already fixed in the
+# survey. There is no non-initializing CLI form, so no Builder command may be an
+# auto-run check.
+_ALLOWED_RELEASE_CHECK_SHAPES: tuple[tuple[tuple[str | None, ...], int], ...] = (
+    (("test", None, None), 3),
+    (("git", "merge-base", "--is-ancestor", None, None), 5),
+    # --quiet is not cosmetic: without it a missing ref exits 128, which the
+    # skill maps to "could not run" — so a genuinely blocked item would be
+    # carried unchanged forever and never reach the third-deferral escalation.
+    # Verified against this repo's git: bare --verify exits 128, --quiet exits 1.
+    (("git", "rev-parse", "--verify", "--quiet", None), 5),
+)
+# `test` is the one entry whose danger lives in its flags rather than its name.
+_ALLOWED_TEST_FLAGS = ("-d", "-e", "-f")
 _ACTIVE_CHECKPOINT_STATUSES = {"in_progress", "blocked", "awaiting_review"}
 _TERMINAL_CHECKPOINT_STATUSES = {"complete", "cancelled", "superseded"}
 _MISSION_STATUSES = {
@@ -227,16 +284,208 @@ def _load_json_comment(path: Path, marker: str) -> dict[str, Any]:
     return payload
 
 
+def _validate_parallel_work(relative_path: Path, value: Any) -> None:
+    """Each entry must at least name what the other work is and where it lives."""
+    if value is None:
+        return
+    if not isinstance(value, list):
+        raise ValueError(f"{relative_path} parallel_work must be a list")
+    for index, entry in enumerate(value):
+        where = f"{relative_path} parallel_work[{index}]"
+        if not isinstance(entry, dict):
+            raise ValueError(f"{where} must be a JSON object")
+        missing = sorted(_REQUIRED_PARALLEL_WORK_KEYS - set(entry))
+        if missing:
+            raise ValueError(f"{where} is missing keys: {missing}")
+        for key in ("kind", "ref", "owner", "observed_at"):
+            if not isinstance(entry.get(key), str) or not entry[key].strip():
+                raise ValueError(f"{where} {key} must be a non-empty string")
+        touches = entry.get("touches")
+        # `all()` over an empty list is vacuously true, so an empty inventory
+        # would validate while telling the next session nothing about what
+        # could collide.
+        if not isinstance(touches, list) or not touches or not all(
+            isinstance(item, str) and item.strip() for item in touches
+        ):
+            raise ValueError(
+                f"{where} touches must be a list of non-empty strings — without it the "
+                "next session cannot tell which paths might collide"
+            )
+
+
+def _describe_allowed_release_checks() -> list[str]:
+    return [
+        " ".join("<arg>" if token is None else token for token in shape)
+        for shape, _length in _ALLOWED_RELEASE_CHECK_SHAPES
+    ]
+
+
+def _validate_release_check(where: str, command: str) -> None:
+    """Allow only the read-only predicate shapes session end may auto-execute.
+
+    A checkpoint is shared, tracked data, and session end runs this command with
+    Jacob's credentials. Rejecting shell metacharacters stops chaining, but an
+    allowlist is what stops `rm -rf` — an arbitrary executable needs no
+    metacharacters at all.
+    """
+    found = [m for m in _SHELL_METACHARACTERS if m in command]
+    if found:
+        raise ValueError(
+            f"{where} release_check contains shell metacharacters {found}; session end "
+            "executes this command, and a checkpoint is shared, tracked data."
+        )
+    try:
+        tokens = shlex.split(command)
+    except ValueError as exc:
+        raise ValueError(f"{where} release_check is not parseable as a command: {exc}") from exc
+    if not tokens:
+        raise ValueError(f"{where} release_check is empty")
+    for shape, length in _ALLOWED_RELEASE_CHECK_SHAPES:
+        if len(tokens) != length:
+            continue
+        if all(want is None or want == got for want, got in zip(shape, tokens)):
+            break
+    else:
+        raise ValueError(
+            f"{where} release_check {command!r} is not an allowed predicate. Permitted "
+            f"forms: {_describe_allowed_release_checks()}. A `gh pr view` check needs "
+            "network and credentials, and no Builder command is permitted because every "
+            "queue subcommand initializes and migrates its database. Anything else needs "
+            "Jacob's approval and a manual run."
+        )
+    if tokens[0] == "test" and tokens[1] not in _ALLOWED_TEST_FLAGS:
+        raise ValueError(
+            f"{where} release_check must be `test {'|'.join(_ALLOWED_TEST_FLAGS)} <path>`, "
+            f"got {tokens!r}"
+        )
+
+
+def _validate_recommendations(relative_path: Path, value: Any) -> None:
+    """Enforce that a deferred recommendation says how it gets released.
+
+    Optional field (absent in schema_version 1). When present, a deferred entry
+    without a runnable ``release_check`` is rejected: an unfalsifiable "wait for
+    the other work" note is the failure mode this field exists to prevent.
+    """
+    if value is None:
+        return
+    if not isinstance(value, list):
+        raise ValueError(f"{relative_path} recommendations must be a list")
+    if len(value) > _MAX_RECOMMENDATIONS:
+        raise ValueError(
+            f"{relative_path} carries {len(value)} recommendations; the session-end "
+            f"contract allows at most {_MAX_RECOMMENDATIONS} ranked next steps"
+        )
+    seen: set[str] = set()
+    saw_code = False
+    for index, entry in enumerate(value):
+        where = f"{relative_path} recommendations[{index}]"
+        if not isinstance(entry, dict):
+            raise ValueError(f"{where} must be a JSON object")
+        missing = sorted(_REQUIRED_RECOMMENDATION_KEYS - set(entry))
+        if missing:
+            raise ValueError(f"{where} is missing keys: {missing}")
+        for key in ("id", "what", "why"):
+            if not isinstance(entry.get(key), str) or not entry[key].strip():
+                raise ValueError(f"{where} {key} must be a non-empty string")
+        if not isinstance(entry["class"], str):
+            raise ValueError(f"{where} class must be a string")
+        if entry["class"] not in _RECOMMENDATION_CLASSES:
+            raise ValueError(
+                f"{where} class must be one of {sorted(_RECOMMENDATION_CLASSES)}, "
+                f"got {entry['class']!r} — life-first ranking depends on it"
+            )
+        if entry["id"] in seen:
+            raise ValueError(
+                f"{where} id {entry['id']!r} is duplicated; reuse one entry so "
+                "deferred_count stays truthful"
+            )
+        seen.add(entry["id"])
+        if entry["class"] == "life" and saw_code:
+            raise ValueError(
+                f"{where} is life work ranked below code work; life projects come "
+                "first (ADR 0016)"
+            )
+        if entry["class"] == "code":
+            saw_code = True
+        if not isinstance(entry["status"], str):
+            raise ValueError(f"{where} status must be a string")
+        if entry["status"] not in _RECOMMENDATION_STATUSES:
+            raise ValueError(
+                f"{where} status {entry['status']!r} is not one of "
+                f"{sorted(_RECOMMENDATION_STATUSES)}"
+            )
+        # Defaulting a missing count to 0 would let a long-stuck item reappear
+        # as "deferred x0" and skip the third-deferral escalation entirely.
+        if "deferred_count" not in entry:
+            raise ValueError(
+                f"{where} must declare deferred_count; a missing count hides repeatedly "
+                "deferred work"
+            )
+        count = entry["deferred_count"]
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            raise ValueError(f"{where} deferred_count must be a non-negative integer")
+        if entry["status"] != "deferred":
+            # A ready entry must not carry blocker fields: a stale blocked_by
+            # left behind on promotion reads as a live blocker to the next
+            # session.
+            for key in ("blocked_by", "release_check", "first_deferred"):
+                if entry[key] is not None:
+                    raise ValueError(
+                        f"{where} is ready, so {key} must be null, got {entry[key]!r}"
+                    )
+            continue
+        for key in ("blocked_by", "release_check", "first_deferred"):
+            if not isinstance(entry.get(key), str) or not entry[key].strip():
+                raise ValueError(
+                    f"{where} is deferred, so {key} must be a non-empty string"
+                )
+        _validate_release_check(where, entry["release_check"])
+
+
 def _load_checkpoint(repo_root: Path, relative_path: Path, marker: str) -> dict[str, Any]:
     payload = _load_json_comment(repo_root / relative_path, marker)
     missing = sorted(_REQUIRED_CHECKPOINT_KEYS - set(payload))
     if missing:
         raise ValueError(f"{relative_path} checkpoint metadata is missing keys: {missing}")
-    if payload.get("schema_version") != 1:
+    # A list or dict here is unhashable: `x in frozenset` raises TypeError,
+    # which _safe_load does not catch, so ./kitty context --agent would abort
+    # instead of reporting a metadata failure with a cause.
+    if not isinstance(payload.get("schema_version"), int) or isinstance(
+        payload.get("schema_version"), bool
+    ):
         raise ValueError(
-            f"{relative_path} checkpoint schema_version must be 1, "
-            f"got {payload.get('schema_version')!r}"
+            f"{relative_path} checkpoint schema_version must be an integer, "
+            f"got {type(payload.get('schema_version')).__name__}"
         )
+    if payload["schema_version"] not in _SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS:
+        raise ValueError(
+            f"{relative_path} checkpoint schema_version must be one of "
+            f"{sorted(_SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS)}, "
+            f"got {payload['schema_version']!r}"
+        )
+    if payload["schema_version"] >= 2:
+        # An omitted field in a v2 checkpoint is malformed, not empty: the whole
+        # point of the version bump is that carry-forward state is present.
+        missing_v2 = sorted(_REQUIRED_V2_CHECKPOINT_KEYS - set(payload))
+        if missing_v2:
+            raise ValueError(
+                f"{relative_path} schema_version 2 checkpoint is missing keys: {missing_v2}; "
+                "write [] rather than omitting them"
+            )
+        # Present-but-null loses the carry-forward array just as thoroughly as
+        # omitting the key, and both validators below treat None as "absent".
+        null_v2 = sorted(k for k in _REQUIRED_V2_CHECKPOINT_KEYS if payload[k] is None)
+        if null_v2:
+            raise ValueError(
+                f"{relative_path} schema_version 2 keys must be lists, not null: {null_v2}; "
+                "write [] for an intentionally empty value"
+            )
+        _validate_parallel_work(relative_path, payload.get("parallel_work"))
+    _validate_recommendations(relative_path, payload.get("recommendations"))
+    base = payload.get("base_sha")
+    if base is not None and (not isinstance(base, str) or not base.strip()):
+        raise ValueError(f"{relative_path} base_sha must be a non-empty string or absent")
     for key in ("completed_items", "blockers", "invalidation_conditions"):
         value = payload.get(key)
         if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
@@ -403,6 +652,39 @@ def _checkpoint_head_is_fresh(repo_root: Path, recorded_head: str, head: str) ->
     )
 
 
+def _base_sha_check(
+    repo_root: Path,
+    *,
+    prefix: str,
+    metadata: dict[str, Any],
+) -> list[ContinuityCheck]:
+    """Compare a recorded base against live origin/main.
+
+    A checkpoint that declares "invalid once origin/main advances" and stores
+    that only as prose is unenforceable — nothing reads it, so the receipt stays
+    ok while the checkpoint says it is stale. Recording the base structurally
+    makes the claim testable.
+    """
+    recorded = metadata.get("base_sha")
+    if not recorded:
+        return []
+    live = _git(repo_root, ["rev-parse", "--verify", "origin/main"], required=False)
+    if live.returncode != 0:
+        return [ContinuityCheck("WARN", f"{prefix}:base_sha", "origin/main does not resolve locally")]
+    live_sha = live.stdout.strip()
+    if live_sha == recorded:
+        return [ContinuityCheck("PASS", f"{prefix}:base_sha", f"origin/main is still {recorded[:12]}")]
+    # Advancing is normal and the checkpoint's content may still be usable, so
+    # this is advisory — but it must be visible, not silent.
+    return [
+        ContinuityCheck(
+            "WARN",
+            f"{prefix}:base_sha",
+            f"origin/main advanced from the recorded {recorded[:12]} to {live_sha[:12]}",
+        )
+    ]
+
+
 def _checkpoint_checks(
     repo_root: Path,
     *,
@@ -445,6 +727,8 @@ def _checkpoint_checks(
         else:
             fresh, detail = _checkpoint_head_is_fresh(repo_root, recorded_head, head)
             checks.append(ContinuityCheck("PASS" if fresh else "WARN", f"{prefix}:head", detail))
+
+    checks.extend(_base_sha_check(repo_root, prefix=prefix, metadata=metadata))
 
     recorded_branch = str(metadata["branch"])
     if branch is None:
@@ -578,13 +862,88 @@ def _checkpoint_checks(
             else:
                 live_state = live.get("state")
                 live_head = live.get("headRefOid")
-                if live_state != expected_state or live_head != expected_head:
+                # `pull_request.head_sha` records what the PR's head WAS when the
+                # checkpoint was written. It cannot record what the head will be:
+                # committing the checkpoint moves the head past it, and so does
+                # every later push. Requiring currency here made a checkpoint that
+                # names its own PR permanently invalid, and narrowing the
+                # allowance to checkpoint-only commits only delayed that by one
+                # commit.
+                #
+                # What actually invalidates the claim is the PR's STATE changing,
+                # or the recorded commit no longer being in the PR's history at
+                # all (a force-push or rebase orphaned it). Ordinary advancement
+                # is not a contradiction — the checkpoint's own `head_sha` field
+                # is what tracks staleness of its content.
+                head_ok = live_head == expected_head
+                head_detail = ""
+                if not head_ok and isinstance(live_head, str) and live_head:
+                    # `git context` deliberately never fetches, so a head
+                    # pushed from another machine is simply absent here.
+                    # merge-base exits 1 for "not an ancestor" but 128 when it
+                    # cannot resolve an object — treating both as orphaned turns
+                    # an unfetched commit into a false FAIL.
+                    # An unfetched SHA and a malformed one both fail cat-file.
+                    # Only the former earns the unverifiable allowance; the
+                    # latter is a broken checkpoint and must not disable the
+                    # orphan check.
+                    if not _SHA_PATTERN.fullmatch(str(expected_head)):
+                        checks.append(
+                            ContinuityCheck(
+                                "FAIL",
+                                f"{prefix}:pull_request",
+                                f"pull_request.head_sha is not a full lowercase SHA: "
+                                f"{expected_head!r}",
+                            )
+                        )
+                        return checks
+                    have_both = all(
+                        _git(repo_root, ["cat-file", "-e", f"{sha}^{{commit}}"], required=False).returncode == 0
+                        for sha in (str(expected_head), live_head)
+                    )
+                    if not have_both:
+                        # Ancestry may be unknowable here, but the PR's STATE
+                        # came from GitHub and is authoritative. A merged or
+                        # closed PR invalidates the checkpoint regardless of
+                        # what this repository has fetched.
+                        if live_state != expected_state:
+                            checks.append(
+                                ContinuityCheck(
+                                    "FAIL",
+                                    f"{prefix}:pull_request",
+                                    f"PR #{number} expected {expected_state}, live state is "
+                                    f"{live_state}",
+                                )
+                            )
+                            return checks
+                        checks.append(
+                            ContinuityCheck(
+                                "WARN",
+                                f"{prefix}:pull_request",
+                                f"PR #{number} is {live_state} but head {live_head[:12]} is not "
+                                "in this local repository; ancestry unverifiable without a fetch",
+                            )
+                        )
+                        return checks
+                    ancestor = _git(
+                        repo_root,
+                        ["merge-base", "--is-ancestor", str(expected_head), live_head],
+                        required=False,
+                    )
+                    head_ok = ancestor.returncode == 0
+                    head_detail = (
+                        f"PR advanced from the recorded {str(expected_head)[:12]}"
+                        if head_ok
+                        else f"recorded {str(expected_head)[:12]} is not in PR #{number}'s history"
+                    )
+                if live_state != expected_state or not head_ok:
                     checks.append(
                         ContinuityCheck(
                             "FAIL",
                             f"{prefix}:pull_request",
                             f"PR #{number} expected {expected_state}@{expected_head}, "
-                            f"live state is {live_state}@{live_head}",
+                            f"live state is {live_state}@{live_head}"
+                            + (f" ({head_detail})" if head_detail else ""),
                         )
                     )
                 else:
@@ -592,7 +951,8 @@ def _checkpoint_checks(
                         ContinuityCheck(
                             "PASS",
                             f"{prefix}:pull_request",
-                            f"PR #{number} is OPEN at {expected_head}",
+                            f"PR #{number} is OPEN at {expected_head}"
+                            + (f" ({head_detail})" if head_detail else ""),
                         )
                     )
     return checks
@@ -873,6 +1233,10 @@ def inspect_continuity(
             "active_mission",
             "next_action",
             "pull_request",
+            # The receipt publishes STATE's copy of these, so a divergent
+            # HANDOFF would sit in the same receipt contradicting it.
+            "parallel_work",
+            "recommendations",
         )
         disagreements = [field for field in agreement_fields if state.get(field) != handoff.get(field)]
         if disagreements:
@@ -1115,6 +1479,7 @@ def build_context_receipt(
         "builder": builder,
         "blockers": state.get("blockers") if state else None,
         "next_action": state.get("next_action") if state else None,
+        "recommendations": state.get("recommendations") if state else None,
         "evidence": {
             "receipt_source": "gateway.context_receipt",
             "git_source": "local repository commands; no fetch performed",

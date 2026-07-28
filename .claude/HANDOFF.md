@@ -2,7 +2,7 @@
 
 <!-- kitty-handoff
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "updated_at": "2026-07-27T05:25:00Z",
   "head_sha": "16c39cff1da34f620cf75804ca91a3ccc8d7876a",
   "branch": "claude/session-end-recommendations-xsd0ss",
@@ -27,12 +27,84 @@
   ],
   "next_action": "Merge PR #276, then merge origin/main into PR #278 and resolve the AGENTS.md and gateway/ overlap.",
   "invalidation_conditions": [
-    "HEAD changes beyond 16c39cff1da34f620cf75804ca91a3ccc8d7876a except the checkpoint commit that records this file",
-    "PR #276 or #278 merges, closes, or takes new commits",
-    "origin/main advances past 00e005b3c3bf88573b38e4448470d678d4821fce"
+    "HEAD changes beyond the recorded head_sha except the checkpoint commit that records this file",
+    "PR #276 or #278 merges or closes",
+    "a force-push orphans the recorded pull_request.head_sha from PR #276's history",
+    "origin/main advances past the recorded base_sha"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": {
+    "number": 276,
+    "url": "https://github.com/jacob202/kitty/pull/276",
+    "state": "OPEN",
+    "head_sha": "22e05a0fb2bb6c15468e091481b56b81054819d8"
+  },
+  "parallel_work": [
+    {
+      "kind": "pr",
+      "ref": "#276",
+      "owner": "this session",
+      "touches": [
+        ".agents",
+        "AGENTS.md",
+        "SKILL_REGISTRY.md",
+        "docs",
+        "gateway",
+        "scripts"
+      ],
+      "observed_at": "2026-07-27T05:20:00Z"
+    },
+    {
+      "kind": "pr",
+      "ref": "#278",
+      "owner": "this session",
+      "touches": [
+        "AGENTS.md",
+        "config",
+        "docs",
+        "gateway",
+        "kitty",
+        "tests"
+      ],
+      "observed_at": "2026-07-27T05:20:00Z"
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "merge-276-then-reconcile-278",
+      "what": "Merge PR #276, then merge origin/main into PR #278 and resolve the AGENTS.md and gateway/ overlap",
+      "why": "Both PRs are signed off; #276 first keeps the overlap resolvable in one direction",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    },
+    {
+      "id": "extract-session-kb",
+      "what": "Merge docs/session-notes/2026-07-27-kb-payload.md into ~/kb and append its INDEX lines",
+      "why": "The payload is staged but the knowledge base is not reachable from this container",
+      "class": "code",
+      "status": "deferred",
+      "blocked_by": "~/kb is a separate repo and is not present in this container",
+      "release_check": "test -d ~/kb",
+      "deferred_count": 0,
+      "first_deferred": "2026-07-27"
+    },
+    {
+      "id": "reconcile-receipt-cost",
+      "what": "Reconcile a receipt's estimated_usage_cad against the actual token counts in the ledger after a run",
+      "why": "estimate_cost_cad prices a dispatch before it runs; nothing checks the estimate afterwards",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    }
+  ],
+  "base_sha": "00e005b3c3bf88573b38e4448470d678d4821fce"
 }
 -->
 
@@ -72,7 +144,9 @@
 
 - `gh` is not installed in this container. The survey's PR section reports
   `UNAVAILABLE`; PR state came from the GitHub MCP tools.
-- `~/kb` is absent, so no wiki entry, INDEX line, or NOW.md update was written.
+- `~/kb` is absent, so the wiki entries and INDEX lines are staged in
+  `docs/session-notes/2026-07-27-kb-payload.md` instead of merged. NOW.md
+  could not be updated at all.
 - DeepSeek V4 pricing could not be re-verified against the live page; outbound
   web search needs approval here.
 
@@ -83,18 +157,18 @@ Merge PR #276. Then merge `origin/main` into PR #278 and resolve the
 
 ## Deferred, and what releases them
 
-- `extract-session-kb` — write the ~/kb wiki entry and INDEX line — blocked by
-  `~/kb` being absent here — unblocks when `test -d ~/kb` exits 0.
-- `rebase-278-onto-276` — merge main into #278 and resolve the overlap —
-  blocked by #276 not merging — unblocks when
-  `git merge-base --is-ancestor origin/claude/session-end-recommendations-xsd0ss origin/main`
-  exits 0.
+- `extract-session-kb` — merge `docs/session-notes/2026-07-27-kb-payload.md`
+  into `~/kb` and append its INDEX lines — blocked by `~/kb` being absent
+  here — unblocks when `test -d ~/kb` exits 0.
+
+  The merge of #276 and the #278 reconcile are `ready`, not deferred: they
+  are the next action, not something waiting on a condition.
 
 ## Files changed this session
 
 - `.agents/skills/session-end/SKILL.md`, `scripts/session_end_survey.sh`
 - `AGENTS.md`, `SKILL_REGISTRY.md`, `docs/FREE_WORKERS.md`
-- `docs/adr/0022-session-end-carry-forward-recommendations.md`, `docs/adr/README.md`, `docs/DECISIONS.md`
+- `docs/adr/0023-session-end-carry-forward-recommendations.md`, `docs/adr/README.md`, `docs/DECISIONS.md`
 - `gateway/context_receipt.py`, `tests/test_context_receipt.py`
 - `gateway/compute_governor.py`, `gateway/compute_governor_cli.py`, `tests/test_compute_governor.py`
 - `gateway/builder_loop.py`, `gateway/builder_run.py`, `gateway/builder_cli.py`, `tests/test_builder_loop.py`, `tests/conftest.py`
