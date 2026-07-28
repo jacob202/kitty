@@ -1,0 +1,143 @@
+name: Foundation prototype diagnostic
+
+on:
+  pull_request:
+  push:
+    branches:
+      - spike/foundation-replacement-clean-2026-07-27
+
+jobs:
+  librechat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Start mock Kitty Gateway
+        run: |
+          cat > /tmp/mock_kitty.py <<'PY'
+          import json
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+
+          class Handler(BaseHTTPRequestHandler):
+              def do_GET(self):
+                  if self.path == "/health":
+                      payload = {"status": "ok"}
+                  elif self.path == "/v1/models":
+                      payload = {"object": "list", "data": [{"id": "kitty-default", "object": "model", "created": 0, "owned_by": "kitty"}]}
+                  else:
+                      self.send_response(404)
+                      self.end_headers()
+                      return
+                  body = json.dumps(payload).encode()
+                  self.send_response(200)
+                  self.send_header("Content-Type", "application/json")
+                  self.send_header("Content-Length", str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+
+              def log_message(self, format, *args):
+                  return
+
+          HTTPServer(("0.0.0.0", 8000), Handler).serve_forever()
+          PY
+          nohup python /tmp/mock_kitty.py >/tmp/mock-kitty.log 2>&1 &
+          for i in {1..20}; do curl -fsS http://127.0.0.1:8000/health && exit 0; sleep 1; done
+          exit 1
+      - name: Launch LibreChat prototype
+        env:
+          GATEWAY_SECRET: diagnostic-secret
+        run: bash spikes/foundation-replacement/bootstrap.sh librechat
+      - name: Capture LibreChat evidence
+        if: always()
+        run: |
+          mkdir -p prototype-evidence
+          curl -fsS http://127.0.0.1:3080 > prototype-evidence/librechat-home.html || true
+          docker ps -a > prototype-evidence/docker-ps.txt || true
+          if [ -d "$HOME/.cache/kitty-foundation-spike/librechat" ]; then
+            docker compose \
+              -f "$HOME/.cache/kitty-foundation-spike/librechat/docker-compose.yml" \
+              -f "$HOME/.cache/kitty-foundation-spike/librechat/docker-compose.override.yml" \
+              --project-directory "$HOME/.cache/kitty-foundation-spike/librechat" \
+              logs --no-color > prototype-evidence/librechat.log 2>&1 || true
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: librechat-prototype-evidence
+          path: prototype-evidence
+          retention-days: 1
+      - name: Stop LibreChat
+        if: always()
+        env:
+          GATEWAY_SECRET: diagnostic-secret
+        run: bash spikes/foundation-replacement/bootstrap.sh stop librechat || true
+
+  anythingllm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Start mock Kitty Gateway
+        run: |
+          cat > /tmp/mock_kitty.py <<'PY'
+          import json
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+
+          class Handler(BaseHTTPRequestHandler):
+              def do_GET(self):
+                  if self.path == "/health":
+                      payload = {"status": "ok"}
+                  elif self.path == "/v1/models":
+                      payload = {"object": "list", "data": [{"id": "kitty-default", "object": "model", "created": 0, "owned_by": "kitty"}]}
+                  else:
+                      self.send_response(404)
+                      self.end_headers()
+                      return
+                  body = json.dumps(payload).encode()
+                  self.send_response(200)
+                  self.send_header("Content-Type", "application/json")
+                  self.send_header("Content-Length", str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+
+              def log_message(self, format, *args):
+                  return
+
+          HTTPServer(("0.0.0.0", 8000), Handler).serve_forever()
+          PY
+          nohup python /tmp/mock_kitty.py >/tmp/mock-kitty.log 2>&1 &
+          for i in {1..20}; do curl -fsS http://127.0.0.1:8000/health && exit 0; sleep 1; done
+          exit 1
+      - name: Launch AnythingLLM prototype
+        env:
+          GATEWAY_SECRET: diagnostic-secret
+        run: bash spikes/foundation-replacement/bootstrap.sh anythingllm
+      - name: Capture AnythingLLM evidence
+        if: always()
+        run: |
+          mkdir -p prototype-evidence
+          curl -fsS http://127.0.0.1:3001 > prototype-evidence/anythingllm-home.html || true
+          docker ps -a > prototype-evidence/docker-ps.txt || true
+          if [ -d "$HOME/.cache/kitty-foundation-spike/anythingllm/docker" ]; then
+            docker compose \
+              -f "$HOME/.cache/kitty-foundation-spike/anythingllm/docker/docker-compose.yml" \
+              --project-directory "$HOME/.cache/kitty-foundation-spike/anythingllm/docker" \
+              logs --no-color > prototype-evidence/anythingllm.log 2>&1 || true
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: anythingllm-prototype-evidence
+          path: prototype-evidence
+          retention-days: 1
+      - name: Stop AnythingLLM
+        if: always()
+        env:
+          GATEWAY_SECRET: diagnostic-secret
+        run: bash spikes/foundation-replacement/bootstrap.sh stop anythingllm || true
