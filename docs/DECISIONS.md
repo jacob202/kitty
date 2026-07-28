@@ -32,6 +32,7 @@ that has not been promoted to a per-decision ADR remains in
 | D19 | One Canonical Roadmap And Planning Ownership        | [0020](adr/0020-one-canonical-roadmap.md)                    |
 | D20 | Proactive Builder Execution And Model Policy        | [0021](adr/0021-proactive-builder-execution.md)              |
 | D21 | Retire The D10 Local-Only Privacy Boundary          | [0022](adr/0022-retire-privacy-boundary.md)                  |
+| D22 | Session-End Carry-Forward Lives In The Checkpoint   | [0023](adr/0023-session-end-carry-forward-recommendations.md) |
 
 Supersession and amendment details live in the ADRs themselves. A plan, packet,
 report, or chat statement does not become a durable decision merely by existing.

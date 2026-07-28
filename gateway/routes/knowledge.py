@@ -64,8 +64,18 @@ def _resolve_and_validate_host(host: str) -> list[str]:
         infos = socket.getaddrinfo(host, None)
     except socket.gaierror as exc:
         raise HTTPException(status_code=400, detail=f"could not resolve host: {exc}")
-    # typeshed types the sockaddr tuple as a union; element 0 is always the address.
-    ips = {str(info[4][0]) for info in infos}
+    # getaddrinfo's sockaddr is typed str | int across address families. For
+    # AF_INET/AF_INET6 element 0 is the address, but an unexpected family must
+    # fail closed rather than be coerced into a string SSRF check would pass.
+    ips: set[str] = set()
+    for info in infos:
+        address = info[4][0]
+        if not isinstance(address, str):
+            raise HTTPException(
+                status_code=400,
+                detail=f"unsupported address family for host {host!r}",
+            )
+        ips.add(address)
     for ip in ips:
         if _is_private_ip(ip):
             raise HTTPException(

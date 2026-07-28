@@ -32,6 +32,7 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0020 | [One Canonical Roadmap and Planning Ownership](0020-one-canonical-roadmap.md)                  | Accepted                       | 2026-07-26 |
 | 0021 | [Proactive Builder Execution and Model Policy](0021-proactive-builder-execution.md)            | Accepted                       | 2026-07-26 |
 | 0022 | [Retire The D10 Local-Only Privacy Boundary](0022-retire-privacy-boundary.md)                  | Accepted                       | 2026-07-27 |
+| 0023 | [Session-End Recommendations Carry Forward In The Checkpoint](0023-session-end-carry-forward-recommendations.md) | Accepted | 2026-07-26 |
 
 Historical decision detail remains in
 [`docs/retired/DECISIONS_AND_ROADMAP.md`](../retired/DECISIONS_AND_ROADMAP.md).
