@@ -8,7 +8,6 @@ import { Message, type MemoryEvidence } from '@/lib/types'
 import { deleteMemory } from '@/lib/gateway'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
-import { ToolCallList } from './ToolCallBlock'
 
 interface Props {
   message: Message
@@ -108,7 +107,9 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               <>
                 <MessageContent content={message.content} isUser={isUser} />
                 {message.toolCalls && message.toolCalls.length > 0 && (
-                  <ToolCallList toolCalls={message.toolCalls} isStreaming={isStreaming} />
+                  <div role="status" style={{ marginTop: 8, fontSize: 11, color: 'var(--ink-2)' }}>
+                    Tool request detected — not executed by this chat runtime.
+                  </div>
                 )}
               </>
             )}
@@ -166,7 +167,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
             <span style={{ fontSize: 10 }}>{turnStatus}</span>
           </div>
         )}
-        {showActions && (message.model || message.routing?.length) && (
+        {showActions && (message.provider || message.requestedModel || message.model || message.toolsState || message.routing?.length) && (
           <Attribution message={message} />
         )}
       </div>
@@ -255,12 +256,20 @@ function CodeBlock({ children }: { children: ReactNode }) {
 
 function Attribution({ message }: { message: Message }) {
   const routing = message.routing ?? []
-  const agentLabel = message.model ?? (routing[0]?.agent ?? 'kitty')
+  const providerLabel = message.provider && message.provider !== 'auto'
+    ? message.provider
+    : 'automatic routing'
+  const modelLabel = message.requestedModel ?? message.model
   return (
     <div style={{ ...actionRowStyle, flexWrap: 'wrap', gap: 6 }}>
       <span style={{ fontSize: 10, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
-        answered by {agentLabel}
+        {providerLabel}{modelLabel ? ` · requested ${modelLabel}` : ''}
       </span>
+      {message.toolsState === 'unavailable' && (
+        <span style={{ fontSize: 10, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
+tools unavailable
+        </span>
+      )}
       {routing.map((r) => (
         <span
           key={r.task_id}

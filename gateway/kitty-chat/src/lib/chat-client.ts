@@ -10,6 +10,9 @@ export interface StreamChunk {
   memoryItems?: MemoryEvidence[];
   /** Accumulated tool calls snapshot — present on every delta that touches tool_calls. */
   toolCalls?: ToolCall[];
+  provider?: string;
+  requestedModel?: string;
+  toolsState?: 'available' | 'unavailable';
 }
 
 interface ToolCallAccumulator {
@@ -46,6 +49,16 @@ export async function* streamChat(
 
   if (!response.ok) {
     throw new Error(`Gateway error ${response.status}: ${await response.text()}`);
+  }
+
+  const provider = response.headers.get('X-Kitty-Provider-Selected') ?? undefined;
+  const requestedModel = response.headers.get('X-Kitty-Model-Requested') ?? undefined;
+  const rawToolsState = response.headers.get('X-Kitty-Tools-State');
+  const toolsState = rawToolsState === 'available' || rawToolsState === 'unavailable'
+    ? rawToolsState
+    : undefined;
+  if (provider || requestedModel || toolsState) {
+    yield { content: '', done: false, provider, requestedModel, toolsState };
   }
 
   const reader = response.body?.getReader();

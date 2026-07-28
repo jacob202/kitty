@@ -199,7 +199,7 @@ def test_resolve_agentrouter_key_from_env():
 
     with (
         patch("gateway.llm_client.load_dotenv"),
-        patch.dict("os.environ", {"AGENTROUTER_API_KEY": "sk-test-key"}),
+        patch.dict("os.environ", {"AGENT_ROUTER_TOKEN": "sk-test-key"}),
     ):
         key = resolve_agentrouter_api_key()
     assert key == "sk-test-key"
@@ -800,93 +800,6 @@ def test_resolve_provider_model_falls_back_to_default():
 
 
 # ── _agentrouter_request_mutator ──────────────────────────────────────────
-
-
-def test_agentrouter_request_mutator_adds_headers():
-    """AgentRouter request mutator adds User-Agent, Originator, Version headers."""
-    from gateway.llm_client import _agentrouter_request_mutator
-
-    payload = {"model": "gpt-4o", "messages": []}
-    headers = {"Authorization": "Bearer test-key", "Content-Type": "application/json"}
-
-    with patch("gateway.llm_client.load_dotenv"), patch.dict("os.environ", {}, clear=True):
-        result_payload, result_headers = _agentrouter_request_mutator(payload, headers, "gpt-4o")
-
-    assert result_payload is payload
-    assert result_headers["Authorization"] == "Bearer test-key"
-    assert "User-Agent" in result_headers
-    assert "Originator" in result_headers
-    assert "Version" in result_headers
-
-
-def test_agentrouter_request_mutator_loads_extra_json_headers():
-    """KITTY_AGENTROUTER_EXTRA_HEADERS_JSON adds custom headers."""
-    from gateway.llm_client import _agentrouter_request_mutator
-
-    payload = {"model": "gpt-4o", "messages": []}
-    headers = {"Authorization": "Bearer test-key"}
-
-    with (
-        patch("gateway.llm_client.load_dotenv"),
-        patch.dict(
-            "os.environ",
-            {"KITTY_AGENTROUTER_EXTRA_HEADERS_JSON": '{"X-Custom": "value123"}'},
-            clear=True,
-        ),
-    ):
-        _p, result_headers = _agentrouter_request_mutator(payload, headers, "gpt-4o")
-
-    assert result_headers["X-Custom"] == "value123"
-
-
-def test_agentrouter_request_mutator_ignores_bad_extra_json():
-    """Invalid KITTY_AGENTROUTER_EXTRA_HEADERS_JSON is silently ignored."""
-    from gateway.llm_client import _agentrouter_request_mutator
-
-    payload = {"model": "gpt-4o", "messages": []}
-    headers = {"Authorization": "Bearer test-key"}
-
-    with (
-        patch("gateway.llm_client.load_dotenv"),
-        patch.dict(
-            "os.environ",
-            {"KITTY_AGENTROUTER_EXTRA_HEADERS_JSON": "not-json"},
-            clear=True,
-        ),
-    ):
-        _p, result_headers = _agentrouter_request_mutator(payload, headers, "gpt-4o")
-
-    assert "X-Custom" not in result_headers
-
-
-# ── _agentrouter_client_rejected ──────────────────────────────────────────
-
-
-def test_agentrouter_client_rejected_matches_401_unauthorized_client():
-    from gateway.llm_client import _agentrouter_client_rejected
-
-    resp = MagicMock()
-    resp.status_code = 401
-    resp.text = '{"error":{"message":"Unauthorized client"}}'
-    assert _agentrouter_client_rejected(resp) is True
-
-
-def test_agentrouter_client_rejected_non_401():
-    from gateway.llm_client import _agentrouter_client_rejected
-
-    resp = MagicMock()
-    resp.status_code = 403
-    resp.text = "forbidden"
-    assert _agentrouter_client_rejected(resp) is False
-
-
-def test_agentrouter_client_rejected_none():
-    from gateway.llm_client import _agentrouter_client_rejected
-
-    assert _agentrouter_client_rejected(None) is False
-
-
-# ── _is_agentrouter_disabled ──────────────────────────────────────────────
 
 
 def test_is_agentrouter_disabled_true():

@@ -102,9 +102,21 @@ describe('ChatMessage actions', () => {
     expect(screen.queryByTitle('copy message')).not.toBeInTheDocument()
   })
 
-  it('shows who answered via the producing model', () => {
+  it('shows the requested model without claiming it produced the reply', () => {
     renderMessage({ ...kittyMsg, model: 'sonnet-4', content: 'checked it.' })
-    expect(screen.getByText(/answered by sonnet-4/)).toBeInTheDocument()
+    expect(screen.getByText(/automatic routing · requested sonnet-4/)).toBeInTheDocument()
+  })
+
+  it('shows provider, requested model, and unavailable tool state honestly', () => {
+    renderMessage({
+      ...kittyMsg,
+      provider: 'agentrouter',
+      requestedModel: 'gpt-5.5',
+      toolsState: 'unavailable',
+      content: 'checked it.',
+    })
+    expect(screen.getByText(/agentrouter · requested gpt-5.5/)).toBeInTheDocument()
+    expect(screen.getByText('tools unavailable')).toBeInTheDocument()
   })
 
   it('surfaces council routing as expert chips', () => {
@@ -117,19 +129,19 @@ describe('ChatMessage actions', () => {
         { task_id: 't2', category: 'writing', agent: 'writer', priority: 2 },
       ],
     })
-    expect(screen.getByText(/answered by opus-4/)).toBeInTheDocument()
+    expect(screen.getByText(/automatic routing · requested opus-4/)).toBeInTheDocument()
     expect(screen.getByTitle('research · priority 1')).toHaveTextContent('researcher · p1')
     expect(screen.getByTitle('writing · priority 2')).toHaveTextContent('writer · p2')
   })
 
   it('does not show attribution for user messages', () => {
     renderMessage({ ...kittyMsg, role: 'user', model: 'sonnet-4' })
-    expect(screen.queryByText(/answered by/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/automatic routing/)).not.toBeInTheDocument()
   })
 
   it('does not show attribution while the reply is still streaming', () => {
     renderMessage({ ...kittyMsg, model: 'sonnet-4', content: 'partial…' }, { isStreaming: true })
-    expect(screen.queryByText(/answered by/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/automatic routing/)).not.toBeInTheDocument()
   })
 
   it('shows a feedback error when the gateway rejects the rating', async () => {

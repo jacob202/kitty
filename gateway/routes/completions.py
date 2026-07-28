@@ -21,6 +21,7 @@ from gateway.llm_client import (
     iter_chat_completions_stream,
     log_chat_trace,
     route_model,
+    selected_provider_name,
 )
 from gateway.memory_graph import MemoryEvidence
 from gateway.paths import LITELLM_BASE, LITELLM_KEY, LOG_FILE
@@ -28,6 +29,14 @@ from gateway.runtime_manifest import compact_runtime_context, compose_manifest
 
 logger = logging.getLogger("kitty.gateway")
 router = APIRouter(tags=["completions"])
+
+_NO_TOOL_EXECUTOR_SYSTEM = """
+This chat runtime does not currently have a tool executor. Do not emit XML, DSML,
+or tool-call syntax as ordinary assistant text. Do not claim that a command, search,
+file operation, or external action ran unless an execution result is present in the
+conversation. When execution is required, state plainly that tools are unavailable
+in this chat runtime.
+""".strip()
 
 
 class CloseSessionRequest(BaseModel):
@@ -228,7 +237,10 @@ async def chat_completions(request: Request):
             objective=thread_objective,
             tier=tier,
         )
-        system_prompt = f"{bundle.system}\n\n{compact_runtime_context(runtime_manifest)}"
+        system_prompt = (
+            f"{bundle.system}\n\n{compact_runtime_context(runtime_manifest)}"
+            f"\n\n{_NO_TOOL_EXECUTOR_SYSTEM}"
+        )
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:
             _finish_lifecycle_or_raise(
@@ -250,12 +262,50 @@ async def chat_completions(request: Request):
             for key, value in body.items()
             # content_class is a legacy D10 field (ADR 0022). It no longer routes
             # anything, but keep filtering it so an old client can't leak it upstream.
-            if key not in {"project_id", "conversation_id", "conversation_title", "user_message_id", "content_class"}
+            if key not in {
+                "project_id",
+                "conversation_id",
+                "conversation_title",
+                "user_message_id",
+                "content_class",
+                # No executor exists on this endpoint. Forwarding tool schemas would
+                # invite tool calls that Kitty cannot complete.
+                "tools",
+                "tool_choice",
+                "parallel_tool_calls",
+            }
         },
         "messages": enriched,
         "model": model,
         "stream": stream,
     }
+
+    selected_provider = selected_provider_name()
+    provider_label = selected_provider or "auto"
+    upstream_chars = sum(
+        len(str(message.get("content", "")))
+        for message in enriched
+        if isinstance(message, dict)
+    )
+    logger.info(
+        "chat %s: request_trace %s",
+        correlation_id,
+        json.dumps(
+  {
+      "conversation_id": conversation_id,
+      "provider_selected": provider_label,
+      "client_model_requested": model_from_request,
+      "model_routed": model,
+      "message_count": len(enriched),
+      "message_content_chars": upstream_chars,
+      "system_prompt_chars": len(system_prompt),
+      "memory_items_injected": len(bundle.injected_memory_items),
+      "preprocessing_ms": int((time.monotonic() - t_start) * 1000),
+      "tool_execution": "unavailable",
+  },
+  sort_keys=True,
+        ),
+    )
 
     if stream:
         # Memory-evidence trailer (CR-04): built before streaming starts so
@@ -361,6 +411,9 @@ async def chat_completions(request: Request):
         lifecycle_headers = {
             "X-Kitty-Runtime-Revision": runtime_manifest["revision"],
             "X-Kitty-Model-Selected": model,
+            "X-Kitty-Model-Requested": str(model_from_request),
+            "X-Kitty-Provider-Selected": provider_label,
+            "X-Kitty-Tools-State": "unavailable",
         }
         if lifecycle_handle is not None:
             lifecycle_headers["X-Kitty-Turn-ID"] = lifecycle_handle.turn_id

@@ -542,9 +542,19 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     let accumulated = ''
     let memoryItems: MemoryEvidence[] | undefined
     let toolCalls: import('@/lib/types').ToolCall[] | undefined
+    let provider: string | undefined
+    let requestedModel: string | undefined
+    let toolsState: 'available' | 'unavailable' | undefined
     try {
       for await (const chunk of streamChat(turnModel.id, history, abort.signal, activeProject?.id, chat.id, latestUserMessage.id, title, attachmentIds)) {
         if (chunk.done) break
+        if (chunk.provider || chunk.requestedModel || chunk.toolsState) {
+          provider = chunk.provider ?? provider
+          requestedModel = chunk.requestedModel ?? requestedModel
+          toolsState = chunk.toolsState ?? toolsState
+          updateChat(chat.id, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, provider, requestedModel, toolsState } : m)) }))
+          continue
+        }
         if (chunk.memoryItems?.length) { memoryItems = chunk.memoryItems; continue }
         if (chunk.toolCalls?.length) {
           toolCalls = chunk.toolCalls
@@ -555,7 +565,13 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
         updateChat(chat.id, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content: accumulated } : m)) }))
       }
       const mood = inferMood(accumulated, 'assistant')
-      const extras = { ...(memoryItems && !isSmalltalk(latestUserMessage.content) ? { memoryItems } : {}), ...(toolCalls?.length ? { toolCalls } : {}) }
+      const extras = {
+        ...(memoryItems && !isSmalltalk(latestUserMessage.content) ? { memoryItems } : {}),
+        ...(toolCalls?.length ? { toolCalls } : {}),
+        ...(provider ? { provider } : {}),
+        ...(requestedModel ? { requestedModel } : {}),
+        ...(toolsState ? { toolsState } : {}),
+      }
       updateChat(chat.id, (c) => ({ ...c, updatedAt: new Date(), messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content: accumulated, mood, ...extras } : m)) }))
       setLastOutcome('done')
       window.setTimeout(() => setLastOutcome((o) => (o === 'done' ? null : o)), 2500)

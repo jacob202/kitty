@@ -73,6 +73,66 @@ http_ok() {
   curl -sf --max-time 3 "$@" "$url" >/dev/null 2>&1
 }
 
+listener_pids() {
+  local port="$1"
+  lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true
+}
+
+pid_command() {
+  ps -p "$1" -o command= 2>/dev/null || true
+}
+
+pid_cwd() {
+  lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1
+}
+
+pid_owned_by_kitty() {
+  local pid="$1"
+  local command cwd
+  command="$(pid_command "$pid")"
+  cwd="$(pid_cwd "$pid")"
+  [[ "$command" == *"$KITTY_ROOT"* || "$cwd" == "$KITTY_ROOT" || "$cwd" == "$KITTY_ROOT/"* ]]
+}
+
+stop_pidfile() {
+  local svc="$1"
+  local pidfile="$RUN_DIR/$svc.pid"
+  if pid_alive "$pidfile"; then
+    local pid
+    pid="$(cat "$pidfile")"
+    pkill -TERM -P "$pid" 2>/dev/null || true
+    kill -TERM "$pid" 2>/dev/null || true
+    echo "  $svc  stopping (pid $pid)"
+  fi
+  rm -f "$pidfile"
+}
+
+stop_owned_listener() {
+  local label="$1" port="$2" pid
+  for pid in $(listener_pids "$port"); do
+    if pid_owned_by_kitty "$pid"; then
+      echo "  $label  stopping owned listener pid $pid on :$port"
+      pkill -TERM -P "$pid" 2>/dev/null || true
+      kill -TERM "$pid" 2>/dev/null || true
+    else
+      echo "  $label  leaving unrelated listener pid $pid on :$port: $(pid_command "$pid")" >&2
+    fi
+  done
+}
+
+assert_port_available() {
+  local label="$1" port="$2" pids
+  pids="$(listener_pids "$port")"
+  if [[ -n "$pids" ]]; then
+    echo "Error: $label port :$port is already owned by pid(s): $pids" >&2
+    for pid in $pids; do
+      echo "  pid $pid: $(pid_command "$pid")" >&2
+    done
+    echo "Run './kitty down' to stop Kitty-owned listeners; unrelated listeners are never killed." >&2
+    return 1
+  fi
+}
+
 generate_secret() {
   local python="$KITTY_ROOT/venv/bin/python"
   if [[ ! -x "$python" ]]; then
@@ -135,6 +195,7 @@ cmd_up() {
   if pid_alive "$RUN_DIR/litellm.pid"; then
     echo "  LiteLLM  already running (pid $(cat "$RUN_DIR/litellm.pid"))"
   else
+    assert_port_available "LiteLLM" "$LITELLM_PORT"
     nohup bash "$KITTY_ROOT/gateway/start_litellm.sh" \
       >"$LOG_DIR/litellm.log" 2>&1 &
     echo $! >"$RUN_DIR/litellm.pid"
@@ -145,6 +206,7 @@ cmd_up() {
   if pid_alive "$RUN_DIR/gateway.pid"; then
     echo "  Gateway  already running (pid $(cat "$RUN_DIR/gateway.pid"))"
   else
+    assert_port_available "Gateway" "$GATEWAY_PORT"
     nohup bash "$KITTY_ROOT/gateway/start_gateway.sh" \
       >"$LOG_DIR/gateway.log" 2>&1 &
     echo $! >"$RUN_DIR/gateway.pid"
@@ -172,10 +234,11 @@ cmd_start() {
   cmd_up
 
   if ! http_ok "http://127.0.0.1:$UI_PORT/"; then
+    assert_port_available "UI" "$UI_PORT"
     echo "Starting UI on http://localhost:$UI_PORT ..."
     (cd "$KITTY_ROOT/gateway/kitty-chat" \
       && nohup node node_modules/next/dist/bin/next dev -H 127.0.0.1 -p "$UI_PORT" \
-        >"$LOG_DIR/ui.log" 2>&1 &)
+        >"$LOG_DIR/ui.log" 2>&1 & echo $! >"$RUN_DIR/ui.pid")
     _i=0
     while [ $_i -lt 30 ]; do
       if http_ok "http://127.0.0.1:$UI_PORT/"; then break; fi
@@ -196,26 +259,44 @@ cmd_start() {
 
 cmd_down() {
   echo "Stopping Kitty..."
+
+  # Disable launchd jobs first. Their KeepAlive=true setting otherwise restarts
+  # a process immediately after it is killed and leaves the old port occupied.
   for svc in gateway litellm; do
-    pidfile="$RUN_DIR/$svc.pid"
-    if pid_alive "$pidfile"; then
-      pid=$(cat "$pidfile")
-      # Kill the process group so child processes (uvicorn workers) also die
-      pkill -P "$pid" 2>/dev/null || true
-      kill "$pid" 2>/dev/null || true
-      rm -f "$pidfile"
-      echo "  $svc  stopped (was pid $pid)"
-    else
-      echo "  $svc  not running"
+    if launchctl print "gui/$(id -u)/com.kitty.$svc" >/dev/null 2>&1; then
+      launchctl bootout "gui/$(id -u)/com.kitty.$svc" 2>/dev/null || true
+      echo "  $svc  launchd job stopped"
     fi
   done
+
+  for svc in ui gateway litellm; do
+    stop_pidfile "$svc"
+  done
+
+  stop_owned_listener "UI" "$UI_PORT"
+  stop_owned_listener "Gateway" "$GATEWAY_PORT"
+  stop_owned_listener "LiteLLM" "$LITELLM_PORT"
+  sleep 2
+
+  for spec in "UI:$UI_PORT" "Gateway:$GATEWAY_PORT" "LiteLLM:$LITELLM_PORT"; do
+    label="${spec%%:*}"
+    port="${spec##*:}"
+    for pid in $(listener_pids "$port"); do
+      if pid_owned_by_kitty "$pid"; then
+        echo "  $label  force-stopping owned listener pid $pid on :$port"
+        kill -KILL "$pid" 2>/dev/null || true
+      fi
+    done
+  done
+
+  rm -f "$RUN_DIR/ui.pid" "$RUN_DIR/gateway.pid" "$RUN_DIR/litellm.pid"
 }
 
 cmd_status() {
   echo "Kitty status"
   echo "────────────"
 
-  for svc in gateway litellm; do
+  for svc in ui gateway litellm; do
     pidfile="$RUN_DIR/$svc.pid"
     if pid_alive "$pidfile"; then
       pid=$(cat "$pidfile")
@@ -245,7 +326,20 @@ cmd_status() {
   fi
 
   echo
-  echo "Frontend: http://localhost:4000 (run separately: cd gateway/kitty-chat && npm run dev)"
+  echo "Listeners"
+  echo "─────────"
+  for spec in "UI:$UI_PORT" "Gateway:$GATEWAY_PORT" "LiteLLM:$LITELLM_PORT"; do
+    label="${spec%%:*}"
+    port="${spec##*:}"
+    pids="$(listener_pids "$port")"
+    if [[ -n "$pids" ]]; then
+      printf "  %-10s :%s pid(s) %s
+" "$label" "$port" "$pids"
+    else
+      printf "  %-10s :%s free
+" "$label" "$port"
+    fi
+  done
 }
 
 cmd_doctor() {
@@ -267,9 +361,9 @@ cmd_context() {
 }
 
 cmd_logs() {
-  echo "Tailing logs/gateway.log and logs/litellm.log (Ctrl-C to stop)..."
-  tail -f "$LOG_DIR/gateway.log" "$LOG_DIR/litellm.log" 2>/dev/null || \
-    echo "No log files yet — run: kitty up"
+  echo "Tailing gateway, LiteLLM, and UI logs (Ctrl-C to stop)..."
+  touch "$LOG_DIR/gateway.log" "$LOG_DIR/litellm.log" "$LOG_DIR/ui.log"
+  tail -F "$LOG_DIR/gateway.log" "$LOG_DIR/litellm.log" "$LOG_DIR/ui.log"
 }
 
 cmd_backup() {

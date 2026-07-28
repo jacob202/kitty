@@ -151,7 +151,7 @@ def normalize_agentrouter_api_base(raw: str | None) -> str:
 def resolve_agentrouter_api_key() -> str:
     """Read API key from env; supports AgentRouter doc names. Strips quotes and first line only."""
     load_dotenv(override=True)
-    for env_name in ("AGENTROUTER_API_KEY", "AGENT_ROUTER_TOKEN"):
+    for env_name in ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY"):
         v = os.environ.get(env_name, "")
         if not isinstance(v, str):
             continue
@@ -187,7 +187,7 @@ def agentrouter_model_for_request(request_model: str | None) -> str:
     if rm and rm not in _LEGACY_MODEL_ALIASES and rm != _LITELLM_DEFAULT:
         return _sanitize_agentrouter_model_id(rm)
 
-    g_model = os.environ.get("AGENTROUTER_MODEL", "").strip() or "gpt-5.4-mini"
+    g_model = os.environ.get("AGENTROUTER_MODEL", "").strip() or "gpt-5.5"
     return _sanitize_agentrouter_model_id(g_model)
 
 
@@ -266,81 +266,6 @@ class ProviderConfig:
     post_processor: Callable[[httpx.Response, dict], httpx.Response] | None = None
 
 
-def _agentrouter_client_rejected(resp: httpx.Response | None) -> bool:
-    if resp is None or resp.status_code != 401:
-        return False
-    body = (resp.text or "").lower()
-    return "unauthorized client" in body
-
-
-# AgentRouter's hosted API rejects generic clients before token validation. These
-# defaults match its Codex integration path and can be overridden from env.
-_AGENTROUTER_DEFAULT_ORIGINATOR = "codex_cli_rs"
-_AGENTROUTER_DEFAULT_VERSION = "0.101.0"
-_AGENTROUTER_DEFAULT_USER_AGENT = "codex_cli_rs/0.101.0 (Mac OS 26.0.1; arm64) Apple_Terminal/464"
-
-# Browser-like UA used only if AgentRouter rejects the primary client fingerprint (401 unauthorized_client).
-_AGENTROUTER_ALT_USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-)
-
-
-def _agentrouter_request_mutator(
-    payload: dict, headers: dict, request_model: str | None
-) -> tuple[dict, dict]:
-    """Add AgentRouter-specific headers (User-Agent, Originator, Version, optional JSON extras)."""
-    load_dotenv(override=True)
-    ua = os.environ.get("KITTY_AGENTROUTER_USER_AGENT", "").strip()
-    primary_ua = ua or _AGENTROUTER_DEFAULT_USER_AGENT
-
-    extra = {
-        "Accept": "application/json",
-        "Originator": os.environ.get(
-            "KITTY_AGENTROUTER_ORIGINATOR", _AGENTROUTER_DEFAULT_ORIGINATOR
-        ).strip(),
-        "Version": os.environ.get(
-            "KITTY_AGENTROUTER_VERSION", _AGENTROUTER_DEFAULT_VERSION
-        ).strip(),
-    }
-    extra = {k: v for k, v in extra.items() if v}
-
-    raw_extras = os.environ.get("KITTY_AGENTROUTER_EXTRA_HEADERS_JSON", "").strip()
-    if raw_extras:
-        try:
-            blob = json.loads(raw_extras)
-            if isinstance(blob, dict):
-                for k, v in blob.items():
-                    if isinstance(k, str) and isinstance(v, str):
-                        extra[str(k)] = str(v)
-        except json.JSONDecodeError:
-            logger.warning("KITTY_AGENTROUTER_EXTRA_HEADERS_JSON must be JSON object — ignoring.")
-
-    headers = {**headers, **extra, "User-Agent": primary_ua}
-    return payload, headers
-
-
-def _agentrouter_post_processor(resp: httpx.Response, ctx: dict) -> httpx.Response:
-    """Retry once with alt User-Agent if AgentRouter rejects the primary client fingerprint."""
-    if (
-        not resp.is_success
-        and _agentrouter_client_rejected(resp)
-        and os.environ.get("KITTY_AGENTROUTER_NO_ALT_UA_RETRY", "").strip().lower()
-        not in ("1", "true", "yes")
-    ):
-        logger.warning(
-            "AgentRouter rejected client fingerprint — retrying once with alternate User-Agent"
-        )
-        alt_headers = {**ctx["headers"], "User-Agent": _AGENTROUTER_ALT_USER_AGENT}
-        return _post(
-            ctx["url"],
-            headers=alt_headers,
-            json=ctx["payload"],
-            timeout=ctx["timeout"],
-        )
-    return resp
-
-
 def _resolve_provider_api_key(envs: tuple[str, ...]) -> str:
     """Read API key from the first matching env var in the table entry.
 
@@ -405,15 +330,12 @@ PROVIDERS: dict[str, ProviderConfig] = {
         base_url=normalize_agentrouter_api_base(
             os.environ.get("AGENTROUTER_API_BASE", "https://agentrouter.org/v1")
         ),
-        api_key_env=("AGENTROUTER_API_KEY", "AGENT_ROUTER_TOKEN"),
-        model_default="gpt-5.4-mini",
-        # AgentRouter .env values are prone to multi-line paste errors; the
-        # dedicated resolver warns and takes the first line instead of silently
-        # shipping a corrupt Bearer token.
+        api_key_env=("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY"),
+        model_default="gpt-5.5",
+        # Standard OpenAI-compatible Bearer authentication. AGENT_ROUTER_TOKEN
+        # is canonical; AGENTROUTER_API_KEY remains a legacy Kitty alias.
         key_resolver=resolve_agentrouter_api_key,
         model_resolver=lambda request_model: agentrouter_model_for_request(request_model),
-        request_mutator=_agentrouter_request_mutator,
-        post_processor=_agentrouter_post_processor,
     ),
     "openrouter": ProviderConfig(
         name="openrouter",

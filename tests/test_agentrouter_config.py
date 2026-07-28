@@ -18,7 +18,7 @@ def test_normalize_agentrouter_api_base_appends_v1() -> None:
 
 
 def test_agentrouter_model_defaults(clear_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
-    assert lc.agentrouter_model_for_request("kitty-default") == "gpt-5.4-mini"
+    assert lc.agentrouter_model_for_request("kitty-default") == "gpt-5.5"
 
 
 def test_agentrouter_model_override(clear_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -30,7 +30,7 @@ def test_openrouter_kitty_model_does_not_override_agentrouter_model(
     clear_env: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("KITTY_MODEL", "deepseek/deepseek-v4-flash")
-    assert lc.agentrouter_model_for_request("kitty-default") == "gpt-5.4-mini"
+    assert lc.agentrouter_model_for_request("kitty-default") == "gpt-5.5"
 
 
 def test_agentrouter_model_explicit_passthrough(clear_env: None) -> None:
@@ -49,12 +49,12 @@ def clear_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_resolve_agentrouter_key_order_and_strip(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("AGENTROUTER_API_KEY", raising=False)
     monkeypatch.delenv("AGENT_ROUTER_TOKEN", raising=False)
-    monkeypatch.setenv("AGENTROUTER_API_KEY", '  "sk-primary"  ')
-    assert lc.resolve_agentrouter_api_key() == "sk-primary"
+    monkeypatch.setenv("AGENT_ROUTER_TOKEN", '  "sk-canonical"  ')
+    monkeypatch.setenv("AGENTROUTER_API_KEY", "sk-legacy")
+    assert lc.resolve_agentrouter_api_key() == "sk-canonical"
 
-    monkeypatch.delenv("AGENTROUTER_API_KEY", raising=False)
-    monkeypatch.setenv("AGENT_ROUTER_TOKEN", "sk-token")
-    assert lc.resolve_agentrouter_api_key() == "sk-token"
+    monkeypatch.delenv("AGENT_ROUTER_TOKEN", raising=False)
+    assert lc.resolve_agentrouter_api_key() == "sk-legacy"
 
 
 def test_normalize_litellm_request_model_maps_legacy_routes_to_single_route() -> None:
@@ -65,3 +65,11 @@ def test_normalize_litellm_request_model_maps_legacy_routes_to_single_route() ->
 
 def test_normalize_litellm_request_model_passthrough_for_explicit_ids() -> None:
     assert lc.normalize_litellm_request_model("openrouter/test-model") == "openrouter/test-model"
+
+
+def test_agentrouter_uses_standard_bearer_contract() -> None:
+    provider = lc.PROVIDERS["agentrouter"]
+    assert provider.request_mutator is None
+    assert provider.post_processor is None
+    assert provider.api_key_env == ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY")
+    assert provider.model_default == "gpt-5.5"
