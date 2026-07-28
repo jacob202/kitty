@@ -1,0 +1,83 @@
+name: Apply runtime truth repair
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.ref == 'fix/runtime-truth-agentrouter-2026-07-28'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/runtime-truth-agentrouter-2026-07-28
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: gateway/kitty-chat/package-lock.json
+
+      - name: Extract and apply the reviewed patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('.github/workflows/runtime-truth-repair.yml').read_text()
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY\n\n      - name: Validate Python and launcher"
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index(end_marker, start)
+          script = textwrap.dedent(workflow[start:end])
+          Path('/tmp/runtime_truth_repair.py').write_text(script)
+          PY
+          python /tmp/runtime_truth_repair.py
+
+      - name: Validate Python and launcher
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff pytest pytest-asyncio
+          bash -n kitty
+          ruff check gateway/ tests/
+          pytest -q \
+            tests/test_agentrouter_config.py \
+            tests/test_llm_client.py \
+            tests/test_active_provider_routing.py \
+            tests/test_provider_prefs.py \
+            tests/test_kitty_launcher_runtime.py
+
+      - name: Validate frontend
+        working-directory: gateway/kitty-chat
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Commit validated repair
+        run: |
+          rm -f \
+            .github/workflows/runtime-truth-repair.yml \
+            .github/workflows/runtime-truth-pr-runner.yml \
+            .github/runtime-truth-trigger
+          git config user.name 'Kitty runtime repair worker'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: make runtime lifecycle provider and tool state truthful'
+          git push origin HEAD:fix/runtime-truth-agentrouter-2026-07-28
