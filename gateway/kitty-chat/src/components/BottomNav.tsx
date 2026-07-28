@@ -11,6 +11,9 @@ const CORE_ITEMS = [
 
 const MORE_ITEMS = [
   { id: 'library', label: 'Library', d: 'M4 5 H13 V19 H4 Z M17 7 H20 V17 H17 Z M17 5 L14 8' },
+  { id: 'journal', label: 'Journal', d: 'M4 5 H20 V15 H10 L5 19 V15 H4 Z' },
+  { id: 'tutor', label: 'Tutor', d: 'M4 5 H13 V19 H4 Z M17 7 H20 V17 H17 Z M17 5 L14 8' },
+  { id: 'terminal', label: 'Terminal', d: 'M5 4 H19 V20 H5 Z M8 8 H16 M8 12 H16 M8 16 H12' },
   { id: 'settings', label: 'Settings', d: 'M4 7 H20 M4 12 H20 M4 17 H20 M9 5 V9 M15 10 V14 M8 15 V19' },
 ]
 

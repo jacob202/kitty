@@ -45,7 +45,7 @@ export default function SettingsShell({ isMobile, theme, onToggleTheme }: {
           textTransform: 'lowercase',
           color: 'var(--ink-2)',
         }}>
-          skills & tools
+          journal · tutor · terminal · agents
         </span>
         <p style={{
           fontFamily: 'var(--font-body)',
@@ -54,15 +54,15 @@ export default function SettingsShell({ isMobile, theme, onToggleTheme }: {
           lineHeight: 1.6,
           margin: 0,
         }}>
-          Tutor, Agents, and Tools are available but unrouted. They earn their
-          place here when they prove daily usefulness. Until then, launch them
-          from the command palette (<kbd style={{
+          Journal, Tutor, Terminal, and Agents are available from the command
+          palette (<kbd style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 11,
             padding: '1px 6px',
             border: '1px solid var(--line)',
             borderRadius: 4,
-          }}>⌘K</kbd>) or the sidebar rail.
+          }}>⌘K</kbd>), the sidebar rail, or the mobile More menu.
+          They earn a top-level tab when usage data justifies it.
         </p>
       </section>
 
@@ -82,7 +82,7 @@ export default function SettingsShell({ isMobile, theme, onToggleTheme }: {
           textTransform: 'lowercase',
           color: 'var(--ink-2)',
         }}>
-          advanced
+          about
         </span>
         <p style={{
           fontFamily: 'var(--font-body)',
@@ -91,9 +91,16 @@ export default function SettingsShell({ isMobile, theme, onToggleTheme }: {
           lineHeight: 1.6,
           margin: 0,
         }}>
-          Theme: <strong>{theme}</strong>. Advanced settings appear here as
-          features mature — data export, cache management, and debug overlays
-          are on the roadmap.
+          Theme: <strong>{theme}</strong>. Kitty is a local-first personal AI
+          companion. The gateway runs on <code style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 12,
+            padding: '1px 5px',
+            borderRadius: 4,
+            background: 'var(--surface-2)',
+          }}>127.0.0.1:8000</code>, routing
+          through LiteLLM on port 8001. Model selection, provider configuration,
+          and personality tuning are available above.
         </p>
       </section>
     </div>
