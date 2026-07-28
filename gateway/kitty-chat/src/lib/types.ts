@@ -43,6 +43,9 @@ export interface Message {
   content: string
   timestamp: Date
   model?: string
+  provider?: string
+  requestedModel?: string
+  toolsState?: 'available' | 'unavailable'
   mood?: KittyMood
   tags?: string[]
   attachments?: MessageAttachment[]
