@@ -5,7 +5,7 @@ import type { ComponentType } from 'react'
 export type ViewId =
   | 'home' | 'chat' | 'builder' | 'settings'
   | 'work' | 'studio' | 'library'
-  | 'tasks' | 'tools' | 'terminal' | 'projects' | 'docs' | 'providers' | 'agents' | 'images' | 'tutor'
+  | 'tasks' | 'tools' | 'terminal' | 'projects' | 'docs' | 'providers' | 'agents' | 'images' | 'tutor' | 'journal'
 
 export interface ViewEntry {
   component: ComponentType<any>
@@ -35,6 +35,7 @@ export const VIEWS: Record<ViewId, ViewEntry> = {
   agents:    { component: PlaceholderView, title: 'Agents',   icon: 'settings', railSlot: false },
   images:    { component: PlaceholderView, title: 'Images',   icon: 'studio',   railSlot: false },
   tutor:     { component: PlaceholderView, title: 'Tutor',    icon: 'settings', railSlot: false },
+  journal:   { component: PlaceholderView, title: 'Journal',  icon: 'settings', railSlot: false },
 }
 
 export const RAIL_VIEWS: ViewId[] = ['home', 'chat', 'work', 'studio', 'library', 'settings']
@@ -43,12 +44,14 @@ export const REDIRECTS: Record<string, ViewId> = {
   builder: 'work',
   tasks: 'work',
   tools: 'settings',
-  terminal: 'settings',
+  terminal: 'terminal',
   projects: 'library',
   docs: 'library',
   providers: 'settings',
   agents: 'settings',
   images: 'studio',
+  tutor: 'tutor',
+  journal: 'journal',
 }
 
 export function getView(id: string): ViewEntry | undefined {

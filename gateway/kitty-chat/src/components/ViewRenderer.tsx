@@ -13,6 +13,7 @@ const WorkView = dynamic(() => import('./WorkView'))
 const StudioView = dynamic(() => import('./StudioView'))
 const LibraryView = dynamic(() => import('./LibraryView'))
 const TutorShell = dynamic(() => import('./TutorShell'))
+const JournalPanel = dynamic(() => import('./JournalPanel'))
 const TerminalView = dynamic(() => import('./TerminalView'))
 
 // -- view renderer --------------------------------------------------------------
@@ -92,6 +93,8 @@ export function ViewRenderer({
       return <SettingsShell isMobile={isMobile} theme={(theme as 'cosmic' | 'day' | 'night') ?? 'cosmic'} onToggleTheme={onToggleTheme} />
     case 'tutor':
       return <TutorShell isMobile={isMobile} />
+    case 'journal':
+      return <div style={pad}><JournalPanel /></div>
     case 'terminal':
         return <TerminalView isMobile={isMobile} />
       default:

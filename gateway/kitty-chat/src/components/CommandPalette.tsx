@@ -21,6 +21,8 @@ const VIEW_COMMANDS: Array<{ id: string; label: string; icon: LucideIcon }> = [
   { id: 'studio', label: 'studio', icon: Image },
   { id: 'builder', label: 'builder', icon: Wrench },
   { id: 'library', label: 'library', icon: BookOpen },
+  { id: 'tutor', label: 'tutor', icon: BookOpen },
+  { id: 'journal', label: 'journal', icon: BookOpen },
   { id: 'settings', label: 'settings', icon: Settings },
 ]
 
