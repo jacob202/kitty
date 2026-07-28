@@ -3,9 +3,9 @@
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-07-28T17:40:00Z",
-  "head_sha": "448d505b1ebcd3f935cae5ff526707b8864b9772",
-  "branch": "jacob202/fix-description",
+  "updated_at": "2026-07-28T18:25:00Z",
+  "head_sha": "83dafbc541a91ef962720045ffe0094a601bcc4b",
+  "branch": "docs/image-studio-character-first-2026-07-28",
   "worktree": "amphipod",
   "status": "in_progress",
   "completed_items": [
@@ -90,12 +90,12 @@
       "first_deferred": null
     }
   ],
-  "invalidation_conditions": ["HEAD changes beyond d23d346"],
+  "invalidation_conditions": ["HEAD changes beyond 83dafbc"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
-    "number": 289,
+    "number": 291,
     "state": "OPEN",
-    "head_sha": "224d7bd4533cd637d861a433499e0acd073fd66b"
+    "head_sha": "83dafbc541a91ef962720045ffe0094a601bcc4b"
   }
 }
 -->
