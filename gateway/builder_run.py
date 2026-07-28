@@ -92,6 +92,19 @@ def _classify_exhaustion(loop_result: dict[str, Any]) -> dict[str, Any]:
     return {"stop_class": STOP_ROUTINE, "reason": "packet exhausted"}
 
 
+def _cancellation_provenance(loop_result: dict[str, Any]) -> dict[str, Any]:
+    """Keep the worker-run evidence that caused a packet cancellation."""
+    attempts = loop_result.get("attempts")
+    latest = attempts[-1] if isinstance(attempts, list) and attempts else None
+    provenance: dict[str, Any] = {"source": "worker_run"}
+    if not isinstance(latest, dict):
+        return provenance
+    for key in ("attempt_id", "run_id"):
+        if latest.get(key) is not None:
+            provenance[key] = latest[key]
+    return provenance
+
+
 def _decide(
     task_id: str, payload: dict[str, Any], db_path: Path | None
 ) -> None:
@@ -516,6 +529,19 @@ def run_initiative(
                 "succeeded": succeeded,
                 "exhausted": exhausted,
             }
+        elif loop_result["outcome"] == bl.LOOP_CANCELLED:
+            _decide(
+                task_id,
+                {
+                    "initiative_id": initiative_id,
+                    "packet_id": packet_id,
+                    "decision": "packet_cancelled",
+                    "reason": loop_result.get("reason"),
+                    "stop_class": STOP_ROUTINE,
+                    "provenance": _cancellation_provenance(loop_result),
+                },
+                db_path,
+            )
         else:
             exhausted += 1
             classification = _classify_exhaustion(loop_result)
@@ -538,6 +564,12 @@ def run_initiative(
                 "outcome": loop_result["outcome"],
             }
         )
+
+        if loop_result["outcome"] == bl.LOOP_CANCELLED:
+            # Cancellation is durable evidence of a stopped worker, not retry
+            # exhaustion. The task's existing terminal/blocked state remains
+            # authoritative while unrelated eligible work may continue.
+            continue
 
         if loop_result["outcome"] != "succeeded":
             assert classification is not None  # set in the exhaustion branch above
