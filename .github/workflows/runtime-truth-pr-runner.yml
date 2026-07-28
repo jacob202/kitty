@@ -134,6 +134,38 @@ jobs:
               if count != 1:
                   raise SystemExit(f'obsolete AgentRouter test not found: {name}')
           path.write_text(text.rstrip() + '\n')
+
+          path = Path('gateway/kitty-chat/tests/ChatMessage.test.tsx')
+          text = path.read_text()
+          replacements = {
+              "  it('shows who answered via the producing model', () => {": "  it('shows the requested model without claiming it produced the reply', () => {",
+              "    expect(screen.getByText(/answered by sonnet-4/)).toBeInTheDocument()": "    expect(screen.getByText(/automatic routing · requested sonnet-4/)).toBeInTheDocument()",
+              "    expect(screen.getByText(/answered by opus-4/)).toBeInTheDocument()": "    expect(screen.getByText(/automatic routing · requested opus-4/)).toBeInTheDocument()",
+              "    expect(screen.queryByText(/answered by/)).not.toBeInTheDocument()": "    expect(screen.queryByText(/automatic routing/)).not.toBeInTheDocument()",
+          }
+          for old_text, new_text in replacements.items():
+              if old_text not in text:
+                  raise SystemExit(f'ChatMessage test marker missing: {old_text}')
+              text = text.replace(old_text, new_text)
+          truth_test = '''
+
+  it('shows provider, requested model, and unavailable tool state honestly', () => {
+    renderMessage({
+      ...kittyMsg,
+      provider: 'agentrouter',
+      requestedModel: 'gpt-5.5',
+      toolsState: 'unavailable',
+      content: 'checked it.',
+    })
+    expect(screen.getByText(/agentrouter · requested gpt-5.5/)).toBeInTheDocument()
+    expect(screen.getByText('tools unavailable')).toBeInTheDocument()
+  })
+'''
+          anchor = "\n  it('surfaces council routing as expert chips', () => {"
+          if text.count(anchor) != 1:
+              raise SystemExit('ChatMessage truth-test anchor missing')
+          text = text.replace(anchor, truth_test + anchor, 1)
+          path.write_text(text)
           PY
 
       - name: Upload repair diagnostics
