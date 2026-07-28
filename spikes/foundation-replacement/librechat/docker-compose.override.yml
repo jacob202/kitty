@@ -1,0 +1,13 @@
+services:
+  api:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - type: bind
+        source: ./librechat.yaml
+        target: /app/librechat.yaml
+
+  # LibreChat's default Mongo image requires AVX. This compatible image is
+  # required for Jacob's Apple Silicon Mac during the spike.
+  mongodb:
+    image: mongo:4.4.18
