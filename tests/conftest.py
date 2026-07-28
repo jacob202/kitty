@@ -15,6 +15,35 @@ def isolate_gateway_auth_env(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolate_provider_prefs(tmp_path, monkeypatch):
+    """Keep the saved provider order out of tests — and tests out of it.
+
+    resolve_order() reads config/providers.json, so without this a local
+    preference would silently reorder the fallback chain under the suite.
+    """
+    import gateway.provider_prefs as provider_prefs
+
+    monkeypatch.setattr(provider_prefs, "PROVIDER_PREFS_FILE", tmp_path / "providers.json")
+
+
+@pytest.fixture
+def all_provider_keys(monkeypatch):
+    """Give every cloud provider a key so ordering is what's under test.
+
+    The chain now skips unkeyed providers outright, so a test that means to
+    exercise fallback *order* has to opt in to being configured.
+    """
+    for name in (
+        "OPENAI_API_KEY",
+        "NVIDIA_API_KEY",
+        "AGENTROUTER_API_KEY",
+        "OPENROUTER_API_KEY",
+        "GEMINI_API_KEY",
+    ):
+        monkeypatch.setenv(name, "sk-test-key")
+
+
+@pytest.fixture(autouse=True)
 def isolate_task_queue(tmp_path, monkeypatch):
     """Point the background-task queue at a scratch DB.
 

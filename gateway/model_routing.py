@@ -27,12 +27,30 @@ LITELLM_CONFIG = ROOT / "gateway" / "litellm_config.yaml"
 _ENV_REF = re.compile(r"^os\.environ/(?P<name>[A-Z0-9_]+)$")
 
 
-def _split_model(model: str) -> tuple[str, str]:
-    """'openrouter/deepseek/deepseek-v4-pro' -> ('openrouter', 'deepseek/deepseek-v4-pro')."""
+_LOCAL_HOSTS = ("127.0.0.1", "localhost", "0.0.0.0", "::1")
+
+
+def _split_model(model: str, api_base: Any = None) -> tuple[str, str]:
+    """'openrouter/deepseek/deepseek-v4-pro' -> ('openrouter', 'deepseek/deepseek-v4-pro').
+
+    An OpenAI-compatible local server is still spelled ``openai/…`` in litellm,
+    so the api_base decides: pointing at this machine means local, whatever the
+    prefix claims.
+    """
     provider, _, upstream = model.partition("/")
     if not upstream:
         return "unknown", model
+    if _is_local_base(api_base):
+        return "local", upstream
     return provider, upstream
+
+
+def _is_local_base(api_base: Any) -> bool:
+    if not isinstance(api_base, str) or not api_base:
+        return False
+    if api_base.startswith("os.environ/"):
+        api_base = os.environ.get(api_base.split("/", 1)[1], "")
+    return any(host in api_base for host in _LOCAL_HOSTS)
 
 
 def _describe_key(raw: Any) -> dict[str, Any]:
@@ -86,7 +104,9 @@ def describe_routing() -> dict[str, Any]:
     for entry in config.get("model_list", []) or []:
         alias = entry.get("model_name")
         params = entry.get("litellm_params", {}) or {}
-        provider, upstream = _split_model(str(params.get("model", "")))
+        provider, upstream = _split_model(
+            str(params.get("model", "")), params.get("api_base")
+        )
         routes.append(
             {
                 "alias": alias,
@@ -108,6 +128,68 @@ def describe_routing() -> dict[str, Any]:
         "providers": providers,
         "warnings": warnings,
     }
+
+
+def describe_providers() -> dict[str, Any]:
+    """The direct-call fallback chain: order, key state, and what's turned off.
+
+    This is the layer *below* the litellm aliases — where Kitty goes when the
+    proxy fails. Switching providers means reordering this, which is why it has
+    to be readable and writable from outside Python.
+    """
+    from gateway.llm_client import (
+        PROVIDERS,
+        effective_provider_order,
+        provider_is_configured,
+    )
+    from gateway.provider_prefs import load_preferences
+
+    prefs = load_preferences()
+    disabled = set(prefs["disabled"])
+    order = effective_provider_order()
+
+    providers = []
+    for name, config in PROVIDERS.items():
+        configured = provider_is_configured(config)
+        providers.append(
+            {
+                "name": name,
+                "base_url": config.base_url,
+                "model": config.model_default or None,
+                "model_env": config.model_env,
+                "api_key_env": list(config.api_key_env),
+                "requires_key": config.requires_key,
+                "configured": configured,
+                "disabled": name in disabled,
+                "position": order.index(name) if name in order else None,
+            }
+        )
+
+    providers.sort(key=lambda p: (p["position"] is None, p["position"] or 0, p["name"]))
+
+    usable = [p["name"] for p in providers if p["configured"] and not p["disabled"]]
+    warnings: list[str] = []
+    if not usable:
+        warnings.append(
+            "no provider is both configured and enabled — every LLM call will fail"
+        )
+    elif usable[:1] != order[:1]:
+        warnings.append(
+            f"first choice '{order[0]}' has no key, so calls actually start at '{usable[0]}'"
+        )
+
+    return {
+        "order": order,
+        "providers": providers,
+        "warnings": warnings,
+        "config_path": str(_prefs_path()),
+    }
+
+
+def _prefs_path():
+    from gateway.provider_prefs import PROVIDER_PREFS_FILE
+
+    return PROVIDER_PREFS_FILE
 
 
 def _warnings(routes: list[dict[str, Any]], providers: list[str]) -> list[str]:

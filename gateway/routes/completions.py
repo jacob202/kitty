@@ -462,6 +462,34 @@ async def api_model_routing():
     return describe_routing()
 
 
+@router.get("/api/providers")
+async def api_providers():
+    """The direct-call fallback chain — order, key state, and what's disabled."""
+    from gateway.model_routing import describe_providers
+
+    return describe_providers()
+
+
+class ProviderPrefsRequest(BaseModel):
+    order: list[str] = Field(default_factory=list)
+    disabled: list[str] = Field(default_factory=list)
+
+
+@router.post("/api/providers")
+async def api_providers_set(payload: ProviderPrefsRequest):
+    """Reorder or disable providers without editing Python or restarting."""
+    from gateway.llm_client import PROVIDERS
+    from gateway.model_routing import describe_providers
+    from gateway.provider_prefs import save_preferences
+
+    try:
+        save_preferences(payload.order, payload.disabled, known=tuple(PROVIDERS.keys()))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return describe_providers()
+
+
 @router.post("/sessions/close")
 async def close_session(payload: CloseSessionRequest):
     """End a chat session — consolidate short-term memory to long-term."""

@@ -503,6 +503,41 @@ export async function fetchGatewayModelRouting(): Promise<GatewayModelRouting> {
   return await gfetch<GatewayModelRouting>('/api/model-routing')
 }
 
+export interface GatewayProvider {
+  name: string
+  base_url: string
+  model: string | null
+  model_env: string | null
+  api_key_env: string[]
+  requires_key: boolean
+  configured: boolean
+  disabled: boolean
+  position: number | null
+}
+
+export interface GatewayProviderChain {
+  order: string[]
+  providers: GatewayProvider[]
+  warnings: string[]
+  config_path: string
+}
+
+export async function fetchGatewayProviders(): Promise<GatewayProviderChain> {
+  return await gfetch<GatewayProviderChain>('/api/providers')
+}
+
+/** Throws on rejection so a bad order surfaces instead of looking saved. */
+export async function saveGatewayProviders(
+  order: string[],
+  disabled: string[],
+): Promise<GatewayProviderChain> {
+  return await gfetch<GatewayProviderChain>('/api/providers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order, disabled }),
+  })
+}
+
 export async function fetchGatewayRuntimeManifest(projectId?: number): Promise<GatewayRuntimeManifest> {
   const suffix = projectId === undefined ? '' : `?project_id=${encodeURIComponent(projectId)}`
   return await gfetch<GatewayRuntimeManifest>(`/runtime/manifest${suffix}`, undefined, 4000)

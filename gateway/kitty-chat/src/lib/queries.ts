@@ -5,6 +5,8 @@ import {
   fetchGatewayBrief,
   fetchGatewayModels,
   fetchGatewayModelRouting,
+  fetchGatewayProviders,
+  saveGatewayProviders,
   fetchGatewayPersonality,
   updateGatewayPersonality,
   fetchGatewaySessionContext,
@@ -135,6 +137,26 @@ export function useModelRouting() {
     queryFn: fetchGatewayModelRouting,
     refetchInterval: 60_000,
     staleTime: 30_000,
+  })
+}
+
+export function useProviders() {
+  return useQuery({
+    queryKey: ['providers'],
+    queryFn: fetchGatewayProviders,
+    refetchInterval: 30_000,
+  })
+}
+
+export function useSaveProviders() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ order, disabled }: { order: string[]; disabled: string[] }) =>
+      saveGatewayProviders(order, disabled),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['providers'] })
+      qc.invalidateQueries({ queryKey: ['model-routing'] })
+    },
   })
 }
 

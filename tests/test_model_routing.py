@@ -153,3 +153,83 @@ def test_invalid_yaml_fails_loud(tmp_path, monkeypatch):
     result = model_routing.describe_routing()
     assert result["readable"] is False
     assert "not valid YAML" in result["error"]
+
+
+class TestProviderChain:
+    """The direct-call fallback chain — the thing 'switch providers' actually means."""
+
+    @pytest.fixture(autouse=True)
+    def isolated_prefs(self, tmp_path, monkeypatch):
+        from gateway import provider_prefs
+
+        monkeypatch.setattr(
+            provider_prefs, "PROVIDER_PREFS_FILE", tmp_path / "providers.json"
+        )
+
+    def test_local_mlx_is_in_the_chain(self):
+        names = {p["name"] for p in model_routing.describe_providers()["providers"]}
+        assert "local" in names
+
+    def test_local_needs_no_key(self):
+        local = next(
+            p for p in model_routing.describe_providers()["providers"] if p["name"] == "local"
+        )
+        assert local["requires_key"] is False
+        assert local["configured"] is True
+
+    def test_keyless_cloud_provider_reads_as_unconfigured(self, monkeypatch):
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+        openrouter = next(
+            p
+            for p in model_routing.describe_providers()["providers"]
+            if p["name"] == "openrouter"
+        )
+        assert openrouter["configured"] is False
+
+    def test_saved_preference_shows_up_in_the_order(self):
+        from gateway.llm_client import PROVIDERS
+        from gateway.provider_prefs import save_preferences
+
+        save_preferences(["gemini"], ["agentrouter"], known=tuple(PROVIDERS.keys()))
+
+        described = model_routing.describe_providers()
+        assert described["order"][0] == "gemini"
+        assert "agentrouter" not in described["order"]
+
+    def test_warns_when_first_choice_has_no_key(self, monkeypatch):
+        from gateway.llm_client import PROVIDERS
+        from gateway.provider_prefs import save_preferences
+
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        save_preferences(["openrouter", "local"], [], known=tuple(PROVIDERS.keys()))
+
+        warnings = model_routing.describe_providers()["warnings"]
+        assert any("actually start at 'local'" in w for w in warnings)
+
+
+class TestLocalDetection:
+    def test_local_api_base_beats_the_openai_prefix(self, config, monkeypatch):
+        config("""
+            model_list:
+              - model_name: kitty-local
+                litellm_params:
+                  model: openai/mlx-community/Qwen3.5-4B-4bit
+                  api_base: http://127.0.0.1:8010/v1
+        """)
+
+        route = model_routing.describe_routing()["routes"][0]
+        assert route["provider"] == "local"
+
+    def test_remote_openai_stays_openai(self, config, monkeypatch):
+        config("""
+            model_list:
+              - model_name: kitty-gpt
+                litellm_params:
+                  model: openai/gpt-4o-mini
+                  api_key: os.environ/OPENAI_API_KEY
+        """)
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+        route = model_routing.describe_routing()["routes"][0]
+        assert route["provider"] == "openai"
