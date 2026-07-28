@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -408,7 +408,6 @@ class StudioGenerateRequest(BaseModel):
     quality: str = "quality"
     identity: str = "balanced"
     character_id: Optional[str] = None
-    reference_ids: Optional[List[str]] = None
     recipe_id: Optional[str] = None
     negative_prompt: Optional[str] = None
 

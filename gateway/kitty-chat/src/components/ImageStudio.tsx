@@ -143,10 +143,9 @@ export function ImageStudio() {
 
     try {
       const body: Record<string, unknown> = {
-        prompt: prompt.trim(), quality, identity, image_count: 1,
+        prompt: prompt.trim(), quality, identity,
       }
       if (selectedChar) body.character_id = selectedChar.character_id
-      if (seed) body.seed = parseInt(seed, 10)
       if (negativePrompt.trim()) body.negative_prompt = negativePrompt.trim()
 
       const r = await fetch('/proxy/studio/generate', {
