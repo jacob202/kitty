@@ -143,6 +143,12 @@ start_anythingllm() {
   cp "$ANYTHINGLLM_DIR/docker/.env.example" "$ANYTHINGLLM_DIR/docker/.env"
   cat "$SCRIPT_DIR/anythingllm/kitty.env" >>"$ANYTHINGLLM_DIR/docker/.env"
   append_dotenv_value "$ANYTHINGLLM_DIR/docker/.env" "GENERIC_OPEN_AI_API_KEY" "$GATEWAY_SECRET"
+  append_dotenv_value "$ANYTHINGLLM_DIR/docker/.env" "UID" "$(id -u)"
+  append_dotenv_value "$ANYTHINGLLM_DIR/docker/.env" "GID" "$(id -g)"
+  mkdir -p \
+    "$ANYTHINGLLM_DIR/server/storage" \
+    "$ANYTHINGLLM_DIR/collector/hotdir" \
+    "$ANYTHINGLLM_DIR/collector/outputs"
 
   docker compose -f "$ANYTHINGLLM_DIR/docker/docker-compose.yml" \
     --project-directory "$ANYTHINGLLM_DIR/docker" up -d --build
