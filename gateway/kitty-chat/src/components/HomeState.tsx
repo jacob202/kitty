@@ -1478,7 +1478,6 @@ function TodayPanel({
               {t.content}
             </span>
           </button>
-          </div>
         ))
       )}
       {open.length > 5 && (

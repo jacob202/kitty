@@ -3,11 +3,11 @@
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-07-28T19:30:00Z",
-  "head_sha": "d23d346517e1e5a3adf7a4e9657530123e7fca1c",
+  "updated_at": "2026-07-28T17:40:00Z",
+  "head_sha": "448d505b1ebcd3f935cae5ff526707b8864b9772",
   "branch": "jacob202/fix-description",
   "worktree": "amphipod",
-  "status": "complete",
+  "status": "in_progress",
   "completed_items": [
     "Builder: requeue + recover_stale backend actions (2 new action files, builder_control.py updated)",
     "Builder: staleness detection (10min), per-packet requeue, bulk recover, confirmation dialog, staleness indicators on cards and BuilderBrain",
