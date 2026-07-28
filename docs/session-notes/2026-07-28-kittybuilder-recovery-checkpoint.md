@@ -43,13 +43,32 @@ projections.
    policy shape), not a current parser failure. Do not rewrite history to make
    the status look healthy.
 
+## Reconciled review outcomes
+
+- The live Builder surface retains unusually good underlying evidence but makes
+  91 controls reachable in one short viewport and duplicates the full packet
+  list in a modal. Its `Read-only execution status` claim conflicts with
+  resume/cleanup controls that can mutate Builder state while the fact is
+  partial. The next design must make Work the calm cross-domain now page, Build
+  a read-only decision radar by default, and move any mutation into an explicit
+  management flow that is disabled on degraded, stale, or unknown evidence.
+- The running browser was serving canonical commit `1c6487d`, not this
+  worktree's `514b17d`. Future browser proof must launch the reviewed worktree
+  or display the served build SHA; do not attribute the current UI to this
+  branch.
+- High-value UI/API truth gaps: repair buttons can return `ok:false` while the
+  UI looks successful; provider readiness confuses configured with health-probed;
+  Settings confuses LiteLLM model discovery with Gateway health; the command
+  palette trigger is inert; Studio turns failed fetches into an empty inventory;
+  and Builder glance can call an unavailable fact an empty queue.
+
 ## Active read-only review lanes
 
 | Task | Dispatch | Scope | State at checkpoint |
 | --- | --- | --- | --- |
 | `task_23fbbecd370f` | `ctx_1f4fbe008591` | Builder recovery/root-cause review | completed — result received |
-| `task_eff4dfd1daae` | `ctx_0ec018f773ab` | Eight-lens Work/Builder UX swarm | running |
-| `task_9ce58b27bacb` | `ctx_06f44c7780bf` | Frontend/Gateway contract alignment | running |
+| `task_eff4dfd1daae` | `ctx_0ec018f773ab` | Eight-lens Work/Builder UX swarm | completed — result received |
+| `task_9ce58b27bacb` | `ctx_06f44c7780bf` | Frontend/Gateway contract alignment | completed — result received |
 | `msg_fcc2df76f79b` | canonical handoff | Read-only Builder CLI evidence | awaiting reply |
 
 ## User-requested scope queued after reliability reconciliation
