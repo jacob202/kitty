@@ -708,6 +708,16 @@ def run_packet(
         raise LoopError("worker_command must be a non-empty list")
 
     ba.init_db(db_path)
+    try:
+        # An open attempt is recoverable only after this liveness probe has
+        # durably fenced its worker run as interrupted. Do this before reading
+        # task state: a dead running worker is transitioned to blocked here.
+        bq.recover_interrupted_runs(db_path=db_path)
+    except Exception as exc:
+        raise LoopError(
+            f"cannot recover interrupted worker runs before starting "
+            f"{initiative_id}/{packet_id}: {exc}"
+        ) from exc
     bundle_preview = ba.build_context_bundle(initiative_id, packet_id, db_path=db_path)
     task_id = bundle_preview["task_id"]
 
