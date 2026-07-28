@@ -9,7 +9,15 @@ export default function StudioView({ isMobile }: { isMobile: boolean }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--line)', padding: '8px 24px 0' }}>
+      <div style={{ padding: pad, paddingBottom: 0 }}>
+        <header>
+          <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 32, color: 'var(--ink)' }}>Create</h1>
+          <p style={{ margin: '4px 0 0', color: 'var(--ink-2)' }}>
+            Generate images with ComfyUI or browse your gallery.
+          </p>
+        </header>
+      </div>
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--line)', padding: '12px 24px 0' }}>
         {[
           { id: 'gallery', label: 'Gallery' },
           { id: 'generate', label: 'Generate' },
