@@ -64,7 +64,9 @@ export interface Message {
    * the UI show *who* answered so the user can trust the result. The `model`
    * field above is the fallback attribution when a single model answered.
    */
-  routing?: MessageRouting[]
+   routing?: MessageRouting[]
+   /** Model thinking/reasoning content from providers that support it. */
+   reasoning_content?: string
 }
 
 /** One routed task in a Council-assembled answer. Mirrors the gateway /council `routing` field. */

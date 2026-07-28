@@ -16,6 +16,7 @@ import { ViewRenderer } from '@/components/ViewRenderer'
 import { StatusBar } from '@/components/StatusBar'
 import { WobFilters, PaperGrain } from '@/components/WobFilters'
 import { CatCorner } from '@/components/CrayonCat'
+import { ContextBar } from '@/components/ContextBar'
 
 export default function KittyChat() {
   const k = useKitty()
@@ -106,6 +107,16 @@ export default function KittyChat() {
             <ThreadGoal chat={k.activeChat} compact={k.isMobile} onObjectiveSaved={k.handleObjectiveSaved} onEnsurePersisted={k.persistChat} />
           )}
           {k.activeView === 'chat' && !k.isMobile && <SignalFeed compact={k.isMobile} />}
+
+          {(k.activeView === 'chat' || k.activeView === 'home') && k.activeChat && (
+            <ContextBar
+              tokenCount={k.tokenCount}
+              maxTokens={200000}
+              expertId={k.activeChat.expertId}
+              expertLabel={k.activeChat.expertId ? k.activeChat.title.replace(/^chat with /, '') : undefined}
+              systemPrompt={k.activeChat.systemPrompt}
+            />
+          )}
 
           <StatusBar
             showChatSignals={k.activeView === 'chat' || k.activeView === 'home'}

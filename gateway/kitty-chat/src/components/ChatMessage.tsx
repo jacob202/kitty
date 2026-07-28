@@ -101,6 +101,9 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
             border: isKitty ? '1.5px solid var(--line)' : 'none',
             boxShadow: 'var(--shadow-soft)',
           }}>
+            {isKitty && message.reasoning_content && (
+              <ThinkingBlock content={message.reasoning_content} />
+            )}
             {isStreaming && !message.content && !message.toolCalls?.length ? (
               <TypingDots />
             ) : (
@@ -433,6 +436,44 @@ const forgetBtnStyle: CSSProperties = {
 }
 const forgetHintStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)',
+}
+
+}
+
+function ThinkingBlock({ content }: { content: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginBottom: open ? 10 : 4 }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)',
+          background: 'transparent', border: 'none', cursor: 'pointer',
+          padding: 0, display: 'flex', alignItems: 'center', gap: 4,
+        }}
+      >
+        <span style={{ opacity: 0.6 }}>
+          {open ? '▼' : '▶'} thinking
+        </span>
+        <span style={{ opacity: 0.4 }}>
+          ({Math.round(content.length / 4)} tokens)
+        </span>
+      </button>
+      {open && (
+        <pre style={{
+          margin: '6px 0 0', padding: '8px 12px',
+          fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)',
+          whiteSpace: 'pre-wrap', lineHeight: 1.5,
+          background: 'var(--surface-2)', borderRadius: 6,
+          borderLeft: '2px solid var(--c-purple)',
+          maxHeight: 300, overflowY: 'auto',
+        }}>
+          {content}
+        </pre>
+      )}
+    </div>
+  )
 }
 
 const actionRowStyle: CSSProperties = {
