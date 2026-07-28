@@ -12,7 +12,7 @@ jobs:
   run:
     if: github.head_ref == 'fix/dogfood-provider-chat-shell-2026-07-28'
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,32 +27,44 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: gateway/kitty-chat/package-lock.json
-      - name: Execute repair and validation scripts
+      - name: Extract and apply repair
         run: |
           set +e
-          python -m pip install pyyaml > repair.log 2>&1
-          python - <<'PY' >> repair.log 2>&1
-          import subprocess
+          python - <<'PY' > repair.log 2>&1
           from pathlib import Path
-          import yaml
 
-          source = Path('.github/workflows/dogfood-repair-apply.yml')
-          workflow = yaml.safe_load(source.read_text())
-          steps = workflow['jobs']['apply']['steps']
-          wanted = [
-              'Apply focused repairs',
-              'Validate Python repairs',
-              'Validate frontend repairs',
-          ]
-          for name in wanted:
-              step = next(item for item in steps if item.get('name') == name)
-              cwd = step.get('working-directory', '.')
-              print(f'=== {name} ===', flush=True)
-              subprocess.run(['bash', '-lc', step['run']], cwd=cwd, check=True)
+          lines = Path('.github/workflows/dogfood-repair-apply.yml').read_text().splitlines()
+          start = next(i for i, line in enumerate(lines) if line.strip() == "python - <<'PY'") + 1
+          end = next(i for i in range(start, len(lines)) if lines[i].strip() == 'PY')
+          extracted = []
+          for line in lines[start:end]:
+              if line.startswith('          '):
+                  extracted.append(line[10:])
+              else:
+                  extracted.append(line.lstrip())
+          Path('/tmp/apply_dogfood_repair.py').write_text('\n'.join(extracted) + '\n')
+          compile(Path('/tmp/apply_dogfood_repair.py').read_text(), '/tmp/apply_dogfood_repair.py', 'exec')
           PY
           status=$?
+          if [ $status -eq 0 ]; then
+            python /tmp/apply_dogfood_repair.py >> repair.log 2>&1
+            status=$?
+          fi
           tail -n 200 repair.log
           exit $status
+      - name: Validate Python repairs
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          ruff check gateway/ tests/ mcp/
+          mypy gateway/ mcp/
+          pytest -q tests/test_provider_prefs.py tests/test_active_provider_routing.py tests/test_llm_client.py tests/test_chat_completions.py
+      - name: Validate frontend repairs
+        working-directory: gateway/kitty-chat
+        run: |
+          npm ci
+          npm test -- --run
+          npm run build
       - name: Upload repair diagnostics
         if: always()
         uses: actions/upload-artifact@v7
