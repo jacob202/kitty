@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
+from subprocess import run
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,7 +11,7 @@ SPIKE = ROOT / "spikes" / "foundation-replacement"
 
 
 def test_bootstrap_shell_is_syntactically_valid():
-    result = subprocess.run(
+    result = run(
         ["bash", "-n", str(SPIKE / "bootstrap.sh")],
         capture_output=True,
         text=True,
