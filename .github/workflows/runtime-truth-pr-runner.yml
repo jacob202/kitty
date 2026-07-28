@@ -105,6 +105,12 @@ jobs:
               "",
           ])
           script = script[:tool_start] + tool_patch + script[tool_end:]
+
+          launcher_test_writer = "Path('tests/test_kitty_launcher_runtime.py').write_text('''"
+          if script.count(launcher_test_writer) != 1:
+              raise SystemExit('launcher test writer marker missing')
+          script = script.replace(launcher_test_writer, launcher_test_writer[:-3] + "r'''", 1)
+
           Path('/tmp/runtime_truth_repair.py').write_text(script)
           PY
           python /tmp/runtime_truth_repair.py > /tmp/runtime-truth-repair.log 2>&1
