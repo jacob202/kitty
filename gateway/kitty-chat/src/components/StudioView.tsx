@@ -2,10 +2,14 @@
 import { useState } from 'react'
 import { ImageStudio } from '@/components/ImageStudio'
 import { ImageGenPanel } from '@/components/ImageGenPanel'
+import { useImageStatus } from '@/lib/queries'
 
 export default function StudioView({ isMobile }: { isMobile: boolean }) {
   const [tab, setTab] = useState('gallery')
+  const statusQuery = useImageStatus()
   const pad = isMobile ? '16px 12px 124px' : '24px 32px 40px'
+  const engines = statusQuery.data?.engines ?? []
+  const onlineCount = engines.filter(e => e.available).length
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -15,6 +19,13 @@ export default function StudioView({ isMobile }: { isMobile: boolean }) {
           <p style={{ margin: '4px 0 0', color: 'var(--ink-2)' }}>
             Generate images with ComfyUI or browse your gallery.
           </p>
+          {!statusQuery.isPending && (
+            <p style={{ margin: '4px 0 0', fontSize: 11, fontFamily: 'var(--font-mono)', color: onlineCount > 0 ? 'var(--c-green)' : 'var(--c-red)' }}>
+              {onlineCount > 0
+                ? `${onlineCount}/${engines.length} engine${engines.length === 1 ? '' : 's'} online`
+                : 'no image engines online — start ComfyUI or Draw Things'}
+            </p>
+          )}
         </header>
       </div>
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--line)', padding: '12px 24px 0' }}>

@@ -125,7 +125,24 @@ export function ImageStudio() {
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [plan, setPlan] = useState<Record<string, unknown> | null>(null)
   const [planPreviewing, setPlanPreviewing] = useState(false)
+  const [guidanceTags, setGuidanceTags] = useState<string[]>([])
+  const [availableTags, setAvailableTags] = useState<string[]>([])
   const abortRef = useRef<AbortController | null>(null)
+
+  // Fetch available guidance tags on mount.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/proxy/studio/plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: '.' }),
+    }).then(r => r.json()).then(data => {
+      if (!cancelled && Array.isArray(data.available_guidance_tags)) {
+        setAvailableTags(data.available_guidance_tags)
+      }
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { characters, loading: charsLoading, createChar, refetch: refetchChars } = useStudioCharacters()
@@ -192,6 +209,7 @@ export function ImageStudio() {
         prompt: prompt.trim(),
       }
       if (selectedChar) body.character_id = selectedChar.character_id
+      if (guidanceTags.length > 0) body.guidance_tags = guidanceTags
 
       const r = await fetch('/proxy/studio/plan', {
         method: 'POST',
@@ -514,6 +532,37 @@ export function ImageStudio() {
               </span>
             </AdvancedField>
           )}
+          {availableTags.length > 0 && (
+            <AdvancedField label="guidance">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {availableTags.map(tag => {
+                  const active = guidanceTags.includes(tag)
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setGuidanceTags(prev =>
+                        active ? prev.filter(t => t !== tag) : [...prev, tag]
+                      )}
+                      style={{
+                        border: `1px solid ${active ? 'var(--cat-ginger)' : 'var(--line)'}`,
+                        borderRadius: 999,
+                        background: active ? 'var(--ginger-fade)' : 'transparent',
+                        color: active ? 'var(--cat-ginger)' : 'var(--ink-2)',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 10,
+                        padding: '3px 10px',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {tag.replace(/_/g, ' ')}
+                    </button>
+                  )
+                })}
+              </div>
+            </AdvancedField>
+          )}
         </div>
       )}
 
@@ -818,12 +867,38 @@ function PlanPreviewCard({
                 fontFamily: 'var(--font-mono)',
                 color: 'var(--cat-ginger)',
               }}>
-                {tag}
+                {tag.replace(/_/g, ' ')}
               </span>
             ))}
           </div>
         </div>
       )}
+
+      {/* Recipe + character ref */}
+      {(plan.recipe_id || plan.character_ref_path) && (
+        <div style={{ display: 'grid', gap: 4 }}>
+          <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', textTransform: 'uppercase' }}>
+            resolved
+          </span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {plan.recipe_id && (
+              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                recipe: {String(plan.recipe_id)}
+              </span>
+            )}
+            {plan.character_ref_path && (
+              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                ref: {String(plan.character_ref_path).split('/').slice(-2).join('/')}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Created at */}
+      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', opacity: 0.6 }}>
+        plan created {new Date(String(plan.created_at)).toLocaleString()}
+      </span>
 
       {/* Approve & generate */}
       <div style={{ display: 'flex', gap: 8 }}>

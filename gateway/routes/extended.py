@@ -625,7 +625,11 @@ async def studio_plan(req: PlanPreviewRequest):
     except ImagePlanError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    return plan.to_dict()
+    from gateway.image_guidance import available_guidance_tags
+
+    result = plan.to_dict()
+    result["available_guidance_tags"] = available_guidance_tags()
+    return result
 
 
 # --- Image Studio V1: Generate (Auto-routed) ---
