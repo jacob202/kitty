@@ -75,7 +75,7 @@ export function ViewRenderer({
         return <ChatView {...chatProps} compact={isMobile} />
       case 'work':
       case 'tasks':
-        return <WorkView isMobile={isMobile} />
+        return <WorkView isMobile={isMobile} onNavigate={homeProps?.onNavigate} />
       case 'studio':
       case 'images':
         return <StudioView isMobile={isMobile} />
