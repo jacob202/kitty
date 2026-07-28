@@ -93,7 +93,7 @@ jobs:
               "    indent = match.group('indent')",
               "    return '\\n'.join([",
               "        f'{indent}{{message.toolCalls && message.toolCalls.length > 0 && (',",
-              "        f'{indent}  <div role=\"status\" style={{{{ marginTop: 8, fontSize: 11, color: \'var(--ink-2)\' }}}}>',",
+              "        f\"{indent}  <div role=\\\"status\\\" style={{{{ marginTop: 8, fontSize: 11, color: 'var(--ink-2)' }}}}>\",",
               "        f'{indent}    Tool request detected — not executed by this chat runtime.',",
               "        f'{indent}  </div>',",
               "        f'{indent})}}',",
