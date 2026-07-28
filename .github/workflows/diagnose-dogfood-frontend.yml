@@ -1,0 +1,50 @@
+name: Diagnose dogfood frontend
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  diagnose:
+    if: github.head_ref == 'fix/dogfood-provider-chat-shell-2026-07-28'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/dogfood-provider-chat-shell-2026-07-28
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: gateway/kitty-chat/package-lock.json
+      - name: Apply product patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          lines = Path('.github/workflows/dogfood-repair-apply.yml').read_text().splitlines()
+          start = next(i for i, line in enumerate(lines) if line.strip() == "python - <<'PY'") + 1
+          end = next(i for i in range(start, len(lines)) if lines[i].strip() == 'PY')
+          extracted = [line[10:] if line.startswith('          ') else line.lstrip() for line in lines[start:end]]
+          path = Path('/tmp/apply.py')
+          path.write_text('\n'.join(extracted) + '\n')
+          compile(path.read_text(), str(path), 'exec')
+          PY
+          python /tmp/apply.py
+      - name: Capture frontend validation
+        working-directory: gateway/kitty-chat
+        run: |
+          set +e
+          npm ci > ../../frontend-repair.log 2>&1
+          npm test -- --run >> ../../frontend-repair.log 2>&1
+          test_status=$?
+          npm run build >> ../../frontend-repair.log 2>&1
+          build_status=$?
+          echo "test_status=$test_status build_status=$build_status" >> ../../frontend-repair.log
+          exit 0
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dogfood-frontend-log
+          path: frontend-repair.log
+          retention-days: 1
