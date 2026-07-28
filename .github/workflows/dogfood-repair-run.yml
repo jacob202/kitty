@@ -54,17 +54,29 @@ jobs:
           exit $status
       - name: Validate Python repairs
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          ruff check gateway/ tests/ mcp/
-          mypy gateway/ mcp/
-          pytest -q tests/test_provider_prefs.py tests/test_active_provider_routing.py tests/test_llm_client.py tests/test_chat_completions.py
+          set +e
+          {
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+            ruff check gateway/ tests/ mcp/
+            mypy gateway/ mcp/
+            pytest -q tests/test_provider_prefs.py tests/test_active_provider_routing.py tests/test_llm_client.py tests/test_chat_completions.py
+          } >> repair.log 2>&1
+          status=$?
+          tail -n 200 repair.log
+          exit $status
       - name: Validate frontend repairs
         working-directory: gateway/kitty-chat
         run: |
-          npm ci
-          npm test -- --run
-          npm run build
+          set +e
+          {
+            npm ci
+            npm test -- --run
+            npm run build
+          } >> ../../repair.log 2>&1
+          status=$?
+          tail -n 200 ../../repair.log
+          exit $status
       - name: Upload repair diagnostics
         if: always()
         uses: actions/upload-artifact@v7
