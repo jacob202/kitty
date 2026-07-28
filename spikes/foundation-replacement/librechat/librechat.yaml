@@ -1,0 +1,16 @@
+version: 1.3.13
+cache: true
+
+endpoints:
+  custom:
+    - name: "Kitty"
+      apiKey: "${KITTY_GATEWAY_SECRET}"
+      baseURL: "http://host.docker.internal:8000/v1"
+      models:
+        default:
+          - "kitty-default"
+        fetch: true
+      titleConvo: false
+      summarize: false
+      modelDisplayLabel: "Kitty Intelligence"
+      iconURL: "openAI"
