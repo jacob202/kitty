@@ -1,78 +1,58 @@
 # Project Status
 
-**Verified:** 2026-07-26 against `origin/main` at
-`4a0a4c3da72c97df619c0c45ad76426fb645fb52`
-**Canonical repo:** `/Users/jacobbrizinski/Projects/kitty`
+**Verified:** 2026-07-28 against `origin/main` at `0a2a04480ecd555168656de62dfa9a3cc971031f`.
 
-Branch, worktree, dirty state, relation to `origin/main`, and local Builder state
-must be derived from `./kitty context --agent` and supported Builder commands.
-They are not copied into this document as live facts.
+Branch, worktree, dirty state, relation to `origin/main`, and local Builder state must be derived from `./kitty context --agent` and supported Builder commands. They are not copied here as live facts.
 
-## What's shipped
+## Shipped product and infrastructure
 
-Kitty has substantial working product and delivery infrastructure. Verified
-shipped areas include:
+Repository evidence shows substantial working capability across:
 
-- consolidated SQLite-backed storage for core state, chats, and journal;
-- chat, brief, memory, settings, projects/resume, next-step, phone, image, and
-  Builder investigation surfaces;
-- durable Builder queue, attempts, leases, validation, recovery rails, worker
-  identity checks, initiative tooling, operator controls, and PR publication;
-- CI gates for Python, typing, lint, hygiene, frontend tests/build, and browser
-  smoke.
+- FastAPI gateway surfaces for chat, memory, capture, brief, projects, settings, image, tutor, voice, integrations, and Builder investigation;
+- a Next.js product shell with shared runtime/provider attribution and error handling;
+- consolidated application storage plus unified memory reads through `memory_graph`;
+- model/provider routing with explicit provider selection, fallback behavior, and truthful runtime metadata;
+- durable Builder queues, attempts, leases, validation, recovery rails, worker identity checks, initiative tooling, operator controls, and PR publication;
+- CI gates for Python tests, typing, lint, hygiene, frontend tests/build, and browser smoke.
 
-This list is a capability summary, not permission to replay historical packets.
-Remaining work must be calculated from current code and evidence.
+The 2026-07-28 merge of PR #288 hardened runtime lifecycle truth, provider/tool state, attribution, and explicit AgentRouter routing. This is repository evidence, not proof that every configured provider or local runtime is currently healthy.
 
-## Current release and open work
+## Current open repository work
 
-PR #264 restored clean-checkout Python and frontend installation and merged to
-`main`. Its final required checks passed: dependency install, full pytest with
-coverage, frontend tests, production build, browser smoke, lint, mypy, hygiene,
-PR description, and independent PR-agent review.
+At verification time, PR #289 was open with a broad change set covering Builder reliability, frontend/backend alignment, an ImagePlan boundary, provider metadata, and model-routing refactoring. Its live mergeability, CI status, review state, and final scope must be read from GitHub before action.
 
-Open governance/manifest work:
-
-- PR #261 — reviewed KittyBuilder Brain research plus manifest-validator checks;
-- PR #262 — mechanical repair of 33 initiative validation gates;
-- PR #263 — KTF-001 mission, one canonical roadmap, authority alignment, ADR
-  amendments, and packet/autonomy policy.
-
-Their live state must be read from GitHub, not inferred from this paragraph.
+No older PR list in archived status documents should be treated as current.
 
 ## Builder state
 
-The Builder database and execution evidence are local runtime state. They were
-not available through the GitHub-only verification used for this update, so the
-current queue, initiative, attempt, lease, and provider-exhaustion state is
-**unknown here**. Use supported `./kitty builder ... --json` projections on the
-canonical machine before making a runtime claim.
+The Builder database and execution evidence are local runtime state. They are not available from repository prose or GitHub alone, so current initiatives, packets, attempts, leases, provider exhaustion, and publication state are **unknown here**.
 
-## Current mission and priority
+Use supported projections such as:
 
-The approved mission is KTF-001 in `docs/ACTIVE_MISSION.md`. The only active
-sequence is `docs/ROADMAP.md` Phase 1:
+```bash
+./kitty context --agent
+./kitty builder initiative doctor --json
+```
 
-1. resolve PRs #261, #262, and #263 coherently;
-2. reconcile active authority/checkpoint contradictions;
-3. calculate the exact remaining Builder reliability delta;
-4. author at least two falsifiable `free-exec` JSON packets;
-5. inspect one daylight unattended delivery run end to end;
-6. prove one real life-project resume loop.
+An absent or inaccessible runtime database is unknown/unused, not an empty success.
 
-Do not start another feature lane, queue, scheduler, state store, orchestrator,
-architecture survey, Builder cockpit, or memory substrate before the Phase 1
-exit criteria are met.
+## Current authority and priority
+
+- Product purpose: `docs/NORTH_STAR.md`.
+- Architecture: `docs/ARCHITECTURE.md` plus accepted ADRs.
+- Delivery order: `docs/ROADMAP.md` only.
+- Approved work: `docs/ACTIVE_MISSION.md` only.
+- Live continuation: `.claude/STATE.md` and `.claude/HANDOFF.md` only while their identity metadata remains valid.
+
+Plans, packets, research, old session trackers, and archive material are inputs or history. They do not become active merely because they are detailed.
 
 ## Known limitations
 
-- No existing prose packet is automatically proven `free-exec`.
-- Packet 007 emits Markdown drafts, not executable Builder manifests.
-- The current nightly drain does not yet prove cross-initiative continuation,
-  explicit resumable provider exhaustion, or the complete draft/ready/low-risk
-  merge lifecycle.
-- Builder runtime recovery and one real resume-loop outcome remain unproven by
-  current repository evidence.
+- Daily-use reliability and product coherence still lag behind the breadth of backend capability.
+- Repository evidence cannot prove local provider credentials, quotas, process health, or Builder runtime state.
+- Broad PRs can blur verification boundaries; review PR #289 by subsystem and evidence rather than trusting its summary as one atomic claim.
+- A generated code bundle is a navigation aid, not runtime truth. Review it for secrets and staleness before uploading.
 
-Authority routing lives only in `docs/AUTHORITY_MAP.md`; current priority lives
-only in `docs/ROADMAP.md` and the approved Mission.
+## Navigation
+
+Use `START_HERE.md` for cold start, `docs/README.md` for documentation routing, `docs/CODEBASE_MAP.md` for code navigation, and `docs/archive/README.md` for historical material.
