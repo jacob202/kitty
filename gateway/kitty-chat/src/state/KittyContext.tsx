@@ -228,6 +228,7 @@ interface KittyContextValue {
   handleInsightAction: (id: string, actionId: string) => void
   handlePromptSelect: (text: string) => void
   handleObjectiveSaved: (chatId: string, objective: string | null) => void
+  handleSaveSystemPrompt: (prompt: string) => void
   handleRuntimeSend: (text: string) => void
 
   // pwa
@@ -547,6 +548,11 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     updateChat(chatId, (c) => ({ ...c, objective: objective ?? undefined }))
   }, [updateChat])
 
+  const handleSaveSystemPrompt = useCallback((prompt: string) => {
+    if (!activeChat) return
+    updateChat(activeChat.id, (c) => ({ ...c, systemPrompt: prompt }))
+  }, [activeChat, updateChat])
+
   const handleRetrySave = useCallback(() => {
     const chat = chats.find((c) => c.id === activeChatId)
     if (chat) void persistChat(chat)
@@ -719,7 +725,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     modelGateway, briefGateway,
     loops, insights, promptTemplates, retryGatewayBootstrap,
     handleDecideInChat, handleLoopToggle, handleInsightDismiss, handleInsightAction,
-    handlePromptSelect, handleObjectiveSaved, handleRuntimeSend,
+    handlePromptSelect, handleObjectiveSaved, handleSaveSystemPrompt, handleRuntimeSend,
     pwaInstall, textareaRef,
   }
 

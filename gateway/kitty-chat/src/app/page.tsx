@@ -115,6 +115,7 @@ export default function KittyChat() {
               expertId={k.activeChat.expertId}
               expertLabel={k.activeChat.expertId ? k.activeChat.title.replace(/^chat with /, '') : undefined}
               systemPrompt={k.activeChat.systemPrompt}
+              onSavePrompt={(p) => k.handleSaveSystemPrompt(p)}
             />
           )}
 

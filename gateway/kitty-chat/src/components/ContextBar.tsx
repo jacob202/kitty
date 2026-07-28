@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, type CSSProperties } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import { card, bodyText } from '@/lib/ui'
+import { ChevronDown, ChevronRight, Edit2, Save, RotateCcw } from 'lucide-react'
+import { card } from '@/lib/ui'
 
 interface Props {
   tokenCount: number
@@ -11,13 +11,38 @@ interface Props {
   expertLabel?: string
   expertTags?: string[]
   systemPrompt?: string | null
+  defaultPrompt?: string | null
+  onSavePrompt?: (prompt: string) => void
 }
 
-export function ContextBar({ tokenCount, maxTokens, expertId, expertLabel, expertTags, systemPrompt }: Props) {
+export function ContextBar({ tokenCount, maxTokens, expertId, expertLabel, expertTags, systemPrompt, defaultPrompt, onSavePrompt }: Props) {
   const [promptOpen, setPromptOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
   const pct = maxTokens > 0 ? Math.min(100, Math.round((tokenCount / maxTokens) * 100)) : 0
   const tone = pct > 80 ? 'var(--c-red)' : pct > 50 ? 'var(--c-yellow)' : 'var(--c-green)'
   const hasExpert = Boolean(expertId && expertLabel)
+
+  const handleEdit = () => {
+    setDraft(systemPrompt ?? '')
+    setEditing(true)
+  }
+
+  const handleSave = () => {
+    onSavePrompt?.(draft)
+    setEditing(false)
+  }
+
+  const handleReset = () => {
+    setDraft(defaultPrompt ?? '')
+    onSavePrompt?.(defaultPrompt ?? '')
+    setEditing(false)
+  }
+
+  const handleCancel = () => {
+    setDraft('')
+    setEditing(false)
+  }
 
   if (tokenCount === 0 && !hasExpert) return null
 
@@ -56,12 +81,66 @@ export function ContextBar({ tokenCount, maxTokens, expertId, expertLabel, exper
 
       {promptOpen && systemPrompt && (
         <div style={{ ...card, padding: '8px 12px', maxWidth: 760, marginBottom: 4 }}>
-          <pre style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)',
-            whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.5,
-          }}>
-            {systemPrompt}
-          </pre>
+          {editing ? (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                rows={6}
+                style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink)',
+                  background: 'var(--surface-2)', border: '1px solid var(--line)',
+                  borderRadius: 6, padding: '8px 10px', resize: 'vertical',
+                  lineHeight: 1.5, width: '100%',
+                }}
+              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  style={miniBtnStyle}
+                >
+                  <Save size={10} /> save
+                </button>
+                {defaultPrompt && (
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    style={{ ...miniBtnStyle, color: 'var(--ink-2)' }}
+                  >
+                    <RotateCcw size={10} /> reset
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  style={{ ...miniBtnStyle, color: 'var(--ink-2)', opacity: 0.7 }}
+                >
+                  cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ position: 'relative' }}>
+              <pre style={{
+                fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)',
+                whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.5,
+              }}>
+                {systemPrompt}
+              </pre>
+              <button
+                type="button"
+                onClick={handleEdit}
+                title="Edit prompt"
+                style={{
+                  position: 'absolute', top: 0, right: 0,
+                  ...miniBtnStyle, padding: '2px 6px',
+                }}
+              >
+                <Edit2 size={10} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -96,4 +175,12 @@ const expertButtonStyle: CSSProperties = {
   padding: '3px 10px',
   cursor: 'pointer',
   color: 'var(--ink)',
+}
+
+const miniBtnStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
+  padding: '3px 8px', borderRadius: 4,
+  border: '1px solid var(--line)', background: 'var(--surface)',
+  color: 'var(--primary)', cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', gap: 4,
 }
