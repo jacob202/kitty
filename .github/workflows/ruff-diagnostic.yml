@@ -1,6 +1,7 @@
 name: Ruff diagnostic
 
 on:
+  pull_request:
   push:
     branches:
       - spike/foundation-replacement-clean-2026-07-27
