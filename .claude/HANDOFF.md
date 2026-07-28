@@ -1,70 +1,49 @@
-# Handoff — Builder requeue/recovery, Experts, Library/Projects split, Home tile fixes
+# Handoff — Chat context visibility, mobile nav, agent chat, prompt editing
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-07-28T19:30:00Z",
-  "head_sha": "d23d346517e1e5a3adf7a4e9657530123e7fca1c",
-  "base_sha": "0a2a04480ecd555168656de62dfa9a3cc971031f",
+  "updated_at": "2026-07-28T23:30:00Z",
+  "head_sha": "a7925ab17f5c4f8fc12c5f31b5820cc1c2c4d532",
   "branch": "jacob202/fix-description",
   "worktree": "amphipod",
   "status": "valid",
   "completed_items": [
-    "Builder: requeue + recover_stale actions in backend (2 new action files, builder_control.py updated)",
-    "Builder: staleness detection (10min threshold), per-packet requeue, bulk recover, confirmation dialog for cleanup",
-    "Builder: staleness indicators on packet cards, BuilderBrain stale section",
-    "Experts: Chat model extended with expertId/systemPrompt fields",
-    "Experts: handleNewExpertChat in KittyContext with auto-generated expert system prompts",
-    "Experts: ExpertStrip wired to create real expert-context chats (was dead no-op)",
-    "Library/Projects: ProjectsView.tsx created, ViewRenderer dispatches projects separately",
-    "Library/Projects: Rail/BottomNav swap builder → projects, LibraryView simplified to documents-only",
-    "Home tiles: ExpertStrip functional, ActiveProjects navigates to ProjectsView, Today todos clickable",
-    "Work/Builder: Builder removed from Rail, accessible from WorkView 'Open full Builder' link + command palette"
+    "Builder: requeue + recover_stale actions + staleness detection + controls (PR #289, merged)",
+    "Experts: Chat model extension, handleNewExpertChat, ExpertStrip wiring (PR #289, merged)",
+    "Library/Projects: ProjectsView, Rail/BottomNav swap, LibraryView simplified (PR #289, merged)",
+    "Home tiles: ExpertStrip functional, ActiveProjects target, Today clickable (PR #289, merged)",
+    "Chat context: ContextBar with token bar, expert prompt display/editing, save callback (PR #293)",
+    "ThinkingBlock: collapsible reasoning panel for deepseek-reasoner/claude thinking (PR #293)",
+    "Mobile nav: 5 core items + More menu with Journal/Tutor/Terminal (PR #293)",
+    "SettingsShell: placeholder sections replaced with honest content (PR #293)",
+    "AgentPanel: spawn opens chat, session rows get ▷ chat button (PR #293)",
+    "Cleanup: 32 merged branches, 13 stale worktrees, 11 stale docs removed (PR #289)",
+    "PR #291: Image Studio architecture — fixed link check, Test plan, onExpertClick type (merged)"
   ],
   "blockers": [],
-  "next_action": "Commit, push, verify CI on PR #289, then merge",
+  "next_action": "Verify PR #293 CI passes, merge. Then dogfood provider worktree.",
   "parallel_work": [
     {
       "kind": "pr",
-      "ref": "#288",
+      "ref": "#293",
       "owner": "jacob202",
-      "touches": [".env.example", "gateway", "kitty", "tests"],
-      "observed_at": "2026-07-28T19:30:00Z"
-    },
-    {
-      "kind": "pr",
-      "ref": "#290",
-      "owner": "jacob202",
-      "touches": ["README.md", "docs", "repomix.config.json", "scripts"],
-      "observed_at": "2026-07-28T19:30:00Z"
-    },
-    {
-      "kind": "pr",
-      "ref": "#291",
-      "owner": "jacob202",
-      "touches": ["docs"],
-      "observed_at": "2026-07-28T19:30:00Z"
-    },
-    {
-      "kind": "pr",
-      "ref": "#292",
-      "owner": "jacob202",
-      "touches": ["docs"],
-      "observed_at": "2026-07-28T19:30:00Z"
+      "touches": ["gateway"],
+      "observed_at": "2026-07-28T23:30:00Z"
     },
     {
       "kind": "worktree",
       "ref": "fix/dogfood-provider-chat-shell-2026-07-28",
       "owner": "jacob202",
       "touches": [".env.before-agentrouter", "config", "gateway/routes"],
-      "observed_at": "2026-07-28T19:30:00Z"
+      "observed_at": "2026-07-28T23:30:00Z"
     }
   ],
   "recommendations": [
     {
-      "id": "merge-pr-289",
-      "what": "Push the UI enhancement commits, verify CI passes on PR #289, and merge the sweep",
-      "why": "Builder recovery, experts, library/projects split, and home tile fixes need to land on main",
+      "id": "merge-pr-293",
+      "what": "Verify PR #293 CI passes and merge the 5-commit UI sweep",
+      "why": "Chat context, mobile nav, agent integration, prompt editing all need to land",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -73,9 +52,9 @@
       "first_deferred": null
     },
     {
-      "id": "chat-context-visibility",
-      "what": "Add system prompt preview and token window visualization to ChatView",
-      "why": "Chat is opaque — users can't see what context the model receives or how full the window is",
+      "id": "dogfood-provider-worktree",
+      "what": "Commit, push, and PR the uncommitted provider routes + config in fix/dogfood-provider-chat-shell",
+      "why": "Provider management routes and DeepSeek config are sitting uncommitted in the canonical checkout",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -84,9 +63,9 @@
       "first_deferred": null
     },
     {
-      "id": "review-doc-prs",
-      "what": "Review and close PRs #290-292 before they accumulate merge conflicts",
-      "why": "Three docs-only PRs open simultaneously — kitchen-sink risk if left unmerged",
+      "id": "studio-pipeline-e2e",
+      "what": "Start Ollama embedding service, test ImagePlan → generate → render pipeline end-to-end",
+      "why": "ImagePlan boundary is landed but Ollama/embeddings are down — Studio generates may be broken",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -95,52 +74,59 @@
       "first_deferred": null
     }
   ],
-  "invalidation_conditions": ["HEAD advances past d23d346", "PR #289 merges to main"],
+  "invalidation_conditions": ["HEAD advances past a7925ab", "PR #293 merges to main"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
-    "number": 289,
+    "number": 293,
     "state": "OPEN",
-    "head_sha": "224d7bd4533cd637d861a433499e0acd073fd66b"
+    "head_sha": "a7925ab17f5c4f8fc12c5f31b5820cc1c2c4d532"
   }
 }
 -->
 
 ## What was done
-- **Builder queue recovery:** Added `requeue` and `recover_stale` backend actions (`builder_control.py` + 2 new action files). Frontend staleness detection (10min threshold), per-packet requeue buttons, bulk recover scan, confirmation dialog for destructive cleanup, staleness dots on packet cards, stale section in BuilderBrain. `BuilderSurface.tsx` +198 lines.
-- **Experts functional:** Extended `Chat` model with `expertId`/`systemPrompt` fields (`types.ts`). Added `handleNewExpertChat` with auto-generated expert system prompts (`KittyContext.tsx`). Wired `ExpertStrip` in `HomeState.tsx` to create real expert-context chats instead of the previous dead no-op. Wired through `HomeView.tsx` and `page.tsx`.
-- **Library/Projects split:** Created `ProjectsView.tsx`. Updated `ViewRenderer.tsx` to dispatch `projects` separately. Simplified `LibraryView.tsx` to documents-only. Swapped "builder" → "projects" in `Rail.tsx` and `BottomNav.tsx`. Added Projects to `CommandPalette.tsx`. Added "Open full Builder" link to `WorkView.tsx`.
-- **Home tile fixes:** `ExpertStrip` now creates expert chats. `ActiveProjects` navigates to dedicated ProjectsView. `TodayPanel` todos are now clickable buttons that navigate to Work view.
+- **Chat context visibility:** ContextBar (token usage bar with color-coded thresholds, expert label with collapsible system prompt). ThinkingBlock (collapsible reasoning panel in ChatMessage). Message.reasoning_content field.
+- **Prompt editing:** Edit/save/reset buttons in ContextBar with inline textarea. handleSaveSystemPrompt in KittyContext for persistence.
+- **Mobile nav consolidation:** Reduced BottomNav from 7 tabs to 5 core (Home, Chat, Work, Projects, Studio) + More menu with Library, Journal, Tutor, Terminal, Settings.
+- **AgentPanel chat integration:** Spawn opens a chat with agent type + goal as context. Each session row gets a ▷ chat button.
+- **SettingsShell cleanup:** Replaced "available but unrouted" placeholder with honest discovery text. Replaced roadmap placeholder with architecture info.
+- **PR #291 fix:** Fixed broken OpenAI link (403 in CI), added Test plan, cherry-picked weather test fix, pushed onExpertClick type fix to main.
 
 ## In-flight / WIP
-- None — all items completed for this session
+- PR #293 CI running — awaiting results
+- 1 dirty file: `gateway/kitty-chat/package-lock.json` (pre-existing from earlier sessions)
 
 ## Other work in flight (not mine)
-- **PR #288 (draft):** `fix/runtime-truth-agentrouter-2026-07-28` by jacob202 — runtime lifecycle, provider, tool state truthfulness
-- **PRs #290-292:** docs-only PRs (readme refresh, image studio architecture, builder boundary docs)
-- **Worktree `fix/dogfood-provider-chat-shell-2026-07-28`:** uncommitted provider work
-- **Builder queue:** UNAVAILABLE — DB file not accessible from this worktree
+- **Worktree `fix/dogfood-provider-chat-shell-2026-07-28`:** uncommitted provider routes, config, docs
 
 ## Blockers
 - None
 
 ## Next move
-Commit, push, verify CI on PR #289, then merge
+Verify PR #293 CI passes, merge. Then work on dogfood provider worktree or Studio pipeline testing.
 
 ## Files changed this session
 - `gateway/routes/builder_control.py` — added requeue + recover_stale actions
-- `gateway/actions/builder_requeue_packet.py` (new) — CLI-backed packet requeue
-- `gateway/actions/builder_recover_stale.py` (new) — CLI-backed stale recovery
-- `gateway/kitty-chat/src/components/BuilderSurface.tsx` — staleness detection, requeue buttons, confirmation dialog, indicators
-- `gateway/kitty-chat/src/lib/types.ts` — Chat.expertId + Chat.systemPrompt
-- `gateway/kitty-chat/src/state/KittyContext.tsx` — handleNewExpertChat + buildExpertSystemPrompt
-- `gateway/kitty-chat/src/components/HomeState.tsx` — ExpertStrip wiring, TodayPanel clickable todos
-- `gateway/kitty-chat/src/components/HomeView.tsx` — onExpertClick prop passthrough
-- `gateway/kitty-chat/src/app/page.tsx` — onExpertClick wired to handleNewExpertChat
-- `gateway/kitty-chat/src/components/ProjectsView.tsx` (new) — standalone projects view
-- `gateway/kitty-chat/src/components/ViewRenderer.tsx` — projects dispatch, ProjectsView import
-- `gateway/kitty-chat/src/components/LibraryView.tsx` — simplified to documents-only
-- `gateway/kitty-chat/src/components/Rail.tsx` — builder → projects swap
-- `gateway/kitty-chat/src/components/BottomNav.tsx` — builder → projects swap
+- `gateway/actions/builder_requeue_packet.py` (new)
+- `gateway/actions/builder_recover_stale.py` (new)
+- `gateway/kitty-chat/src/components/BuilderSurface.tsx` — staleness, requeue, controls
+- `gateway/kitty-chat/src/components/ContextBar.tsx` (new) — token bar, expert prompts, editing
+- `gateway/kitty-chat/src/components/ChatMessage.tsx` — ThinkingBlock
+- `gateway/kitty-chat/src/components/AgentPanel.tsx` — useKitty, chat integration
+- `gateway/kitty-chat/src/components/HomeState.tsx` — ExpertStrip wiring, Today clickable
+- `gateway/kitty-chat/src/components/HomeView.tsx` — onExpertClick passthrough
+- `gateway/kitty-chat/src/components/ProjectsView.tsx` (new)
+- `gateway/kitty-chat/src/components/LibraryView.tsx` — simplified
+- `gateway/kitty-chat/src/components/ViewRenderer.tsx` — projects dispatch, onExpertClick type
+- `gateway/kitty-chat/src/components/Rail.tsx` — builder→projects
+- `gateway/kitty-chat/src/components/BottomNav.tsx` — 5+More
 - `gateway/kitty-chat/src/components/CommandPalette.tsx` — projects added
-- `gateway/kitty-chat/src/components/WorkView.tsx` — "Open full Builder" link
-- `docs/plans/kitty-ui-enhancement-plan.html` (new) — comprehensive execution plan
+- `gateway/kitty-chat/src/components/WorkView.tsx` — Open full Builder link
+- `gateway/kitty-chat/src/components/SettingsShell.tsx` — placeholder cleanup
+- `gateway/kitty-chat/src/lib/types.ts` — Chat.expertId/systemPrompt, Message.reasoning_content
+- `gateway/kitty-chat/src/state/KittyContext.tsx` — handleNewExpertChat, handleSaveSystemPrompt
+- `gateway/kitty-chat/src/app/page.tsx` — ContextBar, onExpertClick, onSavePrompt wiring
+
+## Verification
+- Backend imports pass: `builder_control.py`, 2 new action files
+- All file connections verified via grep (ExpertStrip→page.tsx→KittyContext, ViewRenderer dispatch, Rail NAV_ITEMS, TodayPanel no orphan div, BuilderSurface stale functions, Chat model fields)

@@ -1,65 +1,49 @@
-# Session State — Builder requeue/recovery, Experts, Library/Projects split, Home tile fixes
+# Session State — Chat context, mobile nav, agent chat, prompt editing
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-07-28T17:40:00Z",
-  "head_sha": "448d505b1ebcd3f935cae5ff526707b8864b9772",
+  "updated_at": "2026-07-28T23:30:00Z",
+  "head_sha": "a7925ab17f5c4f8fc12c5f31b5820cc1c2c4d532",
   "branch": "jacob202/fix-description",
   "worktree": "amphipod",
   "status": "in_progress",
   "completed_items": [
-    "Builder: requeue + recover_stale backend actions (2 new action files, builder_control.py updated)",
-    "Builder: staleness detection (10min), per-packet requeue, bulk recover, confirmation dialog, staleness indicators on cards and BuilderBrain",
-    "Experts: Chat.expertId/systemPrompt fields, handleNewExpertChat with auto-generated prompts, ExpertStrip wired to create real expert chats",
-    "Library/Projects: ProjectsView.tsx, ViewRenderer dispatch, Rail/BottomNav swap builder→projects, LibraryView simplified",
-    "Home tiles: ExpertStrip functional, ActiveProjects targets ProjectsView, Today todos clickable",
-    "Work/Builder: Builder removed from Rail, accessible from WorkView + command palette"
+    "Builder: requeue + recover_stale backend actions, staleness detection, controls (PR #289 merged)",
+    "Experts: Chat model extension, handleNewExpertChat, ExpertStrip wiring (PR #289 merged)",
+    "Library/Projects: ProjectsView, Rail/BottomNav swap, LibraryView simplified (PR #289 merged)",
+    "Home tiles: ExpertStrip, ActiveProjects, Today all functional (PR #289 merged)",
+    "Chat context: ContextBar with token bar, expert prompt display/editing, save callback (PR #293)",
+    "ThinkingBlock: collapsible reasoning panel for deepseek-reasoner/claude (PR #293)",
+    "Mobile nav: 5 core + More menu with Journal/Tutor/Terminal (PR #293)",
+    "SettingsShell: placeholder replacement (PR #293)",
+    "AgentPanel: spawn opens chat, session rows get chat button (PR #293)",
+    "Repo cleanup: 32 branches, 13 worktrees, 11 docs pruned (PR #289)",
+    "PR #291: link fix, Test plan, weather test cherry-pick, onExpertClick main fix"
   ],
   "blockers": [],
-  "next_action": "Commit, push, verify CI, merge PR #289",
+  "next_action": "Verify PR #293 CI passes, merge",
   "parallel_work": [
     {
       "kind": "pr",
-      "ref": "#288",
+      "ref": "#293",
       "owner": "jacob202",
-      "touches": [".env.example", "gateway", "kitty", "tests"],
-      "observed_at": "2026-07-28T19:30:00Z"
-    },
-    {
-      "kind": "pr",
-      "ref": "#290",
-      "owner": "jacob202",
-      "touches": ["README.md", "docs", "repomix.config.json", "scripts"],
-      "observed_at": "2026-07-28T19:30:00Z"
-    },
-    {
-      "kind": "pr",
-      "ref": "#291",
-      "owner": "jacob202",
-      "touches": ["docs"],
-      "observed_at": "2026-07-28T19:30:00Z"
-    },
-    {
-      "kind": "pr",
-      "ref": "#292",
-      "owner": "jacob202",
-      "touches": ["docs"],
-      "observed_at": "2026-07-28T19:30:00Z"
+      "touches": ["gateway"],
+      "observed_at": "2026-07-28T23:30:00Z"
     },
     {
       "kind": "worktree",
       "ref": "fix/dogfood-provider-chat-shell-2026-07-28",
       "owner": "jacob202",
       "touches": [".env.before-agentrouter", "config", "gateway/routes"],
-      "observed_at": "2026-07-28T19:30:00Z"
+      "observed_at": "2026-07-28T23:30:00Z"
     }
   ],
   "recommendations": [
     {
-      "id": "merge-pr-289",
-      "what": "Push the UI enhancement commits, verify CI passes on PR #289",
-      "why": "Builder recovery, experts, library/projects split, and home tile fixes need to land on main",
+      "id": "merge-pr-293",
+      "what": "Verify PR #293 CI passes and merge the 5-commit UI sweep",
+      "why": "Chat context, mobile nav, agent integration, prompt editing all need to land on main",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -68,9 +52,9 @@
       "first_deferred": null
     },
     {
-      "id": "chat-context-visibility",
-      "what": "Add system prompt preview and token window visualization to ChatView",
-      "why": "Chat is opaque — users can't see what context the model receives or how full the window is",
+      "id": "dogfood-provider-worktree",
+      "what": "Commit, push, and PR the uncommitted provider routes + config",
+      "why": "Provider management routes and DeepSeek config are sitting uncommitted",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -79,9 +63,9 @@
       "first_deferred": null
     },
     {
-      "id": "review-doc-prs",
-      "what": "Review and close PRs #290-292 before they accumulate merge conflicts",
-      "why": "Three docs-only PRs open simultaneously — kitchen-sink risk if left unmerged",
+      "id": "studio-pipeline-e2e",
+      "what": "Start Ollama, test ImagePlan→generate→render pipeline end-to-end",
+      "why": "ImagePlan boundary landed but Ollama/embeddings down — generates may be broken",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -90,20 +74,21 @@
       "first_deferred": null
     }
   ],
-  "invalidation_conditions": ["HEAD changes beyond d23d346"],
+  "invalidation_conditions": ["HEAD changes beyond a7925ab"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
-    "number": 289,
+    "number": 293,
     "state": "OPEN",
-    "head_sha": "224d7bd4533cd637d861a433499e0acd073fd66b"
+    "head_sha": "a7925ab17f5c4f8fc12c5f31b5820cc1c2c4d532"
   }
 }
 -->
 
 ## Current checkpoint
-`jacob202/fix-description` at `d23d346`. 17 files modified/created covering Builder queue recovery, expert chat creation, library/projects separation, and home tile clickability. 1 dirty file: `gateway/kitty-chat/package-lock.json`.
+`jacob202/fix-description` at `a7925ab`. 5 commits ahead of main in PR #293 covering chat context visibility, mobile nav consolidation, settings cleanup, agent chat integration, and prompt editing. PRs #289 and #291 merged to main. 1 dirty file: `gateway/kitty-chat/package-lock.json`.
 
 ## Lessons applied
-- CLI-to-UI gap pattern: backend recovery logic existed in `builder_queue_leases.py`/`builder_queue_runs.py` with full CLI support but no web API surface. Fix was 2 action handlers + ~198 lines of frontend.
-- ExpertStrip was a dead no-op: `onClick={() => onNavigate('chat')}` created no expert chat. Fix required extending the Chat model, adding context-aware chat creation, and wiring through 4 component layers.
-- Rail/BottomNav must match ViewRenderer dispatch — swapping "builder" for "projects" required updates in 6 files (Rail, BottomNav, ViewRenderer, CommandPalette, WorkView, and the new ProjectsView).
+- ExpertStrip was a dead no-op — clicking navigated to chat but created no expert context. Fix required 4-layer wiring: types → context → component → page.
+- Mobile nav had 7 tabs on 320px — reduced to 5 core + More popover. Journal/Tutor/Terminal were hidden, now discoverable.
+- AgentPanel agents had no chat integration — spawning an agent now creates a chat via handleNewExpertChat.
+- SettingsShell had 2 placeholder sections admitting features were "unrouted" — replaced with honest, actionable discovery text.
