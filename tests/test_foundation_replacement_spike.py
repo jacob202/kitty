@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from subprocess import run
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SPIKE = ROOT / "spikes" / "foundation-replacement"
 
