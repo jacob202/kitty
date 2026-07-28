@@ -84,11 +84,14 @@ export function BuilderGlance({ onOpen }: BuilderGlanceProps) {
   }
 
   if (!snapshot || total === 0) {
+    const isUnavailable = fact?.state === 'unavailable' || fact?.state === 'unknown'
     return (
       <section style={{ ...card, display: 'grid', gap: 12 }} aria-label="Builder status glance">
         <div style={cardHeader}><div style={cardTitle}>builder</div></div>
         <p style={{ ...bodyText, margin: 0 }}>
-          nothing queued — ready when you are
+          {isUnavailable
+            ? 'Builder state is not available from the runtime manifest.'
+            : 'nothing queued — ready when you are'}
         </p>
         <div>
           <button type="button" onClick={onOpen} style={actionButton} aria-label="open builder">
@@ -204,11 +207,6 @@ export function BuilderSurface({ fact, isLoading, error, onBack }: BuilderSurfac
             allPacketsButtonRef={allPacketsButtonRef}
           />
           <BuilderInitiativeCards snapshot={snapshot} />
-          <BuilderControls
-            snapshot={snapshot}
-            selection={selection}
-            onRefresh={() => document.location.reload()}
-          />
           <BuilderOverview
             snapshot={snapshot}
             onSelectPacket={setSelection}
@@ -273,7 +271,7 @@ function SurfaceHeader({ onBack, observedAt }: { onBack?: () => void; observedAt
           Builder
         </h1>
         <p style={{ ...bodyText, margin: '4px 0 0' }}>
-          Read-only execution status from durable Builder records.
+          Execution status from durable Builder records. This surface is read-only.
         </p>
         {observedAt && (
           <p style={{ ...cardMeta, margin: '4px 0 0' }}>

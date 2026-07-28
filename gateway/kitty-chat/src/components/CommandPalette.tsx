@@ -10,6 +10,8 @@ interface Props {
   onSelectChat: (id: string) => void
   onViewChange: (view: string) => void
   onToggleSidebar: () => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 const VIEW_COMMANDS: Array<{ id: string; label: string; icon: LucideIcon }> = [
@@ -28,8 +30,12 @@ export function CommandPalette({
   onSelectChat,
   onViewChange,
   onToggleSidebar,
+  open: externalOpen,
+  onOpenChange,
 }: Props) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = externalOpen ?? internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
