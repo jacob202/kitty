@@ -76,6 +76,35 @@ jobs:
           if script.count(old) != 1:
               raise SystemExit(f'runner patch expected one status block, found {script.count(old)}')
           script = script.replace(old, new, 1)
+
+          tool_start_marker = "text = replace_once(\n    text,\n    '''                {message.toolCalls"
+          tool_end_marker = "text = replace_once(\n    text,\n    '''function Attribution"
+          tool_start = script.index(tool_start_marker)
+          tool_end = script.index(tool_end_marker, tool_start)
+          tool_patch = '\n'.join([
+              "tool_pattern = re.compile(",
+              "    r'(?P<indent>^[ \\t]*)\\{message\\.toolCalls && message\\.toolCalls\\.length > 0 && \\($'",
+              "    r'\\n^[ \\t]*<ToolCallList toolCalls=\\{message\\.toolCalls\\} isStreaming=\\{isStreaming\\} />$'",
+              "    r'\\n^[ \\t]*\\)\\}$',",
+              "    re.MULTILINE,",
+              ")",
+              "",
+              "def replace_tool_call_display(match: re.Match[str]) -> str:",
+              "    indent = match.group('indent')",
+              "    return '\\n'.join([",
+              "        f'{indent}{{message.toolCalls && message.toolCalls.length > 0 && (',",
+              "        f'{indent}  <div role=\"status\" style={{{{ marginTop: 8, fontSize: 11, color: \'var(--ink-2)\' }}}}>',",
+              "        f'{indent}    Tool request detected — not executed by this chat runtime.',",
+              "        f'{indent}  </div>',",
+              "        f'{indent})}}',",
+              "    ])",
+              "",
+              "text, count = tool_pattern.subn(replace_tool_call_display, text, count=1)",
+              "if count != 1:",
+              "    raise SystemExit(f'honest tool display: expected one match, found {count}')",
+              "",
+          ])
+          script = script[:tool_start] + tool_patch + script[tool_end:]
           Path('/tmp/runtime_truth_repair.py').write_text(script)
           PY
           python /tmp/runtime_truth_repair.py > /tmp/runtime-truth-repair.log 2>&1
