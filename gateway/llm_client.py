@@ -257,6 +257,11 @@ class ProviderConfig:
     # A local server has no key to check. Without this the generic dispatch
     # treats "no key" as "not configured" and skips it.
     requires_key: bool = True
+    # How the user pays for this provider. Drives the Settings UI badge.
+    kind: str = "api_credit"  # "local" | "api_credit" | "subscription"
+    # Whether the provider has a usable free tier (e.g. OpenRouter free models,
+    # Gemini flash, local MLX). Shown as a safety-net badge in Settings.
+    free_tier: bool = False
     # Optional overrides for providers whose key/model resolution needs special
     # handling (e.g. AgentRouter's multi-line .env guard). When None, the
     # generic resolver is used.
@@ -307,6 +312,8 @@ PROVIDERS: dict[str, ProviderConfig] = {
         model_default="mlx-community/Qwen3.5-4B-4bit",
         model_env="MLX_MODEL",
         requires_key=False,
+        kind="local",
+        free_tier=True,
     ),
     "openai": ProviderConfig(
         name="openai",
@@ -315,6 +322,7 @@ PROVIDERS: dict[str, ProviderConfig] = {
         api_key_env=("OPENAI_API_KEY",),
         model_default="gpt-4o-mini",
         model_env="KITTY_OPENAI_FALLBACK_MODEL",
+        kind="subscription",
     ),
     "nvidia": ProviderConfig(
         name="nvidia",
@@ -323,6 +331,8 @@ PROVIDERS: dict[str, ProviderConfig] = {
         api_key_env=("NVIDIA_API_KEY",),
         model_default="deepseek-ai/deepseek-v4-pro",
         model_env="NVIDIA_CHAT_MODEL",
+        kind="api_credit",
+        free_tier=True,
     ),
     "agentrouter": ProviderConfig(
         name="agentrouter",
@@ -332,6 +342,7 @@ PROVIDERS: dict[str, ProviderConfig] = {
         ),
         api_key_env=("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY"),
         model_default="gpt-5.5",
+        kind="api_credit",
         # Standard OpenAI-compatible Bearer authentication. AGENT_ROUTER_TOKEN
         # is canonical; AGENTROUTER_API_KEY remains a legacy Kitty alias.
         key_resolver=resolve_agentrouter_api_key,
@@ -343,6 +354,8 @@ PROVIDERS: dict[str, ProviderConfig] = {
         base_url=OPENROUTER_BASE,
         api_key_env=("OPENROUTER_API_KEY",),
         model_default="",
+        kind="api_credit",
+        free_tier=True,
         model_resolver=lambda request_model: _openrouter_fallback_model(
             request_model or _LITELLM_DEFAULT
         ),
@@ -358,6 +371,8 @@ PROVIDERS: dict[str, ProviderConfig] = {
         api_key_env=("GEMINI_API_KEY",),
         model_default="gemini-2.5-flash-image",
         model_env="KITTY_GEMINI_MODEL",
+        kind="api_credit",
+        free_tier=True,
     ),
 }
 

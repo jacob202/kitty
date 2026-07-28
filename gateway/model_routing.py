@@ -164,17 +164,29 @@ def describe_providers() -> dict[str, Any]:
                 "disabled": name in disabled,
                 "position": order.index(name) if name in order else None,
                 "active": active == name,
+                "kind": config.kind,
+                "free_tier": config.free_tier,
             }
         )
 
     providers.sort(key=lambda p: (p["position"] is None, p["position"] or 0, p["name"]))
 
     usable = [p["name"] for p in providers if p["configured"] and not p["disabled"]]
+    free_backups = [
+        p["name"] for p in providers if p.get("free_tier") and not p["disabled"]
+    ]
     warnings: list[str] = []
     if not usable:
-        warnings.append(
-            "no provider is both configured and enabled — every LLM call will fail"
-        )
+        if free_backups:
+            warnings.append(
+                "no provider is configured — "
+                f"enable a free tier ({', '.join(free_backups)}) to stay online "
+                "with zero cost"
+            )
+        else:
+            warnings.append(
+                "no provider is both configured and enabled — every LLM call will fail"
+            )
     elif usable[:1] != order[:1]:
         warnings.append(
             f"first choice '{order[0]}' has no key, so calls actually start at '{usable[0]}'"
