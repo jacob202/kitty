@@ -1,3 +1,31 @@
+<!-- kitty-handoff
+{
+  "schema_version": 1,
+  "updated_at": "2026-07-27T00:00:00-06:00",
+  "head_sha": "78571d2b9e7eace0297a591eecb388b82539b6d9",
+  "branch": "main",
+  "worktree": ".",
+  "status": "invalid",
+  "completed_items": [
+    "#158 SSRF + path traversal fixed and committed (5490900)",
+    "#160 memory persistence fixed and committed (9d6b841)",
+    "Committed scripts/session_end_survey.sh (78571d2)"
+  ],
+  "blockers": [
+    "#158 UI 0.0.0.0/tailnet exposure + proxy gateway-secret need Jacob/Codex sign-off"
+  ],
+  "next_action": "none",
+  "invalidation_conditions": [
+    "HEAD changes outside a checkpoint commit",
+    "branch or worktree changes",
+    "active mission changes",
+    "pull request state changes"
+  ],
+  "active_mission": "docs/ACTIVE_MISSION.md",
+  "pull_request": null
+}
+-->
+
 # HANDOFF
 
 ## What was done this session (2026-07-27)
