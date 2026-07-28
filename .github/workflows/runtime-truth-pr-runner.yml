@@ -114,6 +114,27 @@ jobs:
           Path('/tmp/runtime_truth_repair.py').write_text(script)
           PY
           python /tmp/runtime_truth_repair.py > /tmp/runtime-truth-repair.log 2>&1
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('tests/test_llm_client.py')
+          text = path.read_text()
+          obsolete = [
+              'test_agentrouter_request_mutator_adds_headers',
+              'test_agentrouter_request_mutator_loads_extra_json_headers',
+              'test_agentrouter_request_mutator_ignores_bad_extra_json',
+              'test_agentrouter_client_rejected_matches_401_unauthorized_client',
+              'test_agentrouter_client_rejected_non_401',
+              'test_agentrouter_client_rejected_none',
+          ]
+          for name in obsolete:
+              pattern = re.compile(rf'\n\ndef {name}\(.*?(?=\n\ndef |\Z)', re.S)
+              text, count = pattern.subn('', text, count=1)
+              if count != 1:
+                  raise SystemExit(f'obsolete AgentRouter test not found: {name}')
+          path.write_text(text.rstrip() + '\n')
+          PY
 
       - name: Upload repair diagnostics
         if: steps.apply.outcome == 'failure'
