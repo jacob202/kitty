@@ -1,150 +1,129 @@
-# Kitty
 # Kitty 🐾
 
-Jacob's provider-independent personal AI operating layer. Kitty keeps its own context, memory, projects, permissions, and tools while routing work across interchangeable local and cloud models. The current priority is restoring **daily-use reliability**: the backend capabilities are ahead of the product shell.
+Kitty is Jacob's provider-independent personal AI operating layer. It keeps its own context, memory, projects, permissions, tools, and delivery machinery while routing work across interchangeable local and cloud models.
 
-> **Status:** substantial backend capabilities, inconsistent daily-use product · Python 3.12 + Next.js · personal project, not packaged for public use. See [`docs/FEATURE_REALITY_2026-07-28.md`](docs/FEATURE_REALITY_2026-07-28.md) for what works, what is partial, and what is only planned.
+> **Current state:** substantial working backend and delivery infrastructure; daily-use reliability and product coherence are still being hardened. Kitty is a personal project, not yet packaged for public use.
 >
-> **Coming back cold?** Read [`START_HERE.md`](START_HERE.md) first — it's the front door for agents and future-Jacob. This README is the map; `START_HERE.md` → `docs/PROJECT_STATUS.md` → `docs/ARCHITECTURE.md` is the deep path.
+> **Start here:** [`START_HERE.md`](START_HERE.md) is the cold-start entrypoint. For the verified product surface, read [`docs/FEATURE_REALITY_2026-07-28.md`](docs/FEATURE_REALITY_2026-07-28.md). For current repository truth, use [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md).
 
----
+## What Kitty is becoming
 
-## Architecture at a glance
+Kitty is designed around a practical problem: capability is not useful when continuity fails. The system is meant to preserve context, reduce the cost of beginning, make unfinished work resumable, automate repetitive verification, and keep AI assistance grounded in evidence rather than confident narrative.
 
-Kitty runs as three local processes. **The gateway is the product; every client is a thin view over its API.**
+The gateway is the product. Clients are thin views over its API.
 
-| Process | Address (default) | Job |
-|---|---|---|
-| **Gateway** | `127.0.0.1:8000` | FastAPI — API, memory, tools, chat, capture |
-| **LiteLLM** | `127.0.0.1:8001` | Model proxy + routing/fallback |
-| **kitty-chat** | `127.0.0.1:4000` (dev) | Next.js UI |
-
-**Request flow:**
 ```text
 Browser / Raycast / Telegram / Siri / iMessage
-  → gateway routes (gateway/routes/)
-  → context_builder
-  → memory_graph + live enrichment
-  → llm_client
-  → LiteLLM + provider fallback chain
+  → FastAPI gateway
+  → context + memory graph + live enrichment
+  → model routing and provider fallback
+  → tools, storage, and durable Builder execution
 ```
 
-Rule that keeps it clean: **new context reads go through `memory_graph`; no product logic in clients; surface failures loudly, never silently recover.**
+## Runtime
 
----
+| Process | Default address | Responsibility |
+|---|---|---|
+| Gateway | `127.0.0.1:8000` | API, chat, memory, tools, capture, Builder surfaces |
+| LiteLLM | `127.0.0.1:8001` | model proxy, routing, and fallback |
+| kitty-chat | `127.0.0.1:4000` | Next.js interface |
 
-## Repo layout
+New context reads should go through `gateway/memory_graph.py`. Product logic belongs in the gateway, not in clients. Failures must be surfaced truthfully rather than hidden by silent fallback.
+
+## Repository map
 
 ```text
 kitty
-├── kitty                 # ./kitty launcher — up/down/status/doctor/logs/backup/install
-├── gateway/              # THE PRODUCT — FastAPI app, routes, memory, tools, voice, UI
-│   ├── app.py            #   FastAPI setup, middleware, lifespan
-│   ├── context_builder.py#   prompt/context assembly
-│   ├── memory_graph.py   #   unified read path across memory stores
-│   ├── llm_client.py     #   model routing + provider fallback
-│   ├── desktop_store.py  #   Quick Capture inbox
-│   ├── honcho.py / memory.py / memory_consolidation.py
-│   ├── voice_*.py, stt.py, tts.py   # voice pipeline
-│   └── kitty-chat/       #   Next.js UI
-├── soul/                 # identity — kitty.md + specialists/ (analyst, coder, companion, creative, researcher)
-├── contracts/            # interface contracts/schemas between layers
-├── mcp/imagen/           # image-generation MCP (Gemini, Imagen, DALL-E, ComfyUI, Draw Things)
-├── docs/                 # canonical design docs (start with PROJECT_STATUS + ARCHITECTURE)
-├── scripts/ · tests/ · config/ · data/ · logs/ · prompts/
-├── AGENTS.md · CLAUDE.md · CODEX.md     # per-agent instructions
-└── START_HERE.md · TASKS.md · TODOS_NEXT.md
+├── kitty/ or ./kitty       # launcher and operator CLI
+├── gateway/                # FastAPI product backend and durable execution
+│   └── kitty-chat/         # Next.js interface
+├── soul/ and config/       # identity, persona, and behavior
+├── contracts/              # schemas and boundaries between layers
+├── mcp/                    # MCP integrations, including image generation
+├── docs/                   # canonical docs, plans, evidence, and archive
+├── scripts/                # operator, validation, and maintenance tooling
+├── tests/                  # Python and product acceptance coverage
+├── data/ and logs/         # local runtime state; not documentation authority
+├── AGENTS.md               # shared agent operating contract
+└── START_HERE.md           # canonical cold-start route
 ```
 
----
+A more detailed, upload-friendly map lives in [`docs/CODEBASE_MAP.md`](docs/CODEBASE_MAP.md). The docs index is [`docs/README.md`](docs/README.md).
 
 ## Quick start
 
 ```bash
-# 1. Python env (3.12)
 python3.12 -m venv venv
 venv/bin/pip install -r requirements.txt
-
-# 2. Config — copy and fill in keys locally (never commit .env)
 cp .env.example .env
 
-# 3. Bring up gateway + LiteLLM
 ./kitty up
-
-# 4. Verify
 ./kitty status
-./kitty doctor --json     # expect 9 PASS / 1 WARN (telegram token) / 0 FAIL
+./kitty doctor --json
 
-# 5. UI (separate terminal)
-cd gateway/kitty-chat && npm install && npm run dev   # → 127.0.0.1:4000
+cd gateway/kitty-chat
+npm install
+npm run dev
 ```
 
-`./kitty down` stops everything. `./kitty install` registers launchd plists so the stack auto-starts on reboot. Ports are overridable in `.env` via `GATEWAY_PORT` / `LITELLM_PORT`.
+`./kitty down` stops the stack. `./kitty install` registers launchd services. Ports can be overridden with `GATEWAY_PORT` and `LITELLM_PORT`.
 
-**Optional:** local Ollama on `:11434` enables embeddings. Without it, `memory_graph` falls back to no-embeddings and the morning brief still works (it uses RSS).
-
----
-
-## Everyday commands
+## Everyday verification
 
 ```bash
 git status --short --branch
+./kitty context --agent
 ./kitty status
 ./kitty doctor --json
 python3.12 -m pytest tests/ -q --tb=short
 cd gateway/kitty-chat && npm test && npm run build
-make agent-wrap                       # write a session wrap-up log
 ```
 
----
+## Storage
 
-## Memory & storage
+Kitty deliberately uses multiple stores behind explicit boundaries:
 
-Storage is deliberately mixed, with `memory_graph` as the unified read path:
+- SQLite for application and Builder state;
+- JSONL for append-oriented records and traces;
+- ChromaDB and mem0 for semantic/reference memory;
+- JSON for small configuration and state;
+- filesystem artifacts for logs, evidence, and generated outputs.
 
-- **JSONL** — inbox, journal, logs, feedback, traces
-- **SQLite** (`data/kitty/kitty.db`) — todos, cron, model digest, task/build state, corrections
-- **ChromaDB** — reference-knowledge vectors
-- **mem0** — semantic/personal memory
-- **JSON** — config + small state
-
-Phase B consolidated app-owned episodic state behind one SQLite story via a thin write-side `storage_router`. ChromaDB, mem0, imported knowledge, logs, and backups were intentionally **not** migrated.
-
----
+`memory_graph` is the unified read path for product memory. Runtime state under `data/` is local evidence, not prose documentation.
 
 ## Model routing
 
-`llm_client` supports LiteLLM plus direct local, OpenAI, NVIDIA, AgentRouter, OpenRouter, and Gemini providers. In **Settings → Providers**, choose `auto` for Kitty routing/fallbacks or force one configured provider for normal chat. Unset providers are skipped; an explicitly selected but unavailable provider fails loudly instead of silently spending somewhere else.
-
----
+Kitty supports LiteLLM plus configured direct providers. Normal chat can use automatic routing/fallback or an explicitly selected provider. Unconfigured providers are skipped; an explicitly selected unavailable provider should fail loudly rather than silently spend elsewhere.
 
 ## Working with agents
 
-This is vibe-coded across a rotating toolchain, so the instruction files are the contract — point any agent at them first:
+Read these first:
 
-- **`AGENTS.md`** — shared agent rules
-- **`CLAUDE.md`** — Claude Code
-- **`CODEX.md`** — Codex
-- **`START_HERE.md`** — orientation + read-order for everything else
+1. [`START_HERE.md`](START_HERE.md)
+2. [`docs/AUTHORITY_MAP.md`](docs/AUTHORITY_MAP.md)
+3. [`AGENTS.md`](AGENTS.md)
+4. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+5. [`docs/ROADMAP.md`](docs/ROADMAP.md)
+6. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
+7. [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md)
 
-`soul/kitty.md` is the identity core; `soul/specialists/` holds the per-role personas (analyst, coder, companion, creative, researcher).
+`CLAUDE.md` and `CODEX.md` add tool-specific instructions. `.claude/STATE.md` and `.claude/HANDOFF.md` are continuation aids only while their recorded Git identity remains valid.
 
----
+## Documentation rules
 
-## Where to go next (docs map)
+- `docs/ROADMAP.md` is the only active delivery sequence.
+- `docs/PROJECT_STATUS.md` summarizes verified shipped state at a stated commit.
+- `docs/ACTIVE_MISSION.md` contains the one approved current mission.
+- `docs/plans/` contains inputs and candidate work, not automatic authority.
+- `docs/archive/` contains superseded material and must not be treated as current instructions.
+- Git, GitHub, supported runtime probes, and accepted ADRs override stale prose.
 
-| Doc | What it's for |
-|---|---|
-| `docs/PROJECT_STATUS.md` | Current branch, what's shipped, dirty work, verification |
-| `docs/ARCHITECTURE.md` | Canonical runnable stack (the source for this section) |
-| `docs/DECISIONS.md` | Settled decisions |
-| `docs/LEARNINGS.md` | Hard lessons + guardrails |
-| `docs/AGENT_HANDOFF.md` | Latest continuation package |
+## Repository context bundle
 
----
+Run:
 
-## Known rough edges
+```bash
+./scripts/generate_repo_context.sh
+```
 
-- `docs/` has sprawl (40+ files, some marked stale). `HANDOFF.md` / `SESSION_HANDOFF.md` at root are **stale** — use `docs/AGENT_HANDOFF.md`.
-- `pyproject.toml` pins mypy to `python_version = "3.11"` while everything runtime-side uses `python3.12`. Reconcile when convenient.
-- `LITELLM_MASTER_KEY` defaults to `kitty-local-key-change-me` — fine for localhost, change it if Kitty ever binds beyond loopback.
+This produces an AI-uploadable Repomix bundle in `artifacts/repo-context/` using the checked-in `repomix.config.json`. Generated bundles are intentionally not committed.
