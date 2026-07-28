@@ -64,7 +64,8 @@ def _resolve_and_validate_host(host: str) -> list[str]:
         infos = socket.getaddrinfo(host, None)
     except socket.gaierror as exc:
         raise HTTPException(status_code=400, detail=f"could not resolve host: {exc}")
-    ips = {info[4][0] for info in infos}
+    # typeshed types the sockaddr tuple as a union; element 0 is always the address.
+    ips = {str(info[4][0]) for info in infos}
     for ip in ips:
         if _is_private_ip(ip):
             raise HTTPException(

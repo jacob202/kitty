@@ -254,6 +254,9 @@ class ProviderConfig:
     model_default: str = ""
     model_env: str | None = None
     static_headers: dict[str, str] = field(default_factory=dict)
+    # A local server has no key to check. Without this the generic dispatch
+    # treats "no key" as "not configured" and skips it.
+    requires_key: bool = True
     # Optional overrides for providers whose key/model resolution needs special
     # handling (e.g. AgentRouter's multi-line .env guard). When None, the
     # generic resolver is used.
@@ -369,6 +372,17 @@ def _resolve_provider_model(provider: ProviderConfig, request_model: str | None)
 
 
 PROVIDERS: dict[str, ProviderConfig] = {
+    # gateway/start_mlx.sh has always been able to serve a model on the Mac, but
+    # nothing in the routing layer pointed at it — so every "hi" paid cloud
+    # latency (and cloud credit) for work a 4-bit local model handles instantly.
+    "local": ProviderConfig(
+        name="local",
+        route="local_mlx",
+        base_url=os.environ.get("MLX_BASE_URL", "http://127.0.0.1:8010/v1"),
+        model_default="mlx-community/Qwen3.5-4B-4bit",
+        model_env="MLX_MODEL",
+        requires_key=False,
+    ),
     "openai": ProviderConfig(
         name="openai",
         route="openai_direct",
@@ -425,16 +439,38 @@ PROVIDERS: dict[str, ProviderConfig] = {
     ),
 }
 
-# Fallback order: OpenAI (known-good paid), NVIDIA, AgentRouter (opt-in),
-# OpenRouter (cheap/free), Gemini. Matches the order used by the prior 5
-# direct functions.
+# Default order when Jacob hasn't set one: local first (free, no credit, no
+# network), then OpenAI (known-good paid), NVIDIA, AgentRouter (opt-in),
+# OpenRouter (cheap/free), Gemini.
 PROVIDER_FALLBACK_ORDER: tuple[str, ...] = (
+    "local",
     "openai",
     "nvidia",
     "agentrouter",
     "openrouter",
     "gemini",
 )
+
+
+def provider_is_configured(provider: ProviderConfig) -> bool:
+    """Whether this provider has what it needs to be worth calling.
+
+    Checked before dispatch so an unkeyed provider costs nothing instead of a
+    connect timeout. With an empty OPENROUTER_API_KEY the chain used to burn its
+    whole deadline discovering, one timeout at a time, that nobody was home.
+    """
+    if not provider.requires_key:
+        return True
+    if provider.key_resolver is not None:
+        return bool(provider.key_resolver())
+    return bool(_resolve_provider_api_key(provider.api_key_env))
+
+
+def effective_provider_order() -> list[str]:
+    """The try-order after applying Jacob's saved preference."""
+    from gateway.provider_prefs import resolve_order
+
+    return resolve_order(tuple(PROVIDERS.keys()), PROVIDER_FALLBACK_ORDER)
 
 
 def _is_agentrouter_disabled() -> bool:
@@ -495,14 +531,14 @@ def _call_provider(
         api_key = provider.key_resolver()
     else:
         api_key = _resolve_provider_api_key(provider.api_key_env)
-    if not api_key:
+    if not api_key and provider.requires_key:
         return ""
 
     model = _resolve_provider_model(provider, request_model)
 
     headers = {
-        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
+        **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
         **provider.static_headers,
     }
 
@@ -574,7 +610,7 @@ def call_llm(
 ) -> str:
     """
     Centralized hub for all LLM calls.
-    Tries LiteLLM proxy first; on failure walks ``PROVIDER_FALLBACK_ORDER``.
+    Tries LiteLLM proxy first; on failure walks ``effective_provider_order()``.
 
     Every call may reach a cloud provider. ADR 0022 retired the D10 local-only
     boundary; there is no content class that this function keeps on the Mac.
@@ -630,9 +666,12 @@ def call_llm(
                 return None
             return min(int(remaining), timeout)
 
-        for provider_name in PROVIDER_FALLBACK_ORDER:
+        for provider_name in effective_provider_order():
             if provider_name == "agentrouter" and _is_agentrouter_disabled():
                 errors.append(f"{provider_name}: disabled")
+                continue
+            if not provider_is_configured(PROVIDERS[provider_name]):
+                errors.append(f"{provider_name}: no api key configured")
                 continue
             _at = _budget_timeout()
             if _at is None:

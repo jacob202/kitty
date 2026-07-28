@@ -87,7 +87,9 @@ def test_move_in_bar_daily_loop_end_to_end():
     # ── Seed: an active project with its one curated next step (P4) ──
     project = project_store.create("move-in", "code")
 
-    def llm(prompt, privacy_tier, content_class):
+    # LlmFn is Callable[[str], str]; the privacy_tier/content_class params this
+    # stub still demanded were retired with the D10 boundary (ADR 0022).
+    def llm(prompt):
         return json.dumps(
             {
                 "step": "book the freight elevator",

@@ -740,4 +740,27 @@ describe('HomeState', () => {
     // rendered content, not a fallthrough loading … that would hide the heading)
     expect(screen.getByText("what's next")).toBeInTheDocument();
   });
+
+  it('does not claim health when zero checks ran', () => {
+    (useRepairs as Mock).mockReturnValue({
+      data: { ok: true, checks_run: 0, issues: 0, repairs: [] },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.getByText(/nothing was checked/)).toBeInTheDocument();
+    expect(screen.queryByText(/everything looks healthy/)).not.toBeInTheDocument();
+  });
+
+  it('claims health only when checks actually ran', () => {
+    (useRepairs as Mock).mockReturnValue({
+      data: { ok: true, checks_run: 4, issues: 0, repairs: [] },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.getByText(/everything looks healthy/)).toBeInTheDocument();
+  });
 });

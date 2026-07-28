@@ -1,10 +1,10 @@
-<!-- kitty-state -->
+<!-- kitty-state
 {
   "schema_version": 1,
   "updated_at": "2026-07-27T00:00:00-06:00",
-  "head_sha": "78571d2",
+  "head_sha": "78571d2b9e7eace0297a591eecb388b82539b6d9",
   "branch": "main",
-  "status": "in-progress",
+  "status": "superseded",
   "completed_items": [
     "Swept oldest issues in jacob202/kitty (namespace + gh token footgun resolved)",
     "#158 SSRF + path-traversal fixed and committed (5490900) with regression tests",
@@ -17,5 +17,15 @@
   "blockers": [
     "#158 UI 0.0.0.0/tailnet exposure + proxy gateway-secret need Jacob/Codex sign-off"
   ],
-  "next_action": "Address #161 (move-in e2e test); recommend closing #159 as stale-vs-code; verify #278 CI re-run goes green"
+  "next_action": "none",
+  "worktree": ".",
+  "active_mission": "docs/ACTIVE_MISSION.md",
+  "pull_request": null,
+  "invalidation_conditions": [
+    "HEAD changes outside a checkpoint commit",
+    "branch or worktree changes",
+    "active mission changes",
+    "pull request state changes"
+  ]
 }
+-->

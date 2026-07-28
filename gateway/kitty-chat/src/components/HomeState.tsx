@@ -201,6 +201,19 @@ function RepairsCard() {
 
   const issues = repairs.data.repairs.filter((r) => r.severity !== 'ok')
 
+  // Zero checks run is not a clean bill of health — it means nothing was
+  // measured. Saying "everything looks healthy" there sat directly above a
+  // "gateway is not reachable" banner and made the whole panel untrustworthy.
+  if (issues.length === 0 && repairs.data.checks_run === 0) {
+    return (
+      <SectionCard title="system">
+        <div role="status" style={emptyState}>
+          nothing was checked — the gateway didn&apos;t run any health checks
+        </div>
+      </SectionCard>
+    )
+  }
+
   if (issues.length === 0) {
     return (
       <SectionCard title="system">

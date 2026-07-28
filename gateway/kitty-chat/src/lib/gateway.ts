@@ -480,6 +480,64 @@ export async function fetchGatewayModels(): Promise<GatewayModelsPayload> {
   }
 }
 
+export interface GatewayModelRoute {
+  alias: string
+  provider: string
+  upstream_model: string
+  key: { env_var: string | null; present: boolean; note: string | null }
+  fallbacks: string[]
+}
+
+export interface GatewayModelRouting {
+  config_path: string
+  readable: boolean
+  error: string | null
+  routes: GatewayModelRoute[]
+  providers: string[]
+  warnings: string[]
+}
+
+/** Which provider each kitty-* alias actually calls. Throws so the UI can say
+ *  "couldn't read the routing" instead of implying everything is fine. */
+export async function fetchGatewayModelRouting(): Promise<GatewayModelRouting> {
+  return await gfetch<GatewayModelRouting>('/api/model-routing')
+}
+
+export interface GatewayProvider {
+  name: string
+  base_url: string
+  model: string | null
+  model_env: string | null
+  api_key_env: string[]
+  requires_key: boolean
+  configured: boolean
+  disabled: boolean
+  position: number | null
+}
+
+export interface GatewayProviderChain {
+  order: string[]
+  providers: GatewayProvider[]
+  warnings: string[]
+  config_path: string
+}
+
+export async function fetchGatewayProviders(): Promise<GatewayProviderChain> {
+  return await gfetch<GatewayProviderChain>('/api/providers')
+}
+
+/** Throws on rejection so a bad order surfaces instead of looking saved. */
+export async function saveGatewayProviders(
+  order: string[],
+  disabled: string[],
+): Promise<GatewayProviderChain> {
+  return await gfetch<GatewayProviderChain>('/api/providers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order, disabled }),
+  })
+}
+
 export async function fetchGatewayRuntimeManifest(projectId?: number): Promise<GatewayRuntimeManifest> {
   const suffix = projectId === undefined ? '' : `?project_id=${encodeURIComponent(projectId)}`
   return await gfetch<GatewayRuntimeManifest>(`/runtime/manifest${suffix}`, undefined, 4000)
@@ -771,6 +829,10 @@ export interface GatewayTask {
   status: string
   created_at?: number
   updated_at?: number
+  started_at?: number | null
+  completed_at?: number | null
+  /** Free-text step the runner is on, e.g. "Iteration 2...". */
+  progress?: string
   error?: string | null
 }
 
@@ -783,29 +845,30 @@ export async function fetchGatewayTasks(limit = 20): Promise<GatewayTask[]> {
   }
 }
 
+/** Throws on failure. Swallowing the error here made a dead gateway look like a
+ *  successful launch: React Query fired onSuccess and the UI stayed silent. */
 export async function createGatewayTask(
   goal: string,
   taskType: TaskType = 'research',
-): Promise<string | null> {
-  try {
-    const json = await gfetch<{ task_id?: string }>('/task/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, task_type: taskType }),
-    })
-    return json.task_id ?? null
-  } catch {
-    return null
-  }
+): Promise<string> {
+  const json = await gfetch<{ task_id?: string }>('/task/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ goal, task_type: taskType }),
+  })
+  if (!json.task_id) throw new Error('gateway accepted the task but returned no task id')
+  return json.task_id
 }
 
-export async function cancelGatewayTask(taskId: string): Promise<boolean> {
-  try {
-    await gfetch(`/task/${taskId}/cancel`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+/** Throws on failure — see createGatewayTask. */
+export async function cancelGatewayTask(taskId: string): Promise<void> {
+  if (!taskId) throw new Error('cannot cancel a task with no id')
+  await gfetch(`/task/${taskId}/cancel`, { method: 'POST' })
+}
+
+export async function fetchGatewayTaskOutput(taskId: string): Promise<string> {
+  const json = await gfetch<{ output?: string }>(`/task/${taskId}/output`)
+  return json.output ?? ''
 }
 
 // ── Monitors ─────────────────────────────────────────────────────────────────
