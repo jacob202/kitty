@@ -28,7 +28,7 @@ The spike does not replace Kitty's personal intelligence, permissions, continuit
 
 - Kitty Gateway running on `127.0.0.1:8000`
 - Docker Desktop running
-- `git`, `curl`, and `docker compose`
+- `git`, `curl`, `python3`, and `docker compose`
 - `GATEWAY_SECRET` exported in the shell
 
 No secret is written to this repository. Candidate-local `.env` files are created only in the disposable work directory.
@@ -39,15 +39,15 @@ No secret is written to this repository. Candidate-local `.env` files are create
 export GATEWAY_SECRET='the same value Kitty Gateway uses'
 
 # Verify the existing Kitty compatibility surface without invoking a model.
-./spikes/foundation-replacement/bootstrap.sh verify
+bash spikes/foundation-replacement/bootstrap.sh verify
 
 # Start one candidate at a time.
-./spikes/foundation-replacement/bootstrap.sh librechat
-./spikes/foundation-replacement/bootstrap.sh anythingllm
+bash spikes/foundation-replacement/bootstrap.sh librechat
+bash spikes/foundation-replacement/bootstrap.sh anythingllm
 
 # Stop a candidate.
-./spikes/foundation-replacement/bootstrap.sh stop librechat
-./spikes/foundation-replacement/bootstrap.sh stop anythingllm
+bash spikes/foundation-replacement/bootstrap.sh stop librechat
+bash spikes/foundation-replacement/bootstrap.sh stop anythingllm
 ```
 
 Default locations and ports:
