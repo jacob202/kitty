@@ -1,79 +1,70 @@
-# Handoff — session-end survey and compute governor, both signed off, both draft
+# Handoff — Builder requeue/recovery, Experts, Library/Projects split, Home tile fixes
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-07-27T05:25:00Z",
-  "head_sha": "16c39cff1da34f620cf75804ca91a3ccc8d7876a",
-  "branch": "claude/session-end-recommendations-xsd0ss",
-  "worktree": ".",
+  "updated_at": "2026-07-28T19:30:00Z",
+  "head_sha": "d23d346517e1e5a3adf7a4e9657530123e7fca1c",
+  "base_sha": "0a2a04480ecd555168656de62dfa9a3cc971031f",
+  "branch": "jacob202/fix-description",
+  "worktree": "amphipod",
   "status": "valid",
   "completed_items": [
-    "Hardened .agents/skills/session-end/SKILL.md: survey first, evaluate carried release checks, at most three ranked recommendations, life projects before code",
-    "Added scripts/session_end_survey.sh - read-only inventory of worktrees, unmerged branches and the paths they touch, open PRs including drafts, the Builder queue, ~/kb/NOW.md, and carried recommendations",
-    "Checkpoint schema_version 2 adds parallel_work and recommendations, enforced by gateway/context_receipt.py",
-    "Aligned the AGENTS.md session-end protocol with the skill and named the skill its authority",
-    "ADR 0022 accepted, registered as D21, docs/adr/README.md updated",
-    "Re-walked SKILL_REGISTRY.md: the heading claimed 7 skills, the table listed 6, the directory held 9",
-    "Built gateway/compute_governor.py: per-(task_type, subject_ref, head_sha) receipts, enforced dispatch descriptors, three priced routes, reserve floors, weekly local ledger",
-    "Wired the governor into run_packet, run_initiative, and both Builder CLI entry points, on by default at the CLI",
-    "Derived the weekly budget from the DeepSeek V4 snapshot prices: CAD 6.00/week",
-    "Cleared three failures inherited from origin/main: ruff on insight_loop, mypy on routes/knowledge.py, and the checkpoint JSON blocks this file restores"
+    "Builder: requeue + recover_stale actions in backend (2 new action files, builder_control.py updated)",
+    "Builder: staleness detection (10min threshold), per-packet requeue, bulk recover, confirmation dialog for cleanup",
+    "Builder: staleness indicators on packet cards, BuilderBrain stale section",
+    "Experts: Chat model extended with expertId/systemPrompt fields",
+    "Experts: handleNewExpertChat in KittyContext with auto-generated expert system prompts",
+    "Experts: ExpertStrip wired to create real expert-context chats (was dead no-op)",
+    "Library/Projects: ProjectsView.tsx created, ViewRenderer dispatches projects separately",
+    "Library/Projects: Rail/BottomNav swap builder → projects, LibraryView simplified to documents-only",
+    "Home tiles: ExpertStrip functional, ActiveProjects navigates to ProjectsView, Today todos clickable",
+    "Work/Builder: Builder removed from Rail, accessible from WorkView 'Open full Builder' link + command palette"
   ],
-  "blockers": [
-    "gh is not installed in this container, so the survey could not verify the open-PR queue; PR state came from the GitHub MCP tools instead",
-    "~/kb is not present in this container, so no wiki entry, INDEX line, or NOW.md update was written - this session's durable knowledge is still unextracted",
-    "DeepSeek V4 pricing could not be re-verified against the live provider page; outbound web search requires approval in this environment"
-  ],
-  "next_action": "Merge PR #276, then merge origin/main into PR #278 and resolve the AGENTS.md and gateway/ overlap.",
-  "invalidation_conditions": [
-    "HEAD changes beyond the recorded head_sha except the checkpoint commit that records this file",
-    "PR #276 or #278 merges or closes",
-    "a force-push orphans the recorded pull_request.head_sha from PR #276's history",
-    "origin/main advances past the recorded base_sha"
-  ],
-  "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 276,
-    "url": "https://github.com/jacob202/kitty/pull/276",
-    "state": "OPEN",
-    "head_sha": "22e05a0fb2bb6c15468e091481b56b81054819d8"
-  },
+  "blockers": [],
+  "next_action": "Commit, push, verify CI on PR #289, then merge",
   "parallel_work": [
     {
       "kind": "pr",
-      "ref": "#276",
-      "owner": "this session",
-      "touches": [
-        ".agents",
-        "AGENTS.md",
-        "SKILL_REGISTRY.md",
-        "docs",
-        "gateway",
-        "scripts"
-      ],
-      "observed_at": "2026-07-27T05:20:00Z"
+      "ref": "#288",
+      "owner": "jacob202",
+      "touches": [".env.example", "gateway", "kitty", "tests"],
+      "observed_at": "2026-07-28T19:30:00Z"
     },
     {
       "kind": "pr",
-      "ref": "#278",
-      "owner": "this session",
-      "touches": [
-        "AGENTS.md",
-        "config",
-        "docs",
-        "gateway",
-        "kitty",
-        "tests"
-      ],
-      "observed_at": "2026-07-27T05:20:00Z"
+      "ref": "#290",
+      "owner": "jacob202",
+      "touches": ["README.md", "docs", "repomix.config.json", "scripts"],
+      "observed_at": "2026-07-28T19:30:00Z"
+    },
+    {
+      "kind": "pr",
+      "ref": "#291",
+      "owner": "jacob202",
+      "touches": ["docs"],
+      "observed_at": "2026-07-28T19:30:00Z"
+    },
+    {
+      "kind": "pr",
+      "ref": "#292",
+      "owner": "jacob202",
+      "touches": ["docs"],
+      "observed_at": "2026-07-28T19:30:00Z"
+    },
+    {
+      "kind": "worktree",
+      "ref": "fix/dogfood-provider-chat-shell-2026-07-28",
+      "owner": "jacob202",
+      "touches": [".env.before-agentrouter", "config", "gateway/routes"],
+      "observed_at": "2026-07-28T19:30:00Z"
     }
   ],
   "recommendations": [
     {
-      "id": "merge-276-then-reconcile-278",
-      "what": "Merge PR #276, then merge origin/main into PR #278 and resolve the AGENTS.md and gateway/ overlap",
-      "why": "Both PRs are signed off; #276 first keeps the overlap resolvable in one direction",
+      "id": "merge-pr-289",
+      "what": "Push the UI enhancement commits, verify CI passes on PR #289, and merge the sweep",
+      "why": "Builder recovery, experts, library/projects split, and home tile fixes need to land on main",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -82,20 +73,20 @@
       "first_deferred": null
     },
     {
-      "id": "extract-session-kb",
-      "what": "Merge docs/session-notes/2026-07-27-kb-payload.md into ~/kb and append its INDEX lines",
-      "why": "The payload is staged but the knowledge base is not reachable from this container",
+      "id": "chat-context-visibility",
+      "what": "Add system prompt preview and token window visualization to ChatView",
+      "why": "Chat is opaque — users can't see what context the model receives or how full the window is",
       "class": "code",
-      "status": "deferred",
-      "blocked_by": "~/kb is a separate repo and is not present in this container",
-      "release_check": "test -d ~/kb",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
       "deferred_count": 0,
-      "first_deferred": "2026-07-27"
+      "first_deferred": null
     },
     {
-      "id": "reconcile-receipt-cost",
-      "what": "Reconcile a receipt's estimated_usage_cad against the actual token counts in the ledger after a run",
-      "why": "estimate_cost_cad prices a dispatch before it runs; nothing checks the estimate afterwards",
+      "id": "review-doc-prs",
+      "what": "Review and close PRs #290-292 before they accumulate merge conflicts",
+      "why": "Three docs-only PRs open simultaneously — kitchen-sink risk if left unmerged",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -104,85 +95,52 @@
       "first_deferred": null
     }
   ],
-  "base_sha": "00e005b3c3bf88573b38e4448470d678d4821fce"
+  "invalidation_conditions": ["HEAD advances past d23d346", "PR #289 merges to main"],
+  "active_mission": "docs/ACTIVE_MISSION.md",
+  "pull_request": {
+    "number": 289,
+    "state": "OPEN",
+    "head_sha": "224d7bd4533cd637d861a433499e0acd073fd66b"
+  }
 }
 -->
 
 ## What was done
-
-- `.agents/skills/session-end/SKILL.md` — rewritten. Runs `scripts/session_end_survey.sh`
-  first, evaluates each carried `release_check`, then produces at most three
-  ranked recommendations with life projects ahead of code (ADR 0016).
-- `scripts/session_end_survey.sh` — read-only field inventory. Unreachable
-  sources print `UNAVAILABLE` with a reason instead of an empty section.
-- `gateway/context_receipt.py` — checkpoint `schema_version: 2` with
-  `parallel_work` and `recommendations`. A deferred recommendation with no
-  `release_check`, or a duplicate id, fails the continuity gate.
-- `AGENTS.md` — the session-end protocol matches the skill and names it authority.
-- `docs/adr/0022-*.md` — Accepted, registered as D21.
-- `SKILL_REGISTRY.md` — re-walked; `expert-swarm` marked UNVERIFIED pending
-  Jacob's confirm rather than archived unilaterally.
-- `gateway/compute_governor.py` + `_cli.py` — receipts keyed on
-  `(task_type, subject_ref, head_sha)`, enforced dispatch descriptors, three
-  priced routes (free ladder / V4 Flash / V4 Pro), reserve floors plus an
-  affordability check, weekly local ledger. Wired into `run_packet`,
-  `run_initiative`, and both Builder CLI commands, on by default at the CLI.
+- **Builder queue recovery:** Added `requeue` and `recover_stale` backend actions (`builder_control.py` + 2 new action files). Frontend staleness detection (10min threshold), per-packet requeue buttons, bulk recover scan, confirmation dialog for destructive cleanup, staleness dots on packet cards, stale section in BuilderBrain. `BuilderSurface.tsx` +198 lines.
+- **Experts functional:** Extended `Chat` model with `expertId`/`systemPrompt` fields (`types.ts`). Added `handleNewExpertChat` with auto-generated expert system prompts (`KittyContext.tsx`). Wired `ExpertStrip` in `HomeState.tsx` to create real expert-context chats instead of the previous dead no-op. Wired through `HomeView.tsx` and `page.tsx`.
+- **Library/Projects split:** Created `ProjectsView.tsx`. Updated `ViewRenderer.tsx` to dispatch `projects` separately. Simplified `LibraryView.tsx` to documents-only. Swapped "builder" → "projects" in `Rail.tsx` and `BottomNav.tsx`. Added Projects to `CommandPalette.tsx`. Added "Open full Builder" link to `WorkView.tsx`.
+- **Home tile fixes:** `ExpertStrip` now creates expert chats. `ActiveProjects` navigates to dedicated ProjectsView. `TodayPanel` todos are now clickable buttons that navigate to Work view.
 
 ## In-flight / WIP
-
-- PR #276 (this branch) and PR #278 (`claude/compute-governor-receipts`), both
-  draft, both signed off by Jacob in a comment (GitHub blocks owner
-  self-approval, so there is no formal review approval on either).
+- None — all items completed for this session
 
 ## Other work in flight (not mine)
-
-- `origin/main` advanced to `00e005b` mid-session with `gateway/insight_loop.py`
-  and a rewritten checkpoint pair from another session. That work is theirs;
-  only its CI breakage was touched here.
+- **PR #288 (draft):** `fix/runtime-truth-agentrouter-2026-07-28` by jacob202 — runtime lifecycle, provider, tool state truthfulness
+- **PRs #290-292:** docs-only PRs (readme refresh, image studio architecture, builder boundary docs)
+- **Worktree `fix/dogfood-provider-chat-shell-2026-07-28`:** uncommitted provider work
+- **Builder queue:** UNAVAILABLE — DB file not accessible from this worktree
 
 ## Blockers
-
-- `gh` is not installed in this container. The survey's PR section reports
-  `UNAVAILABLE`; PR state came from the GitHub MCP tools.
-- `~/kb` is absent, so the wiki entries and INDEX lines are staged in
-  `docs/session-notes/2026-07-27-kb-payload.md` instead of merged. NOW.md
-  could not be updated at all.
-- DeepSeek V4 pricing could not be re-verified against the live page; outbound
-  web search needs approval here.
+- None
 
 ## Next move
-
-Merge PR #276. Then merge `origin/main` into PR #278 and resolve the
-`AGENTS.md` and `gateway/` overlap.
-
-## Deferred, and what releases them
-
-- `extract-session-kb` — merge `docs/session-notes/2026-07-27-kb-payload.md`
-  into `~/kb` and append its INDEX lines — blocked by `~/kb` being absent
-  here — unblocks when `test -d ~/kb` exits 0.
-
-  The merge of #276 and the #278 reconcile are `ready`, not deferred: they
-  are the next action, not something waiting on a condition.
+Commit, push, verify CI on PR #289, then merge
 
 ## Files changed this session
-
-- `.agents/skills/session-end/SKILL.md`, `scripts/session_end_survey.sh`
-- `AGENTS.md`, `SKILL_REGISTRY.md`, `docs/FREE_WORKERS.md`
-- `docs/adr/0023-session-end-carry-forward-recommendations.md`, `docs/adr/README.md`, `docs/DECISIONS.md`
-- `gateway/context_receipt.py`, `tests/test_context_receipt.py`
-- `gateway/compute_governor.py`, `gateway/compute_governor_cli.py`, `tests/test_compute_governor.py`
-- `gateway/builder_loop.py`, `gateway/builder_run.py`, `gateway/builder_cli.py`, `tests/test_builder_loop.py`, `tests/conftest.py`
-- `gateway/paths.py`, `kitty`, `config/compute_governor.json`
-- Inherited-breakage fixes: `gateway/insight_loop.py`, `tests/test_insight_loop.py`, `gateway/routes/knowledge.py`
-
-## Verification
-
-- `pytest tests/ -q` on #278: 3103 passed, 7 failed. Five are the pre-existing
-  canonical-path failures (`test_check_continuity_state`, `test_resume_script`),
-  which reproduce on the unmodified tree; the sixth and seventh were the
-  inherited cold-start acceptance failure this checkpoint pair fixes.
-- `pytest tests/test_compute_governor.py tests/test_builder_loop.py -q`: 100 passed.
-- `ruff check gateway/ tests/ mcp/`: clean. `mypy gateway/ mcp/`: clean of
-  errors in every file this session touched.
-- `bash scripts/session_end_survey.sh`: ran end to end; `gh` and `~/kb` correctly
-  reported `UNAVAILABLE`.
+- `gateway/routes/builder_control.py` — added requeue + recover_stale actions
+- `gateway/actions/builder_requeue_packet.py` (new) — CLI-backed packet requeue
+- `gateway/actions/builder_recover_stale.py` (new) — CLI-backed stale recovery
+- `gateway/kitty-chat/src/components/BuilderSurface.tsx` — staleness detection, requeue buttons, confirmation dialog, indicators
+- `gateway/kitty-chat/src/lib/types.ts` — Chat.expertId + Chat.systemPrompt
+- `gateway/kitty-chat/src/state/KittyContext.tsx` — handleNewExpertChat + buildExpertSystemPrompt
+- `gateway/kitty-chat/src/components/HomeState.tsx` — ExpertStrip wiring, TodayPanel clickable todos
+- `gateway/kitty-chat/src/components/HomeView.tsx` — onExpertClick prop passthrough
+- `gateway/kitty-chat/src/app/page.tsx` — onExpertClick wired to handleNewExpertChat
+- `gateway/kitty-chat/src/components/ProjectsView.tsx` (new) — standalone projects view
+- `gateway/kitty-chat/src/components/ViewRenderer.tsx` — projects dispatch, ProjectsView import
+- `gateway/kitty-chat/src/components/LibraryView.tsx` — simplified to documents-only
+- `gateway/kitty-chat/src/components/Rail.tsx` — builder → projects swap
+- `gateway/kitty-chat/src/components/BottomNav.tsx` — builder → projects swap
+- `gateway/kitty-chat/src/components/CommandPalette.tsx` — projects added
+- `gateway/kitty-chat/src/components/WorkView.tsx` — "Open full Builder" link
+- `docs/plans/kitty-ui-enhancement-plan.html` (new) — comprehensive execution plan

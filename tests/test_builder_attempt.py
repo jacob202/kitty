@@ -248,15 +248,12 @@ class TestAttemptLifecycle:
         attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
         assert attempt["attempt_no"] == 3
 
-    def test_list_stale_attempts_returns_open_attempts(self, db_path: Path):
+    def test_list_stale_attempts_requires_interrupted_run_evidence(self, db_path: Path):
         assert ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path) == []
         attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
-        stale = ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path)
-        assert len(stale) == 1
-        assert stale[0]["id"] == attempt["id"]
-        assert stale[0]["outcome"] is None
+        assert ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path) == []
 
-        # After close, no longer stale.
+        # A terminal outcome still removes the ordinary in-flight row.
         ba.close_attempt(attempt["id"], ba.ATTEMPT_FAILED, db_path=db_path)
         assert ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path) == []
 

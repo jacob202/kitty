@@ -408,9 +408,16 @@ class StudioGenerateRequest(BaseModel):
     quality: str = "quality"
     identity: str = "balanced"
     character_id: Optional[str] = None
-    reference_ids: Optional[List[str]] = None
     recipe_id: Optional[str] = None
     negative_prompt: Optional[str] = None
+
+
+class PlanPreviewRequest(BaseModel):
+    """Preview a generation plan before committing to generation."""
+    prompt: str
+    character_id: Optional[str] = None
+    recipe_id: Optional[str] = None
+    guidance_tags: Optional[List[str]] = None
 
 
 @router.get("/studio/characters")
@@ -591,6 +598,38 @@ async def studio_update_recipe(recipe_id: str, req: RecipeUpdate):
         return recipe.to_dict()
     except RecipeError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+# --- Image Studio V1: Plan preview ---
+
+
+@router.post("/studio/plan")
+async def studio_plan(req: PlanPreviewRequest):
+    """Preview a validated generation plan before committing.
+
+    Returns the resolved plan with provenance so the user can inspect
+    references and guidance before calling ``/studio/generate``.
+    """
+    from gateway.image_plan import ImagePlanError, build_image_plan
+
+    if not req.prompt or not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt must not be empty")
+
+    try:
+        plan = build_image_plan(
+            req.prompt,
+            character_id=req.character_id,
+            recipe_id=req.recipe_id,
+            guidance_tags=req.guidance_tags,
+        )
+    except ImagePlanError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    from gateway.image_guidance import available_guidance_tags
+
+    result = plan.to_dict()
+    result["available_guidance_tags"] = available_guidance_tags()
+    return result
 
 
 # --- Image Studio V1: Generate (Auto-routed) ---

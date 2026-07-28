@@ -19,6 +19,7 @@ const DASHBOARD_TILES: { id: string; label: string }[] = [
   { id: 'what-changed', label: 'What Changed' },
   { id: 'today', label: 'Today' },
   { id: 'health', label: 'Health' },
+  { id: 'weather', label: 'Weather' },
   { id: 'capture', label: 'Capture' },
 ]
 

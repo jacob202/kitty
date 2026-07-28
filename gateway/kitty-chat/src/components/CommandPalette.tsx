@@ -10,15 +10,20 @@ interface Props {
   onSelectChat: (id: string) => void
   onViewChange: (view: string) => void
   onToggleSidebar: () => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 const VIEW_COMMANDS: Array<{ id: string; label: string; icon: LucideIcon }> = [
   { id: 'home', label: 'home', icon: House },
   { id: 'chat', label: 'chat', icon: MessageSquare },
   { id: 'work', label: 'work', icon: CheckSquare },
+  { id: 'projects', label: 'projects', icon: BookOpen },
   { id: 'studio', label: 'studio', icon: Image },
   { id: 'builder', label: 'builder', icon: Wrench },
   { id: 'library', label: 'library', icon: BookOpen },
+  { id: 'tutor', label: 'tutor', icon: BookOpen },
+  { id: 'journal', label: 'journal', icon: BookOpen },
   { id: 'settings', label: 'settings', icon: Settings },
 ]
 
@@ -28,8 +33,12 @@ export function CommandPalette({
   onSelectChat,
   onViewChange,
   onToggleSidebar,
+  open: externalOpen,
+  onOpenChange,
 }: Props) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = externalOpen ?? internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

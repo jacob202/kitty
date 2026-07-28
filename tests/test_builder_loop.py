@@ -7,8 +7,11 @@ workers that write (or fail to write) contract files. No LLMs, no network.
 from __future__ import annotations
 
 import json
+import os
+import sqlite3
 import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -121,6 +124,24 @@ def _good_worker(tmp_path: Path) -> list[str]:
     )
 
 
+def _open_attempts(db_path: Path | None = None) -> list[dict]:
+    """Return every open attempt, bypassing liveness certification.
+
+    Used in tests that set up a synthetic stale attempt (no real worker run
+    or run-interruption event).  The liveness fence exists to prevent premature
+    recovery in production; these tests need the recovery path exercised.
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT * FROM packet_attempts WHERE outcome IS NULL"
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
 def _approve_reviewer(tmp_path: Path) -> list[str]:
     # Enforce the same required-env contract as
     # scripts/kittybuilder_opencode_reviewer.sh so a wiring regression in
@@ -133,6 +154,36 @@ def _approve_reviewer(tmp_path: Path) -> list[str]:
         ': "${KB_CONTEXT_MANIFEST_PATH:?KB_CONTEXT_MANIFEST_PATH is required}"\n'
         f"cat > \"$KB_REVIEW_RESULT_PATH\" <<'EOF'\n{_APPROVE}\nEOF\n",
     )
+
+
+def _record_interrupted_run(task_id: str, db_path: Path) -> None:
+    """Create the durable liveness evidence left by a dead worker process."""
+    claimed = bq.claim_task(task_id, "crashed-runner", db_path=db_path)
+    run = bq.create_run(
+        task_id,
+        ["worker"],
+        lease_token=claimed["lease_token"],
+        claim_version=claimed["claim_version"],
+        db_path=db_path,
+    )
+    bq.worker_transition_task(
+        task_id,
+        bq.RUNNING,
+        claimed["lease_token"],
+        claimed["claim_version"],
+        db_path=db_path,
+    )
+    bq.update_run(
+        run["id"],
+        state=bq.RUN_RUNNING,
+        pid=os.getpid(),
+        process_identity="different-process-identity",
+        mark_started=True,
+        expected_states=frozenset({bq.RUN_STARTING}),
+        db_path=db_path,
+    )
+    recovered = bq.recover_interrupted_runs(db_path=db_path)
+    assert run["id"] in recovered["run_ids"]
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +229,7 @@ class TestRunPacket:
         first = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
         ba.close_attempt(first["id"], ba.ATTEMPT_FAILED, db_path=db_path)
         stale = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        _record_interrupted_run(task_id, db_path)
 
         # Now run_packet should reconcile the stale attempt before proceeding.
         result = bl.run_packet(
@@ -218,23 +270,6 @@ class TestRunPacket:
     ):
         """A crashed runner's paired task and branch leases recover together."""
         task_id = _apply(db_path, repo_root=repo)
-        claimed = bq.claim_task(task_id, "dead-worker", db_path=db_path)
-        bq.worker_transition_task(
-            task_id,
-            bq.RUNNING,
-            claimed["lease_token"],
-            claimed["claim_version"],
-            db_path=db_path,
-        )
-        bq.worker_transition_task(
-            task_id,
-            bq.BLOCKED,
-            claimed["lease_token"],
-            claimed["claim_version"],
-            payload={"reason": "runner_process_lost"},
-            db_path=db_path,
-        )
-
         from gateway.builder_brief import default_branch_name
 
         stale, lease = ba.claim_and_start_attempt(
@@ -250,6 +285,7 @@ class TestRunPacket:
             ),
             db_path=db_path,
         )
+        _record_interrupted_run(task_id, db_path)
 
         result = bl.run_packet(
             INITIATIVE,
@@ -627,6 +663,10 @@ class TestRunPacket:
 # ---------------------------------------------------------------------------
 
 
+@patch.object(
+    ba, "list_all_stale_attempts",
+    lambda db_path=None: _open_attempts(db_path),
+)
 class TestNoStaleArtifactReuse:
     def test_crashed_dirty_worktree_is_archived_and_next_attempt_starts_clean(
         self, repo: Path, db_path: Path, tmp_path: Path
@@ -779,29 +819,24 @@ class TestRecoveryExercise:
                     f"worker pid {pid} survived SIGKILL reaping; cannot assert recovery"
                 )
 
-        # The dead orchestrator's lease expires; the recovery scan blocks the
-        # task exactly as `kitty builder queue recover` would.
-        time.sleep(2.5)
-        recovered = bq.recover_expired_leases(db_path=db_path)
-        assert recovered["running_blocked"] == 1
-        runs_recovered = bq.recover_interrupted_runs(db_path=db_path)
-        assert runs_recovered["runs_interrupted"] >= 1, (
-            "dead run row was not marked interrupted"
-        )
-        stale = ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path)
-        assert len(stale) == 1
-        crashed_id = stale[0]["id"]
+        interrupted_run_id = str(runs[-1]["id"])
+        crashed_id = ba.list_attempts(INITIATIVE, PACKET, db_path=db_path)[-1]["id"]
 
-        # Re-enter run_packet: reconcile, archive, and complete the packet.
+        # Re-enter run_packet: its entry liveness scan marks the dead worker
+        # interrupted, then reconciliation archives and completes the packet.
         result = bl.run_packet(
             INITIATIVE, PACKET,
             worker_command=_good_worker(tmp_path),
             repo_root=repo, db_path=db_path,
         )
         assert result["outcome"] == bl.LOOP_SUCCEEDED
+        interrupted_run = bq.get_run(interrupted_run_id, db_path=db_path)
+        assert interrupted_run is not None
+        assert interrupted_run["state"] == bq.RUN_INTERRUPTED
 
         # Crashed attempt closed as crashed with its evidence preserved.
         closed = ba.get_attempt(crashed_id, db_path=db_path)
+        assert closed is not None
         assert closed["outcome"] == ba.ATTEMPT_CRASHED
         attempt_dir = db_path.parent / "attempts" / task_id / str(crashed_id)
         manifest = json.loads((attempt_dir / "run-manifest.json").read_text())
@@ -922,6 +957,10 @@ class TestRecoveryBudget:
 # ---------------------------------------------------------------------------
 
 
+@patch.object(
+    ba, "list_all_stale_attempts",
+    lambda db_path=None: _open_attempts(db_path),
+)
 class TestTruthfulCloseout:
     def test_rollup_reports_recovered_success_truthfully(
         self, repo: Path, db_path: Path, tmp_path: Path
@@ -1247,12 +1286,16 @@ class TestLeaseIdentityIntegration:
             base_sha=base_sha,
             db_path=db_path,
         )
+        _record_interrupted_run(task_id, db_path)
 
         # Reconcile the stale attempt+lease.
         reconciled = bl._reconcile_stale_attempts(
             INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
         )
         assert len(reconciled) == 1
+        bq.operator_release_task(
+            task_id, reason="test_stale_attempt_reconciliation", db_path=db_path
+        )
 
         # Now a normal run should succeed.
         result = bl.run_packet(
@@ -1544,6 +1587,7 @@ class TestCrashSafeLeaseRecovery:
             base_sha=base_sha,
             db_path=db_path,
         )
+        _record_interrupted_run(task_id, db_path)
 
         reconciled = bl._reconcile_stale_attempts(
             INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
@@ -1582,6 +1626,7 @@ class TestCrashSafeLeaseRecovery:
             base_sha=base_sha,
             db_path=db_path,
         )
+        _record_interrupted_run(task_id, db_path)
 
         r1 = bl._reconcile_stale_attempts(
             INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
@@ -1618,6 +1663,7 @@ class TestCrashSafeLeaseRecovery:
             base_sha=base_sha,
             db_path=db_path,
         )
+        _record_interrupted_run(other_attempt["task_id"], db_path)
 
         reconciled = bl._reconcile_stale_attempts(
             INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
@@ -1744,11 +1790,15 @@ class TestCrashSafeLeaseRecovery:
             base_sha=base_sha,
             db_path=db_path,
         )
+        _record_interrupted_run(task_id, db_path)
 
         reconciled = bl._reconcile_stale_attempts(
             INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
         )
         assert len(reconciled) == 1
+        bq.operator_release_task(
+            task_id, reason="test_stale_attempt_reconciliation", db_path=db_path
+        )
 
         result = bl.run_packet(
             INITIATIVE, PACKET,
@@ -1776,9 +1826,13 @@ class TestCrashSafeLeaseRecovery:
             base_sha=original_sha,
             db_path=db_path,
         )
+        _record_interrupted_run(task_id, db_path)
 
         bl._reconcile_stale_attempts(
             INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
+        )
+        bq.operator_release_task(
+            task_id, reason="test_stale_attempt_reconciliation", db_path=db_path
         )
 
         assert ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path) == original_sha

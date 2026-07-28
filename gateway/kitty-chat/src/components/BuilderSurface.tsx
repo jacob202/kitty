@@ -84,11 +84,14 @@ export function BuilderGlance({ onOpen }: BuilderGlanceProps) {
   }
 
   if (!snapshot || total === 0) {
+    const isUnavailable = fact?.state === 'unavailable' || fact?.state === 'unknown'
     return (
       <section style={{ ...card, display: 'grid', gap: 12 }} aria-label="Builder status glance">
         <div style={cardHeader}><div style={cardTitle}>builder</div></div>
         <p style={{ ...bodyText, margin: 0 }}>
-          nothing queued — ready when you are
+          {isUnavailable
+            ? 'Builder state is not available from the runtime manifest.'
+            : 'nothing queued — ready when you are'}
         </p>
         <div>
           <button type="button" onClick={onOpen} style={actionButton} aria-label="open builder">
@@ -204,16 +207,12 @@ export function BuilderSurface({ fact, isLoading, error, onBack }: BuilderSurfac
             allPacketsButtonRef={allPacketsButtonRef}
           />
           <BuilderInitiativeCards snapshot={snapshot} />
-          <BuilderControls
-            snapshot={snapshot}
-            selection={selection}
-            onRefresh={() => document.location.reload()}
-          />
           <BuilderOverview
             snapshot={snapshot}
             onSelectPacket={setSelection}
             registerPacketButton={registerPacketButton}
           />
+          <BuilderBrain snapshot={snapshot} />
           {allPacketsOpen && (
             <AllPacketsModal
               snapshot={snapshot}
@@ -273,7 +272,7 @@ function SurfaceHeader({ onBack, observedAt }: { onBack?: () => void; observedAt
           Builder
         </h1>
         <p style={{ ...bodyText, margin: '4px 0 0' }}>
-          Read-only execution status from durable Builder records.
+          Execution status from durable Builder records. This surface is read-only.
         </p>
         {observedAt && (
           <p style={{ ...cardMeta, margin: '4px 0 0' }}>
@@ -346,11 +345,19 @@ function BuilderControls({
 }) {
   const action = useBuilderAction()
   const [busy, setBusy] = useState(false)
+  const [confirmCleanup, setConfirmCleanup] = useState(false)
 
   const pausedInitiatives = snapshot.initiatives.filter((i) => i.state === 'paused')
   const activeInitiatives = snapshot.initiatives.filter((i) => i.state === 'active')
   const zombiePackets = snapshot.initiatives.flatMap((i) =>
-    i.packets.filter((p) => p.task_state === 'cancelled' || p.task_state === 'failed')
+    i.packets.map((p) => ({ ...p, _initiativeId: i.initiative_id })).filter(
+      (p) => p.task_state === 'cancelled' || p.task_state === 'failed'
+    )
+  )
+  const stalePackets = snapshot.initiatives.flatMap((i) =>
+    i.packets.map((p) => ({ ...p, _initiativeId: i.initiative_id })).filter(
+      isStalePacket
+    )
   )
 
   const runAction = (builderAction: string, initiativeId?: string, packetId?: string) => {
@@ -363,11 +370,11 @@ function BuilderControls({
     )
   }
 
-  if (
-    activeInitiatives.length === 0 &&
-    pausedInitiatives.length === 0 &&
-    zombiePackets.length === 0
-  ) {
+  const hasControls = pausedInitiatives.length > 0
+    || zombiePackets.length > 0
+    || stalePackets.length > 0
+
+  if (!hasControls) {
     return null
   }
 
@@ -406,23 +413,121 @@ function BuilderControls({
         </div>
       )}
 
+      {stalePackets.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--c-yellow)' }}>
+            {stalePackets.length} stale packet{stalePackets.length === 1 ? '' : 's'} — claimed or running too long
+          </span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => runAction('recover_stale')}
+              style={{ ...actionButton, borderColor: 'var(--c-yellow)', color: 'var(--c-yellow)' }}
+            >
+              {busy ? '…' : 'recover stale'}
+            </button>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', alignSelf: 'center' }}>
+              scans expired claims and requeues them
+            </span>
+          </div>
+          {stalePackets.slice(0, 5).map((p) => (
+            <div key={p.packet_id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', paddingLeft: 4 }}>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {p.title} — {staleLabel(p)}
+              </span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => runAction('requeue', p._initiativeId, p.packet_id)}
+                style={{ ...actionButton, fontSize: 10, padding: '4px 8px' }}
+              >
+                requeue
+              </button>
+            </div>
+          ))}
+          {stalePackets.length > 5 && (
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
+              +{stalePackets.length - 5} more
+            </span>
+          )}
+        </div>
+      )}
+
       {zombiePackets.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
             {zombiePackets.length} dead task{zombiePackets.length === 1 ? '' : 's'} — cancelled or failed
           </span>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => runAction('cleanup')}
-            style={{ ...actionButton, alignSelf: 'flex-start', borderColor: 'var(--c-red)', color: 'var(--c-red)' }}
-          >
-            {busy ? '…' : 'clean up dead work'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {zombiePackets.slice(0, 5).map((p) => (
+              <button
+                key={p.packet_id}
+                type="button"
+                disabled={busy}
+                onClick={() => runAction('requeue', p._initiativeId, p.packet_id)}
+                style={{ ...actionButton, color: 'var(--c-blue)' }}
+              >
+                {busy ? '…' : `requeue ${p.title.slice(0, 20)}${p.title.length > 20 ? '…' : ''}`}
+              </button>
+            ))}
+            {zombiePackets.length > 5 && (
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', alignSelf: 'center' }}>
+                +{zombiePackets.length - 5} more — view in packet list to requeue individually
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {!confirmCleanup ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirmCleanup(true)}
+                style={{ ...actionButton, alignSelf: 'flex-start', borderColor: 'var(--c-red)', color: 'var(--c-red)' }}
+              >
+                clean up dead work
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => { runAction('cleanup'); setConfirmCleanup(false) }}
+                  style={{ ...actionButton, alignSelf: 'flex-start', background: 'var(--c-red)', color: '#fff', borderColor: 'var(--c-red)' }}
+                >
+                  {busy ? '…' : 'confirm — permanent'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmCleanup(false)}
+                  style={{ ...actionButton, alignSelf: 'center' }}
+                >
+                  cancel
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
     </section>
   )
+}
+
+const STALE_THRESHOLD_MS = 10 * 60 * 1000
+
+function isStalePacket(packet: BuilderPacketStatus): boolean {
+  if (packet.task_state !== 'claimed' && packet.task_state !== 'running') return false
+  if (!packet.updated_at) return false
+  const updated = Date.parse(packet.updated_at)
+  return Number.isFinite(updated) && (Date.now() - updated) > STALE_THRESHOLD_MS
+}
+
+function staleLabel(packet: BuilderPacketStatus): string {
+  if (!packet.updated_at) return 'stale'
+  const updated = Date.parse(packet.updated_at)
+  if (!Number.isFinite(updated)) return 'stale'
+  const minutes = Math.round((Date.now() - updated) / 60_000)
+  return packet.task_state === 'claimed' ? `stale claim ${minutes}m` : `stuck running ${minutes}m`
 }
 
 function AllPacketsModal({
@@ -492,7 +597,15 @@ function AllPacketsModal({
                 aria-label={`Open packet ${packet.title} from all packets`}
                 style={{ ...itemCard, cursor: 'pointer', textAlign: 'left', color: 'var(--ink)', display: 'grid', gap: 4 }}
               >
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600 }}>{packet.title}</span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {packet.title}
+                  {isStalePacket(packet) && (
+                    <span style={{
+                      width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                      background: packet.task_state === 'claimed' ? 'var(--c-yellow)' : 'var(--c-red)',
+                    }} title={staleLabel(packet)} />
+                  )}
+                </span>
                 <span style={cardMeta}>{packetSummary(packet)} · {eligibilityLabel(packet)}</span>
                 <span style={{ ...cardMeta, opacity: 0.8 }}>{packet.packet_id}</span>
               </button>
@@ -566,8 +679,14 @@ function BuilderOverview({
                   overflowWrap: 'anywhere',
                 }}
               >
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600 }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                   {packet.title}
+                  {isStalePacket(packet) && (
+                    <span style={{
+                      width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                      background: packet.task_state === 'claimed' ? 'var(--c-yellow)' : 'var(--c-red)',
+                    }} title={staleLabel(packet)} />
+                  )}
                 </span>
                 <span style={cardMeta}>
                   {packetSummary(packet)}
@@ -599,9 +718,24 @@ function PacketDetail({
   onHome?: () => void
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null)
+  const action = useBuilderAction()
+  const [busy, setBusy] = useState(false)
+
   useEffect(() => {
     headingRef.current?.focus()
   }, [])
+
+  const isDead = packet.task_state === 'cancelled' || packet.task_state === 'failed'
+  const isPacketStale = isStalePacket(packet)
+  const needsAction = isDead || isPacketStale || packet.budget?.exhausted === true
+
+  const runAction = (builderAction: string) => {
+    setBusy(true)
+    action.mutate(
+      { action: builderAction, initiativeId: packet.initiative_id, packetId: packet.packet_id },
+      { onSettled: () => setBusy(false) },
+    )
+  }
 
   return (
     <section style={surfaceLayout}>
@@ -630,6 +764,21 @@ function PacketDetail({
       {degradedReason && <DataQualityNotice detail={degradedReason} />}
       {packet.data_quality.state === 'partial' && (
         <DataQualityNotice detail={packet.data_quality.issues.join(' ')} />
+      )}
+      {needsAction && (
+        <div style={{ ...card, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderColor: 'var(--c-yellow)' }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', flex: 1 }}>
+            {isDead ? 'This packet is dead — requeue to retry.' : isPacketStale ? staleLabel(packet) : 'Budget exhausted — requeue to retry.'}
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => runAction('requeue')}
+            style={{ ...actionButton, color: 'var(--c-blue)', borderColor: 'var(--c-blue)' }}
+          >
+            {busy ? '…' : 'requeue'}
+          </button>
+        </div>
       )}
       <div style={detailGrid}>
         <Metric label="task state" value={displayState(packet.task_state ?? 'unavailable')} />
@@ -1204,4 +1353,162 @@ function isExpired(validUntil: string | undefined): boolean {
   if (!validUntil) return false
   const timestamp = Date.parse(validUntil)
   return Number.isFinite(timestamp) && timestamp < Date.now()
+}
+
+// ---------------------------------------------------------------------------
+// Builder Brain — read-only Q&A from status projections
+// ---------------------------------------------------------------------------
+
+function BuilderBrain({ snapshot }: { snapshot: BuilderStatusSnapshot }) {
+  const [open, setOpen] = useState(false)
+  const allPackets = snapshot.initiatives.flatMap(i => i.packets)
+  const blocked = allPackets.filter(p => p.task_state === 'blocked')
+  const failed = allPackets.filter(p => p.task_state === 'failed' || p.failure_kind !== null)
+  const running = allPackets.filter(p =>
+    p.run?.state === 'running' || p.run?.state === 'starting'
+  )
+  const exhausted = allPackets.filter(p => p.budget?.exhausted === true)
+  const stale = allPackets.filter(isStalePacket)
+  const cancelled = allPackets.filter(p => p.task_state === 'cancelled')
+  const nextPackets = snapshot.initiatives
+    .filter(i => i.next_packet)
+    .map(i => ({ initiative: i.title, packet: i.next_packet }))
+
+  if (blocked.length === 0 && running.length === 0 && failed.length === 0 && exhausted.length === 0 && stale.length === 0) {
+    return (
+      <section style={{ ...card, display: 'grid', gap: 8 }} aria-label="Builder Q&A">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          style={{
+            ...cardHeader, border: 'none', background: 'none',
+            cursor: 'pointer', textAlign: 'left', width: '100%',
+            padding: 0, display: 'flex', alignItems: 'center', gap: 8,
+          }}
+        >
+          <span style={cardTitle}>ask about builder</span>
+          <span style={{ ...cardMeta, fontSize: 10 }}>{open ? '▲' : '▼'}</span>
+        </button>
+        {open && (
+          <p style={{ ...bodyText, margin: 0 }}>
+            Nothing needs attention right now. {snapshot.queue.done} packets
+            complete, {snapshot.queue.queued} queued.
+            {nextPackets.length > 0 && ` Next up: ${nextPackets.map(n => n.packet).join(', ')}.`}
+          </p>
+        )}
+      </section>
+    )
+  }
+
+  return (
+    <section style={{ ...card, display: 'grid', gap: 10 }} aria-label="Builder Q&A">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          ...cardHeader, border: 'none', background: 'none',
+          cursor: 'pointer', textAlign: 'left', width: '100%',
+          padding: 0, display: 'flex', alignItems: 'center', gap: 8,
+        }}
+      >
+        <span style={cardTitle}>ask about builder</span>
+        <span style={{ ...cardMeta, fontSize: 10 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {blocked.length > 0 && (
+            <BrainSection title={`${blocked.length} blocked`} color="var(--c-red)">
+              {blocked.map(p => (
+                <div key={p.packet_id} style={{ display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{p.title}</span>
+                  <span style={cardMeta}>{p.packet_id}{p.blocked_reason ? ` — ${p.blocked_reason}` : ''}</span>
+                </div>
+              ))}
+            </BrainSection>
+          )}
+          {failed.length > 0 && (
+            <BrainSection title={`${failed.length} failed`} color="var(--c-red)">
+              {failed.map(p => (
+                <div key={p.packet_id} style={{ display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{p.title}</span>
+                  <span style={cardMeta}>{p.packet_id} — {p.failure_kind}</span>
+                </div>
+              ))}
+            </BrainSection>
+          )}
+          {exhausted.length > 0 && (
+            <BrainSection title={`${exhausted.length} exhausted`} color="var(--c-yellow)">
+              {exhausted.map(p => (
+                <div key={p.packet_id} style={{ display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{p.title}</span>
+                  <span style={cardMeta}>{p.packet_id} — budget used {p.budget?.used}/{p.budget?.max}</span>
+                </div>
+              ))}
+            </BrainSection>
+          )}
+          {running.length > 0 && (
+            <BrainSection title={`${running.length} running`} color="var(--c-blue)">
+              {running.map(p => (
+                <div key={p.packet_id} style={{ display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{p.title}</span>
+                  <span style={cardMeta}>{p.packet_id} — {p.run?.state}</span>
+                </div>
+              ))}
+            </BrainSection>
+          )}
+          {nextPackets.length > 0 && (
+            <BrainSection title={`${nextPackets.length} ready next`} color="var(--c-green)">
+              {nextPackets.map(n => (
+                <div key={n.packet} style={{ display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{n.packet}</span>
+                  <span style={cardMeta}>{n.initiative}</span>
+                </div>
+              ))}
+            </BrainSection>
+          )}
+          {stale.length > 0 && (
+            <BrainSection title={`${stale.length} stale`} color="var(--c-yellow)">
+              {stale.map(p => (
+                <div key={p.packet_id} style={{ display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{p.title}</span>
+                  <span style={cardMeta}>{p.packet_id} — {staleLabel(p)}</span>
+                </div>
+              ))}
+              <p style={{ ...bodyText, fontSize: 11, margin: 0 }}>
+                Use the controls section above to requeue stale packets.
+              </p>
+            </BrainSection>
+          )}
+          {cancelled.length > 0 && (
+            <p style={{ ...bodyText, margin: 0 }}>
+              {cancelled.length} cancelled {cancelled.length === 1 ? 'packet' : 'packets'} —
+              review and requeue or clean up from the packet detail view.
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function BrainSection({ title, color, children }: { title: string; color: string; children: ReactNode }) {
+  return (
+    <div style={{
+      borderLeft: `3px solid ${color}`,
+      paddingLeft: 12,
+      display: 'grid',
+      gap: 8,
+    }}>
+      <span style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 10,
+        fontWeight: 700,
+        color,
+        textTransform: 'uppercase',
+      }}>
+        {title}
+      </span>
+      {children}
+    </div>
+  )
 }

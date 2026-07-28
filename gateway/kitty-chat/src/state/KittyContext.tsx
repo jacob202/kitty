@@ -29,6 +29,7 @@ import {
   uploadCaptureFile,
   type GatewaySearchSnapshot,
   type GatewayTriageEntry,
+  type ExpertProfile,
 } from '@/lib/gateway'
 import { validateAttachments, type AttachmentError } from '@/lib/attachment-validation'
 import { normalizeMemoryEvidence } from '@/lib/types'
@@ -66,6 +67,17 @@ function makeChat(color: ChatColor): Chat {
     createdAt: new Date(),
     updatedAt: new Date(),
   }
+}
+
+function buildExpertSystemPrompt(expert: { label: string; tags: string[]; book_count: number; sample_title: string }): string {
+  const tagList = expert.tags.length > 0 ? expert.tags.join(', ') : 'general knowledge'
+  return `You are acting as ${expert.label}, a specialized AI with deep expertise in ${tagList}.
+Your knowledge is drawn from ${expert.book_count} reference texts.
+Sample domain: ${expert.sample_title}.
+
+Respond with the depth and precision expected of a specialist in this field.
+Always cite specific frameworks, principles, or techniques from your knowledge base when relevant.
+Maintain the conversational tone and intellectual rigor of a trusted advisor.`
 }
 
 interface RecoveredMessage {
@@ -130,6 +142,7 @@ interface KittyContextValue {
   activeChat: Chat | null
   activeChatId: string | null
   handleNewChat: () => void
+  handleNewExpertChat: (expert: ExpertProfile) => void
   handleSelectChat: (id: string) => void
   handleCloseChat: (id: string) => void
   handleSend: () => Promise<void>
@@ -453,6 +466,19 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     setInput('')
   }, [activeModel.id])
 
+  const handleNewExpertChat = useCallback((expert: ExpertProfile) => {
+    const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length]
+    colorIndexRef.current++
+    const chat = makeChat(color)
+    chat.model = activeModel.id
+    chat.title = `chat with ${expert.label}`
+    chat.expertId = expert.id
+    chat.systemPrompt = buildExpertSystemPrompt(expert)
+    setChats((prev) => [...prev, chat])
+    setActiveChatId(chat.id)
+    setInput('')
+  }, [activeModel.id])
+
   const handleToggleTheme = useCallback(() => {
     setTheme((t) => {
       const next = t === 'cosmic' ? 'day' : t === 'day' ? 'night' : 'cosmic'
@@ -676,7 +702,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   }
 
   const value: KittyContextValue = {
-    chats, activeChat, activeChatId, handleNewChat, handleSelectChat, handleCloseChat,
+    chats, activeChat, activeChatId, handleNewChat, handleNewExpertChat, handleSelectChat, handleCloseChat,
     handleSend, handleStop, handleRetry,
     input, setInput, attachments, setAttachments, handleAddFiles, handleRemoveAttachment,
     attachmentErrors, isStreaming,

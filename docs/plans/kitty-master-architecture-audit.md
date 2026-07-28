@@ -377,4 +377,30 @@ If the gate is not met, close this out as "Chroma retained, decision recorded" i
 4. **Is there a felt retrieval problem?** If exact-match search failures are not
    something actually experienced, Phase 3 drops from "highest value" to "speculative."
 5. **Chroma: measured pain, or tidiness?** Phase 6 is a large migration. If the
+
+---
+
+## Deferred deepening opportunities — 2026-07-28
+
+**Status:** planning input, not roadmap authority. These came from a live code walk on
+`jacob202/fix-description` at `abe4e7d`, using the Module / Interface / Seam /
+Adapter / Depth / Leverage / Locality vocabulary from the architecture skill.
+
+1. **Packet-run orchestration Module**
+   - **Files:** `gateway/builder_loop.py`, `gateway/builder_run.py`, `gateway/builder_runner.py`
+   - **Problem:** `run_packet` owns recovery, governor gating, lease claim, artifact setup, worker dispatch, manifest writes, validation, review, provider exhaustion, and settlement. `run_initiative` then layers initiative control on top. The public Interface is valuable, but the implementation is broad enough that bugs require holding the full state machine in memory.
+   - **Deepening direction:** keep `run_packet` and `run_initiative` as the external Interface, then create internal seams for recovery/release, attempt artifact lifecycle, worker execution, verification/review, and settlement.
+   - **Why keep it:** the deletion test says deleting this Module would scatter attempt, lease, and recovery logic across callers. The opportunity is internal Depth, not removal.
+
+2. **Context receipt validation Module**
+   - **Files:** `gateway/context_receipt.py`, `gateway/routes/session_context.py`
+   - **Problem:** the receipt Module covers Git state, checkpoint parsing, mission validation, pull-request verification, authority-map checks, allowed `release_check` shapes, and recommendation continuity. It is earning its keep, but its implementation is a long mixed validator surface.
+   - **Deepening direction:** keep `build_context_receipt` as the external Interface, with internal seams for Git, checkpoint metadata, mission, pull-request, authority-map, and release-check policy validators.
+   - **Why keep it:** the deletion test says deleting it would push session-end correctness into scripts and docs. Deepening should improve Locality without changing the caller surface.
+
+3. **Builder read-model Module**
+   - **Files:** `gateway/builder_status.py`
+   - **Problem:** the read-only projection is legitimate but combines queue summary, initiative projection, packet projection, attempt history, redaction/safety shaping, and control-plane summary in one long implementation.
+   - **Deepening direction:** preserve one public read Interface while grouping internal seams by projection: queue, initiative, packet, attempt, and control-plane.
+   - **Why keep it:** deleting it would break the bounded Builder status surface. The opportunity is making the read model deeper and easier for tests and AI agents to navigate.
    honest answer is tidiness, record the decision and close it.

@@ -261,19 +261,36 @@ def test_stale_pr_claim_fails_against_live_github_state(tmp_path: Path):
     assert levels["handoff:pull_request"] == "FAIL"
 
 
-def test_mismatched_branch_warns_and_invalid_worktree_fails(tmp_path: Path):
+def test_mismatched_branch_and_worktree_warn(tmp_path: Path):
     # Branch name is informative (WARN): a checkpoint written on a feature
     # branch can never match main after a merge, and CI reads it from the
-    # target branch. A wrong worktree path is still a hard FAIL.
+    # target branch. A worktree path that names a different checkout is WARN
+    # too: absolute paths legitimately differ across machines (CI checkout vs
+    # a contributor's local tree), and head_sha + branch already establish
+    # checkpoint identity. The worktree field is a hint, not a gate.
     repo, head = _repo(tmp_path)
     _write_checkpoint_pair(repo, head, branch="old-branch", worktree="/tmp/old-kitty")
 
     levels = _levels(repo)
 
     assert levels["state:branch"] == "WARN"
-    assert levels["state:worktree"] == "FAIL"
+    assert levels["state:worktree"] == "WARN"
     assert levels["handoff:branch"] == "WARN"
-    assert levels["handoff:worktree"] == "FAIL"
+    assert levels["handoff:worktree"] == "WARN"
+
+
+def test_relative_worktree_name_passes(tmp_path: Path):
+    # A bare relative worktree name like "amphipod" identifies WHICH worktree
+    # wrote the checkpoint, not WHERE this checkout is. Resolving it against
+    # repo_root would fabricate a child path that never matches, reding CI on
+    # every PR. It must not be treated as a path at all.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(repo, head, worktree="amphipod")
+
+    levels = _levels(repo)
+
+    assert levels["state:worktree"] == "PASS"
+    assert levels["handoff:worktree"] == "PASS"
 
 
 def test_broken_front_door_link_fails(tmp_path: Path):

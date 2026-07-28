@@ -368,7 +368,12 @@ describe('BuilderSurface', () => {
     expect(screen.getByLabelText('Builder next action')).toHaveTextContent(
       'Needs a decision: Builder UI test initiative',
     )
-    expect(screen.getAllByText('packet requires scope or identity judgment')).toHaveLength(3)
+    // The read-only surface renders the pause reason in the next-action card
+    // and the overview. BuilderInitiativeCards prefixes it with "Paused: ", so
+    // it does not match the exact-text query. The old count of 3 included the
+    // now-removed mutation controls (BuilderControls), which were dropped when
+    // the surface became read-only.
+    expect(screen.getAllByText('packet requires scope or identity judgment')).toHaveLength(2)
   })
 
   it.each<[BuilderFailureKind, string]>([

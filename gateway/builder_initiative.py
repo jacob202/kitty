@@ -1233,16 +1233,65 @@ def blocked_packets(
     return blocked
 
 
+def _recovery_packets(
+    initiative_id: str,
+    packets: list[dict[str, Any]],
+    *,
+    exhausted: set[str],
+    unreachable: set[str],
+    db_path: Path | None,
+) -> list[dict[str, Any]]:
+    """Return blocked packets that ``run_packet`` may safely reconcile.
+
+    This is deliberately separate from ordinary eligibility: a blocked packet
+    cannot run just because its dependencies are complete. It needs a
+    liveness-certified interrupted attempt, which ``run_packet`` then closes
+    and releases through its existing fenced recovery path.
+    """
+    by_id = {packet["packet_id"]: packet for packet in packets}
+    recovery: list[dict[str, Any]] = []
+    for packet in packets:
+        if (
+            packet["packet_id"] in exhausted
+            or packet["packet_id"] in unreachable
+            or packet["state"] != bq.BLOCKED
+        ):
+            continue
+        if not all(
+            by_id[dependency]["state"] == bq.DONE
+            for dependency in packet["depends_on"]
+            if dependency in by_id
+        ):
+            continue
+        if ba.list_stale_attempts(
+            initiative_id, packet["packet_id"], db_path=db_path
+        ):
+            recovery.append(packet)
+    return recovery
+
+
 def next_packet(
     initiative_id: str, db_path: Path | None = None
 ) -> dict[str, Any] | None:
-    """Deterministic next packet to run: lowest ``seq`` among eligible.
+    """Deterministically select normal work or a fenced recovery candidate.
 
-    Priority is advisory metadata only and does not influence ordering — the
-    manifest's ``seq`` is the single source of truth for scheduling order.
+    Normal candidates are queued and eligible. A blocked candidate is included
+    only when its own interrupted attempt has durable liveness evidence; it is
+    handed to ``run_packet`` for reconciliation, not treated as generally
+    eligible. Priority is advisory metadata only; ``seq`` decides ordering.
     """
     eligible = eligible_packets(initiative_id, db_path)
-    return eligible[0] if eligible else None
+    packets = _read_packets_with_states(initiative_id, db_path)
+    exhausted = _exhausted_packet_ids(initiative_id, packets, db_path=db_path)
+    recovery = _recovery_packets(
+        initiative_id,
+        packets,
+        exhausted=exhausted,
+        unreachable=_compute_unreachable(packets, extra_blocking=exhausted),
+        db_path=db_path,
+    )
+    candidates = [*eligible, *recovery]
+    return min(candidates, key=lambda packet: int(packet["seq"])) if candidates else None
 
 
 def initiative_status(

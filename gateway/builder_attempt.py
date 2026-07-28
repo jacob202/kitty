@@ -359,13 +359,62 @@ def build_context_bundle(
 # ---------------------------------------------------------------------------
 
 
+def _liveness_certified_stale_attempts(
+    attempts: list[dict[str, Any]], db_path: Path | None
+) -> list[dict[str, Any]]:
+    """Return open attempts whose own worker run was durably interrupted.
+
+    ``outcome IS NULL`` is an in-flight state, not proof that a worker died.
+    An attempt becomes recoverable only when ``recover_interrupted_runs`` has
+    recorded a matching ``run_interrupted`` event after that attempt started
+    and the referenced run is still durably ``interrupted``. This event-order
+    fence prevents an earlier interrupted run from being misapplied to a later
+    attempt on the same task.
+    """
+    stale: list[dict[str, Any]] = []
+    for attempt in attempts:
+        task_id = str(attempt["task_id"])
+        interrupted_run_ids = {
+            str(run["id"])
+            for run in bq.list_runs(task_id=task_id, db_path=db_path)
+            if run["state"] == bq.RUN_INTERRUPTED
+        }
+        if not interrupted_run_ids:
+            continue
+
+        events = bq.list_events(task_id, db_path=db_path)
+        attempt_started_event_id = next(
+            (
+                int(event["id"])
+                for event in reversed(events)
+                if event["type"] == "attempt_started"
+                and isinstance(event.get("payload"), dict)
+                and event["payload"].get("attempt_id") == attempt["id"]
+            ),
+            None,
+        )
+        if attempt_started_event_id is None:
+            continue
+
+        if any(
+            event["type"] == "run_interrupted"
+            and int(event["id"]) > attempt_started_event_id
+            and isinstance(event.get("payload"), dict)
+            and str(event["payload"].get("run_id")) in interrupted_run_ids
+            for event in events
+        ):
+            stale.append(attempt)
+    return stale
+
+
 def list_stale_attempts(
     initiative_id: str, packet_id: str, db_path: Path | None = None
 ) -> list[dict[str, Any]]:
-    """Return open attempts (outcome IS NULL) for a packet.
+    """Return liveness-certified interrupted attempts for a packet.
 
-    These are attempts left in-flight by a crashed run_packet process and
-    must be reconciled before starting a new one.
+    An open attempt is not stale merely because its outcome is absent. It must
+    be tied to an interrupted worker run through durable task events before
+    recovery may close its attempt and release its branch lease.
     """
     init_db(db_path)
     conn = bq.connect(db_path)
@@ -378,18 +427,18 @@ def list_stale_attempts(
             """,
             (initiative_id, packet_id),
         ).fetchall()
-        return [_row_to_attempt(r) for r in rows]
+        attempts = [_row_to_attempt(r) for r in rows]
     finally:
         conn.close()
+    return _liveness_certified_stale_attempts(attempts, db_path)
 
 
 def list_all_stale_attempts(db_path: Path | None = None) -> list[dict[str, Any]]:
-    """Return every open attempt (outcome IS NULL) across all initiatives.
+    """Return every liveness-certified interrupted attempt.
 
-    A crashed run_packet process leaves its attempt's branch lease held
-    forever if reconciliation only looks within the packet currently being
-    entered — a stale attempt from a different initiative/packet is never
-    found. This is the global counterpart to ``list_stale_attempts``.
+    This is the global counterpart to ``list_stale_attempts``. It finds only
+    attempts fenced by durable run-interruption evidence, so unrelated open
+    attempts cannot have their leases released by a recovery scan.
     """
     init_db(db_path)
     conn = bq.connect(db_path)
@@ -401,9 +450,10 @@ def list_all_stale_attempts(db_path: Path | None = None) -> list[dict[str, Any]]
             ORDER BY initiative_id, packet_id, attempt_no
             """
         ).fetchall()
-        return [_row_to_attempt(r) for r in rows]
+        attempts = [_row_to_attempt(r) for r in rows]
     finally:
         conn.close()
+    return _liveness_certified_stale_attempts(attempts, db_path)
 
 
 # ---------------------------------------------------------------------------

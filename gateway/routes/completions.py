@@ -20,10 +20,10 @@ from gateway.llm_client import (
     chat_completions_non_stream,
     iter_chat_completions_stream,
     log_chat_trace,
-    route_model,
     selected_provider_name,
 )
 from gateway.memory_graph import MemoryEvidence
+from gateway.model_routing import resolve_chat_route
 from gateway.paths import LITELLM_BASE, LITELLM_KEY, LOG_FILE
 from gateway.runtime_manifest import compact_runtime_context, compose_manifest
 
@@ -37,6 +37,11 @@ file operation, or external action ran unless an execution result is present in 
 conversation. When execution is required, state plainly that tools are unavailable
 in this chat runtime.
 """.strip()
+
+
+def route_model(message: str) -> str:
+    """Compatibility routing seam for tests and callers that still patch this Module."""
+    return resolve_chat_route("kitty-default", message, reroute_virtual_models=True).model
 
 
 class CloseSessionRequest(BaseModel):
@@ -163,11 +168,13 @@ async def chat_completions(request: Request):
         tier,
         trigger,
     )
-    model_from_request = body.get("model", "kitty-default")
-    if model_from_request and not model_from_request.startswith("kitty-"):
-        model = model_from_request
-    else:
-        model = route_model(user_text)
+    requested_model = body.get("model", "kitty-default")
+    route_decision = resolve_chat_route(
+        requested_model,
+        user_text,
+        reroute_virtual_models=False,
+    )
+    model = route_decision.model if route_decision.source == "request" else route_model(user_text)
 
     conversation_id = body.get("conversation_id")
     if conversation_id is not None and (
@@ -294,7 +301,7 @@ async def chat_completions(request: Request):
   {
       "conversation_id": conversation_id,
       "provider_selected": provider_label,
-      "client_model_requested": model_from_request,
+      "client_model_requested": route_decision.requested_model,
       "model_routed": model,
       "message_count": len(enriched),
       "message_content_chars": upstream_chars,
@@ -411,7 +418,7 @@ async def chat_completions(request: Request):
         lifecycle_headers = {
             "X-Kitty-Runtime-Revision": runtime_manifest["revision"],
             "X-Kitty-Model-Selected": model,
-            "X-Kitty-Model-Requested": str(model_from_request),
+            "X-Kitty-Model-Requested": str(route_decision.requested_model),
             "X-Kitty-Provider-Selected": provider_label,
             "X-Kitty-Tools-State": "unavailable",
         }

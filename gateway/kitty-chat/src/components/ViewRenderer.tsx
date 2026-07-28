@@ -11,8 +11,10 @@ const BuilderView = dynamic(() => import('./BuilderView'))
 const SettingsShell = dynamic(() => import('./SettingsShell'))
 const WorkView = dynamic(() => import('./WorkView'))
 const StudioView = dynamic(() => import('./StudioView'))
+const ProjectsView = dynamic(() => import('./ProjectsView'))
 const LibraryView = dynamic(() => import('./LibraryView'))
 const TutorShell = dynamic(() => import('./TutorShell'))
+const JournalPanel = dynamic(() => import('./JournalPanel'))
 const TerminalView = dynamic(() => import('./TerminalView'))
 
 // -- view renderer --------------------------------------------------------------
@@ -75,16 +77,17 @@ export function ViewRenderer({
         return <ChatView {...chatProps} compact={isMobile} />
       case 'work':
       case 'tasks':
-        return <WorkView isMobile={isMobile} />
+        return <WorkView isMobile={isMobile} onNavigate={homeProps?.onNavigate} />
       case 'studio':
       case 'images':
         return <StudioView isMobile={isMobile} />
       case 'builder':
         return <div style={pad}><BuilderView {...builderProps} /></div>
       case 'library':
-      case 'projects':
       case 'docs':
         return <LibraryView isMobile={isMobile} />
+      case 'projects':
+        return <ProjectsView isMobile={isMobile} />
     case 'settings':
     case 'providers':
     case 'agents':
@@ -92,6 +95,8 @@ export function ViewRenderer({
       return <SettingsShell isMobile={isMobile} theme={(theme as 'cosmic' | 'day' | 'night') ?? 'cosmic'} onToggleTheme={onToggleTheme} />
     case 'tutor':
       return <TutorShell isMobile={isMobile} />
+    case 'journal':
+      return <div style={pad}><JournalPanel /></div>
     case 'terminal':
         return <TerminalView isMobile={isMobile} />
       default:

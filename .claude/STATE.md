@@ -1,66 +1,65 @@
-# Session State — compute governor and session-end survey open as signed-off drafts
+# Session State — Builder requeue/recovery, Experts, Library/Projects split, Home tile fixes
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-07-27T05:25:00Z",
-  "head_sha": "16c39cff1da34f620cf75804ca91a3ccc8d7876a",
-  "branch": "claude/session-end-recommendations-xsd0ss",
-  "worktree": ".",
-  "status": "awaiting_review",
+  "updated_at": "2026-07-28T17:40:00Z",
+  "head_sha": "448d505b1ebcd3f935cae5ff526707b8864b9772",
+  "branch": "jacob202/fix-description",
+  "worktree": "amphipod",
+  "status": "in_progress",
   "completed_items": [
-    "Hardened .agents/skills/session-end/SKILL.md: survey first, evaluate carried release checks, at most three ranked recommendations, life projects before code",
-    "Added scripts/session_end_survey.sh - read-only inventory of worktrees, unmerged branches and the paths they touch, open PRs including drafts, the Builder queue, ~/kb/NOW.md, and carried recommendations",
-    "Checkpoint schema_version 2 adds parallel_work and recommendations, enforced by gateway/context_receipt.py",
-    "Aligned the AGENTS.md session-end protocol with the skill and named the skill its authority",
-    "ADR 0022 accepted, registered as D21, docs/adr/README.md updated",
-    "Re-walked SKILL_REGISTRY.md: the heading claimed 7 skills, the table listed 6, the directory held 9",
-    "Built gateway/compute_governor.py: per-(task_type, subject_ref, head_sha) receipts, enforced dispatch descriptors, three priced routes, reserve floors, weekly local ledger",
-    "Wired the governor into run_packet, run_initiative, and both Builder CLI entry points, on by default at the CLI",
-    "Derived the weekly budget from the DeepSeek V4 snapshot prices: CAD 6.00/week",
-    "Cleared three failures inherited from origin/main: ruff on insight_loop, mypy on routes/knowledge.py, and the checkpoint JSON blocks this file restores"
+    "Builder: requeue + recover_stale backend actions (2 new action files, builder_control.py updated)",
+    "Builder: staleness detection (10min), per-packet requeue, bulk recover, confirmation dialog, staleness indicators on cards and BuilderBrain",
+    "Experts: Chat.expertId/systemPrompt fields, handleNewExpertChat with auto-generated prompts, ExpertStrip wired to create real expert chats",
+    "Library/Projects: ProjectsView.tsx, ViewRenderer dispatch, Rail/BottomNav swap builder→projects, LibraryView simplified",
+    "Home tiles: ExpertStrip functional, ActiveProjects targets ProjectsView, Today todos clickable",
+    "Work/Builder: Builder removed from Rail, accessible from WorkView + command palette"
   ],
-  "blockers": [
-    "gh is not installed in this container, so the survey could not verify the open-PR queue; PR state came from the GitHub MCP tools instead",
-    "~/kb is not present in this container, so no wiki entry, INDEX line, or NOW.md update was written - this session's durable knowledge is still unextracted",
-    "DeepSeek V4 pricing could not be re-verified against the live provider page; outbound web search requires approval in this environment"
-  ],
-  "next_action": "Merge PR #276, then merge origin/main into PR #278 and resolve the AGENTS.md and gateway/ overlap.",
+  "blockers": [],
+  "next_action": "Commit, push, verify CI, merge PR #289",
   "parallel_work": [
     {
       "kind": "pr",
-      "ref": "#276",
-      "owner": "this session",
-      "touches": [
-        ".agents",
-        "AGENTS.md",
-        "SKILL_REGISTRY.md",
-        "docs",
-        "gateway",
-        "scripts"
-      ],
-      "observed_at": "2026-07-27T05:20:00Z"
+      "ref": "#288",
+      "owner": "jacob202",
+      "touches": [".env.example", "gateway", "kitty", "tests"],
+      "observed_at": "2026-07-28T19:30:00Z"
     },
     {
       "kind": "pr",
-      "ref": "#278",
-      "owner": "this session",
-      "touches": [
-        "AGENTS.md",
-        "config",
-        "docs",
-        "gateway",
-        "kitty",
-        "tests"
-      ],
-      "observed_at": "2026-07-27T05:20:00Z"
+      "ref": "#290",
+      "owner": "jacob202",
+      "touches": ["README.md", "docs", "repomix.config.json", "scripts"],
+      "observed_at": "2026-07-28T19:30:00Z"
+    },
+    {
+      "kind": "pr",
+      "ref": "#291",
+      "owner": "jacob202",
+      "touches": ["docs"],
+      "observed_at": "2026-07-28T19:30:00Z"
+    },
+    {
+      "kind": "pr",
+      "ref": "#292",
+      "owner": "jacob202",
+      "touches": ["docs"],
+      "observed_at": "2026-07-28T19:30:00Z"
+    },
+    {
+      "kind": "worktree",
+      "ref": "fix/dogfood-provider-chat-shell-2026-07-28",
+      "owner": "jacob202",
+      "touches": [".env.before-agentrouter", "config", "gateway/routes"],
+      "observed_at": "2026-07-28T19:30:00Z"
     }
   ],
   "recommendations": [
     {
-      "id": "merge-276-then-reconcile-278",
-      "what": "Merge PR #276, then merge origin/main into PR #278 and resolve the AGENTS.md and gateway/ overlap",
-      "why": "Both PRs are signed off; #276 first keeps the overlap resolvable in one direction",
+      "id": "merge-pr-289",
+      "what": "Push the UI enhancement commits, verify CI passes on PR #289",
+      "why": "Builder recovery, experts, library/projects split, and home tile fixes need to land on main",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -69,20 +68,20 @@
       "first_deferred": null
     },
     {
-      "id": "extract-session-kb",
-      "what": "Merge docs/session-notes/2026-07-27-kb-payload.md into ~/kb and append its INDEX lines",
-      "why": "The payload is staged but the knowledge base is not reachable from this container",
+      "id": "chat-context-visibility",
+      "what": "Add system prompt preview and token window visualization to ChatView",
+      "why": "Chat is opaque — users can't see what context the model receives or how full the window is",
       "class": "code",
-      "status": "deferred",
-      "blocked_by": "~/kb is a separate repo and is not present in this container",
-      "release_check": "test -d ~/kb",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
       "deferred_count": 0,
-      "first_deferred": "2026-07-27"
+      "first_deferred": null
     },
     {
-      "id": "reconcile-receipt-cost",
-      "what": "Reconcile a receipt's estimated_usage_cad against the actual token counts in the ledger after a run",
-      "why": "estimate_cost_cad prices a dispatch before it runs; nothing checks the estimate afterwards",
+      "id": "review-doc-prs",
+      "what": "Review and close PRs #290-292 before they accumulate merge conflicts",
+      "why": "Three docs-only PRs open simultaneously — kitchen-sink risk if left unmerged",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -91,40 +90,20 @@
       "first_deferred": null
     }
   ],
-  "invalidation_conditions": [
-    "HEAD changes beyond the recorded head_sha except the checkpoint commit that records this file",
-    "PR #276 or #278 merges or closes",
-    "a force-push orphans the recorded pull_request.head_sha from PR #276's history",
-    "origin/main advances past the recorded base_sha"
-  ],
+  "invalidation_conditions": ["HEAD changes beyond d23d346"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
-    "number": 276,
-    "url": "https://github.com/jacob202/kitty/pull/276",
+    "number": 289,
     "state": "OPEN",
-    "head_sha": "22e05a0fb2bb6c15468e091481b56b81054819d8"
-  },
-  "base_sha": "00e005b3c3bf88573b38e4448470d678d4821fce"
+    "head_sha": "224d7bd4533cd637d861a433499e0acd073fd66b"
+  }
 }
 -->
 
 ## Current checkpoint
-
-Branch `claude/session-end-recommendations-xsd0ss` at `16c39cf`, clean, merged
-up to `origin/main` at `00e005b`. Two draft PRs are open and signed off by
-Jacob: #276 (session-end survey, carry-forward recommendations, ADR 0022) and
-#278 (compute governor). Both carry fixes for three failures that originated on
-`main`, not in this work.
+`jacob202/fix-description` at `d23d346`. 17 files modified/created covering Builder queue recovery, expert chat creation, library/projects separation, and home tile clickability. 1 dirty file: `gateway/kitty-chat/package-lock.json`.
 
 ## Lessons applied
-
-- `origin/main` was red on ruff, on mypy, and on its own cold-start acceptance
-  test. A branch that merges main inherits all three, so "my PR is red" needed
-  checking against the base before it needed debugging.
-- CI runs a PR merged into its base, so a green local branch still fails CI on
-  the base's breakage.
-- The compute governor's first real find was in its own wiring: an
-  override-authorized rerun passed the gate and then failed at settlement.
-- A governed CLI pointed at one shared receipts store refuses its own second
-  test. Receipt stores must be redirectable per checkout.
-- An open-PR inventory without `gh` is unverified, never empty.
+- CLI-to-UI gap pattern: backend recovery logic existed in `builder_queue_leases.py`/`builder_queue_runs.py` with full CLI support but no web API surface. Fix was 2 action handlers + ~198 lines of frontend.
+- ExpertStrip was a dead no-op: `onClick={() => onNavigate('chat')}` created no expert chat. Fix required extending the Chat model, adding context-aware chat creation, and wiring through 4 component layers.
+- Rail/BottomNav must match ViewRenderer dispatch — swapping "builder" for "projects" required updates in 6 files (Rail, BottomNav, ViewRenderer, CommandPalette, WorkView, and the new ProjectsView).

@@ -118,3 +118,10 @@ this checklist; this section is its summary and must not diverge from it.
 8. **Git status** — run `git status --short --branch`. Note uncommitted files. Do NOT commit or push unless explicitly asked.
 
 9. **Confirm** — one line per file written, the next move, anything deferred with what releases it, and any survey section that came back `UNAVAILABLE`. Then stop. Do not start new work.
+
+## Cloned Dependency Source
+
+Read-only dependency source repositories are available under
+`.slim/clonedeps/repos/` for inspection. Do not edit these clones.
+
+- `.slim/clonedeps/repos/MeiGen-AI__GenEvolve/` — `MeiGen-AI/GenEvolve` at `23c847c`; image-planning and renderer-boundary reference only.
