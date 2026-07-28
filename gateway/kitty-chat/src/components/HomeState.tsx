@@ -30,6 +30,7 @@ import {
   useExecuteRepair,
   useExpertList,
   useSignals,
+  useGatewayWeather,
 } from '@/lib/queries';
 import type {
   GatewayAction,
@@ -1510,6 +1511,8 @@ export function HomeState({
     typeof document !== 'undefined' &&
     document.documentElement.getAttribute('data-theme') === 'cosmic';
   const { visibleTiles } = useDashboardConfig();
+  const weatherQuery = useGatewayWeather();
+  const weather = weatherQuery.data?.weather;
 
   return (
     <div
@@ -1547,6 +1550,38 @@ export function HomeState({
       {visibleTiles['health'] !== false && <RepairsCard />}
       {visibleTiles['health'] !== false && <SignalsCard />}
       <BuilderGlance onOpen={() => onNavigate('builder')} />
+      {visibleTiles['weather'] !== false && weather && !weather.error && (
+        <section style={{ ...card, display: 'grid', gap: 8 }}>
+          <div style={cardHeader}>
+            <div style={cardTitle}>weather</div>
+            <span style={cardMeta}>
+              {weather.temp_c != null ? `${Math.round(weather.temp_c)}°C` : '—'}
+            </span>
+          </div>
+          {weather.description && (
+            <p style={{ ...bodyText, margin: 0, textTransform: 'capitalize' }}>
+              {weather.description}
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: 16 }}>
+            {weather.humidity != null && (
+              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                {weather.humidity}% humidity
+              </span>
+            )}
+            {weather.wind_kmph != null && (
+              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                {weather.wind_kmph} km/h wind
+              </span>
+            )}
+            {weather.max_c != null && weather.min_c != null && (
+              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                {Math.round(weather.max_c)}° / {Math.round(weather.min_c)}°
+              </span>
+            )}
+          </div>
+        </section>
+      )}
       {visibleTiles['whats-next'] !== false && (
         <WhatsNext preferredName={preferredName} onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       )}
