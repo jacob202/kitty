@@ -58,6 +58,7 @@ jobs:
           {
             python -m pip install --upgrade pip
             pip install -r requirements.txt
+            pip install ruff mypy pytest pytest-asyncio
             ruff check gateway/ tests/ mcp/
             mypy gateway/ mcp/
             pytest -q tests/test_provider_prefs.py tests/test_active_provider_routing.py tests/test_llm_client.py tests/test_chat_completions.py
