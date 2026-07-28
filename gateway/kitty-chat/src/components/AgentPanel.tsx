@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchAgentStatus, type AgentSession, type AgentType } from '@/lib/gateway'
 import { useAgentSessions, useSpawnAgent, useStopAgent } from '@/lib/queries'
+import { useKitty } from '@/state/KittyContext'
 
 const AGENT_TYPES: { id: AgentType; label: string; desc: string }[] = [
   { id: 'explorer',   label: 'explore',  desc: 'wide research & discovery' },
@@ -17,6 +18,7 @@ const AGENTS_LIMIT = 8
 
 export function AgentPanel() {
   const qc = useQueryClient()
+  const k = useKitty()
   const sessionsQuery = useAgentSessions(AGENTS_LIMIT)
   const spawnAgentMutation = useSpawnAgent()
   const stopAgentMutation = useStopAgent()
@@ -31,6 +33,16 @@ export function AgentPanel() {
   function handleSpawn() {
     const g = goal.trim()
     if (!g || spawning) return
+    const typeLabel = AGENT_TYPES.find(t => t.id === agentType)?.label ?? agentType
+    const chatExpert = {
+      id: `agent-${agentType}`,
+      label: `${typeLabel} agent`,
+      book_count: 0,
+      tags: [typeLabel, 'agent'],
+      formats: [],
+      sample_title: g.slice(0, 60),
+    }
+    k.handleNewExpertChat(chatExpert)
     spawnAgentMutation.mutate(
       { goal: g, agentType },
       { onSuccess: sid => { if (sid) setGoal('') } },
@@ -103,6 +115,16 @@ export function AgentPanel() {
                   <span style={goalTextStyle}>{s.goal.slice(0, 55)}{s.goal.length > 55 ? '…' : ''}</span>
                 </button>
                 <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                  <button
+                    onClick={() => {
+                      const chatExpert = { id: `agent-session-${s.session_id}`, label: 'agent', book_count: 0, tags: [], formats: [], sample_title: s.goal.slice(0, 60) }
+                      k.handleNewExpertChat(chatExpert)
+                    }}
+                    style={{ ...stopBtnStyle, color: 'var(--c-purple)' }}
+                    title="chat with agent"
+                  >
+                    ▷
+                  </button>
                   {(s.status === 'running' || s.status === 'queued') && (
                     <button onClick={() => handleStop(s.session_id)} style={stopBtnStyle} title="stop">■</button>
                   )}

@@ -54,15 +54,15 @@ export default function SettingsShell({ isMobile, theme, onToggleTheme }: {
           lineHeight: 1.6,
           margin: 0,
         }}>
-          Journal, Tutor, Terminal, and Agents are available from the command
-          palette (<kbd style={{
+          Journal, Tutor, Terminal, and Agents are available from either the
+          command palette (<kbd style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 11,
             padding: '1px 6px',
             border: '1px solid var(--line)',
             borderRadius: 4,
           }}>⌘K</kbd>), the sidebar rail, or the mobile More menu.
-          They earn a top-level tab when usage data justifies it.
+          Spawning an agent from the Agents panel also opens a dedicated chat.
         </p>
       </section>
 
