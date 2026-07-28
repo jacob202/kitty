@@ -212,6 +212,7 @@ export function BuilderSurface({ fact, isLoading, error, onBack }: BuilderSurfac
             onSelectPacket={setSelection}
             registerPacketButton={registerPacketButton}
           />
+          <BuilderBrain snapshot={snapshot} />
           {allPacketsOpen && (
             <AllPacketsModal
               snapshot={snapshot}
@@ -1202,4 +1203,148 @@ function isExpired(validUntil: string | undefined): boolean {
   if (!validUntil) return false
   const timestamp = Date.parse(validUntil)
   return Number.isFinite(timestamp) && timestamp < Date.now()
+}
+
+// ---------------------------------------------------------------------------
+// Builder Brain — read-only Q&A from status projections
+// ---------------------------------------------------------------------------
+
+function BuilderBrain({ snapshot }: { snapshot: BuilderStatusSnapshot }) {
+  const [open, setOpen] = useState(false)
+  const allPackets = snapshot.initiatives.flatMap(i => i.packets)
+  const blocked = allPackets.filter(p => p.task_state === 'blocked')
+  const failed = allPackets.filter(p => p.task_state === 'failed' || p.failure_kind !== null)
+  const running = allPackets.filter(p =>
+    p.run?.state === 'running' || p.run?.state === 'starting'
+  )
+  const exhausted = allPackets.filter(p => p.budget?.exhausted === true)
+  const cancelled = allPackets.filter(p => p.task_state === 'cancelled')
+  const nextPackets = snapshot.initiatives
+    .filter(i => i.next_packet)
+    .map(i => ({ initiative: i.title, packet: i.next_packet }))
+
+  if (blocked.length === 0 && running.length === 0 && failed.length === 0 && exhausted.length === 0) {
+    return (
+      <section style={{ ...card, display: 'grid', gap: 8 }} aria-label="Builder Q&A">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          style={{
+            ...cardHeader, border: 'none', background: 'none',
+            cursor: 'pointer', textAlign: 'left', width: '100%',
+            padding: 0, display: 'flex', alignItems: 'center', gap: 8,
+          }}
+        >
+          <span style={cardTitle}>ask about builder</span>
+          <span style={{ ...cardMeta, fontSize: 10 }}>{open ? '▲' : '▼'}</span>
+        </button>
+        {open && (
+          <p style={{ ...bodyText, margin: 0 }}>
+            Nothing needs attention right now. {snapshot.queue.done} packets
+            complete, {snapshot.queue.queued} queued.
+            {nextPackets.length > 0 && ` Next up: ${nextPackets.map(n => n.packet).join(', ')}.`}
+          </p>
+        )}
+      </section>
+    )
+  }
+
+  return (
+    <section style={{ ...card, display: 'grid', gap: 10 }} aria-label="Builder Q&A">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        style={{
+          ...cardHeader, border: 'none', background: 'none',
+          cursor: 'pointer', textAlign: 'left', width: '100%',
+          padding: 0, display: 'flex', alignItems: 'center', gap: 8,
+        }}
+      >
+        <span style={cardTitle}>ask about builder</span>
+        <span style={{ ...cardMeta, fontSize: 10 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {blocked.length > 0 && (
+            <BrainSection title={`${blocked.length} blocked`} color="var(--c-red)">
+              {blocked.map(p => (
+                <div key={p.packet_id} style={{ display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{p.title}</span>
+                  <span style={cardMeta}>{p.packet_id}{p.blocked_reason ? ` — ${p.blocked_reason}` : ''}</span>
+                </div>
+              ))}
+            </BrainSection>
+          )}
+          {failed.length > 0 && (
+            <BrainSection title={`${failed.length} failed`} color="var(--c-red)">
+              {failed.map(p => (
+                <div key={p.packet_id} style={{ display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{p.title}</span>
+                  <span style={cardMeta}>{p.packet_id} — {p.failure_kind}</span>
+                </div>
+              ))}
+            </BrainSection>
+          )}
+          {exhausted.length > 0 && (
+            <BrainSection title={`${exhausted.length} exhausted`} color="var(--c-yellow)">
+              {exhausted.map(p => (
+                <div key={p.packet_id} style={{ display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{p.title}</span>
+                  <span style={cardMeta}>{p.packet_id} — budget used {p.budget?.used}/{p.budget?.max}</span>
+                </div>
+              ))}
+            </BrainSection>
+          )}
+          {running.length > 0 && (
+            <BrainSection title={`${running.length} running`} color="var(--c-blue)">
+              {running.map(p => (
+                <div key={p.packet_id} style={{ display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{p.title}</span>
+                  <span style={cardMeta}>{p.packet_id} — {p.run?.state}</span>
+                </div>
+              ))}
+            </BrainSection>
+          )}
+          {nextPackets.length > 0 && (
+            <BrainSection title={`${nextPackets.length} ready next`} color="var(--c-green)">
+              {nextPackets.map(n => (
+                <div key={n.packet} style={{ display: 'grid', gap: 2 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{n.packet}</span>
+                  <span style={cardMeta}>{n.initiative}</span>
+                </div>
+              ))}
+            </BrainSection>
+          )}
+          {cancelled.length > 0 && (
+            <p style={{ ...bodyText, margin: 0 }}>
+              {cancelled.length} cancelled {cancelled.length === 1 ? 'packet' : 'packets'} —
+              review and requeue or clean up from the packet detail view.
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function BrainSection({ title, color, children }: { title: string; color: string; children: ReactNode }) {
+  return (
+    <div style={{
+      borderLeft: `3px solid ${color}`,
+      paddingLeft: 12,
+      display: 'grid',
+      gap: 8,
+    }}>
+      <span style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 10,
+        fontWeight: 700,
+        color,
+        textTransform: 'uppercase',
+      }}>
+        {title}
+      </span>
+      {children}
+    </div>
+  )
 }
