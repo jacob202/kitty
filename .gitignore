@@ -95,3 +95,7 @@ gateway/kitty-chat/test-results/
 
 # Local Deepwork coordination state
 .slim/deepwork/
+
+# BEGIN oh-my-opencode-slim clonedeps
+.slim/clonedeps/repos/
+# END oh-my-opencode-slim clonedeps
