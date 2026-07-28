@@ -28,6 +28,41 @@ def test_reports_real_config():
     assert "kitty-default" in aliases
 
 
+def test_resolve_chat_route_honors_explicit_non_virtual_model():
+    decision = model_routing.resolve_chat_route(
+        "openai/gpt-4o-mini",
+        "explain how recursion works",
+        reroute_virtual_models=True,
+    )
+
+    assert decision.model == "openai/gpt-4o-mini"
+    assert decision.source == "request"
+
+
+def test_resolve_chat_route_reroutes_virtual_model_by_complexity():
+    decision = model_routing.resolve_chat_route(
+        "kitty-default",
+        "explain how recursion works",
+        reroute_virtual_models=True,
+    )
+
+    assert decision.model == "kitty-sonnet"
+    assert decision.source == "complexity_classifier"
+    assert decision.tier == "deep"
+
+
+def test_resolve_chat_route_normalizes_legacy_alias():
+    decision = model_routing.resolve_chat_route(
+        "kitty-agent",
+        "hello",
+        honor_requested_model=True,
+        reroute_virtual_models=False,
+    )
+
+    assert decision.model == "kitty-default"
+    assert decision.requested_model == "kitty-agent"
+
+
 def test_splits_provider_from_upstream_model(config, monkeypatch):
     config("""
         model_list:

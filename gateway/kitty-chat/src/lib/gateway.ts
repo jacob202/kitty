@@ -513,6 +513,8 @@ export interface GatewayProvider {
   configured: boolean
   disabled: boolean
   position: number | null
+  kind: 'local' | 'api_credit' | 'subscription' | string
+  free_tier: boolean
 }
 
 export interface GatewayProviderChain {

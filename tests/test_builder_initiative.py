@@ -8,6 +8,7 @@ atomic + idempotent apply, dry-run, read helpers, and the CLI surface.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -968,6 +969,36 @@ def _drive_to_done(task_id: str, db_path: Path) -> None:
     bq.transition_task(task_id, bq.DONE, db_path=db_path)
 
 
+def _record_interrupted_run(task_id: str, db_path: Path) -> None:
+    """Create an interrupted run bound to the task's current queue claim."""
+    claimed = bq.claim_task(task_id, "crashed-runner", db_path=db_path)
+    run = bq.create_run(
+        task_id,
+        ["worker"],
+        lease_token=claimed["lease_token"],
+        claim_version=claimed["claim_version"],
+        db_path=db_path,
+    )
+    bq.worker_transition_task(
+        task_id,
+        bq.RUNNING,
+        claimed["lease_token"],
+        claimed["claim_version"],
+        db_path=db_path,
+    )
+    bq.update_run(
+        run["id"],
+        state=bq.RUN_RUNNING,
+        pid=os.getpid(),
+        process_identity="different-process-identity",
+        mark_started=True,
+        expected_states=frozenset({bq.RUN_STARTING}),
+        db_path=db_path,
+    )
+    recovered = bq.recover_interrupted_runs(db_path=db_path)
+    assert run["id"] in recovered["run_ids"]
+
+
 def _three_chain_manifest() -> dict:
     return {
         "manifest_version": 1,
@@ -1014,6 +1045,49 @@ class TestKbS1bEligibility:
         nxt = bi.next_packet("kitty-alpha-v1", db_path=db_path)
         assert nxt["packet_id"] == "KB-A1"
         assert nxt["task_id"] == result["packets"][0]["task_id"]
+
+    def test_next_packet_selects_liveness_certified_blocked_recovery(
+        self, db_path: Path
+    ):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        task_id = result["packets"][0]["task_id"]
+        attempt = ba.start_attempt("kitty-alpha-v1", "KB-A1", db_path=db_path)
+        _record_interrupted_run(task_id, db_path)
+
+        # Recovery candidates are not ordinary eligible work, but next_packet
+        # may explicitly hand one to run_packet's fenced recovery path.
+        assert bi.eligible_packets("kitty-alpha-v1", db_path=db_path) == []
+        next_packet = bi.next_packet("kitty-alpha-v1", db_path=db_path)
+        assert next_packet is not None
+        assert next_packet["packet_id"] == "KB-A1"
+        assert ba.list_stale_attempts("kitty-alpha-v1", "KB-A1", db_path=db_path) == [
+            attempt
+        ]
+
+    def test_interrupted_run_does_not_stale_a_later_attempt(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        task_id = result["packets"][0]["task_id"]
+        first = ba.start_attempt("kitty-alpha-v1", "KB-A1", db_path=db_path)
+        _record_interrupted_run(task_id, db_path)
+        ba.close_attempt(first["id"], ba.ATTEMPT_CRASHED, db_path=db_path)
+        bq.operator_release_task(
+            task_id, reason="test_completed_recovery", db_path=db_path
+        )
+
+        later = ba.start_attempt("kitty-alpha-v1", "KB-A1", db_path=db_path)
+        assert later["outcome"] is None
+        assert ba.list_stale_attempts("kitty-alpha-v1", "KB-A1", db_path=db_path) == []
+
+    def test_recovery_selection_waits_for_dependencies(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        first_task_id = result["packets"][0]["task_id"]
+        second_task_id = result["packets"][1]["task_id"]
+        bq.transition_task(first_task_id, bq.CLAIMED, db_path=db_path)
+        bq.transition_task(first_task_id, bq.RUNNING, db_path=db_path)
+        ba.start_attempt("kitty-alpha-v1", "KB-A2", db_path=db_path)
+        _record_interrupted_run(second_task_id, db_path)
+
+        assert bi.next_packet("kitty-alpha-v1", db_path=db_path) is None
 
     def test_dependent_not_eligible_until_dependency_done(self, db_path: Path):
         bi.apply_manifest(_manifest(), db_path=db_path)

@@ -11,6 +11,7 @@ import pytest
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
+from gateway import builder_run as br
 from gateway import builder_status, runtime_manifest
 
 INITIATIVE_ID = "builder-ui-test"
@@ -249,6 +250,51 @@ def test_cancelled_task_is_not_presented_as_an_implementation_failure(tmp_path: 
 
     assert packet["task_state"] == "cancelled"
     assert packet["failure_kind"] == "cancelled"
+
+
+def test_cancellation_decision_preserves_event_provenance_without_changing_task_state(
+    tmp_path: Path,
+):
+    manifest = _manifest()
+    manifest["packets"][0]["policy"]["max_attempts"] = 1
+    db_path = tmp_path / "builder.db"
+    repo = _git_repo(tmp_path)
+    task_id = bi.apply_manifest(manifest, db_path=db_path, repo_root=repo)["packets"][0][
+        "task_id"
+    ]
+    attempt = ba.start_attempt(INITIATIVE_ID, PACKET_ID, db_path=db_path)
+    ba.close_attempt(attempt["id"], ba.ATTEMPT_ABORTED, db_path=db_path)
+    bq.transition_task(task_id, bq.CLAIMED, db_path=db_path)
+    bq.transition_task(task_id, bq.RUNNING, db_path=db_path)
+    bq.transition_task(task_id, bq.BLOCKED, db_path=db_path)
+    bq.append_event(
+        task_id,
+        br.EVENT_DECISION,
+        payload={
+            "decision": "packet_cancelled",
+            "reason": "worker run was cancelled",
+            "stop_class": br.STOP_ROUTINE,
+            "provenance": {
+                "source": "worker_run",
+                "attempt_id": attempt["id"],
+                "run_id": "run-cancelled",
+            },
+        },
+        db_path=db_path,
+    )
+
+    packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+
+    assert packet["task_state"] == bq.BLOCKED
+    assert packet["budget"] == {"used": 1, "max": 1, "exhausted": True}
+    assert packet["failure_kind"] == "cancelled"
+    assert packet["cancellation"]["reason"] == "worker run was cancelled"
+    assert packet["cancellation"]["event"]["id"] == packet["initiative_decision"]["event"]["id"]
+    assert packet["cancellation"]["provenance"] == {
+        "source": "worker_run",
+        "attempt_id": attempt["id"],
+        "run_id": "run-cancelled",
+    }
 
 
 def test_runtime_manifest_reports_a_disabled_builder_without_fabricating_state(monkeypatch):

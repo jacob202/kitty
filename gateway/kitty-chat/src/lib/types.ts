@@ -89,6 +89,10 @@ export interface Chat {
    * only through PATCH /chats/{id}/objective — never through the chat blob save.
    */
   objective?: string | null
+  /** Expert that created this chat (from /knowledge/experts). */
+  expertId?: string | null
+  /** Editable per-chat system prompt override. */
+  systemPrompt?: string | null
 }
 
 export type ChatColor = 'teal' | 'purple' | 'blue' | 'mint' | 'orange'

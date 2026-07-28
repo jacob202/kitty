@@ -1,4 +1,5 @@
 'use client'
+import { useState } from 'react'
 import { useKitty } from '@/state/KittyContext'
 import { TopBar } from '@/components/TopBar'
 import { ThreadGoal } from '@/components/ThreadGoal'
@@ -18,6 +19,7 @@ import { CatCorner } from '@/components/CrayonCat'
 
 export default function KittyChat() {
   const k = useKitty()
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
 
   return (
     <div
@@ -97,6 +99,7 @@ export default function KittyChat() {
             projectBusy={k.setActiveProject.isPending}
             runtimeState={k.runtimeQuery.data?.connections.gateway.state ?? 'unknown'}
             runtimeDetail={k.runtimeQuery.data?.connections.gateway.reason ?? (k.runtimeQuery.error instanceof Error ? k.runtimeQuery.error.message : undefined)}
+            onCommandPalette={() => setCmdPaletteOpen(true)}
           />
 
           {k.activeView === 'chat' && !k.isMobile && (
@@ -135,6 +138,7 @@ export default function KittyChat() {
                 preferredName: k.preferredName,
                 onDecideInChat: k.handleDecideInChat,
                 onNavigate: k.setActiveView,
+                onExpertClick: (expert: any) => { k.handleNewExpertChat(expert); k.setActiveView('chat') },
               }}
               builderProps={{ onBack: () => k.setActiveView('home') }}
               toolsProps={{
@@ -187,6 +191,8 @@ export default function KittyChat() {
         onSelectChat={k.handleSelectChat}
         onViewChange={k.setActiveView}
         onToggleSidebar={k.handleToggleSidebar}
+        open={cmdPaletteOpen}
+        onOpenChange={setCmdPaletteOpen}
       />
     </div>
   )

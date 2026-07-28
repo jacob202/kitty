@@ -86,7 +86,18 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
                     }}
                   />
                   <span style={{ flex: 1 }}>{m.name}</span>
-                  <span style={idStyle}>{m.id}</span>
+                  <span style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 9,
+                    letterSpacing: '0.05em',
+                    padding: '1px 5px',
+                    borderRadius: 999,
+                    border: '1px solid var(--line)',
+                    color: 'var(--ink-2)',
+                    flexShrink: 0,
+                  }}>
+                    {providerLabel(m.id)}
+                  </span>
                 </Command.Item>
               ))}
             </Command.List>
@@ -167,4 +178,18 @@ const idStyle: CSSProperties = {
   fontSize: 9,
   color: 'var(--ink-2)',
   opacity: 0.7,
+}
+
+function providerLabel(modelId: string): string {
+  const prefix = modelId.split('/')[0]?.toLowerCase() ?? ''
+  const labels: Record<string, string> = {
+    openrouter: 'OpenRouter',
+    openai: 'OpenAI',
+    gemini: 'Gemini',
+    anthropic: 'Anthropic',
+    deepseek: 'DeepSeek',
+    nvidia: 'NVIDIA',
+    local: 'local',
+  }
+  return labels[prefix] ?? prefix
 }

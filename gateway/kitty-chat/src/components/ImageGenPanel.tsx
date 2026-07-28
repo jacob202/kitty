@@ -82,6 +82,27 @@ export function ImageGenPanel() {
     )
   }
 
+  if (statusQuery.isError) {
+    return (
+      <div style={unavailableStyle}>
+        <p style={unavailableTitleStyle}>image status unavailable</p>
+        <p style={unavailableBodyStyle}>
+          Could not reach the image status endpoint. Check that the Gateway is
+          running and the image routes are enabled.
+        </p>
+        <Button
+          onClick={() => void statusQuery.refetch()}
+          disabled={statusQuery.isFetching}
+          variant="secondary"
+          size="sm"
+          icon={<RefreshCw size={12} />}
+        >
+          {statusQuery.isFetching ? 'checking…' : 'check again'}
+        </Button>
+      </div>
+    )
+  }
+
   const availableEngines = engines.filter(item => item.available)
   if (available === false && availableEngines.length === 0) {
     return (

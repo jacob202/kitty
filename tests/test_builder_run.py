@@ -164,6 +164,52 @@ class TestRunInitiative:
         status = bi.initiative_status(INITIATIVE, db_path=db_path)
         assert "P2" in status["pending"]
 
+    def test_cancelled_packet_is_not_recorded_as_exhausted(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        _apply(db_path, [_packet("P1")], repo_root=repo)
+        initiative = bi.get_initiative(INITIATIVE, db_path=db_path)
+        assert initiative is not None
+        task_id = initiative["packets"][0]["task_id"]
+
+        def cancelled_loop(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            bq.transition_task(task_id, bq.CLAIMED, db_path=db_path)
+            bq.transition_task(task_id, bq.RUNNING, db_path=db_path)
+            bq.transition_task(task_id, bq.BLOCKED, db_path=db_path)
+            return {
+                "outcome": br.bl.LOOP_CANCELLED,
+                "reason": "worker run was cancelled",
+                "attempts": [{"attempt_id": 41, "run_id": "run-cancelled"}],
+            }
+
+        monkeypatch.setattr(br.bl, "run_packet", cancelled_loop)
+        summary = _run(repo, db_path, tmp_path)
+
+        assert summary["outcome"] == "idle"
+        assert summary["exhausted"] == 0
+        assert summary["processed"] == [
+            {"packet_id": "P1", "task_id": task_id, "outcome": br.bl.LOOP_CANCELLED}
+        ]
+        decisions = [
+            event["payload"]
+            for event in bq.list_events(task_id, db_path=db_path)
+            if event["type"] == br.EVENT_DECISION
+        ]
+        assert decisions == [
+            {
+                "initiative_id": INITIATIVE,
+                "packet_id": "P1",
+                "decision": "packet_cancelled",
+                "reason": "worker run was cancelled",
+                "stop_class": br.STOP_ROUTINE,
+                "provenance": {
+                    "source": "worker_run",
+                    "attempt_id": 41,
+                    "run_id": "run-cancelled",
+                },
+            }
+        ]
+
 
 class TestPauseResume:
     def test_resume_clears_pause(self, db_path: Path):

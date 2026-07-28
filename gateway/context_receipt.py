@@ -685,6 +685,269 @@ def _base_sha_check(
     ]
 
 
+def _checkpoint_head_check(
+    repo_root: Path, prefix: str, metadata: dict[str, Any], head: str
+) -> ContinuityCheck:
+    """Validate recorded head_sha against the live HEAD and history."""
+    recorded_head = str(metadata["head_sha"])
+    if not _SHA_PATTERN.fullmatch(recorded_head):
+        return ContinuityCheck(
+            "FAIL", f"{prefix}:head", f"head_sha is not a full lowercase SHA: {recorded_head!r}"
+        )
+    # A recorded head that is missing or no longer an ancestor is WARN, not
+    # FAIL: a squash-merge collapses a feature branch into a new commit and
+    # orphans the tip the checkpoint recorded, so on main (and in CI, which
+    # checks out the merged history) this is the normal post-merge state,
+    # not a broken checkpoint. Genuine defects — a malformed SHA above, a
+    # stale age below — still FAIL.
+    exists = _git(repo_root, ["cat-file", "-e", f"{recorded_head}^{{commit}}"], required=False)
+    if exists.returncode != 0:
+        return ContinuityCheck(
+            "WARN", f"{prefix}:head", f"recorded commit is not in this history: {recorded_head}"
+        )
+    fresh, detail = _checkpoint_head_is_fresh(repo_root, recorded_head, head)
+    return ContinuityCheck("PASS" if fresh else "WARN", f"{prefix}:head", detail)
+
+
+def _checkpoint_branch_check(
+    prefix: str, metadata: dict[str, Any], branch: str | None
+) -> ContinuityCheck:
+    """Compare recorded branch against current branch (informative, not a gate)."""
+    recorded_branch = str(metadata["branch"])
+    if branch is None:
+        return ContinuityCheck("FAIL", f"{prefix}:branch", "current HEAD is detached")
+    if recorded_branch != branch:
+        # Reading a checkpoint from a branch other than the one it was written on
+        # is WARN, not FAIL: after any merge to main the checkpoint's feature
+        # branch can never match, and CI reads it from the target branch. The
+        # branch name is informative, not a gate.
+        return ContinuityCheck(
+            "WARN",
+            f"{prefix}:branch",
+            f"recorded branch {recorded_branch!r} does not match current branch {branch!r}",
+        )
+    return ContinuityCheck("PASS", f"{prefix}:branch", branch)
+
+
+def _checkpoint_worktree_check(
+    prefix: str, metadata: dict[str, Any], repo_root: Path
+) -> ContinuityCheck:
+    """Validate the worktree label/path (informational, not a location gate)."""
+    worktree_value = str(metadata["worktree"])
+    # A checkpoint's worktree field identifies WHICH worktree wrote it, not
+    # WHERE this checkout lives. Three legitimate forms exist:
+    #   - "." means "the checkout reading this" (always matches repo_root)
+    #   - a bare relative name like "amphipod" identifies a worktree label and
+    #     must not be resolved against repo_root (it would fabricate a child
+    #     path that never equals repo_root, reding CI on every PR). Relative
+    #     labels always pass.
+    #   - an absolute path legitimately differs across machines (CI checkout
+    #     vs a contributor's local tree), so a mismatch is informational, not
+    #     corruption. head_sha and branch already establish checkpoint
+    #     identity; the worktree field is a hint, not a gate. This mirrors the
+    #     branch-mismatch rationale: after any merge, CI reads the checkpoint
+    #     from a different checkout than the one that wrote it.
+    is_absolute_path = worktree_value.startswith(("/", "~"))
+    if worktree_value == "." or not is_absolute_path:
+        return ContinuityCheck(
+            "PASS",
+            f"{prefix}:worktree",
+            f"worktree label {worktree_value!r} (checkout at {repo_root})",
+        )
+    recorded_worktree = Path(worktree_value).expanduser().resolve()
+    if recorded_worktree == repo_root:
+        return ContinuityCheck("PASS", f"{prefix}:worktree", str(repo_root))
+    return ContinuityCheck(
+        "WARN",
+        f"{prefix}:worktree",
+        f"recorded worktree {worktree_value!r} does not match this checkout "
+        f"{repo_root}; checkpoint identity is established by head_sha and branch",
+    )
+
+
+def _checkpoint_age_check(
+    relative_path: Path,
+    prefix: str,
+    metadata: dict[str, Any],
+    now: datetime,
+    max_age: timedelta,
+) -> ContinuityCheck:
+    """Validate checkpoint age: future timestamps are corruption; age is advisory."""
+    updated_at = _parse_timestamp(metadata["updated_at"], field=f"{relative_path}:updated_at")
+    age = now.astimezone(timezone.utc) - updated_at
+    if age < -timedelta(minutes=5):
+        return ContinuityCheck(
+            "FAIL",
+            f"{prefix}:age",
+            f"checkpoint timestamp is in the future: {updated_at.isoformat()}",
+        )
+    if age > max_age:
+        # An aging committed checkpoint is WARN, not FAIL: main's checkpoint is
+        # frozen at its last commit and only gets older, so a hard age gate
+        # re-reds CI for every contributor about once a week until someone
+        # refreshes a scratch file. The staleness still surfaces as a warning.
+        # A future-dated timestamp above stays FAIL — that is corruption, not age.
+        return ContinuityCheck(
+            "WARN",
+            f"{prefix}:age",
+            f"checkpoint is {age.days} day(s) old; recommended maximum is {max_age.days} day(s)",
+        )
+    return ContinuityCheck(
+        "PASS", f"{prefix}:age", f"updated {updated_at.isoformat().replace('+00:00', 'Z')}"
+    )
+
+
+def _checkpoint_active_mission_check(prefix: str, metadata: dict[str, Any]) -> ContinuityCheck:
+    """Confirm the checkpoint points at the canonical active mission path."""
+    active_mission = str(metadata["active_mission"])
+    if active_mission != ACTIVE_MISSION_PATH.as_posix():
+        return ContinuityCheck(
+            "FAIL",
+            f"{prefix}:active_mission",
+            f"expected {ACTIVE_MISSION_PATH}, got {active_mission!r}",
+        )
+    return ContinuityCheck("PASS", f"{prefix}:active_mission", active_mission)
+
+
+def _checkpoint_next_action_check(prefix: str, metadata: dict[str, Any]) -> ContinuityCheck:
+    """Cross-check status against next_action and completed_items for contradictions."""
+    status = str(metadata["status"])
+    next_action = str(metadata["next_action"]).strip()
+    completed = {item.strip().casefold() for item in metadata["completed_items"]}
+    if status in _TERMINAL_CHECKPOINT_STATUSES and next_action.casefold() not in {"none", "n/a"}:
+        return ContinuityCheck(
+            "FAIL",
+            f"{prefix}:active_action",
+            f"terminal status {status!r} still declares next action {next_action!r}",
+        )
+    if next_action.casefold() in completed:
+        return ContinuityCheck(
+            "FAIL",
+            f"{prefix}:active_action",
+            f"next action is already listed as completed: {next_action!r}",
+        )
+    return ContinuityCheck("PASS", f"{prefix}:active_action", next_action)
+
+
+def _checkpoint_pull_request_check(
+    repo_root: Path,
+    prefix: str,
+    metadata: dict[str, Any],
+    github_lookup: GitHubLookup,
+) -> ContinuityCheck:
+    """Verify a claimed open PR's state and head ancestry against GitHub + local history."""
+    pull_request = metadata.get("pull_request")
+    if pull_request is None:
+        return ContinuityCheck("PASS", f"{prefix}:pull_request", "no active PR claimed")
+    if not isinstance(pull_request, dict):
+        return ContinuityCheck(
+            "FAIL", f"{prefix}:pull_request", "pull_request must be null or an object"
+        )
+
+    number = pull_request.get("number")
+    expected_state = pull_request.get("state")
+    expected_head = pull_request.get("head_sha")
+    if not isinstance(number, int) or number <= 0:
+        return ContinuityCheck(
+            "FAIL", f"{prefix}:pull_request", "pull_request.number must be positive"
+        )
+    if expected_state != "OPEN" or not isinstance(expected_head, str):
+        return ContinuityCheck(
+            "FAIL",
+            f"{prefix}:pull_request",
+            "an active pull request must declare state OPEN and a head_sha",
+        )
+
+    try:
+        live = github_lookup(number)
+    except RuntimeError as exc:
+        return ContinuityCheck(
+            "WARN",
+            f"{prefix}:pull_request",
+            f"PR #{number} could not be verified: {exc}",
+        )
+
+    live_state = live.get("state")
+    live_head = live.get("headRefOid")
+    # `pull_request.head_sha` records what the PR's head WAS when the
+    # checkpoint was written. It cannot record what the head will be:
+    # committing the checkpoint moves the head past it, and so does
+    # every later push. Requiring currency here made a checkpoint that
+    # names its own PR permanently invalid, and narrowing the
+    # allowance to checkpoint-only commits only delayed that by one
+    # commit.
+    #
+    # What actually invalidates the claim is the PR's STATE changing,
+    # or the recorded commit no longer being in the PR's history at
+    # all (a force-push or rebase orphaned it). Ordinary advancement
+    # is not a contradiction — the checkpoint's own `head_sha` field
+    # is what tracks staleness of its content.
+    head_ok = live_head == expected_head
+    head_detail = ""
+    if not head_ok and isinstance(live_head, str) and live_head:
+        # `git context` deliberately never fetches, so a head
+        # pushed from another machine is simply absent here.
+        # merge-base exits 1 for "not an ancestor" but 128 when it
+        # cannot resolve an object — treating both as orphaned turns
+        # an unfetched commit into a false FAIL.
+        # An unfetched SHA and a malformed one both fail cat-file.
+        # Only the former earns the unverifiable allowance; the
+        # latter is a broken checkpoint and must not disable the
+        # orphan check.
+        if not _SHA_PATTERN.fullmatch(str(expected_head)):
+            return ContinuityCheck(
+                "FAIL",
+                f"{prefix}:pull_request",
+                f"pull_request.head_sha is not a full lowercase SHA: {expected_head!r}",
+            )
+        have_both = all(
+            _git(repo_root, ["cat-file", "-e", f"{sha}^{{commit}}"], required=False).returncode == 0
+            for sha in (str(expected_head), live_head)
+        )
+        if not have_both:
+            # Ancestry may be unknowable here, but the PR's STATE
+            # came from GitHub and is authoritative. A merged or
+            # closed PR invalidates the checkpoint regardless of
+            # what this repository has fetched.
+            if live_state != expected_state:
+                return ContinuityCheck(
+                    "FAIL",
+                    f"{prefix}:pull_request",
+                    f"PR #{number} expected {expected_state}, live state is {live_state}",
+                )
+            return ContinuityCheck(
+                "WARN",
+                f"{prefix}:pull_request",
+                f"PR #{number} is {live_state} but head {live_head[:12]} is not "
+                "in this local repository; ancestry unverifiable without a fetch",
+            )
+        ancestor = _git(
+            repo_root,
+            ["merge-base", "--is-ancestor", str(expected_head), live_head],
+            required=False,
+        )
+        head_ok = ancestor.returncode == 0
+        head_detail = (
+            f"PR advanced from the recorded {str(expected_head)[:12]}"
+            if head_ok
+            else f"recorded {str(expected_head)[:12]} is not in PR #{number}'s history"
+        )
+    if live_state != expected_state or not head_ok:
+        return ContinuityCheck(
+            "FAIL",
+            f"{prefix}:pull_request",
+            f"PR #{number} expected {expected_state}@{expected_head}, "
+            f"live state is {live_state}@{live_head}"
+            + (f" ({head_detail})" if head_detail else ""),
+        )
+    return ContinuityCheck(
+        "PASS",
+        f"{prefix}:pull_request",
+        f"PR #{number} is OPEN at {expected_head}"
+        + (f" ({head_detail})" if head_detail else ""),
+    )
+
+
 def _checkpoint_checks(
     repo_root: Path,
     *,
@@ -698,264 +961,27 @@ def _checkpoint_checks(
     max_age: timedelta,
     github_lookup: GitHubLookup,
 ) -> list[ContinuityCheck]:
+    """Emit the continuity checks for one checkpoint file (STATE or HANDOFF).
+
+    Each dimension is its own focused function returning one ContinuityCheck;
+    this orchestrator is a flat list. The level (PASS/WARN/FAIL) assigned by
+    each dimension is load-bearing — see each function's rationale comments.
+    """
     prefix = "state" if relative_path == STATE_PATH else "handoff"
     if metadata is None:
         return [ContinuityCheck("FAIL", f"{prefix}:metadata", metadata_error or "unknown error")]
 
-    checks: list[ContinuityCheck] = []
-    checks.append(ContinuityCheck("PASS", f"{prefix}:metadata", "schema v1 metadata is valid"))
-
-    recorded_head = str(metadata["head_sha"])
-    if not _SHA_PATTERN.fullmatch(recorded_head):
-        checks.append(
-            ContinuityCheck(
-                "FAIL", f"{prefix}:head", f"head_sha is not a full lowercase SHA: {recorded_head!r}"
-            )
-        )
-    else:
-        # A recorded head that is missing or no longer an ancestor is WARN, not
-        # FAIL: a squash-merge collapses a feature branch into a new commit and
-        # orphans the tip the checkpoint recorded, so on main (and in CI, which
-        # checks out the merged history) this is the normal post-merge state,
-        # not a broken checkpoint. Genuine defects — a malformed SHA above, a
-        # stale age below — still FAIL.
-        exists = _git(repo_root, ["cat-file", "-e", f"{recorded_head}^{{commit}}"], required=False)
-        if exists.returncode != 0:
-            checks.append(
-                ContinuityCheck("WARN", f"{prefix}:head", f"recorded commit is not in this history: {recorded_head}")
-            )
-        else:
-            fresh, detail = _checkpoint_head_is_fresh(repo_root, recorded_head, head)
-            checks.append(ContinuityCheck("PASS" if fresh else "WARN", f"{prefix}:head", detail))
-
-    checks.extend(_base_sha_check(repo_root, prefix=prefix, metadata=metadata))
-
-    recorded_branch = str(metadata["branch"])
-    if branch is None:
-        checks.append(ContinuityCheck("FAIL", f"{prefix}:branch", "current HEAD is detached"))
-    elif recorded_branch != branch:
-        # Reading a checkpoint from a branch other than the one it was written on
-        # is WARN, not FAIL: after any merge to main the checkpoint's feature
-        # branch can never match, and CI reads it from the target branch. The
-        # branch name is informative, not a gate.
-        checks.append(
-            ContinuityCheck(
-                "WARN",
-                f"{prefix}:branch",
-                f"recorded branch {recorded_branch!r} does not match current branch {branch!r}",
-            )
-        )
-    else:
-        checks.append(ContinuityCheck("PASS", f"{prefix}:branch", branch))
-
-    worktree_value = str(metadata["worktree"])
-    recorded_worktree = (
-        repo_root if worktree_value == "." else Path(worktree_value).expanduser().resolve()
-    )
-    if recorded_worktree != repo_root:
-        checks.append(
-            ContinuityCheck(
-                "FAIL",
-                f"{prefix}:worktree",
-                f"recorded worktree {recorded_worktree} does not match {repo_root}",
-            )
-        )
-    else:
-        checks.append(ContinuityCheck("PASS", f"{prefix}:worktree", str(repo_root)))
-
-    updated_at = _parse_timestamp(metadata["updated_at"], field=f"{relative_path}:updated_at")
-    age = now.astimezone(timezone.utc) - updated_at
-    if age < -timedelta(minutes=5):
-        checks.append(
-            ContinuityCheck(
-                "FAIL", f"{prefix}:age", f"checkpoint timestamp is in the future: {updated_at.isoformat()}"
-            )
-        )
-    elif age > max_age:
-        # An aging committed checkpoint is WARN, not FAIL: main's checkpoint is
-        # frozen at its last commit and only gets older, so a hard age gate
-        # re-reds CI for every contributor about once a week until someone
-        # refreshes a scratch file. The staleness still surfaces as a warning.
-        # A future-dated timestamp above stays FAIL — that is corruption, not age.
-        checks.append(
-            ContinuityCheck(
-                "WARN",
-                f"{prefix}:age",
-                f"checkpoint is {age.days} day(s) old; recommended maximum is {max_age.days} day(s)",
-            )
-        )
-    else:
-        checks.append(
-            ContinuityCheck(
-                "PASS", f"{prefix}:age", f"updated {updated_at.isoformat().replace('+00:00', 'Z')}"
-            )
-        )
-
-    active_mission = str(metadata["active_mission"])
-    if active_mission != ACTIVE_MISSION_PATH.as_posix():
-        checks.append(
-            ContinuityCheck(
-                "FAIL",
-                f"{prefix}:active_mission",
-                f"expected {ACTIVE_MISSION_PATH}, got {active_mission!r}",
-            )
-        )
-    else:
-        checks.append(ContinuityCheck("PASS", f"{prefix}:active_mission", active_mission))
-
-    status = str(metadata["status"])
-    next_action = str(metadata["next_action"]).strip()
-    completed = {item.strip().casefold() for item in metadata["completed_items"]}
-    if status in _TERMINAL_CHECKPOINT_STATUSES and next_action.casefold() not in {"none", "n/a"}:
-        checks.append(
-            ContinuityCheck(
-                "FAIL",
-                f"{prefix}:active_action",
-                f"terminal status {status!r} still declares next action {next_action!r}",
-            )
-        )
-    elif next_action.casefold() in completed:
-        checks.append(
-            ContinuityCheck(
-                "FAIL",
-                f"{prefix}:active_action",
-                f"next action is already listed as completed: {next_action!r}",
-            )
-        )
-    else:
-        checks.append(ContinuityCheck("PASS", f"{prefix}:active_action", next_action))
-
-    pull_request = metadata.get("pull_request")
-    if pull_request is None:
-        checks.append(ContinuityCheck("PASS", f"{prefix}:pull_request", "no active PR claimed"))
-    elif not isinstance(pull_request, dict):
-        checks.append(
-            ContinuityCheck("FAIL", f"{prefix}:pull_request", "pull_request must be null or an object")
-        )
-    else:
-        number = pull_request.get("number")
-        expected_state = pull_request.get("state")
-        expected_head = pull_request.get("head_sha")
-        if not isinstance(number, int) or number <= 0:
-            checks.append(
-                ContinuityCheck("FAIL", f"{prefix}:pull_request", "pull_request.number must be positive")
-            )
-        elif expected_state != "OPEN" or not isinstance(expected_head, str):
-            checks.append(
-                ContinuityCheck(
-                    "FAIL",
-                    f"{prefix}:pull_request",
-                    "an active pull request must declare state OPEN and a head_sha",
-                )
-            )
-        else:
-            try:
-                live = github_lookup(number)
-            except RuntimeError as exc:
-                checks.append(
-                    ContinuityCheck(
-                        "WARN",
-                        f"{prefix}:pull_request",
-                        f"PR #{number} could not be verified: {exc}",
-                    )
-                )
-            else:
-                live_state = live.get("state")
-                live_head = live.get("headRefOid")
-                # `pull_request.head_sha` records what the PR's head WAS when the
-                # checkpoint was written. It cannot record what the head will be:
-                # committing the checkpoint moves the head past it, and so does
-                # every later push. Requiring currency here made a checkpoint that
-                # names its own PR permanently invalid, and narrowing the
-                # allowance to checkpoint-only commits only delayed that by one
-                # commit.
-                #
-                # What actually invalidates the claim is the PR's STATE changing,
-                # or the recorded commit no longer being in the PR's history at
-                # all (a force-push or rebase orphaned it). Ordinary advancement
-                # is not a contradiction — the checkpoint's own `head_sha` field
-                # is what tracks staleness of its content.
-                head_ok = live_head == expected_head
-                head_detail = ""
-                if not head_ok and isinstance(live_head, str) and live_head:
-                    # `git context` deliberately never fetches, so a head
-                    # pushed from another machine is simply absent here.
-                    # merge-base exits 1 for "not an ancestor" but 128 when it
-                    # cannot resolve an object — treating both as orphaned turns
-                    # an unfetched commit into a false FAIL.
-                    # An unfetched SHA and a malformed one both fail cat-file.
-                    # Only the former earns the unverifiable allowance; the
-                    # latter is a broken checkpoint and must not disable the
-                    # orphan check.
-                    if not _SHA_PATTERN.fullmatch(str(expected_head)):
-                        checks.append(
-                            ContinuityCheck(
-                                "FAIL",
-                                f"{prefix}:pull_request",
-                                f"pull_request.head_sha is not a full lowercase SHA: "
-                                f"{expected_head!r}",
-                            )
-                        )
-                        return checks
-                    have_both = all(
-                        _git(repo_root, ["cat-file", "-e", f"{sha}^{{commit}}"], required=False).returncode == 0
-                        for sha in (str(expected_head), live_head)
-                    )
-                    if not have_both:
-                        # Ancestry may be unknowable here, but the PR's STATE
-                        # came from GitHub and is authoritative. A merged or
-                        # closed PR invalidates the checkpoint regardless of
-                        # what this repository has fetched.
-                        if live_state != expected_state:
-                            checks.append(
-                                ContinuityCheck(
-                                    "FAIL",
-                                    f"{prefix}:pull_request",
-                                    f"PR #{number} expected {expected_state}, live state is "
-                                    f"{live_state}",
-                                )
-                            )
-                            return checks
-                        checks.append(
-                            ContinuityCheck(
-                                "WARN",
-                                f"{prefix}:pull_request",
-                                f"PR #{number} is {live_state} but head {live_head[:12]} is not "
-                                "in this local repository; ancestry unverifiable without a fetch",
-                            )
-                        )
-                        return checks
-                    ancestor = _git(
-                        repo_root,
-                        ["merge-base", "--is-ancestor", str(expected_head), live_head],
-                        required=False,
-                    )
-                    head_ok = ancestor.returncode == 0
-                    head_detail = (
-                        f"PR advanced from the recorded {str(expected_head)[:12]}"
-                        if head_ok
-                        else f"recorded {str(expected_head)[:12]} is not in PR #{number}'s history"
-                    )
-                if live_state != expected_state or not head_ok:
-                    checks.append(
-                        ContinuityCheck(
-                            "FAIL",
-                            f"{prefix}:pull_request",
-                            f"PR #{number} expected {expected_state}@{expected_head}, "
-                            f"live state is {live_state}@{live_head}"
-                            + (f" ({head_detail})" if head_detail else ""),
-                        )
-                    )
-                else:
-                    checks.append(
-                        ContinuityCheck(
-                            "PASS",
-                            f"{prefix}:pull_request",
-                            f"PR #{number} is OPEN at {expected_head}"
-                            + (f" ({head_detail})" if head_detail else ""),
-                        )
-                    )
-    return checks
+    return [
+        ContinuityCheck("PASS", f"{prefix}:metadata", "schema v1 metadata is valid"),
+        _checkpoint_head_check(repo_root, prefix, metadata, head),
+        *_base_sha_check(repo_root, prefix=prefix, metadata=metadata),
+        _checkpoint_branch_check(prefix, metadata, branch),
+        _checkpoint_worktree_check(prefix, metadata, repo_root),
+        _checkpoint_age_check(relative_path, prefix, metadata, now, max_age),
+        _checkpoint_active_mission_check(prefix, metadata),
+        _checkpoint_next_action_check(prefix, metadata),
+        _checkpoint_pull_request_check(repo_root, prefix, metadata, github_lookup),
+    ]
 
 
 def _documentation_checks(

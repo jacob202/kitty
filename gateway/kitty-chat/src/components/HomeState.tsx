@@ -30,6 +30,7 @@ import {
   useExecuteRepair,
   useExpertList,
   useSignals,
+  useGatewayWeather,
 } from '@/lib/queries';
 import type {
   GatewayAction,
@@ -805,7 +806,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
 
 // ── Experts shelf ────────────────────────────────────────────────────────────
 
-function ExpertStrip({ onNavigate }: { onNavigate: (view: string) => void }) {
+function ExpertStrip({ onExpertClick }: { onExpertClick: (expert: ExpertProfile) => void }) {
   const expertList = useExpertList()
   const experts = expertList.data ?? []
   const [expanded, setExpanded] = useState(false)
@@ -820,7 +821,7 @@ function ExpertStrip({ onNavigate }: { onNavigate: (view: string) => void }) {
         <button
           key={expert.id}
           type="button"
-          onClick={() => onNavigate('chat')}
+          onClick={() => onExpertClick(expert)}
           style={{
             ...itemCard,
             display: 'flex',
@@ -1434,9 +1435,26 @@ function TodayPanel({
         </div>
       ) : (
         open.slice(0, 5).map((t) => (
-          <div
+          <button
             key={t.id}
-            style={{ ...itemCard, display: 'flex', gap: 8, alignItems: 'flex-start' }}
+            type="button"
+            onClick={() => onNavigate('tasks')}
+            style={{
+              ...itemCard,
+              display: 'flex',
+              gap: 8,
+              alignItems: 'flex-start',
+              textAlign: 'left',
+              width: '100%',
+              cursor: 'pointer',
+              padding: '8px 10px',
+              background: 'transparent',
+              border: '1px solid transparent',
+              borderRadius: 6,
+              transition: 'border-color 150ms ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--line)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
           >
             <span
               style={{
@@ -1459,7 +1477,7 @@ function TodayPanel({
             >
               {t.content}
             </span>
-          </div>
+          </button>
         ))
       )}
       {open.length > 5 && (
@@ -1498,6 +1516,7 @@ interface Props {
   preferredName?: string;
   onDecideInChat?: (entry: GatewayTriageEntry) => void;
   onNavigate?: (view: string) => void;
+  onExpertClick?: (expert: ExpertProfile) => void;
 }
 
 export function HomeState({
@@ -1505,11 +1524,14 @@ export function HomeState({
   preferredName = '',
   onDecideInChat = () => {},
   onNavigate = () => {},
+  onExpertClick,
 }: Props) {
   const isCosmic =
     typeof document !== 'undefined' &&
     document.documentElement.getAttribute('data-theme') === 'cosmic';
   const { visibleTiles } = useDashboardConfig();
+  const weatherQuery = useGatewayWeather();
+  const weather = weatherQuery.data?.weather;
 
   return (
     <div
@@ -1547,6 +1569,38 @@ export function HomeState({
       {visibleTiles['health'] !== false && <RepairsCard />}
       {visibleTiles['health'] !== false && <SignalsCard />}
       <BuilderGlance onOpen={() => onNavigate('builder')} />
+      {visibleTiles['weather'] !== false && weather && !weather.error && (
+        <section style={{ ...card, display: 'grid', gap: 8 }}>
+          <div style={cardHeader}>
+            <div style={cardTitle}>weather</div>
+            <span style={cardMeta}>
+              {weather.temp_c != null ? `${Math.round(weather.temp_c)}°C` : '—'}
+            </span>
+          </div>
+          {weather.description && (
+            <p style={{ ...bodyText, margin: 0, textTransform: 'capitalize' }}>
+              {weather.description}
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: 16 }}>
+            {weather.humidity != null && (
+              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                {weather.humidity}% humidity
+              </span>
+            )}
+            {weather.wind_kmph != null && (
+              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                {weather.wind_kmph} km/h wind
+              </span>
+            )}
+            {weather.max_c != null && weather.min_c != null && (
+              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                {Math.round(weather.max_c)}° / {Math.round(weather.min_c)}°
+              </span>
+            )}
+          </div>
+        </section>
+      )}
       {visibleTiles['whats-next'] !== false && (
         <WhatsNext preferredName={preferredName} onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       )}
@@ -1555,7 +1609,7 @@ export function HomeState({
       {visibleTiles['deadlines'] !== false && <Deadlines />}
       {visibleTiles['phone-access'] !== false && <PhoneAccessCard />}
       {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}
-      {visibleTiles['active-projects'] !== false && <ExpertStrip onNavigate={onNavigate} />}
+      {visibleTiles['active-projects'] !== false && <ExpertStrip onExpertClick={onExpertClick ?? (() => {})} />}
       {visibleTiles['what-changed'] !== false && <WhatChanged />}
       {visibleTiles['today'] !== false && (
         <TodayPanel onNavigate={onNavigate} />

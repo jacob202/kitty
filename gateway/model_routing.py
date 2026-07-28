@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import re
+from dataclasses import dataclass
 from typing import Any
 
 import yaml
@@ -21,6 +22,37 @@ import yaml
 from gateway.paths import ROOT
 
 LITELLM_CONFIG = ROOT / "gateway" / "litellm_config.yaml"
+
+# LiteLLM virtual names (gateway/litellm_config.yaml). Keep the decision names
+# here so callers can ask one Module which chat route they are on.
+LITELLM_DEFAULT = "kitty-default"
+LITELLM_SONNET = "kitty-sonnet"
+LITELLM_SMALL = "kitty-small"
+
+LEGACY_MODEL_ALIASES: dict[str, str] = {
+    "kitty-agent": LITELLM_DEFAULT,
+    "kitty-smart": LITELLM_DEFAULT,
+    "kitty-parts": LITELLM_DEFAULT,
+    "kitty-fallback-or": LITELLM_SMALL,
+    "deepseek/deepseek-chat": LITELLM_DEFAULT,
+    "deepseek/deepseek-v4-flash": LITELLM_DEFAULT,
+    "google/gemini-2.0-flash-001": LITELLM_DEFAULT,
+    "google/gemini-2.0-flash-exp:free": LITELLM_DEFAULT,
+    "kitty-default-or": LITELLM_SMALL,
+}
+
+
+@dataclass(frozen=True)
+class RouteDecision:
+    """One inspectable model-routing decision for chat execution."""
+
+    model: str
+    requested_model: str | None
+    source: str
+    tier: str | None = None
+    trigger: str | None = None
+    selected_provider: str | None = None
+    reason: str = ""
 
 # litellm writes credentials as "os.environ/NAME"; that's the only form Kitty
 # uses, and an inline literal key is a misconfiguration worth naming out loud.
@@ -43,6 +75,105 @@ def _split_model(model: str, api_base: Any = None) -> tuple[str, str]:
     if _is_local_base(api_base):
         return "local", upstream
     return provider, upstream
+
+
+def normalize_litellm_request_model(request_model: str | None) -> str | None:
+    """Map legacy Kitty aliases onto supported LiteLLM virtual routes."""
+    if request_model is None:
+        return None
+    model = request_model.strip()
+    if not model:
+        return model
+    return LEGACY_MODEL_ALIASES.get(model, model)
+
+
+def resolve_model_for_message(message: str) -> RouteDecision:
+    """Classify a message into Kitty's virtual model route."""
+    from dotenv import load_dotenv
+
+    from gateway.reasoning import classify_complexity
+
+    classification = classify_complexity(message)
+    if classification.tier == "deep":
+        load_dotenv()
+        override = os.environ.get("KITTY_REASONING_MODEL", "").strip()
+        if override:
+            return RouteDecision(
+                model=override,
+                requested_model=None,
+                source="complexity_classifier",
+                tier=classification.tier,
+                trigger=classification.trigger,
+                reason="deep tier routed to KITTY_REASONING_MODEL",
+            )
+        return RouteDecision(
+            model=LITELLM_SONNET,
+            requested_model=None,
+            source="complexity_classifier",
+            tier=classification.tier,
+            trigger=classification.trigger,
+            reason="deep tier routed to kitty-sonnet",
+        )
+    if classification.tier == "trivial":
+        return RouteDecision(
+            model=LITELLM_SMALL,
+            requested_model=None,
+            source="complexity_classifier",
+            tier=classification.tier,
+            trigger=classification.trigger,
+            reason="trivial tier routed to kitty-small",
+        )
+    return RouteDecision(
+        model=LITELLM_DEFAULT,
+        requested_model=None,
+        source="complexity_classifier",
+        tier=classification.tier,
+        trigger=classification.trigger,
+        reason="standard tier routed to kitty-default",
+    )
+
+
+def resolve_chat_route(
+    requested_model: str | None,
+    user_text: str,
+    *,
+    honor_requested_model: bool = True,
+    reroute_virtual_models: bool = False,
+    normalize_legacy_aliases: bool = True,
+) -> RouteDecision:
+    """Return the model/provider decision without executing the LLM call.
+
+    ``reroute_virtual_models`` preserves the chat endpoint's existing behaviour:
+    third-party explicit model ids are honored, while Kitty virtual ids let Kitty
+    reclassify the turn by message complexity.
+    """
+    raw = requested_model.strip() if isinstance(requested_model, str) else None
+    model = normalize_litellm_request_model(raw) if normalize_legacy_aliases else raw
+    if model and honor_requested_model and not (reroute_virtual_models and model.startswith("kitty-")):
+        return RouteDecision(
+            model=model,
+            requested_model=raw,
+            source="request",
+            selected_provider=_selected_provider_label(),
+            reason="caller supplied an explicit model",
+        )
+
+    decision = resolve_model_for_message(user_text)
+    return RouteDecision(
+        model=decision.model,
+        requested_model=raw,
+        source=decision.source,
+        tier=decision.tier,
+        trigger=decision.trigger,
+        selected_provider=_selected_provider_label(),
+        reason=decision.reason,
+    )
+
+
+def _selected_provider_label() -> str | None:
+    from gateway.provider_prefs import active_provider
+
+    return active_provider()
 
 
 def _is_local_base(api_base: Any) -> bool:
@@ -149,7 +280,7 @@ def describe_providers() -> dict[str, Any]:
     active = str(prefs.get("active", "auto"))
     order = effective_provider_order()
 
-    providers = []
+    providers: list[dict[str, object]] = []
     for name, config in PROVIDERS.items():
         configured = provider_is_configured(config)
         providers.append(
@@ -164,17 +295,29 @@ def describe_providers() -> dict[str, Any]:
                 "disabled": name in disabled,
                 "position": order.index(name) if name in order else None,
                 "active": active == name,
+                "kind": config.kind,
+                "free_tier": config.free_tier,
             }
         )
 
     providers.sort(key=lambda p: (p["position"] is None, p["position"] or 0, p["name"]))
 
-    usable = [p["name"] for p in providers if p["configured"] and not p["disabled"]]
+    usable: list[str] = [str(p["name"]) for p in providers if p["configured"] and not p["disabled"]]
+    free_backups: list[str] = [
+        str(p["name"]) for p in providers if p.get("free_tier") and not p["disabled"]
+    ]
     warnings: list[str] = []
     if not usable:
-        warnings.append(
-            "no provider is both configured and enabled — every LLM call will fail"
-        )
+        if free_backups:
+            warnings.append(
+                "no provider is configured — "
+                f"enable a free tier ({', '.join(free_backups)}) to stay online "
+                "with zero cost"
+            )
+        else:
+            warnings.append(
+                "no provider is both configured and enabled — every LLM call will fail"
+            )
     elif usable[:1] != order[:1]:
         warnings.append(
             f"first choice '{order[0]}' has no key, so calls actually start at '{usable[0]}'"

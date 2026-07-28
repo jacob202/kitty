@@ -123,7 +123,26 @@ export function ImageStudio() {
   const [uploading, setUploading] = useState(false)
   const [refQuality, setRefQuality] = useState<QualityInfo | null>(null)
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
+  const [plan, setPlan] = useState<Record<string, unknown> | null>(null)
+  const [planPreviewing, setPlanPreviewing] = useState(false)
+  const [guidanceTags, setGuidanceTags] = useState<string[]>([])
+  const [availableTags, setAvailableTags] = useState<string[]>([])
   const abortRef = useRef<AbortController | null>(null)
+
+  // Fetch available guidance tags on mount.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/proxy/studio/plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: '.' }),
+    }).then(r => r.json()).then(data => {
+      if (!cancelled && Array.isArray(data.available_guidance_tags)) {
+        setAvailableTags(data.available_guidance_tags)
+      }
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { characters, loading: charsLoading, createChar, refetch: refetchChars } = useStudioCharacters()
@@ -143,10 +162,9 @@ export function ImageStudio() {
 
     try {
       const body: Record<string, unknown> = {
-        prompt: prompt.trim(), quality, identity, image_count: 1,
+        prompt: prompt.trim(), quality, identity,
       }
       if (selectedChar) body.character_id = selectedChar.character_id
-      if (seed) body.seed = parseInt(seed, 10)
       if (negativePrompt.trim()) body.negative_prompt = negativePrompt.trim()
 
       const r = await fetch('/proxy/studio/generate', {
@@ -178,6 +196,38 @@ export function ImageStudio() {
 
   function handleCancel() {
     abortRef.current?.abort()
+  }
+
+  async function handlePreviewPlan() {
+    if (!prompt.trim() || planPreviewing) return
+    setPlanPreviewing(true)
+    setError('')
+    setPlan(null)
+
+    try {
+      const body: Record<string, unknown> = {
+        prompt: prompt.trim(),
+      }
+      if (selectedChar) body.character_id = selectedChar.character_id
+      if (guidanceTags.length > 0) body.guidance_tags = guidanceTags
+
+      const r = await fetch('/proxy/studio/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      if (!r.ok) {
+        const detail = await r.text()
+        throw new Error(detail || `plan preview failed (${r.status})`)
+      }
+
+      const result = await r.json()
+      setPlan(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'plan preview failed')
+    }
+    setPlanPreviewing(false)
   }
 
   const handleCreateCharacter = useCallback(async () => {
@@ -394,7 +444,7 @@ export function ImageStudio() {
             <ChevronDown size={12} style={{ transform: showAdvanced ? 'rotate(180deg)' : '' }} />
           </button>
 
-          {/* Generate / Cancel */}
+          {/* Generate / Preview / Cancel */}
           <div style={{ display: 'flex', gap: 6 }}>
             {generating && (
               <button onClick={handleCancel} style={{
@@ -406,6 +456,22 @@ export function ImageStudio() {
               }}>
                 <Square size={12} />
                 cancel
+              </button>
+            )}
+            {!generating && (
+              <button
+                onClick={handlePreviewPlan}
+                disabled={!prompt.trim() || planPreviewing}
+                style={{
+                  border: '1px solid var(--line)', borderRadius: 10,
+                  background: 'transparent', color: 'var(--ink)',
+                  padding: '8px 14px', fontFamily: 'var(--font-body)',
+                  fontSize: 14, fontWeight: 600,
+                  cursor: !prompt.trim() || planPreviewing ? 'not-allowed' : 'pointer',
+                  opacity: !prompt.trim() ? 0.5 : 1,
+                }}
+              >
+                {planPreviewing ? 'previewing…' : 'preview plan'}
               </button>
             )}
             <button
@@ -466,7 +532,47 @@ export function ImageStudio() {
               </span>
             </AdvancedField>
           )}
+          {availableTags.length > 0 && (
+            <AdvancedField label="guidance">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {availableTags.map(tag => {
+                  const active = guidanceTags.includes(tag)
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setGuidanceTags(prev =>
+                        active ? prev.filter(t => t !== tag) : [...prev, tag]
+                      )}
+                      style={{
+                        border: `1px solid ${active ? 'var(--cat-ginger)' : 'var(--line)'}`,
+                        borderRadius: 999,
+                        background: active ? 'var(--ginger-fade)' : 'transparent',
+                        color: active ? 'var(--cat-ginger)' : 'var(--ink-2)',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 10,
+                        padding: '3px 10px',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {tag.replace(/_/g, ' ')}
+                    </button>
+                  )
+                })}
+              </div>
+            </AdvancedField>
+          )}
         </div>
+      )}
+
+      {/* Plan preview */}
+      {plan && (
+        <PlanPreviewCard
+          plan={plan}
+          onDismiss={() => setPlan(null)}
+          onGenerate={handleGenerate}
+        />
       )}
 
       {/* Error */}
@@ -651,12 +757,166 @@ export function ImageStudio() {
 
 function AdvancedField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', textTransform: 'uppercase' }}>
         {label}
       </span>
       {children}
-    </label>
+    </div>
+  )
+}
+
+function PlanPreviewCard({
+  plan,
+  onDismiss,
+  onGenerate,
+}: {
+  plan: Record<string, unknown>
+  onDismiss: () => void
+  onGenerate: () => void
+}) {
+  const refs = (plan.references as Array<Record<string, string>>) ?? []
+  const tags = (plan.guidance_tags as string[]) ?? []
+
+  return (
+    <section style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--c-green)',
+      borderRadius: 14,
+      padding: 20,
+      display: 'grid',
+      gap: 16,
+    }} aria-label="Generation plan preview">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <h2 style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 18,
+          fontWeight: 700,
+          color: 'var(--ink)',
+          margin: 0,
+        }}>
+          plan preview
+        </h2>
+        <button onClick={onDismiss} style={{
+          border: '1px solid var(--line)', borderRadius: 8,
+          background: 'transparent', color: 'var(--ink-2)',
+          padding: '4px 10px', fontFamily: 'var(--font-body)',
+          fontSize: 12, cursor: 'pointer',
+        }}>
+          dismiss
+        </button>
+      </div>
+
+      {/* Refined prompt */}
+      <div style={{ display: 'grid', gap: 4 }}>
+        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', textTransform: 'uppercase' }}>
+          prompt
+        </span>
+        <p style={{
+          margin: 0,
+          fontFamily: 'var(--font-body)',
+          fontSize: 14,
+          color: 'var(--ink)',
+          lineHeight: 1.6,
+          whiteSpace: 'pre-wrap',
+        }}>
+          {String(plan.refined_prompt ?? plan.original_prompt ?? '')}
+        </p>
+      </div>
+
+      {/* Resolved references */}
+      {refs.length > 0 && (
+        <div style={{ display: 'grid', gap: 4 }}>
+          <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', textTransform: 'uppercase' }}>
+            references
+          </span>
+          {refs.map((ref, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '6px 10px',
+              background: 'var(--surface-2)',
+              borderRadius: 8,
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                {ref.name}
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--ink-2)' }}>
+                {ref.reason}
+              </span>
+              <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', marginLeft: 'auto' }}>
+                {ref.path?.split('/').pop()}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Guidance tags */}
+      {tags.length > 0 && (
+        <div style={{ display: 'grid', gap: 4 }}>
+          <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', textTransform: 'uppercase' }}>
+            guidance
+          </span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {tags.map((tag) => (
+              <span key={tag} style={{
+                padding: '3px 10px',
+                background: 'var(--ginger-fade)',
+                borderRadius: 999,
+                fontSize: 11,
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--cat-ginger)',
+              }}>
+                {tag.replace(/_/g, ' ')}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recipe + character ref */}
+      {(plan.recipe_id || plan.character_ref_path) && (
+        <div style={{ display: 'grid', gap: 4 }}>
+          <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', textTransform: 'uppercase' }}>
+            resolved
+          </span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {plan.recipe_id && (
+              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                recipe: {String(plan.recipe_id)}
+              </span>
+            )}
+            {plan.character_ref_path && (
+              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                ref: {String(plan.character_ref_path).split('/').slice(-2).join('/')}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Created at */}
+      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', opacity: 0.6 }}>
+        plan created {new Date(String(plan.created_at)).toLocaleString()}
+      </span>
+
+      {/* Approve & generate */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={onGenerate}
+          style={{
+            border: 'none', borderRadius: 10,
+            background: 'var(--primary)',
+            color: 'var(--on-primary)',
+            padding: '8px 18px', fontFamily: 'var(--font-body)',
+            fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          approve & generate
+        </button>
+      </div>
+    </section>
   )
 }
 

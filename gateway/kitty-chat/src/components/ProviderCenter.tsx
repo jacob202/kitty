@@ -356,9 +356,13 @@ Selecting a provider forces normal chat through that provider. Auto keeps Kitty 
             {provider.position === null ? '—' : provider.position + 1}
           </span>
           <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
-            <span style={{ ...rowNameStyle, opacity: provider.disabled ? 0.45 : 1 }}>
-              {provider.name}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ ...rowNameStyle, opacity: provider.disabled ? 0.45 : 1 }}>
+                {provider.name}
+              </span>
+              <ProviderKindBadge kind={provider.kind} />
+              {provider.free_tier && <FreeTierBadge />}
+            </div>
             <span style={rowNoteStyle}>
               {provider.model ?? provider.model_env ?? provider.base_url}
               {!provider.requires_key && ' · no key needed'}
@@ -366,9 +370,15 @@ Selecting a provider forces normal chat through that provider. Auto keeps Kitty 
           </div>
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
             <StatusDot
-              ok={provider.configured}
+              ok={provider.configured && !provider.disabled}
               okLabel="ready"
-              badLabel={provider.api_key_env[0] ? `${provider.api_key_env[0]} missing` : 'not configured'}
+              badLabel={
+                provider.disabled
+                  ? 'disabled'
+                  : provider.api_key_env[0]
+                    ? `${provider.api_key_env[0]} missing`
+                    : 'not configured'
+              }
             />
             <Button
               onClick={() => move(provider.name, -1)}
@@ -419,6 +429,50 @@ function StatusDot({ ok, okLabel, badLabel }: { ok: boolean; okLabel: string; ba
         }}
       />
       {ok ? okLabel : badLabel}
+    </span>
+  )
+}
+
+function ProviderKindBadge({ kind }: { kind: string }) {
+  const colors: Record<string, string> = {
+    local: 'var(--c-green)',
+    api_credit: 'var(--c-blue)',
+    subscription: 'var(--c-yellow)',
+  }
+  const labels: Record<string, string> = {
+    local: 'local',
+    api_credit: 'api credit',
+    subscription: 'subscription',
+  }
+  return (
+    <span style={{
+      fontFamily: 'var(--font-mono)',
+      fontSize: 9,
+      letterSpacing: '0.06em',
+      padding: '1px 6px',
+      borderRadius: 999,
+      border: `1px solid ${colors[kind] ?? 'var(--line)'}`,
+      color: colors[kind] ?? 'var(--ink-2)',
+      flexShrink: 0,
+    }}>
+      {labels[kind] ?? kind}
+    </span>
+  )
+}
+
+function FreeTierBadge() {
+  return (
+    <span style={{
+      fontFamily: 'var(--font-mono)',
+      fontSize: 9,
+      letterSpacing: '0.06em',
+      padding: '1px 6px',
+      borderRadius: 999,
+      background: 'var(--ginger-fade)',
+      color: 'var(--cat-ginger)',
+      flexShrink: 0,
+    }}>
+      free tier
     </span>
   )
 }

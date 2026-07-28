@@ -262,6 +262,9 @@ class StabilityAIBackend(ImageBackend):
 # ── Auto-register backends at import time ────────────────────────────────────
 
 register_backend(ComfyUIBackend())
+# StabilityAIBackend is implemented but not yet dispatchable through
+# image_runner.run() or any route handler.  Register it when the runner
+# supports a "stability_ai" engine path.
 register_backend(StabilityAIBackend())
 
 

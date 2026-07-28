@@ -55,6 +55,7 @@ vi.mock('../src/lib/queries', () => ({
   useProjectNextSteps: vi.fn(),
   useWhatsNextSteps: vi.fn(),
   useGatewayHealth: vi.fn(),
+  useGatewayWeather: vi.fn(),
   useGatewayModels: vi.fn(),
   useChatsPersistence: vi.fn(),
   useSessionContext: vi.fn(),
@@ -118,6 +119,12 @@ function setDefaultMocks() {
   (useWhatsNextSteps as Mock).mockReturnValue({ data: null, isPending: false, isError: false, isFetched: true });
   (useGatewayHealth as Mock).mockReturnValue({
     data: { ok: true, litellmReachable: true, error: null },
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
+  (useGatewayWeather as Mock).mockReturnValue({
+    data: null,
     isPending: false,
     isError: false,
     isFetched: true,

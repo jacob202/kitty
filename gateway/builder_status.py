@@ -24,7 +24,7 @@ SCHEMA_VERSION = 2
 CONTROL_PLANE_SUMMARY_VERSION = 1
 ATTEMPT_HISTORY_LIMIT = 10
 REVIEW_FINDING_LIMIT = 5
-SNAPSHOT_QUERY_COUNT = 8
+SNAPSHOT_QUERY_COUNT = 9
 _MESSAGE_CAP = 500
 _OBJECTIVE_CAP = 1200
 _PATH_PATTERN = re.compile(r"(?<![A-Za-z0-9_])/(?:[^\s/]+/)+[^\s/]+")
@@ -71,6 +71,7 @@ def build_status_snapshot(*, db_path: Path | None = None) -> dict[str, Any]:
         runs = _index_rows(_read_latest_runs(conn), "task_id")
         publications = _index_rows(_read_latest_publications(conn), "task_id")
         events = _index_rows(_read_latest_events(conn), "task_id")
+        decisions = _index_rows(_read_latest_decisions(conn), "task_id")
 
         packet_models: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for row in packet_rows:
@@ -83,6 +84,7 @@ def build_status_snapshot(*, db_path: Path | None = None) -> dict[str, Any]:
                     run_row=runs.get(str(row["task_id"])),
                     publication_row=publications.get(str(row["task_id"])),
                     event_row=events.get(str(row["task_id"])),
+                    decision_row=decisions.get(str(row["task_id"])),
                 )
             )
 
@@ -300,6 +302,26 @@ def _read_latest_events(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def _read_latest_decisions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        WITH ranked AS (
+            SELECT e.id, e.task_id, e.payload_json, e.created_at,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY e.task_id
+                       ORDER BY e.id DESC
+                   ) AS row_rank
+            FROM events e
+            INNER JOIN initiative_packets p ON p.task_id = e.task_id
+            WHERE e.type = 'initiative_decision'
+        )
+        SELECT * FROM ranked
+        WHERE row_rank = 1
+        ORDER BY task_id ASC
+        """
+    ).fetchall()
+
+
 def _group_attempts(rows: list[sqlite3.Row]) -> dict[PacketKey, list[sqlite3.Row]]:
     grouped: dict[PacketKey, list[sqlite3.Row]] = defaultdict(list)
     for row in rows:
@@ -393,6 +415,7 @@ def _packet_model(
     run_row: sqlite3.Row | None,
     publication_row: sqlite3.Row | None,
     event_row: sqlite3.Row | None,
+    decision_row: sqlite3.Row | None,
 ) -> dict[str, Any]:
     issues: list[str] = []
     depends_on, dependency_issue = _decode_string_list(
@@ -431,6 +454,9 @@ def _packet_model(
     issues.extend(publication_issues)
     last_event, event_issues = _event_projection(event_row)
     issues.extend(event_issues)
+    initiative_decision, decision_issues = _initiative_decision_projection(decision_row)
+    issues.extend(decision_issues)
+    cancellation = _cancellation_projection(initiative_decision)
 
     if row["task_state"] is None:
         issues.append("task record is missing")
@@ -438,6 +464,7 @@ def _packet_model(
     failure_kind = _failure_kind(
         task_state=row["task_state"],
         exhausted=exhausted is True,
+        cancellation=cancellation,
         attempt=latest_attempt,
         run=run,
         run_infrastructure_failure=run_infrastructure_failure,
@@ -468,6 +495,8 @@ def _packet_model(
         "run": run,
         "publication": publication,
         "last_event": last_event,
+        "initiative_decision": initiative_decision,
+        "cancellation": cancellation,
         "failure_kind": failure_kind,
         "blocked_reason": _safe_message(row["blocked_reason"]),
         "last_error": _safe_message(row["last_error"]),
@@ -720,6 +749,66 @@ def _event_projection(
     )
 
 
+def _initiative_decision_projection(
+    row: sqlite3.Row | None,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    if row is None:
+        return None, []
+    payload, issue = _decode_optional_object(row["payload_json"], "initiative decision")
+    issues = [issue] if issue else []
+    if payload is None:
+        return None, issues
+    decision = _known_string(payload, "decision")
+    if decision is None:
+        issues.append("initiative decision is missing its decision")
+    provenance, provenance_issues = _decision_provenance_projection(
+        payload.get("provenance")
+    )
+    issues.extend(provenance_issues)
+    return (
+        {
+            "decision": decision,
+            "reason": _event_reason(payload),
+            "stop_class": _known_string(payload, "stop_class"),
+            "event": {"id": row["id"], "created_at": row["created_at"]},
+            "provenance": provenance,
+        },
+        issues,
+    )
+
+
+def _decision_provenance_projection(
+    value: Any,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    if value is None:
+        return None, []
+    if not isinstance(value, dict):
+        return None, ["initiative decision provenance is malformed"]
+    attempt_id = value.get("attempt_id")
+    if isinstance(attempt_id, bool) or not isinstance(attempt_id, int):
+        attempt_id = None
+    return (
+        {
+            "source": _safe_message(value.get("source"), cap=120),
+            "attempt_id": attempt_id,
+            "run_id": _safe_message(value.get("run_id"), cap=160),
+        },
+        [],
+    )
+
+
+def _cancellation_projection(
+    decision: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if decision is None or decision.get("decision") != "packet_cancelled":
+        return None
+    return {
+        "reason": decision["reason"],
+        "event": decision["event"],
+        "provenance": decision["provenance"],
+    }
+
+
 def _initiative_counts(packets: list[dict[str, Any]]) -> dict[str, int]:
     counts = {
         "total": len(packets),
@@ -776,7 +865,10 @@ def _failure_kind(
     run: dict[str, Any] | None,
     run_infrastructure_failure: bool,
     last_event: dict[str, Any] | None,
+    cancellation: dict[str, Any] | None = None,
 ) -> str | None:
+    if cancellation is not None:
+        return "cancelled"
     if task_state == bq.CANCELLED:
         return "cancelled"
     if exhausted:
