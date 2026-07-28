@@ -192,147 +192,34 @@ Concrete areas to inspect when refining decision rules:
 
 Decision: no code copying into Kitty. Its GPL license and clean-room Claude-Code focus make direct reuse inappropriate. Use it to test whether Kitty's planner/executor boundaries omit a useful state or handoff, then implement independently.
 
-### 6. oh-my-openagent (omo) — STUDY agent architecture; ADAPT plugin lifecycle patterns
+### 6. Oh My OpenAgent / Oh My ClaudeCode / OpenCode Swarm — STUDY; harvest prompts only after runtime proof
 
-Repository: `code-yeongyu/oh-my-openagent` (npm: `oh-my-opencode`, dual-published as `omo`)
-Pinned inspection SHA: `b5d56246f6c1b744fdb6238ea34b2c2215ad2e8d`
-License: MIT (at pinned SHA; note: `dev` branch carries a Sustainable Use License — prefer the MIT-licensed tag)
-Implementation language: TypeScript
+Repositories named in the original initiative:
 
-Concrete implementation surfaces:
+- `code-yeongyu/oh-my-openagent`
+- `Yeachan-Heo/oh-my-claudecode`
+- `zaxbysauce/opencode-swarm`
 
-- `src/index.ts` — plugin entry, hooks wiring, agent registration, background automation
-- `src/create-hooks.ts` — hook lifecycle registration
-- `src/create-managers.ts` — manager initialization
-- `src/create-tools.ts` — tool creation and registration
-- `src/plugin-config.ts` — configuration loading and schema validation
-- `src/plugin-state.ts` — plugin-scoped state management
-- `src/plugin-interface.ts` — plugin type contracts
-- `src/plugin-handlers/` — individual handler implementations
-- Agents: Sisyphus (orchestrator) with Prometheus (Planner) and Metis (Plan Consultant)
-- Background tasks with per-provider/model concurrency limits
-- Category-based domain delegation (visual, business-logic, custom)
-- 11 agents, 54 lifecycle hooks, 5 built-in MCPs
-- `docs/` — SDK documentation
+These are secondary sources. Their likely value is role decomposition, continuation policy, model routing and operator ergonomics—not durable state. No component from them should enter the critical path until a file-level inspection demonstrates behavior that OpenCode/OMP/OMO Slim do not already provide.
 
-High-value patterns:
+Acceptance rule for any later adoption:
 
-- background-task lifecycle with per-model concurrency limits — a primitive Kitty's queue already solves at the database layer, but the concurrency-per-model cap is a useful scheduling constraint Kitty's claim-next does not express
-- category-based delegation — domain-specific task routing that could influence Kitty's model-selection policy without replacing the queue
-- plugin-scoped state that survives configuration reload — relevant and feasible since the supervisor owns the session lifecycle
-- LSP tool integration as a built-in MCP — a concrete path to structural code awareness
+- identify exact runtime file and tests
+- show a concrete missing Kitty capability
+- prove the behavior is not merely encoded in a system prompt
+- preserve Kitty's queue/attempt/lease authority
 
-Kitty destination:
+### 7. DeepSeek-Coder and DeepSeek agent collections — REJECT as orchestrator source; keep as worker/model research
 
-- study the background-task concurrency model as a scheduling input for KB-BRAIN-06 (decision engine)
-- the plugin lifecycle hooks pattern may inform KB-BRAIN-01's `WorkerSession` event taxonomy
-- category-based routing is a model-policy concern, not a queue replacement
+Repository: `DeepSeek-AI/DeepSeek-Coder`
 
-Do not import the agent registry, task recursion subsystems, or multi-harness abstraction layer. Kitty does not need a plugin system for agents — it needs an event taxonomy and scheduling policy.
-
-### 7. oh-my-claudecode — STUDY state-management and cross-reset persistence patterns
-
-Repository: `Yeachan-Heo/oh-my-claudecode`
-Pinned inspection SHA: `d0fdaa7b93a8930fd665c2d3115975b13b016d32`
-License: MIT
-Implementation language: TypeScript (32K stars, teams-first multi-agent orchestration for Claude Code)
-
-Concrete implementation surfaces:
-
-- `docs/ARCHITECTURE.md` — four-system architecture: Hooks → Skills → Agents → State
-- `src/installer/index.ts` — installation into `~/.claude/` config directory
-- `.omc/` state directory structure:
-  - `.omc/state/autopilot-state.json` — autopilot progress tracking
-  - `.omc/state/team/` — team task state
-  - `.omc/state/sessions/{sessionId}/` — per-session state
-  - `.omc/notepad.md` — compaction-resistant memo pad
-  - `.omc/project-memory.json` — project knowledge store
-  - `.omc/plans/` — execution plans
-  - `.omc/notepads/{plan-name}/` — per-plan learnings, decisions, issues, problems
-  - `.omc/autopilot/spec.md` — autopilot artifacts
-  - `.omc/research/` — research results
-  - `.omc/logs/` — execution logs
-
-High-value patterns:
-
-- state that survives context-window compaction through file-backed persistence — directly analogous to Kitty's need to preserve packet context across worker sessions
-- per-plan knowledge capture (learnings, decisions, issues, problems) — a structured evidence artifact that Kitty's final-report mechanism already approximates but without the categorization
-- autopilot progress as serialized state — a model for KB-BRAIN-07's bounded-autopilot checkpoint format
-- compaction-resistant memo pad — a fallback channel for critical state when the primary context budget is exhausted, relevant to KB-BRAIN-01's `WorkerSnapshot` contract
-
-Kitty destination:
-
-- KB-BRAIN-01 `WorkerSnapshot` should include a structured evidence block with learnings/decisions/issues categories
-- KB-BRAIN-07 autopilot checkpoint should serialize to a file that survives worker-process restart
-- KB-BRAIN-02 runtime snapshot should capture compaction-level state
-
-Do not copy the Claude Code hook system, agent registry, or installer. Kitty already has `builder_identity.verify_and_escalate`, `builder_queue.py`, and `builder_run.py` for these concerns.
-
-### 8. OpenCode Swarm — STUDY plan-ledger and serial task execution
-
-Repository: `ZaxbyHub/opencode-swarm`
-Pinned inspection SHA: `4802189f`
-License: MIT
-Implementation language: TypeScript (408 stars, 6,000+ tests, 580 releases)
-
-Concrete implementation surfaces:
-
-- `src/index.ts` — plugin entry, pipeline tracker, system enhancer, compaction customizer, context budget handler, delegation gate, guardrails, automation manager
-- `docs/architecture.md` — hub-and-spoke control model: Architect → Explorer → SME → Coder → Reviewer → Test Engineer → Critic
-- `docs/plan-durability.md` — `.swarm/plan-ledger.jsonl` for crash-safe plan persistence
-- Per-agent model configuration with heterogeneous model mixing
-- Serial execution: one task at a time, phased planning with acceptance criteria
-- Plan review gate (critic) before implementation
-- Persistent `.swarm/` directory: `context.md`, `plan.md`, `history/`
-- Background automation manager with PlanSyncWorker (`plan.json → plan.md` sync)
-- Multiple swarm configurations with agent name prefixing
-
-High-value patterns:
-
-- plan-ledger as an append-only JSONL — the simplest possible durable plan format; a single-line append survives crashes that would corrupt a structured file
-- phased planning with per-task acceptance criteria — mirrors Kitty's packet-level acceptance criteria but at a finer grain; relevant to KB-BRAIN-06's decision engine
-- critic gate before execution — Kitty already has this as the independent-review gate (`builder_loop.py` stage `STAGE_REVIEW`)
-- heterogeneous per-agent model selection — Kitty's `builder_runner.py` already supports per-packet model policy; this adds per-phase model selection as a future optimization
-- serial execution by design — aligns with Kitty's single-worker-per-lease architecture
-
-Kitty destination:
-
-- KB-BRAIN-06's decision engine should produce a ranked next-action list, not an autopilot — the plan-ledger pattern shows how to persist that without a database migration
-- Kitty's review gate is already stronger than Swarm's critic (independent worker, not a different model prompt)
-- Swarm's heterogeneous-model mixing is not needed until Kitty supports per-phase model assignment
-
-Do not import the agent framework, prompt templates, or task-execution loop. Kitty's queue, leases, and validation are already the stronger primitives.
-
-### 9. DeepSeek-Coder and awesome-deepseek-agent — REJECT as orchestrator source; keep as model/provider research
-
-Repository: `DeepSeek-AI/DeepSeek-Coder`, `deepseek-ai/awesome-deepseek-agent`
-
-DeepSeek-Coder is primarily a model/training/inference repository. `awesome-deepseek-agent` is a curated index of integration guides, not implementation code. The index surfaces DeepSeek-native harnesses (`Reasonix`, `DeepSeek-TUI`, `Deep Code`) as terminal coding assistants — their value is model integration, not orchestration architecture.
+DeepSeek-Coder is primarily a model/training/inference repository, not the operator cockpit or durable worker-session substrate Kitty needs. DeepSeek agent indexes may identify useful coding harnesses, but model quality and orchestration architecture are separate decisions.
 
 Use DeepSeek models through existing provider adapters where they meet quality/cost requirements. Do not design KittyBuilder's state machine around model-specific repositories.
 
-### 10. cmux (manaflow-ai/cmux, formerly coder/cmux) — REJECT for code; STUDY UX patterns only
+### 8. cmux and other terminal multiplexers — STUDY interaction patterns only
 
-Repository: `manaflow-ai/cmux` (redirects from `coder/cmux`)
-Pinned inspection SHA: current `main` (no stable tag pinned — actively developed)
-License: **GPL-3.0-or-later** — code cannot be copied into Kitty (MIT)
-Implementation: Swift + AppKit, native macOS app using libghostty for terminal rendering
-
-Concrete UX surfaces to study:
-
-- vertical sidebar tabs showing git branch, PR status/number, working directory, listening ports, latest notification per workspace — the information density Kitty's cockpit sidebar should match or exceed
-- notification rings around panes + unread badges + notification panel + macOS desktop notifications — Kitty's Repairs primitive already delivers structured alerts; cmux's visual-ring pattern is a UX refinement
-- `Cmd+Shift+U` jumps to most recent unread agent needing attention — Kitty should have a single-key equivalent to focus the worker that last requested attention
-- session restore: saved layout, working directories, scrollback, agent resume — Kitty's worktree and branch-lease system already preserves more state; cmux's UX for presenting restored sessions is the study target
-- 1–8 jump-to-workspace keybindings — Kitty's cockpit should support keyboard navigation among workers
-- in-app browser pane with scriptable API — out of scope for Kitty, which already has a web app
-- split panes with directional focus — the cockpit grid layout should support focus management
-
-Kitty destination:
-
-- React/CSS cockpit layout at design phase — no cmux code, no Swift, no terminal-emulator dependency
-- keyboard navigation and attention-state UX are the product-reference targets
-- Kitty's web app already solves the remote/mobile requirement that cmux cannot
+Terminal multiplexers are useful for immediate local visibility, but they are not Kitty's durable source of truth and do not solve remote/mobile operation. Study pane focus, attention badges, persistence and keyboard navigation. Reimplement these interactions in Kitty's web cockpit. Do not make tmux/cmux parsing the canonical event source.
 
 ## Canonical WorkerSession contract
 
@@ -388,13 +275,9 @@ An Oh My Pi spike should be a separate optional packet after OpenCode integratio
 - **OpenCode:** use the supported server/session/event API directly.
 - **Oh My Pi:** best alternative adapter; prototype only after OpenCode.
 - **OMO Slim:** harvest reconciliation and status logic as tests/algorithms.
-- **oh-my-openagent (omo):** study background-task concurrency and category-based delegation; do not import the agent registry or multi-harness layer.
-- **oh-my-claudecode:** study cross-compaction state persistence and autopilot checkpoints; do not import the Claude Code hook system.
-- **OpenCode Swarm:** study plan-ledger durability and serial task execution; do not import the agent framework.
 - **Architect:** reproduce the operator experience in Kitty React.
-- **Claurst:** study only (GPL-3.0 — no code copying).
-- **cmux (manaflow-ai/cmux):** study UX patterns only (GPL-3.0 — no code copying).
-- **DeepSeek-Coder / awesome-deepseek-agent:** model options, not orchestration substrates.
+- **Claurst/cmux:** study only.
+- **DeepSeek-Coder:** model option, not orchestration substrate.
 
 This is enough evidence to unblock KB-BRAIN-01 without asking a coding worker to perform another broad repository survey.
 
@@ -484,67 +367,3 @@ whose tests went green against the *previous* version.
 
 Run these two initiatives sequentially, or split `builder_loop.py` out of
 one of them, until cross-initiative path collision is detected in tooling.
-
-## Completion addendum — 2026-07-28
-
-All required repositories inspected and verified. The original initiative specified
-12 sources; this document now covers every one at an immutable commit SHA with
-license verification. Three previously underspecified secondary sources (oh-my-openagent,
-oh-my-claudecode, opencode-swarm) have been elevated from a shared STUDY section to
-dedicated file-level inspections.
-
-### Verified repository table
-
-| Repository | Inspected SHA | License | Verdict | Key contribution |
-| --- | --- | --- | --- | --- |
-| `anomalyco/opencode` (a.k.a. `sst/opencode`) | `7534d23` | MIT | ADOPT API; ADAPT events | Server API, session events, worker integration surface |
-| `alvinunreal/oh-my-opencode-slim` | `a6541cb` | MIT | ADAPT lifecycle ideas | Event routing, idle reconciliation, pending-call tracking, board injection |
-| `can1357/oh-my-pi` | `6671115` | MIT | ADAPT selectively | In-process SDK, structured session lifecycle, explicit abort |
-| `forketyfork/architect` | `772fd0a` | MIT | STUDY | Grid rendering, attention states, one-focus-worker interaction |
-| `Kuberwastaken/claurst` | pinned inspection only | GPL-3.0 | STUDY only; no code copy | Manager/executor semantics, chat-forking behavior |
-| `code-yeongyu/oh-my-openagent` | `b5d5624` | MIT (at SHA; dev branch has additional terms) | STUDY agent architecture; ADAPT lifecycle patterns | Background-task concurrency, category delegation, plugin-scoped state |
-| `Yeachan-Heo/oh-my-claudecode` | `d0fdaa7` | MIT | STUDY state persistence | Cross-compaction state, project-memory.json, autopilot checkpoints |
-| `ZaxbyHub/opencode-swarm` | `4802189` | MIT | STUDY plan-ledger and serial execution | Plan-ledger.jsonl, phased planning, per-agent models |
-| `manaflow-ai/cmux` (formerly `coder/cmux`) | `main` (active) | GPL-3.0-or-later | REJECT for code; STUDY UX | Sidebar info density, attention rings, keyboard navigation, session restore UX |
-| `DeepSeek-AI/DeepSeek-Coder` | n/a (model repo) | MIT | REJECT as orchestrator | Model option, not orchestration |
-| `deepseek-ai/awesome-deepseek-agent` | n/a (index) | n/a | STUDY index only | Surfaces Reasonix, DeepSeek-TUI as DeepSeek-native harnesses — model integration, not architecture |
-
-### Ranked implementation map for KB-BRAIN-01 through KB-BRAIN-07
-
-The original decision section prescribes an implementation order of 1–7. The harvest
-addendum and secondary-source inspections confirm that order with one amendment:
-
-| Packet | Task | Priority | Dependencies | Concrete harvest input |
-| --- | --- | --- | --- | --- |
-| KB-BRAIN-01 | Worker session adapter (OpenCode server + shell fallback) | 1 | None | OpenCode server API paths; shell-adapter earned semantics (free-model ladder, dirty-worktree refusal, marker commits); oh-my-pi SDK contract as comparison |
-| KB-BRAIN-02 | Canonical runtime snapshot | 2 | KB-BRAIN-01 | Extend `builder_status.py::build_status_snapshot()`; oh-my-claudecode's compaction-resistant state categories as evidence fields |
-| KB-BRAIN-03 | Live event stream (replayable, backpressure-aware) | 3 | KB-BRAIN-01 | Extend `gateway/sse.py` `SSEBroadcaster` with cursor and replay buffer; oh-my-opencode-slim event-router taxonomy; confirm OpenCode transport (SSE vs WebSocket) before freezing envelope |
-| KB-BRAIN-04 | Multi-pane worker cockpit | 4 | KB-BRAIN-02, KB-BRAIN-03 | Extend `BuilderSurface.tsx`; cmux attention-ring UX, keyboard navigation (1–8 jump), sidebar info density; architect grid layout |
-| KB-BRAIN-05 | Operator controls (canonical Builder APIs) | 5 | KB-BRAIN-04 | Expose existing Builder CLI commands through gateway routes; cmux sidebar metadata (git branch, PR status, ports) as UI inputs |
-| KB-BRAIN-06 | Recommend-only decision engine | 6 | KB-BRAIN-02, KB-BRAIN-05 | opencode-swarm plan-ledger pattern for durable next-action list; oh-my-opencode-slim continuation-evaluator; oh-my-openagent category-based model routing |
-| KB-BRAIN-07 | Bounded autopilot | 7 | KB-BRAIN-06 | oh-my-claudecode autopilot checkpoint as serialized state; opencode-swarm plan-ledger for crash-safe persistence; constrained to allowlisted execution modes only |
-
-**Amendment from original plan**: KB-BRAIN-05 (operator controls) should ship before
-KB-BRAIN-06 (decision engine), not after. Operator controls are a safety prerequisite —
-no automated decision should execute without human-override controls already in place.
-The original ordering had controls (5) after the cockpit (4) but before the engine (6),
-which is correct; the table above preserves that ordering.
-
-### What KB-BRAIN-01 should verify, not re-discover
-
-1. OpenCode event transport: SSE or WebSocket? The `websocket-tracker.ts` file in
-   `server/routes/instance/httpapi/` means the answer is not SSE by default.
-2. Can the OpenCode server API be driven from Python HTTP without a TypeScript SDK?
-3. Does the shell adapter's free-model-ladder logic work when models report success
-   but write no changes?
-4. Does `builder_identity.verify_and_escalate` reject marker-less commits correctly
-   in the OpenCode adapter path?
-
-### Resources referenced in this harvest
-
-- `docs/reference/hatchet-patterns.md` — prior research on distributed task patterns
-- `docs/reference/aider-repomap-study.md` — prior repository-map study
-- `docs/ARCHITECTURE.md` — Kitty domain language and module boundaries
-- `docs/FREE_WORKERS.md` — worker execution model and compute governor
-- `docs/KITTYBUILDER_QUICKSTART.md` — Builder operational surface
-- `docs/LEARNINGS.md` — prior engineering lessons (L-CAND-6 etc.)
