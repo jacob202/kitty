@@ -135,6 +135,14 @@ jobs:
                   raise SystemExit(f'obsolete AgentRouter test not found: {name}')
           path.write_text(text.rstrip() + '\n')
 
+          path = Path('gateway/kitty-chat/src/components/ChatMessage.tsx')
+          text = path.read_text()
+          old_gate = '{showActions && (message.model || message.routing?.length) && ('
+          new_gate = '{showActions && (message.provider || message.requestedModel || message.model || message.toolsState || message.routing?.length) && ('
+          if text.count(old_gate) != 1:
+              raise SystemExit('ChatMessage attribution gate marker missing')
+          path.write_text(text.replace(old_gate, new_gate, 1))
+
           path = Path('gateway/kitty-chat/tests/ChatMessage.test.tsx')
           text = path.read_text()
           replacements = {
