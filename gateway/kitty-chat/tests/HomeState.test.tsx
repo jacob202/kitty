@@ -123,6 +123,12 @@ function setDefaultMocks() {
     isError: false,
     isFetched: true,
   });
+  (useGatewayWeather as Mock).mockReturnValue({
+    data: null,
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
   (useGatewayModels as Mock).mockReturnValue({
     data: { models: LIVE_MODELS, fromLiveGateway: true, error: null },
     isPending: false,
