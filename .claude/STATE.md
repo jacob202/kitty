@@ -3,8 +3,8 @@
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-07-28T19:00:00Z",
-  "head_sha": "13aa8cd32d0c6f5e88205f1b69d241054cd28b9f",
+  "updated_at": "2026-07-28T13:50:00Z",
+  "head_sha": "be8dd1223c91810497391d1c3ef35bd563478d5a",
   "branch": "jacob202/fix-description",
   "worktree": "amphipod",
   "status": "in_progress",
@@ -17,31 +17,25 @@
     "Studio contract: seed/image_count stripped from frontend, reference_ids from backend",
     "ImagePlan boundary: plan dataclass, guidance bank, /studio/plan endpoint, preview card",
     "Studio transport errors surfaced as actionable messages",
-    "Provider kind/free_tier annotations with safety-net warnings"
+    "Provider kind/free_tier annotations with safety-net warnings",
+    "Model routing refactor: RouteDecision and legacy aliases moved to model_routing Module"
   ],
   "blockers": [],
-  "next_action": "Launch worktree on non-conflicting port, capture browser evidence for unified UI",
+  "next_action": "Fix failing PR #289 checks (typecheck, lint, cold-start, BuilderSurface test), then merge",
   "parallel_work": [
     {
       "kind": "pr",
       "ref": "#288",
       "owner": "jacob202",
       "touches": [".env.example", "gateway", "kitty", "tests"],
-      "observed_at": "2026-07-28T11:24:56Z"
-    },
-    {
-      "kind": "worktree",
-      "ref": "fix/dogfood-provider-chat-shell-2026-07-28",
-      "owner": "jacob202",
-      "touches": ["config", "gateway/routes"],
-      "observed_at": "2026-07-28T19:00:00Z"
+      "observed_at": "2026-07-28T13:50:00Z"
     }
   ],
   "recommendations": [
     {
-      "id": "launch-worktree-browser-proof",
-      "what": "Launch this worktree (port 4001+), serve build SHA, capture screenshots of Builder read-only surface, provider health badges, and ImagePlan preview card",
-      "why": "All fixes need visible proof before declaring done",
+      "id": "merge-pr-289",
+      "what": "Fix the five failing checks on PR #289 and merge the 129-commit sweep",
+      "why": "The branch carries substantial landed work that is blocked behind failing CI",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -50,9 +44,9 @@
       "first_deferred": null
     },
     {
-      "id": "align-renderer-list",
-      "what": "Reconcile image_backends.py (ComfyUI + Stability) with image_runner.py (ComfyUI + DrawThings) — show only dispatchable engines in the UI",
-      "why": "Stability register but not dispatchable; user sees engines that can't be called",
+      "id": "harden-context-receipt",
+      "what": "Deepen the context receipt validation Module as the next hardening target",
+      "why": "Protects session continuity and stale-handoff detection",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -61,9 +55,9 @@
       "first_deferred": null
     },
     {
-      "id": "review-audit-plan-file",
-      "what": "Review and either commit or discard docs/plans/kitty-master-architecture-audit.md",
-      "why": "Dirty file carrying architecture deepening notes — decide if they belong",
+      "id": "review-merged-prs",
+      "what": "Extended review of recently merged PRs 281-288 for regression risk",
+      "why": "Eight PRs merged in rapid succession; cumulative review is owed",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -72,9 +66,13 @@
       "first_deferred": null
     }
   ],
-  "invalidation_conditions": ["HEAD changes beyond 13aa8cd"],
+  "invalidation_conditions": ["HEAD changes beyond be8dd12"],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": {
+    "number": 289,
+    "state": "OPEN",
+    "head_sha": "13aa8cd32d0c6f5e88205f1b69d241054cd28b9f"
+  }
 }
 -->
 

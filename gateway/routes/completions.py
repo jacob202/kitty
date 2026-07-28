@@ -24,9 +24,9 @@ from gateway.llm_client import (
     selected_provider_name,
 )
 from gateway.memory_graph import MemoryEvidence
+from gateway.model_routing import resolve_chat_route
 from gateway.paths import LITELLM_BASE, LITELLM_KEY, LOG_FILE
 from gateway.runtime_manifest import compact_runtime_context, compose_manifest
-from gateway.model_routing import resolve_chat_route
 
 logger = logging.getLogger("kitty.gateway")
 router = APIRouter(tags=["completions"])

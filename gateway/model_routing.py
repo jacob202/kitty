@@ -280,7 +280,7 @@ def describe_providers() -> dict[str, Any]:
     active = str(prefs.get("active", "auto"))
     order = effective_provider_order()
 
-    providers = []
+    providers: list[dict[str, object]] = []
     for name, config in PROVIDERS.items():
         configured = provider_is_configured(config)
         providers.append(
@@ -302,9 +302,9 @@ def describe_providers() -> dict[str, Any]:
 
     providers.sort(key=lambda p: (p["position"] is None, p["position"] or 0, p["name"]))
 
-    usable = [p["name"] for p in providers if p["configured"] and not p["disabled"]]
-    free_backups = [
-        p["name"] for p in providers if p.get("free_tier") and not p["disabled"]
+    usable: list[str] = [str(p["name"]) for p in providers if p["configured"] and not p["disabled"]]
+    free_backups: list[str] = [
+        str(p["name"]) for p in providers if p.get("free_tier") and not p["disabled"]
     ]
     warnings: list[str] = []
     if not usable:

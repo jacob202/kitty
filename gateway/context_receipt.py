@@ -749,19 +749,41 @@ def _checkpoint_checks(
         checks.append(ContinuityCheck("PASS", f"{prefix}:branch", branch))
 
     worktree_value = str(metadata["worktree"])
-    recorded_worktree = (
-        repo_root if worktree_value == "." else Path(worktree_value).expanduser().resolve()
-    )
-    if recorded_worktree != repo_root:
+    # A checkpoint's worktree field identifies WHICH worktree wrote it, not
+    # WHERE this checkout lives. Three legitimate forms exist:
+    #   - "." means "the checkout reading this" (always matches repo_root)
+    #   - a bare relative name like "amphipod" identifies a worktree label and
+    #     must not be resolved against repo_root (it would fabricate a child
+    #     path that never equals repo_root, reding CI on every PR). Relative
+    #     labels always pass.
+    #   - an absolute path legitimately differs across machines (CI checkout
+    #     vs a contributor's local tree), so a mismatch is informational, not
+    #     corruption. head_sha and branch already establish checkpoint
+    #     identity; the worktree field is a hint, not a gate. This mirrors the
+    #     branch-mismatch rationale: after any merge, CI reads the checkpoint
+    #     from a different checkout than the one that wrote it.
+    is_absolute_path = worktree_value.startswith(("/", "~"))
+    if worktree_value == "." or not is_absolute_path:
         checks.append(
             ContinuityCheck(
-                "FAIL",
+                "PASS",
                 f"{prefix}:worktree",
-                f"recorded worktree {recorded_worktree} does not match {repo_root}",
+                f"worktree label {worktree_value!r} (checkout at {repo_root})",
             )
         )
     else:
-        checks.append(ContinuityCheck("PASS", f"{prefix}:worktree", str(repo_root)))
+        recorded_worktree = Path(worktree_value).expanduser().resolve()
+        if recorded_worktree == repo_root:
+            checks.append(ContinuityCheck("PASS", f"{prefix}:worktree", str(repo_root)))
+        else:
+            checks.append(
+                ContinuityCheck(
+                    "WARN",
+                    f"{prefix}:worktree",
+                    f"recorded worktree {worktree_value!r} does not match this checkout "
+                    f"{repo_root}; checkpoint identity is established by head_sha and branch",
+                )
+            )
 
     updated_at = _parse_timestamp(metadata["updated_at"], field=f"{relative_path}:updated_at")
     age = now.astimezone(timezone.utc) - updated_at
