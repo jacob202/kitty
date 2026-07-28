@@ -460,8 +460,9 @@ def test_models_endpoint_surfaces_litellm_http_failure() -> None:
     asyncio.run(run_test())
 
 
-class TestModelOverridePrivacyGate:
-    """CR-07: per-message model override under the explicit D10 privacy gate."""
+class TestModelOverride:
+    """CR-07: per-message model override routing. The D10 gate it once cleared
+    was retired by ADR 0022 — an override is now allowed for any content."""
 
     def _stream_body(self, **extra):
         return {
@@ -491,59 +492,49 @@ class TestModelOverridePrivacyGate:
         # route_model is patched to kitty-default in the harness.
         assert response.headers["X-Kitty-Model-Selected"] == "kitty-default"
 
-    def test_forbidden_override_is_a_clear_4xx_and_routes_nothing(self):
-        from gateway.app import app
-
-        upstream = MagicMock(
-            side_effect=AssertionError("provider must not be contacted")
-        )
-        with (
-            patch("gateway.routes.completions.classify_domain", return_value="soul"),
-            patch("gateway.routes.completions.iter_chat_completions_stream", upstream),
-            patch(
-                "gateway.routes.completions.chat_completions_non_stream",
-                new=AsyncMock(side_effect=AssertionError("provider must not be contacted")),
-            ),
-        ):
-            response = TestClient(app).post(
-                "/v1/chat/completions",
-                json=self._stream_body(
-                    model="claude-sonnet-4-6", content_class="journal"
-                ),
-            )
-        assert response.status_code == 400
-        assert "journal" in response.text
-        assert "local-only" in response.text
-        upstream.assert_not_called()
-
-    def test_forbidden_override_never_silently_falls_back(self):
-        """The 4xx must not be a disguised re-route: no model header, no stream."""
-        from gateway.app import app
-
-        with patch("gateway.routes.completions.classify_domain", return_value="soul"):
-            response = TestClient(app).post(
-                "/v1/chat/completions",
-                json=self._stream_body(model="gpt-4o", content_class="mail_body"),
-            )
-        assert response.status_code == 400
-        assert "X-Kitty-Model-Selected" not in response.headers
-
-    def test_routed_local_path_carries_private_content_class(self):
-        """content_class=journal with normal kitty routing stays permitted."""
+    def test_override_with_private_content_class_is_no_longer_blocked(self):
+        """ADR 0022 retired D10: content_class no longer gates model overrides."""
         bundle = ContextBundle(system="SYS")
         response, _ = _post_stream(
             [CONTENT_CHUNK_1, DONE_CHUNK],
             bundle,
-            body=self._stream_body(model="kitty-default", content_class="journal"),
+            body=self._stream_body(
+                model="claude-sonnet-4-6", content_class="journal"
+            ),
         )
         assert response.status_code == 200
+        assert response.headers["X-Kitty-Model-Selected"] == "claude-sonnet-4-6"
 
-    def test_non_string_content_class_is_a_400(self):
+    def test_legacy_content_class_is_accepted_and_not_forwarded(self):
+        """An old client may still send it; it must not reach the provider payload."""
         from gateway.app import app
 
-        with patch("gateway.routes.completions.classify_domain", return_value="soul"):
+        seen: dict = {}
+
+        async def capturing_stream(payload):
+            seen.update(payload)
+            for chunk in (CONTENT_CHUNK_1, DONE_CHUNK):
+                yield chunk
+
+        with (
+            patch("gateway.routes.completions.classify_domain", return_value="soul"),
+            patch(
+                "gateway.routes.completions.route_model", return_value="kitty-default"
+            ),
+            patch(
+                "gateway.context_assembler.assemble_context",
+                new=AsyncMock(return_value=ContextBundle(system="SYS")),
+            ),
+            patch(
+                "gateway.routes.completions.iter_chat_completions_stream",
+                new=capturing_stream,
+            ),
+        ):
             response = TestClient(app).post(
                 "/v1/chat/completions",
-                json=self._stream_body(model="kitty-default", content_class=7),
+                json=self._stream_body(model="kitty-default", content_class="journal"),
             )
-        assert response.status_code == 400
+
+        assert response.status_code == 200
+        assert seen, "upstream payload was never captured"
+        assert "content_class" not in seen

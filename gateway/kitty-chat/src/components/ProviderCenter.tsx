@@ -1,8 +1,8 @@
 'use client'
 import type { CSSProperties } from 'react'
-import { usePlugins, useTogglePlugin, useMcpServers, useMcpTools, useGatewayModels, useImageStatus } from '@/lib/queries'
+import { usePlugins, useTogglePlugin, useMcpServers, useMcpTools, useGatewayModels, useModelRouting, useProviders, useSaveProviders, useImageStatus } from '@/lib/queries'
 import { Button } from '@/components/ui/Button'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, ChevronUp, ChevronDown } from 'lucide-react'
 
 // Honest lanes — these are how Jacob actually reaches each thing today.
 // A subscription in a browser is not an API; don't dress it up as one.
@@ -56,6 +56,7 @@ const LANE_COLORS: Record<string, string> = {
 
 export function ProviderCenter() {
   const modelsQuery = useGatewayModels()
+  const routingQuery = useModelRouting()
   const pluginsQuery = usePlugins()
   const togglePlugin = useTogglePlugin()
   const serversQuery = useMcpServers()
@@ -93,6 +94,64 @@ export function ProviderCenter() {
           <p style={mutedStyle}>
             {modelsQuery.data?.error ?? 'gateway not reachable'} — the list below is a fallback,
             not what&apos;s actually routable right now.
+          </p>
+        )}
+      </div>
+
+      <ProviderChain />
+
+      {/* ── who each alias actually calls ── */}
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>
+          where each model name goes — read from gateway/litellm_config.yaml
+        </div>
+        <p style={mutedStyle}>
+          the kitty-* names are roles, not models. this is the provider behind each one.
+        </p>
+
+        {routingQuery.isLoading && <p style={mutedStyle}>reading routing config…</p>}
+        {routingQuery.isError && (
+          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+            couldn&apos;t read model routing —{' '}
+            {routingQuery.error instanceof Error ? routingQuery.error.message : 'gateway error'}
+          </p>
+        )}
+        {routingQuery.data && !routingQuery.data.readable && (
+          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>{routingQuery.data.error}</p>
+        )}
+
+        {(routingQuery.data?.routes ?? []).map(route => (
+          <div key={route.alias} style={rowStyle}>
+            <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+              <span style={rowNameStyle}>{route.alias}</span>
+              <span style={rowNoteStyle}>
+                {route.provider} → {route.upstream_model}
+                {route.fallbacks.length > 0 && ` · falls back to ${route.fallbacks.join(', ')}`}
+              </span>
+            </div>
+            <span style={{ marginLeft: 'auto' }}>
+              {route.key.env_var ? (
+                <StatusDot
+                  ok={route.key.present}
+                  okLabel={`${route.key.env_var} set`}
+                  badLabel={`${route.key.env_var} missing`}
+                />
+              ) : (
+                <span style={metaStyle}>{route.key.note}</span>
+              )}
+            </span>
+          </div>
+        ))}
+
+        {(routingQuery.data?.warnings ?? []).map(warning => (
+          <p key={warning} style={{ ...mutedStyle, color: 'var(--c-yellow)' }}>⚠ {warning}</p>
+        ))}
+
+        {routingQuery.data?.readable && (
+          <p style={mutedStyle}>
+            repointing an alias at a different model still means editing{' '}
+            {routingQuery.data.config_path} and restarting litellm. changing which
+            provider answers is the call order above — that one is live.
           </p>
         )}
       </div>
@@ -214,6 +273,109 @@ export function ProviderCenter() {
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Reorder and disable the fallback chain in place — the switch that used to
+ *  mean editing PROVIDER_FALLBACK_ORDER in Python and restarting. */
+function ProviderChain() {
+  const chainQuery = useProviders()
+  const save = useSaveProviders()
+
+  const providers = chainQuery.data?.providers ?? []
+  const order = chainQuery.data?.order ?? []
+
+  function move(name: string, delta: number) {
+    const next = [...order]
+    const from = next.indexOf(name)
+    const to = from + delta
+    if (from < 0 || to < 0 || to >= next.length) return
+    ;[next[from], next[to]] = [next[to], next[from]]
+    save.mutate({ order: next, disabled: providers.filter(p => p.disabled).map(p => p.name) })
+  }
+
+  function toggle(name: string, disabled: boolean) {
+    const nextDisabled = disabled
+      ? [...providers.filter(p => p.disabled).map(p => p.name), name]
+      : providers.filter(p => p.disabled && p.name !== name).map(p => p.name)
+    save.mutate({ order, disabled: nextDisabled })
+  }
+
+  return (
+    <div style={cardStyle}>
+      <div style={sectionLabelStyle}>call order — first one that answers wins</div>
+      <p style={mutedStyle}>
+        kitty tries litellm first, then walks this list. reordering takes effect on the
+        next call — no restart.
+      </p>
+
+      {chainQuery.isLoading && <p style={mutedStyle}>reading provider chain…</p>}
+      {chainQuery.isError && (
+        <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+          couldn&apos;t read the provider chain —{' '}
+          {chainQuery.error instanceof Error ? chainQuery.error.message : 'gateway error'}
+        </p>
+      )}
+      {save.isError && (
+        <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+          couldn&apos;t save —{' '}
+          {save.error instanceof Error ? save.error.message : 'gateway rejected the change'}
+        </p>
+      )}
+
+      {providers.map(provider => (
+        <div key={provider.name} style={rowStyle}>
+          <span style={{ ...metaStyle, width: 18, flexShrink: 0 }}>
+            {provider.position === null ? '—' : provider.position + 1}
+          </span>
+          <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+            <span style={{ ...rowNameStyle, opacity: provider.disabled ? 0.45 : 1 }}>
+              {provider.name}
+            </span>
+            <span style={rowNoteStyle}>
+              {provider.model ?? provider.model_env ?? provider.base_url}
+              {!provider.requires_key && ' · no key needed'}
+            </span>
+          </div>
+          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <StatusDot
+              ok={provider.configured}
+              okLabel="ready"
+              badLabel={provider.api_key_env[0] ? `${provider.api_key_env[0]} missing` : 'not configured'}
+            />
+            <Button
+              onClick={() => move(provider.name, -1)}
+              disabled={save.isPending || provider.disabled || provider.position === 0}
+              variant="ghost"
+              size="sm"
+              icon={<ChevronUp size={12} />}
+              ariaLabel={`Move ${provider.name} up`}
+            >{''}</Button>
+            <Button
+              onClick={() => move(provider.name, 1)}
+              disabled={save.isPending || provider.disabled || provider.position === order.length - 1}
+              variant="ghost"
+              size="sm"
+              icon={<ChevronDown size={12} />}
+              ariaLabel={`Move ${provider.name} down`}
+            >{''}</Button>
+            <Button
+              onClick={() => toggle(provider.name, !provider.disabled)}
+              disabled={save.isPending}
+              variant={provider.disabled ? 'secondary' : 'primary'}
+              size="sm"
+              ariaLabel={`${provider.disabled ? 'Enable' : 'Disable'} ${provider.name}`}
+            >
+              {provider.disabled ? 'off' : 'on'}
+            </Button>
+          </span>
+        </div>
+      ))}
+
+      {(chainQuery.data?.warnings ?? []).map(warning => (
+        <p key={warning} style={{ ...mutedStyle, color: 'var(--c-yellow)' }}>⚠ {warning}</p>
+      ))}
     </div>
   )
 }

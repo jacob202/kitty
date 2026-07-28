@@ -30,7 +30,7 @@ def _fresh_db(tmp_path, monkeypatch):
 def _llm_for_deadlines(response: list[dict]):
     import json
 
-    def llm_fn(prompt: str, privacy_tier: str, content_class: str | None) -> str:
+    def llm_fn(prompt: str) -> str:
         return json.dumps({"deadlines": response})
 
     return llm_fn

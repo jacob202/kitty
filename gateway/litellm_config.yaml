@@ -1,13 +1,34 @@
 # LiteLLM — Kitty model surface
 #
-#   kitty-default  → DeepSeek V4 Pro via OpenRouter (primary brain)
-#   kitty-sonnet   → DeepSeek V4 Pro + thinking (deep tier)
-#   kitty-small    → DeepSeek V4 Flash via OpenRouter (cheap/fast)
-#   kitty-vision   → Mistral Small (vision tasks, image gen)
+# The kitty-* names are ROLES, not models. App code asks for a role; this file
+# decides which provider answers. Check what's live with:
+#
+#   curl -s localhost:8000/api/model-routing | jq
+#
+# or open Settings → providers in the UI. Both show alias → provider → model
+# and whether the key is actually set.
+#
+#   kitty-default  → primary brain
+#   kitty-sonnet   → deep tier
+#   kitty-small    → cheap/fast
+#   kitty-vision   → vision tasks, image gen
+#
+# Repointing an alias at a different model means editing litellm_params.model
+# below (litellm's "<provider>/<model>" form), pointing api_key at the matching
+# env var, then restarting with `bash gateway/start_litellm.sh`.
+#
+# Changing which *provider answers* does not need any of that — that's the
+# direct-call chain in gateway/llm_client.py, reorderable live from
+# Settings -> providers or POST /api/providers.
+#
+# WARNING: kitty-default/sonnet/small/vision are all OpenRouter, and
+# kitty-default falls back to kitty-small which is also OpenRouter. One dead
+# balance takes out all four. kitty-local is the escape hatch — start it with
+# `bash gateway/start_mlx.sh`.
 #
 # Run: bash gateway/start_litellm.sh
 #
-# Env: OPENROUTER_API_KEY, MISTRAL_API_KEY, LITELLM_MASTER_KEY
+# Env: OPENROUTER_API_KEY, LITELLM_MASTER_KEY
 
 model_list:
   - model_name: kitty-default
@@ -32,6 +53,15 @@ model_list:
     litellm_params:
       model: openrouter/mistral/mistral-small-latest
       api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 4096
+
+  # Local MLX on the Mac (gateway/start_mlx.sh). No key, no credit, no network.
+  # Start it before this route resolves: bash gateway/start_mlx.sh
+  - model_name: kitty-local
+    litellm_params:
+      model: openai/mlx-community/Qwen3.5-4B-4bit
+      api_base: os.environ/MLX_BASE_URL
+      api_key: "not-needed"
       max_tokens: 4096
 
 router_settings:

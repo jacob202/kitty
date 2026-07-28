@@ -15,8 +15,12 @@ def test_route_model_sends_reasoning_to_sonnet():
     assert route_model("Use claude for this") == "kitty-sonnet"
 
 
-def test_litellm_fallback_prefers_openai_before_other_providers():
-    """When LiteLLM is down, OpenAI is tried before the other provider lanes."""
+def test_litellm_fallback_prefers_local_before_the_cloud_lanes(all_provider_keys):
+    """When LiteLLM is down, the local MLX server is tried before any cloud lane.
+
+    It costs nothing and needs no credit, so paying OpenAI to answer "hi" only
+    makes sense once local has declined.
+    """
     with patch("gateway.llm_client._post", side_effect=Exception("down")), \
          patch(
              "gateway.llm_client._call_provider",
@@ -24,24 +28,36 @@ def test_litellm_fallback_prefers_openai_before_other_providers():
          ):
         result = call_llm([{"role": "user", "content": "hello"}], model="kitty-default")
 
+    assert result == "local"
+
+
+def test_openai_leads_the_cloud_lanes(all_provider_keys):
+    """Once local declines, OpenAI is the first paid lane tried."""
+    def fake_provider(provider, *args, **kwargs):
+        return "" if provider.name == "local" else provider.name
+
+    with patch("gateway.llm_client._post", side_effect=Exception("down")), \
+         patch("gateway.llm_client._call_provider", side_effect=fake_provider):
+        result = call_llm([{"role": "user", "content": "hello"}], model="kitty-default")
+
     assert result == "openai"
 
 
-def test_disable_agentrouter_env_skips_agentrouter_fallback(monkeypatch):
+def test_disable_agentrouter_env_skips_agentrouter_fallback(monkeypatch, all_provider_keys):
     monkeypatch.setenv("KITTY_DISABLE_AGENTROUTER", "1")
     called = []
 
     def fake_provider(provider, *args, **kwargs):
         called.append(provider.name)
-        return "" if provider.name == "openai" else provider.name
+        return "" if provider.name in ("local", "openai") else provider.name
 
     with patch("gateway.llm_client._post", side_effect=Exception("down")), \
          patch("gateway.llm_client._call_provider", side_effect=fake_provider):
         result = call_llm([{"role": "user", "content": "hello"}], model="kitty-default")
 
     assert result == "nvidia"
-    # openai is tried first (returns ""), agentrouter is skipped, nvidia wins.
-    assert called == ["openai", "nvidia"]
+    # local then openai decline, agentrouter is skipped by the kill switch, nvidia wins.
+    assert called == ["local", "openai", "nvidia"]
 
 
 def test_call_llm_normalizes_legacy_deepseek_alias():

@@ -24,8 +24,8 @@ export function BottomNav({ activeView = 'home', onViewChange }: Props) {
         bottom: 0,
         left: 0,
         right: 0,
-        height: 56,
-        background: 'var(--surface-2)',
+        height: 'var(--bottom-nav-height)',
+        background: 'var(--surface-2-solid)',
         borderTop: '1.5px solid var(--line)',
         display: 'flex',
         justifyContent: 'space-around',
@@ -47,19 +47,25 @@ export function BottomNav({ activeView = 'home', onViewChange }: Props) {
               flexDirection: 'column',
               alignItems: 'center',
               gap: 2,
-              padding: '4px 8px',
+              padding: '4px 2px',
               border: 'none',
               background: 'transparent',
               cursor: 'pointer',
               color: active ? 'var(--cat-ginger)' : 'var(--ink-2)',
-              minWidth: 44,
+              // Seven tabs have to share a 320px phone without the last one
+              // sliding off the edge, so they flex instead of holding a floor.
+              flex: '1 1 0',
+              minWidth: 0,
               minHeight: 40,
             }}
           >
-            <svg viewBox="0 0 24 24" style={{ width: 22, height: 22 }}>
+            <svg viewBox="0 0 24 24" style={{ width: 22, height: 22, flexShrink: 0 }}>
               <path d={d} stroke="currentColor" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.02em' }}>{label}</span>
+            <span style={{
+              fontSize: 9, fontWeight: 600, letterSpacing: '0.02em',
+              maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>{label}</span>
           </button>
         )
       })}

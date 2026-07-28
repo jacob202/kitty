@@ -27,8 +27,8 @@ def isolate_stores(monkeypatch, tmp_path):
 def _stub_llm(response: dict):
     calls = []
 
-    def fn(prompt, privacy_tier, content_class):
-        calls.append({"prompt": prompt, "privacy_tier": privacy_tier, "content_class": content_class})
+    def fn(prompt):
+        calls.append({"prompt": prompt})
         return json.dumps(response)
 
     fn.calls = calls
@@ -77,23 +77,16 @@ class TestGenerate:
 
         assert second["changed"] is True
 
-    def test_code_project_uses_cloud_ok_privacy_tier(self):
-        project = project_store.create("x", "code")
+    def test_every_project_kind_uses_the_same_route(self):
+        """ADR 0022: project kind no longer selects a privacy tier."""
+        code = project_store.create("x", "code")
+        admin = project_store.create("benefits", "admin")
         llm = _stub_llm({"step": "s", "why": "w", "delegable": False})
 
-        next_step.generate(project["id"], llm_fn=llm)
+        next_step.generate(code["id"], llm_fn=llm)
+        next_step.generate(admin["id"], llm_fn=llm)
 
-        assert llm.calls[0]["privacy_tier"] == "cloud_ok"
-        assert llm.calls[0]["content_class"] is None
-
-    def test_admin_project_uses_local_privacy_tier(self):
-        project = project_store.create("benefits", "admin")
-        llm = _stub_llm({"step": "s", "why": "w", "delegable": False})
-
-        next_step.generate(project["id"], llm_fn=llm)
-
-        assert llm.calls[0]["privacy_tier"] == "local"
-        assert llm.calls[0]["content_class"] == "health_admin"
+        assert [set(call) for call in llm.calls] == [{"prompt"}, {"prompt"}]
 
     def test_missing_project_raises(self):
         llm = _stub_llm({"step": "s", "why": "w"})
@@ -101,7 +94,7 @@ class TestGenerate:
             next_step.generate(999999, llm_fn=llm)
 
     def test_non_json_response_raises_next_step_error(self):
-        def bad_llm(prompt, privacy_tier, content_class):
+        def bad_llm(prompt):
             return "not json at all"
 
         project = project_store.create("x", "code")

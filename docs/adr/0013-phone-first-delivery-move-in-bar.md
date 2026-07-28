@@ -17,7 +17,9 @@ to receive results, approvals, or important life information.
    concrete next step per active project, capture that returns, and auditable
    action history.
 4. Job-search execution remains parked until Jacob explicitly activates it.
-   Recovery-sensitive surfaces remain opt-in and local-only.
+   Recovery-sensitive surfaces remain opt-in. ~~and local-only~~ — the
+   local-only half is retired by
+   [ADR 0022](0022-retire-privacy-boundary.md); opt-in still stands.
 
 ## Amendment — 2026-07-26
 

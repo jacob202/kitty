@@ -20,7 +20,7 @@ that has not been promoted to a per-decision ADR remains in
 | D7  | StorageRouter Is A Thin Write-Side Seam, Not A Port | [0008](adr/0008-storage-router-thin-write-seam.md)          |
 | D8  | Lint Is High-Signal Only; E501 Not Enforced         | [0009](adr/0009-lint-high-signal-only-e501-not-enforced.md) |
 | D9  | Kitty Is A Personal Operating Layer — amended       | [0010](adr/0010-kitty-is-personal-operating-layer.md)       |
-| D10 | Privacy Boundary In The LLM Router                  | [0011](adr/0011-privacy-boundary-in-llm-router.md)           |
+| D10 | Privacy Boundary In The LLM Router — superseded by D21 | [0011](adr/0011-privacy-boundary-in-llm-router.md)         |
 | D11 | Mail Connector Uses The Gmail API, Read-Only        | [0012](adr/0012-mail-connector-gmail-readonly.md)           |
 | D12 | Phone-First Delivery And The Move-In Bar — amended  | [0013](adr/0013-phone-first-delivery-move-in-bar.md)        |
 | D13 | Magic Kitty: Cross-Project Insight                  | [0014](adr/0014-magic-kitty-cross-project-insight.md)       |
@@ -31,6 +31,7 @@ that has not been promoted to a per-decision ADR remains in
 | D18 | Audit-Harvest Ratifications                         | [0019](adr/0019-audit-harvest-ratifications.md)              |
 | D19 | One Canonical Roadmap And Planning Ownership        | [0020](adr/0020-one-canonical-roadmap.md)                    |
 | D20 | Proactive Builder Execution And Model Policy        | [0021](adr/0021-proactive-builder-execution.md)              |
+| D21 | Retire The D10 Local-Only Privacy Boundary          | [0022](adr/0022-retire-privacy-boundary.md)                  |
 
 Supersession and amendment details live in the ADRs themselves. A plan, packet,
 report, or chat statement does not become a durable decision merely by existing.

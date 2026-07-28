@@ -10,9 +10,10 @@ lazy version: the original also captured bluetooth peers and clipboard, kept
 its own SQLite + cosine index, and leaned on the dead ``MemoryWeave``. None of
 that survives here.
 
-Privacy (D10): fingerprints (time / branch / filenames) never leave the box —
-they are appended to a local JSONL and used only to pick queries. The warmed
-context flows through ``unified_context``, which already enforces the boundary.
+Fingerprints (time / branch / filenames) never leave the box — they are
+appended to a local JSONL and used only to pick queries. That is a property of
+this module, not of a router boundary: ADR 0022 retired D10, so the warmed
+context itself reaches a cloud provider like any other prompt.
 """
 
 from __future__ import annotations
