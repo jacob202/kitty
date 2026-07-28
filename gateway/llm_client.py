@@ -24,6 +24,7 @@ from typing import Any, Callable
 import httpx
 from dotenv import load_dotenv
 
+from gateway import model_routing
 from gateway.paths import LITELLM_BASE, LITELLM_KEY
 from gateway.settings import get_settings
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
@@ -117,27 +118,10 @@ _LITELLM_TO_OPENROUTER: dict[str, str] = {
     "kitty-default-or": "openrouter/deepseek/deepseek-v4-flash",
 }
 
-_LEGACY_MODEL_ALIASES: dict[str, str] = {
-    "kitty-agent": _LITELLM_DEFAULT,
-    "kitty-smart": _LITELLM_DEFAULT,
-    "kitty-parts": _LITELLM_DEFAULT,
-    "kitty-fallback-or": _LITELLM_SMALL,
-    "deepseek/deepseek-chat": _LITELLM_DEFAULT,
-    "deepseek/deepseek-v4-flash": _LITELLM_DEFAULT,
-    "google/gemini-2.0-flash-001": _LITELLM_DEFAULT,
-    "google/gemini-2.0-flash-exp:free": _LITELLM_DEFAULT,
-    "kitty-default-or": _LITELLM_SMALL,
-}
-
 
 def normalize_litellm_request_model(request_model: str | None) -> str | None:
-    """Map legacy Kitty aliases onto the single LiteLLM route."""
-    if request_model is None:
-        return None
-    model = request_model.strip()
-    if not model:
-        return model
-    return _LEGACY_MODEL_ALIASES.get(model, model)
+    """Map legacy Kitty aliases onto supported LiteLLM virtual routes."""
+    return model_routing.normalize_litellm_request_model(request_model)
 
 
 def normalize_agentrouter_api_base(raw: str | None) -> str:
@@ -184,7 +168,7 @@ def agentrouter_model_for_request(request_model: str | None) -> str:
     """Pick the upstream AgentRouter model for Kitty's single route or an explicit id."""
     load_dotenv()
     rm = (request_model or "").strip()
-    if rm and rm not in _LEGACY_MODEL_ALIASES and rm != _LITELLM_DEFAULT:
+    if rm and rm not in model_routing.LEGACY_MODEL_ALIASES and rm != _LITELLM_DEFAULT:
         return _sanitize_agentrouter_model_id(rm)
 
     g_model = os.environ.get("AGENTROUTER_MODEL", "").strip() or "gpt-5.5"
@@ -705,30 +689,15 @@ def chat(model: str, messages: list[dict], max_tokens: int = 500, temperature: f
 
 
 def route_model(message: str) -> str:
-    """Delegate to the complexity classifier for tier-aware model routing.
-
-    trivial → kitty-small (cheapest); standard → kitty-default;
-    deep → kitty-sonnet (KITTY_REASONING_MODEL overrides).
-    """
-    from gateway.reasoning import classify_complexity
-
-    classification = classify_complexity(message)
-
-    if classification.tier == "deep":
-        load_dotenv()
-        override = os.environ.get("KITTY_REASONING_MODEL", "").strip()
-        if override:
-            logger.debug("routing: deep -> KITTY_REASONING_MODEL %s (trigger: %s)", override, classification.trigger)
-            return override
-        logger.debug("routing: deep -> %s (trigger: %s)", _LITELLM_SONNET, classification.trigger)
-        return _LITELLM_SONNET
-
-    if classification.tier == "trivial":
-        logger.debug("routing: trivial -> %s (trigger: %s)", _LITELLM_SMALL, classification.trigger)
-        return _LITELLM_SMALL
-
-    logger.debug("routing: standard -> %s (trigger: %s)", _LITELLM_DEFAULT, classification.trigger)
-    return _LITELLM_DEFAULT
+    """Compatibility wrapper for callers that only need the selected model id."""
+    decision = model_routing.resolve_model_for_message(message)
+    logger.debug(
+        "routing: %s -> %s (trigger: %s)",
+        decision.tier or decision.source,
+        decision.model,
+        decision.trigger,
+    )
+    return decision.model
 
 
 # --- Async HTTP chat (gateway /v1/chat/completions) ---
