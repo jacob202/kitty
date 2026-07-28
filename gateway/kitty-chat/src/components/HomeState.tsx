@@ -806,7 +806,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
 
 // ── Experts shelf ────────────────────────────────────────────────────────────
 
-function ExpertStrip({ onNavigate }: { onNavigate: (view: string) => void }) {
+function ExpertStrip({ onExpertClick }: { onExpertClick: (expert: ExpertProfile) => void }) {
   const expertList = useExpertList()
   const experts = expertList.data ?? []
   const [expanded, setExpanded] = useState(false)
@@ -821,7 +821,7 @@ function ExpertStrip({ onNavigate }: { onNavigate: (view: string) => void }) {
         <button
           key={expert.id}
           type="button"
-          onClick={() => onNavigate('chat')}
+          onClick={() => onExpertClick(expert)}
           style={{
             ...itemCard,
             display: 'flex',
@@ -1435,9 +1435,26 @@ function TodayPanel({
         </div>
       ) : (
         open.slice(0, 5).map((t) => (
-          <div
+          <button
             key={t.id}
-            style={{ ...itemCard, display: 'flex', gap: 8, alignItems: 'flex-start' }}
+            type="button"
+            onClick={() => onNavigate('tasks')}
+            style={{
+              ...itemCard,
+              display: 'flex',
+              gap: 8,
+              alignItems: 'flex-start',
+              textAlign: 'left',
+              width: '100%',
+              cursor: 'pointer',
+              padding: '8px 10px',
+              background: 'transparent',
+              border: '1px solid transparent',
+              borderRadius: 6,
+              transition: 'border-color 150ms ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--line)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
           >
             <span
               style={{
@@ -1460,6 +1477,7 @@ function TodayPanel({
             >
               {t.content}
             </span>
+          </button>
           </div>
         ))
       )}
@@ -1499,6 +1517,7 @@ interface Props {
   preferredName?: string;
   onDecideInChat?: (entry: GatewayTriageEntry) => void;
   onNavigate?: (view: string) => void;
+  onExpertClick?: (expert: ExpertProfile) => void;
 }
 
 export function HomeState({
@@ -1506,6 +1525,7 @@ export function HomeState({
   preferredName = '',
   onDecideInChat = () => {},
   onNavigate = () => {},
+  onExpertClick,
 }: Props) {
   const isCosmic =
     typeof document !== 'undefined' &&
@@ -1590,7 +1610,7 @@ export function HomeState({
       {visibleTiles['deadlines'] !== false && <Deadlines />}
       {visibleTiles['phone-access'] !== false && <PhoneAccessCard />}
       {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}
-      {visibleTiles['active-projects'] !== false && <ExpertStrip onNavigate={onNavigate} />}
+      {visibleTiles['active-projects'] !== false && <ExpertStrip onExpertClick={onExpertClick ?? (() => {})} />}
       {visibleTiles['what-changed'] !== false && <WhatChanged />}
       {visibleTiles['today'] !== false && (
         <TodayPanel onNavigate={onNavigate} />

@@ -138,6 +138,7 @@ export default function KittyChat() {
                 preferredName: k.preferredName,
                 onDecideInChat: k.handleDecideInChat,
                 onNavigate: k.setActiveView,
+                onExpertClick: (expert: any) => { k.handleNewExpertChat(expert); k.setActiveView('chat') },
               }}
               builderProps={{ onBack: () => k.setActiveView('home') }}
               toolsProps={{

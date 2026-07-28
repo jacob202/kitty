@@ -1,38 +1,70 @@
-# Handoff — Builder reliability fixes, UI alignment, ImagePlan boundary, provider health
+# Handoff — Builder requeue/recovery, Experts, Library/Projects split, Home tile fixes
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-07-28T13:50:00Z",
-  "head_sha": "be8dd1223c91810497391d1c3ef35bd563478d5a",
+  "updated_at": "2026-07-28T19:30:00Z",
+  "head_sha": "d23d346517e1e5a3adf7a4e9657530123e7fca1c",
   "base_sha": "0a2a04480ecd555168656de62dfa9a3cc971031f",
   "branch": "jacob202/fix-description",
   "worktree": "amphipod",
   "status": "valid",
   "completed_items": [
-    "Builder reliability: LOOP_CANCELLED preserved, stale attempt liveness fence",
-    "Builder read-only surface: mutation controls removed",
-    "Studio contract: seed/image_count/reference_ids removed",
-    "ImagePlan boundary: plan dataclass, guidance bank, /studio/plan endpoint",
-    "Provider health: kind/free_tier annotations and safety-net warnings",
-    "Model routing refactor: RouteDecision moved to model_routing Module"
+    "Builder: requeue + recover_stale actions in backend (2 new action files, builder_control.py updated)",
+    "Builder: staleness detection (10min threshold), per-packet requeue, bulk recover, confirmation dialog for cleanup",
+    "Builder: staleness indicators on packet cards, BuilderBrain stale section",
+    "Experts: Chat model extended with expertId/systemPrompt fields",
+    "Experts: handleNewExpertChat in KittyContext with auto-generated expert system prompts",
+    "Experts: ExpertStrip wired to create real expert-context chats (was dead no-op)",
+    "Library/Projects: ProjectsView.tsx created, ViewRenderer dispatches projects separately",
+    "Library/Projects: Rail/BottomNav swap builder → projects, LibraryView simplified to documents-only",
+    "Home tiles: ExpertStrip functional, ActiveProjects navigates to ProjectsView, Today todos clickable",
+    "Work/Builder: Builder removed from Rail, accessible from WorkView 'Open full Builder' link + command palette"
   ],
   "blockers": [],
-  "next_action": "Fix failing PR #289 checks (typecheck, lint, cold-start, BuilderSurface test), then merge",
+  "next_action": "Commit, push, verify CI on PR #289, then merge",
   "parallel_work": [
     {
       "kind": "pr",
       "ref": "#288",
       "owner": "jacob202",
       "touches": [".env.example", "gateway", "kitty", "tests"],
-      "observed_at": "2026-07-28T13:50:00Z"
+      "observed_at": "2026-07-28T19:30:00Z"
+    },
+    {
+      "kind": "pr",
+      "ref": "#290",
+      "owner": "jacob202",
+      "touches": ["README.md", "docs", "repomix.config.json", "scripts"],
+      "observed_at": "2026-07-28T19:30:00Z"
+    },
+    {
+      "kind": "pr",
+      "ref": "#291",
+      "owner": "jacob202",
+      "touches": ["docs"],
+      "observed_at": "2026-07-28T19:30:00Z"
+    },
+    {
+      "kind": "pr",
+      "ref": "#292",
+      "owner": "jacob202",
+      "touches": ["docs"],
+      "observed_at": "2026-07-28T19:30:00Z"
+    },
+    {
+      "kind": "worktree",
+      "ref": "fix/dogfood-provider-chat-shell-2026-07-28",
+      "owner": "jacob202",
+      "touches": [".env.before-agentrouter", "config", "gateway/routes"],
+      "observed_at": "2026-07-28T19:30:00Z"
     }
   ],
   "recommendations": [
     {
       "id": "merge-pr-289",
-      "what": "Fix the five failing checks on PR #289 and merge the 129-commit sweep",
-      "why": "The branch carries substantial landed work that is blocked behind failing CI",
+      "what": "Push the UI enhancement commits, verify CI passes on PR #289, and merge the sweep",
+      "why": "Builder recovery, experts, library/projects split, and home tile fixes need to land on main",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -41,9 +73,9 @@
       "first_deferred": null
     },
     {
-      "id": "harden-context-receipt",
-      "what": "Deepen the context receipt validation Module as the next hardening target",
-      "why": "Protects session continuity and stale-handoff detection",
+      "id": "chat-context-visibility",
+      "what": "Add system prompt preview and token window visualization to ChatView",
+      "why": "Chat is opaque — users can't see what context the model receives or how full the window is",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -52,9 +84,9 @@
       "first_deferred": null
     },
     {
-      "id": "review-merged-prs",
-      "what": "Extended review of recently merged PRs 281-288 for regression risk",
-      "why": "Eight PRs merged in rapid succession; cumulative review is owed",
+      "id": "review-doc-prs",
+      "what": "Review and close PRs #290-292 before they accumulate merge conflicts",
+      "why": "Three docs-only PRs open simultaneously — kitchen-sink risk if left unmerged",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -63,7 +95,7 @@
       "first_deferred": null
     }
   ],
-  "invalidation_conditions": ["HEAD advances past be8dd12", "PR #289 merges to main"],
+  "invalidation_conditions": ["HEAD advances past d23d346", "PR #289 merges to main"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
     "number": 289,
@@ -74,42 +106,41 @@
 -->
 
 ## What was done
-- **Builder reliability:** Cancellation outcomes preserved as distinct durable state (`08de685`), stale attempt liveness fence prevents incorrect recovery (`160806f`), 293 focused tests pass
-- **UI alignment:** Mutation controls removed from read-only Builder surface, `⌘K` command palette button wired to open state (`fc6cd5a`)
-- **Studio contract repairs:** Removed unsupported `seed`/`image_count` from frontend, removed dead `reference_ids` from backend request model (`3fcac83`)
-- **ImagePlan boundary (GenEvolve adapted):** `gateway/image_plan.py` — `ImagePlan` dataclass with reference resolution + `build_image_plan()`, `gateway/image_guidance.py` — `GuidanceBank` (SkillBank pattern), 2 seed guidance files, `POST /studio/plan` endpoint, `PlanPreviewCard` frontend with approve/generate flow (`6695227`, `c18108b`)
-- **Studio error surfacing:** ImageGenPanel shows transport errors as actionable messages instead of silently falling through (`5d137a9`)
-- **Provider health:** `kind` (local/api_credit/subscription) and `free_tier` annotations on all 6 providers, free backup warnings when no provider is configured (`56ec965`)
+- **Builder queue recovery:** Added `requeue` and `recover_stale` backend actions (`builder_control.py` + 2 new action files). Frontend staleness detection (10min threshold), per-packet requeue buttons, bulk recover scan, confirmation dialog for destructive cleanup, staleness dots on packet cards, stale section in BuilderBrain. `BuilderSurface.tsx` +198 lines.
+- **Experts functional:** Extended `Chat` model with `expertId`/`systemPrompt` fields (`types.ts`). Added `handleNewExpertChat` with auto-generated expert system prompts (`KittyContext.tsx`). Wired `ExpertStrip` in `HomeState.tsx` to create real expert-context chats instead of the previous dead no-op. Wired through `HomeView.tsx` and `page.tsx`.
+- **Library/Projects split:** Created `ProjectsView.tsx`. Updated `ViewRenderer.tsx` to dispatch `projects` separately. Simplified `LibraryView.tsx` to documents-only. Swapped "builder" → "projects" in `Rail.tsx` and `BottomNav.tsx`. Added Projects to `CommandPalette.tsx`. Added "Open full Builder" link to `WorkView.tsx`.
+- **Home tile fixes:** `ExpertStrip` now creates expert chats. `ActiveProjects` navigates to dedicated ProjectsView. `TodayPanel` todos are now clickable buttons that navigate to Work view.
 
 ## In-flight / WIP
-- One dirty file: `docs/plans/kitty-master-architecture-audit.md` — unrelated architecture notes, uncommitted
+- None — all items completed for this session
 
 ## Other work in flight (not mine)
-- **PR #288 (draft):** `fix/runtime-truth-agentrouter-2026-07-28` by jacob202 — runtime lifecycle, provider, tool state truthfulness. Touches `.env.example`, `gateway/`, `kitty`, `tests/`.
-- **Worktree `fix/dogfood-provider-chat-shell-2026-07-28`:** uncommitted provider work (`.env.before-agentrouter`, `config/providers.json`, new `gateway/routes/providers.py`)
-- 38 unmerged branches (many dependabot)
-- Builder queue: UNAVAILABLE (DB file not accessible from this worktree)
+- **PR #288 (draft):** `fix/runtime-truth-agentrouter-2026-07-28` by jacob202 — runtime lifecycle, provider, tool state truthfulness
+- **PRs #290-292:** docs-only PRs (readme refresh, image studio architecture, builder boundary docs)
+- **Worktree `fix/dogfood-provider-chat-shell-2026-07-28`:** uncommitted provider work
+- **Builder queue:** UNAVAILABLE — DB file not accessible from this worktree
 
 ## Blockers
-- `docs/plans/kitty-master-architecture-audit.md` is dirty — review whether to commit or discard
+- None
 
 ## Next move
-Launch this worktree on a non-conflicting port, capture browser evidence for the unified UI (Builder read-only surface, ImagePlan preview, provider health badges)
-
-## Deferred, and what releases them
-- None blocked
+Commit, push, verify CI on PR #289, then merge
 
 ## Files changed this session
-- `gateway/builder_run.py`, `gateway/builder_status.py`
-- `gateway/builder_loop.py`, `gateway/builder_attempt.py`, `gateway/builder_initiative.py`
-- `gateway/image_plan.py` (new), `gateway/image_guidance.py` (new), `gateway/image_guidance/spatial_layout.md` (new), `gateway/image_guidance/text_rendering.md` (new)
-- `gateway/llm_client.py`, `gateway/model_routing.py`, `gateway/routes/extended.py`
-- `gateway/kitty-chat/src/components/BuilderSurface.tsx`, `ProviderCenter.tsx`, `ImageStudio.tsx`, `ImageGenPanel.tsx`, `CommandPalette.tsx`
-- `gateway/kitty-chat/src/app/page.tsx`, `gateway/kitty-chat/src/lib/gateway.ts`
-- `tests/test_builder_loop.py`, `tests/test_builder_run.py`, `tests/test_builder_status.py`
-- `docs/session-notes/2026-07-28-kittybuilder-execution-plan.md`
-
-## Verification
-- `python3.12 -m pytest tests/test_builder_run.py tests/test_builder_status.py -q`: 48 passed
-- `python3.12 -m pytest tests/test_builder_attempt.py tests/test_builder_loop.py tests/test_builder_initiative.py -q`: 245 passed
-- `python3.12 -c "from gateway.image_plan import ImagePlan, build_image_plan; from gateway.image_guidance import GuidanceBank"`: imports pass, 2 guidance tags loaded
+- `gateway/routes/builder_control.py` — added requeue + recover_stale actions
+- `gateway/actions/builder_requeue_packet.py` (new) — CLI-backed packet requeue
+- `gateway/actions/builder_recover_stale.py` (new) — CLI-backed stale recovery
+- `gateway/kitty-chat/src/components/BuilderSurface.tsx` — staleness detection, requeue buttons, confirmation dialog, indicators
+- `gateway/kitty-chat/src/lib/types.ts` — Chat.expertId + Chat.systemPrompt
+- `gateway/kitty-chat/src/state/KittyContext.tsx` — handleNewExpertChat + buildExpertSystemPrompt
+- `gateway/kitty-chat/src/components/HomeState.tsx` — ExpertStrip wiring, TodayPanel clickable todos
+- `gateway/kitty-chat/src/components/HomeView.tsx` — onExpertClick prop passthrough
+- `gateway/kitty-chat/src/app/page.tsx` — onExpertClick wired to handleNewExpertChat
+- `gateway/kitty-chat/src/components/ProjectsView.tsx` (new) — standalone projects view
+- `gateway/kitty-chat/src/components/ViewRenderer.tsx` — projects dispatch, ProjectsView import
+- `gateway/kitty-chat/src/components/LibraryView.tsx` — simplified to documents-only
+- `gateway/kitty-chat/src/components/Rail.tsx` — builder → projects swap
+- `gateway/kitty-chat/src/components/BottomNav.tsx` — builder → projects swap
+- `gateway/kitty-chat/src/components/CommandPalette.tsx` — projects added
+- `gateway/kitty-chat/src/components/WorkView.tsx` — "Open full Builder" link
+- `docs/plans/kitty-ui-enhancement-plan.html` (new) — comprehensive execution plan

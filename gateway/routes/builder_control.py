@@ -31,6 +31,8 @@ def builder_action(body: BuilderActionRequest):
         "resume": "builder.resume_initiative",
         "cancel": "builder.cancel_task",
         "cleanup": "builder.cleanup",
+        "requeue": "builder.requeue_packet",
+        "recover_stale": "builder.recover_stale",
     }
 
     kind = action_map.get(body.action)

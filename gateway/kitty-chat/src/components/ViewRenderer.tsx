@@ -11,6 +11,7 @@ const BuilderView = dynamic(() => import('./BuilderView'))
 const SettingsShell = dynamic(() => import('./SettingsShell'))
 const WorkView = dynamic(() => import('./WorkView'))
 const StudioView = dynamic(() => import('./StudioView'))
+const ProjectsView = dynamic(() => import('./ProjectsView'))
 const LibraryView = dynamic(() => import('./LibraryView'))
 const TutorShell = dynamic(() => import('./TutorShell'))
 const JournalPanel = dynamic(() => import('./JournalPanel'))
@@ -83,9 +84,10 @@ export function ViewRenderer({
       case 'builder':
         return <div style={pad}><BuilderView {...builderProps} /></div>
       case 'library':
-      case 'projects':
       case 'docs':
         return <LibraryView isMobile={isMobile} />
+      case 'projects':
+        return <ProjectsView isMobile={isMobile} />
     case 'settings':
     case 'providers':
     case 'agents':

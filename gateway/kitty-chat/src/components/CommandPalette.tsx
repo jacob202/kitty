@@ -18,6 +18,7 @@ const VIEW_COMMANDS: Array<{ id: string; label: string; icon: LucideIcon }> = [
   { id: 'home', label: 'home', icon: House },
   { id: 'chat', label: 'chat', icon: MessageSquare },
   { id: 'work', label: 'work', icon: CheckSquare },
+  { id: 'projects', label: 'projects', icon: BookOpen },
   { id: 'studio', label: 'studio', icon: Image },
   { id: 'builder', label: 'builder', icon: Wrench },
   { id: 'library', label: 'library', icon: BookOpen },

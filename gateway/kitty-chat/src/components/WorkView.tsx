@@ -115,7 +115,31 @@ export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; 
 
       <TaskPanel />
       <TodoPanel />
-      <BuilderPanel />
+      <section>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--ink)' }}>
+            Builder
+          </h2>
+          <button
+            type="button"
+            onClick={() => onNavigate?.('builder')}
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              fontWeight: 600,
+              padding: '4px 12px',
+              borderRadius: 4,
+              border: '1px solid var(--line)',
+              background: 'var(--surface)',
+              color: 'var(--ink-2)',
+              cursor: 'pointer',
+            }}
+          >
+            Open full Builder
+          </button>
+        </div>
+        <BuilderPanel />
+      </section>
     </div>
   )
 }

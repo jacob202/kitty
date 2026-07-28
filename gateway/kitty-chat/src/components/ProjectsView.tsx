@@ -1,8 +1,7 @@
 'use client'
-import { useSearchParams } from 'next/navigation'
-import { DocumentsPanel } from '@/components/DocumentsPanel'
+import { ProjectsPanel } from '@/components/ProjectsPanel'
 
-export default function LibraryView({ isMobile }: { isMobile: boolean }) {
+export default function ProjectsView({ isMobile }: { isMobile: boolean }) {
   const pad = isMobile ? '16px 12px 124px' : '24px 32px 40px'
 
   return (
@@ -11,13 +10,13 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
         <h1 style={{
           margin: 0, fontFamily: 'var(--font-display)', fontSize: 32, color: 'var(--ink)',
         }}>
-          Library
+          Projects
         </h1>
         <p style={{ margin: '4px 0 0', color: 'var(--ink-2)' }}>
-          Knowledge base, documents, and reference material.
+          Every project carries a generated next step — the thing to reach for, not a repo task.
         </p>
       </header>
-      <DocumentsPanel />
+      <ProjectsPanel />
     </div>
   )
 }
