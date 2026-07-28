@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -120,6 +122,24 @@ def _good_worker(tmp_path: Path) -> list[str]:
         "worker.sh",
         f"echo ok > done.txt\ncat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
     )
+
+
+def _open_attempts(db_path: Path | None = None) -> list[dict]:
+    """Return every open attempt, bypassing liveness certification.
+
+    Used in tests that set up a synthetic stale attempt (no real worker run
+    or run-interruption event).  The liveness fence exists to prevent premature
+    recovery in production; these tests need the recovery path exercised.
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT * FROM packet_attempts WHERE outcome IS NULL"
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
 
 def _approve_reviewer(tmp_path: Path) -> list[str]:
@@ -643,6 +663,10 @@ class TestRunPacket:
 # ---------------------------------------------------------------------------
 
 
+@patch.object(
+    ba, "list_all_stale_attempts",
+    lambda db_path=None: _open_attempts(db_path),
+)
 class TestNoStaleArtifactReuse:
     def test_crashed_dirty_worktree_is_archived_and_next_attempt_starts_clean(
         self, repo: Path, db_path: Path, tmp_path: Path
@@ -933,6 +957,10 @@ class TestRecoveryBudget:
 # ---------------------------------------------------------------------------
 
 
+@patch.object(
+    ba, "list_all_stale_attempts",
+    lambda db_path=None: _open_attempts(db_path),
+)
 class TestTruthfulCloseout:
     def test_rollup_reports_recovered_success_truthfully(
         self, repo: Path, db_path: Path, tmp_path: Path
