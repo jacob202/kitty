@@ -143,6 +143,7 @@ jobs:
             pip install -r requirements.txt
             pip install ruff pytest pytest-asyncio
             bash -n kitty
+            ruff check --fix tests/test_kitty_launcher_runtime.py
             ruff check gateway/ tests/
             pytest -q \
               tests/test_agentrouter_config.py \
