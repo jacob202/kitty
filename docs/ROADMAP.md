@@ -99,9 +99,25 @@ After Phase 1 exits:
 - product deepening: chat, home, tutor, documents, specialists, image studio,
   proactive insights, integrations, and the preserved packet backlog.
 
-Their internal order will be rewritten from the actual inventory and Phase 1
-evidence. Existing ideas remain available; none may bypass the current phase by
-appearing in an older plan or initiative.
+### Preserved Image Studio direction
+
+The reviewed, implementation-ready Image Studio direction is
+`docs/plans/image-studio-character-first-architecture-2026-07-28.md`.
+
+Its primary target is a persistent fictional-adult character workflow with
+maximum practical identity consistency, photorealistic premium finals,
+localized repair, multi-character scenes, a private open-weight adult lane,
+honest progress, and bounded cost. It preserves the existing `image_jobs`,
+character, gallery, and runner foundations rather than introducing a second
+image subsystem.
+
+This reference records the later-phase architecture only. It does **not**
+authorize Image Studio implementation before Phase 1 exits or permit that work
+to bypass current repository gates.
+
+Later phases' internal order will be rewritten from the actual inventory and
+Phase 1 evidence. Existing ideas remain available; none may bypass the current
+phase by appearing in an older plan or initiative.
 
 ## Explicitly not current work
 
