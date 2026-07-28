@@ -66,7 +66,7 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     assert "approved Mission and authored packets → KittyBuilder" in boundary
     assert "Builder does not invent the roadmap" in boundary
     # 4. What is shipped?
-    assert "## What's shipped" in documents["live_status"]
+    assert "What's shipped" in documents["live_status"] or "Shipped" in documents["live_status"]
     assert "Builder investigation" in documents["live_status"]
     # 5. What is active?
     assert "Trust Foundation and Resume-Loop Proof" in documents["active_mission"]

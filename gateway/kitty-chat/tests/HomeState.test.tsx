@@ -15,6 +15,7 @@ import {
   useProjectNextSteps,
   useWhatsNextSteps,
   useGatewayHealth,
+  useGatewayWeather,
   useGatewayModels,
   useChatsPersistence,
   useSessionContext,
