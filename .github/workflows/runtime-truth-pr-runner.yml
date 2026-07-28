@@ -127,30 +127,70 @@ jobs:
           exit 1
 
       - name: Validate Python and launcher
+        id: python_validation
         if: steps.apply.outcome == 'success'
+        continue-on-error: true
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install ruff pytest pytest-asyncio
-          bash -n kitty
-          ruff check gateway/ tests/
-          pytest -q \
-            tests/test_agentrouter_config.py \
-            tests/test_llm_client.py \
-            tests/test_active_provider_routing.py \
-            tests/test_provider_prefs.py \
-            tests/test_kitty_launcher_runtime.py
+          set -o pipefail
+          {
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+            pip install ruff pytest pytest-asyncio
+            bash -n kitty
+            ruff check gateway/ tests/
+            pytest -q \
+              tests/test_agentrouter_config.py \
+              tests/test_llm_client.py \
+              tests/test_active_provider_routing.py \
+              tests/test_provider_prefs.py \
+              tests/test_kitty_launcher_runtime.py
+          } 2>&1 | tee /tmp/runtime-truth-python-validation.log
+
+      - name: Upload Python validation diagnostics
+        if: steps.python_validation.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-truth-python-validation
+          path: /tmp/runtime-truth-python-validation.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Surface Python validation failure
+        if: steps.python_validation.outcome == 'failure'
+        run: |
+          tail -200 /tmp/runtime-truth-python-validation.log
+          exit 1
 
       - name: Validate frontend
-        if: steps.apply.outcome == 'success'
+        id: frontend_validation
+        if: steps.python_validation.outcome == 'success'
+        continue-on-error: true
         working-directory: gateway/kitty-chat
         run: |
-          npm ci
-          npm test
-          npm run build
+          set -o pipefail
+          {
+            npm ci
+            npm test
+            npm run build
+          } 2>&1 | tee /tmp/runtime-truth-frontend-validation.log
+
+      - name: Upload frontend validation diagnostics
+        if: steps.frontend_validation.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-truth-frontend-validation
+          path: /tmp/runtime-truth-frontend-validation.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Surface frontend validation failure
+        if: steps.frontend_validation.outcome == 'failure'
+        run: |
+          tail -200 /tmp/runtime-truth-frontend-validation.log
+          exit 1
 
       - name: Commit validated repair
-        if: steps.apply.outcome == 'success'
+        if: steps.frontend_validation.outcome == 'success'
         run: |
           rm -f \
             .github/workflows/runtime-truth-repair.yml \
