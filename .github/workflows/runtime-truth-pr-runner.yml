@@ -51,24 +51,28 @@ jobs:
               for line in extracted.splitlines()
           ) + '\n'
 
-          old = '''text = replace_once(
-    text,
-    '  for svc in gateway litellm; do\\n',
-    '  for svc in ui gateway litellm; do\\n',
-    'status includes UI',
-)
-'''
-          new = '''status_start = text.index('cmd_status() {')
-status_end = text.index('\\n}\\n\\ncmd_logs()', status_start)
-status_block = text[status_start:status_end]
-status_block = replace_once(
-    status_block,
-    '  for svc in gateway litellm; do\\n',
-    '  for svc in ui gateway litellm; do\\n',
-    'status includes UI',
-)
-text = text[:status_start] + status_block + text[status_end:]
-'''
+          old = '\n'.join([
+              'text = replace_once(',
+              '    text,',
+              "    '  for svc in gateway litellm; do\\n',",
+              "    '  for svc in ui gateway litellm; do\\n',",
+              "    'status includes UI',",
+              ')',
+              '',
+          ])
+          new = '\n'.join([
+              "status_start = text.index('cmd_status() {')",
+              "status_end = text.index('\\n}\\n\\ncmd_logs()', status_start)",
+              'status_block = text[status_start:status_end]',
+              'status_block = replace_once(',
+              '    status_block,',
+              "    '  for svc in gateway litellm; do\\n',",
+              "    '  for svc in ui gateway litellm; do\\n',",
+              "    'status includes UI',",
+              ')',
+              'text = text[:status_start] + status_block + text[status_end:]',
+              '',
+          ])
           if script.count(old) != 1:
               raise SystemExit(f'runner patch expected one status block, found {script.count(old)}')
           script = script.replace(old, new, 1)
