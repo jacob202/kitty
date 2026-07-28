@@ -15,6 +15,20 @@ def isolate_gateway_auth_env(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolated_governor_db(tmp_path, monkeypatch):
+    """Never let a test write compute-governor receipts into the real store.
+
+    The Builder CLI governs by default, and the allowance is keyed on
+    initiative/packet/base SHA — identifiers the Builder tests reuse. Without
+    this, the second governed CLI test in a run is correctly refused as a
+    duplicate, and a test run would leave receipts in data/compute_governor/.
+    """
+    monkeypatch.setenv(
+        "KITTY_COMPUTE_GOVERNOR_DB", str(tmp_path / "governor" / "receipts.db")
+    )
+
+
+@pytest.fixture(autouse=True)
 def isolate_provider_prefs(tmp_path, monkeypatch):
     """Keep the saved provider order out of tests — and tests out of it.
 

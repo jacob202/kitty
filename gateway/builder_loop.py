@@ -37,6 +37,7 @@ from typing import Any
 from gateway import builder_attempt as ba
 from gateway import builder_identity as bid
 from gateway import builder_queue as bq
+from gateway import compute_governor as cg
 from gateway.builder_brief import default_branch_name
 from gateway.builder_context import build_context_manifest, write_run_manifest
 from gateway.builder_runner import (
@@ -568,6 +569,109 @@ def _create_attempt_artifacts(
     )
 
 
+def _governor_dispatch(
+    initiative_id: str,
+    packet_id: str,
+    *,
+    base_sha: str,
+) -> "cg.Dispatch":
+    """Describe this packet run in the governor's terms.
+
+    Scope and acceptance come from the packet contract Builder already
+    enforces, so the governor is not inventing a second definition of done.
+    """
+    return cg.Dispatch(
+        task_type="implement",
+        work_kind="implementation",
+        subject_ref=f"{initiative_id}/{packet_id}",
+        head_sha=base_sha,
+        artifact=f"packet {initiative_id}/{packet_id}",
+        acceptance_tests=("packet contract validation_commands",),
+        allowed_scope=("packet allowed_paths",),
+        exclusions=("paths outside the packet contract",),
+        risk_class="routine",
+        stopping_condition="the bounded repair loop succeeds or exhausts its attempt budget",
+    )
+
+
+def _governor_gate(
+    initiative_id: str,
+    packet_id: str,
+    task_id: str,
+    *,
+    base_sha: str,
+    governor_db: Path | None,
+    override_reason: str | None,
+    db_path: Path | None,
+) -> "cg.Decision | None":
+    """Refuse a packet run the governor has already paid for at this base SHA."""
+    if governor_db is None:
+        return None
+
+    cg.init_db(governor_db)
+    config = cg.load_reserve_config(cg.ROOT_CONFIG_PATH)
+    reserve = cg.reserve_from_ledger(governor_db, config)
+    decision = cg.decide(
+        governor_db,
+        _governor_dispatch(initiative_id, packet_id, base_sha=base_sha),
+        reserve=reserve,
+        override_reason=override_reason,
+    )
+    if decision.action in {cg.ACTION_RUN, cg.ACTION_DOWNGRADE}:
+        return decision
+
+    bq.append_event(
+        task_id,
+        "compute_governor_refused",
+        payload={
+            "action": decision.action,
+            "reasons": list(decision.reasons),
+            "dispatch_hash": decision.dispatch_hash,
+            "base_sha": base_sha,
+            "counts_toward_budget": False,
+        },
+        db_path=db_path,
+    )
+    raise LoopError(
+        f"compute governor {decision.action}s {initiative_id}/{packet_id} at "
+        f"{base_sha[:12]}: " + "; ".join(decision.reasons)
+    )
+
+
+def _governor_settle(
+    initiative_id: str,
+    packet_id: str,
+    *,
+    base_sha: str,
+    governor_db: Path | None,
+    decision: "cg.Decision | None",
+    outcome: str,
+    attempts: list[dict[str, Any]],
+    model: str | None,
+    provider: str | None,
+    override_reason: str | None,
+) -> None:
+    """Write the receipt for a finished packet run.
+
+    A succeeded run settles the allowance for this base SHA; an exhausted or
+    cancelled one does not, because the work is still owed.
+    """
+    if governor_db is None or decision is None:
+        return
+    route = decision.route or cg.ROUTE_FREE
+    cg.record_receipt(
+        governor_db,
+        _governor_dispatch(initiative_id, packet_id, base_sha=base_sha),
+        outcome=cg.OUTCOME_SETTLED if outcome == LOOP_SUCCEEDED else cg.OUTCOME_FAILED,
+        route=route,
+        model=model,
+        provider=provider,
+        retries=max(len(attempts) - 1, 0),
+        estimated_usage_cad=cg.estimate_pass_cost_cad(route) * max(len(attempts), 1),
+        override_reason=override_reason,
+    )
+
+
 def run_packet(
     initiative_id: str,
     packet_id: str,
@@ -585,12 +689,20 @@ def run_packet(
     max_consecutive_recoveries: int = DEFAULT_MAX_CONSECUTIVE_RECOVERIES,
     repo_root: Path | None = None,
     db_path: Path | None = None,
+    governor_db: Path | None = None,
+    governor_override: str | None = None,
 ) -> dict[str, Any]:
     """Run the bounded repair loop for one packet.
 
     Returns ``{"outcome": "succeeded"|"exhausted"|"cancelled", ...}`` where
     each attempt entry records what happened and why. Raises ``LoopError``
     when infrastructure or durable task state prevents safe execution.
+
+    Passing ``governor_db`` gates the run through the compute governor: a
+    packet whose implement pass already settled at this base SHA is refused
+    before any model is dispatched. Omitting it leaves the loop ungoverned,
+    which is what library callers and tests get by default; the CLI and the
+    autonomous runner both pass it.
     """
     if not worker_command:
         raise LoopError("worker_command must be a non-empty list")
@@ -698,6 +810,16 @@ def run_packet(
             f"{initiative_id}/{packet_id}"
         )
 
+    governor_decision = _governor_gate(
+        initiative_id,
+        packet_id,
+        task_id,
+        base_sha=base_sha,
+        governor_db=governor_db,
+        override_reason=governor_override,
+        db_path=db_path,
+    )
+
     history: list[dict[str, Any]] = []
     while True:
         try:
@@ -728,6 +850,18 @@ def run_packet(
                 db_path=db_path,
             )
         except ba.AttemptLimitError as exc:
+            _governor_settle(
+                initiative_id,
+                packet_id,
+                base_sha=base_sha,
+                governor_db=governor_db,
+                decision=governor_decision,
+                outcome=LOOP_EXHAUSTED,
+                attempts=history,
+                model=model,
+                provider=provider,
+                override_reason=governor_override,
+            )
             return {
                 "outcome": LOOP_EXHAUSTED,
                 "initiative_id": initiative_id,
@@ -945,6 +1079,18 @@ def run_packet(
                 attempt, lease, ba.ATTEMPT_ABORTED, db_path=db_path
             )
             final_task = bq.get_task(task_id, db_path=db_path)
+            _governor_settle(
+                initiative_id,
+                packet_id,
+                base_sha=base_sha,
+                governor_db=governor_db,
+                decision=governor_decision,
+                outcome=LOOP_CANCELLED,
+                attempts=history,
+                model=model,
+                provider=provider,
+                override_reason=governor_override,
+            )
             return {
                 "outcome": LOOP_CANCELLED,
                 "initiative_id": initiative_id,
@@ -1221,6 +1367,18 @@ def run_packet(
                 entry["worktree_cleanup"] = "kept_no_done_marker"
 
             final_task = bq.get_task(task_id, db_path=db_path)
+            _governor_settle(
+                initiative_id,
+                packet_id,
+                base_sha=base_sha,
+                governor_db=governor_db,
+                decision=governor_decision,
+                outcome=LOOP_SUCCEEDED,
+                attempts=history,
+                model=model,
+                provider=provider,
+                override_reason=governor_override,
+            )
             return {
                 "outcome": LOOP_SUCCEEDED,
                 "initiative_id": initiative_id,
@@ -1244,6 +1402,18 @@ def run_packet(
             # more retries against the same worktree — stop the packet here
             # instead of grinding the remaining attempt budget.
             final_task = bq.get_task(task_id, db_path=db_path)
+            _governor_settle(
+                initiative_id,
+                packet_id,
+                base_sha=base_sha,
+                governor_db=governor_db,
+                decision=governor_decision,
+                outcome=LOOP_EXHAUSTED,
+                attempts=history,
+                model=model,
+                provider=provider,
+                override_reason=governor_override,
+            )
             return {
                 "outcome": LOOP_EXHAUSTED,
                 "initiative_id": initiative_id,

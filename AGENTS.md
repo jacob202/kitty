@@ -76,6 +76,12 @@ Default to OpenCode for planning, implementation, packaging, and normal scoped
 review. Reserve Codex for high-risk safety reviews involving queue state,
 concurrency, auth/secrets/env, destructive operations, or blocked escalation.
 
+Before dispatching a planning pass or an independent review, check it against
+the compute governor: `./kitty governor explain <dispatch.json>`. One plan and
+one review per unchanged `(task_type, subject_ref, head_sha)`; a changed SHA,
+changed requirements, or a named human override reauthorizes. See the compute
+governor section of `docs/FREE_WORKERS.md`.
+
 Do not let the same worker approve its own work. T0 work may proceed
 automatically, T1 work needs a separate model approval, and T2 work still needs
 Jacob: push, merge, deletes, auth/secrets/env, paid or heavy dependencies, and

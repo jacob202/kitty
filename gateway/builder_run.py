@@ -220,6 +220,7 @@ def run_initiative(
     max_runtime_seconds: int | None = None,
     repo_root: Path | None = None,
     db_path: Path | None = None,
+    governor_db: Path | None = None,
 ) -> dict[str, Any]:
     """Drive an initiative to completion, one eligible packet at a time.
 
@@ -340,6 +341,7 @@ def run_initiative(
                 review_timeout_seconds=review_timeout_seconds,
                 repo_root=repo_root,
                 db_path=db_path,
+                governor_db=governor_db,
             )
         except bl.LoopError as exc:
             _decide(

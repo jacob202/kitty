@@ -78,7 +78,7 @@ describe('StatusBar', () => {
   it('offers install when the browser can install the app', () => {
     const onPwaInstall = vi.fn()
     render(<StatusBar {...baseProps} pwaState="available" onPwaInstall={onPwaInstall} />)
-    fireEvent.click(screen.getByRole('button', { name: 'install' }))
+    fireEvent.click(screen.getByRole('button', { name: 'install as app' }))
     expect(onPwaInstall).toHaveBeenCalledTimes(1)
     expect(screen.getByText(/dock launch/i)).toBeInTheDocument()
   })

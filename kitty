@@ -16,6 +16,7 @@
 #   kitty run-fg    Run gateway in foreground (for debugging)
 #   kitty resume    Print one-screen orientation block (branch, PRs, tests, services, packets)
 #   kitty builder <cmd>        Run Kitty Builder Layer 1A (brief, contract validate)
+#   kitty governor explain <dispatch.json>  Dry-run: would this agent work run, defer, downgrade, or be rejected
 #   kitty delegate <action-id>  Generate a docs/packets/NNN-slug.md file from an action
 #   kitty tutor learn <path>     Ingest a doc into the Tutor (RAG learning)
 #   kitty tutor ask "<q>"        Vocab-first answer + one check-in question
@@ -337,6 +338,14 @@ cmd_builder() {
   "$python_bin" -m gateway.builder_cli "$@"
 }
 
+cmd_governor() {
+  local python_bin="$KITTY_ROOT/venv/bin/python"
+  if [[ ! -x "$python_bin" ]]; then
+    python_bin="$(command -v python3.12)"
+  fi
+  "$python_bin" -m gateway.compute_governor_cli "$@"
+}
+
 cmd_tutor() {
   local python_bin="$KITTY_ROOT/venv/bin/python"
   if [[ ! -x "$python_bin" ]]; then
@@ -594,7 +603,7 @@ cmd_verify_home() {
 }
 
 cmd_help() {
-  grep '^#' "$0" | grep -v '#!/' | sed 's/^# //' | head -23
+  grep '^#' "$0" | grep -v '#!/' | sed 's/^# //' | head -24
 }
 
 # ── Dispatch ─────────────────────────────────────────────────────────────────
@@ -617,6 +626,7 @@ case "${1:-start}" in
   push)      shift; cmd_push "$@" ;;
   sweep)     cmd_sweep ;;
   project)   shift; cmd_project "$@" ;;
+  governor)  shift; cmd_governor "$@" ;;
   tutor)     shift; cmd_tutor "$@" ;;
   verify-home) cmd_verify_home ;;
   help|--help|-h) cmd_help ;;

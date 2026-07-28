@@ -42,6 +42,12 @@ TASK_OUTPUT_DIR = DATA_DIR / "task_outputs"
 # docs/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md. Do not reuse TASK_DB for this.
 KITTYBUILDER_DIR = DATA_DIR / "kittybuilder"
 BUILDER_QUEUE_DB = KITTYBUILDER_DIR / "builder_queue.db"
+
+# Compute governor — agent-work receipts and the local weekly usage estimate.
+# Deliberately its own store: Builder owns execution state, and its tables must
+# not be joined into another state machine (AGENTS.md).
+COMPUTE_GOVERNOR_DIR = DATA_DIR / "compute_governor"
+COMPUTE_GOVERNOR_DB = COMPUTE_GOVERNOR_DIR / "receipts.db"
 DESKTOP_LOG_FILE = LOGS_DIR / "desktop.log"
 DESKTOP_PID_DIR = DESKTOP_DIR / "run"
 
