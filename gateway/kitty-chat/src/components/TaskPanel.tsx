@@ -1,7 +1,7 @@
 'use client'
-import { useState, useRef } from 'react'
-import { type GatewayTask, type TaskType } from '@/lib/gateway'
-import { useTasks, useCreateTask, useCancelTask } from '@/lib/queries'
+import { useState, useRef, type CSSProperties } from 'react'
+import { type TaskType } from '@/lib/gateway'
+import { useTasks, useCreateTask, useCancelTask, useTaskOutput } from '@/lib/queries'
 import { WorkCard, type WorkStatus } from '@/components/shared/WorkCard'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -35,6 +35,13 @@ export function TaskPanel() {
     if (!g || createTask.isPending) return
     createTask.mutate({ goal: g, taskType }, { onSuccess: () => setGoal('') })
   }
+
+  const launchError = createTask.isError
+    ? (createTask.error instanceof Error ? createTask.error.message : 'gateway rejected the task')
+    : null
+  const cancelError = cancelTask.isError
+    ? (cancelTask.error instanceof Error ? cancelTask.error.message : 'gateway rejected the cancel')
+    : null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -77,8 +84,18 @@ export function TaskPanel() {
             outline: 'none',
           }}
         />
-        <Button onClick={handleLaunch} size="sm" disabled={!goal.trim() || createTask.isPending}>add</Button>
+        <Button onClick={handleLaunch} size="sm" disabled={!goal.trim() || createTask.isPending}>
+          {createTask.isPending ? 'adding…' : 'add'}
+        </Button>
       </div>
+
+      {launchError && <p style={errorStyle}>couldn&apos;t start that task — {launchError}</p>}
+      {cancelError && <p style={errorStyle}>couldn&apos;t cancel — {cancelError}</p>}
+      {tasksQuery.isError && (
+        <p style={errorStyle}>
+          can&apos;t read the task list — {tasksQuery.error instanceof Error ? tasksQuery.error.message : 'gateway error'}
+        </p>
+      )}
 
       {/* Active tasks */}
       {activeTasks.length > 0 && (
@@ -89,7 +106,7 @@ export function TaskPanel() {
               id={task.task_id}
               title={task.goal ?? task.task_id}
               status={STATUS_MAP[task.status] ?? 'scheduled'}
-              statusDetail={task.task_type}
+              statusDetail={task.progress ? `${task.task_type} — ${task.progress}` : task.task_type}
               onCancel={() => cancelTask.mutate(task.task_id)}
             />
           ))}
@@ -98,18 +115,19 @@ export function TaskPanel() {
 
       {/* Completed / recent */}
       {recentTasks.length > 0 && (
-        <details style={{ marginTop: 8 }}>
+        <details style={{ marginTop: 8 }} open>
           <summary style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', cursor: 'pointer', marginBottom: 12 }}>
             recent ({recentTasks.length})
           </summary>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {recentTasks.map(task => (
-              <WorkCard
+              <FinishedTask
                 key={task.task_id}
-                id={task.task_id}
+                taskId={task.task_id}
                 title={task.goal ?? task.task_id}
                 status={STATUS_MAP[task.status] ?? 'completed'}
-                statusDetail={task.task_type}
+                taskType={task.task_type}
+                error={task.error ?? null}
               />
             ))}
           </div>
@@ -117,4 +135,85 @@ export function TaskPanel() {
       )}
     </div>
   )
+}
+
+/** A finished task is useless if you can't read what it produced. The output is
+ *  fetched on expand rather than with the list — these files can be long. */
+function FinishedTask({
+  taskId, title, status, taskType, error,
+}: {
+  taskId: string
+  title: string
+  status: WorkStatus
+  taskType: string
+  error: string | null
+}) {
+  const [open, setOpen] = useState(false)
+  const outputQuery = useTaskOutput(open ? taskId : null)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <WorkCard
+        id={taskId}
+        title={title}
+        status={status}
+        statusDetail={error ? `${taskType} — ${error}` : taskType}
+      />
+      <button type="button" onClick={() => setOpen(o => !o)} style={disclosureStyle}>
+        {open ? 'hide output' : 'show output'}
+      </button>
+      {open && (
+        <div style={outputBoxStyle}>
+          {outputQuery.isLoading && <span style={{ color: 'var(--ink-2)' }}>loading output…</span>}
+          {outputQuery.isError && (
+            <span style={{ color: 'var(--c-red)' }}>
+              couldn&apos;t read the output — {outputQuery.error instanceof Error ? outputQuery.error.message : 'gateway error'}
+            </span>
+          )}
+          {outputQuery.isSuccess && (
+            outputQuery.data
+              ? <pre style={preStyle}>{outputQuery.data}</pre>
+              : <span style={{ color: 'var(--ink-2)' }}>this task wrote no output.</span>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const errorStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 12,
+  color: 'var(--c-red)',
+  lineHeight: 1.5,
+}
+
+const disclosureStyle: CSSProperties = {
+  alignSelf: 'flex-start',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: 'var(--ink-2)',
+  background: 'transparent',
+  border: '1px solid var(--line)',
+  borderRadius: 6,
+  padding: '2px 8px',
+  cursor: 'pointer',
+}
+
+const outputBoxStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  background: 'var(--surface-2)',
+  border: '1px solid var(--line)',
+  borderRadius: 8,
+  padding: 10,
+  maxHeight: 320,
+  overflow: 'auto',
+}
+
+const preStyle: CSSProperties = {
+  margin: 0,
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  color: 'var(--ink)',
 }

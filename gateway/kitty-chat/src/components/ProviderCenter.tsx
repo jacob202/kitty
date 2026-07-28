@@ -1,6 +1,6 @@
 'use client'
 import type { CSSProperties } from 'react'
-import { usePlugins, useTogglePlugin, useMcpServers, useMcpTools, useGatewayModels, useImageStatus } from '@/lib/queries'
+import { usePlugins, useTogglePlugin, useMcpServers, useMcpTools, useGatewayModels, useModelRouting, useImageStatus } from '@/lib/queries'
 import { Button } from '@/components/ui/Button'
 import { RefreshCw } from 'lucide-react'
 
@@ -56,6 +56,7 @@ const LANE_COLORS: Record<string, string> = {
 
 export function ProviderCenter() {
   const modelsQuery = useGatewayModels()
+  const routingQuery = useModelRouting()
   const pluginsQuery = usePlugins()
   const togglePlugin = useTogglePlugin()
   const serversQuery = useMcpServers()
@@ -93,6 +94,61 @@ export function ProviderCenter() {
           <p style={mutedStyle}>
             {modelsQuery.data?.error ?? 'gateway not reachable'} — the list below is a fallback,
             not what&apos;s actually routable right now.
+          </p>
+        )}
+      </div>
+
+      {/* ── who each alias actually calls ── */}
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>
+          where each model name goes — read from gateway/litellm_config.yaml
+        </div>
+        <p style={mutedStyle}>
+          the kitty-* names are roles, not models. this is the provider behind each one.
+        </p>
+
+        {routingQuery.isLoading && <p style={mutedStyle}>reading routing config…</p>}
+        {routingQuery.isError && (
+          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+            couldn&apos;t read model routing —{' '}
+            {routingQuery.error instanceof Error ? routingQuery.error.message : 'gateway error'}
+          </p>
+        )}
+        {routingQuery.data && !routingQuery.data.readable && (
+          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>{routingQuery.data.error}</p>
+        )}
+
+        {(routingQuery.data?.routes ?? []).map(route => (
+          <div key={route.alias} style={rowStyle}>
+            <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+              <span style={rowNameStyle}>{route.alias}</span>
+              <span style={rowNoteStyle}>
+                {route.provider} → {route.upstream_model}
+                {route.fallbacks.length > 0 && ` · falls back to ${route.fallbacks.join(', ')}`}
+              </span>
+            </div>
+            <span style={{ marginLeft: 'auto' }}>
+              {route.key.env_var ? (
+                <StatusDot
+                  ok={route.key.present}
+                  okLabel={`${route.key.env_var} set`}
+                  badLabel={`${route.key.env_var} missing`}
+                />
+              ) : (
+                <span style={metaStyle}>{route.key.note}</span>
+              )}
+            </span>
+          </div>
+        ))}
+
+        {(routingQuery.data?.warnings ?? []).map(warning => (
+          <p key={warning} style={{ ...mutedStyle, color: 'var(--c-yellow)' }}>⚠ {warning}</p>
+        ))}
+
+        {routingQuery.data?.readable && (
+          <p style={mutedStyle}>
+            switching providers means editing {routingQuery.data.config_path} and restarting
+            litellm — there is no in-app switch yet.
           </p>
         )}
       </div>

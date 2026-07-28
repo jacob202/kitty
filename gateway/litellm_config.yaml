@@ -1,13 +1,29 @@
 # LiteLLM — Kitty model surface
 #
-#   kitty-default  → DeepSeek V4 Pro via OpenRouter (primary brain)
-#   kitty-sonnet   → DeepSeek V4 Pro + thinking (deep tier)
-#   kitty-small    → DeepSeek V4 Flash via OpenRouter (cheap/fast)
-#   kitty-vision   → Mistral Small (vision tasks, image gen)
+# The kitty-* names are ROLES, not models. App code asks for a role; this file
+# decides which provider answers. Check what's live with:
+#
+#   curl -s localhost:8000/api/model-routing | jq
+#
+# or open Settings → providers in the UI. Both show alias → provider → model
+# and whether the key is actually set.
+#
+#   kitty-default  → primary brain
+#   kitty-sonnet   → deep tier
+#   kitty-small    → cheap/fast
+#   kitty-vision   → vision tasks, image gen
+#
+# To switch providers: change litellm_params.model below (litellm's
+# "<provider>/<model>" form), point api_key at the matching env var, then
+# restart with `bash gateway/start_litellm.sh`. There is no in-app switch.
+#
+# WARNING: every route below is OpenRouter, and kitty-default falls back to
+# kitty-small which is also OpenRouter. One dead balance takes out all of Kitty.
+# A second provider on kitty-small would make the fallback chain mean something.
 #
 # Run: bash gateway/start_litellm.sh
 #
-# Env: OPENROUTER_API_KEY, MISTRAL_API_KEY, LITELLM_MASTER_KEY
+# Env: OPENROUTER_API_KEY, LITELLM_MASTER_KEY
 
 model_list:
   - model_name: kitty-default

@@ -57,7 +57,7 @@ export function TopBar({
         borderBottom: '1.5px solid var(--line)',
         background: 'var(--surface)', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 1 }}>
           {onToggleSidebar && (
             <button aria-label="Open sidebar" onClick={onToggleSidebar} style={iconBtnStyle}>
               <svg viewBox="0 0 24 24" style={{ width: 18, height: 18 }}>
@@ -68,17 +68,19 @@ export function TopBar({
           <span style={{
             fontFamily: 'var(--font-display)', fontWeight: 800,
             fontSize: 20, letterSpacing: '-0.02em', color: 'var(--ink)',
+            flexShrink: 0,
           }}>kitty</span>
           <StateBadge state={catState} />
           <RuntimeBadge state={runtimeState} detail={runtimeDetail} compact />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flexShrink: 1 }}>
           <ProjectSelector
             activeProject={activeProject}
             projects={projects}
             onSelectProject={onSelectProject}
             loading={projectLoading}
             busy={projectBusy}
+            compact
           />
           <ModelSelectorCmdk
             activeModel={activeModel}
@@ -142,16 +144,27 @@ function ProjectSelector({
   onSelectProject,
   loading,
   busy,
+  compact = false,
 }: {
   activeProject: { id: number; name: string } | null
   projects: Array<{ id: number; name: string }>
   onSelectProject?: (projectId: number) => void
   loading: boolean
   busy: boolean
+  /** Phone header: a long project name pushed the model selector off-screen,
+   *  so the select gets a hard cap and is allowed to shrink below it. */
+  compact?: boolean
 }) {
   if (loading) return <span style={projectStatusStyle}>project…</span>
   if (!projects.length || !onSelectProject) {
-    return <span title="No project scope is available" style={projectStatusStyle}>project unavailable</span>
+    return (
+      <span
+        title="No project scope is available"
+        style={{ ...projectStatusStyle, ...(compact ? truncateStyle : {}) }}
+      >
+        project unavailable
+      </span>
+    )
   }
   return (
     <select
@@ -159,7 +172,11 @@ function ProjectSelector({
       value={activeProject?.id ?? ''}
       disabled={busy}
       onChange={(event) => onSelectProject(Number(event.target.value))}
-      style={{ ...chipBtnStyle, maxWidth: 150 }}
+      style={{
+        ...chipBtnStyle,
+        maxWidth: compact ? 110 : 150,
+        ...(compact ? { minWidth: 0, flexShrink: 1 } : {}),
+      }}
     >
       {!activeProject && <option value="">select project</option>}
       {projects.map((project) => (
@@ -222,4 +239,12 @@ const projectStatusStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   color: 'var(--c-red)',
+}
+
+const truncateStyle: CSSProperties = {
+  maxWidth: 110,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 }

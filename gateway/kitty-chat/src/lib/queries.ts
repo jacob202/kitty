@@ -4,6 +4,7 @@ import {
   // brief / models / search / weather (full payloads)
   fetchGatewayBrief,
   fetchGatewayModels,
+  fetchGatewayModelRouting,
   fetchGatewayPersonality,
   updateGatewayPersonality,
   fetchGatewaySessionContext,
@@ -33,6 +34,7 @@ import {
   fetchGatewayTasks,
   createGatewayTask,
   cancelGatewayTask,
+  fetchGatewayTaskOutput,
   type TaskType,
   // agents
   fetchAgentSessions,
@@ -124,6 +126,15 @@ export function useGatewayModels() {
     queryFn: fetchGatewayModels,
     refetchInterval: 30_000,
     staleTime: 10_000,
+  })
+}
+
+export function useModelRouting() {
+  return useQuery({
+    queryKey: ['model-routing'],
+    queryFn: fetchGatewayModelRouting,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   })
 }
 
@@ -413,6 +424,15 @@ export function useCancelTask() {
   return useMutation({
     mutationFn: (id: string) => cancelGatewayTask(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+  })
+}
+
+/** Only fetched when a card is expanded — output files can be long. */
+export function useTaskOutput(taskId: string | null) {
+  return useQuery({
+    queryKey: ['task-output', taskId],
+    queryFn: () => fetchGatewayTaskOutput(taskId as string),
+    enabled: Boolean(taskId),
   })
 }
 

@@ -450,6 +450,18 @@ async def api_models():
         ) from exc
 
 
+@router.get("/api/model-routing")
+async def api_model_routing():
+    """Which provider each kitty-* alias actually calls, and whether its key is set.
+
+    /api/models only returns alias ids, which is why an out-of-credit provider
+    was indistinguishable from a healthy one everywhere in the UI.
+    """
+    from gateway.model_routing import describe_routing
+
+    return describe_routing()
+
+
 @router.post("/sessions/close")
 async def close_session(payload: CloseSessionRequest):
     """End a chat session — consolidate short-term memory to long-term."""

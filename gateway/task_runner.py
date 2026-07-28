@@ -101,7 +101,7 @@ def get(task_id: str) -> dict[str, Any]:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
     if not row:
-        return {"id": task_id, "status": "not_found"}
+        return {"id": task_id, "task_id": task_id, "status": "not_found"}
     return _row_to_dict(row)
 
 
@@ -129,6 +129,29 @@ def get_output(task_id: str) -> str:
     if output_file.exists():
         return output_file.read_text()
     return ""
+
+
+def reconcile_stale() -> int:
+    """Fail tasks whose executing coroutine died with a previous gateway process.
+
+    Execution lives in an in-process asyncio task, so a restart orphans every
+    'queued' and 'running' row. They used to sit in the Work tab reading
+    'scheduled' forever, which is a lie — nothing was ever going to pick them up.
+    Returns the number of rows closed out.
+    """
+    init_db()
+    with db_connect(TASK_DB) as conn:
+        cursor = conn.execute(
+            "UPDATE tasks SET status = 'failed', error = ?, completed_at = ? "
+            "WHERE status IN ('queued', 'running')",
+            (
+                "orphaned by a gateway restart — the task was never picked up. "
+                "Re-run it if you still want it.",
+                time.time(),
+            ),
+        )
+        conn.commit()
+        return cursor.rowcount
 
 
 def cancel(task_id: str) -> bool:
@@ -350,6 +373,10 @@ def _save_output(task_id: str, text: str) -> None:
 
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     d = dict(row)
+    # The column is 'id' but every API consumer reads 'task_id'. Without this
+    # the UI sent /task/undefined/cancel and the cancel button silently did
+    # nothing. Emit both rather than renaming the column out from under callers.
+    d["task_id"] = d.get("id")
     try:
         d["metadata"] = json.loads(d.get("metadata", "{}"))
     except (json.JSONDecodeError, TypeError):
