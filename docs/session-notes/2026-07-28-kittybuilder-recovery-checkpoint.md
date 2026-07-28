@@ -91,3 +91,36 @@ keeps cancellation, provider exhaustion, stale recovery, and historical data
 quality distinct. Before any canonical queue mutation, take a fresh supported
 runtime snapshot and prove run identity, PID/lease status, no open attempt, and
 the exact recovery-only block reason for each candidate.
+
+## Low-cost worker continuation contract
+
+The next worker must not re-discover this state or wait for a packet to fail
+when its preconditions are already false.
+
+1. Start with `git status --short --branch`, `git log -3 --oneline`, this file,
+   and `.slim/deepwork/kittybuilder-reliability-and-brain.md` if it exists.
+   The checkpoint commits are `40b04ee` and `96de6e6`; re-derive the current SHA
+   before using any attempt result.
+2. Re-run `./kitty context --agent` and inspect the live Builder only through a
+   supported projection. In this session the live product evidence was
+   `http://127.0.0.1:4000/proxy/runtime/manifest`; it served canonical commit
+   `1c6487d`, so it is not proof for this worktree unless this worktree is
+   launched explicitly.
+3. Do **not** mutate the canonical queue, retry `KB-BRAIN-00-source-harvest`, or
+   re-run cancelled KTF packets based only on their queue state. The Brain
+   harvest is already present; several KTF packets have invalidated anchor
+   guards or superseded targets.
+4. Direct specialist work owns difficult recovery and judgment: distinguish
+   cancellation from exhaustion, add liveness-proof before stale-attempt
+   reconciliation, preserve cancellation provenance, and reconcile raw versus
+   derived initiative state. It needs bounded implementation plus independent
+   review before any queue repair.
+5. Builder may receive only a packet that is current and `free-exec`: narrow
+   allowed paths, no unresolved design/authority/environment decision, explicit
+   stopping rule, runnable deterministic gate, and verified unmodified-tree
+   failure. Everything else stays with the direct specialist lane.
+6. The next implementation checkpoint must include exact files and symbols,
+   command outputs, task/attempt IDs, live build identity, known hazards,
+   prohibited mutations, and one executable next action. Tests have not been
+   run in this session; code-level findings are candidates until the agreed
+   focused validation runs.
