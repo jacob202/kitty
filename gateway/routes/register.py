@@ -38,6 +38,7 @@ from gateway.routes import (
     monitors,
     network,
     onboarding,
+    openai_compat,
     perf,
     personality,
     projects,
@@ -68,6 +69,7 @@ def register_routes(app: FastAPI) -> None:
         capture,
         chats,
         completions,
+        openai_compat,
         council,
         cron,
         deadlines,
@@ -104,7 +106,7 @@ def register_routes(app: FastAPI) -> None:
         tutor,
         usage,
         voice,
-    extended,
-    magic,
-):
+        extended,
+        magic,
+    ):
         app.include_router(module.router)
