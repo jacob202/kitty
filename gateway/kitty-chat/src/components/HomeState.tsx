@@ -718,10 +718,10 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
     <button
       type="button"
       onClick={() => onNavigate('projects')}
-      aria-label="Open projects"
+      aria-label="View all projects"
       style={actionButtonStyle}
     >
-      open
+      view all
     </button>
   );
 
@@ -736,7 +736,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
             key={p.id}
             type="button"
             onClick={() => onNavigate('projects')}
-            aria-label={`Open ${p.name} in projects`}
+            aria-label={`View ${p.name} in projects`}
             style={{
               ...itemCard,
               display: 'flex',
