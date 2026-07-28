@@ -69,6 +69,7 @@ projections.
 | `task_23fbbecd370f` | `ctx_1f4fbe008591` | Builder recovery/root-cause review | completed — result received |
 | `task_eff4dfd1daae` | `ctx_0ec018f773ab` | Eight-lens Work/Builder UX swarm | completed — result received |
 | `task_9ce58b27bacb` | `ctx_06f44c7780bf` | Frontend/Gateway contract alignment | completed — result received |
+| `task_38303796bac9` | `ctx_3b73e1141f57` | Phase-one architecture gate | dispatched, no result; do not treat as approval |
 | `msg_fcc2df76f79b` | canonical handoff | Read-only Builder CLI evidence | awaiting reply |
 
 ## User-requested scope queued after reliability reconciliation
@@ -91,6 +92,11 @@ keeps cancellation, provider exhaustion, stale recovery, and historical data
 quality distinct. Before any canonical queue mutation, take a fresh supported
 runtime snapshot and prove run identity, PID/lease status, no open attempt, and
 the exact recovery-only block reason for each candidate.
+
+The separate architecture-gate terminal did not produce a result. The next
+bounded repair proceeds only from the completed independent reliability review,
+and remains limited to source/tests plus truthful projections. It must not make
+a canonical queue mutation or use the absent gate as approval.
 
 ## Low-cost worker continuation contract
 
