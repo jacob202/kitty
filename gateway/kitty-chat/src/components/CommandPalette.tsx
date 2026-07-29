@@ -50,7 +50,7 @@ export function CommandPalette({
         const inEditable = !!target?.closest('input, textarea, [contenteditable="true"]')
         if (inEditable && !open) return
         e.preventDefault()
-        setOpen(prev => !prev)
+        setOpen(!open)
       } else if (e.key === 'Escape') {
         setOpen(false)
       }

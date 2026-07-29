@@ -17,7 +17,7 @@
     "Work/Builder: Builder removed from Rail, accessible from WorkView + command palette"
   ],
   "blockers": [],
-  "next_action": "Commit, push, verify CI, merge PR #289",
+  "next_action": "Repair merged-main CI failures before dependent work",
   "parallel_work": [
     {
       "kind": "pr",
@@ -58,7 +58,7 @@
   "recommendations": [
     {
       "id": "merge-pr-289",
-      "what": "Push the UI enhancement commits, verify CI passes on PR #289",
+      "what": "Push the UI enhancement commits, verify CI passes on PR #289, then merge the sweep",
       "why": "Builder recovery, experts, library/projects split, and home tile fixes need to land on main",
       "class": "code",
       "status": "ready",
@@ -92,11 +92,7 @@
   ],
   "invalidation_conditions": ["HEAD changes beyond 83dafbc"],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 291,
-    "state": "OPEN",
-    "head_sha": "83dafbc541a91ef962720045ffe0094a601bcc4b"
-  }
+  "pull_request": null
 }
 -->
 
