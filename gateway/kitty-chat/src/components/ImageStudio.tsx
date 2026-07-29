@@ -775,8 +775,19 @@ function PlanPreviewCard({
   onDismiss: () => void
   onGenerate: () => void
 }) {
-  const refs = (plan.references as Array<Record<string, string>>) ?? []
-  const tags = (plan.guidance_tags as string[]) ?? []
+  const refs = Array.isArray(plan.references)
+    ? plan.references.filter(
+        (ref): ref is { name?: string; reason?: string; path?: string } =>
+          typeof ref === 'object' && ref !== null,
+      )
+    : []
+  const tags = Array.isArray(plan.guidance_tags)
+    ? plan.guidance_tags.filter((tag): tag is string => typeof tag === 'string')
+    : []
+  const recipeId = typeof plan.recipe_id === 'string' ? plan.recipe_id : null
+  const characterRefPath = typeof plan.character_ref_path === 'string'
+    ? plan.character_ref_path
+    : null
 
   return (
     <section style={{
@@ -875,20 +886,20 @@ function PlanPreviewCard({
       )}
 
       {/* Recipe + character ref */}
-      {(plan.recipe_id || plan.character_ref_path) && (
+      {(Boolean(recipeId) || Boolean(characterRefPath)) && (
         <div style={{ display: 'grid', gap: 4 }}>
           <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', textTransform: 'uppercase' }}>
             resolved
           </span>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {plan.recipe_id && (
+            {recipeId && (
               <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
-                recipe: {String(plan.recipe_id)}
+                recipe: {recipeId}
               </span>
             )}
-            {plan.character_ref_path && (
+            {characterRefPath && (
               <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
-                ref: {String(plan.character_ref_path).split('/').slice(-2).join('/')}
+                ref: {characterRefPath.split('/').slice(-2).join('/')}
               </span>
             )}
           </div>

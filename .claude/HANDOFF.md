@@ -4,9 +4,9 @@
 {
   "schema_version": 2,
   "updated_at": "2026-07-28T19:30:00Z",
-  "head_sha": "d23d346517e1e5a3adf7a4e9657530123e7fca1c",
+  "head_sha": "83dafbc541a91ef962720045ffe0094a601bcc4b",
   "base_sha": "0a2a04480ecd555168656de62dfa9a3cc971031f",
-  "branch": "jacob202/fix-description",
+  "branch": "docs/image-studio-character-first-2026-07-28",
   "worktree": "amphipod",
   "status": "valid",
   "completed_items": [
@@ -22,7 +22,7 @@
     "Work/Builder: Builder removed from Rail, accessible from WorkView 'Open full Builder' link + command palette"
   ],
   "blockers": [],
-  "next_action": "Commit, push, verify CI on PR #289, then merge",
+  "next_action": "Repair merged-main CI failures before dependent work",
   "parallel_work": [
     {
       "kind": "pr",
@@ -63,7 +63,7 @@
   "recommendations": [
     {
       "id": "merge-pr-289",
-      "what": "Push the UI enhancement commits, verify CI passes on PR #289, and merge the sweep",
+      "what": "Push the UI enhancement commits, verify CI passes on PR #289, then merge the sweep",
       "why": "Builder recovery, experts, library/projects split, and home tile fixes need to land on main",
       "class": "code",
       "status": "ready",
@@ -97,11 +97,7 @@
   ],
   "invalidation_conditions": ["HEAD advances past d23d346", "PR #289 merges to main"],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 289,
-    "state": "OPEN",
-    "head_sha": "224d7bd4533cd637d861a433499e0acd073fd66b"
-  }
+  "pull_request": null
 }
 -->
 

@@ -301,3 +301,5 @@ const entryStyle: CSSProperties = {
   borderLeft: '3px solid var(--c-blue)',
   borderRadius: 4,
 }
+
+export default JournalPanel
