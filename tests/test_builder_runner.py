@@ -66,6 +66,18 @@ class TestEnsureWorktree:
         p2 = br.ensure_worktree("kb_t2_aaaa", "kittybuilder/kb_t2_aaaa", repo_root=repo)
         assert p1 == p2
 
+    def test_reuses_worktree_with_opencode_continuation_residue(self, repo: Path):
+        path = br.ensure_worktree("kb_t2_omo", "kittybuilder/kb_t2_omo", repo_root=repo)
+        continuation = path / ".omo" / "run-continuation" / "session.json"
+        continuation.parent.mkdir(parents=True)
+        continuation.write_text("runtime receipt\n")
+
+        reused = br.ensure_worktree(
+            "kb_t2_omo", "kittybuilder/kb_t2_omo", repo_root=repo
+        )
+
+        assert reused == path
+
     def test_refuses_dirty_worktree(self, repo: Path):
         path = br.ensure_worktree("kb_t3_aaaa", "kittybuilder/kb_t3_aaaa", repo_root=repo)
         (path / "junk.txt").write_text("partial progress")

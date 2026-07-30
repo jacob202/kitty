@@ -197,7 +197,17 @@ def ensure_worktree(
                 f"{current_branch or 'a detached HEAD'!r}, expected {branch!r}; "
                 "refusing to reuse. Inspect or clean it explicitly."
             )
-        status = _git(["status", "--porcelain=v1", "--untracked-files=all"], cwd=path)
+        status = _git(
+            [
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+                "--",
+                ".",
+                f":(exclude){bs.OPENCODE_CONTINUATION_RESIDUE_PREFIX}**",
+            ],
+            cwd=path,
+        )
         if status.returncode != 0 or status.stdout.strip():
             raise RunnerError(
                 f"worktree {path} is dirty; refusing to overwrite partial "
