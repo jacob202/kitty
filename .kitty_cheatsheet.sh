@@ -7,12 +7,12 @@ cat <<'SHEET'
   ║                         🐱  KITTY CHEAT SHEET                           ║
   ╚═══════════════════════════════════════════════════════════════════════════╝
 
-  LAUNCH & STOP            STATUS & HEALTH          TUTOR (RAG learning)
-    kitty        launch+browser  kitty status           kitty tutor learn <path>
-    kitty up     start daemons   kitty doctor --json    kitty tutor ask "<q>"
-    kitty down   stop all        kitty resume           kitty tutor review
-    kitty logs   tail logs       kitty verify-home      kitty tutor rate <t> <1-3>
-    kitty run-fg debug mode      kitty context --agent
+  LAUNCH & STOP                STATUS & HEALTH               TUTOR (RAG learning)
+    kitty      launch+browser  kitty status      show state  kitty tutor learn <path>
+    kitty up   start daemons   kitty doctor --json health    kitty tutor ask "<q>"
+    kitty down stop all        kitty resume      resume chat kitty tutor review
+    kitty logs tail logs       kitty verify-home env checks  kitty tutor rate <t> <1-3>
+    kitty run-fg debug mode    kitty context --agent receipt
                                                     BUILDER & PROJECTS
   DASHBOARD & ALIASES           TOOLS I INSTALLED       kitty builder <cmd>
     k       cd → kitty repo     brew    package mgr     kitty project list
