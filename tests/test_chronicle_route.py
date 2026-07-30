@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from gateway import chronicle_service
 from gateway.routes import chronicle as chronicle_route
 
 
@@ -14,6 +15,8 @@ from gateway.routes import chronicle as chronicle_route
 # ---------------------------------------------------------------------------
 
 def _make_client(chats: list[dict], monkeypatch) -> TestClient:
+    # Monkeypatch the store reference inside the service module, which is where
+    # the actual store call now lives (the route delegates to the service).
     monkeypatch.setattr(chronicle_route.chats_store, "list_chats", lambda: chats)
     app = FastAPI()
     app.include_router(chronicle_route.router)
@@ -40,7 +43,7 @@ def _chat(
 
 
 # ---------------------------------------------------------------------------
-# Tests
+# HTTP layer tests
 # ---------------------------------------------------------------------------
 
 class TestChronicleEndpoint:
@@ -79,7 +82,6 @@ class TestChronicleEndpoint:
         assert body["summary"]["message_count"] == 8
 
     def test_peak_hour_detected(self, monkeypatch):
-        # Three chats at 09:00
         chats = [
             _chat(created_at="2026-07-10T09:15:00+00:00"),
             _chat(created_at="2026-07-11T09:30:00+00:00"),
@@ -113,7 +115,6 @@ class TestChronicleEndpoint:
         assert not any("thread goal" in tip.lower() for tip in body["tips"])
 
     def test_short_sessions_tip(self, monkeypatch):
-        # Mostly single-message chats → should suggest longer threads
         chats = [_chat(messages=[{"role": "user"}]) for _ in range(6)]
         client = _make_client(chats, monkeypatch)
         body = client.get("/chronicle/tips").json()

@@ -220,3 +220,71 @@ def test_migrate_failure_names_file_and_database(tmp_path):
     with sqlite3.connect(db_file) as conn:
         applied = conn.execute("SELECT name FROM schema_migrations").fetchall()
     assert applied == []
+
+
+# ---------------------------------------------------------------------------
+# assert_schema_current
+# ---------------------------------------------------------------------------
+
+def test_assert_schema_current_passes_after_full_migrate(tmp_path):
+    """After migrate() runs, assert_schema_current() should not raise."""
+    db_file = tmp_path / "kitty.db"
+    db.migrate(db_file=db_file)
+    db.assert_schema_current(db_file=db_file)  # must not raise
+
+
+def test_assert_schema_current_raises_if_migration_file_not_applied(tmp_path):
+    """A new migration file on disk that is absent from the DB triggers an error."""
+    db_file = tmp_path / "kitty.db"
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    (migrations_dir / "001_base.sql").write_text(
+        "CREATE TABLE IF NOT EXISTS t (id INTEGER PRIMARY KEY);",
+        encoding="utf-8",
+    )
+    db.migrate(db_file=db_file, migrations_dir=migrations_dir)
+
+    # Drop a second migration file onto disk without running migrate again.
+    (migrations_dir / "002_extra.sql").write_text(
+        "CREATE TABLE IF NOT EXISTS t2 (id INTEGER PRIMARY KEY);",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError) as exc:
+        db.assert_schema_current(db_file=db_file, migrations_dir=migrations_dir)
+
+    assert "002_extra.sql" in str(exc.value)
+
+
+def test_assert_schema_current_raises_if_schema_migrations_table_missing(tmp_path):
+    """A brand-new database with no schema_migrations table raises a clear error."""
+    db_file = tmp_path / "empty.db"
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    (migrations_dir / "001_base.sql").write_text(
+        "CREATE TABLE IF NOT EXISTS t (id INTEGER PRIMARY KEY);",
+        encoding="utf-8",
+    )
+    # Create a db without running migrate (so schema_migrations never exists)
+    with db.connect(db_file) as conn:
+        conn.execute("CREATE TABLE placeholder (x INTEGER)")
+
+    with pytest.raises(RuntimeError) as exc:
+        db.assert_schema_current(db_file=db_file, migrations_dir=migrations_dir)
+
+    assert "schema_migrations" in str(exc.value).lower()
+
+
+def test_assert_schema_current_is_silent_when_no_migration_files(tmp_path):
+    """An empty migrations directory should not raise."""
+    db_file = tmp_path / "kitty.db"
+    migrations_dir = tmp_path / "empty_migrations"
+    migrations_dir.mkdir()
+    db.assert_schema_current(db_file=db_file, migrations_dir=migrations_dir)  # must not raise
+
+
+def test_assert_schema_current_real_migrations_are_current(tmp_path):
+    """All migration files in the real migrations directory apply cleanly."""
+    db_file = tmp_path / "kitty.db"
+    db.migrate(db_file=db_file)
+    db.assert_schema_current(db_file=db_file)  # uses default migrations_dir
