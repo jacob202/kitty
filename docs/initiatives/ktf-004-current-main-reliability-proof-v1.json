@@ -36,7 +36,7 @@
     {
       "id": "KTF-RP-02-daylight-operator-brief",
       "title": "Write the bounded daylight operator brief",
-      "objective": "Execution class: free-exec. One outcome only: create docs/research/ktf-004-daylight-operator-brief.md. Before writing, require the KTF-RP-01 report to be non-empty and to contain all three pass markers named in its validation commands. The new file must state exactly these four headings: `# KTF-004 daylight operator brief`, `## Preconditions`, `## Required evidence`, and `## Stop conditions`. Under Preconditions, state that independent review of KTF-RP-01 and KTF-RP-02 plus canonical-checkout application are required before any daylight run. Under Required evidence, write exactly: `task; attempt; lease; validation; review; Git; GitHub; provider-exhaustion; continuation`. Under Stop conditions, state `Do not push, publish, merge, retry a terminal task, or select a life project automatically.` and `If a supported source is unavailable or disagrees, stop and report unknown.` Do not run Builder, apply a manifest, edit another file, or create a PR. STOPPING RULE: if the input report is missing a required marker or the output brief already exists, make no change and fail the attempt; do not write a partial brief.",
+      "objective": "Execution class: free-exec. One outcome only: create docs/research/ktf-004-daylight-operator-brief.md with exactly this content and nothing else: `# KTF-004 daylight operator brief`, a blank line, `## Preconditions`, a blank line, `Independent T1 review of KTF-RP-01 and KTF-RP-02 plus canonical-checkout application are required before any daylight run.`, a blank line, `## Required evidence`, a blank line, `task; attempt; lease; validation; review; Git; GitHub; provider-exhaustion; continuation`, a blank line, `## Stop conditions`, a blank line, `Do not push, publish, merge, retry a terminal task, or select a life project automatically.`, and `If a supported source is unavailable or disagrees, stop and report unknown.` Before writing, require the KTF-RP-01 report to be non-empty and to contain all three pass markers named in its validation commands. Validate the new file with `sh docs/initiatives/ktf-004-verify-daylight-operator-brief.sh`. Do not run Builder, apply a manifest, edit another file, edit either verifier script, or create a PR. STOPPING RULE: if the input report is missing a required marker, the output brief already exists, or the verifier fails, make no change and fail the attempt; do not write a partial brief.",
       "depends_on": [
         "KTF-RP-01-controlled-current-main-runtime-proof-proto"
       ],
@@ -47,7 +47,8 @@
       ],
       "allowed_paths": [
         "docs/research/ktf-004-current-main-runtime-proof.md",
-        "docs/research/ktf-004-daylight-operator-brief.md"
+        "docs/research/ktf-004-daylight-operator-brief.md",
+        "docs/initiatives/ktf-004-verify-daylight-operator-brief.sh"
       ],
       "policy": {
         "max_attempts": 1,
@@ -59,13 +60,7 @@
         "grep -q 'unrelated continuation: passed' docs/research/ktf-004-current-main-runtime-proof.md",
         "grep -q 'provider exhaustion exit 75: passed' docs/research/ktf-004-current-main-runtime-proof.md",
         "test -s docs/research/ktf-004-daylight-operator-brief.md",
-        "grep -q '^# KTF-004 daylight operator brief$' docs/research/ktf-004-daylight-operator-brief.md",
-        "grep -q '^## Preconditions$' docs/research/ktf-004-daylight-operator-brief.md",
-        "grep -q '^## Required evidence$' docs/research/ktf-004-daylight-operator-brief.md",
-        "grep -q '^## Stop conditions$' docs/research/ktf-004-daylight-operator-brief.md",
-        "grep -q '^task; attempt; lease; validation; review; Git; GitHub; provider-exhaustion; continuation$' docs/research/ktf-004-daylight-operator-brief.md",
-        "grep -q 'Do not push, publish, merge, retry a terminal task, or select a life project automatically.' docs/research/ktf-004-daylight-operator-brief.md",
-        "grep -q 'If a supported source is unavailable or disagrees, stop and report unknown.' docs/research/ktf-004-daylight-operator-brief.md"
+        "sh docs/initiatives/ktf-004-verify-daylight-operator-brief.sh"
       ]
     }
   ]
