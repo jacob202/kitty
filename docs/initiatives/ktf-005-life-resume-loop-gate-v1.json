@@ -1,8 +1,9 @@
 {
+  "plan_only": true,
   "manifest_version": 1,
   "initiative_id": "ktf-005-life-resume-loop-gate-v1",
   "title": "KTF-001: human-gated life-project resume loop",
-  "description": "A separate, human-gated continuation contract for Mission Outcome 9. Personal project selection and delivery are not free-worker work. The records live under ignored runtime data so private project details are never added to Git or a PR. Job Search remains excluded unless Jacob explicitly activates it, per ADR 0013.",
+  "description": "PLAN ONLY — do not apply this JSON to Builder. The packet standard defines human work as not Builder work, so the validator must reject this file because plan_only is not part of the Builder manifest schema. The executable authority is the human-only runbook README-ktf-005-life-resume-loop-human-gate.md. Personal records remain in ignored runtime data; Job Search remains excluded unless Jacob explicitly activates it.",
   "packets": [
     {
       "id": "KTF-LR-01-human-project-selection-proto",

@@ -1,8 +1,9 @@
 {
+  "plan_only": true,
   "manifest_version": 1,
   "initiative_id": "ktf-001-resume-proof-v2",
   "title": "KTF-001 restart: reconcile evidence, author fresh proofs, complete the resume loop",
-  "description": "Recovery sequence for KTF-001 after the original runtime manifests became stale: first establish what current main and the supported Builder projections prove, then author only fresh falsifiable packet contracts, then conduct the operator-gated daylight and life-project proofs. This manifest is a versioned planning input and must be validated and reviewed before it is applied to Builder.",
+  "description": "PLAN ONLY — do not apply this JSON to Builder. R1 and R2 are completed historical planning steps; their artifact gates now pass on the unchanged tree and are intentionally not executable again. The validator must reject this file because plan_only is not part of the Builder manifest schema. Current executable work is limited to ktf-004-current-main-reliability-proof-v1 after independent review. Human life-project work is governed only by README-ktf-005-life-resume-loop-human-gate.md.",
   "packets": [
     {
       "id": "KTF-R1-reliability-evidence-reconciliation-proto",
@@ -55,7 +56,7 @@
     {
       "id": "KTF-R3-daylight-and-life-loop-proof",
       "title": "Run the evidence-gated daylight proof and one real resume loop",
-      "objective": "Execution class: operator-gated. One outcome only: after R2's manifests are independently reviewed, validated, and applied from the canonical checkout, run the daylight Builder proof. `ktf-004-current-main-reliability-proof-v1` supplies the controlled continuation/exit-75 proof and daylight operator brief; `ktf-005-life-resume-loop-gate-v1` keeps personal selection and delivery human-gated. Reconcile the resulting run, task, attempt, lease, validation, review, Git, GitHub, and publication evidence. Then, only through the human gate, select one real life project already represented in Kitty, refresh its truthful state, deliver one specifically approved next action, record the outcome, and surface the next action. Do not start this packet until the exact applied-manifest IDs and independent review evidence are attached to its run brief. Do not infer life-project delivery authority from this packet.",
+      "objective": "PLAN ONLY — do not execute from this record. After independent review, ktf-004-current-main-reliability-proof-v1 is the only executable current-main proof initiative. Reconcile its resulting task, attempt, lease, validation, review, Git, GitHub, and publication evidence before any daylight completion claim. Human life-project selection and delivery are governed only by README-ktf-005-life-resume-loop-human-gate.md and require a new explicit Jacob approval for a specific external action.",
       "depends_on": [
         "KTF-R2-fresh-proof-packet-authoring"
       ],
