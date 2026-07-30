@@ -4,8 +4,8 @@
 {
   "schema_version": 2,
   "updated_at": "2026-07-30T12:40:00Z",
-  "head_sha": "f90e512076372db8dd014da13a6b6d77e28d99a6",
-  "branch": "main",
+  "head_sha": "c6edd5d6d9f595ea46a841614d5425806c3f29d9",
+  "branch": "docs/repository-navigation-refresh",
   "worktree": ".",
   "status": "in_progress",
   "completed_items": [
@@ -52,10 +52,10 @@
       "why": "Cockpit is read-only (KB-BRAIN-04). Next packet enables dispatch, cancel, retry, instruct, commit, validate, review, approve, publish from the UI.",
       "class": "code",
       "status": "ready",
-      "blocked_by": "KB-BRAIN-04 not yet on remote main",
-      "release_check": "git merge-base --is-ancestor f90e512 origin/main",
-      "deferred_count": 1,
-      "first_deferred": "2026-07-30T12:40:00Z"
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
     }
   ],
   "invalidation_conditions": ["HEAD advances past f90e512"],
