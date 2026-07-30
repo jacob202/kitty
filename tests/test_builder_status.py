@@ -12,7 +12,7 @@ from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 from gateway import builder_run as br
-from gateway import builder_status, runtime_manifest
+from gateway import builder_status, builder_runtime, runtime_manifest
 
 INITIATIVE_ID = "builder-ui-test"
 PACKET_ID = "BUILDER-UI-1"
@@ -316,7 +316,7 @@ def test_runtime_manifest_surfaces_builder_read_failures(monkeypatch):
     def unavailable_projection() -> dict:
         raise ValueError("attempt implementation contains invalid JSON")
 
-    monkeypatch.setattr(builder_status, "build_status_snapshot", unavailable_projection)
+    monkeypatch.setattr(builder_runtime, "build_runtime_snapshot", unavailable_projection)
 
     fact = runtime_manifest._builder_fact(
         observed_at="2026-07-17T03:00:00Z",
@@ -325,7 +325,7 @@ def test_runtime_manifest_surfaces_builder_read_failures(monkeypatch):
 
     assert fact["state"] == "unknown"
     assert fact["value"] is None
-    assert fact["source"] == "builder_status"
+    assert fact["source"] == "builder_runtime"
     assert fact["reason"] == "Builder state read failed: attempt implementation contains invalid JSON"
 
 
@@ -393,7 +393,7 @@ def test_malformed_attempt_is_isolated_as_degraded_packet(
     def partial_snapshot() -> dict:
         return snapshot
 
-    monkeypatch.setattr(builder_status, "build_status_snapshot", partial_snapshot)
+    monkeypatch.setattr(builder_runtime, "build_runtime_snapshot", partial_snapshot)
     fact = runtime_manifest._builder_fact(
         observed_at="2026-07-17T03:00:00Z",
         valid_until="2026-07-17T03:00:05Z",
