@@ -57,6 +57,10 @@ if not match:
 output = Path(match.group(1))
 if os.environ.get("FAKE_OPENCODE_MUTATE"):
     Path("reviewer-mutated.txt").write_text("mutation\\n", encoding="utf-8")
+if os.environ.get("FAKE_OPENCODE_CONTINUATION"):
+    continuation = Path(".omo/run-continuation/session.json")
+    continuation.parent.mkdir(parents=True, exist_ok=True)
+    continuation.write_text("runtime receipt\\n", encoding="utf-8")
 if os.environ.get("FAKE_OPENCODE_IMPLEMENT_CHANGE"):
     Path("implemented.txt").write_text("real change\\n", encoding="utf-8")
 if os.environ.get("FAKE_OPENCODE_REVIEW"):
@@ -458,6 +462,40 @@ def test_reviewer_rejects_worktree_mutation_and_does_not_publish_review(tmp_path
     assert completed.returncode != 0
     assert "changed the worktree" in completed.stderr
     assert not review.exists()
+
+
+def test_reviewer_allows_opencode_continuation_residue(tmp_path: Path):
+    _init_git_repo(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    implementation = tmp_path / "implementation.json"
+    implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
+    review = tmp_path / "review.json"
+    fake = _fake_opencode(tmp_path)
+    binding = _review_binding(tmp_path)
+    env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
+    env.update(
+        {
+            "KB_IMPL_RESULT_PATH": str(implementation),
+            "KB_REVIEW_RESULT_PATH": str(review),
+            "FAKE_OPENCODE_REVIEW": "1",
+            "FAKE_OPENCODE_CONTINUATION": "1",
+            "KB_REVIEW_CONTEXT_PATH": str(binding),
+            "KB_REVIEW_SHA": subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True,
+                capture_output=True, text=True,
+            ).stdout.strip(),
+            "KB_REVIEW_DIFF_SHA256": "0" * 64,
+        }
+    )
+
+    completed = subprocess.run(
+        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(review.read_text())["verdict"] == "approve"
 
 
 def test_reviewer_falls_through_ladder_on_clean_model_failure(tmp_path: Path):

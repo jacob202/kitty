@@ -30,7 +30,7 @@ else
   )
 fi
 before=$(git rev-parse HEAD)
-before_status=$(git status --porcelain=v1 --untracked-files=all)
+before_status=$(git status --porcelain=v1 --untracked-files=all -- . ':(exclude).omo/run-continuation/**')
 if [[ "${before}" != "${KB_REVIEW_SHA}" ]]; then
   echo "ERROR: reviewer started on ${before}, expected ${KB_REVIEW_SHA}" >&2
   exit 1
@@ -115,7 +115,7 @@ EOF
 
 fingerprint() {
   git rev-parse HEAD
-  git status --porcelain=v1 --untracked-files=all
+  git status --porcelain=v1 --untracked-files=all -- . ':(exclude).omo/run-continuation/**'
 }
 
 # A reviewer model may hand off to the next free model only when it failed
@@ -170,7 +170,7 @@ cp "${local_review}" "${candidate}"
 rm -f "${local_bundle}" "${local_impl}" "${local_context}" "${local_review_context}" "${local_review}"
 
 after=$(git rev-parse HEAD)
-after_status=$(git status --porcelain=v1 --untracked-files=all)
+after_status=$(git status --porcelain=v1 --untracked-files=all -- . ':(exclude).omo/run-continuation/**')
 if [[ "${before}" != "${after}" || "${before_status}" != "${after_status}" || "${after}" != "${KB_REVIEW_SHA}" ]]; then
   rm -f "${candidate}"
   echo "ERROR: read-only reviewer changed the worktree" >&2
