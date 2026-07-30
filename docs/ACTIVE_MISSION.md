@@ -70,6 +70,11 @@ create more work whose completion cannot be trusted.
 - Continue with unrelated eligible approved packets after a failure.
 - Use free routes for `free-exec` work and explicit funded paid routes only for
   packets whose policy allows them.
+- Jacob authorized the bounded KB-BRAIN-05 cockpit controls on 2026-07-30:
+  explicit operator commands may use canonical Builder APIs, with confirmation
+  for destructive operations. This does not authorize Mission submission,
+  autonomous execution, or publication without the operator's in-product
+  confirmation.
 
 ## Still excluded
 
@@ -78,7 +83,8 @@ create more work whose completion cannot be trusted.
 - Auto-merging dependencies, lockfiles, CI workflows, security boundaries,
   schema migrations, human-judgment UI work, or unverifiable changes.
 - New feature lanes, queues, schedulers, state stores, orchestrators, event
-  systems, Builder cockpits, or memory substrates before mission exit.
+  systems, additional Builder cockpits, or memory substrates before mission
+  exit.
 
 ## Acceptance contract
 

@@ -144,5 +144,6 @@ phase by appearing in an older plan or initiative.
 ## Explicitly not current work
 
 Until Phase 1 exits, do not create another queue, scheduler, state store,
-orchestrator, event system, Builder cockpit, memory substrate, or broad feature
-lane. Do not use autonomy to compensate for dead gates or ambiguous authority.
+orchestrator, event system, additional Builder cockpit, memory substrate, or
+broad feature lane. Do not use autonomy to compensate for dead gates or
+ambiguous authority.

@@ -49,7 +49,8 @@ table coupling, a second Builder state machine, and a permanent project-manager
 agent runtime are not part of this architecture.
 
 The contract is ratified but autonomous Mission submission is not implemented.
-Current user-facing Builder controls remain read-only.
+The cockpit provides explicit, confirmed operator commands through canonical
+Builder APIs; it does not submit Missions or infer authorization.
 
 ## Important Modules
 
