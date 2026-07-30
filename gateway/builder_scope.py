@@ -84,12 +84,20 @@ WORKER_STAGING_PREFIXES = (
     ".kittybuilder-result-",
 )
 
+# OpenCode writes a per-run continuation receipt in the worktree while a worker
+# executes. It is agent-runtime bookkeeping, not an implementation artifact.
+OPENCODE_CONTINUATION_RESIDUE_PREFIX = ".omo/run-continuation/"
+
 
 def is_expected_residue(path: str) -> bool:
     """True for paths every attempt may legitimately touch outside its
     allowlist — repo session-state convention or the runner's own staging
     files — never for anything the model actually implemented."""
-    return path in SESSION_STATE_RESIDUE or path.startswith(WORKER_STAGING_PREFIXES)
+    return (
+        path in SESSION_STATE_RESIDUE
+        or path.startswith(WORKER_STAGING_PREFIXES)
+        or path.startswith(OPENCODE_CONTINUATION_RESIDUE_PREFIX)
+    )
 
 
 def find_changed_path_violations(
