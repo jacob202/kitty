@@ -1,10 +1,10 @@
-# Session State — Chat context, mobile nav, agent chat, prompt editing
+# Session State — UI sweep plus Phase 1 daylight proof reconciliation
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-07-28T23:30:00Z",
-  "head_sha": "a7925ab17f5c4f8fc12c5f31b5820cc1c2c4d532",
+  "updated_at": "2026-07-28T21:55:36Z",
+  "head_sha": "a7925ab87422bbaddc8d22832b9af753ba491dd0",
   "branch": "jacob202/fix-description",
   "worktree": "amphipod",
   "status": "in_progress",
@@ -19,10 +19,15 @@
     "SettingsShell: placeholder replacement (PR #293)",
     "AgentPanel: spawn opens chat, session rows get chat button (PR #293)",
     "Repo cleanup: 32 branches, 13 worktrees, 11 docs pruned (PR #289)",
-    "PR #291: link fix, Test plan, weather test cherry-pick, onExpertClick main fix"
+    "PR #291: link fix, Test plan, weather test cherry-pick, onExpertClick main fix",
+    "Phase 1 reconciliation ledger written at .slim/deepwork/phase-1-reconciliation-ledger.md",
+    "Daylight proof plan written at .slim/deepwork/phase-1-daylight-proof-plan.md",
+    "Roadmap authority, continuation-after-failure, and provider-exhaustion runtime markers confirmed already landed in code"
   ],
-  "blockers": [],
-  "next_action": "Verify PR #293 CI passes, merge",
+  "blockers": [
+    "Direct commands in /Users/jacobbrizinski/Projects/kitty were denied by external_directory permissions; canonical Builder evidence is visible through ./kitty context --agent but cannot be directly acted on from this session without permission or a supported local targeting path."
+  ],
+  "next_action": "Get canonical checkout access or a supported local canonical-DB targeting path, inspect canonical Builder projections, choose only eligible free-exec daylight packets, run the daylight proof, and reconcile the result against Git, GitHub, and Builder evidence.",
   "parallel_work": [
     {
       "kind": "pr",
@@ -41,9 +46,20 @@
   ],
   "recommendations": [
     {
+      "id": "canonical-daylight-proof",
+      "what": "Inspect canonical Builder projections and run only eligible free-exec daylight packets",
+      "why": "Phase 1 Outcome 6 still needs live evidence; the worktree-local DB only contains a completed post-merge-validation initiative with no validation_commands",
+      "class": "code",
+      "status": "deferred",
+      "blocked_by": "canonical checkout commands denied by external_directory permissions",
+      "release_check": "./kitty context --agent | python3.12 -c 'import json,sys; r=json.load(sys.stdin); assert r[\"builder\"][\"state\"] == \"available\"; assert r[\"builder\"][\"queue\"][\"running\"] == 0'",
+      "deferred_count": 1,
+      "first_deferred": "2026-07-28T21:55:36Z"
+    },
+    {
       "id": "merge-pr-293",
       "what": "Verify PR #293 CI passes and merge the 5-commit UI sweep",
-      "why": "Chat context, mobile nav, agent integration, prompt editing all need to land on main",
+      "why": "Chat context, mobile nav, agent integration, and prompt editing need to land on main",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -61,34 +77,24 @@
       "release_check": null,
       "deferred_count": 0,
       "first_deferred": null
-    },
-    {
-      "id": "studio-pipeline-e2e",
-      "what": "Start Ollama, test ImagePlan→generate→render pipeline end-to-end",
-      "why": "ImagePlan boundary landed but Ollama/embeddings down — generates may be broken",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
     }
   ],
-  "invalidation_conditions": ["HEAD changes beyond a7925ab"],
+  "invalidation_conditions": ["HEAD changes beyond a7925ab", "PR #293 merges to main"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
     "number": 293,
     "state": "OPEN",
-    "head_sha": "a7925ab17f5c4f8fc12c5f31b5820cc1c2c4d532"
+    "head_sha": "a7925ab87422bbaddc8d22832b9af753ba491dd0"
   }
 }
 -->
 
 ## Current checkpoint
-`jacob202/fix-description` at `a7925ab`. 5 commits ahead of main in PR #293 covering chat context visibility, mobile nav consolidation, settings cleanup, agent chat integration, and prompt editing. PRs #289 and #291 merged to main. 1 dirty file: `gateway/kitty-chat/package-lock.json`.
 
-## Lessons applied
-- ExpertStrip was a dead no-op — clicking navigated to chat but created no expert context. Fix required 4-layer wiring: types → context → component → page.
-- Mobile nav had 7 tabs on 320px — reduced to 5 core + More popover. Journal/Tutor/Terminal were hidden, now discoverable.
-- AgentPanel agents had no chat integration — spawning an agent now creates a chat via handleNewExpertChat.
-- SettingsShell had 2 placeholder sections admitting features were "unrouted" — replaced with honest, actionable discovery text.
+`jacob202/fix-description` at `a7925ab`. PR #293 carries the UI sweep: chat context visibility, mobile nav consolidation, settings cleanup, agent chat integration, and prompt editing.
+
+Phase 1 is still governed by `docs/ROADMAP.md` and `docs/ACTIVE_MISSION.md` (`KTF-001`). The old `8f7dd41` post-merge-validation checkpoint is stale. Continue the daylight proof only from supported canonical Builder projections.
+
+## Blocker
+
+Direct commands in `/Users/jacobbrizinski/Projects/kitty` were denied by tool permissions. `./kitty context --agent` still exposes the canonical Builder summary, but the daylight proof cannot be honestly run from the worktree-local DB.
