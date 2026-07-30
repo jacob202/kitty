@@ -23,6 +23,7 @@ This directory separates current authority from planning inputs, evidence, and h
 - `packets/` — scoped execution contracts and historical packet material; verify approval and freshness before use.
 - `audit/` — bounded findings and evidence.
 - `reference/` — reusable technical references.
+- `reference/VIBE_CODER_WORKFLOW.md` — session-first coding workflow scaffold and checklist.
 - `phases/` and `planning/` — legacy organization that should be migrated or archived when touched.
 
 ## Historical material

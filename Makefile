@@ -1,7 +1,11 @@
-.PHONY: agent-wrap test lint typecheck ci ui-test ui-build ui-tailnet smoke-test codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr
+.PHONY: agent-wrap vibe-session test lint typecheck ci ui-test ui-build ui-tailnet smoke-test codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr
 
 agent-wrap:
 	python3.12 scripts/agent_wrapup.py
+
+vibe-session:
+	@if [ -z "$$OUTCOME" ]; then echo "usage: make vibe-session OUTCOME='... ' [MINUTES=60]"; exit 2; fi
+	python3.12 scripts/vibe_session.py "$$OUTCOME" --minutes $${MINUTES:-60}
 
 test:
 	python3.12 -m pytest tests/ -q --tb=short
