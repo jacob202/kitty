@@ -16,7 +16,9 @@ if not logging.getLogger().handlers:
 
 def read_claude_transcripts(limit=5):
     logger.info("=== Recent Claude Code Activity ===")
-    pattern = os.path.expanduser("~/.claude/projects/*/transcript.jsonl")
+    # Claude Code names each transcript after its session UUID, not
+    # transcript.jsonl — the old glob could never match anything.
+    pattern = os.path.expanduser("~/.claude/projects/*/*.jsonl")
     for file in sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)[:3]:
         logger.info(f"\nProject: {os.path.basename(os.path.dirname(file))}")
         try:
