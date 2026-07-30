@@ -1,6 +1,6 @@
 'use client'
-import { BuilderPanel } from '@/components/BuilderSurface'
+import { BuilderCockpit } from '@/components/builder/BuilderCockpit'
 
 export default function BuilderView({ onBack }: { onBack?: () => void }) {
-  return <BuilderPanel onBack={onBack} />
+  return <BuilderCockpit onBack={onBack} />
 }
