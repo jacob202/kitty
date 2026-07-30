@@ -1,0 +1,81 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "ktf-001-resume-proof-v2",
+  "title": "KTF-001 restart: reconcile evidence, author fresh proofs, complete the resume loop",
+  "description": "Recovery sequence for KTF-001 after the original runtime manifests became stale: first establish what current main and the supported Builder projections prove, then author only fresh falsifiable packet contracts, then conduct the operator-gated daylight and life-project proofs. This manifest is a versioned planning input and must be validated and reviewed before it is applied to Builder.",
+  "packets": [
+    {
+      "id": "KTF-R1-reliability-evidence-reconciliation-proto",
+      "title": "Reconcile current main against KTF runtime evidence",
+      "objective": "Execution class: paid-author. One outcome only: write docs/research/ktf-001-reliability-reconciliation-2026-07-30.md from current main, live GitHub, and supported canonical Builder projections. The report must state: (1) the inspected main SHA; (2) whether f9dfb6a is an ancestor of main; (3) the code-anchor status for continuation after failure and provider exhaustion; (4) each original KTF initiative and packet state, attempt outcome, and immutable-manifest limitation; (5) the exact remaining reliability delta; and (6) a disposition of every original packet as landed, superseded, or still required. Do not modify Builder runtime state, apply a manifest, claim a task, push, or create a PR. Stop and report an explicit unknown if any supported source is unavailable.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The report cites the inspected main SHA and supported command outputs.",
+        "Every original KTF packet is classified as landed, superseded, or still required without guessing from prose.",
+        "The report names the exact code and evidence gap that must be addressed before the daylight proof.",
+        "No Builder queue or initiative state is mutated."
+      ],
+      "allowed_paths": [
+        "docs/research/"
+      ],
+      "policy": {
+        "max_attempts": 1,
+        "priority": 10
+      },
+      "validation_commands": [
+        "test -s docs/research/ktf-001-reliability-reconciliation-2026-07-30.md",
+        "grep -q 'f9dfb6a' docs/research/ktf-001-reliability-reconciliation-2026-07-30.md",
+        "grep -q 'Remaining reliability delta' docs/research/ktf-001-reliability-reconciliation-2026-07-30.md"
+      ]
+    },
+    {
+      "id": "KTF-R2-fresh-proof-packet-authoring",
+      "title": "Author fresh falsifiable KTF proof manifests",
+      "objective": "Execution class: paid-author. One outcome only: using the R1 reconciliation report, author exactly the narrowly scoped replacement manifests required for the remaining reliability delta under docs/initiatives/. Each replacement must declare exact allowed paths, intra-manifest dependencies, explicit stopping rules, runnable validation commands, and a gate proven to fail before its intended change. Do not reuse a cancelled manifest's literal anchors, apply any manifest, claim a Builder task, push, or create a PR. If R1 proves no code delta remains, author only the operator-gated daylight-proof manifest and explain why no remediation manifest is needed.",
+      "depends_on": [
+        "KTF-R1-reliability-evidence-reconciliation-proto"
+      ],
+      "acceptance_criteria": [
+        "Every authored replacement manifest validates with the supported initiative validator.",
+        "Each packet has exact allowed paths, a stopping rule, and validation that can run on the canonical machine.",
+        "No replacement depends on an immutable cancelled task or a moving Git ref.",
+        "No Builder queue state is mutated."
+      ],
+      "allowed_paths": [
+        "docs/initiatives/"
+      ],
+      "policy": {
+        "max_attempts": 1,
+        "priority": 9
+      },
+      "validation_commands": [
+        "test -f docs/initiatives/ktf-001-resume-proof-v2.json"
+      ]
+    },
+    {
+      "id": "KTF-R3-daylight-and-life-loop-proof",
+      "title": "Run the evidence-gated daylight proof and one real resume loop",
+      "objective": "Execution class: operator-gated. One outcome only: after R2's manifests are independently reviewed, validated, and applied from the canonical checkout, run the daylight Builder proof. Reconcile the resulting run, task, attempt, lease, validation, review, Git, GitHub, and publication evidence. Then select one real life project already represented in Kitty, refresh its truthful state, deliver one supported next action, record the outcome, and surface the next action. Do not start this packet until the exact applied-manifest IDs and independent review evidence are attached to its run brief.",
+      "depends_on": [
+        "KTF-R2-fresh-proof-packet-authoring"
+      ],
+      "acceptance_criteria": [
+        "The daylight report matches supported Builder, Git, and GitHub evidence without fabricated success.",
+        "The run demonstrates unrelated-work continuation and a durable provider-exhaustion pause when those conditions are exercised.",
+        "One real life project completes the truthful resume-loop proof and exposes its next action.",
+        "The final proof report names remaining unknowns and the exact next action."
+      ],
+      "allowed_paths": [
+        "docs/research/"
+      ],
+      "policy": {
+        "max_attempts": 1,
+        "priority": 8
+      },
+      "validation_commands": [
+        "test -s docs/research/ktf-001-reliability-reconciliation-2026-07-30.md",
+        "./kitty builder initiative doctor --json"
+      ]
+    }
+  ]
+}
