@@ -107,6 +107,17 @@ class TestGenerate:
         with pytest.raises(next_step.NextStepError):
             next_step.generate(project["id"], llm_fn=llm)
 
+    def test_default_llm_wraps_provider_exhaustion(self, monkeypatch):
+        from gateway import llm_client
+
+        def unavailable(*args, **kwargs):
+            raise llm_client.ProviderChainExhausted(["provider unavailable"])
+
+        monkeypatch.setattr(llm_client, "call_llm", unavailable)
+
+        with pytest.raises(NextStepError, match="provider unavailable"):
+            next_step._default_llm("generate one next step")
+
 
 class TestGetAndInvalidate:
     def test_get_returns_none_when_never_generated(self):

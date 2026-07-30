@@ -154,7 +154,7 @@ def _build_prompt(project: dict[str, Any], resumed: dict[str, Any]) -> str:
 
 
 def _default_llm(prompt: str) -> str:
-    from gateway.llm_client import call_llm
+    from gateway.llm_client import ProviderChainExhausted, call_llm
 
     system = _SYSTEM_PROMPT
     context = user_context.load_user_context()
@@ -164,16 +164,19 @@ def _default_llm(prompt: str) -> str:
     if prefs:
         system = f"{system}\n\n## Jacob's standing preferences\n\n{prefs}"
 
-    return call_llm(
-        [
-            {"role": "system", "content": system},
-            {"role": "user", "content": prompt},
-        ],
-        max_tokens=400,
-        temperature=0.3,
-        response_format={"type": "json_object"},
-        operation="next_step.generate",
-    )
+    try:
+        return call_llm(
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=400,
+            temperature=0.3,
+            response_format={"type": "json_object"},
+            operation="next_step.generate",
+        )
+    except ProviderChainExhausted as exc:
+        raise NextStepError(str(exc)) from exc
 
 
 def _load_preferences() -> str:
