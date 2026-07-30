@@ -1,105 +1,53 @@
-# Session State — Builder requeue/recovery, Experts, Library/Projects split, Home tile fixes
+# Session State — KTF reliability proof is planned and independently approved
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-07-28T18:25:00Z",
-  "head_sha": "83dafbc541a91ef962720045ffe0094a601bcc4b",
-  "branch": "docs/image-studio-character-first-2026-07-28",
-  "worktree": "amphipod",
-  "status": "in_progress",
+  "updated_at": "2026-07-30T05:30:35Z",
+  "head_sha": "158fa1ff4f18819e5fbf82b8406fa4733e9477b1",
+  "branch": "docs/ktf-001-resume-plan",
+  "worktree": ".claude/worktrees/docs-ktf-001-resume-plan",
+  "status": "blocked",
   "completed_items": [
-    "Builder: requeue + recover_stale backend actions (2 new action files, builder_control.py updated)",
-    "Builder: staleness detection (10min), per-packet requeue, bulk recover, confirmation dialog, staleness indicators on cards and BuilderBrain",
-    "Experts: Chat.expertId/systemPrompt fields, handleNewExpertChat with auto-generated prompts, ExpertStrip wired to create real expert chats",
-    "Library/Projects: ProjectsView.tsx, ViewRenderer dispatch, Rail/BottomNav swap builder→projects, LibraryView simplified",
-    "Home tiles: ExpertStrip functional, ActiveProjects targets ProjectsView, Today todos clickable",
-    "Work/Builder: Builder removed from Rail, accessible from WorkView + command palette"
+    "KTF-R1 reconciliation is recorded in docs/research/ktf-001-reliability-reconciliation-2026-07-30.md.",
+    "KTF-004 is the sole executable reliability-proof manifest; its two free-exec packets and exact verifiers validate with zero warnings.",
+    "KTF-001 and KTF-005 JSON files are fail-loud plan-only records; KTF-005 human action is limited to its README and excludes Job Search without fresh activation.",
+    "A separate Terra T1 review approved the corrected KTF-004/KTF-005 boundary in docs/research/ktf-004-t1-manifest-review-2026-07-29.md.",
+    "No Builder state, personal-life action, PR, or remote branch was changed."
   ],
-  "blockers": [],
-  "next_action": "Repair merged-main CI failures before dependent work",
+  "blockers": [
+    "The canonical checkout is dirty, on a non-main branch, and its ./kitty context --agent receipt is invalid because continuity metadata is stale.",
+    "This branch is unpushed and Jacob has not authorized a push or PR publication.",
+    "The Builder queue survey was UNAVAILABLE because the read-only status projection could not open its SQLite database.",
+    "Any life-project action requires fresh, specific Jacob approval."
+  ],
+  "next_action": "Obtain explicit authorization to push docs/ktf-001-resume-plan and open a PR; do not apply KTF-004 until the branch lands and the canonical main receipt is valid.",
   "parallel_work": [
-    {
-      "kind": "pr",
-      "ref": "#288",
-      "owner": "jacob202",
-      "touches": [".env.example", "gateway", "kitty", "tests"],
-      "observed_at": "2026-07-28T19:30:00Z"
-    },
-    {
-      "kind": "pr",
-      "ref": "#290",
-      "owner": "jacob202",
-      "touches": ["README.md", "docs", "repomix.config.json", "scripts"],
-      "observed_at": "2026-07-28T19:30:00Z"
-    },
-    {
-      "kind": "pr",
-      "ref": "#291",
-      "owner": "jacob202",
-      "touches": ["docs"],
-      "observed_at": "2026-07-28T19:30:00Z"
-    },
-    {
-      "kind": "pr",
-      "ref": "#292",
-      "owner": "jacob202",
-      "touches": ["docs"],
-      "observed_at": "2026-07-28T19:30:00Z"
-    },
-    {
-      "kind": "worktree",
-      "ref": "fix/dogfood-provider-chat-shell-2026-07-28",
-      "owner": "jacob202",
-      "touches": [".env.before-agentrouter", "config", "gateway/routes"],
-      "observed_at": "2026-07-28T19:30:00Z"
-    }
+    {"kind": "worktree", "ref": "fix/dogfood-provider-chat-shell-2026-07-28", "owner": "unknown", "touches": [".claude", "config", "docs", "gateway"], "observed_at": "2026-07-30T05:30:35Z"},
+    {"kind": "worktree", "ref": "jacob202/fix-description", "owner": "unknown", "touches": [".claude"], "observed_at": "2026-07-30T05:30:35Z"},
+    {"kind": "worktree", "ref": "contract-first", "owner": "unknown", "touches": ["docs", "gateway", "scripts"], "observed_at": "2026-07-30T05:30:35Z"}
   ],
   "recommendations": [
-    {
-      "id": "merge-pr-289",
-      "what": "Push the UI enhancement commits, verify CI passes on PR #289, then merge the sweep",
-      "why": "Builder recovery, experts, library/projects split, and home tile fixes need to land on main",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "chat-context-visibility",
-      "what": "Add system prompt preview and token window visualization to ChatView",
-      "why": "Chat is opaque — users can't see what context the model receives or how full the window is",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "review-doc-prs",
-      "what": "Review and close PRs #290-292 before they accumulate merge conflicts",
-      "why": "Three docs-only PRs open simultaneously — kitchen-sink risk if left unmerged",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    }
+    {"id": "publish-ktf-proof-plan", "what": "Obtain explicit permission to push docs/ktf-001-resume-plan and open a PR.", "why": "The independently reviewed plan is local-only; publication is required for normal review and landing.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null},
+    {"id": "apply-ktf004-canonical", "what": "Apply KTF-004 only from clean canonical main after the plan branch has landed and its context receipt is valid.", "why": "The planning worktree does not use the canonical Builder database, so applying there would not prove the real control plane.", "class": "code", "status": "deferred", "blocked_by": "The plan branch has not landed on origin/main and canonical continuity is not valid.", "release_check": "git merge-base --is-ancestor 158fa1f origin/main", "deferred_count": 0, "first_deferred": "2026-07-30"},
+    {"id": "human-life-loop-selection", "what": "After KTF-004 daylight evidence exists, have Jacob select one eligible life project from the human-only KTF-005 README.", "why": "A real resumed loop is human-owned and cannot be substituted by a Builder packet; Job Search remains excluded until freshly activated.", "class": "life", "status": "deferred", "blocked_by": "The KTF-004 daylight proof has not produced its operator brief, and Jacob has not selected or authorized an eligible life action.", "release_check": "test -f docs/research/ktf-004-daylight-operator-brief.md", "deferred_count": 0, "first_deferred": "2026-07-30"}
   ],
-  "invalidation_conditions": ["HEAD changes beyond 83dafbc"],
+  "invalidation_conditions": [
+    "HEAD changes beyond 158fa1ff4f18819e5fbf82b8406fa4733e9477b1",
+    "The canonical checkout, its context receipt, Builder records, or GitHub publication state changes",
+    "KTF-004 is applied or its daylight evidence is produced"
+  ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }
 -->
 
 ## Current checkpoint
-`jacob202/fix-description` at `d23d346`. 17 files modified/created covering Builder queue recovery, expert chat creation, library/projects separation, and home tile clickability. 1 dirty file: `gateway/kitty-chat/package-lock.json`.
+
+`docs/ktf-001-resume-plan` is clean at `158fa1f` before this session-end metadata update and is eight commits ahead of `origin/main`. KTF-004 is ready for review/publication but is deliberately unapplied: the canonical Builder checkout is not safe to use yet.
 
 ## Lessons applied
-- CLI-to-UI gap pattern: backend recovery logic existed in `builder_queue_leases.py`/`builder_queue_runs.py` with full CLI support but no web API surface. Fix was 2 action handlers + ~198 lines of frontend.
-- ExpertStrip was a dead no-op: `onClick={() => onNavigate('chat')}` created no expert chat. Fix required extending the Chat model, adding context-aware chat creation, and wiring through 4 component layers.
-- Rail/BottomNav must match ViewRenderer dispatch — swapping "builder" for "projects" required updates in 6 files (Rail, BottomNav, ViewRenderer, CommandPalette, WorkView, and the new ProjectsView).
+
+- Stored initiative rows and packet-derived status can disagree; capture both.
+- A planning worktree must never apply an authoritative Builder manifest when it is backed by a different local database.
+- Human life actions are durable instructions, not executable Builder work.

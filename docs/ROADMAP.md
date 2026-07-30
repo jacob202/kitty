@@ -89,6 +89,28 @@ Phase 1 exits only when:
 - the resulting status can be reconstructed from supported evidence without
   chat history.
 
+### KTF-001 restart sequence — planned 2026-07-30
+
+The repository gates are green on `main` after PR #295. PRs #261, #262, and
+#263 are merged. The original KTF runtime manifests remain preserved evidence,
+but their Builder tasks are cancelled or exhausted even though the Outcome 6
+runtime change is already on `main`; their literal edit instructions therefore
+must not be replayed.
+
+The next execution sequence is versioned in
+`docs/initiatives/ktf-001-resume-proof-v2.json`:
+
+1. Reconcile current `main`, GitHub, supported Builder projections, and the
+   original KTF evidence into one reliability-delta report.
+2. Author fresh, falsifiable replacement manifests only for the delta that
+   report proves remains; do not reuse stale literal anchors.
+3. Run the daylight proof only after those manifests are independently
+   validated and applied from the canonical checkout.
+4. Select one real life project and record the final resume-loop proof.
+
+This sequence is a recovery plan, not permission to run a broad feature lane
+or replay cancelled packets.
+
 ## Later phases — preserved, not yet sequenced in detail
 
 After Phase 1 exits:
