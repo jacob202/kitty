@@ -88,6 +88,9 @@ mcp/imagen/test_run.py
 .trash/
 tmp/
 
+# oh-my-opencode-slim local config
+.slim/
+
 # Build artifacts
 .coverage
 *.pyc
