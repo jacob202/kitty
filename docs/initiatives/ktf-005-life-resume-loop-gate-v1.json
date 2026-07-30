@@ -1,57 +1,13 @@
 {
   "plan_only": true,
-  "manifest_version": 1,
-  "initiative_id": "ktf-005-life-resume-loop-gate-v1",
-  "title": "KTF-001: human-gated life-project resume loop",
-  "description": "PLAN ONLY — do not apply this JSON to Builder. The packet standard defines human work as not Builder work, so the validator must reject this file because plan_only is not part of the Builder manifest schema. The executable authority is the human-only runbook README-ktf-005-life-resume-loop-human-gate.md. Personal records remain in ignored runtime data; Job Search remains excluded unless Jacob explicitly activates it.",
-  "packets": [
-    {
-      "id": "KTF-LR-01-human-project-selection-proto",
-      "title": "Select one eligible life project without changing it",
-      "objective": "Execution class: human. One outcome only: after the KTF-004 daylight evidence has independent review, Jacob selects one existing active non-code project through Kitty's supported read-only project surface. Do not create, edit, refresh, delete, notify, push, or deliver anything. Job Search is ineligible unless Jacob explicitly activates it in this session. Record only the selected project ID, project name, selection time, and the exact text `delivery_authorized: false` in data/kittybuilder/reports/ktf-005-life-project-selection.md. This file is runtime evidence and must not be added to Git. STOPPING RULE: if there is no eligible active non-code project, the project state is unavailable, or Jacob has not made the selection, create no file and stop with that explicit reason.",
-      "depends_on": [],
-      "acceptance_criteria": [
-        "A human-selected existing active non-code project is recorded without changing project state.",
-        "The selection record states that delivery is not authorized.",
-        "No project action, external notification, Git change, push, or PR occurs."
-      ],
-      "allowed_paths": [
-        "data/kittybuilder/reports/ktf-005-life-project-selection.md"
-      ],
-      "policy": {
-        "max_attempts": 1,
-        "priority": 8
-      },
-      "validation_commands": [
-        "test -s data/kittybuilder/reports/ktf-005-life-project-selection.md",
-        "grep -q '^delivery_authorized: false$' data/kittybuilder/reports/ktf-005-life-project-selection.md"
-      ]
-    },
-    {
-      "id": "KTF-LR-02-human-resume-and-delivery",
-      "title": "Complete one explicitly approved life-project next action",
-      "objective": "Execution class: human. One outcome only: after KTF-LR-01 and a new explicit Jacob approval for the specific action, refresh and resume the selected project through Kitty's supported project surface, deliver exactly one approved next action, and record the outcome plus one next action in data/kittybuilder/reports/ktf-005-life-project-outcome.md. Do not infer delivery permission from KTF-LR-01, this manifest, or a prior chat approval. Do not use POST /projects/{project_id}/refresh unless the specific approval includes its notification behavior; current source may send a phone notification when a next step changes. Do not push, create a PR, modify code, or expose project details in versioned documentation. STOPPING RULE: if fresh explicit approval is absent, the selected project cannot be resumed, the proposed action exceeds the approval, or an external delivery would occur without approval, create no outcome file and stop with the exact blocking reason.",
-      "depends_on": [
-        "KTF-LR-01-human-project-selection-proto"
-      ],
-      "acceptance_criteria": [
-        "One selected life project has a truthful refreshed/resumed state, one explicitly approved delivery, a recorded outcome, and a visible next action.",
-        "The outcome record identifies the specific approval and does not expose the detail in Git-tracked files.",
-        "No unapproved notification, external action, Git push, or PR occurs."
-      ],
-      "allowed_paths": [
-        "data/kittybuilder/reports/ktf-005-life-project-selection.md",
-        "data/kittybuilder/reports/ktf-005-life-project-outcome.md"
-      ],
-      "policy": {
-        "max_attempts": 1,
-        "priority": 7
-      },
-      "validation_commands": [
-        "test -s data/kittybuilder/reports/ktf-005-life-project-selection.md",
-        "test -s data/kittybuilder/reports/ktf-005-life-project-outcome.md",
-        "grep -q '^next_action:' data/kittybuilder/reports/ktf-005-life-project-outcome.md"
-      ]
-    }
+  "record_version": 1,
+  "status": "rejected_as_builder_manifest",
+  "reason": "Human life-project selection and external delivery are not Builder work under docs/FREE_MODEL_PACKET_STANDARD.md. This record intentionally fails the Builder manifest validator so it cannot be applied.",
+  "authoritative_runbook": "docs/initiatives/README-ktf-005-life-resume-loop-human-gate.md",
+  "replaced_commit": "7be433d",
+  "constraints": [
+    "Job Search remains excluded until Jacob explicitly activates it in the current session.",
+    "Selection does not authorize refresh, notification, delivery, push, or any external action.",
+    "Private project details remain in ignored runtime evidence, never Git-tracked documentation."
   ]
 }
