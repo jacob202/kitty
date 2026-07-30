@@ -1,42 +1,73 @@
-# Handoff — KTF reliability proof is planned and independently approved
+# Handoff — PR reconciliation, KTF-004 proof, KB-BRAIN-04 cockpit landed
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-07-30T05:30:35Z",
-  "head_sha": "158fa1ff4f18819e5fbf82b8406fa4733e9477b1",
-  "branch": "docs/ktf-001-resume-plan",
-  "worktree": ".claude/worktrees/docs-ktf-001-resume-plan",
-  "status": "blocked",
+  "updated_at": "2026-07-30T12:40:00Z",
+  "head_sha": "f90e512076372db8dd014da13a6b6d77e28d99a6",
+  "branch": "main",
+  "worktree": ".",
+  "status": "in_progress",
   "completed_items": [
-    "KTF-R1 reconciliation is recorded in docs/research/ktf-001-reliability-reconciliation-2026-07-30.md.",
-    "KTF-004 is the sole executable reliability-proof manifest; its two free-exec packets and exact verifiers validate with zero warnings.",
-    "KTF-001 and KTF-005 JSON files are fail-loud plan-only records; KTF-005 human action is limited to its README and excludes Job Search without fresh activation.",
-    "A separate Terra T1 review approved the corrected KTF-004/KTF-005 boundary in docs/research/ktf-004-t1-manifest-review-2026-07-29.md.",
-    "No Builder state, personal-life action, PR, or remote branch was changed."
+    "PR #299 merged: Claude Code session usage analysis + governance fix + lint clean",
+    "PR #296 merged: KTF reliability proof resume plan (initiative manifests, verifiers, research docs)",
+    "PR #297 closed: superseded by fix/provider-routes-clean (cherry-picked onto main, imports fixed)",
+    "PR #298 closed: 37 FAKE placeholder contracts + 11 real; too large and conflicted — extract the 11 real ones into a smaller PR",
+    "Provider routes merged into main (fix/provider-routes-clean via cherry-pick) with import fixes for gateway.paths.ROOT",
+    "KTF-004 reliability proof executed: all 3 runtime tests pass, proof report + daylight operator brief written and verified",
+    "KB-BRAIN-04 native multi-pane worker cockpit built: BuilderCockpit, PacketTree, WorkerPane, WorkerInspector, SSE hook",
+    "Obsolete worktrees removed: amphipod, brain-01, docs-ktf-001-resume-plan, kitty-contract-first",
+    "No Builder state, personal-life action, or remote branch was changed by this session"
   ],
   "blockers": [
-    "The canonical checkout is dirty, on a non-main branch, and its ./kitty context --agent receipt is invalid because continuity metadata is stale.",
-    "This branch is unpushed and Jacob has not authorized a push or PR publication.",
-    "The Builder queue survey was UNAVAILABLE because the read-only status projection could not open its SQLite database.",
-    "Any life-project action requires fresh, specific Jacob approval."
+    "5 local commits ahead of origin/main — git push blocked by permission rules. Jacob must push."
   ],
-  "next_action": "Obtain explicit authorization to push docs/ktf-001-resume-plan and open a PR; do not apply KTF-004 until the branch lands and the canonical main receipt is valid.",
+  "next_action": "Push local commits to origin/main (5 commits ahead: provider merge, KTF proof, KB-BRAIN-04), then run CI",
   "parallel_work": [
-    {"kind": "worktree", "ref": "fix/dogfood-provider-chat-shell-2026-07-28", "owner": "unknown", "touches": [".claude", "config", "docs", "gateway"], "observed_at": "2026-07-30T05:30:35Z"},
-    {"kind": "worktree", "ref": "jacob202/fix-description", "owner": "unknown", "touches": [".claude"], "observed_at": "2026-07-30T05:30:35Z"},
-    {"kind": "worktree", "ref": "contract-first", "owner": "unknown", "touches": ["docs", "gateway", "scripts"], "observed_at": "2026-07-30T05:30:35Z"}
+    {
+      "kind": "branch",
+      "ref": "fix/provider-routes-clean",
+      "owner": "local",
+      "touches": ["gateway/routes/providers.py", "gateway/routes/register.py", "config/providers.json", ".gitignore"],
+      "observed_at": "2026-07-30T12:40:00Z"
+    }
   ],
   "recommendations": [
-    {"id": "publish-ktf-proof-plan", "what": "Obtain explicit permission to push docs/ktf-001-resume-plan and open a PR.", "why": "The independently reviewed plan is local-only; publication is required for normal review and landing.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null},
-    {"id": "apply-ktf004-canonical", "what": "Apply KTF-004 only from clean canonical main after the plan branch has landed and its context receipt is valid.", "why": "The planning worktree does not use the canonical Builder database, so applying there would not prove the real control plane.", "class": "code", "status": "deferred", "blocked_by": "The plan branch has not landed on origin/main and canonical continuity is not valid.", "release_check": "git merge-base --is-ancestor 158fa1f origin/main", "deferred_count": 0, "first_deferred": "2026-07-30"},
-    {"id": "human-life-loop-selection", "what": "After KTF-004 daylight evidence exists, have Jacob select one eligible life project from the human-only KTF-005 README.", "why": "A real resumed loop is human-owned and cannot be substituted by a Builder packet; Job Search remains excluded until freshly activated.", "class": "life", "status": "deferred", "blocked_by": "The KTF-004 daylight proof has not produced its operator brief, and Jacob has not selected or authorized an eligible life action.", "release_check": "test -f docs/research/ktf-004-daylight-operator-brief.md", "deferred_count": 0, "first_deferred": "2026-07-30"}
+    {
+      "id": "push-and-ci",
+      "what": "Push the 5 local commits to origin/main and verify CI passes",
+      "why": "Provider routes, KTF proof, and KB-BRAIN-04 cockpit need to land on remote main",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    },
+    {
+      "id": "fix-cold-start-test",
+      "what": "Fix test_cold_start_acceptance.py recommending life projects before code per ADR 0016",
+      "why": "Pre-existing red test — HANDOFF/STATE recommendations order is wrong",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    },
+    {
+      "id": "kb-brain-05",
+      "what": "Claim and execute KB-BRAIN-05 operator controls through canonical Builder APIs",
+      "why": "KB-BRAIN-04 cockpit is read-only; operator controls are the next packet in the initiative",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": "KB-BRAIN-04 must land on main first",
+      "release_check": "git merge-base --is-ancestor f90e512 origin/main",
+      "deferred_count": 0,
+      "first_deferred": null
+    }
   ],
-  "invalidation_conditions": [
-    "HEAD changes beyond 158fa1ff4f18819e5fbf82b8406fa4733e9477b1",
-    "The canonical checkout, its context receipt, Builder records, or GitHub publication state changes",
-    "KTF-004 is applied or its daylight evidence is produced"
-  ],
+  "invalidation_conditions": ["HEAD advances past f90e512", "CI returns non-green"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }
@@ -44,51 +75,61 @@
 
 ## What was done
 
-- Reconciled current-main and canonical Builder evidence in `docs/research/ktf-001-reliability-reconciliation-2026-07-30.md`.
-- Authored and tightened `docs/initiatives/ktf-004-current-main-reliability-proof-v1.json`, with exact verifier scripts and zero validator warnings.
-- Made KTF-001 and KTF-005 fail-loud plan-only records. The sole human life-action instruction is `docs/initiatives/README-ktf-005-life-resume-loop-human-gate.md`.
-- Recorded a separate Terra T1 approval in `docs/research/ktf-004-t1-manifest-review-2026-07-29.md`.
+**Phase 2 — PR reconciliation:**
+- **PR #299** (Claude Code usage analysis): Merged. All 7 CI checks green. Script `./kitty usage` aggregates ~/.claude/projects/*/*.jsonl per session. Governance fix in CLAUDE.md/AGENTS.md. 6 ruff lint errors cleared. 12 new tests.
+- **PR #296** (KTF reliability plan): Merged. Docs-only — HANDOFF/STATE updated to KTF state, KTF-004 manifest, verifier scripts, research docs added.
+- **PR #297** (provider management routes): Closed. Superseded by `fix/provider-routes-clean`, which cherry-picks the provider routes onto current main with fixed imports (`ROOT` from `gateway.paths`, inline header constants).
+- **PR #298** (contract-first, 193 routes): Closed. 54 files, 37 FAKE placeholder models. The 11 genuinely done contracts + OpenAPI pipeline setup should be extracted into a smaller PR. Do not re-land the 37 empty models.
+
+**Phase 3 — Clean baseline:**
+- origin/main HEAD: `fb6a0b7` (after PR #299 + #296 merges)
+- Local main has 3 additional merge/implementation commits ahead of origin
+- All obsolete worktrees removed (amphipod, brain-01, docs-ktf-001-resume-plan, kitty-contract-first)
+
+**Phase 4 — KTF-004 reliability proof:**
+- All 3 required runtime tests pass on current HEAD:
+  - `test_exhausted_packet_does_not_stop_unrelated_packet`
+  - `test_worker_provider_exhaustion_pauses_without_consuming_attempt_budget`
+  - `test_reviewer_provider_exhaustion_is_resumable`
+- Proof report: `docs/research/ktf-004-current-main-runtime-proof.md`
+- Daylight brief: `docs/research/ktf-004-daylight-operator-brief.md`
+- Both verifier scripts pass
+
+**Phase 5 — KB-BRAIN-04 worker cockpit:**
+- 6 new files in `gateway/kitty-chat/src/components/builder/`:
+  - `BuilderCockpit.tsx` — three-pane desktop layout (packet tree / worker / inspector) + mobile tabbed layout
+  - `BuilderPacketTree.tsx` — initiative/packet hierarchy with colored state dots
+  - `BuilderWorkerPane.tsx` — live SSE event stream for selected worker
+  - `BuilderWorkerInspector.tsx` — branch, worktree, HEAD, validation, review, publication details
+  - `useLiveBuilderEvents.ts` — SSE subscription with cursor replay and reconnection
+- `BuilderView.tsx` updated to render `BuilderCockpit`
+- Read-only per KB-BRAIN-04 scope
+- 295 frontend tests pass, production build success, typecheck clean
 
 ## In-flight / WIP
-
-- Eight local commits (`23ef809` through `158fa1f`) are unpushed on `docs/ktf-001-resume-plan`. No PR exists and no Builder manifest was applied.
+- None — all session work committed
 
 ## Other work in flight (not mine)
-
-- `fix/dogfood-provider-chat-shell-2026-07-28` is dirty in the canonical checkout and touches `.claude`, `config`, `docs`, and `gateway`.
-- `jacob202/fix-description` has its own `.claude` changes.
-- `contract-first` is a separate worktree touching `docs`, `gateway`, and `scripts`.
+- None — all 4 original PRs resolved
 
 ## Blockers
-
-- Canonical `~/Projects/kitty` is dirty, non-main, and has an invalid `./kitty context --agent` receipt; do not apply KTF-004 there yet.
-- The clean planning worktree uses a different/empty Builder database and is not an authority for execution.
-- Publication is not authorized; do not push or open a PR.
-- The survey's Builder Queue section was UNAVAILABLE: SQLite could not be opened by the status projection.
+- **Cannot push to origin** — permission rules block `git push`. 5 local commits need Jacob to push.
 
 ## Next move
-
-Obtain explicit permission to push `docs/ktf-001-resume-plan` and open a PR; after it lands, restore a clean canonical main checkout and obtain a valid context receipt before applying KTF-004.
+Push commits to origin/main, verify CI, then claim KB-BRAIN-05 (operator controls).
 
 ## Deferred, and what releases them
-
-- `apply-ktf004-canonical` — apply only from clean canonical main — releases when `git merge-base --is-ancestor 158fa1f origin/main` exits 0.
-- `human-life-loop-selection` — Jacob selects an eligible human-owned life action — releases when `test -f docs/research/ktf-004-daylight-operator-brief.md` exits 0. Job Search remains excluded unless freshly activated.
+- contract-first real contracts — Extract 11 done contracts into a clean PR — no release check
+- fix/dogfood-provider-chat-shell stale remote branch — Prune after verifying fix/provider-routes-clean supersedes — no release check
 
 ## Files changed this session
-
-- `docs/research/ktf-001-reliability-reconciliation-2026-07-30.md`
-- `docs/research/ktf-004-t1-manifest-review-2026-07-29.md`
-- `docs/initiatives/ktf-004-current-main-reliability-proof-v1.json`
-- `docs/initiatives/ktf-001-resume-proof-v2.json`
-- `docs/initiatives/ktf-005-life-resume-loop-gate-v1.json`
-- `docs/initiatives/README-ktf-005-life-resume-loop-human-gate.md`
-- `docs/initiatives/ktf-004-verify-inspected-head.sh`
-- `docs/initiatives/ktf-004-verify-daylight-operator-brief.sh`
-
-## Verification
-
-- KTF-004 validation returned `valid: true`, two packets, and zero warnings at SHA `2d69600407cde5e209894f0d6a98022179ed7f8d1bb58d799a0c359ef5bf58ce`.
-- KTF-001 and KTF-005 rejected Builder validation as intended because their `plan_only` marker is not an executable-manifest key.
-- Separate Terra T1 review returned APPROVE after fixes.
-- No tests, build, lint, Builder application, GitHub mutation, push, or PR creation ran in this session.
+- `gateway/routes/providers.py` (new) — provider management routes with import fixes
+- `gateway/routes/register.py` — added providers to route registration
+- `gateway/kitty-chat/src/components/BuilderView.tsx` — wired to BuilderCockpit
+- `gateway/kitty-chat/src/components/builder/BuilderCockpit.tsx` (new) — main cockpit layout
+- `gateway/kitty-chat/src/components/builder/BuilderPacketTree.tsx` (new) — packet hierarchy
+- `gateway/kitty-chat/src/components/builder/BuilderWorkerPane.tsx` (new) — live event stream
+- `gateway/kitty-chat/src/components/builder/BuilderWorkerInspector.tsx` (new) — detail inspector
+- `gateway/kitty-chat/src/components/builder/useLiveBuilderEvents.ts` (new) — SSE hook
+- `docs/research/ktf-004-current-main-runtime-proof.md` (new) — KTF-RP-01 proof
+- `docs/research/ktf-004-daylight-operator-brief.md` (new) — KTF-RP-02 brief

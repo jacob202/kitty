@@ -7,8 +7,18 @@
   "status": "running",
   "approved_at": "2026-07-26T00:00:00Z",
   "approved_by": "Jacob",
-  "base_sha": "b78215efb8d5bc2e5495f9c01d80938528be9638",
-  "authority": "docs/ACTIVE_MISSION.md"
+  "base_sha": "f90e512076372db8dd014da13a6b6d77e28d99a6",
+  "authority": "docs/ACTIVE_MISSION.md",
+  "progress": {
+    "ci_green": "partial — python and frontend CI functional; 1 pre-existing red test (cold-start acceptance — HANDOFF/STATE recommendation ordering per ADR 0016)",
+    "prs_261_263": "done — all three resolved",
+    "roadmap_authority": "done — ROADMAP.md updated, no contradicting authority files",
+    "builder_recovery_proven": "done — KTF-004 proof: 3 runtime tests pass (unrelated continuation, provider exhaustion exit 75, reviewer exhaustion resumable). Proof report at docs/research/ktf-004-current-main-runtime-proof.md",
+    "free_exec_packets": "done — KTF-004 manifest authored with falsifiable gates at docs/initiatives/ktf-004-current-main-reliability-proof-v1.json",
+    "daylight_unattended_run": "not done — requires actual Builder execution; daylight brief (docs/research/ktf-004-daylight-operator-brief.md) provides the run precondition document",
+    "packet_full_delivery": "done — PRs #299 and #296 merged cleanly through full CI validation and post-merge verification",
+    "life_project_resume": "not done — human-gate per KTF-005; requires fresh Jacob activation"
+  }
 }
 -->
 
