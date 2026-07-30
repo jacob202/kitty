@@ -3,6 +3,40 @@
 How agents and reviewers coordinate on Kitty pull requests. This is the
 coordination contract — read it before opening a PR.
 
+## Workflow automation baseline (2026-07-30)
+
+This repository now automates low-risk GitHub workflow steps while preserving
+manual control for risky actions.
+
+### Automated now
+
+1. **PR intake formatting**
+   - `.github/pull_request_template.md` pre-fills required sections.
+   - `pr-description-check.yml` still enforces `## Summary` and `## Test plan`.
+2. **Issue intake structure**
+   - `.github/ISSUE_TEMPLATE/bug_report.yml` standardizes bug triage evidence.
+   - `.github/ISSUE_TEMPLATE/workflow_automation.yml` captures automation
+     requests with scope, guardrails, and success metrics.
+3. **PR scope triage**
+   - `.github/workflows/pr-auto-label.yml` applies path-based area labels from
+     `.github/labeler.yml`.
+   - The workflow creates missing `area/*` labels and emits a summary of changed
+     file count + final labels for observable triage logs.
+
+### Guardrails (intentionally manual)
+
+- Approvals, merge decisions, and risky scope expansion remain manual.
+- Auth/secrets/env/destructive operations still require explicit human approval.
+- Automation must fail loud; unknown labels or script errors fail the workflow.
+
+### Phased rollout
+
+- **Phase 1 (shipped):** intake templates + PR area auto-labeling + logs.
+- **Phase 2 (next):** add branch/test/review routing automation only where
+  explicit ownership and safety gates are clear.
+- **Phase 3 (pilot):** track cycle time, triage accuracy, and false-positive
+  label rates before expanding to merge/release automation.
+
 ## Bridge inbox — KittyBuilder Queue (issue #127)
 
 GitHub issue **#127 — "KittyBuilder Queue"** is the current bridge inbox for

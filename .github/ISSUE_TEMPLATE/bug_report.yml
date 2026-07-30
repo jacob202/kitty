@@ -1,0 +1,51 @@
+name: Bug report
+description: Report a bug with enough detail for direct triage.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is broken, and what did you expect instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - gateway/backend
+        - kitty-chat/frontend
+        - builder/control-plane
+        - docs/process
+        - unknown
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: List exact steps and include command/URL inputs.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Logs, stack traces, screenshots, or failing command output.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact and urgency
+      description: Who is blocked, and how severe is this?
+    validations:
+      required: true
+
