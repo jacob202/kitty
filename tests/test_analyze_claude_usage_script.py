@@ -68,6 +68,80 @@ def test_parse_session_sums_all_four_usage_buckets(tmp_path):
     assert session.last_ts == "2026-07-30T10:05:00Z"
 
 
+def test_startup_tokens_come_from_the_first_billed_turn_only(tmp_path):
+    transcript = _write_transcript(
+        tmp_path / "proj" / "sess-startup.jsonl",
+        _assistant(
+            {
+                "input_tokens": 300,
+                "cache_creation_input_tokens": 21_700,
+                "output_tokens": 40,
+            },
+            timestamp="2026-07-30T10:00:00Z",
+        ),
+        _assistant(
+            {
+                "input_tokens": 12,
+                "cache_creation_input_tokens": 5_000,
+                "output_tokens": 60,
+                "cache_read_input_tokens": 22_000,
+            },
+            timestamp="2026-07-30T10:01:00Z",
+        ),
+    )
+
+    session = parse_session(transcript)
+
+    assert session.startup_tokens == 22_000
+    # full_price = 312 in + 100 out + 26_700 cache_w
+    assert session.full_price_tokens == 27_112
+    assert round(session.startup_share, 4) == round(22_000 / 27_112, 4)
+
+
+def test_startup_share_is_zero_when_nothing_was_billed(tmp_path):
+    transcript = _write_transcript(
+        tmp_path / "proj" / "sess-empty.jsonl",
+        {"type": "user", "sessionId": "sess-empty", "message": {"role": "user"}},
+    )
+
+    session = parse_session(transcript)
+
+    assert session.startup_tokens == 0
+    assert session.startup_share == 0.0
+
+
+def test_main_reports_startup_overhead_and_sorts_by_it(tmp_path, capsys):
+    _write_transcript(
+        tmp_path / "proj" / "lean.jsonl",
+        _assistant({"input_tokens": 5, "cache_creation_input_tokens": 1_000}),
+    )
+    _write_transcript(
+        tmp_path / "proj" / "heavy-preamble.jsonl",
+        _assistant({"input_tokens": 200, "cache_creation_input_tokens": 40_000}),
+    )
+
+    assert main(["--root", str(tmp_path), "--sort", "startup", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["startup_tokens"] == 41_205
+    assert payload["sessions"][0]["startup_tokens"] == 40_200
+    assert payload["sessions"][0]["startup_share"] == 1.0
+
+
+def test_table_names_startup_overhead(tmp_path, capsys):
+    _write_transcript(
+        tmp_path / "proj" / "sess-e.jsonl",
+        _assistant({"input_tokens": 100, "cache_creation_input_tokens": 22_000}),
+    )
+
+    assert main(["--root", str(tmp_path)]) == 0
+
+    out = capsys.readouterr().out
+    assert "startup: 22,100 tokens" in out
+    assert "CLAUDE.md" in out
+    assert "Startup overhead:" in out
+
+
 def test_parse_session_flags_biggest_tool_result_and_compaction(tmp_path):
     transcript = _write_transcript(
         tmp_path / "proj" / "sess-b.jsonl",

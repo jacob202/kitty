@@ -55,6 +55,9 @@ class Session:
     first_ts: str = ""
     last_ts: str = ""
     payloads: list[Payload] = field(default_factory=list)
+    # First billed turn's non-cached input: system prompt + CLAUDE.md + rules +
+    # tool schemas. The floor cost of saying hello, before any work happens.
+    startup_tokens: int = 0
 
     @property
     def total_tokens(self) -> int:
@@ -74,6 +77,13 @@ class Session:
     def biggest_payload(self) -> Payload | None:
         return max(self.payloads, key=lambda p: p.chars, default=None)
 
+    @property
+    def startup_share(self) -> float:
+        """Fraction of full-price spend that was just loading the session."""
+        if not self.full_price_tokens:
+            return 0.0
+        return self.startup_tokens / self.full_price_tokens
+
     def as_dict(self) -> dict[str, Any]:
         biggest = self.biggest_payload
         return {
@@ -91,6 +101,8 @@ class Session:
             "cache_read_tokens": self.cache_read_tokens,
             "total_tokens": self.total_tokens,
             "full_price_tokens": self.full_price_tokens,
+            "startup_tokens": self.startup_tokens,
+            "startup_share": round(self.startup_share, 4),
             "biggest_payload": (
                 {
                     "label": biggest.label,
@@ -182,10 +194,17 @@ def parse_session(path: Path) -> Session:
         if not isinstance(usage, dict):
             continue
 
-        session.assistant_turns += 1
         model = message.get("model")
         if isinstance(model, str) and model:
             session.models.add(model)
+
+        if session.assistant_turns == 0:
+            for key in ("input_tokens", "cache_creation_input_tokens"):
+                value = usage.get(key)
+                if isinstance(value, int) and value > 0:
+                    session.startup_tokens += value
+
+        session.assistant_turns += 1
 
         for key, attr in (
             ("input_tokens", "input_tokens"),
@@ -215,6 +234,7 @@ SORT_KEYS = {
     "output": lambda s: s.output_tokens,
     "cache_read": lambda s: s.cache_read_tokens,
     "turns": lambda s: s.assistant_turns,
+    "startup": lambda s: s.startup_tokens,
 }
 
 
@@ -237,6 +257,12 @@ def render_table(sessions: list[Session]) -> str:
             f"{_thousands(session.cache_read_tokens):>12} "
             f"{_thousands(session.total_tokens):>12}"
         )
+        if session.startup_tokens:
+            lines.append(
+                f"{'':<10} └─ startup: {_thousands(session.startup_tokens)} tokens "
+                f"({session.startup_share:.0%} of full-price spend) — "
+                "system prompt + CLAUDE.md + rules + tool schemas"
+            )
         biggest = session.biggest_payload
         if biggest:
             lines.append(
@@ -255,9 +281,14 @@ def render_totals(sessions: list[Session], shown: list[Session]) -> str:
     grand = sum(s.total_tokens for s in sessions)
     top = sum(s.total_tokens for s in shown)
     share = (top / grand * 100) if grand else 0.0
+    startup = sum(s.startup_tokens for s in sessions)
+    full_price = sum(s.full_price_tokens for s in sessions)
+    startup_share = (startup / full_price * 100) if full_price else 0.0
     return (
         f"\n{len(sessions)} session(s), {_thousands(grand)} total tokens. "
         f"The {len(shown)} shown account for {share:.0f}% of it.\n"
+        f"Startup overhead: {_thousands(startup)} tokens across all sessions "
+        f"({startup_share:.0f}% of full-price spend), paid once per session.\n"
         "cache_r is billed at a fraction of full rate — treat in/out/cache_w as the "
         "expensive columns."
     )
@@ -310,6 +341,7 @@ def main(argv: list[str] | None = None) -> int:
                     "sort": args.sort,
                     "session_count": len(sessions),
                     "total_tokens": sum(s.total_tokens for s in sessions),
+                    "startup_tokens": sum(s.startup_tokens for s in sessions),
                     "sessions": [s.as_dict() for s in shown],
                 },
                 indent=2,
