@@ -4,17 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 
 import pytest
 
 from gateway.builder_events import (
+    EVENT_SCHEMA_VERSION,
     BuilderEventBroadcaster,
     BuilderEventEnvelope,
-    EVENT_SCHEMA_VERSION,
 )
 from gateway.builder_worker_session import WorkerEvent, WorkerEventType
-
 
 # ---------------------------------------------------------------------------
 # Helpers
