@@ -19,7 +19,7 @@ from typing import Any
 
 import httpx
 
-from gateway import builder_runtime, builder_status, project_store
+from gateway import builder_runtime, project_store
 from gateway.http_client import get_http_client
 from gateway.llm_client import PROVIDERS
 from gateway.paths import ACTION_TIERS_FILE, LITELLM_BASE, LITELLM_KEY, ROOT

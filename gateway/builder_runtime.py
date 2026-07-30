@@ -197,7 +197,7 @@ def _git_state(root: Path) -> dict[str, str | bool | int]:
             timeout=5,
         )
         dirty = bool(status.stdout.strip())
-        changed_paths = len([l for l in status.stdout.splitlines() if l.strip()])
+        changed_paths = len([line for line in status.stdout.splitlines() if line.strip()])
     except Exception:
         dirty = False
         changed_paths = 0

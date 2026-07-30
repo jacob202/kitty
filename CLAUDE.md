@@ -28,8 +28,11 @@ Do this before relying on inherited context:
 
 - When the user requests a feature/fix, complete the full approved loop:
   implement, install/setup, verify locally, and preserve evidence.
-- Run the relevant test suite after any non-trivial code change and report exact
-  pass/fail counts.
+- After any non-trivial code change, run the narrowest tests that actually cover
+  it and report exact pass/fail counts. Not the full suite: naming the specific
+  files is the point. Full suite, lint, typecheck, and build are `/qg` (or
+  `/qg all`) on request, and CI runs them on every PR. `AGENTS.md` states this
+  same rule — change both or neither.
 - Local commits are expected.
 - Interactive-agent pushes still require Jacob's explicit approval. Builder may
   push its own approved packet branches, create/update PRs, mark them ready,

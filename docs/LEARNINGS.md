@@ -338,6 +338,22 @@ unexercised in this session; a deliberate revert drill (§3.3 negative test
 - **Review trigger:** next stale-branch or dead-code audit using diff-based supersession checks.
 - **Promotion target:** none yet — one confirmed occurrence; would promote to `docs/AGENT_RUNTIME.md` if it recurs.
 
+## Candidate Lessons (token-usage measurement session, 2026-07-30)
+
+### L-CAND-18 — `CLAUDE.md` and `AGENTS.md` gave opposite test-running orders, and whichever file the tool loaded won silently
+
+- **Status:** candidate
+- **Date:** 2026-07-30
+- **Source session:** token-usage measurement (cloud session, `claude/token-usage-optimization-w96qq3`)
+- **Problem:** `CLAUDE.md` said "Run the relevant test suite after any non-trivial code change." `AGENTS.md` said "Do NOT run tests, lint, typecheck, or build mid-session unless explicitly asked with `/qg`." Claude Code loads `CLAUDE.md` and not `AGENTS.md`; Codex/OpenCode load `AGENTS.md`. So the same repo instructed two agents to do opposite things, and neither agent could see the conflict — there is no point at which both files are in one context window. Acting on `CLAUDE.md`, this session ran the full suite (3m41s, 3186 tests) to verify a 280-line script whose own tests run in 0.5s.
+- **Evidence:** `git log -S` dates the two rules one day apart — `AGENTS.md`'s landed 2026-07-25 (`50e2ff1`), `CLAUDE.md`'s landed 2026-07-26 (`18a66f5`, "docs(governance): consolidate roadmap, mission, packet, and autonomy policy"). The newer rule was written during an explicit governance consolidation and still was not propagated to the sibling file.
+- **Scope:** every always-loaded instruction file that has a per-tool sibling — `CLAUDE.md` / `AGENTS.md` / `CODEX.md`, and `.claude/rules/` against any equivalent elsewhere. The bootloader, commands, fail-loud directive, git/push prohibitions, and session-state rules are all duplicated across `CLAUDE.md` and `AGENTS.md` today, so the same drift can happen to any of them.
+- **Lesson:** Duplicated governance is not redundancy, it is a fork. A rule restated in two always-loaded files will drift, and the drift is invisible from inside either one because no single agent loads both. Trimming one file by pointing at the other does not fix this — the pointed-at file is not auto-loaded, so cross-referencing silently *removes* enforcement rather than centralising it.
+- **Action for future agents:** When editing a rule in `CLAUDE.md` or `AGENTS.md`, grep the sibling files for the same rule and change them together. Where a rule must live in both, say so in the text ("`AGENTS.md` states this same rule — change both or neither") so the next reader knows a second copy exists. Do not resolve a duplication by replacing one copy with a cross-reference.
+- **Confidence:** high
+- **Review trigger:** next edit to `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, or `.claude/rules/`.
+- **Promotion target:** none yet — one confirmed occurrence. Would promote to `docs/DECISIONS.md` as a governance-file ownership decision if a second rule is found drifted.
+
 ## Candidate Lessons (rejected or not promoted)
 
 Empty — nothing rejected this session that was strong enough to mention.

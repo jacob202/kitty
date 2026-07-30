@@ -38,7 +38,11 @@ Match the existing file before introducing new patterns. Python uses 4-space ind
 
 ## Testing
 
-Do NOT run tests, lint, typecheck, or build mid-session unless explicitly asked with `/qg` or `/qg all`. CI runs the full suite on every PR and push to main. When the user does ask for quality gates, run only what's relevant: UI changes → `npm test` + `npm run build` in `gateway/kitty-chat/`; backend changes → `python3.12 -m pytest tests/ -q --tb=short`; launch/auth/port/env changes → also `./kitty status` and `./kitty doctor --json`.
+After any non-trivial code change, run the narrowest tests that actually cover it — the specific test files, not `tests/` — and report exact pass/fail counts. Verifying your own change is not a quality gate; it is how you know the change works.
+
+Do NOT run the full suite, lint, typecheck, or build mid-session unless explicitly asked with `/qg` or `/qg all`. CI runs those on every PR and push to main. When the user does ask for quality gates, run only what's relevant: UI changes → `npm test` + `npm run build` in `gateway/kitty-chat/`; backend changes → `python3.12 -m pytest tests/ -q --tb=short`; launch/auth/port/env changes → also `./kitty status` and `./kitty doctor --json`.
+
+`CLAUDE.md` states this same rule — change both or neither.
 
 ## Git and PRs
 

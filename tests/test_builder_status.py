@@ -12,7 +12,7 @@ from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 from gateway import builder_run as br
-from gateway import builder_status, builder_runtime, runtime_manifest
+from gateway import builder_runtime, builder_status, runtime_manifest
 
 INITIATIVE_ID = "builder-ui-test"
 PACKET_ID = "BUILDER-UI-1"
