@@ -25,10 +25,10 @@
   "parallel_work": [],
   "recommendations": [
     {
-      "id": "push-commits",
-      "what": "Push the 5 local commits to origin/main and verify CI passes",
-      "why": "Provider routes, KTF proof, and KB-BRAIN-04 cockpit need to land on remote main",
-      "class": "code",
+      "id": "fix-cold-start-test",
+      "what": "Fix test_cold_start_acceptance.py — HANDOFF/STATE recommendations order must put life projects before code (ADR 0016). Pre-existing red on main.",
+      "why": "Pre-existing failing test — needs the HANDOFF/STATE recommendations reordered or this needs to be prioritized",
+      "class": "life",
       "status": "ready",
       "blocked_by": null,
       "release_check": null,
@@ -36,10 +36,10 @@
       "first_deferred": null
     },
     {
-      "id": "fix-cold-start-test",
-      "what": "Fix test_cold_start_acceptance.py — HANDOFF/STATE recommendations order must put life projects before code (ADR 0016). Pre-existing red on main.",
-      "why": "Pre-existing failing test — needs the HANDOFF/STATE recommendations reordered or this needs to be prioritized",
-      "class": "life",
+      "id": "push-commits",
+      "what": "Push the 5 local commits to origin/main and verify CI passes",
+      "why": "Provider routes, KTF proof, and KB-BRAIN-04 cockpit need to land on remote main",
+      "class": "code",
       "status": "ready",
       "blocked_by": null,
       "release_check": null,
@@ -58,6 +58,7 @@
       "first_deferred": "2026-07-30T12:40:00Z"
     }
   ],
+  "invalidation_conditions": ["HEAD advances past f90e512"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }

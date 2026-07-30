@@ -61,8 +61,8 @@
       "why": "KB-BRAIN-04 cockpit is read-only; operator controls are the next packet in the initiative",
       "class": "code",
       "status": "ready",
-      "blocked_by": "KB-BRAIN-04 must land on main first",
-      "release_check": "git merge-base --is-ancestor f90e512 origin/main",
+      "blocked_by": null,
+      "release_check": null,
       "deferred_count": 0,
       "first_deferred": null
     }
