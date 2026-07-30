@@ -1,0 +1,39 @@
+name: Stale Triage
+
+on:
+  schedule:
+    - cron: "30 15 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark stale issues and PRs
+        uses: actions/stale@v9
+        with:
+          stale-issue-message: >
+            This issue has been inactive for 21 days. Please add an update or it
+            will be closed in 7 days.
+          stale-pr-message: >
+            This PR has been inactive for 14 days. Please push updates or leave a
+            status note, or it will be closed in 7 days.
+          close-issue-message: >
+            Closing due to inactivity. Reopen if this is still relevant.
+          close-pr-message: >
+            Closing due to inactivity. Reopen when ready to continue.
+          stale-issue-label: stale
+          stale-pr-label: stale
+          days-before-issue-stale: 21
+          days-before-pr-stale: 14
+          days-before-issue-close: 7
+          days-before-pr-close: 7
+          exempt-issue-labels: pinned,security,critical
+          exempt-pr-labels: pinned,risk/high,do-not-close
+          remove-stale-when-updated: true
+          operations-per-run: 250
+
