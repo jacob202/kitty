@@ -1832,6 +1832,41 @@ export async function executeBuilderAction(
   )
 }
 
+// ── Builder operator commands (KB-BRAIN-05) ───────────────────────────────────
+
+export interface OperatorCommandPayload {
+  action: string
+  task_id?: string
+  initiative_id?: string
+  packet_id?: string
+  reason?: string
+  actor?: string
+  expected_version?: number
+}
+
+export interface OperatorCommandResult {
+  ok: boolean
+  action?: string
+  task_id?: string
+  error?: string
+  detail?: string
+  event_id?: number
+  evidence?: Record<string, unknown>
+  available?: string[]
+}
+
+export async function executeOperatorCommand(payload: OperatorCommandPayload): Promise<OperatorCommandResult> {
+  return await gfetch<OperatorCommandResult>(
+    '/builder/command',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    15000,
+  )
+}
+
 // ── Experts ────────────────────────────────────────────────────────────────────
 
 export interface ExpertProfile {

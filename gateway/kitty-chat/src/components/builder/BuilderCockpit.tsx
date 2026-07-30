@@ -6,6 +6,7 @@ import { ArrowLeft, Grid, List } from 'lucide-react'
 import { BuilderPacketTree } from './BuilderPacketTree'
 import { WorkerPane } from './BuilderWorkerPane'
 import { WorkerInspector } from './BuilderWorkerInspector'
+import { OperatorControls } from './OperatorControls'
 import type { BuilderStatusSnapshot, BuilderPacketStatus } from '@/lib/gateway'
 
 const cockpitRoot: CSSProperties = {
@@ -227,6 +228,7 @@ export function BuilderCockpit({ onBack }: CockpitProps) {
               {selection ? `${selection.packetId.slice(0, 8)}…` : 'no selection'}
             </span>
           </div>
+          <OperatorControls snapshot={snapshot} selectedPacket={selectedPacket} />
           <div style={{ flex: 1, minHeight: 0 }}>
             <WorkerPane packet={selectedPacket} />
           </div>
@@ -234,7 +236,8 @@ export function BuilderCockpit({ onBack }: CockpitProps) {
 
         {/* Right: Inspector (when enabled) */}
         {view === 'inspector' && (
-          <div style={{ ...panelBase, borderRight: 'none', borderLeft: '1px solid var(--line)' }}>
+          <div style={{ ...panelBase, borderRight: 'none', borderLeft: '1px solid var(--line)', display: 'flex', flexDirection: 'column' }}>
+            <OperatorControls snapshot={snapshot} selectedPacket={selectedPacket} />
             <WorkerInspector packet={selectedPacket} />
           </div>
         )}
@@ -275,7 +278,10 @@ export function BuilderCockpit({ onBack }: CockpitProps) {
             />
           )}
           {mobileView === 'worker' && (
-            <WorkerPane packet={selectedPacket} />
+            <>
+              <OperatorControls snapshot={snapshot} selectedPacket={selectedPacket} />
+              <WorkerPane packet={selectedPacket} />
+            </>
           )}
           {mobileView === 'inspector' && (
             <WorkerInspector packet={selectedPacket} />

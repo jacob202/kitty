@@ -84,6 +84,7 @@ import {
   executeRepair,
   // builder control
   executeBuilderAction,
+  executeOperatorCommand,
   // experts
   fetchExpertList,
   // signals
@@ -777,6 +778,22 @@ export function useBuilderAction() {
     }) => executeBuilderAction(action, initiativeId, packetId, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['runtime'] })
+    },
+  })
+}
+
+export function useOperatorCommand() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: {
+      action: string
+      task_id?: string
+      initiative_id?: string
+      packet_id?: string
+      reason?: string
+    }) => executeOperatorCommand({ ...payload, actor: 'cockpit-operator' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
     },
   })
 }
