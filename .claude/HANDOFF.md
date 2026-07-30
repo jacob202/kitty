@@ -1,34 +1,39 @@
-# Handoff — PR reconciliation, KTF-004 proof, KB-BRAIN-04 cockpit
+# Handoff — KB-BRAIN-05 close-out, KTF-001 gates
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-07-30T12:40:00Z",
-  "head_sha": "c6edd5d6d9f595ea46a841614d5425806c3f29d9",
-  "base_sha": "37f4646",
-  "branch": "docs/repository-navigation-refresh",
+  "updated_at": "2026-07-30T13:00:00Z",
+  "head_sha": "fbd69242cd7cd5437d8d65b09ad6dc9b287d5f8f",
+  "branch": "main",
   "worktree": ".",
   "status": "valid",
   "completed_items": [
-    "PR #299 merged: Claude Code usage analysis + governance fix + lint clean",
-    "PR #296 merged: KTF reliability proof resume plan",
-    "PR #297 closed: superseded by cherry-picked fix/provider-routes-clean",
-    "PR #298 closed: 37 FAKE contracts",
-    "Provider routes merged: gateway/routes/providers.py",
-    "KTF-004 executed: RP-01 runtime proof passed, RP-02 daylight brief written",
-    "KB-BRAIN-04 cockpit: 6 component files, SSE hook, mobile + desktop layouts",
-    "Docs refresh: CODEBASE_MAP, DOCUMENTATION_AUDIT, README, AGENTS on docs/repository-navigation-refresh"
+    "KB-BRAIN-05 verified complete: 7 operator actions with backend, UI, confirm dialogs, route, and tests",
+    "Docs authorization committed: ACTIVE_MISSION, ARCHITECTURE, ROADMAP updated for KB-BRAIN-05",
+    "Cold-start test passing (pre-existing red already fixed)"
   ],
   "blockers": [
-    "Docs branch not pushed — git push blocked by agent rules"
+    "3 commits ahead of origin/main — git push blocked by agent permission rules"
   ],
-  "next_action": "Push local commits to origin/main, then verify CI",
+  "next_action": "Push 3 commits to origin/main, then start KTF-001 life-project resume proof",
   "parallel_work": [],
   "recommendations": [
     {
-      "id": "fix-cold-start-test",
-      "what": "Fix test_cold_start_acceptance.py — HANDOFF/STATE recommendations order must put life projects before code (ADR 0016). Pre-existing red on main.",
-      "why": "Pre-existing failing test — needs the HANDOFF/STATE recommendations reordered or this needs to be prioritized",
+      "id": "push-commits",
+      "what": "Push 3 local commits to origin/main",
+      "why": "KB-BRAIN-05 + docs authorization need to land on remote main",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    },
+    {
+      "id": "ktf-life-project-resume",
+      "what": "KTF-001 outcome 7: prove the life-project resume loop",
+      "why": "Last major gate before Phase 1 exit. Needs Jacob to pick a project.",
       "class": "life",
       "status": "ready",
       "blocked_by": null,
@@ -37,20 +42,9 @@
       "first_deferred": null
     },
     {
-      "id": "push-commits",
-      "what": "Push the 5 local commits to origin/main and verify CI passes",
-      "why": "Provider routes, KTF proof, and KB-BRAIN-04 cockpit need to land on remote main",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "kb-brain-05",
-      "what": "Claim and execute KB-BRAIN-05 (operator controls through canonical Builder APIs)",
-      "why": "Cockpit is read-only (KB-BRAIN-04). Next packet enables dispatch, cancel, retry, instruct, commit, validate, review, approve, publish from the UI.",
+      "id": "ktf-daylight-run",
+      "what": "KTF-001 outcome 6: daylight unattended Builder run",
+      "why": "Prove proactive delivery, failure continuation, honest exhaustion pause",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -59,49 +53,28 @@
       "first_deferred": null
     }
   ],
-  "invalidation_conditions": ["HEAD advances past c6edd5d"],
+  "invalidation_conditions": ["HEAD advances past fbd6924"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }
 -->
 
 ## What was done
-- PR #299 merged (Claude Code usage analysis + governance fix + lint clean)
-- PR #296 merged (KTF reliability proof resume plan)
-- PR #297 closed (superseded by cherry-picked provider routes)
-- PR #298 closed (37 FAKE contracts)
-- Provider routes merged to main: gateway/routes/providers.py
-- KTF-004 executed: RP-01 runtime proof passed, RP-02 daylight brief written
-- KB-BRAIN-04 cockpit: 6 component files, SSE hook, mobile + desktop layouts
-- Docs refresh: CODEBASE_MAP, DOCUMENTATION_AUDIT, README, AGENTS on `docs/repository-navigation-refresh`
+- KB-BRAIN-05 verified complete: 7 operator actions (requeue, cancel, pause, resume, run_validation, publish, recover_stale) with backend handlers in `gateway/builder_commands.py`, route in `gateway/routes/builder.py`, UI in `OperatorControls.tsx`, confirm dialogs for destructive ops, and backend tests
+- Docs updated to authorize KB-BRAIN-05: ACTIVE_MISSION.md (authorization clause), ARCHITECTURE.md (controls are now confirmed-operator), ROADMAP.md (cockpit exclusion relaxed)
+- Cold-start acceptance test passes
 
-## In-flight / WIP
-- Branch `docs/repository-navigation-refresh` at `c6edd5d`, not pushed — blocked by agent push rules
-- Docs branch has 1 commit adding codebase map, docs audit, README refresh, AGENTS improvement
+## In-flight
+- 3 commits ahead of origin/main (KB-BRAIN-05 + docs authorization), push blocked by agent rules
+- Uncommitted: STATE.md, HANDOFF.md updated this session
 
-## Other work in flight (not mine)
-- 37+ unmerged branches; Builder queue: 80 total, 7 queued, 40 done
-- Active initiatives: kittybuilder-brain-v1, multiple KTF and UI fix initiatives
-- Open PRs: UNAVAILABLE (gh unauthenticated)
-
-## Blockers
-- Agent push rules prevent publishing the docs branch
+## KTF-001 remaining
+- Outcome 6: daylight unattended run — needs Builder execution
+- Outcome 7: life-project resume loop — needs Jacob to pick a project
 
 ## Next move
-Push local commits to origin/main, verify CI, then claim KB-BRAIN-05
-
-## Deferred, and what releases them
-None — all recommendations are ready
-
-## Files changed this session
-- docs/reference/CODEBASE_MAP.md (new)
-- docs/reference/DOCUMENTATION_AUDIT.md (new)
-- README.md
-- AGENTS.md
-- docs/CODEBASE_MAP.md
+Push 3 commits to origin/main, then start the life-project resume proof.
 
 ## Verification
-- Backend: targeted tests pass. 1 pre-existing red (test_cold_start_acceptance).
-- Frontend: 295 tests pass, production build succeeds.
-- KTF-004: All 3 runtime tests pass.
-- Docs links: all verified.
+- Backend: 26/26 tests pass (cold-start + builder_commands + builder_routes)
+- KB-BRAIN-05: all handlers registered in COMMAND_HANDLERS, route dispatches correctly, UI shows context-sensitive buttons

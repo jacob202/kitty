@@ -103,3 +103,4 @@ gateway/kitty-chat/test-results/
 # BEGIN oh-my-opencode-slim clonedeps
 .slim/clonedeps/repos/
 # END oh-my-opencode-slim clonedeps
+.opencode/
