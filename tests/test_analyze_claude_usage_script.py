@@ -180,6 +180,110 @@ def test_parse_session_flags_biggest_tool_result_and_compaction(tmp_path):
     assert biggest.estimated_tokens == 100_000
 
 
+def test_payload_label_joins_tool_result_back_to_its_tool_use(tmp_path):
+    """A tool_result carries only a tool_use_id; the name/args live on the
+    assistant's tool_use. Without the join the label degrades to `toolu_…`."""
+    transcript = _write_transcript(
+        tmp_path / "proj" / "sess-join.jsonl",
+        {
+            "type": "assistant",
+            "sessionId": "sess-join",
+            "message": {
+                "role": "assistant",
+                "model": "claude-opus-5",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_01Ak2jFu4fLCgw6AcvMnaB7X",
+                        "name": "Read",
+                        "input": {"file_path": "/repo/pnpm-lock.yaml"},
+                    }
+                ],
+                "usage": {"input_tokens": 5, "output_tokens": 5},
+            },
+        },
+        {
+            "type": "user",
+            "sessionId": "sess-join",
+            "message": {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_01Ak2jFu4fLCgw6AcvMnaB7X",
+                        "content": [{"type": "text", "text": "q" * 60_000}],
+                    }
+                ],
+            },
+        },
+    )
+
+    biggest = parse_session(transcript).biggest_payload
+
+    assert biggest is not None
+    assert biggest.label == "Read: /repo/pnpm-lock.yaml"
+    assert "toolu_" not in biggest.label
+    assert biggest.chars == 60_000
+
+
+def test_payload_label_falls_back_when_tool_use_is_absent(tmp_path):
+    transcript = _write_transcript(
+        tmp_path / "proj" / "sess-orphan.jsonl",
+        {
+            "type": "user",
+            "sessionId": "sess-orphan",
+            "message": {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_missing",
+                        "content": "r" * 100,
+                    }
+                ],
+            },
+        },
+    )
+
+    biggest = parse_session(transcript).biggest_payload
+
+    assert biggest is not None
+    assert biggest.label == "tool_result"
+
+
+def test_avg_context_per_turn_exposes_the_long_session(tmp_path, capsys):
+    _write_transcript(
+        tmp_path / "proj" / "marathon.jsonl",
+        *[
+            _assistant(
+                {"output_tokens": 100, "cache_read_input_tokens": 300_000},
+                timestamp=f"2026-07-30T10:{minute:02d}:00Z",
+            )
+            for minute in range(4)
+        ],
+    )
+    _write_transcript(
+        tmp_path / "proj" / "sprint.jsonl",
+        _assistant({"output_tokens": 100, "cache_read_input_tokens": 8_000}),
+    )
+
+    assert main(["--root", str(tmp_path), "--sort", "avg_context", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["sessions"][0]["avg_context_per_turn"] == 300_000
+    assert payload["sessions"][0]["assistant_turns"] == 4
+    assert payload["sessions"][1]["avg_context_per_turn"] == 8_000
+
+
+def test_avg_context_per_turn_is_zero_without_turns(tmp_path):
+    transcript = _write_transcript(
+        tmp_path / "proj" / "sess-noturns.jsonl",
+        {"type": "user", "sessionId": "x", "message": {"role": "user"}},
+    )
+
+    assert parse_session(transcript).avg_context_per_turn == 0
+
+
 def test_parse_session_skips_malformed_lines_and_warns(tmp_path, capsys):
     transcript = tmp_path / "proj" / "sess-c.jsonl"
     transcript.parent.mkdir(parents=True)

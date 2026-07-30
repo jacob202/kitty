@@ -29,6 +29,14 @@ CHARS_PER_TOKEN = 4
 
 
 @dataclass
+class ToolUse:
+    """An assistant tool_use block, kept so its result can be named later."""
+
+    name: str
+    input: dict[str, Any]
+
+
+@dataclass
 class Payload:
     """One oversized tool result — the per-session leak candidate."""
 
@@ -78,6 +86,14 @@ class Session:
         return max(self.payloads, key=lambda p: p.chars, default=None)
 
     @property
+    def avg_context_per_turn(self) -> int:
+        """Mean context re-sent per turn. The quadratic cost of one long session,
+        as a single number: it climbs with every turn that isn't a fresh start."""
+        if not self.assistant_turns:
+            return 0
+        return self.cache_read_tokens // self.assistant_turns
+
+    @property
     def startup_share(self) -> float:
         """Fraction of full-price spend that was just loading the session."""
         if not self.full_price_tokens:
@@ -103,6 +119,7 @@ class Session:
             "full_price_tokens": self.full_price_tokens,
             "startup_tokens": self.startup_tokens,
             "startup_share": round(self.startup_share, 4),
+            "avg_context_per_turn": self.avg_context_per_turn,
             "biggest_payload": (
                 {
                     "label": biggest.label,
@@ -115,12 +132,18 @@ class Session:
         }
 
 
-def _payload_label(block: dict[str, Any]) -> str:
-    """Best available name for a tool_result block: its tool, then its target."""
-    name = block.get("name") or block.get("tool_use_id") or "tool_result"
-    payload_input = block.get("input")
+def _payload_label(block: dict[str, Any], tool_uses: dict[str, ToolUse]) -> str:
+    """Name a tool_result by the tool_use that produced it.
+
+    A tool_result carries only a tool_use_id — the tool's name and arguments live
+    on the assistant's earlier tool_use block, so the two have to be joined or the
+    label degrades to an opaque `toolu_…`.
+    """
+    call = tool_uses.get(str(block.get("tool_use_id") or ""))
+    name = (call.name if call else None) or block.get("name") or "tool_result"
+    payload_input = call.input if call else block.get("input")
     if isinstance(payload_input, dict):
-        for key in ("file_path", "path", "pattern", "command", "url"):
+        for key in ("file_path", "path", "notebook_path", "pattern", "command", "url"):
             value = payload_input.get(key)
             if isinstance(value, str) and value:
                 return f"{name}: {value[:80]}"
@@ -141,21 +164,36 @@ def _content_chars(content: Any) -> int:
     return 0
 
 
-def _record_payloads(session: Session, message: dict[str, Any]) -> None:
+def _record_payloads(
+    session: Session, message: dict[str, Any], tool_uses: dict[str, ToolUse]
+) -> None:
     content = message.get("content")
     if not isinstance(content, list):
         return
     for block in content:
-        if not isinstance(block, dict) or block.get("type") != "tool_result":
+        if not isinstance(block, dict):
             continue
-        chars = _content_chars(block.get("content"))
-        if chars:
-            session.payloads.append(Payload(_payload_label(block), chars))
+        block_type = block.get("type")
+        if block_type == "tool_use":
+            call_id = block.get("id")
+            name = block.get("name")
+            if isinstance(call_id, str) and isinstance(name, str):
+                payload_input = block.get("input")
+                tool_uses[call_id] = ToolUse(
+                    name, payload_input if isinstance(payload_input, dict) else {}
+                )
+        elif block_type == "tool_result":
+            chars = _content_chars(block.get("content"))
+            if chars:
+                session.payloads.append(
+                    Payload(_payload_label(block, tool_uses), chars)
+                )
 
 
 def parse_session(path: Path) -> Session:
     """Aggregate one transcript. Malformed lines are skipped, not silently zeroed."""
     session = Session(path=path, project=path.parent.name)
+    tool_uses: dict[str, ToolUse] = {}
     bad_lines = 0
 
     for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -188,7 +226,7 @@ def parse_session(path: Path) -> Session:
         if not isinstance(message, dict):
             continue
 
-        _record_payloads(session, message)
+        _record_payloads(session, message, tool_uses)
 
         usage = message.get("usage")
         if not isinstance(usage, dict):
@@ -235,6 +273,7 @@ SORT_KEYS = {
     "cache_read": lambda s: s.cache_read_tokens,
     "turns": lambda s: s.assistant_turns,
     "startup": lambda s: s.startup_tokens,
+    "avg_context": lambda s: s.avg_context_per_turn,
 }
 
 
@@ -257,6 +296,12 @@ def render_table(sessions: list[Session]) -> str:
             f"{_thousands(session.cache_read_tokens):>12} "
             f"{_thousands(session.total_tokens):>12}"
         )
+        if session.avg_context_per_turn:
+            lines.append(
+                f"{'':<10} └─ avg context re-sent per turn: "
+                f"{_thousands(session.avg_context_per_turn)} tokens "
+                f"over {session.assistant_turns} turns"
+            )
         if session.startup_tokens:
             lines.append(
                 f"{'':<10} └─ startup: {_thousands(session.startup_tokens)} tokens "
