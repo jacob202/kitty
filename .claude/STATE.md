@@ -4,8 +4,8 @@
 {
   "schema_version": 2,
   "updated_at": "2026-07-30T12:40:00Z",
-  "head_sha": "f90e512076372db8dd014da13a6b6d77e28d99a6",
-  "branch": "main",
+  "head_sha": "c6edd5d6d9f595ea46a841614d5425806c3f29d9",
+  "branch": "docs/repository-navigation-refresh",
   "worktree": ".",
   "status": "in_progress",
   "completed_items": [
@@ -25,10 +25,10 @@
   "parallel_work": [],
   "recommendations": [
     {
-      "id": "push-commits",
-      "what": "Push the 5 local commits to origin/main and verify CI passes",
-      "why": "Provider routes, KTF proof, and KB-BRAIN-04 cockpit need to land on remote main",
-      "class": "code",
+      "id": "fix-cold-start-test",
+      "what": "Fix test_cold_start_acceptance.py — HANDOFF/STATE recommendations order must put life projects before code (ADR 0016). Pre-existing red on main.",
+      "why": "Pre-existing failing test — needs the HANDOFF/STATE recommendations reordered or this needs to be prioritized",
+      "class": "life",
       "status": "ready",
       "blocked_by": null,
       "release_check": null,
@@ -36,10 +36,10 @@
       "first_deferred": null
     },
     {
-      "id": "fix-cold-start-test",
-      "what": "Fix test_cold_start_acceptance.py — HANDOFF/STATE recommendations order must put life projects before code (ADR 0016). Pre-existing red on main.",
-      "why": "Pre-existing failing test — needs the HANDOFF/STATE recommendations reordered or this needs to be prioritized",
-      "class": "life",
+      "id": "push-commits",
+      "what": "Push the 5 local commits to origin/main and verify CI passes",
+      "why": "Provider routes, KTF proof, and KB-BRAIN-04 cockpit need to land on remote main",
+      "class": "code",
       "status": "ready",
       "blocked_by": null,
       "release_check": null,
@@ -52,12 +52,13 @@
       "why": "Cockpit is read-only (KB-BRAIN-04). Next packet enables dispatch, cancel, retry, instruct, commit, validate, review, approve, publish from the UI.",
       "class": "code",
       "status": "ready",
-      "blocked_by": "KB-BRAIN-04 not yet on remote main",
-      "release_check": "git merge-base --is-ancestor f90e512 origin/main",
-      "deferred_count": 1,
-      "first_deferred": "2026-07-30T12:40:00Z"
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
     }
   ],
+  "invalidation_conditions": ["HEAD advances past f90e512"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }

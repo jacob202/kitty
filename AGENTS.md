@@ -19,7 +19,9 @@ Before acting, execute the bootloader in `START_HERE.md`. At minimum:
 
 ## Project Structure
 
-Kitty is a local-first personal AI companion. Backend code lives in `gateway/`, with FastAPI routes under `gateway/routes/` and path constants in `gateway/paths.py`. The main UI is `gateway/kitty-chat/` (Next.js). Tests live in `tests/`. Product, architecture, and planning docs live in `docs/`. Runtime data and logs live in `data/` and `logs/` and must not be committed.
+Kitty is a local-first personal AI companion. KittyBuilder is its execution control plane — Kitty owns product intent, Builder owns execution state (ADR 0017). Backend code lives in `gateway/`, with FastAPI routes under `gateway/routes/` and path constants in `gateway/paths.py`. The main UI is `gateway/kitty-chat/` (Next.js). Tests live in `tests/`. Product, architecture, and planning docs live in `docs/`. Runtime data and logs live in `data/` and `logs/` and must not be committed.
+
+For a detailed repository map with entry points, data flows, state ownership, and common change locations, see `docs/reference/CODEBASE_MAP.md`.
 
 ## Commands
 
