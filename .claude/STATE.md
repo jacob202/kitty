@@ -1,33 +1,46 @@
-# Session State — PR reconciliation, KTF-004 proof, KB-BRAIN-04 cockpit
+# Session State — PR #300 created for docs repository navigation refresh
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-07-30T12:40:00Z",
-  "head_sha": "f90e512076372db8dd014da13a6b6d77e28d99a6",
+  "updated_at": "2026-07-30T12:58:00Z",
+  "head_sha": "37f46466cfda6b86c206a9960c3b428c3af320f1",
   "branch": "main",
   "worktree": ".",
-  "status": "in_progress",
+  "status": "complete",
   "completed_items": [
-    "PR #299 merged: Claude Code usage analysis + governance fix + lint clean",
-    "PR #296 merged: KTF reliability proof resume plan",
-    "PR #297 closed: superseded by cherry-picked fix/provider-routes-clean",
-    "PR #298 closed: 37 FAKE contracts — extract 11 real ones into smaller PR",
-    "Provider routes merged: gateway/routes/providers.py + register.py update",
-    "KTF-004 executed: RP-01 runtime proof passed, RP-02 daylight brief written",
-    "KB-BRAIN-04 cockpit: 6 component files, SSE hook, mobile + desktop layouts",
-    "Obsolete worktrees removed"
+    "Created PR #300: docs/repository-navigation-refresh → main — docs-only refresh"
   ],
-  "blockers": [
-    "5 local commits ahead of origin/main — git push blocked by permission rules"
+  "blockers": [],
+  "next_action": "Execute KB-BRAIN-05 (operator controls through canonical Builder APIs)",
+  "parallel_work": [
+    {
+      "kind": "worktree",
+      "ref": "contract-first",
+      "owner": "jacob202",
+      "touches": ["docs", "gateway", "scripts"],
+      "observed_at": "2026-07-30T12:58:00Z"
+    },
+    {
+      "kind": "branch",
+      "ref": "feat/kittybuilder-brain-initiatives",
+      "owner": "jacob202",
+      "touches": ["docs"],
+      "observed_at": "2026-07-30T12:58:00Z"
+    },
+    {
+      "kind": "branch",
+      "ref": "fix/dogfood-provider-chat-shell-2026-07-28",
+      "owner": "jacob202",
+      "touches": [".env.before-agentrouter", "config", "gateway/routes"],
+      "observed_at": "2026-07-30T12:58:00Z"
+    }
   ],
-  "next_action": "Push local commits to origin/main, then verify CI",
-  "parallel_work": [],
   "recommendations": [
     {
-      "id": "push-commits",
-      "what": "Push the 5 local commits to origin/main and verify CI passes",
-      "why": "Provider routes, KTF proof, and KB-BRAIN-04 cockpit need to land on remote main",
+      "id": "kb-brain-05",
+      "what": "Claim and execute KB-BRAIN-05 (operator controls through canonical Builder APIs)",
+      "why": "KB-BRAIN-04 is on origin/main (f90e512). KB-BRAIN-05 is the natural next packet in the Brain initiative.",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -37,39 +50,28 @@
     },
     {
       "id": "fix-cold-start-test",
-      "what": "Fix test_cold_start_acceptance.py — HANDOFF/STATE recommendations order must put life projects before code (ADR 0016). Pre-existing red on main.",
-      "why": "Pre-existing failing test — needs the HANDOFF/STATE recommendations reordered or this needs to be prioritized",
-      "class": "life",
+      "what": "Fix test_cold_start_acceptance.py — HANDOFF/STATE recommendations order must put life projects before code (ADR 0016)",
+      "why": "Pre-existing red test on main — single test failure blocking clean CI",
+      "class": "code",
       "status": "ready",
       "blocked_by": null,
       "release_check": null,
       "deferred_count": 0,
       "first_deferred": null
-    },
-    {
-      "id": "kb-brain-05",
-      "what": "Claim and execute KB-BRAIN-05 (operator controls through canonical Builder APIs)",
-      "why": "Cockpit is read-only (KB-BRAIN-04). Next packet enables dispatch, cancel, retry, instruct, commit, validate, review, approve, publish from the UI.",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": "KB-BRAIN-04 not yet on remote main",
-      "release_check": "git merge-base --is-ancestor f90e512 origin/main",
-      "deferred_count": 1,
-      "first_deferred": "2026-07-30T12:40:00Z"
     }
   ],
+  "invalidation_conditions": ["HEAD advances past 37f4646"],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": {
+    "number": 300,
+    "url": "https://github.com/jacob202/kitty/pull/300",
+    "branch": "docs/repository-navigation-refresh"
+  }
 }
 -->
 
 ## Current checkpoint
-`main` at `f90e512`. 6 commits ahead of `origin/main` (d6b4911):
-- `fbe1553` — Merge provider management routes
-- `8fb29c2` — KTF-004 reliability proof complete
-- `f90e512` — KB-BRAIN-04 native multi-pane worker cockpit
+`main` at `37f4646`, clean tree. PR #300 open for docs/repository-navigation-refresh.
 
-## Verification
-- Backend: 82 passed (test_builder_runtime, test_builder_events, test_builder_status, test_builder_run). 1 pre-existing red (test_cold_start_acceptance — HANDOFF/STATE recommendation ordering per ADR 0016).
-- Frontend: 295 tests pass, production build succeeds, typecheck clean.
-- KTF-004: All 3 runtime tests pass, proof report + daylight brief verified.
+## Lessons applied
+- `gh pr create` with `--head` referencing an existing remote branch creates the PR from main.
