@@ -7,7 +7,7 @@
   "status": "running",
   "approved_at": "2026-07-26T00:00:00Z",
   "approved_by": "Jacob",
-  "base_sha": "f90e512076372db8dd014da13a6b6d77e28d99a6",
+  "base_sha": "fbd69242cd7cd5437d8d65b09ad6dc9b287d5f8f",
   "authority": "docs/ACTIVE_MISSION.md",
   "progress": {
     "ci_green": "partial — python and frontend CI functional; 1 pre-existing red test (cold-start acceptance — HANDOFF/STATE recommendation ordering per ADR 0016)",
