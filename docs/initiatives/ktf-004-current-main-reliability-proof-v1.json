@@ -1,0 +1,63 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "ktf-004-current-main-reliability-proof-v1",
+  "title": "KTF-001: current-main reliability evidence before daylight execution",
+  "description": "Fresh replacement for terminal KTF runtime tasks. It proves the two current-main runtime contracts with the existing deterministic test fixtures, then creates a bounded operator brief. It does not edit source, apply a manifest, claim another task, publish, push, or merge. The two free-exec packets are deliberately documentation outcomes backed by executable gates: they give the daylight operator current evidence without asking a free worker to design or repair code.",
+  "packets": [
+    {
+      "id": "KTF-RP-01-controlled-current-main-runtime-proof-proto",
+      "title": "Record the controlled current-main continuation and exit-75 proof",
+      "objective": "Execution class: free-exec. One outcome only: create docs/research/ktf-004-current-main-runtime-proof.md after the three exact current-main tests below exit 0. Before running them, require `git merge-base --is-ancestor f9dfb6a HEAD` to exit 0 and require that the report file does not already exist. Run exactly: `python3.12 -m pytest tests/test_builder_run.py -q --tb=short -k 'test_exhausted_packet_does_not_stop_unrelated_packet or test_worker_provider_exhaustion_pauses_without_consuming_attempt_budget or test_reviewer_provider_exhaustion_is_resumable'`. Then write a concise report containing these exact lines: `controlled runtime proof: passed`, `unrelated continuation: passed`, `provider exhaustion exit 75: passed`, and `inspected HEAD: <the output of git rev-parse HEAD>`. Do not edit source, tests, manifests, or Builder state. STOPPING RULE: if the ancestry check fails, any named test fails, or the report already exists, make no change and fail the attempt. Do not substitute a different test, test selector, commit, or report path.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The report exists only after all three named tests pass on a HEAD descended from f9dfb6a.",
+        "The report records the inspected immutable HEAD and each of the three required pass markers.",
+        "No source, test, manifest, Builder, Git remote, or GitHub state is changed."
+      ],
+      "allowed_paths": [
+        "docs/research/ktf-004-current-main-runtime-proof.md",
+        "tests/test_builder_run.py"
+      ],
+      "policy": {
+        "max_attempts": 1,
+        "priority": 10
+      },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_builder_run.py -q --tb=short -k 'test_exhausted_packet_does_not_stop_unrelated_packet or test_worker_provider_exhaustion_pauses_without_consuming_attempt_budget or test_reviewer_provider_exhaustion_is_resumable'",
+        "test -s docs/research/ktf-004-current-main-runtime-proof.md",
+        "grep -q 'controlled runtime proof: passed' docs/research/ktf-004-current-main-runtime-proof.md",
+        "grep -q 'unrelated continuation: passed' docs/research/ktf-004-current-main-runtime-proof.md",
+        "grep -q 'provider exhaustion exit 75: passed' docs/research/ktf-004-current-main-runtime-proof.md"
+      ]
+    },
+    {
+      "id": "KTF-RP-02-daylight-operator-brief",
+      "title": "Write the bounded daylight operator brief",
+      "objective": "Execution class: free-exec. One outcome only: create docs/research/ktf-004-daylight-operator-brief.md. Before writing, require the KTF-RP-01 report to be non-empty and to contain all three pass markers named in its validation commands. The new file must state exactly these four headings: `# KTF-004 daylight operator brief`, `## Preconditions`, `## Required evidence`, and `## Stop conditions`. Under Preconditions, state that independent review of KTF-RP-01 and KTF-RP-02 plus canonical-checkout application are required before any daylight run. Under Required evidence, name task, attempt, lease, validation, review, Git, GitHub, provider-exhaustion, and continuation evidence. Under Stop conditions, state `Do not push, publish, merge, retry a terminal task, or select a life project automatically.` and `If a supported source is unavailable or disagrees, stop and report unknown.` Do not run Builder, apply a manifest, edit another file, or create a PR. STOPPING RULE: if the input report is missing a required marker or the output brief already exists, make no change and fail the attempt; do not write a partial brief.",
+      "depends_on": [
+        "KTF-RP-01-controlled-current-main-runtime-proof-proto"
+      ],
+      "acceptance_criteria": [
+        "The brief is created only from a complete KTF-RP-01 proof report.",
+        "The brief names every required evidence surface and every stop condition.",
+        "The brief does not claim a daylight run happened or grant publication authority."
+      ],
+      "allowed_paths": [
+        "docs/research/ktf-004-current-main-runtime-proof.md",
+        "docs/research/ktf-004-daylight-operator-brief.md"
+      ],
+      "policy": {
+        "max_attempts": 1,
+        "priority": 9
+      },
+      "validation_commands": [
+        "test -s docs/research/ktf-004-current-main-runtime-proof.md",
+        "test -s docs/research/ktf-004-daylight-operator-brief.md",
+        "grep -q '^## Preconditions$' docs/research/ktf-004-daylight-operator-brief.md",
+        "grep -q '^## Required evidence$' docs/research/ktf-004-daylight-operator-brief.md",
+        "grep -q '^## Stop conditions$' docs/research/ktf-004-daylight-operator-brief.md",
+        "grep -q 'Do not push, publish, merge, retry a terminal task, or select a life project automatically.' docs/research/ktf-004-daylight-operator-brief.md"
+      ]
+    }
+  ]
+}
