@@ -21,16 +21,15 @@ from typing import Any
 import yaml
 from fastapi import APIRouter, HTTPException
 
-from gateway.llm_client import (
-    _AGENTROUTER_DEFAULT_ORIGINATOR,
-    _AGENTROUTER_DEFAULT_USER_AGENT,
-    _AGENTROUTER_DEFAULT_VERSION,
-)
-from gateway.paths import REPO_ROOT
+from gateway.paths import ROOT
+
+_AGENTROUTER_DEFAULT_USER_AGENT = "kitty-gateway/1.0"
+_AGENTROUTER_DEFAULT_ORIGINATOR = "kitty"
+_AGENTROUTER_DEFAULT_VERSION = "1.0"
 
 router = APIRouter(tags=["providers"])
 
-CONFIG_PATH = REPO_ROOT / "gateway" / "litellm_config.yaml"
+CONFIG_PATH = ROOT / "gateway" / "litellm_config.yaml"
 LITELLM_HEALTH_URL = "http://127.0.0.1:8001/health/liveliness"
 LITELLM_LAUNCHD_LABEL = "com.kitty.litellm"
 
