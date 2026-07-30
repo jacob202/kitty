@@ -3,6 +3,7 @@
 .env.local
 .env.*.local
 .env.backup
+.env.before*
 
 # Personal data (keep structure, ignore contents)
 data/*

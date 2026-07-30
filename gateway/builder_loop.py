@@ -31,6 +31,7 @@ import hashlib
 import json
 import os
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +52,11 @@ from gateway.builder_runner import (
     worktree_diff_sha256,
     worktree_head,
     worktree_path,
+)
+from gateway.builder_worker_session import (
+    ModelPolicy,
+    WorkerSession,
+    WorkerState,
 )
 from gateway.paths import BUILDER_QUEUE_DB
 
@@ -496,7 +502,7 @@ def _create_attempt_artifacts(
     worker: str,
     model: str | None,
     provider: str | None,
-    worker_command: list[str],
+    worker_command: list[str] | None,
     repo_root: Path | None,
     db_path: Path | None,
 ) -> tuple[Path, Path, Path, Path, Path, dict[str, Any]]:
@@ -527,7 +533,7 @@ def _create_attempt_artifacts(
         "worker": worker,
         "model": model,
         "provider": provider,
-        "command_sha256": _command_digest(worker_command),
+        "command_sha256": _command_digest(worker_command) if worker_command else "",
         "artifact_dir": str(attempt_dir),
         "bundle_sha256": hashlib.sha256(bundle_path.read_bytes()).hexdigest(),
         "context": build_context_manifest(
@@ -672,11 +678,96 @@ def _governor_settle(
     )
 
 
+def _run_via_session(
+    session: WorkerSession,
+    *,
+    task_id: str,
+    worktree: Path,
+    brief: str,
+    attempt_id: str,
+    packet_id: str,
+    model: str | None,
+    provider: str | None,
+    timeout_seconds: int,
+    heartbeat_seconds: int,
+    base_sha: str,
+    extra_env: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Execute a packet via a WorkerSession instead of subprocess.
+
+    The session owns worker lifecycle; task state, lease, and worktree are
+    managed by the caller. Returns a dict matching ``run_worker``'s shape
+    so the rest of the loop can treat it identically.
+    """
+    policy = ModelPolicy(model=model, provider=provider)
+    identity = session.start(
+        worktree=worktree,
+        brief=brief,
+        model_policy=policy,
+        packet_id=packet_id,
+        attempt_id=attempt_id,
+    )
+
+    started = time.monotonic()
+    deadline = started + timeout_seconds
+
+    while True:
+        time.sleep(heartbeat_seconds)
+        if not session.is_alive(identity):
+            break
+        if time.monotonic() > deadline:
+            session.cancel(identity, reason="timeout")
+            break
+
+    snap = session.snapshot(identity)
+    transcript_path = session.transcript(identity)
+
+    exit_code: int | None = 0 if snap.state == WorkerState.COMPLETED else 1
+    if snap.state == WorkerState.CANCELLED:
+        state = "cancelled"
+    elif snap.state == WorkerState.FAILED:
+        state = "failed"
+        exit_code = 1
+    elif snap.state == WorkerState.COMPLETED:
+        state = "exited"
+        exit_code = 0
+    else:
+        state = "failed"
+        exit_code = 1
+
+    return {
+        "id": identity.session_id,
+        "state": state,
+        "exit_code": exit_code,
+        "pid": None,
+        "final_report": {
+            "run_id": identity.session_id,
+            "outcome": state,
+            "exit_code": exit_code,
+            "branch": "",
+            "worktree": str(worktree),
+            "log_path": str(transcript_path) if transcript_path else "",
+            "start_sha": base_sha,
+            "command": [],
+            "worker": "session-adapter",
+            "model": snap.model,
+            "provider": snap.provider,
+            "changed_paths": snap.changed_paths,
+            "scope_violations": snap.scope_violations,
+            "error": snap.error,
+            "worker_started": True,
+        },
+        "log_path": str(transcript_path) if transcript_path else "",
+        "model": snap.model,
+        "provider": snap.provider,
+    }
+
+
 def run_packet(
     initiative_id: str,
     packet_id: str,
     *,
-    worker_command: list[str],
+    worker_command: list[str] | None = None,
     review_command: list[str] | None = None,
     worker: str = "packet-loop",
     model: str | None = None,
@@ -691,6 +782,7 @@ def run_packet(
     db_path: Path | None = None,
     governor_db: Path | None = None,
     governor_override: str | None = None,
+    worker_session: WorkerSession | None = None,
 ) -> dict[str, Any]:
     """Run the bounded repair loop for one packet.
 
@@ -703,9 +795,21 @@ def run_packet(
     before any model is dispatched. Omitting it leaves the loop ungoverned,
     which is what library callers and tests get by default; the CLI and the
     autonomous runner both pass it.
+
+    When *worker_session* is provided, worker execution uses the session's
+    ``start`` / ``events`` / ``snapshot`` API instead of the subprocess-based
+    ``run_worker``. The session owns worker lifecycle; the loop retains
+    ownership of task state, lease, worktree, and scope checking.
     """
-    if not worker_command:
-        raise LoopError("worker_command must be a non-empty list")
+    if not worker_command and worker_session is None:
+        raise LoopError(
+            "either worker_command or worker_session must be provided"
+        )
+    if worker_command is not None and worker_session is not None:
+        raise LoopError(
+            "only one of worker_command or worker_session may be provided, "
+            "not both"
+        )
 
     ba.init_db(db_path)
     try:
@@ -973,25 +1077,51 @@ def run_packet(
         entry["manifest_path"] = str(manifest_path)
 
         try:
-            run = run_worker(
-                task_id,
-                worker_command,
-                worker=worker,
-                model=model,
-                provider=provider,
-                timeout_seconds=timeout_seconds,
-                lease_seconds=lease_seconds,
-                heartbeat_seconds=heartbeat_seconds,
-                repo_root=repo_root,
-                db_path=db_path,
-                base_sha=base_sha,
-                extra_env={
-                    "KB_ATTEMPT_ID": str(attempt_id),
-                    "KB_BUNDLE_PATH": str(bundle_path),
-                    "KB_RESULT_PATH": str(result_path),
-                    "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
-                },
-            )
+            if worker_session is not None:
+                wt_path = worktree_path(task_id, repo_root=repo_root)
+                with open(bundle_path, encoding="utf-8") as fh:
+                    bundle_data = json.load(fh)
+                brief_text = bundle_data.get("brief", bundle_data.get("description", ""))
+                run = _run_via_session(
+                    worker_session,
+                    task_id=task_id,
+                    worktree=wt_path,
+                    brief=brief_text,
+                    attempt_id=str(attempt_id),
+                    packet_id=packet_id,
+                    model=model,
+                    provider=provider,
+                    timeout_seconds=timeout_seconds,
+                    heartbeat_seconds=heartbeat_seconds,
+                    base_sha=base_sha,
+                    extra_env={
+                        "KB_ATTEMPT_ID": str(attempt_id),
+                        "KB_BUNDLE_PATH": str(bundle_path),
+                        "KB_RESULT_PATH": str(result_path),
+                        "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
+                    },
+                )
+            else:
+                assert worker_command is not None
+                run = run_worker(
+                    task_id,
+                    worker_command,
+                    worker=worker,
+                    model=model,
+                    provider=provider,
+                    timeout_seconds=timeout_seconds,
+                    lease_seconds=lease_seconds,
+                    heartbeat_seconds=heartbeat_seconds,
+                    repo_root=repo_root,
+                    db_path=db_path,
+                    base_sha=base_sha,
+                    extra_env={
+                        "KB_ATTEMPT_ID": str(attempt_id),
+                        "KB_BUNDLE_PATH": str(bundle_path),
+                        "KB_RESULT_PATH": str(result_path),
+                        "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
+                    },
+                )
         except Exception as exc:
             orchestration_failure = (
                 f"worker orchestration failed: {type(exc).__name__}: {exc}"
