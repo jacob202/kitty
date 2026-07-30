@@ -24,6 +24,13 @@ Do this before relying on inherited context:
    relevant.
 8. Re-verify scope, evidence, packet class, and authorization before acting.
 
+## Context engineering default
+
+Follow `docs/reference/CONTEXT_ENGINEERING.md`: begin with
+`./kitty context --agent`, load the minimum authority set for the task type, and
+expand only for unresolved evidence questions. For code changes, finish the full
+canonical reading order before mutation.
+
 ## Execution Defaults
 
 - When the user requests a feature/fix, complete the full approved loop:
