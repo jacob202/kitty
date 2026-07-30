@@ -3,6 +3,7 @@
 .env.local
 .env.*.local
 .env.backup
+.env.before*
 
 # Personal data (keep structure, ignore contents)
 data/*
@@ -86,6 +87,9 @@ mcp/imagen/test_run.py
 # local junk/scratch moved out of the way, never committed
 .trash/
 tmp/
+
+# oh-my-opencode-slim local config
+.slim/
 
 # Build artifacts
 .coverage

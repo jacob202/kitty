@@ -1,66 +1,50 @@
-# Session State — compute governor and session-end survey open as signed-off drafts
+# Session State — KB-BRAIN-00 harvest done, dogfood branch fixed, 3 UI fixes reviewed
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-07-27T05:25:00Z",
-  "head_sha": "16c39cff1da34f620cf75804ca91a3ccc8d7876a",
-  "branch": "claude/session-end-recommendations-xsd0ss",
+  "updated_at": "2026-07-28T23:40:00",
+  "head_sha": "8ae7b25",
+  "branch": "fix/dogfood-provider-chat-shell-2026-07-28",
   "worktree": ".",
-  "status": "awaiting_review",
+  "status": "complete",
   "completed_items": [
-    "Hardened .agents/skills/session-end/SKILL.md: survey first, evaluate carried release checks, at most three ranked recommendations, life projects before code",
-    "Added scripts/session_end_survey.sh - read-only inventory of worktrees, unmerged branches and the paths they touch, open PRs including drafts, the Builder queue, ~/kb/NOW.md, and carried recommendations",
-    "Checkpoint schema_version 2 adds parallel_work and recommendations, enforced by gateway/context_receipt.py",
-    "Aligned the AGENTS.md session-end protocol with the skill and named the skill its authority",
-    "ADR 0022 accepted, registered as D21, docs/adr/README.md updated",
-    "Re-walked SKILL_REGISTRY.md: the heading claimed 7 skills, the table listed 6, the directory held 9",
-    "Built gateway/compute_governor.py: per-(task_type, subject_ref, head_sha) receipts, enforced dispatch descriptors, three priced routes, reserve floors, weekly local ledger",
-    "Wired the governor into run_packet, run_initiative, and both Builder CLI entry points, on by default at the CLI",
-    "Derived the weekly budget from the DeepSeek V4 snapshot prices: CAD 6.00/week",
-    "Cleared three failures inherited from origin/main: ruff on insight_loop, mypy on routes/knowledge.py, and the checkpoint JSON blocks this file restores"
+    "Reviewed and promoted D15/D16/D17 UI fix tasks to done (PRs #281, #282, #283 already merged)",
+    "Completed KB-BRAIN-00 source harvest: 12 repos at immutable SHAs, verified licenses, ranked KB-BRAIN-01→07 map",
+    "Created PR #294 for harvest document",
+    "Fixed dogfood branch conflict by reverting harvest commit",
+    "Extracted KB entry: Builder state machine publish workflow"
   ],
-  "blockers": [
-    "gh is not installed in this container, so the survey could not verify the open-PR queue; PR state came from the GitHub MCP tools instead",
-    "~/kb is not present in this container, so no wiki entry, INDEX line, or NOW.md update was written - this session's durable knowledge is still unextracted",
-    "DeepSeek V4 pricing could not be re-verified against the live provider page; outbound web search requires approval in this environment"
-  ],
-  "next_action": "Merge PR #276, then merge origin/main into PR #278 and resolve the AGENTS.md and gateway/ overlap.",
+  "blockers": [],
+  "next_action": "Merge PR #294 (harvest) then PR #293 (dogfood), then claim KB-BRAIN-01",
   "parallel_work": [
     {
       "kind": "pr",
-      "ref": "#276",
-      "owner": "this session",
-      "touches": [
-        ".agents",
-        "AGENTS.md",
-        "SKILL_REGISTRY.md",
-        "docs",
-        "gateway",
-        "scripts"
-      ],
-      "observed_at": "2026-07-27T05:20:00Z"
+      "ref": "294",
+      "owner": "jacob202",
+      "touches": ["docs/research/"],
+      "observed_at": "2026-07-28T23:22:00"
     },
     {
       "kind": "pr",
-      "ref": "#278",
-      "owner": "this session",
-      "touches": [
-        "AGENTS.md",
-        "config",
-        "docs",
-        "gateway",
-        "kitty",
-        "tests"
-      ],
-      "observed_at": "2026-07-27T05:20:00Z"
+      "ref": "293",
+      "owner": "jacob202",
+      "touches": [".claude", "gateway"],
+      "observed_at": "2026-07-28T23:11:00"
+    },
+    {
+      "kind": "worktree",
+      "ref": "contract-first",
+      "owner": "unknown",
+      "touches": ["docs", "gateway", "scripts"],
+      "observed_at": "2026-07-28T23:40:00"
     }
   ],
   "recommendations": [
     {
-      "id": "merge-276-then-reconcile-278",
-      "what": "Merge PR #276, then merge origin/main into PR #278 and resolve the AGENTS.md and gateway/ overlap",
-      "why": "Both PRs are signed off; #276 first keeps the overlap resolvable in one direction",
+      "id": "merge-294-harvest",
+      "what": "Merge PR #294 (KB-BRAIN-00 harvest) to unblock KB-BRAIN-01",
+      "why": "Harvest is the foundation document for all KB-BRAIN packets",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -69,62 +53,39 @@
       "first_deferred": null
     },
     {
-      "id": "extract-session-kb",
-      "what": "Merge docs/session-notes/2026-07-27-kb-payload.md into ~/kb and append its INDEX lines",
-      "why": "The payload is staged but the knowledge base is not reachable from this container",
+      "id": "merge-293-dogfood",
+      "what": "Merge PR #293 (dogfood UI sweep)",
+      "why": "Mobile nav, chat context, settings — conflict resolved",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    },
+    {
+      "id": "claim-kb-brain-01",
+      "what": "Claim and run KB-BRAIN-01 (OpenCode worker session adapter)",
+      "why": "Highest pri=10 queued task — harvest unblocks it",
       "class": "code",
       "status": "deferred",
-      "blocked_by": "~/kb is a separate repo and is not present in this container",
-      "release_check": "test -d ~/kb",
+      "blocked_by": "PR #294 (harvest) not yet merged to main",
+      "release_check": "git merge-base --is-ancestor d90eea1b origin/main",
       "deferred_count": 0,
-      "first_deferred": "2026-07-27"
-    },
-    {
-      "id": "reconcile-receipt-cost",
-      "what": "Reconcile a receipt's estimated_usage_cad against the actual token counts in the ledger after a run",
-      "why": "estimate_cost_cad prices a dispatch before it runs; nothing checks the estimate afterwards",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
+      "first_deferred": "2026-07-28"
     }
   ],
-  "invalidation_conditions": [
-    "HEAD changes beyond the recorded head_sha except the checkpoint commit that records this file",
-    "PR #276 or #278 merges or closes",
-    "a force-push orphans the recorded pull_request.head_sha from PR #276's history",
-    "origin/main advances past the recorded base_sha"
-  ],
+  "invalidation_conditions": ["HEAD changes beyond 8ae7b25"],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 276,
-    "url": "https://github.com/jacob202/kitty/pull/276",
-    "state": "OPEN",
-    "head_sha": "22e05a0fb2bb6c15468e091481b56b81054819d8"
-  },
-  "base_sha": "00e005b3c3bf88573b38e4448470d678d4821fce"
+  "pull_request": null
 }
 -->
 
 ## Current checkpoint
-
-Branch `claude/session-end-recommendations-xsd0ss` at `16c39cf`, clean, merged
-up to `origin/main` at `00e005b`. Two draft PRs are open and signed off by
-Jacob: #276 (session-end survey, carry-forward recommendations, ADR 0022) and
-#278 (compute governor). Both carry fixes for three failures that originated on
-`main`, not in this work.
+On `fix/dogfood-provider-chat-shell-2026-07-28` at `8ae7b25`. Harvest changes live on `kittybuilder/kb_ms1421a8_c470` (PR #294). Dogfood branch clean after revert.
 
 ## Lessons applied
-
-- `origin/main` was red on ruff, on mypy, and on its own cold-start acceptance
-  test. A branch that merges main inherits all three, so "my PR is red" needed
-  checking against the base before it needed debugging.
-- CI runs a PR merged into its base, so a green local branch still fails CI on
-  the base's breakage.
-- The compute governor's first real find was in its own wiring: an
-  override-authorized rerun passed the gate and then failed at settlement.
-- A governed CLI pointed at one shared receipts store refuses its own second
-  test. Receipt stores must be redirectable per checkout.
-- An open-PR inventory without `gh` is unverified, never empty.
+- Builder state machine: running → pr_opened → awaiting_review → done (no skip)
+- `git revert` when force-push is blocked; cherry-pick to move commits between branches
+- `manaflow-ai/cmux` (not `coder/cmux`) is GPL-3.0 — hard REJECT for code
+- `ZaxbyHub/opencode-swarm` is the correct org (not `zaxbysauce`)
