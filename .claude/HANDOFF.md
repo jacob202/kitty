@@ -1,45 +1,30 @@
-# Handoff — PR reconciliation, KTF-004 proof, KB-BRAIN-04 cockpit
+# Handoff — Continuity Baseline Refresh
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-07-30T12:40:00Z",
-  "head_sha": "c6edd5d6d9f595ea46a841614d5425806c3f29d9",
-  "base_sha": "37f4646",
-  "branch": "docs/repository-navigation-refresh",
+  "updated_at": "2026-07-30T17:18:00Z",
+  "head_sha": "fbd69242cd7cd5437d8d65b09ad6dc9b287d5f8f",
+  "base_sha": "fbd69242cd7cd5437d8d65b09ad6dc9b287d5f8f",
+  "branch": "codex/review-ans-pla",
   "worktree": ".",
   "status": "valid",
   "completed_items": [
-    "PR #299 merged: Claude Code usage analysis + governance fix + lint clean",
-    "PR #296 merged: KTF reliability proof resume plan",
-    "PR #297 closed: superseded by cherry-picked fix/provider-routes-clean",
-    "PR #298 closed: 37 FAKE contracts",
-    "Provider routes merged: gateway/routes/providers.py",
-    "KTF-004 executed: RP-01 runtime proof passed, RP-02 daylight brief written",
-    "KB-BRAIN-04 cockpit: 6 component files, SSE hook, mobile + desktop layouts",
-    "Docs refresh: CODEBASE_MAP, DOCUMENTATION_AUDIT, README, AGENTS on docs/repository-navigation-refresh"
+    "Repository unshallowed and origin/main fetched to restore continuity checks in this workspace",
+    "Targeted pre-existing red test area validated as passing on this branch",
+    "Checkpoint metadata refreshed to match current branch and HEAD"
   ],
   "blockers": [
-    "Docs branch not pushed — git push blocked by agent rules"
+    "Context receipt still fails canonical checkout policy in this sandbox path",
+    "Builder queue database absent in this workspace, so execution-state verification is unavailable"
   ],
-  "next_action": "Push local commits to origin/main, then verify CI",
+  "next_action": "Collect GitHub Actions run and failed-job log evidence for this branch, then decide whether any code fix is required.",
   "parallel_work": [],
   "recommendations": [
     {
-      "id": "fix-cold-start-test",
-      "what": "Fix test_cold_start_acceptance.py — HANDOFF/STATE recommendations order must put life projects before code (ADR 0016). Pre-existing red on main.",
-      "why": "Pre-existing failing test — needs the HANDOFF/STATE recommendations reordered or this needs to be prioritized",
-      "class": "life",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "push-commits",
-      "what": "Push the 5 local commits to origin/main and verify CI passes",
-      "why": "Provider routes, KTF proof, and KB-BRAIN-04 cockpit need to land on remote main",
+      "id": "ci-evidence-capture",
+      "what": "List recent workflow runs and fetch failed-job logs for this branch via GitHub MCP.",
+      "why": "Required to replace stale checkpoint assumptions with live CI evidence before proposing any mutation.",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -48,9 +33,9 @@
       "first_deferred": null
     },
     {
-      "id": "kb-brain-05",
-      "what": "Claim and execute KB-BRAIN-05 (operator controls through canonical Builder APIs)",
-      "why": "Cockpit is read-only (KB-BRAIN-04). Next packet enables dispatch, cancel, retry, instruct, commit, validate, review, approve, publish from the UI.",
+      "id": "canonical-path-policy",
+      "what": "Decide whether to normalize canonical checkout policy for sandbox paths or run only from ~/Projects/kitty.",
+      "why": "Receipt remains non-green solely because canonical path policy does not match this execution environment.",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -59,49 +44,40 @@
       "first_deferred": null
     }
   ],
-  "invalidation_conditions": ["HEAD advances past c6edd5d"],
+  "invalidation_conditions": ["HEAD advances past fbd6924"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }
 -->
 
 ## What was done
-- PR #299 merged (Claude Code usage analysis + governance fix + lint clean)
-- PR #296 merged (KTF reliability proof resume plan)
-- PR #297 closed (superseded by cherry-picked provider routes)
-- PR #298 closed (37 FAKE contracts)
-- Provider routes merged to main: gateway/routes/providers.py
-- KTF-004 executed: RP-01 runtime proof passed, RP-02 daylight brief written
-- KB-BRAIN-04 cockpit: 6 component files, SSE hook, mobile + desktop layouts
-- Docs refresh: CODEBASE_MAP, DOCUMENTATION_AUDIT, README, AGENTS on `docs/repository-navigation-refresh`
+- Restored Git continuity prerequisites for this workspace by unshallowing and fetching `origin/main`.
+- Re-ran cold-start targeted tests that were previously listed as pre-existing red; both targeted areas now pass locally.
+- Refreshed stale branch/HEAD/base metadata in `STATE.md` and `HANDOFF.md` for current branch truth.
 
 ## In-flight / WIP
-- Branch `docs/repository-navigation-refresh` at `c6edd5d`, not pushed — blocked by agent push rules
-- Docs branch has 1 commit adding codebase map, docs audit, README refresh, AGENTS improvement
+- Branch `codex/review-ans-pla` at `fbd6924`.
+- Continuity receipt still fails on canonical path policy and absent Builder DB in this sandbox.
+- CI evidence capture via GitHub MCP is next.
 
 ## Other work in flight (not mine)
-- 37+ unmerged branches; Builder queue: 80 total, 7 queued, 40 done
-- Active initiatives: kittybuilder-brain-v1, multiple KTF and UI fix initiatives
-- Open PRs: UNAVAILABLE (gh unauthenticated)
+- Unknown in this run; not re-surveyed.
 
 ## Blockers
-- Agent push rules prevent publishing the docs branch
+- Canonical checkout policy mismatch in this environment (`/home/runner/work/kitty/kitty` vs `~/Projects/kitty`).
+- No local Builder queue database present for execution-state verification.
 
 ## Next move
-Push local commits to origin/main, verify CI, then claim KB-BRAIN-05
+Capture CI run and failed-job evidence for this branch via GitHub MCP and decide if a code change is needed.
 
 ## Deferred, and what releases them
-None — all recommendations are ready
+None.
 
 ## Files changed this session
-- docs/reference/CODEBASE_MAP.md (new)
-- docs/reference/DOCUMENTATION_AUDIT.md (new)
-- README.md
-- AGENTS.md
-- docs/CODEBASE_MAP.md
+- `.claude/STATE.md`
+- `.claude/HANDOFF.md`
 
 ## Verification
-- Backend: targeted tests pass. 1 pre-existing red (test_cold_start_acceptance).
-- Frontend: 295 tests pass, production build succeeds.
-- KTF-004: All 3 runtime tests pass.
-- Docs links: all verified.
+- `python3.12 -m pytest tests/test_cold_start_acceptance.py -q --tb=short` -> 1 passed.
+- `python3.12 -m pytest tests/test_context_receipt.py -q --tb=short -k "life_work_ranked"` -> 2 passed, 50 deselected.
+- `./kitty context --agent` still reports failure on canonical checkout policy and unavailable Builder DB only.
