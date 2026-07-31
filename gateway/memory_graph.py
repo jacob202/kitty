@@ -700,29 +700,8 @@ def _format_unified_items(results: dict[str, list[Item]], cap: int = CONTEXT_TOK
     return "\n\n".join(sections)
 
 
-# --- Legacy shims for backward compatibility (tests) ---
-
-
-async def _fetch_memory(query: str) -> list[Item]:
-    return await MemoryAdapter().fetch(query)
-
-
-async def _fetch_knowledge(query: str) -> list[Item]:
-    return await KnowledgeAdapter().fetch(query)
-
-
-async def _fetch_todos(query: str) -> list[Item]:
-    return await TodosAdapter().fetch(query)
-
-
 def _fetch_traces(query: str) -> list[Item]:
     return TracesAdapter()._fetch_traces(query)
-
-
-async def _fetch_all_stores(query: str) -> dict[str, list[Item]]:
-    """Legacy shim for tests."""
-    result = await MemoryGraph().search_all(query)
-    return result.results
 
 
 def search_entries(query: str) -> list[dict[str, Any]]:

@@ -1,0 +1,50 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "p2-worker-contract-tests",
+  "title": "Phase 2: WorkerSession contract tests",
+  "description": "Encode the existing ShellWorkerSession behavior as contract tests. Both ShellWorkerSession and OpenCodeServerSession must pass the same suite. This is the Phase 2 foundation: interchangeable backends.",
+  "packets": [
+    {
+      "id": "P2-WC-01-contract-test-suite",
+      "title": "Write WorkerSession contract test suite",
+      "objective": "Create tests/test_worker_session_contract.py. The suite defines a base TestWorkerSessionContract class with test methods for:\n\n1. start() returns a SessionIdentity with session_id and backend fields\n2. resume() returns the same identity when session is alive\n3. resume() raises WorkerSessionNotFoundError when session is disposed\n4. events() returns a list of WorkerEvent with monotonically increasing seq\n5. events() with cursor=n returns events from cursor onward\n6. snapshot() returns WorkerSnapshot with state, events_count, last_activity\n7. cancel() sets is_alive() to False after completion\n8. dispose() makes is_alive() return False and transcript() return None\n9. is_alive() returns True for running sessions, False for disposed\n10. transcript() returns a Path or None\n\nEach test method receives a self.make_session() factory. Subclasses override make_session() to instantiate their backend (Shell or OpenCode).",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "test_worker_session_contract.py exists with 10 test methods",
+        "ShellWorkerSession subclass passes all 10 tests",
+        "OpenCodeServerSession subclass passes all 10 tests (or is skipped with reason if server unavailable)"
+      ],
+      "allowed_paths": [
+        "tests/test_worker_session_contract.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 10
+      },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_worker_session_contract.py -q --tb=short"
+      ]
+    },
+    {
+      "id": "P2-WC-02-event-contract-encoding",
+      "title": "Encode shell-adapter event behavior in contract tests",
+      "objective": "Extend the contract test suite with event-behavior assertions that match the existing shell-adapter's expected event sequence:\n\n1. SESSION_STARTED is always the first event (seq=0)\n2. BRIEF_DELIVERED follows SESSION_STARTED\n3. TEXT_DELTA events have non-empty data['text']\n4. MESSAGE_COMPLETE has data['content'] with a non-empty string\n5. TOOL_START has data['tool_name'] as a non-empty string\n6. TOOL_END has data['tool_name'] matching its TOOL_START pair\n7. FILE_CHANGE has data['path'] as a non-empty string\n8. ERROR has data['message'] as a non-empty string\n9. SESSION_ENDED is always the last event\n10. No event has a duplicate event_id\n\nThe shell adapter must pass these assertions. Other backends may emit subsets of events — contract tests document which events are REQUIRED vs OPTIONAL per backend.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "10 event-behavior assertions added to the contract test suite",
+        "ShellWorkerSession passes all REQUIRED assertions",
+        "Optional vs REQUIRED annotations on each event type"
+      ],
+      "allowed_paths": [
+        "tests/test_worker_session_contract.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 9
+      },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_worker_session_contract.py -q --tb=short -v"
+      ]
+    }
+  ]
+}

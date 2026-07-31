@@ -119,25 +119,13 @@ class Receipt:
     escalation: bool | None = None
     confidence_flag: str | None = None
 
+    _METADATA_FIELDS = (
+        "tier", "trigger", "mode", "resolved_model", "correlation_id",
+        "cap_hit", "escalation", "confidence_flag",
+    )
+
     def as_metadata(self) -> dict[str, Any]:
-        out: dict[str, Any] = {}
-        if self.tier is not None:
-            out["tier"] = self.tier
-        if self.trigger is not None:
-            out["trigger"] = self.trigger
-        if self.mode is not None:
-            out["mode"] = self.mode
-        if self.resolved_model is not None:
-            out["resolved_model"] = self.resolved_model
-        if self.correlation_id is not None:
-            out["correlation_id"] = self.correlation_id
-        if self.cap_hit is not None:
-            out["cap_hit"] = self.cap_hit
-        if self.escalation is not None:
-            out["escalation"] = self.escalation
-        if self.confidence_flag is not None:
-            out["confidence_flag"] = self.confidence_flag
-        return out
+        return {f: v for f in self._METADATA_FIELDS if (v := getattr(self, f)) is not None}
 
 
 def log_receipt(receipt: Receipt, usage: dict[str, int] | None = None) -> None:

@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, type CSSProperties } from 'react'
-import { AlertCircle, ArrowDownToLine, Share2 } from 'lucide-react'
+import { useRef, useState, type CSSProperties } from 'react'
+import { AlertCircle, ArrowDownToLine, Share2, X } from 'lucide-react'
 import type { AttachmentError } from '@/lib/attachment-validation'
 import type { PwaInstallState } from '@/lib/pwa'
 
@@ -47,6 +47,7 @@ export function StatusBar({
   onPwaInstall,
 }: Props) {
   const offlineStreakRef = useRef(0)
+  const [pwaDismissed, setPwaDismissed] = useState(false)
 
   if (gatewayOffline) {
     offlineStreakRef.current++
@@ -114,6 +115,7 @@ export function StatusBar({
   }
 
   if (pwaState === 'available' || pwaState === 'manual-ios') {
+    if (pwaDismissed) return null
     return (
       <div role="status" style={{ ...rowStyle, justifyContent: 'space-between' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
@@ -126,11 +128,16 @@ export function StatusBar({
               : 'on iPhone or iPad, install kitty from Safari with share → add to home screen.'}
           </span>
         </span>
-        {pwaState === 'available' && onPwaInstall && (
-          <button type="button" onClick={onPwaInstall} disabled={pwaInstalling} style={retryBtnStyle}>
-            {pwaInstalling ? 'installing...' : 'install as app'}
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          {pwaState === 'available' && onPwaInstall && (
+            <button type="button" onClick={onPwaInstall} disabled={pwaInstalling} style={retryBtnStyle}>
+              {pwaInstalling ? 'installing...' : 'install as app'}
+            </button>
+          )}
+          <button type="button" onClick={() => setPwaDismissed(true)} aria-label="Dismiss" style={closeBtnStyle}>
+            <X size={12} />
           </button>
-        )}
+        </span>
       </div>
     )
   }
@@ -177,5 +184,17 @@ const retryBtnStyle: CSSProperties = {
   cursor: 'pointer',
   background: 'transparent',
   color: 'inherit',
+  flexShrink: 0,
+}
+
+const closeBtnStyle: CSSProperties = {
+  border: 'none',
+  borderRadius: 4,
+  padding: 2,
+  cursor: 'pointer',
+  background: 'transparent',
+  color: 'inherit',
+  display: 'flex',
+  alignItems: 'center',
   flexShrink: 0,
 }

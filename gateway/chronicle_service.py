@@ -12,6 +12,9 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
+# ---------------------------------------------------------------------------
+# Internals
+# ---------------------------------------------------------------------------
 
 def _extract_words(text: str) -> list[str]:
     """Return lowercase alphabetic words of three or more characters."""

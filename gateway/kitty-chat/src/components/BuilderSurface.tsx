@@ -1060,16 +1060,26 @@ function isPacketActive(packet: BuilderPacketStatus): boolean {
     || packet.run?.state === 'cancel_requested'
 }
 
-function attentionCount(snapshot: BuilderStatusSnapshot): number {
+export function attentionCount(snapshot: BuilderStatusSnapshot): number {
+  const seen = new Set<string>()
   return snapshot.initiatives
     .flatMap((initiative) => initiative.packets)
-    .filter(packetNeedsAttention).length
+    .filter((packet) => {
+      if (seen.has(packet.packet_id)) return false
+      seen.add(packet.packet_id)
+      return packetNeedsAttention(packet)
+    }).length
 }
 
-function activePacketCount(snapshot: BuilderStatusSnapshot): number {
+export function activePacketCount(snapshot: BuilderStatusSnapshot): number {
+  const seen = new Set<string>()
   return snapshot.initiatives
     .flatMap((initiative) => initiative.packets)
-    .filter(isPacketActive).length
+    .filter((packet) => {
+      if (seen.has(packet.packet_id)) return false
+      seen.add(packet.packet_id)
+      return isPacketActive(packet)
+    }).length
 }
 
 function findPacket(

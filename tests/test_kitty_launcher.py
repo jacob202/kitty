@@ -25,6 +25,45 @@ def test_launcher_status_understands_launchd_services() -> None:
     assert "running via launchd" in launcher
 
 
+def test_launcher_status_discovers_owned_listeners_without_pidfiles(
+    tmp_path: Path,
+) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+
+    commands = {
+        "launchctl": "#!/bin/sh\nexit 1\n",
+        "curl": "#!/bin/sh\nexit 1\n",
+        "ps": f"#!/bin/sh\nprintf '%s\\n' 'python {ROOT}/gateway/app.py'\n",
+        "lsof": (
+            "#!/bin/sh\n"
+            "case \"$*\" in\n"
+            "  *'-tiTCP:'*) printf '4242\\n' ;;\n"
+            f"  *'-d cwd'*) printf 'p4242\\nfcwd\\nn{ROOT}\\n' ;;\n"
+            "esac\n"
+        ),
+    }
+    for name, content in commands.items():
+        path = fake_bin / name
+        path.write_text(content, encoding="utf-8")
+        path.chmod(0o755)
+
+    env = dict(os.environ)
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    result = subprocess.run(
+        [str(ROOT / "kitty"), "status"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.count("discovered owned listener on") == 3
+    assert "not running" not in result.stdout
+
+
 def test_launcher_uses_safe_dotenv_loader() -> None:
     launcher = (ROOT / "kitty").read_text(encoding="utf-8")
 

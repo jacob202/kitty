@@ -7,6 +7,9 @@ from fastapi.testclient import TestClient
 
 from gateway.routes import chronicle as chronicle_route
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def _make_client(chats: list[dict], monkeypatch) -> TestClient:
     monkeypatch.setattr(chronicle_route.chats_store, "list_chats", lambda: chats)
