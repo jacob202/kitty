@@ -366,6 +366,9 @@ Selecting a provider forces normal chat through that provider. Auto keeps Kitty 
               {provider.model ?? provider.model_env ?? provider.base_url}
               {!provider.requires_key && ' · no key needed'}
             </span>
+            {provider.requires_key && !provider.configured && (
+              <span style={rowNoteStyle}>set <code style={codeStyle}>{provider.api_key_env[0]}</code> in <code style={codeStyle}>.env</code></span>
+            )}
           </div>
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
             <StatusDot
@@ -600,4 +603,13 @@ const mutedStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--ink-2)',
   lineHeight: 1.6,
+}
+
+const codeStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  background: 'var(--surface-2)',
+  padding: '1px 5px',
+  borderRadius: 4,
+  color: 'var(--ink)',
 }
