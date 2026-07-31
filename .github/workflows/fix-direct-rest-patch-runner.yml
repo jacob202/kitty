@@ -8,11 +8,20 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
+  issues: write
 
 jobs:
   fix:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
+      - name: Announce runner fix
+        run: |
+          gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
+            "Direct REST patch runner fix: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
       - uses: actions/checkout@v4
         with:
           ref: feat/runpod-image-studio-smoke
@@ -29,7 +38,7 @@ jobs:
           if text.count(old) != 1:
               raise SystemExit(f'expected one test command, found {text.count(old)}')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
-          Path('.github/runpod-direct-rest-fix.trigger').write_text('retry\n', encoding='utf-8')
+          Path('.github/runpod-direct-rest-fix.trigger').write_text('retry2\n', encoding='utf-8')
           PY
           rm .github/workflows/fix-direct-rest-patch-runner.yml .github/fix-direct-rest-patch-runner.trigger
           rm -f .github/direct-rest-patch-report.txt .github/workflows/capture-direct-rest-patch.yml .github/capture-direct-rest-patch.trigger
