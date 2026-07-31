@@ -1,5 +1,6 @@
 """Contract tests for the continuity CI wrapper."""
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -12,9 +13,12 @@ HANDOFF = ROOT / ".claude" / "HANDOFF.md"
 
 def _run(max_age_days: int) -> subprocess.CompletedProcess:
     """Invoke check_continuity_state.py as a subprocess and return the result."""
+    env = dict(os.environ)
+    env["KITTY_EXPECTED_CANONICAL_CHECKOUT"] = str(ROOT)
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--max-age-days", str(max_age_days)],
         capture_output=True,
+        env=env,
         text=True,
     )
 
@@ -76,9 +80,12 @@ class TestScriptBehavior:
         )
 
     def test_json_output_is_structured(self):
+        env = dict(os.environ)
+        env["KITTY_EXPECTED_CANONICAL_CHECKOUT"] = str(ROOT)
         result = subprocess.run(
             [sys.executable, str(SCRIPT), "--max-age-days", "3650", "--json"],
             capture_output=True,
+            env=env,
             text=True,
         )
         assert result.returncode == 0, result.stdout + result.stderr
