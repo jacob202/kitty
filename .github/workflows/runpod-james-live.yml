@@ -1,16 +1,9 @@
 name: RunPod James Single Smoke
 
+# NOTE: dispatch-only on purpose. Every run rents a real GPU and passes
+# --accept-charges, so a push trigger spends money unattended on each commit.
+# Restore an automatic trigger only after a live run has succeeded end to end.
 on:
-  push:
-    branches: [feat/runpod-image-studio-smoke]
-    paths:
-      - .github/workflows/runpod-james-live.yml
-      - scripts/runpod_james_batch.py
-      - scripts/runpod_james_adaptive.py
-      - gateway/runpod_control.py
-      - gateway/runpod_worker.py
-      - workers/comfy_worker/**
-      - workflows/**
   workflow_dispatch:
 
 permissions:
@@ -73,7 +66,13 @@ jobs:
 
       - name: Prepare ephemeral worker token
         shell: bash
-        run: echo "KITTY_WORKER_BEARER_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+        # ::add-mask:: must run before the value reaches GITHUB_ENV. Without it
+        # the token is printed verbatim in every later step's env dump, and this
+        # repository's action logs are public.
+        run: |
+          value="$(openssl rand -hex 32)"
+          echo "::add-mask::$value"
+          echo "KITTY_WORKER_BEARER_TOKEN=$value" >> "$GITHUB_ENV"
 
       - name: Confirm RunPod credential is present
         shell: bash

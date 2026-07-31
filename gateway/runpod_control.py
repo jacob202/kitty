@@ -271,8 +271,6 @@ class RunPodControlClient:
         env: Mapping[str, str] | None = None,
         name_suffix: str | None = None,
         image_name: str | None = None,
-        docker_entrypoint: Sequence[str] | None = None,
-        docker_start_cmd: Sequence[str] | None = None,
         container_start_cmd: str | None = None,
     ) -> PodInfo:
         if not template_id.strip():
