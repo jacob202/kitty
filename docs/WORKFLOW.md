@@ -3,6 +3,60 @@
 How agents and reviewers coordinate on Kitty pull requests. This is the
 coordination contract — read it before opening a PR.
 
+## Workflow automation baseline (2026-07-30)
+
+This repository now automates low-risk GitHub workflow steps while preserving
+manual control for risky actions.
+
+### Automated now
+
+1. **PR intake formatting**
+   - `.github/pull_request_template.md` pre-fills required sections.
+   - `pr-description-check.yml` still enforces `## Summary` and `## Test plan`.
+2. **Issue intake structure**
+   - `.github/ISSUE_TEMPLATE/bug_report.yml` standardizes bug triage evidence.
+   - `.github/ISSUE_TEMPLATE/workflow_automation.yml` captures automation
+     requests with scope, guardrails, and success metrics.
+3. **PR scope triage**
+   - `.github/workflows/pr-auto-label.yml` applies path-based area labels from
+     `.github/labeler.yml`.
+   - The workflow creates missing `area/*` labels and emits a summary of changed
+     file count + final labels for observable triage logs.
+4. **Review routing**
+   - `.github/workflows/pr-review-routing.yml` infers changed areas and requests
+     reviewers when they are eligible (never requests the PR author).
+   - It posts/updates a routing summary comment for observability.
+5. **Risk guardrails**
+   - `.github/workflows/pr-risk-guardrails.yml` detects sensitive scope (auth,
+     secrets/env-like files, dependency roots, CI workflows).
+   - Risky PRs receive `risk/high` + `risk/manual-approval` labels and require
+     explicit manual approval in the PR body (`Manual approval: YES` or checked
+     manual-approval checkbox).
+6. **Selective test hints**
+   - `.github/workflows/pr-test-hints.yml` posts scoped validation command
+     suggestions based on changed paths.
+7. **Release evidence comment**
+   - `.github/workflows/pr-release-evidence.yml` posts a PR comment summary from
+     completed `Tests` workflow runs (run URL, conclusion, per-job outcomes).
+8. **Stale hygiene**
+   - `.github/workflows/stale.yml` marks and closes inactive issues/PRs with
+     explicit timing and exemption labels.
+
+### Guardrails (intentionally manual)
+
+- Approvals, merge decisions, and risky scope expansion remain manual.
+- Auth/secrets/env/destructive operations still require explicit human approval.
+- Automation must fail loud; unknown labels or script errors fail the workflow.
+
+### Phased rollout
+
+- **Phase 1 (shipped):** intake templates + PR area auto-labeling + logs.
+- **Phase 2 (shipped):** review routing + risk guardrails + selective test hints.
+- **Phase 3 (shipped baseline):** stale hygiene + PR CI evidence comments.
+- **Phase 4 (next):** measure cycle time, triage accuracy, stale false positives,
+  and reviewer-routing precision before enabling additional merge/release
+  automation.
+
 ## Bridge inbox — KittyBuilder Queue (issue #127)
 
 GitHub issue **#127 — "KittyBuilder Queue"** is the current bridge inbox for
