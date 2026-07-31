@@ -150,10 +150,16 @@ assert_port_available() {
     for pid in $pids; do
       if pid_owned_by_kitty "$pid"; then
         cwd="$(pid_cwd "$pid")"
-        echo "Error: $label port :$port is held by another Kitty worktree" >&2
-        echo "  pid $pid: $(pid_command "$pid")" >&2
-        echo "  worktree: ${cwd:-unknown}" >&2
-        echo "  Stop it with: (cd \"$cwd\" && ./kitty down)" >&2
+        if [[ "$cwd" == "$KITTY_ROOT" || "$cwd" == "$KITTY_ROOT/"* ]]; then
+          echo "Error: $label port :$port is held by a leftover Kitty process from this checkout" >&2
+          echo "  pid $pid: $(pid_command "$pid")" >&2
+          echo "  Run './kitty down' to clean up." >&2
+        else
+          echo "Error: $label port :$port is held by another Kitty worktree" >&2
+          echo "  pid $pid: $(pid_command "$pid")" >&2
+          echo "  worktree: ${cwd:-unknown}" >&2
+          echo "  Stop it with: (cd \"$cwd\" && ./kitty down)" >&2
+        fi
         return 1
       fi
     done
