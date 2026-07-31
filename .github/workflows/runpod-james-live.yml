@@ -9,16 +9,24 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
+  issues: write
 
 jobs:
   template-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
+      GH_TOKEN: ${{ github.token }}
       RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
       RUNPOD_TEMPLATE_ID: 2lv7ev3wfp
 
     steps:
+      - name: Announce audit run
+        run: |
+          gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
+            "RunPod startup-field audit: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
