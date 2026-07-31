@@ -73,9 +73,6 @@ def _run_kitty(args: list[str], *, timeout: int = 120) -> str:
     return (proc.stdout or "").strip()
 
 
-# ── Requeue (retry) ────────────────────────────────────────────────────────
-
-
 def command_requeue(
     task_id: str,
     *,
@@ -85,27 +82,37 @@ def command_requeue(
     try:
         result = operator_release_task(task_id, reason=reason)
     except QueueTaskNotFoundError:
-        return CommandResult(ok=False, action="requeue", task_id=task_id,
-                             error=f"task not found: {task_id}")
+        return CommandResult(
+            ok=False,
+            action="requeue",
+            task_id=task_id,
+            error=f"task not found: {task_id}",
+        )
     except Exception as exc:
         logger.warning("requeue %s failed: %s", task_id, exc)
-        return CommandResult(ok=False, action="requeue", task_id=task_id,
-                             error=str(exc))
+        return CommandResult(
+            ok=False,
+            action="requeue",
+            task_id=task_id,
+            error=str(exc),
+        )
 
-    _emit_event("command_completed", {
-        "command": "requeue",
-        "task_id": task_id,
-        "actor": actor,
-        "reason": reason,
-    })
+    _emit_event(
+        "command_completed",
+        {
+            "command": "requeue",
+            "task_id": task_id,
+            "actor": actor,
+            "reason": reason,
+        },
+    )
     return CommandResult(
-        ok=True, action="requeue", task_id=task_id,
+        ok=True,
+        action="requeue",
+        task_id=task_id,
         detail=f"task {task_id} requeued",
         evidence={"new_state": result.get("state")},
     )
-
-
-# ── Cancel ──────────────────────────────────────────────────────────────────
 
 
 def command_cancel(
@@ -115,36 +122,47 @@ def command_cancel(
     reason: str = "operator cancel from cockpit",
 ) -> CommandResult:
     try:
-        result = _transition_task(task_id, "cancelled", payload={
-            "operator": True,
-            "reason": reason,
-            "actor": actor,
-        })
+        result = _transition_task(
+            task_id,
+            "cancelled",
+            payload={
+                "operator": True,
+                "reason": reason,
+                "actor": actor,
+            },
+        )
     except QueueTaskNotFoundError:
-        return CommandResult(ok=False, action="cancel", task_id=task_id,
-                             error=f"task not found: {task_id}")
+        return CommandResult(
+            ok=False,
+            action="cancel",
+            task_id=task_id,
+            error=f"task not found: {task_id}",
+        )
     except Exception as exc:
         logger.warning("cancel %s failed: %s", task_id, exc)
-        return CommandResult(ok=False, action="cancel", task_id=task_id,
-                             error=str(exc))
+        return CommandResult(
+            ok=False,
+            action="cancel",
+            task_id=task_id,
+            error=str(exc),
+        )
 
-    _emit_event("command_completed", {
-        "command": "cancel",
-        "task_id": task_id,
-        "actor": actor,
-        "reason": reason,
-    })
+    _emit_event(
+        "command_completed",
+        {
+            "command": "cancel",
+            "task_id": task_id,
+            "actor": actor,
+            "reason": reason,
+        },
+    )
     return CommandResult(
-        ok=True, action="cancel", task_id=task_id,
+        ok=True,
+        action="cancel",
+        task_id=task_id,
         detail=f"task {task_id} cancelled",
         evidence={"new_state": result.get("state")},
     )
-
-
-# ── Retry ───────────────────────────────────────────────────────────────────
-
-
-# ── Pause initiative ────────────────────────────────────────────────────────
 
 
 def command_pause(
@@ -156,25 +174,29 @@ def command_pause(
     try:
         pause_initiative(initiative_id, reason=reason)
     except InitiativeNotFoundError:
-        return CommandResult(ok=False, action="pause",
-                             error=f"initiative not found: {initiative_id}")
+        return CommandResult(
+            ok=False,
+            action="pause",
+            error=f"initiative not found: {initiative_id}",
+        )
     except Exception as exc:
         logger.warning("pause %s failed: %s", initiative_id, exc)
         return CommandResult(ok=False, action="pause", error=str(exc))
 
-    _emit_event("command_completed", {
-        "command": "pause",
-        "initiative_id": initiative_id,
-        "actor": actor,
-        "reason": reason,
-    })
+    _emit_event(
+        "command_completed",
+        {
+            "command": "pause",
+            "initiative_id": initiative_id,
+            "actor": actor,
+            "reason": reason,
+        },
+    )
     return CommandResult(
-        ok=True, action="pause",
+        ok=True,
+        action="pause",
         detail=f"initiative {initiative_id} paused",
     )
-
-
-# ── Resume initiative ───────────────────────────────────────────────────────
 
 
 def command_resume(
@@ -185,24 +207,28 @@ def command_resume(
     try:
         resume_initiative(initiative_id)
     except InitiativeNotFoundError:
-        return CommandResult(ok=False, action="resume",
-                             error=f"initiative not found: {initiative_id}")
+        return CommandResult(
+            ok=False,
+            action="resume",
+            error=f"initiative not found: {initiative_id}",
+        )
     except Exception as exc:
         logger.warning("resume %s failed: %s", initiative_id, exc)
         return CommandResult(ok=False, action="resume", error=str(exc))
 
-    _emit_event("command_completed", {
-        "command": "resume",
-        "initiative_id": initiative_id,
-        "actor": actor,
-    })
+    _emit_event(
+        "command_completed",
+        {
+            "command": "resume",
+            "initiative_id": initiative_id,
+            "actor": actor,
+        },
+    )
     return CommandResult(
-        ok=True, action="resume",
+        ok=True,
+        action="resume",
         detail=f"initiative {initiative_id} resumed",
     )
-
-
-# ── Run validation ──────────────────────────────────────────────────────────
 
 
 def command_run_validation(
@@ -218,14 +244,23 @@ def command_run_validation(
         )
         task = json.loads(out)
     except (json.JSONDecodeError, OperatorCommandError):
-        return CommandResult(ok=False, action="run_validation", task_id=task_id,
-                             error=f"could not read task {task_id}")
+        return CommandResult(
+            ok=False,
+            action="run_validation",
+            task_id=task_id,
+            error=f"could not read task {task_id}",
+        )
 
     acceptance = task.get("acceptance_criteria") or []
     if not acceptance:
         return CommandResult(
-            ok=False, action="run_validation", task_id=task_id,
-            error="task has no acceptance criteria; validation requires a declared stop condition",
+            ok=False,
+            action="run_validation",
+            task_id=task_id,
+            error=(
+                "task has no acceptance criteria; validation requires a "
+                "declared stop condition"
+            ),
         )
 
     try:
@@ -243,29 +278,40 @@ def command_run_validation(
             )
             if proc.returncode != 0:
                 return CommandResult(
-                    ok=False, action="run_validation", task_id=task_id,
-                    error=f"validation failed: {cmd_text[:120]} exited {proc.returncode}",
-                    evidence={"failed_command": cmd_text[:500], "stderr": proc.stderr[:500]},
+                    ok=False,
+                    action="run_validation",
+                    task_id=task_id,
+                    error=(
+                        f"validation failed: {cmd_text[:120]} exited "
+                        f"{proc.returncode}"
+                    ),
+                    evidence={
+                        "failed_command": cmd_text[:500],
+                        "stderr": proc.stderr[:500],
+                    },
                 )
     except Exception as exc:
-        return CommandResult(ok=False, action="run_validation", task_id=task_id,
-                             error=str(exc))
+        return CommandResult(
+            ok=False,
+            action="run_validation",
+            task_id=task_id,
+            error=str(exc),
+        )
 
-    _emit_event("command_completed", {
-        "command": "run_validation",
-        "task_id": task_id,
-        "actor": actor,
-    })
+    _emit_event(
+        "command_completed",
+        {
+            "command": "run_validation",
+            "task_id": task_id,
+            "actor": actor,
+        },
+    )
     return CommandResult(
-        ok=True, action="run_validation", task_id=task_id,
+        ok=True,
+        action="run_validation",
+        task_id=task_id,
         detail="validation passed all acceptance criteria",
     )
-
-
-# ── Resolve blocker ─────────────────────────────────────────────────────────
-
-
-# ── Publish ─────────────────────────────────────────────────────────────────
 
 
 def command_publish(
@@ -282,23 +328,29 @@ def command_publish(
         )
         details = json.loads(out)
     except (json.JSONDecodeError, OperatorCommandError) as exc:
-        return CommandResult(ok=False, action="publish", task_id=task_id,
-                             error=str(exc))
+        return CommandResult(
+            ok=False,
+            action="publish",
+            task_id=task_id,
+            error=str(exc),
+        )
 
-    _emit_event("command_completed", {
-        "command": "publish",
-        "task_id": task_id,
-        "actor": actor,
-        "reason": reason,
-    })
+    _emit_event(
+        "command_completed",
+        {
+            "command": "publish",
+            "task_id": task_id,
+            "actor": actor,
+            "reason": reason,
+        },
+    )
     return CommandResult(
-        ok=True, action="publish", task_id=task_id,
+        ok=True,
+        action="publish",
+        task_id=task_id,
         detail=f"task {task_id} published",
         evidence=details if isinstance(details, dict) else {},
     )
-
-
-# ── Recover stale ───────────────────────────────────────────────────────────
 
 
 def command_recover_stale(
@@ -312,21 +364,20 @@ def command_recover_stale(
     except (json.JSONDecodeError, OperatorCommandError) as exc:
         return CommandResult(ok=False, action="recover_stale", error=str(exc))
 
-    _emit_event("command_completed", {
-        "command": "recover_stale",
-        "actor": actor,
-    })
+    _emit_event(
+        "command_completed",
+        {
+            "command": "recover_stale",
+            "actor": actor,
+        },
+    )
     return CommandResult(
-        ok=True, action="recover_stale",
+        ok=True,
+        action="recover_stale",
         detail=f"recovered {details.get('total', 0)} stale task(s)",
         evidence=details,
     )
 
-
-# ── Cleanup ─────────────────────────────────────────────────────────────────
-
-
-# ── Register action map ─────────────────────────────────────────────────────
 
 COMMAND_HANDLERS: dict[str, Any] = {
     "requeue": command_requeue,

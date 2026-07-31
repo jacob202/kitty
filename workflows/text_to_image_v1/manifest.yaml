@@ -1,0 +1,80 @@
+{
+  "bindings": {
+    "batch_size": {
+      "expected_class_type": "EmptyLatentImage",
+      "input": "batch_size",
+      "node_id": "4"
+    },
+    "checkpoint": {
+      "expected_class_type": "CheckpointLoaderSimple",
+      "input": "ckpt_name",
+      "node_id": "1"
+    },
+    "guidance": {
+      "expected_class_type": "KSampler",
+      "input": "cfg",
+      "node_id": "5"
+    },
+    "height": {
+      "expected_class_type": "EmptyLatentImage",
+      "input": "height",
+      "node_id": "4"
+    },
+    "negative_prompt": {
+      "expected_class_type": "CLIPTextEncode",
+      "input": "text",
+      "node_id": "3"
+    },
+    "prompt": {
+      "expected_class_type": "CLIPTextEncode",
+      "input": "text",
+      "node_id": "2"
+    },
+    "seed": {
+      "expected_class_type": "KSampler",
+      "input": "seed",
+      "node_id": "5"
+    },
+    "steps": {
+      "expected_class_type": "KSampler",
+      "input": "steps",
+      "node_id": "5"
+    },
+    "width": {
+      "expected_class_type": "EmptyLatentImage",
+      "input": "width",
+      "node_id": "4"
+    }
+  },
+  "limits": {
+    "batch_size": {
+      "max": 1,
+      "min": 1
+    },
+    "guidance": {
+      "max": 30,
+      "min": 0
+    },
+    "height": {
+      "max": 2048,
+      "min": 256,
+      "multiple_of": 8
+    },
+    "steps": {
+      "max": 100,
+      "min": 1
+    },
+    "width": {
+      "max": 2048,
+      "min": 256,
+      "multiple_of": 8
+    }
+  },
+  "minimum_vram_gb": 12,
+  "output_nodes": [
+    "7"
+  ],
+  "workflow_id": "text_to_image_v1",
+  "workflow_sha256": "fdf2ecee950eaeff830aeadfc327cd55cc8c1e3fbbaa5f347943d1d0087cf929",
+  "workflow_version": 1
+}

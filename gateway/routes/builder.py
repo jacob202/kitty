@@ -24,6 +24,7 @@ from gateway.builder_events import builder_events
 logger = logging.getLogger("kitty.builder_routes")
 router = APIRouter(tags=["builder"])
 
+
 class OperatorCommandRequest(BaseModel):
     action: str
     task_id: str | None = None

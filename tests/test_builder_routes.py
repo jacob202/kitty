@@ -16,7 +16,9 @@ def client():
 
 
 class TestOperatorCommandEndpoint:
-    def test_dispatch_omits_fields_the_handler_does_not_accept(self, client, monkeypatch):
+    def test_dispatch_omits_fields_the_handler_does_not_accept(
+        self, client, monkeypatch
+    ):
         received = {}
 
         def resume(*, initiative_id, actor):
@@ -41,61 +43,67 @@ class TestOperatorCommandEndpoint:
         assert received == {"initiative_id": "initiative-1", "actor": "test"}
 
     def test_unknown_action_returns_error_with_available(self, client):
-        r = client.post("/builder/command", json={"action": "nonexistent_action"})
-        assert r.status_code == 200
-        body = r.json()
+        response = client.post(
+            "/builder/command", json={"action": "nonexistent_action"}
+        )
+        assert response.status_code == 200
+        body = response.json()
         assert body["ok"] is False
         assert "unknown action" in body["error"]
         assert isinstance(body.get("available"), list)
         assert len(body["available"]) > 0
 
     def test_requeue_missing_task_id_raises(self, client):
-        r = client.post("/builder/command", json={"action": "requeue"})
-        assert r.status_code == 200
-        body = r.json()
+        response = client.post("/builder/command", json={"action": "requeue"})
+        assert response.status_code == 200
+        body = response.json()
         assert body["ok"] is False
         assert body.get("error") is not None
 
     def test_cancel_missing_task_id_returns_error(self, client):
-        r = client.post("/builder/command", json={"action": "cancel"})
-        assert r.status_code == 200
-        body = r.json()
+        response = client.post("/builder/command", json={"action": "cancel"})
+        assert response.status_code == 200
+        body = response.json()
         assert body["ok"] is False
         assert body.get("error") is not None
 
     def test_pause_missing_initiative_id_returns_error(self, client):
-        r = client.post("/builder/command", json={"action": "pause"})
-        assert r.status_code == 200
-        body = r.json()
+        response = client.post("/builder/command", json={"action": "pause"})
+        assert response.status_code == 200
+        body = response.json()
         assert body["ok"] is False
         assert body.get("error") is not None
 
     def test_resume_missing_initiative_id_returns_error(self, client):
-        r = client.post("/builder/command", json={"action": "resume"})
-        assert r.status_code == 200
-        body = r.json()
+        response = client.post("/builder/command", json={"action": "resume"})
+        assert response.status_code == 200
+        body = response.json()
         assert body["ok"] is False
         assert body.get("error") is not None
 
     def test_recover_stale_succeeds(self, client):
-        r = client.post("/builder/command", json={"action": "recover_stale"})
-        assert r.status_code == 200
-        body = r.json()
+        response = client.post(
+            "/builder/command", json={"action": "recover_stale"}
+        )
+        assert response.status_code == 200
+        body = response.json()
         assert body["ok"] is True
         assert body["action"] == "recover_stale"
         assert body.get("detail") is not None
 
     def test_run_validation_missing_task_id_returns_error(self, client):
-        r = client.post("/builder/command", json={"action": "run_validation"})
-        assert r.status_code == 200
-        body = r.json()
+        response = client.post(
+            "/builder/command", json={"action": "run_validation"}
+        )
+        assert response.status_code == 200
+        body = response.json()
         assert body["ok"] is False
         assert body.get("error") is not None
 
     def test_publish_missing_task_id_returns_error(self, client):
-        r = client.post("/builder/command", json={"action": "publish"})
-        assert r.status_code == 200
-        body = r.json()
+        response = client.post("/builder/command", json={"action": "publish"})
+        assert response.status_code == 200
+        body = response.json()
         assert body["ok"] is False
         assert body.get("error") is not None
 
@@ -103,7 +111,7 @@ class TestOperatorCommandEndpoint:
         from gateway.routes.builder import _COMMAND_HANDLERS
 
         for action in sorted(_COMMAND_HANDLERS.keys()):
-            r = client.post(
+            response = client.post(
                 "/builder/command",
                 json={
                     "action": action,
@@ -113,14 +121,14 @@ class TestOperatorCommandEndpoint:
                     "actor": "test",
                 },
             )
-            assert r.status_code == 200
-            body = r.json()
+            assert response.status_code == 200
+            body = response.json()
             assert "ok" in body
             assert "action" in body
             assert body["action"] == action
 
     def test_expected_version_passed_but_accepted(self, client):
-        r = client.post(
+        response = client.post(
             "/builder/command",
             json={
                 "action": "recover_stale",
@@ -128,24 +136,23 @@ class TestOperatorCommandEndpoint:
                 "actor": "test",
             },
         )
-        assert r.status_code == 200
-        body = r.json()
-        assert body["ok"] is True
+        assert response.status_code == 200
+        assert response.json()["ok"] is True
 
     def test_actor_defaults_to_cockpit_operator_when_missing(self, client):
-        r = client.post(
+        response = client.post(
             "/builder/command",
             json={"action": "recover_stale"},
         )
-        assert r.status_code == 200
-        body = r.json()
-        assert body["ok"] is True
+        assert response.status_code == 200
+        assert response.json()["ok"] is True
 
 
 class TestEventStreamRoute:
     @pytest.fixture(autouse=True)
     def _patch_events(self, monkeypatch):
         """Patch builder_events.subscribe to return a single message then stop."""
+
         async def _fake_subscribe(client_id, cursor=None, packet_id=None):
             yield "data: test\n\n"
 
@@ -160,9 +167,14 @@ class TestEventStreamRoute:
         assert "text/event-stream" in response.headers.get("content-type", "")
 
     def test_events_with_packet_id(self, client):
-        response = client.get("/builder/events", params={"packet_id": "kb_test"})
+        response = client.get(
+            "/builder/events", params={"packet_id": "kb_test"}
+        )
         assert response.status_code == 200
 
     def test_events_with_cursor(self, client):
-        response = client.get("/builder/events", params={"cursor": 0, "session_id": "test-session"})
+        response = client.get(
+            "/builder/events",
+            params={"cursor": 0, "session_id": "test-session"},
+        )
         assert response.status_code == 200

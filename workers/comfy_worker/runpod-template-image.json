@@ -1,0 +1,7 @@
+{
+  "template_id": "2lv7ev3wfp",
+  "template_name": "ComfyUI - CUDA 13",
+  "image_name": "runpod/comfyui:cuda13.0",
+  "resolved_at": "2026-07-31T21:05:00Z",
+  "source": "https://github.com/jacob202/kitty/actions/runs/30664949028"
+}
