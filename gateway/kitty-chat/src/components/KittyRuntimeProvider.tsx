@@ -9,15 +9,21 @@ interface Props extends KittyRuntimeOptions {
 }
 
 const HEALTH_TIMEOUT_MS = 4000
+const HEALTH_RETRY_MS = 5000
 
 function HealthGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<'checking' | 'ok' | 'down'>('checking')
   const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let cancelled = false
     const ctrl = new AbortController()
-    const timer = setTimeout(() => ctrl.abort(), HEALTH_TIMEOUT_MS)
+    const timeout = setTimeout(() => ctrl.abort(), HEALTH_TIMEOUT_MS)
+    let retry: ReturnType<typeof setTimeout> | undefined
+
+    setState('checking')
+    setError(null)
 
     fetch('/proxy/health', { signal: ctrl.signal })
       .then(r => {
@@ -25,18 +31,25 @@ function HealthGate({ children }: { children: React.ReactNode }) {
         if (!r.ok) throw new Error(`Gateway returned ${r.status}`)
         setState('ok')
       })
-      .catch(e => {
+      .catch((cause: unknown) => {
         if (cancelled) return
-        const msg = e.name === 'AbortError'
+        const error = cause instanceof Error ? cause : new Error('Could not reach the gateway')
+        const msg = error.name === 'AbortError'
           ? 'Request timed out — is the Kitty gateway running?'
-          : (e.message || 'Could not reach the gateway')
+          : (error.message || 'Could not reach the gateway')
         setError(msg)
         setState('down')
+        retry = setTimeout(() => setAttempt(current => current + 1), HEALTH_RETRY_MS)
       })
-      .finally(() => clearTimeout(timer))
+      .finally(() => clearTimeout(timeout))
 
-    return () => { cancelled = true; clearTimeout(timer) }
-  }, [])
+    return () => {
+      cancelled = true
+      ctrl.abort()
+      clearTimeout(timeout)
+      if (retry) clearTimeout(retry)
+    }
+  }, [attempt])
 
   if (state === 'ok') return <>{children}</>
 
@@ -50,7 +63,7 @@ function HealthGate({ children }: { children: React.ReactNode }) {
       <div style={{ fontSize: '0.9rem', opacity: 0.5, textAlign: 'center', maxWidth: 320 }}>
         {state === 'checking'
           ? 'Connecting to Kitty...'
-          : `Gateway offline — run \`./kitty up\`${error ? `\n${error}` : ''}`}
+          : `Gateway offline — run \`./kitty up\`${error ? `\n${error}` : ''}\nRetrying automatically...`}
       </div>
     </div>
   )
