@@ -17,6 +17,13 @@ Before acting, execute the bootloader in `START_HERE.md`. At minimum:
 7. treat handoffs and prose as invalid when live evidence disagrees; and
 8. verify relevant facts and authorization before mutation.
 
+## Context engineering default
+
+Use staged context loading per `docs/reference/CONTEXT_ENGINEERING.md`: start
+from `./kitty context --agent`, load only the authority needed for the current
+task class, and expand incrementally. For code changes, complete the full
+canonical reading order before edits.
+
 ## Project Structure
 
 Kitty is a local-first personal AI companion. KittyBuilder is its execution control plane — Kitty owns product intent, Builder owns execution state (ADR 0017). Backend code lives in `gateway/`, with FastAPI routes under `gateway/routes/` and path constants in `gateway/paths.py`. The main UI is `gateway/kitty-chat/` (Next.js). Tests live in `tests/`. Product, architecture, and planning docs live in `docs/`. Runtime data and logs live in `data/` and `logs/` and must not be committed.

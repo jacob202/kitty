@@ -63,6 +63,47 @@ def migrate(
     return applied_now
 
 
+def assert_schema_current(
+    db_file: Path = KITTY_DB_FILE,
+    migrations_dir: Path = DB_MIGRATIONS_DIR,
+) -> None:
+    """Raise RuntimeError if any migration file on disk has not been applied.
+
+    Call this after :func:`migrate` to assert the database is fully up to date.
+    Fails loud — never silently swallows a missing migration.
+    """
+    migration_files = {p.name for p in Path(migrations_dir).glob("*.sql")}
+    if not migration_files:
+        return
+
+    db_path = Path(db_file)
+    try:
+        with connect(db_path) as conn:
+            try:
+                applied = {
+                    row["name"]
+                    for row in conn.execute("SELECT name FROM schema_migrations")
+                }
+            except sqlite3.OperationalError as exc:
+                raise RuntimeError(
+                    f"schema_migrations table missing in {db_path} — "
+                    "run migrate() before asserting schema currency"
+                ) from exc
+    except RuntimeError:
+        raise
+    except Exception as exc:
+        raise RuntimeError(
+            f"Could not open database {db_path} to assert schema currency: {exc}"
+        ) from exc
+
+    missing = sorted(migration_files - applied)
+    if missing:
+        raise RuntimeError(
+            f"Database {db_path} is missing {len(missing)} migration(s): "
+            + ", ".join(missing)
+        )
+
+
 def _ensure_schema_migrations(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS schema_migrations (

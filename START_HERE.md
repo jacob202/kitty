@@ -27,6 +27,16 @@ to authorities; it does not describe current state itself.
 8. **Verify before acting.** Re-check the live fact, allowed scope, and approval
    boundary immediately before any mutation.
 
+## Context-engineering default
+
+Use staged context loading:
+
+1. start with the receipt and the smallest authority set needed for the request;
+2. expand only when a concrete unresolved question requires more files; and
+3. for code changes, complete the full canonical reading order before mutation.
+
+Detailed task-scoped rules: `docs/reference/CONTEXT_ENGINEERING.md`.
+
 ## Canonical reading order
 
 <!-- kitty-reading-order:start -->

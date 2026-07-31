@@ -1,0 +1,25 @@
+area/backend:
+  - "gateway/**/*.py"
+  - "mcp/**/*.py"
+  - "tests/**/*.py"
+  - "requirements*.txt"
+  - "pyproject.toml"
+
+area/frontend:
+  - "gateway/kitty-chat/**/*"
+
+area/docs:
+  - "docs/**/*"
+  - "README.md"
+  - "AGENTS.md"
+  - "START_HERE.md"
+
+area/ci:
+  - ".github/workflows/**/*"
+  - ".github/dependabot.yml"
+
+area/automation:
+  - "scripts/**/*"
+  - "kitty"
+  - "Makefile"
+

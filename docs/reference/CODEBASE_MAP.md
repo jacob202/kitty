@@ -213,6 +213,7 @@ Additional workflows: `pr-agent-review.yml` (automated LLM PR review via OpenRou
 | Docs index | Documentation directory navigation | `docs/README.md` |
 | Codebase map | This file | `docs/reference/CODEBASE_MAP.md` |
 | Documentation audit | Doc health and disposition | `docs/reference/DOCUMENTATION_AUDIT.md` |
+| Context engineering | Staged context-loading workflow | `docs/reference/CONTEXT_ENGINEERING.md` |
 
 ## AI context bundle
 
