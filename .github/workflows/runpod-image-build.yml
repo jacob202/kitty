@@ -1,14 +1,5 @@
 name: Build Kitty Worker Image and Preflight
 
-# Deterministic build: the base image comes from the committed record
-# workers/comfy_worker/runpod-template-image.json, never from the RunPod API
-# (the free template diagnostic discovered it once). The built image is
-# pushed to GHCR by commit SHA, its digest is recorded into
-# workers/comfy_worker/worker-image.json, and a no-GPU preflight proves the
-# exact deployed artifact binds 8000 and reports a structured state.
-#
-# The digest-record commit uses the fixed prefix below (chore(runpod): record worker image digest); the build short-
-# circuits on it so the workflow does not loop on its own bookkeeping.
 on:
   workflow_dispatch:
   push:
@@ -25,39 +16,43 @@ jobs:
     timeout-minutes: 45
     outputs:
       digest: ${{ steps.push.outputs.digest }}
-      image_ref: ${{ steps.ref.outputs.image_ref }}
+      built: ${{ steps.guard.outputs.built }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Short-circuit on the digest-record commit itself
-        if: "startsWith(github.event.head_commit.message, 'chore(runpod): record worker image digest')"
+      - name: Decide whether this commit needs a build
+        id: guard
+        shell: bash
         run: |
-          echo "bookkeeping commit; nothing to build"
-          exit 0
+          if [[ "${{ github.event_name }}" == "push" ]] && \
+             [[ "${{ github.event.head_commit.message }}" == chore\(runpod\):\ record\ worker\ image\ digest* ]]; then
+            echo "built=false" >> "$GITHUB_OUTPUT"
+            echo "Digest bookkeeping commit: reuse the committed digest."
+          else
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Resolve pinned base image
         id: base
+        if: steps.guard.outputs.built == 'true'
         run: |
-          python - <<'PY'
+          python3 - <<'PY'
           import json
           record = json.load(open("workers/comfy_worker/runpod-template-image.json"))
-          image = record["image_name"]
+          print(f"image={record['image_name']}")
           with open("image-name.txt", "w", encoding="utf-8") as handle:
-              handle.write(image + "\n")
+              handle.write(record["image_name"] + "\n")
           PY
           echo "image=$(cat image-name.txt)" >> "$GITHUB_OUTPUT"
 
-      - name: Emit ref (SHA tags + digest reference)
-        id: ref
-        run: |
-          echo "image_ref=ghcr.io/jacob202/kitty/comfy-worker:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-
       - name: Set up Docker Buildx
+        if: steps.guard.outputs.built == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
+        if: steps.guard.outputs.built == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -66,6 +61,7 @@ jobs:
 
       - name: Build and push by commit SHA
         id: push
+        if: steps.guard.outputs.built == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -73,13 +69,13 @@ jobs:
           build-args: |
             COMFYUI_BASE_IMAGE=${{ steps.base.outputs.image }}
           push: true
-          tags: |
-            ghcr.io/jacob202/kitty/comfy-worker:${{ github.sha }}
+          tags: ghcr.io/jacob202/kitty/comfy-worker:${{ github.sha }}
           labels: |
             com.kitty.source-repo=${{ github.repository }}
             com.kitty.source-ref=${{ github.sha }}
 
       - name: Record immutable digest
+        if: steps.guard.outputs.built == 'true'
         run: |
           cat > workers/comfy_worker/worker-image.json <<JSON
           {
@@ -98,6 +94,7 @@ jobs:
 
   preflight:
     needs: build
+    if: always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -110,8 +107,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Preflight the exact image (no GPU)
+      - name: Select exact immutable image
+        id: image
+        shell: bash
+        env:
+          BUILT: ${{ needs.build.outputs.built }}
+          BUILD_DIGEST: ${{ needs.build.outputs.digest }}
         run: |
-          DIGEST="$(python3 -c "import json; print(json.load(open('workers/comfy_worker/worker-image.json'))['digest'])")"
-          python scripts/runpod_image_preflight.py \
-            "ghcr.io/jacob202/kitty/comfy-worker@${DIGEST}"
+          if [[ "$BUILT" == "true" ]]; then
+            test -n "$BUILD_DIGEST"
+            DIGEST="$BUILD_DIGEST"
+            SOURCE="same-run build output"
+          else
+            DIGEST="$(python3 -c "import json; print(json.load(open('workers/comfy_worker/worker-image.json'))['digest'])")"
+            SOURCE="committed digest record"
+          fi
+          IMAGE="ghcr.io/jacob202/kitty/comfy-worker@${DIGEST}"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "Selected $IMAGE from $SOURCE"
+
+      - name: Preflight the exact image (no GPU)
+        run: python3 scripts/runpod_image_preflight.py "${{ steps.image.outputs.image }}"
