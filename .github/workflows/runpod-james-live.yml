@@ -38,7 +38,7 @@ jobs:
       COMFY_CHECKPOINT_SHA256: 912c9dc74f5855175c31a7993f863a043ac8dcc31732b324cd05d75cd7e16844
 
     steps:
-      - name: Checkout smoke-test commit
+      - name: Checkout direct-image smoke commit
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
@@ -46,7 +46,7 @@ jobs:
       - name: Announce live smoke
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod one-image explicit-startup smoke: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod one-image direct-image smoke: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -89,10 +89,67 @@ jobs:
         if: success()
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod one-image explicit-startup smoke succeeded. Genuine image and provenance: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod one-image direct-image smoke succeeded. Genuine image and provenance: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Report failure
         if: failure()
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod one-image explicit-startup smoke failed. Exact logs and failure manifest: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod one-image direct-image smoke failed. Exact logs and failure manifest: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+  cleanup:
+    if: always()
+    needs: james-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+    steps:
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - run: pip install httpx==0.28.1
+
+      - name: Terminate every James smoke resource
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import httpx
+
+          base = "https://rest.runpod.io/v1"
+          headers = {
+              "Authorization": f"Bearer {os.environ['RUNPOD_API_KEY']}",
+              "Content-Type": "application/json",
+          }
+          with httpx.Client(timeout=45) as client:
+              pods = client.get(f"{base}/pods", headers=headers)
+              pods.raise_for_status()
+              for pod in pods.json():
+                  if str(pod.get("name") or "").startswith("kitty-image-james-"):
+                      pod_id = str(pod.get("id") or "")
+                      if pod_id:
+                          response = client.delete(f"{base}/pods/{pod_id}", headers=headers)
+                          if response.status_code not in {204, 404}:
+                              response.raise_for_status()
+
+              templates = client.get(
+                  f"{base}/templates",
+                  headers=headers,
+                  params={"includePublicTemplates": False, "includeRunpodTemplates": False},
+              )
+              templates.raise_for_status()
+              values = templates.json()
+              if isinstance(values, dict):
+                  values = values.get("templates") or values.get("data") or []
+              for template in values if isinstance(values, list) else []:
+                  if str(template.get("name") or "").startswith("kitty-james-live-"):
+                      template_id = str(template.get("id") or "")
+                      if template_id:
+                          response = client.delete(
+                              f"{base}/templates/{template_id}", headers=headers
+                          )
+                          if response.status_code not in {204, 404}:
+                              response.raise_for_status()
+          PY
