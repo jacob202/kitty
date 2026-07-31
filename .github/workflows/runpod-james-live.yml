@@ -1,4 +1,4 @@
-name: RunPod Template Startup Audit
+name: RunPod James Single Smoke
 
 on:
   push:
@@ -12,90 +12,87 @@ permissions:
   pull-requests: write
   issues: write
 
+concurrency:
+  group: runpod-james-live
+  cancel-in-progress: false
+
 jobs:
-  template-audit:
+  james-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 75
     env:
       GH_TOKEN: ${{ github.token }}
       RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
       RUNPOD_TEMPLATE_ID: 2lv7ev3wfp
+      KITTY_BOOTSTRAP_REF: ${{ github.sha }}
+      RUNPOD_MAX_HOURLY_RATE: "0.60"
+      RUNPOD_HARD_RUNTIME_MINUTES: "55"
+      RUNPOD_READY_TIMEOUT_SECONDS: "2400"
+      RUNPOD_GENERATION_TIMEOUT_SECONDS: "600"
+      RUNPOD_POLL_INTERVAL_SECONDS: "5"
+      RUNPOD_CLOUD_TYPES: COMMUNITY,SECURE
+      RUNPOD_CAPACITY_RETRY_ROUNDS: "8"
+      RUNPOD_CAPACITY_RETRY_SECONDS: "30"
+      COMFY_CHECKPOINT: RealVisXL_V4.0.safetensors
+      COMFY_CHECKPOINT_URL: https://huggingface.co/SG161222/RealVisXL_V4.0/resolve/main/RealVisXL_V4.0.safetensors?download=true
+      COMFY_CHECKPOINT_SHA256: 912c9dc74f5855175c31a7993f863a043ac8dcc31732b324cd05d75cd7e16844
 
     steps:
-      - name: Announce audit run
+      - name: Checkout smoke-test commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Announce live smoke
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod startup-field audit: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod one-image explicit-startup smoke: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip
 
-      - name: Install audit dependency
-        run: pip install httpx==0.28.1
+      - name: Install live-run dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx==0.28.1 pillow==11.3.0
 
-      - name: Audit source and temporary template startup fields
+      - name: Prepare ephemeral worker token
+        shell: bash
+        run: echo "KITTY_WORKER_BEARER_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Confirm RunPod credential is present
         shell: bash
         run: |
-          python - <<'PY'
-          import json
-          import os
-          import secrets
-          import httpx
+          test -n "$RUNPOD_API_KEY" || { echo "RUNPOD_API_KEY secret is missing" >&2; exit 2; }
 
-          base = "https://rest.runpod.io/v1"
-          key = os.environ["RUNPOD_API_KEY"]
-          source_id = os.environ["RUNPOD_TEMPLATE_ID"]
-          headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-          include = {"includePublicTemplates": True, "includeRunpodTemplates": True}
+      - name: Generate one real smoke image
+        shell: bash
+        run: |
+          python scripts/runpod_james_adaptive.py \
+            --attempts 1 \
+            --output-dir runtime-data/runpod-james \
+            --accept-charges
 
-          def safe(value):
-              return {
-                  "id": value.get("id"),
-                  "imageName": value.get("imageName"),
-                  "dockerEntrypoint": value.get("dockerEntrypoint"),
-                  "dockerStartCmd": value.get("dockerStartCmd"),
-                  "ports": value.get("ports"),
-                  "isRunpod": value.get("isRunpod"),
-                  "isServerless": value.get("isServerless"),
-                  "volumeMountPath": value.get("volumeMountPath"),
-              }
+      - name: Upload generated image and provenance
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: runpod-james-${{ github.run_id }}
+          path: runtime-data/runpod-james/
+          if-no-files-found: warn
+          retention-days: 14
 
-          with httpx.Client(timeout=45) as client:
-              response = client.get(
-                  f"{base}/templates/{source_id}", headers=headers, params=include
-              )
-              response.raise_for_status()
-              source = response.json()
-              print("SOURCE_TEMPLATE=" + json.dumps(safe(source), sort_keys=True))
+      - name: Report success
+        if: success()
+        run: |
+          gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
+            "RunPod one-image explicit-startup smoke succeeded. Genuine image and provenance: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
-              command = "printf 'kitty-start-command-ran\\n'; sleep 300"
-              payload = {
-                  "imageName": source["imageName"],
-                  "name": f"kitty-startup-audit-{secrets.token_hex(3)}",
-                  "category": "NVIDIA",
-                  "containerDiskInGb": max(40, int(source.get("containerDiskInGb") or 0)),
-                  "dockerEntrypoint": ["bash", "-lc"],
-                  "dockerStartCmd": [command],
-                  "env": {},
-                  "isPublic": False,
-                  "isServerless": False,
-                  "ports": ["8000/http"],
-                  "readme": "Temporary startup-field audit; no Pod deployment.",
-                  "volumeInGb": 20,
-                  "volumeMountPath": "/workspace",
-              }
-              created = client.post(f"{base}/templates", headers=headers, json=payload)
-              created.raise_for_status()
-              temp = created.json()
-              temp_id = temp["id"]
-              try:
-                  fetched = client.get(f"{base}/templates/{temp_id}", headers=headers)
-                  fetched.raise_for_status()
-                  print("TEMP_TEMPLATE=" + json.dumps(safe(fetched.json()), sort_keys=True))
-              finally:
-                  deleted = client.delete(f"{base}/templates/{temp_id}", headers=headers)
-                  deleted.raise_for_status()
-                  print("TEMP_TEMPLATE_DELETED=" + temp_id)
-          PY
+      - name: Report failure
+        if: failure()
+        run: |
+          gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
+            "RunPod one-image explicit-startup smoke failed. Exact logs and failure manifest: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
