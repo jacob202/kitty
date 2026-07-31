@@ -32,7 +32,7 @@ class RunPodBudgetError(RunPodError):
     """A created Pod exceeded the configured hourly ceiling."""
 
 
-def _as_float(value: object, default: float = 0.0) -> float:
+def _as_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -54,13 +54,14 @@ class PodInfo:
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "PodInfo":
-        gpu = payload.get("gpu") if isinstance(payload.get("gpu"), Mapping) else {}
-        machine = (
-            payload.get("machine")
-            if isinstance(payload.get("machine"), Mapping)
-            else {}
+        gpu_raw = payload.get("gpu")
+        machine_raw = payload.get("machine")
+        env_raw = payload.get("env")
+        gpu: Mapping[str, Any] = gpu_raw if isinstance(gpu_raw, Mapping) else {}
+        machine: Mapping[str, Any] = (
+            machine_raw if isinstance(machine_raw, Mapping) else {}
         )
-        env = payload.get("env") if isinstance(payload.get("env"), Mapping) else {}
+        env: Mapping[str, Any] = env_raw if isinstance(env_raw, Mapping) else {}
         rate = _as_float(payload.get("adjustedCostPerHr")) or _as_float(
             payload.get("costPerHr")
         )
