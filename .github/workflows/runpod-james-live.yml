@@ -1,17 +1,19 @@
-name: RunPod James Live Batch
+name: RunPod James Adaptive Search
 
-# Live trigger: 2026-07-31T07:34Z — twelve attempts
+# Live trigger: 2026-07-31T07:42Z — capacity-aware 36-attempt session
 on:
   push:
     branches: [feat/runpod-image-studio-smoke]
     paths:
       - .github/workflows/runpod-james-live.yml
+      - scripts/runpod_james_adaptive.py
+      - scripts/runpod_james_batch.py
   workflow_dispatch:
     inputs:
       attempts:
-        description: Number of James portrait attempts
+        description: Number of James portrait attempts in one Pod session
         required: true
-        default: "12"
+        default: "36"
 
 permissions:
   contents: read
@@ -25,7 +27,7 @@ concurrency:
 jobs:
   james-batch:
     runs-on: ubuntu-latest
-    timeout-minutes: 140
+    timeout-minutes: 100
     env:
       GH_TOKEN: ${{ github.token }}
       RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
@@ -36,12 +38,15 @@ jobs:
       RUNPOD_READY_TIMEOUT_SECONDS: "1200"
       RUNPOD_GENERATION_TIMEOUT_SECONDS: "600"
       RUNPOD_POLL_INTERVAL_SECONDS: "5"
+      RUNPOD_CLOUD_TYPES: COMMUNITY,SECURE
+      RUNPOD_CAPACITY_RETRY_ROUNDS: "8"
+      RUNPOD_CAPACITY_RETRY_SECONDS: "30"
       COMFY_CHECKPOINT: RealVisXL_V4.0.safetensors
       COMFY_CHECKPOINT_URL: https://huggingface.co/SG161222/RealVisXL_V4.0/resolve/main/RealVisXL_V4.0.safetensors?download=true
       COMFY_CHECKPOINT_SHA256: 912c9dc74f5855175c31a7993f863a043ac8dcc31732b324cd05d75cd7e16844
 
     steps:
-      - name: Checkout live batch commit
+      - name: Checkout adaptive search commit
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
@@ -49,7 +54,7 @@ jobs:
       - name: Announce live run
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod James 12-attempt batch started: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod adaptive James search started (up to 36 attempts, one Pod, capacity retries): https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -57,11 +62,10 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install Kitty and worker dependencies
+      - name: Install live-run dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r workers/comfy_worker/requirements.txt
+          pip install httpx==0.28.1 pillow==11.3.0
 
       - name: Prepare ephemeral worker token
         shell: bash
@@ -72,22 +76,14 @@ jobs:
         run: |
           test -n "$RUNPOD_API_KEY" || { echo "RUNPOD_API_KEY secret is missing" >&2; exit 2; }
 
-      - name: Generate James portrait batches
+      - name: Generate adaptive James portrait search
         shell: bash
         run: |
-          TOTAL="${{ github.event.inputs.attempts || '12' }}"
-          REMAINING="$TOTAL"
-          BATCH=1
-          while [ "$REMAINING" -gt 0 ]; do
-            COUNT="$REMAINING"
-            if [ "$COUNT" -gt 6 ]; then COUNT=6; fi
-            python scripts/runpod_james_batch.py \
-              --attempts "$COUNT" \
-              --output-dir "runtime-data/runpod-james/batch-$BATCH" \
-              --accept-charges
-            REMAINING=$((REMAINING - COUNT))
-            BATCH=$((BATCH + 1))
-          done
+          ATTEMPTS="${{ github.event.inputs.attempts || '36' }}"
+          python scripts/runpod_james_adaptive.py \
+            --attempts "$ATTEMPTS" \
+            --output-dir runtime-data/runpod-james \
+            --accept-charges
 
       - name: Upload generated images and provenance
         if: always()
@@ -102,10 +98,10 @@ jobs:
         if: success()
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod James 12-attempt batch succeeded. Images and provenance are attached to run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod adaptive James search succeeded. Images and provenance are attached to run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Report failure
         if: failure()
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod James 12-attempt batch failed. Inspect the exact step here: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod adaptive James search failed. Inspect the exact step here: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
