@@ -140,6 +140,23 @@ class RunPodWorkerClient:
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._token}"}
 
+    async def read_health(self) -> tuple[int, dict[str, Any] | None]:
+        """Sample /health without raising.
+
+        Returns (status_code, parsed JSON body or None). The body of a
+        bootstrap stage-server response carries status/stage/exit_code —
+        sampled here so the caller accumulates a health-stage history that
+        survives a later readiness failure.
+        """
+        try:
+            response = await self._client.get(f"{self._base_url}/health")
+        except httpx.HTTPError as exc:
+            return -1, {"transport_error": str(exc)}
+        try:
+            return response.status_code, response.json()
+        except ValueError:
+            return response.status_code, None
+
     async def assert_ready(self) -> dict[str, Any]:
         response = await self._client.get(f"{self._base_url}/health")
         if response.status_code == 424:

@@ -303,7 +303,7 @@ async def test_create_transport_failure_is_billably_ambiguous():
 
 
 @pytest.mark.asyncio
-async def test_create_image_pod_rest_preserves_container_start_cmd():
+async def test_create_image_pod_rest_digest_deployment_uses_native_start():
     captured: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -326,9 +326,9 @@ async def test_create_image_pod_rest_preserves_container_start_cmd():
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
         async with _client(http_client) as client:
             pod = await client.create_image_pod(
-                template_id="source-template-only",
-                image_name="runpod/comfyui:cuda13.0",
-                container_start_cmd="curl -sSL 'https://example.com/bootstrap.sh' -o /tmp/kitty-bootstrap.sh && chmod 700 /tmp/kitty-bootstrap.sh && exec /tmp/kitty-bootstrap.sh",
+                template_id="",
+                image_name="ghcr.io/jacob202/kitty/comfy-worker@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                container_start_cmd=None,
                 gpu_type_ids=("NVIDIA L4", "NVIDIA RTX A5000"),
                 max_hourly_rate=0.60,
                 hard_runtime_minutes=55,
@@ -337,15 +337,49 @@ async def test_create_image_pod_rest_preserves_container_start_cmd():
             )
 
     assert pod.pod_id == "rest-pod"
-    assert captured["imageName"] == "runpod/comfyui:cuda13.0"
-    assert captured["dockerEntrypoint"] == ["/bin/sh", "-c"]
-    assert captured["dockerStartCmd"] == ["curl -sSL 'https://example.com/bootstrap.sh' -o /tmp/kitty-bootstrap.sh && chmod 700 /tmp/kitty-bootstrap.sh && exec /tmp/kitty-bootstrap.sh"]
+    assert captured["imageName"] == "ghcr.io/jacob202/kitty/comfy-worker@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    assert "dockerEntrypoint" not in captured
+    assert "dockerStartCmd" not in captured
+    assert "templateId" not in captured
     assert captured["gpuTypeIds"] == ["NVIDIA L4", "NVIDIA RTX A5000"]
     assert captured["gpuTypePriority"] == "custom"
     assert captured["ports"] == ["8000/http"]
-    assert captured["supportPublicIp"] is False
-    assert isinstance(captured["env"], dict)
-    assert captured["env"]["KITTY_MANAGED"] == "1"
+
+
+@pytest.mark.asyncio
+async def test_create_image_pod_explicit_image_rejects_start_cmd():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("no request should be made")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        async with _client(http_client) as client:
+            with pytest.raises(RunPodConfigurationError, match="native ENTRYPOINT"):
+                await client.create_image_pod(
+                    template_id="",
+                    image_name="ghcr.io/jacob202/kitty/comfy-worker@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                    container_start_cmd="dockerStartCmd must not be smuggled in",
+                    gpu_type_ids=("NVIDIA L4",),
+                    max_hourly_rate=0.60,
+                    hard_runtime_minutes=55,
+                    ports=("8000/http",),
+                )
+
+
+@pytest.mark.asyncio
+async def test_create_image_pod_template_still_required_without_image():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("no request should be made")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        async with _client(http_client) as client:
+            with pytest.raises(RunPodConfigurationError, match="RUNPOD_TEMPLATE_ID"):
+                await client.create_image_pod(
+                    template_id="",
+                    gpu_type_ids=("NVIDIA L4",),
+                    max_hourly_rate=0.60,
+                    hard_runtime_minutes=55,
+                    ports=("8000/http",),
+                )
 
 
 @pytest.mark.asyncio

@@ -273,8 +273,10 @@ class RunPodControlClient:
         image_name: str | None = None,
         container_start_cmd: str | None = None,
     ) -> PodInfo:
-        if not template_id.strip():
-            raise RunPodConfigurationError("RUNPOD_TEMPLATE_ID is required")
+        if not template_id.strip() and image_name is None:
+            raise RunPodConfigurationError(
+                "RUNPOD_TEMPLATE_ID is required unless image_name is supplied"
+            )
         normalized_gpu_ids = [item.strip() for item in gpu_type_ids if item.strip()]
         if not normalized_gpu_ids:
             raise RunPodConfigurationError("at least one GPU type ID is required")
@@ -310,21 +312,16 @@ class RunPodControlClient:
 
         if image_name is not None:
             normalized_image_name = image_name.strip()
-            normalized_container_start_cmd = (
-                container_start_cmd.strip()
-                if container_start_cmd
-                else ""
-            )
             if not normalized_image_name:
                 raise RunPodConfigurationError("image_name must not be empty")
-            if not normalized_container_start_cmd:
+            if container_start_cmd is not None:
                 raise RunPodConfigurationError(
-                    "explicit REST deployment requires container_start_cmd"
+                    "container_start_cmd is not supported for explicit-image "
+                    "deployment; the image's native ENTRYPOINT/CMD must start "
+                    "the worker (deploy by immutable digest instead)"
                 )
             return await self._create_image_pod_rest(
-                template_id=template_id,
                 image_name=normalized_image_name,
-                container_start_cmd=normalized_container_start_cmd,
                 gpu_type_ids=normalized_gpu_ids,
                 max_hourly_rate=max_hourly_rate,
                 ports=ports,
@@ -400,9 +397,7 @@ class RunPodControlClient:
     async def _create_image_pod_rest(
         self,
         *,
-        template_id: str,
         image_name: str,
-        container_start_cmd: str,
         gpu_type_ids: Sequence[str],
         max_hourly_rate: float,
         ports: Sequence[str],
@@ -418,8 +413,6 @@ class RunPodControlClient:
             "cloudType": cloud_type,
             "computeType": "GPU",
             "containerDiskInGb": container_disk_gb,
-            "dockerEntrypoint": ["/bin/sh", "-c"],
-            "dockerStartCmd": [container_start_cmd],
             "env": dict(sorted(pod_env.items())),
             "gpuCount": 1,
             "gpuTypeIds": list(gpu_type_ids),
@@ -518,30 +511,18 @@ class RunPodControlClient:
             allow_no_content=True,
         )
 
-    async def pod_logs(self, pod_id: str) -> str:
-        """Return the Pod's container output, or an explanation of why not.
+    async def get_pod_raw(self, pod_id: str) -> dict[str, Any]:
+        """Return the raw Pod resource exactly as RunPod reported it.
 
-        Diagnostic only, so it reports transport and API failures as text
-        instead of raising: it runs inside failure handling, where masking the
-        original error would be worse than losing the logs. When the worker
-        never binds its port there is nothing HTTP-reachable left to ask, and
-        this is the only view into why the container start command died.
+        Evidence source for runtime configuration (image, args, ports).
+        There is no ``/pods/{id}/logs`` endpoint in RunPod's REST spec, so
+        this resource — not container output — is the record of what the pod
+        was asked to run.
         """
-        if not pod_id.strip():
-            return "(no pod id)"
-        try:
-            payload = await self._request("GET", f"/pods/{pod_id}/logs")
-        except RunPodError as exc:
-            return f"(could not fetch Pod logs: {exc})"
-
-        if isinstance(payload, str):
-            return payload
-        if isinstance(payload, Mapping):
-            for key in ("logs", "output", "container", "data"):
-                value = payload.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value
-        return f"(unrecognized Pod log payload: {str(payload)[:300]})"
+        payload = await self._request("GET", f"/pods/{pod_id}")
+        if not isinstance(payload, Mapping):
+            raise RunPodApiError("RunPod Pod response was not an object")
+        return dict(payload)
 
     async def pod_billing(self, pod_id: str) -> list[dict[str, Any]]:
         payload = await self._request(

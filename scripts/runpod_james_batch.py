@@ -31,7 +31,6 @@ from gateway.runpod_worker import (  # noqa: E402
     RunPodWorkerNotListeningError,
 )
 
-RUNPOD_API_BASE = "https://rest.runpod.io/v1"
 WORKER_PORT = 8000
 # Long enough for RunPod to schedule the container and for bootstrap.sh to
 # bind its stage server; short enough that a dead start command costs
@@ -77,68 +76,52 @@ def _int_env(name: str, default: int) -> int:
     return int(raw) if raw else default
 
 
-async def _template_request(
-    client: httpx.AsyncClient,
-    api_key: str,
-    method: str,
-    path: str,
-    *,
-    params: Mapping[str, object] | None = None,
-    body: Mapping[str, object] | None = None,
-) -> Any:
-    response = await client.request(
-        method,
-        f"{RUNPOD_API_BASE}{path}",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        params=params,
-        json=dict(body) if body is not None else None,
-        timeout=45,
-    )
-    if response.status_code >= 400:
-        raise RuntimeError(
-            f"RunPod template {method} failed with {response.status_code}: "
-            f"{response.text[:500]}"
-        )
-    if response.status_code == 204 or not response.content:
-        return None
-    return response.json()
+_RUNTIME_EVIDENCE_KEYS = frozenset(
+    {
+        "id",
+        "name",
+        "desiredStatus",
+        "lastStatusChange",
+        "imageName",
+        "dockerId",
+        "containerDiskInGb",
+        "volumeInGb",
+        "volumeMountPath",
+        "gpuCount",
+        "machineId",
+        "podType",
+        "port",
+        "ports",
+    }
+)
 
 
-async def _direct_deployment_config(
-    client: httpx.AsyncClient,
-    *,
-    api_key: str,
-    source_template_id: str,
-    bootstrap_ref: str,
-) -> tuple[str, str]:
-    source = await _template_request(
-        client,
-        api_key,
-        "GET",
-        f"/templates/{source_template_id}",
-        params={"includePublicTemplates": True, "includeRunpodTemplates": True},
-    )
-    if not isinstance(source, Mapping):
-        raise RuntimeError("RunPod source template response was not an object")
-    image_name = str(source.get("imageName") or "").strip()
-    if not image_name:
-        raise RuntimeError("RunPod source template did not include imageName")
-
-    bootstrap_url = (
-        "https://raw.githubusercontent.com/jacob202/kitty/"
-        f"{bootstrap_ref}/workers/comfy_worker/bootstrap.sh"
-    )
-    container_start_cmd = (
-        "python3 -c \"import urllib.request; "
-        "open('/tmp/kitty-bootstrap.sh','wb').write("
-        f"urllib.request.urlopen('{bootstrap_url}', timeout=120).read())\" "
-        "&& chmod 700 /tmp/kitty-bootstrap.sh "
-        "&& exec /tmp/kitty-bootstrap.sh"
-    )
-    return image_name, container_start_cmd
+def _runtime_evidence(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Subset of the raw Pod resource safe to record: no env values, no keys
+    that may carry secrets. Env is reduced to key names only — the worker
+    bearer token lives in env, and RunPod pod logs are public in this repo."""
+    evidence = {
+        str(key): payload[key]
+        for key in _RUNTIME_EVIDENCE_KEYS
+        if key in payload
+    }
+    env = payload.get("env")
+    if isinstance(env, list):
+        evidence["env_keys"] = [
+            str(item.get("key"))
+            for item in env
+            if isinstance(item, Mapping) and item.get("key")
+        ]
+    runtime = payload.get("runtime")
+    if isinstance(runtime, Mapping):
+        ports = runtime.get("ports")
+        if isinstance(ports, list):
+            evidence["runtime_ports"] = [
+                {k: v for k, v in item.items() if k in {"publicPort", "privatePort", "type"}}
+                for item in ports
+                if isinstance(item, Mapping)
+            ]
+    return evidence
 
 
 async def _wait_for_pod(
@@ -147,18 +130,36 @@ async def _wait_for_pod(
     *,
     timeout_seconds: int,
     poll_seconds: float,
-) -> PodInfo:
+) -> tuple[PodInfo, list[dict[str, Any]], dict[str, Any]]:
     deadline = time.monotonic() + timeout_seconds
-    last_status = "UNKNOWN"
+    transitions: list[dict[str, Any]] = []
+    runtime_config: dict[str, Any] = {}
+    pod: PodInfo | None = None
     while time.monotonic() < deadline:
         pod = await client.get_pod(pod_id)
-        last_status = pod.desired_status
-        if last_status == "RUNNING":
-            return pod
-        if last_status in {"EXITED", "TERMINATED"}:
-            raise RuntimeError(f"Pod entered terminal state {last_status}")
+        if pod.desired_status != (transitions[-1]["desired_status"] if transitions else None):
+            transitions.append(
+                {
+                    "desired_status": pod.desired_status,
+                    "observed_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+        if pod.desired_status == "RUNNING":
+            raw = await client.get_pod_raw(pod_id)
+            runtime_config = _runtime_evidence(raw)
+            return pod, transitions, runtime_config
+        if pod.desired_status in {"EXITED", "TERMINATED"}:
+            raw = await client.get_pod_raw(pod_id)
+            runtime_config = _runtime_evidence(raw)
+            raise RuntimeError(
+                f"Pod entered terminal state {pod.desired_status}; "
+                f"transitions={transitions}; runtime={runtime_config}"
+            )
         await asyncio.sleep(poll_seconds)
-    raise RuntimeError(f"Pod readiness timeout; last status={last_status}")
+    raise RuntimeError(
+        "Pod readiness timeout; transitions="
+        f"{transitions}; last status={pod.desired_status if pod else 'never-seen'}"
+    )
 
 
 async def _wait_for_worker(
@@ -166,7 +167,7 @@ async def _wait_for_worker(
     *,
     timeout_seconds: int,
     poll_seconds: float,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     deadline = time.monotonic() + timeout_seconds
     # A 404 is survivable only while the container is still being scheduled and
     # the start command has not yet bound the port. Past this grace window it
@@ -174,9 +175,32 @@ async def _wait_for_worker(
     # bills GPU time for an answer we already have.
     not_listening_grace = time.monotonic() + NOT_LISTENING_GRACE_SECONDS
     last_error = "not contacted"
+    health_stage_history: list[dict[str, Any]] = []
     while time.monotonic() < deadline:
+        status_code, body = await client.read_health()
+        if status_code > 0 and body is not None:
+            sample = {
+                "status_code": status_code,
+                "status": body.get("status"),
+                "stage": body.get("stage"),
+                "exit_code": body.get("exit_code"),
+                "error": body.get("error"),
+            }
+            if not health_stage_history or health_stage_history[-1] != sample:
+                health_stage_history.append(sample)
         try:
-            return await client.assert_ready()
+            ready = await client.assert_ready()
+            await client.read_health()  # capture the final ready body
+            status_code, body = await client.read_health()
+            if body is not None:
+                sample = {
+                    "status_code": status_code,
+                    "status": body.get("status"),
+                    "stage": body.get("stage"),
+                }
+                if not health_stage_history or health_stage_history[-1] != sample:
+                    health_stage_history.append(sample)
+            return ready, health_stage_history
         except RunPodWorkerNotListeningError as exc:
             last_error = str(exc)
             if time.monotonic() > not_listening_grace:
@@ -184,7 +208,7 @@ async def _wait_for_worker(
                     "worker never bound its port: "
                     f"{NOT_LISTENING_GRACE_SECONDS}s of 404 responses. The "
                     "container start command did not run, so readiness will "
-                    f"never arrive. {last_error}"
+                    f"never arrive. stage_history={health_stage_history} {last_error}"
                 ) from exc
             await asyncio.sleep(poll_seconds)
         except (httpx.HTTPError, RunPodWorkerError) as exc:
@@ -192,7 +216,10 @@ async def _wait_for_worker(
             # progress is being made — keep waiting for the full timeout.
             last_error = str(exc)
             await asyncio.sleep(poll_seconds)
-    raise RuntimeError(f"worker readiness timeout: {last_error}")
+    raise RuntimeError(
+        f"worker readiness timeout: {last_error} "
+        f"stage_history={health_stage_history}"
+    )
 
 
 def _validate_image(data: bytes, expected_sha256: str) -> tuple[int, int, str]:
@@ -211,13 +238,15 @@ def _validate_image(data: bytes, expected_sha256: str) -> tuple[int, int, str]:
 
 async def run(args: argparse.Namespace) -> Path:
     api_key = _required_env("RUNPOD_API_KEY")
-    source_template_id = os.environ.get("RUNPOD_TEMPLATE_ID", "2lv7ev3wfp").strip()
+    worker_image = _required_env("KITTY_WORKER_IMAGE")
+    if "@sha256:" not in worker_image or not worker_image.startswith(("ghcr.io/", "docker.io/")):
+        raise RuntimeError(
+            "KITTY_WORKER_IMAGE must be an immutable digest reference, "
+            "e.g. ghcr.io/jacob202/kitty/comfy-worker@sha256:..."
+        )
     worker_token = _required_env("KITTY_WORKER_BEARER_TOKEN")
     if len(worker_token) < 32:
         raise RuntimeError("KITTY_WORKER_BEARER_TOKEN must contain at least 32 characters")
-    bootstrap_ref = os.environ.get("KITTY_BOOTSTRAP_REF", "").strip()
-    if not bootstrap_ref:
-        raise RuntimeError("KITTY_BOOTSTRAP_REF is required")
 
     checkpoint = os.environ.get("COMFY_CHECKPOINT", "RealVisXL_V4.0.safetensors")
     checkpoint_url = os.environ.get(
@@ -241,10 +270,12 @@ async def run(args: argparse.Namespace) -> Path:
         raise RuntimeError("attempts must be at least 1")
 
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(3)
-    temp_template_id: str | None = None
-    temp_image_name: str | None = None
-    temp_container_start_cmd: str = ""
     pod: PodInfo | None = None
+    pod_transitions: list[dict[str, Any]] = []
+    pod_runtime: dict[str, Any] = {}
+    health_stage_history: list[dict[str, Any]] = []
+    billing_records: list[dict[str, Any]] = []
+    billing_errors: list[str] = []
     started = time.monotonic()
     records: list[dict[str, Any]] = []
     cleanup_errors: list[str] = []
@@ -252,18 +283,9 @@ async def run(args: argparse.Namespace) -> Path:
 
     async with httpx.AsyncClient() as http_client:
         try:
-            (
-                temp_image_name,
-                temp_container_start_cmd,
-            ) = await _direct_deployment_config(
-                http_client,
-                api_key=api_key,
-                source_template_id=source_template_id,
-                bootstrap_ref=bootstrap_ref,
-            )
             async with RunPodControlClient(api_key) as runpod:
                 pod = await runpod.create_image_pod(
-                    template_id=source_template_id,
+                    template_id="",
                     gpu_type_ids=(
                         "NVIDIA GeForce RTX 3090",
                         "NVIDIA RTX A5000",
@@ -276,7 +298,6 @@ async def run(args: argparse.Namespace) -> Path:
                     container_disk_gb=50,
                     volume_gb=20,
                     env={
-                        "KITTY_BOOTSTRAP_REF": bootstrap_ref,
                         "KITTY_WORKER_BEARER_TOKEN": worker_token,
                         "COMFY_CHECKPOINT": checkpoint,
                         "COMFY_CHECKPOINT_URL": checkpoint_url,
@@ -285,10 +306,9 @@ async def run(args: argparse.Namespace) -> Path:
                         "COMFYUI_PYTHON": "python3",
                     },
                     name_suffix=f"james-{run_id}",
-                    image_name=temp_image_name,
-                    container_start_cmd=temp_container_start_cmd,
+                    image_name=worker_image,
                 )
-                pod = await _wait_for_pod(
+                pod, pod_transitions, pod_runtime = await _wait_for_pod(
                     runpod,
                     pod.pod_id,
                     timeout_seconds=ready_timeout,
@@ -306,23 +326,12 @@ async def run(args: argparse.Namespace) -> Path:
                     print(f"comfy-proxy 8188 unreachable: {exc}", flush=True)
                 worker_url = pod.proxy_url(WORKER_PORT)
                 async with RunPodWorkerClient(worker_url, worker_token) as worker:
-                    try:
-                        health = await _wait_for_worker(
-                            worker,
-                            timeout_seconds=ready_timeout,
-                            poll_seconds=poll_seconds,
-                        )
-                    except RuntimeError:
-                        # The worker never answered, so the container's own
-                        # output is the only remaining evidence of why.
-                        logs = await runpod.pod_logs(pod.pod_id)
-                        print(
-                            "----- RunPod container logs -----\n"
-                            f"{logs}\n"
-                            "----- end container logs -----",
-                            flush=True,
-                        )
-                        raise
+                    health, stage_history = await _wait_for_worker(
+                        worker,
+                        timeout_seconds=ready_timeout,
+                        poll_seconds=poll_seconds,
+                    )
+                    health_stage_history = stage_history
                     for index, prompt in enumerate(prompts, start=1):
                         seed = secrets.randbits(63)
                         submitted = await worker.submit(
@@ -373,15 +382,20 @@ async def run(args: argparse.Namespace) -> Path:
                 try:
                     async with RunPodControlClient(api_key) as cleanup_client:
                         await cleanup_client.delete_pod(pod.pod_id)
+                        try:
+                            billing = await cleanup_client.pod_billing(pod.pod_id)
+                            billing_records.extend(billing)
+                        except Exception as exc:  # evidence, not the primary failure
+                            billing_errors.append(f"Pod {pod.pod_id} billing: {exc}")
                 except Exception as exc:  # cleanup must be reported alongside original failure
                     cleanup_errors.append(f"Pod {pod.pod_id}: {exc}")
 
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "run_id": run_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "source_template_id": source_template_id,
-        "temporary_template_id": temp_template_id,
+        "worker_image": worker_image,
+        "image_digest": worker_image.split("@sha256:", 1)[1][:64],
         "pod_id": pod.pod_id if pod else None,
         "gpu": pod.gpu_name if pod else None,
         "hourly_rate_usd": pod.hourly_rate if pod else None,
@@ -391,9 +405,15 @@ async def run(args: argparse.Namespace) -> Path:
         ),
         "checkpoint": checkpoint,
         "checkpoint_sha256": checkpoint_sha,
+        "pod_transitions": pod_transitions,
+        "runtime_config": pod_runtime,
+        "health_stage_history": health_stage_history,
+        "billing_records": billing_records,
+        "billing_errors": billing_errors,
+        "cleanup_errors": cleanup_errors,
+        "cleanup_succeeded": not cleanup_errors,
         "attempts": records,
         "failure": str(failure) if failure is not None else None,
-        "cleanup_errors": cleanup_errors,
     }
     manifest_path = output_dir / f"james-batch-{run_id}.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
