@@ -122,15 +122,19 @@ jobs:
             // Dependabot cannot write `Manual approval: YES` into a PR body, so a
             // hard failure here would pin every dependency PR red forever. The
             // risk labels still apply — only the blocking failure is waived.
-            const isBotAuthor = context.payload.pull_request.user.login.endsWith("[bot]");
+            //
+            // Matched exactly, not by an `endsWith("[bot]")` test: Copilot and any
+            // future app would otherwise inherit the waiver, and those open PRs
+            // carrying real code and workflow changes.
+            const isDependabot = context.payload.pull_request.user.login === "dependabot[bot]";
 
-            if (isRisky && !hasManualApproval && !isBotAuthor) {
+            if (isRisky && !hasManualApproval && !isDependabot) {
               core.setFailed(
                 "Risky scope detected without manual approval. Update PR body with `Manual approval: YES` or check the risky-scope manual approval checkbox."
               );
-            } else if (isRisky && !hasManualApproval && isBotAuthor) {
+            } else if (isRisky && !hasManualApproval && isDependabot) {
               core.warning(
-                `Risky scope on bot PR by ${context.payload.pull_request.user.login} — labeled, not blocked. Human review still required before merge.`
+                "Risky scope on a Dependabot PR — labeled, not blocked. Human review still required before merge."
               );
             }
 
