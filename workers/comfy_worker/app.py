@@ -1,4 +1,4 @@
-"""Authenticated, allowlisted Kitty worker that fronts a private ComfyUI server."""
+"""Authenticated, allowlisted Kitty front-end for a private ComfyUI process."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import math
 import os
 import time
 import uuid
@@ -13,18 +14,21 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Mapping, Sequence, cast
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.responses import FileResponse, JSONResponse
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field, field_validator
 
 DEFAULT_COMFY_URL = "http://127.0.0.1:8188"
 DEFAULT_WORKFLOW_ROOT = Path("/opt/kitty/workflows")
 DEFAULT_JOB_ROOT = Path("/workspace/jobs")
 MAX_REQUEST_BYTES = 128 * 1024
+MAX_IMAGE_PIXELS = 100_000_000
 
 
 class WorkerConfigurationError(RuntimeError):
@@ -65,6 +69,13 @@ class JobRequest(BaseModel):
             raise ValueError("dimensions must be divisible by 8")
         return value
 
+    @field_validator("guidance")
+    @classmethod
+    def guidance_is_finite(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("guidance must be finite")
+        return value
+
     @field_validator("checkpoint")
     @classmethod
     def checkpoint_is_a_basename(cls, value: str | None) -> str | None:
@@ -76,6 +87,14 @@ class JobRequest(BaseModel):
         if Path(clean).name != clean or "/" in clean or "\\" in clean:
             raise ValueError("checkpoint must be a filename, not a path")
         return clean
+
+    @field_validator("client_action_id")
+    @classmethod
+    def action_id_is_not_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        clean = value.strip()
+        return clean or None
 
 
 @dataclass(frozen=True)
@@ -139,9 +158,12 @@ class WorkerConfig:
             raise WorkerConfigurationError(
                 "KITTY_GENERATION_TIMEOUT_SECONDS must be positive"
             )
-        if self.poll_interval_seconds <= 0:
+        if (
+            not math.isfinite(self.poll_interval_seconds)
+            or self.poll_interval_seconds <= 0
+        ):
             raise WorkerConfigurationError(
-                "KITTY_POLL_INTERVAL_SECONDS must be positive"
+                "KITTY_POLL_INTERVAL_SECONDS must be positive and finite"
             )
         if self.max_request_bytes <= 0:
             raise WorkerConfigurationError(
@@ -157,6 +179,8 @@ class OutputAsset:
     size_bytes: int
     sha256: str
     path: str
+    width: int
+    height: int
 
 
 @dataclass
@@ -182,9 +206,9 @@ class JobRecord:
                 "media_type": item.media_type,
                 "size_bytes": item.size_bytes,
                 "sha256": item.sha256,
-                "download_url": (
-                    f"/v1/jobs/{self.job_id}/outputs/{item.asset_id}"
-                ),
+                "width": item.width,
+                "height": item.height,
+                "download_url": f"/v1/jobs/{self.job_id}/outputs/{item.asset_id}",
             }
             for item in self.outputs
         ]
@@ -210,7 +234,7 @@ class WorkflowBundle:
         manifest_path = bundle_dir / "manifest.yaml"
         try:
             workflow_bytes = workflow_path.read_bytes()
-            workflow = json.loads(workflow_bytes)
+            workflow_raw = json.loads(workflow_bytes)
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except FileNotFoundError as exc:
             raise WorkerConfigurationError(
@@ -222,21 +246,34 @@ class WorkflowBundle:
             ) from exc
 
         actual_hash = hashlib.sha256(workflow_bytes).hexdigest()
-        expected_hash = str(manifest.get("workflow_sha256") or "")
-        if actual_hash != expected_hash:
+        if actual_hash != str(manifest.get("workflow_sha256") or ""):
             raise WorkerConfigurationError(
                 f"workflow {workflow_id!r} hash mismatch"
             )
         if str(manifest.get("workflow_id") or "") != workflow_id:
             raise WorkerConfigurationError("workflow manifest id mismatch")
-        if not isinstance(workflow, dict):
+        if not isinstance(workflow_raw, dict):
             raise WorkerConfigurationError("workflow must be a JSON object")
+        workflow = cast(dict[str, Any], workflow_raw)
+
+        required_types: set[str] = set()
+        for node_id, raw_node in workflow.items():
+            if not isinstance(raw_node, dict):
+                raise WorkerConfigurationError(
+                    f"workflow node {node_id!r} is not an object"
+                )
+            class_type = str(raw_node.get("class_type") or "")
+            inputs = raw_node.get("inputs")
+            if not class_type or not isinstance(inputs, dict):
+                raise WorkerConfigurationError(
+                    f"workflow node {node_id!r} is incomplete"
+                )
+            required_types.add(class_type)
 
         raw_bindings = manifest.get("bindings")
         if not isinstance(raw_bindings, dict):
             raise WorkerConfigurationError("workflow manifest bindings are invalid")
         bindings: dict[str, dict[str, str]] = {}
-        required_types: set[str] = set()
         for name, raw_binding in raw_bindings.items():
             if not isinstance(raw_binding, dict):
                 raise WorkerConfigurationError(f"binding {name!r} is invalid")
@@ -263,24 +300,20 @@ class WorkflowBundle:
                 raise WorkerConfigurationError(
                     f"binding {name!r} references a missing input"
                 )
-            required_types.add(binding["expected_class_type"])
             bindings[str(name)] = binding
 
         raw_output_nodes = manifest.get("output_nodes")
         if not isinstance(raw_output_nodes, list) or not raw_output_nodes:
             raise WorkerConfigurationError("workflow output_nodes are invalid")
         output_nodes = frozenset(str(item) for item in raw_output_nodes)
-        for node_id in output_nodes:
-            node = workflow.get(node_id)
-            if not isinstance(node, dict):
-                raise WorkerConfigurationError("workflow output node is missing")
-            required_types.add(str(node.get("class_type") or ""))
+        if any(node_id not in workflow for node_id in output_nodes):
+            raise WorkerConfigurationError("workflow output node is missing")
 
         return cls(
             workflow_id=workflow_id,
             workflow_version=int(manifest.get("workflow_version") or 1),
             workflow_sha256=actual_hash,
-            workflow=cast(dict[str, Any], workflow),
+            workflow=workflow,
             bindings=bindings,
             output_nodes=output_nodes,
             required_node_types=frozenset(required_types),
@@ -318,6 +351,7 @@ class WorkerRuntime:
         self.config = config
         self.jobs: dict[str, JobRecord] = {}
         self.tasks: dict[str, asyncio.Task[None]] = {}
+        self.action_index: dict[str, str] = {}
         self.execution_lock = asyncio.Lock()
         self._owns_client = client is None
         self.client = client or httpx.AsyncClient(timeout=30.0)
@@ -325,9 +359,11 @@ class WorkerRuntime:
         self._load_existing_jobs()
 
     async def close(self) -> None:
-        for task in self.tasks.values():
-            if not task.done():
-                task.cancel()
+        pending = [task for task in self.tasks.values() if not task.done()]
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
         if self._owns_client:
             await self.client.aclose()
 
@@ -344,10 +380,11 @@ class WorkerRuntime:
                     for item in raw.get("outputs", [])
                     if isinstance(item, dict)
                 ]
+                request = dict(raw.get("request") or {})
                 record = JobRecord(
                     job_id=str(raw["job_id"]),
                     status=status_value,
-                    request=dict(raw.get("request") or {}),
+                    request=request,
                     workflow_sha256=str(raw.get("workflow_sha256") or ""),
                     created_at=str(raw.get("created_at") or _utc_now()),
                     updated_at=_utc_now(),
@@ -361,6 +398,9 @@ class WorkerRuntime:
                     outputs=outputs,
                 )
                 self.jobs[record.job_id] = record
+                action_id = request.get("client_action_id")
+                if isinstance(action_id, str) and action_id:
+                    self.action_index[action_id] = record.job_id
                 self._persist(record)
             except (KeyError, TypeError, ValueError, json.JSONDecodeError):
                 continue
@@ -373,6 +413,21 @@ class WorkerRuntime:
         tmp_path = job_dir / "job.json.tmp"
         tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         tmp_path.replace(job_dir / "job.json")
+
+    def existing_for_action(self, request: JobRequest) -> JobRecord | None:
+        if request.client_action_id is None:
+            return None
+        job_id = self.action_index.get(request.client_action_id)
+        if job_id is None:
+            return None
+        return self.jobs.get(job_id)
+
+    def register(self, record: JobRecord) -> None:
+        action_id = record.request.get("client_action_id")
+        if isinstance(action_id, str) and action_id:
+            self.action_index[action_id] = record.job_id
+        self.jobs[record.job_id] = record
+        self._persist(record)
 
     def update(
         self,
@@ -408,8 +463,7 @@ class WorkerRuntime:
             raise WorkerConfigurationError(
                 "ComfyUI is missing required nodes: " + ", ".join(missing)
             )
-        loader = payload.get("CheckpointLoaderSimple")
-        installed = _checkpoint_options(loader)
+        installed = _checkpoint_options(payload.get("CheckpointLoaderSimple"))
         if installed and checkpoint not in installed:
             raise WorkerConfigurationError(
                 f"checkpoint {checkpoint!r} is not installed"
@@ -513,9 +567,8 @@ class WorkerRuntime:
                 f"{self.config.comfy_url}/history/{record.prompt_id}"
             )
             response.raise_for_status()
-            payload = response.json()
             outputs = _history_outputs(
-                payload, record.prompt_id, bundle.output_nodes
+                response.json(), record.prompt_id, bundle.output_nodes
             )
             if outputs:
                 return await self._download_outputs(record, outputs)
@@ -540,24 +593,27 @@ class WorkerRuntime:
                 },
             )
             response.raise_for_status()
-            if not response.content:
-                raise WorkerConfigurationError("ComfyUI returned an empty image")
-            suffix = Path(output["filename"]).suffix.lower()
-            if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
-                suffix = ".png"
+            image_bytes = response.content
+            content_type = response.headers.get("content-type", "").split(";", 1)[0]
+            if not content_type.startswith("image/"):
+                raise WorkerConfigurationError(
+                    f"ComfyUI output had non-image content type {content_type!r}"
+                )
+            image_format, width, height = _validate_image_bytes(image_bytes)
+            suffix, media_type = _image_format_metadata(image_format)
             asset_id = f"asset-{index + 1}"
             local_path = output_dir / f"{asset_id}{suffix}"
-            local_path.write_bytes(response.content)
-            digest = hashlib.sha256(response.content).hexdigest()
-            media_type = _media_type_for_suffix(suffix)
+            local_path.write_bytes(image_bytes)
             assets.append(
                 OutputAsset(
                     asset_id=asset_id,
                     filename=local_path.name,
                     media_type=media_type,
-                    size_bytes=len(response.content),
-                    sha256=digest,
+                    size_bytes=len(image_bytes),
+                    sha256=hashlib.sha256(image_bytes).hexdigest(),
                     path=str(local_path),
+                    width=width,
+                    height=height,
                 )
             )
         provenance_path = self.config.job_root / record.job_id / "provenance.json"
@@ -603,7 +659,7 @@ def create_app(
 ) -> FastAPI:
     worker_config = config or WorkerConfig.from_env()
     runtime = WorkerRuntime(worker_config, client=client)
-    app = FastAPI(title="Kitty Comfy Worker", version="0.1.0")
+    app = FastAPI(title="Kitty Comfy Worker", version="0.2.0")
     app.state.runtime = runtime
 
     async def require_auth(
@@ -650,10 +706,15 @@ def create_app(
             await runtime.assert_comfy_ready(
                 bundle, worker_config.default_checkpoint
             )
-        except (WorkerConfigurationError, httpx.HTTPError) as exc:
+        except WorkerConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_424_FAILED_DEPENDENCY,
+                detail={"kind": "configuration", "message": str(exc)},
+            ) from exc
+        except httpx.HTTPError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=str(exc),
+                detail={"kind": "starting", "message": str(exc)},
             ) from exc
         return {
             "status": "ok",
@@ -668,6 +729,15 @@ def create_app(
         dependencies=[Depends(require_auth)],
     )
     async def create_job(request: JobRequest) -> dict[str, Any]:
+        normalized_request = request.model_dump()
+        existing = runtime.existing_for_action(request)
+        if existing is not None:
+            if existing.request != normalized_request:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="client_action_id already belongs to another request",
+                )
+            return existing.public_dict()
         try:
             bundle = WorkflowBundle.load(
                 worker_config.workflow_root, request.workflow_id
@@ -688,13 +758,12 @@ def create_app(
         record = JobRecord(
             job_id=job_id,
             status=JobStatus.QUEUED,
-            request=request.model_dump(),
+            request=normalized_request,
             workflow_sha256=bundle.workflow_sha256,
             created_at=now,
             updated_at=now,
         )
-        runtime.jobs[job_id] = record
-        runtime._persist(record)
+        runtime.register(record)
         task = asyncio.create_task(
             runtime.execute(record, request, bundle, checkpoint)
         )
@@ -764,10 +833,9 @@ def create_app(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="output not found",
             )
-        path = Path(asset.path)
         expected_root = (worker_config.job_root / job_id / "outputs").resolve()
         try:
-            resolved = path.resolve(strict=True)
+            resolved = Path(asset.path).resolve(strict=True)
             resolved.relative_to(expected_root)
         except (FileNotFoundError, ValueError) as exc:
             raise HTTPException(
@@ -873,9 +941,34 @@ def _history_outputs(
     return found
 
 
-def _media_type_for_suffix(suffix: str) -> str:
-    return {
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".webp": "image/webp",
-    }.get(suffix, "image/png")
+def _validate_image_bytes(image_bytes: bytes) -> tuple[str, int, int]:
+    if not image_bytes:
+        raise WorkerConfigurationError("ComfyUI returned an empty image")
+    try:
+        with Image.open(BytesIO(image_bytes)) as image:
+            image_format = str(image.format or "").upper()
+            width, height = image.size
+            image.verify()
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise WorkerConfigurationError(
+            "ComfyUI returned bytes that are not a valid image"
+        ) from exc
+    if not image_format or width <= 0 or height <= 0:
+        raise WorkerConfigurationError("ComfyUI returned invalid image metadata")
+    if width * height > MAX_IMAGE_PIXELS:
+        raise WorkerConfigurationError("ComfyUI image exceeds the pixel limit")
+    return image_format, width, height
+
+
+def _image_format_metadata(image_format: str) -> tuple[str, str]:
+    metadata = {
+        "JPEG": (".jpg", "image/jpeg"),
+        "PNG": (".png", "image/png"),
+        "WEBP": (".webp", "image/webp"),
+    }
+    try:
+        return metadata[image_format]
+    except KeyError as exc:
+        raise WorkerConfigurationError(
+            f"unsupported image format {image_format!r}"
+        ) from exc
