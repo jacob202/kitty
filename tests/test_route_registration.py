@@ -9,4 +9,5 @@ def test_product_routes_are_mounted_on_the_gateway_app():
         "/settings/personality",
         "/session/context",
         "/usage/summary",
+        "/chronicle/tips",
     } <= paths
