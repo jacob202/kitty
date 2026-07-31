@@ -1,5 +1,12 @@
 # Active Mission — Phase 2 Life-First Home Truth
 
+**Roadmap phase:** Phase 2 ("Life-First Daily Driver") in `docs/ROADMAP.md`
+**Mission ID:** KLF-001
+**Status:** Running
+**Phase linkage:** This mission sits within Phase 2 of the roadmap. Phase 2 was
+not defined when KLF-001 was authored; the roadmap now defines it and this
+mission is its active execution thread.
+
 <!-- kitty-mission
 {
   "schema_version": 1,
