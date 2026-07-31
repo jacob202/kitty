@@ -8,12 +8,14 @@ from typing import Any, Mapping, Sequence
 
 import httpx
 
+from gateway.runpod_control import RunPodConfigurationError
+
 
 class RunPodWorkerError(RuntimeError):
     """The Kitty worker returned an error or malformed response."""
 
 
-class RunPodWorkerConfigurationError(RunPodWorkerError):
+class RunPodWorkerConfigurationError(RunPodConfigurationError):
     """The worker is reachable but cannot run the installed workflow."""
 
 
@@ -129,8 +131,9 @@ class RunPodWorkerClient:
     async def assert_ready(self) -> dict[str, Any]:
         response = await self._client.get(f"{self._base_url}/health")
         if response.status_code == 424:
-            message = _health_error_message(response)
-            raise RunPodWorkerConfigurationError(message)
+            raise RunPodWorkerConfigurationError(
+                _health_error_message(response)
+            )
         if response.status_code >= 400:
             raise RunPodWorkerError(
                 f"worker health returned {response.status_code}: "
