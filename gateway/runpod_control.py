@@ -14,6 +14,12 @@ import httpx
 
 RUNPOD_API_BASE = "https://rest.runpod.io/v1"
 KITTY_POD_PREFIX = "kitty-image-"
+_RESERVED_ENV_KEYS = frozenset(
+    {
+        "KITTY_MANAGED",
+        "KITTY_SESSION_EXPIRES_AT",
+    }
+)
 
 
 class RunPodError(RuntimeError):
@@ -250,14 +256,20 @@ class RunPodControlClient:
             now.timestamp() + hard_runtime_minutes * 60,
             tz=timezone.utc,
         )
-        suffix = name_suffix or now.strftime("%Y%m%d-%H%M%S")
         pod_env = {
-            "KITTY_MANAGED": "1",
-            "KITTY_SESSION_EXPIRES_AT": expires_at.isoformat(),
+            str(key): str(value)
+            for key, value in (env or {}).items()
+            if str(key) not in _RESERVED_ENV_KEYS
         }
-        if env:
-            pod_env.update({str(key): str(value) for key, value in env.items()})
+        # Required safety markers are applied last so callers cannot override them.
+        pod_env.update(
+            {
+                "KITTY_MANAGED": "1",
+                "KITTY_SESSION_EXPIRES_AT": expires_at.isoformat(),
+            }
+        )
 
+        suffix = name_suffix or now.strftime("%Y%m%d-%H%M%S")
         body: dict[str, object] = {
             "name": f"{KITTY_POD_PREFIX}{suffix}",
             "cloudType": cloud_type,
