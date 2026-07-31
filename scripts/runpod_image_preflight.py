@@ -49,6 +49,47 @@ def _run(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
     return process
 
 
+def inspect_health_probe() -> str:
+    """Python source executed inside the container.
+
+    Polls /health until ready, keeps polling through the expected bootstrap
+    503s, fails immediately on a structured failed body, and prints the final
+    state on timeout.
+    """
+    return r"""
+import json
+import time
+import urllib.error
+import urllib.request
+
+deadline = time.monotonic() + 180
+last = None
+while time.monotonic() < deadline:
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8000/health", timeout=5) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
+        try:
+            body = json.loads(raw)
+        except json.JSONDecodeError:
+            body = {"status": "starting", "stage": raw[:200]}
+    except Exception:
+        body = {"status": "starting", "stage": "bootstrap-starting"}
+    last = body
+    status = body.get("status")
+    if status == "failed":
+        print(json.dumps(body))
+        raise SystemExit(2)
+    if status == "ready" and body.get("stage") == "ready":
+        print(json.dumps(body))
+        raise SystemExit(0)
+    time.sleep(3)
+print("timeout: " + json.dumps(last))
+raise SystemExit(1)
+"""
+
+
 def _wait_health(base_url: str, timeout: int) -> tuple[int, dict]:
     import urllib.request
 
@@ -146,6 +187,7 @@ def preflight(image: str) -> None:
         print("PREFLIGHT_FAILED container did not remain running")
         raise SystemExit(1)
 
+    in_container_probe = inspect_health_probe()
     health = _run(
         [
             "docker",
@@ -153,14 +195,20 @@ def preflight(image: str) -> None:
             ready_container,
             "python3",
             "-c",
-            "import json,urllib.request; print(json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5))['status'])",
+            in_container_probe,
         ],
         check=False,
     )
-    if health.returncode != 0:
-        print(f"PREFLIGHT_FAILED in-container health probe: {health.stdout}{health.stderr}")
+    if health.returncode == 2:
+        print(f"PREFLIGHT_FAILED in-container report: {health.stdout.strip()}")
         raise SystemExit(1)
-    print(f"PREFLIGHT_IN_CONTAINER_HEALTH status={health.stdout.strip()}")
+    if health.returncode != 0:
+        print(
+            f"PREFLIGHT_FAILED in-container health probe: "
+            f"{health.stdout.strip()}{health.stderr.strip()}"
+        )
+        raise SystemExit(1)
+    print(f"PREFLIGHT_IN_CONTAINER_HEALTH {health.stdout.strip()}")
 
     imports = _run(
         [
