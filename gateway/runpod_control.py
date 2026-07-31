@@ -518,6 +518,31 @@ class RunPodControlClient:
             allow_no_content=True,
         )
 
+    async def pod_logs(self, pod_id: str) -> str:
+        """Return the Pod's container output, or an explanation of why not.
+
+        Diagnostic only, so it reports transport and API failures as text
+        instead of raising: it runs inside failure handling, where masking the
+        original error would be worse than losing the logs. When the worker
+        never binds its port there is nothing HTTP-reachable left to ask, and
+        this is the only view into why the container start command died.
+        """
+        if not pod_id.strip():
+            return "(no pod id)"
+        try:
+            payload = await self._request("GET", f"/pods/{pod_id}/logs")
+        except RunPodError as exc:
+            return f"(could not fetch Pod logs: {exc})"
+
+        if isinstance(payload, str):
+            return payload
+        if isinstance(payload, Mapping):
+            for key in ("logs", "output", "container", "data"):
+                value = payload.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value
+        return f"(unrecognized Pod log payload: {str(payload)[:300]})"
+
     async def pod_billing(self, pod_id: str) -> list[dict[str, Any]]:
         payload = await self._request(
             "GET",

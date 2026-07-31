@@ -306,11 +306,23 @@ async def run(args: argparse.Namespace) -> Path:
                     print(f"comfy-proxy 8188 unreachable: {exc}", flush=True)
                 worker_url = pod.proxy_url(WORKER_PORT)
                 async with RunPodWorkerClient(worker_url, worker_token) as worker:
-                    health = await _wait_for_worker(
-                        worker,
-                        timeout_seconds=ready_timeout,
-                        poll_seconds=poll_seconds,
-                    )
+                    try:
+                        health = await _wait_for_worker(
+                            worker,
+                            timeout_seconds=ready_timeout,
+                            poll_seconds=poll_seconds,
+                        )
+                    except RuntimeError:
+                        # The worker never answered, so the container's own
+                        # output is the only remaining evidence of why.
+                        logs = await runpod.pod_logs(pod.pod_id)
+                        print(
+                            "----- RunPod container logs -----\n"
+                            f"{logs}\n"
+                            "----- end container logs -----",
+                            flush=True,
+                        )
+                        raise
                     for index, prompt in enumerate(prompts, start=1):
                         seed = secrets.randbits(63)
                         submitted = await worker.submit(
