@@ -1,6 +1,6 @@
 {
-  "image_ref": "ghcr.io/jacob202/kitty/comfy-worker:e072fa37fa1c92502d904c1f238715898cf9cb40",
-  "digest": "sha256:6cd5fb15706046dc556fe343da0cb94957321a3b12699221b0472acf5822bada",
-  "built_at": "2026-07-31T15:39:26-06:00",
-  "build_run": "30667345410"
+  "image_ref": "ghcr.io/jacob202/kitty/comfy-worker:2e3a30953a9a7ede6d236c37e2a8dec188e769c1",
+  "digest": "sha256:d7a169873dba35826ce0409707bc29ba504f325113dc4917007499036902d3f6",
+  "built_at": "2026-07-31T15:55:17-06:00",
+  "build_run": "30668234976"
 }
