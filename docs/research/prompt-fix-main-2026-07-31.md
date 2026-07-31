@@ -1,5 +1,12 @@
 # Handoff prompt — get `main` green (copy-paste to executor agent)
 
+> **Tasks 1–4 are already done in PR #327. Start at Task 5.**
+>
+> An executor running Tasks 1–4 now will collide with that branch on the same
+> files. #327 carries the labeler v5 migration, the `pr-test-hints` permission
+> fix, the Dependabot waiver, and the `pr-review-routing` deletion. Tasks 5, 6,
+> and 7 are still open and are what actually turns `main` green.
+
 Context for Jacob, not the executor: this is scoped to make CI green plus two
 decisions he already approved. The code-quality findings (F6 chronicle dead
 code, F7 UTC bug) are deliberately excluded — separate packet, listed at the
@@ -113,20 +120,23 @@ Replace it with:
             // Dependabot cannot write `Manual approval: YES` into a PR body, so a
             // hard failure here would pin every dependency PR red forever. The
             // risk labels still apply — only the blocking failure is waived.
-            const isBotAuthor = context.payload.pull_request.user.login.endsWith("[bot]");
+            // Matched exactly, not by an `endsWith` test on "[bot]": Copilot and any
+            // future app would otherwise inherit the waiver, and those open PRs
+            // carrying real code and workflow changes.
+            const isDependabot = context.payload.pull_request.user.login === "dependabot[bot]";
 
-            if (isRisky && !hasManualApproval && !isBotAuthor) {
+            if (isRisky && !hasManualApproval && !isDependabot) {
               core.setFailed(
                 "Risky scope detected without manual approval. Update PR body with `Manual approval: YES` or check the risky-scope manual approval checkbox."
               );
-            } else if (isRisky && !hasManualApproval && isBotAuthor) {
+            } else if (isRisky && !hasManualApproval && isDependabot) {
               core.warning(
-                `Risky scope on bot PR by ${context.payload.pull_request.user.login} — labeled, not blocked. Human review still required before merge.`
+                "Risky scope on a Dependabot PR — labeled, not blocked. Human review still required before merge."
               );
             }
 ```
 
-**Verify:** `grep -n 'isBotAuthor' .github/workflows/pr-risk-guardrails.yml` — expect three hits.
+**Verify:** `grep -n 'isDependabot' .github/workflows/pr-risk-guardrails.yml` — expect three hits, and `grep -c 'endsWith' ...` — expect 0.
 
 ---
 
@@ -143,6 +153,13 @@ git rm .github/workflows/pr-review-routing.yml
 Then grep the repo for references to it and remove any that exist — check
 `docs/WORKFLOW.md` in particular, which documents the workflow set. Update that
 doc's prose so it no longer lists review routing.
+
+Known tradeoff, accepted by Jacob: on a **bot**-authored PR the author is not
+`jacob202`, so routing does currently request him as reviewer. Deleting it drops
+that automatic request on the 13 Dependabot PRs at the same time Task 3 downgrades
+their hard failure to a warning. The `risk/high` label still lands and still gates
+merge, and on a single-maintainer repo a self-review-request is weak signal — but
+it is a real loss, not a no-op.
 
 **Verify:** `grep -rn 'pr-review-routing\|Review Routing\|review-routing' . --exclude-dir=.git --exclude-dir=node_modules` — expect hits only under `docs/research/`.
 
@@ -260,6 +277,11 @@ Add to `.gitignore`, next to the existing `.opencode/` entry:
 .omo/
 .ocx/
 ```
+
+**STOP — get Jacob's explicit approval before this next step.** `git rm --cached`
+records repository deletions, which repo policy treats as work requiring his
+sign-off, even though local copies survive. Tasks 3 and 4 carry his approval;
+this one does not yet. Ask, then proceed.
 
 Then untrack what is already committed, without deleting anyone's local files:
 
