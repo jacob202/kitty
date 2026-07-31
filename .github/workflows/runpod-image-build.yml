@@ -28,6 +28,8 @@ jobs:
       image_ref: ${{ steps.ref.outputs.image_ref }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Short-circuit on the digest-record commit itself
         if: "startsWith(github.event.head_commit.message, 'chore(runpod): record worker image digest')"
@@ -82,8 +84,8 @@ jobs:
           cat > workers/comfy_worker/worker-image.json <<JSON
           {
             "image_ref": "ghcr.io/jacob202/kitty/comfy-worker:${{ github.sha }}",
-            "digest": "sha256:${{ steps.push.outputs.digest }}",
-            "built_at": "${{ github.event.repository.updated_at }}",
+            "digest": "${{ steps.push.outputs.digest }}",
+            "built_at": "${{ github.event.head_commit.timestamp }}",
             "build_run": "${{ github.run_id }}"
           }
           JSON
@@ -91,7 +93,7 @@ jobs:
           if ! git diff --cached --quiet; then
             git -c user.name="jacob202" -c user.email="jacob@kitty.local" \
               commit -m "chore(runpod): record worker image digest ${{ steps.push.outputs.digest }}"
-            git push origin "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+            git push origin "HEAD:${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
           fi
 
   preflight:
@@ -110,5 +112,6 @@ jobs:
 
       - name: Preflight the exact image (no GPU)
         run: |
+          DIGEST="$(python3 -c "import json; print(json.load(open('workers/comfy_worker/worker-image.json'))['digest'])")"
           python scripts/runpod_image_preflight.py \
-            ghcr.io/jacob202/kitty/comfy-worker@sha256:${{ needs.build.outputs.digest }}
+            "ghcr.io/jacob202/kitty/comfy-worker@${DIGEST}"

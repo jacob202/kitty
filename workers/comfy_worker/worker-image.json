@@ -1,6 +1,6 @@
 {
   "image_ref": "ghcr.io/jacob202/kitty/comfy-worker:d0751a5cd1076616d3d14fae51fcdfadb53e605d",
-  "digest": "sha256:sha256:a591cab5a81f3380bf83fd08e68b3c7d7fbce344eabe4d05b0f4d6a3cef71a4e",
+  "digest": "sha256:a591cab5a81f3380bf83fd08e68b3c7d7fbce344eabe4d05b0f4d6a3cef71a4e",
   "built_at": "2026-07-31T21:21:31Z",
   "build_run": "30666613840"
 }
