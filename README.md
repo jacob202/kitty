@@ -8,6 +8,8 @@ KittyBuilder is Kitty's controlled execution engine — a separate control plane
 >
 > **Repository navigation:** [`docs/reference/CODEBASE_MAP.md`](docs/reference/CODEBASE_MAP.md) — authoritative codebase map with boundaries, directory tree, entry points, data flows, and state ownership.
 >
+> **Context engineering:** [`docs/reference/CONTEXT_ENGINEERING.md`](docs/reference/CONTEXT_ENGINEERING.md) — staged context-loading workflow for faster, safer cold starts.
+>
 > **Current state:** [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — verified shipped capabilities.
 >
 > **Active work:** [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md) — the one approved current mission.
