@@ -5,6 +5,12 @@ on:
     branches: [feat/runpod-image-studio-smoke]
     paths:
       - .github/workflows/runpod-james-live.yml
+      - scripts/runpod_james_batch.py
+      - scripts/runpod_james_adaptive.py
+      - gateway/runpod_control.py
+      - gateway/runpod_worker.py
+      - workers/comfy_worker/**
+      - workflows/**
   workflow_dispatch:
 
 permissions:
@@ -13,26 +19,26 @@ permissions:
   issues: write
 
 concurrency:
-  group: runpod-james-live-direct-v2
+  group: runpod-james-live-direct-v3
   cancel-in-progress: true
 
 jobs:
   james-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 35
     env:
       GH_TOKEN: ${{ github.token }}
       RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
       RUNPOD_TEMPLATE_ID: 2lv7ev3wfp
       KITTY_BOOTSTRAP_REF: ${{ github.sha }}
       RUNPOD_MAX_HOURLY_RATE: "0.60"
-      RUNPOD_HARD_RUNTIME_MINUTES: "55"
-      RUNPOD_READY_TIMEOUT_SECONDS: "2400"
+      RUNPOD_HARD_RUNTIME_MINUTES: "30"
+      RUNPOD_READY_TIMEOUT_SECONDS: "1200"
       RUNPOD_GENERATION_TIMEOUT_SECONDS: "600"
       RUNPOD_POLL_INTERVAL_SECONDS: "5"
       RUNPOD_CLOUD_TYPES: COMMUNITY,SECURE
-      RUNPOD_CAPACITY_RETRY_ROUNDS: "8"
-      RUNPOD_CAPACITY_RETRY_SECONDS: "30"
+      RUNPOD_CAPACITY_RETRY_ROUNDS: "4"
+      RUNPOD_CAPACITY_RETRY_SECONDS: "20"
       COMFY_CHECKPOINT: RealVisXL_V4.0.safetensors
       COMFY_CHECKPOINT_URL: https://huggingface.co/SG161222/RealVisXL_V4.0/resolve/main/RealVisXL_V4.0.safetensors?download=true
       COMFY_CHECKPOINT_SHA256: 912c9dc74f5855175c31a7993f863a043ac8dcc31732b324cd05d75cd7e16844
