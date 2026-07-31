@@ -28,7 +28,6 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
-      KITTY_WORKER_BEARER_TOKEN: ${{ secrets.KITTY_WORKER_BEARER_TOKEN }}
       RUNPOD_TEMPLATE_ID: 2lv7ev3wfp
       KITTY_BOOTSTRAP_REF: ${{ github.sha }}
       RUNPOD_MAX_HOURLY_RATE: "0.60"
@@ -63,11 +62,14 @@ jobs:
           pip install -r requirements.txt
           pip install -r workers/comfy_worker/requirements.txt
 
-      - name: Confirm runtime secrets are present
+      - name: Prepare ephemeral worker token
+        shell: bash
+        run: echo "KITTY_WORKER_BEARER_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Confirm RunPod credential is present
         shell: bash
         run: |
           test -n "$RUNPOD_API_KEY" || { echo "RUNPOD_API_KEY secret is missing" >&2; exit 2; }
-          test ${#KITTY_WORKER_BEARER_TOKEN} -ge 32 || { echo "KITTY_WORKER_BEARER_TOKEN secret is missing or too short" >&2; exit 2; }
 
       - name: Generate James portrait batch
         shell: bash
