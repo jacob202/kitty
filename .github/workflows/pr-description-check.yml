@@ -4,6 +4,13 @@ on:
   pull_request:
     types: [opened, edited, synchronize]
 
+# Without an explicit block this job inherits the repository default, which is
+# read-only, so its "what's missing" comment failed with `Resource not
+# accessible by integration` and authors only saw a bare red X.
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   check-description:
     runs-on: ubuntu-latest

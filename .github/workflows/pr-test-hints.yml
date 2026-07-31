@@ -4,6 +4,9 @@ on:
   pull_request_target:
     types: [opened, synchronize, reopened]
 
+# NOTE: commenting on a pull request is governed by the pull-requests scope,
+# even though the REST path is /issues/{n}/comments. With pull-requests: read
+# this job did all its work and then 403'd on the post.
 permissions:
   contents: read
   issues: write
