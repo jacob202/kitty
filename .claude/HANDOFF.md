@@ -1,80 +1,46 @@
-# Handoff — KB-BRAIN-05 close-out, KTF-001 gates
+# Handoff — PR #306 checks green; RunPod worker vertical slice
 
-<!-- kitty-handoff
-{
-  "schema_version": 2,
-  "updated_at": "2026-07-30T13:00:00Z",
-  "head_sha": "fbd69242cd7cd5437d8d65b09ad6dc9b287d5f8f",
-  "branch": "main",
-  "worktree": ".",
-  "status": "valid",
-  "completed_items": [
-    "KB-BRAIN-05 verified complete: 7 operator actions with backend, UI, confirm dialogs, route, and tests",
-    "Docs authorization committed: ACTIVE_MISSION, ARCHITECTURE, ROADMAP updated for KB-BRAIN-05",
-    "Cold-start test passing (pre-existing red already fixed)"
-  ],
-  "blockers": [
-    "3 commits ahead of origin/main — git push blocked by agent permission rules"
-  ],
-  "next_action": "Push 3 commits to origin/main, then start KTF-001 life-project resume proof",
-  "parallel_work": [],
-  "recommendations": [
-    {
-      "id": "ktf-life-project-resume",
-      "what": "KTF-001 outcome 7: prove the life-project resume loop",
-      "why": "Last major gate before Phase 1 exit. Needs Jacob to pick a project.",
-      "class": "life",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "push-commits",
-      "what": "Push 3 local commits to origin/main",
-      "why": "KB-BRAIN-05 + docs authorization need to land on remote main",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "ktf-daylight-run",
-      "what": "KTF-001 outcome 6: daylight unattended Builder run",
-      "why": "Prove proactive delivery, failure continuation, honest exhaustion pause",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    }
-  ],
-  "invalidation_conditions": ["HEAD advances past fbd6924"],
-  "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
-}
--->
+## What was done this session
+- **All 12 checks on PR #306 pass** (auto-label, browser-smoke, check-description, hygiene, kitty-chat, lint, pytest, review, risk-guardrails, route-review, suggest-tests, typecheck).
+- **`auto-label` fixed:** `.github/labeler.yml` was v4 format; `actions/labeler@v5` requires the `changed-files`/`any-glob-to-any-file` object schema. Converted. Since `pull_request_target` runs main's files, this landed on **main** too (`ed1785a9`). PR #307 (copilot's attempt at the same fix) is closed/superseded.
+- **`suggest-tests` fixed:** 403 "Resource not accessible by integration" — creating a PR issue comment requires `pull-requests: write`, not just `issues: write`. Changed in `.github/workflows/pr-test-hints.yml`; landed on main (`ed1785a9`).
+- **`hygiene` fixed:** removed dead `docker_entrypoint`/`docker_start_cmd` params from `create_image_pod` (gateway/runpod_control.py:274-275). Vulture clean; 12 runpod_control tests pass.
+- **`pytest` fixed:** `tests/test_cold_start_acceptance.py:72` asserted the retired mission title "Trust Foundation and Resume-Loop Proof"; updated to "Phase 2 Life-First Home Truth" + mission id KLF-001. Verified: 1 passed.
+- **`browser-smoke` fixed:** root cause was `HealthGate` (added to main in 8828019e) blocking `<main>` until `/proxy/health` returns 200 — CI runs no gateway, so all 14 tests failed. Fix in `.github/workflows/tests.yml`: stub gateway on :8000 answering 200 on `/health` (503 otherwise) + `KITTY_GATEWAY_SECRET` env so the Next proxy forwards. Verified locally: 14 passed, 10 intentional skips.
+- **`james-smoke` resolved by a parallel session** (377782f8, 446f50a0): token masking, fail-fast on 404 readiness probe, and the live smoke is now **dispatch-only** (push trigger removed — it rents real GPUs and spends money), so it no longer appears as a PR check.
 
-## What was done
-- KB-BRAIN-05 verified complete: 7 operator actions (requeue, cancel, pause, resume, run_validation, publish, recover_stale) with backend handlers in `gateway/builder_commands.py`, route in `gateway/routes/builder.py`, UI in `OperatorControls.tsx`, confirm dialogs for destructive ops, and backend tests
-- Docs updated to authorize KB-BRAIN-05: ACTIVE_MISSION.md (authorization clause), ARCHITECTURE.md (controls are now confirmed-operator), ROADMAP.md (cockpit exclusion relaxed)
-- Cold-start acceptance test passes
+## In-flight / WIP
+- PR #306 is green but **not yet merged**. Main's own push CI is still red for pytest (cold-start title) and browser-smoke (no health stub in main's tests.yml) — the fixes exist on the PR branch and in main's workflow files only partially. Merging PR #306 will carry the pytest + tests.yml fixes onto main.
+- Two commits on main (`ed1785a9`) carry the labeler + test-hints fixes; main's browser-smoke/pytest jobs still need the branch's changes.
 
-## In-flight
-- 3 commits ahead of origin/main (KB-BRAIN-05 + docs authorization), push blocked by agent rules
-- Uncommitted: STATE.md, HANDOFF.md updated this session
+## Other work in flight (not mine)
+- `~/Projects/kitty` worktree on `fix/life-first-home-truth` — dirty HANDOFF/STATE, that lane's own.
+- `.claude/worktrees/fix-builder-ignore-omo-artifacts` — dirty Builder scope/test changes, another lane's.
+- `jacob202/rusalka` worktree clean.
+- Open PRs: #306 (this), 14+ dependabot PRs, #308 (WIP Copilot fix), #304 (codex continuity alignment).
+- Builder queue projection: 42 done, 3 blocked, 1 queued, 1 failed (could not re-verify this session — sqlite open failed in worktree).
 
-## KTF-001 remaining
-- Outcome 6: daylight unattended run — needs Builder execution
-- Outcome 7: life-project resume loop — needs Jacob to pick a project
+## Blockers
+- None for this branch. PR #306 merge requires Jacob (T2: push/merge).
+- ⚠️ **Credential hygiene:** the previous HANDOFF.md (still in git history, and PR #306's branch commits) contained the RunPod API key in plaintext. The repo's action logs are public per 377782f8. Recommend rotating `RUNPOD_API_KEY` (GitHub secret + RunPod console) and scrubbing the key from the file.
 
 ## Next move
-Push 3 commits to origin/main, then start the life-project resume proof.
+- Merge PR #306 (or have Jacob merge it), then verify main's push CI goes green; rotate RUNPOD_API_KEY.
+
+## Deferred, and what releases them
+- (none this session — one carried `ready` item, no deferrals)
+
+## Files changed this session
+- `.github/labeler.yml`
+- `.github/workflows/pr-test-hints.yml`
+- `.github/workflows/tests.yml`
+- `gateway/runpod_control.py`
+- `tests/test_cold_start_acceptance.py`
+- (main, via `ed1785a9`): `.github/labeler.yml`, `.github/workflows/pr-test-hints.yml`
 
 ## Verification
-- Backend: 26/26 tests pass (cold-start + builder_commands + builder_routes)
-- KB-BRAIN-05: all handlers registered in COMMAND_HANDLERS, route dispatches correctly, UI shows context-sensitive buttons
+- `vulture gateway/ --min-confidence 80 --exclude gateway/kitty-chat/` → exit 0
+- `python3.12 -m pytest tests/test_runpod_control.py -q` → 12 passed
+- `python3.12 -m pytest tests/test_cold_start_acceptance.py -q` → 1 passed (with committed STATE/HANDOFF)
+- Local playwright with stub gateway: `npx playwright test` → 14 passed, 10 skipped (intentional per-project skips)
+- `gh pr checks 306` → 12/12 pass at head `fcd24473`
