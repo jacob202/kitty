@@ -1,0 +1,82 @@
+name: RunPod James Live Batch
+
+on:
+  # This path filter makes the workflow fire for this enabling commit only.
+  # Later code pushes do not start another paid batch automatically.
+  push:
+    branches: [feat/runpod-image-studio-smoke]
+    paths:
+      - .github/workflows/runpod-james-live.yml
+  workflow_dispatch:
+    inputs:
+      attempts:
+        description: Number of James portrait attempts
+        required: true
+        default: "6"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runpod-james-live
+  cancel-in-progress: false
+
+jobs:
+  james-batch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+      KITTY_WORKER_BEARER_TOKEN: ${{ secrets.KITTY_WORKER_BEARER_TOKEN }}
+      RUNPOD_TEMPLATE_ID: 2lv7ev3wfp
+      KITTY_BOOTSTRAP_REF: ${{ github.sha }}
+      RUNPOD_MAX_HOURLY_RATE: "0.60"
+      RUNPOD_HARD_RUNTIME_MINUTES: "70"
+      RUNPOD_READY_TIMEOUT_SECONDS: "1200"
+      RUNPOD_GENERATION_TIMEOUT_SECONDS: "600"
+      RUNPOD_POLL_INTERVAL_SECONDS: "5"
+      COMFY_CHECKPOINT: RealVisXL_V4.0.safetensors
+      COMFY_CHECKPOINT_URL: https://huggingface.co/SG161222/RealVisXL_V4.0/resolve/main/RealVisXL_V4.0.safetensors?download=true
+      COMFY_CHECKPOINT_SHA256: 912c9dc74f5855175c31a7993f863a043ac8dcc31732b324cd05d75cd7e16844
+
+    steps:
+      - name: Checkout live batch commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Kitty and worker dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r workers/comfy_worker/requirements.txt
+
+      - name: Confirm runtime secrets are present
+        shell: bash
+        run: |
+          test -n "$RUNPOD_API_KEY" || { echo "RUNPOD_API_KEY secret is missing" >&2; exit 2; }
+          test ${#KITTY_WORKER_BEARER_TOKEN} -ge 32 || { echo "KITTY_WORKER_BEARER_TOKEN secret is missing or too short" >&2; exit 2; }
+
+      - name: Generate James portrait batch
+        shell: bash
+        run: |
+          ATTEMPTS="${{ github.event.inputs.attempts || '6' }}"
+          python scripts/runpod_james_batch.py \
+            --attempts "$ATTEMPTS" \
+            --output-dir runtime-data/runpod-james \
+            --accept-charges
+
+      - name: Upload generated images and provenance
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: runpod-james-${{ github.run_id }}
+          path: runtime-data/runpod-james/
+          if-no-files-found: warn
+          retention-days: 14
