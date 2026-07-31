@@ -131,12 +131,19 @@ async def _direct_deployment_config(
         "https://raw.githubusercontent.com/jacob202/kitty/"
         f"{bootstrap_ref}/workers/comfy_worker/bootstrap.sh"
     )
+    # Deliberately shell-only. This runs as dockerStartCmd with dockerEntrypoint
+    # overridden to /bin/sh -c, which discards whatever the image's own
+    # entrypoint put on PATH — so `python3` may not resolve, the command dies
+    # before binding anything, and both proxy ports answer 404 with no logs to
+    # explain it. curl and wget are far likelier to exist in a CUDA base image,
+    # and the `echo` on failure leaves a reason in the container output.
     container_start_cmd = (
-        "python3 -c \"import urllib.request; "
-        "open('/tmp/kitty-bootstrap.sh','wb').write("
-        f"urllib.request.urlopen('{bootstrap_url}', timeout=120).read())\" "
-        "&& chmod 700 /tmp/kitty-bootstrap.sh "
-        "&& exec /tmp/kitty-bootstrap.sh"
+        "set -e; "
+        f"(curl -fsSL '{bootstrap_url}' -o /tmp/kitty-bootstrap.sh "
+        f"|| wget -qO /tmp/kitty-bootstrap.sh '{bootstrap_url}') "
+        "|| { echo 'kitty: could not download bootstrap.sh (no curl or wget)' >&2; exit 90; }; "
+        "chmod 700 /tmp/kitty-bootstrap.sh; "
+        "exec /tmp/kitty-bootstrap.sh"
     )
     return image_name, container_start_cmd
 

@@ -334,6 +334,7 @@ class RunPodControlClient:
                 volume_gb=volume_gb,
                 pod_env=pod_env,
                 pod_name=pod_name,
+                expires_at_rfc3339=expires_at_rfc3339,
             )
         if container_start_cmd is not None:
             raise RunPodConfigurationError(
@@ -412,6 +413,7 @@ class RunPodControlClient:
         volume_gb: int,
         pod_env: Mapping[str, str],
         pod_name: str,
+        expires_at_rfc3339: str,
     ) -> PodInfo:
         pod_input: dict[str, object] = {
             "name": pod_name,
@@ -429,6 +431,10 @@ class RunPodControlClient:
             "locked": False,
             "ports": list(ports),
             "supportPublicIp": False,
+            # Without this the deadline lives only in the calling process. If
+            # the runner dies before cleanup, a Pod created down this path
+            # bills until someone notices. The GraphQL path has always sent it.
+            "terminateAfter": expires_at_rfc3339,
             "volumeMountPath": "/workspace",
         }
         if network_volume_id:
