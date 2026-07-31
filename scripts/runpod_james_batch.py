@@ -240,7 +240,7 @@ async def run(args: argparse.Namespace) -> Path:
             )
             async with RunPodControlClient(api_key) as runpod:
                 pod = await runpod.create_image_pod(
-                    template_id=temp_template_id,
+                    template_id=source_template_id,
                     gpu_type_ids=(
                         "NVIDIA GeForce RTX 3090",
                         "NVIDIA RTX A5000",
