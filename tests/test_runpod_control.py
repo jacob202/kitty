@@ -304,26 +304,31 @@ async def test_create_transport_failure_is_billably_ambiguous():
 
 @pytest.mark.asyncio
 async def test_create_image_pod_rest_preserves_explicit_startup_overrides():
-    captured: dict[str, object] = {}
+    create_input: dict[str, object] = {}
+    update_input: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/v1/pods"
-        assert request.method == "POST"
-        body = json.loads(request.content)
-        captured.update(body)
-        return httpx.Response(
-            201,
-            json={
-                "id": "rest-pod",
-                "name": f"{KITTY_POD_PREFIX}rest",
-                "desiredStatus": "RUNNING",
-                "adjustedCostPerHr": 0.31,
-                "dockerEntrypoint": ["bash", "-lc"],
-                "dockerStartCmd": ["exec /tmp/bootstrap.sh"],
-                "gpu": {"displayName": "NVIDIA L4"},
-            },
-        )
+        if request.url.path == "/graphql":
+            body = json.loads(request.content)
+            create_input.update(body["variables"]["input"])
+            return httpx.Response(200, json=_graphql_pod())
+        if request.url.path == "/v1/pods/pod-1/update":
+            update_input.update(json.loads(request.content))
+            return httpx.Response(
+                200,
+                json={
+                    "id": "pod-1",
+                    "name": f"{KITTY_POD_PREFIX}rest",
+                    "desiredStatus": "RUNNING",
+                    "adjustedCostPerHr": 0.31,
+                    "dockerEntrypoint": ["bash", "-lc"],
+                    "dockerStartCmd": ["exec /tmp/bootstrap.sh"],
+                    "gpu": {"displayName": "NVIDIA L4"},
+                },
+            )
+        raise AssertionError(f"unexpected request: {request.method} {request.url}")
 
+    before = datetime.now(timezone.utc)
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
         async with _client(http_client) as client:
             pod = await client.create_image_pod(
@@ -338,14 +343,18 @@ async def test_create_image_pod_rest_preserves_explicit_startup_overrides():
                 name_suffix="rest",
             )
 
-    assert pod.pod_id == "rest-pod"
-    assert captured["imageName"] == "runpod/comfyui:cuda13.0"
-    assert captured["templateId"] == "template-1"
-    assert captured["dockerEntrypoint"] == ["bash", "-lc"]
-    assert captured["dockerStartCmd"] == ["exec /tmp/bootstrap.sh"]
-    assert captured["gpuTypeIds"] == ["NVIDIA L4", "NVIDIA RTX A5000"]
-    assert captured["gpuTypePriority"] == "custom"
-    assert captured["supportPublicIp"] is False
+    assert pod.pod_id == "pod-1"
+    assert create_input["templateId"] == "template-1"
+    assert create_input["gpuTypeId"] == "NVIDIA L4"
+    assert create_input["startSsh"] is False
+    terminate_after = datetime.fromisoformat(
+        str(create_input["terminateAfter"]).replace("Z", "+00:00")
+    )
+    assert terminate_after >= before + timedelta(minutes=55)
+    assert update_input["imageName"] == "runpod/comfyui:cuda13.0"
+    assert update_input["dockerEntrypoint"] == ["bash", "-lc"]
+    assert update_input["dockerStartCmd"] == ["exec /tmp/bootstrap.sh"]
+    assert update_input["ports"] == ["8000/http"]
 
 
 @pytest.mark.asyncio
