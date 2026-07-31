@@ -17,6 +17,15 @@ class RunPodWorkerAmbiguousSubmissionError(RunPodWorkerError):
     """The worker may have accepted the job; callers must not retry blindly."""
 
 
+def _as_int(value: object, default: int = 0) -> int:
+    if not isinstance(value, (int, str)) or isinstance(value, bool):
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
 @dataclass(frozen=True)
 class WorkerOutput:
     asset_id: str
@@ -32,7 +41,7 @@ class WorkerOutput:
             asset_id=str(payload.get("asset_id") or ""),
             filename=str(payload.get("filename") or ""),
             media_type=str(payload.get("media_type") or "application/octet-stream"),
-            size_bytes=int(payload.get("size_bytes") or 0),
+            size_bytes=_as_int(payload.get("size_bytes")),
             sha256=str(payload.get("sha256") or ""),
             download_url=str(payload.get("download_url") or ""),
         )
