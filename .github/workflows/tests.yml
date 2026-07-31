@@ -106,6 +106,8 @@ jobs:
     defaults:
       run:
         working-directory: gateway/kitty-chat
+    env:
+      KITTY_GATEWAY_SECRET: smoke-test-secret
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -121,6 +123,27 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Build
         run: node node_modules/next/dist/bin/next build --webpack
+      - name: Start gateway stub for health gate
+        run: |
+          python3 - <<'PY' &
+          import http.server
+
+          class Handler(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  if self.path.startswith("/health"):
+                      self.send_response(200)
+                      self.end_headers()
+                      self.wfile.write(b'{"status":"ok"}')
+                  else:
+                      self.send_response(503)
+                      self.end_headers()
+
+              def log_message(self, *args):
+                  pass
+
+          http.server.HTTPServer(("127.0.0.1", 8000), Handler).serve_forever()
+          PY
+          sleep 1
       - name: Start server
         run: node node_modules/next/dist/bin/next start -p 4000 &
       - name: Wait for server

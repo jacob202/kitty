@@ -69,7 +69,8 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     assert "What's shipped" in documents["live_status"] or "Shipped" in documents["live_status"]
     assert "Builder investigation" in documents["live_status"]
     # 5. What is active?
-    assert "Trust Foundation and Resume-Loop Proof" in documents["active_mission"]
+    assert "Phase 2 Life-First Home Truth" in documents["active_mission"]
+    assert "KLF-001" in documents["active_mission"]
     assert receipt["continuity"]["active_mission"]["status"] == "running"
     # 6. What is next?
     assert isinstance(receipt["next_action"], str) and receipt["next_action"]
