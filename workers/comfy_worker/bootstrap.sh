@@ -78,17 +78,27 @@ set_stage "downloading-kitty-source"
 import os
 import pathlib
 import tarfile
+import time
 import urllib.request
 
 ref = os.environ["KITTY_BOOTSTRAP_REF"]
 archive = pathlib.Path("/tmp/kitty-src.tar.gz")
 url = f"https://github.com/jacob202/kitty/archive/{ref}.tar.gz"
-with urllib.request.urlopen(url, timeout=120) as response, archive.open("wb") as target:
-    while True:
-        chunk = response.read(1024 * 1024)
-        if not chunk:
-            break
-        target.write(chunk)
+req = urllib.request.Request(url, headers={"User-Agent": "Kitty-Image-Studio/1.0"})
+for attempt in range(1, 4):
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp, archive.open("wb") as f:
+            while True:
+                chunk = resp.read(1024 * 1024)
+                if not chunk:
+                    break
+                f.write(chunk)
+        break
+    except Exception as exc:
+        if attempt == 3:
+            raise SystemExit(f"kitty source download failed: {exc}") from exc
+        time.sleep(min(attempt * 10, 30))
+        archive.unlink(missing_ok=True)
 
 extract_root = pathlib.Path("/opt/kitty-extract")
 extract_root.mkdir(parents=True, exist_ok=True)
