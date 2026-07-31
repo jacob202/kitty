@@ -13,6 +13,10 @@ class RunPodWorkerError(RuntimeError):
     """The Kitty worker returned an error or malformed response."""
 
 
+class RunPodWorkerConfigurationError(RunPodWorkerError):
+    """The worker is reachable but cannot run the installed workflow."""
+
+
 class RunPodWorkerAmbiguousSubmissionError(RunPodWorkerError):
     """The worker may have accepted the job; callers must not retry blindly."""
 
@@ -34,6 +38,8 @@ class WorkerOutput:
     size_bytes: int
     sha256: str
     download_url: str
+    width: int
+    height: int
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, object]) -> "WorkerOutput":
@@ -44,6 +50,8 @@ class WorkerOutput:
             size_bytes=_as_int(payload.get("size_bytes")),
             sha256=str(payload.get("sha256") or ""),
             download_url=str(payload.get("download_url") or ""),
+            width=_as_int(payload.get("width")),
+            height=_as_int(payload.get("height")),
         )
 
 
@@ -120,6 +128,9 @@ class RunPodWorkerClient:
 
     async def assert_ready(self) -> dict[str, Any]:
         response = await self._client.get(f"{self._base_url}/health")
+        if response.status_code == 424:
+            message = _health_error_message(response)
+            raise RunPodWorkerConfigurationError(message)
         if response.status_code >= 400:
             raise RunPodWorkerError(
                 f"worker health returned {response.status_code}: "
@@ -235,6 +246,19 @@ class RunPodWorkerClient:
         if not response.content:
             raise RunPodWorkerError("worker returned an empty output")
         return response.content
+
+
+def _health_error_message(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return f"worker configuration failed: {response.text[:500]}"
+    if not isinstance(payload, Mapping):
+        return "worker configuration failed"
+    detail = payload.get("detail")
+    if isinstance(detail, Mapping) and detail.get("message"):
+        return str(detail["message"])
+    return f"worker configuration failed: {response.text[:500]}"
 
 
 def _parse_job(payload: object) -> WorkerJob:
