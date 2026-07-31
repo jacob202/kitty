@@ -102,12 +102,16 @@ pid_owned_by_kitty() {
   # Two worktrees of the same repo share a common .git directory; a process
   # started from either one is Kitty-owned.
   if [[ -n "$cwd" && -d "$cwd" ]]; then
-    git_dir_root="$(git -C "$KITTY_ROOT" rev-parse --git-common-dir 2>/dev/null || git -C "$KITTY_ROOT" rev-parse --git-dir 2>/dev/null || true)"
-    git_dir_candidate="$(git -C "$cwd" rev-parse --git-common-dir 2>/dev/null || git -C "$cwd" rev-parse --git-dir 2>/dev/null || true)"
-    if [[ -n "$git_dir_root" && -n "$git_dir_candidate" ]]; then
-      git_dir_root="$(cd "$git_dir_root" 2>/dev/null && pwd -P || echo "$git_dir_root")"
-      git_dir_candidate="$(cd "$git_dir_candidate" 2>/dev/null && pwd -P || echo "$git_dir_candidate")"
-      [[ "$git_dir_root" == "$git_dir_candidate" ]] && return 0
+    # --git-common-dir may be relative (from the git -C cwd). Resolve by
+    # entering that cwd first, then the git-dir, then pwd -P.
+    git_dir_root="$(cd "$KITTY_ROOT" 2>/dev/null \
+      && cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null \
+      && pwd -P 2>/dev/null || true)"
+    git_dir_candidate="$(cd "$cwd" 2>/dev/null \
+      && cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null \
+      && pwd -P 2>/dev/null || true)"
+    if [[ -n "$git_dir_root" && -n "$git_dir_candidate" && "$git_dir_root" == "$git_dir_candidate" ]]; then
+      return 0
     fi
   fi
 
