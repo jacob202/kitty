@@ -106,7 +106,7 @@ async def _create_temporary_template(
     source_template_id: str,
     bootstrap_ref: str,
     run_id: str,
-) -> str:
+) -> tuple[str, str, tuple[str, ...], tuple[str, ...]]:
     source = await _template_request(
         client,
         api_key,
@@ -155,7 +155,12 @@ async def _create_temporary_template(
     )
     if not isinstance(payload, Mapping) or not payload.get("id"):
         raise RuntimeError("RunPod temporary template response did not include id")
-    return str(payload["id"])
+    return (
+        str(payload["id"]),
+        image_name,
+        ("bash", "-lc"),
+        (command,),
+    )
 
 
 async def _wait_for_pod(
@@ -242,14 +247,23 @@ async def run(args: argparse.Namespace) -> Path:
 
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(3)
     temp_template_id: str | None = None
+    temp_image_name: str | None = None
+    temp_docker_entrypoint: tuple[str, ...] = ()
+    temp_docker_start_cmd: tuple[str, ...] = ()
     pod: PodInfo | None = None
     started = time.monotonic()
     records: list[dict[str, Any]] = []
     cleanup_errors: list[str] = []
+    failure: Exception | None = None
 
     async with httpx.AsyncClient() as http_client:
         try:
-            temp_template_id = await _create_temporary_template(
+            (
+                temp_template_id,
+                temp_image_name,
+                temp_docker_entrypoint,
+                temp_docker_start_cmd,
+            ) = await _create_temporary_template(
                 http_client,
                 api_key=api_key,
                 source_template_id=source_template_id,
@@ -279,6 +293,9 @@ async def run(args: argparse.Namespace) -> Path:
                         "KITTY_ALLOWED_CHECKPOINTS": checkpoint,
                     },
                     name_suffix=f"james-{run_id}",
+                    image_name=temp_image_name,
+                    docker_entrypoint=temp_docker_entrypoint,
+                    docker_start_cmd=temp_docker_start_cmd,
                 )
                 pod = await _wait_for_pod(
                     runpod,
@@ -336,6 +353,8 @@ async def run(args: argparse.Namespace) -> Path:
                             }
                         )
                     records.append({"worker_health": health})
+        except Exception as exc:
+            failure = exc
         finally:
             if pod is not None:
                 try:
@@ -370,10 +389,16 @@ async def run(args: argparse.Namespace) -> Path:
         "checkpoint": checkpoint,
         "checkpoint_sha256": checkpoint_sha,
         "attempts": records,
+        "failure": str(failure) if failure is not None else None,
         "cleanup_errors": cleanup_errors,
     }
     manifest_path = output_dir / f"james-batch-{run_id}.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    if failure is not None:
+        detail = str(failure)
+        if cleanup_errors:
+            detail += "; cleanup incomplete: " + "; ".join(cleanup_errors)
+        raise RuntimeError(detail) from failure
     if cleanup_errors:
         raise RuntimeError(
             "generation completed but cleanup was incomplete: " + "; ".join(cleanup_errors)

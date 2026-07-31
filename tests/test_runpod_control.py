@@ -303,6 +303,52 @@ async def test_create_transport_failure_is_billably_ambiguous():
 
 
 @pytest.mark.asyncio
+async def test_create_image_pod_rest_preserves_explicit_startup_overrides():
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/pods"
+        assert request.method == "POST"
+        body = json.loads(request.content)
+        captured.update(body)
+        return httpx.Response(
+            201,
+            json={
+                "id": "rest-pod",
+                "name": f"{KITTY_POD_PREFIX}rest",
+                "desiredStatus": "RUNNING",
+                "adjustedCostPerHr": 0.31,
+                "dockerEntrypoint": ["bash", "-lc"],
+                "dockerStartCmd": ["exec /tmp/bootstrap.sh"],
+                "gpu": {"displayName": "NVIDIA L4"},
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        async with _client(http_client) as client:
+            pod = await client.create_image_pod(
+                template_id="template-1",
+                image_name="runpod/comfyui:cuda13.0",
+                docker_entrypoint=("bash", "-lc"),
+                docker_start_cmd=("exec /tmp/bootstrap.sh",),
+                gpu_type_ids=("NVIDIA L4", "NVIDIA RTX A5000"),
+                max_hourly_rate=0.60,
+                hard_runtime_minutes=55,
+                ports=("8000/http",),
+                name_suffix="rest",
+            )
+
+    assert pod.pod_id == "rest-pod"
+    assert captured["imageName"] == "runpod/comfyui:cuda13.0"
+    assert captured["templateId"] == "template-1"
+    assert captured["dockerEntrypoint"] == ["bash", "-lc"]
+    assert captured["dockerStartCmd"] == ["exec /tmp/bootstrap.sh"]
+    assert captured["gpuTypeIds"] == ["NVIDIA L4", "NVIDIA RTX A5000"]
+    assert captured["gpuTypePriority"] == "custom"
+    assert captured["supportPublicIp"] is False
+
+
+@pytest.mark.asyncio
 async def test_actual_cost_sums_matching_billing_records():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v1/billing/pods"

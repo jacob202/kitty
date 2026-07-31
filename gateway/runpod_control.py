@@ -270,6 +270,9 @@ class RunPodControlClient:
         volume_gb: int = 20,
         env: Mapping[str, str] | None = None,
         name_suffix: str | None = None,
+        image_name: str | None = None,
+        docker_entrypoint: Sequence[str] | None = None,
+        docker_start_cmd: Sequence[str] | None = None,
     ) -> PodInfo:
         if not template_id.strip():
             raise RunPodConfigurationError("RUNPOD_TEMPLATE_ID is required")
@@ -305,6 +308,41 @@ class RunPodControlClient:
 
         suffix = name_suffix or now.strftime("%Y%m%d-%H%M%S")
         pod_name = f"{KITTY_POD_PREFIX}{suffix}"
+
+        if image_name is not None:
+            normalized_image_name = image_name.strip()
+            normalized_entrypoint = [
+                str(item) for item in (docker_entrypoint or ()) if str(item)
+            ]
+            normalized_start_cmd = [
+                str(item) for item in (docker_start_cmd or ()) if str(item)
+            ]
+            if not normalized_image_name:
+                raise RunPodConfigurationError("image_name must not be empty")
+            if not normalized_entrypoint or not normalized_start_cmd:
+                raise RunPodConfigurationError(
+                    "explicit REST deployment requires docker_entrypoint and docker_start_cmd"
+                )
+            return await self._create_image_pod_rest(
+                template_id=template_id,
+                image_name=normalized_image_name,
+                docker_entrypoint=normalized_entrypoint,
+                docker_start_cmd=normalized_start_cmd,
+                gpu_type_ids=normalized_gpu_ids,
+                max_hourly_rate=max_hourly_rate,
+                ports=ports,
+                network_volume_id=network_volume_id,
+                cloud_type=cloud_type,
+                container_disk_gb=container_disk_gb,
+                volume_gb=volume_gb,
+                pod_env=pod_env,
+                pod_name=pod_name,
+            )
+        if docker_entrypoint is not None or docker_start_cmd is not None:
+            raise RunPodConfigurationError(
+                "docker startup overrides require image_name and REST deployment"
+            )
+
         common_input: dict[str, object] = {
             "name": pod_name,
             "cloudType": cloud_type,
@@ -361,6 +399,101 @@ class RunPodControlClient:
         raise RunPodApiError(
             "RunPod rejected every requested GPU candidate: " + details
         )
+
+    async def _create_image_pod_rest(
+        self,
+        *,
+        template_id: str,
+        image_name: str,
+        docker_entrypoint: Sequence[str],
+        docker_start_cmd: Sequence[str],
+        gpu_type_ids: Sequence[str],
+        max_hourly_rate: float,
+        ports: Sequence[str],
+        network_volume_id: str | None,
+        cloud_type: str,
+        container_disk_gb: int,
+        volume_gb: int,
+        pod_env: Mapping[str, str],
+        pod_name: str,
+    ) -> PodInfo:
+        pod_input: dict[str, object] = {
+            "name": pod_name,
+            "cloudType": cloud_type,
+            "computeType": "GPU",
+            "containerDiskInGb": container_disk_gb,
+            "dockerEntrypoint": list(docker_entrypoint),
+            "dockerStartCmd": list(docker_start_cmd),
+            "env": dict(sorted(pod_env.items())),
+            "gpuCount": 1,
+            "gpuTypeIds": list(gpu_type_ids),
+            "gpuTypePriority": "custom",
+            "imageName": image_name,
+            "interruptible": False,
+            "locked": False,
+            "ports": list(ports),
+            "supportPublicIp": False,
+            "templateId": template_id,
+            "volumeMountPath": "/workspace",
+        }
+        if network_volume_id:
+            pod_input["networkVolumeId"] = network_volume_id
+        else:
+            pod_input["volumeInGb"] = volume_gb
+
+        try:
+            payload = await self._request("POST", "/pods", json_body=pod_input)
+        except RunPodTransportError as exc:
+            raise RunPodAmbiguousCreateError(pod_name, exc) from exc
+        except RunPodApiError as exc:
+            message = str(exc)
+            lowered = message.lower()
+            capacity_markers = (
+                "no capacity",
+                "no available",
+                "not available",
+                "availability",
+                "unable to rent",
+                "could not find",
+            )
+            if any(marker in lowered for marker in capacity_markers):
+                raise RunPodApiError(
+                    "RunPod rejected every requested GPU candidate: " + message
+                ) from exc
+            raise
+
+        if not isinstance(payload, Mapping):
+            raise RunPodAmbiguousCreateError(
+                pod_name, RunPodApiError("REST create result was not an object")
+            )
+        normalized_payload = dict(payload)
+        normalized_payload.setdefault("name", pod_name)
+        normalized_payload.setdefault("env", dict(pod_env))
+        pod = PodInfo.from_payload(normalized_payload)
+        if not pod.pod_id:
+            raise RunPodAmbiguousCreateError(
+                pod_name, RunPodApiError("REST create result did not include a Pod id")
+            )
+
+        observed_entrypoint = normalized_payload.get("dockerEntrypoint")
+        observed_start_cmd = normalized_payload.get("dockerStartCmd")
+        if (
+            observed_entrypoint != list(docker_entrypoint)
+            or observed_start_cmd != list(docker_start_cmd)
+        ):
+            cleanup_error = await self._delete_after_invalid_create(pod.pod_id)
+            detail = (
+                f"; cleanup failed: {cleanup_error}"
+                if cleanup_error is not None
+                else "; Pod was terminated"
+            )
+            raise RunPodApiError(
+                "RunPod REST create did not preserve explicit Docker startup overrides"
+                + detail
+            )
+
+        await self._validate_created_pod_rate(pod, max_hourly_rate)
+        return pod
 
     async def _validate_created_pod_rate(
         self,
