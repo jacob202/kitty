@@ -77,43 +77,44 @@ set_stage "downloading-kitty-source"
 "${PYTHON_BIN}" - <<'PY'
 import os
 import pathlib
-import tarfile
 import time
 import urllib.request
 
 ref = os.environ["KITTY_BOOTSTRAP_REF"]
-archive = pathlib.Path("/tmp/kitty-src.tar.gz")
-url = f"https://github.com/jacob202/kitty/archive/{ref}.tar.gz"
-req = urllib.request.Request(url, headers={"User-Agent": "Kitty-Image-Studio/1.0"})
-for attempt in range(1, 4):
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp, archive.open("wb") as f:
-            while True:
-                chunk = resp.read(1024 * 1024)
-                if not chunk:
-                    break
-                f.write(chunk)
-        break
-    except Exception as exc:
-        if attempt == 3:
-            raise SystemExit(f"kitty source download failed: {exc}") from exc
-        time.sleep(min(attempt * 10, 30))
-        archive.unlink(missing_ok=True)
-
-extract_root = pathlib.Path("/opt/kitty-extract")
-extract_root.mkdir(parents=True, exist_ok=True)
-with tarfile.open(archive, "r:gz") as bundle:
-    bundle.extractall(extract_root)
-children = [item for item in extract_root.iterdir() if item.is_dir()]
-if len(children) != 1:
-    raise SystemExit(f"unexpected Kitty archive layout: {children}")
-source = children[0]
-destination = pathlib.Path("/opt/kitty-src")
-if destination.exists():
+source_root = pathlib.Path("/opt/kitty-src")
+if source_root.exists():
     import shutil
+    shutil.rmtree(source_root)
+source_root.mkdir(parents=True, exist_ok=True)
 
-    shutil.rmtree(destination)
-source.rename(destination)
+base = f"https://raw.githubusercontent.com/jacob202/kitty/{ref}"
+files = [
+    "workers/comfy_worker/app.py",
+    "workers/comfy_worker/start.sh",
+    "workers/comfy_worker/requirements.txt",
+    "workflows/text_to_image_v1/workflow-api.json",
+    "workflows/text_to_image_v1/manifest.yaml",
+]
+agent = "Kitty-Image-Studio/1.0"
+
+for rel_path in files:
+    target = source_root / rel_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    url = f"{base}/{rel_path}"
+    req = urllib.request.Request(url, headers={"User-Agent": agent})
+    for attempt in range(1, 4):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp, target.open("wb") as f:
+                while True:
+                    chunk = resp.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+            break
+        except Exception as exc:
+            if attempt == 3:
+                raise SystemExit(f"download {rel_path} failed: {exc}") from exc
+            time.sleep(min(attempt * 5, 15))
 PY
 
 set_stage "installing-worker-dependencies"
