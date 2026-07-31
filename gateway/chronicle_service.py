@@ -12,7 +12,6 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
@@ -110,7 +109,7 @@ def _tip_session_length(lengths: list[int]) -> str | None:
     if not lengths:
         return None
     avg = sum(lengths) / len(lengths)
-    short_sessions = sum(1 for l in lengths if l <= 2)
+    short_sessions = sum(1 for length in lengths if length <= 2)
     if short_sessions / len(lengths) > 0.5:
         return (
             "Many of your sessions are short exchanges. Try opening a longer thread "

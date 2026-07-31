@@ -18,14 +18,14 @@ from pathlib import Path
 from typing import Any
 
 from gateway.builder_events import builder_events
-from gateway.builder_queue import TaskNotFoundError as QueueTaskNotFoundError
-from gateway.builder_queue import transition_task as _transition_task
-from gateway.builder_queue_leases import operator_release_task
 from gateway.builder_initiative import (
     InitiativeNotFoundError,
     pause_initiative,
     resume_initiative,
 )
+from gateway.builder_queue import TaskNotFoundError as QueueTaskNotFoundError
+from gateway.builder_queue import transition_task as _transition_task
+from gateway.builder_queue_leases import operator_release_task
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 KITTY_CLI = REPO_ROOT / "kitty"

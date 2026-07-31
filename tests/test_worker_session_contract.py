@@ -15,15 +15,12 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from gateway.builder_adapters import ShellWorkerSession
 from gateway.builder_worker_session import (
     ModelPolicy,
     SessionIdentity,
-    WorkerEvent,
-    WorkerState,
     WorkerSession,
+    WorkerState,
 )
 
 

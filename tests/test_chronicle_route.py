@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import chronicle_service
 from gateway.routes import chronicle as chronicle_route
-
 
 # ---------------------------------------------------------------------------
 # Helpers
