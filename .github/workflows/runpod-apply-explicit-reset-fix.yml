@@ -1,0 +1,76 @@
+name: Apply RunPod Explicit Reset Fix
+
+on:
+  push:
+    branches: [feat/runpod-image-studio-smoke]
+    paths:
+      - .github/runpod-explicit-reset-fix.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/runpod-image-studio-smoke
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Preserve cloud deadline while applying startup overrides
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('gateway/runpod_control.py')
+          text = path.read_text(encoding='utf-8')
+          needle = '''                pod_env=pod_env,\n                pod_name=pod_name,\n            )\n'''
+          replacement = '''                pod_env=pod_env,\n                pod_name=pod_name,\n                terminate_after=expires_at_rfc3339,\n            )\n'''
+          if text.count(needle) != 1:
+              raise SystemExit(f'create caller match count: {text.count(needle)}')
+          text = text.replace(needle, replacement, 1)
+
+          start = text.index('    async def _create_image_pod_rest(')
+          end = text.index('    async def _validate_created_pod_rate(', start)
+          method = '''    async def _create_image_pod_rest(\n        self,\n        *,\n        template_id: str,\n        image_name: str,\n        docker_entrypoint: Sequence[str],\n        docker_start_cmd: Sequence[str],\n        gpu_type_ids: Sequence[str],\n        max_hourly_rate: float,\n        ports: Sequence[str],\n        network_volume_id: str | None,\n        cloud_type: str,\n        container_disk_gb: int,\n        volume_gb: int,\n        pod_env: Mapping[str, str],\n        pod_name: str,\n        terminate_after: str,\n    ) -> PodInfo:\n        create_input: dict[str, object] = {\n            "name": pod_name,\n            "cloudType": cloud_type,\n            "containerDiskInGb": container_disk_gb,\n            "env": [\n                {"key": key, "value": value}\n                for key, value in sorted(pod_env.items())\n            ],\n            "gpuCount": 1,\n            "ports": ",".join(ports),\n            "startSsh": False,\n            "supportPublicIp": False,\n            "templateId": template_id,\n            "terminateAfter": terminate_after,\n            "volumeMountPath": "/workspace",\n        }\n        if network_volume_id:\n            create_input["networkVolumeId"] = network_volume_id\n        else:\n            create_input["volumeInGb"] = volume_gb\n\n        rejections: list[str] = []\n        pod: PodInfo | None = None\n        for gpu_type_id in gpu_type_ids:\n            pod_input = dict(create_input)\n            pod_input["gpuTypeId"] = gpu_type_id\n            try:\n                payload = await create_gpu_pod(\n                    self._client,\n                    api_key=self._api_key,\n                    graphql_url=self._graphql_url,\n                    pod_input=pod_input,\n                )\n            except RunPodGraphQLRejectedError as exc:\n                rejections.append(f"{gpu_type_id}: {exc}")\n                continue\n            except RunPodGraphQLAmbiguousError as exc:\n                raise RunPodAmbiguousCreateError(pod_name, exc) from exc\n\n            normalized_payload = dict(payload)\n            normalized_payload.setdefault("name", pod_name)\n            normalized_payload["env"] = dict(pod_env)\n            pod = PodInfo.from_payload(normalized_payload)\n            if not pod.pod_id:\n                raise RunPodAmbiguousCreateError(\n                    pod_name,\n                    RunPodApiError("GraphQL create result did not include a Pod id"),\n                )\n            await self._validate_created_pod_rate(pod, max_hourly_rate)\n            break\n\n        if pod is None:\n            details = "; ".join(rejections) or "no GPU candidates were attempted"\n            raise RunPodApiError(\n                "RunPod rejected every requested GPU candidate: " + details\n            )\n\n        update_input: dict[str, object] = {\n            "containerDiskInGb": container_disk_gb,\n            "dockerEntrypoint": list(docker_entrypoint),\n            "dockerStartCmd": list(docker_start_cmd),\n            "env": dict(sorted(pod_env.items())),\n            "imageName": image_name,\n            "locked": False,\n            "name": pod_name,\n            "ports": list(ports),\n            "volumeMountPath": "/workspace",\n        }\n        if not network_volume_id:\n            update_input["volumeInGb"] = volume_gb\n\n        try:\n            updated = await self._request(\n                "POST", f"/pods/{pod.pod_id}/update", json_body=update_input\n            )\n        except RunPodApiError as exc:\n            cleanup_error = await self._delete_after_invalid_create(pod.pod_id)\n            detail = (\n                f"; cleanup failed: {cleanup_error}"\n                if cleanup_error is not None\n                else "; Pod was terminated"\n            )\n            raise RunPodApiError(\n                "RunPod failed to apply explicit Docker startup overrides: "\n                + str(exc)\n                + detail\n            ) from exc\n\n        if not isinstance(updated, Mapping):\n            cleanup_error = await self._delete_after_invalid_create(pod.pod_id)\n            detail = (\n                f"; cleanup failed: {cleanup_error}"\n                if cleanup_error is not None\n                else "; Pod was terminated"\n            )\n            raise RunPodApiError(\n                "RunPod update response was not an object" + detail\n            )\n\n        observed_entrypoint = updated.get("dockerEntrypoint")\n        observed_start_cmd = updated.get("dockerStartCmd")\n        if (\n            observed_entrypoint != list(docker_entrypoint)\n            or observed_start_cmd != list(docker_start_cmd)\n        ):\n            cleanup_error = await self._delete_after_invalid_create(pod.pod_id)\n            detail = (\n                f"; cleanup failed: {cleanup_error}"\n                if cleanup_error is not None\n                else "; Pod was terminated"\n            )\n            raise RunPodApiError(\n                "RunPod update did not preserve explicit Docker startup overrides"\n                + detail\n            )\n\n        merged_payload = dict(pod.raw)\n        merged_payload.update(dict(updated))\n        merged_payload.setdefault("id", pod.pod_id)\n        merged_payload.setdefault("name", pod_name)\n        merged_payload.setdefault("env", dict(pod_env))\n        merged_payload.setdefault("adjustedCostPerHr", pod.hourly_rate)\n        merged_payload.setdefault("machine", {"gpuDisplayName": pod.gpu_name})\n        return PodInfo.from_payload(merged_payload)\n\n'''
+          path.write_text(text[:start] + method + text[end:], encoding='utf-8')
+
+          tests = Path('tests/test_runpod_control.py')
+          test_text = tests.read_text(encoding='utf-8')
+          test_start = test_text.index(
+              '@pytest.mark.asyncio\nasync def test_create_image_pod_rest_preserves_explicit_startup_overrides():'
+          )
+          test_end = test_text.index(
+              '@pytest.mark.asyncio\nasync def test_actual_cost_sums_matching_billing_records():',
+              test_start,
+          )
+          new_test = '''@pytest.mark.asyncio\nasync def test_create_image_pod_rest_preserves_explicit_startup_overrides():\n    create_input: dict[str, object] = {}\n    update_input: dict[str, object] = {}\n\n    def handler(request: httpx.Request) -> httpx.Response:\n        if request.url.path == "/graphql":\n            body = json.loads(request.content)\n            create_input.update(body["variables"]["input"])\n            return httpx.Response(200, json=_graphql_pod())\n        if request.url.path == "/v1/pods/pod-1/update":\n            update_input.update(json.loads(request.content))\n            return httpx.Response(\n                200,\n                json={\n                    "id": "pod-1",\n                    "name": f"{KITTY_POD_PREFIX}rest",\n                    "desiredStatus": "RUNNING",\n                    "adjustedCostPerHr": 0.31,\n                    "dockerEntrypoint": ["bash", "-lc"],\n                    "dockerStartCmd": ["exec /tmp/bootstrap.sh"],\n                    "gpu": {"displayName": "NVIDIA L4"},\n                },\n            )\n        raise AssertionError(f"unexpected request: {request.method} {request.url}")\n\n    before = datetime.now(timezone.utc)\n    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:\n        async with _client(http_client) as client:\n            pod = await client.create_image_pod(\n                template_id="template-1",\n                image_name="runpod/comfyui:cuda13.0",\n                docker_entrypoint=("bash", "-lc"),\n                docker_start_cmd=("exec /tmp/bootstrap.sh",),\n                gpu_type_ids=("NVIDIA L4", "NVIDIA RTX A5000"),\n                max_hourly_rate=0.60,\n                hard_runtime_minutes=55,\n                ports=("8000/http",),\n                name_suffix="rest",\n            )\n\n    assert pod.pod_id == "pod-1"\n    assert create_input["templateId"] == "template-1"\n    assert create_input["gpuTypeId"] == "NVIDIA L4"\n    assert create_input["startSsh"] is False\n    terminate_after = datetime.fromisoformat(\n        str(create_input["terminateAfter"]).replace("Z", "+00:00")\n    )\n    assert terminate_after >= before + timedelta(minutes=55)\n    assert update_input["imageName"] == "runpod/comfyui:cuda13.0"\n    assert update_input["dockerEntrypoint"] == ["bash", "-lc"]\n    assert update_input["dockerStartCmd"] == ["exec /tmp/bootstrap.sh"]\n    assert update_input["ports"] == ["8000/http"]\n\n\n'''
+          tests.write_text(
+              test_text[:test_start] + new_test + test_text[test_end:],
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Run focused tests
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest==8.4.1 pytest-asyncio==1.1.0 httpx==0.28.1
+          python -m pytest tests/test_runpod_control.py -q
+
+      - name: Commit verified fix
+        shell: bash
+        run: |
+          rm .github/workflows/runpod-apply-explicit-reset-fix.yml
+          rm .github/runpod-explicit-reset-fix.trigger
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix(image): preserve deadline while resetting explicit startup"
+          git push origin HEAD:feat/runpod-image-studio-smoke
