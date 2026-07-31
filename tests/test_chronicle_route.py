@@ -2,21 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import chronicle_service
 from gateway.routes import chronicle as chronicle_route
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 def _make_client(chats: list[dict], monkeypatch) -> TestClient:
-    # Monkeypatch the store reference inside the service module, which is where
-    # the actual store call now lives (the route delegates to the service).
     monkeypatch.setattr(chronicle_route.chats_store, "list_chats", lambda: chats)
     app = FastAPI()
     app.include_router(chronicle_route.router)
@@ -42,10 +34,6 @@ def _chat(
     }
 
 
-# ---------------------------------------------------------------------------
-# HTTP layer tests
-# ---------------------------------------------------------------------------
-
 class TestChronicleEndpoint:
     def test_returns_200_and_required_keys(self, monkeypatch):
         client = _make_client([], monkeypatch)
@@ -63,7 +51,13 @@ class TestChronicleEndpoint:
         assert any("first session" in tip.lower() for tip in body["tips"])
 
     def test_tip_count_matches_tips_list(self, monkeypatch):
-        chats = [_chat(title=f"chat {i}", messages=[{"role": "user"}, {"role": "assistant"}]) for i in range(5)]
+        chats = [
+            _chat(
+                title=f"chat {index}",
+                messages=[{"role": "user"}, {"role": "assistant"}],
+            )
+            for index in range(5)
+        ]
         client = _make_client(chats, monkeypatch)
         body = client.get("/chronicle/tips").json()
         assert body["tip_count"] == len(body["tips"])
@@ -75,8 +69,8 @@ class TestChronicleEndpoint:
         assert body["summary"]["session_count"] == 7
 
     def test_summary_message_count(self, monkeypatch):
-        msgs = [{"role": "user"}, {"role": "assistant"}]
-        chats = [_chat(messages=msgs) for _ in range(4)]
+        messages = [{"role": "user"}, {"role": "assistant"}]
+        chats = [_chat(messages=messages) for _ in range(4)]
         client = _make_client(chats, monkeypatch)
         body = client.get("/chronicle/tips").json()
         assert body["summary"]["message_count"] == 8
@@ -103,7 +97,7 @@ class TestChronicleEndpoint:
         assert "python" in body["summary"]["top_topics"]
 
     def test_no_objective_tip_fires_for_three_or_more_sessions(self, monkeypatch):
-        chats = [_chat(title=f"chat {i}", objective=None) for i in range(3)]
+        chats = [_chat(title=f"chat {index}", objective=None) for index in range(3)]
         client = _make_client(chats, monkeypatch)
         body = client.get("/chronicle/tips").json()
         assert any("thread goal" in tip.lower() for tip in body["tips"])
