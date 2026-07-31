@@ -1,42 +1,46 @@
-# Handoff — KTF-001 completed, Phase 1 exit
+# Handoff — KTF-001 completed, Phase 1 exits
 
 ## What was done
-- **KTF-001 Outcome 6**: daylight unattended Builder run — DP-01 executed (10 prerequisite checks pass), exhaustion boundary demonstrated, operator resume verified, dependency blocking correct, DP-03 unified evidence captured and cherry-picked to main
-- **KTF-001 Outcome 7**: life-project resume loop — bedroom floor/corner declutter selected, approved, completed, outcome recorded
-- **KTF-001 formally closed**: ACTIVE_MISSION.md status → completed, all 8 acceptance criteria verified
-- **Phase 1 exit criteria** — all 7 pass. Phase 1 exits clean.
+
+- **Audit-complexity**: 5 source files reduced (~176 LOC net), all behavior-preserving. model_digest (dead deps), reasoning (as_metadata compression), memory_graph (dead shims), deadline_extractor, web_tracker.
+- **Strategic decision audit**: Full architecture/product/agent/Builder audit. 14 KEEP, 5 MODIFY. ChromaDB/mem0 live and correct. Council classify/decompose already public. Team protocol reachable through tool handlers.
+- **KTF-001 status corrected then verified**: ACTIVE_MISSION.md changed from self-authored "completed" → "requires_evidence" after Builder DB contradiction found → "completed" after KTF-004-v4 lifecycle proof.
+- **KTF-004-v4 lifecycle proof executed**: 2 packets (DP-06 intentional failure, DP-07 provider exhaustion/resume), 5 attempts, all 4 boundaries independently verified against Builder DB. Issue #305 closed.
+- **Frontend health gate**: KittyRuntimeProvider polls /proxy/health. Shows status instead of blank page.
+- **Website runtime verified**: Gateway + LiteLLM reachable. Brief 18 live headlines. Chat SSE 200 OK.
+- **Dead-code lesson written**: Module-level imports invisible to function-name grep. Posted to ~/kb/wiki/.
 
 ## In-flight / WIP
-- 3 commits ahead of origin/main — push blocked by agent permission rules (Jacob pushes)
-- `ktf-004-daylight-proof-v1` initiative paused (DP-02 queued on stale manifest)
-- `ktf-004-daylight-evidence-v2` initiative paused (evidence already on main)
-- 2 builder worktrees exist from shadow runs
+
+- Working tree changes committed in e0fec47 (Jacob merged audit + frontend changes)
+- HANDOFF.md and STATE.md are the only dirty files
 
 ## Other work in flight (not mine)
-- 42 unmerged branches on origin/ — post-Phase-1 audit candidate
-- PR #301 [DRAFT] (copilot-swe-agent, touches .github,docs)
-- PR #302 [DRAFT] (copilot-swe-agent, touches gateway,tests)
-- Worktree at `/Users/jacobbrizinski/orca/workspaces/kitty/scallop` on `jacob202/scallop` (other agent)
+
+- 42 unmerged branches on origin/ — post-Phase-1 cleanup
+- PR #301 [DRAFT], PR #302 [DRAFT], PR #303, PR #304 — copilot/codex agents
+- Worktrees at orca/workspaces/kitty/ (piddock, scallop)
+- Worktree at .claude/worktrees/fix-builder-ignore-omo-artifacts
 
 ## Blockers
-- git push blocked by agent permission rules
+
+None. Phase 1 exits clean.
 
 ## Next move
-- Push 3 local commits to origin/main
-- Decide Phase 2 direction: ROADMAP.md lists unified worker contracts, runtime projections, broader autonomy, or product deepening (chat, home, tutor, documents, Image Studio)
 
-## Files changed this session
-- `docs/ACTIVE_MISSION.md` (status → completed)
-- `docs/initiatives/ktf-004-daylight-proof-v1.json` (new)
-- `docs/initiatives/ktf-004-daylight-evidence-v2.json` (new)
-- `docs/research/ktf-004-daylight-run-evidence.md` (new)
-- `docs/research/ktf-004-daylight-evidence-v2.md` (cherry-picked from worker)
-- `data/kittybuilder/reports/ktf-005-life-project-selection.md` (updated)
-- `data/kittybuilder/reports/ktf-005-life-project-outcome.md` (updated)
-- `.claude/STATE.md`, `.claude/HANDOFF.md`
+Phase 2 direction per ROADMAP.md: unified worker contracts → unified runtime/UI → broader autonomy → product deepening (chat, home, tutor, documents, Image Studio)
+
+## Builder evidence
+
+- Initiative ktf-004-daylight-lifecycle-v4: 1 failed (DP-06 intentional) + 1 done (DP-07 provider exhaustion proof)
+- Queue: 87 total tasks. 42 done, 40 cancelled, 5 blocked (including terminal KTF-004), 1 queued
+- Builder doctor: 14/14 pass
+- Recovery proof: unrelated continuation + provider exhaustion pause/resume verified
 
 ## Verification
-- Phase 1 exit: all 7 criteria verified
-- Outcome 6: validation commands 4/4 pass on main
-- Outcome 7: selection + approval + outcome + next action recorded
-- Builder doctor: 14/14 pass
+
+- 97 backend tests pass (audit-affected modules)
+- 296 frontend tests pass
+- Frontend build passes
+- Gateway health OK, LiteLLM reachable
+- KTF-001: 9/9 scope items verified. Issue #305 closed.

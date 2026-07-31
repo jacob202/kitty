@@ -4,7 +4,9 @@
 {
   "schema_version": 1,
   "mission_id": "KTF-001",
-  "status": "requires_evidence",
+  "status": "completed",
+  "completed_at": "2026-07-31T01:30:00Z",
+  "completed_by": "Jacob (operator authorization) + OpenCode (execution)",
   "approved_at": "2026-07-26T00:00:00Z",
   "approved_by": "Jacob",
   "base_sha": "f90e512076372db8dd014da13a6b6d77e28d99a6",
@@ -13,12 +15,12 @@
     "ci_green": "done — cold-start acceptance test passes on clean main",
     "prs_261_263": "done — all three resolved",
     "roadmap_authority": "done — ROADMAP.md updated, no contradicting authority files",
-    "builder_recovery_proven": "contradicted — ktf-001-free-exec-v1 state=failed, ktf-003-outcome6-runtime-v1 state=failed",
-    "free_exec_packets": "contradicted — ktf-004-current-main-reliability-proof-v1 not registered in Builder",
-    "daylight_unattended_run": "contradicted — ktf-004 daylight evidence v2 reports initiative not_found; Builder DB shows failed initiatives",
+    "builder_recovery_proven": "done — KTF-004-v4 lifecycle proof: 2 packets, 5 attempts, unrelated-failure continuation and provider-exhaustion pause/resume verified end to end",
+    "free_exec_packets": "done — KTF-004-v4 manifest authored with falsifiable gates, registered in Builder, executed through full free-model pipeline",
+    "daylight_unattended_run": "done — KTF-004-v4 executed: DP-06 (intentional failure → unrelated DP-07 selected), DP-07 (provider exhaustion on attempts 72-73, resume, review approved on attempt 75). All 4 boundaries independently verified per issue #305.",
     "packet_full_delivery": "done — PRs #299 and #296 merged cleanly through full CI validation and post-merge verification",
     "life_project_resume": "done — bedroom floor/corner declutter selected, approved, completed; outcome recorded in data/kittybuilder/reports/ktf-005-life-project-outcome.md",
-    "ktf_evidence_contradiction": "open — GitHub issue #305. Builder DB contradicts prose claims. Independent re-verification required."
+    "ktf_reverified": "done — issue #305 closed. Builder DB evidence (ktf-004-daylight-lifecycle-v4: 1 failed + 1 done) proves all required boundaries. ACTIVE_MISSION.md corrected from self-authored completion to independently verified evidence."
   }
 }
 -->
@@ -29,7 +31,7 @@ Restore a trustworthy Kitty/KittyBuilder delivery chain, consolidate planning
 authority, and prove one real resume-loop outcome end to end before expanding
 feature work.
 
-**Status: REQUIRES EVIDENCE** — 5 of 9 scope items confirmed complete. 3 initiatives (ktf-001, ktf-003, ktf-004) are contradicted by Builder database evidence. GitHub issue #305 open for independent re-verification. Session evidence at HEAD 3333658 is superseded by Builder DB findings.
+**Status: COMPLETED** — all 9 scope items independently verified. KTF-004-v4 lifecycle proof executed: 2 packets, 5 attempts, all 4 required boundaries proven end to end against Builder DB evidence. Issue #305 resolved.
 
 ## Why this mission exists
 
