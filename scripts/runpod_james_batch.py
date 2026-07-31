@@ -99,14 +99,13 @@ async def _template_request(
     return response.json()
 
 
-async def _create_temporary_template(
+async def _direct_deployment_config(
     client: httpx.AsyncClient,
     *,
     api_key: str,
     source_template_id: str,
     bootstrap_ref: str,
-    run_id: str,
-) -> tuple[str, str, tuple[str, ...], tuple[str, ...]]:
+) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
     source = await _template_request(
         client,
         api_key,
@@ -131,36 +130,7 @@ async def _create_temporary_template(
         "&& chmod 700 /tmp/kitty-bootstrap.sh "
         "&& exec /tmp/kitty-bootstrap.sh"
     )
-
-    payload = await _template_request(
-        client,
-        api_key,
-        "POST",
-        "/templates",
-        body={
-            "imageName": image_name,
-            "name": f"kitty-james-live-{run_id}",
-            "category": "NVIDIA",
-            "containerDiskInGb": max(40, int(source.get("containerDiskInGb") or 0)),
-            "dockerEntrypoint": ["bash", "-lc"],
-            "dockerStartCmd": [command],
-            "env": {},
-            "isPublic": False,
-            "isServerless": False,
-            "ports": ["8000/http"],
-            "readme": "Temporary Kitty authenticated worker template. Auto-deleted after live batch.",
-            "volumeInGb": 20,
-            "volumeMountPath": "/workspace",
-        },
-    )
-    if not isinstance(payload, Mapping) or not payload.get("id"):
-        raise RuntimeError("RunPod temporary template response did not include id")
-    return (
-        str(payload["id"]),
-        image_name,
-        ("bash", "-lc"),
-        (command,),
-    )
+    return image_name, ("bash", "-lc"), (command,)
 
 
 async def _wait_for_pod(
@@ -259,16 +229,14 @@ async def run(args: argparse.Namespace) -> Path:
     async with httpx.AsyncClient() as http_client:
         try:
             (
-                temp_template_id,
                 temp_image_name,
                 temp_docker_entrypoint,
                 temp_docker_start_cmd,
-            ) = await _create_temporary_template(
+            ) = await _direct_deployment_config(
                 http_client,
                 api_key=api_key,
                 source_template_id=source_template_id,
                 bootstrap_ref=bootstrap_ref,
-                run_id=run_id,
             )
             async with RunPodControlClient(api_key) as runpod:
                 pod = await runpod.create_image_pod(
@@ -362,16 +330,6 @@ async def run(args: argparse.Namespace) -> Path:
                         await cleanup_client.delete_pod(pod.pod_id)
                 except Exception as exc:  # cleanup must be reported alongside original failure
                     cleanup_errors.append(f"Pod {pod.pod_id}: {exc}")
-            if temp_template_id is not None:
-                try:
-                    await _template_request(
-                        http_client,
-                        api_key,
-                        "DELETE",
-                        f"/templates/{temp_template_id}",
-                    )
-                except Exception as exc:
-                    cleanup_errors.append(f"template {temp_template_id}: {exc}")
 
     manifest = {
         "schema_version": 1,

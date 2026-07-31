@@ -337,7 +337,6 @@ class RunPodControlClient:
                 volume_gb=volume_gb,
                 pod_env=pod_env,
                 pod_name=pod_name,
-                terminate_after=expires_at_rfc3339,
             )
         if docker_entrypoint is not None or docker_start_cmd is not None:
             raise RunPodConfigurationError(
@@ -417,109 +416,70 @@ class RunPodControlClient:
         volume_gb: int,
         pod_env: Mapping[str, str],
         pod_name: str,
-        terminate_after: str,
     ) -> PodInfo:
-        create_input: dict[str, object] = {
+        # A Pod created from a template can report updated startup fields while the
+        # running container continues using the template's original command. Create
+        # directly from the image so RunPod applies ENTRYPOINT/CMD at first launch.
+        pod_input: dict[str, object] = {
             "name": pod_name,
             "cloudType": cloud_type,
-            "containerDiskInGb": container_disk_gb,
-            "env": [
-                {"key": key, "value": value}
-                for key, value in sorted(pod_env.items())
-            ],
-            "gpuCount": 1,
-            "ports": ",".join(ports),
-            "startSsh": False,
-            "supportPublicIp": False,
-            "templateId": template_id,
-            "terminateAfter": terminate_after,
-            "volumeMountPath": "/workspace",
-        }
-        if network_volume_id:
-            create_input["networkVolumeId"] = network_volume_id
-        else:
-            create_input["volumeInGb"] = volume_gb
-
-        rejections: list[str] = []
-        pod: PodInfo | None = None
-        for gpu_type_id in gpu_type_ids:
-            pod_input = dict(create_input)
-            pod_input["gpuTypeId"] = gpu_type_id
-            try:
-                payload = await create_gpu_pod(
-                    self._client,
-                    api_key=self._api_key,
-                    graphql_url=self._graphql_url,
-                    pod_input=pod_input,
-                )
-            except RunPodGraphQLRejectedError as exc:
-                rejections.append(f"{gpu_type_id}: {exc}")
-                continue
-            except RunPodGraphQLAmbiguousError as exc:
-                raise RunPodAmbiguousCreateError(pod_name, exc) from exc
-
-            normalized_payload = dict(payload)
-            normalized_payload.setdefault("name", pod_name)
-            normalized_payload["env"] = dict(pod_env)
-            pod = PodInfo.from_payload(normalized_payload)
-            if not pod.pod_id:
-                raise RunPodAmbiguousCreateError(
-                    pod_name,
-                    RunPodApiError("GraphQL create result did not include a Pod id"),
-                )
-            await self._validate_created_pod_rate(pod, max_hourly_rate)
-            break
-
-        if pod is None:
-            details = "; ".join(rejections) or "no GPU candidates were attempted"
-            raise RunPodApiError(
-                "RunPod rejected every requested GPU candidate: " + details
-            )
-
-        update_input: dict[str, object] = {
+            "computeType": "GPU",
             "containerDiskInGb": container_disk_gb,
             "dockerEntrypoint": list(docker_entrypoint),
             "dockerStartCmd": list(docker_start_cmd),
             "env": dict(sorted(pod_env.items())),
+            "gpuCount": 1,
+            "gpuTypeIds": list(gpu_type_ids),
+            "gpuTypePriority": "custom",
             "imageName": image_name,
+            "interruptible": False,
             "locked": False,
-            "name": pod_name,
             "ports": list(ports),
+            "supportPublicIp": False,
+            "templateId": None,
             "volumeMountPath": "/workspace",
         }
-        if not network_volume_id:
-            update_input["volumeInGb"] = volume_gb
+        if network_volume_id:
+            pod_input["networkVolumeId"] = network_volume_id
+        else:
+            pod_input["volumeInGb"] = volume_gb
 
         try:
-            updated = await self._request(
-                "POST", f"/pods/{pod.pod_id}/update", json_body=update_input
-            )
+            payload = await self._request("POST", "/pods", json_body=pod_input)
+        except RunPodTransportError as exc:
+            raise RunPodAmbiguousCreateError(pod_name, exc) from exc
         except RunPodApiError as exc:
-            cleanup_error = await self._delete_after_invalid_create(pod.pod_id)
-            detail = (
-                f"; cleanup failed: {cleanup_error}"
-                if cleanup_error is not None
-                else "; Pod was terminated"
+            message = str(exc)
+            lowered = message.lower()
+            capacity_markers = (
+                "no capacity",
+                "no available",
+                "not available",
+                "availability",
+                "unable to rent",
+                "could not find",
             )
-            raise RunPodApiError(
-                "RunPod failed to apply explicit Docker startup overrides: "
-                + str(exc)
-                + detail
-            ) from exc
+            if any(marker in lowered for marker in capacity_markers):
+                raise RunPodApiError(
+                    "RunPod rejected every requested GPU candidate: " + message
+                ) from exc
+            raise
 
-        if not isinstance(updated, Mapping):
-            cleanup_error = await self._delete_after_invalid_create(pod.pod_id)
-            detail = (
-                f"; cleanup failed: {cleanup_error}"
-                if cleanup_error is not None
-                else "; Pod was terminated"
+        if not isinstance(payload, Mapping):
+            raise RunPodAmbiguousCreateError(
+                pod_name, RunPodApiError("REST create result was not an object")
             )
-            raise RunPodApiError(
-                "RunPod update response was not an object" + detail
+        normalized_payload = dict(payload)
+        normalized_payload.setdefault("name", pod_name)
+        normalized_payload.setdefault("env", dict(pod_env))
+        pod = PodInfo.from_payload(normalized_payload)
+        if not pod.pod_id:
+            raise RunPodAmbiguousCreateError(
+                pod_name, RunPodApiError("REST create result did not include a Pod id")
             )
 
-        observed_entrypoint = updated.get("dockerEntrypoint")
-        observed_start_cmd = updated.get("dockerStartCmd")
+        observed_entrypoint = normalized_payload.get("dockerEntrypoint")
+        observed_start_cmd = normalized_payload.get("dockerStartCmd")
         if (
             observed_entrypoint != list(docker_entrypoint)
             or observed_start_cmd != list(docker_start_cmd)
@@ -531,18 +491,12 @@ class RunPodControlClient:
                 else "; Pod was terminated"
             )
             raise RunPodApiError(
-                "RunPod update did not preserve explicit Docker startup overrides"
+                "RunPod direct create did not preserve explicit Docker startup overrides"
                 + detail
             )
 
-        merged_payload = dict(pod.raw)
-        merged_payload.update(dict(updated))
-        merged_payload.setdefault("id", pod.pod_id)
-        merged_payload.setdefault("name", pod_name)
-        merged_payload.setdefault("env", dict(pod_env))
-        merged_payload.setdefault("adjustedCostPerHr", pod.hourly_rate)
-        merged_payload.setdefault("machine", {"gpuDisplayName": pod.gpu_name})
-        return PodInfo.from_payload(merged_payload)
+        await self._validate_created_pod_rate(pod, max_hourly_rate)
+        return pod
 
     async def _validate_created_pod_rate(
         self,
