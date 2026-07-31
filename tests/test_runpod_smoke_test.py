@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -14,6 +15,13 @@ from scripts import runpod_smoke_test as smoke
 
 def _args(**overrides: object) -> argparse.Namespace:
     values: dict[str, object] = {
+        "prompt": "a brass robot",
+        "output_dir": "outputs/runpod-smoke-test",
+        "seed": 42,
+        "existing_pod_id": None,
+        "cloud_type": "COMMUNITY",
+        "container_disk_gb": 30,
+        "volume_gb": 20,
         "dry_run": False,
         "allow_public_comfyui": False,
         "accept_charges": False,
@@ -139,6 +147,26 @@ def test_config_reads_env_and_rejects_bad_dimensions(monkeypatch):
     monkeypatch.setenv("COMFY_WIDTH", "1025")
     with pytest.raises(RunPodConfigurationError, match="COMFY_WIDTH"):
         smoke.SmokeConfig.from_env(require_template=True)
+
+
+@pytest.mark.asyncio
+async def test_dry_run_needs_no_secrets(monkeypatch, tmp_path):
+    monkeypatch.delenv("RUNPOD_API_KEY", raising=False)
+    monkeypatch.delenv("RUNPOD_TEMPLATE_ID", raising=False)
+    monkeypatch.setenv("COMFY_CHECKPOINT", "model.safetensors")
+
+    result = await smoke.run_smoke(
+        _args(
+            dry_run=True,
+            output_dir=str(tmp_path),
+        )
+    )
+    payload = json.loads(result.read_text(encoding="utf-8"))
+
+    assert result.name == "runpod-smoke-plan.json"
+    assert payload["dry_run"] is True
+    assert payload["template_id"] is None
+    assert payload["checkpoint"] == "model.safetensors"
 
 
 @pytest.mark.asyncio
