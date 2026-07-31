@@ -1,5 +1,6 @@
 name: RunPod James Live Batch
 
+# Live trigger: 2026-07-31T07:13Z
 on:
   push:
     branches: [feat/runpod-image-studio-smoke]
