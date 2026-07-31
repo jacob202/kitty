@@ -73,18 +73,56 @@ and establish one truthful planning surface before any feature work proceeds.
   supported runtime evidence.
 - Status: COMPLETE with this commit. Ledger at `docs/DISPOSITION_LEDGER.md`.
 
-0.5 **Define the launcher contract**
+0.5 **Fix competing launcher paths and probe/open mismatch**
+- VERIFIED 2026-07-31: no `com.kitty.ui` launch agent is installed or loaded.
+- Two Next servers from different Kitty checkouts simultaneously occupy port
+  4000 on separate IPv4/IPv6 bindings. `kitty` probes `127.0.0.1:4000` (hits
+  canonical IPv4) but opens `http://localhost:4000` (browser resolves to IPv6,
+  hits piddock worktree). The operator validates one checkout and views another.
+- `pid_owned_by_kitty()` (`kitty:90-95`) scopes "Kitty-owned" to `$KITTY_ROOT`
+  only. Running `./kitty down` from the canonical checkout leaves piddock
+  worktree listeners running as "unrelated."
+- The #328 freshness repair applies to `start_ui.sh` only — which is never
+  invoked since the launch agent doesn't exist. The `kitty` CLI starts `next
+  dev` directly, bypassing all freshness checks.
+- Required fix: one canonical UI bootstrap used by `kitty`, `launchd`, phone
+  access, and production startup:
+  - one host/address used consistently for probing and opening;
+  - refusal to launch when any IPv4 or IPv6 listener comes from another worktree;
+  - mode, checkout path, source SHA, build SHA, PID, and port printed at startup;
+  - stale-build handling shared rather than implemented in only one launcher;
+  - shutdown that recognizes conflicting Kitty worktrees instead of calling
+    them unrelated.
+- Dependencies: Gate 0.4 (planning surface).
+- Verification: `./kitty up` from two separate worktrees; the second must
+  refuse to start. `./kitty down` from either worktree must stop all Kitty
+  listeners on all ports. `curl http://127.0.0.1:4000/health` and
+  `curl http://[::1]:4000/health` must return the same response from the same
+  process. `./kitty status` must report source SHA, build SHA, checkout path,
+  and freshness for every Kitty-owned listener.
+- Artifacts: updated `kitty` CLI, shared bootstrap library, launcher contract.
+- Implementer: strong model with repo and shell access.
+- Verifier: independent model (must have repo, shell, and browser access to
+  confirm both loopback addresses hit the same process).
+- Failure: any listener from a non-canonical worktree survives `./kitty down`;
+  any health probe hits a different process than the browser opens.
+- Evidence: `./kitty status` output showing one listener per port, matching
+  `lsof -iTCP:4000 -sTCP:LISTEN`.
+- Owner: Jacob (authorization).
+- Status: PENDING.
+
+0.6 **Define the launcher contract**
 - One launcher contract across production (`launchd`) and development
   (`./kitty up`) modes.
 - Both paths delegate to shared bootstrap and health logic.
 - Expose: mode, source SHA, build SHA, ports, process ownership, freshness.
 - No silent alternate path may serve an unknown build.
-- Verified: launcher contract at `docs/reference/LAUNCHER_CONTRACT.md`.
 - `scripts/desktop/start_ui.sh` now rebuilds when source is newer than the last
-  build and fails loud on build failure.
-- Status: COMPLETE.
+  build and fails loud on build failure (from #328), but this path is not
+  currently invoked since no launch agent is installed.
+- Status: COMPLETE as document. Implementation blocked on outcome 0.5.
 
-0.6 **Add enforceable prevention mechanisms**
+0.7 **Add enforceable prevention mechanisms**
 - Red-main freeze: CI status check on `main` branch push is required.
 - One active implementation lane: at most one non-Dependabot feature PR open
   against `main` at a time.
@@ -104,10 +142,16 @@ and establish one truthful planning surface before any feature work proceeds.
 ### Exit criteria
 
 Gate 0 exits when:
-- All outcomes 0.1 through 0.6 are complete with verified evidence.
+- All outcomes 0.1 through 0.7 are complete with verified evidence.
 - CI is green on `origin/main` with all six required jobs passing.
 - No open PR older than 7 days without activity (excluding approved Dependabot).
 - The disposition ledger contains every retained planning file.
+- `./kitty down` from the canonical checkout cleans all Kitty-owned listeners
+  across all worktrees.
+- `curl http://127.0.0.1:4000/health` and `curl http://[::1]:4000/health`
+  return the same response from the same process.
+- `./kitty status` reports source SHA, build SHA, checkout path, PID, and
+  freshness for every managed listener.
 
 ---
 
