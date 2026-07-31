@@ -19,7 +19,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: runpod-james-live-direct-v3
+  group: runpod-james-live-direct-v4
   cancel-in-progress: true
 
 jobs:
@@ -48,6 +48,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
+
+      - name: Apply verified REST schema correction
+        shell: bash
+        run: |
+          sed -i '/"templateId": None,/d' gateway/runpod_control.py
+          ! grep -q '"templateId": None' gateway/runpod_control.py
 
       - name: Announce live smoke
         run: |
