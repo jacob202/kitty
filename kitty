@@ -89,12 +89,11 @@ pid_cwd() {
 
 pid_owned_by_kitty() {
   local pid="$1"
-  local command cwd git_dir_root git_dir_candidate
-  command="$(pid_command "$pid")"
+  local cwd git_dir_root git_dir_candidate
   cwd="$(pid_cwd "$pid")"
 
-  # Fast path: direct match on current KITTY_ROOT
-  if [[ "$command" == *"$KITTY_ROOT"* || "$cwd" == "$KITTY_ROOT" || "$cwd" == "$KITTY_ROOT/"* ]]; then
+  # Fast path: process cwd is inside current KITTY_ROOT
+  if [[ "$cwd" == "$KITTY_ROOT" || "$cwd" == "$KITTY_ROOT/"* ]]; then
     return 0
   fi
 
