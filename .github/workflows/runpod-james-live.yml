@@ -1,6 +1,5 @@
-name: RunPod James Adaptive Search
+name: RunPod James Single Smoke
 
-# Live trigger: 2026-07-31T07:42Z — capacity-aware 36-attempt session
 on:
   push:
     branches: [feat/runpod-image-studio-smoke]
@@ -8,12 +7,11 @@ on:
       - .github/workflows/runpod-james-live.yml
       - scripts/runpod_james_adaptive.py
       - scripts/runpod_james_batch.py
+      - workers/comfy_worker/bootstrap.sh
+      - workers/comfy_worker/start.sh
+      - workers/comfy_worker/app.py
+      - workflows/text_to_image_v1/**
   workflow_dispatch:
-    inputs:
-      attempts:
-        description: Number of James portrait attempts in one Pod session
-        required: true
-        default: "36"
 
 permissions:
   contents: read
@@ -25,17 +23,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  james-batch:
+  james-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    timeout-minutes: 75
     env:
       GH_TOKEN: ${{ github.token }}
       RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
       RUNPOD_TEMPLATE_ID: 2lv7ev3wfp
       KITTY_BOOTSTRAP_REF: ${{ github.sha }}
       RUNPOD_MAX_HOURLY_RATE: "0.60"
-      RUNPOD_HARD_RUNTIME_MINUTES: "70"
-      RUNPOD_READY_TIMEOUT_SECONDS: "1200"
+      RUNPOD_HARD_RUNTIME_MINUTES: "55"
+      RUNPOD_READY_TIMEOUT_SECONDS: "2400"
       RUNPOD_GENERATION_TIMEOUT_SECONDS: "600"
       RUNPOD_POLL_INTERVAL_SECONDS: "5"
       RUNPOD_CLOUD_TYPES: COMMUNITY,SECURE
@@ -46,15 +44,15 @@ jobs:
       COMFY_CHECKPOINT_SHA256: 912c9dc74f5855175c31a7993f863a043ac8dcc31732b324cd05d75cd7e16844
 
     steps:
-      - name: Checkout adaptive search commit
+      - name: Checkout smoke-test commit
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
 
-      - name: Announce live run
+      - name: Announce live smoke
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod adaptive James search started (up to 36 attempts, one Pod, capacity retries): https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod one-image infrastructure smoke started: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -76,16 +74,15 @@ jobs:
         run: |
           test -n "$RUNPOD_API_KEY" || { echo "RUNPOD_API_KEY secret is missing" >&2; exit 2; }
 
-      - name: Generate adaptive James portrait search
+      - name: Generate one real smoke image
         shell: bash
         run: |
-          ATTEMPTS="${{ github.event.inputs.attempts || '36' }}"
           python scripts/runpod_james_adaptive.py \
-            --attempts "$ATTEMPTS" \
+            --attempts 1 \
             --output-dir runtime-data/runpod-james \
             --accept-charges
 
-      - name: Upload generated images and provenance
+      - name: Upload generated image and provenance
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -98,10 +95,10 @@ jobs:
         if: success()
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod adaptive James search succeeded. Images and provenance are attached to run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod one-image infrastructure smoke succeeded. Genuine image and provenance are attached to run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Report failure
         if: failure()
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod adaptive James search failed. Inspect the exact step here: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod one-image infrastructure smoke failed. Inspect the exact step here: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
