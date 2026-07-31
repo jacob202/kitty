@@ -7,6 +7,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import math
 import os
 import secrets
 import sys
@@ -24,6 +25,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from gateway.runpod_control import (  # noqa: E402
     PodInfo,
+    RunPodAmbiguousCreateError,
     RunPodApiError,
     RunPodConfigurationError,
     RunPodControlClient,
@@ -136,9 +138,9 @@ class Config:
             raise RunPodConfigurationError("RUNPOD_GPU_TYPE_IDS is empty")
         if not self.checkpoint:
             raise RunPodConfigurationError("COMFY_CHECKPOINT is empty")
-        if self.max_hourly_rate <= 0:
+        if not math.isfinite(self.max_hourly_rate) or self.max_hourly_rate <= 0:
             raise RunPodConfigurationError(
-                "RUNPOD_MAX_HOURLY_RATE must be positive"
+                "RUNPOD_MAX_HOURLY_RATE must be positive and finite"
             )
         if self.hard_runtime_minutes <= 0:
             raise RunPodConfigurationError(
@@ -152,9 +154,9 @@ class Config:
             raise RunPodConfigurationError(
                 "RUNPOD_GENERATION_TIMEOUT_SECONDS must be positive"
             )
-        if self.poll_interval_seconds <= 0:
+        if not math.isfinite(self.poll_interval_seconds) or self.poll_interval_seconds <= 0:
             raise RunPodConfigurationError(
-                "RUNPOD_POLL_INTERVAL_SECONDS must be positive"
+                "RUNPOD_POLL_INTERVAL_SECONDS must be positive and finite"
             )
         for name, value in (
             ("COMFY_WIDTH", self.width),
@@ -168,9 +170,9 @@ class Config:
             raise RunPodConfigurationError(
                 "COMFY_STEPS must be between 1 and 100"
             )
-        if not 0 <= self.guidance <= 30:
+        if not math.isfinite(self.guidance) or not 0 <= self.guidance <= 30:
             raise RunPodConfigurationError(
-                "COMFY_CFG must be between 0 and 30"
+                "COMFY_CFG must be finite and between 0 and 30"
             )
 
 
@@ -205,6 +207,35 @@ async def reconcile_expired_pods(client: RunPodControlClient) -> list[str]:
             await client.delete_pod(pod.pod_id)
             terminated.append(pod.pod_id)
     return terminated
+
+
+async def reconcile_ambiguous_creation(
+    client: RunPodControlClient,
+    pod_name: str,
+) -> list[str]:
+    """Delete exact-name managed Pods after a lost create response."""
+    try:
+        pods = await client.list_pods()
+    except RunPodApiError as exc:
+        raise WorkerSmokeError(
+            "Pod creation was ambiguous and reconciliation also failed; "
+            f"inspect RunPod for Pod name {pod_name!r}: {exc}"
+        ) from exc
+    matches = [pod for pod in pods if pod.name == pod_name and pod.is_managed()]
+    deleted: list[str] = []
+    failures: list[str] = []
+    for pod in matches:
+        try:
+            await client.delete_pod(pod.pod_id)
+            deleted.append(pod.pod_id)
+        except RunPodApiError as exc:
+            failures.append(f"{pod.pod_id}: {exc}")
+    if failures:
+        raise WorkerSmokeError(
+            "Pod creation was ambiguous and cleanup was incomplete; inspect "
+            f"RunPod for Pod name {pod_name!r}: {'; '.join(failures)}"
+        )
+    return deleted
 
 
 async def wait_for_running_pod(
@@ -277,6 +308,7 @@ def _validate_acknowledgements(
 def _write_provenance(
     *,
     output_dir: Path,
+    run_id: str,
     started_at: datetime,
     elapsed_seconds: float,
     pod: PodInfo,
@@ -295,6 +327,7 @@ def _write_provenance(
 ) -> Path:
     payload = {
         "schema_version": 2,
+        "run_id": run_id,
         "started_at": started_at.isoformat(),
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "pod_id": pod.pod_id,
@@ -327,7 +360,7 @@ def _write_provenance(
         "failure_type": type(failure).__name__ if failure else None,
         "failure_message": str(failure) if failure else None,
     }
-    path = output_dir / "runpod-worker-smoke-provenance.json"
+    path = output_dir / f"runpod-worker-smoke-{run_id}.json"
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return path
 
@@ -342,13 +375,19 @@ async def run_smoke(args: argparse.Namespace) -> Path:
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     seed = args.seed if args.seed is not None else secrets.randbits(63)
+    run_id = (
+        datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        + "-"
+        + secrets.token_hex(4)
+    )
 
     if args.dry_run:
-        path = output_dir / "runpod-worker-smoke-plan.json"
+        path = output_dir / f"runpod-worker-smoke-plan-{run_id}.json"
         path.write_text(
             json.dumps(
                 {
                     "dry_run": True,
+                    "run_id": run_id,
                     "creating_pod": creating_pod,
                     "template_id": config.template_id,
                     "worker_port": WORKER_PORT,
@@ -384,29 +423,51 @@ async def run_smoke(args: argparse.Namespace) -> Path:
 
         if args.existing_pod_id:
             pod = await runpod.get_pod(args.existing_pod_id)
+            if not pod.is_managed():
+                raise WorkerSmokeError(
+                    f"refusing unmanaged existing Pod {pod.pod_id}"
+                )
         else:
             if config.template_id is None:
                 raise RunPodConfigurationError(
                     "RUNPOD_TEMPLATE_ID is required"
                 )
-            pod = await runpod.create_image_pod(
-                template_id=config.template_id,
-                gpu_type_ids=config.gpu_type_ids,
-                max_hourly_rate=config.max_hourly_rate,
-                hard_runtime_minutes=config.hard_runtime_minutes,
-                ports=(f"{WORKER_PORT}/http",),
-                network_volume_id=config.network_volume_id,
-                cloud_type=args.cloud_type,
-                container_disk_gb=args.container_disk_gb,
-                volume_gb=args.volume_gb,
-                env={
-                    "KITTY_WORKER_BEARER_TOKEN": config.worker_token,
-                    "COMFY_CHECKPOINT": config.checkpoint,
-                    "KITTY_ALLOWED_CHECKPOINTS": config.checkpoint,
-                },
-            )
+            try:
+                pod = await runpod.create_image_pod(
+                    template_id=config.template_id,
+                    gpu_type_ids=config.gpu_type_ids,
+                    max_hourly_rate=config.max_hourly_rate,
+                    hard_runtime_minutes=config.hard_runtime_minutes,
+                    ports=(f"{WORKER_PORT}/http",),
+                    network_volume_id=config.network_volume_id,
+                    cloud_type=args.cloud_type,
+                    container_disk_gb=args.container_disk_gb,
+                    volume_gb=args.volume_gb,
+                    env={
+                        "KITTY_WORKER_BEARER_TOKEN": config.worker_token,
+                        "COMFY_CHECKPOINT": config.checkpoint,
+                        "KITTY_ALLOWED_CHECKPOINTS": config.checkpoint,
+                    },
+                    name_suffix=run_id,
+                )
+            except RunPodAmbiguousCreateError as exc:
+                deleted = await reconcile_ambiguous_creation(
+                    runpod, exc.pod_name
+                )
+                detail = (
+                    f"; deleted {len(deleted)} matching Pod(s)"
+                    if deleted
+                    else "; no matching managed Pod was visible"
+                )
+                raise WorkerSmokeError(
+                    "Pod creation lost confirmation and was not retried" + detail
+                ) from exc
             owns_pod = True
 
+        if pod.hourly_rate <= 0:
+            raise WorkerSmokeError(
+                f"Pod {pod.pod_id} has no positive finite hourly rate"
+            )
         print(
             f"RunPod Pod {pod.pod_id} selected; GPU={pod.gpu_name}; "
             f"rate=${pod.hourly_rate:.4f}/hr"
@@ -437,7 +498,7 @@ async def run_smoke(args: argparse.Namespace) -> Path:
                     steps=config.steps,
                     guidance=config.guidance,
                     seed=seed,
-                    client_action_id=f"smoke-{secrets.token_hex(8)}",
+                    client_action_id=f"smoke-{run_id}",
                 )
                 worker_job_id = submitted.job_id
                 completed = await worker.wait(
@@ -458,12 +519,9 @@ async def run_smoke(args: argparse.Namespace) -> Path:
                     raise WorkerSmokeError(
                         "downloaded image checksum did not match worker metadata"
                     )
-                timestamp = datetime.now(timezone.utc).strftime(
-                    "%Y%m%d-%H%M%S"
-                )
                 suffix = Path(output.filename).suffix.lower() or ".png"
                 image_path = (
-                    output_dir / f"kitty-runpod-worker-{timestamp}{suffix}"
+                    output_dir / f"kitty-runpod-worker-{run_id}{suffix}"
                 )
                 image_path.write_bytes(image_bytes)
         except BaseException as exc:
@@ -482,6 +540,7 @@ async def run_smoke(args: argparse.Namespace) -> Path:
     elapsed = time.monotonic() - started_monotonic
     _write_provenance(
         output_dir=output_dir,
+        run_id=run_id,
         started_at=started_at,
         elapsed_seconds=elapsed,
         pod=pod,
@@ -516,7 +575,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--prompt", required=True)
     parser.add_argument(
-        "--output-dir", default="outputs/runpod-worker-smoke"
+        "--output-dir", default="data/runpod-worker-smoke"
     )
     parser.add_argument("--seed", type=int)
     parser.add_argument("--existing-pod-id")
