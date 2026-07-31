@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, cast
 
 import httpx
 
@@ -33,10 +33,18 @@ class RunPodBudgetError(RunPodError):
 
 
 def _as_float(value: object, default: float = 0.0) -> float:
+    if not isinstance(value, (int, float, str)):
+        return default
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except ValueError:
         return default
+
+
+def _as_mapping(value: object) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return cast(Mapping[str, Any], value)
 
 
 @dataclass(frozen=True)
@@ -54,13 +62,9 @@ class PodInfo:
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "PodInfo":
-        gpu = payload.get("gpu") if isinstance(payload.get("gpu"), Mapping) else {}
-        machine = (
-            payload.get("machine")
-            if isinstance(payload.get("machine"), Mapping)
-            else {}
-        )
-        env = payload.get("env") if isinstance(payload.get("env"), Mapping) else {}
+        gpu = _as_mapping(payload.get("gpu"))
+        machine = _as_mapping(payload.get("machine"))
+        env = _as_mapping(payload.get("env"))
         rate = _as_float(payload.get("adjustedCostPerHr")) or _as_float(
             payload.get("costPerHr")
         )
@@ -260,6 +264,7 @@ class RunPodControlClient:
             "computeType": "GPU",
             "gpuCount": 1,
             "gpuTypeIds": normalized_gpu_ids,
+            "gpuTypePriority": "availability",
             "templateId": template_id,
             "ports": list(ports),
             "interruptible": False,
