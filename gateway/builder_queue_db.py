@@ -272,8 +272,18 @@ def _ensure_branch_lease_initiative_id(conn: sqlite3.Connection) -> None:
     place, so this rebuilds the table.
 
     Legacy rows get a placeholder initiative_id so the NOT NULL constraint passes.
+
+    Also drops any orphan ``idx_branch_leases_worker`` unique index that
+    survived a prior migration. That index makes ``worker_id`` globally
+    unique instead of per-initiative, blocking any second initiative from
+    using the same worker preset (e.g. ``opencode-free``).
     """
     cols = {row[1] for row in conn.execute("PRAGMA table_info(branch_leases)")}
+    indexes = {
+        row[1] for row in conn.execute("PRAGMA index_list(branch_leases)")
+    }
+    if "idx_branch_leases_worker" in indexes:
+        conn.execute("DROP INDEX idx_branch_leases_worker")
     if "initiative_id" in cols:
         return
     # Table rebuild: create new schema, copy, swap.

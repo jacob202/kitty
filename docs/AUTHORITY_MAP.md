@@ -16,6 +16,9 @@ report the contradiction rather than blending the claims.
 | `decisions` | `docs/DECISIONS.md` | Accepted decisions, amendments, supersession, and routing into `docs/adr/` | Live status or implementation sequencing |
 | `roadmap` | `docs/ROADMAP.md` | The one active forward-looking sequence and phase exit criteria | Live Builder state or historical planning narrative |
 | `planning_inputs` | `docs/plans/` | Existing plans, planning notes, packets, research, audits, and initiative manifests as preserved ideas, evidence, candidate work, or executable contracts when explicitly approved | Roadmap authority merely by existing |
+| `disposition_ledger` | `docs/DISPOSITION_LEDGER.md` | The canonical disposition (ACTIVE, SCHEDULED, BLOCKED, BACKLOG, SUPERSEDED, REJECTED, ARCHIVED) of every retained planning file | Disposition of files not yet inventoried |
+| `launcher_contract` | `docs/reference/LAUNCHER_CONTRACT.md` | The single launcher interface across production and development modes; required shared properties | Alternative server entry points or silently bootable paths |
+| `prevention_mechanisms` | `docs/reference/PREVENTION_MECHANISMS.md` | Enforceable prevention mechanisms for the repository: red-main freeze, lane limits, freshness, overlap detection, stale-draft policy, independent review, evidence requirements | Implementation details of CI workflows |
 | `live_status` | `docs/PROJECT_STATUS.md` | Verified shipped capabilities and known limitations at its stated SHA | Current priority or unverified present state |
 | `active_mission` | `docs/ACTIVE_MISSION.md` | The one approved current mission, authority, and acceptance contract | Builder task/run truth |
 | `session_checkpoint` | `.claude/STATE.md` | Current branch checkpoint, blockers, and exact next action only while its identity and invalidation conditions remain valid | Historical checkpoints or product purpose |

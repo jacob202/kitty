@@ -1,39 +1,38 @@
-# Handoff — KB-BRAIN-05 close-out, KTF-001 gates
+# Handoff — Gate 0 complete, Phase 1.1 smoke proven
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-07-30T13:00:00Z",
-  "head_sha": "fbd69242cd7cd5437d8d65b09ad6dc9b287d5f8f",
-  "branch": "main",
-  "worktree": ".",
+  "updated_at": "2026-07-31T22:15:00Z",
+  "head_sha": "9c446874",
+  "branch": "recovery/roadmap-2026-07-31",
+  "worktree": "piddock",
   "status": "valid",
   "completed_items": [
-    "KB-BRAIN-05 verified complete: 7 operator actions with backend, UI, confirm dialogs, route, and tests",
-    "Docs authorization committed: ACTIVE_MISSION, ARCHITECTURE, ROADMAP updated for KB-BRAIN-05",
-    "Cold-start test passing (pre-existing red already fixed)"
+    "Wrote recovery roadmap (docs/ROADMAP.md) with Gate 0 + Phase 1-4 outcomes",
+    "Disposition ledger (docs/DISPOSITION_LEDGER.md) covers all 136 retained planning files",
+    "Launcher contract (docs/reference/LAUNCHER_CONTRACT.md) with verified current state",
+    "Prevention mechanisms (docs/reference/PREVENTION_MECHANISMS.md)",
+    "Fixed competing-launcher bugs in kitty: cross-worktree pid ownership, probe/open mismatch (127.0.0.1 vs localhost), startup identity, same-vs-other checkout messages, cmd_down kills all port occupants",
+    "PRs #304 and #308 closed; #306 parked as draft; #331 merged to main",
+    "237/237 builder tests pass, 14/14 initiative doctor pass",
+    "Fixed orphan idx_branch_leases_worker unique index (blocked --free on second initiative)",
+    "Ran smoke initiative phase1-smoke-recovery end-to-end with DeepSeek V4 Pro — succeeded attempt 1",
+    "All changes pushed to origin/main at 9c446874"
   ],
-  "blockers": [
-    "3 commits ahead of origin/main — git push blocked by agent permission rules"
+  "blockers": [],
+  "next_action": "Verify smoke evidence on canonical: cat data/smoke/hello.txt, then Phase 1.1 daylight crash-recovery proof",
+  "invalidation_conditions": [
+    "HEAD advances past 9c446874",
+    "branch changes from recovery/roadmap-2026-07-31"
   ],
-  "next_action": "Push 3 commits to origin/main, then start KTF-001 life-project resume proof",
+  "active_mission": "docs/ACTIVE_MISSION.md",
   "parallel_work": [],
   "recommendations": [
     {
-      "id": "ktf-life-project-resume",
-      "what": "KTF-001 outcome 7: prove the life-project resume loop",
-      "why": "Last major gate before Phase 1 exit. Needs Jacob to pick a project.",
-      "class": "life",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "push-commits",
-      "what": "Push 3 local commits to origin/main",
-      "why": "KB-BRAIN-05 + docs authorization need to land on remote main",
+      "id": "phase1-1-daylight-proof",
+      "what": "Execute a daylight Builder crash-recovery proof — kill worker mid-execution, verify recovery preserves evidence without consuming budget",
+      "why": "Unit tests pass (237/237) but recovery needs live proof with a real worker",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -42,9 +41,9 @@
       "first_deferred": null
     },
     {
-      "id": "ktf-daylight-run",
-      "what": "KTF-001 outcome 6: daylight unattended Builder run",
-      "why": "Prove proactive delivery, failure continuation, honest exhaustion pause",
+      "id": "merge-dependabot",
+      "what": "Merge passing Dependabot PRs #311-323",
+      "why": "Guardrails gate fixed in #327, they now pass",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -52,29 +51,6 @@
       "deferred_count": 0,
       "first_deferred": null
     }
-  ],
-  "invalidation_conditions": ["HEAD advances past fbd6924"],
-  "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  ]
 }
 -->
-
-## What was done
-- KB-BRAIN-05 verified complete: 7 operator actions (requeue, cancel, pause, resume, run_validation, publish, recover_stale) with backend handlers in `gateway/builder_commands.py`, route in `gateway/routes/builder.py`, UI in `OperatorControls.tsx`, confirm dialogs for destructive ops, and backend tests
-- Docs updated to authorize KB-BRAIN-05: ACTIVE_MISSION.md (authorization clause), ARCHITECTURE.md (controls are now confirmed-operator), ROADMAP.md (cockpit exclusion relaxed)
-- Cold-start acceptance test passes
-
-## In-flight
-- 3 commits ahead of origin/main (KB-BRAIN-05 + docs authorization), push blocked by agent rules
-- Uncommitted: STATE.md, HANDOFF.md updated this session
-
-## KTF-001 remaining
-- Outcome 6: daylight unattended run — needs Builder execution
-- Outcome 7: life-project resume loop — needs Jacob to pick a project
-
-## Next move
-Push 3 commits to origin/main, then start the life-project resume proof.
-
-## Verification
-- Backend: 26/26 tests pass (cold-start + builder_commands + builder_routes)
-- KB-BRAIN-05: all handlers registered in COMMAND_HANDLERS, route dispatches correctly, UI shows context-sensitive buttons

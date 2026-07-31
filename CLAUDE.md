@@ -62,6 +62,27 @@ direct when an idea has a problem. Do not flatter bad plans into existence.
 Put working detail in files and evidence artifacts. Chat gets the outcome,
 failures, and decisions Jacob must make.
 
+### Asking Jacob for things
+
+Quit dancing around it. When you actually need him, say so in one block, at the
+end, in this shape:
+
+1. **One ask.** Roll every outstanding question, decision, and credential into a
+   single numbered list. Never spread asks across paragraphs or turns.
+2. **Pick the easiest path and name it.** Don't present options and wait. Choose
+   the lowest-effort route for him, say which you chose, and say what you'll do
+   the moment he answers.
+3. **Give him the exact artifact.** If he has to run something, paste the exact
+   command. If he has to prompt another agent, paste the whole prompt ready to
+   copy — not a description of it.
+4. **Never ask for what you can get yourself.** Check the env, the repo, the
+   GitHub API, and your own tools first. "I can't" is only true after you tried.
+5. **Do not re-litigate with review bots.** Fix what is right, ignore the rest,
+   and never open a back-and-forth thread with an automated reviewer.
+
+Blocking on Jacob is a last resort, not a status update. If part of the work can
+proceed without him, do that part first and ask once at the end.
+
 ## Initiative
 
 See `.claude/rules/initiative.md`. Persona and noticing rules live in
