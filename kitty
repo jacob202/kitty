@@ -297,6 +297,7 @@ cmd_status() {
   echo "Kitty status"
   echo "────────────"
 
+  local svc pidfile pid launch_pid port listener_pid owned_pid
   for svc in ui gateway litellm; do
     pidfile="$RUN_DIR/$svc.pid"
     if pid_alive "$pidfile"; then
@@ -305,7 +306,24 @@ cmd_status() {
     elif launch_pid="$(launchd_pid "$svc")" && [[ -n "$launch_pid" ]]; then
       printf "  %-10s running via launchd (pid %s)\n" "$svc" "$launch_pid"
     else
-      printf "  %-10s not running\n" "$svc"
+      case "$svc" in
+        ui) port="$UI_PORT" ;;
+        gateway) port="$GATEWAY_PORT" ;;
+        litellm) port="$LITELLM_PORT" ;;
+      esac
+      owned_pid=""
+      for listener_pid in $(listener_pids "$port"); do
+        if pid_owned_by_kitty "$listener_pid"; then
+          owned_pid="$listener_pid"
+          break
+        fi
+      done
+      if [[ -n "$owned_pid" ]]; then
+        printf "  %-10s running (pid %s; discovered owned listener on :%s)\n" \
+          "$svc" "$owned_pid" "$port"
+      else
+        printf "  %-10s not running\n" "$svc"
+      fi
     fi
   done
 
