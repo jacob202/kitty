@@ -10,7 +10,7 @@ USER root
 WORKDIR /opt/kitty
 
 COPY workers/comfy_worker/requirements.txt /tmp/kitty-worker-requirements.txt
-RUN python -m pip install --no-cache-dir -r /tmp/kitty-worker-requirements.txt
+RUN python3 -m pip install --no-cache-dir -r /tmp/kitty-worker-requirements.txt
 
 COPY workers /opt/kitty/workers
 COPY workflows /opt/kitty/workflows
