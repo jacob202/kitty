@@ -436,7 +436,6 @@ class RunPodControlClient:
             "locked": False,
             "ports": list(ports),
             "supportPublicIp": False,
-            "templateId": None,
             "volumeMountPath": "/workspace",
         }
         if network_volume_id:

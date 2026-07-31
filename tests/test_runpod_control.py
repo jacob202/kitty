@@ -340,7 +340,7 @@ async def test_create_image_pod_rest_preserves_explicit_startup_overrides():
             )
 
     assert pod.pod_id == "rest-pod"
-    assert captured["templateId"] is None
+    assert "templateId" not in captured
     assert captured["imageName"] == "runpod/comfyui:cuda13.0"
     assert captured["dockerEntrypoint"] == ["bash", "-lc"]
     assert captured["dockerStartCmd"] == ["exec /tmp/bootstrap.sh"]
