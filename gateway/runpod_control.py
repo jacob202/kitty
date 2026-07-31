@@ -6,6 +6,7 @@ Image Studio smoke test. It is not a generic RunPod SDK.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence, cast
@@ -34,17 +35,37 @@ class RunPodApiError(RunPodError):
     """RunPod returned an unsuccessful or malformed response."""
 
 
+class RunPodTransportError(RunPodApiError):
+    """A request lost transport-level confirmation of its outcome."""
+
+
+class RunPodAmbiguousCreateError(RunPodApiError):
+    """RunPod may have created a billable Pod despite a lost response."""
+
+    def __init__(self, pod_name: str, cause: BaseException) -> None:
+        self.pod_name = pod_name
+        super().__init__(
+            "RunPod Pod creation outcome is unknown after a transport failure; "
+            f"reconcile Pod name {pod_name!r} before retrying: {cause}"
+        )
+
+
 class RunPodBudgetError(RunPodError):
     """A created Pod exceeded the configured hourly ceiling."""
 
 
-def _as_float(value: object, default: float = 0.0) -> float:
-    if not isinstance(value, (int, float, str)):
-        return default
+def _finite_float(value: object, *, allow_zero: bool) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return None
     try:
-        return float(value)
+        parsed = float(value)
     except ValueError:
-        return default
+        return None
+    if not math.isfinite(parsed):
+        return None
+    if parsed < 0 or (parsed == 0 and not allow_zero):
+        return None
+    return parsed
 
 
 def _as_mapping(value: object) -> Mapping[str, Any]:
@@ -71,9 +92,9 @@ class PodInfo:
         gpu = _as_mapping(payload.get("gpu"))
         machine = _as_mapping(payload.get("machine"))
         env = _as_mapping(payload.get("env"))
-        rate = _as_float(payload.get("adjustedCostPerHr")) or _as_float(
-            payload.get("costPerHr")
-        )
+        rate = _finite_float(
+            payload.get("adjustedCostPerHr"), allow_zero=False
+        ) or _finite_float(payload.get("costPerHr"), allow_zero=False)
         gpu_name = (
             gpu.get("displayName")
             or gpu.get("id")
@@ -86,7 +107,7 @@ class PodInfo:
             name=str(payload.get("name") or ""),
             desired_status=str(payload.get("desiredStatus") or "UNKNOWN"),
             gpu_name=str(gpu_name),
-            hourly_rate=rate,
+            hourly_rate=rate or 0.0,
             created_at=str(created_at_raw) if created_at_raw else None,
             env={str(key): str(value) for key, value in env.items()},
             raw=dict(payload),
@@ -117,6 +138,11 @@ class PodInfo:
             return False
         current = now or datetime.now(timezone.utc)
         return current >= expiry
+
+    def is_managed(self) -> bool:
+        return self.name.startswith(KITTY_POD_PREFIX) and self.env.get(
+            "KITTY_MANAGED"
+        ) == "1"
 
 
 class RunPodControlClient:
@@ -172,8 +198,8 @@ class RunPodControlClient:
                 json=dict(json_body) if json_body is not None else None,
             )
         except httpx.RequestError as exc:
-            raise RunPodApiError(
-                f"RunPod request failed before a response: {exc}"
+            raise RunPodTransportError(
+                f"RunPod {method} {path} lost transport confirmation: {exc}"
             ) from exc
 
         if response.status_code >= 400:
@@ -203,11 +229,7 @@ class RunPodControlClient:
         ]
 
     async def list_managed_pods(self) -> list[PodInfo]:
-        return [
-            pod
-            for pod in await self.list_pods()
-            if pod.name.startswith(KITTY_POD_PREFIX)
-        ]
+        return [pod for pod in await self.list_pods() if pod.is_managed()]
 
     async def get_pod(self, pod_id: str) -> PodInfo:
         if not pod_id.strip():
@@ -231,7 +253,7 @@ class RunPodControlClient:
         gpu_type_ids: Sequence[str],
         max_hourly_rate: float,
         hard_runtime_minutes: int,
-        ports: Sequence[str] = ("8188/http",),
+        ports: Sequence[str] = ("8000/http",),
         network_volume_id: str | None = None,
         cloud_type: str = "COMMUNITY",
         container_disk_gb: int = 30,
@@ -246,8 +268,8 @@ class RunPodControlClient:
             raise RunPodConfigurationError("at least one GPU type ID is required")
         if cloud_type not in {"COMMUNITY", "SECURE"}:
             raise RunPodConfigurationError("cloud_type must be COMMUNITY or SECURE")
-        if max_hourly_rate <= 0:
-            raise RunPodConfigurationError("max_hourly_rate must be greater than zero")
+        if not math.isfinite(max_hourly_rate) or max_hourly_rate <= 0:
+            raise RunPodConfigurationError("max_hourly_rate must be positive and finite")
         if hard_runtime_minutes <= 0:
             raise RunPodConfigurationError("hard_runtime_minutes must be positive")
 
@@ -261,7 +283,6 @@ class RunPodControlClient:
             for key, value in (env or {}).items()
             if str(key) not in _RESERVED_ENV_KEYS
         }
-        # Required safety markers are applied last so callers cannot override them.
         pod_env.update(
             {
                 "KITTY_MANAGED": "1",
@@ -270,8 +291,9 @@ class RunPodControlClient:
         )
 
         suffix = name_suffix or now.strftime("%Y%m%d-%H%M%S")
+        pod_name = f"{KITTY_POD_PREFIX}{suffix}"
         body: dict[str, object] = {
-            "name": f"{KITTY_POD_PREFIX}{suffix}",
+            "name": pod_name,
             "cloudType": cloud_type,
             "computeType": "GPU",
             "gpuCount": 1,
@@ -290,19 +312,45 @@ class RunPodControlClient:
         else:
             body["volumeInGb"] = volume_gb
 
-        payload = await self._request("POST", "/pods", json_body=body)
+        try:
+            payload = await self._request("POST", "/pods", json_body=body)
+        except RunPodTransportError as exc:
+            raise RunPodAmbiguousCreateError(pod_name, exc) from exc
         if not isinstance(payload, Mapping):
             raise RunPodApiError("RunPod create Pod response was not an object")
         pod = PodInfo.from_payload(payload)
         if not pod.pod_id:
             raise RunPodApiError("RunPod create Pod response did not include an id")
-        if pod.hourly_rate and pod.hourly_rate > max_hourly_rate:
-            await self.delete_pod(pod.pod_id)
+        if pod.hourly_rate <= 0:
+            cleanup_error = await self._delete_after_invalid_create(pod.pod_id)
+            detail = (
+                f"; cleanup failed: {cleanup_error}"
+                if cleanup_error is not None
+                else "; Pod was terminated"
+            )
+            raise RunPodApiError(
+                "RunPod create response omitted a positive finite hourly rate" + detail
+            )
+        if pod.hourly_rate > max_hourly_rate:
+            cleanup_error = await self._delete_after_invalid_create(pod.pod_id)
+            if cleanup_error is not None:
+                raise RunPodBudgetError(
+                    f"created Pod rate ${pod.hourly_rate:.3f}/hr exceeds the "
+                    f"${max_hourly_rate:.3f}/hr ceiling; cleanup failed: "
+                    f"{cleanup_error}"
+                )
             raise RunPodBudgetError(
                 f"created Pod rate ${pod.hourly_rate:.3f}/hr exceeds "
                 f"the ${max_hourly_rate:.3f}/hr ceiling; Pod was terminated"
             )
         return pod
+
+    async def _delete_after_invalid_create(self, pod_id: str) -> str | None:
+        try:
+            await self.delete_pod(pod_id)
+        except RunPodApiError as exc:
+            return str(exc)
+        return None
 
     async def delete_pod(self, pod_id: str) -> None:
         if not pod_id.strip():
@@ -336,8 +384,14 @@ class RunPodControlClient:
         found = False
         for item in matching:
             for key in ("amount", "cost", "totalCost"):
-                if item.get(key) is not None:
-                    total += _as_float(item.get(key))
-                    found = True
-                    break
+                if key not in item or item.get(key) is None:
+                    continue
+                amount = _finite_float(item.get(key), allow_zero=True)
+                if amount is None:
+                    raise RunPodApiError(
+                        f"RunPod billing record contained invalid {key!r} value"
+                    )
+                total += amount
+                found = True
+                break
         return total if found else None
