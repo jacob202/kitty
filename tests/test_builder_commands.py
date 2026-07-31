@@ -1,16 +1,13 @@
 """Tests for gateway.builder_commands — typed operator command functions."""
 
-import pytest
-
 from gateway.builder_commands import (
+    COMMAND_HANDLERS,
     CommandResult,
     OperatorCommandError,
-    COMMAND_HANDLERS,
-    command_requeue,
     command_cancel,
     command_pause,
+    command_requeue,
     command_resume,
-    command_recover_stale,
 )
 
 

@@ -5,8 +5,6 @@ These tests exercise the logic directly — no HTTP, no store, no monkeypatching
 
 from __future__ import annotations
 
-import pytest
-
 from gateway import chronicle_service as svc
 
 
