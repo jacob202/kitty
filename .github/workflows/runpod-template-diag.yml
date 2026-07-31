@@ -36,8 +36,8 @@ jobs:
           import json
           import os
           import pathlib
-
-          import httpx
+          import urllib.error
+          import urllib.request
 
           api_key = os.environ["RUNPOD_API_KEY"]
           template_id = os.environ.get("INPUT_TEMPLATE_ID", "2lv7ev3wfp").strip()
@@ -57,28 +57,35 @@ jobs:
               "requests": [],
           }
 
-          with httpx.Client(timeout=45) as client:
-              url = f"{base}/templates/{template_id}"
-              response = client.get(url, headers=headers, params=params)
+          def get_json(url: str, *, limit: int) -> tuple[int, str]:
+              request = urllib.request.Request(url, headers=headers)
+              try:
+                  with urllib.request.urlopen(request, timeout=45) as response:
+                      return response.status, response.read(limit).decode(
+                          "utf-8", errors="replace"
+                      )
+              except urllib.error.HTTPError as exc:
+                  return exc.code, exc.read(limit).decode("utf-8", errors="replace")
+
+          query = "&".join(
+              f"{key}={value}" for key, value in params.items()
+          )
+          url = f"{base}/templates/{template_id}?{query}"
+          status, body = get_json(url, limit=4000)
+          record["requests"].append({"url": url, "status": status, "body": body})
+
+          if status >= 400:
+              listing_url = f"{base}/templates?{query}"
+              listing_status, listing_body = get_json(
+                  listing_url, limit=6000
+              )
               record["requests"].append(
                   {
-                      "url": url,
-                      "status": response.status_code,
-                      "body": response.text[:4000],
+                      "url": listing_url,
+                      "status": listing_status,
+                      "body": listing_body,
                   }
               )
-
-              if response.status_code >= 400:
-                  listing = client.get(
-                      f"{base}/templates", headers=headers, params=params
-                  )
-                  record["requests"].append(
-                      {
-                          "url": f"{base}/templates",
-                          "status": listing.status_code,
-                          "body": listing.text[:6000],
-                      }
-                  )
 
           pathlib.Path("runpod-template-diag.json").write_text(
               json.dumps(record, indent=2), encoding="utf-8"
