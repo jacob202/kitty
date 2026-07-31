@@ -1,6 +1,6 @@
 name: RunPod James Live Batch
 
-# Live trigger: 2026-07-31T07:13Z
+# Live trigger: 2026-07-31T07:34Z — twelve attempts
 on:
   push:
     branches: [feat/runpod-image-studio-smoke]
@@ -11,7 +11,7 @@ on:
       attempts:
         description: Number of James portrait attempts
         required: true
-        default: "6"
+        default: "12"
 
 permissions:
   contents: read
@@ -25,7 +25,7 @@ concurrency:
 jobs:
   james-batch:
     runs-on: ubuntu-latest
-    timeout-minutes: 70
+    timeout-minutes: 140
     env:
       GH_TOKEN: ${{ github.token }}
       RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
@@ -49,7 +49,7 @@ jobs:
       - name: Announce live run
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod James batch started: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod James 12-attempt batch started: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -72,14 +72,22 @@ jobs:
         run: |
           test -n "$RUNPOD_API_KEY" || { echo "RUNPOD_API_KEY secret is missing" >&2; exit 2; }
 
-      - name: Generate James portrait batch
+      - name: Generate James portrait batches
         shell: bash
         run: |
-          ATTEMPTS="${{ github.event.inputs.attempts || '1' }}"
-          python scripts/runpod_james_batch.py \
-            --attempts "$ATTEMPTS" \
-            --output-dir runtime-data/runpod-james \
-            --accept-charges
+          TOTAL="${{ github.event.inputs.attempts || '12' }}"
+          REMAINING="$TOTAL"
+          BATCH=1
+          while [ "$REMAINING" -gt 0 ]; do
+            COUNT="$REMAINING"
+            if [ "$COUNT" -gt 6 ]; then COUNT=6; fi
+            python scripts/runpod_james_batch.py \
+              --attempts "$COUNT" \
+              --output-dir "runtime-data/runpod-james/batch-$BATCH" \
+              --accept-charges
+            REMAINING=$((REMAINING - COUNT))
+            BATCH=$((BATCH + 1))
+          done
 
       - name: Upload generated images and provenance
         if: always()
@@ -94,10 +102,10 @@ jobs:
         if: success()
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod James batch succeeded. Images and provenance are attached to run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod James 12-attempt batch succeeded. Images and provenance are attached to run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Report failure
         if: failure()
         run: |
           gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
-            "RunPod James batch failed. Inspect the exact step here: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            "RunPod James 12-attempt batch failed. Inspect the exact step here: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
