@@ -1,7 +1,8 @@
 """Narrow RunPod control-plane client for Kitty-managed image Pods.
 
-This module intentionally covers only the Pod lifecycle required by the first
-Image Studio smoke test. It is not a generic RunPod SDK.
+GPU Pod creation uses RunPod's GraphQL mutation because that API supports the
+cloud-enforced ``terminateAfter`` deadline used by the official RunPod CLI.
+Listing, inspection, deletion, and billing continue to use the REST API.
 """
 
 from __future__ import annotations
@@ -12,6 +13,13 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Sequence, cast
 
 import httpx
+
+from gateway.runpod_graphql import (
+    RUNPOD_GRAPHQL_URL,
+    RunPodGraphQLAmbiguousError,
+    RunPodGraphQLRejectedError,
+    create_gpu_pod,
+)
 
 RUNPOD_API_BASE = "https://rest.runpod.io/v1"
 KITTY_POD_PREFIX = "kitty-image-"
@@ -36,17 +44,17 @@ class RunPodApiError(RunPodError):
 
 
 class RunPodTransportError(RunPodApiError):
-    """A request lost transport-level confirmation of its outcome."""
+    """A REST request lost transport-level confirmation of its outcome."""
 
 
 class RunPodAmbiguousCreateError(RunPodApiError):
-    """RunPod may have created a billable Pod despite a lost response."""
+    """RunPod may have created a billable Pod despite an inconclusive result."""
 
     def __init__(self, pod_name: str, cause: BaseException) -> None:
         self.pod_name = pod_name
         super().__init__(
-            "RunPod Pod creation outcome is unknown after a transport failure; "
-            f"reconcile Pod name {pod_name!r} before retrying: {cause}"
+            "RunPod Pod creation outcome is unknown; reconcile Pod name "
+            f"{pod_name!r} before retrying: {cause}"
         )
 
 
@@ -146,13 +154,14 @@ class PodInfo:
 
 
 class RunPodControlClient:
-    """Minimal asynchronous RunPod REST client for ephemeral image Pods."""
+    """Minimal asynchronous RunPod client for ephemeral image Pods."""
 
     def __init__(
         self,
         api_key: str,
         *,
         base_url: str = RUNPOD_API_BASE,
+        graphql_url: str = RUNPOD_GRAPHQL_URL,
         timeout_seconds: float = 30.0,
         client: httpx.AsyncClient | None = None,
     ) -> None:
@@ -160,6 +169,7 @@ class RunPodControlClient:
             raise RunPodConfigurationError("RUNPOD_API_KEY is required")
         self._api_key = api_key.strip()
         self._base_url = base_url.rstrip("/")
+        self._graphql_url = graphql_url
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(timeout=timeout_seconds)
 
@@ -269,7 +279,9 @@ class RunPodControlClient:
         if cloud_type not in {"COMMUNITY", "SECURE"}:
             raise RunPodConfigurationError("cloud_type must be COMMUNITY or SECURE")
         if not math.isfinite(max_hourly_rate) or max_hourly_rate <= 0:
-            raise RunPodConfigurationError("max_hourly_rate must be positive and finite")
+            raise RunPodConfigurationError(
+                "max_hourly_rate must be positive and finite"
+            )
         if hard_runtime_minutes <= 0:
             raise RunPodConfigurationError("hard_runtime_minutes must be positive")
 
@@ -278,6 +290,7 @@ class RunPodControlClient:
             now.timestamp() + hard_runtime_minutes * 60,
             tz=timezone.utc,
         )
+        expires_at_rfc3339 = expires_at.isoformat().replace("+00:00", "Z")
         pod_env = {
             str(key): str(value)
             for key, value in (env or {}).items()
@@ -292,35 +305,68 @@ class RunPodControlClient:
 
         suffix = name_suffix or now.strftime("%Y%m%d-%H%M%S")
         pod_name = f"{KITTY_POD_PREFIX}{suffix}"
-        body: dict[str, object] = {
+        common_input: dict[str, object] = {
             "name": pod_name,
             "cloudType": cloud_type,
-            "computeType": "GPU",
-            "gpuCount": 1,
-            "gpuTypeIds": normalized_gpu_ids,
-            "gpuTypePriority": "availability",
-            "templateId": template_id,
-            "ports": list(ports),
-            "interruptible": False,
-            "locked": False,
             "containerDiskInGb": container_disk_gb,
+            "env": [
+                {"key": key, "value": value}
+                for key, value in sorted(pod_env.items())
+            ],
+            "gpuCount": 1,
+            "ports": ",".join(ports),
+            "startSsh": False,
+            "supportPublicIp": False,
+            "templateId": template_id,
+            "terminateAfter": expires_at_rfc3339,
             "volumeMountPath": "/workspace",
-            "env": pod_env,
         }
         if network_volume_id:
-            body["networkVolumeId"] = network_volume_id
+            common_input["networkVolumeId"] = network_volume_id
         else:
-            body["volumeInGb"] = volume_gb
+            common_input["volumeInGb"] = volume_gb
 
-        try:
-            payload = await self._request("POST", "/pods", json_body=body)
-        except RunPodTransportError as exc:
-            raise RunPodAmbiguousCreateError(pod_name, exc) from exc
-        if not isinstance(payload, Mapping):
-            raise RunPodApiError("RunPod create Pod response was not an object")
-        pod = PodInfo.from_payload(payload)
-        if not pod.pod_id:
-            raise RunPodApiError("RunPod create Pod response did not include an id")
+        rejections: list[str] = []
+        for gpu_type_id in normalized_gpu_ids:
+            pod_input = dict(common_input)
+            pod_input["gpuTypeId"] = gpu_type_id
+            try:
+                payload = await create_gpu_pod(
+                    self._client,
+                    api_key=self._api_key,
+                    graphql_url=self._graphql_url,
+                    pod_input=pod_input,
+                )
+            except RunPodGraphQLRejectedError as exc:
+                rejections.append(f"{gpu_type_id}: {exc}")
+                continue
+            except RunPodGraphQLAmbiguousError as exc:
+                raise RunPodAmbiguousCreateError(pod_name, exc) from exc
+
+            normalized_payload = dict(payload)
+            normalized_payload.setdefault("name", pod_name)
+            normalized_payload["env"] = pod_env
+            pod = PodInfo.from_payload(normalized_payload)
+            if not pod.pod_id:
+                raise RunPodAmbiguousCreateError(
+                    pod_name,
+                    RunPodApiError(
+                        "GraphQL create result did not include a Pod id"
+                    ),
+                )
+            await self._validate_created_pod_rate(pod, max_hourly_rate)
+            return pod
+
+        details = "; ".join(rejections) or "no GPU candidates were attempted"
+        raise RunPodApiError(
+            "RunPod rejected every requested GPU candidate: " + details
+        )
+
+    async def _validate_created_pod_rate(
+        self,
+        pod: PodInfo,
+        max_hourly_rate: float,
+    ) -> None:
         if pod.hourly_rate <= 0:
             cleanup_error = await self._delete_after_invalid_create(pod.pod_id)
             detail = (
@@ -331,19 +377,19 @@ class RunPodControlClient:
             raise RunPodApiError(
                 "RunPod create response omitted a positive finite hourly rate" + detail
             )
-        if pod.hourly_rate > max_hourly_rate:
-            cleanup_error = await self._delete_after_invalid_create(pod.pod_id)
-            if cleanup_error is not None:
-                raise RunPodBudgetError(
-                    f"created Pod rate ${pod.hourly_rate:.3f}/hr exceeds the "
-                    f"${max_hourly_rate:.3f}/hr ceiling; cleanup failed: "
-                    f"{cleanup_error}"
-                )
+        if pod.hourly_rate <= max_hourly_rate:
+            return
+        cleanup_error = await self._delete_after_invalid_create(pod.pod_id)
+        if cleanup_error is not None:
             raise RunPodBudgetError(
-                f"created Pod rate ${pod.hourly_rate:.3f}/hr exceeds "
-                f"the ${max_hourly_rate:.3f}/hr ceiling; Pod was terminated"
+                f"created Pod rate ${pod.hourly_rate:.3f}/hr exceeds the "
+                f"${max_hourly_rate:.3f}/hr ceiling; cleanup failed: "
+                f"{cleanup_error}"
             )
-        return pod
+        raise RunPodBudgetError(
+            f"created Pod rate ${pod.hourly_rate:.3f}/hr exceeds "
+            f"the ${max_hourly_rate:.3f}/hr ceiling; Pod was terminated"
+        )
 
     async def _delete_after_invalid_create(self, pod_id: str) -> str | None:
         try:
