@@ -85,10 +85,15 @@ class SmokeConfig:
     negative_prompt: str
 
     @classmethod
-    def from_env(cls, *, require_template: bool) -> "SmokeConfig":
+    def from_env(
+        cls,
+        *,
+        require_template: bool,
+        require_api_key: bool = True,
+    ) -> "SmokeConfig":
         api_key = os.environ.get("RUNPOD_API_KEY", "").strip()
         template_id = os.environ.get("RUNPOD_TEMPLATE_ID", "").strip() or None
-        if not api_key:
+        if require_api_key and not api_key:
             raise RunPodConfigurationError("RUNPOD_API_KEY is required")
         if require_template and not template_id:
             raise RunPodConfigurationError(
@@ -469,9 +474,65 @@ async def wait_for_comfyui(
     )
 
 
+def _write_provenance(
+    *,
+    output_dir: Path,
+    started_at: datetime,
+    elapsed: float,
+    pod: PodInfo,
+    config: SmokeConfig,
+    args: argparse.Namespace,
+    seed: int,
+    workflow_hash: str,
+    prompt_id: str | None,
+    image_path: Path | None,
+    actual_cost: float | None,
+    pod_terminated: bool,
+    termination_error: str | None,
+    failure: BaseException | None,
+) -> Path:
+    provenance = {
+        "schema_version": 1,
+        "started_at": started_at.isoformat(),
+        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "pod_id": pod.pod_id,
+        "gpu": pod.gpu_name,
+        "hourly_rate_usd": pod.hourly_rate,
+        "elapsed_seconds": elapsed,
+        "estimated_compute_cost_usd": estimated_compute_cost(
+            pod.hourly_rate, elapsed
+        ),
+        "actual_cost_usd": actual_cost,
+        "cost_reconciliation_status": (
+            "reconciled" if actual_cost is not None else "pending"
+        ),
+        "pod_terminated": pod_terminated,
+        "termination_error": termination_error,
+        "failure_type": type(failure).__name__ if failure else None,
+        "failure_message": str(failure) if failure else None,
+        "prompt_id": prompt_id,
+        "prompt": args.prompt,
+        "negative_prompt": config.negative_prompt,
+        "checkpoint": config.checkpoint,
+        "seed": seed,
+        "width": config.width,
+        "height": config.height,
+        "steps": config.steps,
+        "guidance": config.guidance,
+        "workflow_sha256": workflow_hash,
+        "image_path": str(image_path) if image_path else None,
+    }
+    path = output_dir / "runpod-smoke-provenance.json"
+    path.write_text(json.dumps(provenance, indent=2), encoding="utf-8")
+    return path
+
+
 async def run_smoke(args: argparse.Namespace) -> Path:
     creating_pod = not bool(args.existing_pod_id)
-    config = SmokeConfig.from_env(require_template=creating_pod)
+    config = SmokeConfig.from_env(
+        require_template=creating_pod and not args.dry_run,
+        require_api_key=not args.dry_run,
+    )
     _validate_charge_acknowledgements(args, creating_pod=creating_pod)
 
     output_dir = Path(args.output_dir).expanduser().resolve()
@@ -519,6 +580,7 @@ async def run_smoke(args: argparse.Namespace) -> Path:
     image_path: Path | None = None
     actual_cost: float | None = None
     termination_error: str | None = None
+    failure: BaseException | None = None
 
     async with RunPodControlClient(config.api_key) as runpod:
         expired = await reconcile_expired_pods(runpod)
@@ -528,7 +590,8 @@ async def run_smoke(args: argparse.Namespace) -> Path:
         if args.existing_pod_id:
             pod = await runpod.get_pod(args.existing_pod_id)
         else:
-            assert config.template_id is not None
+            if config.template_id is None:
+                raise RunPodConfigurationError("RUNPOD_TEMPLATE_ID is required")
             pod = await runpod.create_image_pod(
                 template_id=config.template_id,
                 gpu_type_ids=config.gpu_type_ids,
@@ -573,9 +636,10 @@ async def run_smoke(args: argparse.Namespace) -> Path:
             timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
             image_path = output_dir / f"kitty-runpod-smoke-{timestamp}.png"
             image_path.write_bytes(image_bytes)
+        except BaseException as exc:
+            failure = exc
         finally:
-            keep = bool(args.keep_pod)
-            if owns_pod and not keep:
+            if owns_pod and not args.keep_pod:
                 try:
                     await runpod.delete_pod(pod.pod_id)
                 except RunPodApiError as exc:
@@ -587,42 +651,31 @@ async def run_smoke(args: argparse.Namespace) -> Path:
                 actual_cost = None
 
     elapsed = time.monotonic() - started_monotonic
-    estimated_cost = estimated_compute_cost(pod.hourly_rate, elapsed)
-    provenance = {
-        "schema_version": 1,
-        "started_at": started_at.isoformat(),
-        "finished_at": datetime.now(timezone.utc).isoformat(),
-        "pod_id": pod.pod_id,
-        "gpu": pod.gpu_name,
-        "hourly_rate_usd": pod.hourly_rate,
-        "elapsed_seconds": elapsed,
-        "estimated_compute_cost_usd": estimated_cost,
-        "actual_cost_usd": actual_cost,
-        "cost_reconciliation_status": (
-            "reconciled" if actual_cost is not None else "pending"
-        ),
-        "pod_terminated": owns_pod and not args.keep_pod and not termination_error,
-        "termination_error": termination_error,
-        "prompt_id": prompt_id,
-        "prompt": args.prompt,
-        "negative_prompt": config.negative_prompt,
-        "checkpoint": config.checkpoint,
-        "seed": seed,
-        "width": config.width,
-        "height": config.height,
-        "steps": config.steps,
-        "guidance": config.guidance,
-        "workflow_sha256": workflow_hash,
-        "image_path": str(image_path) if image_path else None,
-    }
-    provenance_path = output_dir / "runpod-smoke-provenance.json"
-    provenance_path.write_text(json.dumps(provenance, indent=2), encoding="utf-8")
+    _write_provenance(
+        output_dir=output_dir,
+        started_at=started_at,
+        elapsed=elapsed,
+        pod=pod,
+        config=config,
+        args=args,
+        seed=seed,
+        workflow_hash=workflow_hash,
+        prompt_id=prompt_id,
+        image_path=image_path,
+        actual_cost=actual_cost,
+        pod_terminated=owns_pod and not args.keep_pod and not termination_error,
+        termination_error=termination_error,
+        failure=failure,
+    )
 
     if termination_error:
-        raise SmokeTestError(
-            "image generation completed, but automatic Pod termination failed: "
+        message = (
+            "automatic Pod termination failed: "
             f"{termination_error}. Terminate Pod {pod.pod_id} in the RunPod console now."
         )
+        raise SmokeTestError(message) from failure
+    if failure is not None:
+        raise failure
     if image_path is None:
         raise SmokeTestError("generation finished without a local image path")
     return image_path
@@ -662,7 +715,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", default="outputs/runpod-smoke")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--existing-pod-id")
-    parser.add_argument("--cloud-type", choices=("COMMUNITY", "SECURE"), default="COMMUNITY")
+    parser.add_argument(
+        "--cloud-type",
+        choices=("COMMUNITY", "SECURE"),
+        default="COMMUNITY",
+    )
     parser.add_argument("--container-disk-gb", type=int, default=30)
     parser.add_argument("--volume-gb", type=int, default=20)
     parser.add_argument("--dry-run", action="store_true")
