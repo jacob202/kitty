@@ -1,0 +1,38 @@
+name: Capture Direct REST Patch
+
+on:
+  push:
+    branches: [feat/runpod-image-studio-smoke]
+    paths:
+      - .github/capture-direct-rest-patch.trigger
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/runpod-image-studio-smoke
+          fetch-depth: 0
+
+      - name: Capture latest patch run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow runpod-apply-direct-rest-fix.yml --limit 1 --json databaseId,status,conclusion,url > .github/direct-rest-patch-report.txt
+          RUN_ID="$(python -c 'import json; print(json.load(open(".github/direct-rest-patch-report.txt"))[0]["databaseId"])')"
+          printf '\nFAILED_LOGS\n' >> .github/direct-rest-patch-report.txt
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --log-failed >> .github/direct-rest-patch-report.txt || true
+
+      - name: Commit report and remove capturer
+        run: |
+          rm .github/workflows/capture-direct-rest-patch.yml .github/capture-direct-rest-patch.trigger
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "chore(image): capture direct REST patch result"
+          git push origin HEAD:feat/runpod-image-studio-smoke
