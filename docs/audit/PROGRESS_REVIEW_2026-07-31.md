@@ -289,6 +289,65 @@ shipped feature — a mistake already made once in this project's history.
 
 ---
 
+## 5a. Why shipped work never reached the product
+
+Added after Jacob asked the obvious follow-up: weeks of merged work, and nothing
+about Kitty feels different. Two findings answer it.
+
+### The launchd-served UI was frozen at the last hand-run build
+
+The UI had two start paths that behaved differently:
+
+| path | command | freshness |
+|---|---|---|
+| `scripts/desktop/start_ui.sh` (launchd service — the daily-driver path) | `npm run start` | serves the prebuilt `.next/`, **never rebuilt** |
+| `./kitty verify-home` | `next dev` | compiles from source, always current |
+| `make ui-tailnet` (phone over Tailscale) | `next dev` | always current |
+
+`start_ui.sh` checked only that `.next/` *existed*. `.next/` is gitignored, so it
+is a purely local artifact, and the only thing that produced it was `make
+ui-build` — run by hand. `ui-build` appears nowhere in `scripts/`, nowhere in
+`.github/`, and in no Git hook. `./kitty up` does not touch the UI. Neither
+`./kitty doctor` nor `./kitty status` checked build freshness.
+
+So under the installed desktop service, every `git pull` changed source that was
+never compiled, and nothing said so. In the three weeks to 2026-07-31 that
+covers **99 distinct UI source files, 72 of them components**.
+
+CI cannot catch this by construction: `browser-smoke` runs `next build` fresh on
+every run, so the build always matches source *there*. The staleness existed
+only on the machine actually being used.
+
+Yesterday's handoff recorded the symptom — *"The production UI on :4000 can lag
+source; current code was verified with a temporary dev server on :4001"* — as a
+gotcha to work around rather than as the reason the product never changes.
+
+**Fixed** in `scripts/desktop/start_ui.sh`: the launcher now rebuilds whenever a
+build input (`src`, `public`, `package.json`, `package-lock.json`,
+`tsconfig.json`, `next.config.*`) is newer than `.next/BUILD_ID`, and a failed
+build stops the service instead of falling back to serving stale code. Jacob
+chose auto-rebuild over fail-loud on 2026-07-31: launch time is not something he
+is optimizing for.
+
+### Four commits in five went to the factory, not the product
+
+205 non-merge commits on `main` since 2026-07-10, classified by what they touch:
+
+| category | count | share |
+|---|---|---|
+| Machine and governance — Builder, KTF proofs, packets, handoffs, session state, CI, docs about docs | ~124 | ~60% |
+| Product-facing — Home, image, insight loop, UI wiring | ~42 | ~20% |
+| Mixed or unclassified — including four commits titled `tmp`, `tmp2`, `tmp3`, `tmp4` | ~39 | ~19% |
+
+`docs/NORTH_STAR.md` §1 already names this failure mode: *"A session that
+improves KittyBuilder but doesn't move Jacob's actual life forward is overhead.
+Sometimes necessary, never the point."* The ratio says overhead has been the
+default rather than the exception.
+
+Combined, the two findings explain the whole gap: most of the work was not
+product work, and the product work that did exist was not being compiled onto
+the screen where it would be judged.
+
 ## 6. Recommended order
 
 Grounded in the roadmap's own operating rule: *finish one trustworthy end-to-end
