@@ -1,37 +1,38 @@
-# Handoff — Phase 2 life-first Home truth
+# Handoff — Gate 0 complete, Phase 1.1 smoke proven
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-07-31T11:47:59Z",
-  "head_sha": "8da53b0418a9f28daf4059bde74498827326f3ae",
-  "branch": "fix/life-first-home-truth",
-  "worktree": ".",
-  "status": "awaiting_review",
+  "updated_at": "2026-07-31T22:15:00Z",
+  "head_sha": "9c446874",
+  "branch": "recovery/roadmap-2026-07-31",
+  "worktree": "piddock",
+  "status": "valid",
   "completed_items": [
-    "Recovered and reviewed the August life-first monthly plan.",
-    "Committed and pushed Home routing, startup health recovery, live Repairs truth, and launcher process reporting in PR #325.",
-    "Verified 40 frontend tests, 71 backend tests, and the running app at desktop and mobile widths."
+    "Wrote recovery roadmap (docs/ROADMAP.md) with Gate 0 + Phase 1-4 outcomes",
+    "Disposition ledger (docs/DISPOSITION_LEDGER.md) covers all 136 retained planning files",
+    "Launcher contract (docs/reference/LAUNCHER_CONTRACT.md) with verified current state",
+    "Prevention mechanisms (docs/reference/PREVENTION_MECHANISMS.md)",
+    "Fixed competing-launcher bugs in kitty: cross-worktree pid ownership, probe/open mismatch (127.0.0.1 vs localhost), startup identity, same-vs-other checkout messages, cmd_down kills all port occupants",
+    "PRs #304 and #308 closed; #306 parked as draft; #331 merged to main",
+    "237/237 builder tests pass, 14/14 initiative doctor pass",
+    "Fixed orphan idx_branch_leases_worker unique index (blocked --free on second initiative)",
+    "Ran smoke initiative phase1-smoke-recovery end-to-end with DeepSeek V4 Pro — succeeded attempt 1",
+    "All changes pushed to origin/main at 9c446874"
   ],
   "blockers": [],
-  "next_action": "Merge PR #325 after every required check run succeeds.",
+  "next_action": "Verify smoke evidence on canonical: cat data/smoke/hello.txt, then Phase 1.1 daylight crash-recovery proof",
   "invalidation_conditions": [
-    "HEAD advances past 8da53b0418a9f28daf4059bde74498827326f3ae",
-    "branch changes from fix/life-first-home-truth or the worktree changes",
-    "PR #325 is merged, closed, or force-pushed"
+    "HEAD advances past 9c446874",
+    "branch changes from recovery/roadmap-2026-07-31"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 325,
-    "state": "OPEN",
-    "head_sha": "8da53b0418a9f28daf4059bde74498827326f3ae"
-  },
   "parallel_work": [],
   "recommendations": [
     {
-      "id": "merge-life-first-home",
-      "what": "Merge PR #325 after required checks succeed",
-      "why": "The reviewed life-first Home truth fix is committed, pushed, and awaiting CI.",
+      "id": "phase1-1-daylight-proof",
+      "what": "Execute a daylight Builder crash-recovery proof — kill worker mid-execution, verify recovery preserves evidence without consuming budget",
+      "why": "Unit tests pass (237/237) but recovery needs live proof with a real worker",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -40,9 +41,9 @@
       "first_deferred": null
     },
     {
-      "id": "phase-2-life-outcome",
-      "what": "Choose and complete the next real life-project outcome",
-      "why": "The product now exposes one life-first move reliably; Phase 2 should compound that into another completed life result.",
+      "id": "merge-dependabot",
+      "what": "Merge passing Dependabot PRs #311-323",
+      "why": "Guardrails gate fixed in #327, they now pass",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -53,19 +54,3 @@
   ]
 }
 -->
-
-## Goal
-Finish the recovered August life-first plan by making its Home surface truthful and reliably reachable.
-
-## State
-- Done: KTF-001 is terminal and Phase 1 exited; concurrent WorkerSession tests landed at `da88c21`.
-- In flight: PR #325 is open and awaiting required checks.
-- Verified: 40 focused frontend tests, 71 focused backend tests, live `/repairs`, `./kitty status`, and 1440px/390px browser checks.
-
-## Gotchas
-- Another process advanced `main` and reset the worktree mid-session; Jacob explicitly approved reapplying the Home separation.
-- `/repairs` previously self-deadlocked by synchronously probing Gateway from an async route.
-- The production UI on `:4000` can lag source; current code was verified with a temporary dev server on `:4001`.
-
-## Next Step
-Merge PR #325 after every required check run succeeds; then select the next real life-project outcome.

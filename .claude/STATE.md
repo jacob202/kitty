@@ -1,28 +1,34 @@
-# Session State — Phase 2 life-first Home truth in progress
+# Session State — Gate 0 complete, Phase 1.1 smoke proven
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-07-31T11:47:59Z",
-  "head_sha": "8da53b0418a9f28daf4059bde74498827326f3ae",
-  "branch": "fix/life-first-home-truth",
-  "worktree": ".",
-  "status": "awaiting_review",
+  "updated_at": "2026-07-31T22:15:00Z",
+  "head_sha": "9c446874",
+  "branch": "recovery/roadmap-2026-07-31",
+  "worktree": "piddock",
+  "status": "in_progress",
   "completed_items": [
-    "KTF-001 succeeded: all 9 scope items independently verified; Phase 1 exits.",
-    "Phase 2 WorkerSession contract test suite landed at da88c21.",
-    "Recovered the August life-first plan and verified ranking plus Home integration against live project data.",
-    "Life-first Home, health retry, repair-truth, and launcher-status fixes committed at 8da53b04; 40 frontend and 71 backend focused tests pass.",
-    "Running app verified at 1440px and 390px; benefits-admin appears before Kitty and mobile has no horizontal overflow."
+    "Gate 0.1: main green at 59f598c5, all 6 CI jobs pass",
+    "Gate 0.2: PR automation repaired via #327, #330",
+    "Gate 0.3: PR queue reconciled — #304/#308 closed, #306 parked, Dependabot mergeable",
+    "Gate 0.4: roadmap rewritten, disposition ledger covers 136 items, 0 unassigned",
+    "Gate 0.5: competing-launcher fix — cross-worktree ownership, probe/open consistency, startup identity, kitty-services collision fix. Verified in production.",
+    "Gate 0.6: launcher contract at docs/reference/LAUNCHER_CONTRACT.md",
+    "Gate 0.7: prevention mechanisms at docs/reference/PREVENTION_MECHANISMS.md",
+    "Phase 1.1: builder loop + runner + initiative tests: 237/237 pass",
+    "Phase 1.1: found and fixed orphan idx_branch_leases_worker index blocking --free on multiple initiatives",
+    "Phase 1.1: smoke initiative phase1-smoke-recovery ran end-to-end with DeepSeek V4 Pro — attempt 1 succeeded",
+    "Recovery branch pushed to main at 9c446874"
   ],
   "blockers": [],
-  "next_action": "Merge PR #325 after every required check run succeeds.",
+  "next_action": "Verify smoke evidence on canonical: cat data/smoke/hello.txt, ./kitty builder initiative status phase1-smoke-recovery",
   "parallel_work": [],
   "recommendations": [
     {
-      "id": "merge-life-first-home",
-      "what": "Merge PR #325 after required checks succeed",
-      "why": "The reviewed life-first Home truth fix is committed, pushed, and awaiting CI.",
+      "id": "phase1-1-daylight-proof",
+      "what": "Write and execute a daylight Builder proof initiative that exercises crash recovery (kill worker mid-execution, verify recovery)",
+      "why": "The smoke test proves happy path. Recovery (stale attempt reconciliation, budget neutrality, dirty worktree archive) is tested in unit tests but needs a live run.",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -31,9 +37,9 @@
       "first_deferred": null
     },
     {
-      "id": "phase-2-life-outcome",
-      "what": "Choose and complete the next real life-project outcome",
-      "why": "The product now exposes one life-first move reliably; Phase 2 should compound that into another completed life result.",
+      "id": "merge-outstanding-dependabot",
+      "what": "Merge Dependabot PRs #311-323 that pass CI",
+      "why": "13 dependency updates are open and now pass guardrails after #327",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -42,16 +48,13 @@
       "first_deferred": null
     }
   ],
-  "invalidation_conditions": [
-    "HEAD advances past 8da53b0418a9f28daf4059bde74498827326f3ae",
-    "branch changes from fix/life-first-home-truth or the worktree changes",
-    "PR #325 is merged, closed, or force-pushed"
-  ],
+  "invalidation_conditions": ["HEAD advances past 9c446874"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
-    "number": 325,
-    "state": "OPEN",
-    "head_sha": "8da53b0418a9f28daf4059bde74498827326f3ae"
+    "number": 331,
+    "title": "recovery(roadmap): rewrite canonical roadmap with complete disposition ledger",
+    "state": "MERGED",
+    "url": "https://github.com/jacob202/kitty/pull/331"
   }
 }
 -->
