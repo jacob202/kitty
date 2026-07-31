@@ -18,13 +18,11 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from gateway.builder_commands import COMMAND_HANDLERS as _COMMAND_HANDLERS
 from gateway.builder_events import builder_events
 
 logger = logging.getLogger("kitty.builder_routes")
 router = APIRouter(tags=["builder"])
-
-# Re-export command handlers for test introspection
-from gateway.builder_commands import COMMAND_HANDLERS as _COMMAND_HANDLERS
 
 
 class OperatorCommandRequest(BaseModel):
@@ -75,14 +73,12 @@ async def builder_operator_command(body: OperatorCommandRequest):
     must never mutate queue storage or infer success from HTTP 200 alone —
     inspect ``result.ok`` and ``result.error``.
     """
-    from gateway.builder_commands import COMMAND_HANDLERS
-
-    handler = COMMAND_HANDLERS.get(body.action)
+    handler = _COMMAND_HANDLERS.get(body.action)
     if handler is None:
         return {
             "ok": False,
             "error": f"unknown action: {body.action}",
-            "available": sorted(COMMAND_HANDLERS.keys()),
+            "available": sorted(_COMMAND_HANDLERS.keys()),
         }
 
     try:
