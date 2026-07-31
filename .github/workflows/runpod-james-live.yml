@@ -48,6 +48,7 @@ jobs:
           key = os.environ["RUNPOD_API_KEY"]
           source_id = os.environ["RUNPOD_TEMPLATE_ID"]
           headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+          include = {"includePublicTemplates": True, "includeRunpodTemplates": True}
 
           def safe(value):
               return {
@@ -62,7 +63,9 @@ jobs:
               }
 
           with httpx.Client(timeout=45) as client:
-              response = client.get(f"{base}/templates/{source_id}", headers=headers)
+              response = client.get(
+                  f"{base}/templates/{source_id}", headers=headers, params=include
+              )
               response.raise_for_status()
               source = response.json()
               print("SOURCE_TEMPLATE=" + json.dumps(safe(source), sort_keys=True))
