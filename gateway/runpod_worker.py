@@ -15,6 +15,18 @@ class RunPodWorkerError(RuntimeError):
     """The Kitty worker returned an error or malformed response."""
 
 
+class RunPodWorkerNotListeningError(RunPodWorkerError):
+    """Nothing is bound to the worker port.
+
+    RunPod's proxy answers 404 when no process holds the port. The worker
+    itself never returns 404 on ``/health`` — it answers 200, 424 when the
+    workflow bundle is missing, or 503 while ComfyUI is still coming up, and
+    ``bootstrap.sh`` binds a stage server that answers 503 before the real
+    worker takes over. So a 404 means the container start command never ran or
+    died before binding, which no amount of waiting repairs.
+    """
+
+
 class RunPodWorkerConfigurationError(RunPodConfigurationError):
     """The worker is reachable but cannot run the installed workflow."""
 
@@ -133,6 +145,11 @@ class RunPodWorkerClient:
         if response.status_code == 424:
             raise RunPodWorkerConfigurationError(
                 _health_error_message(response)
+            )
+        if response.status_code == 404:
+            raise RunPodWorkerNotListeningError(
+                "worker health returned 404: nothing is bound to the worker "
+                f"port. {response.text[:300]}"
             )
         if response.status_code >= 400:
             raise RunPodWorkerError(

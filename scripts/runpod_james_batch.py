@@ -25,10 +25,18 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from gateway.runpod_control import PodInfo, RunPodControlClient, RunPodError  # noqa: E402
-from gateway.runpod_worker import RunPodWorkerClient, RunPodWorkerError  # noqa: E402
+from gateway.runpod_worker import (  # noqa: E402
+    RunPodWorkerClient,
+    RunPodWorkerError,
+    RunPodWorkerNotListeningError,
+)
 
 RUNPOD_API_BASE = "https://rest.runpod.io/v1"
 WORKER_PORT = 8000
+# Long enough for RunPod to schedule the container and for bootstrap.sh to
+# bind its stage server; short enough that a dead start command costs
+# seconds of GPU rather than the full readiness timeout.
+NOT_LISTENING_GRACE_SECONDS = 180
 WORKFLOW_ID = "text_to_image_v1"
 
 DEFAULT_PROMPTS = (
@@ -160,11 +168,28 @@ async def _wait_for_worker(
     poll_seconds: float,
 ) -> dict[str, Any]:
     deadline = time.monotonic() + timeout_seconds
+    # A 404 is survivable only while the container is still being scheduled and
+    # the start command has not yet bound the port. Past this grace window it
+    # means the start command never ran, and waiting out the full timeout just
+    # bills GPU time for an answer we already have.
+    not_listening_grace = time.monotonic() + NOT_LISTENING_GRACE_SECONDS
     last_error = "not contacted"
     while time.monotonic() < deadline:
         try:
             return await client.assert_ready()
+        except RunPodWorkerNotListeningError as exc:
+            last_error = str(exc)
+            if time.monotonic() > not_listening_grace:
+                raise RuntimeError(
+                    "worker never bound its port: "
+                    f"{NOT_LISTENING_GRACE_SECONDS}s of 404 responses. The "
+                    "container start command did not run, so readiness will "
+                    f"never arrive. {last_error}"
+                ) from exc
+            await asyncio.sleep(poll_seconds)
         except (httpx.HTTPError, RunPodWorkerError) as exc:
+            # 503 from the bootstrap stage server or the worker itself means
+            # progress is being made — keep waiting for the full timeout.
             last_error = str(exc)
             await asyncio.sleep(poll_seconds)
     raise RuntimeError(f"worker readiness timeout: {last_error}")
