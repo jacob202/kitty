@@ -420,7 +420,8 @@ class RunPodControlClient:
             "cloudType": cloud_type,
             "computeType": "GPU",
             "containerDiskInGb": container_disk_gb,
-            "containerStartCmd": container_start_cmd,
+            "dockerEntrypoint": ["/bin/sh", "-c"],
+            "dockerStartCmd": [container_start_cmd],
             "env": dict(sorted(pod_env.items())),
             "gpuCount": 1,
             "gpuTypeIds": list(gpu_type_ids),
@@ -429,8 +430,6 @@ class RunPodControlClient:
             "interruptible": False,
             "locked": False,
             "ports": list(ports),
-            "startJupyter": False,
-            "startSsh": False,
             "supportPublicIp": False,
             "volumeMountPath": "/workspace",
         }

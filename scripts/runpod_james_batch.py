@@ -244,7 +244,7 @@ async def run(args: argparse.Namespace) -> Path:
                     ),
                     max_hourly_rate=max_hourly_rate,
                     hard_runtime_minutes=hard_runtime_minutes,
-                    ports=("8000/http",),
+                    ports=("8000/http", "8188/http"),
                     cloud_type=os.environ.get("RUNPOD_CLOUD_TYPE", "COMMUNITY"),
                     container_disk_gb=50,
                     volume_gb=20,
@@ -266,6 +266,16 @@ async def run(args: argparse.Namespace) -> Path:
                     timeout_seconds=ready_timeout,
                     poll_seconds=poll_seconds,
                 )
+                comfy_url = pod.proxy_url(8188)
+                try:
+                    comfy_resp = await http_client.get(f"{comfy_url}/", timeout=10)
+                    print(
+                        f"comfy-proxy 8188 status={comfy_resp.status_code} "
+                        f"len={len(comfy_resp.text)}",
+                        flush=True,
+                    )
+                except Exception as exc:
+                    print(f"comfy-proxy 8188 unreachable: {exc}", flush=True)
                 worker_url = pod.proxy_url(WORKER_PORT)
                 async with RunPodWorkerClient(worker_url, worker_token) as worker:
                     health = await _wait_for_worker(

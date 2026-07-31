@@ -318,7 +318,6 @@ async def test_create_image_pod_rest_preserves_container_start_cmd():
                 "name": f"{KITTY_POD_PREFIX}rest",
                 "desiredStatus": "RUNNING",
                 "adjustedCostPerHr": 0.31,
-                "containerStartCmd": body["containerStartCmd"],
                 "env": body["env"],
                 "gpu": {"displayName": "NVIDIA L4"},
             },
@@ -339,7 +338,8 @@ async def test_create_image_pod_rest_preserves_container_start_cmd():
 
     assert pod.pod_id == "rest-pod"
     assert captured["imageName"] == "runpod/comfyui:cuda13.0"
-    assert captured["containerStartCmd"] == "curl -sSL 'https://example.com/bootstrap.sh' -o /tmp/kitty-bootstrap.sh && chmod 700 /tmp/kitty-bootstrap.sh && exec /tmp/kitty-bootstrap.sh"
+    assert captured["dockerEntrypoint"] == ["/bin/sh", "-c"]
+    assert captured["dockerStartCmd"] == ["curl -sSL 'https://example.com/bootstrap.sh' -o /tmp/kitty-bootstrap.sh && chmod 700 /tmp/kitty-bootstrap.sh && exec /tmp/kitty-bootstrap.sh"]
     assert captured["gpuTypeIds"] == ["NVIDIA L4", "NVIDIA RTX A5000"]
     assert captured["gpuTypePriority"] == "custom"
     assert captured["ports"] == ["8000/http"]
