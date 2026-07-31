@@ -20,10 +20,10 @@
   "parallel_work": [],
   "recommendations": [
     {
-      "id": "push-commits",
-      "what": "Push 3 local commits to origin/main",
-      "why": "KB-BRAIN-05 + docs authorization need to land on remote main",
-      "class": "code",
+      "id": "ktf-life-project-resume",
+      "what": "KTF-001 outcome 7: prove the life-project resume loop",
+      "why": "Last major gate before Phase 1 exit. Needs Jacob to pick a project.",
+      "class": "life",
       "status": "ready",
       "blocked_by": null,
       "release_check": null,
@@ -31,10 +31,10 @@
       "first_deferred": null
     },
     {
-      "id": "ktf-life-project-resume",
-      "what": "KTF-001 outcome 7: prove the life-project resume loop",
-      "why": "Last major gate before Phase 1 exit. Needs Jacob to pick a project.",
-      "class": "life",
+      "id": "push-commits",
+      "what": "Push 3 local commits to origin/main",
+      "why": "KB-BRAIN-05 + docs authorization need to land on remote main",
+      "class": "code",
       "status": "ready",
       "blocked_by": null,
       "release_check": null,
