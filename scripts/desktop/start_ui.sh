@@ -33,10 +33,36 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ ! -d "${UI_DIR}/.next" ]]; then
-  echo "[start_ui] Error: ${UI_DIR}/.next is missing. Run 'npm run build' in ${UI_DIR} first." >&2
-  exit 1
+cd "${UI_DIR}"
+
+# `next start` serves the prebuilt .next directory, so a source change that was
+# never compiled is invisible at runtime: the UI silently keeps serving an older
+# build across every pull. Rebuild whenever a build input is newer than the
+# stamp `next build` writes, and let a failed build stop the service rather than
+# fall back to serving stale code.
+BUILD_STAMP=".next/BUILD_ID"
+
+build_inputs=()
+for candidate in src public package.json package-lock.json tsconfig.json \
+  next.config.js next.config.mjs next.config.ts; do
+  if [[ -e "${candidate}" ]]; then
+    build_inputs+=("${candidate}")
+  fi
+done
+
+if [[ ! -f "${BUILD_STAMP}" ]]; then
+  echo "[start_ui] no usable build in ${UI_DIR}/.next — building"
+  npm run build
+else
+  # -newer over the whole input set is portable across BSD and GNU find; the
+  # first hit is enough, the rest of the list does not need walking.
+  stale_input="$(find "${build_inputs[@]}" -newer "${BUILD_STAMP}" -print 2>/dev/null | head -1 || true)"
+  if [[ -n "${stale_input}" ]]; then
+    echo "[start_ui] ${stale_input} is newer than the last build — rebuilding"
+    npm run build
+  else
+    echo "[start_ui] build is current — serving .next as-is"
+  fi
 fi
 
-cd "${UI_DIR}"
 exec npm run start -- -H "${KITTY_UI_HOST}" -p "${KITTY_UI_PORT}"
