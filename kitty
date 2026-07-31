@@ -335,31 +335,26 @@ cmd_down() {
 
   # Disable launchd jobs first. Their KeepAlive=true setting otherwise restarts
   # a process immediately after it is killed and leaves the old port occupied.
-  for svc in gateway litellm; do
+  for svc in ui gateway litellm; do
     if launchctl print "gui/$(id -u)/com.kitty.$svc" >/dev/null 2>&1; then
       launchctl bootout "gui/$(id -u)/com.kitty.$svc" 2>/dev/null || true
       echo "  $svc  launchd job stopped"
     fi
   done
 
+  # Kill anything on Kitty ports regardless of ownership. The launchd
+  # KeepAlive cycle makes "leave unrelated" useless — if a process respawns
+  # before kitty start claims the port, the operator loops forever.
+  for port in "$UI_PORT" "$GATEWAY_PORT" "$LITELLM_PORT"; do
+    for pid in $(listener_pids "$port"); do
+      echo "  stopping listener pid $pid on :$port ($(pid_command "$pid" | cut -c1-80))"
+      kill -KILL "$pid" 2>/dev/null || true
+    done
+  done
+  sleep 1
+
   for svc in ui gateway litellm; do
     stop_pidfile "$svc"
-  done
-
-  stop_owned_listener "UI" "$UI_PORT"
-  stop_owned_listener "Gateway" "$GATEWAY_PORT"
-  stop_owned_listener "LiteLLM" "$LITELLM_PORT"
-  sleep 2
-
-  for spec in "UI:$UI_PORT" "Gateway:$GATEWAY_PORT" "LiteLLM:$LITELLM_PORT"; do
-    label="${spec%%:*}"
-    port="${spec##*:}"
-    for pid in $(listener_pids "$port"); do
-      if pid_owned_by_kitty "$pid"; then
-        echo "  $label  force-stopping owned listener pid $pid on :$port"
-        kill -KILL "$pid" 2>/dev/null || true
-      fi
-    done
   done
 
   rm -f "$RUN_DIR/ui.pid" "$RUN_DIR/gateway.pid" "$RUN_DIR/litellm.pid"
