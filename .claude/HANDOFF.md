@@ -1,46 +1,71 @@
-# Handoff — KTF-001 completed, Phase 1 exits
+# Handoff — Phase 2 life-first Home truth
 
-## What was done
+<!-- kitty-handoff
+{
+  "schema_version": 2,
+  "updated_at": "2026-07-31T11:47:59Z",
+  "head_sha": "8da53b0418a9f28daf4059bde74498827326f3ae",
+  "branch": "fix/life-first-home-truth",
+  "worktree": ".",
+  "status": "awaiting_review",
+  "completed_items": [
+    "Recovered and reviewed the August life-first monthly plan.",
+    "Committed and pushed Home routing, startup health recovery, live Repairs truth, and launcher process reporting in PR #325.",
+    "Verified 40 frontend tests, 71 backend tests, and the running app at desktop and mobile widths."
+  ],
+  "blockers": [],
+  "next_action": "Merge PR #325 after every required check run succeeds.",
+  "invalidation_conditions": [
+    "HEAD advances past 8da53b0418a9f28daf4059bde74498827326f3ae",
+    "branch changes from fix/life-first-home-truth or the worktree changes",
+    "PR #325 is merged, closed, or force-pushed"
+  ],
+  "active_mission": "docs/ACTIVE_MISSION.md",
+  "pull_request": {
+    "number": 325,
+    "state": "OPEN",
+    "head_sha": "8da53b0418a9f28daf4059bde74498827326f3ae"
+  },
+  "parallel_work": [],
+  "recommendations": [
+    {
+      "id": "merge-life-first-home",
+      "what": "Merge PR #325 after required checks succeed",
+      "why": "The reviewed life-first Home truth fix is committed, pushed, and awaiting CI.",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    },
+    {
+      "id": "phase-2-life-outcome",
+      "what": "Choose and complete the next real life-project outcome",
+      "why": "The product now exposes one life-first move reliably; Phase 2 should compound that into another completed life result.",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    }
+  ]
+}
+-->
 
-- **Audit-complexity**: 5 source files reduced (~176 LOC net), all behavior-preserving. model_digest (dead deps), reasoning (as_metadata compression), memory_graph (dead shims), deadline_extractor, web_tracker.
-- **Strategic decision audit**: Full architecture/product/agent/Builder audit. 14 KEEP, 5 MODIFY. ChromaDB/mem0 live and correct. Council classify/decompose already public. Team protocol reachable through tool handlers.
-- **KTF-001 status corrected then verified**: ACTIVE_MISSION.md changed from self-authored "completed" → "requires_evidence" after Builder DB contradiction found → "completed" after KTF-004-v4 lifecycle proof.
-- **KTF-004-v4 lifecycle proof executed**: 2 packets (DP-06 intentional failure, DP-07 provider exhaustion/resume), 5 attempts, all 4 boundaries independently verified against Builder DB. Issue #305 closed.
-- **Frontend health gate**: KittyRuntimeProvider polls /proxy/health. Shows status instead of blank page.
-- **Website runtime verified**: Gateway + LiteLLM reachable. Brief 18 live headlines. Chat SSE 200 OK.
-- **Dead-code lesson written**: Module-level imports invisible to function-name grep. Posted to ~/kb/wiki/.
+## Goal
+Finish the recovered August life-first plan by making its Home surface truthful and reliably reachable.
 
-## In-flight / WIP
+## State
+- Done: KTF-001 is terminal and Phase 1 exited; concurrent WorkerSession tests landed at `da88c21`.
+- In flight: PR #325 is open and awaiting required checks.
+- Verified: 40 focused frontend tests, 71 focused backend tests, live `/repairs`, `./kitty status`, and 1440px/390px browser checks.
 
-- Working tree changes committed in e0fec47 (Jacob merged audit + frontend changes)
-- HANDOFF.md and STATE.md are the only dirty files
+## Gotchas
+- Another process advanced `main` and reset the worktree mid-session; Jacob explicitly approved reapplying the Home separation.
+- `/repairs` previously self-deadlocked by synchronously probing Gateway from an async route.
+- The production UI on `:4000` can lag source; current code was verified with a temporary dev server on `:4001`.
 
-## Other work in flight (not mine)
-
-- 42 unmerged branches on origin/ — post-Phase-1 cleanup
-- PR #301 [DRAFT], PR #302 [DRAFT], PR #303, PR #304 — copilot/codex agents
-- Worktrees at orca/workspaces/kitty/ (piddock, scallop)
-- Worktree at .claude/worktrees/fix-builder-ignore-omo-artifacts
-
-## Blockers
-
-None. Phase 1 exits clean.
-
-## Next move
-
-Phase 2 direction per ROADMAP.md: unified worker contracts → unified runtime/UI → broader autonomy → product deepening (chat, home, tutor, documents, Image Studio)
-
-## Builder evidence
-
-- Initiative ktf-004-daylight-lifecycle-v4: 1 failed (DP-06 intentional) + 1 done (DP-07 provider exhaustion proof)
-- Queue: 87 total tasks. 42 done, 40 cancelled, 5 blocked (including terminal KTF-004), 1 queued
-- Builder doctor: 14/14 pass
-- Recovery proof: unrelated continuation + provider exhaustion pause/resume verified
-
-## Verification
-
-- 97 backend tests pass (audit-affected modules)
-- 296 frontend tests pass
-- Frontend build passes
-- Gateway health OK, LiteLLM reachable
-- KTF-001: 9/9 scope items verified. Issue #305 closed.
+## Next Step
+Merge PR #325 after every required check run succeeds; then select the next real life-project outcome.

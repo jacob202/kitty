@@ -4,8 +4,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway.routes import builder as builder_route
 from gateway.builder_commands import CommandResult
+from gateway.routes import builder as builder_route
 
 
 @pytest.fixture

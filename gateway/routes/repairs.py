@@ -18,7 +18,7 @@ _FIXABLE_THRESHOLD = 7 * 86400  # 7 days in seconds
 
 
 @router.get("/repairs")
-async def list_repairs():
+def list_repairs():
     import pathlib
     import sys
 
@@ -72,8 +72,8 @@ _PLAIN_ENGLISH: dict[str, str] = {
     "env:.env": "Environment file is missing",
     "env:api-keys": "There are no API keys configured",
     "env:single-key": "{detail}",
-    "services:gateway": "The Kitty gateway is not responding",
-    "services:litellm": "The LLM router is not responding",
+    "service:gateway": "The Kitty gateway is not responding",
+    "service:litellm": "The LLM router is not responding",
     "services:chromadb": "The knowledge store is not reachable",
     "mem0:installed": "Mem0 is not installed",
     "mem0:broker": "Mem0 broker is not reachable",
@@ -84,7 +84,7 @@ _PLAIN_ENGLISH: dict[str, str] = {
     "codegraph:index": "CodeGraph index is stale or missing",
     "codegraph:auto-sync": "CodeGraph auto-sync is disabled",
     "gateway:freshness": "The gateway process is stale",
-    "builder:stale-leases": "Builder has stale task leases",
+    "builder:silent-transitions": "Builder has incomplete transition history",
     "builder:zombie-tasks": "Builder has zombie tasks",
     "queue:backup-age": "The queue backup is getting old",
 }
@@ -120,8 +120,8 @@ def _pass_title(name: str, detail: str) -> str:
     passes: dict[str, str] = {
         "env:.env": "Environment file is set up",
         "env:api-keys": "API keys are configured",
-        "services:gateway": "The gateway is running and answering",
-        "services:litellm": "Model routing is live",
+        "service:gateway": "The gateway is running and answering",
+        "service:litellm": "Model routing is live",
         "services:chromadb": "The knowledge store is reachable",
         "mem0:installed": "Mem0 is installed",
         "mem0:broker": "Mem0 broker is reachable",
@@ -132,7 +132,7 @@ def _pass_title(name: str, detail: str) -> str:
         "codegraph:index": "CodeGraph index is up to date",
         "codegraph:auto-sync": "CodeGraph is watching for changes",
         "gateway:freshness": "The gateway process is fresh",
-        "builder:stale-leases": "Builder leases are current",
+        "builder:silent-transitions": "Builder transition history is complete",
         "builder:zombie-tasks": "No zombie tasks found",
         "queue:backup-age": "The queue backup is recent",
     }
@@ -149,14 +149,14 @@ def _fix_action(check) -> dict | None:
             "check_name": name,
         }
 
-    if "services:gateway" in name:
+    if "service:gateway" in name:
         return {
             "label": "Check gateway again",
             "action_kind": "repair.check",
             "check_name": name,
         }
 
-    if "services:litellm" in name:
+    if "service:litellm" in name:
         return {
             "label": "Check routing again",
             "action_kind": "repair.check",
@@ -225,20 +225,20 @@ def _check_builder_health() -> list:
         detail: str
 
     try:
-        from gateway.builder_queue import connect, find_silent_transitions
-        conn = connect()
-        try:
-            leases = find_silent_transitions()
-            if leases:
-                return [Check("WARN", "builder:stale-leases",
-                              f"{len(leases)} stale lease(s) found — some tasks may be stuck")]
-            return [Check("PASS", "builder:stale-leases",
-                          "No stale leases")]
-        except Exception as exc:
-            return [Check("WARN", "builder:zombie-tasks",
-                          f"Builder health check failed: {exc}")]
-        finally:
-            conn.close()
+        from gateway.builder_queue import find_silent_transitions
+
+        transitions = find_silent_transitions()
+        if transitions:
+            return [Check(
+                "WARN",
+                "builder:silent-transitions",
+                f"{len(transitions)} task(s) changed state without transition history",
+            )]
+        return [Check(
+            "PASS",
+            "builder:silent-transitions",
+            "Every transitioned task has an event trail",
+        )]
     except Exception as exc:
         return [Check("WARN", "builder:zombie-tasks",
                       f"Cannot reach Builder database: {exc}")]
