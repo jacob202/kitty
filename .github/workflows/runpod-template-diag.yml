@@ -1,0 +1,126 @@
+name: RunPod Template Diagnostic
+
+# Free, CPU-only discovery of the RunPod source template that backs the
+# Kitty ComfyUI worker image. Run once, read the artifact, commit the
+# resolved image name to workers/comfy_worker/runpod-template-image.json,
+# and let every later build read that committed record instead of this API.
+on:
+  workflow_dispatch:
+    inputs:
+      template_id:
+        description: "Source template id to inspect"
+        required: false
+        default: "2lv7ev3wfp"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm credential is present
+        run: |
+          test -n "$RUNPOD_API_KEY" || { echo "RUNPOD_API_KEY secret is missing" >&2; exit 2; }
+
+      - name: Read source template (with graceful list fallback)
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import pathlib
+
+          import httpx
+
+          api_key = os.environ["RUNPOD_API_KEY"]
+          template_id = os.environ.get("INPUT_TEMPLATE_ID", "2lv7ev3wfp").strip()
+          base = "https://rest.runpod.io/v1"
+          headers = {
+              "Authorization": f"Bearer {api_key}",
+              "Content-Type": "application/json",
+          }
+          params = {
+              "includePublicTemplates": True,
+              "includeRunpodTemplates": True,
+          }
+
+          record = {
+              "template_id": template_id,
+              "endpoint_base": base,
+              "requests": [],
+          }
+
+          with httpx.Client(timeout=45) as client:
+              url = f"{base}/templates/{template_id}"
+              response = client.get(url, headers=headers, params=params)
+              record["requests"].append(
+                  {
+                      "url": url,
+                      "status": response.status_code,
+                      "body": response.text[:4000],
+                  }
+              )
+
+              if response.status_code >= 400:
+                  listing = client.get(
+                      f"{base}/templates", headers=headers, params=params
+                  )
+                  record["requests"].append(
+                      {
+                          "url": f"{base}/templates",
+                          "status": listing.status_code,
+                          "body": listing.text[:6000],
+                      }
+                  )
+
+          pathlib.Path("runpod-template-diag.json").write_text(
+              json.dumps(record, indent=2), encoding="utf-8"
+          )
+
+          def sanitize(value: object) -> str:
+              if isinstance(value, dict):
+                  return json.dumps(
+                      {k: v for k, v in value.items() if k.lower() in {"id", "name", "imagename", "image_name"}},
+                      sort_keys=True,
+                  )
+              return json.dumps(value, sort_keys=True)
+
+          for request in record["requests"]:
+              print(f"GET {request['url']} -> {request['status']}")
+              if request["status"] < 400:
+                  body = request["body"]
+                  try:
+                      data = json.loads(body)
+                  except json.JSONDecodeError:
+                      print(f"  (non-JSON body: {body[:200]})")
+                      continue
+                  items = data if isinstance(data, list) else (
+                      data.get("templates") or data.get("data") or [data]
+                  )
+                  if isinstance(items, list):
+                      for item in items:
+                          print(f"  template: {sanitize(item)}")
+                  else:
+                      print(f"  template: {sanitize(data)}")
+          if all(request["status"] >= 400 for request in record["requests"]):
+              print("FAIL: no usable template response; see artifact for raw bodies")
+              raise SystemExit(1)
+          PY
+        env:
+          INPUT_TEMPLATE_ID: ${{ github.event.inputs.template_id }}
+
+      - name: Upload raw diagnostic record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runpod-template-diag
+          path: runpod-template-diag.json
+          if-no-files-found: error
+          retention-days: 14
