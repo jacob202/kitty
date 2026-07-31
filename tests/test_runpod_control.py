@@ -104,17 +104,27 @@ async def test_create_image_pod_sends_bounded_configuration():
                 ports=("8188/http",),
                 container_disk_gb=30,
                 volume_gb=20,
+                env={
+                    "CUSTOM_SETTING": "yes",
+                    "KITTY_MANAGED": "0",
+                    "KITTY_SESSION_EXPIRES_AT": "2099-01-01T00:00:00+00:00",
+                },
                 name_suffix="test",
             )
 
     assert pod.pod_id == "pod-1"
     assert captured["templateId"] == "template-1"
     assert captured["gpuCount"] == 1
+    assert captured["gpuTypePriority"] == "availability"
     assert captured["containerDiskInGb"] == 30
     assert captured["volumeInGb"] == 20
     assert captured["ports"] == ["8188/http"]
-    assert captured["env"]["KITTY_MANAGED"] == "1"  # type: ignore[index]
-    assert "KITTY_SESSION_EXPIRES_AT" in captured["env"]  # type: ignore[operator]
+
+    captured_env = captured["env"]
+    assert isinstance(captured_env, dict)
+    assert captured_env["CUSTOM_SETTING"] == "yes"
+    assert captured_env["KITTY_MANAGED"] == "1"
+    assert captured_env["KITTY_SESSION_EXPIRES_AT"] != "2099-01-01T00:00:00+00:00"
 
 
 @pytest.mark.asyncio
