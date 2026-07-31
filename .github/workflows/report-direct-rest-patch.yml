@@ -1,0 +1,38 @@
+name: Report Direct REST Patch
+
+on:
+  push:
+    branches: [feat/runpod-image-studio-smoke]
+    paths:
+      - .github/report-direct-rest-patch.trigger
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/runpod-image-studio-smoke
+          fetch-depth: 0
+
+      - name: Report latest patch workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DATA="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow runpod-apply-direct-rest-fix.yml --limit 1 --json databaseId,status,conclusion,url)"
+          gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body "Direct REST patch workflow: $DATA"
+
+      - name: Remove reporter
+        run: |
+          rm .github/workflows/report-direct-rest-patch.yml .github/report-direct-rest-patch.trigger
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "chore(image): remove patch reporter"
+          git push origin HEAD:feat/runpod-image-studio-smoke
