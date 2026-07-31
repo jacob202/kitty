@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import importlib.util
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
@@ -14,10 +16,15 @@ from gateway.runpod_control import PodInfo
 
 
 def _load_script() -> ModuleType:
-    path = Path(__file__).resolve().parents[1] / "scripts" / "runpod_worker_smoke_test.py"
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "runpod_worker_smoke_test.py"
+    )
     spec = importlib.util.spec_from_file_location("runpod_worker_smoke_test", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -88,10 +95,8 @@ def test_dry_run_does_not_require_secrets(monkeypatch, tmp_path):
     ):
         monkeypatch.delenv(name, raising=False)
 
-    first = smoke.run_smoke(_args(tmp_path, dry_run=True))
-    second = smoke.run_smoke(_args(tmp_path, dry_run=True))
-    first_path = __import__("asyncio").run(first)
-    second_path = __import__("asyncio").run(second)
+    first_path = asyncio.run(smoke.run_smoke(_args(tmp_path, dry_run=True)))
+    second_path = asyncio.run(smoke.run_smoke(_args(tmp_path, dry_run=True)))
 
     assert first_path.exists()
     assert second_path.exists()
