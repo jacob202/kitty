@@ -13,8 +13,8 @@ permissions:
   issues: write
 
 concurrency:
-  group: runpod-james-live
-  cancel-in-progress: false
+  group: runpod-james-live-direct-v2
+  cancel-in-progress: true
 
 jobs:
   james-smoke:
