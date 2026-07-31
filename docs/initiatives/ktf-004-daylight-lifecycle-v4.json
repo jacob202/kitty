@@ -1,0 +1,54 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "ktf-004-daylight-lifecycle-v4",
+  "title": "KTF-001: Daylight Builder lifecycle proof (v4)",
+  "description": "Fresh recovery proof after V3 established that OpenCode continuation receipts must be excluded from both Builder scope checks. Run only with `./kitty builder initiative run ktf-004-daylight-lifecycle-v4 --free --worker ktf-004-v4-free --json` from the canonical checkout. The first run deliberately makes one unrelated packet fail deterministic validation, then forces the free reviewer ladder to exhaust on the second packet. After Builder records its resumable pause, remove the temporary reviewer override, resume the initiative, and run it again with `--free --worker ktf-004-v4-free`. Never push, publish, create a PR, or edit an earlier KTF initiative.",
+  "packets": [
+    {
+      "id": "KTF-DP-06-unrelated-failure-probe-proto",
+      "title": "Prove continuation after an unrelated failed packet",
+      "objective": "Execution class: free-exec. One controlled outcome only: write docs/research/ktf-004-v4-unrelated-failure-probe.md containing exactly these two lines:\n  daylight-v4-unrelated-failure-probe: written\n  purpose: deterministic validation failure proves unrelated work continues\n\nBefore writing, require `git merge-base --is-ancestor f9dfb6a HEAD` to exit 0. Then run the declared validation commands. The final `false` command is intentional and must fail; do not repair, retry, or reinterpret it. This packet is the deliberately failed unrelated work that the initiative loop must leave behind before selecting KTF-DP-07. Do not edit source, tests, manifests, Builder state, Git remotes, or GitHub state.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The probe file has the two exact required lines before validation starts.",
+        "The validation record shows the first two checks passed and the final `false` check failed.",
+        "The failed packet is left as truthful failure evidence; its outcome is never changed to success."
+      ],
+      "allowed_paths": [
+        "docs/research/ktf-004-v4-unrelated-failure-probe.md"
+      ],
+      "policy": {
+        "max_attempts": 1,
+        "priority": 10
+      },
+      "validation_commands": [
+        "test -s docs/research/ktf-004-v4-unrelated-failure-probe.md",
+        "grep -qx 'daylight-v4-unrelated-failure-probe: written' docs/research/ktf-004-v4-unrelated-failure-probe.md",
+        "false"
+      ]
+    },
+    {
+      "id": "KTF-DP-07-provider-exhaustion-resume-probe-proto",
+      "title": "Prove provider exhaustion pause and safe resume",
+      "objective": "Execution class: free-exec. One controlled outcome only: write docs/research/ktf-004-v4-provider-exhaustion-probe.md containing exactly these three lines:\n  daylight-v4-provider-exhaustion-probe: written\n  runtime-contract: f9dfb6a-ancestor\n  review: pending-external-builder-evidence\n\nBefore writing, require `git merge-base --is-ancestor f9dfb6a HEAD` to exit 0. Then run all declared validation commands. On the first initiative run, the operator deliberately supplies a reviewer-model override with no viable provider. The Builder loop, not this packet, must record exit 75, release the packet to queued, and pause the initiative with a resumable provider-exhaustion reason. On the second run, with no override, the independent free reviewer must inspect the packet and Builder must record its verdict. Do not inspect a worktree-local Builder database, claim extra tasks, push, publish, create a PR, or edit source, tests, manifests, Git remotes, or GitHub state.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The evidence file exists only after the ancestry check passes.",
+        "The first run produces a Builder-owned provider-exhaustion pause rather than a fabricated packet failure.",
+        "After explicit resume and a second run without the override, the attempt has validation and independent-review evidence bound in the canonical Builder projection."
+      ],
+      "allowed_paths": [
+        "docs/research/ktf-004-v4-provider-exhaustion-probe.md"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 9
+      },
+      "validation_commands": [
+        "git merge-base --is-ancestor f9dfb6a HEAD",
+        "test -s docs/research/ktf-004-v4-provider-exhaustion-probe.md",
+        "grep -qx 'daylight-v4-provider-exhaustion-probe: written' docs/research/ktf-004-v4-provider-exhaustion-probe.md"
+      ]
+    }
+  ]
+}

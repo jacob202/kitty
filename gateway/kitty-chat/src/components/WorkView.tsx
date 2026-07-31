@@ -3,8 +3,9 @@ import { useTodos } from '@/lib/queries'
 import { useGatewayRuntimeManifest } from '@/lib/queries'
 import { TaskPanel } from '@/components/TaskPanel'
 import { TodoPanel } from '@/components/TodoPanel'
-import { BuilderPanel } from '@/components/BuilderSurface'
+import { BuilderPanel, attentionCount, activePacketCount } from '@/components/BuilderSurface'
 import { ArrowRight } from 'lucide-react'
+import type { BuilderStatusSnapshot } from '@/lib/gateway'
 
 export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; onNavigate?: (view: string) => void }) {
   const todosQuery = useTodos()
@@ -15,9 +16,7 @@ export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; 
     t => t.status === 'pending' || t.status === 'in_progress'
   )
   const builderAttention = builderSnapshot
-    ? builderSnapshot.initiatives.flatMap(i => i.packets).filter(p =>
-        p.task_state === 'blocked' || p.task_state === 'failed' || p.budget?.exhausted === true || p.failure_kind !== null
-      ).length
+    ? attentionCount(builderSnapshot)
     : 0
 
   const hasAttention = activeTodos.length > 0 || builderAttention > 0
@@ -96,7 +95,7 @@ export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; 
             >
               <span style={{
                 width: 6, height: 6, borderRadius: '50%',
-                background: builderAttention > 0 ? 'var(--c-red)' : 'var(--c-green)',
+                background: 'var(--c-red)',
                 flexShrink: 0,
               }} />
               <span style={{
@@ -105,7 +104,8 @@ export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; 
                 fontWeight: 600,
                 flex: 1,
               }}>
-                {builderAttention} builder {builderAttention === 1 ? 'packet' : 'packets'} need{ builderAttention === 1 ? 's' : ''} attention
+                {builderAttention} builder {builderAttention === 1 ? 'packet' : 'packets'} need attention
+                <BuilderBreakdown snapshot={builderSnapshot} />
               </span>
               <ArrowRight size={14} style={{ color: 'var(--ink-2)', flexShrink: 0 }} />
             </button>
@@ -141,5 +141,25 @@ export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; 
         <BuilderPanel />
       </section>
     </div>
+  )
+}
+
+function BuilderBreakdown({ snapshot }: { snapshot?: BuilderStatusSnapshot | null }) {
+  if (!snapshot) return null
+  const seen = new Set<string>()
+  const packets = snapshot.initiatives.flatMap(i => i.packets)
+    .filter(p => { if (seen.has(p.packet_id)) return false; seen.add(p.packet_id); return true })
+  const blocked = packets.filter(p => p.task_state === 'blocked').length
+  const failed = packets.filter(p => p.task_state === 'failed' || p.failure_kind !== null).length
+  const budget = packets.filter(p => p.budget.exhausted === true).length
+  const parts: string[] = []
+  if (blocked > 0) parts.push(`${blocked} blocked`)
+  if (failed > 0) parts.push(`${failed} failed`)
+  if (budget > 0) parts.push(`${budget} out of budget`)
+  if (parts.length === 0) return null
+  return (
+    <span style={{ display: 'block', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', marginTop: 2, lineHeight: 1.5 }}>
+      {parts.join(' · ')}
+    </span>
   )
 }

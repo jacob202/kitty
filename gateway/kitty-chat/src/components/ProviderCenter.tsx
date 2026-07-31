@@ -69,7 +69,6 @@ export function ProviderCenter() {
   return (
     <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
       <header>
-        <h2 style={titleStyle}>providers</h2>
         <p style={subtitleStyle}>
           what kitty can actually call, what needs your hands, and what&apos;s honestly not wired.
         </p>

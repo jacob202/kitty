@@ -4,20 +4,21 @@
 {
   "schema_version": 1,
   "mission_id": "KTF-001",
-  "status": "running",
+  "status": "requires_evidence",
   "approved_at": "2026-07-26T00:00:00Z",
   "approved_by": "Jacob",
   "base_sha": "f90e512076372db8dd014da13a6b6d77e28d99a6",
   "authority": "docs/ACTIVE_MISSION.md",
   "progress": {
-    "ci_green": "partial — python and frontend CI functional; 1 pre-existing red test (cold-start acceptance — HANDOFF/STATE recommendation ordering per ADR 0016)",
+    "ci_green": "done — cold-start acceptance test passes on clean main",
     "prs_261_263": "done — all three resolved",
     "roadmap_authority": "done — ROADMAP.md updated, no contradicting authority files",
-    "builder_recovery_proven": "done — KTF-004 proof: 3 runtime tests pass (unrelated continuation, provider exhaustion exit 75, reviewer exhaustion resumable). Proof report at docs/research/ktf-004-current-main-runtime-proof.md",
-    "free_exec_packets": "done — KTF-004 manifest authored with falsifiable gates at docs/initiatives/ktf-004-current-main-reliability-proof-v1.json",
-    "daylight_unattended_run": "not done — requires actual Builder execution; daylight brief (docs/research/ktf-004-daylight-operator-brief.md) provides the run precondition document",
+    "builder_recovery_proven": "contradicted — ktf-001-free-exec-v1 state=failed, ktf-003-outcome6-runtime-v1 state=failed",
+    "free_exec_packets": "contradicted — ktf-004-current-main-reliability-proof-v1 not registered in Builder",
+    "daylight_unattended_run": "contradicted — ktf-004 daylight evidence v2 reports initiative not_found; Builder DB shows failed initiatives",
     "packet_full_delivery": "done — PRs #299 and #296 merged cleanly through full CI validation and post-merge verification",
-    "life_project_resume": "not done — human-gate per KTF-005; requires fresh Jacob activation"
+    "life_project_resume": "done — bedroom floor/corner declutter selected, approved, completed; outcome recorded in data/kittybuilder/reports/ktf-005-life-project-outcome.md",
+    "ktf_evidence_contradiction": "open — GitHub issue #305. Builder DB contradicts prose claims. Independent re-verification required."
   }
 }
 -->
@@ -27,6 +28,8 @@
 Restore a trustworthy Kitty/KittyBuilder delivery chain, consolidate planning
 authority, and prove one real resume-loop outcome end to end before expanding
 feature work.
+
+**Status: REQUIRES EVIDENCE** — 5 of 9 scope items confirmed complete. 3 initiatives (ktf-001, ktf-003, ktf-004) are contradicted by Builder database evidence. GitHub issue #305 open for independent re-verification. Session evidence at HEAD 3333658 is superseded by Builder DB findings.
 
 ## Why this mission exists
 

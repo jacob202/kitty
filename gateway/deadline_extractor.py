@@ -165,20 +165,3 @@ def extract_from_mail_signal(
 
     source_id = payload.get("message_id") or str(signal.get("id"))
     return extract_from_text(text, source="mail", source_id=source_id, llm_fn=llm_fn)
-
-
-def extract_and_upsert(
-    text: str,
-    *,
-    source: str,
-    source_id: str | None = None,
-    project_id: int,
-    llm_fn: LlmFn | None = None,
-) -> list[dict[str, Any]]:
-    """Extract deadlines and upsert them into the store."""
-    extracted = extract_from_text(text, source=source, source_id=source_id, llm_fn=llm_fn)
-    stored: list[dict[str, Any]] = []
-    for item in extracted:
-        item["project_id"] = project_id
-        stored.append(deadline_store.upsert(item))
-    return stored

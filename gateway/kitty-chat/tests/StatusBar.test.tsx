@@ -83,11 +83,12 @@ describe('StatusBar', () => {
     expect(screen.getByText(/dock launch/i)).toBeInTheDocument()
   })
 
-  it('shows manual iOS instructions with no button', () => {
+  it('shows manual iOS instructions with only a dismiss button', () => {
     render(<StatusBar {...baseProps} pwaState="manual-ios" />)
     const status = screen.getByRole('status')
     expect(screen.getByText(/Add to Home Screen/i)).toBeInTheDocument()
-    expect(status.querySelector('button')).toBeNull()
+    expect(status.querySelectorAll('button').length).toBe(1)
+    expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument()
   })
 
   it('surfaces a pwa install error as an alert', () => {

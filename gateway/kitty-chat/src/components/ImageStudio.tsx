@@ -286,15 +286,6 @@ export function ImageStudio() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <Image size={22} style={{ color: 'var(--cat-ginger)' }} />
-        <h1 style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: 22,
-          fontWeight: 800,
-          color: 'var(--ink)',
-          margin: 0,
-        }}>
-          image studio
-        </h1>
       </div>
 
       {/* Prompt area */}
