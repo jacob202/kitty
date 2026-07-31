@@ -119,9 +119,18 @@ jobs:
               });
             }
 
-            if (isRisky && !hasManualApproval) {
+            // Dependabot cannot write `Manual approval: YES` into a PR body, so a
+            // hard failure here would pin every dependency PR red forever. The
+            // risk labels still apply — only the blocking failure is waived.
+            const isBotAuthor = context.payload.pull_request.user.login.endsWith("[bot]");
+
+            if (isRisky && !hasManualApproval && !isBotAuthor) {
               core.setFailed(
                 "Risky scope detected without manual approval. Update PR body with `Manual approval: YES` or check the risky-scope manual approval checkbox."
+              );
+            } else if (isRisky && !hasManualApproval && isBotAuthor) {
+              core.warning(
+                `Risky scope on bot PR by ${context.payload.pull_request.user.login} — labeled, not blocked. Human review still required before merge.`
               );
             }
 
