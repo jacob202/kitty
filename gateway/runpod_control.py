@@ -273,6 +273,7 @@ class RunPodControlClient:
         image_name: str | None = None,
         docker_entrypoint: Sequence[str] | None = None,
         docker_start_cmd: Sequence[str] | None = None,
+        container_start_cmd: str | None = None,
     ) -> PodInfo:
         if not template_id.strip():
             raise RunPodConfigurationError("RUNPOD_TEMPLATE_ID is required")
@@ -311,23 +312,21 @@ class RunPodControlClient:
 
         if image_name is not None:
             normalized_image_name = image_name.strip()
-            normalized_entrypoint = [
-                str(item) for item in (docker_entrypoint or ()) if str(item)
-            ]
-            normalized_start_cmd = [
-                str(item) for item in (docker_start_cmd or ()) if str(item)
-            ]
+            normalized_container_start_cmd = (
+                container_start_cmd.strip()
+                if container_start_cmd
+                else ""
+            )
             if not normalized_image_name:
                 raise RunPodConfigurationError("image_name must not be empty")
-            if not normalized_entrypoint or not normalized_start_cmd:
+            if not normalized_container_start_cmd:
                 raise RunPodConfigurationError(
-                    "explicit REST deployment requires docker_entrypoint and docker_start_cmd"
+                    "explicit REST deployment requires container_start_cmd"
                 )
             return await self._create_image_pod_rest(
                 template_id=template_id,
                 image_name=normalized_image_name,
-                docker_entrypoint=normalized_entrypoint,
-                docker_start_cmd=normalized_start_cmd,
+                container_start_cmd=normalized_container_start_cmd,
                 gpu_type_ids=normalized_gpu_ids,
                 max_hourly_rate=max_hourly_rate,
                 ports=ports,
@@ -338,9 +337,9 @@ class RunPodControlClient:
                 pod_env=pod_env,
                 pod_name=pod_name,
             )
-        if docker_entrypoint is not None or docker_start_cmd is not None:
+        if container_start_cmd is not None:
             raise RunPodConfigurationError(
-                "docker startup overrides require image_name and REST deployment"
+                "container_start_cmd requires image_name and REST deployment"
             )
 
         common_input: dict[str, object] = {
@@ -405,8 +404,7 @@ class RunPodControlClient:
         *,
         template_id: str,
         image_name: str,
-        docker_entrypoint: Sequence[str],
-        docker_start_cmd: Sequence[str],
+        container_start_cmd: str,
         gpu_type_ids: Sequence[str],
         max_hourly_rate: float,
         ports: Sequence[str],
@@ -417,16 +415,12 @@ class RunPodControlClient:
         pod_env: Mapping[str, str],
         pod_name: str,
     ) -> PodInfo:
-        # A Pod created from a template can report updated startup fields while the
-        # running container continues using the template's original command. Create
-        # directly from the image so RunPod applies ENTRYPOINT/CMD at first launch.
         pod_input: dict[str, object] = {
             "name": pod_name,
             "cloudType": cloud_type,
             "computeType": "GPU",
             "containerDiskInGb": container_disk_gb,
-            "dockerEntrypoint": list(docker_entrypoint),
-            "dockerStartCmd": list(docker_start_cmd),
+            "containerStartCmd": container_start_cmd,
             "env": dict(sorted(pod_env.items())),
             "gpuCount": 1,
             "gpuTypeIds": list(gpu_type_ids),
@@ -435,6 +429,8 @@ class RunPodControlClient:
             "interruptible": False,
             "locked": False,
             "ports": list(ports),
+            "startJupyter": False,
+            "startSsh": False,
             "supportPublicIp": False,
             "volumeMountPath": "/workspace",
         }
@@ -475,23 +471,6 @@ class RunPodControlClient:
         if not pod.pod_id:
             raise RunPodAmbiguousCreateError(
                 pod_name, RunPodApiError("REST create result did not include a Pod id")
-            )
-
-        observed_entrypoint = normalized_payload.get("dockerEntrypoint")
-        observed_start_cmd = normalized_payload.get("dockerStartCmd")
-        if (
-            observed_entrypoint != list(docker_entrypoint)
-            or observed_start_cmd != list(docker_start_cmd)
-        ):
-            cleanup_error = await self._delete_after_invalid_create(pod.pod_id)
-            detail = (
-                f"; cleanup failed: {cleanup_error}"
-                if cleanup_error is not None
-                else "; Pod was terminated"
-            )
-            raise RunPodApiError(
-                "RunPod direct create did not preserve explicit Docker startup overrides"
-                + detail
             )
 
         await self._validate_created_pod_rate(pod, max_hourly_rate)

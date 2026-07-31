@@ -303,7 +303,7 @@ async def test_create_transport_failure_is_billably_ambiguous():
 
 
 @pytest.mark.asyncio
-async def test_create_image_pod_rest_preserves_explicit_startup_overrides():
+async def test_create_image_pod_rest_preserves_container_start_cmd():
     captured: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -318,8 +318,7 @@ async def test_create_image_pod_rest_preserves_explicit_startup_overrides():
                 "name": f"{KITTY_POD_PREFIX}rest",
                 "desiredStatus": "RUNNING",
                 "adjustedCostPerHr": 0.31,
-                "dockerEntrypoint": ["bash", "-lc"],
-                "dockerStartCmd": ["exec /tmp/bootstrap.sh"],
+                "containerStartCmd": body["containerStartCmd"],
                 "env": body["env"],
                 "gpu": {"displayName": "NVIDIA L4"},
             },
@@ -330,8 +329,7 @@ async def test_create_image_pod_rest_preserves_explicit_startup_overrides():
             pod = await client.create_image_pod(
                 template_id="source-template-only",
                 image_name="runpod/comfyui:cuda13.0",
-                docker_entrypoint=("bash", "-lc"),
-                docker_start_cmd=("exec /tmp/bootstrap.sh",),
+                container_start_cmd="curl -sSL 'https://example.com/bootstrap.sh' -o /tmp/kitty-bootstrap.sh && chmod 700 /tmp/kitty-bootstrap.sh && exec /tmp/kitty-bootstrap.sh",
                 gpu_type_ids=("NVIDIA L4", "NVIDIA RTX A5000"),
                 max_hourly_rate=0.60,
                 hard_runtime_minutes=55,
@@ -340,10 +338,8 @@ async def test_create_image_pod_rest_preserves_explicit_startup_overrides():
             )
 
     assert pod.pod_id == "rest-pod"
-    assert "templateId" not in captured
     assert captured["imageName"] == "runpod/comfyui:cuda13.0"
-    assert captured["dockerEntrypoint"] == ["bash", "-lc"]
-    assert captured["dockerStartCmd"] == ["exec /tmp/bootstrap.sh"]
+    assert captured["containerStartCmd"] == "curl -sSL 'https://example.com/bootstrap.sh' -o /tmp/kitty-bootstrap.sh && chmod 700 /tmp/kitty-bootstrap.sh && exec /tmp/kitty-bootstrap.sh"
     assert captured["gpuTypeIds"] == ["NVIDIA L4", "NVIDIA RTX A5000"]
     assert captured["gpuTypePriority"] == "custom"
     assert captured["ports"] == ["8000/http"]

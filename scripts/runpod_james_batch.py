@@ -105,7 +105,7 @@ async def _direct_deployment_config(
     api_key: str,
     source_template_id: str,
     bootstrap_ref: str,
-) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
+) -> tuple[str, str]:
     source = await _template_request(
         client,
         api_key,
@@ -123,14 +123,12 @@ async def _direct_deployment_config(
         "https://raw.githubusercontent.com/jacob202/kitty/"
         f"{bootstrap_ref}/workers/comfy_worker/bootstrap.sh"
     )
-    command = (
-        "python -c \"import urllib.request; "
-        "open('/tmp/kitty-bootstrap.sh','wb').write("
-        f"urllib.request.urlopen('{bootstrap_url}', timeout=120).read())\" "
+    container_start_cmd = (
+        f"curl -sSL '{bootstrap_url}' -o /tmp/kitty-bootstrap.sh "
         "&& chmod 700 /tmp/kitty-bootstrap.sh "
         "&& exec /tmp/kitty-bootstrap.sh"
     )
-    return image_name, ("bash", "-lc"), (command,)
+    return image_name, container_start_cmd
 
 
 async def _wait_for_pod(
@@ -218,8 +216,7 @@ async def run(args: argparse.Namespace) -> Path:
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(3)
     temp_template_id: str | None = None
     temp_image_name: str | None = None
-    temp_docker_entrypoint: tuple[str, ...] = ()
-    temp_docker_start_cmd: tuple[str, ...] = ()
+    temp_container_start_cmd: str = ""
     pod: PodInfo | None = None
     started = time.monotonic()
     records: list[dict[str, Any]] = []
@@ -230,8 +227,7 @@ async def run(args: argparse.Namespace) -> Path:
         try:
             (
                 temp_image_name,
-                temp_docker_entrypoint,
-                temp_docker_start_cmd,
+                temp_container_start_cmd,
             ) = await _direct_deployment_config(
                 http_client,
                 api_key=api_key,
@@ -262,8 +258,7 @@ async def run(args: argparse.Namespace) -> Path:
                     },
                     name_suffix=f"james-{run_id}",
                     image_name=temp_image_name,
-                    docker_entrypoint=temp_docker_entrypoint,
-                    docker_start_cmd=temp_docker_start_cmd,
+                    container_start_cmd=temp_container_start_cmd,
                 )
                 pod = await _wait_for_pod(
                     runpod,
