@@ -11,6 +11,7 @@ import pytest
 from gateway.runpod_control import (
     KITTY_POD_PREFIX,
     PodInfo,
+    RunPodAmbiguousCreateError,
     RunPodApiError,
     RunPodBudgetError,
     RunPodConfigurationError,
@@ -27,17 +28,21 @@ def test_pod_info_normalizes_rate_gpu_proxy_and_expiry():
             "desiredStatus": "RUNNING",
             "adjustedCostPerHr": 0.22,
             "gpu": {"displayName": "NVIDIA GeForce RTX 3090"},
-            "env": {"KITTY_SESSION_EXPIRES_AT": expiry.isoformat()},
+            "env": {
+                "KITTY_MANAGED": "1",
+                "KITTY_SESSION_EXPIRES_AT": expiry.isoformat(),
+            },
         }
     )
 
     assert pod.pod_id == "pod-123"
     assert pod.hourly_rate == pytest.approx(0.22)
     assert pod.gpu_name == "NVIDIA GeForce RTX 3090"
-    assert pod.proxy_url(8188) == "https://pod-123-8188.proxy.runpod.net"
+    assert pod.proxy_url(8000) == "https://pod-123-8000.proxy.runpod.net"
     assert pod.expiry() == expiry
     assert pod.is_expired(now=expiry - timedelta(seconds=1)) is False
     assert pod.is_expired(now=expiry) is True
+    assert pod.is_managed() is True
 
 
 def test_client_rejects_empty_api_key():
@@ -46,14 +51,27 @@ def test_client_rejects_empty_api_key():
 
 
 @pytest.mark.asyncio
-async def test_list_managed_pods_filters_by_kitty_prefix():
+async def test_list_managed_pods_requires_prefix_and_marker():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v1/pods"
         return httpx.Response(
             200,
             json=[
-                {"id": "a", "name": f"{KITTY_POD_PREFIX}one"},
-                {"id": "b", "name": "someone-elses-pod"},
+                {
+                    "id": "a",
+                    "name": f"{KITTY_POD_PREFIX}one",
+                    "env": {"KITTY_MANAGED": "1"},
+                },
+                {
+                    "id": "b",
+                    "name": f"{KITTY_POD_PREFIX}unmarked",
+                    "env": {},
+                },
+                {
+                    "id": "c",
+                    "name": "someone-elses-pod",
+                    "env": {"KITTY_MANAGED": "1"},
+                },
             ],
         )
 
@@ -101,7 +119,7 @@ async def test_create_image_pod_sends_bounded_configuration():
                 ],
                 max_hourly_rate=0.50,
                 hard_runtime_minutes=120,
-                ports=("8188/http",),
+                ports=("8000/http",),
                 container_disk_gb=30,
                 volume_gb=20,
                 env={
@@ -118,7 +136,7 @@ async def test_create_image_pod_sends_bounded_configuration():
     assert captured["gpuTypePriority"] == "availability"
     assert captured["containerDiskInGb"] == 30
     assert captured["volumeInGb"] == 20
-    assert captured["ports"] == ["8188/http"]
+    assert captured["ports"] == ["8000/http"]
 
     captured_env = captured["env"]
     assert isinstance(captured_env, dict)
@@ -164,6 +182,66 @@ async def test_create_image_pod_terminates_rate_above_ceiling():
 
 
 @pytest.mark.asyncio
+async def test_create_image_pod_terminates_unknown_rate():
+    deleted: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(
+                201,
+                json={
+                    "id": "unknown-rate",
+                    "name": f"{KITTY_POD_PREFIX}unknown-rate",
+                    "adjustedCostPerHr": "nan",
+                },
+            )
+        if request.method == "DELETE":
+            deleted.append(request.url.path)
+            return httpx.Response(204)
+        raise AssertionError(f"unexpected request: {request.method} {request.url}")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        async with RunPodControlClient(
+            "secret",
+            base_url="https://example.invalid/v1",
+            client=http_client,
+        ) as client:
+            with pytest.raises(RunPodApiError, match="positive finite"):
+                await client.create_image_pod(
+                    template_id="template-1",
+                    gpu_type_ids=["NVIDIA GeForce RTX 3090"],
+                    max_hourly_rate=0.50,
+                    hard_runtime_minutes=120,
+                )
+
+    assert deleted == ["/v1/pods/unknown-rate"]
+
+
+@pytest.mark.asyncio
+async def test_create_transport_failure_is_billably_ambiguous():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("lost response")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        async with RunPodControlClient(
+            "secret",
+            base_url="https://example.invalid/v1",
+            client=http_client,
+        ) as client:
+            with pytest.raises(RunPodAmbiguousCreateError) as error:
+                await client.create_image_pod(
+                    template_id="template-1",
+                    gpu_type_ids=["NVIDIA GeForce RTX 3090"],
+                    max_hourly_rate=0.50,
+                    hard_runtime_minutes=120,
+                    name_suffix="ambiguous-test",
+                )
+
+    assert error.value.pod_name == f"{KITTY_POD_PREFIX}ambiguous-test"
+    assert "reconcile" in str(error.value)
+
+
+@pytest.mark.asyncio
 async def test_actual_cost_sums_matching_billing_records():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v1/billing/pods"
@@ -186,6 +264,24 @@ async def test_actual_cost_sums_matching_billing_records():
             cost = await client.actual_cost("pod-1")
 
     assert cost == pytest.approx(0.07)
+
+
+@pytest.mark.asyncio
+async def test_actual_cost_rejects_malformed_amount():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[{"podId": "pod-1", "amount": "not-money"}],
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        async with RunPodControlClient(
+            "secret",
+            base_url="https://example.invalid/v1",
+            client=http_client,
+        ) as client:
+            with pytest.raises(RunPodApiError, match="invalid 'amount'"):
+                await client.actual_cost("pod-1")
 
 
 @pytest.mark.asyncio
