@@ -9,7 +9,71 @@ set -euo pipefail
 PYTHON_BIN="${COMFYUI_PYTHON:-python}"
 SOURCE_ROOT="/opt/kitty-src"
 ARCHIVE_PATH="/tmp/kitty-src.tar.gz"
+STAGE_FILE="/tmp/kitty-bootstrap-stage"
+BOOTSTRAP_HEALTH_PID=""
 
+set_stage() {
+  printf '%s\n' "$1" > "${STAGE_FILE}"
+  printf 'kitty bootstrap: %s\n' "$1"
+}
+
+stop_bootstrap_health() {
+  if [[ -n "${BOOTSTRAP_HEALTH_PID}" ]]; then
+    kill "${BOOTSTRAP_HEALTH_PID}" 2>/dev/null || true
+    wait "${BOOTSTRAP_HEALTH_PID}" 2>/dev/null || true
+    BOOTSTRAP_HEALTH_PID=""
+  fi
+}
+
+trap stop_bootstrap_health EXIT INT TERM
+set_stage "starting-bootstrap-health"
+
+STAGE_FILE="${STAGE_FILE}" KITTY_WORKER_PORT="${KITTY_WORKER_PORT:-8000}" \
+  "${PYTHON_BIN}" -u - <<'PY' &
+import json
+import os
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+stage_file = Path(os.environ["STAGE_FILE"])
+port = int(os.environ["KITTY_WORKER_PORT"])
+
+
+class Server(ThreadingHTTPServer):
+    allow_reuse_address = True
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        stage = (
+            stage_file.read_text(encoding="utf-8").strip()
+            if stage_file.exists()
+            else "starting"
+        )
+        payload = json.dumps({"status": "starting", "stage": stage}).encode("utf-8")
+        path = self.path.split("?", 1)[0]
+        self.send_response(503 if path == "/health" else 404)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def log_message(self, _format: str, *_args: object) -> None:
+        return
+
+
+Server(("0.0.0.0", port), Handler).serve_forever()
+PY
+BOOTSTRAP_HEALTH_PID=$!
+sleep 1
+if ! kill -0 "${BOOTSTRAP_HEALTH_PID}" 2>/dev/null; then
+  echo "Unable to bind bootstrap health server on port ${KITTY_WORKER_PORT:-8000}" >&2
+  wait "${BOOTSTRAP_HEALTH_PID}" || true
+  exit 2
+fi
+
+set_stage "downloading-kitty-source"
 "${PYTHON_BIN}" - <<'PY'
 import os
 import pathlib
@@ -37,12 +101,15 @@ source = children[0]
 destination = pathlib.Path("/opt/kitty-src")
 if destination.exists():
     import shutil
+
     shutil.rmtree(destination)
 source.rename(destination)
 PY
 
+set_stage "installing-worker-dependencies"
 "${PYTHON_BIN}" -m pip install --no-cache-dir -r "${SOURCE_ROOT}/workers/comfy_worker/requirements.txt"
 
+set_stage "locating-comfyui"
 COMFYUI_ROOT="${COMFYUI_ROOT:-/workspace/ComfyUI}"
 if [[ ! -f "${COMFYUI_ROOT}/main.py" ]]; then
   DISCOVERED_MAIN="$(find /workspace /opt /app -type f -path '*/ComfyUI/main.py' -print -quit 2>/dev/null || true)"
@@ -59,6 +126,7 @@ CHECKPOINT_PATH="${CHECKPOINT_DIR}/${COMFY_CHECKPOINT}"
 mkdir -p "${CHECKPOINT_DIR}" /workspace/jobs
 
 if [[ ! -s "${CHECKPOINT_PATH}" ]]; then
+  set_stage "downloading-checkpoint"
   export CHECKPOINT_PATH
   "${PYTHON_BIN}" - <<'PY'
 import hashlib
@@ -88,6 +156,8 @@ if expected:
         raise SystemExit("checkpoint SHA-256 mismatch")
 partial.replace(target)
 PY
+else
+  set_stage "checkpoint-already-present"
 fi
 
 export PYTHONPATH="${SOURCE_ROOT}"
@@ -97,4 +167,7 @@ export KITTY_JOB_ROOT="/workspace/jobs"
 export KITTY_ALLOWED_CHECKPOINTS="${COMFY_CHECKPOINT}"
 export KITTY_WORKER_PORT="${KITTY_WORKER_PORT:-8000}"
 
+set_stage "starting-kitty-worker"
+stop_bootstrap_health
+trap - EXIT INT TERM
 exec "${SOURCE_ROOT}/workers/comfy_worker/start.sh"
