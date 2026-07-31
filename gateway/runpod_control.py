@@ -415,6 +415,16 @@ class RunPodControlClient:
         pod_name: str,
         expires_at_rfc3339: str,
     ) -> PodInfo:
+        # NOTE: do not put `terminateAfter` in this payload. RunPod's REST v1
+        # rejects it outright — POST /pods returns 400 "key provided in request
+        # body which is not in input schema: 'terminateAfter'" (run
+        # 30671333424) — so adding it breaks Pod creation entirely. The field
+        # exists only on the GraphQL mutation, which cannot carry
+        # containerStartCmd. Pods created down this path therefore have NO
+        # cloud-side deadline; expiry rests on KITTY_SESSION_EXPIRES_AT below
+        # plus the cleanup job and orphan reconciler. That is a real gap, not a
+        # solved problem.
+        _ = expires_at_rfc3339
         pod_input: dict[str, object] = {
             "name": pod_name,
             "cloudType": cloud_type,
@@ -431,10 +441,6 @@ class RunPodControlClient:
             "locked": False,
             "ports": list(ports),
             "supportPublicIp": False,
-            # Without this the deadline lives only in the calling process. If
-            # the runner dies before cleanup, a Pod created down this path
-            # bills until someone notices. The GraphQL path has always sent it.
-            "terminateAfter": expires_at_rfc3339,
             "volumeMountPath": "/workspace",
         }
         if network_volume_id:
