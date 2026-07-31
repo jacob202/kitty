@@ -124,7 +124,9 @@ async def _direct_deployment_config(
         f"{bootstrap_ref}/workers/comfy_worker/bootstrap.sh"
     )
     container_start_cmd = (
-        f"curl -sSL '{bootstrap_url}' -o /tmp/kitty-bootstrap.sh "
+        "python3 -c \"import urllib.request; "
+        "open('/tmp/kitty-bootstrap.sh','wb').write("
+        f"urllib.request.urlopen('{bootstrap_url}', timeout=120).read())\" "
         "&& chmod 700 /tmp/kitty-bootstrap.sh "
         "&& exec /tmp/kitty-bootstrap.sh"
     )
@@ -255,6 +257,7 @@ async def run(args: argparse.Namespace) -> Path:
                         "COMFY_CHECKPOINT_URL": checkpoint_url,
                         "COMFY_CHECKPOINT_SHA256": checkpoint_sha,
                         "KITTY_ALLOWED_CHECKPOINTS": checkpoint,
+                        "COMFYUI_PYTHON": "python3",
                     },
                     name_suffix=f"james-{run_id}",
                     image_name=temp_image_name,
