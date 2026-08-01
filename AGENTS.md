@@ -108,33 +108,56 @@ Before multi-file work, give a short plan. Prefer editing existing files over cr
 
 Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session.
 
+### Exact `next` protocol
+
+When the user's instruction is a bare continuation such as `next`, `do the next
+thing`, `continue the queue`, `resume work`, or `take the next packet`, execute
+`.agents/skills/next/SKILL.md` instead of asking the user to restate the work or
+selecting from memory.
+
+The skill must:
+
+1. run the cold-start receipt and live field survey;
+2. continue valid owned in-flight work before starting anything;
+3. validate/apply the approved leverage initiative idempotently when absent;
+4. inspect all initiatives and live collision scopes;
+5. select one eligible authorized non-colliding packet;
+6. execute it through governed Builder rails with evidence and independent review;
+7. run the full session-end skill; and
+8. stop after one bounded cycle.
+
+A named request outranks the bare trigger. Never hijack another worker's lease,
+start a duplicate of active Chat/Builder work, promote an unowned learning signal
+over approved queued work, or begin a second packet after session-end.
+
 ### Session end protocol — triggered by: "session end", "end session", "wrap up", "i'm done", "save my work", "ship it"
 
 When the user says any of these phrases, do NOT just say goodbye. Run the full
-checklist. `.agents/skills/session-end/SKILL.md` is the authoritative version of
-this checklist; this section is its summary and must not diverge from it.
+checklist. `.agents/skills/session-end/SKILL.md` is authoritative; this summary
+must not diverge from it.
 
-1. **Survey the field** — run `bash scripts/session_end_survey.sh`. Read-only inventory of worktrees, unmerged branches and the paths they touch, open PRs **including drafts**, the Builder queue, `~/kb/NOW.md` claims, and recommendations carried from the previous `.claude/STATE.md`. A section printing `UNAVAILABLE` is unverified, not clean. Other agents' work is theirs — name it, don't claim it.
+1. **Survey the field** — run `bash scripts/session_end_survey.sh`. Inventory worktrees, unmerged branches and touched paths, open PRs **including drafts**, Builder's read-only projection, `~/kb/NOW.md`, and carried recommendations. `UNAVAILABLE` is unverified, not clean. Other agents' work is theirs—name it, do not claim it.
 
-2. **Evaluate carried recommendations** — run the `release_check` of each **deferred** entry; a `ready` entry has none. Exit 0 promotes it to `ready`; exit 1 carries it with `deferred_count + 1`. A check that could not run at all (command missing, auth failure, network, signal) was never evaluated: carry the entry forward unchanged, do NOT increment, and report it `UNAVAILABLE`. At 3 deferrals, say out loud that the stated blocker is not the real one.
+2. **Evaluate carried recommendations** — execute only the exact safe read-only `release_check` forms allowed by the skill. Exit 0 promotes to `ready`; exit 1 re-defers and increments; an unavailable command/auth/network/signal carries unchanged and is reported. At 3 deferrals say the stated blocker is probably not the real one.
 
-3. **Extract knowledge** — review the session for durable findings (patterns, gotchas, tool config changes, architecture decisions). Write `~/kb/wiki/YYYY-MM-DD-slug.md` with source, date, why it matters, verified-by. Append one line to `~/kb/INDEX.md`. Skip ephemera (task shuffles, typo fixes). If you got something wrong and Jacob corrected you, write `~/kb/corrections/YYYY-MM-DD-slug.md` instead. **The KB is `~/kb` (absolute), a separate repo — never write to a repo-relative `kb/` path.**
+3. **Reconcile completion evidence** — establish packet/task/attempt, branch/worktree/base/HEAD, changed files, exact tests, runtime proof, SHA-bound independent review, PR/check/publication state, provider/spend/cleanup, and honest failure/recovery. Attach Builder reports through supported fenced commands; never edit SQLite or infer done from prose.
 
-4. **Update `~/kb/NOW.md`** — refresh active project, accomplishments, blockers, and sync changes. Merge, don't clobber — parallel sessions exist.
+4. **Extract durable knowledge and corrections** — write verified reusable facts to `~/kb/wiki/`, Jacob corrections to `~/kb/corrections/`, and index them. The KB is absolute `~/kb`, never repo-relative. Stage a transfer payload under `docs/session-notes/` only when the KB is unavailable.
 
-5. **Build the recommendations** — at most three ranked next steps, life projects before code (ADR 0016), each one concrete action. Defer only for a real collision or dependency; "other work exists" is not a reason. Every deferred item needs a `release_check` command that exits 0 when the blocker clears.
+5. **Record workflow learning** — use `scripts/session_learning.py` to record zero to three evidence-based stable signals and summarize the rolling window. First ordinary occurrence stays observed; repeated signals promote; integrity/security/data-loss/fabricated-success/queue-integrity/paid-waste incidents may promote immediately. Check existing roadmap, Mission, initiative, queue, branch, PR, and issue owners before carrying at most one unowned promoted code improvement. Session-end does not automatically create issues or tasks (ADR 0025).
 
-6. **Write `.claude/HANDOFF.md`** — what was done, what's in-flight, other work in flight that isn't yours, blockers, next move, deferred items and what releases them, files changed. Make it directly actionable for the next session.
+6. **Update `~/kb/NOW.md`** — merge current accomplishments, blockers, tool ownership, and promoted-signal ownership without clobbering parallel sessions.
 
-7. **Write `.claude/STATE.md`** — branch, SHA, status (complete/in-progress/blocked), completed items, next action. Must include the `<!-- kitty-state -->` JSON block with `schema_version` (write 2), `updated_at`, `head_sha`, `branch`, `status`, `completed_items`, `blockers`, `next_action`, plus `parallel_work` and `recommendations`. That block is the only carry-forward channel — do not open a separate notes file for future session-end runs (ADR 0022).
+7. **Build recommendations** — at most three ranked concrete actions, life before code (ADR 0016). Defer only for a real collision/dependency and provide one safe release check. At most one promoted unowned workflow improvement may appear.
 
-8. **Git status** — run `git status --short --branch`. Note uncommitted files. Do NOT commit or push unless explicitly asked.
+8. **Write `.claude/HANDOFF.md` and `.claude/STATE.md`** — current evidence, parallel work, blockers, one next action, deferred release conditions, and workflow learning. STATE uses schema version 2 with `parallel_work` and `recommendations`; recommendations remain the only carry-forward next-step channel (ADR 0023).
 
-9. **Confirm** — one line per file written, the next move, anything deferred with what releases it, and any survey section that came back `UNAVAILABLE`. Then stop. Do not start new work.
+9. **Validate and inspect** — run `python3 scripts/check_continuity_state.py`, `./kitty context --agent`, and `git status --short --branch`. Do not commit/push/delete/clean/merge unless explicitly authorized or an approved Builder publication policy permits the bounded action.
+
+10. **Confirm and stop** — report files written, exact execution state, next move, deferrals, signal status/ownership, and every unavailable source. Do not start new work.
 
 ## Cloned Dependency Source
 
-Read-only dependency source repositories are available under
-`.slim/clonedeps/repos/` for inspection. Do not edit these clones.
+Read-only dependency source repositories are available under `.slim/clonedeps/repos/` for inspection. Do not edit these clones.
 
 - `.slim/clonedeps/repos/MeiGen-AI__GenEvolve/` — `MeiGen-AI/GenEvolve` at `23c847c`; image-planning and renderer-boundary reference only.
