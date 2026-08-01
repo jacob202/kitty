@@ -1,22 +1,20 @@
 # Skill Registry
 
-Single source of truth for every skill bundled with this repo.
-User-installed skills (`~/.config/opencode/skills/`, `~/.claude/skills/`)
-are intentionally not listed here — this registry covers repo-owned only.
+Single source of truth for every skill bundled with this repo. User-installed
+skills under home-directory tool configs are intentionally excluded.
 
-**Last verified:** 2026-08-01 — added the canonical cross-tool `next` workflow
-and re-verified the learning-aware `session-end` wiring.
+**Last verified:** 2026-08-01 — corrected the interactive/Builder execution
+boundary and added measured KB-effectiveness wiring to session-end.
 
 ## Canonical skill locations
 
 | Path | Purpose | Loaded by |
 |---|---|---|
 | `.claude/skills/` | Repo-local Claude Code skills | Claude Code |
-| `.agents/skills/` | Repo-local agent skills | OpenCode / agents; Claude and Codex are routed to canonical skills through `START_HERE.md`, `CLAUDE.md`, and `AGENTS.md` |
+| `.agents/skills/` | Repo-local cross-tool agent skills | OpenCode / agents; Claude and Codex route through `START_HERE.md`, `CLAUDE.md`, and `AGENTS.md` |
 
-Duplicate skills across both locations are not allowed — pick one.
-The audit found `second-opinion` in both; `.claude/skills/` is canonical,
-the `.agents/skills/second-opinion/` copy was removed 2026-07-15.
+Duplicate skills across both locations are not allowed. `second-opinion` is
+canonical under `.claude/skills/`.
 
 ## Skills by location
 
@@ -24,10 +22,10 @@ the `.agents/skills/second-opinion/` copy was removed 2026-07-15.
 
 | Skill | Verified | Verdict | Why |
 |---|---|---|---|
-| catchup | 2026-07-15 | KEEP | Uniquely valuable; rebuilds session context |
+| catchup | 2026-07-15 | KEEP | Rebuilds session context |
 | debug-fix | 2026-07-15 | KEEP | Active bug-fixing workflow |
-| remember | 2026-07-15 | KEEP | Wired to `scripts/remember.py` + `config/PREFERENCES.md` |
-| second-opinion | 2026-07-15 | KEEP (canonical) | Independent model review before asking Jacob |
+| remember | 2026-07-15 | KEEP | Persists durable preferences |
+| second-opinion | 2026-07-15 | KEEP | Independent model review before asking Jacob |
 
 ### `.agents/skills/` (10 active + 8 archived)
 
@@ -35,40 +33,59 @@ the `.agents/skills/second-opinion/` copy was removed 2026-07-15.
 |---|---|---|---|
 | engineering/improve-codebase-architecture | 2026-07-15 | KEEP | Architecture improvement guided by domain docs |
 | image-gen | 2026-07-15 | KEEP | Wired to ComfyUI endpoint |
-| isa | 2026-07-21 | KEEP | 27 commits reference it — genuinely load-bearing, not ceremony |
+| isa | 2026-07-21 | KEEP | Load-bearing specification/verification workflow |
 | journal-entry | 2026-07-15 | KEEP | Wired to Kitty journal subsystem |
-| mcp-kitty-council | 2026-07-15 | KEEP | Council routing — active |
-| next | 2026-08-01 | KEEP | Canonical bare-`next` resolver: cold start, live collision survey, idempotent initiative apply, one eligible packet, governed execution, full session-end, then stop |
-| provider-credit-debugging | 2026-07-15 | KEEP | Kitty-specific debugging |
-| orca-orchestration | 2026-07-26 | KEEP | Referenced from `docs/FREE_WORKERS.md` as the parallel/phased execution layer |
-| session-end | 2026-08-01 | KEEP | Surveys live work, preserves evidence and continuity, extracts `~/kb` knowledge/corrections, records deduplicated workflow signals through `scripts/session_learning.py`, and leaves one honest next action |
-| expert-swarm | 2026-07-26 | UNVERIFIED | 2 lifetime commits; only reference is an archived doc. Same profile as the H5 archive set — needs Jacob's confirm before archiving |
+| mcp-kitty-council | 2026-07-15 | KEEP | Council routing |
+| next | 2026-08-01 | KEEP | Continues one valid interactive assignment; inspects Builder for collisions but never consumes its queue without explicit Builder intent |
+| provider-credit-debugging | 2026-07-15 | KEEP | Kitty-specific provider/credit debugging |
+| orca-orchestration | 2026-07-26 | KEEP | Parallel/phased Builder execution layer |
+| session-end | 2026-08-01 | KEEP | Surveys live work, preserves evidence/continuity, records execution ownership, writes a strict KB-effectiveness receipt, extracts durable knowledge/corrections, and records workflow signals |
+| expert-swarm | 2026-07-26 | UNVERIFIED | Low historical usage; requires Jacob confirmation before archive |
 
-**Deleted 2026-07-21** (Jacob confirmed unused; `code-review-graph` MCP confirmed not connected in this environment, superseded by `.codegraph`): `debug-issue`, `explore-codebase`, `refactor-safely`, `review-changes`.
+Deleted 2026-07-21 after verification/confirmation: `debug-issue`,
+`explore-codebase`, `refactor-safely`, `review-changes`, `autonomy_tune`, and
+`tune`.
 
-**Deleted 2026-07-21** — `autonomy_tune`, `tune`. The registry's prior "KEEP — core to Builder loop" verdict for `autonomy_tune` was never verified against actual code: zero references in `gateway/`, `scripts/`, or the `kitty` CLI. Jacob confirmed directly he never used either. The 2026-06-20 consolidation plan's proposed merge is moot now that both are gone.
-
-**Archived 2026-07-21** to `.agents/skills/_archive/` (H5 executed — Jacob confirmed unused, content preserved not deleted, 1-3 lifetime commits each): `extract-wisdom`, `first-principles`, `iterative-depth`, `iterative-self-review-meta-optimization`, `red-team`, `root-cause-analysis`, `science-method`, `systems-thinking`.
+Archived 2026-07-21 under `.agents/skills/_archive/`: `extract-wisdom`,
+`first-principles`, `iterative-depth`,
+`iterative-self-review-meta-optimization`, `red-team`,
+`root-cause-analysis`, `science-method`, and `systems-thinking`.
 
 ## Recorded human decisions
 
-- **H5** (recorded 2026-07-15, executed 2026-07-21): Archive the 8 generic agent skills — see list above. Original record: `docs/AUDIT_ENGINEERING_LEVERAGE_2026-07-14.md` §10 ARCHIVE A2.
-- **Cross-tool next protocol** (approved 2026-08-01): a bare continuation instruction routes to `.agents/skills/next/SKILL.md`; one instruction resolves and completes one bounded work cycle, invokes session-end, and stops.
-- **Learning without a second backlog** (approved 2026-08-01): session-end records evidence signals in `~/kb`, ordinary signals require repetition, integrity incidents may promote immediately, and execution promotion remains deduplicated through Builder rather than a new task store.
+- **H5**: archive the eight unused generic reasoning skills while preserving
+  their content.
+- **Interactive continuation boundary** (corrected 2026-08-01): bare `next`
+  continues the current interactive Claude Code/OpenCode/Codex assignment. It
+  does not apply initiatives, select packets, or drain Builder. Explicit
+  `builder next` or a valid Builder bundle enters Builder's lane.
+- **Single execution owner** (2026-08-01): every implementation is owned by
+  exactly one of `interactive` or `builder`. Review does not transfer ownership.
+- **Learning without a second backlog** (ADR 0025): session-end records evidence
+  signals in `~/kb`; execution promotion remains governed and deduplicated.
+- **Measured KB effectiveness** (2026-08-01): session-end writes an append-only
+  receipt through `scripts/kb_effectiveness.py`. Unknown token, time, cost, and
+  quality measurements stay null. Cohort comparisons are observational and do
+  not prove causation.
+
+## Supporting scripts
+
+| Script | Purpose | Authority boundary |
+|---|---|---|
+| `scripts/session_learning.py` | Record repeated workflow failures/corrections | Evidence only; no automatic issue or Builder task |
+| `scripts/kb_effectiveness.py` | Record KB retrieval/outcome receipts and produce rolling reports | Measurement only; no roadmap, queue, issue, or priority mutation |
+| `scripts/session_end_survey.sh` | Read-only field inventory | Must report unavailable sources honestly |
 
 ## Freshness check
 
 Re-verify this file whenever:
 
-- a skill is added, removed, merged, or archived;
-- a skill's wiring, scripts, configuration, entrypoint, or authority changes;
-- the leverage audit runs;
-- a supported coding tool no longer follows the `START_HERE.md` routing contract.
+- a skill is added, removed, merged, archived, or rewired;
+- a supported coding tool changes its `next` semantics;
+- session-end changes its KB, continuity, or measurement contract;
+- the leverage audit runs; or
+- this verification date is older than 90 days.
 
-Last verified date: `2026-08-01`. If that date is older than 90 days at audit
-time, re-walk every listed directory and live reference.
-
-The 2026-08-01 re-walk verified that `next` has a canonical skill file,
-`START_HERE.md` routes all supported tools to it, `session-end` invokes the
-validated learning helper, and neither skill creates another execution or
-continuity authority.
+The 2026-08-01 re-walk verified that bare `next` is interactive-only,
+Builder remains autonomous, session-end records exactly one execution owner, and
+KB effectiveness is measured without creating another execution authority.
