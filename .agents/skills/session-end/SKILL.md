@@ -1,20 +1,18 @@
 ---
 name: session-end
-description: "Close a work session completely: survey all live work, evaluate carried recommendations, preserve evidence, extract durable knowledge and corrections, record deduplicated workflow-learning signals, update ~/kb/NOW.md, write valid HANDOFF/STATE checkpoints, and leave one honest next action. USE WHEN: session end, end session, wrap up, close session, finish session, save my work, ship it, before you go, finalize session"
+description: "Close a work session completely: survey live work, preserve evidence, record execution ownership and KB effectiveness, extract durable knowledge/corrections, record deduplicated workflow signals, update continuity, and leave one honest next action. USE WHEN: session end, end session, wrap up, close session, finish session, save my work, ship it, before you go, finalize session"
 ---
 
-# Session End — Evidence, Continuity, Learning, Next Action
+# Session End — Evidence, Continuity, Measured Learning
 
-When the user signals the session is ending, run every step. The output is a
-trustworthy continuation point, not a goodbye message.
-
-Do not stop after writing one file. Do not begin new implementation after the
-final confirmation.
+When the user signals the session is ending, run every step. The result is a
+trustworthy continuation point and a measurable learning receipt, not a goodbye
+message.
 
 **The cross-tool KB is `~/kb` (absolute), a separate repository. Never write to
 a repo-relative `kb/` path.**
 
-## 0. Verify live state
+## 0. Verify live state and execution ownership
 
 Never write from memory. Run:
 
@@ -24,8 +22,19 @@ git log --oneline -1
 git status --short --branch
 ```
 
-Test counts, SHAs, PR state, queue state, and completion claims come from
-commands or connected-source reads performed now.
+Classify this session's implementation owner as exactly one of:
+
+```text
+interactive | builder
+```
+
+Use `builder` only when Builder launched the process with a valid task/packet
+bundle or an explicit supported ownership transfer exists and the live lease
+agrees. Otherwise use `interactive`.
+
+An interactive review of Builder output remains `interactive`; it does not take
+implementation ownership. Record any separate Builder task as parallel work.
+Never claim that both lanes owned the same implementation.
 
 ## 1. Survey the field
 
@@ -35,32 +44,20 @@ Run:
 bash scripts/session_end_survey.sh
 ```
 
-It inventories:
-
-- this worktree and every registered worktree;
-- unmerged branches and touched top-level paths;
-- open PRs including drafts;
-- Builder's read-only status projection;
-- `~/kb/NOW.md` cross-tool claims;
-- recommendations carried from the previous `.claude/STATE.md`.
+Inventory this worktree, every registered worktree, unmerged branches, open PRs
+including drafts, Builder's read-only projection, `~/kb/NOW.md`, and carried
+recommendations.
 
 Rules:
 
 - `UNAVAILABLE` means unverified, never clean or empty.
-- If `gh` is unavailable, use the GitHub connector before writing PR claims. If
-  neither source works, report the PR queue unverified.
-- Other workers' branches, worktrees, PRs, and leases remain theirs. Name them;
-  do not claim, merge, release, or clean them.
-- Draft PRs count as in-flight.
-- A surprising dirty tree is evidence to report, not something to hide.
+- Other workers' branches, worktrees, PRs, and leases remain theirs.
 - Builder's absent local DB is unknown/unused, not an empty success.
+- A surprising dirty tree is evidence to report, not something to hide.
+- Inspect Builder to identify state and collision; do not claim or schedule its
+  next packet during an interactive session-end.
 
 ## 2. Evaluate carried recommendations safely
-
-Read the survey's `CARRIED RECOMMENDATIONS` section.
-
-A `ready` recommendation has no release check. Carry it forward or supersede it
-with explicit evidence.
 
 For each `deferred` recommendation, run its `release_check` only when it exactly
 matches one of these read-only forms:
@@ -73,45 +70,41 @@ git merge-base --is-ancestor <sha> <ref>
 git rev-parse --verify --quiet <ref>
 ```
 
-No shell chaining, redirection, substitution, arbitrary executable, `gh`, or
-Builder command may auto-run from tracked checkpoint data. Show Jacob anything
-outside the allowlist and obtain approval first.
+No shell chaining, redirection, substitution, network command, arbitrary
+executable, or Builder mutation may auto-run from checkpoint data.
 
 Interpret results:
 
 - exit 0: promote to `ready`;
 - exit 1: still deferred; increment `deferred_count`;
-- command missing, auth/network failure, signal, or otherwise could not run:
-  carry unchanged, do not increment, and report `UNAVAILABLE`;
-- obsolete check or deleted/superseded work: drop it and state why.
+- unavailable/invalid execution: carry unchanged and report `UNAVAILABLE`;
+- obsolete or superseded work: drop it with evidence.
 
-At three deferrals say explicitly: **we have been here before; the stated
-blocker is probably not the real blocker.** Do not silently defer it a fourth
-time under a new slug.
+At three deferrals state: **we have been here before; the stated blocker is
+probably not the real blocker.**
 
-## 3. Reconcile the work completed this session
+## 3. Reconcile exact work evidence
 
-Before knowledge extraction, establish the exact outcome:
+Record only facts verified now:
 
-- packet/task/attempt identity when Builder-owned;
+- session/tool identity and execution owner;
+- task/packet/attempt identity when Builder-owned;
 - branch, worktree, base SHA, HEAD, and dirty state;
-- files changed;
+- changed files and commits;
 - validation commands and exact results;
 - runtime evidence for runtime claims;
-- review verdict bound to the reviewed SHA;
+- independent review verdict bound to the reviewed SHA;
 - PR/check/publication state;
-- provider/model/spend and cleanup state when applicable;
+- provider/model/token/spend evidence when available;
+- attempts, repair commits, regressions, cleanup state;
 - honest failure class and recovery action when incomplete.
 
-Attach the final report/evidence to Builder through supported commands when this
-was a Builder packet. Never edit SQLite or infer terminal state from worker
-prose.
+For Builder-owned work, attach the final report through supported fenced
+commands. Never edit SQLite or infer completion from worker prose.
 
 ## 4. Extract durable knowledge and corrections
 
-Review the session for facts useful beyond this one task.
-
-Write a wiki entry when a reusable fact was verified:
+Write a wiki entry only for a verified reusable fact:
 
 ```markdown
 # Title
@@ -123,7 +116,7 @@ Write a wiki entry when a reusable fact was verified:
 <finding>
 ```
 
-Location:
+Store it under:
 
 ```text
 ~/kb/wiki/YYYY-MM-DD-slug.md
@@ -131,240 +124,197 @@ Location:
 
 Append one line to `~/kb/INDEX.md`.
 
-When Jacob corrected a generalizable mistake, write instead:
+When Jacob corrected a generalizable mistake, write instead to:
 
 ```text
 ~/kb/corrections/YYYY-MM-DD-slug.md
 ```
 
-Include wrong assumption, corrected fact, evidence, and a one-line prevention
-rule. Provider/model gotchas belong in `~/kb/models.md`.
+Include the wrong assumption, corrected fact, evidence, and one prevention rule.
+Provider/model gotchas belong in `~/kb/models.md`.
 
-Skip session ephemera, task shuffling, typo fixes, and facts already owned by
-identity/preferences files.
-
-If nothing is durable, state that explicitly. An empty template is a failed
-run—never commit it.
+Skip ephemera, task shuffling, typo fixes, and facts already owned by canonical
+repo docs. When a KB fact becomes proven and load-bearing, promote it into the
+appropriate test, skill, ADR, or canonical document and record that destination
+in the effectiveness receipt.
 
 If `~/kb` is unavailable, stage the complete payload under
-`docs/session-notes/<DATE>-kb-payload.md` and carry a recommendation with:
+`docs/session-notes/<DATE>-kb-payload.md` and carry a recommendation with
+`test -d ~/kb`.
 
-```text
-test -d ~/kb
+## 5. Record the KB effectiveness receipt
+
+The KB is not considered self-improving merely because agents write to it.
+Record whether it was consulted, useful, stale, costly, and associated with a
+verified outcome.
+
+Create one JSON payload and run:
+
+```bash
+python3 scripts/kb_effectiveness.py record --payload-json '<json>'
 ```
 
-## 5. Record workflow-learning signals
+Required receipt fields:
 
-The workflow should improve from evidence without creating a new backlog or
-turning every annoyance into engineering work.
-
-Extract **zero to three** concrete signals. A valid signal requires:
-
-- a stable kebab-case key that is reused for the same failure across sessions;
-- one allowed category;
-- severity;
-- concise summary;
-- direct evidence;
-- user/project impact;
-- one bounded suggested change;
-- source session;
-- how it was verified.
-
-Allowed categories are enforced by `scripts/session_learning.py` and include:
-
-```text
-architecture_boundary, collision, data_loss_risk, duplicate_work,
-fabricated_success, manual_repetition, missing_automation, paid_waste,
-provider_failure, queue_integrity, runtime_failure, security_boundary,
-stale_context, test_gap, tool_failure, unverified_claim, user_correction
+```json
+{
+  "schema_version": 1,
+  "session_id": "<stable session or attempt identity>",
+  "recorded_at": "<ISO timestamp with timezone>",
+  "execution_owner": "interactive | builder",
+  "tool": "<claude-code | opencode | codex | builder-worker | other>",
+  "task_class": "<planning | investigation | code_change | review | recovery | other>",
+  "outcome": "accepted | completed_unreviewed | blocked | failed | cancelled | no_op",
+  "kb_entries_consulted": [],
+  "kb_entries_used": [],
+  "kb_entries_stale_or_wrong": [],
+  "promoted_to_canonical": [],
+  "kb_tokens_loaded": null,
+  "total_tokens": null,
+  "estimated_cost_usd": null,
+  "elapsed_seconds": null,
+  "attempts": null,
+  "repair_commits": null,
+  "regressions": null,
+  "first_pass_approved": null,
+  "duplicate_work_avoided": null,
+  "correction_prevented": null,
+  "result_id": null,
+  "task_id": null,
+  "initiative_id": null,
+  "packet_id": null,
+  "branch": null,
+  "head_sha": null,
+  "notes": null
+}
 ```
 
-Record each signal:
+Rules:
+
+- Never estimate tokens, elapsed time, cost, attempts, review, or regressions
+  from intuition. Use `null` when the source is unavailable.
+- `accepted` requires independent acceptance evidence, not self-declaration.
+- `kb_entries_used` and `kb_entries_stale_or_wrong` must be subsets of consulted
+  entries and may not overlap.
+- `duplicate_work_avoided` or `correction_prevented` is true only when there is a
+  concrete avoided action/failure to name in `notes`.
+- A Builder worker uses Builder's task/attempt/run identity for `session_id`.
+- An interactive tool uses its durable session identifier when available;
+  otherwise use a stable repository/branch/timestamp identity and do not reuse
+  it for a different receipt.
+- The recorder is idempotent for identical receipts and rejects a conflicting
+  receipt for the same session ID.
+- Storage is `~/kb/metrics/kb-effectiveness.jsonl`; when KB is unavailable the
+  staged fallback is `docs/session-notes/kb-effectiveness.jsonl`.
+- Corrupt history, unknown keys, and fabricated zeroes fail loudly.
+
+Then generate the rolling summary:
+
+```bash
+python3 scripts/kb_effectiveness.py summary --window-days 30
+```
+
+For a human-readable report:
+
+```bash
+python3 scripts/kb_effectiveness.py summary --window-days 30 --report
+```
+
+The report tracks retrieval usefulness/staleness, known token/cost coverage,
+attempts, first-pass approval, regressions, duplicate work avoided, corrections
+prevented, canonical promotions, and KB-used versus no-KB cohorts. Cohort
+comparison is observational and never proves causation.
+
+Do not claim that the KB saves tokens or improves code until the report has
+sufficient accepted results, complete enough measurements, and an independently
+reviewed comparison. Report all evidence gaps.
+
+## 6. Record workflow-learning signals
+
+Extract zero to three concrete workflow signals and record them through:
 
 ```bash
 python3 scripts/session_learning.py record --payload-json '<json>'
-```
-
-Then summarize the rolling 30-day window:
-
-```bash
 python3 scripts/session_learning.py summary
 ```
 
-Storage:
+Signals require stable keys, allowed categories, severity, direct evidence,
+impact, one bounded suggested change, source session, and verification method.
 
-- normal: `~/kb/workflow-signals/`;
-- KB unavailable: `docs/session-notes/workflow-signals/`.
+Ordinary first occurrences remain observed; repeated signals may promote;
+critical/integrity incidents may promote immediately. Promotion is evidence that
+a problem deserves ownership, not permission to code.
 
-Promotion is conservative:
+Before carrying a promoted signal, check the roadmap, Mission, initiative,
+queue, branches, worktrees, PRs, and issues for an existing owner. Session-end
+does not automatically create an issue or Builder task. At most one promoted,
+unowned code improvement may enter the existing recommendation channel.
 
-- immediate: critical severity or data-loss, fabricated-success, paid-waste,
-  queue-integrity, or security-boundary incident;
-- repeated: same stable key in at least two sessions within 30 days;
-- observe: first ordinary occurrence.
+## 7. Update `~/kb/NOW.md`
 
-Before turning a promoted signal into a recommendation, check the roadmap,
-active Mission, initiative manifests/status, queue, open PRs/issues, and current
-parallel work. If an owner already exists, link the signal to that owner and do
-not create another task.
+Read and merge; do not clobber parallel sessions. Update concrete
+accomplishments, blockers, last tool ownership, and promoted-signal ownership.
+Prune stale lines older than roughly seven days and keep the file concise.
 
-Session-end does **not** automatically create a GitHub issue or Builder task.
-The governed promotion adapter may later create at most one task per stable key.
-Until then, carry at most one promoted, unowned code improvement through the
-existing recommendation channel.
+Do not put the Builder queue in `NOW.md`; link to Builder's supported projection
+instead.
 
-Do not record vague signals such as "UX could be better" or "tests were
-annoying." Do not reward verbosity, agent self-narration, commit counts, or
-subjective model preference.
+## 8. Build ranked recommendations
 
-## 6. Update `~/kb/NOW.md`
+Produce at most three concrete actions, life before code under ADR 0016. The
+highest-ranked ready item becomes `next_action`.
 
-Read and merge; do not clobber parallel sessions.
+Defer only for a real collision or required artifact and provide one safe
+release check. Unrelated parallel work is not a blocker.
 
-Update:
+A recommendation for an interactive session must not silently mean “take the
+next Builder packet.” Builder schedules its own approved queue. An explicit
+Builder operator action may be recommended only when the evidence shows a
+specific blocked Builder condition requiring intervention.
 
-- project worked on;
-- concrete accomplishments;
-- exact blockers;
-- which tool touched what last;
-- newly promoted workflow signal and its existing owner, when any.
+## 9. Write `.claude/HANDOFF.md`
 
-Prune stale lines older than about seven days and keep the file under roughly
-50 lines. If no change is needed, say `NOW.md already current.`
+Include:
 
-## 7. Build ranked recommendations
+- exact outcomes and changed paths;
+- this session's execution owner;
+- in-flight work and other owners;
+- blockers and recovery;
+- one next move for this interactive assignment;
+- deferred items and release checks;
+- KB entries consulted/used/stale;
+- effectiveness receipt path and evidence gaps;
+- workflow signals and owners;
+- exact verification results.
 
-Produce at most three. Life projects outrank code projects under ADR 0016.
-Every recommendation is one concrete action with one reason.
+## 10. Write `.claude/STATE.md`
 
-The highest-ranked `ready` item becomes `next_action`.
-
-Mark an item `deferred` only for a real collision or required artifact:
-
-- overlapping branch/worktree/PR/leased packet;
-- a schema/API/decision/evidence artifact that does not yet exist.
-
-Unrelated parallel work is not a blocker. "Other work exists" is not a valid
-reason to wait.
-
-Every deferred item requires one allowed `release_check`. A PR or Builder state
-that cannot be checked through the safe local allowlist must be verified by a
-human/tool read and written with its current status; never smuggle network or
-queue mutation into the release check.
-
-Reuse the same recommendation `id` across sessions. A new slug for the same
-stuck item falsifies its deferral history.
-
-At most one promoted workflow-improvement signal may appear in the three
-recommendations, and only when no existing owner was found.
-
-## 8. Write `.claude/HANDOFF.md`
-
-Use this structure:
+Use checkpoint schema version 2 with `parallel_work` and `recommendations`
+always present. Include a concise section:
 
 ```markdown
-# Handoff — <one-line summary>
+## Execution ownership
+- this session: interactive | builder
+- Builder parallel state: <read-only reference or unavailable>
 
-## What was done
-- <concrete outcomes and paths>
-
-## In-flight / WIP
-- <started but incomplete work>
-
-## Other work in flight (not mine)
-- <owner, branch/PR/task/worktree, touched paths>
-
-## Blockers
-- <specific cause and recovery>
-
-## Next move
-- <single highest-priority action>
-
-## Deferred, and what releases them
-- <id> — <action> — blocked by <cause> — `<release_check>`
-
-## Workflow learning
-- <signals recorded, promotion status, existing owner or unowned>
-
-## Files changed this session
-- <repo-relative paths>
-
-## Verification
-- <exact commands and results>
-```
-
-The parallel-work inventory must agree with STATE.
-
-## 9. Write `.claude/STATE.md`
-
-Always write checkpoint schema version 2:
-
-```markdown
-# Session State — <one-line summary>
-
-<!-- kitty-state
-{
-  "schema_version": 2,
-  "updated_at": "<ISO timestamp with timezone>",
-  "head_sha": "<full SHA>",
-  "branch": "<branch>",
-  "worktree": "<. or worktree name>",
-  "status": "complete | in_progress | blocked | awaiting_review | cancelled | superseded",
-  "completed_items": [],
-  "blockers": [],
-  "next_action": "<one concrete action or explicit no-op>",
-  "parallel_work": [
-    {
-      "kind": "worktree | branch | pr | builder_task | other_tool",
-      "ref": "<identity>",
-      "owner": "<owner>",
-      "touches": ["<paths>"],
-      "observed_at": "<ISO timestamp>"
-    }
-  ],
-  "recommendations": [
-    {
-      "id": "<stable-kebab-slug>",
-      "what": "<one concrete action>",
-      "why": "<one line>",
-      "class": "life | code",
-      "status": "ready | deferred",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    }
-  ],
-  "invalidation_conditions": ["HEAD changes beyond <sha>"],
-  "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
-}
--->
-
-## Current checkpoint
-<one or two sentences>
-
-## Lessons applied
-- <relevant durable rules>
-
-## Workflow learning
-- <stable key, observe/promote, owner or unowned>
+## KB effectiveness
+- receipt: <id/path>
+- consulted: <count>
+- used: <count>
+- stale/wrong: <count>
+- token/quality evidence gaps: <truthful list>
 ```
 
 Requirements:
 
-- `parallel_work` and `recommendations` are always present; use `[]` when truly
-  empty;
 - at most three recommendations;
 - deferred entries have safe release checks; ready entries have null checks;
-- recommendation ordering is life before code;
-- `next_action` matches the highest ready recommendation or is an explicit
-  no-op;
-- populate `pull_request` when next/invalidation depends on PR state;
-- `recommendations` remains the only carry-forward recommendation channel;
-- workflow-signal files are evidence history, not another execution backlog.
+- `next_action` matches the highest ready recommendation or is an explicit no-op;
+- recommendations remain the only cross-session next-step channel;
+- workflow-signal and effectiveness files are evidence history, not backlogs;
+- never copy Builder queue state into STATE as an interactive task list.
 
-## 10. Validate continuity and inspect Git
+## 11. Validate continuity and inspect Git
 
 Run:
 
@@ -374,19 +324,20 @@ python3 scripts/check_continuity_state.py
 git status --short --branch
 ```
 
-Report uncommitted files and any other worker's changes. Do not commit, push,
-delete, clean, release leases, or merge unless the user explicitly authorized
-that action or an approved Builder packet's publication policy permits it.
+Report uncommitted files and other workers' changes. Do not commit, push, delete,
+clean, release leases, claim Builder work, or merge unless separately authorized
+or an approved Builder publication policy permits the bounded action.
 
-## 11. Confirm and stop
+## 12. Confirm and stop
 
-Keep chat brief because detail lives in the artifacts. Report:
+Report briefly:
 
-1. one line per file written;
-2. exact packet/task/branch state;
-3. the next move;
-4. each deferred item and release condition;
-5. workflow signals recorded and whether observed/promoted/suppressed;
-6. every survey or evidence source that was `UNAVAILABLE`.
+1. files written;
+2. execution owner and exact task/branch state;
+3. next interactive move;
+4. deferred items and release conditions;
+5. effectiveness receipt ID/path and evidence gaps;
+6. workflow signals and status;
+7. every unavailable source.
 
-Then stop. Do not start another packet.
+Then stop. Do not start another interactive assignment or Builder packet.
