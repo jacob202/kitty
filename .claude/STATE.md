@@ -3,14 +3,14 @@
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T22:34:00Z",
-  "head_sha": "aef9d0ce9aebfec4394c6b07f7c17f8e1af5669a",
+  "updated_at": "2026-08-01T22:37:38Z",
+  "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14",
   "branch": "docs/builder-cockpit-boundary",
   "worktree": "seaslug",
   "status": "awaiting_review",
   "completed_items": [
     "Independent review #4835922501 found material defects at 4d667973.",
-    "Repair commit aef9d0ce hardens workflow-signal identity, atomic writes, retained-history validation, non-finite cost rejection, and KTL-001 retirement.",
+    "Repair commit aef9d0ce hardens workflow-signal identity, atomic writes, retained-history validation, non-finite cost rejection, and KTL-001 retirement; d20a431b fixes CI import ordering.",
     "No initiative was applied and Builder state was not modified."
   ],
   "blockers": [
@@ -30,7 +30,7 @@
     {
       "id": "pr359-independent-rereview",
       "what": "Obtain independent re-review of the pushed PR #359 repair head and keep it draft until that review approves the checked SHA.",
-      "why": "Review #4835922501 found material defects repaired in aef9d0ce.",
+      "why": "Review #4835922501 found material defects repaired in aef9d0ce and d20a431b.",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -40,7 +40,7 @@
     }
   ],
   "invalidation_conditions": [
-    "HEAD changes beyond aef9d0ce9aebfec4394c6b07f7c17f8e1af5669a except this checkpoint commit",
+    "HEAD changes beyond d20a431be8010a7d42ff774c3a0bc724c98f9f14 except this checkpoint commit",
     "PR #359 head changes or closes",
     "an independent re-review records findings against the repair SHA"
   ],
@@ -48,7 +48,7 @@
   "pull_request": {
     "number": 359,
     "url": "https://github.com/jacob202/kitty/pull/359",
-    "head_sha": "aef9d0ce9aebfec4394c6b07f7c17f8e1af5669a",
+    "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14",
     "draft": true,
     "state": "OPEN"
   }

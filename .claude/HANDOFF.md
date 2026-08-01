@@ -3,14 +3,14 @@
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T22:34:00Z",
-  "head_sha": "aef9d0ce9aebfec4394c6b07f7c17f8e1af5669a",
+  "updated_at": "2026-08-01T22:37:38Z",
+  "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14",
   "branch": "docs/builder-cockpit-boundary",
   "worktree": "seaslug",
   "status": "valid",
   "completed_items": [
     "Independent review #4835922501 found workflow-signal, KTL-001 applicability, continuity, and non-finite-cost defects at 4d667973.",
-    "Committed aef9d0ce to count workflow-signal repetition by distinct source_session values, publish signal files atomically, and validate all retained signal fields.",
+    "Committed aef9d0ce to count workflow-signal repetition by distinct source_session values, publish signal files atomically, and validate all retained signal fields; d20a431b fixes the CI import-order failure.",
     "Retired KTL-001 outside the active manifest set as a non-applicable planning record; KTL-002 remains the current corrective manifest.",
     "Added focused regression tests for all review findings; no initiative was applied and Builder state was not modified."
   ],
@@ -22,21 +22,21 @@
     {"kind": "pr", "ref": "#359", "owner": "interactive review-and-repair session", "touches": ["docs", "scripts", "tests"], "observed_at": "2026-08-01T22:33:17Z"}
   ],
   "recommendations": [
-    {"id": "pr359-independent-rereview", "what": "Obtain independent re-review of the pushed PR #359 repair head and keep it draft until that review approves the checked SHA.", "why": "Review #4835922501 found material defects repaired in aef9d0ce.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null}
+    {"id": "pr359-independent-rereview", "what": "Obtain independent re-review of the pushed PR #359 repair head and keep it draft until that review approves the checked SHA.", "why": "Review #4835922501 found material defects repaired in aef9d0ce and d20a431b.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null}
   ],
   "invalidation_conditions": [
-    "HEAD changes beyond aef9d0ce9aebfec4394c6b07f7c17f8e1af5669a except this checkpoint commit",
+    "HEAD changes beyond d20a431be8010a7d42ff774c3a0bc724c98f9f14 except this checkpoint commit",
     "PR #359 head changes or closes",
     "an independent re-review records findings against the repair SHA"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {"number": 359, "url": "https://github.com/jacob202/kitty/pull/359", "head_sha": "aef9d0ce9aebfec4394c6b07f7c17f8e1af5669a", "draft": true, "state": "OPEN"}
+  "pull_request": {"number": 359, "url": "https://github.com/jacob202/kitty/pull/359", "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14", "draft": true, "state": "OPEN"}
 }
 -->
 
 ## What was done
 
-- Addressed every finding from independent review #4835922501 of `4d667973` in repair commit `aef9d0ce`.
+- Addressed every finding from independent review #4835922501 of `4d667973` in repair commits `aef9d0ce` and `d20a431b`.
 - Workflow signals now deduplicate by `(stable_key, source_session)`, use serialized collision-safe atomic writes, and validate retained records strictly before reporting.
 - KTL-001 is a non-applicable retired planning record; KTL-002 is the only current corrective manifest. Neither was applied and Builder state was untouched.
 
