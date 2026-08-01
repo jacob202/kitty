@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "initiative_id": "phase1-1-recovery-proof",
   "title": "Phase 1.1: Builder recovery proof (induced failures)",
-  "description": "Six one-packet scenarios driven by scripts/builder_recovery_proof.py. Each packet is executed with a deterministic local worker fixture that induces one failure mode: worker crash, stale claim lease, dirty worktree, interrupted review, and provider exhaustion, followed by a clean completion. The harness asserts that Builder records what actually happened without fabricating success. No model provider is contacted and nothing is written outside data/recovery_proof/. The harness rewrites initiative_id with a per-run suffix so each proof run is isolated.",
+  "description": "Seven one-packet scenarios driven by scripts/builder_recovery_proof.py. Each packet is executed with a deterministic local worker fixture that induces one failure mode: worker crash, stale claim lease, dirty worktree, interrupted review, and provider exhaustion, plus an operator-completed closeout, followed by a clean completion. The harness asserts that Builder records what actually happened without fabricating success. No model provider is contacted and nothing is written outside data/recovery_proof/. The harness rewrites initiative_id with a per-run suffix so each proof run is isolated.",
   "packets": [
     {
       "id": "RP-01-crash-proto",
@@ -112,6 +112,30 @@
       "validation_commands": [
         "test -f data/recovery_proof/rp05.txt || { echo 'FAIL: rp05.txt missing'; exit 1; }",
         "grep -q 'rp05 ok' data/recovery_proof/rp05.txt || { echo 'FAIL: wrong content'; exit 1; }"
+      ]
+    },
+    {
+      "id": "RP-07-operator-closeout-proto",
+      "title": "Worker failure, operator completion, independent review",
+      "objective": "Execution class: harness-fixture. Write data/recovery_proof/rp07.txt containing 'rp07 ok'. The harness runs a worker fixture that fails cleanly, then opens a second attempt for the operator, attaches an operator-supplied completion report with an operator reason, records the operator's implementation result and an independent reviewer's approval on that attempt, and closes it succeeded. Packet 026 requires these to render as three separate facts; this packet proves the rollup never collapses them into a fabricated worker success. The budget is deliberately 2: a review cannot be attached to a closed attempt, so the operator needs an attempt of their own.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The worker failure stays recorded after the operator completes the work",
+        "The operator completion is attributed to the operator, not to the worker",
+        "The independent review approval is recorded with its verdict",
+        "All three facts render together in initiative status evidence",
+        "The operator's completion is not reported as a worker success"
+      ],
+      "allowed_paths": [
+        "data/recovery_proof/rp07.txt"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 4
+      },
+      "validation_commands": [
+        "test -f data/recovery_proof/rp07.txt || { echo 'FAIL: rp07.txt missing'; exit 1; }",
+        "grep -q 'rp07 ok' data/recovery_proof/rp07.txt || { echo 'FAIL: wrong content'; exit 1; }"
       ]
     },
     {
