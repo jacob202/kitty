@@ -2,21 +2,40 @@ name: PR Agent Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-agent-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   review:
+    if: >-
+      ${{ github.event.pull_request.draft == false &&
+          github.event.pull_request.user.login != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Skip automatic re-review after a push
+        if: ${{ github.event.action == 'synchronize' }}
+        run: echo "PR head changed; preserving the existing review without another model call."
+
       - name: Checkout
+        if: ${{ github.event.action != 'synchronize' }}
         uses: actions/checkout@v4
 
       - name: Setup Python
+        if: ${{ github.event.action != 'synchronize' }}
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Run agent review
+        if: ${{ github.event.action != 'synchronize' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
