@@ -34,9 +34,21 @@ and establish one truthful planning surface before any feature work proceeds.
 
 0.1 **Restore green main**
 - Python and frontend CI are green from a clean checkout.
-- Verified against: `pytest`, `lint`, `typecheck`, `hygiene`, `kitty-chat`,
-  `browser-smoke` — all `success` on `origin/main` @ `59f598c5` (2026-07-31).
-- Status: COMPLETE.
+- Was COMPLETE at `59f598c5` (2026-07-31) and **regressed the same day**.
+- Current verified condition (2026-08-01): `main` is RED. `tests.yml` `pytest`
+  failed on 8 consecutive main commits — runs 1124, 1125, 1126, 1127, 1132,
+  1133, 1134, 1139 — including current HEAD `b68268b`. The job dies at
+  `pip install -r requirements.txt` with `ResolutionImpossible`; no test runs.
+- Cause: Dependabot `600c0fa` raised the `openai` pin above the ceiling
+  `mem0ai` 0.1.x requires. See outcome 0.8.
+- Repair merged as PR #339 (`8c58f52`, 2026-08-01).
+- Acceptance evidence met: `tests.yml` run **1145** on `origin/main` @
+  `8c58f52` completed `success` (2026-08-01T05:46:08Z), ending the 8-commit red
+  streak that ran from `092372b1` through `b68268b0`.
+- Status: **VERIFIED** (2026-08-01, run 1145).
+- This outcome regressed once already, silently, because a status line outlived
+  its measurement. It stays true only while 0.7 is unenforced — re-measure, do
+  not re-read.
 
 0.2 **Repair PR automation**
 - Labeler v5 schema, PR description comment permissions, risk-guardrails
@@ -137,12 +149,53 @@ and establish one truthful planning surface before any feature work proceeds.
 - Evidence requirements: UI evidence (browser-smoke), restore evidence
   (test suite), cost evidence (where applicable), cleanup evidence (where
   applicable).
-- Status: COMPLETE. Mechanisms defined in `docs/reference/PREVENTION_MECHANISMS.md`.
+- Status: **DEFINED, NOT ENFORCED.** Corrected 2026-08-01 from COMPLETE.
+  The mechanisms are written down in `docs/reference/PREVENTION_MECHANISMS.md`;
+  none of them is enforced by the repository.
+- Verified counter-example: the first listed mechanism is the red-main freeze
+  ("CI status check on `main` branch push is required"). PR #322 ran `pytest`,
+  `pytest` failed at 2026-07-31T05:25:32Z, and the PR was merged at 16:41 that
+  day with that failure and four other red checks still standing. It was one of
+  six Dependabot PRs merged inside 4.5 minutes; `main` was red for the next 8
+  commits.
+- `main` has no enforced required status checks, so a red PR is mergeable.
+  Writing the policy down did not create the branch protection rule.
+- Required to actually close: enable branch protection on `main` requiring
+  `pytest`, `lint`, `typecheck`, `hygiene`, `kitty-chat`, `browser-smoke`.
+  This needs repo admin rights — Jacob, not an agent.
+- Acceptance evidence: a PR with a deliberately failing test whose merge button
+  is blocked, not merely red.
+- Detail: `docs/mission/evidence.md` E7.
+
+0.8 **Keep the dependency tree resolvable**
+- Current verified condition: `requirements.txt` could not be installed at all
+  from a clean checkout. Reproduced locally with CI's exact error before any
+  change was made.
+- User-visible outcome: CI can run; no merge can leave the tree unresolvable.
+- Owner subsystem: repository tooling / `.github/workflows`.
+- Dependencies: none. This blocks every other outcome in every phase.
+- Change landed: `openai` pin restored to `>=1.90.0,<1.110.0` (mem0ai 0.1.x's
+  own ceiling) with a comment recording the coupling. Clean venv install now
+  resolves; the CI pytest command returns 3452 passed / 7 failed / 77.50%
+  coverage against a 73% floor. Four failures are container-environmental; the
+  three real ones were schema-invalid `.claude/` checkpoint metadata, repaired
+  in the same branch.
+- Merged as PR #339 (`8c58f52`, 2026-08-01).
+- Remaining work: none here. An earlier draft of this outcome proposed adding a
+  resolvability gate to `pr-risk-guardrails.yml`, on the theory that the
+  Dependabot exemption let `600c0fa` skip the tests gate. **That was wrong.**
+  `pytest` ran on PR #322 and failed; the PR was merged anyway. Nothing was
+  bypassed, so a new gate would only add another ignorable red check. The
+  enforcement gap is tracked under outcome 0.7.
+- Acceptance evidence met: `tests.yml` run **1145** on `origin/main` @
+  `8c58f52` completed `success` (2026-08-01T05:46:08Z).
+- Status: **VERIFIED** (2026-08-01, run 1145).
+- Detail: `docs/mission/evidence.md` E1–E7.
 
 ### Exit criteria
 
 Gate 0 exits when:
-- All outcomes 0.1 through 0.7 are complete with verified evidence.
+- All outcomes 0.1 through 0.8 are complete with verified evidence.
 - CI is green on `origin/main` with all six required jobs passing.
 - No open PR older than 7 days without activity (excluding approved Dependabot).
 - The disposition ledger contains every retained planning file.
@@ -179,7 +232,12 @@ verifiable results.
 - Failure: any recovery path produces fabricated success or silent loss.
 - Evidence: `docs/research/` or `docs/audit/` as appropriate.
 - Owner: Jacob.
-- Status: PENDING.
+- Status: PENDING. Induced-failure recovery is now proven live and repeatably
+  by `scripts/builder_recovery_proof.py` — crash, stale lease, out-of-scope
+  debris, interrupted review, and provider exhaustion each report truthfully
+  with no fabricated success, and doctor consistency holds across the run
+  (`docs/research/phase1-1-builder-recovery-proof.md`). The Packet 026/027
+  delta calculation and the operator-completed closeout scenario remain open.
 
 1.2 **Create executable work for weak/free models**
 - Write at least two real JSON manifest packets meeting
@@ -397,16 +455,17 @@ trustworthy at scale.
 - Owner: Jacob (policy), strong-model planner (implementation).
 - Status: PENDING.
 
-3.4 **RunPod/Image Studio worker lane**
-- Parked from Gate 0.3. Activate only when all preceding Phase 3 outcomes
-  are complete and Jacob explicitly authorizes.
-- The reviewed architecture is `docs/plans/image-studio-character-first-architecture-2026-07-28.md`.
-- The vertical slice work is preserved on `feat/runpod-image-studio-smoke`
-  (PR #306, draft).
-- Dependencies: Phase 3 outcomes 3.1–3.3 complete, Jacob's explicit authorization.
-- Verification: as defined in the Image Studio architecture doc.
-- Owner: Jacob (authorization).
-- Status: BLOCKED (awaiting Phase 3 authorization).
+3.4 **RunPod/Image Studio worker lane** — SUPERSEDED
+
+- Jacob authorized this lane on 2026-07-31 and opened issue #336 the next day,
+  which explicitly names it "an active, Jacob-authorized product slice".
+  The authorization this outcome was waiting on has been given, so the lane no
+  longer sits behind Phase 3.
+- Superseded by the **Conversational Image Agent** lane below. The reviewed
+  architecture (`docs/plans/image-studio-character-first-architecture-2026-07-28.md`)
+  and the preserved slice on `feat/runpod-image-studio-smoke` (PR #306, draft)
+  remain inputs, not authority.
+- Status: SUPERSEDED by the Image Agent lane.
 
 ### Exit criteria
 
@@ -417,6 +476,76 @@ Phase 3 exits only when:
 - (If authorized) Image Studio lane completes its acceptance contract.
 
 ---
+
+## Authorized lane — Conversational Image Agent (issue #336)
+
+Jacob authorized this lane directly, so it runs alongside the gates rather than
+behind Phase 3. It is the priority-1 product outcome. It still depends on Gate
+0.8, because nothing is verifiable while CI cannot install dependencies.
+
+**Current verified condition (checked against code 2026-08-01, not against
+prior documents):** the GenEvolve adaptation stopped halfway. The plan is built
+and returned but never persisted (`gateway/image_plan.py:61`,
+`gateway/routes/extended.py:606`); `/studio/generate` accepts raw form state
+with no `plan_id` (`extended.py:406`), so an approved plan cannot reach
+dispatch; `guidance_tags` exist only on the plan request (`extended.py:415`)
+and never reach the renderer; there is no `gateway/image_agent.py`; there is no
+image-session table (migrations stop at `028`); and the worker hardcodes
+`text_to_image_v1` (`workers/comfy_worker/app.py:704`), so a follow-up edit
+cannot bind a parent artifact as a real image input.
+
+**User-visible outcome:** from the browser, Jacob selects a reference, types an
+ordinary request, gets a real image, then says "keep his face, change his
+build" and gets a genuine edit of that image — no terminal, no RunPod console.
+
+**Owner subsystem:** `gateway/image_*`, `workers/comfy_worker/`,
+`gateway/kitty-chat/src/components/ImageStudio.tsx`.
+
+**Slices, dependencies and acceptance evidence:** `docs/mission/execution.md`
+(A1–A6). A1–A3 are unit-testable anywhere; A4 is partly; A5 needs a browser;
+A6 needs RunPod credentials and real GPU spend and is the slice that closes the
+lane.
+
+**Acceptance evidence:** issue #336's hard acceptance test in full — browser
+proof, job/session records, parent lineage, renderer input, workflow/model
+version, duration, artifact hashes, and RunPod cleanup state. Generated
+substitutes, mock contact sheets and prompt-only "edits" do not count.
+
+**Status:** NOT STARTED (A1–A6). Blocked on Gate 0.8 landing.
+
+**Stop rule (from issue #336):** do not expand into hosted-provider adapters,
+external search, LoRA training, critic loops, masking UI, or multi-character
+scenes before the two-turn browser flow is real.
+
+## Authorized lane — Trustworthy KittyBuilder
+
+**Current verified condition:** inventory only. 27 `gateway/builder_*.py`
+modules, 7 `gateway/actions/builder_*.py`, 2 route modules, 25 test files.
+Which modules are on the live execution path is **not established**, and no
+Builder runtime behaviour was exercised. Claims about contradictory launchers
+and dead entry points are credible but UNVERIFIED.
+
+**User-visible outcome:** every queued packet has one owner, one state, one
+evidence trail and a clear next action; failed checks and merge conflicts
+surface as actionable Builder state instead of manual discoveries; UI and CLI
+agree on what is running, blocked, failed, completed and next.
+
+**Owner subsystem:** `gateway/builder_*`, `gateway/routes/builder*.py`.
+
+**Dependencies:** Gate 0.8. Then B1 (reconstruct the real execution path)
+gates everything else — changing launchers before knowing which one is live is
+how the duplicate-launcher problem was created.
+
+**Acceptance evidence:** one complete mission through queue → execution →
+branch/commit → PR → checks → review → merge-ready or an honestly classified
+terminal failure; plus a restart mid-mission with no duplicated work or lost
+state; both from a clean checkout and a real runtime, not unit tests.
+
+**Status:** NOT STARTED. Slices at `docs/mission/execution.md` (B1–B11).
+
+**Conversational Builder** (Jacob, 2026-08-01) is recorded as B11 and lands
+after Builder state is deterministic — a conversational surface over
+non-deterministic state narrates a lie fluently.
 
 ## Phase 4 — Product Deepening
 
@@ -443,10 +572,12 @@ sequenced.
 - GitHub connector (packet 020).
 - Job search scaffold (packet 019, parked until Jacob activates).
 
-4.4 **Image Studio**
-- The architecture at `docs/plans/image-studio-character-first-architecture-2026-07-28.md`.
+4.4 **Image Studio deepening**
 - Persistent fictional character workflow with identity consistency.
-- Depends on Phase 3 RunPod/Image Studio lane completion.
+- Depends on the authorized Conversational Image Agent lane (issue #336)
+  completing its two-turn browser slice first. The architecture note at
+  `docs/plans/image-studio-character-first-architecture-2026-07-28.md` is an
+  input to that lane, not a separate track.
 
 4.5 **Memory and creative continuity**
 - Memory taste and creative continuity (packet 023).
@@ -472,3 +603,8 @@ ambiguous authority.
   enforceable gates and policies.
 - **Active mission:** `docs/ACTIVE_MISSION.md` — KLF-001, currently running
   within Phase 2.
+- **Mission state:** `docs/mission/` — `grounding.md` (verified current state),
+  `decisions.md` (binding cross-cutting decisions), `execution.md` (ordered
+  slices with branch/PR ownership), `evidence.md` (commands and verdicts),
+  `failures.md` (approaches already tried). Read these before starting work;
+  they exist so a fresh session resumes from evidence instead of re-deriving it.
