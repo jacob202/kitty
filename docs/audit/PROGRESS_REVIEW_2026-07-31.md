@@ -344,6 +344,107 @@ improves KittyBuilder but doesn't move Jacob's actual life forward is overhead.
 Sometimes necessary, never the point."* The ratio says overhead has been the
 default rather than the exception.
 
+### Correction, and the real cause (2026-07-31, later the same day)
+
+The frozen-build finding above was real, was fixed, and was regression-tested
+in PR #328 — but it was not the reason Kitty looked unchanged. Jacob checked
+his actual Mac and found **no `com.kitty.ui` launch agent installed**, so
+`start_ui.sh` — the file that was fixed — is never invoked there. `./kitty up`
+starts `next dev` directly, which compiles from source and was never stale.
+
+The real cause, captured in his `238636c` commit and
+`docs/reference/LAUNCHER_CONTRACT.md`, and added to `docs/ROADMAP.md` as Gate
+0.5: **two Next.js servers from two different Kitty worktrees held port 4000
+at once**, one on IPv4 (`127.0.0.1`) and one on IPv6. `kitty` probed
+`127.0.0.1:4000` and validated the canonical checkout's health; the browser
+opened `http://localhost:4000`, which macOS resolved to `::1` and landed on
+the other worktree. The health check and the screen were never looking at the
+same process. Separately, `pid_owned_by_kitty()` scoped ownership to the
+running script's own `$KITTY_ROOT`, so `./kitty down` from the canonical
+checkout left the other worktree's listener running and called it unrelated.
+
+This is a materially better explanation than the frozen-build theory: Jacob
+was not looking at a stale build, he was looking at a different checkout
+entirely, and no single command he had would tell him so.
+
+**Verified against `origin/main` @ `fb4e300`, in an isolated environment
+without access to Jacob's Mac** — two real `git worktree` checkouts of this
+repository, a live listener bound in each, and the actual (unmodified)
+`assert_port_available` / `pid_owned_by_kitty` / `cmd_down` logic invoked
+directly, not paraphrased:
+
+| case | expected | result |
+|---|---|---|
+| no listener on the port | `assert_port_available` succeeds | ✅ exit 0 |
+| listener from the *same* checkout | refuse, name it a leftover from this checkout | ✅ `held by a leftover Kitty process from this checkout` |
+| listener from a *sibling worktree* of the same repo | refuse, name the other worktree's path and the fix command | ✅ `held by another Kitty worktree` / `worktree: <path>` / `Stop it with: (cd "<path>" && ./kitty down)` |
+| `cmd_down`'s port-clearing loop against the cross-worktree listener | it is killed | ✅ confirmed dead by `ps` and `lsof` after the loop ran |
+| `cmd_down`'s port-clearing loop against a listener with **no Kitty or Git relationship at all** (a plain process in `/tmp`, unrelated to Kitty) | *(not itself a pass/fail — see the finding below)* | it was also killed |
+
+The first three confirm the roadmap's own Gate 0.5 verification step —
+*"`./kitty up` from two separate worktrees; the second must refuse to
+start"* — already holds on current `main`. The cross-worktree recognition
+and the sibling-worktree shutdown both work as specified.
+
+**New finding, not yet in the roadmap: `cmd_down`'s kill loop has no
+ownership check at all.** Reading `kitty:345–353`, the loop is:
+
+```bash
+# Kill anything on Kitty ports regardless of ownership. The launchd
+# KeepAlive cycle makes "leave unrelated" useless — if a process respawns
+# before kitty start claims the port, the operator loops forever.
+for port in "$UI_PORT" "$GATEWAY_PORT" "$LITELLM_PORT"; do
+  for pid in $(listener_pids "$port"); do
+    kill -KILL "$pid"
+  done
+done
+```
+
+It does not call `pid_owned_by_kitty` at all — it kills every listener on
+4000/8000/8001, full stop. That satisfies Gate 0.5's requirement 7
+("shutdown must recognize all Kitty worktrees") by brute force, but it
+overshoots requirement 6's spirit: if Jacob ever runs an unrelated dev server
+on one of those three ports for something else entirely, `./kitty down` will
+now kill it with no warning and no ownership distinction in the log line.
+Confirmed directly: a plain `python3 -m http.server` in `/tmp`, verified by
+`pid_owned_by_kitty` to return "not owned," was killed by the same loop
+without comment.
+
+The comment justifying this — the launchd `KeepAlive` respawn loop — no
+longer applies to the verified state: no launch agent is installed. Whether
+to re-add an ownership gate (log and skip unrelated listeners, matching what
+`stop_owned_listener()` — currently dead code, defined but never called —
+already implements) or keep the blast radius as-is is a decision for Jacob,
+not something to change silently under a roadmap gate marked PENDING.
+
+**Gate 0.5 status, corrected:** several of its ten required properties are
+already implemented on `main` (cross-worktree detection, `127.0.0.1`-only
+probe/open in the `kitty` CLI, per-listener kill-on-down, `startup_identity`
+printing checkout/SHA/build/PID/port). What remains, read directly against the
+spec in `docs/reference/LAUNCHER_CONTRACT.md`:
+
+- **No shared bootstrap.** `start_ui.sh` and the `kitty` CLI are still two
+  independent scripts, each with its own copy of the source-load and
+  `next`-invocation logic. Requirement 2 ("one canonical UI bootstrap ... no
+  path may start `next dev` directly while another uses `start_ui.sh`") is
+  unmet — the fix in #328 and the `kitty` CLI's own freshness check both
+  exist, but as two implementations of the same idea rather than one.
+- **`check_ui_freshness` in the `kitty` CLI only warns, never rebuilds.**
+  `check_ui_freshness || true` at `kitty:314` — a stale `next dev` process
+  isn't actually a freshness problem (`next dev` recompiles live), but the
+  function exists and is asymmetric with `start_ui.sh`'s enforcement, which
+  requirement 4 says must be identical on every path.
+- **No "mode" field.** `startup_identity` prints checkout, SHA, build, PID,
+  and port, but not development vs. production, which requirement 8 lists
+  explicitly.
+- **The unconditional `cmd_down` kill loop**, above — not a missing
+  requirement, but a real deviation from the spec's intent worth a decision.
+
+This section corrects rather than replaces the frozen-build finding above:
+that fix was real, tested, and shipped, and remains true for anyone who does
+install the launch agent. It was not, however, the explanation for what Jacob
+was actually seeing.
+
 Combined, the two findings explain the whole gap: most of the work was not
 product work, and the product work that did exist was not being compiled onto
 the screen where it would be judged.
@@ -351,29 +452,51 @@ the screen where it would be judged.
 ## 6. Recommended order
 
 Grounded in the roadmap's own operating rule: *finish one trustworthy end-to-end
-product loop before expanding feature scope.* No new features until 1–3 land.
+product loop before expanding feature scope.* No new features until this
+section's items land.
 
-1. **Get `main` green.** The executor prompt already exists and is ready to run:
-   `docs/research/prompt-fix-main-2026-07-31.md` in PR #326. Seven scoped tasks,
-   each with a verification command. Merge #326 and #327 first so the plan and
-   the workflow repairs are on `main`.
+**Superseded by events, recorded for the trail.** Sections 1–4 as originally
+written recommended getting `main` green and resolving the Phase 1 / Phase 2
+contradiction (M1). Both happened the same day this review was written:
+`docs/ROADMAP.md` was rewritten wholesale into a "Gate 0 — Repository and
+Release Recovery" structure (`0.1`–`0.n`, ratified 2026-07-31), Gates 0.1
+(green main) and 0.2 (PR automation) are marked COMPLETE, and PR #326/#327's
+content is folded in. There is no longer a Phase 1/Phase 2 file to reconcile —
+there is a Gate 0 with its own outcomes and a live status field per outcome.
+**Apply the same discipline to Gate 0 that this document applied to Phase 1:**
+don't let an outcome's status field say COMPLETE on inference. Gate 0.5 is a
+worked example directly above — three of its ten required properties were
+verified against real code and real processes in this session; one real gap
+(the unconditional `cmd_down` kill loop) was found and was not in the roadmap's
+own text.
 
-2. **Close the Phase 1 / Phase 2 contradiction.** Either write the Phase 2
-   section into `docs/ROADMAP.md` with real exit criteria, or amend Phase 1's
-   exit to reflect that CI is not green. Do not leave a running mission pointing
-   at a phase that does not exist. (M1)
+Remaining, in order:
+
+1. **Decide the `cmd_down` blast radius.** Confirmed above: the current kill
+   loop takes down any process on 4000/8000/8001, Kitty-owned or not. Decide
+   whether to restore an ownership check (the code for it,
+   `stop_owned_listener()`, already exists and is simply unused) or accept the
+   wider blast radius now that the launchd `KeepAlive` justification for it no
+   longer applies. This is a one-paragraph decision, not a build.
+
+2. **Close the remaining Gate 0.5 gaps** against
+   `docs/reference/LAUNCHER_CONTRACT.md`'s own checklist: unify `start_ui.sh`
+   and the `kitty` CLI's UI startup into one shared bootstrap (requirement 2);
+   make `check_ui_freshness` in the CLI path enforce rather than only warn
+   (requirement 4); add a mode field to `startup_identity` (requirement 8).
 
 3. **Re-verify the move-in bar end to end, once, and record it.** All five
-   criteria in one run. This converts the project's most important claim from
-   inference to evidence, and it is the natural first outcome of a Phase 2.
-   (M3)
+   criteria in one run. Still unaddressed by anything above — it remains the
+   project's most important unverified claim. (M3)
 
 4. **Add the usage signal.** Even a crude one — last-opened, brief-read,
    next-step-completed. Without it, "does Kitty work" stays unanswerable and
    every future roadmap argues from vibes. (M2)
 
 5. **Then** prove restore from backup (M5), settle the phone-delivery promise
-   (M6), and put a spend ceiling behind a checkpoint (M7).
+   (M6, now sharper — a launch agent was confirmed *not installed*, so the
+   promise is currently false rather than merely untested), and put a spend
+   ceiling behind a checkpoint (M7).
 
 Feature work — 022, 024, 025, 028, Image Studio — stays behind all of it. That
 is the roadmap's existing rule, not a new opinion.
@@ -387,3 +510,11 @@ is the roadmap's existing rule, not a new opinion.
 - Whether local provider credentials, quotas, or MLX/LiteLLM routing are healthy
 - The local Python suite (this container lacks gateway dependencies; 82
   collection errors, environmental only — CI is the authority for §3 Tier A)
+- Anything specific to Jacob's Mac (launch agents, real port occupancy, actual
+  IPv6 resolution behavior). Section 5a's Gate 0.5 verification used two real
+  `git worktree` checkouts and real listeners in this session's own Linux
+  environment to exercise the *logic* faithfully — the code paths, not a
+  simulation of them — but it cannot stand in for confirming the fix on the
+  machine where the bug was found. The roadmap's own verification commands
+  (`./kitty status`, the dual-loopback `curl` check, `lsof`) remain the way to
+  close Gate 0.5 for real.
