@@ -1,76 +1,36 @@
-# Session State — PR #359 repaired locally and awaiting independent review
+# Session State — PR #359 post-review repair awaiting independent re-review
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T22:04:00Z",
-  "head_sha": "9f6b4e1cf06b607c9547e40c089c7c6553ed2efd",
+  "updated_at": "2026-08-01T22:33:17Z",
+  "head_sha": "aef9d0ce9aebfec4394c6b07f7c17f8e1af5669a",
   "branch": "docs/builder-cockpit-boundary",
   "worktree": "seaslug",
   "status": "awaiting_review",
   "completed_items": [
-    "Reviewed PR #359 execution-boundary and KB-effectiveness implementation at remote head f911fd6e.",
-    "Committed receipt integrity, unknown-value, double-counting, and documented-CLI repairs at 62b360e7 and 81c1d647.",
-    "Repaired the required default-python continuity invocation at f47dcd28.",
-    "Corrected PR #359 description headings and confirmed the succeeding check-description run.",
-    "Validated both KTL manifests without applying either or modifying Builder state."
+    "Independent review #4835922501 found material defects at 4d667973.",
+    "Repair commit aef9d0ce hardens workflow-signal identity, atomic writes, retained-history validation, non-finite cost rejection, and KTL-001 retirement.",
+    "No initiative was applied and Builder state was not modified."
   ],
   "blockers": [
-    "PR #359 at c1f52cd3 has no independent GitHub review; its automated review job was skipped.",
-    "Builder queue projection was unavailable because this worktree could not open its SQLite database.",
-    "The shell's python3 is too old for scripts/check_continuity_state.py; Python 3.12 passes it."
+    "PR #359 must receive independent re-review after the repair head is pushed."
   ],
-  "next_action": "Obtain an independent review of the pushed PR #359 head; keep it draft until that review approves the checked SHA.",
+  "next_action": "Obtain independent re-review of the pushed PR #359 repair head; keep it draft until that review approves the checked SHA.",
   "parallel_work": [
-    {
-      "kind": "worktree",
-      "ref": "docs/kittybuilder-core-runtime-audit-2026-08-01",
-      "owner": "other Builder audit worker",
-      "touches": ["docs", "gateway", "tests"],
-      "observed_at": "2026-08-01T22:04:00Z"
-    },
-    {
-      "kind": "worktree",
-      "ref": "fix/builder-ignore-omo-artifacts",
-      "owner": "other Builder scope worker",
-      "touches": ["docs", "gateway", "tests"],
-      "observed_at": "2026-08-01T22:04:00Z"
-    },
     {
       "kind": "pr",
       "ref": "#359",
-      "owner": "Codex review-and-repair session",
-      "touches": [".agents", "docs", "scripts", "tests"],
-      "observed_at": "2026-08-01T22:04:00Z"
+      "owner": "interactive review-and-repair session",
+      "touches": ["docs", "scripts", "tests"],
+      "observed_at": "2026-08-01T22:33:17Z"
     }
   ],
   "recommendations": [
     {
-      "id": "pr359-independent-review-and-push",
-      "what": "Obtain independent review of the pushed PR #359 head and keep it draft until the review approves that checked SHA.",
-      "why": "All automated checks are green, but independent review is absent.",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "dependabot-guardrail-sibling-pins",
-      "what": "Gate Dependabot on resolvability: run 'pip install -r requirements.txt' in the guardrails workflow before a bump can merge.",
-      "why": "A sibling dependency constraint once made the repository unresolvable.",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "image-agent-slice-a1",
-      "what": "Execute docs/mission/execution.md slice A1 — durable image-agent sessions and approved-plan dispatch for issue #336.",
-      "why": "It remains Jacob-authorized mission work.",
+      "id": "pr359-independent-rereview",
+      "what": "Obtain independent re-review of the pushed PR #359 repair head and keep it draft until that review approves the checked SHA.",
+      "why": "Review #4835922501 found material defects repaired in aef9d0ce.",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -80,15 +40,15 @@
     }
   ],
   "invalidation_conditions": [
-    "HEAD changes beyond f47dcd283ff8cb3b159b5fae91d0d0e6ff1a0e25",
+    "HEAD changes beyond aef9d0ce9aebfec4394c6b07f7c17f8e1af5669a except this checkpoint commit",
     "PR #359 head changes or closes",
-    "an independent review records findings against the local repair SHA"
+    "an independent re-review records findings against the repair SHA"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
     "number": 359,
     "url": "https://github.com/jacob202/kitty/pull/359",
-    "head_sha": "f911fd6e36c7ede37c94e7138d7580b61422639f",
+    "head_sha": "aef9d0ce9aebfec4394c6b07f7c17f8e1af5669a",
     "draft": true,
     "state": "OPEN"
   }
@@ -98,10 +58,8 @@
 ## Execution ownership
 
 - this session: interactive
-- Builder parallel state: UNAVAILABLE — read-only projection could not open its SQLite database.
+- Builder parallel state: available at the pre-repair survey; no initiative was applied.
 
 ## KB effectiveness
 
-- receipt: `kbr_e434f613f7a92d449cb4` at `~/kb/metrics/kb-effectiveness.jsonl`
-- consulted: 3; used: 1; stale/wrong: 0
-- evidence gaps: token, cost, elapsed, attempts, review, and regression measurements are unknown; no causal claim is supported.
+- No new session-end receipt was recorded because this is a bounded PR repair, not a session-end workflow.
