@@ -1,10 +1,11 @@
 #!/usr/bin/env python3.12
 """Live Builder recovery proof for roadmap outcome 1.1.
 
-Drives the real Builder queue through five induced failure modes plus one
-clean completion, using deterministic local worker fixtures instead of a model
-provider. Every assertion reads the operator-visible ``./kitty builder`` JSON
-surfaces, so a passing run is evidence an operator can reproduce by hand.
+Drives the real Builder queue through five induced failure modes, an operator
+grant + closeout, and a clean completion, using deterministic local worker
+fixtures instead of a model provider. Every assertion reads the
+operator-visible ``./kitty builder`` JSON surfaces, so a passing run is
+evidence an operator can reproduce by hand.
 
 The harness never contacts a provider, never pushes, and never opens a PR. It
 applies its manifest under a per-run initiative id so repeat runs stay
@@ -486,20 +487,22 @@ class RecoveryProof:
     def scenario_operator_closeout(self, fx: Fixtures) -> Scenario:
         """Packet 026's untested acceptance criterion, exercised end to end.
 
-        A worker failure, then an operator completion, then an independent
-        review approval must render as three separate facts. The failure mode
-        this guards against is the rollup quietly reporting a worker success
-        that never happened.
+        A worker failure that exhausts the budget, a public operator
+        `grant-attempt` that opens a further attempt, an operator completion,
+        then an independent review approval — all rendered as separate facts.
+        The failure mode this guards against is the rollup quietly reporting a
+        worker success that never happened.
         """
         s = Scenario(
             self.pid("RP-07-operator-closeout-proto"),
-            "Worker failure, operator completion, independent review",
+            "Worker failure, operator grant, operator completion, independent review",
         )
         task_id = self.task_ids[s.packet_id]
 
         # Deliberately NOT run_packet: its repair loop retries a failing worker
         # until the budget is gone, which leaves no attempt for the operator.
-        # Driving the attempts by hand is the only way to reach this workflow.
+        # The worker attempt burns the only budget slot (max_attempts=1), then
+        # the public grant-attempt command is the operator intervention.
         worker_attempt = kitty_json(
             "builder", "initiative", "start-attempt",
             self.initiative_id, s.packet_id, "--json",
@@ -529,6 +532,31 @@ class RecoveryProof:
         )
         after_failure = self.packet_status(s.packet_id)
 
+        # Budget exhausted: a fresh attempt must refuse and say operator
+        # intervention is required — the exact message grant-attempt answers.
+        refused = kitty(
+            "builder", "initiative", "start-attempt",
+            self.initiative_id, s.packet_id, "--json",
+            check=False,
+        )
+        refused_exit = refused.returncode
+        refused_stderr = refused.stderr.strip()
+
+        # The operator intervention, through the public CLI.
+        grant = kitty_json(
+            "builder", "initiative", "grant-attempt",
+            self.initiative_id, s.packet_id,
+            "--reason", "recovery proof: operator grant after worker exhaustion",
+            "--json",
+        )
+        grant_evidence = {
+            "granted": grant.get("granted"),
+            "previous_effective_limit": grant.get("previous_effective_limit"),
+            "new_effective_limit": grant.get("new_effective_limit"),
+            "reason": grant.get("reason"),
+            "event_id": grant.get("event_id"),
+        }
+
         # The operator supplies the completion and says so on the record; the
         # `operator: true` flag on report_attached is what separates this from
         # a worker's own result.
@@ -552,8 +580,7 @@ class RecoveryProof:
 
         # A review cannot be attached to a closed attempt, and the worker's
         # attempt closed when it failed — so the operator's work needs an
-        # attempt of its own. This is the only supported shape, and it only
-        # works while the packet still has budget.
+        # attempt of its own. The grant above is what makes this possible.
         opened = kitty_json(
             "builder", "initiative", "start-attempt",
             self.initiative_id, s.packet_id, "--json",
@@ -607,6 +634,9 @@ class RecoveryProof:
             "worker_attempt_id": worker_attempt_id,
             "operator_attempt_id": attempt_id,
             "worker_failed_after_failure": after_failure.get("worker_failed"),
+            "start_attempt_refused_exit": refused_exit,
+            "start_attempt_refused_stderr": refused_stderr,
+            "grant": grant_evidence,
             "record_review_exit": review_result.returncode,
             "final": {
                 key: final.get(key)
@@ -621,6 +651,24 @@ class RecoveryProof:
             "the worker failure is recorded, not overwritten by the operator",
             final.get("worker_failed") is True,
             final.get("worker_failed"),
+        )
+        s.check(
+            "the exhausted budget refuses a further attempt until granted",
+            refused_exit != 0 and "intervention" in refused_stderr,
+            {"exit": refused_exit, "stderr": refused_stderr},
+        )
+        s.check(
+            "the public grant-attempt command records exactly one further attempt",
+            grant_evidence["granted"] == 1
+            and grant_evidence["new_effective_limit"]
+            == grant_evidence["previous_effective_limit"] + 1,
+            grant_evidence,
+        )
+        s.check(
+            "a new attempt starts after the grant",
+            attempt_id is not None
+            and str(attempt_id) != str(worker_attempt_id),
+            attempt_id,
         )
         s.check(
             "the operator completion is recorded as an operator action",
