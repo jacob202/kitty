@@ -179,7 +179,12 @@ verifiable results.
 - Failure: any recovery path produces fabricated success or silent loss.
 - Evidence: `docs/research/` or `docs/audit/` as appropriate.
 - Owner: Jacob.
-- Status: PENDING.
+- Status: PENDING. Induced-failure recovery is now proven live and repeatably
+  by `scripts/builder_recovery_proof.py` — crash, stale lease, out-of-scope
+  debris, interrupted review, and provider exhaustion each report truthfully
+  with no fabricated success, and doctor consistency holds across the run
+  (`docs/research/phase1-1-builder-recovery-proof.md`). The Packet 026/027
+  delta calculation and the operator-completed closeout scenario remain open.
 
 1.2 **Create executable work for weak/free models**
 - Write at least two real JSON manifest packets meeting
