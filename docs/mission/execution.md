@@ -64,18 +64,36 @@ Do not start A4+ before A1–A3 are merged. Do not expand into hosted providers,
 LoRA training, multi-character scenes, critic loops, or masking — issue #336's
 stop/split rule.
 
-### A1 — Durable image-agent sessions · NOT STARTED
+### A1 — Durable image-agent sessions · VERIFIED (against A1's acceptance)
 
-- **Depends on:** slice 0
-- **Change:** migration `029_image_sessions.sql` + `gateway/image_sessions.py`.
-  Session id, ordered turns, active character/reference ids, active anchor
-  job/artifact, protected traits, requested changes, last validated plan,
-  spend, attempt count, timestamps, resumable status. Every job links to its
-  session and parent/anchor. Extends `image_jobs`; replaces nothing.
-- **Acceptance:** focused tests for session create/resume, anchor selection,
-  parent lineage, unknown-reference rejection. Restart-resume proven by
-  reopening the store in-process.
-- **Local-testable:** yes
+- **Depends on:** slice 0 (met)
+- **Branch/PR:** `claude/kitty-stabilization-fbydi0`
+- **Change landed:** `gateway/migrations/029_image_sessions.sql` +
+  `gateway/image_sessions.py`. Tables `image_sessions` and
+  `image_session_turns`, plus a deferred `image_jobs.session_id` column added by
+  `_ensure_session_column` (ALTER TABLE has no `IF NOT EXISTS` in SQLite — same
+  pattern as `image_jobs._ensure_queue_columns`). Extends `image_jobs`;
+  replaces nothing; dispatches nothing.
+- **Acceptance met:** `tests/test_image_sessions.py`, 33 tests, all passing;
+  `tests/test_image_jobs.py` 43 still passing (76 total, no regressions).
+  Covers create/resume, dense per-session turn ordering, anchor selection and
+  rejection, parent lineage, unknown-reference and duplicate-reference
+  rejection, spend/attempt accumulation, and terminal-session write refusal.
+  Restart-resume is exercised by every call opening its own connection.
+- **Scope note:** this verifies A1's stated acceptance only. The user-visible
+  two-turn browser flow is A6's job and remains unproven.
+- **Design notes for the next slice:**
+  - `set_anchor` accepts only a succeeded job carrying a verified artifact.
+    An anchor that cannot be fed to a renderer fails at selection time with a
+    reason, instead of at render time as a silent reroll.
+  - `image_jobs.transition` already refuses to mark a job succeeded without an
+    artifact, so `set_anchor`'s artifact check is defence in depth. That
+    upstream guarantee is pinned by
+    `TestAnchor::test_job_store_prevents_artifactless_success` — if it is ever
+    removed, that test fails rather than the failure surfacing as a mystery.
+  - `update_session()` with no fields and `end_session()` on an ended session
+    both raise. Silent no-ops here are how a session forgets its anchor.
+- **Local-testable:** yes (done)
 
 ### A2 — Plan persistence and approved-plan dispatch · NOT STARTED
 

@@ -35,10 +35,10 @@ and establish one truthful planning surface before any feature work proceeds.
 0.1 **Restore green main**
 - Python and frontend CI are green from a clean checkout.
 - Was COMPLETE at `59f598c5` (2026-07-31) and **regressed the same day**.
-- Current verified condition (2026-08-01): `main` is RED. `tests.yml` `pytest`
-  failed on 8 consecutive main commits — runs 1124, 1125, 1126, 1127, 1132,
-  1133, 1134, 1139 — including current HEAD `b68268b`. The job dies at
-  `pip install -r requirements.txt` with `ResolutionImpossible`; no test runs.
+- History of the regression (resolved): `tests.yml` `pytest` failed on 8
+  consecutive main commits — runs 1124, 1125, 1126, 1127, 1132, 1133, 1134,
+  1139, through HEAD `b68268b`. The job died at
+  `pip install -r requirements.txt` with `ResolutionImpossible`; no test ran.
 - Cause: Dependabot `600c0fa` raised the `openai` pin above the ceiling
   `mem0ai` 0.1.x requires. See outcome 0.8.
 - Repair merged as PR #339 (`8c58f52`, 2026-08-01).

@@ -178,6 +178,31 @@ Method: read the named files, not the issue's summary of them. Results in
 `workers/comfy_worker/app.py:704` (workflow hardcoded), migrations stop at
 `028` (no session table).
 
+## E9 — slice A1, durable image sessions
+
+`gateway/image_sessions.py` + `gateway/migrations/029_image_sessions.sql`.
+
+```
+.venv-ci/bin/python -m pytest tests/test_image_sessions.py tests/test_image_jobs.py -q
+76 passed in 5.64s
+```
+
+33 new tests, 43 existing `image_jobs` tests still green — the new migration
+and the deferred `session_id` column did not disturb the job store.
+
+One test was wrong on the first run and the code was right:
+`test_succeeded_job_without_artifact_is_rejected` tried to build a
+succeeded-but-artifactless job to feed `set_anchor`, and
+`image_jobs.transition` refused to create that state
+(`gateway/image_jobs.py:423`). The branch is unreachable through the normal
+path. Rewritten as `test_job_store_prevents_artifactless_success`, which pins
+the upstream invariant instead of testing an impossible state.
+`set_anchor`'s own artifact check stays as defence in depth for rows that
+predate the guard.
+
+This verifies A1's stated acceptance. It does **not** verify any user-visible
+behaviour — no image was generated, no browser was involved. That is A6.
+
 ## Not evidence — what this session could not produce
 
 No browser screenshot, no generated image, no artifact hash, no RunPod job,
