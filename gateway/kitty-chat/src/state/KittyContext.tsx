@@ -612,14 +612,14 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
       void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), messages: [...history, { ...aiMsg, content: accumulated, mood, ...extras }] })
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') {
-        const interruptedContent = accumulated ? `${accumulated}\n\n⚠ generation stopped before completion.` : '⚠ generation stopped before Kitty returned a response.'
+        const interruptedContent = accumulated ? `${accumulated}\n\n⚠ generation stopped before completion — tap retry below.` : '⚠ generation stopped before Kitty returned a response — tap retry below.'
         const interruptedMessage: Message = { ...aiMsg, content: interruptedContent, mood: 'confused', turnStatus: 'interrupted' }
         updateChat(chat.id, (c) => ({ ...c, updatedAt: new Date(), messages: c.messages.map((m) => (m.id === aiMsgId ? interruptedMessage : m)) }))
         void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), messages: [...history, interruptedMessage] })
         return
       }
       setLastOutcome('broke')
-      updateChat(chat.id, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content: `⚠ ${err instanceof Error ? err.message : 'error connecting to gateway'}`, mood: 'confused' as const } : m)) }))
+      updateChat(chat.id, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content: `⚠ ${err instanceof Error ? err.message : 'error connecting to gateway'} — tap retry below.`, mood: 'confused' as const } : m)) }))
       void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), messages: history })
     } finally { setIsStreaming(false); abortRef.current = null }
   }, [activeModel, activeProject?.id, updateChat, persistChat])
