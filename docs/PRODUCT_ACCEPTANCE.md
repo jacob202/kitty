@@ -53,6 +53,34 @@ A separate reviewer must use the running application without relying on the impl
 
 Code review remains required, but it does not replace this task-completion review.
 
+## When is a PR not user-facing?
+
+The product-acceptance block is mandatory for every PR that changes a user-visible
+workflow in Home, Chat, Work, Studio, Library, Settings, notifications, or
+onboarding. A PR may skip it only through the "Not user-facing override" in the
+PR template.
+
+The implementer cannot self-declare the override. It stays valid only when:
+
+- the template records a one-line reason naming the change class (for example
+  "backend-only — gateway route, no UI touched"); and
+- a separate reviewer confirms that reason before merge, comparing the changed
+  paths against the user-facing list above.
+
+Issue #349 will replace this manual confirmation with path-based classification —
+any PR touching `gateway/kitty-chat/` or another listed user surface is treated as
+user-facing unless the reviewed override is recorded. Until that automation lands,
+the override is reviewer-confirmed, never an implementer self-declaration.
+
+## Enforcement is not optional
+
+The gate is manual by design today: completed prose and checkboxes are not
+enforcement, and they do not make checkbox theatre acceptable. Issue #349 is the
+deterministic layer — it validates the task receipt, runs the phone and desktop
+browser checks, and blocks merges that lack runtime evidence. A PR whose only
+evidence is a filled-in template still fails the gate, and the manual-only interim
+does not change that.
+
 ## Automatic failure conditions
 
 A user-facing PR fails this gate when any primary path contains:
@@ -74,4 +102,4 @@ Do not add another user-visible surface to work around a broken one. Repair or r
 
 Backend capability may merge independently when it is genuinely reusable infrastructure, but it must not be described as a shipped user feature until a coherent user workflow passes this gate.
 
-Issue #346 is the current P0 application of this policy. Until its phone dogfood acceptance test passes, new primary navigation destinations and broad user-facing feature surfaces are frozen.
+Issue #346 is the current P0 application of this policy. Until its phone dogfood acceptance test passes, new primary navigation destinations and broad user-facing feature surfaces are frozen. The freeze lifts only when a task receipt on the relevant PR records the phone dogfood run passing the #346 hard-acceptance scenarios.
