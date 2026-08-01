@@ -35,6 +35,11 @@ canonical reading order before mutation.
 
 - When the user requests a feature/fix, complete the full approved loop:
   implement, install/setup, verify locally, and preserve evidence.
+- When the user's instruction is a bare `next`, `do the next thing`, `continue
+  the queue`, or `resume work`, execute `.agents/skills/next/SKILL.md`. Do not
+  ask Jacob to restate the task, choose from stale prose, duplicate another
+  worker, or begin more than one packet. The cycle ends by running the complete
+  session-end skill and stopping.
 - After any non-trivial code change, run the narrowest tests that actually cover
   it and report exact pass/fail counts. Not the full suite: naming the specific
   files is the point. Full suite, lint, typecheck, and build are `/qg` (or
@@ -105,9 +110,14 @@ See `.claude/rules/initiative.md`. Persona and noticing rules live in
    schema/human-judgment work, path collisions, unverifiable gates, or scope
    expansion. Such work may stop at a draft PR when authorized.
 7. New durable architecture decisions go in `docs/DECISIONS.md` / `docs/adr/`;
-   workflow lessons go in `docs/LEARNINGS.md`.
-8. `docs/ROADMAP.md` is the only active roadmap. Other plans are inputs, not
-   authority.
+   workflow lessons go in `docs/LEARNINGS.md`; evidence-based cross-tool
+   workflow signals follow ADR 0025 and `scripts/session_learning.py`.
+8. `docs/ROADMAP.md` is the only active roadmap. Other plans and workflow
+   signals are inputs, not authority.
+9. Session-end must use `.agents/skills/session-end/SKILL.md`. It records
+   knowledge/corrections and conservative workflow signals, updates continuity,
+   validates it, leaves one next action, and stops. It never creates a second
+   backlog or silently turns one annoyance into a task.
 
 ## Session State
 
@@ -164,6 +174,8 @@ If a command fails, report the failure exactly. Do not round up to passing.
 - "mission" → `docs/ACTIVE_MISSION.md`
 - "roadmap" → `docs/ROADMAP.md`
 - "execution state" → Builder's supported projections
+- "next" → `.agents/skills/next/SKILL.md`, one complete continuation cycle
+- "session end" → `.agents/skills/session-end/SKILL.md`, evidence/learning/continuity then stop
 - "Goose" → external chat tool, not part of Kitty runtime
 - "Honcho" → `gateway/honcho.py`
 
@@ -171,5 +183,6 @@ If a command fails, report the failure exactly. Do not round up to passing.
 
 `~/kb` is the shared context layer for AI tools and cross-project knowledge.
 Read `~/kb/INDEX.md` then `~/kb/NOW.md` when cross-project context matters and
-check `~/kb/corrections/` before repeating failed approaches. Kitty-specific
-truth remains in this repository.
+check `~/kb/corrections/` before repeating failed approaches. Workflow-learning
+signals live under `~/kb/workflow-signals/`; they are evidence history, not an
+execution queue. Kitty-specific truth remains in this repository.
