@@ -53,6 +53,28 @@ progress and been worth less than nothing — it would have to be un-believed
 later. `IMPLEMENTED-NOT-VERIFIED` with the inaccessible check named is the
 honest state.
 
+## F7 — Planning a resolvability gate before checking why the bump merged
+
+Slice 0b was originally specced as "add a `pip install -r requirements.txt`
+check to the guardrails workflow", reasoning from the Dependabot manual-approval
+exemption visible in `pr-risk-guardrails.yml` to the conclusion that the bad
+bump had skipped the tests gate.
+
+It had not. PR #322 ran `pytest`, `pytest` failed, and the PR was merged eleven
+hours later with that failure and four others still red (E7).
+
+The proposed gate would have produced a ninth red check on a repository that
+merges past eight. It would have looked like prevention and prevented nothing.
+
+What caught it: checking whether the gate that *should* have caught the bug
+already had, before building a second one. One `get_check_runs` call on the
+offending PR. The plan had been written from reading the workflow file, which
+showed what the gate does but not what happened.
+
+**Before adding a control, confirm the existing control actually failed to
+fire.** A control that fired and was ignored is an enforcement problem, and
+adding controls does not fix enforcement.
+
 ## F6 — Editing `.claude/` checkpoints without checking whose they were
 
 `CLAUDE.md` forbids clobbering another active workstream's checkpoint, and
