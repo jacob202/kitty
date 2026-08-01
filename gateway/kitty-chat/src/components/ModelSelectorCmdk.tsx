@@ -10,9 +10,12 @@ interface Props {
   models: Model[]
   onSelectModel: (m: Model) => void
   modelFromGateway?: boolean
+  /** Phone header: the model name can otherwise push the neighbouring controls
+   *  off-screen, so the trigger chip truncates instead of growing. */
+  compact?: boolean
 }
 
-export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFromGateway = true }: Props) {
+export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFromGateway = true, compact = false }: Props) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -47,9 +50,10 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
           style={{
             width: 7, height: 7, borderRadius: 99,
             background: modelFromGateway ? activeModel.color : 'var(--c-red)',
+            flexShrink: 0,
           }}
         />
-        {activeModel.name}
+        <span style={compact ? compactLabelStyle : undefined}>{activeModel.name}</span>
       </button>
 
       {open && (
@@ -117,6 +121,13 @@ const chipBtnStyle: CSSProperties = {
   padding: '4px 9px',
   background: 'transparent',
   cursor: 'pointer',
+}
+
+const compactLabelStyle: CSSProperties = {
+  maxWidth: 140,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 }
 
 const popoverStyle: CSSProperties = {

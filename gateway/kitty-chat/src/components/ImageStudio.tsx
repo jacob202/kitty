@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Image, User, Sparkles, Zap, Shield, ChevronDown, X, Upload, Plus, AlertTriangle, CheckCircle2, RefreshCw, Square } from 'lucide-react'
+import { useImageStatus } from '@/lib/queries'
 
 interface Character {
   character_id: string
@@ -112,6 +113,7 @@ export function ImageStudio() {
   const [generating, setGenerating] = useState(false)
   const [results, setResults] = useState<GenerateResult[]>([])
   const [error, setError] = useState('')
+  const [errorDetail, setErrorDetail] = useState<string | null>(null)
   const [routingReason, setRoutingReason] = useState('')
   const [showCharPicker, setShowCharPicker] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -128,6 +130,14 @@ export function ImageStudio() {
   const [guidanceTags, setGuidanceTags] = useState<string[]>([])
   const [availableTags, setAvailableTags] = useState<string[]>([])
   const abortRef = useRef<AbortController | null>(null)
+
+  // Studio must fail closed: when no image engine is reachable, generation must
+  // not dispatch a request the backend can only reject (#346).
+  const statusQuery = useImageStatus()
+  const pendingStatus = statusQuery.isPending
+  const statusFailed = statusQuery.isError
+  const enginesAvailable = statusQuery.data?.available === true
+    || (statusQuery.data?.engines ?? []).some(e => e.available)
 
   // Fetch available guidance tags on mount.
   useEffect(() => {
@@ -154,8 +164,14 @@ export function ImageStudio() {
 
   async function handleGenerate() {
     if (!prompt.trim() || generating) return
+    // Fail closed: never dispatch an impossible generation request.
+    if (!enginesAvailable) {
+      setError('no image engine is online — start ComfyUI or Draw Things, then check again')
+      return
+    }
     setGenerating(true)
     setError('')
+    setErrorDetail(null)
     setRoutingReason('')
     const controller = new AbortController()
     abortRef.current = controller
@@ -186,7 +202,9 @@ export function ImageStudio() {
       if (err instanceof DOMException && err.name === 'AbortError') {
         setError('generation canceled')
       } else {
-        setError(err instanceof Error ? err.message : 'generation failed')
+        const { message, detail } = friendlyStudioError(err)
+        setError(message)
+        setErrorDetail(detail)
       }
     }
     setGenerating(false)
@@ -200,8 +218,13 @@ export function ImageStudio() {
 
   async function handlePreviewPlan() {
     if (!prompt.trim() || planPreviewing) return
+    if (!enginesAvailable) {
+      setError('no image engine is online — start ComfyUI or Draw Things, then check again')
+      return
+    }
     setPlanPreviewing(true)
     setError('')
+    setErrorDetail(null)
     setPlan(null)
 
     try {
@@ -225,7 +248,9 @@ export function ImageStudio() {
       const result = await r.json()
       setPlan(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'plan preview failed')
+      const { message, detail } = friendlyStudioError(err)
+      setError(message)
+      setErrorDetail(detail)
     }
     setPlanPreviewing(false)
   }
@@ -258,7 +283,9 @@ export function ImageStudio() {
       setShowNewChar(false)
       setSelectedChar(char)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'failed to create character')
+      const { message, detail } = friendlyStudioError(err)
+      setError(message)
+      setErrorDetail(detail)
     }
   }, [newCharName, charRefFile, createChar, refetchChars])
 
@@ -272,6 +299,43 @@ export function ImageStudio() {
   const selectedIdentityRecipe = recipes.find(r =>
     r.supports_characters && r.is_available
   )
+
+  // Fail closed: no generator surface while engines are unknown or offline.
+  if (pendingStatus) {
+    return (
+      <div style={offlinePanelStyle} role="status">
+        <p style={offlineTitleStyle}>checking image engines…</p>
+        <p style={offlineBodyStyle}>Confirming a renderer is reachable before enabling generation.</p>
+      </div>
+    )
+  }
+
+  if (statusFailed || !enginesAvailable) {
+    return (
+      <div style={offlinePanelStyle} data-testid="studio-offline">
+        <p style={offlineTitleStyle}>image engines offline</p>
+        <p style={offlineBodyStyle}>
+          Start ComfyUI or Draw Things, then check again. Generation stays disabled until
+          at least one engine is reachable — nothing is sent that would just fail.
+        </p>
+        <button
+          type="button"
+          onClick={() => void statusQuery.refetch()}
+          disabled={statusQuery.isFetching}
+          data-testid="studio-check-again"
+          style={{
+            alignSelf: 'flex-start', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600,
+            padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer',
+            background: 'var(--primary)', color: 'var(--on-primary)',
+            display: 'inline-flex', alignItems: 'center', gap: 6, opacity: statusQuery.isFetching ? 0.6 : 1,
+          }}
+        >
+          <RefreshCw size={13} />
+          {statusQuery.isFetching ? 'checking…' : 'check again'}
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{
@@ -577,8 +641,18 @@ export function ImageStudio() {
           fontSize: 13,
         }}>
           {error}
+          {errorDetail && (
+            <details style={{ marginTop: 6, fontSize: 11 }}>
+              <summary style={{ cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>technical detail</summary>
+              <pre style={{
+                margin: '6px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)',
+                maxHeight: 160, overflowY: 'auto',
+              }}>{errorDetail}</pre>
+            </details>
+          )}
           <button
-            onClick={() => setError('')}
+            onClick={() => { setError(''); setErrorDetail(null) }}
             style={{ marginLeft: 8, color: 'var(--c-red)', cursor: 'pointer', background: 'none', border: 'none' }}
           >
             dismiss
@@ -657,6 +731,7 @@ export function ImageStudio() {
           <div style={{
             background: 'var(--surface)', border: '1px solid var(--line)',
             borderRadius: 16, padding: 20, maxWidth: 400, width: '100%',
+            maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto',
           }}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--ink)', margin: '0 0 14px' }}>
               new character
@@ -959,8 +1034,9 @@ const qualityBtnStyle: React.CSSProperties = {
 const popupStyle: React.CSSProperties = {
   position: 'absolute', top: '100%', left: 0, marginTop: 4,
   background: 'var(--surface)', border: '1px solid var(--line)',
-  borderRadius: 12, minWidth: 220, zIndex: 100,
-  boxShadow: 'var(--shadow)', overflow: 'hidden',
+  borderRadius: 12, minWidth: 220, maxWidth: 'calc(100vw - 40px)',
+  maxHeight: 'min(60dvh, 360px)', overflowY: 'auto',
+  zIndex: 100, boxShadow: 'var(--shadow)', overflowX: 'hidden',
 }
 
 const pickerItemStyle: React.CSSProperties = {
@@ -982,4 +1058,38 @@ const cancelBtnStyle: React.CSSProperties = {
   border: '1px solid var(--line)', borderRadius: 10, background: 'transparent',
   color: 'var(--ink-2)', padding: '8px 16px', fontFamily: 'var(--font-body)',
   fontSize: 14, fontWeight: 500, cursor: 'pointer',
+}
+
+const offlinePanelStyle: React.CSSProperties = {
+  maxWidth: 780, width: '100%', margin: '0 auto',
+  padding: '20px', display: 'grid', gap: 8, alignContent: 'start',
+  background: 'var(--surface-2)', border: '1px solid var(--line)', borderRadius: 12,
+}
+
+const offlineTitleStyle: React.CSSProperties = {
+  margin: 0, fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--ink)',
+}
+
+const offlineBodyStyle: React.CSSProperties = {
+  margin: 0, fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6,
+}
+
+/** Turn a possible raw backend error (JSON {detail}, HTML error page) into a
+ *  human message plus an optional technical detail the user can expand. */
+function friendlyStudioError(err: unknown): { message: string; detail: string | null } {
+  const raw = err instanceof Error ? err.message : 'generation failed'
+  const trimmed = raw.trim()
+  if (/^<html/i.test(trimmed.toLowerCase()) || /internal server error/i.test(trimmed)) {
+    return {
+      message: 'the image service hit an internal error — check your renderer and try again',
+      detail: trimmed.slice(0, 2000),
+    }
+  }
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (parsed && typeof parsed.detail === 'string') {
+      return { message: parsed.detail, detail: raw !== parsed.detail ? raw : null }
+    }
+  } catch { /* not JSON → raw message */ }
+  return { message: trimmed, detail: null }
 }

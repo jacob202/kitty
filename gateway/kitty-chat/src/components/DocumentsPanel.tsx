@@ -15,7 +15,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: 'var(--c-blue)',
 }
 
-export function DocumentsPanel() {
+export function DocumentsPanel({ isMobile = false }: { isMobile?: boolean }) {
   const sourcesQuery = useKnowledgeSources()
   const ingest = useIngestKnowledge()
   const upload = useUploadCapture()
@@ -57,7 +57,7 @@ export function DocumentsPanel() {
       <div style={cardStyle}>
         <div style={sectionLabelStyle}>search the library</div>
         <p style={{ ...mutedStyle, marginBottom: -4 }}>Type a query to search everything Kitty has read.</p>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, minWidth: 0 }}>
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
@@ -97,29 +97,33 @@ export function DocumentsPanel() {
       {/* ── ingest ── */}
       <div style={cardStyle}>
         <div style={sectionLabelStyle}>add a document</div>
-        <p style={{ ...mutedStyle, marginBottom: -4 }}>Enter a file path on the Mac, or a URL to ingest into the library.</p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            value={target}
-            onChange={e => setTarget(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleIngest()}
-            placeholder="a file path on the Mac, or a URL"
-            style={inputStyle}
-          />
-          <button
-            onClick={handleIngest}
-            disabled={!target.trim() || ingest.isPending}
-            style={primaryButtonStyle}
-          >
-            {ingest.isPending ? 'ingesting…' : 'ingest'}
-          </button>
-        </div>
-        {ingest.isError && (
+        <p style={{ ...mutedStyle, marginBottom: -4 }}>
+          {isMobile ? 'Choose a file from this device to add it to the library.' : 'Enter a file path on the Mac, or a URL to ingest into the library.'}
+        </p>
+        {!isMobile && (
+          <div style={{ display: 'flex', gap: 8, minWidth: 0 }} data-testid="library-path-control">
+            <input
+              value={target}
+              onChange={e => setTarget(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleIngest()}
+              placeholder="a file path on the Mac, or a URL"
+              style={inputStyle}
+            />
+            <button
+              onClick={handleIngest}
+              disabled={!target.trim() || ingest.isPending}
+              style={primaryButtonStyle}
+            >
+              {ingest.isPending ? 'ingesting…' : 'ingest'}
+            </button>
+          </div>
+        )}
+        {!isMobile && ingest.isError && (
           <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
             ingest failed — {ingest.error instanceof Error ? ingest.error.message : 'gateway error'}
           </p>
         )}
-        {ingest.data && (
+        {!isMobile && ingest.data && (
           <p style={{ ...mutedStyle, color: STATUS_COLORS[ingest.data.status] ?? 'var(--ink-2)' }}>
             {ingest.data.status}: {ingest.data.source_id} — {ingest.data.reason}
           </p>
@@ -128,6 +132,7 @@ export function DocumentsPanel() {
         <div
           role="button"
           tabIndex={0}
+          data-testid="library-file-picker"
           onClick={() => fileInputRef.current?.click()}
           onKeyDown={e => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -153,7 +158,9 @@ export function DocumentsPanel() {
         >
           {upload.isPending
             ? 'uploading…'
-            : 'or drop a file here (pdf / md / txt / images) — uploads via /capture/file, indexes in the background'}
+            : isMobile
+              ? 'tap to choose a file (pdf / md / txt / images)'
+              : 'or drop a file here (pdf / md / txt / images) — uploads via /capture/file, indexes in the background'}
         </div>
         <input
           ref={fileInputRef}
@@ -253,7 +260,9 @@ const cardStyle: CSSProperties = {
   borderRadius: 14,
   padding: 18,
   display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
   gap: 10,
+  minWidth: 0,
 }
 
 const sectionLabelStyle: CSSProperties = {
@@ -269,6 +278,7 @@ const sectionLabelStyle: CSSProperties = {
 
 const inputStyle: CSSProperties = {
   flex: 1,
+  minWidth: 0,
   background: 'var(--bg)',
   border: '1.5px solid var(--line)',
   borderRadius: 10,
@@ -318,12 +328,15 @@ const sourceRowStyle: CSSProperties = {
   borderBottom: '1px solid var(--line)',
   display: 'grid',
   gap: 4,
+  gridTemplateColumns: 'minmax(0, 1fr)',
+  minWidth: 0,
 }
 
 const sourceNameStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
   color: 'var(--ink)',
+  overflowWrap: 'anywhere',
 }
 
 const topicStyle: CSSProperties = {
