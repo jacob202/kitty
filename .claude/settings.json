@@ -1,7 +1,4 @@
 {
-  "sessionStart": "python3.11 -m pytest tests/ -q --tb=line 2>/dev/null | tail -1 || true",
-  "autoSave": true,
-  "terminalIntegration": true,
   "permissions": {
     "allow": [
       "Bash(npm run build)",
@@ -92,5 +89,19 @@
         ]
       }
     ]
+  },
+  "extraKnownMarketplaces": {
+    "build-it": {
+      "source": {
+        "source": "github",
+        "repo": "DevOtts/build-it"
+      }
+    }
+  },
+  "sessionStart": "python3.11 -m pytest tests/ -q --tb=line 2>/dev/null | tail -1 || true",
+  "autoSave": true,
+  "terminalIntegration": true,
+  "enabledPlugins": {
+    "build-it@build-it": true
   }
 }
