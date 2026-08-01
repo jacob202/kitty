@@ -90,18 +90,34 @@ preserved, worktree hard-reset) but wired it only into the dead-supervisor path
 (`_reconcile_stale_attempts`). The live-loop retry path — a worker that dies
 while the supervisor lives — lacks that step, so it deadlocks on the dirty tree.
 
-**Fix (this PR):** in `run_packet`, on the in-process retry (`attempt_no > 1`),
-archive the prior failed attempt's dirty worktree into its artifact dir
-(`crashed-worktree.patch` + `crashed-worktree-status.txt`) and reset, mirroring
-P027. Minimal, contained to `gateway/builder_loop.py`; `archive_and_reset_worktree`
-is a no-op for clean/missing trees.
+**Fix (this PR):** in `run_packet`, the loop decides the next attempt's worktree
+disposition from the previous attempt **before** anything is durably opened. Only
+a retry whose prior worker execution genuinely crashed or was interrupted (any
+run that did not exit cleanly) archives the partial worktree into the failed
+attempt's artifact dir (`crashed-worktree.patch` + `crashed-worktree-status.txt`)
+and resets, mirroring P027. A deterministic-validation failure or reviewer
+`request_changes` arrives after a cleanly-exited worker run and is the repair
+loop's input: the existing implementation is preserved in the worktree, which the
+next attempt deliberately reuses (`ensure_worktree`/`run_worker` `reuse_dirty`
+opt-in, default fail-closed) to repair on top of it. Because the reset runs
+before the replacement attempt is claimed, a reset failure cannot strand an
+attempt or lease; the real error is recorded durably and the partial work stays
+inspectable.
 
-**Regression test** `tests/test_builder_loop.py::TestNoStaleArtifactReuse::test_worker_self_crash_on_first_attempt_recovers_in_loop`:
-worker writes partial work then SIGKILLs itself on attempt 1, succeeds on the
-retry. Asserts: outcome succeeded; attempt outcomes `[failed, succeeded]`;
-`crashed-worktree.patch` contains the partial file; retry's run report does not
-include the crashed worker's file. **Fails on base SHA with the exact error
-above; passes with the fix.**
+**Regression tests** in `tests/test_builder_loop.py::TestNoStaleArtifactReuse`:
+- `test_worker_self_crash_on_first_attempt_recovers_in_loop` — worker SIGKILLs
+  itself mid-run on attempt 1, succeeds on the retry. Asserts: outcome
+  succeeded; attempt outcomes `[failed, succeeded]`; `crashed-worktree.patch`
+  contains the partial file; retry ran on a clean tree.
+- `test_validation_failure_retry_preserves_implementation` and
+  `test_request_changes_retry_preserves_implementation` — the retry worker only
+  succeeds if the prior attempt's implementation is still in the worktree
+  (proving no archive/reset); asserts no `crashed-worktree.patch` and no
+  `worktree_archived_for_clean_retry` event.
+- `test_archival_failure_does_not_strand_attempt_or_lease` — forces the
+  clean-retry reset to fail and asserts no second attempt, no stranded lease, a
+  durable budget-neutral `infrastructure_failed` event, and the partial work
+  still present in the dirty worktree.
 
 **End-to-end verification (real CLI, post-fix):** fresh packet
 `AUDIT-INIT-09/P9-SELFCRASH` with `crash_once_worker.py`:
@@ -182,21 +198,32 @@ attempt_review_recorded → attempt_closed`.
 
 ## Files changed in this PR
 
-- `gateway/builder_loop.py` — archive + reset the dirty worktree on the in-process retry (mirrors P027's reconciliation path).
-- `tests/test_builder_loop.py` — regression test for BUG-1.
+- `gateway/builder_loop.py` — per-attempt worktree disposition: archive + reset
+  only after a genuinely crashed/interrupted worker execution; preserve (reuse)
+  the worktree for validation/review repair retries; run the reset before the
+  replacement attempt is opened (no stranded attempt/lease on failure).
+- `gateway/builder_runner.py` — `ensure_worktree`/`run_worker` gain a
+  `reuse_dirty` opt-in (default fail-closed) for the loop's deliberate repair
+  reuse of an existing dirty tree on the correct branch.
+- `tests/test_builder_loop.py` — regression tests for BUG-1, repair preservation
+  (validation + `request_changes`), and the no-strand archival-failure path.
 - `docs/research/kittybuilder-core-runtime-audit-2026-08-01.md` — this report.
 
 ## Verification
 
-- `python3.12 -m pytest tests/test_builder_loop.py -q --tb=short` → **60 passed** (includes new regression test; P027 suite intact).
-- New test fails on base SHA with the pre-fix deadlock error and passes with the fix.
+- `python3.12 -m pytest tests/test_builder_loop.py -q --tb=short` → **63 passed** (P027 suite intact).
+- Full builder suite `python3.12 -m pytest tests/test_builder_*.py -q --tb=short` → **996 passed, 29 subtests passed**.
+- `ruff check gateway/builder_loop.py gateway/builder_runner.py tests/test_builder_loop.py` → **All checks passed!**
+- `mypy gateway/builder_loop.py gateway/builder_runner.py` → **Success: no issues found in 2 source files**.
 - Live CLI end-to-end recovery confirmed (S4a post-fix trace above).
 - Doctors green at end of session.
 
 ## Skipped checks
 
-- Full `tests/` suite, frontend build/tests, lint/typecheck: not run (per repo
-  rules these are CI gates; this audit changed only `builder_loop.py` + one test).
+- Full `tests/` non-builder modules, frontend build/tests: not run (per repo
+  rules these are CI gates; this audit changed `builder_loop.py`,
+  `builder_runner.py`, and the loop/runners tests). lint/typecheck run locally on
+  the changed files (see Verification).
 - No UI changes, no screenshots applicable.
 
 ## Limitations
