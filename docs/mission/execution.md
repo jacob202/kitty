@@ -101,17 +101,45 @@ stop/split rule.
     both raise. Silent no-ops here are how a session forgets its anchor.
 - **Local-testable:** yes (done)
 
-### A2 — Plan persistence and approved-plan dispatch · NOT STARTED
+### A2 — Plan persistence and approved-plan dispatch · VERIFIED
 
-- **Depends on:** A1
-- **Change:** persist `ImagePlan` with an id; add `plan_id` to
-  `StudioGenerateRequest`; dispatch from the stored plan, not form state.
-  Carry `guidance_tags` through to the renderer — today they die at the plan
-  boundary (`extended.py:415` vs `:406`).
-- **Acceptance:** a test proving generation dispatched from a stored plan uses
-  that plan's refined prompt and guidance, and that a mutated form field after
-  approval cannot change what renders.
-- **Local-testable:** yes
+- **Depends on:** A1 (met)
+- **Change landed:** `gateway/migrations/030_image_plans.sql` +
+  `gateway/image_plans.py`. The plan is now a durable, session-owned artifact:
+  `persist_plan` stores an approved `ImagePlan` under a stable `imgplan_…` id
+  owned by the session that created it, and `require_approved_plan` is the
+  single gate A2's dispatch path calls. `StudioGenerateRequest` gained
+  `plan_id`/`session_id`; `studio_generate` dispatches from the stored plan's
+  refined prompt, character, and recipe — request form fields for those are
+  ignored, so a post-approval edit cannot change what renders. `guidance_tags`
+  are carried through the plan → runner → renderer boundary
+  (`image_runner.run` → `image_gen.generate`/`generate_with_character` →
+  `provider_params_json` on the job) instead of dying at the plan preview.
+  `/studio/plan` still returns an ephemeral preview when no session is given
+  (the legacy Image Studio flow), and persists + returns `plan_id` when a
+  session is supplied.
+- **Acceptance met:** `tests/test_image_plans.py`, 22 tests, all passing;
+  `tests/test_image_sessions.py` + `tests/test_image_jobs.py` +
+  `tests/test_db.py` + `tests/test_image_recipes.py` +
+  `tests/test_image_router.py` + `tests/test_image_cancel.py` +
+  `tests/test_image_backends.py` still passing (no regressions). Proves:
+  dispatch from a stored plan uses its refined prompt and guidance; a mutated
+  form field after approval cannot change what renders; unknown plan → 404;
+  cross-session, unapproved, malformed, and empty-session plans → 400 with a
+  reason; guidance tags reach the renderer request; and a plan survives a store
+  reopen.
+- **Scope note:** this verifies A2's stated acceptance only. A3's controller,
+  A4's real reference-conditioned editing, and A6's two-turn browser flow
+  remain unproven.
+- **Design notes for the next slice:**
+  - `require_approved_plan(plan_id, session_id)` is the only way a plan id
+    becomes render inputs. It fails loud on unknown, malformed, wrong-session,
+    and unapproved plans at load time — never at render time.
+  - `studio_generate` with `plan_id` still reads `negative_prompt`, `quality`,
+    and `identity` from the request; the plan owns prompt, character, recipe,
+    and guidance. If A4 wants the negative prompt pinned at approval time, the
+    plan must store it.
+- **Local-testable:** yes (done)
 
 ### A3 — Bounded image-specialist controller · NOT STARTED
 
