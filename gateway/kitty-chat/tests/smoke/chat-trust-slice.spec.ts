@@ -175,13 +175,19 @@ test.beforeEach(async ({ page }) => {
   resetPersistence();
   await page.addInitScript(() => {
     window.localStorage.setItem('kitty-onboarded', 'true');
-    const cleared = sessionStorage.getItem('__test_cleared_kitty_active');
-    if (!cleared) {
-      window.localStorage.removeItem('kitty-active-chat-id');
-      sessionStorage.setItem('__test_cleared_kitty_active', '1');
-    }
+    window.localStorage.removeItem('kitty-active-chat-id');
   });
 });
+
+async function enterChatThread(page: Page) {
+  await page.waitForTimeout(500);
+  const chatBtn = page.getByRole('button', { name: /^chat$/i }).first();
+  await chatBtn.click();
+  await page.waitForTimeout(500);
+  const composer = page.locator('textarea').first();
+  await composer.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+  return composer;
+}
 
 test.describe('Chat Trust Slice 3 — phone', () => {
   test.use(MOBILE);
@@ -227,9 +233,19 @@ test.describe('Chat Trust Slice 3 — phone', () => {
     // Wait for persistence to complete before reloading (saveState → 'saved')
     await page.waitForTimeout(2000);
 
+    // Preserve the active chat id before reload so we can restore it
+    const activeChatId = await page.evaluate(() => window.localStorage.getItem('kitty-active-chat-id'));
+
     // Reload
     await page.reload();
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
+
+    // Restore the active chat id (the init script clears it on every load)
+    if (activeChatId) {
+      await page.evaluate((id) => window.localStorage.setItem('kitty-active-chat-id', id), activeChatId);
+      await page.reload();
+      await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
+    }
 
     // Navigate back to chat
     await page.getByRole('button', { name: /^chat$/i }).first().click();
