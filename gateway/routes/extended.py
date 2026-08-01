@@ -410,6 +410,8 @@ class StudioGenerateRequest(BaseModel):
     character_id: Optional[str] = None
     recipe_id: Optional[str] = None
     negative_prompt: Optional[str] = None
+    plan_id: Optional[str] = None
+    session_id: Optional[str] = None
 
 
 class PlanPreviewRequest(BaseModel):
@@ -418,6 +420,7 @@ class PlanPreviewRequest(BaseModel):
     character_id: Optional[str] = None
     recipe_id: Optional[str] = None
     guidance_tags: Optional[List[str]] = None
+    session_id: Optional[str] = None
 
 
 @router.get("/studio/characters")
@@ -609,6 +612,10 @@ async def studio_plan(req: PlanPreviewRequest):
 
     Returns the resolved plan with provenance so the user can inspect
     references and guidance before calling ``/studio/generate``.
+
+    When *session_id* is supplied, the plan is persisted under a stable
+    ``plan_id`` owned by that session, so ``/studio/generate`` can later
+    dispatch from the approved plan instead of mutable form state.
     """
     from gateway.image_plan import ImagePlanError, build_image_plan
 
@@ -629,6 +636,16 @@ async def studio_plan(req: PlanPreviewRequest):
 
     result = plan.to_dict()
     result["available_guidance_tags"] = available_guidance_tags()
+
+    if req.session_id:
+        from gateway.image_plans import PlanStoreError, persist_plan
+
+        try:
+            stored = persist_plan(req.session_id, plan)
+        except PlanStoreError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        result["plan_id"] = stored.plan_id
+
     return result
 
 
@@ -639,11 +656,41 @@ async def studio_generate(req: StudioGenerateRequest):
     from gateway import image_recipes
     from gateway.image_runner import ImageRunnerError, run
 
-    if not req.prompt or not req.prompt.strip():
-        raise HTTPException(status_code=400, detail="prompt must not be empty")
+    # Dispatch from the stored approved plan when plan_id is supplied. The
+    # plan owns the render inputs; request form fields for prompt, character,
+    # and recipe are ignored so a post-approval edit cannot change a render.
+    if req.plan_id:
+        from gateway.image_plans import (
+            PlanNotApprovedError,
+            PlanNotFoundError,
+            PlanSessionMismatchError,
+            PlanStoreError,
+            require_approved_plan,
+        )
 
-    has_character = bool(req.character_id)
-    character_count = 1 if has_character else 0
+        try:
+            stored = require_approved_plan(req.plan_id, req.session_id or "")
+        except PlanNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        except (PlanSessionMismatchError, PlanNotApprovedError, PlanStoreError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        prompt = stored.refined_prompt
+        has_character = bool(stored.character_id)
+        character_count = 1 if has_character else 0
+        preferred_recipe = stored.recipe_id
+        character_id = stored.character_id
+        guidance_tags = stored.guidance_tags
+    else:
+        if not req.prompt or not req.prompt.strip():
+            raise HTTPException(status_code=400, detail="prompt must not be empty")
+
+        prompt = req.prompt
+        has_character = bool(req.character_id)
+        character_count = 1 if has_character else 0
+        preferred_recipe = req.recipe_id
+        character_id = req.character_id
+        guidance_tags = None
 
     try:
         decision = image_recipes.auto_route(
@@ -652,7 +699,7 @@ async def studio_generate(req: StudioGenerateRequest):
             quality_tier=req.quality,
             identity_mode=req.identity,
             operation="txt2img",
-            preferred_recipe=req.recipe_id,
+            preferred_recipe=preferred_recipe,
         )
     except image_recipes.RecipeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
@@ -662,16 +709,18 @@ async def studio_generate(req: StudioGenerateRequest):
     try:
         result = await run(
             recipe.provider if recipe else "comfyui",
-            req.prompt,
+            prompt,
             recipe=recipe,
-            character_id=req.character_id,
+            character_id=character_id,
             negative_prompt=req.negative_prompt,
+            guidance_tags=guidance_tags,
         )
         return {
             "job_id": result.job_id,
             "filename": result.filename,
             "recipe": result.recipe,
             "routing_reason": decision.reason,
+            "plan_id": req.plan_id,
         }
     except ImageRunnerError as e:
         status = 503 if "not running" in str(e).lower() else 400

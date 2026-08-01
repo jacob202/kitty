@@ -4,7 +4,7 @@ import hashlib
 import json
 import os
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
 
@@ -225,6 +225,7 @@ async def generate_with_character(
     width: int = 1024, height: int = 1024,
     steps: int = 8, cfg: float = 4.5,
     seed: int | None = None,
+    guidance_tags: list[str] | None = None,
 ) -> dict:
     state_seed = seed or _seed()
     neg = negative_prompt or "worst quality, low quality, bad anatomy, deformed, ugly, watermark, blurry"
@@ -232,11 +233,16 @@ async def generate_with_character(
     weight_map = {"identity_first": 0.85, "creative": 0.5, "balanced": 0.7}
     identity_weight = weight_map.get(identity_mode, 0.7)
 
+    provider_params: dict[str, Any] = {}
+    if guidance_tags:
+        provider_params["guidance_tags"] = list(guidance_tags)
+
     job = create_job(
         provider="comfyui", operation="txt2img",
         prompt=prompt, negative_prompt=neg, seed=state_seed,
         model_id=SDXL_PHOTONIC, width=width, height=height,
         steps=steps, guidance=cfg, sampler="euler", scheduler="sgm_uniform",
+        provider_params_json=json.dumps(provider_params) if provider_params else None,
     )
 
     try:
@@ -452,7 +458,11 @@ async def is_available() -> bool:
         return False
 
 
-async def generate(prompt: str, parent_id: str | None = None) -> dict:
+async def generate(
+    prompt: str,
+    parent_id: str | None = None,
+    guidance_tags: list[str] | None = None,
+) -> dict:
     """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}."""
     p = _parse(prompt)
 
@@ -461,7 +471,9 @@ async def generate(prompt: str, parent_id: str | None = None) -> dict:
     template = "sdxl_photonic"
 
     workflow_hash = hashlib.sha256(json.dumps(workflow, sort_keys=True).encode()).hexdigest()[:16]
-    provider_params = {"explicit": p["explicit"]}
+    provider_params: dict[str, Any] = {"explicit": p["explicit"]}
+    if guidance_tags:
+        provider_params["guidance_tags"] = list(guidance_tags)
 
     # Record the job before submitting so it survives a crash mid-generation.
     job = create_job(

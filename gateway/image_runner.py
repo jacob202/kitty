@@ -40,6 +40,7 @@ async def run(
     character_id: str | None = None,
     negative_prompt: str | None = None,
     parent_id: str | None = None,
+    guidance_tags: list[str] | None = None,
 ) -> JobResult:
     """Generate an image through the specified engine.
 
@@ -52,6 +53,9 @@ async def run(
                       reference image and uses identity-preserving generation.
         negative_prompt: Optional negative prompt override.
         parent_id: Optional parent job ID for variations.
+        guidance_tags: Optional validated guidance tags. Carried through to the
+                       renderer request so guidance chosen at the plan boundary
+                       survives into what is actually rendered.
 
     Returns:
         JobResult with job_id, filename, and engine metadata.
@@ -80,10 +84,11 @@ async def run(
             character_id=character_id,
             recipe=recipe,
             negative_prompt=negative_prompt,
+            guidance_tags=guidance_tags,
         )
 
     return await _run_comfyui(
-        prompt, recipe=recipe, parent_id=parent_id,
+        prompt, recipe=recipe, parent_id=parent_id, guidance_tags=guidance_tags,
     )
 
 
@@ -137,6 +142,7 @@ async def _run_comfyui(
     *,
     recipe: Any | None = None,
     parent_id: str | None = None,
+    guidance_tags: list[str] | None = None,
 ) -> JobResult:
     """Standard ComfyUI generation path (no character)."""
     from gateway.image_gen import generate, is_available
@@ -144,7 +150,7 @@ async def _run_comfyui(
     if not await is_available():
         raise ImageRunnerError("ComfyUI is not running")
 
-    result = await generate(prompt, parent_id=parent_id)
+    result = await generate(prompt, parent_id=parent_id, guidance_tags=guidance_tags)
     return JobResult(
         job_id=result["job_id"],
         filename=result["filename"],
@@ -160,6 +166,7 @@ async def _run_comfyui_character(
     character_id: str,
     recipe: Any | None = None,
     negative_prompt: str | None = None,
+    guidance_tags: list[str] | None = None,
 ) -> JobResult:
     """ComfyUI generation with character identity preservation."""
     from gateway.image_characters import (
@@ -189,6 +196,7 @@ async def _run_comfyui_character(
         prompt=prompt,
         character_ref_path=primary.storage_path,
         negative_prompt=negative_prompt,
+        guidance_tags=guidance_tags,
     )
 
     return JobResult(
