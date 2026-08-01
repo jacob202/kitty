@@ -1,52 +1,84 @@
-# Handoff — main was red; dependency resolution restored
+# Handoff — PR #359 repaired locally and remains draft
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T04:30:00Z",
-  "head_sha": "b68268b0333aedcf04085829deebe88371f832ef",
-  "branch": "claude/kitty-stabilization-fbydi0",
-  "worktree": "piddock",
+  "updated_at": "2026-08-01T22:04:00Z",
+  "head_sha": "f47dcd283ff8cb3b159b5fae91d0d0e6ff1a0e25",
+  "branch": "docs/builder-cockpit-boundary",
+  "worktree": "seaslug",
   "status": "valid",
-  "pull_request": null,
   "completed_items": [
-    "Found main red: tests.yml failed on 8 consecutive main commits (runs 1124-1139) including HEAD b68268b. The roadmap claimed Gate 0.1 green.",
-    "Diagnosed root cause: Dependabot 600c0fa raised the openai pin above mem0ai 0.1.x's ceiling, making requirements.txt unresolvable. CI died at install, never reached pytest.",
-    "Repaired requirements.txt and verified a clean venv install resolves; ran the CI pytest command once: 3452 passed, 7 failed, 77.50% coverage.",
-    "Repaired schema-invalid checkpoint metadata in .claude/STATE.md and .claude/HANDOFF.md that would have failed CI behind the install wall.",
-    "Wrote the durable mission state at docs/mission/ (grounding, decisions, execution, evidence, failures) and reconciled docs/ROADMAP.md against verified reality."
+    "Reviewed PR #359 execution-boundary and KB-effectiveness implementation at remote head f911fd6e.",
+    "Committed receipt integrity, unknown-value, double-counting, and documented-CLI repairs at 62b360e7 and 81c1d647.",
+    "Repaired the required default-python continuity invocation at f47dcd28.",
+    "Corrected PR #359 description headings and confirmed the succeeding check-description run.",
+    "Validated both KTL manifests without applying either or modifying Builder state."
   ],
-  "blockers": [],
-  "next_action": "Land the green-main repair, then execute docs/mission/execution.md slice A1 on a machine with Kitty runtime and RunPod credentials.",
+  "blockers": [
+    "The local repair commits still need an independent review after they are pushed.",
+    "Builder queue projection was unavailable because this worktree could not open its SQLite database.",
+    "The shell's python3 is too old for scripts/check_continuity_state.py; Python 3.12 passes it."
+  ],
+  "next_action": "Push the reviewed PR #359 repair commits, then re-check every individual GitHub check run.",
+  "parallel_work": [
+    {"kind": "worktree", "ref": "docs/kittybuilder-core-runtime-audit-2026-08-01", "owner": "other Builder audit worker", "touches": ["docs", "gateway", "tests"], "observed_at": "2026-08-01T22:04:00Z"},
+    {"kind": "worktree", "ref": "fix/builder-ignore-omo-artifacts", "owner": "other Builder scope worker", "touches": ["docs", "gateway", "tests"], "observed_at": "2026-08-01T22:04:00Z"},
+    {"kind": "pr", "ref": "#359", "owner": "Codex review-and-repair session", "touches": [".agents", "docs", "scripts", "tests"], "observed_at": "2026-08-01T22:04:00Z"}
+  ],
+  "recommendations": [
+    {"id": "pr359-independent-review-and-push", "what": "Push the reviewed local repairs to PR #359, obtain independent review of the pushed SHA, and rerun checks.", "why": "The remote draft does not yet contain the reviewed local fixes.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null},
+    {"id": "dependabot-guardrail-sibling-pins", "what": "Gate Dependabot on resolvability: run 'pip install -r requirements.txt' in the guardrails workflow before a bump can merge.", "why": "A sibling dependency constraint once made the repository unresolvable.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null},
+    {"id": "image-agent-slice-a1", "what": "Execute docs/mission/execution.md slice A1 — durable image-agent sessions and approved-plan dispatch for issue #336.", "why": "It remains Jacob-authorized mission work.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null}
+  ],
   "invalidation_conditions": [
-    "origin/main advances past b68268b0333aedcf04085829deebe88371f832ef",
-    "tests.yml turns green on main"
+    "HEAD changes beyond f47dcd283ff8cb3b159b5fae91d0d0e6ff1a0e25",
+    "PR #359 head changes or closes",
+    "an independent review records findings against the local repair SHA"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "parallel_work": [],
-  "recommendations": [
-    {
-      "id": "dependabot-guardrail-sibling-pins",
-      "what": "Gate Dependabot on resolvability: run 'pip install -r requirements.txt' in the guardrails workflow before a bump can merge",
-      "why": "600c0fa merged a bump that made the tree unresolvable and reddened main for 8 commits",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "image-agent-slice-a1",
-      "what": "Execute docs/mission/execution.md slice A1 — durable image-agent sessions and approved-plan dispatch for issue #336",
-      "why": "Issue #336 is Jacob-authorized and supersedes the roadmap's Phase 3 blocking of the image lane",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    }
-  ]
+  "pull_request": {"number": 359, "url": "https://github.com/jacob202/kitty/pull/359", "head_sha": "f911fd6e36c7ede37c94e7138d7580b61422639f", "draft": true, "state": "OPEN"}
 }
 -->
+
+## What was done
+
+- Reviewed PR #359 remote head `f911fd6e`; corrected its description to include the required `## Summary` and `## Test plan` sections.
+- Committed local repairs `62b360e7` and `81c1d647`: unknown aggregates remain `null`, accepted results cannot double-count between Builder and interactive receipts, retained receipts are hash-chained, and the documented summary command works.
+- Made KTL-001's own manifest explicitly quarantined and KTL-002 the current corrective boundary package. Neither was applied; Builder's database was untouched.
+
+## In-flight / WIP
+
+- PR #359 is still a draft. This branch is two commits ahead of its remote head; no push was made.
+
+## Other work in flight (not mine)
+
+- `docs/kittybuilder-core-runtime-audit-2026-08-01` and its Builder task worktrees touch `docs/`, `gateway/`, and `tests/`.
+- `fix/builder-ignore-omo-artifacts` has uncommitted Builder scope/test work.
+- Draft PRs #360–#363 are separate active work.
+
+## Blockers
+
+- PR #359 cannot be ready until its pushed repair SHA has an independent review and fresh GitHub checks.
+- Builder queue projection was `UNAVAILABLE`: its SQLite database could not be opened from this worktree.
+- The exact required `python3 scripts/check_continuity_state.py` fails because the shell's `python3` cannot parse the repo's Python 3.10+ union syntax; Python 3.12 passes the checker.
+
+## Next move
+
+Push the reviewed local commits, then obtain independent review and re-check PR #359's individual GitHub check runs.
+
+## Deferred, and what releases them
+
+- None.
+
+## Files changed this session
+
+- `.agents/skills/session-end/SKILL.md`, `SKILL_REGISTRY.md`, `docs/adr/0026-measured-kb-effectiveness-and-execution-ownership.md`, `docs/initiatives/README.md`, both KTL manifests, `docs/reference/LEVERAGE_SYSTEMS_IMPLEMENTATION_CONTRACT.md`, `scripts/kb_effectiveness.py`, and `tests/test_kb_effectiveness.py`.
+
+## Verification
+
+- `python3.12 -m pytest tests/test_kb_effectiveness.py tests/test_session_learning.py -q` — 20 passed after the CLI regression fix.
+- `python3.12 -m py_compile scripts/kb_effectiveness.py scripts/session_learning.py` — passed.
+- Both KTL manifests parsed and passed `gateway.builder_initiative.validate_manifest` without applying them.
+- `python3 scripts/check_continuity_state.py` — failed at import under the shell's old Python; `python3.12 scripts/check_continuity_state.py` — passed with four expected stale-checkpoint warnings.
+- `git diff --check` — passed.
