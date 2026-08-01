@@ -322,6 +322,33 @@ class TestContextBundle:
         assert priors[0]["implementation"]["summary"] == "Broke a test."
         assert priors[0]["review"]["verdict"] == "request_changes"
 
+    def test_prior_review_findings_feed_the_repair_attempt(self, db_path: Path):
+        """Reviewer findings must reach the repair worker's bundle so the
+        next attempt can auto-fix exactly what was flagged."""
+        first = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        ba.record_implementation_result(
+            first["id"], _impl(status="completed"), db_path=db_path
+        )
+        ba.record_review_result(
+            first["id"],
+            _review(
+                verdict="request_changes",
+                summary="Fix the numbering.",
+                findings=[
+                    {"severity": "major", "note": "Step 3 is off by one."},
+                    {"severity": "minor", "note": "Spelling error in heading."},
+                ],
+            ),
+            db_path=db_path,
+        )
+        ba.close_attempt(first["id"], "failed", db_path=db_path)
+
+        second = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        review = second["bundle"]["prior_attempts"][0]["review"]
+        assert review["verdict"] == "request_changes"
+        assert [f["severity"] for f in review["findings"]] == ["major", "minor"]
+        assert any("off by one" in f["note"] for f in review["findings"])
+
     def test_prior_summaries_are_clipped(self, db_path: Path):
         first = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
         ba.record_implementation_result(

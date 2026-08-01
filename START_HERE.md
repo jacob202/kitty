@@ -24,8 +24,44 @@ to authorities; it does not describe current state itself.
 7. **Reject stale context.** A mismatched SHA, branch, worktree, PR state,
    completed next action, broken link, or conflicting authority invalidates the
    affected checkpoint.
-8. **Verify before acting.** Re-check the live fact, allowed scope, and approval
-   boundary immediately before any mutation.
+8. **Verify before acting.** Re-check the live fact, allowed scope, execution
+   owner, and approval boundary immediately before any mutation.
+
+## Interactive `next` and Builder execution are separate
+
+A bare `next`, `continue`, `resume`, or `do the next thing` means:
+
+```text
+continue the current interactive Claude Code, OpenCode, Codex, or other tool
+assignment from its valid checkpoint
+```
+
+Read and execute:
+
+```text
+.agents/skills/next/SKILL.md
+```
+
+Bare `next` may inspect Builder to avoid collisions, but it must not apply an
+initiative, claim a task, select a queued packet, run `initiative run-packet`, or
+drain Builder. When no valid interactive assignment exists, it stops with an
+explicit no-op rather than manufacturing work.
+
+KittyBuilder is a separate autonomous execution control plane. It selects and
+runs approved packets under its own scheduler, workers, leases, evidence, and
+recovery rules. Enter that lane only through explicit intent such as:
+
+```text
+builder status
+builder next
+take the next Builder packet
+work on Builder task <id>
+review builder
+```
+
+`review builder` remains an interactive review and does not transfer
+implementation ownership. Every implementation has exactly one execution owner:
+`interactive` or `builder`, never both.
 
 ## Context-engineering default
 
@@ -59,9 +95,11 @@ git status --short --branch
 ./kitty context --agent
 ./kitty doctor --json
 ./kitty builder initiative doctor --json
+python3 scripts/kb_effectiveness.py summary --window-days 30 --report
 python3.12 -m pytest tests/ -q --tb=short
 ```
 
 Voice/persona remains owned by `config/SOUL.md`. Push, merge, deletion, history
 rewrite, secrets/auth/env changes, paid execution, and heavy dependencies still
-require Jacob's explicit approval.
+require Jacob's explicit approval unless an approved Builder packet and accepted
+publication policy explicitly authorize the bounded action.

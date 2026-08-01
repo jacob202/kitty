@@ -1,101 +1,69 @@
-# Handoff — open-session audit, three PRs merged, new writing rule
+# Handoff — PR #359 repaired after independent review and remains draft
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T22:06:59Z",
-  "head_sha": "b35a7abf9714858655f1a84fa62476751ce26689",
-  "branch": "claude/review-open-sessions-3h65cy",
-  "worktree": "kitty",
+  "updated_at": "2026-08-01T22:37:38Z",
+  "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14",
+  "branch": "docs/builder-cockpit-boundary",
+  "worktree": "seaslug",
   "status": "valid",
-  "pull_request": "https://github.com/jacob202/kitty/pull/360",
   "completed_items": [
-    "Audited all 20 claude/* session branches plus every other agent branch against main. 18 of 20 are fully landed (8 tips are ancestors of main, 9 squash-merged with content verified present, 1 closed-unmerged but superseded via #339).",
-    "Found the shallow-clone measurement trap: the session container clones with 16 grafted roots, so git merge-base returns empty and merged branches read as 1000+ commits unlanded. Redone after --unshallow (main is 1656 commits, not 264); landing decided on file content, not commit identity.",
-    "Two Claude sessions died with unlanded work: claude/pr-review-48h-aptjw0 (8 RunPod hardening commits above merged #326; scripts/runpod_live_james.sh and tests/test_runpod_bootstrap_contract.py absent from main; main's entrypoint-kitty.sh has no BOOTSTRAP_PID) and claude/conversion-plan-xbsbbi (#266 closed as draft; docs/CONVERSION_PLAN.md exists on no other ref).",
-    "Larger orphan found outside the Claude sessions: docs/builder-cockpit-boundary, 28 commits and 10 files including ADRs 0024/0025/0026, with no PR ever opened. It has since been opened as draft #359. contract-first (#298 closed) still holds the OpenAPI->TS pipeline behind response models on 193 routes.",
-    "Reviewed and merged #356 (febbb99d), #355 (dda86249), #358 (037052b6). Verified main green afterward: all 6 Tests jobs passed on 037052b6.",
-    "#358 was blocked by its PR body, not its code: no bullet under '## Summary' and a '## Verification' heading where .github/workflows/pr-description-check.yml:41-47 requires the literal '## Test plan'. Body rewritten with content preserved; gate passed; merged.",
-    "Added the 'How to write to Jacob' rule to CLAUDE.md (Working Contract) and a one-line mirror in config/PREFERENCES.md: plain language, no narration, every reply is instructions/a report/options, never vague status."
+    "Independent review #4835922501 found workflow-signal, KTL-001 applicability, continuity, and non-finite-cost defects at 4d667973.",
+    "Committed aef9d0ce to count workflow-signal repetition by distinct source_session values, publish signal files atomically, and validate all retained signal fields; d20a431b fixes the CI import-order failure.",
+    "Retired KTL-001 outside the active manifest set as a non-applicable planning record; KTL-002 remains the current corrective manifest.",
+    "Added focused regression tests for all review findings; no initiative was applied and Builder state was not modified."
   ],
-  "blockers": [],
-  "next_action": "Decide the disposition of the orphaned work (rescue or drop) and whether to delete the 18 landed claude/* branches; PR #360 is a green draft awaiting Jacob.",
-  "invalidation_conditions": [
-    "PR #360 is merged or closed",
-    "origin/main advances past 037052b6e58a0c496312cce27a7c913435926566"
+  "blockers": [
+    "PR #359 must receive an independent re-review of the post-review repair head before it can be marked ready."
   ],
-  "active_mission": "docs/ACTIVE_MISSION.md",
+  "next_action": "Obtain independent re-review of the pushed PR #359 repair head; keep it draft until that review approves the checked SHA.",
   "parallel_work": [
-    "Draft #359 (docs/builder-cockpit-boundary) — the KB learning + Builder boundary orphan, opened by another session during this one. Not mine; do not claim it.",
-    "Draft #361 (claude/builder-52dcp7) — 026/027 delta reconcile. Not mine.",
-    "Draft #362 (feat/kittybuilder-reviewer-pro) — reviewer on deepseek-v4-pro. Not mine.",
-    "Draft #357 (kittybuilder/kb_msaux1t9_e46f) — disposable paid smoke evidence, marked [do not merge]. Close without merging.",
-    "Six Dependabot PRs open (#314-#317, #319, #320), all based on 27deef12 and well behind main; four carry risk/manual-approval."
+    {"kind": "pr", "ref": "#359", "owner": "interactive review-and-repair session", "touches": ["docs", "scripts", "tests"], "observed_at": "2026-08-01T22:33:17Z"}
   ],
   "recommendations": [
-    {
-      "id": "rescue-orphaned-session-work",
-      "what": "Rescue claude/pr-review-48h-aptjw0's 8 RunPod hardening commits and docs/CONVERSION_PLAN.md from claude/conversion-plan-xbsbbi onto fresh branches with PRs",
-      "why": "Both are the only copies. The RunPod set includes PID-1 bootstrap supervision and a test locking the startup diagnostic contract, neither of which is on main",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "close-landed-session-branches",
-      "what": "Delete the 18 landed claude/* branches and close draft #357, which is marked [do not merge]",
-      "why": "50 unmerged refs make the session-end survey truncate at 8 and hide real orphans behind noise",
-      "class": "ops",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "red-ci-must-block-merge",
-      "what": "Make a red tests.yml actually block a merge, starting with Dependabot PRs",
-      "why": "Sharpens the carried dependabot-guardrail recommendation against evidence: tests.yml:36 already runs 'pip install -r requirements.txt', so the resolvability check exists. What failed on #322 was enforcement — the unresolvable bump merged anyway and main stayed red for 8 commits",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    }
-  ]
+    {"id": "pr359-independent-rereview", "what": "Obtain independent re-review of the pushed PR #359 repair head and keep it draft until that review approves the checked SHA.", "why": "Review #4835922501 found material defects repaired in aef9d0ce and d20a431b.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null}
+  ],
+  "invalidation_conditions": [
+    "HEAD changes beyond d20a431be8010a7d42ff774c3a0bc724c98f9f14 except this checkpoint commit",
+    "PR #359 head changes or closes",
+    "an independent re-review records findings against the repair SHA"
+  ],
+  "active_mission": "docs/ACTIVE_MISSION.md",
+  "pull_request": {"number": 359, "url": "https://github.com/jacob202/kitty/pull/359", "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14", "draft": true, "state": "OPEN"}
 }
 -->
 
-## Completed recommendation
+## What was done
 
-`image-agent-slice-a1`, carried from the previous checkpoint as `ready`, has
-shipped and is dropped rather than carried. Verified on `main`:
-`gateway/image_sessions.py`, `gateway/migrations/029_image_sessions.sql`, and
-`tests/test_image_sessions.py` exist; `92665876` is slice A1 and `bcae5f28` is
-A2 (#351).
+- Addressed every finding from independent review #4835922501 of `4d667973` in repair commits `aef9d0ce` and `d20a431b`.
+- Workflow signals now deduplicate by `(stable_key, source_session)`, use serialized collision-safe atomic writes, and validate retained records strictly before reporting.
+- KTL-001 is a non-applicable retired planning record; KTL-002 is the only current corrective manifest. Neither was applied and Builder state was untouched.
 
-## Unverified at session end
+## In-flight / WIP
 
-Three survey sections came back `UNAVAILABLE` and are unknown, not clean:
+- PR #359 is still a draft and requires independent re-review after the repair head is pushed.
 
-- **Open PRs** — `gh` is not installed in this container. Checked through the
-  GitHub MCP tools instead; the open queue is recorded in `parallel_work` above.
-- **Builder queue** — `data/kittybuilder/builder_queue.db` does not exist here,
-  so Builder state was not inspected.
-- **Cross-tool claims** — `~/kb` is not present in this container, so
-  `~/kb/NOW.md` was not read and neither `~/kb/wiki/` nor `~/kb/INDEX.md` was
-  written. The durable finding worth carrying there is the shallow-clone trap
-  recorded in `docs/research/open-session-audit-2026-08-01.md`.
+## Other work in flight (not mine)
 
-## Files changed
+- No parallel implementation was touched by this repair.
 
-- `docs/research/open-session-audit-2026-08-01.md` (new) — the full audit.
-- `CLAUDE.md` — new "How to write to Jacob" section in the Working Contract.
-- `config/PREFERENCES.md` — one-line mirror of that rule.
+## Blockers
 
-All committed and pushed to `claude/review-open-sessions-3h65cy`; working tree
-clean. PR #360 is a draft, 13/13 checks green, `mergeable_state: clean`.
+- PR #359 cannot be ready until an independent re-review approves its checked SHA.
+
+## Next move
+
+Obtain independent re-review of the pushed PR #359 repair head; keep it draft until that review approves the checked SHA.
+
+## Deferred, and what releases them
+
+- None.
+
+## Files changed this session
+
+- `docs/initiatives/README.md`, KTL-002 and the retired KTL-001 planning record, the leverage contract, `scripts/kb_effectiveness.py`, `scripts/session_learning.py`, and both focused test modules.
+
+## Verification
+
+- Final repair verification runs after this checkpoint commit, before push.

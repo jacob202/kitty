@@ -141,19 +141,54 @@ stop/split rule.
     plan must store it.
 - **Local-testable:** yes (done)
 
-### A3 — Bounded image-specialist controller · NOT STARTED
+### A3 — Bounded image-specialist controller · VERIFIED
 
-- **Depends on:** A1
-- **Change:** `gateway/image_agent.py`. Max three rounds, strict JSON actions,
-  deterministic validation. Local tools only: list session assets, retrieve one
-  guidance skill, inspect current anchor, create validated plan, generate,
-  edit/variation, cancel, clarify. Uses existing LLM routing and usage logging.
-  Malformed output, unknown references, unsupported operations, missing worker
-  capability, and budget refusal all fail loudly. The LLM chooses intent; it
-  never mutates job state.
-- **Acceptance:** strict-parse tests, loop-bound test, unknown-id rejection,
-  budget-refusal test, malformed-output failure test.
-- **Local-testable:** yes
+- **Depends on:** A1 (met)
+- **Change landed:** `gateway/image_agent.py`. `decide(session_id, request)`
+  runs at most `MAX_ROUNDS` (3) LLM calls through the existing `call_llm`
+  routing (`operation="image.agent"`, `response_format=json_object`) and
+  returns one validated `AgentDecision`. Read-only actions (`list_assets`,
+  `get_guidance`, `inspect_anchor`) feed an observation back and consume a
+  round; terminal actions (`generate`, `edit`, `cancel`, `clarify`) are
+  validated and returned. The controller persists an approved plan through
+  A2's `persist_plan` and records the turn — it never dispatches, so a
+  decision is inspectable before any renderer or GPU is touched.
+- **Acceptance met:** `tests/test_image_agent.py`, 32 tests, all passing;
+  `tests/test_image_plans.py` + `tests/test_image_sessions.py` +
+  `tests/test_image_jobs.py` + `tests/test_image_recipes.py` +
+  `tests/test_image_router.py` + `tests/test_image_cancel.py` +
+  `tests/test_image_backends.py` + `tests/test_db.py` → 161 passed, no
+  regressions. Covers strict parsing (non-JSON, JSON array, missing action,
+  unknown action, missing field, unexpected field, blank string, non-list,
+  repeated entry), the loop bound (three read-only actions exhaust it and
+  raise; an observation is fed back and the next round decides), unknown-id
+  rejection (character outside the session, anchor the user never selected,
+  unknown guidance tag), budget refusal on both attempt and spend ceilings,
+  and the capability boundary.
+- **Design notes for the next slice:**
+  - `_parse_action` is strict on purpose: no code-fence stripping, no
+    unknown-key tolerance, no defaulting of a missing field. A dropped
+    `denoise` key reads to the user as an honoured one.
+  - `edit_workflow_available()` is the capability gate, and it checks for the
+    `workflows/image_to_image_v1/` bundle. Until A4 adds it, every `edit`
+    raises `CapabilityError` rather than downgrading to a text-to-image
+    reroll — issue #336's explicit fail case, pinned by
+    `test_edit_is_refused_while_no_edit_workflow_is_installed`. A4 flips this
+    by adding the bundle; it does not need to touch the controller.
+  - `auto_route` ignores its `operation` argument, so `_route_recipe`
+    asserts `supports_img2img` itself. If A4 makes routing operation-aware,
+    that assertion becomes redundant rather than wrong.
+  - The model reads the anchor, it never chooses one. An `edit` naming a job
+    other than the session's current anchor is an unknown reference.
+  - **Gap A5 must close:** A3 adds no HTTP route. `decide()` is unreachable
+    from the browser until A5 adds a `/studio/agent` endpoint that calls it
+    and dispatches the returned `plan_id` through the existing
+    `/studio/generate` path. This was left out deliberately to keep an
+    unproven endpoint out of the API surface.
+- **Scope note:** this verifies A3's stated acceptance only. Every LLM call in
+  these tests is a scripted stub. No real model output has been parsed, and no
+  image was generated.
+- **Local-testable:** yes (done)
 
 ### A4 — Real reference-conditioned editing · NOT STARTED
 
