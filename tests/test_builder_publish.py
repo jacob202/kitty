@@ -197,6 +197,38 @@ class TestPublishTask:
         assert result["pr"]["action"] == "update"
         assert result["pr"]["pr_number"] == 7
 
+    def test_new_pr_is_created_as_draft(self, tmp_path: Path, db_path: Path):
+        task = _make_blocked_task(db_path)
+        root = _init_worktree(tmp_path, task)
+        branch = default_branch_name(task)
+        create_args: list[str] = []
+
+        def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            if args[:3] == ["git", "symbolic-ref", "--quiet"]:
+                return subprocess.CompletedProcess(
+                    args, 0, stdout=branch + "\n", stderr=""
+                )
+            if args[:2] == ["git", "status"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "push"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:3] == ["gh", "pr", "list"]:
+                return subprocess.CompletedProcess(args, 0, stdout="[]\n", stderr="")
+            if args[:3] == ["gh", "pr", "create"]:
+                create_args[:] = list(args)
+                return subprocess.CompletedProcess(
+                    args, 0, stdout="https://github.com/example/kitty/pull/12\n", stderr=""
+                )
+            if args[:2] == ["git", "rev-parse"]:
+                return subprocess.CompletedProcess(args, 0, stdout="abc\n", stderr="")
+            raise AssertionError(args)
+
+        result = bp.publish_task(
+            task["id"], repo_root=root, db_path=db_path, run_cmd=fake
+        )
+        assert result["pr"]["action"] == "create"
+        assert "--draft" in create_args
+
     def test_refuses_dirty_worktree(self, tmp_path: Path, db_path: Path):
         task = _make_blocked_task(db_path)
         root = _init_worktree(tmp_path, task)
