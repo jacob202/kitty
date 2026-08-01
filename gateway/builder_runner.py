@@ -178,12 +178,18 @@ def ensure_worktree(
     *,
     repo_root: Path | None = None,
     base_sha: str | None = None,
+    reuse_dirty: bool = False,
 ) -> Path:
     """Create (or safely reuse) the deterministic worktree for a task.
 
-    Reuse requires the existing worktree to be on *branch* and completely
-    clean; anything else raises — a dirty or ambiguous worktree is never
-    overwritten (it may hold a crashed worker's partial progress).
+    Reuse requires the existing worktree to be on *branch* and, unless
+    ``reuse_dirty`` is set, completely clean; anything else raises — a dirty
+    or ambiguous worktree is never overwritten (it may hold a crashed
+    worker's partial progress). ``reuse_dirty`` is an explicit opt-in for the
+    repair loop only: the builder loop has already decided the dirty tree is
+    the deliberate continuation of a prior rejected implementation, so
+    reusing it does not overwrite anything. The branch check always holds;
+    a wrong-branch tree is never reusable.
     """
     root = _repo_root(repo_root)
     path = root / ".worktrees" / "kittybuilder" / task_id
@@ -209,6 +215,8 @@ def ensure_worktree(
             cwd=path,
         )
         if status.returncode != 0 or status.stdout.strip():
+            if reuse_dirty:
+                return path
             raise RunnerError(
                 f"worktree {path} is dirty; refusing to overwrite partial "
                 "progress. Inspect it, commit/stash, or clean it explicitly."
@@ -840,6 +848,7 @@ def run_worker(
     extra_env: dict[str, str] | None = None,
     base_sha: str | None = None,
     inject_context: bool = False,
+    reuse_dirty_worktree: bool = False,
 ) -> dict[str, Any]:
     """Claim *task_id*, run *command* in its isolated worktree, record all.
 
@@ -851,6 +860,12 @@ def run_worker(
     ``extra_env`` adds variables to the worker environment (the KB-S3b
     packet loop passes attempt bundle/result paths). It may not re-inject
     the credentials this runner strips.
+
+    ``reuse_dirty_worktree`` opts into reusing an existing worktree that is
+    on the correct branch but dirty. Only the runner loop's repair retry
+    sets it, after it has decided the dirty tree is a deliberately preserved
+    prior implementation to build on; every other caller keeps the default
+    fail-closed refusal.
     """
     if not command:
         raise ValueError("command must be a non-empty list")
@@ -893,7 +908,11 @@ def run_worker(
         _scope_violations([], task.get("allowed_paths"))
         branch = default_branch_name(task)
         wt_path = ensure_worktree(
-            task_id, branch, repo_root=root, base_sha=base_sha
+            task_id,
+            branch,
+            repo_root=root,
+            base_sha=base_sha,
+            reuse_dirty=reuse_dirty_worktree,
         )
     except Exception:
         # Nothing started yet — hand the claim back cleanly.
