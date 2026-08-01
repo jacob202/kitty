@@ -1,194 +1,141 @@
 ---
 name: next
-description: "Resolve and execute the next authorized Kitty work item end to end. USE WHEN the user's instruction is exactly: next, do the next thing, continue the queue, resume work, or take the next packet."
+description: "Continue the current interactive Claude Code, OpenCode, Codex, or other repo-aware assignment from its valid checkpoint. USE WHEN the user gives a bare continuation such as: next, continue, resume, keep going, or do the next thing."
 ---
 
-# Next — Resolve, Execute, Verify, Close
+# Next — Continue This Interactive Assignment
 
-This skill turns a short `next` instruction into one deterministic unit of work.
-It does not invent a task, trust stale prose, or start a second copy of work that
-is already running.
+A bare `next` continues the assignment owned by the current interactive session.
+It is not a command to drain KittyBuilder's queue, apply an initiative, claim a
+packet, or choose unrelated work.
 
-The durable authorities remain unchanged:
+KittyBuilder is a separate autonomous execution control plane. It should already
+be progressing through approved work under its own scheduler, workers, leases,
+and evidence rules. Claude Code, OpenCode, Codex, and similar sessions are
+interactive engineering workspaces unless Builder explicitly launched them as a
+packet worker.
 
-- product intent and ordering: `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, and
-  approved Mission revisions;
-- execution state: KittyBuilder's initiative, packet, task, attempt, event,
-  review, and publication records;
-- cross-session continuity: `.claude/STATE.md` and `.claude/HANDOFF.md` while
-  their receipt remains valid;
-- cross-tool learning: `~/kb`;
-- Git and GitHub state: live Git and PR/check evidence.
+## 0. Establish the execution owner
 
-Do not create another backlog, queue, state database, or notes channel.
+Every implementation task has exactly one execution owner:
 
-## 0. Interpret the trigger narrowly
+```text
+interactive | builder
+```
 
-Use this workflow when the user gives a bare continuation instruction such as
-`next`. A request naming a specific task follows that task instead.
+Use `builder` only when at least one of these is true:
 
-Do not ask "what should I do next?" until the live authorities have been read
-and genuinely leave more than one consequential choice.
+- KittyBuilder launched this process and supplied a valid packet/task bundle;
+- the user explicitly said `builder next`, `take the next Builder packet`, or
+  named a Builder task/initiative/packet;
+- a supported Builder transfer record assigns the packet to this tool and the
+  live lease agrees.
 
-## 1. Cold start and field survey
+Otherwise the owner is `interactive`. Merely being able to run Builder commands
+does not make an interactive session a Builder worker.
 
-Run the normal bootloader from `START_HERE.md`, including:
+Never let both lanes own the same implementation. An interactive session may
+inspect or review Builder output without taking execution ownership.
+
+## 1. Verify the current interactive checkpoint
+
+Run the normal bootloader from `START_HERE.md`:
 
 ```bash
 git status --short --branch
 ./kitty context --agent
 bash scripts/session_end_survey.sh
-./kitty builder initiative doctor --json
-python3 scripts/session_learning.py summary
 ```
 
-The learning summary is evidence history, not an execution queue. A promoted
-signal can only enter selection after existing roadmap, Mission, initiative,
-queue, branch, PR, and issue owners have been checked.
+Read `.claude/STATE.md` and `.claude/HANDOFF.md` only while their branch, HEAD,
+worktree, PR, and invalidation conditions remain valid. Inspect open PRs,
+worktrees, and Builder's read-only projection to detect collisions—not to find
+new work for this session.
 
-A failed or unavailable source stays failed or unavailable. Do not turn it into
-an empty queue or a clean result.
+A failed or unavailable source stays failed or unavailable. Do not convert it
+into an empty queue, clean state, or permission to improvise.
 
-Read open PRs including drafts, registered worktrees, unmerged branches, the
-Builder projection, `.claude/STATE.md`, `.claude/HANDOFF.md`, `~/kb/NOW.md`, and
-the workflow-signal summary when available.
+## 2. Resolve what `next` means
 
-## 2. Continue before starting
+Continue in this order:
 
-Resolve work in this order:
+1. the explicit assignment in the current conversation;
+2. a valid non-terminal checkpoint owned by this interactive tool/session;
+3. the current branch's documented next action when it still matches live state;
+4. a concrete recovery or review action for this interactive assignment;
+5. an explicit no-op explaining that no valid interactive assignment exists.
 
-1. A valid non-terminal checkpoint owned by this session/tool.
-2. A Builder packet already claimed/running by this worker identity.
-3. A blocked/review/publication state that has a concrete recovery action this
-   tool is authorized to perform.
-4. The highest-priority eligible queued initiative packet whose allowed paths do
-   not collide with live work.
-5. A promoted workflow-learning signal only when no approved roadmap item,
-   Mission packet, queue task, branch, PR, or issue owns the same problem.
-6. No-op with an explicit reason when nothing is authorized and eligible.
+Do not silently substitute:
 
-Never hijack another worker's lease. Never treat unrelated parallel work as a
-blocker. A collision exists only when paths, state authority, or a required
-artifact overlap.
+- the highest-priority Builder packet;
+- a roadmap item that has not been assigned to this session;
+- an unowned workflow-learning signal;
+- another worker's branch, worktree, lease, or PR;
+- whatever looks interesting in the repository.
 
-A promoted signal is not permission to code. Until the governed promotion
-adapter ships, it may become at most one structured recommendation for a later
-approved packet. Never create a hidden issue or queue task from the summary.
+When no valid interactive assignment exists, stop and say that `next` has
+nothing to continue. Do not manufacture a task merely to avoid asking Jacob for
+a new assignment.
 
-## 3. Ensure the leverage program is materialized
+## 3. Builder is inspected, not consumed
 
-The ratified meta-analysis program is:
-
-```text
-docs/initiatives/ktl-001-leverage-and-learning-v1.json
-```
-
-Validate and apply it idempotently when it is not already present:
-
-```bash
-./kitty builder initiative validate \
-  docs/initiatives/ktl-001-leverage-and-learning-v1.json --json
-./kitty builder initiative apply \
-  docs/initiatives/ktl-001-leverage-and-learning-v1.json --json
-```
-
-Applying a byte-identical manifest is safe and must not duplicate tasks. A
-manifest conflict is a stop condition: report the existing and proposed hashes;
-do not replace the durable initiative in place.
-
-Do not apply a different unapproved manifest merely because it exists under
-`docs/initiatives/`.
-
-## 4. Select an eligible packet
-
-Inspect every active initiative, not only the newest one:
+For collision and status awareness, supported read-only Builder commands may be
+used when relevant:
 
 ```bash
 ./kitty builder initiative list --json
 ./kitty builder initiative status <initiative-id> --json
+./kitty builder queue status --json
 ```
 
-For each candidate, inspect the mapped queue task and its allowed paths:
+A bare `next` must not:
 
-```bash
-./kitty builder initiative show <initiative-id> --json
-./kitty builder queue show <task-id> --json
-```
+- apply `docs/initiatives/ktl-001-leverage-and-learning-v1.json` or any manifest;
+- claim, release, cancel, grant, archive, or execute a Builder task;
+- run `initiative run-packet`;
+- alter Builder scheduling or provider policy;
+- turn KB observations into queue work.
 
-A packet is selectable only when:
+Those actions require an explicit Builder instruction or a valid Builder-owned
+worker bundle.
 
-- Builder reports it eligible;
-- its queue task is `queued`;
-- dependencies are complete;
-- its base and manifest identities are valid;
-- no active branch, worktree, PR, or leased packet owns overlapping paths;
-- required credentials/services are available or the packet explicitly proves
-  a failure/offline path without them;
-- the action is within the current human authorization boundary.
+## 4. Continue the interactive assignment end to end
 
-Rank selectable packets by queue priority, then initiative sequence. Preserve a
-human-approved roadmap override when one exists.
+For the resolved interactive task:
 
-## 5. Execute through Builder
+1. re-check scope, authority, and collisions;
+2. gather the minimum relevant context;
+3. perform the requested investigation, implementation, review, or recovery;
+4. run the narrowest meaningful verification;
+5. preserve exact evidence and limitations;
+6. avoid touching files owned by active parallel work;
+7. stop at any required human, security, money, secret, or destructive gate.
 
-Prefer the governed packet runner so work receives an isolated worktree,
-recorded attempt, worker brief, validation, independent review, evidence, and
-recovery:
+The same agent never treats its own implementation as independent approval.
+Review-only sessions must not quietly become implementation owners unless Jacob
+explicitly transfers ownership.
 
-```bash
-./kitty builder initiative run-packet <initiative-id> <packet-id> --free --watch
-```
+## 5. Close the continuation honestly
 
-A paid model, GPU, destructive action, secret/auth/env change, broad dependency,
-or human-judgment decision still requires the relevant approval. Do not silently
-fall back from a failed free route to paid execution.
+When this bounded continuation reaches an honest complete, blocked,
+awaiting-review, failed, cancelled, or no-op state, run
+`.agents/skills/session-end/SKILL.md` when the session is actually ending or the
+user requested a complete continuation cycle.
 
-When the current interactive tool must execute the packet itself instead of the
-free runner:
+Session-end records the execution owner, KB effectiveness receipt, evidence,
+continuity, and workflow signals. It does not claim Builder work or schedule the
+next Builder packet.
 
-1. claim the mapped task using a tool-specific worker id;
-2. preserve the lease token and claim version;
-3. render and follow the Builder brief;
-4. transition to `running` with fencing values;
-5. work only in an isolated packet branch/worktree and allowed paths;
-6. run the packet's exact validation plus the narrowest meaningful tests;
-7. attach a structured final report and PR metadata;
-8. move through the canonical review/publication states—never edit SQLite or
-   fabricate completion.
+Then stop. A bare `next` continues one interactive assignment; it does not begin
+a second assignment or drain any queue.
 
-The same worker never approves its own work.
+## Explicit Builder commands
 
-## 6. Completion means evidence
+These are intentionally different user intents:
 
-A packet is not complete because code was written. Require:
-
-- acceptance criteria mapped to observable evidence;
-- exact command results and pass/fail counts;
-- runtime proof for runtime claims;
-- non-vacuous failure proof where required;
-- diff/commit identity;
-- review bound to the reviewed SHA;
-- truthful PR/check/publication state;
-- explicit unresolved limitations and cleanup state.
-
-If execution fails, classify it honestly as implementation failure,
-infrastructure/provider failure, blocked decision, collision, exhausted budget,
-or cancelled work. Preserve the evidence and recovery action.
-
-## 7. Close with session-end
-
-After the selected packet reaches an honest terminal or waiting state, invoke
-`.agents/skills/session-end/SKILL.md` in full. Do not merely summarize in chat.
-
-Session end must:
-
-- survey parallel work and the Builder queue again;
-- attach/record the final evidence and current state;
-- extract durable knowledge and corrections;
-- record structured workflow-learning signals;
-- update `~/kb/NOW.md`, HANDOFF, and STATE without clobbering parallel work;
-- leave exactly one valid next action or an explicit no-op;
-- report unavailable evidence instead of rounding up.
-
-Then stop. One `next` instruction executes one bounded continuation cycle; it
-does not begin a second packet after session end.
+- `builder status` — inspect Builder without taking work;
+- `builder next` / `take the next Builder packet` — use Builder's governed
+  selection and execution workflow;
+- `review builder` — independently review Builder output without becoming its
+  implementation owner;
+- `next` — continue this interactive assignment only.
