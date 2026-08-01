@@ -175,6 +175,10 @@ test.beforeEach(async ({ page }) => {
   resetPersistence();
   await page.addInitScript(() => {
     window.localStorage.setItem('kitty-onboarded', 'true');
+    if (!window.sessionStorage.getItem('__slice_init_ran')) {
+      window.localStorage.removeItem('kitty-active-chat-id');
+      window.sessionStorage.setItem('__slice_init_ran', '1');
+    }
   });
 });
 
@@ -197,9 +201,9 @@ test.describe('Chat Trust Slice 3 — phone', () => {
 
   test('send → stream → persist → reload restores identical content', async ({ page }) => {
     await stubGateway(page);
-    await clearActiveChat(page);
 
     await page.goto('/');
+    await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
 
     // Navigate to chat — mobile BottomNav uses "Chat" (capitalised), desktop Rail uses "chat"
@@ -257,7 +261,6 @@ test.describe('Chat Trust Slice 3 — phone', () => {
 
   test('stream failure shows recovery action and retry succeeds', async ({ page }) => {
     await stubGateway(page, { failAfterChunks: 1 });
-    await clearActiveChat(page);
 
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
@@ -302,7 +305,6 @@ test.describe('Chat Trust Slice 3 — phone', () => {
 
   test('retry does not duplicate user message', async ({ page }) => {
     await stubGateway(page, { failAfterChunks: 1 });
-    await clearActiveChat(page);
 
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
@@ -356,7 +358,6 @@ test.describe('Chat Trust Slice 3 — phone', () => {
 test.describe('Chat Trust Slice 3 — desktop regression', () => {
   test('chat loads and send is accessible on desktop', async ({ page }) => {
     await stubGateway(page);
-    await clearActiveChat(page);
 
     const errors: string[] = [];
     page.on('pageerror', (err) => errors.push(err.message));
