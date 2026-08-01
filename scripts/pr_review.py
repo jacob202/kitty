@@ -157,7 +157,7 @@ def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: 
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         print("No GITHUB_TOKEN — cannot post review.", file=sys.stderr)
-        return
+        raise SystemExit(1)
 
     comments_url = (
         f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments?per_page=100"
@@ -180,6 +180,7 @@ def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: 
             f"GitHub API error updating review: {exc.status} — {exc.read().decode()[:200]}",
             file=sys.stderr,
         )
+        raise SystemExit(1) from exc
 
 
 def main() -> None:
