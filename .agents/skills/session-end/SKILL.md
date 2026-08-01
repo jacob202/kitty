@@ -193,6 +193,9 @@ Rules:
 
 - Never estimate tokens, elapsed time, cost, attempts, review, or regressions
   from intuition. Use `null` when the source is unavailable.
+- `schema_version`, `recorded_at`, and `result_id` are required for `accepted`;
+  an accepted result ID may occur in only one accepted receipt, so an interactive
+  review cannot double-count a Builder implementation.
 - `accepted` requires independent acceptance evidence, not self-declaration.
 - `kb_entries_used` and `kb_entries_stale_or_wrong` must be subsets of consulted
   entries and may not overlap.
@@ -202,8 +205,11 @@ Rules:
 - An interactive tool uses its durable session identifier when available;
   otherwise use a stable repository/branch/timestamp identity and do not reuse
   it for a different receipt.
-- The recorder is idempotent for identical receipts and rejects a conflicting
-  receipt for the same session ID.
+- The recorder is idempotent for identical receipts, rejects a conflicting
+  receipt for the same session ID, and hash-chains retained history. That chain
+  detects altered or reordered retained entries; the local file is not an
+  immutable audit system, so externally retain/export a head when that assurance
+  matters.
 - Storage is `~/kb/metrics/kb-effectiveness.jsonl`; when KB is unavailable the
   staged fallback is `docs/session-notes/kb-effectiveness.jsonl`.
 - Corrupt history, unknown keys, and fabricated zeroes fail loudly.
@@ -222,7 +228,8 @@ python3 scripts/kb_effectiveness.py summary --window-days 30 --report
 
 The report tracks retrieval usefulness/staleness, known token/cost coverage,
 attempts, first-pass approval, regressions, duplicate work avoided, corrections
-prevented, canonical promotions, and KB-used versus no-KB cohorts. Cohort
+prevented, canonical-promotion coverage, and KB-used versus no-KB cohorts. Raw
+entry and promotion counts are audit coverage, not a score for verbosity. Cohort
 comparison is observational and never proves causation.
 
 Do not claim that the KB saves tokens or improves code until the report has

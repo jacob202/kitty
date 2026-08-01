@@ -63,10 +63,10 @@ Archived 2026-07-21 under `.agents/skills/_archive/`: `extract-wisdom`,
   exactly one of `interactive` or `builder`. Review does not transfer ownership.
 - **Learning without a second backlog** (ADR 0025): session-end records evidence
   signals in `~/kb`; execution promotion remains governed and deduplicated.
-- **Measured KB effectiveness** (2026-08-01): session-end writes an append-only
-  receipt through `scripts/kb_effectiveness.py`. Unknown token, time, cost, and
-  quality measurements stay null. Cohort comparisons are observational and do
-  not prove causation.
+- **Measured KB effectiveness** (2026-08-01): session-end writes a hash-chained,
+  tamper-evident receipt through `scripts/kb_effectiveness.py`. Unknown token,
+  time, cost, and quality measurements stay null. Cohort comparisons are
+  observational and do not prove causation.
 
 ## Supporting scripts
 

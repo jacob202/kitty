@@ -84,8 +84,15 @@ with zero.
 
 - Identical receipts are idempotent.
 - The same session ID with different content is a conflict and fails.
+- `schema_version`, timestamp, and an accepted result ID are required; accepted
+  result IDs are unique so Builder and interactive records cannot double-count
+  one implementation.
+- Each JSONL entry carries the preceding entry's hash and its own deterministic
+  chain hash. Reordering or changing retained history fails loudly. The local
+  ledger is tamper-evident, not immutable: truncating its final tail still needs
+  a separately retained/exported head to detect.
 - Unknown fields, invalid subset relationships, malformed SHAs, corrupt JSONL,
-  blank history lines, and receipt-ID mismatches fail loudly.
+  blank history lines, receipt-ID mismatches, and chain mismatches fail loudly.
 - Useful and stale/wrong entry sets are disjoint and both are subsets of
   consulted entries.
 - `accepted` requires independent acceptance evidence. Self-tested or
@@ -97,11 +104,13 @@ The rolling report includes:
 
 - receipt and evidence coverage;
 - retrieval usefulness and stale/wrong rates;
-- known token, context-token, and cost totals;
+- known token, context-token, and cost totals (or `null` when no measurement is
+  known);
 - attempts and repair commits;
 - first-pass review approval and regressions;
 - duplicate work and corrections prevented;
-- promotion of proven knowledge into tests, skills, ADRs, or canonical docs;
+- canonical-promotion coverage per session/result, rather than a raw count that
+  rewards verbose artifact lists;
 - KB-used versus no-KB cohorts.
 
 The cohort comparison is observational. It does not prove causation. The system
@@ -115,6 +124,7 @@ The primary optimization target is:
 > regressions or hidden duplicate work.
 
 Raw token reduction alone is not success.
+Entry and promotion counts are audit coverage, never a success score.
 
 ### No new authority
 
@@ -149,11 +159,11 @@ remains the execution authority.
 
 This decision is implemented when:
 
-- a valid receipt is append-only and idempotent;
+- a valid receipt is hash-chained, tamper-evident, and idempotent;
 - a conflicting session receipt fails;
 - unknown fields and corrupt history fail loudly;
 - used/stale entry relationships are validated;
-- unknown token/quality fields remain unknown in the summary;
+- unknown token/quality fields remain unknown in the summary rather than zero;
 - retrieval, efficiency, quality, and cohort metrics are computed from fixtures;
 - the report explicitly states that cohort comparison is not causal;
 - session-end records one execution owner and one effectiveness receipt; and

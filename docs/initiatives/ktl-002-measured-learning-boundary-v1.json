@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "initiative_id": "ktl-002-measured-learning-boundary-v1",
   "title": "KTL-002: Measured KB learning with separate interactive and Builder lanes",
-  "description": "Corrective proving initiative. Builder remains autonomous and interactive tools never consume its queue through bare next. Session-end records append-only KB effectiveness receipts. This initiative supersedes the workflow-boundary packets in ktl-001-leverage-and-learning-v1; it does not supersede that manifest's independent reuse, evidence, capability, Product Studio, Agent Canvas, model-bench, or Mission-projection work.",
+  "description": "Current corrective proving initiative for the interactive/Builder boundary. Builder remains autonomous and interactive tools never consume its queue through bare next. Session-end records hash-chained, tamper-evident KB effectiveness receipts. This initiative supersedes the workflow-boundary packets in ktl-001-leverage-and-learning-v1; it does not supersede that manifest's independent reuse, evidence, capability, Product Studio, Agent Canvas, model-bench, or Mission-projection work. Tracking or validating this manifest does not authorize applying it to a Builder queue.",
   "packets": [
     {
       "id": "KTL2-001-interactive-builder-boundary",
@@ -39,7 +39,7 @@
     {
       "id": "KTL2-002-kb-effectiveness-receipts",
       "title": "Measure KB retrieval, efficiency, and accepted quality",
-      "objective": "Verify the append-only effectiveness receipt and rolling report. Record one execution owner, consulted/used/stale entries, canonical promotions, and only evidence-backed token, cost, elapsed, attempt, repair, regression, and independent-review values. Unknowns stay null; cohort comparison is observational and cannot claim causation.",
+      "objective": "Verify the hash-chained, append-only effectiveness receipt and rolling report. Record one execution owner, consulted/used/stale entries, canonical promotions, and only evidence-backed token, cost, elapsed, attempt, repair, regression, and independent-review values. Unknowns stay null; cohort comparison is observational and cannot claim causation.",
       "depends_on": [
         "KTL2-001-interactive-builder-boundary"
       ],

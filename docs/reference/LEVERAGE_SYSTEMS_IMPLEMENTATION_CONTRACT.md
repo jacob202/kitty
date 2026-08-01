@@ -188,7 +188,7 @@ No step in interactive bare `next` applies or drains Builder.
 
 ### KB effectiveness receipt
 
-Session-end writes one append-only receipt through:
+Session-end writes one hash-chained, tamper-evident receipt through:
 
 ```bash
 python3 scripts/kb_effectiveness.py record --payload-json '<json>'
@@ -213,8 +213,10 @@ The receipt records:
 - branch/HEAD/task/initiative/packet/result references.
 
 Unknown fields remain null. Identical receipts are idempotent; conflicting
-session content, unknown keys, corrupt history, invalid subsets, and receipt-ID
-mismatch fail loudly.
+session content, duplicate accepted result identity, unknown keys, corrupt or
+altered retained history, invalid subsets, and receipt-ID mismatch fail loudly.
+The local chain is not an immutable archive: retain/export a known head when
+tail truncation must also be detectable.
 
 Rolling report:
 
@@ -224,7 +226,8 @@ python3 scripts/kb_effectiveness.py summary --window-days 30 --report
 
 The report covers retrieval usefulness/staleness, evidence coverage, known
 cost/tokens, attempts/repairs, first-pass approval, regressions, avoided
-repetition, canonical promotion, and KB-used versus no-KB cohorts.
+repetition, canonical-promotion coverage, and KB-used versus no-KB cohorts.
+Raw entry/promotion counts are audit coverage, not a verbosity score.
 
 Cohort differences are observational and do not prove causation. The primary
 optimization target is lower total cost and time per independently accepted

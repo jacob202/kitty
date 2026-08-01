@@ -1,8 +1,8 @@
 {
   "manifest_version": 1,
   "initiative_id": "ktl-001-leverage-and-learning-v1",
-  "title": "KTL-001: Reuse-first execution, evidence, and learning loop",
-  "description": "Executable packaging of the issue #354 meta-analysis and the corrected reuse-first direction. This initiative does not duplicate the two active Builder-verification workers or the active Chat reuse worker. It first proves a cross-tool next/session-end loop, then installs reuse governance, consumes the active workers' evidence, and promotes the surviving Product Evidence, Capability, Product Studio, Agent Canvas, model-bench, and Mission-projection slices. Builder remains the only execution queue; STATE/HANDOFF remain continuity; ~/kb remains cross-tool learning. Every packet has a removable proving slice and must stop rather than create a second authority.",
+  "title": "KTL-001: Partially quarantined reuse-first planning input",
+  "description": "QUARANTINED AS A WHOLE: do not apply this manifest as the current execution contract. KTL-001 through KTL-003 were authored under the obsolete assumption that bare interactive next could select Builder work; they are superseded by ktl-002-measured-learning-boundary-v1. The remaining reuse, evidence, capability, Product Studio, Agent Canvas, model-bench, and Mission-projection packets remain planning inputs only until their dependencies are reconciled into a revised manifest. See docs/initiatives/README.md. Builder remains the only execution queue; STATE/HANDOFF remain interactive continuity; ~/kb remains cross-tool learning.",
   "packets": [
     {
       "id": "KTL-001-next-protocol-verification",
