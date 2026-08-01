@@ -16,18 +16,18 @@
     "Validated both KTL manifests without applying either or modifying Builder state."
   ],
   "blockers": [
-    "The local repair commits still need an independent review after they are pushed.",
+    "PR #359 at c1f52cd3 has no independent GitHub review; its automated review job was skipped.",
     "Builder queue projection was unavailable because this worktree could not open its SQLite database.",
     "The shell's python3 is too old for scripts/check_continuity_state.py; Python 3.12 passes it."
   ],
-  "next_action": "Push the reviewed PR #359 repair commits, then re-check every individual GitHub check run.",
+  "next_action": "Obtain an independent review of PR #359 at c1f52cd3; keep it draft until that review approves the checked SHA.",
   "parallel_work": [
     {"kind": "worktree", "ref": "docs/kittybuilder-core-runtime-audit-2026-08-01", "owner": "other Builder audit worker", "touches": ["docs", "gateway", "tests"], "observed_at": "2026-08-01T22:04:00Z"},
     {"kind": "worktree", "ref": "fix/builder-ignore-omo-artifacts", "owner": "other Builder scope worker", "touches": ["docs", "gateway", "tests"], "observed_at": "2026-08-01T22:04:00Z"},
     {"kind": "pr", "ref": "#359", "owner": "Codex review-and-repair session", "touches": [".agents", "docs", "scripts", "tests"], "observed_at": "2026-08-01T22:04:00Z"}
   ],
   "recommendations": [
-    {"id": "pr359-independent-review-and-push", "what": "Push the reviewed local repairs to PR #359, obtain independent review of the pushed SHA, and rerun checks.", "why": "The remote draft does not yet contain the reviewed local fixes.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null},
+    {"id": "pr359-independent-review-and-push", "what": "Obtain independent review of PR #359 at c1f52cd3 and keep it draft until the review approves that checked SHA.", "why": "All automated checks are green, but independent review is absent.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null},
     {"id": "dependabot-guardrail-sibling-pins", "what": "Gate Dependabot on resolvability: run 'pip install -r requirements.txt' in the guardrails workflow before a bump can merge.", "why": "A sibling dependency constraint once made the repository unresolvable.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null},
     {"id": "image-agent-slice-a1", "what": "Execute docs/mission/execution.md slice A1 — durable image-agent sessions and approved-plan dispatch for issue #336.", "why": "It remains Jacob-authorized mission work.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null}
   ],
@@ -49,7 +49,7 @@
 
 ## In-flight / WIP
 
-- PR #359 is still a draft. This branch is two commits ahead of its remote head; no push was made.
+- PR #359 is still a draft at `c1f52cd3`; all automated checks passed, but no independent review is posted.
 
 ## Other work in flight (not mine)
 
@@ -59,13 +59,13 @@
 
 ## Blockers
 
-- PR #359 cannot be ready until its pushed repair SHA has an independent review and fresh GitHub checks.
+- PR #359 cannot be ready until an independent review approves its checked SHA.
 - Builder queue projection was `UNAVAILABLE`: its SQLite database could not be opened from this worktree.
 - The exact required `python3 scripts/check_continuity_state.py` fails because the shell's `python3` cannot parse the repo's Python 3.10+ union syntax; Python 3.12 passes the checker.
 
 ## Next move
 
-Push the reviewed local commits, then obtain independent review and re-check PR #359's individual GitHub check runs.
+Obtain an independent review of PR #359 at `c1f52cd3`; keep it draft until that review approves the checked SHA.
 
 ## Deferred, and what releases them
 

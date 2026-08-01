@@ -16,11 +16,11 @@
     "Validated both KTL manifests without applying either or modifying Builder state."
   ],
   "blockers": [
-    "The local repair commits still need an independent review after they are pushed.",
+    "PR #359 at c1f52cd3 has no independent GitHub review; its automated review job was skipped.",
     "Builder queue projection was unavailable because this worktree could not open its SQLite database.",
     "The shell's python3 is too old for scripts/check_continuity_state.py; Python 3.12 passes it."
   ],
-  "next_action": "Push the reviewed PR #359 repair commits, then re-check every individual GitHub check run.",
+  "next_action": "Obtain an independent review of PR #359 at c1f52cd3; keep it draft until that review approves the checked SHA.",
   "parallel_work": [
     {
       "kind": "worktree",
@@ -47,8 +47,8 @@
   "recommendations": [
     {
       "id": "pr359-independent-review-and-push",
-      "what": "Push the reviewed local repairs to PR #359, obtain independent review of the pushed SHA, and rerun checks.",
-      "why": "The remote draft does not yet contain the reviewed local fixes.",
+      "what": "Obtain independent review of PR #359 at c1f52cd3 and keep it draft until the review approves that checked SHA.",
+      "why": "All automated checks are green, but independent review is absent.",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
