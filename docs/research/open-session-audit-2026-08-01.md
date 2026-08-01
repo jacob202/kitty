@@ -103,15 +103,28 @@ Branches whose every patch is on `main` and which hold nothing unique:
 
 ## Open PRs — live, not dead
 
-| PR | State | Blocker |
+Merged during this audit, after review:
+
+| PR | Disposition |
+| --- | --- |
+| #356 acceptance-gate loophole | Squash-merged as `febbb99d`. Docs/template only; 12/12 green |
+| #355 mobile shell + fail-closed Studio | Squash-merged as `dda86249`. 14/14 green. Reviewed the `fetchImageStatus` contract change: dropping its `catch` makes a gateway outage throw instead of reporting `available: false`, which is the point — the two failures have different recoveries. All four consumers (`ImageStudio`, `StudioView`, `ProviderCenter`, `ImageGenPanel`) reach it through `useImageStatus`, and `ImageGenPanel` — the one component the PR did not touch — reads `statusQuery.data?.available ?? null`, so it degrades to unavailable rather than crashing |
+| #358 builder dirty-worktree retry fix | Squash-merged as `037052b6`. Its `check-description` failure was the PR body, not the code: no bullet under `## Summary` and a `## Verification` heading where `.github/workflows/pr-description-check.yml:41-47` requires the literal `## Test plan`. Body rewritten to satisfy the gate with content preserved; the gate then passed |
+
+Still open:
+
+| PR | State | Why not merged |
 | --- | --- | --- |
-| #355 mobile shell + fail-closed Studio | all 17 checks green | Waits only on the independent-reviewer checkbox |
-| #356 acceptance-gate loophole | all 12 checks green, `mergeable_state: clean` | Nothing — mergeable now |
-| #357 KittyBuilder paid smoke evidence | draft, marked `[do not merge]` | Disposable by design; close without merging once the audit is filed |
-| #358 builder dirty-worktree retry fix | 12 green, `check-description` **failed** | Body has `## Verification`, not `## Test plan`. `.github/workflows/pr-description-check.yml:42` requires the literal `## Test plan` heading. Body edit only — the code and tests pass |
+| #357 KittyBuilder paid smoke evidence | draft, `[do not merge]` | Disposable by design — close without merging |
+| #359 KB learning + Builder boundary | draft | The `docs/builder-cockpit-boundary` orphan now has a PR |
+| #360 this audit | draft | Self-authored |
+| #361 026/027 delta reconcile | draft | — |
+| #362 reviewer runs deepseek-v4-pro | draft | — |
 
 Six Dependabot PRs (#314–#317, #319, #320) remain open; four carry
-`risk/manual-approval`. Not session work — separate queue.
+`risk/manual-approval`, and all six are based on `27deef12`, well behind `main`.
+Not merged here: `CLAUDE.md` non-negotiable 6 forbids auto-merging dependency
+work, and #322 in this same batch is what broke `main` for eight commits.
 
 ## What this cost
 
