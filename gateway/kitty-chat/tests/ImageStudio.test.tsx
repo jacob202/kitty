@@ -17,7 +17,8 @@ function renderWithQueryClient(children: ReactNode) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  return render(<QueryClientProvider client={client}>{children}</QueryClientProvider>)
+  const view = render(<QueryClientProvider client={client}>{children}</QueryClientProvider>)
+  return { ...view, client }
 }
 
 function offlineStatus() {
@@ -179,5 +180,136 @@ describe('ImageStudio fail-closed and renderer distinction (PR#355 findings 2-4)
       expect(screen.getByText('technical detail')).toBeInTheDocument()
       expect(screen.getByText(/<!doctype html>/i)).toBeInTheDocument()
     })
+  })
+})
+
+describe('Enter-key handler tracks current renderer availability (PR#355 finding 5)', () => {
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('Enter after an online→offline status transition does not dispatch /proxy/studio/generate', async () => {
+    const fetchMock = stubStudioFetch()
+    const statusMock = vi.mocked(queries.useImageStatus)
+    statusMock.mockReturnValue(onlineStatus() as never)
+
+    const { rerender, client } = renderWithQueryClient(<ImageStudio />)
+    const input = screen.getByPlaceholderText(/describe what you want to create/i)
+    fireEvent.change(input, { target: { value: 'a dramatic cat' } })
+
+    // While online, Enter dispatches generation.
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/proxy/studio/generate'),
+        expect.objectContaining({ method: 'POST' }),
+      )
+    })
+
+    // The 30s status poll flips from online to offline after the prompt was last
+    // edited — the exact stale-closure window that finding 5 reported.
+    statusMock.mockReturnValue(offlineStatus() as never)
+    rerender(
+      <QueryClientProvider client={client}>
+        <ImageStudio />
+      </QueryClientProvider>,
+    )
+    await waitFor(() => expect(screen.getByTestId('studio-offline')).toBeInTheDocument())
+
+    const generateCallsBeforeEnter = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes('/proxy/studio/generate'),
+    ).length
+
+    // Enter must fail closed against the CURRENT status: no new generate dispatch
+    // and the human offline message shows instead.
+    fireEvent.keyDown(screen.getByPlaceholderText(/describe what you want to create/i), { key: 'Enter' })
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/no image engine is online/)
+    })
+
+    const generateCallsAfterEnter = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes('/proxy/studio/generate'),
+    ).length
+    expect(generateCallsAfterEnter).toBe(generateCallsBeforeEnter)
+  })
+})
+
+describe('operation-specific HTML error recovery (PR#355 finding 6)', () => {
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('plan preview HTML 500 names the planning service, not the renderer', async () => {
+    vi.mocked(queries.useImageStatus).mockReturnValue(offlineStatus() as never)
+    vi.stubGlobal('fetch', vi.fn(async (url: string, _init?: unknown) => {
+      if (String(url).includes('/proxy/studio/characters')) {
+        return { ok: true, status: 200, json: async () => ({ characters: [] }) }
+      }
+      if (String(url).includes('/proxy/studio/recipes')) {
+        return { ok: true, status: 200, json: async () => ({ recipes: [] }) }
+      }
+      if (String(url).includes('/proxy/studio/plan')) {
+        return { ok: false, status: 500, text: async () => '<!DOCTYPE html><html><body><h1>Internal Server Error</h1></body></html>' }
+      }
+      return { ok: true, status: 200, json: async () => ({ available_guidance_tags: [] }) }
+    }))
+
+    renderWithQueryClient(<ImageStudio />)
+    await waitFor(() => expect(screen.getByTestId('studio-offline')).toBeInTheDocument())
+
+    fireEvent.change(screen.getByPlaceholderText(/describe what you want to create/i), {
+      target: { value: 'a sleeping cat' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'preview plan', exact: true }))
+
+    // The human message names the planning service; it must NOT blame the renderer.
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/planning service hit an internal error/i)
+    })
+    expect(screen.queryByText(/check your renderer/i)).not.toBeInTheDocument()
+    // Raw HTML is preserved only in the expandable technical detail.
+    expect(screen.getByText('technical detail')).toBeInTheDocument()
+    expect(screen.getByText(/<!doctype html>/i)).toBeInTheDocument()
+  })
+
+  it('character creation HTML 500 names the character service, not the renderer', async () => {
+    vi.mocked(queries.useImageStatus).mockReturnValue(onlineStatus() as never)
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: { method?: string }) => {
+      const method = init?.method ?? 'GET'
+      if (String(url).includes('/proxy/studio/characters') && method === 'GET') {
+        return { ok: true, status: 200, json: async () => ({ characters: [] }) }
+      }
+      if (String(url).includes('/proxy/studio/characters') && method === 'POST') {
+        return { ok: false, status: 500, text: async () => '<!DOCTYPE html><html><body><h1>Internal Server Error</h1></body></html>' }
+      }
+      if (String(url).includes('/proxy/studio/recipes')) {
+        return { ok: true, status: 200, json: async () => ({ recipes: [] }) }
+      }
+      return { ok: true, status: 200, json: async () => ({ available_guidance_tags: [] }) }
+    }))
+
+    renderWithQueryClient(<ImageStudio />)
+    await waitFor(() => expect(screen.getByPlaceholderText(/describe what you want to create/i)).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /character/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'new character' })).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'new character' }))
+    fireEvent.change(await screen.findByPlaceholderText('character name'), { target: { value: 'Momo' } })
+    fireEvent.click(screen.getByRole('button', { name: 'create', exact: true }))
+
+    // The human message names the character service; it must NOT blame the renderer.
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/character service hit an internal error/i)
+    })
+    expect(screen.queryByText(/check your renderer/i)).not.toBeInTheDocument()
+    // Raw HTML is preserved only in the expandable technical detail.
+    expect(screen.getByText('technical detail')).toBeInTheDocument()
+    expect(screen.getByText(/<!doctype html>/i)).toBeInTheDocument()
   })
 })

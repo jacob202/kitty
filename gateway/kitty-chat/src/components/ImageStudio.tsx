@@ -202,7 +202,7 @@ export function ImageStudio() {
       if (err instanceof DOMException && err.name === 'AbortError') {
         setError('generation canceled')
       } else {
-        const { message, detail } = friendlyStudioError(err)
+        const { message, detail } = friendlyStudioError(err, 'generate')
         setError(message)
         setErrorDetail(detail)
       }
@@ -246,7 +246,7 @@ export function ImageStudio() {
       const result = await r.json()
       setPlan(result)
     } catch (err) {
-      const { message, detail } = friendlyStudioError(err)
+      const { message, detail } = friendlyStudioError(err, 'plan')
       setError(message)
       setErrorDetail(detail)
     }
@@ -281,18 +281,28 @@ export function ImageStudio() {
       setShowNewChar(false)
       setSelectedChar(char)
     } catch (err) {
-      const { message, detail } = friendlyStudioError(err)
+      const { message, detail } = friendlyStudioError(err, 'character')
       setError(message)
       setErrorDetail(detail)
     }
   }, [newCharName, charRefFile, createChar, refetchChars])
 
+  // Pressing Enter must always be bound to the CURRENT renderer availability. The
+  // keydown handler is memoized so 30s status polls don't recreate it; without a
+  // live indirection it would keep the online generation closure after a status
+  // flip to offline and dispatch an impossible request (PR #355 finding 5). The
+  // ref always points at this render's handleGenerate, so Enter fails closed too.
+  const handleGenerateRef = useRef(handleGenerate)
+  useEffect(() => {
+    handleGenerateRef.current = handleGenerate
+  }, [handleGenerate])
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleGenerate()
+      handleGenerateRef.current()
     }
-  }, [prompt, generating])
+  }, [])
 
   const selectedIdentityRecipe = recipes.find(r =>
     r.supports_characters && r.is_available
@@ -1103,9 +1113,22 @@ const checkAgainStyle: React.CSSProperties = {
   background: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 6,
 }
 
+/** Studio operation whose catch path formats an HTML/JSON error. */
+type StudioErrorOp = 'generate' | 'plan' | 'character'
+
+// Recovery text must name the failing subsystem, not a renderer. Generation
+// legitimately points at the renderer, but plan preview and character creation
+// never contact one, so an HTML 500 from those must not imply renderer downtime
+// (PR #355 finding 6).
+const STUDIO_ERROR_MESSAGES: Record<StudioErrorOp, string> = {
+  generate: 'the image service hit an internal error — check your renderer and try again',
+  plan: 'the planning service hit an internal error — check that the image service is running and try again',
+  character: 'the character service hit an internal error — check that the image service is running and try again',
+}
+
 /** Turn a possible raw backend error (JSON {detail}, HTML error page) into a
  *  human message plus an optional technical detail the user can expand. */
-function friendlyStudioError(err: unknown): { message: string; detail: string | null } {
+function friendlyStudioError(err: unknown, op: StudioErrorOp = 'generate'): { message: string; detail: string | null } {
   const raw = err instanceof Error ? err.message : 'generation failed'
   const trimmed = raw.trim()
   // Standard proxy/framework error pages commonly start with "<!DOCTYPE html>",
@@ -1117,7 +1140,7 @@ function friendlyStudioError(err: unknown): { message: string; detail: string | 
     || /internal server error/i.test(trimmed)
   ) {
     return {
-      message: 'the image service hit an internal error — check your renderer and try again',
+      message: STUDIO_ERROR_MESSAGES[op],
       detail: trimmed.slice(0, 2000),
     }
   }
