@@ -20,6 +20,7 @@ RUN chmod 0555 /opt/kitty/entrypoint-kitty.sh /opt/kitty/bootstrap.sh
 
 ENV PYTHONPATH=/opt/kitty \
     COMFYUI_PYTHON=python3 \
+    COMFYUI_ROOT=/opt/comfyui-baked \
     COMFY_URL=http://127.0.0.1:8188 \
     KITTY_WORKFLOW_ROOT=/opt/kitty/workflows \
     KITTY_JOB_ROOT=/workspace/jobs
