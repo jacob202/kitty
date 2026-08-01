@@ -27,6 +27,28 @@ to authorities; it does not describe current state itself.
 8. **Verify before acting.** Re-check the live fact, allowed scope, and approval
    boundary immediately before any mutation.
 
+## Exact `next` protocol
+
+When the user's instruction is a bare continuation such as `next`, `do the next
+thing`, `continue the queue`, or `resume work`, do not ask them to restate the
+task and do not choose from memory.
+
+Read and execute:
+
+```text
+.agents/skills/next/SKILL.md
+```
+
+That skill is the single cross-tool continuation workflow for OpenCode, Claude
+Code, Codex, and other repo-aware agents. It must survey live parallel work,
+continue owned in-flight work before starting anything, materialize only the
+approved leverage initiative idempotently, select one eligible non-colliding
+packet, execute and verify it through Builder, run the full session-end skill,
+and stop after one bounded cycle.
+
+A named user request outranks this trigger. `next` never means “start whatever
+looks interesting,” “ignore another worker,” or “begin multiple packets.”
+
 ## Context-engineering default
 
 Use staged context loading:
@@ -64,4 +86,5 @@ python3.12 -m pytest tests/ -q --tb=short
 
 Voice/persona remains owned by `config/SOUL.md`. Push, merge, deletion, history
 rewrite, secrets/auth/env changes, paid execution, and heavy dependencies still
-require Jacob's explicit approval.
+require Jacob's explicit approval unless an approved Builder packet and accepted
+publication policy explicitly authorize the bounded action.
