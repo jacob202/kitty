@@ -90,18 +90,52 @@ preserved, worktree hard-reset) but wired it only into the dead-supervisor path
 (`_reconcile_stale_attempts`). The live-loop retry path — a worker that dies
 while the supervisor lives — lacks that step, so it deadlocks on the dirty tree.
 
-**Fix (this PR):** in `run_packet`, on the in-process retry (`attempt_no > 1`),
-archive the prior failed attempt's dirty worktree into its artifact dir
-(`crashed-worktree.patch` + `crashed-worktree-status.txt`) and reset, mirroring
-P027. Minimal, contained to `gateway/builder_loop.py`; `archive_and_reset_worktree`
-is a no-op for clean/missing trees.
+**Fix (this PR):** in `run_packet`, the loop decides the next attempt's worktree
+disposition from the previous attempt **before** anything is durably opened. Only
+an explicitly repairable previous outcome — deterministic validation failure or a
+clean reviewer `request_changes` verdict, where the post-worker tree is still
+bound to the worker result — keeps its dirty worktree as repair input, which the
+next attempt deliberately reuses (`ensure_worktree`/`run_worker` `reuse_dirty`
+opt-in, default fail-closed). Anything else — a worker that crashed/was
+interrupted mid-execution, or a review execution/mutation/evidence-integrity
+failure — archives the tree into the failed attempt's artifact dir
+(`crashed-worktree.patch` + `crashed-worktree-status.txt`) and resets so the next
+attempt starts clean and inherits nothing. Because the reset runs before the
+replacement attempt is claimed, a reset failure cannot strand an attempt or
+lease; the real error is recorded durably and the partial work stays inspectable.
+`ensure_worktree` treats a nonzero `git status` exit as infrastructure failure
+and always raises, accepting a dirty tree only under the explicit reuse flag.
 
-**Regression test** `tests/test_builder_loop.py::TestNoStaleArtifactReuse::test_worker_self_crash_on_first_attempt_recovers_in_loop`:
-worker writes partial work then SIGKILLs itself on attempt 1, succeeds on the
-retry. Asserts: outcome succeeded; attempt outcomes `[failed, succeeded]`;
-`crashed-worktree.patch` contains the partial file; retry's run report does not
-include the crashed worker's file. **Fails on base SHA with the exact error
-above; passes with the fix.**
+Final review/evidence is cumulative from the packet's durable `base_sha`: the
+reviewer is bound (and the successful final-state report records) every path
+changed since the packet base — including implementation retained and committed
+on an earlier repair attempt — while each attempt's own run record keeps its
+retry-local delta separately.
+
+**Regression tests** in `tests/test_builder_loop.py::TestNoStaleArtifactReuse`:
+- `test_worker_self_crash_on_first_attempt_recovers_in_loop` — worker SIGKILLs
+  itself mid-run on attempt 1, succeeds on the retry. Asserts: outcome
+  succeeded; attempt outcomes `[failed, succeeded]`; `crashed-worktree.patch`
+  contains the partial file; retry ran on a clean tree.
+- `test_validation_failure_retry_preserves_implementation` and
+  `test_request_changes_retry_preserves_implementation` — the retry worker only
+  succeeds if the prior attempt's implementation is still in the worktree
+  (proving no archive/reset); asserts no `crashed-worktree.patch` and no
+  `worktree_archived_for_clean_retry` event.
+- `test_archival_failure_does_not_strand_attempt_or_lease` — forces the
+  clean-retry reset to fail and asserts no second attempt, no stranded lease, a
+  durable budget-neutral `infrastructure_failed` event, and the partial work
+  still present in the dirty worktree.
+- `test_final_review_and_report_are_cumulative_from_base_sha` — attempt 1
+  commits file A and fails validation; attempt 2 repairs only file B; the final
+  review context and the final report's cumulative evidence include both A and
+  B, while attempt 2's own run record keeps just the B delta.
+- `test_reviewer_mutation_is_not_passed_to_next_worker` — the reviewer writes
+  into an allowed path and exits nonzero; the tainted tree is archived and the
+  next worker starts clean (no inherited mutation).
+- `test_reuse_dirty_accepts_truthful_dirty` / `test_reuse_dirty_still_raises_on_status_failure`
+  (runner) — `reuse_dirty` accepts a truthfully-dirty tree but a failed `git
+  status` always raises.
 
 **End-to-end verification (real CLI, post-fix):** fresh packet
 `AUDIT-INIT-09/P9-SELFCRASH` with `crash_once_worker.py`:
@@ -182,21 +216,37 @@ attempt_review_recorded → attempt_closed`.
 
 ## Files changed in this PR
 
-- `gateway/builder_loop.py` — archive + reset the dirty worktree on the in-process retry (mirrors P027's reconciliation path).
-- `tests/test_builder_loop.py` — regression test for BUG-1.
+- `gateway/builder_loop.py` — per-attempt worktree disposition (archive/reset
+  only for non-repairable outcomes; preserve `request_changes`/validation repair
+  input), reset before the replacement attempt is opened (no stranded
+  attempt/lease on failure), repairable-only reuse, and cumulative
+  review/final evidence from the packet `base_sha`.
+- `gateway/builder_runner.py` — `ensure_worktree`/`run_worker` gain a
+  `reuse_dirty` opt-in (default fail-closed) that never masks a failed `git
+  status`; `worktree_changed_paths` exposes the packet-cumulative change set.
+- `tests/test_builder_loop.py` — regressions for BUG-1, repair preservation
+  (validation + `request_changes`), reviewer-mutation non-inheritance, the
+  no-strand archival-failure path, and cumulative review/report evidence.
+- `tests/test_builder_runner.py` — `reuse_dirty` truthful-dirty acceptance and
+  status-failure focus regressions.
 - `docs/research/kittybuilder-core-runtime-audit-2026-08-01.md` — this report.
 
 ## Verification
 
-- `python3.12 -m pytest tests/test_builder_loop.py -q --tb=short` → **60 passed** (includes new regression test; P027 suite intact).
-- New test fails on base SHA with the pre-fix deadlock error and passes with the fix.
+- `python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_runner.py -q --tb=short` → **116 passed**.
+- Full builder suite `python3.12 -m pytest tests/test_builder_*.py -q --tb=short` → **1000 passed, 29 subtests passed**.
+- `ruff check gateway/builder_loop.py gateway/builder_runner.py tests/test_builder_loop.py tests/test_builder_runner.py` → **All checks passed!**
+- `mypy gateway/builder_loop.py gateway/builder_runner.py` → **Success: no issues found in 2 source files**.
+- `git diff --check` → clean (exit 0).
 - Live CLI end-to-end recovery confirmed (S4a post-fix trace above).
 - Doctors green at end of session.
 
 ## Skipped checks
 
-- Full `tests/` suite, frontend build/tests, lint/typecheck: not run (per repo
-  rules these are CI gates; this audit changed only `builder_loop.py` + one test).
+- Full `tests/` non-builder modules, frontend build/tests: not run (per repo
+  rules these are CI gates; this audit changed `builder_loop.py`,
+  `builder_runner.py`, and the loop/runners tests). lint/typecheck run locally on
+  the changed files (see Verification).
 - No UI changes, no screenshots applicable.
 
 ## Limitations

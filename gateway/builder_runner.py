@@ -178,12 +178,20 @@ def ensure_worktree(
     *,
     repo_root: Path | None = None,
     base_sha: str | None = None,
+    reuse_dirty: bool = False,
 ) -> Path:
     """Create (or safely reuse) the deterministic worktree for a task.
 
-    Reuse requires the existing worktree to be on *branch* and completely
-    clean; anything else raises — a dirty or ambiguous worktree is never
-    overwritten (it may hold a crashed worker's partial progress).
+    Reuse requires the existing worktree to be on *branch* and, unless
+    ``reuse_dirty`` is set, completely clean; anything else raises — a dirty
+    or ambiguous worktree is never overwritten (it may hold a crashed
+    worker's partial progress). ``reuse_dirty`` is an explicit opt-in for the
+    repair loop only: the builder loop has already decided the dirty tree is
+    the deliberate continuation of a prior rejected implementation, so
+    reusing it does not overwrite anything. The branch check always holds;
+    a wrong-branch tree is never reusable. A nonzero ``git status`` exit is an
+    infrastructure failure and always raises; ``reuse_dirty`` accepts only
+    successful status output that truthfully reports the tree as dirty.
     """
     root = _repo_root(repo_root)
     path = root / ".worktrees" / "kittybuilder" / task_id
@@ -208,7 +216,14 @@ def ensure_worktree(
             ],
             cwd=path,
         )
-        if status.returncode != 0 or status.stdout.strip():
+        if status.returncode != 0:
+            detail = status.stderr.strip() or status.stdout.strip() or "no output"
+            raise RunnerError(
+                f"git status failed in {path} (exit {status.returncode}): {detail}"
+            )
+        if status.stdout.strip():
+            if reuse_dirty:
+                return path
             raise RunnerError(
                 f"worktree {path} is dirty; refusing to overwrite partial "
                 "progress. Inspect it, commit/stash, or clean it explicitly."
@@ -393,6 +408,19 @@ def worktree_head(path: Path) -> str:
 def worktree_diff_sha256(path: Path, start_sha: str) -> str:
     """Return the stable digest used to bind reviewer evidence to a diff."""
     return _diff_sha256(path, start_sha)
+
+
+def worktree_changed_paths(path: Path, start_sha: str) -> list[str]:
+    """Return every path changed since *start_sha* (committed, staged, dirty).
+
+    The packet-cumulative counterpart to ``run_worker``'s per-run
+    ``changed_paths``, which is measured from the retry-local HEAD at run
+    start. Callers that own a durable base SHA (the builder loop's review and
+    final-success evidence) use this so the final state binds to the packet
+    base rather than only the latest retry's delta, while the per-attempt
+    delta stays in each run record.
+    """
+    return _changed_paths(path, start_sha)
 
 
 # Residue every attempt may legitimately touch outside its allowlist (repo
@@ -840,6 +868,7 @@ def run_worker(
     extra_env: dict[str, str] | None = None,
     base_sha: str | None = None,
     inject_context: bool = False,
+    reuse_dirty_worktree: bool = False,
 ) -> dict[str, Any]:
     """Claim *task_id*, run *command* in its isolated worktree, record all.
 
@@ -851,6 +880,12 @@ def run_worker(
     ``extra_env`` adds variables to the worker environment (the KB-S3b
     packet loop passes attempt bundle/result paths). It may not re-inject
     the credentials this runner strips.
+
+    ``reuse_dirty_worktree`` opts into reusing an existing worktree that is
+    on the correct branch but dirty. Only the runner loop's repair retry
+    sets it, after it has decided the dirty tree is a deliberately preserved
+    prior implementation to build on; every other caller keeps the default
+    fail-closed refusal.
     """
     if not command:
         raise ValueError("command must be a non-empty list")
@@ -893,7 +928,11 @@ def run_worker(
         _scope_violations([], task.get("allowed_paths"))
         branch = default_branch_name(task)
         wt_path = ensure_worktree(
-            task_id, branch, repo_root=root, base_sha=base_sha
+            task_id,
+            branch,
+            repo_root=root,
+            base_sha=base_sha,
+            reuse_dirty=reuse_dirty_worktree,
         )
     except Exception:
         # Nothing started yet — hand the claim back cleanly.

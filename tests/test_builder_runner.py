@@ -10,6 +10,7 @@ import json
 import subprocess
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -88,6 +89,46 @@ class TestEnsureWorktree:
         br.ensure_worktree("kb_t4_aaaa", "kittybuilder/kb_t4_aaaa", repo_root=repo)
         with pytest.raises(br.RunnerError, match="refusing to reuse"):
             br.ensure_worktree("kb_t4_aaaa", "some/other-branch", repo_root=repo)
+
+    def test_reuse_dirty_accepts_truthful_dirty(self, repo: Path):
+        path = br.ensure_worktree(
+            "kb_reuse_dirty_t1", "kittybuilder/kb_reuse_dirty_t1", repo_root=repo
+        )
+        (path / "retained.txt").write_text("repair input")
+        reused = br.ensure_worktree(
+            "kb_reuse_dirty_t1",
+            "kittybuilder/kb_reuse_dirty_t1",
+            repo_root=repo,
+            reuse_dirty=True,
+        )
+        assert reused == path
+
+    def test_reuse_dirty_still_raises_on_status_failure(self, repo: Path):
+        path = br.ensure_worktree(
+            "kb_reuse_dirty_t2", "kittybuilder/kb_reuse_dirty_t2", repo_root=repo
+        )
+        (path / "junk.txt").write_text("whatever")
+        real_git = br._git
+
+        def flaky_status(args, cwd):
+            result = real_git(args, cwd=cwd)
+            if args and args[0] == "status":
+                return subprocess.CompletedProcess(
+                    args=args,
+                    returncode=128,
+                    stdout="",
+                    stderr="fatal: not a git repository",
+                )
+            return result
+
+        with patch.object(br, "_git", side_effect=flaky_status):
+            with pytest.raises(br.RunnerError, match="git status failed"):
+                br.ensure_worktree(
+                    "kb_reuse_dirty_t2",
+                    "kittybuilder/kb_reuse_dirty_t2",
+                    repo_root=repo,
+                    reuse_dirty=True,
+                )
 
     def test_remove_clean_worktree(self, repo: Path):
         path = br.ensure_worktree("kb_t5_aaaa", "kittybuilder/kb_t5_aaaa", repo_root=repo)
