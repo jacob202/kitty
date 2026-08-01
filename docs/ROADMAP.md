@@ -41,13 +41,14 @@ and establish one truthful planning surface before any feature work proceeds.
   `pip install -r requirements.txt` with `ResolutionImpossible`; no test runs.
 - Cause: Dependabot `600c0fa` raised the `openai` pin above the ceiling
   `mem0ai` 0.1.x requires. See outcome 0.8.
-- Repair merged as PR #339 (`8c58f52`, 2026-08-01). All six required jobs green
-  on the PR head; `tests.yml` run 1145 on merged main was still in progress
-  when this was written.
-- Acceptance evidence: all six jobs `success` on an `origin/main` run whose
-  SHA is recorded here. **Confirm run 1145 before marking VERIFIED.**
-- Status: IMPLEMENTED-NOT-VERIFIED. The fix is on main; the post-merge main run
-  has not been observed complete.
+- Repair merged as PR #339 (`8c58f52`, 2026-08-01).
+- Acceptance evidence met: `tests.yml` run **1145** on `origin/main` @
+  `8c58f52` completed `success` (2026-08-01T05:46:08Z), ending the 8-commit red
+  streak that ran from `092372b1` through `b68268b0`.
+- Status: **VERIFIED** (2026-08-01, run 1145).
+- This outcome regressed once already, silently, because a status line outlived
+  its measurement. It stays true only while 0.7 is unenforced — re-measure, do
+  not re-read.
 
 0.2 **Repair PR automation**
 - Labeler v5 schema, PR description comment permissions, risk-guardrails
@@ -186,9 +187,9 @@ and establish one truthful planning surface before any feature work proceeds.
   `pytest` ran on PR #322 and failed; the PR was merged anyway. Nothing was
   bypassed, so a new gate would only add another ignorable red check. The
   enforcement gap is tracked under outcome 0.7.
-- Acceptance evidence: green `tests.yml` on `origin/main`.
-- Status: IMPLEMENTED-NOT-VERIFIED — merged, but main run 1145 had not been
-  observed complete when this was written.
+- Acceptance evidence met: `tests.yml` run **1145** on `origin/main` @
+  `8c58f52` completed `success` (2026-08-01T05:46:08Z).
+- Status: **VERIFIED** (2026-08-01, run 1145).
 - Detail: `docs/mission/evidence.md` E1–E7.
 
 ### Exit criteria

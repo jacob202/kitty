@@ -14,9 +14,9 @@ Status vocabulary: `NOT STARTED`, `IN PROGRESS`, `IMPLEMENTED-NOT-VERIFIED`,
 - **Change:** `requirements.txt` openai pin → `>=1.90.0,<1.110.0`; repair
   schema-invalid `.claude/STATE.md` and `.claude/HANDOFF.md` metadata;
   unstale `test_kitty_launcher_runtime`
-- **Evidence:** `docs/mission/evidence.md` E1–E6. All six required jobs green
-  on the PR head; `tests.yml` run 1145 on merged main was still in progress at
-  handoff — confirm it before calling Gate 0.1 closed.
+- **Evidence:** `docs/mission/evidence.md` E1–E6b. Confirmed closed: `tests.yml`
+  run 1145 on `origin/main` @ `8c58f52` completed `success`
+  (2026-08-01T05:46:08Z), ending the 8-commit red streak.
 - **Blocks:** nothing further
 
 ## Slice 0b — Enforce required checks on `main` · BLOCKED (needs Jacob)

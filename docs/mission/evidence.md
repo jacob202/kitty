@@ -116,6 +116,19 @@ PR #331 active. Its own `invalidation_conditions` ("HEAD advances past
 9c446874") had already fired, so it was safe to rewrite. Repaired to a full
 SHA and `pull_request: null`; HANDOFF.md gained the missing key.
 
+## E6b — main is green again (closes Gate 0.1)
+
+After PR #339 merged as `8c58f52`:
+
+```
+1145 8c58f52d completed success 2026-08-01T05:46:08Z
+1139 b68268b0 completed failure 2026-08-01T02:39:23Z
+1134 fb4e3002 completed failure 2026-07-31T22:45:06Z
+```
+
+Run 1145 ends the red streak that ran from `092372b1` through `b68268b0`.
+Gate 0.1 and Gate 0.8 are VERIFIED on this run, not on the PR-head checks.
+
 ## E7 — red PRs are mergeable on `main`
 
 Checked after slice 0 merged, to find out why a broken bump reached main at
