@@ -1,11 +1,11 @@
 # Leverage Systems — Implementation Contract
 
-**Status:** Ratified design input with corrected executable packaging  
-**Owner:** Jacob  
-**Sources:** issue #354 formal red-team review; issue #346 Chat trust reset; issue #353 Product Studio  
-**Architecture:** ADR 0017, ADR 0023, ADR 0024, ADR 0025, ADR 0026  
-**Corrective proving package:** `docs/initiatives/ktl-002-measured-learning-boundary-v1.json`  
-**Broader work package:** `docs/initiatives/ktl-001-leverage-and-learning-v1.json` subject to `docs/initiatives/README.md`
+**Status:** Ratified design input with corrected executable packaging
+**Owner:** Jacob
+**Sources:** issue #354 formal red-team review; issue #346 Chat trust reset; issue #353 Product Studio
+**Architecture:** ADR 0017, ADR 0023, ADR 0024, ADR 0025, ADR 0026
+**Corrective proving package:** `docs/initiatives/ktl-002-measured-learning-boundary-v1.json`
+**Retired planning history:** `docs/initiatives/retired/ktl-001-leverage-and-learning-v1.json.retired`
 
 ## Purpose
 
@@ -54,13 +54,13 @@ review builder  independently review output without taking implementation owners
 session end     preserve evidence, measure KB use, update continuity, then stop
 ```
 
-The first three workflow packets in
-`ktl-001-leverage-and-learning-v1.json` were authored before this correction and
-must not be applied as the current boundary. The corrective proving package is
+The first three workflow packets in the retired KTL-001 planning record were
+authored before this correction and cannot be applied as the current boundary.
+The corrective proving package is
 `ktl-002-measured-learning-boundary-v1.json`. The remaining independent reuse,
 evidence, capability, Product Studio, Agent Canvas, model-bench, and
 Mission-projection concepts remain inputs and must have their dependencies
-reconciled before application.
+reconciled into a new manifest before application.
 
 ## Current parallel work — do not duplicate
 

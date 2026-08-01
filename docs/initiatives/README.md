@@ -6,11 +6,11 @@ only in Builder's supported projection and durable store.
 
 ## 2026-08-01 workflow-boundary correction
 
-Do **not** apply `ktl-001-leverage-and-learning-v1.json` as a whole and do not
-use its first three workflow packets as the current interactive/Builder
-contract. Its manifest title and description carry the same quarantine marker so
-the unsafe boundary cannot be mistaken for the current approved contract when
-the JSON is viewed directly.
+`retired/ktl-001-leverage-and-learning-v1.json.retired` is retained planning
+history, not an active Builder manifest. It is deliberately outside the active
+manifest set and wrapped in a retired-record envelope, so Builder validation or
+application fails closed. Do not recreate or apply its first three workflow
+packets as the current interactive/Builder contract.
 
 The obsolete packets are:
 
@@ -42,9 +42,9 @@ It establishes:
 
 The independent reuse, Chat verification, friction capture, capability,
 Product Studio, Agent Canvas, model-bench, and Mission-projection packets in the
-older KTL manifest remain planning inputs. Their dependency IDs must be
-reconciled before that manifest is applied or revised. Never apply both versions
-as though their boundary packets were independent work.
+retired KTL-001 record remain planning inputs. Their dependency IDs must be
+reconciled into a new active manifest before any execution work is considered.
+Never apply the retired record or treat its boundary packets as independent work.
 
 Validate a manifest before applying it:
 

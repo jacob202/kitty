@@ -1,4 +1,5 @@
 import json
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -199,3 +200,9 @@ def test_summary_accepts_window_days_after_subcommand() -> None:
     args = kb.build_parser().parse_args(["summary", "--window-days", "14"])
 
     assert args.window_days == 14
+
+
+@pytest.mark.parametrize("cost", [math.nan, math.inf, -math.inf])
+def test_non_finite_cost_fails_before_receipt_serialization(cost: float) -> None:
+    with pytest.raises(kb.ReceiptError, match="estimated_cost_usd"):
+        kb.validate_payload(payload(estimated_cost_usd=cost), now=NOW)

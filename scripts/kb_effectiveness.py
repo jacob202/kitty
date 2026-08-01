@@ -13,6 +13,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import math
 import statistics
 import sys
 from collections import Counter
@@ -219,7 +220,7 @@ def validate_payload(payload: Any, *, now: datetime | None = None) -> dict[str, 
     if estimated_cost is not None:
         if isinstance(estimated_cost, bool) or not isinstance(
             estimated_cost, (int, float)
-        ) or estimated_cost < 0:
+        ) or not math.isfinite(estimated_cost) or estimated_cost < 0:
             raise ReceiptError(
                 "estimated_cost_usd must be null or a non-negative number"
             )
@@ -258,7 +259,11 @@ def validate_payload(payload: Any, *, now: datetime | None = None) -> dict[str, 
 
 def _canonical_bytes(payload: dict[str, Any]) -> bytes:
     return json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
     ).encode("utf-8")
 
 
@@ -419,7 +424,12 @@ def record_receipt(
             }
             stored["chain_hash"] = _chain_hash(stored)
             handle.seek(0, 2)
-            handle.write(json.dumps(stored, sort_keys=True, ensure_ascii=False) + "\n")
+            handle.write(
+                json.dumps(
+                    stored, sort_keys=True, ensure_ascii=False, allow_nan=False
+                )
+                + "\n"
+            )
         finally:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
     return {"created": True, "path": str(store.path), **stored}

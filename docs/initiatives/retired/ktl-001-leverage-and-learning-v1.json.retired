@@ -1,4 +1,9 @@
 {
+  "retired_record_version": 1,
+  "status": "retired_non_applicable_planning_history",
+  "retired_at": "2026-08-01",
+  "reason": "KTL-001 assumed that bare interactive next could select Builder work. Its concepts are retained as planning history, but this record is not a Builder manifest and must not be validated or applied.",
+  "original_manifest": {
   "manifest_version": 1,
   "initiative_id": "ktl-001-leverage-and-learning-v1",
   "title": "KTL-001: Partially quarantined reuse-first planning input",
@@ -364,4 +369,5 @@
       ]
     }
   ]
+  }
 }
