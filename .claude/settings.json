@@ -44,6 +44,15 @@
             "command": "bash .claude/hooks/warn-large-files.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/build-it-hook.sh evidence-lint.py"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -87,8 +96,20 @@
             "command": "bash .claude/hooks/session-stop.sh"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/build-it-hook.sh turn-end-gate.py"
+          }
+        ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "build-it@build-it": true,
+    "fable-mode@fable-mode": true
   },
   "extraKnownMarketplaces": {
     "build-it": {
@@ -96,12 +117,15 @@
         "source": "github",
         "repo": "DevOtts/build-it"
       }
+    },
+    "fable-mode": {
+      "source": {
+        "source": "github",
+        "repo": "fabdelgado/fable-mode"
+      }
     }
   },
   "sessionStart": "python3.11 -m pytest tests/ -q --tb=line 2>/dev/null | tail -1 || true",
   "autoSave": true,
-  "terminalIntegration": true,
-  "enabledPlugins": {
-    "build-it@build-it": true
-  }
+  "terminalIntegration": true
 }
