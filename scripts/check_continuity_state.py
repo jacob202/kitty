@@ -12,6 +12,8 @@ Environment overrides (for CI runners whose checkout does not live under
   the checkout. When set, ``repo:canonical_checkout`` compares against this
   instead of the default ``~/Projects/kitty``.
 """
+from __future__ import annotations
+
 import argparse
 import json
 import os
