@@ -8,23 +8,43 @@ Status vocabulary: `NOT STARTED`, `IN PROGRESS`, `IMPLEMENTED-NOT-VERIFIED`,
 
 ## Slice 0 — Restore dependency resolution · VERIFIED
 
-- **Branch/PR:** `claude/kitty-stabilization-fbydi0`
-- **Owner:** this session
+- **Branch/PR:** `claude/kitty-stabilization-fbydi0` → **PR #339, merged
+  2026-08-01** as `8c58f52`
+- **Owner:** completed
 - **Change:** `requirements.txt` openai pin → `>=1.90.0,<1.110.0`; repair
-  schema-invalid `.claude/STATE.md` and `.claude/HANDOFF.md` metadata
-- **Evidence:** `docs/mission/evidence.md` E1–E4
-- **Blocks:** everything
+  schema-invalid `.claude/STATE.md` and `.claude/HANDOFF.md` metadata;
+  unstale `test_kitty_launcher_runtime`
+- **Evidence:** `docs/mission/evidence.md` E1–E6b. Confirmed closed: `tests.yml`
+  run 1145 on `origin/main` @ `8c58f52` completed `success`
+  (2026-08-01T05:46:08Z), ending the 8-commit red streak.
+- **Blocks:** nothing further
 
-## Slice 0b — Dependabot resolvability gate · NOT STARTED
+## Slice 0b — Enforce required checks on `main` · BLOCKED (needs Jacob)
 
-- **Depends on:** slice 0 merged
-- **Why:** a Dependabot bump reddened main for 8 commits because the
-  guardrails exemption let it skip the tests gate
-- **Change:** add a `pip install -r requirements.txt` resolvability step to
-  `.github/workflows/pr-risk-guardrails.yml`, required for dependency PRs
-- **Acceptance:** open a PR raising `openai` above mem0ai's ceiling; the gate
-  must fail it. Confirmed by a red check on a deliberately-bad branch.
-- **Local-testable:** yes (CI only, no runtime)
+**The original plan for this slice was wrong and has been replaced. Read this
+before acting on any older description of it.**
+
+- **Original plan:** add a `pip install -r requirements.txt` resolvability gate
+  to `pr-risk-guardrails.yml`, on the theory that the Dependabot guardrail
+  exemption let the bad bump skip the tests gate.
+- **Why that was wrong:** it did not skip anything. PR #322 ran `pytest` and it
+  **failed** (job 91080470314, 2026-07-31T05:25:32Z), alongside four other red
+  checks. The PR was merged 11 hours later at 16:41 with every one of those
+  still red. A resolvability gate would have produced one more red check that
+  could be merged past exactly as easily. See `failures.md` F7.
+- **Actual root cause:** `main` has no enforced required status checks, so a
+  red PR is mergeable. Six Dependabot PRs were merged in a 4.5-minute window
+  (16:40:42 → 16:45:03) and main was red for the next 8 commits.
+- **Correct change:** enable branch protection on `main` requiring `pytest`,
+  `lint`, `typecheck`, `hygiene`, `kitty-chat` and `browser-smoke` to pass
+  before merge. This is a repository settings change needing admin rights, not
+  a workflow file — an agent cannot and should not do it.
+- **Acceptance:** open a PR with a deliberately failing test; confirm the merge
+  button is blocked rather than merely red.
+- **Note:** `docs/reference/PREVENTION_MECHANISMS.md` already *defines* a
+  red-main freeze and Gate 0.7 marks it COMPLETE. Defined is not enforced —
+  the same specced-versus-built gap that made Gate 0.1's claim false.
+- **Local-testable:** no. Requires repo admin.
 
 ## Slice 0c — Remove dead `stop_owned_listener` · NOT STARTED
 
