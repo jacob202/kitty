@@ -175,7 +175,11 @@ test.beforeEach(async ({ page }) => {
   resetPersistence();
   await page.addInitScript(() => {
     window.localStorage.setItem('kitty-onboarded', 'true');
-    window.localStorage.removeItem('kitty-active-chat-id');
+    const cleared = sessionStorage.getItem('__test_cleared_kitty_active');
+    if (!cleared) {
+      window.localStorage.removeItem('kitty-active-chat-id');
+      sessionStorage.setItem('__test_cleared_kitty_active', '1');
+    }
   });
 });
 
