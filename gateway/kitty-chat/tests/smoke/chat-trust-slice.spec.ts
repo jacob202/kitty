@@ -175,7 +175,6 @@ test.beforeEach(async ({ page }) => {
   resetPersistence();
   await page.addInitScript(() => {
     window.localStorage.setItem('kitty-onboarded', 'true');
-    window.localStorage.removeItem('kitty-active-chat-id');
   });
 });
 
@@ -189,11 +188,16 @@ async function enterChatThread(page: Page) {
   return composer;
 }
 
+async function clearActiveChat(page: Page) {
+  await page.evaluate(() => window.localStorage.removeItem('kitty-active-chat-id'));
+}
+
 test.describe('Chat Trust Slice 3 — phone', () => {
   test.use(MOBILE);
 
   test('send → stream → persist → reload restores identical content', async ({ page }) => {
     await stubGateway(page);
+    await clearActiveChat(page);
 
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
@@ -233,23 +237,14 @@ test.describe('Chat Trust Slice 3 — phone', () => {
     // Wait for persistence to complete before reloading (saveState → 'saved')
     await page.waitForTimeout(2000);
 
-    // Preserve the active chat id before reload so we can restore it
-    const activeChatId = await page.evaluate(() => window.localStorage.getItem('kitty-active-chat-id'));
-
     // Reload
     await page.reload();
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
 
-    // Restore the active chat id (the init script clears it on every load)
-    if (activeChatId) {
-      await page.evaluate((id) => window.localStorage.setItem('kitty-active-chat-id', id), activeChatId);
-      await page.reload();
-      await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
-    }
-
-    // Navigate back to chat
+    // Navigate back to chat — app restores active chat from localStorage
     await page.getByRole('button', { name: /^chat$/i }).first().click();
-    await page.waitForTimeout(1000);
+    // Allow async chat loading and message fetch to complete
+    await page.waitForTimeout(2000);
 
     // Verify same content restoration
     const messagesAfterReload = await page.locator('.msg-in').allTextContents();
@@ -262,6 +257,7 @@ test.describe('Chat Trust Slice 3 — phone', () => {
 
   test('stream failure shows recovery action and retry succeeds', async ({ page }) => {
     await stubGateway(page, { failAfterChunks: 1 });
+    await clearActiveChat(page);
 
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
@@ -306,6 +302,7 @@ test.describe('Chat Trust Slice 3 — phone', () => {
 
   test('retry does not duplicate user message', async ({ page }) => {
     await stubGateway(page, { failAfterChunks: 1 });
+    await clearActiveChat(page);
 
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
@@ -359,6 +356,7 @@ test.describe('Chat Trust Slice 3 — phone', () => {
 test.describe('Chat Trust Slice 3 — desktop regression', () => {
   test('chat loads and send is accessible on desktop', async ({ page }) => {
     await stubGateway(page);
+    await clearActiveChat(page);
 
     const errors: string[] = [];
     page.on('pageerror', (err) => errors.push(err.message));
