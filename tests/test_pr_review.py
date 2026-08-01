@@ -1,3 +1,5 @@
+import pytest
+
 from scripts import pr_review
 
 
@@ -33,3 +35,12 @@ def test_prompt_requires_concrete_findings_and_exact_empty_result() -> None:
     assert "name the changed file" in pr_review.SYSTEM_PROMPT
     assert "specific failure mode" in pr_review.SYSTEM_PROMPT
     assert pr_review.NO_FINDINGS in pr_review.SYSTEM_PROMPT
+
+
+def test_upsert_review_fails_loud_without_github_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        pr_review.upsert_review("review", 1, "owner", "repo", "abc")
+
+    assert exc.value.code == 1
