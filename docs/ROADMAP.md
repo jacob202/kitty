@@ -53,9 +53,14 @@ and establish one truthful planning surface before any feature work proceeds.
 0.2 **Repair PR automation**
 - Labeler v5 schema, PR description comment permissions, risk-guardrails
   Dependabot exemption, pr-review-routing deletion.
-- Verified: merged via #327 and #330. All five automation gates produce
-  `success` on current PRs.
-- Status: COMPLETE.
+- Verified: merged via #327 and #330.
+- The "all five automation gates produce `success`" claim was measured against
+  human PRs only and was false for Dependabot: `check-description` had no
+  Dependabot waiver, so it failed on every open dependency PR (#314-320) while
+  `pr-risk-guardrails.yml` had carried one since #327. Waiver added to
+  `pr-description-check.yml`, matching the sibling gate's exact-login test.
+- Status: COMPLETE. Re-measure this on a Dependabot PR, not a human one — the
+  two gates disagreed for a week because only human PRs were checked.
 
 0.3 **Reconcile open PR queue**
 - Resolved overlap between #330 (test fix) and #306 (RunPod): merged #330,

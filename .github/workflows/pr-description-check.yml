@@ -24,6 +24,18 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.payload.pull_request.number,
             });
+            // Dependabot writes its own changelog-shaped body and cannot be
+            // told to emit `## Summary` / `## Test plan`, so a hard failure
+            // here pins every dependency PR red forever. Same waiver, same
+            // reasoning, and the same exact-login match as the risk-guardrails
+            // gate — `endsWith("[bot]")` would hand the waiver to Copilot and
+            // any future app opening PRs that carry real code.
+            const isDependabot = pr.user.login === "dependabot[bot]";
+            if (isDependabot) {
+              core.info("Dependabot PR — description gate waived, not enforced.");
+              return;
+            }
+
             const body = pr.body || '';
             const missing = [];
             if (!body.includes('## Summary')) missing.push('`## Summary` section');
