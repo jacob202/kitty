@@ -189,7 +189,9 @@ def ensure_worktree(
     repair loop only: the builder loop has already decided the dirty tree is
     the deliberate continuation of a prior rejected implementation, so
     reusing it does not overwrite anything. The branch check always holds;
-    a wrong-branch tree is never reusable.
+    a wrong-branch tree is never reusable. A nonzero ``git status`` exit is an
+    infrastructure failure and always raises; ``reuse_dirty`` accepts only
+    successful status output that truthfully reports the tree as dirty.
     """
     root = _repo_root(repo_root)
     path = root / ".worktrees" / "kittybuilder" / task_id
@@ -214,7 +216,12 @@ def ensure_worktree(
             ],
             cwd=path,
         )
-        if status.returncode != 0 or status.stdout.strip():
+        if status.returncode != 0:
+            detail = status.stderr.strip() or status.stdout.strip() or "no output"
+            raise RunnerError(
+                f"git status failed in {path} (exit {status.returncode}): {detail}"
+            )
+        if status.stdout.strip():
             if reuse_dirty:
                 return path
             raise RunnerError(
@@ -401,6 +408,19 @@ def worktree_head(path: Path) -> str:
 def worktree_diff_sha256(path: Path, start_sha: str) -> str:
     """Return the stable digest used to bind reviewer evidence to a diff."""
     return _diff_sha256(path, start_sha)
+
+
+def worktree_changed_paths(path: Path, start_sha: str) -> list[str]:
+    """Return every path changed since *start_sha* (committed, staged, dirty).
+
+    The packet-cumulative counterpart to ``run_worker``'s per-run
+    ``changed_paths``, which is measured from the retry-local HEAD at run
+    start. Callers that own a durable base SHA (the builder loop's review and
+    final-success evidence) use this so the final state binds to the packet
+    base rather than only the latest retry's delta, while the per-attempt
+    delta stays in each run record.
+    """
+    return _changed_paths(path, start_sha)
 
 
 # Residue every attempt may legitimately touch outside its allowlist (repo

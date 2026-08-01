@@ -92,17 +92,25 @@ while the supervisor lives — lacks that step, so it deadlocks on the dirty tre
 
 **Fix (this PR):** in `run_packet`, the loop decides the next attempt's worktree
 disposition from the previous attempt **before** anything is durably opened. Only
-a retry whose prior worker execution genuinely crashed or was interrupted (any
-run that did not exit cleanly) archives the partial worktree into the failed
-attempt's artifact dir (`crashed-worktree.patch` + `crashed-worktree-status.txt`)
-and resets, mirroring P027. A deterministic-validation failure or reviewer
-`request_changes` arrives after a cleanly-exited worker run and is the repair
-loop's input: the existing implementation is preserved in the worktree, which the
+an explicitly repairable previous outcome — deterministic validation failure or a
+clean reviewer `request_changes` verdict, where the post-worker tree is still
+bound to the worker result — keeps its dirty worktree as repair input, which the
 next attempt deliberately reuses (`ensure_worktree`/`run_worker` `reuse_dirty`
-opt-in, default fail-closed) to repair on top of it. Because the reset runs
-before the replacement attempt is claimed, a reset failure cannot strand an
-attempt or lease; the real error is recorded durably and the partial work stays
-inspectable.
+opt-in, default fail-closed). Anything else — a worker that crashed/was
+interrupted mid-execution, or a review execution/mutation/evidence-integrity
+failure — archives the tree into the failed attempt's artifact dir
+(`crashed-worktree.patch` + `crashed-worktree-status.txt`) and resets so the next
+attempt starts clean and inherits nothing. Because the reset runs before the
+replacement attempt is claimed, a reset failure cannot strand an attempt or
+lease; the real error is recorded durably and the partial work stays inspectable.
+`ensure_worktree` treats a nonzero `git status` exit as infrastructure failure
+and always raises, accepting a dirty tree only under the explicit reuse flag.
+
+Final review/evidence is cumulative from the packet's durable `base_sha`: the
+reviewer is bound (and the successful final-state report records) every path
+changed since the packet base — including implementation retained and committed
+on an earlier repair attempt — while each attempt's own run record keeps its
+retry-local delta separately.
 
 **Regression tests** in `tests/test_builder_loop.py::TestNoStaleArtifactReuse`:
 - `test_worker_self_crash_on_first_attempt_recovers_in_loop` — worker SIGKILLs
@@ -118,6 +126,16 @@ inspectable.
   clean-retry reset to fail and asserts no second attempt, no stranded lease, a
   durable budget-neutral `infrastructure_failed` event, and the partial work
   still present in the dirty worktree.
+- `test_final_review_and_report_are_cumulative_from_base_sha` — attempt 1
+  commits file A and fails validation; attempt 2 repairs only file B; the final
+  review context and the final report's cumulative evidence include both A and
+  B, while attempt 2's own run record keeps just the B delta.
+- `test_reviewer_mutation_is_not_passed_to_next_worker` — the reviewer writes
+  into an allowed path and exits nonzero; the tainted tree is archived and the
+  next worker starts clean (no inherited mutation).
+- `test_reuse_dirty_accepts_truthful_dirty` / `test_reuse_dirty_still_raises_on_status_failure`
+  (runner) — `reuse_dirty` accepts a truthfully-dirty tree but a failed `git
+  status` always raises.
 
 **End-to-end verification (real CLI, post-fix):** fresh packet
 `AUDIT-INIT-09/P9-SELFCRASH` with `crash_once_worker.py`:
@@ -198,23 +216,28 @@ attempt_review_recorded → attempt_closed`.
 
 ## Files changed in this PR
 
-- `gateway/builder_loop.py` — per-attempt worktree disposition: archive + reset
-  only after a genuinely crashed/interrupted worker execution; preserve (reuse)
-  the worktree for validation/review repair retries; run the reset before the
-  replacement attempt is opened (no stranded attempt/lease on failure).
+- `gateway/builder_loop.py` — per-attempt worktree disposition (archive/reset
+  only for non-repairable outcomes; preserve `request_changes`/validation repair
+  input), reset before the replacement attempt is opened (no stranded
+  attempt/lease on failure), repairable-only reuse, and cumulative
+  review/final evidence from the packet `base_sha`.
 - `gateway/builder_runner.py` — `ensure_worktree`/`run_worker` gain a
-  `reuse_dirty` opt-in (default fail-closed) for the loop's deliberate repair
-  reuse of an existing dirty tree on the correct branch.
-- `tests/test_builder_loop.py` — regression tests for BUG-1, repair preservation
-  (validation + `request_changes`), and the no-strand archival-failure path.
+  `reuse_dirty` opt-in (default fail-closed) that never masks a failed `git
+  status`; `worktree_changed_paths` exposes the packet-cumulative change set.
+- `tests/test_builder_loop.py` — regressions for BUG-1, repair preservation
+  (validation + `request_changes`), reviewer-mutation non-inheritance, the
+  no-strand archival-failure path, and cumulative review/report evidence.
+- `tests/test_builder_runner.py` — `reuse_dirty` truthful-dirty acceptance and
+  status-failure focus regressions.
 - `docs/research/kittybuilder-core-runtime-audit-2026-08-01.md` — this report.
 
 ## Verification
 
-- `python3.12 -m pytest tests/test_builder_loop.py -q --tb=short` → **63 passed** (P027 suite intact).
-- Full builder suite `python3.12 -m pytest tests/test_builder_*.py -q --tb=short` → **996 passed, 29 subtests passed**.
-- `ruff check gateway/builder_loop.py gateway/builder_runner.py tests/test_builder_loop.py` → **All checks passed!**
+- `python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_runner.py -q --tb=short` → **116 passed**.
+- Full builder suite `python3.12 -m pytest tests/test_builder_*.py -q --tb=short` → **1000 passed, 29 subtests passed**.
+- `ruff check gateway/builder_loop.py gateway/builder_runner.py tests/test_builder_loop.py tests/test_builder_runner.py` → **All checks passed!**
 - `mypy gateway/builder_loop.py gateway/builder_runner.py` → **Success: no issues found in 2 source files**.
+- `git diff --check` → clean (exit 0).
 - Live CLI end-to-end recovery confirmed (S4a post-fix trace above).
 - Doctors green at end of session.
 

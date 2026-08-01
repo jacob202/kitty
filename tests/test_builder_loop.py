@@ -978,6 +978,157 @@ class TestNoStaleArtifactReuse:
         wt = repo / ".worktrees" / "kittybuilder" / task_id
         assert (wt / "done.txt").read_text().strip() == "partial"
 
+    def test_final_review_and_report_are_cumulative_from_base_sha(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Final review/evidence cover the packet, not only the last retry.
+
+        Attempt 1 creates and commits file A and leaves B broken → validation
+        fails. Attempt 2 repairs only file B. The final review context and the
+        final report's cumulative evidence must include both A and B, while
+        each attempt's own run record keeps its retry-local delta."""
+        task_id = _apply(
+            db_path,
+            allowed_paths=["A.txt", "B.txt", "done.txt"],
+            repo_root=repo,
+        )
+        worker = _script(
+            tmp_path,
+            "cumulative.sh",
+            (
+                "if [ ! -f B.txt ]; then\n"
+                "    echo attempt1 > A.txt\n"
+                "    git add A.txt\n"
+                "    git commit -q -m 'attempt 1: add A [LP-1]'\n"
+                "    echo bad > B.txt\n"
+                f"    cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
+                "    exit 0\n"
+                "fi\n"
+                "echo fixed > B.txt\n"
+                "git add B.txt\n"
+                "git commit -q -m 'attempt 2: repair B [LP-1]'\n"
+                "echo ok > done.txt\n"
+                f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
+            ),
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=worker,
+            review_command=_approve_reviewer(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+        assert [e["outcome"] for e in result["attempts"]] == ["failed", "succeeded"]
+        assert result["attempts"][0]["failure"] == "deterministic validation failed"
+
+        second = result["attempts"][1]
+        attempt_dir = (
+            db_path.parent / "attempts" / task_id / str(second["attempt_id"])
+        )
+        manifest = json.loads((attempt_dir / "run-manifest.json").read_text())
+
+        # Final evidence is cumulative from the packet's durable base_sha.
+        base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+        cumulative = manifest["cumulative"]
+        assert cumulative["base_sha"] == base_sha
+        assert {"A.txt", "B.txt"} <= set(cumulative["changed_paths"])
+
+        # The reviewer was bound to that same cumulative state — a diff that
+        # omitted the retained A would have been a different review binding.
+        review_context = manifest["review_context"]
+        assert {"A.txt", "B.txt"} <= set(review_context["changed_paths"])
+        assert review_context["diff_sha256"] == cumulative["diff_sha256"]
+        review_ctx_file = json.loads(
+            (attempt_dir / "review-context.json").read_text()
+        )
+        assert {"A.txt", "B.txt"} <= set(review_ctx_file["changed_paths"])
+
+        # Per-attempt delta evidence is preserved separately: attempt 2's own
+        # run record covers only the B repair delta, not the retained A.
+        runs = bq.list_runs(task_id=task_id, db_path=db_path)
+        delta = runs[-1]["final_report"]["changed_paths"]
+        assert "B.txt" in delta
+        assert "A.txt" not in delta
+
+    def test_reviewer_mutation_is_not_passed_to_next_worker(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A reviewer that mutates an allowed path and exits nonzero must not
+        feed its mutation to the next worker.
+
+        Attempt 1's implementation passes validation; the reviewer then writes
+        into an allowed path and exits nonzero. That is not a repairable
+        outcome, so the loop archives the tainted tree (evidence) and the next
+        worker starts clean instead of inheriting the mutation."""
+        task_id = _apply(
+            db_path,
+            allowed_paths=["done.txt", "impl.txt"],
+            repo_root=repo,
+        )
+        worker_marker = tmp_path / "worker_ran_once"
+        review_fail_once = tmp_path / "review_failed_once"
+        worker = _script(
+            tmp_path,
+            "post_reviewer_repair.sh",
+            (
+                f"if [ ! -f \"{worker_marker}\" ]; then\n"
+                "    echo v1 > impl.txt\n"
+                "    echo ok > done.txt\n"
+                f"    touch \"{worker_marker}\"\n"
+                f"    cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
+                "    exit 0\n"
+                "fi\n"
+                "# Must not have inherited the reviewer's mutation.\n"
+                "if [ -f impl.txt ] && [ \"$(cat impl.txt)\" = \"poisoned\" ]; then\n"
+                "    exit 2\n"
+                "fi\n"
+                "rm -f impl.txt\n"
+                "echo ok > done.txt\n"
+                f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
+            ),
+        )
+        reviewer = _script(
+            tmp_path,
+            "mutating_reviewer.sh",
+            (
+                f"if [ ! -f \"{review_fail_once}\" ]; then\n"
+                "    echo poisoned > impl.txt\n"
+                f"    touch \"{review_fail_once}\"\n"
+                "    exit 5\n"
+                "fi\n"
+                "cat > \"$KB_REVIEW_RESULT_PATH\" <<'EOF'\n"
+                + json.dumps(
+                    {
+                        "contract_version": 1,
+                        "verdict": "approve",
+                        "summary": "approved after reset",
+                    }
+                )
+                + "\nEOF\n"
+            ),
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=worker,
+            review_command=reviewer,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+        assert [e["outcome"] for e in result["attempts"]] == ["failed", "succeeded"]
+        assert "review command exited" in result["attempts"][0]["failure"]
+
+        # The tainted tree was archived as evidence, so the mutation could not
+        # leak into attempt 2's worker (whose guard would otherwise fail it).
+        first = result["attempts"][0]
+        first_dir = db_path.parent / "attempts" / task_id / str(first["attempt_id"])
+        patch_txt = (first_dir / "crashed-worktree.patch").read_text()
+        assert "poisoned" in patch_txt
+        events = bq.list_events(task_id, db_path=db_path)
+        assert any(
+            e["type"] == "worktree_archived_for_clean_retry"
+            for e in events
+        )
+
 
 # ---------------------------------------------------------------------------
 # P027 — real restart/recovery exercise
