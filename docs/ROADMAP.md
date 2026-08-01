@@ -237,12 +237,26 @@ verifiable results.
 - Failure: any recovery path produces fabricated success or silent loss.
 - Evidence: `docs/research/` or `docs/audit/` as appropriate.
 - Owner: Jacob.
-- Status: PENDING. Induced-failure recovery is now proven live and repeatably
-  by `scripts/builder_recovery_proof.py` — crash, stale lease, out-of-scope
-  debris, interrupted review, and provider exhaustion each report truthfully
-  with no fabricated success, and doctor consistency holds across the run
-  (`docs/research/phase1-1-builder-recovery-proof.md`). The Packet 026/027
-  delta calculation and the operator-completed closeout scenario remain open.
+- Status: PENDING, with one named blocker.
+- Recovery is proven live and repeatably by `scripts/builder_recovery_proof.py`
+  — crash, stale lease, out-of-scope debris, interrupted review, provider
+  exhaustion, operator-completed closeout, and clean completion after all of
+  them, plus doctor consistency across the run. 8/8
+  (`docs/research/phase1-1-builder-recovery-proof.md`).
+- Delta calculated 2026-08-01 against `27deef1`, requirement by requirement
+  against code rather than packet prose
+  (`docs/research/packet-026-027-delta-2026-08-01.md`). Packet 027 is complete.
+  Packet 026 is complete except for one reachability gap.
+- Remaining blocker: the operator-completed closeout is unreachable through
+  `run-packet`, the command Packet 026 tells operators to use. `run-packet`
+  spends the whole attempt budget retrying a failing worker, a review cannot
+  attach to a closed attempt, and `start-attempt` then answers `operator
+  intervention required` — an intervention no CLI verb performs. The workflow
+  itself is sound; only the door is shut. Smallest fix: an operator
+  `grant-attempt` verb that records one further attempt with a reason.
+- This outcome does not close on the recovery evidence alone. Closing it means
+  either landing that verb or deciding the manual four-command path is the
+  supported workflow and correcting Packet 026's demo section to say so.
 
 1.2 **Create executable work for weak/free models**
 - Write at least two real JSON manifest packets meeting

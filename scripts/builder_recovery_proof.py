@@ -137,6 +137,15 @@ class Fixtures:
             f"exit {PROVIDER_EXHAUSTED_EXIT_CODE}\n",
         )
 
+    def failing_worker(self) -> str:
+        """Exits non-zero without a result — a plain worker failure."""
+        return self._write(
+            "worker_failing.sh",
+            "#!/usr/bin/env bash\n"
+            'echo "worker could not implement the packet" >&2\n'
+            "exit 1\n",
+        )
+
     def crashing_reviewer(self) -> str:
         return self._write(
             "reviewer_crash.sh",
@@ -180,6 +189,7 @@ class RecoveryProof:
         self.initiative_id = f"phase1-1-recovery-proof-{self.run_suffix}"
         self.scenarios: list[Scenario] = []
         self.task_ids: dict[str, str] = {}
+        self.workdir = Path(".")
         self.baseline_doctor: dict[str, Any] = {}
         self.final_doctor: dict[str, Any] = {}
         self.head_sha = subprocess.run(
@@ -473,6 +483,177 @@ class RecoveryProof:
         )
         return s
 
+    def scenario_operator_closeout(self, fx: Fixtures) -> Scenario:
+        """Packet 026's untested acceptance criterion, exercised end to end.
+
+        A worker failure, then an operator completion, then an independent
+        review approval must render as three separate facts. The failure mode
+        this guards against is the rollup quietly reporting a worker success
+        that never happened.
+        """
+        s = Scenario(
+            self.pid("RP-07-operator-closeout-proto"),
+            "Worker failure, operator completion, independent review",
+        )
+        task_id = self.task_ids[s.packet_id]
+
+        # Deliberately NOT run_packet: its repair loop retries a failing worker
+        # until the budget is gone, which leaves no attempt for the operator.
+        # Driving the attempts by hand is the only way to reach this workflow.
+        worker_attempt = kitty_json(
+            "builder", "initiative", "start-attempt",
+            self.initiative_id, s.packet_id, "--json",
+        )
+        worker_attempt_id = worker_attempt.get("attempt_id") or worker_attempt.get("id")
+        worker_result = self.workdir / "worker_failed.json"
+        worker_result.write_text(
+            json.dumps(
+                {
+                    "contract_version": 1,
+                    "status": "failed",
+                    "summary": "worker could not implement the packet",
+                    "diff_summary": "",
+                    "validation": {"passed": False, "output": "not attempted"},
+                    "claims": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        kitty(
+            "builder", "initiative", "record-implementation", str(worker_attempt_id),
+            "--file", str(worker_result), "--json",
+        )
+        kitty(
+            "builder", "initiative", "close-attempt", str(worker_attempt_id), "failed",
+            "--json",
+        )
+        after_failure = self.packet_status(s.packet_id)
+
+        # The operator supplies the completion and says so on the record; the
+        # `operator: true` flag on report_attached is what separates this from
+        # a worker's own result.
+        report = self.workdir / "operator_report.json"
+        report.write_text(
+            json.dumps(
+                {
+                    "outcome": "completed",
+                    "summary": "operator completed the packet by hand after the worker failed",
+                    "completion_sha": self.head_sha,
+                }
+            ),
+            encoding="utf-8",
+        )
+        kitty(
+            "builder", "queue", "attach-report", task_id,
+            "--report-file", str(report),
+            "--operator-reason", "recovery proof: operator-completed closeout",
+            "--json",
+            check=False,
+        )
+
+        # A review cannot be attached to a closed attempt, and the worker's
+        # attempt closed when it failed — so the operator's work needs an
+        # attempt of its own. This is the only supported shape, and it only
+        # works while the packet still has budget.
+        opened = kitty_json(
+            "builder", "initiative", "start-attempt",
+            self.initiative_id, s.packet_id, "--json",
+            check=False,
+        )
+        attempt_id = opened.get("attempt_id") or opened.get("id")
+
+        implementation = self.workdir / "operator_implementation.json"
+        implementation.write_text(
+            json.dumps(
+                {
+                    "contract_version": 1,
+                    "status": "completed",
+                    "summary": "operator completed the packet by hand",
+                    "diff_summary": "data/recovery_proof/rp07.txt",
+                    "validation": {"passed": True, "output": "operator verified"},
+                    "claims": ["operator wrote data/recovery_proof/rp07.txt"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        kitty(
+            "builder", "initiative", "record-implementation", str(attempt_id),
+            "--file", str(implementation), "--json",
+            check=False,
+        )
+
+        review = self.workdir / "review_approve.json"
+        review.write_text(
+            json.dumps(
+                {
+                    "contract_version": 1,
+                    "verdict": "approve",
+                    "summary": "independent reviewer approved the operator's completion",
+                    "findings": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        review_result = kitty(
+            "builder", "initiative", "record-review", str(attempt_id),
+            "--file", str(review), "--json",
+            check=False,
+        )
+        kitty(
+            "builder", "initiative", "close-attempt", str(attempt_id), "succeeded",
+            "--json",
+            check=False,
+        )
+        final = self.packet_status(s.packet_id)
+
+        s.evidence = {
+            "worker_attempt_id": worker_attempt_id,
+            "operator_attempt_id": attempt_id,
+            "worker_failed_after_failure": after_failure.get("worker_failed"),
+            "record_review_exit": review_result.returncode,
+            "final": {
+                key: final.get(key)
+                for key in (
+                    "worker_failed", "operator_completed", "review_approved",
+                    "review_verdict", "operator_action", "attempts_used",
+                    "attempt_outcomes", "done",
+                )
+            },
+        }
+        s.check(
+            "the worker failure is recorded, not overwritten by the operator",
+            final.get("worker_failed") is True,
+            final.get("worker_failed"),
+        )
+        s.check(
+            "the operator completion is recorded as an operator action",
+            final.get("operator_completed") is True,
+            final.get("operator_action"),
+        )
+        s.check(
+            "the independent review approval is recorded",
+            final.get("review_approved") is True,
+            final.get("review_verdict"),
+        )
+        s.check(
+            "all three facts render together, with no fabricated worker success",
+            final.get("worker_failed") is True
+            and final.get("operator_completed") is True
+            and final.get("review_approved") is True,
+            [
+                final.get("worker_failed"),
+                final.get("operator_completed"),
+                final.get("review_approved"),
+            ],
+        )
+        s.check(
+            "the operator's completion is not reported as a worker success",
+            final.get("worker_failed") is True
+            and "succeeded" not in (final.get("attempt_outcomes") or [])[:1],
+            final.get("attempt_outcomes"),
+        )
+        return s
+
     def scenario_clean_completion(self, fx: Fixtures) -> Scenario:
         s = Scenario(
             self.pid("RP-06-clean-completion-proto"),
@@ -503,7 +684,7 @@ class RecoveryProof:
 
     def run(self) -> bool:
         with tempfile.TemporaryDirectory(prefix="kb-recovery-proof-") as tmp:
-            workdir = Path(tmp)
+            workdir = self.workdir = Path(tmp)
             fx = Fixtures(workdir)
             self.baseline_doctor = self.doctor()
             self.apply_manifest(workdir)
@@ -514,6 +695,7 @@ class RecoveryProof:
                 self.scenario_dirty_worktree(fx),
                 self.scenario_interrupted_review(fx),
                 self.scenario_provider_exhausted(fx),
+                self.scenario_operator_closeout(fx),
                 self.scenario_clean_completion(fx),
             ]
             self.final_doctor = self.doctor()
