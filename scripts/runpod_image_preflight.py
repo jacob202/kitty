@@ -10,8 +10,9 @@ Runs the exact GHCR image that RunPod will deploy (by digest), maps port
     failure with status/stage/exit_code/error;
   * the worker module imports and the packaged workflow files exist.
 
-On any broken contract it exits non-zero with the structured evidence, so
-the paid RunPod run is gated on this exact image having booted.
+On any broken contract it exits non-zero with container state, the Kitty state
+file, and container logs. Paid RunPod execution must remain gated on this exact
+image having booted successfully.
 
 Usage:
   python scripts/runpod_image_preflight.py ghcr.io/jacob202/kitty/comfy-worker@sha256:...
@@ -49,12 +50,45 @@ def _run(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
     return process
 
 
+def _dump_container_diagnostics(container: str) -> None:
+    """Print every local source of container startup evidence."""
+    inspect = _run(
+        ["docker", "inspect", "-f", "{{json .State}}", container], check=False
+    )
+    print(
+        "--- container state ---\n"
+        f"{inspect.stdout.strip()}\n{inspect.stderr.strip()}"
+    )
+
+    state = _run(
+        [
+            "docker",
+            "exec",
+            container,
+            "sh",
+            "-c",
+            "cat ${KITTY_STATE_FILE:-/tmp/kitty-state.json} 2>/dev/null || true",
+        ],
+        check=False,
+    )
+    print(
+        "--- kitty state file ---\n"
+        f"{state.stdout.strip()}\n{state.stderr.strip()}"
+    )
+
+    logs = _run(["docker", "logs", container], check=False)
+    print(
+        "--- container logs ---\n"
+        f"{logs.stdout[-8000:]}\n{logs.stderr[-8000:]}"
+    )
+
+
 def inspect_health_probe() -> str:
     """Python source executed inside the container.
 
-    Polls /health until ready, keeps polling through the expected bootstrap
-    503s, fails immediately on a structured failed body, and prints the final
-    state on timeout.
+    Polls /health until ready, keeps polling through expected bootstrap 503s,
+    fails immediately on a structured failed body, and prints the final state
+    on timeout.
     """
     return r"""
 import json
@@ -91,6 +125,7 @@ raise SystemExit(1)
 
 
 def _wait_health(base_url: str, timeout: int) -> tuple[int, dict]:
+    import urllib.error
     import urllib.request
 
     deadline = time.monotonic() + timeout
@@ -117,14 +152,17 @@ def _wait_health(base_url: str, timeout: int) -> tuple[int, dict]:
 def _assert_ready_contract(container: str, image: str) -> None:
     base_url = "http://127.0.0.1:8000"
     status, state = _wait_health(base_url, HEALTH_TIMEOUT_SECONDS)
-    if status == 200 and state.get("status") == "ready" and state.get("stage") in KNOWN_STAGES:
+    if (
+        status == 200
+        and state.get("status") == "ready"
+        and state.get("stage") in KNOWN_STAGES
+    ):
         print(f"PREFLIGHT_READY stage={state.get('stage')} image={image}")
         return
     print(
         f"PREFLIGHT_FAILED status={status} body={json.dumps(state)} image={image}"
     )
-    logs = _run(["docker", "logs", container], check=False)
-    print(f"--- container logs ---\n{logs.stdout[-4000:]}\n{logs.stderr[-4000:]}")
+    _dump_container_diagnostics(container)
     raise SystemExit(1)
 
 
@@ -138,6 +176,7 @@ def _assert_failure_contract(container: str, image: str, port: int) -> None:
             print(
                 f"PREFLIGHT_FAILURE_INCOMPLETE body={json.dumps(state)} image={image}"
             )
+            _dump_container_diagnostics(container)
             raise SystemExit(1)
         print(
             f"PREFLIGHT_FAILURE_OK stage={state.get('stage')} exit_code={exit_code} "
@@ -148,21 +187,19 @@ def _assert_failure_contract(container: str, image: str, port: int) -> None:
         f"PREFLIGHT_FAILURE_CONTRACT_BROKEN status={status} body={json.dumps(state)} "
         f"image={image}"
     )
+    _dump_container_diagnostics(container)
     raise SystemExit(1)
 
 
 def preflight(image: str) -> None:
     _run(["docker", "pull", image])
 
-    ready_container = (
-        f"kitty-preflight-{secrets.token_hex(4)}"
-    )
+    ready_container = f"kitty-preflight-{secrets.token_hex(4)}"
     _run(
         [
             "docker",
             "run",
             "-d",
-            "--rm",
             "--name",
             ready_container,
             "-p",
@@ -179,70 +216,76 @@ def preflight(image: str) -> None:
         ],
     )
 
-    keeps_running = _run(
-        ["docker", "inspect", "-f", "{{.State.Running}}", ready_container],
-        check=False,
-    )
-    if keeps_running.returncode != 0 or keeps_running.stdout.strip() != "true":
-        print("PREFLIGHT_FAILED container did not remain running")
-        raise SystemExit(1)
-
-    in_container_probe = inspect_health_probe()
-    health = _run(
-        [
-            "docker",
-            "exec",
-            ready_container,
-            "python3",
-            "-c",
-            in_container_probe,
-        ],
-        check=False,
-    )
-    if health.returncode == 2:
-        print(f"PREFLIGHT_FAILED in-container report: {health.stdout.strip()}")
-        raise SystemExit(1)
-    if health.returncode != 0:
-        print(
-            f"PREFLIGHT_FAILED in-container health probe: "
-            f"{health.stdout.strip()}{health.stderr.strip()}"
-        )
-        raise SystemExit(1)
-    print(f"PREFLIGHT_IN_CONTAINER_HEALTH {health.stdout.strip()}")
-
-    imports = _run(
-        [
-            "docker",
-            "exec",
-            ready_container,
-            "python3",
-            "-c",
-            "import workers.comfy_worker.app; print('import-ok')",
-        ],
-        check=False,
-    )
-    if imports.returncode != 0:
-        print(f"PREFLIGHT_FAILED worker import: {imports.stdout}{imports.stderr}")
-        raise SystemExit(1)
-    print(f"PREFLIGHT_IMPORT {imports.stdout.strip()}")
-
-    bundle = _run(
-        [
-            "docker",
-            "exec",
-            ready_container,
-            "sh",
-            "-c",
-            "ls -1 /opt/kitty/workflows/*/workflow-api.json /opt/kitty/workflows/*/manifest.yaml",
-        ],
-        check=False,
-    )
-    if bundle.returncode != 0:
-        print(f"PREFLIGHT_FAILED workflow bundle missing:\n{bundle.stderr}")
-        raise SystemExit(1)
-    print(f"PREFLIGHT_BUNDLE\n{bundle.stdout.strip()}")
-
     try:
+        keeps_running = _run(
+            ["docker", "inspect", "-f", "{{.State.Running}}", ready_container],
+            check=False,
+        )
+        if keeps_running.returncode != 0 or keeps_running.stdout.strip() != "true":
+            print("PREFLIGHT_FAILED container did not remain running")
+            _dump_container_diagnostics(ready_container)
+            raise SystemExit(1)
+
+        in_container_probe = inspect_health_probe()
+        health = _run(
+            [
+                "docker",
+                "exec",
+                ready_container,
+                "python3",
+                "-c",
+                in_container_probe,
+            ],
+            check=False,
+        )
+        if health.returncode == 2:
+            print(f"PREFLIGHT_FAILED in-container report: {health.stdout.strip()}")
+            _dump_container_diagnostics(ready_container)
+            raise SystemExit(1)
+        if health.returncode != 0:
+            print(
+                "PREFLIGHT_FAILED in-container health probe: "
+                f"stdout={health.stdout.strip()!r} stderr={health.stderr.strip()!r} "
+                f"exit={health.returncode}"
+            )
+            _dump_container_diagnostics(ready_container)
+            raise SystemExit(1)
+        print(f"PREFLIGHT_IN_CONTAINER_HEALTH {health.stdout.strip()}")
+
+        imports = _run(
+            [
+                "docker",
+                "exec",
+                ready_container,
+                "python3",
+                "-c",
+                "import workers.comfy_worker.app; print('import-ok')",
+            ],
+            check=False,
+        )
+        if imports.returncode != 0:
+            print(f"PREFLIGHT_FAILED worker import: {imports.stdout}{imports.stderr}")
+            _dump_container_diagnostics(ready_container)
+            raise SystemExit(1)
+        print(f"PREFLIGHT_IMPORT {imports.stdout.strip()}")
+
+        bundle = _run(
+            [
+                "docker",
+                "exec",
+                ready_container,
+                "sh",
+                "-c",
+                "ls -1 /opt/kitty/workflows/*/workflow-api.json /opt/kitty/workflows/*/manifest.yaml",
+            ],
+            check=False,
+        )
+        if bundle.returncode != 0:
+            print(f"PREFLIGHT_FAILED workflow bundle missing:\n{bundle.stderr}")
+            _dump_container_diagnostics(ready_container)
+            raise SystemExit(1)
+        print(f"PREFLIGHT_BUNDLE\n{bundle.stdout.strip()}")
+
         _assert_ready_contract(ready_container, image)
     finally:
         _run(["docker", "rm", "-f", ready_container], check=False)
@@ -253,7 +296,6 @@ def preflight(image: str) -> None:
             "docker",
             "run",
             "-d",
-            "--rm",
             "--name",
             failure_container,
             "-p",
