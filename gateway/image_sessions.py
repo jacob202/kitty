@@ -208,11 +208,13 @@ def _ensure_session_column(conn: Any) -> None:
     Deferred rather than written into the .sql file because ALTER TABLE has no
     IF NOT EXISTS form in SQLite, and the migration must stay re-runnable — the
     same pattern image_jobs._ensure_queue_columns uses.
+
+    Deliberately unguarded: callers reach this only after image_jobs._ensure_db
+    has created the table, so a failing PRAGMA means the schema is broken.
+    Swallowing it would skip the column and surface later as an inscrutable
+    "no such column: session_id" on the first insert.
     """
-    try:
-        cols = {row[1] for row in conn.execute("PRAGMA table_info(image_jobs)").fetchall()}
-    except Exception:
-        return
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(image_jobs)").fetchall()}
     if "session_id" not in cols:
         conn.execute("ALTER TABLE image_jobs ADD COLUMN session_id TEXT")
     conn.execute(
