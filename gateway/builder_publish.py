@@ -256,6 +256,7 @@ def _open_or_update_pr(
             "gh",
             "pr",
             "create",
+            "--draft",
             "--head",
             branch,
             "--base",
