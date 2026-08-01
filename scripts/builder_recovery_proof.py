@@ -548,7 +548,6 @@ class RecoveryProof:
             "--report-file", str(report),
             "--operator-reason", "recovery proof: operator-completed closeout",
             "--json",
-            check=False,
         )
 
         # A review cannot be attached to a closed attempt, and the worker's
@@ -579,7 +578,6 @@ class RecoveryProof:
         kitty(
             "builder", "initiative", "record-implementation", str(attempt_id),
             "--file", str(implementation), "--json",
-            check=False,
         )
 
         review = self.workdir / "review_approve.json"
@@ -602,7 +600,6 @@ class RecoveryProof:
         kitty(
             "builder", "initiative", "close-attempt", str(attempt_id), "succeeded",
             "--json",
-            check=False,
         )
         final = self.packet_status(s.packet_id)
 
@@ -647,9 +644,13 @@ class RecoveryProof:
             ],
         )
         s.check(
-            "the operator's completion is not reported as a worker success",
-            final.get("worker_failed") is True
-            and "succeeded" not in (final.get("attempt_outcomes") or [])[:1],
+            "the review was accepted onto the operator's attempt",
+            review_result.returncode == 0,
+            review_result.stderr.strip() or review_result.returncode,
+        )
+        s.check(
+            "the worker attempt stays failed and only the operator's succeeds",
+            final.get("attempt_outcomes") == ["failed", "succeeded"],
             final.get("attempt_outcomes"),
         )
         return s
