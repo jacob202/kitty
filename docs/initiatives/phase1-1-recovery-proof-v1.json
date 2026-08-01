@@ -1,0 +1,139 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "phase1-1-recovery-proof",
+  "title": "Phase 1.1: Builder recovery proof (induced failures)",
+  "description": "Six one-packet scenarios driven by scripts/builder_recovery_proof.py. Each packet is executed with a deterministic local worker fixture that induces one failure mode: worker crash, stale claim lease, dirty worktree, interrupted review, and provider exhaustion, followed by a clean completion. The harness asserts that Builder records what actually happened without fabricating success. No model provider is contacted and nothing is written outside data/recovery_proof/. The harness rewrites initiative_id with a per-run suffix so each proof run is isolated.",
+  "packets": [
+    {
+      "id": "RP-01-crash-proto",
+      "title": "Worker crash mid-execution",
+      "objective": "Execution class: harness-fixture. Write data/recovery_proof/rp01.txt containing 'rp01 ok'. The harness supplies a worker fixture that writes partial output and then sends itself SIGKILL. Recovery is proven when the attempt is recorded as failed with the real exit signal, the partial work survives in the isolated worktree, and no success is claimed.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The crashed attempt is recorded as failed, never as succeeded",
+        "The recorded exit code is the real kill signal, not a synthesized value",
+        "The partial output written before the crash survives in the isolated worktree"
+      ],
+      "allowed_paths": [
+        "data/recovery_proof/rp01.txt"
+      ],
+      "policy": {
+        "max_attempts": 1,
+        "priority": 10
+      },
+      "validation_commands": [
+        "test -f data/recovery_proof/rp01.txt || { echo 'FAIL: rp01.txt missing'; exit 1; }",
+        "grep -q 'rp01 ok' data/recovery_proof/rp01.txt || { echo 'FAIL: wrong content'; exit 1; }"
+      ]
+    },
+    {
+      "id": "RP-02-stale-lease-proto",
+      "title": "Stale claim lease reconciliation",
+      "objective": "Execution class: harness-fixture. Write data/recovery_proof/rp02.txt containing 'rp02 ok'. Before running the packet the harness claims the task with a lease that is already expired and runs the recovery scan. Recovery is proven when the expired claim returns to queued with an event trail, and the packet then completes normally.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The expired claim is released back to queued by the recovery scan",
+        "The release is recorded as an event rather than silently applied",
+        "The packet completes normally after recovery"
+      ],
+      "allowed_paths": [
+        "data/recovery_proof/rp02.txt"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 9
+      },
+      "validation_commands": [
+        "test -f data/recovery_proof/rp02.txt || { echo 'FAIL: rp02.txt missing'; exit 1; }",
+        "grep -q 'rp02 ok' data/recovery_proof/rp02.txt || { echo 'FAIL: wrong content'; exit 1; }"
+      ]
+    },
+    {
+      "id": "RP-03-dirty-worktree-proto",
+      "title": "Out-of-scope debris is caught and preserved",
+      "objective": "Execution class: harness-fixture. Write data/recovery_proof/rp03.txt containing 'rp03 ok'. The harness supplies a worker fixture that dirties a tracked path outside the packet's allowed paths and exits without writing a result. Recovery is proven when the scope violation is named specifically, the debris is still present after the attempt fails, and the attempt is not reported as successful.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The attempt is recorded as failed and the failure names the out-of-scope change",
+        "The uncommitted debris survives the failed attempt rather than being reverted",
+        "The dirty worktree is reported in the run's worktree state rather than hidden"
+      ],
+      "allowed_paths": [
+        "data/recovery_proof/rp03.txt"
+      ],
+      "policy": {
+        "max_attempts": 1,
+        "priority": 8
+      },
+      "validation_commands": [
+        "test -f data/recovery_proof/rp03.txt || { echo 'FAIL: rp03.txt missing'; exit 1; }",
+        "grep -q 'rp03 ok' data/recovery_proof/rp03.txt || { echo 'FAIL: wrong content'; exit 1; }"
+      ]
+    },
+    {
+      "id": "RP-04-interrupted-review-proto",
+      "title": "Interrupted review does not produce a green attempt",
+      "objective": "Execution class: harness-fixture. Write data/recovery_proof/rp04.txt containing 'rp04 ok'. The harness supplies a completing worker fixture and a reviewer fixture that is killed before it writes a review result. Recovery is proven when implementation, validation, and review remain three separate recorded facts and the attempt is not reported as succeeded.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The attempt records implementation completed and validation passed",
+        "The attempt outcome is failed because the review never completed",
+        "The failure names the review interruption rather than blaming the worker"
+      ],
+      "allowed_paths": [
+        "data/recovery_proof/rp04.txt"
+      ],
+      "policy": {
+        "max_attempts": 1,
+        "priority": 7
+      },
+      "validation_commands": [
+        "test -f data/recovery_proof/rp04.txt || { echo 'FAIL: rp04.txt missing'; exit 1; }",
+        "grep -q 'rp04 ok' data/recovery_proof/rp04.txt || { echo 'FAIL: wrong content'; exit 1; }"
+      ]
+    },
+    {
+      "id": "RP-05-provider-exhausted-proto",
+      "title": "Provider exhaustion is distinguished from worker failure",
+      "objective": "Execution class: harness-fixture. Write data/recovery_proof/rp05.txt containing 'rp05 ok'. The harness supplies a worker fixture that exits 75 without touching the worktree, which is the adapter contract's provider-exhaustion signal. Recovery is proven when Builder reports provider exhaustion rather than a worker failure, leaves the task resumable, and does not consume the implementation budget.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The run outcome is provider_exhausted, not a worker implementation failure",
+        "The task returns to queued so the packet stays resumable",
+        "The exhausted attempt is budget-neutral: the packet is not marked exhausted"
+      ],
+      "allowed_paths": [
+        "data/recovery_proof/rp05.txt"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 6
+      },
+      "validation_commands": [
+        "test -f data/recovery_proof/rp05.txt || { echo 'FAIL: rp05.txt missing'; exit 1; }",
+        "grep -q 'rp05 ok' data/recovery_proof/rp05.txt || { echo 'FAIL: wrong content'; exit 1; }"
+      ]
+    },
+    {
+      "id": "RP-06-clean-completion-proto",
+      "title": "Clean completion after the induced failures",
+      "objective": "Execution class: harness-fixture. Write data/recovery_proof/rp06.txt containing 'rp06 ok'. The harness runs this packet last with a completing worker fixture. The queue is proven healthy when this packet succeeds after all five induced failures and the initiative doctor reports the same consistency as before the failures were induced.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The packet succeeds with implementation completed and validation passed",
+        "Initiative doctor reports no new failures compared with the pre-run baseline"
+      ],
+      "allowed_paths": [
+        "data/recovery_proof/rp06.txt"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 5
+      },
+      "validation_commands": [
+        "test -f data/recovery_proof/rp06.txt || { echo 'FAIL: rp06.txt missing'; exit 1; }",
+        "grep -q 'rp06 ok' data/recovery_proof/rp06.txt || { echo 'FAIL: wrong content'; exit 1; }"
+      ]
+    }
+  ]
+}
