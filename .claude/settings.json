@@ -86,6 +86,14 @@
             "command": "bash .claude/hooks/recall-thread.sh"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/build-it-hook.sh --check"
+          }
+        ]
       }
     ],
     "Stop": [
