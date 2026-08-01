@@ -1,0 +1,32 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kittybuilder-real-agent-smoke-2026-08-01-v1",
+  "title": "Disposable smoke evidence: real-agent delivery proof 2026-08-01",
+  "description": "Disposable evidence task accepted by the operator audit of 2026-08-01. The sole outcome is one research file under docs/research/ recording the real-agent delivery facts. This is a free-model, one-attempt, zero-paid-budget proof. It must never touch production application code or claim success beyond the evidence it records.",
+  "packets": [
+    {
+      "id": "SMOKE-01-create-evidence-file",
+      "title": "Create the real-agent smoke evidence file",
+      "objective": "Execution class: free-exec, single attempt. One outcome only: create the file docs/research/kittybuilder-real-agent-smoke-2026-08-01.md in this worktree, whose content is exactly the sections below, and nothing else beyond minimal markdown headers and a final empty line.\n\nStart by running `git rev-parse HEAD` in the current worktree; the printed 40-character SHA is the exact main SHA this task started from. Write it verbatim as the Starting SHA value. The worktree HEAD does not move between start and finish except for the single commit this task may produce, so recording the start SHA is a factual observation.\n\nRead the packet context bundle to find the task and attempt identity: glob for a file named `.kittybuilder-bundle-*.json` in the worktree root (the context manifest file is named `.kittybuilder-context-*.json`; its `attempt_id` field is the numeric attempt id, and its `bundle_sha256` must match the `sha256` in the `context.task_bundle` object). Record:\n- Task ID: the bundle's `task_id` field\n- Attempt number: the bundle's `attempt_no` field\n- Attempt ID: the context manifest's `attempt_id` field (a positive integer)\n- Worker ID: opencode-free\n\nRecord the model and provider as configured for this dispatch: Model = opencode/deepseek-v4-flash-free, Provider = opencode. These are the exact values of the forced free route for this attempt; do not invent a different model or provider.\n\nWrite the file with these exact field labels and values:\n\n# KittyBuilder real-agent smoke evidence (2026-08-01)\n\nStarting main SHA: <40-char SHA from the first git rev-parse HEAD above>\nProvider: opencode\nModel: opencode/deepseek-v4-flash-free\nInitiative ID: kittybuilder-real-agent-smoke-2026-08-01-v1\nPacket ID: SMOKE-01-create-evidence-file\nTask ID: <bundle task_id>\nAttempt ID: <context manifest attempt_id>\nAttempt number: <bundle attempt_no>\nWorker ID: opencode-free\n\n## What KittyBuilder did\n\nWrite exactly five non-empty lines under this heading, each a single factual sentence describing this delivery only:\n1. An operator dispatched this packet to KittyBuilder as a free-model task with a one-attempt budget and zero paid spend.\n2. KittyBuilder created an isolated git worktree for the task from the recorded starting main SHA and ran the worker inside it.\n3. The free worker authored this file inside that worktree, within the packet's allowed path docs/research/.\n4. The worker committed the file on the task branch with the packet marker in the commit subject.\n5. This file is disposable smoke evidence for the delivery-path audit and makes no claim about merging or production behavior.\n\nThe field lines above and all sentences in the five-line section must be truthful and precise. Do not add invented facts: no PR number, no merge claim, no claim that validation or review passed (they run after the worker finishes), no claim about other machines. Do not edit any file except docs/research/kittybuilder-real-agent-smoke-2026-08-01.md. Do not create directories beyond what exists. Stopping rule: if any of the required source values (rev-parse HEAD output, bundle task_id, attempt_no, context attempt_id) cannot be read, make no changes and fail the attempt.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "docs/research/kittybuilder-real-agent-smoke-2026-08-01.md exists on the task branch only.",
+        "The recorded starting SHA matches git rev-parse HEAD^ (the task branch's parent commit, which is the durable main base the worktree was created from).",
+        "All required fields are present with correct labels: provider opencode, model opencode/deepseek-v4-flash-free, initiative id, packet id, task id, numeric attempt id and attempt number, worker id opencode-free.",
+        "What KittyBuilder did contains exactly five non-empty lines and no invented success claims.",
+        "The deterministic validation command exits 0 on the committed tree and no file outside docs/research/ changed."
+      ],
+      "allowed_paths": [
+        "docs/research/"
+      ],
+      "policy": {
+        "max_attempts": 1,
+        "priority": 10
+      },
+      "validation_commands": [
+        "F=docs/research/kittybuilder-real-agent-smoke-2026-08-01.md; test -f \"$F\" && grep -qF \"$(git rev-parse HEAD^)\" \"$F\" && grep -qF \"Provider: opencode\" \"$F\" && grep -qF \"Model: opencode/deepseek-v4-flash-free\" \"$F\" && grep -qF \"Initiative ID: kittybuilder-real-agent-smoke-2026-08-01-v1\" \"$F\" && grep -qF \"Packet ID: SMOKE-01-create-evidence-file\" \"$F\" && grep -qE \"^Attempt ID: [0-9]+$\" \"$F\"         && grep -qE \"^Attempt number: 1$\" \"$F\" && grep -qF \"Worker ID: opencode-free\" \"$F\" && awk '/^## What KittyBuilder did/{f=1;next} f&&/^## /{exit} f&&NF{c++} END{exit !(c==5)}' \"$F\"",
+        "git diff --check"
+      ]
+    }
+  ]
+}
