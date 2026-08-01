@@ -936,6 +936,55 @@ def run_packet(
 
     history: list[dict[str, Any]] = []
     while True:
+        # Choose this attempt's worktree disposition from the previous attempt
+        # BEFORE anything is durably opened, so a failed cleanup can never
+        # strand a new attempt or its lease (P1-2). A worker that was
+        # genuinely interrupted mid-execution (crash, kill, timeout — anything
+        # short of a cleanly-exited run) leaves only partial garbage: archive
+        # it into the failed attempt's artifact dir as evidence, reset the
+        # tree, and the next attempt starts clean. A deterministic-validation
+        # or reviewer ``request_changes`` rejection arrives after a
+        # cleanly-exited worker run and is the repair loop's *input* — that
+        # worktree is preserved so the next attempt repairs the existing
+        # implementation instead of recreating it from base (P1-1).
+        reuse_dirty_worktree = False
+        if history:
+            prior = history[-1]
+            if prior.get("run_state") == bq.RUN_EXITED:
+                reuse_dirty_worktree = True
+            else:
+                prior_dir = _attempt_dir(task_id, prior["attempt_id"], db_path)
+                try:
+                    worktree_evidence = archive_and_reset_worktree(
+                        worktree_path(task_id, repo_root=repo_root), prior_dir
+                    )
+                except Exception as exc:
+                    _record_infrastructure_failure(
+                        task_id,
+                        reason=(
+                            "clean retry worktree reset failed: "
+                            f"{type(exc).__name__}: {exc}"
+                        ),
+                        phase="clean_retry_worktree",
+                        attempt_id=prior["attempt_id"],
+                        db_path=db_path,
+                    )
+                    raise LoopError(
+                        f"cannot reset worktree for clean retry after attempt "
+                        f"{prior['attempt_no']}: {exc}"
+                    ) from exc
+                if worktree_evidence.get("state") == "archived_and_reset":
+                    bq.append_event(
+                        task_id,
+                        "worktree_archived_for_clean_retry",
+                        payload={
+                            "attempt_id": prior["attempt_id"],
+                            "attempt_no": prior["attempt_no"],
+                            "phase": "clean_retry_worktree",
+                        },
+                        db_path=db_path,
+                    )
+
         try:
             preflight_worktree(task_id, repo_root=repo_root)
         except RunnerError as exc:
@@ -1035,20 +1084,6 @@ def run_packet(
                     "before retry; expected blocked or queued — not retrying"
                 )
 
-            # P027 covers the dead-supervisor path (stale-attempt
-            # reconciliation). A worker that died mid-run while the supervisor
-            # survived closes its attempt as failed and retries in-process —
-            # the same dirty worktree would otherwise trip ensure_worktree's
-            # refusal forever with no supported operator escape. Archive the
-            # partial work into the prior attempt's artifact dir, then reset.
-            if history:
-                prior_dir = _attempt_dir(
-                    task_id, history[-1]["attempt_id"], db_path
-                )
-                archive_and_reset_worktree(
-                    worktree_path(task_id, repo_root=repo_root), prior_dir
-                )
-
         attempt_id = attempt["id"]
         entry: dict[str, Any] = {"attempt_id": attempt_id, "attempt_no": attempt["attempt_no"]}
         history.append(entry)
@@ -1129,6 +1164,7 @@ def run_packet(
                     repo_root=repo_root,
                     db_path=db_path,
                     base_sha=base_sha,
+                    reuse_dirty_worktree=reuse_dirty_worktree,
                     extra_env={
                         "KB_ATTEMPT_ID": str(attempt_id),
                         "KB_BUNDLE_PATH": str(bundle_path),

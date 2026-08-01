@@ -50,6 +50,7 @@ def db_path(tmp_path: Path) -> Path:
 
 def _apply(db_path: Path, *, max_attempts: int = 2,
            validation_commands: list[str] | None = None,
+           allowed_paths: list[str] | None = None,
            repo_root: Path | None = None) -> str:
     """Apply a one-packet manifest; returns the packet's task_id."""
     manifest = {
@@ -62,7 +63,8 @@ def _apply(db_path: Path, *, max_attempts: int = 2,
                 "title": "Loop packet",
                 "objective": "Produce done.txt.",
                 "acceptance_criteria": ["done.txt exists"],
-                "allowed_paths": ["done.txt"],
+                "allowed_paths":
+                    allowed_paths if allowed_paths is not None else ["done.txt"],
                 "policy": {"max_attempts": max_attempts},
                 "validation_commands":
                     validation_commands
@@ -784,6 +786,197 @@ class TestNoStaleArtifactReuse:
         runs = bq.list_runs(task_id=task_id, db_path=db_path)
         report = runs[-1]["final_report"]
         assert "done.txt" in report["changed_paths"]
+
+    def test_validation_failure_retry_preserves_implementation(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A deterministic validation rejection is the repair loop's input.
+
+        The worker's implementation stays in the worktree for the next
+        attempt to repair on top of; it is never archived and reset (P1-1).
+        The retry worker asserts the retained file still exists, then
+        finalizes — if the loop had reset the tree, the retry fails and the
+        loop exhausts instead of succeeding."""
+        task_id = _apply(
+            db_path,
+            allowed_paths=["done.txt", "impl.txt"],
+            repo_root=repo,
+        )
+        worker = _script(
+            tmp_path,
+            "repair_validation.sh",
+            (
+                # Attempt 1: write the implementation, skip the done marker
+                # so deterministic validation rejects it.
+                "if [ ! -f impl.txt ]; then\n"
+                "    echo v1 > impl.txt\n"
+                f"    cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
+                "    exit 0\n"
+                "fi\n"
+                # Attempt 2 (repair): the implementation must still be where
+                # attempt 1 left it. A reset would make this exit 2 → FAILED.
+                "if [ \"$(cat impl.txt)\" != \"v1\" ]; then\n"
+                "    exit 2\n"
+                "fi\n"
+                "rm impl.txt\n"
+                "echo ok > done.txt\n"
+                f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
+            ),
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=worker,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+        assert [e["outcome"] for e in result["attempts"]] == ["failed", "succeeded"]
+        assert result["attempts"][0]["failure"] == "deterministic validation failed"
+        # Neither attempt archived/reset the tree: no crash patch, no archive
+        # event. Retention is what let attempt 2 succeed.
+        first_id = result["attempts"][0]["attempt_id"]
+        attempt_dir = db_path.parent / "attempts" / task_id / str(first_id)
+        assert not (attempt_dir / "crashed-worktree.patch").exists()
+        events = bq.list_events(task_id, db_path=db_path)
+        assert not [
+            e for e in events if e["type"] == "worktree_archived_for_clean_retry"
+        ]
+
+    def test_request_changes_retry_preserves_implementation(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A reviewer ``request_changes`` verdict is repair-loop input too.
+
+        The implementation that already satisfied validation stays in the
+        worktree for the next attempt instead of being archived and reset.
+        The reviewer rejects attempt 1 (implementation present) and approves
+        attempt 2 (after the repair worker finalized)."""
+        task_id = _apply(
+            db_path,
+            allowed_paths=["done.txt", "impl.txt"],
+            repo_root=repo,
+        )
+        worker = _script(
+            tmp_path,
+            "repair_review.sh",
+            (
+                "if [ ! -f impl.txt ]; then\n"
+                "    echo v1 > impl.txt\n"
+                "    echo ok > done.txt\n"
+                f"    cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
+                "    exit 0\n"
+                "fi\n"
+                "if [ \"$(cat impl.txt)\" != \"v1\" ]; then\n"
+                "    exit 2\n"
+                "fi\n"
+                "rm impl.txt\n"
+                "echo ok > done.txt\n"
+                f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
+            ),
+        )
+        reviewer = _script(
+            tmp_path,
+            "request_changes_then_approve.sh",
+            (
+                "# cwd is the task worktree: attempt 1 still has the worker's\n"
+                "# impl.txt, so reject; attempt 2 finalized it, so approve.\n"
+                "\n"
+                "if [ -f impl.txt ]; then verdict=request_changes; else verdict=approve; fi\n"
+                "\n"
+                # Unquoted heredoc so $verdict expands at runtime.
+                "cat > \"$KB_REVIEW_RESULT_PATH\" <<EOF\n"
+                "{\"contract_version\": 1, \"verdict\": \"$verdict\", \"summary\": \"auto\"}\n"
+                "EOF\n"
+            ),
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=worker,
+            review_command=reviewer,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+        assert [e["outcome"] for e in result["attempts"]] == ["failed", "succeeded"]
+        assert "request_changes" in result["attempts"][0]["failure"]
+        first_id = result["attempts"][0]["attempt_id"]
+        attempt_dir = db_path.parent / "attempts" / task_id / str(first_id)
+        assert not (attempt_dir / "crashed-worktree.patch").exists()
+        events = bq.list_events(task_id, db_path=db_path)
+        assert not [
+            e for e in events if e["type"] == "worktree_archived_for_clean_retry"
+        ]
+
+    def test_archival_failure_does_not_strand_attempt_or_lease(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A failed clean-retry archive must never leave the door open.
+
+        The archive/reset runs before the replacement attempt is opened, so
+        when it fails no new attempt exists, no lease is stranded, the real
+        error is recorded durably, and the crashed worker's partial work is
+        still inspectable in place."""
+        task_id = _apply(db_path, max_attempts=2, repo_root=repo)
+        marker = tmp_path / "crash_once"
+        worker = _script(
+            tmp_path,
+            "selfcrash.sh",
+            (
+                f"if [ ! -f \"{marker}\" ]; then\n"
+                "    echo partial > done.txt\n"
+                f"    touch \"{marker}\"\n"
+                "    kill -9 $$\n"
+                "fi\n"
+                "echo ok > done.txt\n"
+                f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
+            ),
+        )
+        with patch.object(
+            bl,
+            "archive_and_reset_worktree",
+            side_effect=RuntimeError("simulated reset failure"),
+        ):
+            with pytest.raises(
+                bl.LoopError,
+                match="cannot reset worktree for clean retry",
+            ):
+                bl.run_packet(
+                    INITIATIVE, PACKET,
+                    worker_command=worker,
+                    repo_root=repo, db_path=db_path,
+                )
+
+        # Attempt 1 closed as failed; no attempt 2 was ever opened.
+        attempts = ba.list_attempts(INITIATIVE, PACKET, db_path=db_path)
+        assert len(attempts) == 1
+        assert attempts[0]["outcome"] == ba.ATTEMPT_FAILED
+        assert _open_attempts(db_path) == []
+
+        # No branch lease is stranded: release deletes leases, so any row
+        # here would be a leak.
+        conn = sqlite3.connect(str(db_path))
+        try:
+            stranded = conn.execute(
+                "SELECT COUNT(*) FROM branch_leases WHERE packet_id = ?",
+                (PACKET,),
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        assert stranded == 0
+
+        # The real failure was recorded durably, budget-neutral.
+        events = bq.list_events(task_id, db_path=db_path)
+        infra = [
+            e for e in events
+            if e["type"] == "infrastructure_failed"
+            and e.get("payload", {}).get("phase") == "clean_retry_worktree"
+        ]
+        assert len(infra) == 1
+        assert "simulated reset failure" in infra[0]["payload"]["reason"]
+        assert infra[0]["payload"]["counts_toward_budget"] is False
+
+        # Failure happened before any destructive step: the partial work is
+        # still in the dirty worktree, inspectable in place.
+        wt = repo / ".worktrees" / "kittybuilder" / task_id
+        assert (wt / "done.txt").read_text().strip() == "partial"
 
 
 # ---------------------------------------------------------------------------
