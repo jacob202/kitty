@@ -22,23 +22,19 @@ manual control for risky actions.
      `.github/labeler.yml`.
    - The workflow creates missing `area/*` labels and emits a summary of changed
      file count + final labels for observable triage logs.
-4. **Review routing**
-   - `.github/workflows/pr-review-routing.yml` infers changed areas and requests
-     reviewers when they are eligible (never requests the PR author).
-   - It posts/updates a routing summary comment for observability.
-5. **Risk guardrails**
+4. **Risk guardrails**
    - `.github/workflows/pr-risk-guardrails.yml` detects sensitive scope (auth,
      secrets/env-like files, dependency roots, CI workflows).
    - Risky PRs receive `risk/high` + `risk/manual-approval` labels and require
      explicit manual approval in the PR body (`Manual approval: YES` or checked
      manual-approval checkbox).
-6. **Selective test hints**
+5. **Selective test hints**
    - `.github/workflows/pr-test-hints.yml` posts scoped validation command
      suggestions based on changed paths.
-7. **Release evidence comment**
+6. **Release evidence comment**
    - `.github/workflows/pr-release-evidence.yml` posts a PR comment summary from
      completed `Tests` workflow runs (run URL, conclusion, per-job outcomes).
-8. **Stale hygiene**
+7. **Stale hygiene**
    - `.github/workflows/stale.yml` marks and closes inactive issues/PRs with
      explicit timing and exemption labels.
 
@@ -51,7 +47,7 @@ manual control for risky actions.
 ### Phased rollout
 
 - **Phase 1 (shipped):** intake templates + PR area auto-labeling + logs.
-- **Phase 2 (shipped):** review routing + risk guardrails + selective test hints.
+- **Phase 2 (shipped):** risk guardrails + selective test hints.
 - **Phase 3 (shipped baseline):** stale hygiene + PR CI evidence comments.
 - **Phase 4 (next):** measure cycle time, triage accuracy, stale false positives,
   and reviewer-routing precision before enabling additional merge/release

@@ -1,30 +1,29 @@
-# Session State — KB-BRAIN-05 close-out, KTF-001 gates
+# Session State — main was red; dependency resolution restored
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-07-30T13:00:00Z",
-  "head_sha": "fbd69242cd7cd5437d8d65b09ad6dc9b287d5f8f",
-  "branch": "main",
-  "worktree": ".",
+  "updated_at": "2026-08-01T04:30:00Z",
+  "head_sha": "b68268b0333aedcf04085829deebe88371f832ef",
+  "branch": "claude/kitty-stabilization-fbydi0",
+  "worktree": "piddock",
   "status": "in_progress",
   "completed_items": [
-    "KB-BRAIN-05 close-out verified: 7 operator actions (requeue, cancel, pause, resume, run_validation, publish, recover_stale) with backend handlers, UI buttons, confirm dialogs, route, and tests",
-    "PR #300 merged: docs/repository-navigation-refresh (codebase map, docs audit, README, AGENTS)",
-    "KB-BRAIN-04 landed: native multi-pane worker cockpit with SSE event stream",
-    "KTF-004 executed: RP-01 runtime proof passed, RP-02 daylight brief written",
-    "test_cold_start_acceptance.py passes (pre-existing red already fixed in b2ab066)"
+    "Reconciliation: Gate 0.1 'main is green' is FALSE. tests.yml failed on 8 consecutive main commits (runs 1124-1139), current HEAD b68268b included.",
+    "Root cause: Dependabot commit 600c0fa raised openai to >=2.49.0,<2.50.0. mem0ai 0.1.x requires openai<1.110.0, so 'pip install -r requirements.txt' is unresolvable. CI never reached pytest.",
+    "Fix: openai pin restored to >=1.90.0,<1.110.0 with a comment recording the mem0ai coupling. Clean venv install resolves (mem0ai 0.1.118 + openai 1.109.1).",
+    "Test evidence (single full run, 2026-08-01): 3452 passed, 7 failed, coverage 77.50% against the 73% floor.",
+    "4 of 7 failures are container-environmental (no gh binary, no launchd, canonical-checkout path). 3 were real committed-state defects, repaired here: short head_sha, merged PR #331 declared active, HANDOFF missing pull_request key.",
+    "Verified issue #336 diagnosis against code: plan is not persisted, /studio/generate takes raw form state not a plan id, worker hardcodes text_to_image_v1 (workers/comfy_worker/app.py:704), no image_agent.py, no image-session table."
   ],
-  "blockers": [
-    "3 commits ahead of origin/main — git push blocked by agent permission rules"
-  ],
-  "next_action": "Push 3 commits to origin/main, then resume KTF-001 life-project gate",
+  "blockers": [],
+  "next_action": "Land the green-main repair, then execute docs/mission/execution.md slice A1 on a machine with Kitty runtime and RunPod credentials.",
   "parallel_work": [],
   "recommendations": [
     {
-      "id": "push-commits",
-      "what": "Push 3 local commits to origin/main",
-      "why": "KB-BRAIN-05 operator controls + docs authorization need to land on remote main",
+      "id": "dependabot-guardrail-sibling-pins",
+      "what": "Gate Dependabot on resolvability: run 'pip install -r requirements.txt' in the guardrails workflow before a bump can merge",
+      "why": "600c0fa merged a bump that made the tree unresolvable and reddened main for 8 commits",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -33,20 +32,9 @@
       "first_deferred": null
     },
     {
-      "id": "ktf-life-project-resume",
-      "what": "KTF-001 outcome 7: prove the life-project resume loop",
-      "why": "Last remaining outcome before Phase 1 exit. Choose a real life project, refresh its state, produce one concrete next move, deliver it, surface the next action.",
-      "class": "life",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "ktf-daylight-run",
-      "what": "KTF-001 outcome 6: daylight unattended Builder run",
-      "why": "Prove proactive delivery in daylight — continues after failure, pauses honestly on exhaustion",
+      "id": "image-agent-slice-a1",
+      "what": "Execute docs/mission/execution.md slice A1 — durable image-agent sessions and approved-plan dispatch for issue #336",
+      "why": "Issue #336 is Jacob-authorized and supersedes the roadmap's Phase 3 blocking of the image lane",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -55,35 +43,11 @@
       "first_deferred": null
     }
   ],
-  "invalidation_conditions": ["HEAD advances past fbd6924"],
+  "invalidation_conditions": [
+    "origin/main advances past b68268b0333aedcf04085829deebe88371f832ef",
+    "tests.yml turns green on main (the dependency repair landed)"
+  ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }
 -->
-
-## Current checkpoint
-
-`main` at `fbd6924`. 3 commits ahead of `origin/main` (`a3c2fc6`):
-- `fbd6924` — docs(brain): authorize KB-BRAIN-05 operator controls
-- `5b4823a` — fix(builder): restore cockpit navigation
-- `2aaa5cb` — feat(builder): add cockpit operator controls
-
-Working tree: clean.
-
-## KTF-001 mission status
-
-Progress as of this session:
-- ✅ PRs #261/#262/#263 resolved
-- ✅ CI green (cold-start test passes)
-- ✅ Roadmap authority consolidated
-- ✅ Builder recovery proven (KTF-004)
-- ✅ Free-exec packets authored
-- ✅ Packet full delivery path proven (PRs #299, #296)
-- ⬜ Daylight unattended run (outcome 6)
-- ⬜ Life-project resume loop (outcome 7) — fresh Jacob activation
-
-## Verification
-
-- Backend: 26 builder tests pass (cold-start + builder_commands + builder_routes)
-- KB-BRAIN-05: all 7 commands have backend handlers + route + UI buttons + confirm dialogs
-- No frontend component tests for OperatorControls.tsx

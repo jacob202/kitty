@@ -89,10 +89,32 @@ pid_cwd() {
 
 pid_owned_by_kitty() {
   local pid="$1"
-  local command cwd
-  command="$(pid_command "$pid")"
+  local cwd git_dir_root git_dir_candidate
   cwd="$(pid_cwd "$pid")"
-  [[ "$command" == *"$KITTY_ROOT"* || "$cwd" == "$KITTY_ROOT" || "$cwd" == "$KITTY_ROOT/"* ]]
+
+  # Fast path: process cwd is inside current KITTY_ROOT
+  if [[ "$cwd" == "$KITTY_ROOT" || "$cwd" == "$KITTY_ROOT/"* ]]; then
+    return 0
+  fi
+
+  # Cross-worktree check: does the process belong to the same Git repository?
+  # Two worktrees of the same repo share a common .git directory; a process
+  # started from either one is Kitty-owned.
+  if [[ -n "$cwd" && -d "$cwd" ]]; then
+    # --git-common-dir may be relative (from the git -C cwd). Resolve by
+    # entering that cwd first, then the git-dir, then pwd -P.
+    git_dir_root="$(cd "$KITTY_ROOT" 2>/dev/null \
+      && cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null \
+      && pwd -P 2>/dev/null || true)"
+    git_dir_candidate="$(cd "$cwd" 2>/dev/null \
+      && cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null \
+      && pwd -P 2>/dev/null || true)"
+    if [[ -n "$git_dir_root" && -n "$git_dir_candidate" && "$git_dir_root" == "$git_dir_candidate" ]]; then
+      return 0
+    fi
+  fi
+
+  return 1
 }
 
 stop_pidfile() {
@@ -122,9 +144,25 @@ stop_owned_listener() {
 }
 
 assert_port_available() {
-  local label="$1" port="$2" pids
+  local label="$1" port="$2" pids pid cwd
   pids="$(listener_pids "$port")"
   if [[ -n "$pids" ]]; then
+    for pid in $pids; do
+      if pid_owned_by_kitty "$pid"; then
+        cwd="$(pid_cwd "$pid")"
+        if [[ "$cwd" == "$KITTY_ROOT" || "$cwd" == "$KITTY_ROOT/"* ]]; then
+          echo "Error: $label port :$port is held by a leftover Kitty process from this checkout" >&2
+          echo "  pid $pid: $(pid_command "$pid")" >&2
+          echo "  Run './kitty down' to clean up." >&2
+        else
+          echo "Error: $label port :$port is held by another Kitty worktree" >&2
+          echo "  pid $pid: $(pid_command "$pid")" >&2
+          echo "  worktree: ${cwd:-unknown}" >&2
+          echo "  Stop it with: (cd \"$cwd\" && ./kitty down)" >&2
+        fi
+        return 1
+      fi
+    done
     echo "Error: $label port :$port is already owned by pid(s): $pids" >&2
     for pid in $pids; do
       echo "  pid $pid: $(pid_command "$pid")" >&2
@@ -188,8 +226,40 @@ ensure_gateway_secret() {
 }
 
 # ── Subcommands ───────────────────────────────────────────────────────────────
+
+startup_identity() {
+  local label="$1" port="$2" pid="$3"
+  local sha build_id
+  sha="$(git -C "$KITTY_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+  build_id=""
+  if [[ -f "$KITTY_ROOT/gateway/kitty-chat/.next/BUILD_ID" ]]; then
+    build_id="$(cat "$KITTY_ROOT/gateway/kitty-chat/.next/BUILD_ID")"
+  fi
+  printf "  %-10s pid=%-6s port=%-5s checkout=%s sha=%s build=%s\n" \
+    "$label" "$pid" "$port" "$KITTY_ROOT" "$sha" "${build_id:-none}"
+}
+
+check_ui_freshness() {
+  local ui_dir="$KITTY_ROOT/gateway/kitty-chat"
+  local stamp="$ui_dir/.next/BUILD_ID"
+  if [[ ! -f "$stamp" ]]; then
+    return 1  # no build exists
+  fi
+  local input
+  for input in src public package.json package-lock.json tsconfig.json next.config.js next.config.mjs next.config.ts; do
+    if [[ -e "$ui_dir/$input" ]]; then
+      if [[ "$ui_dir/$input" -nt "$stamp" ]]; then
+        echo "  UI        WARNING: $input is newer than last build ($stamp)" >&2
+        return 1
+      fi
+    fi
+  done
+  return 0
+}
+
 cmd_up() {
   echo "Starting Kitty..."
+  startup_identity "kitty" "-" "$$"
   ensure_gateway_secret
 
   # LiteLLM
@@ -200,7 +270,7 @@ cmd_up() {
     nohup bash "$KITTY_ROOT/gateway/start_litellm.sh" \
       >"$LOG_DIR/litellm.log" 2>&1 &
     echo $! >"$RUN_DIR/litellm.pid"
-    echo "  LiteLLM  started (pid $!)"
+    startup_identity "LiteLLM" "$LITELLM_PORT" "$!"
   fi
 
   # Gateway
@@ -211,7 +281,7 @@ cmd_up() {
     nohup bash "$KITTY_ROOT/gateway/start_gateway.sh" \
       >"$LOG_DIR/gateway.log" 2>&1 &
     echo $! >"$RUN_DIR/gateway.pid"
-    echo "  Gateway  started (pid $!)"
+    startup_identity "Gateway" "$GATEWAY_PORT" "$!"
   fi
 
   # Poll up to 15 seconds for gateway to be healthy
@@ -236,10 +306,12 @@ cmd_start() {
 
   if ! http_ok "http://127.0.0.1:$UI_PORT/"; then
     assert_port_available "UI" "$UI_PORT"
-    echo "Starting UI on http://localhost:$UI_PORT ..."
+    echo "Starting UI on http://127.0.0.1:$UI_PORT ..."
     (cd "$KITTY_ROOT/gateway/kitty-chat" \
       && nohup node node_modules/next/dist/bin/next dev -H 127.0.0.1 -p "$UI_PORT" \
         >"$LOG_DIR/ui.log" 2>&1 & echo $! >"$RUN_DIR/ui.pid")
+    startup_identity "UI" "$UI_PORT" "$(cat "$RUN_DIR/ui.pid")"
+    check_ui_freshness || true
     _i=0
     while [ $_i -lt 30 ]; do
       if http_ok "http://127.0.0.1:$UI_PORT/"; then break; fi
@@ -249,9 +321,9 @@ cmd_start() {
   fi
 
   if http_ok "http://127.0.0.1:$UI_PORT/"; then
-    echo "UI ready: http://localhost:$UI_PORT"
+    echo "UI ready: http://127.0.0.1:$UI_PORT"
     if command -v open >/dev/null 2>&1; then
-      open "http://localhost:$UI_PORT"
+      open "http://127.0.0.1:$UI_PORT"
     fi
   else
     echo "UI not responding on :$UI_PORT — check: $LOG_DIR/ui.log"
@@ -263,40 +335,48 @@ cmd_down() {
 
   # Disable launchd jobs first. Their KeepAlive=true setting otherwise restarts
   # a process immediately after it is killed and leaves the old port occupied.
-  for svc in gateway litellm; do
+  for svc in ui gateway litellm; do
     if launchctl print "gui/$(id -u)/com.kitty.$svc" >/dev/null 2>&1; then
       launchctl bootout "gui/$(id -u)/com.kitty.$svc" 2>/dev/null || true
       echo "  $svc  launchd job stopped"
     fi
   done
 
+  # Kill anything on Kitty ports regardless of ownership. The launchd
+  # KeepAlive cycle makes "leave unrelated" useless — if a process respawns
+  # before kitty start claims the port, the operator loops forever.
+  for port in "$UI_PORT" "$GATEWAY_PORT" "$LITELLM_PORT"; do
+    for pid in $(listener_pids "$port"); do
+      echo "  stopping listener pid $pid on :$port ($(pid_command "$pid" | cut -c1-80))"
+      kill -KILL "$pid" 2>/dev/null || true
+    done
+  done
+  sleep 1
+
   for svc in ui gateway litellm; do
     stop_pidfile "$svc"
-  done
-
-  stop_owned_listener "UI" "$UI_PORT"
-  stop_owned_listener "Gateway" "$GATEWAY_PORT"
-  stop_owned_listener "LiteLLM" "$LITELLM_PORT"
-  sleep 2
-
-  for spec in "UI:$UI_PORT" "Gateway:$GATEWAY_PORT" "LiteLLM:$LITELLM_PORT"; do
-    label="${spec%%:*}"
-    port="${spec##*:}"
-    for pid in $(listener_pids "$port"); do
-      if pid_owned_by_kitty "$pid"; then
-        echo "  $label  force-stopping owned listener pid $pid on :$port"
-        kill -KILL "$pid" 2>/dev/null || true
-      fi
-    done
   done
 
   rm -f "$RUN_DIR/ui.pid" "$RUN_DIR/gateway.pid" "$RUN_DIR/litellm.pid"
 }
 
 cmd_status() {
+  local sha build_id
+  sha="$(git -C "$KITTY_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+  build_id=""
+  if [[ -f "$KITTY_ROOT/gateway/kitty-chat/.next/BUILD_ID" ]]; then
+    build_id="$(cat "$KITTY_ROOT/gateway/kitty-chat/.next/BUILD_ID")"
+  fi
+
   echo "Kitty status"
   echo "────────────"
+  echo "  checkout     $KITTY_ROOT"
+  echo "  source sha   $sha"
+  echo "  build id     ${build_id:-none}"
+  check_ui_freshness 2>/dev/null && echo "  freshness    current" || echo "  freshness    stale"
 
+  echo
+  local svc pidfile pid launch_pid port listener_pid owned_pid cwd
   for svc in ui gateway litellm; do
     pidfile="$RUN_DIR/$svc.pid"
     if pid_alive "$pidfile"; then
@@ -305,7 +385,25 @@ cmd_status() {
     elif launch_pid="$(launchd_pid "$svc")" && [[ -n "$launch_pid" ]]; then
       printf "  %-10s running via launchd (pid %s)\n" "$svc" "$launch_pid"
     else
-      printf "  %-10s not running\n" "$svc"
+      case "$svc" in
+        ui) port="$UI_PORT" ;;
+        gateway) port="$GATEWAY_PORT" ;;
+        litellm) port="$LITELLM_PORT" ;;
+      esac
+      owned_pid=""
+      for listener_pid in $(listener_pids "$port"); do
+        if pid_owned_by_kitty "$listener_pid"; then
+          owned_pid="$listener_pid"
+          break
+        fi
+      done
+      if [[ -n "$owned_pid" ]]; then
+        cwd="$(pid_cwd "$owned_pid")"
+        printf "  %-10s running (pid %s; discovered owned listener on :%s, cwd %s)\n" \
+          "$svc" "$owned_pid" "$port" "${cwd:-unknown}"
+      else
+        printf "  %-10s not running\n" "$svc"
+      fi
     fi
   done
 
@@ -657,7 +755,7 @@ cmd_verify_home() {
   fi
 
   if ! http_ok "http://127.0.0.1:$ui_port/"; then
-    echo "ui        not running — starting bound to all interfaces (logs: $LOG_DIR/ui.log)"
+    echo "ui        not running — starting bound to loopback (logs: $LOG_DIR/ui.log)"
     (cd "$KITTY_ROOT/gateway/kitty-chat" \
       && nohup node node_modules/next/dist/bin/next dev -H 127.0.0.1 -p "$ui_port" \
         >"$LOG_DIR/ui.log" 2>&1 &)
@@ -669,7 +767,7 @@ cmd_verify_home() {
     done
   fi
   if http_ok "http://127.0.0.1:$ui_port/"; then
-    echo "ui        ✓  http://localhost:$ui_port"
+    echo "ui        ✓  http://127.0.0.1:$ui_port"
   else
     echo "ui        ✗  not responding on :$ui_port — check: $LOG_DIR/ui.log"
     fails=1

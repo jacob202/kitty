@@ -5,8 +5,6 @@ These tests exercise the logic directly — no HTTP, no store, no monkeypatching
 
 from __future__ import annotations
 
-import pytest
-
 from gateway import chronicle_service as svc
 
 
@@ -29,10 +27,6 @@ def _chat(
     }
 
 
-# ---------------------------------------------------------------------------
-# Signal extractors
-# ---------------------------------------------------------------------------
-
 class TestTopTopics:
     def test_most_common_word_is_first(self):
         chats = [
@@ -51,7 +45,7 @@ class TestTopTopics:
         assert svc.top_topics([]) == []
 
     def test_at_most_three_topics(self):
-        chats = [_chat(title=f"word{i} word{i}") for i in range(10)]
+        chats = [_chat(title=f"word{index} word{index}") for index in range(10)]
         assert len(svc.top_topics(chats)) <= 3
 
 
@@ -62,10 +56,18 @@ class TestHourlyDistribution:
         assert hourly.get(14) == 1
 
     def test_unix_timestamp_supported(self):
-        # 2026-07-10T08:00:00Z as a float timestamp
-        import datetime as _dt
-        ts = _dt.datetime(2026, 7, 10, 8, 0, 0, tzinfo=_dt.timezone.utc).timestamp()
-        chats = [{"createdAt": ts}]
+        import datetime as datetime_module
+
+        timestamp = datetime_module.datetime(
+            2026,
+            7,
+            10,
+            8,
+            0,
+            0,
+            tzinfo=datetime_module.timezone.utc,
+        ).timestamp()
+        chats = [{"createdAt": timestamp}]
         hourly = svc.hourly_distribution(chats)
         assert hourly.get(8) == 1
 
@@ -96,7 +98,7 @@ class TestModelUsage:
         assert counts["b"] == 1
 
     def test_at_most_five_models_returned(self):
-        chats = [_chat(model=f"model-{i}") for i in range(10)]
+        chats = [_chat(model=f"model-{index}") for index in range(10)]
         assert len(svc.model_usage(chats)) <= 5
 
 
@@ -112,16 +114,16 @@ class TestMessagesCount:
         assert svc.messages_count([]) == 0
 
 
-# ---------------------------------------------------------------------------
-# analyze() — integration of all signals
-# ---------------------------------------------------------------------------
-
 class TestAnalyze:
     def test_output_shape(self):
         result = svc.analyze([])
         assert set(result) == {"tip_count", "tips", "summary"}
         assert set(result["summary"]) == {
-            "session_count", "message_count", "top_topics", "peak_hour", "model_spread"
+            "session_count",
+            "message_count",
+            "top_topics",
+            "peak_hour",
+            "model_spread",
         }
 
     def test_tip_count_matches_list(self):
@@ -131,7 +133,7 @@ class TestAnalyze:
 
     def test_new_user_tip_when_no_sessions(self):
         result = svc.analyze([])
-        assert any("first session" in t.lower() for t in result["tips"])
+        assert any("first session" in tip.lower() for tip in result["tips"])
 
     def test_peak_hour_in_summary(self):
         chats = [

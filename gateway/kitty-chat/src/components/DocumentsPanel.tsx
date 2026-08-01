@@ -56,6 +56,7 @@ export function DocumentsPanel() {
       {/* ── search ── */}
       <div style={cardStyle}>
         <div style={sectionLabelStyle}>search the library</div>
+        <p style={{ ...mutedStyle, marginBottom: -4 }}>Type a query to search everything Kitty has read.</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             value={query}
@@ -96,6 +97,7 @@ export function DocumentsPanel() {
       {/* ── ingest ── */}
       <div style={cardStyle}>
         <div style={sectionLabelStyle}>add a document</div>
+        <p style={{ ...mutedStyle, marginBottom: -4 }}>Enter a file path on the Mac, or a URL to ingest into the library.</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             value={target}

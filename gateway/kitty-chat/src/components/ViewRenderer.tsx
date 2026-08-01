@@ -73,7 +73,7 @@ export function ViewRenderer({
   const body = (() => {
     switch (view) {
       case 'home':
-        return <HomeView {...homeProps} chatProps={chatProps} compact={isMobile} />
+        return <HomeView {...homeProps} compact={isMobile} />
       case 'chat':
         return <ChatView {...chatProps} compact={isMobile} />
       case 'work':

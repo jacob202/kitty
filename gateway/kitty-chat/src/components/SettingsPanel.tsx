@@ -44,7 +44,6 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
   return (
     <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
       <header>
-        <h2 style={titleStyle}>settings</h2>
         <p style={subtitleStyle}>the few knobs that turn from here.</p>
       </header>
 

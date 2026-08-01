@@ -13,7 +13,7 @@
     "gen:api-types": "openapi-typescript http://127.0.0.1:8000/openapi.json -o src/lib/gen/gateway-schema.d.ts"
   },
   "dependencies": {
-    "@assistant-ui/react": "^0.14.27",
+    "@assistant-ui/react": "^0.14.28",
     "@tanstack/react-query": "^5.101.4",
     "cmdk": "^1.1.1",
     "highlight.js": "^11.11.1",

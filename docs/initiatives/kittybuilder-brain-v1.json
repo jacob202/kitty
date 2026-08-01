@@ -7,7 +7,6 @@
     {
       "id": "KB-BRAIN-00-source-harvest",
       "title": "Source harvest and adopt/adapt/reimplement map",
-      "objective": "Inspect Kitty's current Builder runtime/UI and audit mature external implementations at pinned commit SHAs. Required sources: sst/opencode, alvinunreal/oh-my-opencode-slim, can1357/oh-my-pi, Kuberwastaken/claurst, forketyfork/architect, code-yeongyu/oh-my-openagent, Yeachan-Heo/oh-my-claudecode, zaxbysauce/opencode-swarm, coder/cmux, DeepSeek-AI/DeepSeek-Coder, deepseek-ai/awesome-deepseek-agent, and any directly relevant DeepSeek-native harness found through that index. Inspect implementation files, not only READMEs. Produce a file-level harvest register covering session control, event streaming, background-agent scheduling, multiplexer/grid UI, attention states, reconnect/resume, tool-call rendering, worker control, cost/context telemetry, model routing, manager/executor loops, and licensing. For each candidate mark ADOPT, ADAPT, STUDY, or REJECT, with exact source paths, pinned SHA, license, Kitty destination, integration boundary, and tests needed. Prefer MIT/Apache-compatible code; do not copy GPL/AGPL code into Kitty. End with a ranked implementation map for KB-BRAIN-01 onward. This packet changes documentation only.",
       "depends_on": [],
       "acceptance_criteria": [
         "Audit covers every required repository at an immutable commit SHA and records its license",

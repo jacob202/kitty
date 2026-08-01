@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 /** Phone-layout regressions Jacob hit on an iPhone: content scrolling sideways,
  *  the composer buried under the tab bar, and the chat drawer rendering
