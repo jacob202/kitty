@@ -39,14 +39,19 @@ git status --short --branch
 ./kitty context --agent
 bash scripts/session_end_survey.sh
 ./kitty builder initiative doctor --json
+python3 scripts/session_learning.py summary
 ```
+
+The learning summary is evidence history, not an execution queue. A promoted
+signal can only enter selection after existing roadmap, Mission, initiative,
+queue, branch, PR, and issue owners have been checked.
 
 A failed or unavailable source stays failed or unavailable. Do not turn it into
 an empty queue or a clean result.
 
 Read open PRs including drafts, registered worktrees, unmerged branches, the
-Builder projection, `.claude/STATE.md`, `.claude/HANDOFF.md`, and `~/kb/NOW.md`
-when available.
+Builder projection, `.claude/STATE.md`, `.claude/HANDOFF.md`, `~/kb/NOW.md`, and
+the workflow-signal summary when available.
 
 ## 2. Continue before starting
 
@@ -58,13 +63,17 @@ Resolve work in this order:
    tool is authorized to perform.
 4. The highest-priority eligible queued initiative packet whose allowed paths do
    not collide with live work.
-5. A promoted workflow-learning signal only when no approved queued work owns
-   the same problem.
+5. A promoted workflow-learning signal only when no approved roadmap item,
+   Mission packet, queue task, branch, PR, or issue owns the same problem.
 6. No-op with an explicit reason when nothing is authorized and eligible.
 
 Never hijack another worker's lease. Never treat unrelated parallel work as a
 blocker. A collision exists only when paths, state authority, or a required
 artifact overlap.
+
+A promoted signal is not permission to code. Until the governed promotion
+adapter ships, it may become at most one structured recommendation for a later
+approved packet. Never create a hidden issue or queue task from the summary.
 
 ## 3. Ensure the leverage program is materialized
 
