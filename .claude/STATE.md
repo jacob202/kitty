@@ -4,7 +4,7 @@
 {
   "schema_version": 2,
   "updated_at": "2026-08-01T22:04:00Z",
-  "head_sha": "f47dcd283ff8cb3b159b5fae91d0d0e6ff1a0e25",
+  "head_sha": "9f6b4e1cf06b607c9547e40c089c7c6553ed2efd",
   "branch": "docs/builder-cockpit-boundary",
   "worktree": "seaslug",
   "status": "awaiting_review",
@@ -20,7 +20,7 @@
     "Builder queue projection was unavailable because this worktree could not open its SQLite database.",
     "The shell's python3 is too old for scripts/check_continuity_state.py; Python 3.12 passes it."
   ],
-  "next_action": "Obtain an independent review of PR #359 at c1f52cd3; keep it draft until that review approves the checked SHA.",
+  "next_action": "Obtain an independent review of the pushed PR #359 head; keep it draft until that review approves the checked SHA.",
   "parallel_work": [
     {
       "kind": "worktree",
@@ -47,7 +47,7 @@
   "recommendations": [
     {
       "id": "pr359-independent-review-and-push",
-      "what": "Obtain independent review of PR #359 at c1f52cd3 and keep it draft until the review approves that checked SHA.",
+      "what": "Obtain independent review of the pushed PR #359 head and keep it draft until the review approves that checked SHA.",
       "why": "All automated checks are green, but independent review is absent.",
       "class": "code",
       "status": "ready",

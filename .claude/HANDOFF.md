@@ -4,7 +4,7 @@
 {
   "schema_version": 2,
   "updated_at": "2026-08-01T22:04:00Z",
-  "head_sha": "f47dcd283ff8cb3b159b5fae91d0d0e6ff1a0e25",
+  "head_sha": "9f6b4e1cf06b607c9547e40c089c7c6553ed2efd",
   "branch": "docs/builder-cockpit-boundary",
   "worktree": "seaslug",
   "status": "valid",
@@ -20,14 +20,14 @@
     "Builder queue projection was unavailable because this worktree could not open its SQLite database.",
     "The shell's python3 is too old for scripts/check_continuity_state.py; Python 3.12 passes it."
   ],
-  "next_action": "Obtain an independent review of PR #359 at c1f52cd3; keep it draft until that review approves the checked SHA.",
+  "next_action": "Obtain an independent review of the pushed PR #359 head; keep it draft until that review approves the checked SHA.",
   "parallel_work": [
     {"kind": "worktree", "ref": "docs/kittybuilder-core-runtime-audit-2026-08-01", "owner": "other Builder audit worker", "touches": ["docs", "gateway", "tests"], "observed_at": "2026-08-01T22:04:00Z"},
     {"kind": "worktree", "ref": "fix/builder-ignore-omo-artifacts", "owner": "other Builder scope worker", "touches": ["docs", "gateway", "tests"], "observed_at": "2026-08-01T22:04:00Z"},
     {"kind": "pr", "ref": "#359", "owner": "Codex review-and-repair session", "touches": [".agents", "docs", "scripts", "tests"], "observed_at": "2026-08-01T22:04:00Z"}
   ],
   "recommendations": [
-    {"id": "pr359-independent-review-and-push", "what": "Obtain independent review of PR #359 at c1f52cd3 and keep it draft until the review approves that checked SHA.", "why": "All automated checks are green, but independent review is absent.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null},
+    {"id": "pr359-independent-review-and-push", "what": "Obtain independent review of the pushed PR #359 head and keep it draft until the review approves that checked SHA.", "why": "All automated checks are green, but independent review is absent.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null},
     {"id": "dependabot-guardrail-sibling-pins", "what": "Gate Dependabot on resolvability: run 'pip install -r requirements.txt' in the guardrails workflow before a bump can merge.", "why": "A sibling dependency constraint once made the repository unresolvable.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null},
     {"id": "image-agent-slice-a1", "what": "Execute docs/mission/execution.md slice A1 — durable image-agent sessions and approved-plan dispatch for issue #336.", "why": "It remains Jacob-authorized mission work.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null}
   ],
@@ -49,7 +49,7 @@
 
 ## In-flight / WIP
 
-- PR #359 is still a draft at `c1f52cd3`; all automated checks passed, but no independent review is posted.
+- PR #359 is still a draft; all automated checks passed on the prior pushed repair head, but no independent review is posted.
 
 ## Other work in flight (not mine)
 
@@ -65,7 +65,7 @@
 
 ## Next move
 
-Obtain an independent review of PR #359 at `c1f52cd3`; keep it draft until that review approves the checked SHA.
+Obtain an independent review of the pushed PR #359 head; keep it draft until that review approves the checked SHA.
 
 ## Deferred, and what releases them
 
