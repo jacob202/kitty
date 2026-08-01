@@ -203,6 +203,47 @@ predate the guard.
 This verifies A1's stated acceptance. It does **not** verify any user-visible
 behaviour — no image was generated, no browser was involved. That is A6.
 
+## E10 — slice A3, bounded image-specialist controller
+
+`gateway/image_agent.py` + `tests/test_image_agent.py`.
+
+```
+.venv/bin/python -m pytest tests/test_image_agent.py -q
+32 passed in 5.39s
+
+.venv/bin/python -m pytest tests/test_image_plans.py tests/test_image_sessions.py \
+  tests/test_image_jobs.py tests/test_image_recipes.py tests/test_image_router.py \
+  tests/test_image_cancel.py tests/test_image_backends.py tests/test_db.py -q
+161 passed in 16.90s
+
+.venv/bin/python -m ruff check gateway/image_agent.py tests/test_image_agent.py
+All checks passed!
+
+.venv/bin/python -m mypy gateway/image_agent.py
+Success: no issues found in 1 source file
+
+.venv/bin/python -m vulture gateway/image_agent.py --min-confidence 80
+(no output)
+```
+
+Two test-harness defects were found and fixed here, both in the new tests
+rather than in shipped code. `image_recipes` binds `KITTY_DB_FILE` at import
+(`gateway/image_recipes.py:13`), so redirecting `gateway.paths.KITTY_DB_FILE`
+alone would have written the recipe table into the real database — the
+fixture now monkeypatches the module-level name, matching
+`tests/test_image_recipes.py:23`. And `image_jobs` has no `created → running`
+transition (`gateway/image_jobs.py:56`), so the anchor helper goes through
+`submitted` like the real dispatch path does.
+
+`test_edit_is_refused_when_no_recipe_supports_img2img` forces the routing
+decision rather than disabling recipes: all four default recipes declare
+`supports_img2img`, so disabling them leaves zero available recipes and the
+test would have passed on the wrong error.
+
+This verifies A3's stated acceptance. Every LLM call is a scripted stub — no
+real model output was parsed, no image was generated, no browser was
+involved. That is A6.
+
 ## Not evidence — what this session could not produce
 
 No browser screenshot, no generated image, no artifact hash, no RunPod job,
