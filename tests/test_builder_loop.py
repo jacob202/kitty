@@ -739,6 +739,52 @@ class TestNoStaleArtifactReuse:
         attempt_dir = db_path.parent / "attempts" / task_id / str(stale["id"])
         assert not (attempt_dir / "crashed-worktree.patch").exists()
 
+    def test_worker_self_crash_on_first_attempt_recovers_in_loop(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A worker that dies by signal mid-run must not deadlock the retry.
+
+        The supervisor survives (unlike the P027 stale-attempt case), so the
+        failed attempt closes and the loop retries in-process. The dirty
+        worktree the crashed worker left behind would otherwise trip
+        ``ensure_worktree``'s refusal forever with no supported escape; the
+        retry must archive it into the failed attempt's artifact dir and
+        reset so the next attempt starts clean."""
+        task_id = _apply(db_path, max_attempts=2, repo_root=repo)
+        marker = tmp_path / "crash_then_succeed"
+        worker = _script(
+            tmp_path,
+            "selfcrash.sh",
+            (
+                f"if [ ! -f \"{marker}\" ]; then\n"
+                "    echo partial > done.txt\n"
+                f"    touch \"{marker}\"\n"
+                "    kill -9 $$\n"
+                "fi\n"
+                "echo ok > done.txt\n"
+                f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
+            ),
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=worker,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+        assert [e["outcome"] for e in result["attempts"]] == ["failed", "succeeded"]
+
+        # The crashed first attempt's partial work was archived, not reused.
+        first = result["attempts"][0]
+        attempt_dir = db_path.parent / "attempts" / task_id / str(first["attempt_id"])
+        patch = (attempt_dir / "crashed-worktree.patch").read_text()
+        assert "done.txt" in patch
+        assert (attempt_dir / "crashed-worktree-status.txt").exists()
+
+        # The retry ran on a clean tree: only the worker's own output is new.
+        runs = bq.list_runs(task_id=task_id, db_path=db_path)
+        report = runs[-1]["final_report"]
+        assert "done.txt" in report["changed_paths"]
+
 
 # ---------------------------------------------------------------------------
 # P027 — real restart/recovery exercise
