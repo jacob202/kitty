@@ -3,7 +3,7 @@
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T22:33:17Z",
+  "updated_at": "2026-08-01T22:34:00Z",
   "head_sha": "aef9d0ce9aebfec4394c6b07f7c17f8e1af5669a",
   "branch": "docs/builder-cockpit-boundary",
   "worktree": "seaslug",
