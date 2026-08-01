@@ -95,7 +95,7 @@ ledger date and needs disposition.
 
 ---
 
-## docs/initiatives/ (44 entries: 37 .json + 7 .md/.sh)
+## docs/initiatives/ (45 entries: 38 .json + 7 .md/.sh)
 
 ### Builder initiative manifests (.json)
 
@@ -107,6 +107,7 @@ ledger date and needs disposition.
 | `kitty-endgame-init-1-builder-closeout-v2.json` | kitty-endgame-init-1 | ACTIVE | Phase 1.1 | Builder closeout and operator authority. |
 | `kitty-endgame-init-2-daily-driver-v1.json` | kitty-endgame-init-2 | ACTIVE | Phase 2 | Daily driver. |
 | `kittybuilder-brain-v1.json` | kittybuilder-brain-v1 | BACKLOG | Phase 3.2 | Builder UI cockpit and autonomy. |
+| `phase1-1-recovery-proof-v1.json` | phase1-1-recovery-proof | ACTIVE | Phase 1.1 | Induced-failure recovery proof template; driven by `scripts/builder_recovery_proof.py`, which rewrites the ids per run. |
 | `ktf-001-free-exec-v1.json` | ktf-001-free-exec-v1 | SUPERSEDED | — | Original KTF-001 manifest; tasks cancelled. |
 | `ktf-001-resume-proof-v2.json` | ktf-001-resume-proof-v2 | ACTIVE | Phase 1.1 | KTF-001 restart: reconcile, author, prove. |
 | `ktf-002-acceptance-prose-v1.json` | ktf-002-acceptance-prose-v1 | BACKLOG | Phase 3.3 | Acceptance criteria fix. |
