@@ -3,7 +3,7 @@
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T05:00:00Z",
+  "updated_at": "2026-08-01T04:30:00Z",
   "head_sha": "b68268b0333aedcf04085829deebe88371f832ef",
   "branch": "claude/kitty-stabilization-fbydi0",
   "worktree": "piddock",

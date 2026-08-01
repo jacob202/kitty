@@ -3,7 +3,7 @@
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T05:00:00Z",
+  "updated_at": "2026-08-01T04:30:00Z",
   "head_sha": "b68268b0333aedcf04085829deebe88371f832ef",
   "branch": "claude/kitty-stabilization-fbydi0",
   "worktree": "piddock",
@@ -23,7 +23,7 @@
     {
       "id": "dependabot-guardrail-sibling-pins",
       "what": "Gate Dependabot on resolvability: run 'pip install -r requirements.txt' in the guardrails workflow before a bump can merge",
-      "why": "600c0fa merged a bump that made the tree unresolvable and reddened main for 8 commits. The Gate 0.2 Dependabot exemption let it past the tests gate.",
+      "why": "600c0fa merged a bump that made the tree unresolvable and reddened main for 8 commits",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -32,9 +32,9 @@
       "first_deferred": null
     },
     {
-      "id": "mem0ai-major-bump",
-      "what": "Evaluate mem0ai 0.1.118 -> 2.0.x, which drops the openai upper bound entirely",
-      "why": "Unblocks future openai bumps permanently, but it is a major-version API break against gateway/memory.py and needs a live memory backend to verify. Separate slice.",
+      "id": "image-agent-slice-a1",
+      "what": "Execute docs/mission/execution.md slice A1 — durable image-agent sessions and approved-plan dispatch for issue #336",
+      "why": "Issue #336 is Jacob-authorized and supersedes the roadmap's Phase 3 blocking of the image lane",
       "class": "code",
       "status": "ready",
       "blocked_by": null,

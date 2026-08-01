@@ -26,6 +26,18 @@ Status vocabulary: `NOT STARTED`, `IN PROGRESS`, `IMPLEMENTED-NOT-VERIFIED`,
   must fail it. Confirmed by a red check on a deliberately-bad branch.
 - **Local-testable:** yes (CI only, no runtime)
 
+## Slice 0c — Remove dead `stop_owned_listener` · NOT STARTED
+
+- **Depends on:** slice 0 merged
+- **Context:** `d9420f3` moved `cmd_down` to an unconditional port sweep and
+  left `stop_owned_listener` (`kitty:133`) with zero callers. Its stale test
+  assertions were the launcher failure in slice 0; the function itself was left
+  in place to keep that diff scoped.
+- **Change:** delete the function. Project rule: no dead code.
+- **Acceptance:** `grep -c stop_owned_listener kitty` returns 0; launcher tests
+  still pass.
+- **Local-testable:** yes
+
 ## Outcome A — Conversational Image Agent (issue #336)
 
 Do not start A4+ before A1–A3 are merged. Do not expand into hosted providers,
