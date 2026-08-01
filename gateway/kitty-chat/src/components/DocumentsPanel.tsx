@@ -98,32 +98,34 @@ export function DocumentsPanel({ isMobile = false }: { isMobile?: boolean }) {
       <div style={cardStyle}>
         <div style={sectionLabelStyle}>add a document</div>
         <p style={{ ...mutedStyle, marginBottom: -4 }}>
-          {isMobile ? 'Choose a file from this device to add it to the library.' : 'Enter a file path on the Mac, or a URL to ingest into the library.'}
+          {isMobile
+            ? 'Paste a URL to add it to the library, or choose a file below.'
+            : 'Enter a file path on the Mac, or a URL to ingest into the library.'}
         </p>
-        {!isMobile && (
-          <div style={{ display: 'flex', gap: 8, minWidth: 0 }} data-testid="library-path-control">
-            <input
-              value={target}
-              onChange={e => setTarget(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleIngest()}
-              placeholder="a file path on the Mac, or a URL"
-              style={inputStyle}
-            />
-            <button
-              onClick={handleIngest}
-              disabled={!target.trim() || ingest.isPending}
-              style={primaryButtonStyle}
-            >
-              {ingest.isPending ? 'ingesting…' : 'ingest'}
-            </button>
-          </div>
-        )}
-        {!isMobile && ingest.isError && (
+        {/* URL/path ingestion stays available on the phone; only the Mac-path
+            wording and path-only affordance disappear, never the whole control. */}
+        <div style={{ display: 'flex', gap: 8, minWidth: 0 }} data-testid={isMobile ? 'library-url-control' : 'library-path-control'}>
+          <input
+            value={target}
+            onChange={e => setTarget(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleIngest()}
+            placeholder={isMobile ? 'paste a URL (https://…)' : 'a file path on the Mac, or a URL'}
+            style={inputStyle}
+          />
+          <button
+            onClick={handleIngest}
+            disabled={!target.trim() || ingest.isPending}
+            style={primaryButtonStyle}
+          >
+            {ingest.isPending ? 'ingesting…' : 'ingest'}
+          </button>
+        </div>
+        {ingest.isError && (
           <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
             ingest failed — {ingest.error instanceof Error ? ingest.error.message : 'gateway error'}
           </p>
         )}
-        {!isMobile && ingest.data && (
+        {ingest.data && (
           <p style={{ ...mutedStyle, color: STATUS_COLORS[ingest.data.status] ?? 'var(--ink-2)' }}>
             {ingest.data.status}: {ingest.data.source_id} — {ingest.data.reason}
           </p>

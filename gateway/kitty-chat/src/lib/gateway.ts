@@ -1176,19 +1176,19 @@ export interface ImageStatus {
 }
 
 export async function fetchImageStatus(): Promise<ImageStatus> {
-  try {
-    const json = await gfetch<{
-      available?: boolean
-      backend?: string
-      engines?: ImageEngineStatus[]
-    }>('/image/status')
-    return {
-      available: json.available === true,
-      backend: json.backend,
-      engines: json.engines ?? [],
-    }
-  } catch {
-    return { available: false, engines: [] }
+  // Deliberately no catch: a reachable gateway with offline renderers answers
+  // { available: false }, while an unreachable gateway/proxy throws. Swallowing
+  // every failure into "offline renderers" hides a down Gateway behind the
+  // "start ComfyUI" recovery, which sends the user down the wrong path.
+  const json = await gfetch<{
+    available?: boolean
+    backend?: string
+    engines?: ImageEngineStatus[]
+  }>('/image/status')
+  return {
+    available: json.available === true,
+    backend: json.backend,
+    engines: json.engines ?? [],
   }
 }
 

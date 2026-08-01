@@ -218,10 +218,8 @@ export function ImageStudio() {
 
   async function handlePreviewPlan() {
     if (!prompt.trim() || planPreviewing) return
-    if (!enginesAvailable) {
-      setError('no image engine is online — start ComfyUI or Draw Things, then check again')
-      return
-    }
+    // Plan preview hits only the studio planning route, not a renderer, so it
+    // stays available while engines are offline.
     setPlanPreviewing(true)
     setError('')
     setErrorDetail(null)
@@ -300,7 +298,7 @@ export function ImageStudio() {
     r.supports_characters && r.is_available
   )
 
-  // Fail closed: no generator surface while engines are unknown or offline.
+  // Unknown service state: hold before showing anything that could dispatch.
   if (pendingStatus) {
     return (
       <div style={offlinePanelStyle} role="status">
@@ -310,25 +308,23 @@ export function ImageStudio() {
     )
   }
 
-  if (statusFailed || !enginesAvailable) {
+  // A Gateway/proxy that won't answer is NOT the same as offline renderers; the
+  // recovery differs (restore the Gateway vs start ComfyUI), so surface the real
+  // cause instead of masking it as renderer downtime.
+  if (statusFailed) {
     return (
-      <div style={offlinePanelStyle} data-testid="studio-offline">
-        <p style={offlineTitleStyle}>image engines offline</p>
+      <div style={offlinePanelStyle} data-testid="studio-status-error">
+        <p style={offlineTitleStyle}>can’t reach the image service</p>
         <p style={offlineBodyStyle}>
-          Start ComfyUI or Draw Things, then check again. Generation stays disabled until
-          at least one engine is reachable — nothing is sent that would just fail.
+          The image service didn’t answer. Check that Kitty’s gateway is running, then
+          check again — generation may be fine once the service is back.
         </p>
         <button
           type="button"
           onClick={() => void statusQuery.refetch()}
           disabled={statusQuery.isFetching}
           data-testid="studio-check-again"
-          style={{
-            alignSelf: 'flex-start', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600,
-            padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer',
-            background: 'var(--primary)', color: 'var(--on-primary)',
-            display: 'inline-flex', alignItems: 'center', gap: 6, opacity: statusQuery.isFetching ? 0.6 : 1,
-          }}
+          style={checkAgainStyle}
         >
           <RefreshCw size={13} />
           {statusQuery.isFetching ? 'checking…' : 'check again'}
@@ -347,6 +343,27 @@ export function ImageStudio() {
       margin: '0 auto',
       padding: '24px 20px',
     }}>
+      {/* Renderer-independent work (characters, plan preview) stays available
+          while renderers are offline; only generation is turned off. */}
+      {!enginesAvailable && (
+        <div style={offlinePanelStyle} data-testid="studio-offline" role="status">
+          <p style={offlineTitleStyle}>no image engine is online</p>
+          <p style={offlineBodyStyle}>
+            Generation is disabled until a renderer is reachable — start ComfyUI or Draw
+            Things, then check again. Plan preview and characters still work.
+          </p>
+          <button
+            type="button"
+            onClick={() => void statusQuery.refetch()}
+            disabled={statusQuery.isFetching}
+            data-testid="studio-check-again"
+            style={checkAgainStyle}
+          >
+            <RefreshCw size={13} />
+            {statusQuery.isFetching ? 'checking…' : 'check again'}
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <Image size={22} style={{ color: 'var(--cat-ginger)' }} />
@@ -531,15 +548,16 @@ export function ImageStudio() {
             )}
             <button
               onClick={handleGenerate}
-              disabled={!prompt.trim() || generating}
+              disabled={!prompt.trim() || generating || !enginesAvailable}
+              title={!enginesAvailable ? 'no image engine is online' : undefined}
               style={{
                 border: 'none', borderRadius: 10,
-                background: generating ? 'var(--ink-2)' : 'var(--primary)',
-                color: generating ? 'var(--bg)' : 'var(--on-primary)',
+                background: generating || !enginesAvailable ? 'var(--ink-2)' : 'var(--primary)',
+                color: generating || !enginesAvailable ? 'var(--bg)' : 'var(--on-primary)',
                 padding: '8px 18px', fontFamily: 'var(--font-body)',
                 fontSize: 14, fontWeight: 700,
-                cursor: generating ? 'not-allowed' : 'pointer',
-                opacity: !prompt.trim() && !generating ? 0.5 : 1,
+                cursor: generating || !enginesAvailable ? 'not-allowed' : 'pointer',
+                opacity: !prompt.trim() && !generating && enginesAvailable ? 0.5 : 1,
                 display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
@@ -627,6 +645,7 @@ export function ImageStudio() {
           plan={plan}
           onDismiss={() => setPlan(null)}
           onGenerate={handleGenerate}
+          enginesAvailable={enginesAvailable}
         />
       )}
 
@@ -836,10 +855,12 @@ function PlanPreviewCard({
   plan,
   onDismiss,
   onGenerate,
+  enginesAvailable = true,
 }: {
   plan: Record<string, unknown>
   onDismiss: () => void
   onGenerate: () => void
+  enginesAvailable?: boolean
 }) {
   const refs = Array.isArray(plan.references)
     ? plan.references.filter(
@@ -981,12 +1002,14 @@ function PlanPreviewCard({
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           onClick={onGenerate}
+          disabled={!enginesAvailable}
+          title={enginesAvailable ? undefined : 'no image engine is online'}
           style={{
             border: 'none', borderRadius: 10,
-            background: 'var(--primary)',
-            color: 'var(--on-primary)',
+            background: enginesAvailable ? 'var(--primary)' : 'var(--ink-2)',
+            color: enginesAvailable ? 'var(--on-primary)' : 'var(--bg)',
             padding: '8px 18px', fontFamily: 'var(--font-body)',
-            fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            fontSize: 14, fontWeight: 700, cursor: enginesAvailable ? 'pointer' : 'not-allowed',
             display: 'flex', alignItems: 'center', gap: 6,
           }}
         >
@@ -1074,12 +1097,25 @@ const offlineBodyStyle: React.CSSProperties = {
   margin: 0, fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6,
 }
 
+const checkAgainStyle: React.CSSProperties = {
+  alignSelf: 'flex-start', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600,
+  padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', color: 'var(--on-primary)',
+  background: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 6,
+}
+
 /** Turn a possible raw backend error (JSON {detail}, HTML error page) into a
  *  human message plus an optional technical detail the user can expand. */
 function friendlyStudioError(err: unknown): { message: string; detail: string | null } {
   const raw = err instanceof Error ? err.message : 'generation failed'
   const trimmed = raw.trim()
-  if (/^<html/i.test(trimmed.toLowerCase()) || /internal server error/i.test(trimmed)) {
+  // Standard proxy/framework error pages commonly start with "<!DOCTYPE html>",
+  // not "<html>"; detect any HTML document and keep its body in the expandable
+  // technical detail rather than rendering it as the primary message.
+  if (
+    /^<!doctype html/i.test(trimmed)
+    || /^<html/i.test(trimmed)
+    || /internal server error/i.test(trimmed)
+  ) {
     return {
       message: 'the image service hit an internal error — check your renderer and try again',
       detail: trimmed.slice(0, 2000),

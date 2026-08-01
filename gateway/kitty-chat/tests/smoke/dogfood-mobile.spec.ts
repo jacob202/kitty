@@ -138,6 +138,20 @@ async function lowestInteractiveAboveNav(page: Page, navTop: number) {
   }, navTop);
 }
 
+/** Scroll to the bottom and verify the last actionable clear the fixed tab bar.
+ *  Retries because heavy views keep growing as late queries resolve, pushing a
+ *  control back below the fold right at measure time. */
+async function assertLastActionableClearsNav(page: Page, navTop: number, label: string) {
+  let last: { ok: boolean; detail: string } | null = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    await scrollMainToBottom(page);
+    last = await lowestInteractiveAboveNav(page, navTop);
+    if (last.ok) break;
+    await page.waitForTimeout(500);
+  }
+  expect(last!.ok, `[${label}] ${last!.detail}`).toBe(true);
+}
+
 test.describe('phone dogfood — slice 1', () => {
   test.beforeEach(({}, testInfo) => {
     testInfo.skip(testInfo.project.name !== 'mobile', 'phone-only acceptance');
@@ -195,8 +209,7 @@ test.describe('phone dogfood — slice 1', () => {
 
       // 3) after scrolling to the bottom, the last actionable control clears the tab bar.
       await scrollMainToBottom(page);
-      const result = await lowestInteractiveAboveNav(page, navBox!.y);
-      expect(result.ok, `[${label}] ${result.detail}`).toBe(true);
+      await assertLastActionableClearsNav(page, navBox!.y, label);
     }
   });
 
@@ -213,8 +226,7 @@ test.describe('phone dogfood — slice 1', () => {
       await nav.getByRole('button', { name: label, exact: true }).click();
       await page.waitForTimeout(900);
       await scrollMainToBottom(page);
-      const result = await lowestInteractiveAboveNav(page, navBox!.y);
-      expect(result.ok, `[${label}] ${result.detail}`).toBe(true);
+      await assertLastActionableClearsNav(page, navBox!.y, label);
     }
   });
 
@@ -232,11 +244,19 @@ test.describe('phone dogfood — slice 1', () => {
 
     await expect(page.getByTestId('studio-offline')).toBeVisible();
     await expect(page.getByTestId('studio-check-again')).toBeVisible();
-    await expect(page.locator('main').getByRole('button', { name: 'generate', exact: true })).toHaveCount(0);
+
+    // Renderer-independent work stays available (finding 3): the editor is
+    // visible; with a prompt entered, plan preview is enabled — but generation
+    // stays disabled because no renderer is available.
+    await page.locator('main').getByPlaceholder(/describe what you want to create/i).fill('a sleeping cat');
+    await expect(page.locator('main').getByRole('button', { name: 'preview plan', exact: true })).toBeEnabled();
+    const generate = page.locator('main').getByRole('button', { name: 'generate', exact: true });
+    await expect(generate).toBeDisabled();
+    await expect(page.locator('main').getByPlaceholder(/describe what you want to create/i)).toBeVisible();
 
     // No raw Internal Server Error; only the human offline message.
     await expect(page.locator('main').getByText('Internal Server Error')).toHaveCount(0);
-    await expect(page.getByTestId('studio-offline')).toContainText('Start ComfyUI or Draw Things');
+    await expect(page.getByTestId('studio-offline')).toContainText('Plan preview and characters still work');
 
     // The recovery action actually re-checks (and stays fail-closed).
     await page.getByTestId('studio-check-again').click();
