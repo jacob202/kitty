@@ -116,7 +116,60 @@ PR #331 active. Its own `invalidation_conditions` ("HEAD advances past
 9c446874") had already fired, so it was safe to rewrite. Repaired to a full
 SHA and `pull_request: null`; HANDOFF.md gained the missing key.
 
-## E7 — issue #336 claims checked against code
+## E6b — main is green again (closes Gate 0.1)
+
+After PR #339 merged as `8c58f52`:
+
+```
+1145 8c58f52d completed success 2026-08-01T05:46:08Z
+1139 b68268b0 completed failure 2026-08-01T02:39:23Z
+1134 fb4e3002 completed failure 2026-07-31T22:45:06Z
+```
+
+Run 1145 ends the red streak that ran from `092372b1` through `b68268b0`.
+Gate 0.1 and Gate 0.8 are VERIFIED on this run, not on the PR-head checks.
+
+## E7 — red PRs are mergeable on `main`
+
+Checked after slice 0 merged, to find out why a broken bump reached main at
+all. The answer was not the one the plan assumed.
+
+PR #322 (`dependabot/pip/openai-2.49.0`, the PR carrying `600c0fa`) check runs:
+
+```
+pytest            failure   completed 2026-07-31T05:25:32Z  (job 91080470314)
+lint              failure   completed 2026-07-31T05:25:28Z
+hygiene           failure   completed 2026-07-31T05:25:32Z
+check-description failure   completed 2026-07-31T05:25:18Z
+auto-label        failure   completed 2026-07-31T05:25:26Z
+suggest-tests     failure   completed 2026-07-31T05:25:16Z
+risk-guardrails   failure   completed 2026-07-31T05:25:13Z
+```
+
+Merge commit `19865ce`, authored **2026-07-31 16:41:13 -0600** — about eleven
+hours after `pytest` went red, with the red check still standing.
+
+It was one of six Dependabot merges inside 4.5 minutes:
+
+```
+4618e29  16:40:42  #323
+19865ce  16:41:13  #322   <- carries the breaking openai pin
+8da5e07  16:41:38  #321
+e6b7484  16:43:38  #311
+415580f  16:44:39  #312
+fb4e300  16:45:03  #313
+```
+
+`mem0ai>=0.1.118` had been pinned since `a45f161` (2026-07-26), five days
+earlier, so #322 was intrinsically broken on its own — not a semantic conflict
+between concurrently-merged PRs. Its own CI said so and was overridden.
+
+**Conclusion:** the tests gate works. Nothing bypassed it. `main` simply has no
+enforced required status checks, so red is mergeable. Adding another CI check
+would add another ignorable red mark. The fix is branch protection, which needs
+repo admin.
+
+## E8 — issue #336 claims checked against code
 
 Method: read the named files, not the issue's summary of them. Results in
 `grounding.md` § "Image subsystem". All six claims TRUE. Key line numbers:
