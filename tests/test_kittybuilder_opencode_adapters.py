@@ -43,6 +43,9 @@ from pathlib import Path
 
 args = sys.argv
 model = args[args.index("--model") + 1] if "--model" in args else ""
+model_log = os.environ.get("FAKE_OPENCODE_MODEL_LOG", "")
+if model_log:
+    Path(model_log).write_text(model, encoding="utf-8")
 fail_models = set(
     filter(None, os.environ.get("FAKE_OPENCODE_FAIL_MODELS", "").split(","))
 )
@@ -532,4 +535,51 @@ def test_reviewer_falls_through_ladder_on_clean_model_failure(tmp_path: Path):
     assert completed.returncode == 0, completed.stderr
     assert json.loads(review.read_text())["verdict"] == "approve"
     assert "trying the next free model" in completed.stderr
-    assert "Free review completed with rev-b" in completed.stdout
+    assert "Review completed with rev-b" in completed.stdout
+
+
+def test_reviewer_defaults_to_pro_and_writes_review_note(tmp_path: Path):
+    """The reviewer runs openrouter/deepseek/deepseek-v4-pro (frontier) by
+    default instead of the free ladder, and writes a human-readable note that
+    Builder/Kitty/Jacob can read alongside the structured review."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_git_repo(repo)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    implementation = tmp_path / "implementation.json"
+    implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
+    review = tmp_path / "review.json"
+    note = tmp_path / "review-note.md"
+    model_log = tmp_path / "fake-model-used.txt"
+    fake = _fake_opencode(tmp_path)
+    binding = _review_binding(repo)
+    env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
+    env.update(
+        {
+            "KB_IMPL_RESULT_PATH": str(implementation),
+            "KB_REVIEW_RESULT_PATH": str(review),
+            "KB_REVIEW_NOTE_PATH": str(note),
+            "FAKE_OPENCODE_REVIEW": "1",
+            "FAKE_OPENCODE_MODEL_LOG": str(model_log),
+            "KB_REVIEW_CONTEXT_PATH": str(binding),
+            "KB_REVIEW_SHA": subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo, check=True,
+                capture_output=True, text=True,
+            ).stdout.strip(),
+            "KB_REVIEW_DIFF_SHA256": "0" * 64,
+        }
+    )
+
+    completed = subprocess.run(
+        [str(REVIEWER)], cwd=repo, env=env, capture_output=True, text=True
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert model_log.read_text() == "openrouter/deepseek/deepseek-v4-pro"
+    assert json.loads(review.read_text())["verdict"] == "approve"
+    note_text = note.read_text()
+    assert "# KittyBuilder review note" in note_text
+    assert "Verdict: approve" in note_text
+    assert "Reviewed commit:" in note_text

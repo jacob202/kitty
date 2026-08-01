@@ -1384,6 +1384,7 @@ def run_packet(
                 "changed_paths": review_context["changed_paths"],
             }
             write_run_manifest(manifest_path, manifest)
+            review_note_path = Path(attempt_dir) / "review-note.md"
             review_error = _run_review_command(
                 review_command,
                 cwd=worktree_path(task_id, repo_root=repo_root),
@@ -1393,6 +1394,7 @@ def run_packet(
                     "KB_BUNDLE_PATH": str(bundle_path),
                     "KB_IMPL_RESULT_PATH": str(result_path),
                     "KB_REVIEW_RESULT_PATH": str(review_path),
+                    "KB_REVIEW_NOTE_PATH": str(review_note_path),
                     "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
                     "KB_REVIEW_CONTEXT_PATH": str(review_context_path),
                     "KB_REVIEW_SHA": str(review_context["review_sha"]),
@@ -1460,6 +1462,9 @@ def run_packet(
                             **_review_evidence(review),
                             "review_sha": review_context["review_sha"],
                             "diff_sha256": review_context["diff_sha256"],
+                            "review_note": str(review_note_path)
+                            if review_note_path.exists()
+                            else None,
                         }
                         bq.append_event(
                             task_id,

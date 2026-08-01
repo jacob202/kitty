@@ -11,7 +11,7 @@ models do the typing. This doc is the operating manual for that split.
 | ----- | --- | ---- |
 | Author the packet (objective, allowed paths, acceptance, validation) | Claude/Codex | paid, once |
 | Implement the packet in an isolated worktree | free OpenCode builder ladder | free |
-| Independent read-only review of the attempt | free OpenCode reviewer ladder | free |
+| Independent review of the attempt (frontier check) | `deepseek-v4-pro` reviewer | paid, small |
 | Deterministic validation (declared test commands) | the runner itself | free |
 | Final diff review + merge decision | Jacob (with Claude if needed) | paid, small |
 
@@ -21,11 +21,15 @@ and only that, is when paid tokens re-enter.
 
 ## One-command launch
 
-Both adapters walk the same zero-cost ladder the free train uses
+Both adapters gate on the same zero-cost builder ladder the free train uses
 (`opencode/deepseek-v4-flash-free` → `opencode/mimo-v2.5-free` →
 `opencode/nemotron-3-ultra-free` → `opencode/north-mini-code-free` →
-OpenRouter free fallbacks). Free endpoints rate-limit and flake; the ladder is
-what makes a single attempt survive that without burning the attempt budget.
+OpenRouter free fallbacks). The reviewer is independent of that ladder: it runs
+`openrouter/deepseek/deepseek-v4-pro` (frontier) by default so the review is a
+real second opinion rather than a cheap echo; force a free review only when you
+explicitly want to spend nothing (`KITTYBUILDER_REVIEW_MODEL=…-free`). Free
+endpoints rate-limit and flake; the worker ladder is what makes a single attempt
+survive that without burning the attempt budget.
 
 Hand-off rules (fail-loud, no debris):
 
@@ -42,8 +46,8 @@ Overrides:
 ```bash
 KITTYBUILDER_MODEL=opencode/mimo-v2.5-free          # force one builder model
 KITTYBUILDER_MODELS="modelA modelB"                  # replace the builder ladder
-KITTYBUILDER_REVIEW_MODEL=...                        # force one reviewer model
-KITTYBUILDER_REVIEW_MODELS="modelA modelB"           # replace the reviewer ladder
+KITTYBUILDER_REVIEW_MODEL=...                        # force one reviewer model (default: openrouter/deepseek/deepseek-v4-pro)
+KITTYBUILDER_REVIEW_MODELS="modelA modelB"           # replace the reviewer model list
 ```
 
 `--free --model <id>` on the CLI is shorthand for forcing one builder model.

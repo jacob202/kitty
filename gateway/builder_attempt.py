@@ -267,6 +267,19 @@ def _prior_attempt_summary(row: sqlite3.Row) -> dict[str, Any]:
             "verdict": review.get("verdict"),
             "summary": _clip(review.get("summary"), NOTE_CAP),
         }
+        findings = review.get("findings")
+        if isinstance(findings, list):
+            digest["review"]["findings"] = [
+                {
+                    "severity": f.get("severity") if isinstance(f, dict) else None,
+                    "note": _clip(
+                        str(f.get("note", "") if isinstance(f, dict) else f),
+                        NOTE_CAP,
+                    ),
+                }
+                for f in findings
+                if f
+            ]
     return digest
 
 
