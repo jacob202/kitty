@@ -60,7 +60,7 @@ async function stubGateway(page: Page, opts: { failAfterChunks?: number } = {}) 
     })
   );
 
-  await page.route('**/proxy/runtime', (route) =>
+  await page.route('**/proxy/runtime/**', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -168,6 +168,11 @@ async function stubGateway(page: Page, opts: { failAfterChunks?: number } = {}) 
   // Chat lifecycle (for thread goal)
   await page.route('**/proxy/chats/*/lifecycle', (route) => {
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversation: {}, turns: [] }) });
+  });
+
+  // Catch-all for any unmocked proxy call
+  await page.route('**/proxy/**', (route) => {
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
 }
 
