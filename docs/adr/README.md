@@ -13,7 +13,7 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0001 | [db.py Is The SQLite Seam For App-State Stores](0001-db-scope.md)                              | Accepted                       | 2026-07-02 |
 | 0002 | [Local-First Single User](0002-local-first-single-user.md)                                     | Accepted                       | 2026-07-02 |
 | 0003 | [Gateway Is The Product](0003-gateway-is-the-product.md)                                       | Accepted                       | 2026-07-02 |
-| 0004 | [memory_graph Owns Context Reads](0004-memory_graph_owns_context_reads.md)                      | Accepted                       | 2026-07-02 |
+| 0004 | [memory_graph Owns Context Reads](0004-memory-graph-owns-context-reads.md)                      | Accepted                       | 2026-07-02 |
 | 0005 | [Keep Inbox JSONL For Capture](0005-keep-inbox-jsonl-for-capture.md)                           | Accepted                       | 2026-07-02 |
 | 0006 | [Phase B Is Consolidation](0006-phase-b-is-consolidation.md)                                   | Fulfilled / historical         | 2026-07-02 |
 | 0007 | [Borrow Patterns, Not Random Complexity](0007-borrow-patterns-not-random-complexity.md)        | Accepted                       | 2026-07-02 |
