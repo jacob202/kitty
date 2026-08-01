@@ -130,19 +130,6 @@ stop_pidfile() {
   rm -f "$pidfile"
 }
 
-stop_owned_listener() {
-  local label="$1" port="$2" pid
-  for pid in $(listener_pids "$port"); do
-    if pid_owned_by_kitty "$pid"; then
-      echo "  $label  stopping owned listener pid $pid on :$port"
-      pkill -TERM -P "$pid" 2>/dev/null || true
-      kill -TERM "$pid" 2>/dev/null || true
-    else
-      echo "  $label  leaving unrelated listener pid $pid on :$port: $(pid_command "$pid")" >&2
-    fi
-  done
-}
-
 assert_port_available() {
   local label="$1" port="$2" pids pid cwd
   pids="$(listener_pids "$port")"

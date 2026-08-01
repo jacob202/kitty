@@ -30,3 +30,15 @@ def test_start_tracks_ui_pid_and_refuses_occupied_ports() -> None:
     assert 'assert_port_available "UI" "$UI_PORT"' in SCRIPT
     assert 'assert_port_available "Gateway" "$GATEWAY_PORT"' in SCRIPT
     assert 'assert_port_available "LiteLLM" "$LITELLM_PORT"' in SCRIPT
+
+
+def test_stop_owned_listener_removed() -> None:
+    # d9420f3 moved cmd_down to an unconditional port sweep, leaving
+    # stop_owned_listener defined but never called. Delete the dead function
+    # rather than carry it (project rule: no dead code). Its ownership helpers
+    # (pid_owned_by_kitty, listener_pids) are still used by assert_port_available
+    # and cmd_status, so those must survive.
+    assert SCRIPT.count("stop_owned_listener") == 0
+    assert "pid_owned_by_kitty" in SCRIPT
+    assert "listener_pids" in SCRIPT
+    assert "assert_port_available" in SCRIPT
