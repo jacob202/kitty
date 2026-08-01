@@ -116,11 +116,12 @@
     },
     {
       "id": "RP-07-operator-closeout-proto",
-      "title": "Worker failure, operator completion, independent review",
-      "objective": "Execution class: harness-fixture. Write data/recovery_proof/rp07.txt containing 'rp07 ok'. The harness runs a worker fixture that fails cleanly, then opens a second attempt for the operator, attaches an operator-supplied completion report with an operator reason, records the operator's implementation result and an independent reviewer's approval on that attempt, and closes it succeeded. Packet 026 requires these to render as three separate facts; this packet proves the rollup never collapses them into a fabricated worker success. The budget is deliberately 2: a review cannot be attached to a closed attempt, so the operator needs an attempt of their own.",
+      "title": "Worker failure, operator grant, operator completion, independent review",
+      "objective": "Execution class: harness-fixture. Write data/recovery_proof/rp07.txt containing 'rp07 ok'. The harness runs a worker fixture that fails cleanly and exhausts the packet's retry budget, then calls the public operator command `initiative grant-attempt` with a reason to open a further attempt, attaches an operator-supplied completion report with an operator reason on that new attempt, records the operator's implementation result and an independent reviewer's approval, and closes it succeeded. Packet 026 requires these to render as three separate facts; this packet proves the rollup never collapses them into a fabricated worker success. The budget is deliberately 1: the operator grant is the documented way to continue after exhaustion, and this packet proves the full public path.",
       "depends_on": [],
       "acceptance_criteria": [
         "The worker failure stays recorded after the operator completes the work",
+        "The exhausted budget is granted a further attempt via the public grant-attempt command",
         "The operator completion is attributed to the operator, not to the worker",
         "The independent review approval is recorded with its verdict",
         "All three facts render together in initiative status evidence",
@@ -130,7 +131,7 @@
         "data/recovery_proof/rp07.txt"
       ],
       "policy": {
-        "max_attempts": 2,
+        "max_attempts": 1,
         "priority": 4
       },
       "validation_commands": [

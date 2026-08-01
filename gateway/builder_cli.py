@@ -1343,6 +1343,26 @@ def _cmd_initiative_start_attempt(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_initiative_grant_attempt(args: argparse.Namespace) -> int:
+    from gateway.builder_attempt import AttemptError, grant_attempt
+
+    try:
+        granted = grant_attempt(args.id, args.packet, reason=args.reason)
+    except AttemptError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(granted, indent=2, default=str))
+    else:
+        print(
+            f"granted 1 attempt to {granted['initiative_id']}/"
+            f"{granted['packet_id']}: "
+            f"{granted['previous_effective_limit']} -> "
+            f"{granted['new_effective_limit']}"
+        )
+    return 0
+
+
 def _load_result_file(path: str) -> dict[str, Any]:
     parsed = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(parsed, dict):
@@ -1848,6 +1868,14 @@ COMMANDS: list[CommandSpec] = [
                 [_a("id", "initiative ID"),
                  _a("packet", "packet ID"),
                  _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-grant-attempt", "initiative", "grant-attempt",
+                "grant exactly one additional attempt to a packet's retry budget "
+                "(operator intervention for an exhausted budget)",
+                _cmd_initiative_grant_attempt,
+                [_a("id", "initiative ID"),
+                 _a("packet", "packet ID"),
+                 _a("--reason", "nonblank operator reason for the grant", required=True),
+                 _a("--json", "output JSON", action="store_true")]),
     CommandSpec("initiative-record-implementation", "initiative", "record-implementation",
                 "attach a validated implementation result",
                 _cmd_initiative_record,
@@ -1979,6 +2007,7 @@ _MUTATING_INITIATIVE_COMMANDS = frozenset(
     {
         "apply",
         "start-attempt",
+        "grant-attempt",
         "record-implementation",
         "record-review",
         "run-validation",

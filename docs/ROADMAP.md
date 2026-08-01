@@ -237,7 +237,7 @@ verifiable results.
 - Failure: any recovery path produces fabricated success or silent loss.
 - Evidence: `docs/research/` or `docs/audit/` as appropriate.
 - Owner: Jacob.
-- Status: PENDING, with one named blocker.
+- Status: COMPLETE (2026-08-01, `grant-attempt` landed).
 - Recovery is proven live and repeatably by `scripts/builder_recovery_proof.py`
   — crash, stale lease, out-of-scope debris, interrupted review, provider
   exhaustion, operator-completed closeout, and clean completion after all of
@@ -246,17 +246,19 @@ verifiable results.
 - Delta calculated 2026-08-01 against `27deef1`, requirement by requirement
   against code rather than packet prose
   (`docs/research/packet-026-027-delta-2026-08-01.md`). Packet 027 is complete.
-  Packet 026 is complete except for one reachability gap.
-- Remaining blocker: the operator-completed closeout is unreachable through
-  `run-packet`, the command Packet 026 tells operators to use. `run-packet`
-  spends the whole attempt budget retrying a failing worker, a review cannot
-  attach to a closed attempt, and `start-attempt` then answers `operator
-  intervention required` — an intervention no CLI verb performs. The workflow
-  itself is sound; only the door is shut. Smallest fix: an operator
-  `grant-attempt` verb that records one further attempt with a reason.
-- This outcome does not close on the recovery evidence alone. Closing it means
-  either landing that verb or deciding the manual four-command path is the
-  supported workflow and correcting Packet 026's demo section to say so.
+  Packet 026 is complete.
+- The remaining blocker is closed: the operator-completed closeout is now
+  reachable through public commands. `./kitty builder initiative grant-attempt
+  <id> <packet> --reason "..."` grants exactly one further attempt against the
+  packet's retry budget and records a durable `attempt_granted` event with the
+  operator reason, the previous and new effective limits, and a timestamp. RP-07
+  in the recovery proof exercises the full public path: worker failure →
+  budget exhaustion (start-attempt refuses with `operator intervention
+  required`) → `grant-attempt` → new attempt starts → operator completion →
+  independent review approval → history still reports the worker failure.
+  Focused suites: `tests/test_builder_attempt.py tests/test_builder_cli.py
+  tests/test_builder_initiative.py tests/test_builder_loop.py
+  tests/test_builder_runner.py tests/test_builder_queue.py` all pass.
 
 1.2 **Create executable work for weak/free models**
 - Write at least two real JSON manifest packets meeting

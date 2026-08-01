@@ -617,3 +617,160 @@ class TestAttemptBudgetConsistency:
         self._run(db_path, [ba.ATTEMPT_SUCCEEDED])
         status = bi.initiative_status(INITIATIVE, db_path)
         assert status["state"] != "failed"
+
+
+class TestGrantAttempt:
+    """The public operator `grant-attempt` intervention for an exhausted budget."""
+
+    def _packet_policy(self, db_path) -> dict:
+        import sqlite3
+
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            row = conn.execute(
+                "SELECT policy_json FROM initiative_packets "
+                "WHERE initiative_id = ? AND packet_id = ?",
+                (INITIATIVE, PACKET),
+            ).fetchone()
+        finally:
+            conn.close()
+        return json.loads(row[0]) if row and row[0] else {}
+
+    def test_grant_increases_limit_by_exactly_one_and_emits_event(self, db_path):
+        granted = ba.grant_attempt(
+            INITIATIVE, PACKET, reason="operator override", db_path=db_path
+        )
+        assert granted["granted"] == 1
+        assert granted["previous_effective_limit"] == 2
+        assert granted["new_effective_limit"] == 3
+        assert granted["reason"] == "operator override"
+        assert granted["event_id"] > 0
+
+        policy = self._packet_policy(db_path)
+        assert policy["max_attempts"] == 3
+
+        conn = bq.connect(db_path)
+        try:
+            events = conn.execute(
+                "SELECT type, payload_json FROM events WHERE type = 'attempt_granted'"
+            ).fetchall()
+        finally:
+            conn.close()
+        assert len(events) == 1
+        payload = json.loads(events[0]["payload_json"])
+        assert payload["previous_effective_limit"] == 2
+        assert payload["new_effective_limit"] == 3
+        assert payload["reason"] == "operator override"
+        assert payload["task_id"] and payload["initiative_id"] and payload["packet_id"]
+
+    def test_grant_then_start_after_exhaustion(self, db_path):
+        for _ in range(2):
+            attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+            ba.close_attempt(attempt["id"], ba.ATTEMPT_FAILED, db_path=db_path)
+        with pytest.raises(ba.AttemptLimitError):
+            ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+
+        granted = ba.grant_attempt(
+            INITIATIVE, PACKET, reason="budget exhausted, resume", db_path=db_path
+        )
+        assert granted["new_effective_limit"] == 3
+
+        third = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        assert third["attempt_no"] == 3
+
+    def test_grant_never_rewrites_prior_attempts(self, db_path):
+        first = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        ba.record_implementation_result(first["id"], _impl(status="failed"), db_path=db_path)
+        ba.close_attempt(first["id"], ba.ATTEMPT_FAILED, db_path=db_path)
+
+        ba.grant_attempt(INITIATIVE, PACKET, reason="do not rewrite history", db_path=db_path)
+
+        attempts = ba.list_attempts(INITIATIVE, db_path=db_path)
+        assert len(attempts) == 1
+        assert attempts[0]["outcome"] == ba.ATTEMPT_FAILED
+        assert attempts[0]["implementation"]["status"] == "failed"
+
+    def test_blank_reason_rejected(self, db_path):
+        for blank in ("", "   ", None):
+            with pytest.raises(ba.AttemptError):
+                ba.grant_attempt(INITIATIVE, PACKET, reason=blank)
+
+    def test_unknown_packet_rejected(self, db_path):
+        with pytest.raises(ba.AttemptError):
+            ba.grant_attempt(INITIATIVE, "nope", reason="missing packet")
+
+    def test_malformed_policy_rejected(self, db_path):
+
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE initiative_packets SET policy_json = 'not json' "
+                "WHERE initiative_id = ? AND packet_id = ?",
+                (INITIATIVE, PACKET),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        with pytest.raises(ba.AttemptError):
+            ba.grant_attempt(INITIATIVE, PACKET, reason="bad policy")
+        # Event must not be recorded when the grant fails.
+        conn = bq.connect(db_path)
+        try:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM events WHERE type = 'attempt_granted'"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        assert count == 0
+
+    def test_malformed_max_attempts_rejected(self, db_path):
+
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE initiative_packets SET policy_json = '{\"max_attempts\": 0}' "
+                "WHERE initiative_id = ? AND packet_id = ?",
+                (INITIATIVE, PACKET),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        with pytest.raises(ba.AttemptError):
+            ba.grant_attempt(INITIATIVE, PACKET, reason="bad max")
+
+
+class TestGrantAttemptCli:
+    def test_grant_attempt_cli_json_reports_budget(self, cli_db, capsys):
+        assert main(
+            ["initiative", "grant-attempt", INITIATIVE, PACKET,
+             "--reason", "operator override", "--json"]
+        ) == 0
+        granted = json.loads(capsys.readouterr().out)
+        assert granted["granted"] == 1
+        assert granted["previous_effective_limit"] == 2
+        assert granted["new_effective_limit"] == 3
+
+    def test_grant_attempt_cli_requires_reason(self, cli_db, capsys):
+        with pytest.raises(SystemExit):
+            main(["initiative", "grant-attempt", INITIATIVE, PACKET])
+
+    def test_grant_attempt_cli_blank_reason_fails(self, cli_db, capsys):
+        assert main(
+            ["initiative", "grant-attempt", INITIATIVE, PACKET, "--reason", "  "]
+        ) == 1
+        assert "nonblank" in capsys.readouterr().err
+
+    def test_grant_attempt_cli_unknown_packet_fails(self, cli_db, capsys):
+        assert main(
+            ["initiative", "grant-attempt", INITIATIVE, "nope",
+             "--reason", "missing"]
+        ) == 1
+        assert "unknown packet" in capsys.readouterr().err
+
+    def test_grant_attempt_kill_switch_blocks(self, cli_db, capsys, monkeypatch):
+        monkeypatch.setenv("KITTY_BUILDER_QUEUE_ENABLED", "0")
+        assert main(
+            ["initiative", "grant-attempt", INITIATIVE, PACKET,
+             "--reason", "should be blocked"]
+        ) == 1
+        assert "disabled" in capsys.readouterr().err

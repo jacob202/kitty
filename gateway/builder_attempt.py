@@ -22,6 +22,7 @@ import json
 import sqlite3
 import subprocess
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -575,6 +576,106 @@ def start_attempt(
             "SELECT * FROM packet_attempts WHERE id = ?", (attempt_id,)
         ).fetchone()
         return _row_to_attempt(row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def grant_attempt(
+    initiative_id: str,
+    packet_id: str,
+    *,
+    reason: str | None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Grant exactly one additional attempt to a packet's retry budget.
+
+    The operator intervention the exhausted-budget error message points at.
+    Raises the packet's ``policy.max_attempts`` by one (persisted to the
+    existing budget system) and records a durable ``attempt_granted`` event so
+    the change has an audit trail. Never touches prior attempts: their rows,
+    outcomes, and result contracts are left exactly as recorded.
+    """
+    if not reason or not str(reason).strip():
+        raise AttemptError("a nonblank operator reason is required")
+
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        packet = _packet_row(conn, initiative_id, packet_id)
+
+        raw_policy = packet["policy_json"]
+        if raw_policy:
+            try:
+                policy = json.loads(raw_policy)
+            except json.JSONDecodeError as exc:
+                raise AttemptError(
+                    f"packet {initiative_id}/{packet_id} has malformed policy "
+                    f"JSON: {exc}"
+                ) from exc
+            if not isinstance(policy, dict):
+                raise AttemptError(
+                    f"packet {initiative_id}/{packet_id} policy must be a JSON "
+                    "object, got "
+                    f"{type(policy).__name__}"
+                )
+        else:
+            policy = {}
+
+        raw_max = policy.get("max_attempts", DEFAULT_MAX_ATTEMPTS)
+        if not isinstance(raw_max, int) or isinstance(raw_max, bool) or raw_max < 1:
+            raise AttemptError(
+                f"packet {initiative_id}/{packet_id} policy.max_attempts is "
+                f"malformed: {raw_max!r}"
+            )
+        previous_limit = raw_max
+        new_limit = previous_limit + 1
+
+        new_policy = dict(policy)
+        new_policy["max_attempts"] = new_limit
+        conn.execute(
+            """
+            UPDATE initiative_packets
+            SET policy_json = ?
+            WHERE initiative_id = ? AND packet_id = ?
+            """,
+            (
+                json.dumps(new_policy),
+                initiative_id,
+                packet_id,
+            ),
+        )
+
+        event = bq.append_event(
+            packet["task_id"],
+            "attempt_granted",
+            payload={
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "task_id": packet["task_id"],
+                "reason": str(reason).strip(),
+                "previous_effective_limit": previous_limit,
+                "new_effective_limit": new_limit,
+                "granted": 1,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            conn=conn,
+        )
+        conn.commit()
+        return {
+            "initiative_id": initiative_id,
+            "packet_id": packet_id,
+            "task_id": packet["task_id"],
+            "reason": str(reason).strip(),
+            "granted": 1,
+            "previous_effective_limit": previous_limit,
+            "new_effective_limit": new_limit,
+            "event_id": event["id"],
+            "granted_at": event["created_at"],
+        }
     except Exception:
         conn.rollback()
         raise
