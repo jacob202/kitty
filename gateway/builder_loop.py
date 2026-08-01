@@ -1035,6 +1035,20 @@ def run_packet(
                     "before retry; expected blocked or queued — not retrying"
                 )
 
+            # P027 covers the dead-supervisor path (stale-attempt
+            # reconciliation). A worker that died mid-run while the supervisor
+            # survived closes its attempt as failed and retries in-process —
+            # the same dirty worktree would otherwise trip ensure_worktree's
+            # refusal forever with no supported operator escape. Archive the
+            # partial work into the prior attempt's artifact dir, then reset.
+            if history:
+                prior_dir = _attempt_dir(
+                    task_id, history[-1]["attempt_id"], db_path
+                )
+                archive_and_reset_worktree(
+                    worktree_path(task_id, repo_root=repo_root), prior_dir
+                )
+
         attempt_id = attempt["id"]
         entry: dict[str, Any] = {"attempt_id": attempt_id, "attempt_no": attempt["attempt_no"]}
         history.append(entry)
