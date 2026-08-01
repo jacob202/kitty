@@ -69,7 +69,12 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     assert "What's shipped" in documents["live_status"] or "Shipped" in documents["live_status"]
     assert "Builder investigation" in documents["live_status"]
     # 5. What is active?
-    assert "Trust Foundation and Resume-Loop Proof" in documents["active_mission"]
+    # Asserting the mission's title would break on every legitimate mission
+    # change. The cold-start question is "is a mission declared and readable",
+    # so check the document's shape and let the receipt below prove liveness.
+    assert documents["active_mission"].startswith("# Active Mission — ")
+    assert "## Objective" in documents["active_mission"]
+    assert "## Acceptance Contract" in documents["active_mission"]
     assert receipt["continuity"]["active_mission"]["status"] == "running"
     # 6. What is next?
     assert isinstance(receipt["next_action"], str) and receipt["next_action"]

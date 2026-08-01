@@ -300,9 +300,17 @@ export function KittyProvider({ children }: { children: ReactNode }) {
   const searchQuery = useMemo(() => latestSearchQuery(activeChat), [activeChatId, userMessageCount])
 
   const runtimeModelIds = runtimeQuery.data?.inference.available_models.value
+  const modelDisplayNames = useMemo(
+    () => {
+      const map: Record<string, string> = {}
+      for (const m of modelsQuery.data?.models ?? []) map[m.id] = m.name
+      return map
+    },
+    [modelsQuery.data?.models],
+  )
   const availableModels = useMemo(
-    () => runtimeModelIds ? buildGatewayModels(runtimeModelIds) : modelsQuery.data?.models ?? MODELS,
-    [runtimeModelIds, modelsQuery.data?.models],
+    () => runtimeModelIds ? buildGatewayModels(runtimeModelIds, modelDisplayNames) : modelsQuery.data?.models ?? MODELS,
+    [runtimeModelIds, modelsQuery.data?.models, modelDisplayNames],
   )
 
   const modelGateway = {

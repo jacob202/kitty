@@ -354,6 +354,34 @@ unexercised in this session; a deliberate revert drill (§3.3 negative test
 - **Review trigger:** next edit to `CLAUDE.md`, `AGENTS.md`, `CODEX.md`, or `.claude/rules/`.
 - **Promotion target:** none yet — one confirmed occurrence. Would promote to `docs/DECISIONS.md` as a governance-file ownership decision if a second rule is found drifted.
 
+### L-CAND-19 — Builder packet ids are globally unique, not unique per initiative, so re-running a manifest under a new initiative id still collides
+
+- **Status:** candidate
+- **Date:** 2026-08-01
+- **Source session:** Phase 1.1 Builder recovery proof (`claude/builder-52dcp7`)
+- **Problem:** Building a re-runnable recovery proof, the harness isolated each run by suffixing only the `initiative_id`, leaving the six packet ids unchanged. The second run failed with `worker identity verification failed: packet_id 'RP-04-interrupted-review-proto' is not globally unique; lease identity is ambiguous`. Branch-lease identity keys on `packet_id` alone, so two initiatives that share a packet id cannot both hold leases. Worse, the collision surfaced *as an attempt failure*: the packets burned their attempt budget and reported `exhausted`, which reads as "the worker could not do the work" rather than "two manifests picked the same packet id."
+- **Evidence:** first harness run passed 2/6 scenarios with `RP-02` and `RP-06` reporting `rerun_outcome: "exhausted"` and `implementation_status: null`; `RP-04`'s recorded failure string was the identity-verification message above, not a review or worker failure. Suffixing packet ids per run (`scripts/builder_recovery_proof.py:pid`) made all six pass, twice in a row, against the same queue DB.
+- **Scope:** every initiative manifest under `docs/initiatives/`. Any two manifests reusing a packet id — including a v1/v2 pair of the same manifest, or a template applied twice — will collide the moment both have live leases.
+- **Lesson:** A packet id is a repo-global name, so manifest templates must not ship ids that a second application would reuse. An identity collision must not be spendable as attempt budget: it is an infrastructure fault, and charging it to the packet makes Builder report a healthy worker as exhausted.
+- **Action for future agents:** When writing or re-applying a manifest, `./kitty builder queue list` for the packet ids first, or suffix them. When an attempt fails with `exhausted` and a `null` implementation status, read the recorded failure string before believing the worker failed.
+- **Confidence:** high — reproduced and then fixed, with a passing repeat run as the control.
+- **Review trigger:** next initiative manifest authored from an existing template.
+- **Promotion target:** none yet. Would promote as a Packet 026 defect (budget neutrality for identity failures) if the collision is seen again in a real packet run rather than a harness.
+
+### L-CAND-20 — `queue recover --json` reports the same fact in two disagreeing fields
+
+- **Status:** candidate
+- **Date:** 2026-08-01
+- **Source session:** Phase 1.1 Builder recovery proof (`claude/builder-52dcp7`)
+- **Problem:** Recovering one expired claim returns both `"claimed_requeued": 1` and `"claimed_tasks_requeued": 0` in the same payload. A reader picking the second field concludes nothing was recovered when a task was in fact requeued.
+- **Evidence:** `./kitty builder queue recover --json` after claiming a task with `--lease-seconds 1` and waiting: `{"claimed_requeued": 1, ..., "claimed_tasks_requeued": 0, "conflicts": 0}`. The requeue itself is real — the task moved `claimed` → `queued` with a `released` event.
+- **Scope:** `gateway/builder_queue_leases.py` recovery summary and every consumer of it, including operator-facing recovery reports.
+- **Lesson:** Two near-identical key names in one payload is a truthfulness bug even when one of them is right, because nothing tells the reader which. The recovery proof pins the correct field (`claimed_requeued`) so a future rename fails the proof rather than silently changing meaning.
+- **Action for future agents:** Do not add a second spelling of an existing summary field. If the fields mean different things, name the difference; if they mean the same thing, delete one.
+- **Confidence:** medium — the disagreement is reproducible, but which field is intended as canonical was not traced to its origin.
+- **Review trigger:** next change to the queue recovery summary.
+- **Promotion target:** none yet.
+
 ## Candidate Lessons (rejected or not promoted)
 
 Empty — nothing rejected this session that was strong enough to mention.

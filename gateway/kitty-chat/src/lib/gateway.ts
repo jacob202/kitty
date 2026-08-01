@@ -393,7 +393,7 @@ function glowForColor(color: string): string {
   return `${color}99`
 }
 
-export function buildGatewayModels(ids: string[]): Model[] {
+export function buildGatewayModels(ids: string[], displayNames?: Record<string, string>): Model[] {
   const seen = new Set<string>()
   const source = ids.length > 0 ? ids : MODELS.map(model => model.id)
   return source
@@ -406,7 +406,7 @@ export function buildGatewayModels(ids: string[]): Model[] {
     })
     .map(id => ({
       id,
-      name: prettyModelName(id),
+      name: displayNames?.[id] ?? prettyModelName(id),
       color: colorForModel(id),
       glow: glowForColor(colorForModel(id)),
     }))
@@ -463,11 +463,15 @@ export async function fetchGatewayModels(): Promise<GatewayModelsPayload> {
       }
     }
     const json = await response.json()
+    const displayNames: Record<string, string> = {}
     const ids = Array.isArray(json?.data)
-      ? json.data.map((model: { id?: string }) => model?.id).filter((id: unknown): id is string => typeof id === 'string')
+      ? json.data.map((model: { id?: string; display_name?: string }) => {
+          if (model?.id && model?.display_name) displayNames[model.id] = model.display_name
+          return model?.id
+        }).filter((id: unknown): id is string => typeof id === 'string')
       : []
     return {
-      models: buildGatewayModels(ids),
+      models: buildGatewayModels(ids, displayNames),
       fromLiveGateway: true,
       error: null,
     }

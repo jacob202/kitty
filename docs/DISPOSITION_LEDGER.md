@@ -1,0 +1,239 @@
+# Disposition Ledger — 2026-07-31
+
+Every retained planning file in this repository has exactly one roadmap
+disposition. Nothing may remain unassigned. This ledger is authoritative; a
+file not listed here is either not a planning document or was added after the
+ledger date and needs disposition.
+
+**Roadmap authority:** `docs/ROADMAP.md`
+**Ledger date:** 2026-07-31
+**Base SHA:** `59f598c5` (origin/main)
+
+## Disposition classes
+
+| Disposition | Meaning |
+|---|---|
+| ACTIVE | Currently in progress within the named roadmap phase/outcome |
+| SCHEDULED | Assigned to a specific future roadmap outcome with dependencies |
+| BLOCKED | Cannot proceed until a named dependency clears |
+| BACKLOG | Preserved idea; no active schedule; activates when Jacob decides |
+| SUPERSEDED | Replaced by a newer document or absorbed into shipped work |
+| REJECTED | Explicitly not worth carrying; preserved for provenance only |
+| ARCHIVED | Retired to `docs/archive/`; narrative record, not active direction |
+
+---
+
+## docs/plans/ (8 files)
+
+| File | Disposition | Roadmap outcome | Notes |
+|---|---|---|---|
+| `feat-kittybuilder-follow-on-roadmap.md` | SUPERSEDED | — | Absorbed into Gate 0.4 and this ledger. Builder follow-on is now Phase 1/3. |
+| `image-studio-character-first-architecture-2026-07-28.md` | SCHEDULED | Phase 4.4 | Primary Image Studio architecture reference. Preserved direction. |
+| `image-studio-runpod-vertical-slice-2026-07-30.md` | BLOCKED | Phase 3.4 | Authorized RunPod input. Parked until Phase 3 RunPod authorization. |
+| `KITTY_PRODUCT_EXPERIENCE_V1.md` | BACKLOG | — | Draft product experience. Activates when Phase 4 product deepening begins. |
+| `kitty-master-architecture-audit.md` | SUPERSEDED | — | Planning input consumed into this roadmap and `docs/ARCHITECTURE.md`. |
+| `KITTYBUILDER_DAILY_DRIVER_PLAN.md` | SUPERSEDED | — | Consumed into Phase 1 and Phase 2 outcomes. Execution details in Builder manifests. |
+| `KX_COHERENCE_AUDIT.md` | BACKLOG | — | KX coherence findings. Activates during Phase 4 product deepening. |
+
+---
+
+## docs/planning/ (8 files)
+
+| File | Disposition | Roadmap outcome | Notes |
+|---|---|---|---|
+| `agent-prompts-2026-07-24.md` | SUPERSEDED | — | Historical agent task briefs. Consumed. |
+| `feature-reference-map.md` | BACKLOG | — | Long-range reference. Activates as capability catalog during Phase 4. |
+| `image-studio-character-system-2026-07-24.md` | SUPERSEDED | — | Explicitly superseded by `docs/plans/image-studio-character-first-architecture-2026-07-28.md`. |
+| `kitty-next-evolution-working-notes.md` | ARCHIVED | — | 2026-07-07 working notes. Historical record. |
+| `kitty-vision-gap-analysis-2026-07-24.md` | BACKLOG | — | Gap analysis. Activates as input during Phase 4 product deepening. |
+| `kittybuilder-redesign-2026-07-24.md` | SUPERSEDED | — | Consumed into Phase 1 and Phase 3 Builder outcomes. |
+| `vision-horizons.md` | BACKLOG | — | Canonical future-direction catalog. Activates during Phase 4. |
+
+---
+
+## docs/packets/ (31 entries: 29 .md + example dirs)
+
+### Registry packets (numbered)
+
+| # | File | Disposition | Roadmap outcome | Notes |
+|---|---|---|---|---|
+| 001 | `001-state-spine.md` | ARCHIVED | — | Shipped. ✅ |
+| 002 | `002-inbox-triage.md` | ARCHIVED | — | Shipped. ✅ |
+| 003 | `003-action-queue.md` | ARCHIVED | — | Shipped. ✅ |
+| 004 | `004-state-home.md` | ARCHIVED | — | Shipped. ✅ |
+| 005 | `005-mail-connector.md` | ARCHIVED | — | Shipped. ✅ |
+| 006 | `006-project-resume.md` | ARCHIVED | — | Shipped. ✅ |
+| 007 | `007-delegation-packet-generator.md` | ARCHIVED | — | Shipped. ✅ |
+| 008 | `008-knowledge-library-expert-retrieval.md` | ARCHIVED | — | Shipped. ✅ |
+| 014 | `014-make-the-gates-honest.md` | ARCHIVED | — | Shipped. ✅ |
+| 015 | `015-phone-channel.md` | ARCHIVED | — | Shipped. ✅ |
+| 016 | `016-next-step-navigator.md` | ARCHIVED | — | Shipped. ✅ |
+| 017 | `017-benefits-rails-urgent-sweep.md` | ARCHIVED | — | Shipped. ✅ |
+| 018 | `018-expert-packs.md` | ARCHIVED | — | Shipped. ✅ |
+| 019 | `019-job-search-scaffold.md` | BLOCKED | Phase 4.3 | Parked by Jacob. Activates when he says. |
+| 020 | `020-github-connector.md` | BACKLOG | Phase 4.3 | Planned, not built. |
+| 021 | `021-memory-taste-and-creative-continuity.md` | SUPERSEDED | — | Renumbered to 023. |
+| 021 | `021-project-registry-and-resume.md` | ARCHIVED | — | Shipped as 021. ✅ |
+| 022 | `022-chat-log-idea-mine.md` | SUPERSEDED | — | Renumbered to 024. |
+| 022 | `022-magic-kitty.md` | BACKLOG | Phase 4.5 | In progress, partial. |
+| 023 | `023-memory-taste-and-creative-continuity.md` | ARCHIVED | — | Shipped. ✅ |
+| 024 | `024-chat-log-idea-mine.md` | BACKLOG | Phase 4.5 | Spec authored, after move-in. |
+| 025 | `025-imagegen-pipeline-v2.md` | BACKLOG | Phase 4.4 | Imagegen pipeline. |
+| 026 | `026-audit-implement-low-risk.md` | SUPERSEDED | — | Consumed into Builder reliability. |
+| 026 | `026-builder-reliability.md` | ACTIVE | Phase 1.1 | Builder reliability delta. |
+| 028 | `028-reasoning-engine.md` | BACKLOG | Phase 4.1 | Reasoning engine spec. |
+
+### Packet metadata
+
+| File | Disposition | Notes |
+|---|---|---|
+| `README.md` | ACTIVE | Packet intake rules and registry. Maintained. |
+| `TEMPLATE.md` | ACTIVE | Packet authoring template. |
+| `DELTA_014_026_2026-07-26.md` | SUPERSEDED | Consumed into 026 Builder reliability. |
+| `PACKET_AUDIT_2026-07-26.md` | SUPERSEDED | Consumed into this ledger and packet cleanup. |
+| `examples/` | ACTIVE | Packet example directory. |
+
+---
+
+## docs/initiatives/ (45 entries: 38 .json + 7 .md/.sh)
+
+### Builder initiative manifests (.json)
+
+| File | Initiative ID | Disposition | Roadmap outcome | Notes |
+|---|---|---|---|---|
+| `builder-test-hardening-v1.json` | builder-test-hardening-v1 | BACKLOG | Phase 3.3 | Test hardening sweep. |
+| `chat-recovery-continuation-v1.json` | chat-recovery-continuation-v1 | BACKLOG | Phase 4.1 | Chat recovery. |
+| `chat-recovery-v1.json` | chat-recovery-v1 | SUPERSEDED | — | Replaced by continuation version. |
+| `kitty-endgame-init-1-builder-closeout-v2.json` | kitty-endgame-init-1 | ACTIVE | Phase 1.1 | Builder closeout and operator authority. |
+| `kitty-endgame-init-2-daily-driver-v1.json` | kitty-endgame-init-2 | ACTIVE | Phase 2 | Daily driver. |
+| `kittybuilder-brain-v1.json` | kittybuilder-brain-v1 | BACKLOG | Phase 3.2 | Builder UI cockpit and autonomy. |
+| `phase1-1-recovery-proof-v1.json` | phase1-1-recovery-proof | ACTIVE | Phase 1.1 | Induced-failure recovery proof template; driven by `scripts/builder_recovery_proof.py`, which rewrites the ids per run. |
+| `ktf-001-free-exec-v1.json` | ktf-001-free-exec-v1 | SUPERSEDED | — | Original KTF-001 manifest; tasks cancelled. |
+| `ktf-001-resume-proof-v2.json` | ktf-001-resume-proof-v2 | ACTIVE | Phase 1.1 | KTF-001 restart: reconcile, author, prove. |
+| `ktf-002-acceptance-prose-v1.json` | ktf-002-acceptance-prose-v1 | BACKLOG | Phase 3.3 | Acceptance criteria fix. |
+| `ktf-003-outcome6-runtime-v1.json` | ktf-003-outcome6-runtime-v1 | SUPERSEDED | — | Outcome 6 runtime; tasks cancelled. Runtime change on main. |
+| `ktf-004-*` (4 files: daylight-*) | ktf-004-daylight-* | SUPERSEDED | — | Daylight proof manifests v1-v4. Replaced by Phase 1.3 outcomes. |
+| `ktf-004-current-main-reliability-proof-v1.json` | ktf-004-reliability | BACKLOG | Phase 1.1 | Reliability evidence manifest. |
+| `ktf-005-life-resume-loop-gate-v1.json` | REJECTED | — | Rejected as Builder manifest; human-only runbook. |
+| `kx-01-resume-work-presentation.json` | kx-01 | BACKLOG | Phase 4.2 | Resume loop presentation. |
+| `kx-02-chat-execution.json` | kx-02 | BACKLOG | Phase 4.1 | Chat execution experience. |
+| `kx-03-shell-consolidation-v1.json` | kx-03 | BACKLOG | Phase 4.2 | Shell consolidation. |
+| `kx-04-surface-refit-v1.json` | kx-04 | BACKLOG | Phase 4.2 | Surface refit. |
+| `kx-05-companion-layer-v1.json` | kx-05 | BACKLOG | Phase 4.2 | Companion layer. |
+| `kx-06-proactive-feed-v1.json` | kx-06 | BACKLOG | Phase 4.2 | Proactive feed. |
+| `kx-resume-and-chat-execution-v1.json` | kx-resume-and-chat | SUPERSEDED | — | Consolidated into kx-01 + kx-02. |
+| `life-first-v1.json` | life-first-v1 | ACTIVE | Phase 2.1 | Life-first: Kitty serves Jacob's life. |
+| `life-first-v1-integration.json` | life-first-v1-integration | BACKLOG | Phase 2.1 | Wire select_steps into user-facing paths. |
+| `p2-worker-contract-tests.json` | p2-worker-contract-tests | BACKLOG | Phase 3.1 | Worker contract tests. |
+| `packet-027-v1.json` | packet-027 | ACTIVE | Phase 1.1 | Builder restart/recovery proof. |
+| `process-hardening-v1.json` | process-hardening-v1 | ACTIVE | Phase 3.3 | Reproducible review, durable receipts. |
+| `reasoning-backend-v1.json` | reasoning-backend-v1 | BACKLOG | Phase 4.1 | Packet 028 backend slices. |
+| `trust-lane-v1.json` | trust-lane-v1 | BACKLOG | Phase 3.3 | Trust lane sweep. |
+
+### Initiative READMEs and evidence (.md/.sh)
+
+| File | Disposition | Notes |
+|---|---|---|
+| `B1-preflight-evidence-2026-07-23.md` | ARCHIVED | Historical preflight evidence. |
+| `B2-kbs4-gap-register-2026-07-23.md` | ARCHIVED | Historical gap register. |
+| `KTF-001-free-exec-gate-evidence.md` | ARCHIVED | Historical gate evidence. |
+| `README-kittybuilder-brain-v1.md` | BACKLOG | Retained initiative inputs, not current sequence. |
+| `README-ktf-003-outcome6-runtime.md` | SUPERSEDED | Superseded execution input. |
+| `README-ktf-005-life-resume-loop-human-gate.md` | BACKLOG | Human runbook reference. |
+| `ktf-004-verify-daylight-operator-brief.sh` | ARCHIVED | Verification script, historical. |
+| `ktf-004-verify-inspected-head.sh` | ARCHIVED | Verification script, historical. |
+
+---
+
+## docs/research/ (13 files)
+
+| File | Disposition | Notes |
+|---|---|---|
+| `FOUNDATION_REPLACEMENT_STUDY_2026-07-27.md` | BACKLOG | Foundation replacement study. |
+| `GENEVOLVE_ADAPTATION_2026-07-28.md` | BACKLOG | GenEvolve adaptation reference. |
+| `KITTY_KITTYBUILDER_ARCHITECTURE_CORRECTION_2026-07-28.md` | SUPERSEDED | Absorbed into `docs/ARCHITECTURE.md` and ADRs. |
+| `kittybuilder-brain-v1-harvest.md` | BACKLOG | Builder brain harvest. |
+| `ktf-001-reliability-reconciliation-2026-07-30.md` | BACKLOG | KTF-001 reconciliation evidence. |
+| `ktf-004-*` (4 files: current-main, daylight-evidence, operator-brief, run-evidence) | BACKLOG | KTF-004 evidence records. Historical proof. |
+| `ktf-004-t1-manifest-review-2026-07-29.md` | BACKLOG | KTF-004 manifest review. |
+| `pr-306-runpod-review-2026-07-31.md` | ACTIVE | RunPod worker review findings. References PR #306. |
+| `pr-review-48h-2026-07-31.md` | ACTIVE | 48h PR review findings. References #327, #328, #330. |
+| `prompt-fix-main-2026-07-31.md` | SUPERSEDED | Executor prompt consumed by #327, #328, #330. Tasks complete. |
+
+---
+
+## docs/audit/ (3 files)
+
+| File | Disposition | Notes |
+|---|---|---|
+| `PROGRESS_REVIEW_2026-07-31.md` | SUPERSEDED | Consumed into this roadmap rewrite. Findings actioned. |
+| `architecture-honesty-2026-07-24.md` | BACKLOG | Architecture gap analysis. |
+| `backend-frontend-gap-2026-07-24.md` | BACKLOG | Backend-frontend gap analysis. |
+
+---
+
+## docs/phases/ (12 files)
+
+All phase documents are ARCHIVED or BACKLOG. The phases directory contains
+historical phase plans (PHASE_B, PHASE_C, etc.) and companion voice charters
+that predate the current roadmap structure. None are active execution inputs.
+Specific dispositions:
+
+| File | Disposition | Notes |
+|---|---|---|
+| `COMPANION_VOICE_CHARTER.md` | BACKLOG | Voice direction; activates during Phase 4. |
+| `CONTEXT_ENGINEERING.md` | ACTIVE | Staged context loading rules. Referenced by AGENTS.md. |
+| `DESKTOP_SLICE_1_RUNBOOK.md` | ARCHIVED | Historical runbook. |
+| `EVALS.md` | BACKLOG | Evaluation framework. |
+| `MEMPALACE_MIGRATION_RUNBOOK.md` | ARCHIVED | Historical migration runbook. |
+| `PHASE_B_ARCHAEOLOGY_REPORT.md` | ARCHIVED | Historical phase report. |
+| `PHASE_B_PLAN.md` | ARCHIVED | Historical phase plan. |
+| `PHASE_C_JOURNAL_PLAN.md` | ARCHIVED | Historical journal plan. |
+| `PHASE_C_PLAN.md` | ARCHIVED | Historical phase plan. |
+| `PHASE_C3_PLAN.md` | ARCHIVED | Historical phase plan. |
+| `STORAGE_MIGRATION_PLAN.md` | ARCHIVED | Historical migration plan. |
+| `VOICE_CORPUS.md` | BACKLOG | Voice corpus; activates during Phase 4. |
+
+---
+
+## docs/recon/ (2 files)
+
+| File | Disposition | Notes |
+|---|---|---|
+| `REPO_SCOUTING_2026-07-24.md` | BACKLOG | Repo scouting report. |
+| `repo-landscape-2026-07-24.md` | BACKLOG | External landscape comparison. |
+
+---
+
+## Active recommendations (from .claude/STATE.md and HANDOFF.md)
+
+| Recommendation ID | Disposition | Roadmap outcome | Notes |
+|---|---|---|---|
+| `runpod-template-containerstartcmd` | BLOCKED | Phase 3.4 | Awaiting Phase 3 RunPod authorization. |
+| `runpod-custom-image` | BLOCKED | Phase 3.4 | Awaiting Phase 3 RunPod authorization. |
+
+---
+
+## Open PRs (excluding Dependabot)
+
+| PR | Title | Disposition | Notes |
+|---|---|---|---|
+| #306 | feat(image): RunPod worker vertical slice | BLOCKED | Draft reference. Parked until Phase 3.4. |
+| #311-323 | Dependabot dependency updates | ACTIVE | Mergeable individually as CI allows. |
+
+---
+
+## Summary
+
+- **Total inventoried:** 136 items (plans, planning, packets, initiatives,
+  research, audit, phases, recon, recommendations, PRs)
+- **ACTIVE:** 12 (roadmap, ledger, active missions, contract docs, in-progress
+  packets/initiatives, review docs, context engineering)
+- **SCHEDULED:** 1 (Image Studio architecture → Phase 4.4)
+- **BLOCKED:** 5 (RunPod work, Image Studio, job search packet)
+- **BACKLOG:** 41 (preserved ideas across all phases)
+- **SUPERSEDED:** 24 (consumed into shipped work or newer docs)
+- **REJECTED:** 1 (ktf-005 as Builder manifest)
+- **ARCHIVED:** 52 (historical records, shipped packets)
+
+**Unassigned: 0** — every retained file has exactly one disposition.

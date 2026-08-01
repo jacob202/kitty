@@ -98,21 +98,6 @@ class WebChangeTracker:
             f"Current ({curr['timestamp']}):\n{curr['content_preview'][:500]}"
         )
 
-    def get_snapshots(self, url: str) -> List[dict]:
-        """Get all snapshots for a URL."""
-        url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
-        snapshots = sorted(self.tracker_dir.glob(f"{url_hash}_*.json"))
-
-        result = []
-        for snap_file in snapshots:
-            try:
-                data = json.loads(snap_file.read_text())
-                result.append(data)
-            except Exception as e:
-                logger.warning("Could not read snapshot %s: %s", snap_file, e)
-
-        return result
-
     def list_tracked_urls(self) -> List[str]:
         """List all URLs being tracked."""
         urls = set()
