@@ -46,17 +46,23 @@ before acting on any older description of it.**
   the same specced-versus-built gap that made Gate 0.1's claim false.
 - **Local-testable:** no. Requires repo admin.
 
-## Slice 0c — Remove dead `stop_owned_listener` · NOT STARTED
+## Slice 0c — Remove dead `stop_owned_listener` · VERIFIED
 
-- **Depends on:** slice 0 merged
+- **Depends on:** slice 0 merged (met)
+- **Branch/PR:** `cleanup/slice-0c`
 - **Context:** `d9420f3` moved `cmd_down` to an unconditional port sweep and
   left `stop_owned_listener` (`kitty:133`) with zero callers. Its stale test
   assertions were the launcher failure in slice 0; the function itself was left
   in place to keep that diff scoped.
-- **Change:** delete the function. Project rule: no dead code.
-- **Acceptance:** `grep -c stop_owned_listener kitty` returns 0; launcher tests
-  still pass.
-- **Local-testable:** yes
+- **Change:** deleted the function. Project rule: no dead code.
+- **Acceptance met:** `grep -c stop_owned_listener kitty` returns 0; launcher
+  tests still pass. `cmd_down`'s unconditional port sweep, the launchd-ordering
+  guarantee (bootout before the kill sweep), and port-collision refusals via
+  `assert_port_available` are all still covered by
+  `tests/test_kitty_launcher_runtime.py`.
+- **Evidence:** `bash -n kitty` OK; `python3.12 -m pytest
+  tests/test_kitty_launcher_runtime.py -q` → 4 passed.
+- **Local-testable:** yes (done)
 
 ## Outcome A — Conversational Image Agent (issue #336)
 
