@@ -47,6 +47,20 @@ except OSError:
 PY
 }
 
+state_field() {
+  local field="$1"
+  python3 - "$KITTY_STATE_FILE" "$field" <<'PY' 2>/dev/null || true
+import json
+import sys
+
+try:
+    value = json.load(open(sys.argv[1], encoding="utf-8")).get(sys.argv[2], "")
+except (OSError, json.JSONDecodeError):
+    value = ""
+print(value)
+PY
+}
+
 stage_server_running() {
   [[ -f "${KITTY_STAGE_PIDFILE}" ]] || return 1
   kill -0 "$(cat "${KITTY_STAGE_PIDFILE}")" 2>/dev/null
@@ -142,8 +156,13 @@ set -e
 BOOTSTRAP_PID=""
 
 if [[ ${bootstrap_rc} -ne 0 ]]; then
-  last_stage="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('stage','unknown'))" "${KITTY_STATE_FILE}" 2>/dev/null || echo unknown)"
-  set_state failed "${last_stage}" "${bootstrap_rc}" "bootstrap exited non-zero (see container stderr)"
+  last_stage="$(state_field stage)"
+  [[ -n "${last_stage}" ]] || last_stage="unknown"
+  # bootstrap.sh records the precise failing stage and message. Preserve it;
+  # only synthesize a generic state for commands that exited without one.
+  if [[ "$(state_field status)" != "failed" ]]; then
+    set_state failed "${last_stage}" "${bootstrap_rc}" "bootstrap exited non-zero (see container stderr)"
+  fi
   if ! stage_server_running; then
     start_stage_server
   fi
