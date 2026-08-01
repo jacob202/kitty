@@ -65,18 +65,12 @@ async function stubGateway(page: Page, opts: { failAfterChunks?: number } = {}) 
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        schema_version: 1,
-        manifest_id: 'test-manifest',
         revision: 'test-revision',
-        generated_at: new Date().toISOString(),
-        valid_until: new Date(Date.now() + 60000).toISOString(),
-        application: { name: 'kitty', version: { value: '0.1.0', state: 'available' }, build_commit: null, environment: 'test' },
-        clock: { current_time: { value: { current_time: new Date().toISOString(), timezone: 'UTC' }, state: 'available' } },
         connections: { gateway: { state: 'available', reason: null } },
-        inference: { routing_mode: 'auto', available_models: { state: 'available', value: ['kitty-default', 'deepseek-chat'] }, providers: [] },
-        context: { active_project: { value: null, state: 'available' }, repository: { value: { root: '', branch: '', commit: '', dirty: false, changed_paths: 0 }, state: 'available' } },
-        execution: { builder: { value: null, state: 'available' } },
+        inference: { available_models: { state: 'available', value: ['kitty-default', 'deepseek-chat'] } },
         tools: { state: 'available' },
+        context: { active_project: { value: null } },
+        execution: { builder: { value: null, state: 'available' } },
       }),
     })
   );
@@ -175,11 +169,6 @@ async function stubGateway(page: Page, opts: { failAfterChunks?: number } = {}) 
   // Chat lifecycle (for thread goal)
   await page.route('**/proxy/chats/*/lifecycle', (route) => {
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversation: {}, turns: [] }) });
-  });
-
-  // Catch-all for any unmocked proxy call
-  await page.route('**/proxy/**', (route) => {
-    return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
 }
 
