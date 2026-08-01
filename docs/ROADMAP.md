@@ -41,9 +41,13 @@ and establish one truthful planning surface before any feature work proceeds.
   `pip install -r requirements.txt` with `ResolutionImpossible`; no test runs.
 - Cause: Dependabot `600c0fa` raised the `openai` pin above the ceiling
   `mem0ai` 0.1.x requires. See outcome 0.8.
+- Repair merged as PR #339 (`8c58f52`, 2026-08-01). All six required jobs green
+  on the PR head; `tests.yml` run 1145 on merged main was still in progress
+  when this was written.
 - Acceptance evidence: all six jobs `success` on an `origin/main` run whose
-  SHA is recorded here.
-- Status: IN PROGRESS. Repair on `claude/kitty-stabilization-fbydi0`.
+  SHA is recorded here. **Confirm run 1145 before marking VERIFIED.**
+- Status: IMPLEMENTED-NOT-VERIFIED. The fix is on main; the post-merge main run
+  has not been observed complete.
 
 0.2 **Repair PR automation**
 - Labeler v5 schema, PR description comment permissions, risk-guardrails
@@ -144,7 +148,23 @@ and establish one truthful planning surface before any feature work proceeds.
 - Evidence requirements: UI evidence (browser-smoke), restore evidence
   (test suite), cost evidence (where applicable), cleanup evidence (where
   applicable).
-- Status: COMPLETE. Mechanisms defined in `docs/reference/PREVENTION_MECHANISMS.md`.
+- Status: **DEFINED, NOT ENFORCED.** Corrected 2026-08-01 from COMPLETE.
+  The mechanisms are written down in `docs/reference/PREVENTION_MECHANISMS.md`;
+  none of them is enforced by the repository.
+- Verified counter-example: the first listed mechanism is the red-main freeze
+  ("CI status check on `main` branch push is required"). PR #322 ran `pytest`,
+  `pytest` failed at 2026-07-31T05:25:32Z, and the PR was merged at 16:41 that
+  day with that failure and four other red checks still standing. It was one of
+  six Dependabot PRs merged inside 4.5 minutes; `main` was red for the next 8
+  commits.
+- `main` has no enforced required status checks, so a red PR is mergeable.
+  Writing the policy down did not create the branch protection rule.
+- Required to actually close: enable branch protection on `main` requiring
+  `pytest`, `lint`, `typecheck`, `hygiene`, `kitty-chat`, `browser-smoke`.
+  This needs repo admin rights — Jacob, not an agent.
+- Acceptance evidence: a PR with a deliberately failing test whose merge button
+  is blocked, not merely red.
+- Detail: `docs/mission/evidence.md` E7.
 
 0.8 **Keep the dependency tree resolvable**
 - Current verified condition: `requirements.txt` could not be installed at all
@@ -159,14 +179,17 @@ and establish one truthful planning surface before any feature work proceeds.
   coverage against a 73% floor. Four failures are container-environmental; the
   three real ones were schema-invalid `.claude/` checkpoint metadata, repaired
   in the same branch.
-- Remaining work: add a resolvability gate to `pr-risk-guardrails.yml` so a
-  dependency bump cannot merge without `pip install -r requirements.txt`
-  succeeding. The Gate 0.2 Dependabot exemption is what let `600c0fa` through.
-- Acceptance evidence: green `tests.yml` on main, plus a deliberately-bad
-  bump PR failing the new gate.
-- Status: IN PROGRESS (repair implemented and locally verified; guardrail
-  NOT STARTED).
-- Detail: `docs/mission/evidence.md` E1–E6.
+- Merged as PR #339 (`8c58f52`, 2026-08-01).
+- Remaining work: none here. An earlier draft of this outcome proposed adding a
+  resolvability gate to `pr-risk-guardrails.yml`, on the theory that the
+  Dependabot exemption let `600c0fa` skip the tests gate. **That was wrong.**
+  `pytest` ran on PR #322 and failed; the PR was merged anyway. Nothing was
+  bypassed, so a new gate would only add another ignorable red check. The
+  enforcement gap is tracked under outcome 0.7.
+- Acceptance evidence: green `tests.yml` on `origin/main`.
+- Status: IMPLEMENTED-NOT-VERIFIED — merged, but main run 1145 had not been
+  observed complete when this was written.
+- Detail: `docs/mission/evidence.md` E1–E7.
 
 ### Exit criteria
 
