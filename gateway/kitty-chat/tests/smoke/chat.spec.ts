@@ -19,12 +19,18 @@ test('chat view loads and input is accessible', async ({ page }, testInfo) => {
   await chatsBtn.first().click();
   await page.waitForTimeout(500);
 
-  const input = page.locator('textarea, input[type="text"]').first();
+  // Desktop chat view: the composer is the main textarea. A blanket
+  // 'textarea, input[type=text]' selector matched the sidebar "search chats"
+  // input first, so this test was filling the search box and reading back a
+  // controlled input that resets — that was the "flake".
+  const input = page.locator('main textarea').first();
   if (await input.count() > 0) {
     await expect(input).toBeVisible();
     await input.fill('hello');
-    const value = await input.inputValue();
-    expect(value).toBe('hello');
+    // Auto-retry with a load-tolerant timeout: the composer is a controlled
+    // input, and under full-suite parallel load the React state round-trip can
+    // take longer than the default 5s.
+    await expect(input).toHaveValue('hello', { timeout: 10_000 });
   }
 
   expect(errors).toEqual([]);

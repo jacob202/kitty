@@ -13,7 +13,15 @@ describe('BottomNav', () => {
     expect(screen.getByLabelText('Home')).toBeDefined()
     expect(screen.getByLabelText('Chat')).toBeDefined()
     expect(screen.getByLabelText('Work')).toBeDefined()
+    expect(screen.getByLabelText('Studio')).toBeDefined()
     expect(screen.getByLabelText('Library')).toBeDefined()
+    expect(screen.getByLabelText('More')).toBeDefined()
+  })
+
+  it('renders exactly the six primary destinations', () => {
+    render(<BottomNav activeView="home" onViewChange={onViewChange} />)
+    const nav = screen.getByRole('navigation', { name: 'Main navigation' })
+    expect(nav.querySelectorAll('button')).toHaveLength(6)
   })
 
   it('marks active tab with aria-current', () => {

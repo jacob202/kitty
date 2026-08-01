@@ -67,7 +67,7 @@ export function ProviderCenter() {
   const models = modelsQuery.data?.models ?? []
 
   return (
-    <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 16, alignContent: 'start', minWidth: 0 }}>
       <header>
         <p style={subtitleStyle}>
           what kitty can actually call, what needs your hands, and what&apos;s honestly not wired.
@@ -509,7 +509,9 @@ const cardStyle: CSSProperties = {
   borderRadius: 14,
   padding: 18,
   display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
   gap: 10,
+  minWidth: 0,
 }
 
 const sectionLabelStyle: CSSProperties = {
@@ -527,18 +529,21 @@ const rowStyle: CSSProperties = {
   gap: 12,
   padding: '8px 0',
   borderBottom: '1px solid var(--line)',
+  minWidth: 0,
 }
 
 const rowNameStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
   color: 'var(--ink)',
+  overflowWrap: 'anywhere',
 }
 
 const rowNoteStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--ink-2)',
   lineHeight: 1.5,
+  overflowWrap: 'anywhere',
 }
 
 const toggleStyle: CSSProperties = {
@@ -596,6 +601,7 @@ const metaStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   color: 'var(--ink-2)',
+  overflowWrap: 'anywhere',
 }
 
 const mutedStyle: CSSProperties = {
@@ -603,6 +609,7 @@ const mutedStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--ink-2)',
   lineHeight: 1.6,
+  overflowWrap: 'anywhere',
 }
 
 const codeStyle: CSSProperties = {

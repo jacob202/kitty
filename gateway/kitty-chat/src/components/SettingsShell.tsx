@@ -12,7 +12,7 @@ export default function SettingsShell({ isMobile, theme, onToggleTheme }: {
   const pad = isMobile ? '16px 12px 124px' : '24px 32px 40px'
 
   return (
-    <div style={{ flex: 1, padding: pad, display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ flex: 1, padding: pad, display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
       <header>
         <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 32, color: 'var(--ink)' }}>Settings</h1>
         <p style={{ margin: '4px 0 0', color: 'var(--ink-2)' }}>
