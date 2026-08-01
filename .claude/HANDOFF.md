@@ -1,52 +1,69 @@
-# Handoff — main was red; dependency resolution restored
+# Handoff — PR #359 repaired after independent review and remains draft
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T04:30:00Z",
-  "head_sha": "b68268b0333aedcf04085829deebe88371f832ef",
-  "branch": "claude/kitty-stabilization-fbydi0",
-  "worktree": "piddock",
+  "updated_at": "2026-08-01T22:37:38Z",
+  "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14",
+  "branch": "docs/builder-cockpit-boundary",
+  "worktree": "seaslug",
   "status": "valid",
-  "pull_request": null,
   "completed_items": [
-    "Found main red: tests.yml failed on 8 consecutive main commits (runs 1124-1139) including HEAD b68268b. The roadmap claimed Gate 0.1 green.",
-    "Diagnosed root cause: Dependabot 600c0fa raised the openai pin above mem0ai 0.1.x's ceiling, making requirements.txt unresolvable. CI died at install, never reached pytest.",
-    "Repaired requirements.txt and verified a clean venv install resolves; ran the CI pytest command once: 3452 passed, 7 failed, 77.50% coverage.",
-    "Repaired schema-invalid checkpoint metadata in .claude/STATE.md and .claude/HANDOFF.md that would have failed CI behind the install wall.",
-    "Wrote the durable mission state at docs/mission/ (grounding, decisions, execution, evidence, failures) and reconciled docs/ROADMAP.md against verified reality."
+    "Independent review #4835922501 found workflow-signal, KTL-001 applicability, continuity, and non-finite-cost defects at 4d667973.",
+    "Committed aef9d0ce to count workflow-signal repetition by distinct source_session values, publish signal files atomically, and validate all retained signal fields; d20a431b fixes the CI import-order failure.",
+    "Retired KTL-001 outside the active manifest set as a non-applicable planning record; KTL-002 remains the current corrective manifest.",
+    "Added focused regression tests for all review findings; no initiative was applied and Builder state was not modified."
   ],
-  "blockers": [],
-  "next_action": "Land the green-main repair, then execute docs/mission/execution.md slice A1 on a machine with Kitty runtime and RunPod credentials.",
+  "blockers": [
+    "PR #359 must receive an independent re-review of the post-review repair head before it can be marked ready."
+  ],
+  "next_action": "Obtain independent re-review of the pushed PR #359 repair head; keep it draft until that review approves the checked SHA.",
+  "parallel_work": [
+    {"kind": "pr", "ref": "#359", "owner": "interactive review-and-repair session", "touches": ["docs", "scripts", "tests"], "observed_at": "2026-08-01T22:33:17Z"}
+  ],
+  "recommendations": [
+    {"id": "pr359-independent-rereview", "what": "Obtain independent re-review of the pushed PR #359 repair head and keep it draft until that review approves the checked SHA.", "why": "Review #4835922501 found material defects repaired in aef9d0ce and d20a431b.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null}
+  ],
   "invalidation_conditions": [
-    "origin/main advances past b68268b0333aedcf04085829deebe88371f832ef",
-    "tests.yml turns green on main"
+    "HEAD changes beyond d20a431be8010a7d42ff774c3a0bc724c98f9f14 except this checkpoint commit",
+    "PR #359 head changes or closes",
+    "an independent re-review records findings against the repair SHA"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "parallel_work": [],
-  "recommendations": [
-    {
-      "id": "dependabot-guardrail-sibling-pins",
-      "what": "Gate Dependabot on resolvability: run 'pip install -r requirements.txt' in the guardrails workflow before a bump can merge",
-      "why": "600c0fa merged a bump that made the tree unresolvable and reddened main for 8 commits",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "image-agent-slice-a1",
-      "what": "Execute docs/mission/execution.md slice A1 — durable image-agent sessions and approved-plan dispatch for issue #336",
-      "why": "Issue #336 is Jacob-authorized and supersedes the roadmap's Phase 3 blocking of the image lane",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    }
-  ]
+  "pull_request": {"number": 359, "url": "https://github.com/jacob202/kitty/pull/359", "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14", "draft": true, "state": "OPEN"}
 }
 -->
+
+## What was done
+
+- Addressed every finding from independent review #4835922501 of `4d667973` in repair commits `aef9d0ce` and `d20a431b`.
+- Workflow signals now deduplicate by `(stable_key, source_session)`, use serialized collision-safe atomic writes, and validate retained records strictly before reporting.
+- KTL-001 is a non-applicable retired planning record; KTL-002 is the only current corrective manifest. Neither was applied and Builder state was untouched.
+
+## In-flight / WIP
+
+- PR #359 is still a draft and requires independent re-review after the repair head is pushed.
+
+## Other work in flight (not mine)
+
+- No parallel implementation was touched by this repair.
+
+## Blockers
+
+- PR #359 cannot be ready until an independent re-review approves its checked SHA.
+
+## Next move
+
+Obtain independent re-review of the pushed PR #359 repair head; keep it draft until that review approves the checked SHA.
+
+## Deferred, and what releases them
+
+- None.
+
+## Files changed this session
+
+- `docs/initiatives/README.md`, KTL-002 and the retired KTL-001 planning record, the leverage contract, `scripts/kb_effectiveness.py`, `scripts/session_learning.py`, and both focused test modules.
+
+## Verification
+
+- Final repair verification runs after this checkpoint commit, before push.

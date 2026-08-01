@@ -1,40 +1,36 @@
-# Session State — main was red; dependency resolution restored
+# Session State — PR #359 post-review repair awaiting independent re-review
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T04:30:00Z",
-  "head_sha": "b68268b0333aedcf04085829deebe88371f832ef",
-  "branch": "claude/kitty-stabilization-fbydi0",
-  "worktree": "piddock",
-  "status": "in_progress",
+  "updated_at": "2026-08-01T22:37:38Z",
+  "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14",
+  "branch": "docs/builder-cockpit-boundary",
+  "worktree": "seaslug",
+  "status": "awaiting_review",
   "completed_items": [
-    "Reconciliation: Gate 0.1 'main is green' is FALSE. tests.yml failed on 8 consecutive main commits (runs 1124-1139), current HEAD b68268b included.",
-    "Root cause: Dependabot commit 600c0fa raised openai to >=2.49.0,<2.50.0. mem0ai 0.1.x requires openai<1.110.0, so 'pip install -r requirements.txt' is unresolvable. CI never reached pytest.",
-    "Fix: openai pin restored to >=1.90.0,<1.110.0 with a comment recording the mem0ai coupling. Clean venv install resolves (mem0ai 0.1.118 + openai 1.109.1).",
-    "Test evidence (single full run, 2026-08-01): 3452 passed, 7 failed, coverage 77.50% against the 73% floor.",
-    "4 of 7 failures are container-environmental (no gh binary, no launchd, canonical-checkout path). 3 were real committed-state defects, repaired here: short head_sha, merged PR #331 declared active, HANDOFF missing pull_request key.",
-    "Verified issue #336 diagnosis against code: plan is not persisted, /studio/generate takes raw form state not a plan id, worker hardcodes text_to_image_v1 (workers/comfy_worker/app.py:704), no image_agent.py, no image-session table."
+    "Independent review #4835922501 found material defects at 4d667973.",
+    "Repair commit aef9d0ce hardens workflow-signal identity, atomic writes, retained-history validation, non-finite cost rejection, and KTL-001 retirement; d20a431b fixes CI import ordering.",
+    "No initiative was applied and Builder state was not modified."
   ],
-  "blockers": [],
-  "next_action": "Land the green-main repair, then execute docs/mission/execution.md slice A1 on a machine with Kitty runtime and RunPod credentials.",
-  "parallel_work": [],
+  "blockers": [
+    "PR #359 must receive independent re-review after the repair head is pushed."
+  ],
+  "next_action": "Obtain independent re-review of the pushed PR #359 repair head; keep it draft until that review approves the checked SHA.",
+  "parallel_work": [
+    {
+      "kind": "pr",
+      "ref": "#359",
+      "owner": "interactive review-and-repair session",
+      "touches": ["docs", "scripts", "tests"],
+      "observed_at": "2026-08-01T22:33:17Z"
+    }
+  ],
   "recommendations": [
     {
-      "id": "dependabot-guardrail-sibling-pins",
-      "what": "Gate Dependabot on resolvability: run 'pip install -r requirements.txt' in the guardrails workflow before a bump can merge",
-      "why": "600c0fa merged a bump that made the tree unresolvable and reddened main for 8 commits",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "image-agent-slice-a1",
-      "what": "Execute docs/mission/execution.md slice A1 — durable image-agent sessions and approved-plan dispatch for issue #336",
-      "why": "Issue #336 is Jacob-authorized and supersedes the roadmap's Phase 3 blocking of the image lane",
+      "id": "pr359-independent-rereview",
+      "what": "Obtain independent re-review of the pushed PR #359 repair head and keep it draft until that review approves the checked SHA.",
+      "why": "Review #4835922501 found material defects repaired in aef9d0ce and d20a431b.",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -44,10 +40,26 @@
     }
   ],
   "invalidation_conditions": [
-    "origin/main advances past b68268b0333aedcf04085829deebe88371f832ef",
-    "tests.yml turns green on main (the dependency repair landed)"
+    "HEAD changes beyond d20a431be8010a7d42ff774c3a0bc724c98f9f14 except this checkpoint commit",
+    "PR #359 head changes or closes",
+    "an independent re-review records findings against the repair SHA"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": {
+    "number": 359,
+    "url": "https://github.com/jacob202/kitty/pull/359",
+    "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14",
+    "draft": true,
+    "state": "OPEN"
+  }
 }
 -->
+
+## Execution ownership
+
+- this session: interactive
+- Builder parallel state: available at the pre-repair survey; no initiative was applied.
+
+## KB effectiveness
+
+- No new session-end receipt was recorded because this is a bounded PR repair, not a session-end workflow.

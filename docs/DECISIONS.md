@@ -1,6 +1,6 @@
 # Decisions
 
-**Date:** 2026-07-26
+**Date:** 2026-08-01
 **Status:** Index. Each durable decision lives in `docs/adr/` as a one-record-per-file ADR.
 
 The full index is in [`docs/adr/README.md`](adr/README.md). Historical detail
@@ -33,6 +33,10 @@ that has not been promoted to a per-decision ADR remains in
 | D20 | Proactive Builder Execution And Model Policy        | [0021](adr/0021-proactive-builder-execution.md)              |
 | D21 | Retire The D10 Local-Only Privacy Boundary          | [0022](adr/0022-retire-privacy-boundary.md)                  |
 | D22 | Session-End Carry-Forward Lives In The Checkpoint   | [0023](adr/0023-session-end-carry-forward-recommendations.md) |
+| D23 | KittyBuilder Has An Independent Operator Application | [0024](adr/0024-independent-kittybuilder-operator-application.md) |
+| D24 | Session Learning Without A Second Backlog — amended | [0025](adr/0025-session-learning-without-a-second-backlog.md) |
+| D25 | Measured KB Effectiveness And Single Execution Ownership | [0026](adr/0026-measured-kb-effectiveness-and-execution-ownership.md) |
 
 Supersession and amendment details live in the ADRs themselves. A plan, packet,
-report, or chat statement does not become a durable decision merely by existing.
+report, metric, or chat statement does not become a durable decision merely by
+existing.

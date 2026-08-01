@@ -33,6 +33,9 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0021 | [Proactive Builder Execution and Model Policy](0021-proactive-builder-execution.md)            | Accepted                       | 2026-07-26 |
 | 0022 | [Retire The D10 Local-Only Privacy Boundary](0022-retire-privacy-boundary.md)                  | Accepted                       | 2026-07-27 |
 | 0023 | [Session-End Recommendations Carry Forward In The Checkpoint](0023-session-end-carry-forward-recommendations.md) | Accepted | 2026-07-26 |
+| 0024 | [KittyBuilder Has an Independent Operator Application](0024-independent-kittybuilder-operator-application.md) | Accepted | 2026-08-01 |
+| 0025 | [Session Learning Without a Second Backlog](0025-session-learning-without-a-second-backlog.md) | Accepted; amended 2026-08-01 | 2026-08-01 |
+| 0026 | [Measured KB Effectiveness and Single Execution Ownership](0026-measured-kb-effectiveness-and-execution-ownership.md) | Accepted | 2026-08-01 |
 
 Historical decision detail remains in
 [`docs/retired/DECISIONS_AND_ROADMAP.md`](../retired/DECISIONS_AND_ROADMAP.md).
