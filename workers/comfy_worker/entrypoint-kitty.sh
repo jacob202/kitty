@@ -14,6 +14,7 @@ export KITTY_STAGE_PIDFILE="${KITTY_STAGE_PIDFILE:-/tmp/kitty-stage.pid}"
 export KITTY_WORKER_PORT="${KITTY_WORKER_PORT:-8000}"
 export KITTY_IMAGE_DIGEST="${KITTY_IMAGE_DIGEST:-unknown}"
 export KITTY_STAGE_SERVER_PY="${KITTY_STAGE_SERVER_PY:-/tmp/kitty-stage-server.py}"
+BOOTSTRAP_PID=""
 
 set_state() {
   local state_status="$1"
@@ -112,6 +113,11 @@ stop_stage_server() {
 }
 
 shutdown() {
+  if [[ -n "${BOOTSTRAP_PID}" ]]; then
+    kill "${BOOTSTRAP_PID}" 2>/dev/null || true
+    wait "${BOOTSTRAP_PID}" 2>/dev/null || true
+    BOOTSTRAP_PID=""
+  fi
   stop_stage_server
   exit 0
 }
@@ -120,17 +126,20 @@ trap shutdown TERM INT
 set_state starting bootstrap-starting
 start_stage_server
 
-# Capture bootstrap failures explicitly. With `set -e` left active, a failing
-# child exits PID 1 before the state can be changed to `failed`, which was the
-# reason the old image disappeared behind a blank 404/empty preflight result.
-set +e
+# Run bootstrap as a supervised child. `wait` is interruptible, so PID 1 can
+# handle TERM immediately; running the child in the foreground previously
+# delayed traps and made Docker fall back to SIGKILL.
 if [[ $# -gt 0 ]]; then
-  "$@"
+  "$@" &
 else
-  /opt/kitty/bootstrap.sh
+  /opt/kitty/bootstrap.sh &
 fi
+BOOTSTRAP_PID=$!
+set +e
+wait "${BOOTSTRAP_PID}"
 bootstrap_rc=$?
 set -e
+BOOTSTRAP_PID=""
 
 if [[ ${bootstrap_rc} -ne 0 ]]; then
   last_stage="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('stage','unknown'))" "${KITTY_STATE_FILE}" 2>/dev/null || echo unknown)"
@@ -139,9 +148,12 @@ if [[ ${bootstrap_rc} -ne 0 ]]; then
     start_stage_server
   fi
   echo "kitty entrypoint: bootstrap failed stage=${last_stage} exit=${bootstrap_rc}; keeping diagnostic server alive" >&2
-  while true; do
-    sleep 3600
+  while stage_server_running; do
+    set +e
+    wait "$(cat "${KITTY_STAGE_PIDFILE}")"
+    set -e
   done
+  exit 1
 fi
 
 # In normal operation bootstrap owns ComfyUI and the worker until either exits.
