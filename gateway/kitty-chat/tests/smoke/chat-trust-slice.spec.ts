@@ -65,11 +65,18 @@ async function stubGateway(page: Page, opts: { failAfterChunks?: number } = {}) 
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
+        schema_version: 1,
+        manifest_id: 'test-manifest',
         revision: 'test-revision',
+        generated_at: new Date().toISOString(),
+        valid_until: new Date(Date.now() + 60000).toISOString(),
+        application: { name: 'kitty', version: { value: '0.1.0', state: 'available' }, build_commit: null, environment: 'test' },
+        clock: { current_time: { value: { current_time: new Date().toISOString(), timezone: 'UTC' }, state: 'available' } },
         connections: { gateway: { state: 'available', reason: null } },
-        inference: { available_models: { state: 'available', value: ['kitty-default', 'deepseek-chat'] } },
+        inference: { routing_mode: 'auto', available_models: { state: 'available', value: ['kitty-default', 'deepseek-chat'] }, providers: [] },
+        context: { active_project: { value: null, state: 'available' }, repository: { value: { root: '', branch: '', commit: '', dirty: false, changed_paths: 0 }, state: 'available' } },
+        execution: { builder: { value: null, state: 'available' } },
         tools: { state: 'available' },
-        context: { active_project: { value: null } },
       }),
     })
   );
@@ -197,10 +204,6 @@ async function enterChatThread(page: Page) {
   return composer;
 }
 
-async function clearActiveChat(page: Page) {
-  await page.evaluate(() => window.localStorage.removeItem('kitty-active-chat-id'));
-}
-
 test.describe('Chat Trust Slice 3 — phone', () => {
   test.use(MOBILE);
 
@@ -208,7 +211,6 @@ test.describe('Chat Trust Slice 3 — phone', () => {
     await stubGateway(page);
 
     await page.goto('/');
-    await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
 
     // Navigate to chat — mobile BottomNav uses "Chat" (capitalised), desktop Rail uses "chat"
