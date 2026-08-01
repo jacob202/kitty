@@ -261,7 +261,7 @@ function Attribution({ message }: { message: Message }) {
     : 'automatic routing'
   const modelLabel = message.requestedModel ?? message.model
   return (
-    <div style={{ ...actionRowStyle, flexWrap: 'wrap', gap: 6 }}>
+    <div style={{ ...actionRowStyle, flexWrap: 'wrap', gap: 6 }} data-testid="chat-attribution">
       <span style={{ fontSize: 10, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
         {providerLabel}{modelLabel ? ` · requested ${modelLabel}` : ''}
       </span>

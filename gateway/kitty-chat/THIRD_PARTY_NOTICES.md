@@ -5,12 +5,16 @@ licenses. No source code was copied from any prohibited repository.
 
 ## @assistant-ui/react
 
-- **Version**: 0.14.27
+- **Version**: 0.14.28
 - **License**: MIT
 - **Source**: https://github.com/assistant-ui/assistant-ui
-- **Usage**: External-store runtime adapter bridging Kitty's SSE chat to
-  Assistant UI primitives. Currently used for the KittyRuntimeProvider
-  foundation; chat thread rendering remains Kitty's own implementation.
+- **Usage**: `KittyRuntimeProvider` wraps `AssistantRuntimeProvider` via an
+  `ExternalStoreAdapter<Message>` so Kitty owns message state and the adapter
+  bridges to assistant-ui's runtime contract. `KittyThread` uses
+  `ThreadPrimitive.Root`, `ThreadPrimitive.Viewport`,
+  `ThreadPrimitive.Messages`, `ThreadPrimitive.Empty`, and
+  `ThreadPrimitive.ScrollToBottom` — assistant-ui owns the viewport/scroll
+  and smooth-completion-animation primitives; Kitty owns the message rendering.
 
 ## react-photo-album
 

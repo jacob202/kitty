@@ -39,14 +39,30 @@ async function handler(
     throw new Error(`Proxy request failed for ${req.method} ${target}: ${detail}`)
   }
 
+  const kittyHeaders = [
+    'x-kitty-provider-selected',
+    'x-kitty-model-requested',
+    'x-kitty-model-selected',
+    'x-kitty-tools-state',
+    'x-kitty-runtime-revision',
+    'x-kitty-turn-id',
+    'x-kitty-attempt-id',
+  ]
+  const responseHeaders: Record<string, string> = {
+    'Content-Type': upstream.headers.get('content-type') ?? 'application/json',
+  }
+  if (upstream.headers.get('content-type')?.includes('text/event-stream')) {
+    responseHeaders['Cache-Control'] = 'no-cache'
+    responseHeaders['X-Accel-Buffering'] = 'no'
+  }
+  for (const h of kittyHeaders) {
+    const v = upstream.headers.get(h)
+    if (v) responseHeaders[h] = v
+  }
+
   return new Response(upstream.body, {
     status: upstream.status,
-    headers: {
-      'Content-Type': upstream.headers.get('content-type') ?? 'application/json',
-      ...(upstream.headers.get('content-type')?.includes('text/event-stream')
-        ? { 'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no' }
-        : {}),
-    },
+    headers: responseHeaders,
   })
 }
 
