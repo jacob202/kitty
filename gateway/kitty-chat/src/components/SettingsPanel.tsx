@@ -42,7 +42,7 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
   }, [personality.data])
 
   return (
-    <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 16, alignContent: 'start', minWidth: 0 }}>
       <header>
         <p style={subtitleStyle}>the few knobs that turn from here.</p>
       </header>
@@ -196,7 +196,9 @@ const cardStyle: CSSProperties = {
   borderRadius: 14,
   padding: 18,
   display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
   gap: 8,
+  minWidth: 0,
 }
 
 const sectionLabelStyle: CSSProperties = {
@@ -216,12 +218,14 @@ const rowStyle: CSSProperties = {
   justifyContent: 'space-between',
   gap: 12,
   padding: '4px 0',
+  minWidth: 0,
 }
 
 const rowNameStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
   color: 'var(--ink)',
+  overflowWrap: 'anywhere',
 }
 
 const monoValueStyle: CSSProperties = {
@@ -229,6 +233,7 @@ const monoValueStyle: CSSProperties = {
   fontSize: 11,
   color: 'var(--ink-2)',
   textAlign: 'right',
+  overflowWrap: 'anywhere',
 }
 
 const buttonStyle: CSSProperties = {
@@ -273,6 +278,7 @@ const noteStyle: CSSProperties = {
   fontSize: 13,
   lineHeight: 1.6,
   color: 'var(--ink)',
+  overflowWrap: 'anywhere',
 }
 
 const codeStyle: CSSProperties = {

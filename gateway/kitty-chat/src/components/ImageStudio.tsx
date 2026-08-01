@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Image, User, Sparkles, Zap, Shield, ChevronDown, X, Upload, Plus, AlertTriangle, CheckCircle2, RefreshCw, Square } from 'lucide-react'
+import { useImageStatus } from '@/lib/queries'
 
 interface Character {
   character_id: string
@@ -112,6 +113,7 @@ export function ImageStudio() {
   const [generating, setGenerating] = useState(false)
   const [results, setResults] = useState<GenerateResult[]>([])
   const [error, setError] = useState('')
+  const [errorDetail, setErrorDetail] = useState<string | null>(null)
   const [routingReason, setRoutingReason] = useState('')
   const [showCharPicker, setShowCharPicker] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -128,6 +130,14 @@ export function ImageStudio() {
   const [guidanceTags, setGuidanceTags] = useState<string[]>([])
   const [availableTags, setAvailableTags] = useState<string[]>([])
   const abortRef = useRef<AbortController | null>(null)
+
+  // Studio must fail closed: when no image engine is reachable, generation must
+  // not dispatch a request the backend can only reject (#346).
+  const statusQuery = useImageStatus()
+  const pendingStatus = statusQuery.isPending
+  const statusFailed = statusQuery.isError
+  const enginesAvailable = statusQuery.data?.available === true
+    || (statusQuery.data?.engines ?? []).some(e => e.available)
 
   // Fetch available guidance tags on mount.
   useEffect(() => {
@@ -154,8 +164,14 @@ export function ImageStudio() {
 
   async function handleGenerate() {
     if (!prompt.trim() || generating) return
+    // Fail closed: never dispatch an impossible generation request.
+    if (!enginesAvailable) {
+      setError('no image engine is online — start ComfyUI or Draw Things, then check again')
+      return
+    }
     setGenerating(true)
     setError('')
+    setErrorDetail(null)
     setRoutingReason('')
     const controller = new AbortController()
     abortRef.current = controller
@@ -186,7 +202,9 @@ export function ImageStudio() {
       if (err instanceof DOMException && err.name === 'AbortError') {
         setError('generation canceled')
       } else {
-        setError(err instanceof Error ? err.message : 'generation failed')
+        const { message, detail } = friendlyStudioError(err, 'generate')
+        setError(message)
+        setErrorDetail(detail)
       }
     }
     setGenerating(false)
@@ -200,8 +218,11 @@ export function ImageStudio() {
 
   async function handlePreviewPlan() {
     if (!prompt.trim() || planPreviewing) return
+    // Plan preview hits only the studio planning route, not a renderer, so it
+    // stays available while engines are offline.
     setPlanPreviewing(true)
     setError('')
+    setErrorDetail(null)
     setPlan(null)
 
     try {
@@ -225,7 +246,9 @@ export function ImageStudio() {
       const result = await r.json()
       setPlan(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'plan preview failed')
+      const { message, detail } = friendlyStudioError(err, 'plan')
+      setError(message)
+      setErrorDetail(detail)
     }
     setPlanPreviewing(false)
   }
@@ -258,20 +281,67 @@ export function ImageStudio() {
       setShowNewChar(false)
       setSelectedChar(char)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'failed to create character')
+      const { message, detail } = friendlyStudioError(err, 'character')
+      setError(message)
+      setErrorDetail(detail)
     }
   }, [newCharName, charRefFile, createChar, refetchChars])
+
+  // Pressing Enter must always be bound to the CURRENT renderer availability. The
+  // keydown handler is memoized so 30s status polls don't recreate it; without a
+  // live indirection it would keep the online generation closure after a status
+  // flip to offline and dispatch an impossible request (PR #355 finding 5). The
+  // ref always points at this render's handleGenerate, so Enter fails closed too.
+  const handleGenerateRef = useRef(handleGenerate)
+  useEffect(() => {
+    handleGenerateRef.current = handleGenerate
+  }, [handleGenerate])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleGenerate()
+      handleGenerateRef.current()
     }
-  }, [prompt, generating])
+  }, [])
 
   const selectedIdentityRecipe = recipes.find(r =>
     r.supports_characters && r.is_available
   )
+
+  // Unknown service state: hold before showing anything that could dispatch.
+  if (pendingStatus) {
+    return (
+      <div style={offlinePanelStyle} role="status">
+        <p style={offlineTitleStyle}>checking image engines…</p>
+        <p style={offlineBodyStyle}>Confirming a renderer is reachable before enabling generation.</p>
+      </div>
+    )
+  }
+
+  // A Gateway/proxy that won't answer is NOT the same as offline renderers; the
+  // recovery differs (restore the Gateway vs start ComfyUI), so surface the real
+  // cause instead of masking it as renderer downtime.
+  if (statusFailed) {
+    return (
+      <div style={offlinePanelStyle} data-testid="studio-status-error">
+        <p style={offlineTitleStyle}>can’t reach the image service</p>
+        <p style={offlineBodyStyle}>
+          The image service didn’t answer. Check that Kitty’s gateway is running, then
+          check again — generation may be fine once the service is back.
+        </p>
+        <button
+          type="button"
+          onClick={() => void statusQuery.refetch()}
+          disabled={statusQuery.isFetching}
+          data-testid="studio-check-again"
+          style={checkAgainStyle}
+        >
+          <RefreshCw size={13} />
+          {statusQuery.isFetching ? 'checking…' : 'check again'}
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{
@@ -283,6 +353,27 @@ export function ImageStudio() {
       margin: '0 auto',
       padding: '24px 20px',
     }}>
+      {/* Renderer-independent work (characters, plan preview) stays available
+          while renderers are offline; only generation is turned off. */}
+      {!enginesAvailable && (
+        <div style={offlinePanelStyle} data-testid="studio-offline" role="status">
+          <p style={offlineTitleStyle}>no image engine is online</p>
+          <p style={offlineBodyStyle}>
+            Generation is disabled until a renderer is reachable — start ComfyUI or Draw
+            Things, then check again. Plan preview and characters still work.
+          </p>
+          <button
+            type="button"
+            onClick={() => void statusQuery.refetch()}
+            disabled={statusQuery.isFetching}
+            data-testid="studio-check-again"
+            style={checkAgainStyle}
+          >
+            <RefreshCw size={13} />
+            {statusQuery.isFetching ? 'checking…' : 'check again'}
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <Image size={22} style={{ color: 'var(--cat-ginger)' }} />
@@ -467,15 +558,16 @@ export function ImageStudio() {
             )}
             <button
               onClick={handleGenerate}
-              disabled={!prompt.trim() || generating}
+              disabled={!prompt.trim() || generating || !enginesAvailable}
+              title={!enginesAvailable ? 'no image engine is online' : undefined}
               style={{
                 border: 'none', borderRadius: 10,
-                background: generating ? 'var(--ink-2)' : 'var(--primary)',
-                color: generating ? 'var(--bg)' : 'var(--on-primary)',
+                background: generating || !enginesAvailable ? 'var(--ink-2)' : 'var(--primary)',
+                color: generating || !enginesAvailable ? 'var(--bg)' : 'var(--on-primary)',
                 padding: '8px 18px', fontFamily: 'var(--font-body)',
                 fontSize: 14, fontWeight: 700,
-                cursor: generating ? 'not-allowed' : 'pointer',
-                opacity: !prompt.trim() && !generating ? 0.5 : 1,
+                cursor: generating || !enginesAvailable ? 'not-allowed' : 'pointer',
+                opacity: !prompt.trim() && !generating && enginesAvailable ? 0.5 : 1,
                 display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
@@ -563,6 +655,7 @@ export function ImageStudio() {
           plan={plan}
           onDismiss={() => setPlan(null)}
           onGenerate={handleGenerate}
+          enginesAvailable={enginesAvailable}
         />
       )}
 
@@ -577,8 +670,18 @@ export function ImageStudio() {
           fontSize: 13,
         }}>
           {error}
+          {errorDetail && (
+            <details style={{ marginTop: 6, fontSize: 11 }}>
+              <summary style={{ cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>technical detail</summary>
+              <pre style={{
+                margin: '6px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)',
+                maxHeight: 160, overflowY: 'auto',
+              }}>{errorDetail}</pre>
+            </details>
+          )}
           <button
-            onClick={() => setError('')}
+            onClick={() => { setError(''); setErrorDetail(null) }}
             style={{ marginLeft: 8, color: 'var(--c-red)', cursor: 'pointer', background: 'none', border: 'none' }}
           >
             dismiss
@@ -657,6 +760,7 @@ export function ImageStudio() {
           <div style={{
             background: 'var(--surface)', border: '1px solid var(--line)',
             borderRadius: 16, padding: 20, maxWidth: 400, width: '100%',
+            maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto',
           }}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--ink)', margin: '0 0 14px' }}>
               new character
@@ -761,10 +865,12 @@ function PlanPreviewCard({
   plan,
   onDismiss,
   onGenerate,
+  enginesAvailable = true,
 }: {
   plan: Record<string, unknown>
   onDismiss: () => void
   onGenerate: () => void
+  enginesAvailable?: boolean
 }) {
   const refs = Array.isArray(plan.references)
     ? plan.references.filter(
@@ -906,12 +1012,14 @@ function PlanPreviewCard({
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           onClick={onGenerate}
+          disabled={!enginesAvailable}
+          title={enginesAvailable ? undefined : 'no image engine is online'}
           style={{
             border: 'none', borderRadius: 10,
-            background: 'var(--primary)',
-            color: 'var(--on-primary)',
+            background: enginesAvailable ? 'var(--primary)' : 'var(--ink-2)',
+            color: enginesAvailable ? 'var(--on-primary)' : 'var(--bg)',
             padding: '8px 18px', fontFamily: 'var(--font-body)',
-            fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            fontSize: 14, fontWeight: 700, cursor: enginesAvailable ? 'pointer' : 'not-allowed',
             display: 'flex', alignItems: 'center', gap: 6,
           }}
         >
@@ -959,8 +1067,9 @@ const qualityBtnStyle: React.CSSProperties = {
 const popupStyle: React.CSSProperties = {
   position: 'absolute', top: '100%', left: 0, marginTop: 4,
   background: 'var(--surface)', border: '1px solid var(--line)',
-  borderRadius: 12, minWidth: 220, zIndex: 100,
-  boxShadow: 'var(--shadow)', overflow: 'hidden',
+  borderRadius: 12, minWidth: 220, maxWidth: 'calc(100vw - 40px)',
+  maxHeight: 'min(60dvh, 360px)', overflowY: 'auto',
+  zIndex: 100, boxShadow: 'var(--shadow)', overflowX: 'hidden',
 }
 
 const pickerItemStyle: React.CSSProperties = {
@@ -982,4 +1091,64 @@ const cancelBtnStyle: React.CSSProperties = {
   border: '1px solid var(--line)', borderRadius: 10, background: 'transparent',
   color: 'var(--ink-2)', padding: '8px 16px', fontFamily: 'var(--font-body)',
   fontSize: 14, fontWeight: 500, cursor: 'pointer',
+}
+
+const offlinePanelStyle: React.CSSProperties = {
+  maxWidth: 780, width: '100%', margin: '0 auto',
+  padding: '20px', display: 'grid', gap: 8, alignContent: 'start',
+  background: 'var(--surface-2)', border: '1px solid var(--line)', borderRadius: 12,
+}
+
+const offlineTitleStyle: React.CSSProperties = {
+  margin: 0, fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--ink)',
+}
+
+const offlineBodyStyle: React.CSSProperties = {
+  margin: 0, fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6,
+}
+
+const checkAgainStyle: React.CSSProperties = {
+  alignSelf: 'flex-start', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600,
+  padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', color: 'var(--on-primary)',
+  background: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: 6,
+}
+
+/** Studio operation whose catch path formats an HTML/JSON error. */
+type StudioErrorOp = 'generate' | 'plan' | 'character'
+
+// Recovery text must name the failing subsystem, not a renderer. Generation
+// legitimately points at the renderer, but plan preview and character creation
+// never contact one, so an HTML 500 from those must not imply renderer downtime
+// (PR #355 finding 6).
+const STUDIO_ERROR_MESSAGES: Record<StudioErrorOp, string> = {
+  generate: 'the image service hit an internal error — check your renderer and try again',
+  plan: 'the planning service hit an internal error — check that the image service is running and try again',
+  character: 'the character service hit an internal error — check that the image service is running and try again',
+}
+
+/** Turn a possible raw backend error (JSON {detail}, HTML error page) into a
+ *  human message plus an optional technical detail the user can expand. */
+function friendlyStudioError(err: unknown, op: StudioErrorOp = 'generate'): { message: string; detail: string | null } {
+  const raw = err instanceof Error ? err.message : 'generation failed'
+  const trimmed = raw.trim()
+  // Standard proxy/framework error pages commonly start with "<!DOCTYPE html>",
+  // not "<html>"; detect any HTML document and keep its body in the expandable
+  // technical detail rather than rendering it as the primary message.
+  if (
+    /^<!doctype html/i.test(trimmed)
+    || /^<html/i.test(trimmed)
+    || /internal server error/i.test(trimmed)
+  ) {
+    return {
+      message: STUDIO_ERROR_MESSAGES[op],
+      detail: trimmed.slice(0, 2000),
+    }
+  }
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (parsed && typeof parsed.detail === 'string') {
+      return { message: parsed.detail, detail: raw !== parsed.detail ? raw : null }
+    }
+  } catch { /* not JSON → raw message */ }
+  return { message: trimmed, detail: null }
 }

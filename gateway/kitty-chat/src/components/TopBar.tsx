@@ -50,14 +50,19 @@ export function TopBar({
 }: Props) {
 
   if (isMobile) {
+    // Two rows on the phone. Squeezing a cat state, runtime, the active project
+    // and the model selector into one row is what overflowed and clipped the
+    // model selector (#346). Identity stays on the first row; the workspace and
+    // model controls move to a second row where neither can push the other off
+    // screen.
     return (
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: 'calc(10px + env(safe-area-inset-top, 0px)) 16px 10px',
+        padding: 'calc(8px + env(safe-area-inset-top, 0px)) 12px 8px',
         borderBottom: '1.5px solid var(--line)',
         background: 'var(--surface)', flexShrink: 0,
+        display: 'grid', gap: 6,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' }} data-testid="topbar-identity-row">
           {onToggleSidebar && (
             <button aria-label="Open sidebar" onClick={onToggleSidebar} style={iconBtnStyle}>
               <svg viewBox="0 0 24 24" style={{ width: 18, height: 18 }}>
@@ -70,24 +75,30 @@ export function TopBar({
             fontSize: 20, letterSpacing: '-0.02em', color: 'var(--ink)',
             flexShrink: 0,
           }}>kitty</span>
+          <span style={{ flex: 1 }} />
           <StateBadge state={catState} />
           <RuntimeBadge state={runtimeState} detail={runtimeDetail} compact />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flexShrink: 1 }}>
-          <ProjectSelector
-            activeProject={activeProject}
-            projects={projects}
-            onSelectProject={onSelectProject}
-            loading={projectLoading}
-            busy={projectBusy}
-            compact
-          />
-          <ModelSelectorCmdk
-            activeModel={activeModel}
-            models={models}
-            onSelectModel={onSelectModel}
-            modelFromGateway={modelFromGateway}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, maxWidth: '100%' }} data-testid="topbar-workspace-row">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <ProjectSelector
+              activeProject={activeProject}
+              projects={projects}
+              onSelectProject={onSelectProject}
+              loading={projectLoading}
+              busy={projectBusy}
+              compact
+            />
+          </div>
+          <div style={{ minWidth: 0, maxWidth: '56%' }}>
+            <ModelSelectorCmdk
+              activeModel={activeModel}
+              models={models}
+              onSelectModel={onSelectModel}
+              modelFromGateway={modelFromGateway}
+              compact
+            />
+          </div>
         </div>
       </div>
     )

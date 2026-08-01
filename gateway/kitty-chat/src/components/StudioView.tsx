@@ -20,10 +20,17 @@ export default function StudioView({ isMobile }: { isMobile: boolean }) {
             Generate images with ComfyUI or browse your gallery.
           </p>
           {!statusQuery.isPending && (
-            <p style={{ margin: '4px 0 0', fontSize: 11, fontFamily: 'var(--font-mono)', color: onlineCount > 0 ? 'var(--c-green)' : 'var(--c-red)' }}>
-              {onlineCount > 0
-                ? `${onlineCount}/${engines.length} engine${engines.length === 1 ? '' : 's'} online`
-                : 'no image engines online — start ComfyUI or Draw Things'}
+            <p
+              style={{
+                margin: '4px 0 0', fontSize: 11, fontFamily: 'var(--font-mono)',
+                color: statusQuery.isError ? 'var(--c-red)' : onlineCount > 0 ? 'var(--c-green)' : 'var(--c-red)',
+              }}
+            >
+              {statusQuery.isError
+                ? 'can’t reach the image service — check that the gateway is running'
+                : onlineCount > 0
+                  ? `${onlineCount}/${engines.length} engine${engines.length === 1 ? '' : 's'} online`
+                  : 'no image engines online — start ComfyUI or Draw Things'}
             </p>
           )}
         </header>
