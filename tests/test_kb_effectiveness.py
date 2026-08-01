@@ -193,3 +193,9 @@ def test_report_marks_comparison_non_causal(tmp_path: Path) -> None:
     assert "does not prove causation" in report
     assert "Evidence gaps" in report
     assert "Sample too small: True" in report
+
+
+def test_summary_accepts_window_days_after_subcommand() -> None:
+    args = kb.build_parser().parse_args(["summary", "--window-days", "14"])
+
+    assert args.window_days == 14

@@ -712,6 +712,7 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--payload-file", type=Path)
 
     summary = subparsers.add_parser("summary", help="summarize recent receipts")
+    summary.add_argument("--window-days", type=int, default=argparse.SUPPRESS)
     summary.add_argument("--report", action="store_true")
     summary.add_argument("--out", type=Path)
     return parser
