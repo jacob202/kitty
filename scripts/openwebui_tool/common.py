@@ -277,6 +277,12 @@ def runtime_env() -> dict[str, str]:
             "WEBUI_URL": f"http://{HOST}:{PORT}",
             "WEBUI_NAME": "Kitty Chat",
             "WEBUI_AUTH": "False",
+            # 0.10.2 inserts a new account with DEFAULT_USER_ROLE (normally
+            # "pending") and only promotes it when it is the only row *after*
+            # the insert. Concurrent first-load signins therefore leave every
+            # account pending — the "Account Activation Pending" wall Jacob hit.
+            # This is a single-user local install; there is no one to approve.
+            "DEFAULT_USER_ROLE": "admin",
             "ENABLE_OPENAI_API": "True",
             "OPENAI_API_BASE_URL": f"{base}/v1",
             "OPENAI_API_KEY": gateway_secret,

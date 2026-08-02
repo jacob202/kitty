@@ -28,6 +28,12 @@
           "evidence": "6 rows before, 1 after; dedupe refuses when a duplicate owns rows"
         },
         {
+          "id": "no-pending-account-wall",
+          "statement": "no account is ever left at role=pending with nobody able to approve it",
+          "state": "pass",
+          "evidence": "DEFAULT_USER_ROLE=admin; forcing the live row to role='pending' and restarting returned it to admin with no intervention"
+        },
+        {
           "id": "real-streaming",
           "statement": "a real provider stream reaches the user through Open WebUI and terminates with [DONE]",
           "state": "pass",

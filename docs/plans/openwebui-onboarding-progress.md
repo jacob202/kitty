@@ -4,9 +4,9 @@ Branch: `feat/openwebui-tomorrow-ready` · PR: [#384](https://github.com/jacob20
 
 Machine-readable acceptance state: `docs/plans/openwebui-onboarding-checklist.json`.
 
-> The handoff this assignment names, `docs/plans/openwebui-agent-handoff-2026-08-02.md`,
-> does not exist in this repository, on any branch, or in the history. The
-> objectives were taken from the assignment text itself.
+Answers the four defects and the nine baseline criteria in
+`docs/plans/openwebui-agent-handoff-2026-08-02.md`. Every OBSERVED statement it
+carried about this Mac was re-checked live; the evidence below replaces it.
 
 ## Current objective
 
@@ -90,11 +90,11 @@ Commit `b3f1c6d2`.
 
 ### Open WebUI's MCP SDK was shadowed by Kitty's own `mcp/` package
 
-Reproduced, from the repo working directory:
+Reproduced, running from the repo working directory:
 
 ```
 ImportError: cannot import name 'ClientSession' from 'mcp'
-  (/Users/jacobbrizinski/Projects/kitty/mcp/__init__.py)
+  (<repo root>/mcp/__init__.py)
 ```
 
 Two vectors, both fixed:
@@ -110,26 +110,38 @@ Two vectors, both fixed:
 `PYTHONPATH` is absent from the plist rather than set empty — an empty
 `PYTHONPATH` puts the working directory back on the path.
 
-Verified on the running launchd process: `cwd=~/kitty-services/openwebui`,
-only `PYTHONNOUSERSITE=1` set, and `import mcp` resolves to the venv's SDK.
+Verified on the running launchd process: `cwd` is the service root, only
+`PYTHONNOUSERSITE=1` is set, and `import mcp` resolves to the venv's SDK.
 
-### Six identical admin accounts
+### Six pending admin accounts, and the activation wall
+
+One bug, two symptoms.
 
 `WEBUI_AUTH=False` signin checks for `admin@localhost` and inserts it when
 absent. The check and the insert are not atomic and `user.email` has no unique
 index, so the concurrent signins a first page load fires all missed and all
-inserted.
+inserted — six rows sharing one `created_at`.
 
-```
-6 rows: admin@localhost | admin | created_at 1785695804  (identical timestamp)
-```
+`signup_handler` then inserts at `DEFAULT_USER_ROLE` (stock: `pending`) and
+promotes only when the new row is the *single* row after its own insert. With
+six racing inserts nobody qualified, so every account stayed `pending` and Open
+WebUI showed "Account Activation Pending" — with no second user who could
+approve it.
 
-`dedupe_system_admin()` now runs on every start, while the server is down. It
-refuses rather than deleting when a duplicate owns rows in any table with a
-`user_id` column. `claim_system_admin()` then does one serial signin so a fresh
-database gets its admin from a single request.
+Three changes, all idempotent:
 
-Live: 6 → 1, and the account kept is the one the UI was already using.
+- `DEFAULT_USER_ROLE=admin`. This is a single-user local install; there is
+  nobody to approve anyone.
+- `dedupe_system_admin()` runs on every start while the server is down. It
+  refuses rather than deleting when a duplicate owns rows in any table with a
+  `user_id` column, and promotes the survivor if it is not already admin.
+- `claim_system_admin()` does one serial signin after the server is healthy, so
+  a fresh database gets its admin from a single request and the race has no
+  window.
+
+Live: 6 accounts → 1, and the account kept is the one the UI was already using.
+Forcing that row back to `role='pending'` and restarting returns it to `admin`
+with no intervention.
 
 ### A provider failure reached the user as a blank reply
 

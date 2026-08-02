@@ -106,7 +106,13 @@ def test_launch_agent_never_runs_from_the_repo(tmp_path, monkeypatch):
     assert plist["EnvironmentVariables"]["PYTHONNOUSERSITE"] == "1"
 
 
-def _seed_webui_db(path: Path, admin_ids: list[str], *, chat_owner: str | None = None):
+def _seed_webui_db(
+    path: Path,
+    admin_ids: list[str],
+    *,
+    chat_owner: str | None = None,
+    role: str = "admin",
+):
     with sqlite3.connect(path) as connection:
         connection.execute(
             "CREATE TABLE user (id TEXT PRIMARY KEY, email TEXT, role TEXT, created_at INT)"
@@ -115,8 +121,8 @@ def _seed_webui_db(path: Path, admin_ids: list[str], *, chat_owner: str | None =
         connection.execute("CREATE TABLE chat (id TEXT PRIMARY KEY, user_id TEXT)")
         for index, admin_id in enumerate(admin_ids):
             connection.execute(
-                "INSERT INTO user VALUES (?, 'admin@localhost', 'admin', ?)",
-                (admin_id, 1785695804 + index),
+                "INSERT INTO user VALUES (?, 'admin@localhost', ?, ?)",
+                (admin_id, role, 1785695804 + index),
             )
             connection.execute(
                 "INSERT INTO auth VALUES (?, 'admin@localhost', 1)", (admin_id,)
@@ -124,6 +130,11 @@ def _seed_webui_db(path: Path, admin_ids: list[str], *, chat_owner: str | None =
         if chat_owner is not None:
             connection.execute("INSERT INTO chat VALUES ('chat-1', ?)", (chat_owner,))
         connection.commit()
+
+
+def _roles(path: Path) -> list[str]:
+    with sqlite3.connect(path) as connection:
+        return [row[0] for row in connection.execute("SELECT role FROM user")]
 
 
 def test_dedupe_collapses_the_signin_race(service_paths):
@@ -161,6 +172,31 @@ def test_dedupe_refuses_to_delete_an_account_that_owns_chats(service_paths):
 
     assert "refusing to delete" in str(excinfo.value)
     assert service.count_system_admins() == 2
+
+
+def test_dedupe_clears_the_pending_account_wall(service_paths):
+    """0.10.2 inserts at DEFAULT_USER_ROLE and promotes only when the new row is
+    the single one *after* its own insert. Six racing inserts mean nobody is
+    promoted, so every account sits at "pending" with no second user to approve
+    it — Open WebUI shows Account Activation Pending and blocks the door."""
+    _seed_webui_db(service.webui_db_path(), ["keep", "dupe-1"], role="pending")
+
+    service.dedupe_system_admin()
+
+    assert _roles(service.webui_db_path()) == ["admin"]
+
+
+def test_dedupe_promotes_a_lone_pending_account(service_paths):
+    _seed_webui_db(service.webui_db_path(), ["only"], role="pending")
+
+    assert "promoted to admin" in service.dedupe_system_admin()
+    assert _roles(service.webui_db_path()) == ["admin"]
+    # Idempotent: a second pass has nothing left to promote.
+    assert "promoted to admin" not in service.dedupe_system_admin()
+
+
+def test_runtime_env_never_leaves_a_new_account_pending(service_paths):
+    assert common.runtime_env()["DEFAULT_USER_ROLE"] == "admin"
 
 
 def test_dedupe_without_a_database_is_a_no_op(service_paths):

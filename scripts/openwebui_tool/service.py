@@ -74,6 +74,23 @@ def count_system_admins() -> int:
     return int(count)
 
 
+def _promote_sole_admin(connection: sqlite3.Connection) -> bool:
+    """Give the one remaining account the admin role.
+
+    The race leaves every row at DEFAULT_USER_ROLE, because 0.10.2 promotes the
+    first user only when it is the single row *after* its own insert. Six rows
+    meant nobody was promoted and Open WebUI showed "Account Activation
+    Pending" with no second user to approve it.
+    """
+    row = connection.execute(
+        "SELECT id, role FROM user WHERE email = ?", (SYSTEM_ADMIN_EMAIL,)
+    ).fetchone()
+    if row is None or row[1] == "admin":
+        return False
+    connection.execute("UPDATE user SET role = 'admin' WHERE id = ?", (row[0],))
+    return True
+
+
 def dedupe_system_admin() -> str:
     """Collapse duplicate ``admin@localhost`` rows. Safe to run on every start.
 
@@ -92,7 +109,10 @@ def dedupe_system_admin() -> str:
             )
         )
         if len(rows) <= 1:
-            return f"{len(rows)} admin account"
+            promoted = _promote_sole_admin(connection)
+            connection.commit()
+            suffix = ", promoted to admin" if promoted else ""
+            return f"{len(rows)} admin account{suffix}"
 
         keeper, extras = rows[0][0], [row[0] for row in rows[1:]]
         owning = _tables_referencing_user(connection)
@@ -112,9 +132,10 @@ def dedupe_system_admin() -> str:
         placeholders = ",".join("?" * len(extras))
         connection.execute(f"DELETE FROM auth WHERE id IN ({placeholders})", extras)
         connection.execute(f"DELETE FROM user WHERE id IN ({placeholders})", extras)
+        _promote_sole_admin(connection)
         connection.commit()
 
-    return f"removed {len(extras)} duplicate admin account(s), kept {keeper}"
+    return f"removed {len(extras)} duplicate admin account(s), kept {keeper} as admin"
 
 
 def claim_system_admin() -> None:
