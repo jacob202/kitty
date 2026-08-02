@@ -10,9 +10,8 @@ carried about this Mac was re-checked live; the evidence below replaces it.
 
 ## Current objective
 
-Slice 1 — the daily-driver baseline: launch, login, streaming, persistence,
-diagnostics, backup, restore, rollback. Complete except where noted under
-Blockers.
+Slice 2 — the user-facing model set. Complete. Slice 1 (the daily-driver
+baseline) is complete and verified; see below.
 
 ## Acceptance criteria for this slice
 
@@ -221,9 +220,64 @@ python3 scripts/openwebui_local.py rollback
 
 ## Next action
 
-Slice 2 — the user-facing model set (`Kitty Auto` / `Fast` / `Think` / `Code` /
-`Vision` / `Image`), which needs gateway-side aliases before Open WebUI can
-present them.
+Slice 3 — expose Kitty's own capabilities (memory, projects, files, planning) to
+Open WebUI through its OpenAPI tool surface.
+
+## Slice 2 — the model menu
+
+`/v1/models` returned one id, so the menu was a single row and every message went
+to the same model whatever the work was. It now returns five, with names and
+descriptions Open WebUI renders:
+
+| Menu | Route | Model |
+|---|---|---|
+| Kitty Auto | `kitty-default` | complexity classifier picks the tier |
+| Kitty Fast | `kitty-small` | `deepseek/deepseek-v4-flash` |
+| Kitty Think | `kitty-think` | `qwen/qwen3-235b-a22b-thinking-2507` |
+| Kitty Code | `kitty-code` | `qwen/qwen3-coder` |
+| Kitty Vision | `kitty-vision` | `mistralai/mistral-small-3.2-24b-instruct` |
+
+`Kitty Image` is deliberately absent: image generation runs through Kitty's
+`image_jobs` pipeline, not chat completions, and a menu row that fails when
+picked is worse than no row.
+
+Three things had to be true for the menu not to lie:
+
+- **Think was a placebo.** `kitty-sonnet` pointed at `deepseek-v4-pro`, which is
+  what `kitty-default` already serves. A test now fails if any two menu rows
+  resolve to the same upstream model.
+- **Vision was broken.** `kitty-vision` pointed at `mistral/mistral-small-latest`,
+  which is not an OpenRouter model id — that route answered 404 for every image
+  ever sent to it.
+- **Auto was auto in name only.** The chat endpoint honoured whatever id arrived,
+  so the classifier never ran. Only the auto ids reroute now; a pinned choice
+  stays pinned.
+
+Measured through Open WebUI: Auto 7.5s, Fast 5.5s, Think 4.7s to first token.
+
+Also fixed here: the Open WebUI health check called `./kitty down` then `up`,
+and `down` boots the launchd jobs out entirely — so a Gateway that was merely
+slow came back as a shell-owned process that dies with the terminal and never
+returns after a reboot. It reloads the launch services in place now.
+
+## Hazard: KittyBuilder resets the primary checkout
+
+An operator campaign (`initiative run … --publish --gate auto`) merges packets to
+main, and each merge calls `_prepare_main_worktree`. That treats `path.is_dir()`
+as proof of a worktree and then hard-resets to `origin/main` with `cwd` set to
+it — but a missing or half-removed directory under
+`.worktrees/kittybuilder-merge-check` makes `git -C path` walk up to the primary
+checkout instead.
+
+Observed twice in one session: the branch ref moved to `origin/main` and the
+working tree was replaced, reflog reading `reset: moving to origin/main`.
+Uncommitted work was destroyed both times.
+
+The guard is committed here (`_prepare_main_worktree` now refuses unless the
+directory resolves to itself as a git toplevel), but it is not on `main` yet, so
+a campaign running from the primary checkout does not have it. Until this branch
+lands, treat an unattended Builder campaign and uncommitted work in the primary
+checkout as mutually exclusive.
 
 ## Temporary runtime state
 

@@ -3,7 +3,7 @@
   "branch": "feat/openwebui-tomorrow-ready",
   "pull_request": 384,
   "progress_document": "docs/plans/openwebui-onboarding-progress.md",
-  "current_slice": "1-daily-driver-baseline",
+  "current_slice": "3-kitty-capabilities",
   "slices": [
     {
       "id": "1-daily-driver-baseline",
@@ -55,7 +55,7 @@
           "id": "diagnostics-actionable",
           "statement": "status and doctor report actionable state and fail loudly",
           "state": "pass",
-          "evidence": "doctor passes clean; smoke exits 1 with 'Gateway refused the streaming turn — routing: ...'"
+          "evidence": "doctor passes clean; smoke exits 1 with 'Gateway refused the streaming turn \u2014 routing: ...'"
         },
         {
           "id": "backup-restore",
@@ -79,13 +79,43 @@
     },
     {
       "id": "2-model-set",
-      "state": "not-started",
+      "state": "complete",
       "criteria": [
         {
-          "id": "user-facing-aliases",
-          "statement": "Kitty Auto, Fast, Think, Code, Vision, and Image are selectable and route correctly",
-          "state": "pending",
-          "evidence": null
+          "id": "menu-visible",
+          "statement": "Open WebUI lists Kitty Auto, Fast, Think, Code, and Vision",
+          "state": "pass",
+          "evidence": "GET /api/models returned all five ids after restart"
+        },
+        {
+          "id": "menu-rows-are-distinct",
+          "statement": "no two menu rows resolve to the same upstream model",
+          "state": "pass",
+          "evidence": "test_menu_entries_are_distinct_models; kitty-sonnet and kitty-default both served deepseek-v4-pro before"
+        },
+        {
+          "id": "vision-route-exists",
+          "statement": "the vision route names a model the provider actually has",
+          "state": "pass",
+          "evidence": "mistral/mistral-small-latest is not an OpenRouter id; replaced with mistralai/mistral-small-3.2-24b-instruct, verified live"
+        },
+        {
+          "id": "auto-classifies",
+          "statement": "Kitty Auto lets the classifier pick the tier; a pinned choice is not second-guessed",
+          "state": "pass",
+          "evidence": "auto on a deep message routes to kitty-sonnet; kitty-think on a trivial message stays on kitty-think"
+        },
+        {
+          "id": "streams-through-the-ui",
+          "statement": "each menu id streams a real answer through Open WebUI",
+          "state": "pass",
+          "evidence": "auto 7.5s, fast 5.5s, think 4.7s to first token"
+        },
+        {
+          "id": "image-row-withheld",
+          "statement": "Kitty Image is not listed until it works",
+          "state": "deferred",
+          "evidence": "image generation runs through image_jobs, not chat completions; deferred to the image slice"
         }
       ]
     },
@@ -118,6 +148,12 @@
       "id": "ollama-not-managed",
       "owner": "unassigned",
       "statement": "Ollama serves knowledge embeddings but does not start at login; homebrew.mxcl.ollama.plist exists and is not loaded",
+      "blocking": false
+    },
+    {
+      "id": "builder-campaign-resets-primary-checkout",
+      "owner": "jacob",
+      "statement": "an unattended Builder campaign with --publish --gate auto hard-resets the primary checkout to origin/main on every merge, destroying uncommitted work; the guard is on this branch but not on main",
       "blocking": false
     }
   ],
