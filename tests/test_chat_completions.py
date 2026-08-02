@@ -228,6 +228,57 @@ class TestMemoryTrailer:
         assert finish_kwargs["memory_items"] is None
 
 
+def test_failed_turn_persists_friendly_copy_into_ledger():
+    """A provider rejection (ChatTurnError) records the failed turn with the
+    user-facing copy, so restart/resume restores a truthful failed bubble with a
+    retry instead of silently dropping the turn (#346)."""
+    from gateway.chat_errors import ChatErrorKind, ChatTurnError
+
+    async def failing_stream(_payload):
+        raise ChatTurnError(
+            kind=ChatErrorKind.ROUTING,
+            detail="LiteLLM stream returned HTTP 402",
+        )
+        yield b""  # pragma: no cover — keeps this an async generator
+
+    handle = MagicMock(turn_id="turn-1", attempt_id="attempt-1")
+    bundle = ContextBundle(system="SYS")
+    with patch(
+        "gateway.routes.completions.classify_domain", return_value="soul"
+    ), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.context_assembler.assemble_context", new=AsyncMock(return_value=bundle)
+    ), patch(
+        "gateway.routes.completions.iter_chat_completions_stream", new=failing_stream
+    ), patch(
+        "gateway.routes.completions.chat_lifecycle.start_turn", return_value=handle
+    ), patch(
+        "gateway.routes.completions.chat_lifecycle.finish_turn"
+    ) as mock_finish, patch(
+        "gateway.routes.completions.chats_store.get_chat",
+        return_value={"id": "chat-1"},
+    ):
+        from gateway.app import app
+
+        with pytest.raises(ChatTurnError):
+            TestClient(app).post(
+                "/v1/chat/completions",
+                json={
+                    "conversation_id": "chat-1",
+                    "messages": [{"role": "user", "content": "hi"}],
+                    "stream": True,
+                },
+            )
+
+    finish_kwargs = mock_finish.call_args.kwargs
+    assert finish_kwargs["status"] == "failed"
+    assert finish_kwargs["assistant_text"] == ChatTurnError(
+        kind=ChatErrorKind.ROUTING
+    ).message
+    assert "HTTP 402" in finish_kwargs["error"]
+
+
 def test_thread_objective_reaches_lifecycle_and_context():
     mock_payload = {
         "choices": [{"message": {"role": "assistant", "content": "next step"}}],

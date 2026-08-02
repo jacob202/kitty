@@ -20,7 +20,7 @@ import type {
   ChatColor,
 } from '@/lib/types'
 import { MODELS, COLOR_CYCLE } from '@/lib/types'
-import { streamChat } from '@/lib/chat-client'
+import { streamChat, friendlyChatError } from '@/lib/chat-client'
 import { inferMood } from '@/lib/mood'
 import { useKittyState } from '@/hooks/useKittyState'
 import {
@@ -619,8 +619,21 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
         return
       }
       setLastOutcome('broke')
-      updateChat(chat.id, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content: `⚠ ${err instanceof Error ? err.message : 'error connecting to gateway'} — tap retry below.`, mood: 'confused' as const } : m)) }))
-      void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), messages: history })
+      const { userMessage } = friendlyChatError(err)
+      const failedContent = `⚠ ${userMessage}`
+      const failedMessage: Message = {
+        ...aiMsg,
+        content: failedContent,
+        mood: 'confused' as const,
+        turnStatus: 'failed',
+        ...(provider ? { provider } : {}),
+        ...(requestedModel ? { requestedModel } : {}),
+      }
+      updateChat(chat.id, (c) => ({ ...c, updatedAt: new Date(), messages: c.messages.map((m) => (m.id === aiMsgId ? failedMessage : m)) }))
+      // Persist the failed turn so restart/resume stays honest: the user sees
+      // their message plus the truthful failure with its retry path, instead of
+      // a send that silently produced nothing after reload.
+      void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), messages: [...history, failedMessage] })
     } finally { setIsStreaming(false); abortRef.current = null }
   }, [activeModel, activeProject?.id, updateChat, persistChat])
 

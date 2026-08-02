@@ -790,53 +790,108 @@ async def chat_completions_non_stream(payload: dict[str, Any]) -> dict[str, Any]
     }
 
 
+def _raise_upstream_status(resp, ChatErrorKind, ChatTurnError) -> None:
+    """Turn a non-2xx LiteLLM stream response into a typed ChatTurnError.
+
+    The message is kept as detail only (it often names providers/credits); the
+    user-facing copy is chosen by the error kind so it never leaks API detail.
+    """
+    payload_detail = ""
+    try:
+        payload = resp.json()
+        if isinstance(payload, dict):
+            err = payload.get("error")
+            if isinstance(err, dict):
+                payload_detail = str(err.get("message") or err.get("type") or "")
+            elif isinstance(payload.get("detail"), str):
+                payload_detail = payload["detail"]
+    except Exception:  # noqa: BLE001 — non-JSON upstream body; keep status only
+        payload_detail = f"(non-JSON body, {len(resp.content or b'')} bytes)"
+    status = int(getattr(resp, "status_code", 0) or 0)
+    kind = ChatErrorKind.ROUTING if 400 <= status < 500 else ChatErrorKind.UPSTREAM
+    detail = f"LiteLLM stream returned HTTP {status}"
+    if payload_detail:
+        detail += f": {payload_detail[:300]}"
+    raise ChatTurnError(kind=kind, detail=detail)
+
+
 async def iter_chat_completions_stream(payload: dict[str, Any]):
-    """Stream from LiteLLM, or emit an exact selected-provider response as SSE."""
+    """Stream from LiteLLM, or emit an exact selected-provider response as SSE.
+
+    Any failure to get a provider-answer surfaces as a ``ChatTurnError`` so the
+    route can emit a user-facing error event instead of an empty/half stream
+    that the phone renders as opaque "stream closed without [DONE]" copy.
+    """
+    from gateway.chat_errors import ChatErrorKind, ChatTurnError
+
     selected = selected_provider_name()
-    if selected is not None:
-        import asyncio
+    try:
+        if selected is not None:
+            import asyncio
 
-        messages = payload.get("messages") or []
-        request_model = normalize_litellm_request_model(payload.get("model")) or route_model("")
-        text = await asyncio.to_thread(
-            call_selected_provider,
-            selected,
-            messages,
-            request_model=request_model,
-            max_tokens=int(payload.get("max_tokens") or 1500),
-            temperature=float(payload.get("temperature") or 0.7),
-            timeout=int(payload.get("timeout") or 60),
-            response_format=payload.get("response_format"),
-            operation="chat.completions.create",
-            metadata={"route": "gateway_chat_selected_provider"},
-        )
-        direct_chunk = {
-            "id": "chatcmpl-kitty-selected-provider",
-            "object": "chat.completion.chunk",
-            "model": selected,
-            "choices": [{"index": 0, "delta": {"role": "assistant", "content": text}, "finish_reason": None}],
-        }
-        yield b"data: " + json.dumps(direct_chunk).encode("utf-8") + b"\n\n"
-        yield b"data: [DONE]\n\n"
-        return
+            messages = payload.get("messages") or []
+            request_model = normalize_litellm_request_model(payload.get("model")) or route_model("")
+            try:
+                text = await asyncio.to_thread(
+                    call_selected_provider,
+                    selected,
+                    messages,
+                    request_model=request_model,
+                    max_tokens=int(payload.get("max_tokens") or 1500),
+                    temperature=float(payload.get("temperature") or 0.7),
+                    timeout=int(payload.get("timeout") or 60),
+                    response_format=payload.get("response_format"),
+                    operation="chat.completions.create",
+                    metadata={"route": "gateway_chat_selected_provider"},
+                )
+            except ProviderChainExhausted as exc:
+                raise ChatTurnError(
+                    kind=ChatErrorKind.ROUTING,
+                    detail=f"selected provider {selected!r} could not answer: {exc}",
+                ) from exc
+            direct_chunk = {
+                "id": "chatcmpl-kitty-selected-provider",
+                "object": "chat.completion.chunk",
+                "model": selected,
+                "choices": [{"index": 0, "delta": {"role": "assistant", "content": text}, "finish_reason": None}],
+            }
+            yield b"data: " + json.dumps(direct_chunk).encode("utf-8") + b"\n\n"
+            yield b"data: [DONE]\n\n"
+            return
 
-    from gateway.http_client import get_http_client
+        from gateway.http_client import get_http_client
 
-    client = await get_http_client()
-    async with client.stream(
-        "POST",
-        f"{LITELLM_BASE}/v1/chat/completions",
-        json=payload,
-        headers={"Authorization": f"Bearer {LITELLM_KEY}"},
-    ) as resp:
-        async for chunk in resp.aiter_lines():
-            if not chunk or not chunk.startswith("data: "):
-                continue
-            raw_data = chunk[6:].strip()
-            if raw_data == "[DONE]":
+        client = await get_http_client()
+        async with client.stream(
+            "POST",
+            f"{LITELLM_BASE}/v1/chat/completions",
+            json=payload,
+            headers={"Authorization": f"Bearer {LITELLM_KEY}"},
+        ) as resp:
+            if not (200 <= resp.status_code < 300):
+                _raise_upstream_status(resp, ChatErrorKind, ChatTurnError)
+            async for chunk in resp.aiter_lines():
+                if not chunk or not chunk.startswith("data: "):
+                    continue
+                raw_data = chunk[6:].strip()
+                if raw_data == "[DONE]":
+                    yield chunk.encode("utf-8") + b"\n\n"
+                    break
                 yield chunk.encode("utf-8") + b"\n\n"
-                break
-            yield chunk.encode("utf-8") + b"\n\n"
+    except ChatTurnError:
+        raise
+    except httpx.HTTPError as exc:
+        raise ChatTurnError.from_exception(
+            exc,
+            kind=ChatErrorKind.UPSTREAM,
+            detail=f"LiteLLM chat stream failed: {exc}",
+        ) from exc
+    except Exception as exc:  # noqa: BLE001 — surfaced verbatim to the route
+        raise ChatTurnError.from_exception(
+            exc,
+            kind=ChatErrorKind.UPSTREAM,
+            detail=f"chat stream failed: {exc}",
+        ) from exc
 
 
 def log_chat_trace(

@@ -13,6 +13,12 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from gateway import chat_lifecycle, chats_store
+from gateway.chat_errors import (
+    FRIENDLY_MESSAGES,
+    ChatErrorKind,
+    ChatTurnError,
+    sse_error_event,
+)
 from gateway.constants import MAX_BODY_BYTES
 from gateway.domain_router import classify_domain
 from gateway.http_client import get_http_client
@@ -403,15 +409,31 @@ async def chat_completions(request: Request):
                 )
                 on_request_success()
             except Exception as exc:
+                chat_turn_error = isinstance(exc, ChatTurnError)
                 if lifecycle_handle is not None and not lifecycle_done:
+                    # Persist the truthful failure into the ledger. An empty
+                    # finish_turn inserts no assistant message (chat_lifecycle),
+                    # so a provider rejection with zero content would silently
+                    # vanish on restart — instead record the user-facing copy so
+                    # restart/resume keeps showing the failed turn with retry.
+                    failure_content = accumulated or (
+                        exc.message if chat_turn_error else ""
+                    )
                     _finish_lifecycle_or_raise(
                         lifecycle_handle,
-                        status="interrupted",
-                        assistant_text=accumulated,
+                        status=("failed" if chat_turn_error else "interrupted"),
+                        assistant_text=failure_content,
                         resolved_model=model,
-                        error=str(exc),
+                        error=(exc.detail if chat_turn_error else str(exc)),
                     )
                     lifecycle_done = True
+                # One user-facing error event before the stream tears down, so
+                # the phone gets a plain-language cause + recovery instead of a
+                # bare connection drop (#346 Chat trust baseline).
+                yield sse_error_event(
+                    exc.kind if chat_turn_error else ChatErrorKind.UPSTREAM,
+                    exc.message if chat_turn_error else FRIENDLY_MESSAGES[ChatErrorKind.UPSTREAM],
+                )
                 on_request_error()
                 raise
 
