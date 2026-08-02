@@ -109,6 +109,31 @@ def project_next_step(project_id: int) -> dict:
     return step
 
 
+@router.get("/calendar/today", operation_id="calendar_today", summary="Jacob's schedule today")
+async def calendar_today() -> dict:
+    """Today's events. ``available: false`` means the calendar is not connected."""
+    from gateway.routes.calendar import calendar_today as _today
+
+    try:
+        return await _today()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"calendar read failed: {exc}") from exc
+
+
+@router.get("/tutor/ask", operation_id="ask_tutor", summary="Ask Kitty's Tutor, grounded in ingested docs")
+async def ask_tutor(topic: str) -> dict:
+    """Answers only from documents Jacob has ingested, and says so when it has none."""
+    from gateway import tutor
+
+    try:
+        return await tutor.ask(topic)
+    except tutor.TutorError as exc:
+        # Not an error the model should retry — it is the honest answer.
+        return {"answer": None, "grounded": False, "reason": str(exc)}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"tutor failed: {exc}") from exc
+
+
 @router.get("/builder/status", operation_id="builder_status", summary="What KittyBuilder is doing")
 def builder_status() -> dict:
     """Queue counts and only the packets needing a human. Never the full corpus."""

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import patch
 
 import pytest
@@ -27,6 +28,8 @@ def test_the_spec_lists_only_kitty_tools():
         "/tools/v1/notes/search",
         "/tools/v1/projects",
         "/tools/v1/projects/{project_id}/next-step",
+        "/tools/v1/calendar/today",
+        "/tools/v1/tutor/ask",
         "/tools/v1/builder/status",
     }
 
@@ -112,5 +115,22 @@ def test_the_model_gets_readable_tool_names():
         "search_notes",
         "list_projects",
         "project_next_step",
+        "calendar_today",
+        "ask_tutor",
         "builder_status",
     }
+
+
+def test_an_empty_tutor_library_is_an_answer_not_a_failure():
+    """"I have nothing ingested on this" is a fact about the library. Raising
+    would make the model retry or report a crash instead of relaying the one
+    instruction that fixes it."""
+    from gateway import tutor
+
+    with patch.object(
+        tutor, "ask", side_effect=tutor.TutorError("no docs on X. Run: kitty tutor learn <path>")
+    ):
+        result = asyncio.run(tool_server.ask_tutor("X"))
+
+    assert result["grounded"] is False
+    assert "kitty tutor learn" in result["reason"]
