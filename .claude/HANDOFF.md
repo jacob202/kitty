@@ -1,61 +1,69 @@
-# Handoff — KTL2-003 parallel-lanes proof (Builder lane)
+# Handoff — PR #359 repaired after independent review and remains draft
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-02T00:18:32Z",
-  "head_sha": "92ddf9ca17475fbecf472db010c10253e83b56de",
-  "branch": "kittybuilder/kb_msazu581_72ec",
+  "updated_at": "2026-08-01T22:37:38Z",
+  "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14",
+  "branch": "docs/builder-cockpit-boundary",
   "worktree": "seaslug",
   "status": "valid",
   "completed_items": [
-    "Executed packet KTL2-003 as the Builder lane (attempt 92).",
-    "Added tests/workflow/test_parallel_lanes.py proving the four lane-separation invariants (idempotent continuation, single owner, separate-but-cross-referenced evidence, unknown-stays-null).",
-    "Recorded an interactive-lane effectiveness proof receipt and cross-referenced interactive PR #359 as separate parallel work without claiming it."
+    "Independent review #4835922501 found workflow-signal, KTL-001 applicability, continuity, and non-finite-cost defects at 4d667973.",
+    "Committed aef9d0ce to count workflow-signal repetition by distinct source_session values, publish signal files atomically, and validate all retained signal fields; d20a431b fixes the CI import-order failure.",
+    "Retired KTL-001 outside the active manifest set as a non-applicable planning record; KTL-002 remains the current corrective manifest.",
+    "Added focused regression tests for all review findings; no initiative was applied and Builder state was not modified."
   ],
-  "blockers": [],
-  "next_action": "Write the KTL2-003 proof evidence into docs/mission/evidence.md and a session note, then report to Builder.",
+  "blockers": [
+    "PR #359 must receive an independent re-review of the post-review repair head before it can be marked ready."
+  ],
+  "next_action": "Obtain independent re-review of the pushed PR #359 repair head; keep it draft until that review approves the checked SHA.",
   "parallel_work": [
     {"kind": "pr", "ref": "#359", "owner": "interactive review-and-repair session", "touches": ["docs", "scripts", "tests"], "observed_at": "2026-08-01T22:33:17Z"}
   ],
   "recommendations": [
-    {"id": "ktl2-003-lane-proof-evidence", "what": "Append the parallel-lanes proof evidence to docs/mission/evidence.md and write a session note naming all unavailable measurements", "why": "KTL2-003 acceptance requires evidence separation, cross-reference, and honest unavailable measurements.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null}
+    {"id": "pr359-independent-rereview", "what": "Obtain independent re-review of the pushed PR #359 repair head and keep it draft until that review approves the checked SHA.", "why": "Review #4835922501 found material defects repaired in aef9d0ce and d20a431b.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null}
   ],
   "invalidation_conditions": [
-    "HEAD changes beyond 92ddf9ca17475fbecf472db010c10253e83b56de except this packet's own commits",
-    "packet KTL2-003 changes or is cancelled",
-    "the interactive PR #359 head changes or closes"
+    "HEAD changes beyond d20a431be8010a7d42ff774c3a0bc724c98f9f14 except this checkpoint commit",
+    "PR #359 head changes or closes",
+    "an independent re-review records findings against the repair SHA"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": {"number": 359, "url": "https://github.com/jacob202/kitty/pull/359", "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14", "draft": true, "state": "OPEN"}
 }
 -->
 
 ## What was done
 
-- Ran the KTL2-003 zero-cost non-destructive proof as the Builder lane: the packet
-  was read, its allowed paths respected, and a workflow regression test
-  (`tests/workflow/test_parallel_lanes.py`) was added to fix the boundary
-  invariants that keep the two lanes separate.
+- Addressed every finding from independent review #4835922501 of `4d667973` in repair commits `aef9d0ce` and `d20a431b`.
+- Workflow signals now deduplicate by `(stable_key, source_session)`, use serialized collision-safe atomic writes, and validate retained records strictly before reporting.
+- KTL-001 is a non-applicable retired planning record; KTL-002 is the only current corrective manifest. Neither was applied and Builder state was untouched.
 
 ## In-flight / WIP
 
-- The interactive lane's PR #359 remains a separate parallel track (owner:
-  interactive review-and-repair session); it is observed, not claimed.
+- PR #359 is still a draft and requires independent re-review after the repair head is pushed.
 
-## Files changed this session
+## Other work in flight (not mine)
 
-- `tests/workflow/test_parallel_lanes.py` (new)
-- `.claude/STATE.md`, `.claude/HANDOFF.md` (this checkpoint)
-- `docs/mission/evidence.md`, `docs/session-notes/2026-08-02-ktl2-003-parallel-lanes.md`
+- No parallel implementation was touched by this repair.
 
-## Verification
+## Blockers
 
-- `python3.12 -m pytest tests/test_kb_effectiveness.py tests/workflow/ -q` —
-  19 passed.
-- `python3.12 scripts/check_continuity_state.py` and `./kitty context --agent`
-  run in the packet validation step.
+- PR #359 cannot be ready until an independent re-review approves its checked SHA.
 
 ## Next move
 
-- Write the proof evidence into `docs/mission/evidence.md`, then report to Builder.
+Obtain independent re-review of the pushed PR #359 repair head; keep it draft until that review approves the checked SHA.
+
+## Deferred, and what releases them
+
+- None.
+
+## Files changed this session
+
+- `docs/initiatives/README.md`, KTL-002 and the retired KTL-001 planning record, the leverage contract, `scripts/kb_effectiveness.py`, `scripts/session_learning.py`, and both focused test modules.
+
+## Verification
+
+- Final repair verification runs after this checkpoint commit, before push.
