@@ -398,3 +398,27 @@ both pass.
   no causal token/quality claim is made.
 - No durable JSONL receipt artifact was committed; all receipt assertions
   use a `tmp_path` store and are reproducible.
+
+## B8 — clean-checkout trivia run (documentation-only)
+
+The rebuilt Builder pipeline was exercised end-to-end with a single
+documentation-only trivia packet (`B8-TRIVIA-doc-note`, initiative
+`b8-clean-checkout-trivia-v1`). This note is that packet's committed output.
+
+- **No product code was mutated.** The change is limited to this evidence
+  note (allowed path `docs/mission/evidence.md`); the trivia manifest lives
+  at `docs/initiatives/B8-clean-checkout-trivia-v1.json` and passes
+  `./kitty builder initiative validate` with an empty error list.
+- **Author and validate gates:** the manifest validates (`valid: true`, 0
+  warnings). Deterministic validation of the note's own declared command
+  (`grep` for the two required phrases) passes.
+- **Terminal classification:** this worker could not run the operator-gated
+  publish stage (push branch, open draft PR, and wait for PR checks) because
+  push/PR/merge are T2 and require Jacob's authorization. The run therefore
+  reaches the bounded implement → validate boundary and stops there with an
+  honest operator-gate classification rather than a fabricated "merge-ready".
+- **Declared suite honesty:** `python3.12 -m pytest tests/ -q --tb=short -k
+  'not slow'` reports 7 pre-existing, environment-sensitive failures
+  (provider-key resolution tests that read a real key from the environment
+  instead of the `sk-test-key` fixture), unrelated to this documentation-only
+  change, plus 3723 passed.

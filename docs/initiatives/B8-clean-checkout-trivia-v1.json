@@ -1,0 +1,29 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "b8-clean-checkout-trivia-v1",
+  "title": "B8 clean-checkout trivia run",
+  "description": "A single documentation-only trivia packet used as the first end-to-end runtime proof of the rebuilt Builder pipeline. It makes a bounded, non-code documentation change so the queue -> worker -> validation -> review lane can be exercised without touching product behavior.",
+  "packets": [
+    {
+      "id": "B8-TRIVIA-doc-note",
+      "title": "Record the clean-checkout trivia note",
+      "objective": "Documentation-only. Append one short, factual trivia note to docs/mission/evidence.md recording that the rebuilt Builder pipeline was exercised end-to-end with a documentation-only trivia packet during the B8 clean-checkout mission, without any code mutation.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "docs/mission/evidence.md contains a signed section noting the B8 trivia packet ran end-to-end",
+        "The note states no product code was mutated",
+        "The note records the run's terminal classification honestly"
+      ],
+      "allowed_paths": [
+        "docs/mission/evidence.md"
+      ],
+      "policy": {
+        "max_attempts": 1,
+        "priority": 7
+      },
+      "validation_commands": [
+        "grep -qi 'B8.*clean-checkout trivia' docs/mission/evidence.md && grep -qi 'no product code was mutated' docs/mission/evidence.md"
+      ]
+    }
+  ]
+}
