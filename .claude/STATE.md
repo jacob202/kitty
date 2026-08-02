@@ -1,51 +1,50 @@
-# Session State — B6-cancellation-recovery (attempt 1)
+# Session State — B5-pr-check-review-actionable
 
 <!-- kitty-state
 {
   "schema_version": 2,
   "updated_at": "2026-08-02T00:00:00Z",
-  "branch": "kittybuilder/kb_msb4yx3n_82f1",
-  "worktree": "kittybuilder/kb_msb4yx3n_82f1",
-  "status": "in_progress",
+  "branch": "kittybuilder/kb_msb4yx3n_124c",
+  "worktree": "kittybuilder/kb_msb4yx3n_124c",
+  "status": "complete",
   "completed_items": [
-    "operator_cancel_task refuses running/pr_opened (no unblock shortcut)",
-    "detect_merged_prs / reconcile-merges recovers wrongly-cancelled tasks to done via merged PR",
-    "recover_durable_issues combines lease/run recovery + merged-PR reconciliation + done-with-unmerged-PR flagging",
-    "CLI operator-cancel and recover wired to new APIs; reconcile_merges cockpit handler added",
-    "Tests added for cancellation guard, merge-recovery, recover_durable_issues, B4 projection"
+    "Extended gh PR advisory capture (mergeable, mergeStateStatus, baseRefOid) in builder_queue._gh_pr_status",
+    "Persisted advisory merge/base fields on pr_attached/pr_updated event payload via attach_pr",
+    "Added read-only _pr_advisory_projection + _recovery_actions to builder_status packet model",
+    "Repaired run projection to expose start_sha for superseded-run detection",
+    "Added 6 focused recovery-action tests in test_builder_status.py"
   ],
   "blockers": [],
-  "next_action": "Await Builder acceptance; packet status completed.",
-  "parallel_work": []
+  "next_action": "None",
+  "parallel_work": [],
+  "recommendations": [],
+  "invalidation_conditions": [
+    "HEAD changes beyond the current packet lease base"
+  ],
+  "active_mission": "docs/ACTIVE_MISSION.md",
+  "pull_request": null,
+  "head_sha": "734e49e9237fb2093af622ece9c3e62b2e61f19c"
 }
 -->
 
 ## Execution ownership
 
-- this session: builder (packet B6-cancellation-recovery, attempt 1, task kb_msb4yx3n_82f1)
+- this session: builder worker (packet B5-pr-check-review-actionable, initiative trustworthy-kittybuilder-b2-b10-v1)
+- task_id: kb_msb4yx3n_124c
 
 ## Implementation summary
 
-- `gateway/builder_queue.py`:
-  - `operator_cancel_task()` — operator cancel that refuses `running` / `pr_opened`.
-  - `detect_merged_prs()` now also scans `cancelled`; `_promote_merged_task()` drives
-    wrongly-cancelled tasks to `done` via `_recover_cancelled_task_due_to_merge()`.
-  - `recover_durable_issues()` + `_reconcile_done_unmerged_prs()` — combined recover pass.
-- `gateway/builder_cli.py`: `operator-cancel` and `recover` now use the new APIs.
-- `gateway/builder_commands.py`: `command_cancel` uses `operator_cancel_task`; added
-  `reconcile_merges` handler.
-- Tests: cancellation guard, merge-recovery of cancelled tasks, `recover_durable_issues`,
-  B4 projection after reconcile.
+- no receipt recorded yet
 
-## Validation
+## Change summary
 
-- Exact bundle command passed: 185 passed
-  (`pytest tests/test_builder_queue.py tests/test_builder_commands.py -k 'not slow'`).
-- Related files: test_builder_cli, test_builder_status, test_builder_routes,
-  test_builder_control_actions — 165 passed.
-
-## Environment note
-
-Live gateway runner owns the real `data/kittybuilder/builder_queue.db`; the pre-existing
-`TestRequeueMissingTask`/`TestCancelMissingTask` command tests touch that real DB and can
-flake under lock contention. All new code/tests are `db_path`-scoped.
+- `gateway/builder_queue.py`: `_gh_pr_status` now fetches `mergeable`,
+  `mergeStateStatus`, `baseRefOid`; `attach_pr` persists them on the advisory
+  `pr_attached`/`pr_updated` event payload (never on the task/pr_links row:
+  Section 11.4).
+- `gateway/builder_status.py`: added `_read_latest_pr_advisories` (one bulk
+  query, SNAPSHOT_QUERY_COUNT 9 -> 10), `_pr_advisory_projection`, and
+  `_recovery_actions` which produce per-task recovery actions for failing CI,
+  merge conflict, waiting review, stale/base-behind rebase, and superseded
+  runs. Run projection now exposes `start_sha`.
+- `tests/test_builder_status.py`: 6 focused tests (31 total pass).

@@ -35,6 +35,7 @@ export interface ToolCall {
   id: string
   name: string
   arguments: string
+  status?: 'pending' | 'running' | 'done' | 'error'
 }
 
 export interface Message {
@@ -75,6 +76,8 @@ export interface MessageRouting {
   priority: number
 }
 
+export type MessageBranch = { messages: Message[]; timestamp: Date }
+
 export interface Chat {
   id: string
   title: string
@@ -83,16 +86,12 @@ export interface Chat {
   color: ChatColor
   createdAt: Date
   updatedAt: Date
-  /**
-   * Per-thread goal (CR-01). The gateway stores it in a normalized column and
-   * omits the key when unset, so absent and null both mean "no goal". Written
-   * only through PATCH /chats/{id}/objective — never through the chat blob save.
-   */
   objective?: string | null
-  /** Expert that created this chat (from /knowledge/experts). */
   expertId?: string | null
-  /** Editable per-chat system prompt override. */
   systemPrompt?: string | null
+  pinned?: boolean
+  /** Retry branches keyed by user-message index → list of prior assistant message arrays. */
+  retryBranches?: Record<number, Message[][]>
 }
 
 export type ChatColor = 'teal' | 'purple' | 'blue' | 'mint' | 'orange'
