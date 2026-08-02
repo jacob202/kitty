@@ -28,6 +28,8 @@ Companion wiring:
 
 from __future__ import annotations
 
+import argparse
+import datetime as _datetime
 import hashlib
 import json
 import logging
@@ -35,6 +37,7 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn
@@ -1471,3 +1474,515 @@ def request_cancel(
     refreshed["signal_sent"] = signal_sent
     refreshed["signal_status"] = signal_status
     return refreshed
+
+
+# ---------------------------------------------------------------------------
+# Durable detached execution (B7-detached-execution-durable)
+# ---------------------------------------------------------------------------
+#
+# A terminal disconnect or watcher death must not strand a live worker. The
+# synchronous ``run_worker`` owns the worker from inside the *calling* process,
+# so if that process (the loop, the watcher, the terminal) dies, nobody is left
+# heartbeating the lease and the worker continues unowned — its output is never
+# attributed and its process leaks. The primitives below give the worker a
+# detached, durable owner instead:
+#
+#   * ``run_worker_detached`` spawns a *supervisor* subprocess in its own
+#     session. The supervisor runs the exact same ``run_worker`` lifecycle
+#     (claim -> worktree -> spawn -> heartbeat -> collect -> finalize), so
+#     ownership lives in a process that outlives the caller. The caller returns
+#     immediately with the supervisor pid.
+#   * ``detached_worker_status`` is the reconnectable status surface. Given a
+#     run (or a task), it reads the durable DB record and the live process to
+#     distinguish *still running* from *crashed* from *completed*, so an
+#     operator can reconnect to a still-running worker after a restart and its
+#     eventual output is attributed to the attempt that produced it.
+#   * ``reap_detached_workers`` reclaims orphaned worker process groups whose
+#     owner died (lease went stale while the worker is still alive), so no
+#     orphan workers accumulate across repeated detach/restart cycles.
+
+_DETACHED_DIR = "detached"
+_DETACH_SUPERVISE_FLAG = "--supervise"
+_DETACH_SUPERVISE_GRACE_PAD_SECONDS = 5
+
+
+def _parse_timestamp(value: str | None) -> float | None:
+    """Parse a builder timestamp (``%Y-%m-%d %H:%M:%f``) into epoch seconds."""
+    if not value:
+        return None
+    text = str(value).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return _datetime.datetime.strptime(text, fmt).timestamp()
+        except ValueError:
+            continue
+    return None
+
+
+def _process_alive(pid: int, expected_identity: str | None) -> tuple[bool, str]:
+    """Return ``(alive, detail)`` for a recorded worker pid.
+
+    Alive means the pid is currently running *and* its start-time identity
+    matches the run's recorded identity, so a recycled pid is never mistaken
+    for a live worker (PID-reuse fencing, same invariant as
+    ``request_cancel`` / ``recover_interrupted_runs``). A missing or
+    mismatched identity is treated as not alive.
+    """
+    if not pid or pid <= 0:
+        return False, "process_not_recorded"
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False, "process_not_running"
+    except OSError:
+        return False, "process_probe_error"
+    if not expected_identity:
+        return False, "process_identity_missing"
+    try:
+        current = bq.capture_process_identity(int(pid))
+    except Exception:
+        return False, "process_identity_probe_error"
+    if current != expected_identity:
+        return False, "process_identity_mismatch"
+    return True, "alive"
+
+
+def _single_worker_run(
+    task_id: str, run_id: str | None, *, db_path: Path | None
+) -> dict[str, Any] | None:
+    if run_id is not None:
+        run = bq.get_run(run_id, db_path=db_path)
+        if run is not None and run["task_id"] != task_id:
+            raise ValueError(
+                f"run {run_id} belongs to task {run['task_id']}, not {task_id}"
+            )
+        return run
+    runs = bq.list_runs(task_id=task_id, db_path=db_path)
+    return runs[-1] if runs else None
+
+
+def detached_worker_status(
+    run_id: str | None = None,
+    *,
+    task_id: str | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Reconnectable status of a (possibly detached) worker run.
+
+    Exactly one of ``run_id`` or ``task_id`` is required. Reads the durable run
+    record and the live worker process to classify the run as:
+
+      * ``completed`` — the run is in a terminal state; its final report is the
+        attempt's attached output (branch, commit, changed paths).
+      * ``running`` — the run is active, its worker process is alive with a
+        matching identity, and the task lease is current (a live owner exists).
+      * ``orphaned`` — the run is active and its worker is alive, but the task
+        lease has expired: the owner (loop/supervisor) died and the worker is
+        still running unowned. The operator (or ``reap_detached_workers``) may
+        reclaim it.
+      * ``crashed`` — the run is active in the DB but the worker process is
+        gone (or its identity does not match); the owner recorded a run it
+        never got to finalize.
+      * ``starting`` — active with no worker pid recorded yet.
+      * ``missing`` — no run rows for the given identity.
+    """
+    if (run_id is None) == (task_id is None):
+        raise ValueError("exactly one of run_id or task_id is required")
+    if task_id is None:
+        run = bq.get_run(str(run_id), db_path=db_path)
+        if run is not None:
+            task_id = str(run["task_id"])
+        else:
+            return {"status": "missing", "run_id": run_id, "task_id": None}
+    run = _single_worker_run(task_id, run_id, db_path=db_path)
+    if run is None:
+        return {"status": "missing", "run_id": run_id, "task_id": task_id}
+
+    rid = str(run["id"])
+    base: dict[str, Any] = {
+        "run_id": rid,
+        "task_id": task_id,
+        "run_state": run["state"],
+        "pid": run.get("pid"),
+        "exit_code": run.get("exit_code"),
+        "branch": run.get("branch"),
+        "worktree_path": run.get("worktree_path"),
+        "log_path": run.get("log_path"),
+        "last_heartbeat_at": run.get("last_heartbeat_at"),
+        "reconnectable": False,
+    }
+
+    if run["state"] in bq.RUN_TERMINAL_STATES:
+        base["status"] = "completed"
+        base["outcome"] = run["state"]
+        # A completed run is fully attributable: the operator can reconnect to
+        # its durable final report and worktree.
+        base["reconnectable"] = run.get("final_report") is not None
+        base["final_report"] = run.get("final_report")
+        return base
+
+    if run.get("pid") is None:
+        base["status"] = "starting"
+        return base
+
+    pid = int(run["pid"])
+    alive, detail = _process_alive(pid, run.get("process_identity"))
+    if not alive:
+        base["status"] = "crashed"
+        base["reason"] = detail
+        return base
+
+    # Worker is alive. Decide whether it has a live owner by lease freshness.
+    task = bq.get_task(task_id, db_path=db_path)
+    lease_expires = _parse_timestamp(
+        task.get("lease_expires_at") if task is not None else None
+    )
+    current = time.time()
+    if lease_expires is not None and current <= lease_expires:
+        base["status"] = "running"
+        base["reason"] = "alive"
+    else:
+        base["status"] = "orphaned"
+        base["reason"] = "lease_expired"
+    base["reconnectable"] = base["status"] == "running"
+    return base
+
+
+def reap_detached_workers(
+    db_path: Path | None = None,
+    *,
+    grace_seconds: int = DEFAULT_LEASE_SECONDS,
+    _killpg: Any = os.killpg,
+) -> dict[str, Any]:
+    """Reclaim orphaned worker process groups so none accumulate.
+
+    A worker whose owner died keeps running in its own session, but its task
+    lease stops being renewed and expires. This scans every active (non
+    terminal) run whose worker process is still alive and identity-matches, and
+    whose task lease has been expired for more than ``grace_seconds`` — a
+    positive, durable signal that the owning supervisor/loop is gone — and
+    SIGTERMs (then SIGKILLs) that worker's process group. Runs whose worker is
+    already gone are left for ``recover_interrupted_runs`` to mark. Runs with a
+    live, currently-leased owner are never touched.
+
+    Returns a summary of reaped / skipped runs. ``_killpg`` is injectable for
+    tests.
+    """
+    if grace_seconds < 0:
+        raise ValueError("grace_seconds must be non-negative")
+    reaped: list[str] = []
+    skipped: list[str] = []
+    reaped_pids: list[int] = []
+    for run in bq.list_runs(state=None, db_path=db_path):
+        if run["state"] not in bq.RUN_ACTIVE_STATES:
+            continue
+        run_id = str(run["id"])
+        if run.get("pid") is None:
+            skipped.append(run_id)
+            continue
+        pid = int(run["pid"])
+        alive, detail = _process_alive(pid, run.get("process_identity"))
+        if not alive:
+            skipped.append(run_id)
+            continue
+        task = bq.get_task(str(run["task_id"]), db_path=db_path)
+        lease_expires = _parse_timestamp(
+            task.get("lease_expires_at") if task is not None else None
+        )
+        if lease_expires is None:
+            # Cannot positively confirm the owner is gone — fail closed and
+            # leave the run to the lease-recovery path.
+            skipped.append(run_id)
+            continue
+        if time.time() <= lease_expires + grace_seconds:
+            skipped.append(run_id)
+            continue
+        # Owner is durably gone (lease stale past grace) while the worker is
+        # still alive — reclaim the orphan's process group.
+        try:
+            _killpg(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            skipped.append(run_id)
+            continue
+        time.sleep(0.1)
+        try:
+            _killpg(pid, signal.SIGKILL)
+        except (ProcessLookupError, OSError):
+            pass
+        reaped.append(run_id)
+        reaped_pids.append(pid)
+    return {
+        "reaped": reaped,
+        "reaped_pids": reaped_pids,
+        "skipped": skipped,
+        "count": len(reaped),
+    }
+
+
+def _detached_spec_payload(
+    task_id: str,
+    command: list[str],
+    *,
+    worker: str,
+    model: str | None,
+    provider: str | None,
+    timeout_seconds: int,
+    lease_seconds: int,
+    heartbeat_seconds: int,
+    repo_root: Path,
+    db_path: Path | None,
+    extra_env: dict[str, str] | None,
+    base_sha: str | None,
+    inject_context: bool,
+    reuse_dirty_worktree: bool,
+) -> dict[str, Any]:
+    """Serialize the ``run_worker`` parameters a detached supervisor needs."""
+    return {
+        "task_id": task_id,
+        "command": list(command),
+        "worker": worker,
+        "model": model,
+        "provider": provider,
+        "timeout_seconds": timeout_seconds,
+        "lease_seconds": lease_seconds,
+        "heartbeat_seconds": heartbeat_seconds,
+        "repo_root": str(repo_root),
+        "db_path": str(db_path) if db_path is not None else None,
+        "extra_env": dict(extra_env) if extra_env else None,
+        "base_sha": base_sha,
+        "inject_context": inject_context,
+        "reuse_dirty_worktree": reuse_dirty_worktree,
+    }
+
+
+def _supervise_worker(spec_path: str | Path) -> int:
+    """Run a detached worker to completion inside a supervisor process.
+
+    This is the entrypoint the detached supervisor process executes. It reads
+    the spec written by ``run_worker_detached`` and runs the exact synchronous
+    ``run_worker`` lifecycle so that *this* process — not the original caller —
+    owns every step. Writes a completion/error status file beside the spec, so
+    a later operator can inspect what the supervisor observed even if it had to
+    exit abnormally. Returns the process exit code.
+    """
+    spec_path = Path(spec_path)
+    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    status_path = spec_path.with_suffix(".status.json")
+    _write_status = lambda payload: status_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+    def _wrapped_finalize(status: dict[str, Any]) -> int:
+        try:
+            _write_status(status)
+        except OSError:
+            pass
+        return 1 if status.get("ok") is False else 0
+
+    try:
+        final = run_worker(
+            spec["task_id"],
+            spec["command"],
+            worker=spec.get("worker", "local-runner"),
+            model=spec.get("model"),
+            provider=spec.get("provider"),
+            timeout_seconds=spec.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS),
+            lease_seconds=spec.get("lease_seconds", DEFAULT_LEASE_SECONDS),
+            heartbeat_seconds=spec.get("heartbeat_seconds", DEFAULT_HEARTBEAT_SECONDS),
+            repo_root=Path(spec["repo_root"]) if spec.get("repo_root") else None,
+            db_path=Path(spec["db_path"]) if spec.get("db_path") else None,
+            extra_env=spec.get("extra_env"),
+            base_sha=spec.get("base_sha"),
+            inject_context=bool(spec.get("inject_context")),
+            reuse_dirty_worktree=bool(spec.get("reuse_dirty_worktree")),
+        )
+    except Exception as exc:
+        return _wrapped_finalize(
+            {
+                "ok": False,
+                "task_id": spec.get("task_id"),
+                "error": f"{type(exc).__name__}: {exc}",
+                "needle_reconnect": (
+                    "supervisor crashed; reconnect via detached_worker_status"
+                ),
+            }
+        )
+    return _wrapped_finalize(
+        {
+            "ok": True,
+            "task_id": spec.get("task_id"),
+            "run_id": final.get("id"),
+            "run_state": final.get("state"),
+            "outcome": (final.get("final_report") or {}).get("outcome"),
+        }
+    )
+
+
+def run_worker_detached(
+    task_id: str,
+    command: list[str],
+    *,
+    worker: str = "local-runner",
+    model: str | None = None,
+    provider: str | None = None,
+    timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+    lease_seconds: int = DEFAULT_LEASE_SECONDS,
+    heartbeat_seconds: int = DEFAULT_HEARTBEAT_SECONDS,
+    repo_root: Path | None = None,
+    db_path: Path | None = None,
+    extra_env: dict[str, str] | None = None,
+    base_sha: str | None = None,
+    inject_context: bool = False,
+    reuse_dirty_worktree: bool = False,
+    spec_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Launch *command* under a durable detached supervisor and return at once.
+
+    The supervisor is a separate process in its own session
+    (``start_new_session=True``). It owns the entire ``run_worker`` lifecycle —
+    claim, worktree, spawn, heartbeat, collect, finalize — so the worker is
+    not stranded when this calling process (loop, watcher, terminal) dies. This
+    call returns immediately once the supervisor is spawned; the run row
+    appears in the queue DB (and is observable via :func:`detached_worker_status`)
+    as the supervisor proceeds.
+
+    Parameter validation is identical to :func:`run_worker` and raises *before*
+    anything is spawned. Returns a dispatch record containing the supervisor
+    pid and the spec path; it deliberately does not block for completion.
+    """
+    # Validate identically to run_worker, before spawning anything, so a bad
+    # invocation cannot leak a partial detached run.
+    if not command:
+        raise ValueError("command must be a non-empty list")
+    if extra_env:
+        overlap = _EXTRA_ENV_BLOCKED & set(extra_env)
+        if overlap:
+            raise ValueError(
+                f"extra_env may not override credential isolation: {sorted(overlap)}"
+            )
+    for name, seconds in (
+        ("timeout_seconds", timeout_seconds),
+        ("lease_seconds", lease_seconds),
+        ("heartbeat_seconds", heartbeat_seconds),
+    ):
+        if seconds <= 0:
+            raise ValueError(f"{name} must be positive")
+    if heartbeat_seconds >= lease_seconds:
+        raise ValueError(
+            "heartbeat_seconds must be shorter than lease_seconds so the "
+            "runner renews ownership before it expires"
+        )
+
+    root = _repo_root(repo_root).resolve()
+    queue_db = Path(db_path) if db_path is not None else BUILDER_QUEUE_DB
+    runs_dir = queue_db.parent / "runs"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    detach_dir = (spec_dir or (runs_dir / _DETACHED_DIR)).resolve()
+    detach_dir.mkdir(parents=True, exist_ok=True)
+
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    spec_path = detach_dir / f"supervisor-{stamp}-{task_id}.spec.json"
+    spec_path.write_text(
+        json.dumps(
+            _detached_spec_payload(
+                task_id,
+                command,
+                worker=worker,
+                model=model,
+                provider=provider,
+                timeout_seconds=timeout_seconds,
+                lease_seconds=lease_seconds,
+                heartbeat_seconds=heartbeat_seconds,
+                repo_root=root,
+                db_path=db_path,
+                extra_env=extra_env,
+                base_sha=base_sha,
+                inject_context=inject_context,
+                reuse_dirty_worktree=reuse_dirty_worktree,
+            ),
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    supervisor_log = detach_dir / f"supervisor-{stamp}-{task_id}.log"
+
+    # The supervisor is an operator-owned process: it needs no ambient GitHub /
+    # SSH credentials (the worker's env is built and stripped inside
+    # run_worker), so strip them here too to keep them out of the supervisor
+    # log stream.
+    supervisor_env = dict(os.environ)
+    for key in _EXTRA_ENV_BLOCKED:
+        supervisor_env.pop(key, None)
+    supervisor_env["GIT_CONFIG_GLOBAL"] = os.devnull
+    supervisor_env["GIT_CONFIG_SYSTEM"] = os.devnull
+    supervisor_env["GIT_TERMINAL_PROMPT"] = "0"
+
+    # project_root is where `gateway` is importable so `python -m
+    # gateway.builder_runner` runs in the child regardless of the task's
+    # worktree repo (passed explicitly as repo_root).
+    project_root = Path.cwd().resolve()
+    try:
+        log_fh = open(supervisor_log, "ab")
+    except OSError as exc:
+        raise RunnerError(
+            f"cannot open detached supervisor log {supervisor_log}: {exc}"
+        ) from exc
+    with log_fh:
+        try:
+            proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "gateway.builder_runner",
+                    _DETACH_SUPERVISE_FLAG,
+                    str(spec_path),
+                ],
+                cwd=str(project_root),
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
+                env=supervisor_env,
+                start_new_session=True,
+            )
+        except OSError as exc:
+            raise RunnerError(
+                f"failed to spawn detached supervisor for task {task_id}: {exc}"
+            ) from exc
+
+    logger.info(
+        "dispatched detached worker for task %s (supervisor pid=%s spec=%s)",
+        task_id,
+        proc.pid,
+        spec_path,
+    )
+    return {
+        "status": "dispatched",
+        "task_id": task_id,
+        "supervisor_pid": proc.pid,
+        "spec_path": str(spec_path),
+        "supervisor_log": str(supervisor_log),
+        "detached": True,
+    }
+
+
+def _detached_main(argv: list[str] | None = None) -> int:
+    """Internal CLI entrypoint for the detached supervisor process."""
+    parser = argparse.ArgumentParser(
+        prog="gateway.builder_runner", description="KittyBuilder worker runner (internal)."
+    )
+    parser.add_argument(
+        _DETACH_SUPERVISE_FLAG,
+        dest="spec_path",
+        metavar="SPEC",
+        help="run the detached worker described by SPEC to completion",
+    )
+    args = parser.parse_args(argv)
+    if not args.spec_path:
+        parser.error("missing supervisor spec path")
+    return _supervise_worker(args.spec_path)
+
+
+if __name__ == "__main__":
+    raise SystemExit(_detached_main())
