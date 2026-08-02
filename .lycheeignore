@@ -3,3 +3,6 @@
 # at least once (see the hygiene job in .github/workflows/tests.yml).
 # textgrad.com answers HEAD requests with 415 Unsupported Media Type.
 https?://textgrad\.com.*
+
+# departuremono.com font CDN times out intermittently (archive preview files).
+https?://departuremono\.com.*
