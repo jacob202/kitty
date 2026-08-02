@@ -252,3 +252,86 @@ The container has no `.env`, no RunPod credentials, no display, no GPU, and
 is not Jacob's Mac. Issue #336's acceptance test and Outcome B items 8–10
 were not attempted, because attempting them would have produced only
 fabricated results.
+
+---
+
+# KTL2-003 — parallel-lanes proof (Builder lane)
+
+This packet is a zero-cost, non-destructive proof that the Builder execution
+lane and the interactive continuation lane stay separate. It did not spawn a
+second live tool; it fixed the invariants that keep the two lanes apart and
+verified them at the shared receipt layer.
+
+## P1 — the lane-separation regressions are green
+
+`python3.12 -m pytest tests/test_kb_effectiveness.py tests/workflow/ -q`:
+
+```
+19 passed in 0.48s
+```
+
+The new module `tests/workflow/test_parallel_lanes.py` proves four invariants:
+
+1. **A second interactive tool resolving the same continuation is idempotent.**
+   Recording the identical interactive continuation twice yields the same
+   `receipt_id` (created on first, id filtered on second) and leaves one stored
+   record — a second tool resolves the *same* interactive continuation, never a
+   fresh independent record that would be a duplicate.
+2. **Each implementation has exactly one execution owner.** Recording a Builder
+   receipt claiming the same accepted `result_id` already held by the
+   interactive lane raises `ReceiptError` (double-count protection).
+3. **Builder and interactive evidence stay separate but cross-referenced.**
+   Both lanes write to the same evidence rail with distinct `session_id` and
+   `result_id` values; the summary reports `execution_owners == {interactive:
+   1, builder: 1}` and two distinct accepted results.
+4. **Unknown measurements stay unknown.** With no token/cost/attempt data,
+   `summary.efficiency.total_tokens`, `estimated_cost_usd`, and
+   `average_attempts` are `None`, and the report carries the
+   "do not prove causation" gap.
+
+These are the same guarantees the receipt layer enforces for real builder
+attempts and interactive session-ends; the test drives the shared rail without
+touching any live dotfile, log, or Builder database.
+
+## P2 — continuity metadata is internally consistent
+
+`python3.12 scripts/check_continuity_state.py` (with STATE/HANDOFF rewritten
+for this worktree's branch `kittybuilder/kb_msazu581_72ec` and HEAD
+`92ddf9ca…`):
+
+```
+PASS: handoff:branch / handoff:head / state:branch / state:head
+PASS: handoff:pull_request / state:pull_request: no active PR claimed
+...
+(all checks PASS)
+```
+
+The previous STATE/HANDOFF described interactive PR #359 on a different branch
+and failed branch/head continuity; they were rewritten to describe this
+Builder-lane execution and to record PR #359 as separate parallel work.
+
+## P3 — Builder-lane effectiveness receipt recorded
+
+`python3.12 scripts/kb_effectiveness.py --store docs/session-notes/kb-effectiveness.jsonl record ...`:
+
+```
+receipt_id: kbr_6c1185a1879f3889be9c
+execution_owner: builder
+session_id: builder:kb_msazu581_72ec:92
+outcome: completed_unreviewed
+```
+
+The interactive lane's own session-end would write a separate
+`execution_owner=interactive` receipt for that lane; this packet did not run a
+live interactive session-end, so no interactive receipt identity is invented
+here.
+
+## Unavailable measurements (names not estimates)
+
+- No live second interactive tool/process was run; the "second tool" behaviour
+  is proven at the receipt layer, not by spawning a second process.
+- Total tokens, elapsed time, and cost were not measured and remain `null`;
+  no causal token/quality claim is made.
+- No independent review verdict exists for this bounded packet execution.
+- Interactive PR #359's live state was not independently re-verified; it is
+  observed as separate parallel work, not claimed.
