@@ -206,3 +206,25 @@ def test_summary_accepts_window_days_after_subcommand() -> None:
 def test_non_finite_cost_fails_before_receipt_serialization(cost: float) -> None:
     with pytest.raises(kb.ReceiptError, match="estimated_cost_usd"):
         kb.validate_payload(payload(estimated_cost_usd=cost), now=NOW)
+
+
+def test_blank_line_in_store_fails_loud(tmp_path: Path) -> None:
+    store = kb.Store(tmp_path / "receipts.jsonl", "test")
+    kb.record_receipt(payload(), store=store, now=NOW)
+    store.path.write_text(store.path.read_text() + "\n", encoding="utf-8")
+    with pytest.raises(kb.ReceiptError, match="blank line"):
+        kb.load_receipts(store.path)
+
+
+def test_receipt_id_mismatch_fails_loud(tmp_path: Path) -> None:
+    store = kb.Store(tmp_path / "receipts.jsonl", "test")
+    kb.record_receipt(payload(), store=store, now=NOW)
+
+    lines = store.path.read_text(encoding="utf-8").splitlines()
+    first = json.loads(lines[0])
+    first["receipt_id"] = "kbr_" + "0" * 20
+    lines[0] = json.dumps(first)
+    store.path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    with pytest.raises(kb.ReceiptError, match="has id"):
+        kb.load_receipts(store.path)
