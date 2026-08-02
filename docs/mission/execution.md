@@ -230,20 +230,43 @@ stop/split rule.
   decision through to the worker is A6's job.
 - **Local-testable:** partly — schema and binding yes (done), real render no
 
-### A4b — Gateway dispatch of an approved edit · NOT STARTED
+### A4b — Gateway dispatch of an approved edit · VERIFIED (worker injected)
 
-- **Depends on:** A4
-- **Why this exists:** A4 made the worker capable of a real edit and A3 made the
-  controller able to decide on one, but `gateway/image_runner.run` still has no
-  `img2img` path — it takes `parent_id` for lineage only and always renders
-  text-to-image. Nothing joins the two. This was not in the original slice list
-  because the gap only became visible once both sides existed.
-- **Change:** teach `image_runner` an edit path that resolves the anchor job's
-  artifact, uploads it via `RunPodWorkerClient.upload_source_image`, and submits
-  `image_to_image_v1` with a denoise value from the plan.
-- **Acceptance:** a test asserting a decision with `operation == "img2img"`
-  produces a worker submission carrying `source_image_id` and `denoise`.
-- **Local-testable:** yes (against a mocked worker)
+- **Depends on:** A4 (met)
+- **Change landed:** `gateway/image_runner.run_edit()`. Resolves the anchor
+  job's artifact from disk, uploads it to the worker, and submits
+  `image_to_image_v1` with an explicit denoise. The worker is a parameter, not
+  a module lookup — see the blocker below.
+- **Acceptance met:** `tests/test_image_edit_dispatch.py`, 14 tests, all
+  passing; `tests/test_image_runner.py` + the rest of the image suite → 198
+  passed, no regressions. The acceptance assertion is
+  `test_edit_sends_the_anchor_artifact_and_a_denoise`. Also covers: the job
+  records `img2img` + `parent_id` + workflow id, lineage links to the anchor,
+  a successful edit ends terminal with a verified artifact, and every refusal
+  path (unknown anchor, unfinished anchor, artifact missing from disk,
+  out-of-range denoise, worker success with no artifact, worker failure) leaves
+  the job terminal rather than dangling.
+- **Security note:** the worker chooses the output filename, so
+  `_persist_artifact` keeps only its basename. Pinned by
+  `test_a_crafted_output_filename_cannot_escape_the_job_directory`.
+- **What this discovered — the real finding:** the gateway has **two unrelated
+  image dispatch paths**, and A4 extended the one nothing calls.
+  - Live: `gateway/image_gen.py` talks straight to `COMFY_URL`, building
+    workflows inline in Python (`_wf_sdxl`, `_wf_ipadapter_sdxl`). This is what
+    `image_runner.run` uses today.
+  - Unwired: `workers/comfy_worker/` + `gateway/runpod_worker.py` +
+    `workflows/*` hash-pinned bundles. `RunPodWorkerClient` has **zero callers
+    in `gateway/`**, and there is no `KITTY_WORKER_*` env plumbing anywhere in
+    the gateway.
+  Issue #336 names the worker lane as the one to reuse and its acceptance
+  requires RunPod, so the worker lane is the intended target — but connecting
+  it is not a code change alone.
+- **BLOCKED on Jacob:** wiring `run_edit` to a real worker needs a worker base
+  URL and bearer token read from env/secrets. `AGENTS.md` and `CLAUDE.md`
+  non-negotiable 4 put secrets/auth/env changes behind explicit approval, so
+  this slice stops at an injected worker. Everything above the credential
+  boundary is done and tested.
+- **Local-testable:** yes, done (stub worker; no renderer, no GPU, no artifact)
 
 ### A5 — Conversational Image Studio UI · VERIFIED (tests only; browser unproven)
 
