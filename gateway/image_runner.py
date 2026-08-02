@@ -398,20 +398,23 @@ ENGINES = frozenset({"comfyui", "drawthings", "openrouter"})
 OPENROUTER_IMAGE_MODEL = os.environ.get(
     "KITTY_IMAGE_MODEL", "google/gemini-3.1-flash-image"
 )
-#: Off unless Jacob turns it on. Measured 2026-08-02: ~$0.067 per image on
-#: gemini-3.1-flash-image. Cheap next to a GPU box, not free, and fal was retired
-#: over exactly this — so nothing here spends until the switch is thrown.
-PAID_IMAGES_ENABLED = os.environ.get("KITTY_IMAGE_PAID_ENABLED", "").strip().lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def paid_images_enabled() -> bool:
+    """Off unless Jacob turns it on.
+
+    Measured 2026-08-02: ~$0.067 per image on gemini-3.1-flash-image. Cheap next
+    to a rented GPU box, not free, and fal was retired over exactly this — so
+    nothing here spends until the switch is thrown. Read per call rather than at
+    import so the answer follows the environment.
+    """
+    return os.environ.get("KITTY_IMAGE_PAID_ENABLED", "").strip().lower() in _TRUTHY
 
 
 def openrouter_images_available() -> tuple[bool, str]:
     """Whether the hosted lane will run, and why not when it will not."""
-    if not PAID_IMAGES_ENABLED:
+    if not paid_images_enabled():
         return False, (
             "Paid image generation is off. Every image costs about 7 cents. "
             "Set KITTY_IMAGE_PAID_ENABLED=1 in .env and restart Kitty to turn it on."
