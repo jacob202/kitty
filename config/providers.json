@@ -1,12 +1,14 @@
 {
   "order": [
-    "agentrouter",
-    "local",
-    "openai",
-    "nvidia",
     "openrouter",
-    "gemini"
+    "nvidia",
+    "local",
+    "gemini",
+    "agentrouter"
   ],
-  "disabled": [],
-  "active": "agentrouter"
+  "disabled": [
+    "agentrouter",
+    "openai"
+  ],
+  "active": "auto"
 }

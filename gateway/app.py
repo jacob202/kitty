@@ -168,7 +168,7 @@ async def lifespan(app: FastAPI):
         register_action("life.evening_reflection", _action_life_evening_reflection)
         register_action("life.morning_proactive", _action_life_morning_proactive)
         register_action("insights.return_due", _action_insights_return_due)
-        cron.schedule("insights return due", "insights.return_due", "interval", "15")
+        # Disabled: insight return loop was firing every 15 seconds
         cron_start()
     except Exception:
         logger.exception("cron system registration failed — all background jobs disabled")
