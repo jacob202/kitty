@@ -24,7 +24,7 @@ SCHEMA_VERSION = 2
 CONTROL_PLANE_SUMMARY_VERSION = 1
 ATTEMPT_HISTORY_LIMIT = 10
 REVIEW_FINDING_LIMIT = 5
-SNAPSHOT_QUERY_COUNT = 9
+SNAPSHOT_QUERY_COUNT = 10
 _MESSAGE_CAP = 500
 _OBJECTIVE_CAP = 1200
 _PATH_PATTERN = re.compile(r"(?<![A-Za-z0-9_])/(?:[^\s/]+/)+[^\s/]+")
@@ -72,6 +72,7 @@ def build_status_snapshot(*, db_path: Path | None = None) -> dict[str, Any]:
         publications = _index_rows(_read_latest_publications(conn), "task_id")
         events = _index_rows(_read_latest_events(conn), "task_id")
         decisions = _index_rows(_read_latest_decisions(conn), "task_id")
+        pr_advisories = _index_rows(_read_latest_pr_advisories(conn), "task_id")
 
         packet_models: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for row in packet_rows:
@@ -85,6 +86,7 @@ def build_status_snapshot(*, db_path: Path | None = None) -> dict[str, Any]:
                     publication_row=publications.get(str(row["task_id"])),
                     event_row=events.get(str(row["task_id"])),
                     decision_row=decisions.get(str(row["task_id"])),
+                    pr_advisory_row=pr_advisories.get(str(row["task_id"])),
                 )
             )
 
@@ -247,7 +249,7 @@ def _read_latest_runs(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         WITH ranked AS (
             SELECT r.id, r.task_id, r.state, r.started_at,
                    r.last_heartbeat_at, r.ended_at, r.exit_code,
-                   r.final_report_json, r.created_at, r.updated_at,
+                   r.final_report_json, r.start_sha, r.created_at, r.updated_at,
                    ROW_NUMBER() OVER (
                        PARTITION BY r.task_id
                        ORDER BY r.created_at DESC, r.id DESC
@@ -314,6 +316,26 @@ def _read_latest_decisions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
             FROM events e
             INNER JOIN initiative_packets p ON p.task_id = e.task_id
             WHERE e.type = 'initiative_decision'
+        )
+        SELECT * FROM ranked
+        WHERE row_rank = 1
+        ORDER BY task_id ASC
+        """
+    ).fetchall()
+
+
+def _read_latest_pr_advisories(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        WITH ranked AS (
+            SELECT e.id, e.task_id, e.payload_json, e.created_at,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY e.task_id
+                       ORDER BY e.id DESC
+                   ) AS row_rank
+            FROM events e
+            INNER JOIN initiative_packets p ON p.task_id = e.task_id
+            WHERE e.type IN ('pr_attached', 'pr_updated')
         )
         SELECT * FROM ranked
         WHERE row_rank = 1
@@ -416,6 +438,7 @@ def _packet_model(
     publication_row: sqlite3.Row | None,
     event_row: sqlite3.Row | None,
     decision_row: sqlite3.Row | None,
+    pr_advisory_row: sqlite3.Row | None = None,
 ) -> dict[str, Any]:
     issues: list[str] = []
     depends_on, dependency_issue = _decode_string_list(
@@ -502,6 +525,14 @@ def _packet_model(
         "last_error": _safe_message(row["last_error"]),
         "updated_at": row["task_updated_at"],
         "base_sha": _safe_sha(row["base_sha"]),
+        "pr_advisory": _pr_advisory_projection(pr_advisory_row),
+        "recovery_actions": _recovery_actions(
+            task_state=row["task_state"],
+            publication=publication,
+            pr_advisory=_pr_advisory_projection(pr_advisory_row),
+            run=run,
+            lease=lease,
+        ),
         "data_quality": {
             "state": "partial" if unique_issues else "complete",
             "issues": unique_issues,
@@ -691,6 +722,7 @@ def _run_projection(
             "last_heartbeat_at": row["last_heartbeat_at"],
             "ended_at": row["ended_at"],
             "exit_code": row["exit_code"],
+            "start_sha": _safe_sha(row["start_sha"]),
             "updated_at": row["updated_at"],
         },
         infrastructure_failure,
@@ -723,6 +755,147 @@ def _publication_projection(
         },
         issues,
     )
+
+
+def _pr_advisory_projection(
+    row: sqlite3.Row | None,
+) -> dict[str, Any] | None:
+    """Project the latest PR advisory event (mergeability / base-behind state).
+
+    These GitHub advisory fields are persisted on the ``pr_attached`` /
+    ``pr_updated`` event payload (Section 11.4 — never task state) so the
+    read-only projection can derive truthful recovery actions.
+    """
+    if row is None:
+        return None
+    payload, _issue = _decode_optional_object(
+        row["payload_json"], "PR advisory payload"
+    )
+    if not isinstance(payload, dict):
+        return None
+    return {
+        "mergeable": _known_string(payload, "mergeable"),
+        "merge_state_status": _known_string(payload, "merge_state_status"),
+        "base_sha": _safe_sha(payload.get("base_sha")),
+        "head_sha": _safe_sha(payload.get("head_sha")),
+        "created_at": row["created_at"],
+    }
+
+
+def _recovery_actions(
+    *,
+    task_state: str | None,
+    publication: dict[str, Any] | None,
+    pr_advisory: dict[str, Any] | None,
+    run: dict[str, Any] | None,
+    lease: dict[str, Any] | None,
+) -> list[dict[str, str]]:
+    """Derive truthful, actionable recovery steps for a task.
+
+    Turns silent blocked/pr-pending states into a concrete next action based
+    on the advisory CI/review/mergeability data the ``sync-pr`` reconciliation
+    persisted. Each item is ``{"action", "detail"}``; ordering is deterministic.
+    ``base`` falls back to the live lease branch so messages name the branch.
+    """
+    actions: list[dict[str, str]] = []
+    base = (lease or {}).get("branch")
+    pr_number = (publication or {}).get("pr_number")
+    checks_state = (publication or {}).get("checks_state")
+    review_state = (publication or {}).get("review_state")
+    merged = bool((publication or {}).get("merged"))
+    mergeable = (pr_advisory or {}).get("mergeable") if pr_advisory else None
+    merge_state = (
+        (pr_advisory or {}).get("merge_state_status") if pr_advisory else None
+    )
+    run_state = (run or {}).get("state") if run else None
+
+    # 1. Merge conflict — resolve conflicts in the branch instead of "blocked".
+    if (
+        publication is not None
+        and not merged
+        and (
+            mergeable == "CONFLICTING"
+            or (merge_state or "").upper() in {"DIRTY", "BLOCKED"}
+        )
+    ):
+        branch = base or f"PR #{pr_number}"
+        actions.append(
+            {
+                "action": f"resolve conflicts in branch {branch}",
+                "detail": (
+                    "The PR cannot merge because its branch conflicts with the "
+                    "base branch. Resolve the conflicts, then rerun checks."
+                ),
+            }
+        )
+
+    # 2. Stale branch — base behind main; rebase onto main.
+    if (
+        publication is not None
+        and not merged
+        and (merge_state or "").upper() == "BEHIND"
+    ):
+        branch = base or f"PR #{pr_number}"
+        actions.append(
+            {
+                "action": f"rebase branch {branch} onto main",
+                "detail": (
+                    "The PR's base is behind main. Rebase the branch onto the "
+                    "latest main so it can merge cleanly."
+                ),
+            }
+        )
+
+    # 3. Failing CI check — rerun / fix the failing check.
+    if publication is not None and not merged and checks_state == "failed":
+        branch = base or f"PR #{pr_number}"
+        actions.append(
+            {
+                "action": f"fix or rerun the failing CI check on {branch}",
+                "detail": (
+                    "A required GitHub check is failing for this PR. Fix the "
+                    "failing job or rerun it, then re-sync PR status."
+                ),
+            }
+        )
+
+    # 4. PR waits for review — surface the review requirement.
+    if (
+        publication is not None
+        and not merged
+        and (publication.get("pr_url") or pr_number)
+        and review_state in {"pending", None}
+    ):
+        branch = base or f"PR #{pr_number}"
+        actions.append(
+            {
+                "action": f"request review on PR #{pr_number} ({branch})",
+                "detail": (
+                    "The PR is waiting for a review before it can proceed. "
+                    "Request a reviewer to advance it."
+                ),
+            }
+        )
+
+    # 5. Superseded run — a newer commit was pushed; the run check is stale.
+    if run_state in {bq.RUN_FAILED, bq.RUN_LEASE_LOST} and publication is not None:
+        run_sha = (run or {}).get("start_sha")
+        head_sha = (publication or {}).get("head_sha") or (pr_advisory or {}).get(
+            "head_sha"
+        )
+        if run_sha and head_sha and run_sha != head_sha:
+            actions.append(
+                {
+                    "action": "check the latest commit, not the stale run",
+                    "detail": (
+                        "A newer commit was pushed after this run started, so the "
+                        "run's recorded status is superseded and is not the "
+                        "blocking signal for this PR. Re-sync PR status."
+                    ),
+                }
+            )
+
+    return actions
 
 
 def _event_projection(

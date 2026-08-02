@@ -1,26 +1,25 @@
-# Handoff — PR #371 corrective (exercise real resolver, repair checkpoint identity)
+# Handoff — B5-pr-check-review-actionable (recovery actions in builder status)
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-02T01:00:00Z",
-  "head_sha": "d3e5ff859641a3b411c5248ee460fd0b20948a96",
-  "branch": "fix/ktl2-003-corrective-resolver-exercise",
-  "worktree": "main",
+  "updated_at": "2026-08-02T00:00:00Z",
+  "branch": "kittybuilder/kb_msb4yx3n_124c",
+  "worktree": "kittybuilder/kb_msb4yx3n_124c",
   "status": "valid",
   "completed_items": [
-    "Rewrote test_parallel_lanes.py to exercise scripts.resolve_next_work directly",
-    "Reset STATE.md and HANDOFF.md from stale Builder worktree identity to current main",
-    "Removed false JSONL receipt claim from evidence.md and session note"
+    "Extended gh PR advisory capture (mergeable, mergeStateStatus, baseRefOid) in builder_queue._gh_pr_status",
+    "Persisted advisory merge/base fields on pr_attached/pr_updated event payload via attach_pr",
+    "Added read-only _pr_advisory_projection + _recovery_actions to builder_status packet model",
+    "Repaired run projection to expose start_sha for superseded-run detection",
+    "Added 6 focused recovery-action tests in test_builder_status.py"
   ],
   "blockers": [],
-  "next_action": "Push, open draft PR, await independent review.",
+  "next_action": "Packet reported; await review.",
   "parallel_work": [],
-  "recommendations": [
-    {"id": "pr371-corrective-independent-review", "what": "Obtain independent review of this corrective PR before marking it ready.", "why": "PR #371 review found test_parallel_lanes.py did not exercise the real resolver.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null}
-  ],
+  "recommendations": [],
   "invalidation_conditions": [
-    "HEAD changes beyond d3e5ff859641a3b411c5248ee460fd0b20948a96"
+    "HEAD changes beyond the current packet lease base"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -29,12 +28,18 @@
 
 ## What was done
 
-- Rewrote `tests/workflow/test_parallel_lanes.py` to exercise
-  `scripts.resolve_next_work` directly (the real KTL2-001 resolver), not just
-  `scripts.kb_effectiveness.record_receipt`.
-- Reset STATE.md and HANDOFF.md from a stale Builder worktree identity to current main.
-- Removed false JSONL receipt claims from evidence docs.
+- `gateway/builder_queue.py`: `_gh_pr_status` now fetches `mergeable`,
+  `mergeStateStatus`, `baseRefOid`; `sync_pr_status` forwards them and
+  `attach_pr` persists them on the advisory `pr_attached`/`pr_updated` event
+  payload (Section 11.4 — never on the task/pr_links row).
+- `gateway/builder_status.py`: added `_read_latest_pr_advisories` (bulk query,
+  SNAPSHOT_QUERY_COUNT 9 -> 10), `_pr_advisory_projection`, and
+  `_recovery_actions`. Each packet now carries `recovery_actions` (and
+  `pr_advisory`) with concrete next steps for failing CI, merge conflict,
+  waiting review, stale/base-behind rebase, and superseded runs. Run
+  projection exposes `start_sha`.
+- `tests/test_builder_status.py`: 6 focused tests (31 total pass).
 
 ## Next move
 
-Push, open draft PR, await independent review. Do not merge.
+Packet result written to `.kittybuilder-result-100.json`; await independent review.
