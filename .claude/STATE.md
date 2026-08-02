@@ -1,20 +1,20 @@
-# Session State — B3 canonical entry point (packet kb_msb4yx3n_d592)
+# Session State — clean checkpoint, no pending interactive assignment
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T00:00:00Z",
+  "updated_at": "2026-08-02T01:00:00Z",
   "head_sha": "df2d8b83ac3b3337f896949bf58398d0d20a1477",
-  "branch": "kittybuilder/kb_msb4yx3n_d592",
-  "worktree": "kb_msb4yx3n_d592",
-  "status": "in_progress",
+  "branch": "claude/next-bj5w0c",
+  "worktree": "main",
+  "status": "clean",
   "completed_items": [
-    "Verified retired top-level commands (run, loop, repl, delegate) are tombstoned in builder_cli.py COMMANDS table via _cmd_not_enabled",
-    "Verified initiative run-packet and initiative run both funnel into builder_loop.run_packet (single implementation path, worker_command or worker_session)",
-    "Strengthened tests/test_builder_cli.py TestDisabledCommands to assert retired commands never dispatch work and emit a deprecation message pointing at initiative run-packet"
+    "PR #376 (exercise real resolve_next_work resolver, repair checkpoint identity) merged 2026-08-02T01:25:08Z",
+    "PR #375 (image editing, conversational studio, builder map A4/A5/B1) merged",
+    "A4b: gateway dispatches a real image edit to the worker; PROJECTS.md/PROBLEMS.md activated (df2d8b8, already on origin/main)"
   ],
   "blockers": [],
-  "next_action": "Await independent review.",
+  "next_action": "No open interactive assignment. Awaiting a new task from Jacob.",
   "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
@@ -27,8 +27,9 @@
 
 ## Execution ownership
 
-- this session: builder (packet kb_msb4yx3n_d592, attempt 1)
-- single entry point: `./kitty builder initiative run-packet` → `builder_loop.run_packet`
+- this session: interactive
+- no Builder bundle, task, or lease
+- no work in progress: branch `claude/next-bj5w0c` is identical to `origin/main`
 
 ## KB effectiveness
 
