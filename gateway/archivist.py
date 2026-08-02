@@ -14,6 +14,10 @@ EMBED_MODEL = "nomic-embed-text:latest"
 OLLAMA_BASE = "http://localhost:11434"
 INGEST_EMBED_TIMEOUT_SECONDS = 120
 QUERY_EMBED_TIMEOUT_SECONDS = 5
+# Ollama evicts an idle model after ~5 minutes, and reloading nomic-embed-text
+# costs ~46s on this Mac — far past the query timeout, so every chat turn after
+# an idle gap silently lost its knowledge context. Pin the model in memory.
+EMBED_KEEP_ALIVE = "-1"
 
 @lru_cache(maxsize=1)
 def _get_collection():
@@ -42,7 +46,11 @@ def _embed(
         try:
             resp = requests.post(
                 f"{OLLAMA_BASE}/api/embed",
-                json={"model": EMBED_MODEL, "input": batch},
+                json={
+                    "model": EMBED_MODEL,
+                    "input": batch,
+                    "keep_alive": EMBED_KEEP_ALIVE,
+                },
                 timeout=timeout,
             )
             resp.raise_for_status()

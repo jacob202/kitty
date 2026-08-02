@@ -33,6 +33,9 @@ logger = logging.getLogger("kitty.memory")
 MEM0_DATA_DIR = DATA_DIR / "mem0"
 USER_ID = "jacob"
 MEMORY_LIST_ALL_LIMIT = 100_000
+# Memory extraction runs on every stored turn, so it gets the cheap tier.
+# Override with KITTY_MEMORY_MODEL (any OpenRouter model id).
+MEMORY_MODEL_DEFAULT = "deepseek/deepseek-v4-flash"
 
 _MEM0_IMPORT_ERROR: ImportError | None = None
 try:
@@ -160,10 +163,17 @@ def _build_mem0_config() -> dict:
     """Build Mem0 config at runtime using the routing system."""
     from gateway.llm_client import route_model
 
-    model = os.environ.get("KITTY_MEMORY_MODEL") or route_model("memory context building")
+    # mem0's "litellm" provider imports the litellm SDK, which Kitty deliberately
+    # keeps out of the gateway venv (LiteLLM runs as its own isolated service), so
+    # that provider raised ImportError and took all of memory down. mem0's "openai"
+    # provider routes to OpenRouter on its own when OPENROUTER_API_KEY is set, and
+    # needs a concrete OpenRouter model id rather than a Kitty routing alias.
+    routed = route_model("memory context building")
+    model = os.environ.get("KITTY_MEMORY_MODEL") or MEMORY_MODEL_DEFAULT
+    logger.debug("mem0 llm model %s (routing alias was %s)", model, routed)
     return {
         "llm": {
-            "provider": "litellm",
+            "provider": "openai",
             "config": {
                 "model": model,
                 "api_key": os.environ.get("OPENROUTER_API_KEY", ""),
