@@ -588,3 +588,73 @@ def test_snapshot_serialization_is_deterministic(tmp_path: Path):
     second = json.dumps(builder_status.build_status_snapshot(db_path=db_path), sort_keys=True)
 
     assert first == second
+
+
+def test_runtime_projection_is_constructible_in_isolation():
+    """The typed projection is a pure, DB-agnostic schema testable standalone."""
+    projection = builder_status.RuntimeProjection(
+        initiative_id="init-a",
+        packet_id="P-1",
+        task_id="task-1",
+        task_state="queued",
+        attempt_count=2,
+        lease=builder_status.LeaseProjection(
+            id=7,
+            worker_id="worker-1",
+            branch="feat/x",
+            worktree_path="/var/tmp/wt",
+            base_sha="a" * 40,
+            created_at="2026-07-17T03:00:00Z",
+        ),
+        publication=builder_status.PublicationProjection(
+            pr_number=42,
+            pr_state="open",
+            pr_url="https://github.com/jacob202/kitty/pull/42",
+            checks_state="success",
+            review_state="approved",
+            head_sha="b" * 40,
+            merged=False,
+            merged_at=None,
+        ),
+        budget=builder_status.BudgetProjection(used=1, max_attempts=3, exhausted=False),
+        failure_kind=None,
+        cancellation_state=None,
+        exhaustion_state=False,
+        recovery_state=None,
+        eligibility_state="eligible",
+        next_action="claim",
+    )
+
+    data = projection.to_dict()
+
+    assert data["task_state"] == "queued"
+    assert data["attempt_count"] == 2
+    assert data["lease"]["worker_id"] == "worker-1"
+    assert data["lease"]["branch"] == "feat/x"
+    assert data["lease"]["worktree_path"] == "/var/tmp/wt"
+    assert data["publication"]["pr_number"] == 42
+    assert data["publication"]["pr_state"] == "open"
+    assert data["publication"]["checks_state"] == "success"
+    assert data["publication"]["review_state"] == "approved"
+    assert data["budget"] == {"used": 1, "max_attempts": 3, "exhausted": False}
+    assert data["cancellation_state"] is None
+    assert data["exhaustion_state"] is False
+    assert data["recovery_state"] is None
+    assert data["eligibility_state"] == "eligible"
+    assert data["next_action"] == "claim"
+
+
+def test_snapshot_carries_the_typed_projection_per_packet(tmp_path: Path):
+    db_path, _repo, _task_id = _apply_manifest(tmp_path)
+
+    packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+
+    projection = packet["projection"]
+    assert projection["initiative_id"] == INITIATIVE_ID
+    assert projection["packet_id"] == PACKET_ID
+    assert projection["task_state"] == "queued"
+    assert projection["attempt_count"] == 0
+    assert projection["budget"] == {"used": 0, "max_attempts": 2, "exhausted": False}
+    assert projection["eligibility_state"] == "eligible"
+    assert projection["next_action"] == "claim"
+
