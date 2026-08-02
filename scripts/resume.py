@@ -24,11 +24,13 @@ os.environ.pop("GITHUB_TOKEN", None)
 
 
 def run(cmd: list[str], timeout: int) -> sp.CompletedProcess:
-    """Run a command, returning a CompletedProcess even on timeout."""
+    """Run a command, returning a CompletedProcess even on timeout or a missing binary."""
     try:
         return sp.run(cmd, capture_output=True, text=True, cwd=ROOT, timeout=timeout)
     except sp.TimeoutExpired:
         return sp.CompletedProcess(cmd, -1, "", f"timeout after {timeout}s")
+    except FileNotFoundError:
+        return sp.CompletedProcess(cmd, -1, "", f"{cmd[0]}: not found on PATH")
 
 
 def open_prs() -> list[str]:
