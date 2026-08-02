@@ -50,6 +50,27 @@ def route_model(message: str) -> str:
     return resolve_chat_route("kitty-default", message, reroute_virtual_models=True).model
 
 
+def _message_text(content: object) -> str:
+    """The text of a message, whether or not it also carries images.
+
+    An OpenAI message with an attachment sends ``content`` as a list of parts,
+    not a string. Everything downstream — complexity, domain, memory, the
+    repairs-intent check — assumed a string, so uploading any image to the chat
+    endpoint raised ``'list' object has no attribute 'strip'`` and returned 500.
+    """
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    return "\n".join(
+        part["text"]
+        for part in content
+        if isinstance(part, dict)
+        and part.get("type") == "text"
+        and isinstance(part.get("text"), str)
+    )
+
+
 class CloseSessionRequest(BaseModel):
     messages: list[dict] = Field(default_factory=list)
     session_id: str = ""
@@ -134,7 +155,7 @@ async def chat_completions(request: Request):
     user_text = ""
     for m in reversed(messages):
         if m.get("role") == "user":
-            user_text = m.get("content", "")
+            user_text = _message_text(m.get("content", ""))
             break
 
     # KX-05-02 / KX-06-01: detect repairs/signals intent and inject the current feed
@@ -182,7 +203,10 @@ async def chat_completions(request: Request):
         user_text,
         reroute_virtual_models=True,
     )
-    model = route_decision.model
+    # route_model stays in the auto path: it is the seam callers and tests patch
+    # to redirect routing, and reading route_decision.model directly would walk
+    # straight past it.
+    model = route_decision.model if route_decision.source == "request" else route_model(user_text)
 
     conversation_id = body.get("conversation_id")
     if conversation_id is not None and (

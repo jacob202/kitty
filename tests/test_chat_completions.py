@@ -589,3 +589,50 @@ class TestModelOverride:
         assert response.status_code == 200
         assert seen, "upstream payload was never captured"
         assert "content_class" not in seen
+
+
+# ── multimodal messages ───────────────────────────────────────────────────────
+
+
+def test_message_text_reads_an_openai_multimodal_message():
+    """An attachment turns ``content`` into a list of parts.
+
+    Everything downstream — complexity, domain, memory, the repairs-intent
+    check — assumed a string, so any image upload raised
+    "'list' object has no attribute 'strip'" and the chat returned 500.
+    """
+    from gateway.routes.completions import _message_text
+
+    content = [
+        {"type": "text", "text": "What colour is this?"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}},
+    ]
+
+    assert _message_text(content) == "What colour is this?"
+
+
+def test_message_text_joins_every_text_part():
+    from gateway.routes.completions import _message_text
+
+    content = [
+        {"type": "text", "text": "first"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}},
+        {"type": "text", "text": "second"},
+    ]
+
+    assert _message_text(content) == "first\nsecond"
+
+
+def test_message_text_survives_an_image_only_message():
+    from gateway.routes.completions import _message_text
+
+    content = [{"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}]
+
+    assert _message_text(content) == ""
+
+
+def test_message_text_passes_plain_strings_through():
+    from gateway.routes.completions import _message_text
+
+    assert _message_text("just text") == "just text"
+    assert _message_text(None) == ""
