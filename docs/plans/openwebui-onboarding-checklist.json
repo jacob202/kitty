@@ -3,7 +3,7 @@
   "branch": "feat/openwebui-tomorrow-ready",
   "pull_request": 384,
   "progress_document": "docs/plans/openwebui-onboarding-progress.md",
-  "current_slice": "4-tutor-and-integrations",
+  "current_slice": "5-image-studio",
   "slices": [
     {
       "id": "1-daily-driver-baseline",
@@ -165,6 +165,54 @@
       "id": "9-image-studio",
       "state": "not-started",
       "criteria": []
+    },
+    {
+      "id": "4-agents-tutor-integrations",
+      "state": "complete",
+      "criteria": [
+        {
+          "id": "agents-exist",
+          "statement": "a short set of purposeful agents exists and is created idempotently on start",
+          "state": "pass",
+          "evidence": "daily-kitty, research, coding, tutor, builder-operator in the model table; ensure_agents runs on every start"
+        },
+        {
+          "id": "agents-answer",
+          "statement": "each agent streams a real answer through Open WebUI",
+          "state": "pass",
+          "evidence": "daily-kitty 3.7s, coding 3.0s"
+        },
+        {
+          "id": "default-and-pins",
+          "statement": "Open WebUI opens on Daily Kitty with the agents pinned",
+          "state": "pass",
+          "evidence": "DEFAULT_MODELS=daily-kitty, DEFAULT_PINNED_MODELS lists the five"
+        },
+        {
+          "id": "tutor-tool",
+          "statement": "Tutor is reachable as a tool and reports an empty library as an answer, not a crash",
+          "state": "pass",
+          "evidence": "ask_tutor returns grounded:false with the fix instruction; /tutor/ask is 404 not 500"
+        },
+        {
+          "id": "calendar-tool",
+          "statement": "the calendar is reachable as a tool and the model picks it unprompted",
+          "state": "pass",
+          "evidence": "asked what is on the schedule, the model called calendar_today"
+        },
+        {
+          "id": "down-does-not-race-launchd",
+          "statement": "stopping the service does not leave KeepAlive racing the next start for the port",
+          "state": "pass",
+          "evidence": "down unloads the job, reports that login startup is off, and leaves port 3000 free"
+        },
+        {
+          "id": "gmail-github",
+          "statement": "Gmail and GitHub tools",
+          "state": "not-applicable",
+          "evidence": "no such surface exists in the Gateway to expose; a tool that cannot answer is worse than no tool"
+        }
+      ]
     }
   ],
   "blockers": [

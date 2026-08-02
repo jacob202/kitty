@@ -10,8 +10,8 @@ carried about this Mac was re-checked live; the evidence below replaces it.
 
 ## Current objective
 
-Slice 3 — Kitty's own capabilities as tools. Complete. Slices 1 (baseline) and
-2 (model menu) are complete and verified; see below.
+Slice 4 — agents, Tutor, and the integrations that exist. Complete. Slices 1–3
+are complete and verified; see below.
 
 ## Acceptance criteria for this slice
 
@@ -220,8 +220,8 @@ python3 scripts/openwebui_local.py rollback
 
 ## Next action
 
-Slice 4 — Tutor, and the remaining integrations (Gmail, Calendar, GitHub) as
-tools alongside the six that now exist.
+Slice 5 — Image Studio: a dependable text-to-image and uploaded-image editing
+workflow, reachable from the chat surface.
 
 ## Slice 2 — the model menu
 
@@ -321,6 +321,40 @@ trace reports `tool_execution: caller`.
   in duration "-1"`, so every knowledge lookup returned HTTP 400. It has to be
   the integer. The chat-latency measurement that "verified" the original change
   did not exercise the embed call itself.
+
+## Slice 4 — agents, Tutor, calendar
+
+Five workspace agents, created and updated idempotently on every start. Each is
+one routing id plus a narrow system prompt and only the tools it needs:
+
+| Agent | Runs on | Tools |
+|---|---|---|
+| Daily Kitty | Auto | all — life before code, personal facts via tools not guesses |
+| Research | Think | all — cite the source or say it rests on nothing |
+| Coding | Code | none |
+| Tutor | Auto | all — answers only from ingested documents |
+| Builder Operator | Auto | all — reports state, starts nothing |
+
+Open WebUI opens on Daily Kitty and pins the five. The raw `kitty-*` ids stay
+selectable but are plumbing, not the daily menu.
+
+Two more tools: `calendar_today` and `ask_tutor`. The model picks
+`calendar_today` unprompted when asked what is on the schedule.
+
+`/tutor/ask` answered HTTP 500 whenever nothing had been ingested on a topic —
+a fact about the library, not a server fault, and as a 500 it read as a crash
+while hiding the one instruction that fixes it. It is a 404 now, and the tool
+wrapper returns the shortfall as a normal result so the model relays it.
+
+**Gmail and GitHub are deliberately absent.** No such surface exists in the
+Gateway to expose. A tool that cannot answer is worse than no tool.
+
+### `down` was fighting launchd
+
+`down` signalled the pid while the LaunchAgent was still loaded. KeepAlive
+restarted the process immediately, so the service looked stopped and then raced
+the next start for port 3000 — which is exactly how the run meant to create these
+agents failed. It unloads the job now and says plainly that login startup is off.
 
 ## Temporary runtime state
 
