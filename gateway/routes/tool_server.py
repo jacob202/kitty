@@ -21,6 +21,9 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger("kitty.tool_server")
 
+# FastAPI derives operationId from the function name plus the path, giving the
+# model names like "builder_status_tools_v1_builder_status_get" to choose
+# between. Each route names its own instead.
 PREFIX = "/tools/v1"
 router = APIRouter(prefix=PREFIX, tags=["kitty-tools"])
 
@@ -38,7 +41,7 @@ class RememberRequest(BaseModel):
     )
 
 
-@router.get("/memory/search", summary="Search what Kitty remembers about Jacob")
+@router.get("/memory/search", operation_id="search_memory", summary="Search what Kitty remembers about Jacob")
 def search_memory(query: str, limit: int = 5) -> dict:
     """Personal memory: facts, preferences, and history Jacob has told Kitty."""
     from gateway.memory import search_memory as _search
@@ -49,7 +52,7 @@ def search_memory(query: str, limit: int = 5) -> dict:
         raise HTTPException(status_code=503, detail=f"memory search failed: {exc}") from exc
 
 
-@router.post("/memory/remember", summary="Remember something about Jacob")
+@router.post("/memory/remember", operation_id="remember", summary="Remember something about Jacob")
 def remember(body: RememberRequest) -> dict:
     """Store a durable fact. Use for things worth recalling in a later chat."""
     from gateway.memory import add_memory
@@ -61,7 +64,7 @@ def remember(body: RememberRequest) -> dict:
     return {"stored": changed, "namespace": body.namespace}
 
 
-@router.get("/notes/search", summary="Search Jacob's notes, documents, and files")
+@router.get("/notes/search", operation_id="search_notes", summary="Search Jacob's notes, documents, and files")
 async def search_notes(query: str, limit: int = 5) -> dict:
     """Retrieval over everything ingested into Kitty's knowledge base."""
     from gateway.knowledge import search as _search
@@ -79,7 +82,7 @@ async def search_notes(query: str, limit: int = 5) -> dict:
     }
 
 
-@router.get("/projects", summary="List Jacob's projects")
+@router.get("/projects", operation_id="list_projects", summary="List Jacob's projects")
 def list_projects(status: str | None = None) -> dict:
     """Projects Kitty tracks. Life projects come before code projects (ADR 0016)."""
     from gateway.project_store import list_projects as _list
@@ -90,7 +93,7 @@ def list_projects(status: str | None = None) -> dict:
         raise HTTPException(status_code=503, detail=f"project read failed: {exc}") from exc
 
 
-@router.get("/projects/{project_id}/next-step", summary="The next step on one project")
+@router.get("/projects/{project_id}/next-step", operation_id="project_next_step", summary="The next step on one project")
 def project_next_step(project_id: int) -> dict:
     """One concrete next action, not a plan. Returns null when none is recorded."""
     from gateway.next_step import get as _get
@@ -106,7 +109,7 @@ def project_next_step(project_id: int) -> dict:
     return step
 
 
-@router.get("/builder/status", summary="What KittyBuilder is doing")
+@router.get("/builder/status", operation_id="builder_status", summary="What KittyBuilder is doing")
 def builder_status() -> dict:
     """Queue counts and only the packets needing a human. Never the full corpus."""
     from gateway.builder_status import build_status_snapshot

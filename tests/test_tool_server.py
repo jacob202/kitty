@@ -92,3 +92,25 @@ def test_the_tools_are_behind_the_gateway_secret(monkeypatch):
     monkeypatch.delenv("KITTY_ENV", raising=False)
 
     assert client.get("/tools/v1/projects").status_code == 401
+
+
+def test_the_model_gets_readable_tool_names():
+    """FastAPI derives operationId from the function name plus the path, so the
+    model would be choosing between names like
+    "builder_status_tools_v1_builder_status_get"."""
+    spec = tool_server.tool_server_openapi()
+
+    names = {
+        operation["operationId"]
+        for operations in spec["paths"].values()
+        for operation in operations.values()
+    }
+
+    assert names == {
+        "search_memory",
+        "remember",
+        "search_notes",
+        "list_projects",
+        "project_next_step",
+        "builder_status",
+    }

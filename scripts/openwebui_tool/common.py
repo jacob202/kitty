@@ -270,6 +270,31 @@ def sanitized_env(source: dict[str, str] | None = None) -> dict[str, str]:
     return env
 
 
+def tool_server_connections(base: str, gateway_secret: str) -> str:
+    """Point Open WebUI at Kitty's own tool surface, not the whole Gateway.
+
+    ``/tools/v1/openapi.json`` lists six operations. The Gateway's own
+    ``/openapi.json`` lists more than two hundred, and Open WebUI turns every one
+    into a tool the model has to read past.
+    """
+    # `config`, `info`, and `type` are required by Open WebUI's own
+    # ToolServerConnection model. Omitting them made /api/v1/configs/tool_servers
+    # answer 500 — and log the whole connection, Gateway secret included.
+    return json.dumps(
+        [
+            {
+                "url": base,
+                "path": "/tools/v1/openapi.json",
+                "type": "openapi",
+                "auth_type": "bearer",
+                "key": gateway_secret,
+                "config": {"enable": True},
+                "info": {"id": "kitty", "name": "Kitty"},
+            }
+        ]
+    )
+
+
 def runtime_env() -> dict[str, str]:
     base, gateway_secret = gateway_config()
     if not gateway_secret:
@@ -292,6 +317,7 @@ def runtime_env() -> dict[str, str]:
             "ENABLE_OPENAI_API": "True",
             "OPENAI_API_BASE_URL": f"{base}/v1",
             "OPENAI_API_KEY": gateway_secret,
+            "TOOL_SERVER_CONNECTIONS": tool_server_connections(base, gateway_secret),
             "ENABLE_OLLAMA_API": "False",
             "DEFAULT_MODELS": DEFAULT_MODEL,
             "DEFAULT_PINNED_MODELS": DEFAULT_MODEL,
