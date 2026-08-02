@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "branch": "feat/openwebui-tomorrow-ready",
+  "pull_request": 384,
+  "progress_document": "docs/plans/openwebui-onboarding-progress.md",
+  "current_slice": "1-daily-driver-baseline",
+  "slices": [
+    {
+      "id": "1-daily-driver-baseline",
+      "state": "complete",
+      "criteria": [
+        {
+          "id": "login-startup",
+          "statement": "Open WebUI starts from the com.kitty.openwebui login service with no shell attached",
+          "state": "pass",
+          "evidence": "launchctl list shows com.kitty.openwebui running; /health returns {\"status\": true}"
+        },
+        {
+          "id": "environment-sanitized",
+          "statement": "the service process never inherits PYTHONPATH, PYTHONHOME, PYTHONSTARTUP, or the repo working directory",
+          "state": "pass",
+          "evidence": "ps eww on the launchd pid shows only PYTHONNOUSERSITE=1; lsof cwd is ~/kitty-services/openwebui; import mcp resolves to the venv SDK"
+        },
+        {
+          "id": "single-admin-account",
+          "statement": "exactly one admin@localhost account exists and start collapses duplicates idempotently",
+          "state": "pass",
+          "evidence": "6 rows before, 1 after; dedupe refuses when a duplicate owns rows"
+        },
+        {
+          "id": "real-streaming",
+          "statement": "a real provider stream reaches the user through Open WebUI and terminates with [DONE]",
+          "state": "pass",
+          "evidence": "POST /api/chat/completions returned 'launchd live', TTFT 3.80s, done=true"
+        },
+        {
+          "id": "restart-persistence",
+          "statement": "chats, messages, and the account survive a full service restart",
+          "state": "pass",
+          "evidence": "chat 'Persistence probe' and its message present after launchctl bootout + install-autostart"
+        },
+        {
+          "id": "errors-not-silent",
+          "statement": "a provider failure shows the user a plain-language cause instead of a blank reply",
+          "state": "pass",
+          "evidence": "with the revoked provider re-pinned, Open WebUI rendered the routing message and the stream closed cleanly"
+        },
+        {
+          "id": "diagnostics-actionable",
+          "statement": "status and doctor report actionable state and fail loudly",
+          "state": "pass",
+          "evidence": "doctor passes clean; smoke exits 1 with 'Gateway refused the streaming turn — routing: ...'"
+        },
+        {
+          "id": "backup-restore",
+          "statement": "backup then restore returns the earlier state and refuses while the service runs",
+          "state": "pass",
+          "evidence": "post-backup chat removed by restore, pre-backup chat retained; restore refused while running"
+        },
+        {
+          "id": "rollback",
+          "statement": "rollback removes the login service and returns the existing Kitty UI without tearing down gateway or LiteLLM",
+          "state": "pass",
+          "evidence": "UI serving 200 on :4000; com.kitty.gateway and com.kitty.litellm still loaded"
+        },
+        {
+          "id": "no-repo-contamination",
+          "statement": "no secrets, runtime data, databases, logs, or machine-specific paths added to the repository",
+          "state": "pass",
+          "evidence": ".env is gitignored; backups live under ~/kitty-services/openwebui/backups"
+        }
+      ]
+    },
+    {
+      "id": "2-model-set",
+      "state": "not-started",
+      "criteria": [
+        {
+          "id": "user-facing-aliases",
+          "statement": "Kitty Auto, Fast, Think, Code, Vision, and Image are selectable and route correctly",
+          "state": "pending",
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "id": "3-kitty-capabilities",
+      "state": "not-started",
+      "criteria": [
+        {
+          "id": "memory-available",
+          "statement": "Kitty memory and context are reachable from the chat surface",
+          "state": "partial",
+          "evidence": "gateway-side memory restored (add/list round trip passes); not yet exposed as an Open WebUI tool"
+        }
+      ]
+    },
+    {
+      "id": "9-image-studio",
+      "state": "not-started",
+      "criteria": []
+    }
+  ],
+  "blockers": [
+    {
+      "id": "agentrouter-token-revoked",
+      "owner": "jacob",
+      "statement": "AGENT_ROUTER_TOKEN in .env answers unauthorized_client_error; AgentRouter is disabled and Kitty runs on OpenRouter",
+      "blocking": false
+    },
+    {
+      "id": "ollama-not-managed",
+      "owner": "unassigned",
+      "statement": "Ollama serves knowledge embeddings but does not start at login; homebrew.mxcl.ollama.plist exists and is not loaded",
+      "blocking": false
+    }
+  ],
+  "known_failing_tests": [
+    {
+      "node_id": "tests/test_provider_chain_skip.py::test_keyless_provider_is_never_dialled",
+      "state": "pre-existing",
+      "note": "fails identically at HEAD before any change in this branch; keyless cloud providers are still dialled"
+    }
+  ]
+}
