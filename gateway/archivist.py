@@ -17,7 +17,11 @@ QUERY_EMBED_TIMEOUT_SECONDS = 5
 # Ollama evicts an idle model after ~5 minutes, and reloading nomic-embed-text
 # costs ~46s on this Mac — far past the query timeout, so every chat turn after
 # an idle gap silently lost its knowledge context. Pin the model in memory.
-EMBED_KEEP_ALIVE = "-1"
+#
+# Must be the integer -1, not "-1": Ollama parses a string as a duration and
+# rejects it with `time: missing unit in duration "-1"`, which turns every embed
+# call into an HTTP 400.
+EMBED_KEEP_ALIVE = -1
 
 @lru_cache(maxsize=1)
 def _get_collection():

@@ -251,11 +251,13 @@ def search_memory(query: str, limit: int = 5, namespace: Optional[str] = None) -
     invalid response. A successful search with no matches returns ``[]``.
     """
     mem = _get_memory()
-    filters = {"user_id": USER_ID}
-    if namespace:
-        filters["namespace"] = namespace
+    # user_id is a named argument, not a filter. Passing it inside ``filters``
+    # left mem0's own user_id unset, and it rejects a search with no scope — so
+    # every search raised ValidationError and memory recall never worked, while
+    # add and list (which pass it correctly) looked fine.
+    filters = {"namespace": namespace} if namespace else None
     try:
-        results = mem.search(query, filters=filters, limit=limit)
+        results = mem.search(query, user_id=USER_ID, filters=filters, limit=limit)
     except Exception as exc:
         raise _memory_failure(
             "memory search",
