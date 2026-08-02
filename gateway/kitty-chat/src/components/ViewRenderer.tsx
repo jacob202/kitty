@@ -30,6 +30,8 @@ interface ViewRendererProps {
     isStreaming: boolean
     catState: any
     onRetry: (id: string) => void
+    retryBranches?: Record<number, any[][]>
+    onSwitchBranch?: (messageIndex: number, branchIndex: number) => void
     onStartClick: () => void
     onChipClick: (chip: string) => void
   }
