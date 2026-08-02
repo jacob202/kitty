@@ -211,25 +211,34 @@ def verify_gateway() -> tuple[str, str]:
     return base, secret
 
 
+def wait_for_gateway(attempts: int) -> tuple[str, str] | None:
+    for _ in range(attempts):
+        try:
+            return verify_gateway()
+        except Failure:
+            time.sleep(1)
+    return None
+
+
 def ensure_gateway_running() -> tuple[str, str]:
-    last_error = ""
-    for _ in range(12):
-        try:
-            return verify_gateway()
-        except Failure as exc:
-            last_error = str(exc)
-            time.sleep(1)
+    ready = wait_for_gateway(12)
+    if ready is not None:
+        return ready
 
-    print("Starting Kitty Gateway and LiteLLM")
+    print("Gateway is unhealthy; restarting Kitty services cleanly")
+    run([ROOT / "kitty", "down"], cwd=ROOT, check=False)
+    time.sleep(2)
     run([ROOT / "kitty", "up"], cwd=ROOT)
-    for _ in range(30):
-        try:
-            return verify_gateway()
-        except Failure as exc:
-            last_error = str(exc)
-            time.sleep(1)
 
-    fail(f"Kitty Gateway did not become ready: {last_error}")
+    ready = wait_for_gateway(45)
+    if ready is not None:
+        return ready
+
+    base, _ = gateway_config()
+    fail(
+        "Kitty Gateway did not become ready after a clean restart. "
+        f"Run './kitty logs' and inspect {base}/health."
+    )
 
 
 def runtime_env() -> dict[str, str]:
