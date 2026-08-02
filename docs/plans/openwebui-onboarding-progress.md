@@ -10,8 +10,8 @@ carried about this Mac was re-checked live; the evidence below replaces it.
 
 ## Current objective
 
-Slice 4 — agents, Tutor, and the integrations that exist. Complete. Slices 1–3
-are complete and verified; see below.
+Slice 5 — Image Studio. The hosted lane works and is switched off pending
+Jacob's decision on cost. Slices 1–4 are complete and verified; see below.
 
 ## Acceptance criteria for this slice
 
@@ -220,8 +220,8 @@ python3 scripts/openwebui_local.py rollback
 
 ## Next action
 
-Slice 5 — Image Studio: a dependable text-to-image and uploaded-image editing
-workflow, reachable from the chat surface.
+Jacob decides on image cost. With the switch on, the remaining work is
+uploaded-image editing against a real photo and a `Kitty Image` menu row.
 
 ## Slice 2 — the model menu
 
@@ -355,6 +355,31 @@ Gateway to expose. A tool that cannot answer is worse than no tool.
 restarted the process immediately, so the service looked stopped and then raced
 the next start for port 3000 — which is exactly how the run meant to create these
 agents failed. It unloads the job now and says plainly that login startup is off.
+
+## Slice 5 — Image Studio
+
+Image generation was not unproven, it was **unavailable**. Both existing engines
+are local and neither runs on this Mac: Draw Things reports unavailable and
+`DT_URL` does not resolve, ComfyUI is not up. `/image/status` said only
+`available: false` and never said why.
+
+The hosted lane is now a third engine inside the same runner, so it reuses the
+`image_jobs` lifecycle, the artifact directory, history, and cancel rather than
+growing a second pipeline. The model accepts image input as well as text, so the
+same path does uploaded-image editing.
+
+**Proven end to end through Kitty's own pipeline:** job created, transitions to
+`SUCCEEDED`, a 497KB PNG persisted under `data/images/<job_id>/`, provider
+recorded as `openrouter`. Two bounded paid runs, about $0.13 total.
+
+**It is off by default.** `KITTY_IMAGE_PAID_ENABLED` is unset, the refusal lands
+before the HTTP call, and `/image/status` reports the price and the switch
+instead of a bare `false`. Measured 2026-08-02: **$0.067 per image** on
+`google/gemini-3.1-flash-image`. Cheap next to a rented GPU box, not free, and
+fal was retired over exactly this — so the switch is Jacob's.
+
+`Kitty Image` stays off the chat menu until the lane is on. A row that fails when
+picked is worse than no row.
 
 ## Temporary runtime state
 

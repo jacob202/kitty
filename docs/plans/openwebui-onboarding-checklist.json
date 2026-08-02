@@ -213,6 +213,48 @@
           "evidence": "no such surface exists in the Gateway to expose; a tool that cannot answer is worse than no tool"
         }
       ]
+    },
+    {
+      "id": "5-image-studio",
+      "state": "partial",
+      "criteria": [
+        {
+          "id": "a-working-image-path",
+          "statement": "at least one image engine actually generates an image",
+          "state": "pass",
+          "evidence": "openrouter engine: job created, SUCCEEDED, 497KB PNG under data/images/<job_id>/, provider recorded"
+        },
+        {
+          "id": "uses-the-existing-pipeline",
+          "statement": "no second queue, gallery, or history",
+          "state": "pass",
+          "evidence": "the hosted lane is a third engine inside image_runner.run; reuses image_jobs, artifacts, history, cancel"
+        },
+        {
+          "id": "spending-is-gated",
+          "statement": "nothing spends money until Jacob switches it on",
+          "state": "pass",
+          "evidence": "KITTY_IMAGE_PAID_ENABLED is off by default; the refusal lands before the HTTP call and names the price"
+        },
+        {
+          "id": "status-is-honest",
+          "statement": "diagnostics say why image generation is unavailable, not just that it is",
+          "state": "pass",
+          "evidence": "/image/status reports each engine plus unavailable_reason with the price and the switch"
+        },
+        {
+          "id": "uploaded-image-editing",
+          "statement": "editing an uploaded image works end to end",
+          "state": "pending",
+          "evidence": "the model and the code path accept image input; not yet exercised with a real photo"
+        },
+        {
+          "id": "image-in-the-chat-menu",
+          "statement": "Kitty Image is selectable from the chat surface",
+          "state": "pending",
+          "evidence": "withheld until the lane is switched on \u2014 a menu row that fails when picked is worse than no row"
+        }
+      ]
     }
   ],
   "blockers": [
@@ -233,6 +275,12 @@
       "owner": "jacob",
       "statement": "an unattended Builder campaign with --publish --gate auto hard-resets the primary checkout to origin/main on every merge, destroying uncommitted work; the guard is on this branch but not on main",
       "blocking": false
+    },
+    {
+      "id": "paid-images-need-jacobs-decision",
+      "owner": "jacob",
+      "statement": "the hosted image lane works but costs ~$0.067 per image; it stays off until KITTY_IMAGE_PAID_ENABLED=1 is set in .env",
+      "blocking": true
     }
   ],
   "known_failing_tests": [
