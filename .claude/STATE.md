@@ -7,7 +7,7 @@
   "head_sha": "df2d8b83ac3b3337f896949bf58398d0d20a1477",
   "branch": "claude/next-bj5w0c",
   "worktree": "main",
-  "status": "clean",
+  "status": "complete",
   "completed_items": [
     "PR #376 (exercise real resolve_next_work resolver, repair checkpoint identity) merged 2026-08-02T01:25:08Z",
     "PR #375 (image editing, conversational studio, builder map A4/A5/B1) merged",
