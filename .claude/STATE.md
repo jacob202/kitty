@@ -1,55 +1,50 @@
-# Session State — Builder packet B7-detached-execution-durable (attempt 4)
+# Session State — B5-pr-check-review-actionable
 
 <!-- kitty-state
 {
   "schema_version": 2,
   "updated_at": "2026-08-02T00:00:00Z",
-  "head_sha": "df2d8b83ac3b3337f896949bf58398d0d20a1477",
-  "branch": "kittybuilder/kb_msb4yx3n_4099",
-  "worktree": "kittybuilder/kb_msb4yx3n_4099",
-  "status": "in_progress",
+  "branch": "kittybuilder/kb_msb4yx3n_124c",
+  "worktree": "kittybuilder/kb_msb4yx3n_124c",
+  "status": "complete",
   "completed_items": [
-    "Added durable detached worker ownership to gateway/builder_runner.py (run_worker_detached, _supervise_worker, detached_worker_status, reap_detached_workers)",
-    "Added focused detached-execution tests in tests/test_builder_runner.py (survival, reconnectable status, crash detection, orphan reaping)",
-    "Validation command passes: 121 passed (116 original + 5 new)"
+    "Extended gh PR advisory capture (mergeable, mergeStateStatus, baseRefOid) in builder_queue._gh_pr_status",
+    "Persisted advisory merge/base fields on pr_attached/pr_updated event payload via attach_pr",
+    "Added read-only _pr_advisory_projection + _recovery_actions to builder_status packet model",
+    "Repaired run projection to expose start_sha for superseded-run detection",
+    "Added 6 focused recovery-action tests in test_builder_status.py"
   ],
   "blockers": [],
-  "next_action": "Await independent builder review of the detached-execution mechanism.",
+  "next_action": "None",
   "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
-    "HEAD changes beyond df2d8b83ac3b3337f896949bf58398d0d20a1477"
+    "HEAD changes beyond the current packet lease base"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": null,
+  "head_sha": "734e49e9237fb2093af622ece9c3e62b2e61f19c"
 }
 -->
 
 ## Execution ownership
 
-- this session: builder (packet bundle kb_msb4yx3n_4099, attempt 4)
-- task_bundle: `.kittybuilder-bundle-105.json`
-- status: implementation complete, tests passing, awaiting independent review
-
-## What was done
-
-Implemented durable detached worker ownership in `gateway/builder_runner.py` so a
-terminal disconnect or watcher death cannot strand a live worker:
-
-- `run_worker_detached()` — spawns a detached supervisor process (own session)
-  that owns the full `run_worker` lifecycle (claim, worktree, spawn, heartbeat,
-  collect, finalize) and outlives the caller. Returns immediately.
-- `_supervise_worker()` / `python -m gateway.builder_runner --supervise <spec>`
-  — the detached supervisor entrypoint that runs the exact synchronous
-  `run_worker` path and writes a durable completion status file.
-- `detached_worker_status()` — reconnectable status surface distinguishing
-  running / orphaned / crashed / starting / completed from the durable DB record
-  + live process identity.
-- `reap_detached_workers()` — reclaims orphaned worker process groups whose
-  owner died (stale lease, still-alive worker), preventing orphan accumulation.
-
-Added 5 focused tests covering the acceptance criteria.
+- this session: builder worker (packet B5-pr-check-review-actionable, initiative trustworthy-kittybuilder-b2-b10-v1)
+- task_id: kb_msb4yx3n_124c
 
 ## KB effectiveness
 
 - no receipt recorded yet
+
+## Change summary
+
+- `gateway/builder_queue.py`: `_gh_pr_status` now fetches `mergeable`,
+  `mergeStateStatus`, `baseRefOid`; `attach_pr` persists them on the advisory
+  `pr_attached`/`pr_updated` event payload (never on the task/pr_links row:
+  Section 11.4).
+- `gateway/builder_status.py`: added `_read_latest_pr_advisories` (one bulk
+  query, SNAPSHOT_QUERY_COUNT 9 -> 10), `_pr_advisory_projection`, and
+  `_recovery_actions` which produce per-task recovery actions for failing CI,
+  merge conflict, waiting review, stale/base-behind rebase, and superseded
+  runs. Run projection now exposes `start_sha`.
+- `tests/test_builder_status.py`: 6 focused tests (31 total pass).

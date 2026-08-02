@@ -148,6 +148,8 @@ interface KittyContextValue {
   handleSend: () => Promise<void>
   handleStop: () => void
   handleRetry: () => void
+  handleSwitchBranch: (messageIndex: number, branchIndex: number) => void
+  handleTogglePin: (chatId: string) => void
 
   // input
   input: string
@@ -655,11 +657,40 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   const handleRetry = useCallback(() => {
     if (!activeChat || isStreaming) return
     const history = [...activeChat.messages]
-    while (history.length && history.at(-1)?.role === 'assistant') history.pop()
-    if (history.length === 0) return
-    updateChat(activeChat.id, (c) => ({ ...c, messages: history }))
-    void runStream(activeChat, history, activeChat.title)
+    let prefixEnd = history.length
+    while (prefixEnd && history[prefixEnd - 1]?.role === 'assistant') prefixEnd--
+    if (prefixEnd === 0) return
+    const prefix = history.slice(0, prefixEnd)
+    const oldBranch = history.slice(prefixEnd)
+    const branches = { ...(activeChat.retryBranches ?? {}) }
+    const key = prefixEnd - 1 // user message index
+    const existing = branches[key] ?? []
+    branches[key] = [...existing, oldBranch]
+    updateChat(activeChat.id, (c) => ({ ...c, messages: prefix, retryBranches: branches, updatedAt: new Date() }))
+    void runStream({ ...activeChat, messages: prefix, retryBranches: branches }, prefix, activeChat.title)
   }, [activeChat, isStreaming, updateChat, runStream])
+
+  const handleSwitchBranch = useCallback((messageIndex: number, branchIndex: number) => {
+    if (!activeChat) return
+    const branches = activeChat.retryBranches?.[messageIndex]
+    if (!branches?.[branchIndex]) return
+    const prefixEnd = messageIndex + 1
+    const prefix = activeChat.messages.slice(0, prefixEnd)
+    const selected = branches[branchIndex]
+    const remaining = branches.filter((_, i) => i !== branchIndex)
+    const newBranches = { ...(activeChat.retryBranches ?? {}) }
+    newBranches[messageIndex] = [...remaining, activeChat.messages.slice(prefixEnd)]
+    updateChat(activeChat.id, (c) => ({
+      ...c,
+      messages: [...prefix, ...selected],
+      retryBranches: newBranches,
+      updatedAt: new Date(),
+    }))
+  }, [activeChat, updateChat])
+
+  const handleTogglePin = useCallback((chatId: string) => {
+    setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, pinned: !c.pinned } : c)))
+  }, [])
 
   const handleStop = useCallback(() => { abortRef.current?.abort() }, [])
 
@@ -724,7 +755,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
 
   const value: KittyContextValue = {
     chats, activeChat, activeChatId, handleNewChat, handleNewExpertChat, handleSelectChat, handleCloseChat,
-    handleSend, handleStop, handleRetry,
+    handleSend, handleStop, handleRetry, handleSwitchBranch, handleTogglePin,
     input, setInput, attachments, setAttachments, handleAddFiles, handleRemoveAttachment,
     attachmentErrors, isStreaming,
     activeModel, availableModels, overrideModel, setOverrideModel, handleSelectModel,

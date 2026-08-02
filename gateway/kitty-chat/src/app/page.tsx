@@ -49,7 +49,7 @@ export default function KittyChat() {
         <SessionSidebar
           chats={k.chats} activeChatId={k.activeChatId}
           onSelectChat={k.handleSelectChat} onNewChat={() => { k.handleNewChat(); k.setActiveView('chat') }}
-          onCloseChat={k.handleCloseChat} collapsed={k.sidebarCollapsed}
+          onCloseChat={k.handleCloseChat} onTogglePin={k.handleTogglePin} collapsed={k.sidebarCollapsed}
         />
       )}
 
@@ -71,7 +71,7 @@ export default function KittyChat() {
               chats={k.chats} activeChatId={k.activeChatId}
               onSelectChat={k.handleSelectChat}
               onNewChat={() => { k.handleNewChat(); k.setActiveView('chat'); if (k.isMobile) k.setMobileSidebarOpen(false) }}
-              onCloseChat={k.handleCloseChat} collapsed={false} width="min(320px, 84vw)"
+              onCloseChat={k.handleCloseChat} onTogglePin={k.handleTogglePin} collapsed={false} width="min(320px, 84vw)"
             />
           </div>
         </>
@@ -131,6 +131,8 @@ export default function KittyChat() {
                 isStreaming: k.isStreaming,
                 catState: k.catState,
                 onRetry: k.handleRetry,
+                retryBranches: k.activeChat?.retryBranches,
+                onSwitchBranch: k.handleSwitchBranch,
                 onStartClick: () => k.textareaRef.current?.focus(),
                 onChipClick: (chip: string) => { k.setInput(chip); k.textareaRef.current?.focus() },
               }}

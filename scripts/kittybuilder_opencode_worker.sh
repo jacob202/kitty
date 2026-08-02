@@ -163,6 +163,14 @@ rm -f "${local_bundle}" "${local_context}" "${local_result}"
 # change; a "failed" result leaves the worktree as evidence and is never
 # committed, and nothing runs (including the packet_id read below) when
 # there's nothing to commit.
+if [[ "${result_status}" == "completed" ]]; then
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+  SANITIZE_SCRIPT="${REPO_ROOT}/scripts/sanitize_builder_state.sh"
+  if [[ -x "${SANITIZE_SCRIPT}" ]]; then
+    bash "${SANITIZE_SCRIPT}"
+  fi
+fi
+
 if [[ "${result_status}" == "completed" ]] \
   && [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
   # builder_identity.verify_and_escalate requires every commit since the

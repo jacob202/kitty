@@ -13,6 +13,8 @@ interface KittyThreadContextValue {
   catState: CatState
   compact: boolean
   onRetry?: () => void
+  retryBranches?: Record<number, Message[][]>
+  onSwitchBranch?: (messageIndex: number, branchIndex: number) => void
 }
 
 const KittyThreadContext = createContext<KittyThreadContextValue>({
@@ -30,6 +32,8 @@ interface KittyThreadProps {
   catState: CatState
   compact: boolean
   onRetry?: () => void
+  retryBranches?: Record<number, Message[][]>
+  onSwitchBranch?: (messageIndex: number, branchIndex: number) => void
   onChipClick?: (text: string) => void
   onStartClick?: () => void
 }
@@ -41,6 +45,8 @@ export function KittyThread({
   catState,
   compact,
   onRetry,
+  retryBranches,
+  onSwitchBranch,
   onChipClick,
   onStartClick,
 }: KittyThreadProps) {
@@ -51,6 +57,8 @@ export function KittyThread({
     catState,
     compact,
     onRetry,
+    retryBranches,
+    onSwitchBranch,
   }
 
   return (
@@ -87,6 +95,9 @@ function MessageList() {
       const prev = message.index > 0 ? ctx.messages[message.index - 1] : null
       const isFirstInRun = !prev || prev.role !== rawMsg.role
 
+      const branches = ctx.retryBranches?.[message.index - 1]?.length ?? 0
+      const total = branches + 1
+
       return (
         <>
           {message.index === 0 && <TodayDivider />}
@@ -98,6 +109,9 @@ function MessageList() {
             isFirstInRun={isFirstInRun}
             catState={ctx.catState}
             compact={ctx.compact}
+            branchCount={rawMsg.role === 'assistant' ? branches : 0}
+            totalBranches={rawMsg.role === 'assistant' ? total : 0}
+            onSwitchBranch={rawMsg.role === 'assistant' && ctx.onSwitchBranch ? (bi: number) => ctx.onSwitchBranch!(message.index - 1, bi) : undefined}
             onRetry={
               message.isLast && rawMsg.role === 'assistant' && !ctx.isStreaming
                 ? ctx.onRetry
