@@ -194,6 +194,10 @@ interface KittyContextValue {
   searchSnapshot: GatewaySearchSnapshot | null
   searchGateway: { live: boolean; error: string | null }
 
+  // builder visibility
+  showBuilderMachinery: boolean
+  setShowBuilderMachinery: React.Dispatch<React.SetStateAction<boolean>>
+
   // project
   activeProject: any
   projects: any[]
@@ -245,6 +249,11 @@ export function useKitty(): KittyContextValue {
   return ctx
 }
 
+export function useMaybeKitty(): KittyContextValue | null {
+  const ctx = useContext(KittyContext)
+  return ctx ?? null
+}
+
 // ── provider ──────────────────────────────────────────────────────────────────
 
 export function KittyProvider({ children }: { children: ReactNode }) {
@@ -274,6 +283,8 @@ export function KittyProvider({ children }: { children: ReactNode }) {
   const [attachments, setAttachments] = useState<MessageAttachment[]>([])
   const [overrideModel, setOverrideModel] = useState<Model | null>(null)
   const [attachmentErrors, setAttachmentErrors] = useState<AttachmentError[]>([])
+
+  const [showBuilderMachinery, setShowBuilderMachinery] = useState(false)
 
   const pwaInstall = usePwaInstall()
   const abortRef = useRef<AbortController | null>(null)
@@ -412,6 +423,8 @@ remembered && ordered.some((chat) => chat.id === remembered)
       setTheme(savedTheme)
       document.documentElement.setAttribute('data-theme', savedTheme)
     }
+    const savedShowBuilder = window.localStorage.getItem('kitty-show-builder-machinery')
+    setShowBuilderMachinery(savedShowBuilder === 'true')
     const hasLocal = window.localStorage.getItem('kitty-onboarded') === 'true'
     if (hasLocal) { setShowOnboarding(false); return }
     fetch('/proxy/onboarding')
@@ -433,9 +446,13 @@ remembered && ordered.some((chat) => chat.id === remembered)
 if (chats.length > 0 && !activeChatId) setActiveChatId(chats[0].id)
 }, [chats, activeChatId])
 
-useEffect(() => {
-if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChatId)
-}, [activeChatId])
+  useEffect(() => {
+    if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChatId)
+  }, [activeChatId])
+
+  useEffect(() => {
+    window.localStorage.setItem('kitty-show-builder-machinery', showBuilderMachinery ? 'true' : 'false')
+  }, [showBuilderMachinery])
 
   useEffect(() => {
     if (!availableModels.length) return
@@ -721,6 +738,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     showOnboarding, setShowOnboarding, preferredName, setPreferredName,
     saveState, handleRetrySave, tokenCount, lastOutcome, catState,
     searchSnapshot, searchGateway,
+    showBuilderMachinery, setShowBuilderMachinery,
     activeProject, projects, handleSelectProject,
     modelsQuery, runtimeQuery, projectsQuery, activeProjectQuery, setActiveProject: setActiveProjectMut,
     briefQuery, loopsQuery, insightsQuery, promptsQuery, toggleLoop, dismissInsight,

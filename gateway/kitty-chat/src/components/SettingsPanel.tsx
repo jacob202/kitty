@@ -4,6 +4,7 @@ import { useGatewayModels, usePersonality, useUpdatePersonality, useUsageSummary
 import { useDashboardConfig } from '@/hooks/useDashboardConfig'
 import { Button } from '@/components/ui/Button'
 import { Palette, RotateCcw, Save } from 'lucide-react'
+import { useMaybeKitty } from '@/state/KittyContext'
 
 interface Props {
   theme: 'cosmic' | 'day' | 'night'
@@ -33,6 +34,8 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
 
   const [soul, setSoul] = useState('')
   const [prefs, setPrefs] = useState('')
+  const k = useMaybeKitty()
+  const showBuilder = k?.showBuilderMachinery ?? false
 
   useEffect(() => {
     if (personality.data) {
@@ -75,6 +78,23 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
             reset to defaults
           </Button>
         </div>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>builder visibility</div>
+        <label style={{ ...rowStyle, cursor: 'pointer' }}>
+          <span style={rowNameStyle}>show Builder machinery</span>
+          <input
+            type="checkbox"
+            checked={showBuilder}
+            onChange={() => k?.setShowBuilderMachinery(!showBuilder)}
+            style={checkboxStyle}
+          />
+        </label>
+        <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--ink-2)', lineHeight: 1.5 }}>
+          shows packet-level Builder state on the Work tab and home dashboard.
+          keeps tasks and todos visible either way.
+        </p>
       </div>
 
       <div style={cardStyle}>

@@ -1,10 +1,11 @@
 'use client'
 import { useTodos } from '@/lib/queries'
 import { useGatewayRuntimeManifest } from '@/lib/queries'
+import { useMaybeKitty } from '@/state/KittyContext'
 import { TaskPanel } from '@/components/TaskPanel'
 import { TodoPanel } from '@/components/TodoPanel'
 import { BuilderPanel, attentionCount, activePacketCount } from '@/components/BuilderSurface'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Wrench } from 'lucide-react'
 import type { BuilderStatusSnapshot } from '@/lib/gateway'
 
 export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; onNavigate?: (view: string) => void }) {
@@ -19,7 +20,9 @@ export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; 
     ? attentionCount(builderSnapshot)
     : 0
 
-  const hasAttention = activeTodos.length > 0 || builderAttention > 0
+  const k = useMaybeKitty()
+  const showBuilder = k?.showBuilderMachinery ?? false
+  const hasAttention = activeTodos.length > 0 || (showBuilder && builderAttention > 0)
 
   return (
     <div style={{
@@ -30,9 +33,26 @@ export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; 
       <header>
         <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 32, color: 'var(--ink)' }}>Work</h1>
         <p style={{ margin: '4px 0 0', color: 'var(--ink-2)' }}>
-          Life tasks, project work, and KittyBuilder execution in one place.
+          Life tasks, project work{showBuilder ? ', and KittyBuilder execution' : ''} in one place.
         </p>
       </header>
+
+      {builderAttention > 0 && !showBuilder && (
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--line)',
+          borderRadius: 12, padding: '14px 16px',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <Wrench size={15} style={{ color: 'var(--ink-2)', flexShrink: 0 }} />
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', flex: 1 }}>
+            {builderAttention} builder {builderAttention === 1 ? 'packet needs' : 'packets need'} attention
+          </span>
+          <button type="button" onClick={() => k.setShowBuilderMachinery(true)}
+            style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 4, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink-2)', cursor: 'pointer' }}>
+            show
+          </button>
+        </div>
+      )}
 
       {hasAttention && (
         <div style={{
@@ -76,7 +96,7 @@ export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; 
               </span>
             </div>
           )}
-          {builderAttention > 0 && (
+          {showBuilder && builderAttention > 0 && (
             <button
               type="button"
               onClick={() => onNavigate?.('builder')}
@@ -115,6 +135,7 @@ export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; 
 
       <TaskPanel />
       <TodoPanel />
+      {showBuilder && (
       <section>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--ink)' }}>
@@ -140,6 +161,7 @@ export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; 
         </div>
         <BuilderPanel />
       </section>
+      )}
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { CapturePanel } from '@/components/CapturePanel';
 import { BuilderGlance } from '@/components/BuilderSurface';
 import { InsightReturnCard } from '@/components/InsightReturnCard';
 import { useDashboardConfig } from '@/hooks/useDashboardConfig';
+import { useMaybeKitty } from '@/state/KittyContext';
 import {
   useStateChanges,
   useActions,
@@ -1517,6 +1518,7 @@ interface Props {
   onDecideInChat?: (entry: GatewayTriageEntry) => void;
   onNavigate?: (view: string) => void;
   onExpertClick?: (expert: ExpertProfile) => void;
+  showBuilder?: boolean;
 }
 
 export function HomeState({
@@ -1525,7 +1527,10 @@ export function HomeState({
   onDecideInChat = () => {},
   onNavigate = () => {},
   onExpertClick,
+  showBuilder: showBuilderProp,
 }: Props) {
+  const k = useMaybeKitty()
+  const showBuilder = showBuilderProp ?? k?.showBuilderMachinery ?? false
   const isCosmic =
     typeof document !== 'undefined' &&
     document.documentElement.getAttribute('data-theme') === 'cosmic';
@@ -1568,7 +1573,7 @@ export function HomeState({
       {visibleTiles['health'] !== false && <HealthStrip />}
       {visibleTiles['health'] !== false && <RepairsCard />}
       {visibleTiles['health'] !== false && <SignalsCard />}
-      <BuilderGlance onOpen={() => onNavigate('builder')} />
+      {showBuilder && <BuilderGlance onOpen={() => onNavigate('builder')} />}
       {visibleTiles['weather'] !== false && weather && !weather.error && (
         <section style={{ ...card, display: 'grid', gap: 8 }}>
           <div style={cardHeader}>
