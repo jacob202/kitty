@@ -97,6 +97,48 @@ def _resolve_loop_commands(
     return worker_command, review_command
 
 
+def _resolve_worker_session(
+    args: argparse.Namespace,
+    worker_command: list[str] | None,
+) -> Any:
+    """Construct a WorkerSession backend from ``--worker-session``, or None.
+
+    This is the single production construction site for the CLI seam: no
+    WorkerSession is built through a test-only path. ``None`` means the loop
+    falls back to the subprocess backend (``worker_command``), preserving the
+    pre-existing default behaviour.
+
+    - ``shell`` wraps ``worker_command`` (a subprocess the ``run_worker``
+      ladder drives) in a ``ShellWorkerSession``.
+    - ``opencode`` speaks HTTP to a headless OpenCode server; it needs no
+      subprocess command, only a server URL (and optional API key).
+    """
+    mode = getattr(args, "worker_session", None)
+    if mode is None:
+        return None
+
+    from gateway.builder_adapters import OpenCodeServerSession, ShellWorkerSession
+
+    if mode == "shell":
+        if not worker_command:
+            raise ValueError(
+                "--worker-session shell requires a non-empty "
+                "--worker-command JSON array (the shell adapter wraps that "
+                "subprocess command)"
+            )
+        return ShellWorkerSession(command=worker_command)
+    if mode == "opencode":
+        if not args.opencode_base_url:
+            raise ValueError(
+                "--worker-session opencode requires --opencode-base-url"
+            )
+        return OpenCodeServerSession(
+            base_url=args.opencode_base_url,
+            api_key=getattr(args, "opencode_api_key", None),
+        )
+    raise ValueError(f"unknown --worker-session mode: {mode!r}")
+
+
 # ---------------------------------------------------------------------------
 # Retired top-level command handler
 # ---------------------------------------------------------------------------
@@ -1412,7 +1454,22 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
     from gateway.builder_runner import RunnerError
 
     try:
-        worker_command, review_command = _resolve_loop_commands(args)
+        mode = getattr(args, "worker_session", None)
+        worker_session = None
+        worker_command: list[str] | None = None
+        review_command: list[str] | None = None
+        if mode == "opencode":
+            # OpenCode speaks HTTP to a headless server; no subprocess command.
+            review_command = _parse_json_array(args.review_command)
+            worker_session = _resolve_worker_session(args, None)
+        elif mode == "shell":
+            # The shell adapter wraps a subprocess, so it still needs the
+            # worker command that run_worker drives.
+            worker_command, review_command = _resolve_loop_commands(args)
+            worker_session = _resolve_worker_session(args, worker_command)
+        else:
+            worker_command, review_command = _resolve_loop_commands(args)
+            worker_session = _resolve_worker_session(args, worker_command)
     except (json.JSONDecodeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -1437,6 +1494,7 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
             # money, so the receipt check is opt-out, not opt-in.
             governor_db=None if args.no_governor else _governor_db_path(args),
             governor_override=args.governor_override,
+            worker_session=worker_session,
         )
     except (LoopError, RunnerError, AttemptError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1892,12 +1950,15 @@ COMMANDS: list[CommandSpec] = [
                 "drive one packet through the bounded implement/validate/review "
                 "repair loop (shadow mode: no push, no PR)",
                 _cmd_initiative_run_packet,
-                [_a("id", "initiative ID"),
-                 _a("packet", "packet ID"),
-                 _a("--free", "use the free OpenCode adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
-                 _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
-                 _a("--review-command", "optional reviewer command as a JSON array (omit = validation-gated only)", default=None),
-                 _a("--worker", "worker name", default="packet-loop"),
+                 [_a("id", "initiative ID"),
+                  _a("packet", "packet ID"),
+                  _a("--free", "use the free OpenCode adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
+                  _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
+                  _a("--review-command", "optional reviewer command as a JSON array (omit = validation-gated only)", default=None),
+                  _a("--worker-session", "dispatch through a WorkerSession backend instead of subprocess: 'shell' (wraps --worker-command) or 'opencode' (HTTP to a headless OpenCode server; needs --opencode-base-url)", default=None, choices=["shell", "opencode"]),
+                  _a("--opencode-base-url", "base URL of the headless OpenCode server (required with --worker-session opencode)", default=None),
+                  _a("--opencode-api-key", "optional API key for the OpenCode server", default=None),
+                  _a("--worker", "worker name", default="packet-loop"),
                  _a("--model", "model identifier (metadata)"),
                  _a("--provider", "provider identifier (metadata)"),
                  _a("--timeout", "worker timeout in seconds", type=int, default=3600),

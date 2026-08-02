@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -978,3 +979,146 @@ class TestParseOpenCodeEvents:
         result = _parse_opencode_events(raw, session_id="s1")
 
         assert result[0].raw_payload == raw[0]
+
+
+# ---------------------------------------------------------------------------
+# CLI WorkerSession seam (builder_cli.run-packet --worker-session)
+# ---------------------------------------------------------------------------
+
+
+class TestRunPacketWorkerSessionSeam:
+    """The run-packet CLI must construct and dispatch WorkerSession backends.
+
+    These tests exercise the *public* entry point (``_cmd_initiative_run_packet``)
+    and the production resolver ``_resolve_worker_session``. No WorkerSession is
+    built through a test-only construction path here — the resolver in
+    ``builder_cli`` is the single production site.
+    """
+
+    def _cmd_args(self, **overrides: Any) -> Any:
+        import argparse
+
+        base = dict(
+            id="init-1",
+            packet="p1",
+            free=False,
+            worker_command=None,
+            review_command=None,
+            worker_session=None,
+            opencode_base_url=None,
+            opencode_api_key=None,
+            worker="packet-loop",
+            model=None,
+            provider=None,
+            timeout=60,
+            no_governor=True,
+            governor_override=None,
+            watch=False,
+            json=True,
+        )
+        base.update(overrides)
+        return argparse.Namespace(**base)
+
+    def test_default_resolves_to_none(self) -> None:
+        from gateway import builder_cli
+
+        assert builder_cli._resolve_worker_session(self._cmd_args(), None) is None
+
+    def test_shell_constructs_shell_adapter(self) -> None:
+        from gateway import builder_cli
+        from gateway.builder_adapters import ShellWorkerSession
+
+        session = builder_cli._resolve_worker_session(
+            self._cmd_args(worker_session="shell"), ["bash", "script.sh"]
+        )
+        assert isinstance(session, ShellWorkerSession)
+        assert session._command == ["bash", "script.sh"]
+
+    def test_shell_requires_worker_command(self) -> None:
+        from gateway import builder_cli
+
+        with pytest.raises(ValueError, match="--worker-command"):
+            builder_cli._resolve_worker_session(
+                self._cmd_args(worker_session="shell"), None
+            )
+
+    def test_opencode_constructs_opencode_adapter(self) -> None:
+        from gateway import builder_cli
+        from gateway.builder_adapters import OpenCodeServerSession
+
+        session = builder_cli._resolve_worker_session(
+            self._cmd_args(
+                worker_session="opencode",
+                opencode_base_url="http://localhost:3000",
+                opencode_api_key="secret",
+            ),
+            None,
+        )
+        assert isinstance(session, OpenCodeServerSession)
+        assert session._base_url == "http://localhost:3000"
+
+    def test_opencode_requires_base_url(self) -> None:
+        from gateway import builder_cli
+
+        with pytest.raises(ValueError, match="--opencode-base-url"):
+            builder_cli._resolve_worker_session(
+                self._cmd_args(worker_session="opencode"), None
+            )
+
+    def test_unknown_mode_rejected(self) -> None:
+        from gateway import builder_cli
+
+        with pytest.raises(ValueError, match="unknown --worker-session mode"):
+            builder_cli._resolve_worker_session(
+                self._cmd_args(worker_session="bogus"), ["x"]
+            )
+
+    def test_shell_dispatches_through_public_entry(self) -> None:
+        from gateway import builder_cli
+        from gateway.builder_adapters import ShellWorkerSession
+
+        captured: dict[str, Any] = {}
+
+        def fake_run_packet(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            captured["worker_session"] = kwargs.get("worker_session")
+            return {
+                "outcome": "succeeded",
+                "initiative_id": "init-1",
+                "packet_id": "p1",
+                "attempts": [],
+            }
+
+        args = self._cmd_args(
+            worker_session="shell", worker_command='["bash", "script.sh"]'
+        )
+        with patch("gateway.builder_loop.run_packet", side_effect=fake_run_packet):
+            rc = builder_cli._cmd_initiative_run_packet(args)
+
+        assert rc == 0
+        assert isinstance(captured["worker_session"], ShellWorkerSession)
+        assert captured["worker_session"]._command == ["bash", "script.sh"]
+
+    def test_opencode_dispatches_through_public_entry(self) -> None:
+        from gateway import builder_cli
+        from gateway.builder_adapters import OpenCodeServerSession
+
+        captured: dict[str, Any] = {}
+
+        def fake_run_packet(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            captured["worker_session"] = kwargs.get("worker_session")
+            return {
+                "outcome": "succeeded",
+                "initiative_id": "init-1",
+                "packet_id": "p1",
+                "attempts": [],
+            }
+
+        args = self._cmd_args(
+            worker_session="opencode", opencode_base_url="http://localhost:3000"
+        )
+        with patch("gateway.builder_loop.run_packet", side_effect=fake_run_packet):
+            rc = builder_cli._cmd_initiative_run_packet(args)
+
+        assert rc == 0
+        assert isinstance(captured["worker_session"], OpenCodeServerSession)
+
