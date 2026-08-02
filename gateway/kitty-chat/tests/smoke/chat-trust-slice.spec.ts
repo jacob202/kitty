@@ -47,7 +47,7 @@ function sseBody(chunks: string[], withModelHeader = true): string {
 }
 
 /** Stub gateway endpoints so the Next.js app sees a deterministic backend. */
-async function stubGateway(page: Page, opts: { failAfterChunks?: number } = {}) {
+async function stubGateway(page: Page, opts: { failAfterChunks?: number; errorEvent?: 'routing' | 'upstream' } = {}) {
   await page.route('**/proxy/health', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
   );
@@ -80,6 +80,25 @@ async function stubGateway(page: Page, opts: { failAfterChunks?: number } = {}) 
     const req = route.request();
     const body = req.postDataJSON();
     const userText: string = body?.messages?.find((m: { role: string }) => m.role === 'user')?.content ?? '';
+
+    if (opts.errorEvent) {
+      // Gateway emits a user-facing SSE error event before tearing down.
+      const message =
+        opts.errorEvent === 'routing'
+          ? "Kitty couldn't complete this request — the selected model provider didn't accept it (it may be out of credit or unavailable). Your message is saved. Tap retry, or check Settings to pick a different model."
+          : "Kitty's model provider couldn't finish this request. Your message is saved — tap retry to try again.";
+      const body = `data: ${JSON.stringify({ error: { kind: opts.errorEvent, message } })}\n\n`;
+      return route.fulfill({
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'X-Kitty-Provider-Selected': ATTRIBUTION_PROVIDER,
+          'X-Kitty-Model-Requested': ATTRIBUTION_MODEL,
+          'X-Kitty-Tools-State': 'unavailable',
+        },
+        body,
+      });
+    }
 
     if (opts.failAfterChunks !== undefined) {
       // Simulate streaming that fails mid-way
@@ -255,7 +274,7 @@ test.describe('Chat Trust Slice 3 — phone', () => {
     expect(allText).toContain('Hello, world!'); // assistant message recovered
   });
 
-  test('stream failure shows recovery action and retry succeeds', async ({ page }) => {
+  test('stream failure shows friendly recovery copy and retry succeeds', async ({ page }) => {
     await stubGateway(page, { failAfterChunks: 1 });
 
     await page.goto('/');
@@ -273,30 +292,52 @@ test.describe('Chat Trust Slice 3 — phone', () => {
     await page.waitForTimeout(300);
     await page.keyboard.press('Enter');
 
-    // Wait for the error to appear — the partial stream fails without [DONE]
+    // The cut stream (no [DONE]) must show plain copy, never raw internals.
     await page.waitForTimeout(2000);
-
-    // The error message should be visible on the assistant bubble with a ⚠ marker
-    // Look for any message containing ⚠ (the error character)
-    const anyError = page.locator('.msg-in').filter({ hasText: /stream closed|error/i }).first();
-    if (await anyError.count() > 0) {
-      await expect(anyError).toBeVisible({ timeout: 3000 });
-    }
+    const failureBubble = page.locator('.msg-in').filter({ hasText: /cut off/i }).first();
+    await expect(failureBubble).toBeVisible({ timeout: 10_000 });
+    const failureText = await failureBubble.textContent();
+    expect(failureText).toContain('retry');
+    expect(failureText).not.toContain('Stream closed without [DONE]');
+    expect(failureText).not.toContain('incomplete response');
 
     // Now retry: set up a successful stub
     await page.unroute('**/proxy/api/chat/completions');
     await stubGateway(page);
 
-    // Click the retry button if visible
+    // Click the retry button on the failed bubble
     const retryBtn = page.getByRole('button', { name: /retry/i }).first();
-    if (await retryBtn.count() > 0 && await retryBtn.isVisible()) {
-      await retryBtn.click();
-      await page.waitForTimeout(2000);
-      // Verify the retry produced a successful response
-      const messagesAfterRetry = page.locator('.msg-in').filter({ hasText: /Hel/ });
-      await expect(messagesAfterRetry.first()).toBeVisible({ timeout: 10_000 });
-    }
-    // If no retry button is found, the error didn't render — acceptable for deterministic smoke
+    expect(await retryBtn.count()).toBeGreaterThan(0);
+    await retryBtn.click();
+    await page.waitForTimeout(2000);
+    // Verify the retry produced a successful response
+    const messagesAfterRetry = page.locator('.msg-in').filter({ hasText: /Hel/ });
+    await expect(messagesAfterRetry.first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('gateway routing error event shows plain-language recovery copy', async ({ page }) => {
+    await stubGateway(page, { errorEvent: 'routing' });
+
+    await page.goto('/');
+    await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole('button', { name: /^chat$/i }).first().click();
+    await page.waitForTimeout(500);
+
+    const composer = page.locator('textarea').first();
+    await expect(composer).toBeVisible();
+    await composer.click();
+    await composer.fill('why is the provider mad');
+    await page.keyboard.press('Enter');
+
+    await page.waitForTimeout(3000);
+    const bubble = page.locator('.msg-in').filter({ hasText: /model provider|retry/i }).first();
+    await expect(bubble).toBeVisible({ timeout: 10_000 });
+    const text = await bubble.textContent();
+    // Jargon check: no raw internal strings, and a real recovery action is named.
+    expect(text).not.toContain('Stream closed without [DONE]');
+    expect(text).not.toMatch(/HTTP \d{3}|500|Gateway error/);
+    expect(text).toMatch(/retry/i);
   });
 
   test('retry does not duplicate user message', async ({ page }) => {

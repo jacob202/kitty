@@ -15,6 +15,72 @@ export interface StreamChunk {
   toolsState?: 'available' | 'unavailable';
 }
 
+/** Machine-readable chat-turn failure kinds. Mirrors gateway/chat_errors.py. */
+export type ChatErrorKind = 'routing' | 'upstream' | 'network' | 'cut-off';
+
+/** User-facing copy per failure kind, written for a phone screen. */
+const FRIENDLY_CHAT_MESSAGES: Record<ChatErrorKind, string> = {
+  routing:
+    "Kitty couldn't complete this request — the selected model provider didn't accept it (it may be out of credit or unavailable). Your message is saved. Tap retry, or check Settings to pick a different model.",
+  upstream:
+    "Kitty's model provider couldn't finish this request. Your message is saved — tap retry to try again.",
+  network:
+    "Kitty couldn't reach its gateway. Check that Kitty is running, then tap retry — your message is saved.",
+  'cut-off': "Kitty's reply was cut off before it finished. Tap retry to continue.",
+};
+
+export type ChatFriendlyError = { kind: ChatErrorKind; userMessage: string };
+
+/** A chat failure carrying user-facing copy; raw detail stays off-screen. */
+export class ChatSendError extends Error {
+  kind: ChatErrorKind;
+  userMessage: string;
+
+  constructor(kind: ChatErrorKind, userMessage: string, detail?: string) {
+    super(userMessage);
+    this.name = 'ChatSendError';
+    this.kind = kind;
+    this.userMessage = userMessage;
+    if (detail) (this as { detail?: string }).detail = detail;
+  }
+}
+
+/** Map any thrown value to friendly, jargon-free recovery copy. */
+export function friendlyChatError(err: unknown): ChatFriendlyError {
+  if (err instanceof ChatSendError) {
+    return { kind: err.kind, userMessage: err.userMessage };
+  }
+  // A fetch() failure (proxy/gateway unreachable) surfaces as TypeError.
+  if (err instanceof TypeError) {
+    return { kind: 'network', userMessage: FRIENDLY_CHAT_MESSAGES.network };
+  }
+  if (err instanceof Error && err.name === 'AbortError') {
+    return { kind: 'cut-off', userMessage: FRIENDLY_CHAT_MESSAGES['cut-off'] };
+  }
+  return { kind: 'cut-off', userMessage: FRIENDLY_CHAT_MESSAGES['cut-off'] };
+}
+
+async function notOkError(response: Response): Promise<ChatSendError> {
+  let raw = '';
+  try {
+    raw = await response.text();
+  } catch {
+    raw = '';
+  }
+  let detail = raw.slice(0, 300);
+  try {
+    const parsed = JSON.parse(raw);
+    const inner = parsed?.error && typeof parsed.error === 'object' ? parsed.error : parsed;
+    detail = String(inner?.message ?? inner?.detail ?? raw).slice(0, 300);
+  } catch {
+    // not JSON — keep raw status text
+  }
+  const status = response.status;
+  // Server/upstream trouble is retryable as-is; 4xx usually needs a model/provider change.
+  const kind: ChatErrorKind = status >= 500 ? 'upstream' : 'routing';
+  return new ChatSendError(kind, FRIENDLY_CHAT_MESSAGES[kind], detail || `HTTP ${status}`);
+}
+
 interface ToolCallAccumulator {
   id: string;
   name: string;
@@ -48,7 +114,7 @@ export async function* streamChat(
   });
 
   if (!response.ok) {
-    throw new Error(`Gateway error ${response.status}: ${await response.text()}`);
+    throw await notOkError(response);
   }
 
   const provider = response.headers.get('X-Kitty-Provider-Selected') ?? undefined;
@@ -84,6 +150,20 @@ export async function* streamChat(
       }
       try {
         const json = JSON.parse(data);
+        // User-facing error event emitted by the gateway before the stream
+        // tears down (gateway/chat_errors.py). Round-trips plain-language copy.
+        if (json?.error && typeof json.error === 'object') {
+          const kind =
+            (json.error.kind as ChatErrorKind) &&
+            json.error.kind in FRIENDLY_CHAT_MESSAGES
+              ? (json.error.kind as ChatErrorKind)
+              : 'upstream';
+          const message =
+            typeof json.error.message === 'string' && json.error.message.trim()
+              ? json.error.message
+              : FRIENDLY_CHAT_MESSAGES[kind];
+          throw new ChatSendError(kind, message);
+        }
         if (Array.isArray(json.memory_items)) {
           const memoryItems = normalizeMemoryEvidence(json.memory_items);
           if (memoryItems.length) yield { content: '', done: false, memoryItems };
@@ -111,13 +191,17 @@ export async function* streamChat(
 
         const content = delta.content ?? '';
         if (content) yield { content, done: false };
-      } catch {
+      } catch (err) {
+        // A typed ChatSendError thrown above must propagate, not be swallowed
+        // by the malformed-line guard.
+        if (err instanceof ChatSendError) throw err;
         /* skip malformed */
       }
     }
   }
-  // ponytail: reader closed without [DONE] — stream was cut, not completed
-  throw new Error('Stream closed without [DONE] — incomplete response');
+  // ponytail: reader closed without [DONE] — stream was cut, not completed.
+  // No user-facing raw-jargon message; use the friendly cut-off copy.
+  throw new ChatSendError('cut-off', FRIENDLY_CHAT_MESSAGES['cut-off']);
 }
 
 export async function fetchModels(): Promise<string[]> {
