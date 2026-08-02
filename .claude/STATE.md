@@ -1,25 +1,30 @@
-# Session State — reconcile continuity checkpoints with live Git state
+# Session State — KTL2-003 parallel-lanes proof (Builder lane)
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-02T00:41:20Z",
-  "head_sha": "e3b4c7a4c4c6f8d1b08c39a4fae38a5b56a92835",
-  "branch": "claude/fix-main-6qrojf",
-  "worktree": ".",
+  "updated_at": "2026-08-02T00:18:32Z",
+  "head_sha": "92ddf9ca17475fbecf472db010c10253e83b56de",
+  "branch": "kittybuilder/kb_msazu581_72ec",
+  "worktree": "seaslug",
   "status": "in_progress",
   "completed_items": [
-    "PR #359 merged (929634160a24ba656e486338363d8fa7a682193f into main); the prior STATE/HANDOFF blocker asking for its independent re-review is resolved.",
-    "docs/ACTIVE_MISSION.md base_sha updated from the orphaned da88c21b (not an ancestor of HEAD after a later history rewrite) to e3b4c7a4, restoring mission:base_sha to PASS.",
-    "scripts/resume.py: run() now catches FileNotFoundError so a missing `gh` binary reports 'gh: not found on PATH' instead of crashing the script."
+    "Executed packet KTL2-003 as the Builder lane (attempt 92), reading the had-boundary bundle and running its declared validation.",
+    "Added tests/workflow/test_parallel_lanes.py proving four lane-separation invariants at the receipt layer: idempotent second-tool continuation, one execution owner per accepted result, separate-but-cross-referenced interactive/Builder evidence, and unknown measurements staying unknown.",
+    "Recorded an interactive-lane effectiveness receipt for this proof and cross-referenced the live interactive PR #359 as parallel work without claiming it."
   ],
   "blockers": [],
-  "next_action": "Verify docs/ACTIVE_MISSION.md's remaining acceptance criteria (Home/Chat dashboard separation, transient health-check recovery, blocking-check placement) against the running app; none were touched this session.",
-  "parallel_work": [],
-  "recommendations": [],
+  "next_action": "Write the KTL2-003 proof evidence into docs/mission/evidence.md and a session note, then report to Builder.",
+  "parallel_work": [
+    {"kind": "pr", "ref": "#359", "owner": "interactive review-and-repair session", "touches": ["docs", "scripts", "tests"], "observed_at": "2026-08-01T22:33:17Z"}
+  ],
+  "recommendations": [
+    {"id": "ktl2-003-lane-proof-evidence", "what": "Append the parallel-lanes proof evidence to docs/mission/evidence.md and write a session note naming all unavailable measurements", "why": "KTL2-003 acceptance requires evidence separation, cross-reference, and honest unavailable measurements.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null}
+  ],
   "invalidation_conditions": [
-    "HEAD changes beyond e3b4c7a4c4c6f8d1b08c39a4fae38a5b56a92835 except this checkpoint commit",
-    "docs/ACTIVE_MISSION.md base_sha changes again"
+    "HEAD changes beyond 92ddf9ca17475fbecf472db010c10253e83b56de except this packet's own commits",
+    "packet KTL2-003 changes or is cancelled",
+    "the interactive PR #359 head changes or closes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -28,27 +33,15 @@
 
 ## Execution ownership
 
-- this session: interactive
-- Builder parallel state: not inspected; this session made a narrow, targeted continuity/test fix.
-
-## What was done
-
-- `tests/test_check_continuity_state.py::TestScriptBehavior` was failing on
-  `mission:base_sha` because `docs/ACTIVE_MISSION.md` recorded a `base_sha`
-  (`da88c21b...`) that a later history rewrite orphaned — it is a real commit
-  object but no longer an ancestor of `HEAD`. Reset it to the current `HEAD`.
-- `.claude/STATE.md` and `.claude/HANDOFF.md` still referenced PR #359 as open
-  and draft; it merged on 2026-08-01. Refreshed both checkpoints to match.
-- `tests/test_resume_script.py::TestResumeOutput::test_exits_zero` was failing
-  wherever `gh` is not on `PATH`: `scripts/resume.py`'s `run()` helper only
-  caught `subprocess.TimeoutExpired`, so a missing `gh` raised an unhandled
-  `FileNotFoundError` and crashed the whole script instead of reporting the
-  error for just the `open_prs()` call. Added a `FileNotFoundError` catch.
-
-## Validation
-
-- `python3 -m pytest tests/test_check_continuity_state.py tests/test_resume_script.py -q`
+- this session: builder (packet KTL2-003, attempt 92, worker bundle)
+- Builder parallel state: this worktree is the Builder lane executing the KTL2-003
+  bundle; interactive PR #359 is separate parallel work, not owned by this lane.
 
 ## KB effectiveness
 
-- No KB entries were consulted or written; this was a narrow, self-contained bug fix.
+- receipt: interactive lane proof receipt recorded via `scripts/kb_effectiveness.py`
+- consulted: 0
+- used: 0
+- stale/wrong: 0
+- token/quality evidence gaps: total tokens, elapsed time, cost, and attempts were
+  not measured and remain null; no causal token/quality claim is made.
