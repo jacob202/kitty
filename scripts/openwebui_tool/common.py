@@ -13,7 +13,12 @@ from pathlib import Path
 from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[2]
-SERVICE_ROOT = Path(os.environ.get("KITTY_OPENWEBUI_HOME", Path.home() / "kitty-services/openwebui")).expanduser()
+SERVICE_ROOT = Path(
+    os.environ.get(
+        "KITTY_OPENWEBUI_HOME",
+        Path.home() / "kitty-services/openwebui",
+    )
+).expanduser()
 VERSION = os.environ.get("KITTY_OPENWEBUI_VERSION", "0.10.2")
 PORT = int(os.environ.get("KITTY_OPENWEBUI_PORT", "3000"))
 HOST = os.environ.get("KITTY_OPENWEBUI_HOST", "127.0.0.1")
@@ -37,30 +42,45 @@ def fail(message: str) -> None:
     raise Failure(message)
 
 
-def run(args: Iterable[str | os.PathLike[str]], *, check: bool = True, capture: bool = False,
-        env: dict[str, str] | None = None, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([str(a) for a in args], check=check, text=True, capture_output=capture,
-                          env=env, cwd=str(cwd) if cwd else None)
+def run(
+    args: Iterable[str | os.PathLike[str]],
+    *,
+    check: bool = True,
+    capture: bool = False,
+    env: dict[str, str] | None = None,
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(arg) for arg in args],
+        check=check,
+        text=True,
+        capture_output=capture,
+        env=env,
+        cwd=str(cwd) if cwd else None,
+    )
 
 
 def read_dotenv(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
     if not path.exists():
         return values
+
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
         if line.startswith("export "):
             line = line[7:].lstrip()
-        key, sep, value = line.partition("=")
-        if not sep:
+
+        key, separator, value = line.partition("=")
+        if not separator:
             continue
         key, value = key.strip(), value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
             value = value[1:-1]
         if key:
             values[key] = value
+
     return values
 
 
@@ -83,7 +103,13 @@ def ensure_dirs() -> None:
 
 
 def uv_path() -> str:
-    for candidate in (shutil.which("uv"), Path.home() / ".local/bin/uv", "/opt/homebrew/bin/uv", "/usr/local/bin/uv"):
+    candidates = (
+        shutil.which("uv"),
+        Path.home() / ".local/bin/uv",
+        "/opt/homebrew/bin/uv",
+        "/usr/local/bin/uv",
+    )
+    for candidate in candidates:
         if candidate and Path(candidate).is_file():
             return str(candidate)
     fail("uv is required but was not found in PATH, ~/.local/bin, or Homebrew")
@@ -93,8 +119,16 @@ def installed_version() -> str | None:
     python = VENV_DIR / "bin/python"
     if not python.exists():
         return None
-    result = run([python, "-c", "import importlib.metadata; print(importlib.metadata.version('open-webui'))"],
-                 check=False, capture=True)
+
+    result = run(
+        [
+            python,
+            "-c",
+            "import importlib.metadata; print(importlib.metadata.version('open-webui'))",
+        ],
+        check=False,
+        capture=True,
+    )
     return result.stdout.strip() if result.returncode == 0 else None
 
 
@@ -106,12 +140,23 @@ def install_openwebui() -> None:
         return
     if VENV_DIR.exists() and current not in {None, VERSION}:
         fail(f"{VENV_DIR} contains Open WebUI {current}; refusing an in-place upgrade")
+
     uv = uv_path()
     if not VENV_DIR.exists():
         print(f"Creating Python 3.11 environment at {VENV_DIR}")
         run([uv, "venv", "--python", "3.11", VENV_DIR])
+
     print(f"Installing pinned Open WebUI {VERSION}")
-    run([uv, "pip", "install", "--python", VENV_DIR / "bin/python", f"open-webui=={VERSION}"])
+    run(
+        [
+            uv,
+            "pip",
+            "install",
+            "--python",
+            VENV_DIR / "bin/python",
+            f"open-webui=={VERSION}",
+        ]
+    )
     if installed_version() != VERSION:
         fail(f"Open WebUI version verification failed; expected {VERSION}")
 
@@ -121,6 +166,7 @@ def ensure_webui_secret() -> str:
     if not SECRET_FILE.exists():
         SECRET_FILE.write_text(secrets.token_hex(32) + "\n", encoding="utf-8")
         SECRET_FILE.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
     secret = SECRET_FILE.read_text(encoding="utf-8").strip()
     if len(secret) < 32:
         fail(f"Open WebUI secret at {SECRET_FILE} is unexpectedly short")
@@ -132,14 +178,16 @@ def request_json(url: str, *, auth: str = "", timeout: float = 5.0) -> dict:
     if auth:
         headers["Authorization"] = f"Bearer {auth}"
     request = urllib.request.Request(url, headers=headers)
+
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.load(response)
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         fail(f"{url} returned HTTP {exc.code}: {detail[:300]}")
-    except (urllib.error.URLError, json.JSONDecodeError) as exc:
+    except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
         fail(f"cannot read {url}: {exc}")
+
     raise AssertionError("unreachable")
 
 
@@ -148,22 +196,30 @@ def verify_gateway() -> tuple[str, str]:
     request_json(f"{base}/health", timeout=5)
     if not secret:
         fail("Gateway is healthy but no Gateway secret was found in .env")
+
     models = request_json(f"{base}/v1/models", auth=secret, timeout=5)
-    ids = {item.get("id") for item in models.get("data", []) if isinstance(item, dict)}
-    if "kitty-default" not in ids:
-        fail(f"Kitty model discovery is missing kitty-default: {sorted(str(x) for x in ids)}")
+    model_ids = {
+        item.get("id")
+        for item in models.get("data", [])
+        if isinstance(item, dict)
+    }
+    if "kitty-default" not in model_ids:
+        rendered = sorted(str(model_id) for model_id in model_ids)
+        fail(f"Kitty model discovery is missing kitty-default: {rendered}")
+
     print(f"Gateway ready: {base} (kitty-default discovered)")
     return base, secret
 
 
 def ensure_gateway_running() -> tuple[str, str]:
     last_error = ""
-    for _ in range(12):  # launchd startup grace period
+    for _ in range(12):
         try:
             return verify_gateway()
         except Failure as exc:
             last_error = str(exc)
             time.sleep(1)
+
     print("Starting Kitty Gateway and LiteLLM")
     run([ROOT / "kitty", "up"], cwd=ROOT)
     for _ in range(30):
@@ -172,6 +228,7 @@ def ensure_gateway_running() -> tuple[str, str]:
         except Failure as exc:
             last_error = str(exc)
             time.sleep(1)
+
     fail(f"Kitty Gateway did not become ready: {last_error}")
 
 
@@ -179,18 +236,32 @@ def runtime_env() -> dict[str, str]:
     base, gateway_secret = gateway_config()
     if not gateway_secret:
         fail("missing Gateway secret; run './kitty up' first")
+
     env = dict(os.environ)
-    env.update({
-        "DATA_DIR": str(DATA_DIR), "WEBUI_SECRET_KEY": ensure_webui_secret(),
-        "WEBUI_URL": f"http://{HOST}:{PORT}", "WEBUI_NAME": "Kitty Chat",
-        "WEBUI_AUTH": "False", "ENABLE_OPENAI_API": "True",
-        "OPENAI_API_BASE_URL": f"{base}/v1", "OPENAI_API_KEY": gateway_secret,
-        "ENABLE_OLLAMA_API": "False", "DEFAULT_MODELS": "kitty-default",
-        "DEFAULT_PINNED_MODELS": "kitty-default", "TASK_MODEL_EXTERNAL": "kitty-default",
-        "ENABLE_PERSISTENT_CONFIG": "False", "ENABLE_VERSION_UPDATE_CHECK": "False",
-        "ENABLE_COMMUNITY_SHARING": "False", "ENABLE_BASE_MODELS_CACHE": "True",
-        "MODELS_CACHE_TTL": "300", "SAFE_MODE": "True",
-        "CORS_ALLOW_ORIGIN": f"http://{HOST}:{PORT};http://localhost:{PORT}",
-        "UVICORN_WORKERS": "1",
-    })
+    env.update(
+        {
+            "DATA_DIR": str(DATA_DIR),
+            "WEBUI_SECRET_KEY": ensure_webui_secret(),
+            "WEBUI_URL": f"http://{HOST}:{PORT}",
+            "WEBUI_NAME": "Kitty Chat",
+            "WEBUI_AUTH": "False",
+            "ENABLE_OPENAI_API": "True",
+            "OPENAI_API_BASE_URL": f"{base}/v1",
+            "OPENAI_API_KEY": gateway_secret,
+            "ENABLE_OLLAMA_API": "False",
+            "DEFAULT_MODELS": "kitty-default",
+            "DEFAULT_PINNED_MODELS": "kitty-default",
+            "TASK_MODEL_EXTERNAL": "kitty-default",
+            "ENABLE_PERSISTENT_CONFIG": "False",
+            "ENABLE_VERSION_UPDATE_CHECK": "False",
+            "ENABLE_COMMUNITY_SHARING": "False",
+            "ENABLE_BASE_MODELS_CACHE": "True",
+            "MODELS_CACHE_TTL": "300",
+            "SAFE_MODE": "True",
+            "CORS_ALLOW_ORIGIN": (
+                f"http://{HOST}:{PORT};http://localhost:{PORT}"
+            ),
+            "UVICORN_WORKERS": "1",
+        }
+    )
     return env
