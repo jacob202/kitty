@@ -183,9 +183,16 @@ class TestPlanDispatchRoute:
 
         async def fake_run(engine, prompt, **kwargs):
             captured.update({"engine": engine, "prompt": prompt, **kwargs})
+            from gateway import image_jobs
             from gateway.image_runner import JobResult
 
-            return JobResult(job_id="job_x", filename="/tmp/out.png", engine=engine)
+            # The real runner always leaves a durable job row behind, and the
+            # route now binds that row to the session. A fake that returns an
+            # id with no row would test a state the runner cannot produce.
+            job = image_jobs.create_job(
+                provider=engine, operation="txt2img", prompt=prompt
+            )
+            return JobResult(job_id=job.job_id, filename="/tmp/out.png", engine=engine)
 
         def fake_auto_route(**kwargs):
             from gateway.image_recipes import Recipe, RoutingDecision

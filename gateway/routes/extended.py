@@ -649,6 +649,150 @@ async def studio_plan(req: PlanPreviewRequest):
     return result
 
 
+# --- Image Studio: conversational sessions (issue #336, slice A5) ---
+
+
+class SessionCreateRequest(BaseModel):
+    title: Optional[str] = None
+    character_id: Optional[str] = None
+    reference_ids: Optional[List[str]] = None
+    protected_traits: Optional[List[str]] = None
+
+
+class AgentTurnRequest(BaseModel):
+    """One natural-language turn for the bounded image-specialist controller."""
+
+    session_id: str
+    request: str
+
+
+class AnchorRequest(BaseModel):
+    job_id: str
+
+
+def _session_payload(session) -> dict:
+    """A session plus the turns and jobs a resumed conversation replays."""
+    from gateway import image_sessions
+
+    turns = image_sessions.list_turns(session.session_id)
+    jobs = image_sessions.list_session_jobs(session.session_id)
+    payload = session.to_dict()
+    payload["turns"] = [t.to_dict() for t in turns]
+    payload["jobs"] = [j.to_dict() for j in jobs]
+    return payload
+
+
+@router.post("/studio/sessions")
+async def studio_create_session(req: SessionCreateRequest):
+    from gateway.image_sessions import ImageSessionError, create_session
+
+    try:
+        session = create_session(
+            title=req.title,
+            character_id=req.character_id,
+            reference_ids=req.reference_ids,
+            protected_traits=req.protected_traits,
+        )
+    except ImageSessionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _session_payload(session)
+
+
+@router.get("/studio/sessions")
+async def studio_list_sessions(limit: int = 50):
+    from gateway.image_sessions import list_sessions
+
+    return {"sessions": [s.to_dict() for s in list_sessions(limit=limit)]}
+
+
+@router.get("/studio/sessions/{session_id}")
+async def studio_get_session(session_id: str):
+    """Resume: everything needed to rebuild the conversation after a restart."""
+    from gateway.image_sessions import SessionNotFoundError, require_session
+
+    try:
+        session = require_session(session_id)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return _session_payload(session)
+
+
+@router.post("/studio/sessions/{session_id}/anchor")
+async def studio_set_anchor(session_id: str, req: AnchorRequest):
+    """"Use this" — select a rendered result as the base for follow-up edits."""
+    from gateway.image_sessions import (
+        AnchorError,
+        ImageSessionError,
+        SessionNotFoundError,
+        set_anchor,
+    )
+
+    try:
+        session = set_anchor(session_id, req.job_id)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except AnchorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except ImageSessionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _session_payload(session)
+
+
+@router.delete("/studio/sessions/{session_id}")
+async def studio_end_session(session_id: str):
+    from gateway.image_sessions import (
+        ImageSessionError,
+        SessionNotFoundError,
+        end_session,
+    )
+
+    try:
+        session = end_session(session_id)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ImageSessionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return session.to_dict()
+
+
+@router.post("/studio/agent")
+async def studio_agent_turn(req: AgentTurnRequest):
+    """Decide what one natural request means, without dispatching it.
+
+    The controller returns a validated decision plus, for a render, the
+    ``plan_id`` the caller passes to ``/studio/generate``. Splitting decision
+    from dispatch is what lets the UI show what will change before any GPU
+    starts billing.
+    """
+    from gateway.image_agent import (
+        AgentLoopExhaustedError,
+        AgentProtocolError,
+        BudgetRefusedError,
+        CapabilityError,
+        ImageAgentError,
+        UnknownReferenceError,
+        UnsupportedOperationError,
+        decide,
+    )
+    from gateway.image_sessions import SessionNotFoundError
+
+    try:
+        decision = decide(req.session_id, req.request)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except BudgetRefusedError as exc:
+        raise HTTPException(status_code=429, detail=str(exc))
+    except CapabilityError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except (UnknownReferenceError, UnsupportedOperationError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except (AgentProtocolError, AgentLoopExhaustedError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    except ImageAgentError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return decision.to_dict()
+
+
 # --- Image Studio V1: Generate (Auto-routed) ---
 
 @router.post("/studio/generate")
@@ -715,17 +859,35 @@ async def studio_generate(req: StudioGenerateRequest):
             negative_prompt=req.negative_prompt,
             guidance_tags=guidance_tags,
         )
+        # Bind the render back to its conversation so a restart can replay it
+        # and "use this" has something to anchor on. A failure to bind is
+        # surfaced, not swallowed: a job the session cannot see is a job the
+        # user cannot select.
+        if req.session_id:
+            from gateway.image_sessions import ImageSessionError, attach_job, record_attempt
+
+            try:
+                attach_job(req.session_id, result.job_id)
+                record_attempt(req.session_id)
+            except ImageSessionError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
         return {
             "job_id": result.job_id,
             "filename": result.filename,
             "recipe": result.recipe,
             "routing_reason": decision.reason,
             "plan_id": req.plan_id,
+            "session_id": req.session_id,
         }
     except ImageRunnerError as e:
         status = 503 if "not running" in str(e).lower() else 400
         raise HTTPException(status_code=status, detail=str(e))
     except TimeoutError as exc:
         raise HTTPException(status_code=504, detail=str(exc))
+    except HTTPException:
+        # A status this handler already chose must reach the client intact.
+        # Without this the generic clause below rewraps it as a 500 whose body
+        # is the text of the original error, hiding the real cause.
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))

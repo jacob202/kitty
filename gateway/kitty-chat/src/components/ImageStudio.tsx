@@ -47,6 +47,39 @@ interface QualityInfo {
 type QualityTier = 'fast' | 'quality' | 'maximum'
 type IdentityMode = 'creative' | 'balanced' | 'identity_first'
 
+interface AgentDecision {
+  action: 'generate' | 'edit' | 'cancel' | 'clarify'
+  session_id: string
+  summary: string
+  plan_id: string | null
+  plan: Record<string, unknown> | null
+  operation: string | null
+  anchor_job_id: string | null
+  protected_traits: string[]
+  requested_changes: string[]
+  question: string | null
+  reason: string | null
+}
+
+/** One entry in the visible conversation. Results are turns, not a side gallery. */
+interface StudioTurn {
+  id: string
+  role: 'user' | 'assistant'
+  text: string
+  /** What the assistant said would stay fixed and what would change. */
+  protectedTraits?: string[]
+  requestedChanges?: string[]
+  /** Optional plan detail — inspectable, never a mandatory approval step. */
+  plan?: Record<string, unknown> | null
+  result?: GenerateResult
+}
+
+let turnCounter = 0
+function nextTurnId(): string {
+  turnCounter += 1
+  return `turn-${turnCounter}`
+}
+
 function useStudioCharacters() {
   const [characters, setCharacters] = useState<Character[]>([])
   const [loading, setLoading] = useState(true)
@@ -129,6 +162,11 @@ export function ImageStudio() {
   const [planPreviewing, setPlanPreviewing] = useState(false)
   const [guidanceTags, setGuidanceTags] = useState<string[]>([])
   const [availableTags, setAvailableTags] = useState<string[]>([])
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [turns, setTurns] = useState<StudioTurn[]>([])
+  const [anchorJobId, setAnchorJobId] = useState<string | null>(null)
+  const [thinking, setThinking] = useState(false)
+  const [stage, setStage] = useState('')
   const abortRef = useRef<AbortController | null>(null)
 
   // Studio must fail closed: when no image engine is reachable, generation must
@@ -161,6 +199,151 @@ export function ImageStudio() {
   useEffect(() => {
     setIdentity(selectedChar?.identity_preset as IdentityMode ?? 'balanced')
   }, [selectedChar])
+
+  function appendTurn(turn: Omit<StudioTurn, 'id'>) {
+    setTurns(prev => [...prev, { ...turn, id: nextTurnId() }])
+  }
+
+  /** Reuse this conversation's session, opening one on the first message. */
+  async function ensureSession(): Promise<string> {
+    if (sessionId) return sessionId
+    const r = await fetch('/proxy/studio/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        selectedChar ? { character_id: selectedChar.character_id } : {},
+      ),
+    })
+    if (!r.ok) throw new Error(await r.text() || `could not start a session (${r.status})`)
+    const session = await r.json()
+    setSessionId(session.session_id)
+    return session.session_id as string
+  }
+
+  /**
+   * One conversational turn: ask the controller what the request means, then
+   * dispatch only what it approved. The decision is shown before anything
+   * renders, so the user sees what will change and what stays fixed.
+   */
+  async function handleSend() {
+    const text = prompt.trim()
+    if (!text || thinking || generating) return
+    if (!enginesAvailable) {
+      setError('no image engine is online — start ComfyUI or Draw Things, then check again')
+      return
+    }
+    setError('')
+    setErrorDetail(null)
+    appendTurn({ role: 'user', text })
+    setPrompt('')
+    setThinking(true)
+    setStage('reading your request')
+
+    let decision: AgentDecision
+    let activeSession: string
+    try {
+      activeSession = await ensureSession()
+      const r = await fetch('/proxy/studio/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: activeSession, request: text }),
+      })
+      if (!r.ok) {
+        throw new Error(await r.text() || `the image specialist failed (${r.status})`)
+      }
+      decision = await r.json()
+    } catch (err) {
+      const { message, detail } = friendlyStudioError(err, 'agent')
+      setError(message)
+      setErrorDetail(detail)
+      setThinking(false)
+      setStage('')
+      return
+    }
+    setThinking(false)
+    setStage('')
+
+    if (decision.action === 'clarify' || decision.action === 'cancel') {
+      appendTurn({
+        role: 'assistant',
+        text: decision.question || decision.reason || decision.summary,
+      })
+      return
+    }
+
+    appendTurn({
+      role: 'assistant',
+      text: decision.summary,
+      protectedTraits: decision.protected_traits,
+      requestedChanges: decision.requested_changes,
+      plan: decision.plan,
+    })
+    await dispatchApprovedPlan(decision, activeSession)
+  }
+
+  /** Render from the approved plan only — never from live form state. */
+  async function dispatchApprovedPlan(decision: AgentDecision, activeSession: string) {
+    if (!decision.plan_id) return
+    setGenerating(true)
+    setStage(decision.action === 'edit' ? 'editing your selected image' : 'rendering')
+    const controller = new AbortController()
+    abortRef.current = controller
+    try {
+      const r = await fetch('/proxy/studio/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: '',
+          plan_id: decision.plan_id,
+          session_id: activeSession,
+          quality,
+          identity,
+          ...(negativePrompt.trim() ? { negative_prompt: negativePrompt.trim() } : {}),
+        }),
+        signal: controller.signal,
+      })
+      if (!r.ok) {
+        throw new Error(await r.text() || `generation failed (${r.status})`)
+      }
+      const result: GenerateResult = await r.json()
+      setResults(prev => [result, ...prev])
+      if (result.routing_reason) setRoutingReason(result.routing_reason)
+      appendTurn({ role: 'assistant', text: '', result })
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('generation canceled')
+      } else {
+        const { message, detail } = friendlyStudioError(err, 'generate')
+        setError(message)
+        setErrorDetail(detail)
+      }
+    }
+    setGenerating(false)
+    setStage('')
+    setActiveJobId(null)
+    abortRef.current = null
+  }
+
+  /** "Use this" — the selected result becomes what a follow-up edit builds on. */
+  async function handleUseThis(jobId: string) {
+    if (!sessionId) return
+    try {
+      const r = await fetch(`/proxy/studio/sessions/${sessionId}/anchor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId }),
+      })
+      if (!r.ok) {
+        throw new Error(await r.text() || `could not select that image (${r.status})`)
+      }
+      const session = await r.json()
+      setAnchorJobId(session.anchor_job_id ?? null)
+    } catch (err) {
+      const { message, detail } = friendlyStudioError(err, 'anchor')
+      setError(message)
+      setErrorDetail(detail)
+    }
+  }
 
   async function handleGenerate() {
     if (!prompt.trim() || generating) return
@@ -292,15 +475,15 @@ export function ImageStudio() {
   // live indirection it would keep the online generation closure after a status
   // flip to offline and dispatch an impossible request (PR #355 finding 5). The
   // ref always points at this render's handleGenerate, so Enter fails closed too.
-  const handleGenerateRef = useRef(handleGenerate)
+  const handleSendRef = useRef(handleSend)
   useEffect(() => {
-    handleGenerateRef.current = handleGenerate
-  }, [handleGenerate])
+    handleSendRef.current = handleSend
+  }, [handleSend])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleGenerateRef.current()
+      void handleSendRef.current()
     }
   }, [])
 
@@ -379,6 +562,38 @@ export function ImageStudio() {
         <Image size={22} style={{ color: 'var(--cat-ginger)' }} />
       </div>
 
+      {/* Conversation. Results live here as turns, so a follow-up request has
+          something visible to refer back to. */}
+      {turns.length > 0 && (
+        <div
+          data-testid="studio-conversation"
+          style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+        >
+          {turns.map(turn => (
+            <StudioTurnCard
+              key={turn.id}
+              turn={turn}
+              anchorJobId={anchorJobId}
+              onUseThis={handleUseThis}
+            />
+          ))}
+        </div>
+      )}
+
+      {(thinking || generating) && stage && (
+        <div
+          role="status"
+          data-testid="studio-stage"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            fontSize: 13, color: 'var(--ink-2)',
+          }}
+        >
+          <RefreshCw size={13} className="tool-call-spin" />
+          {stage}…
+        </div>
+      )}
+
       {/* Prompt area */}
       <div style={{
         background: 'var(--surface)',
@@ -420,6 +635,19 @@ export function ImageStudio() {
               <User size={12} />
               {selectedChar.name}
               <button onClick={() => setSelectedChar(null)} style={chipCloseStyle} aria-label={`remove ${selectedChar.name}`}>
+                <X size={10} />
+              </button>
+            </span>
+          )}
+          {anchorJobId && (
+            <span style={chipStyle} data-testid="studio-anchor-chip">
+              <Image size={12} />
+              editing this result
+              <button
+                onClick={() => setAnchorJobId(null)}
+                style={chipCloseStyle}
+                aria-label="stop editing this result"
+              >
                 <X size={10} />
               </button>
             </span>
@@ -540,7 +768,9 @@ export function ImageStudio() {
                 cancel
               </button>
             )}
-            {!generating && (
+            {/* Plan inspection stays available as optional detail; it is no
+                longer a step between asking and getting an image. */}
+            {!generating && showAdvanced && (
               <button
                 onClick={handlePreviewPlan}
                 disabled={!prompt.trim() || planPreviewing}
@@ -557,23 +787,26 @@ export function ImageStudio() {
               </button>
             )}
             <button
-              onClick={handleGenerate}
-              disabled={!prompt.trim() || generating || !enginesAvailable}
+              onClick={handleSend}
+              data-testid="studio-send"
+              disabled={!prompt.trim() || generating || thinking || !enginesAvailable}
               title={!enginesAvailable ? 'no image engine is online' : undefined}
               style={{
                 border: 'none', borderRadius: 10,
-                background: generating || !enginesAvailable ? 'var(--ink-2)' : 'var(--primary)',
-                color: generating || !enginesAvailable ? 'var(--bg)' : 'var(--on-primary)',
+                background: generating || thinking || !enginesAvailable ? 'var(--ink-2)' : 'var(--primary)',
+                color: generating || thinking || !enginesAvailable ? 'var(--bg)' : 'var(--on-primary)',
                 padding: '8px 18px', fontFamily: 'var(--font-body)',
                 fontSize: 14, fontWeight: 700,
-                cursor: generating || !enginesAvailable ? 'not-allowed' : 'pointer',
-                opacity: !prompt.trim() && !generating && enginesAvailable ? 0.5 : 1,
+                cursor: generating || thinking || !enginesAvailable ? 'not-allowed' : 'pointer',
+                opacity: !prompt.trim() && !generating && !thinking && enginesAvailable ? 0.5 : 1,
                 display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
-              {generating ? (
+              {thinking ? (
+                <><RefreshCw size={13} className="tool-call-spin" /> thinking…</>
+              ) : generating ? (
                 <><RefreshCw size={13} className="tool-call-spin" /> generating…</>
-              ) : 'generate'}
+              ) : 'send'}
             </button>
           </div>
         </div>
@@ -850,6 +1083,107 @@ export function ImageStudio() {
   )
 }
 
+function StudioTurnCard({
+  turn,
+  anchorJobId,
+  onUseThis,
+}: {
+  turn: StudioTurn
+  anchorJobId: string | null
+  onUseThis: (jobId: string) => void
+}) {
+  const isUser = turn.role === 'user'
+  const result = turn.result
+  const isAnchor = !!result?.job_id && result.job_id === anchorJobId
+
+  return (
+    <div
+      data-testid={isUser ? 'studio-turn-user' : 'studio-turn-assistant'}
+      style={{
+        alignSelf: isUser ? 'flex-end' : 'flex-start',
+        maxWidth: result ? '100%' : '85%',
+        background: isUser ? 'var(--ginger-fade)' : 'var(--surface)',
+        border: '1px solid var(--line)',
+        borderRadius: 12,
+        padding: result ? 8 : '10px 14px',
+        fontSize: 14,
+        color: 'var(--ink)',
+        lineHeight: 1.5,
+      }}
+    >
+      {turn.text && <p style={{ margin: 0 }}>{turn.text}</p>}
+
+      {!!turn.protectedTraits?.length && (
+        <p
+          data-testid="studio-turn-protected"
+          style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--ink-2)' }}
+        >
+          staying fixed: {turn.protectedTraits.join(', ')}
+        </p>
+      )}
+      {!!turn.requestedChanges?.length && (
+        <p
+          data-testid="studio-turn-changes"
+          style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--ink-2)' }}
+        >
+          changing: {turn.requestedChanges.join(', ')}
+        </p>
+      )}
+
+      {turn.plan && (
+        <details style={{ marginTop: 6, fontSize: 11 }}>
+          <summary style={{ cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
+            plan detail
+          </summary>
+          <pre style={{
+            margin: '6px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)',
+            maxHeight: 200, overflowY: 'auto',
+          }}>{JSON.stringify(turn.plan, null, 2)}</pre>
+        </details>
+      )}
+
+      {result && (
+        <>
+          <img
+            src={`/proxy/image/view/${encodeURIComponent(result.filename)}`}
+            alt="generated result"
+            style={{
+              width: '100%', maxWidth: 380, borderRadius: 8,
+              objectFit: 'cover', display: 'block',
+            }}
+            loading="lazy"
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 2px 0' }}>
+            <button
+              type="button"
+              onClick={() => result.job_id && onUseThis(result.job_id)}
+              disabled={!result.job_id || isAnchor}
+              data-testid="studio-use-this"
+              style={{
+                border: `1px solid ${isAnchor ? 'var(--cat-ginger)' : 'var(--line)'}`,
+                borderRadius: 8,
+                background: isAnchor ? 'var(--ginger-fade)' : 'transparent',
+                color: isAnchor ? 'var(--cat-ginger)' : 'var(--ink)',
+                padding: '5px 12px', fontFamily: 'var(--font-body)',
+                fontSize: 13, fontWeight: 600,
+                cursor: !result.job_id || isAnchor ? 'default' : 'pointer',
+              }}
+            >
+              {isAnchor ? 'editing this' : 'use this'}
+            </button>
+            {result.recipe && (
+              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                {result.recipe}
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function AdvancedField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1114,7 +1448,7 @@ const checkAgainStyle: React.CSSProperties = {
 }
 
 /** Studio operation whose catch path formats an HTML/JSON error. */
-type StudioErrorOp = 'generate' | 'plan' | 'character'
+type StudioErrorOp = 'generate' | 'plan' | 'character' | 'agent' | 'anchor'
 
 // Recovery text must name the failing subsystem, not a renderer. Generation
 // legitimately points at the renderer, but plan preview and character creation
@@ -1124,6 +1458,8 @@ const STUDIO_ERROR_MESSAGES: Record<StudioErrorOp, string> = {
   generate: 'the image service hit an internal error — check your renderer and try again',
   plan: 'the planning service hit an internal error — check that the image service is running and try again',
   character: 'the character service hit an internal error — check that the image service is running and try again',
+  agent: 'the image specialist hit an internal error — check that the image service is running and try again',
+  anchor: 'couldn’t select that image — check that the image service is running and try again',
 }
 
 /** Turn a possible raw backend error (JSON {detail}, HTML error page) into a

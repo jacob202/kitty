@@ -50,11 +50,15 @@ def _config(tmp_path: Path, **overrides: object) -> WorkerConfig:
 
 
 def _comfy_nodes(*, omit: str | None = None) -> dict[str, object]:
-    bundle = WorkflowBundle.load(Path("workflows"), "text_to_image_v1")
+    # /health verifies every installed bundle, so the fake ComfyUI has to
+    # advertise the node types all of them need — not just text-to-image's.
+    required: set[str] = set()
+    for workflow_id in ("text_to_image_v1", "image_to_image_v1"):
+        required |= WorkflowBundle.load(
+            Path("workflows"), workflow_id
+        ).required_node_types
     nodes: dict[str, object] = {
-        node_type: {}
-        for node_type in bundle.required_node_types
-        if node_type != omit
+        node_type: {} for node_type in required if node_type != omit
     }
     if omit != "CheckpointLoaderSimple":
         nodes["CheckpointLoaderSimple"] = {
