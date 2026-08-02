@@ -22,7 +22,8 @@
     "HEAD changes beyond the current packet lease base"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": null,
+  "head_sha": "734e49e9237fb2093af622ece9c3e62b2e61f19c"
 }
 -->
 
