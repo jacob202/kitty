@@ -1,4 +1,4 @@
-# Session State — PR #359 post-review repair awaiting independent re-review
+# Session State — KTL2-002 packet kb_msazu581_c1d0 verification (+2 focused tests)
 
 <!-- kitty-state
 {
@@ -59,6 +59,7 @@
 
 - this session: interactive
 - Builder parallel state: available at the pre-repair survey; no initiative was applied.
+- packet kb_msazu581_c1d0 (KTL2-002-kb-effectiveness-receipts): verification of `scripts/kb_effectiveness.py`; added two focused tests (blank-line store, receipt-ID mismatch) to cover acceptance criterion 2. Validation: 69 pytest passed, git diff --check clean.
 
 ## KB effectiveness
 
