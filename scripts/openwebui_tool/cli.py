@@ -14,7 +14,14 @@ from .service import (
     start_webui,
     stop_webui,
 )
-from .system import bootstrap, install_launch_agent, uninstall_launch_agent
+from .system import (
+    backup_state,
+    bootstrap,
+    install_launch_agent,
+    restore_state,
+    rollback_to_kitty_ui,
+    uninstall_launch_agent,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,12 +45,22 @@ def parse_args() -> argparse.Namespace:
         "open",
         "install-autostart",
         "uninstall-autostart",
+        "backup",
+        "rollback",
     )
     for name in commands:
         subparsers.add_parser(name)
 
     smoke_parser = subparsers.add_parser("smoke")
     smoke_parser.add_argument("--accept-charges", action="store_true")
+
+    restore_parser = subparsers.add_parser("restore")
+    restore_parser.add_argument(
+        "--from",
+        dest="source",
+        default=None,
+        help="backup directory to restore; defaults to the newest one",
+    )
     return parser.parse_args()
 
 
@@ -78,6 +95,12 @@ def main() -> int:
             install_launch_agent()
         elif args.command == "uninstall-autostart":
             uninstall_launch_agent()
+        elif args.command == "backup":
+            backup_state()
+        elif args.command == "restore":
+            restore_state(args.source)
+        elif args.command == "rollback":
+            rollback_to_kitty_ui()
     except Failure as exc:
         print(f"openwebui-local: {exc}", file=sys.stderr)
         return 1

@@ -5,10 +5,12 @@ import os
 import shutil
 import signal
 import socket
+import sqlite3
 import subprocess
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 from .common import (
     DATA_DIR,
@@ -29,6 +31,113 @@ from .common import (
     runtime_env,
     verify_gateway,
 )
+
+# Open WebUI's WEBUI_AUTH=False signin creates admin@localhost when no user
+# exists. The check and the insert are not atomic and `user.email` has no unique
+# index, so the concurrent signins a first page load fires all pass the check and
+# all insert — six identical admins on Jacob's Mac.
+SYSTEM_ADMIN_EMAIL = "admin@localhost"
+SYSTEM_ADMIN_PASSWORD = "admin"
+
+
+def webui_db_path() -> Path:
+    return DATA_DIR / "webui.db"
+
+
+def _tables_referencing_user(connection: sqlite3.Connection) -> list[str]:
+    tables = [
+        row[0]
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )
+    ]
+    owning = []
+    for table in tables:
+        if table in {"user", "auth"}:
+            continue
+        columns = {
+            row[1] for row in connection.execute(f'PRAGMA table_info("{table}")')
+        }
+        if "user_id" in columns:
+            owning.append(table)
+    return owning
+
+
+def count_system_admins() -> int:
+    database = webui_db_path()
+    if not database.exists():
+        return 0
+    with sqlite3.connect(database) as connection:
+        (count,) = connection.execute(
+            "SELECT COUNT(*) FROM user WHERE email = ?", (SYSTEM_ADMIN_EMAIL,)
+        ).fetchone()
+    return int(count)
+
+
+def dedupe_system_admin() -> str:
+    """Collapse duplicate ``admin@localhost`` rows. Safe to run on every start.
+
+    Refuses rather than deleting when a duplicate owns rows: losing a chat to a
+    tidy-up would be worse than leaving the duplicates in place.
+    """
+    database = webui_db_path()
+    if not database.exists():
+        return "no database yet"
+
+    with sqlite3.connect(database) as connection:
+        rows = list(
+            connection.execute(
+                "SELECT id FROM user WHERE email = ? ORDER BY created_at, id",
+                (SYSTEM_ADMIN_EMAIL,),
+            )
+        )
+        if len(rows) <= 1:
+            return f"{len(rows)} admin account"
+
+        keeper, extras = rows[0][0], [row[0] for row in rows[1:]]
+        owning = _tables_referencing_user(connection)
+        for table in owning:
+            placeholders = ",".join("?" * len(extras))
+            (count,) = connection.execute(
+                f'SELECT COUNT(*) FROM "{table}" WHERE user_id IN ({placeholders})',
+                extras,
+            ).fetchone()
+            if count:
+                raise Failure(
+                    f"{len(extras)} duplicate {SYSTEM_ADMIN_EMAIL} account(s) own "
+                    f"{count} row(s) in {table!r}; refusing to delete them. "
+                    f"Inspect {database} before rerunning."
+                )
+
+        placeholders = ",".join("?" * len(extras))
+        connection.execute(f"DELETE FROM auth WHERE id IN ({placeholders})", extras)
+        connection.execute(f"DELETE FROM user WHERE id IN ({placeholders})", extras)
+        connection.commit()
+
+    return f"removed {len(extras)} duplicate admin account(s), kept {keeper}"
+
+
+def claim_system_admin() -> None:
+    """Sign in once, serially, so the browser cannot race the first signup."""
+    body = json.dumps(
+        {"email": SYSTEM_ADMIN_EMAIL, "password": SYSTEM_ADMIN_PASSWORD}
+    ).encode()
+    request = urllib.request.Request(
+        f"http://{HOST}:{PORT}/api/v1/auths/signin",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            json.load(response)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode(errors="replace")[:300]
+        raise Failure(
+            f"Open WebUI rejected the system signin (HTTP {exc.code}): {detail}"
+        ) from exc
+    except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise Failure(f"Open WebUI system signin failed: {exc}") from exc
 
 
 def direct_stream_smoke(*, accept_charges: bool) -> None:
@@ -61,6 +170,7 @@ def direct_stream_smoke(*, accept_charges: bool) -> None:
     first_token_at: float | None = None
     parts: list[str] = []
     done = False
+    gateway_error: str | None = None
 
     try:
         with urllib.request.urlopen(request, timeout=90) as response:
@@ -75,8 +185,23 @@ def direct_stream_smoke(*, accept_charges: bool) -> None:
                     break
                 try:
                     event = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+
+                # The gateway states the real cause here (gateway/chat_errors.py).
+                # Reporting "no complete SSE response" instead threw that away and
+                # sent whoever ran the smoke looking in the wrong place.
+                error = event.get("error") if isinstance(event, dict) else None
+                if isinstance(error, dict):
+                    gateway_error = (
+                        f"{error.get('kind', 'unknown')}: "
+                        f"{error.get('message', 'no message')}"
+                    )
+                    continue
+
+                try:
                     content = event["choices"][0]["delta"].get("content")
-                except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+                except (KeyError, IndexError, TypeError):
                     continue
                 if isinstance(content, str) and content:
                     first_token_at = first_token_at or time.monotonic()
@@ -89,8 +214,17 @@ def direct_stream_smoke(*, accept_charges: bool) -> None:
     except (OSError, urllib.error.URLError) as exc:
         raise Failure(f"streaming smoke failed: {exc}") from exc
 
-    if first_token_at is None or not done:
-        raise Failure("streaming smoke did not produce a complete SSE response")
+    if gateway_error is not None:
+        raise Failure(f"Gateway refused the streaming turn — {gateway_error}")
+    if first_token_at is None:
+        raise Failure(
+            "streaming smoke received no assistant content; "
+            f"see the Gateway log for the turn ({base}/health is reachable)"
+        )
+    if not done:
+        raise Failure(
+            "streaming smoke never saw the [DONE] boundary; the stream was cut short"
+        )
 
     total = time.monotonic() - started
     ttft = first_token_at - started
@@ -152,9 +286,17 @@ def start_webui(*, foreground: bool = False) -> None:
     if port_open():
         raise Failure(f"port {PORT} is already in use by another process")
 
+    # While the server is down is the only safe moment to touch its database.
+    print(f"accounts: {dedupe_system_admin()}")
+
     command = [str(OPENWEBUI_BIN), "serve", "--host", HOST, "--port", str(PORT)]
     if foreground:
         PID_FILE.write_text(f"{os.getpid()}\n", encoding="utf-8")
+        # Python puts the working directory on sys.path, and Kitty's repo root
+        # holds a top-level ``mcp`` package that shadows Open WebUI's MCP SDK.
+        # The background branch already runs from SERVICE_ROOT; execve inherits
+        # this process's directory, so it has to move first.
+        os.chdir(SERVICE_ROOT)
         os.execve(str(OPENWEBUI_BIN), command, runtime_env())
 
     with LOG_FILE.open("ab", buffering=0) as log:
@@ -168,6 +310,10 @@ def start_webui(*, foreground: bool = False) -> None:
         )
     PID_FILE.write_text(f"{process.pid}\n", encoding="utf-8")
     wait_for_webui()
+    # One serial signin before a browser can open several at once. On a fresh
+    # database this is the request that creates admin@localhost, so every later
+    # signin takes the "user already exists" branch instead of racing signup.
+    claim_system_admin()
 
 
 def stop_webui() -> None:
@@ -259,6 +405,13 @@ def doctor() -> None:
         failures.append(f"missing persistent WebUI secret: {SECRET_FILE}")
     if not DATA_DIR.exists():
         failures.append(f"missing data directory: {DATA_DIR}")
+
+    duplicates = count_system_admins() - 1
+    if duplicates > 0:
+        failures.append(
+            f"{duplicates} duplicate {SYSTEM_ADMIN_EMAIL} account(s); "
+            "run 'openwebui_local.py down' then 'up' to collapse them"
+        )
 
     if failures:
         for item in failures:

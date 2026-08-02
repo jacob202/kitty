@@ -22,8 +22,12 @@ SERVICE_ROOT = Path(
 VERSION = os.environ.get("KITTY_OPENWEBUI_VERSION", "0.10.2")
 PORT = int(os.environ.get("KITTY_OPENWEBUI_PORT", "3000"))
 HOST = os.environ.get("KITTY_OPENWEBUI_HOST", "127.0.0.1")
+# The existing Next.js UI, i.e. what `rollback` hands the day back to. Matches
+# UI_PORT in ./kitty.
+KITTY_UI_PORT = int(os.environ.get("UI_PORT", "4000"))
 VENV_DIR = SERVICE_ROOT / f"venv-{VERSION}"
 DATA_DIR = SERVICE_ROOT / "data-fresh"
+BACKUP_ROOT = SERVICE_ROOT / "backups"
 LOG_DIR = SERVICE_ROOT / "logs"
 RUN_DIR = SERVICE_ROOT / "run"
 PID_FILE = RUN_DIR / "openwebui.pid"
@@ -98,7 +102,7 @@ def gateway_config() -> tuple[str, str]:
 
 
 def ensure_dirs() -> None:
-    for path in (SERVICE_ROOT, DATA_DIR, LOG_DIR, RUN_DIR):
+    for path in (SERVICE_ROOT, DATA_DIR, BACKUP_ROOT, LOG_DIR, RUN_DIR):
         path.mkdir(parents=True, exist_ok=True)
 
 
@@ -241,12 +245,31 @@ def ensure_gateway_running() -> tuple[str, str]:
     )
 
 
+# Kitty's repo root holds a top-level ``mcp`` package, and ``./kitty`` exports
+# PYTHONPATH=<repo root>. Open WebUI's own ``mcp`` is the MCP SDK, so any
+# inherited PYTHONPATH turns its tool client into
+# "ImportError: cannot import name 'ClientSession' from 'mcp'". Nothing Open
+# WebUI needs comes from Kitty's interpreter, so drop the import-path knobs
+# outright rather than trying to filter individual entries.
+SHADOWING_ENV_VARS = ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP")
+
+
+def sanitized_env(source: dict[str, str] | None = None) -> dict[str, str]:
+    """Return ``source`` with every Kitty import-path knob removed."""
+    env = dict(os.environ if source is None else source)
+    for name in SHADOWING_ENV_VARS:
+        env.pop(name, None)
+    # ~/.local/lib can shadow the pinned venv the same way PYTHONPATH does.
+    env["PYTHONNOUSERSITE"] = "1"
+    return env
+
+
 def runtime_env() -> dict[str, str]:
     base, gateway_secret = gateway_config()
     if not gateway_secret:
         fail("missing Gateway secret; run './kitty up' first")
 
-    env = dict(os.environ)
+    env = sanitized_env()
     env.update(
         {
             "DATA_DIR": str(DATA_DIR),
@@ -264,6 +287,12 @@ def runtime_env() -> dict[str, str]:
             "ENABLE_PERSISTENT_CONFIG": "False",
             "ENABLE_VERSION_UPDATE_CHECK": "False",
             "ENABLE_COMMUNITY_SHARING": "False",
+            # Open WebUI ships an "arena-model" entry that appears next to
+            # kitty-default in the model menu and routes nowhere Kitty owns.
+            "ENABLE_EVALUATION_ARENA_MODELS": "False",
+            "ANONYMIZED_TELEMETRY": "False",
+            "DO_NOT_TRACK": "true",
+            "SCARF_NO_ANALYTICS": "true",
             "ENABLE_BASE_MODELS_CACHE": "True",
             "MODELS_CACHE_TTL": "300",
             "SAFE_MODE": "True",
