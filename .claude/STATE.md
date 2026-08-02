@@ -1,36 +1,50 @@
-# Session State — clean checkpoint, no pending interactive assignment
+# Session State — B5-pr-check-review-actionable
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-02T01:00:00Z",
-  "head_sha": "df2d8b83ac3b3337f896949bf58398d0d20a1477",
-  "branch": "claude/next-bj5w0c",
-  "worktree": "main",
+  "updated_at": "2026-08-02T00:00:00Z",
+  "branch": "kittybuilder/kb_msb4yx3n_124c",
+  "worktree": "kittybuilder/kb_msb4yx3n_124c",
   "status": "complete",
   "completed_items": [
-    "PR #376 (exercise real resolve_next_work resolver, repair checkpoint identity) merged 2026-08-02T01:25:08Z",
-    "PR #375 (image editing, conversational studio, builder map A4/A5/B1) merged",
-    "A4b: gateway dispatches a real image edit to the worker; PROJECTS.md/PROBLEMS.md activated (df2d8b8, already on origin/main)"
+    "Extended gh PR advisory capture (mergeable, mergeStateStatus, baseRefOid) in builder_queue._gh_pr_status",
+    "Persisted advisory merge/base fields on pr_attached/pr_updated event payload via attach_pr",
+    "Added read-only _pr_advisory_projection + _recovery_actions to builder_status packet model",
+    "Repaired run projection to expose start_sha for superseded-run detection",
+    "Added 6 focused recovery-action tests in test_builder_status.py"
   ],
   "blockers": [],
   "next_action": "None",
   "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
-    "HEAD changes beyond df2d8b83ac3b3337f896949bf58398d0d20a1477"
+    "HEAD changes beyond the current packet lease base"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": null,
+  "head_sha": "734e49e9237fb2093af622ece9c3e62b2e61f19c"
 }
 -->
 
 ## Execution ownership
 
-- this session: interactive
-- no Builder bundle, task, or lease
-- no work in progress: branch `claude/next-bj5w0c` is identical to `origin/main`
+- this session: builder worker (packet B5-pr-check-review-actionable, initiative trustworthy-kittybuilder-b2-b10-v1)
+- task_id: kb_msb4yx3n_124c
 
 ## KB effectiveness
 
 - no receipt recorded yet
+
+## Change summary
+
+- `gateway/builder_queue.py`: `_gh_pr_status` now fetches `mergeable`,
+  `mergeStateStatus`, `baseRefOid`; `attach_pr` persists them on the advisory
+  `pr_attached`/`pr_updated` event payload (never on the task/pr_links row:
+  Section 11.4).
+- `gateway/builder_status.py`: added `_read_latest_pr_advisories` (one bulk
+  query, SNAPSHOT_QUERY_COUNT 9 -> 10), `_pr_advisory_projection`, and
+  `_recovery_actions` which produce per-task recovery actions for failing CI,
+  merge conflict, waiting review, stale/base-behind rebase, and superseded
+  runs. Run projection now exposes `start_sha`.
+- `tests/test_builder_status.py`: 6 focused tests (31 total pass).

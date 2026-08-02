@@ -1053,6 +1053,9 @@ def attach_pr(
     head_sha: str | None = None,
     checks_state: str | None = None,
     review_state: str | None = None,
+    mergeable: str | None = None,
+    merge_state_status: str | None = None,
+    base_sha: str | None = None,
     db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Attach or update PR metadata for a task.
@@ -1063,6 +1066,11 @@ def attach_pr(
     ``pr_opened`` remains an explicit fenced transition.
 
     Only fields passed as non-None are overwritten on refresh.
+
+    Mergeability and base-head info are advisory GitHub state (Section 11.4).
+    ``pr_links`` has no dedicated columns for them, so they are persisted
+    durably on the advisory event payload (``pr_attached``/``pr_updated``)
+    where the read-only projection can derive recovery actions.
     """
     if pr_number <= 0:
         raise ValueError("pr_number must be a positive integer")
@@ -1121,6 +1129,9 @@ def attach_pr(
                     ("head_sha", head_sha),
                     ("checks_state", checks_state),
                     ("review_state", review_state),
+                    ("mergeable", mergeable),
+                    ("merge_state_status", merge_state_status),
+                    ("base_sha", base_sha),
                 )
                 if v is not None
             },
@@ -1166,7 +1177,8 @@ def _gh_pr_status(pr_number: int) -> dict[str, Any]:
                 "--json",
                 # "state" not "merged": gh >= 2.80 dropped the boolean
                 # "merged" field from `pr view --json`.
-                "state,url,headRefOid,statusCheckRollup,reviews,reviewDecision",
+                "state,url,headRefOid,mergeable,mergeStateStatus,baseRefOid,"
+                "statusCheckRollup,reviews,reviewDecision",
             ],
             capture_output=True,
             text=True,
@@ -1197,6 +1209,9 @@ def _gh_pr_status(pr_number: int) -> dict[str, Any]:
         "head_sha": data.get("headRefOid"),
         "checks_state": checks_state,
         "review_state": review_state,
+        "mergeable": data.get("mergeable"),
+        "merge_state_status": data.get("mergeStateStatus"),
+        "base_sha": data.get("baseRefOid"),
     }
 
 
@@ -1285,6 +1300,9 @@ def sync_pr_status(
             head_sha=status.get("head_sha"),
             checks_state=status.get("checks_state"),
             review_state=status.get("review_state"),
+            mergeable=status.get("mergeable"),
+            merge_state_status=status.get("merge_state_status"),
+            base_sha=status.get("base_sha"),
             db_path=db_path,
         )
         if status.get("merged"):

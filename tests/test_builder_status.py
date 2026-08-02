@@ -590,71 +590,142 @@ def test_snapshot_serialization_is_deterministic(tmp_path: Path):
     assert first == second
 
 
-def test_runtime_projection_is_constructible_in_isolation():
-    """The typed projection is a pure, DB-agnostic schema testable standalone."""
-    projection = builder_status.RuntimeProjection(
-        initiative_id="init-a",
-        packet_id="P-1",
-        task_id="task-1",
-        task_state="queued",
-        attempt_count=2,
-        lease=builder_status.LeaseProjection(
-            id=7,
-            worker_id="worker-1",
-            branch="feat/x",
-            worktree_path="/var/tmp/wt",
-            base_sha="a" * 40,
-            created_at="2026-07-17T03:00:00Z",
-        ),
-        publication=builder_status.PublicationProjection(
-            pr_number=42,
-            pr_state="open",
-            pr_url="https://github.com/jacob202/kitty/pull/42",
-            checks_state="success",
-            review_state="approved",
-            head_sha="b" * 40,
-            merged=False,
-            merged_at=None,
-        ),
-        budget=builder_status.BudgetProjection(used=1, max_attempts=3, exhausted=False),
-        failure_kind=None,
-        cancellation_state=None,
-        exhaustion_state=False,
-        recovery_state=None,
-        eligibility_state="eligible",
-        next_action="claim",
+def test_failing_ci_produces_a_rerun_recovery_action(tmp_path: Path):
+    db_path, _repo, task_id = _apply_manifest(tmp_path)
+    bq.attach_pr(
+        task_id,
+        182,
+        pr_url="https://github.com/jacob202/kitty/pull/182",
+        head_sha="a" * 40,
+        checks_state="failed",
+        review_state="pending",
+        merge_state_status="CLEAN",
+        db_path=db_path,
     )
 
-    data = projection.to_dict()
+    packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+    actions = packet["recovery_actions"]
 
-    assert data["task_state"] == "queued"
-    assert data["attempt_count"] == 2
-    assert data["lease"]["worker_id"] == "worker-1"
-    assert data["lease"]["branch"] == "feat/x"
-    assert data["lease"]["worktree_path"] == "/var/tmp/wt"
-    assert data["publication"]["pr_number"] == 42
-    assert data["publication"]["pr_state"] == "open"
-    assert data["publication"]["checks_state"] == "success"
-    assert data["publication"]["review_state"] == "approved"
-    assert data["budget"] == {"used": 1, "max_attempts": 3, "exhausted": False}
-    assert data["cancellation_state"] is None
-    assert data["exhaustion_state"] is False
-    assert data["recovery_state"] is None
-    assert data["eligibility_state"] == "eligible"
-    assert data["next_action"] == "claim"
+    assert any("rerun the failing CI check" in a["action"] for a in actions)
+    assert any("request review" in a["action"] for a in actions)
+    assert packet["publication"]["checks_state"] == "failed"
 
 
-def test_snapshot_carries_the_typed_projection_per_packet(tmp_path: Path):
+def test_merge_conflict_shows_resolve_conflicts_in_branch(tmp_path: Path):
+    db_path, _repo, task_id = _apply_manifest(tmp_path)
+    durable_base = bi.get_initiative(INITIATIVE_ID, db_path=db_path)["packets"][0]["base_sha"]
+    _attempt, lease = ba.claim_and_start_attempt(
+        INITIATIVE_ID,
+        PACKET_ID,
+        worker_id="worker-status",
+        branch="feat/conflict-branch",
+        worktree_path=str(tmp_path / "conflict-worktree"),
+        base_sha=durable_base,
+        db_path=db_path,
+    )
+    bq.attach_pr(
+        task_id,
+        183,
+        pr_url="https://github.com/jacob202/kitty/pull/183",
+        head_sha="c" * 40,
+        checks_state="pending",
+        review_state="pending",
+        mergeable="CONFLICTING",
+        merge_state_status="DIRTY",
+        db_path=db_path,
+    )
+
+    packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+    actions = packet["recovery_actions"]
+
+    assert any(
+        a["action"] == "resolve conflicts in branch feat/conflict-branch"
+        for a in actions
+    )
+
+
+def test_stale_branch_reports_rebase_onto_main(tmp_path: Path):
+    db_path, _repo, task_id = _apply_manifest(tmp_path)
+    bq.attach_pr(
+        task_id,
+        184,
+        pr_url="https://github.com/jacob202/kitty/pull/184",
+        head_sha="d" * 40,
+        checks_state="passed",
+        review_state="pending",
+        merge_state_status="BEHIND",
+        db_path=db_path,
+    )
+
+    packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+    actions = packet["recovery_actions"]
+
+    assert any("rebase" in a["action"] and "onto main" in a["action"] for a in actions)
+
+
+def test_superseded_run_older_check_is_not_blocking(tmp_path: Path):
+    db_path, _repo, task_id = _apply_manifest(tmp_path)
+    claimed = bq.claim_task(task_id, "worker-status", db_path=db_path)
+    run = bq.create_run(
+        task_id,
+        ["worker", "command"],
+        lease_token=claimed["lease_token"],
+        claim_version=claimed["claim_version"],
+        worker="worker-status",
+        start_sha="e" * 40,
+        log_path="/tmp/worker.log",
+        db_path=db_path,
+    )
+    bq.update_run(
+        run["id"],
+        state=bq.RUN_FAILED,
+        exit_code=1,
+        mark_started=True,
+        mark_ended=True,
+        db_path=db_path,
+    )
+    bq.attach_pr(
+        task_id,
+        185,
+        pr_url="https://github.com/jacob202/kitty/pull/185",
+        head_sha="f" * 40,
+        checks_state="pending",
+        review_state="pending",
+        merge_state_status="CLEAN",
+        db_path=db_path,
+    )
+
+    packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+    actions = packet["recovery_actions"]
+
+    assert any("stale run" in a["action"] for a in actions)
+    assert packet["run"]["start_sha"] == "e" * 40
+
+
+def test_pr_advisory_projection_is_omitted_without_pr_events(tmp_path: Path):
     db_path, _repo, _task_id = _apply_manifest(tmp_path)
 
     packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
 
-    projection = packet["projection"]
-    assert projection["initiative_id"] == INITIATIVE_ID
-    assert projection["packet_id"] == PACKET_ID
-    assert projection["task_state"] == "queued"
-    assert projection["attempt_count"] == 0
-    assert projection["budget"] == {"used": 0, "max_attempts": 2, "exhausted": False}
-    assert projection["eligibility_state"] == "eligible"
-    assert projection["next_action"] == "claim"
+    assert packet["pr_advisory"] is None
+    assert packet["recovery_actions"] == []
+
+
+def test_counts_are_unchanged_when_recovery_actions_present(tmp_path: Path):
+    db_path, _repo, task_id = _apply_manifest(tmp_path)
+    bq.attach_pr(
+        task_id,
+        186,
+        pr_url="https://github.com/jacob202/kitty/pull/186",
+        head_sha="0" * 40,
+        checks_state="failed",
+        review_state="pending",
+        merge_state_status="CLEAN",
+        db_path=db_path,
+    )
+    snapshot = builder_status.build_status_snapshot(db_path=db_path)
+
+    assert snapshot["queue"]["total"] == 1
+    assert snapshot["queue"]["queued"] == 1
+    assert [p["task_state"] for p in snapshot["initiatives"][0]["packets"]] == ["queued"]
 
