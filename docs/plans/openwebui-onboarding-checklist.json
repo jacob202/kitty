@@ -3,7 +3,7 @@
   "branch": "feat/openwebui-tomorrow-ready",
   "pull_request": 384,
   "progress_document": "docs/plans/openwebui-onboarding-progress.md",
-  "current_slice": "3-kitty-capabilities",
+  "current_slice": "4-tutor-and-integrations",
   "slices": [
     {
       "id": "1-daily-driver-baseline",
@@ -121,13 +121,43 @@
     },
     {
       "id": "3-kitty-capabilities",
-      "state": "not-started",
+      "state": "complete",
       "criteria": [
+        {
+          "id": "tool-surface-is-small",
+          "statement": "Open WebUI is given a deliberate menu of tools, not the whole Gateway spec",
+          "state": "pass",
+          "evidence": "/tools/v1/openapi.json lists 6 operations; the Gateway's own spec lists 200+"
+        },
+        {
+          "id": "tools-are-authenticated",
+          "statement": "the tools are behind the Gateway secret",
+          "state": "pass",
+          "evidence": "unauthenticated GET /tools/v1/projects returns 401"
+        },
+        {
+          "id": "every-tool-answers",
+          "statement": "each tool returns real data from the function that owns it",
+          "state": "pass",
+          "evidence": "all six return 200 against live stores"
+        },
+        {
+          "id": "builder-tool-is-bounded",
+          "statement": "the Builder tool never returns the initiative corpus",
+          "state": "pass",
+          "evidence": "returns queue counts plus at most 10 attention items; raw snapshot is 425KB"
+        },
+        {
+          "id": "model-actually-calls-them",
+          "statement": "the model emits a real tool call and Kitty forwards the schemas",
+          "state": "pass",
+          "evidence": "delta.tool_calls names builder_status; request_trace reports tool_execution=caller"
+        },
         {
           "id": "memory-available",
           "statement": "Kitty memory and context are reachable from the chat surface",
-          "state": "partial",
-          "evidence": "gateway-side memory restored (add/list round trip passes); not yet exposed as an Open WebUI tool"
+          "state": "pass",
+          "evidence": "search_memory returns the stored preference; the mem0 user_id bug that broke every search is fixed"
         }
       ]
     },

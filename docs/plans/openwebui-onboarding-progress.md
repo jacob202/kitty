@@ -10,8 +10,8 @@ carried about this Mac was re-checked live; the evidence below replaces it.
 
 ## Current objective
 
-Slice 2 — the user-facing model set. Complete. Slice 1 (the daily-driver
-baseline) is complete and verified; see below.
+Slice 3 — Kitty's own capabilities as tools. Complete. Slices 1 (baseline) and
+2 (model menu) are complete and verified; see below.
 
 ## Acceptance criteria for this slice
 
@@ -220,8 +220,8 @@ python3 scripts/openwebui_local.py rollback
 
 ## Next action
 
-Slice 3 — expose Kitty's own capabilities (memory, projects, files, planning) to
-Open WebUI through its OpenAPI tool surface.
+Slice 4 — Tutor, and the remaining integrations (Gmail, Calendar, GitHub) as
+tools alongside the six that now exist.
 
 ## Slice 2 — the model menu
 
@@ -278,6 +278,49 @@ directory resolves to itself as a git toplevel), but it is not on `main` yet, so
 a campaign running from the primary checkout does not have it. Until this branch
 lands, treat an unattended Builder campaign and uncommitted work in the primary
 checkout as mutually exclusive.
+
+## Slice 3 — Kitty's capabilities as tools
+
+Open WebUI calls an OpenAPI server's operations as tools, so whatever the spec
+lists is what the model can reach. The Gateway's own `/openapi.json` describes
+more than two hundred operations across 54 route modules. `/tools/v1` is a
+deliberate menu of six instead, each delegating to the function that already owns
+the behaviour:
+
+| Tool | What it reaches |
+|---|---|
+| `search_memory` | personal memory — facts, preferences, history |
+| `remember` | store a durable fact |
+| `search_notes` | the knowledge base (Tutor's substrate) |
+| `list_projects` | tracked projects, life before code |
+| `project_next_step` | one concrete next action |
+| `builder_status` | queue counts and packets needing a human |
+
+`builder_status` returns counts and attention items, never the corpus — the raw
+snapshot is 425KB and a tool result lands in the model's context verbatim.
+
+Registering the server was not enough. Kitty stripped `tools` from every request
+and appended "tools are unavailable in this chat runtime" to the system prompt —
+correct while nothing here could execute a call, and the reason the model
+answered "tools are unavailable" with the Kitty server sitting there connected.
+A caller that sends schemas is the one that runs the calls, so Kitty now forwards
+them and drops the notice when they are present.
+
+Verified live: the model emits a real call to `builder_status`, and the Gateway
+trace reports `tool_execution: caller`.
+
+### Two bugs the tools exposed on their first call
+
+- **Memory search had never worked.** `search_memory` passed `user_id` inside
+  `filters` rather than as the named argument, so mem0's own `user_id` stayed
+  unset and it rejected every scopeless search with a `ValidationError`. `add`
+  and `list` pass it correctly, which is why memory looked healthy. A test was
+  asserting the broken call shape.
+- **The embed `keep_alive` added earlier in this branch was wrong.** It was the
+  string `"-1"`; Ollama parses that as a duration and answers `time: missing unit
+  in duration "-1"`, so every knowledge lookup returned HTTP 400. It has to be
+  the integer. The chat-latency measurement that "verified" the original change
+  did not exercise the embed call itself.
 
 ## Temporary runtime state
 
