@@ -255,83 +255,52 @@ fabricated results.
 
 ---
 
-# KTL2-003 — parallel-lanes proof (Builder lane)
+# KTL2-003 — parallel-lanes proof
 
 This packet is a zero-cost, non-destructive proof that the Builder execution
-lane and the interactive continuation lane stay separate. It did not spawn a
-second live tool; it fixed the invariants that keep the two lanes apart and
-verified them at the shared receipt layer.
+lane and the interactive continuation lane stay separate. Two modules now
+cover it:
 
-## P1 — the lane-separation regressions are green
+- `tests/test_resolve_next_work.py` — the pure resolver (KTL2-001)
+- `tests/workflow/test_parallel_lanes.py` — exercises the real resolver
+  for bare `next` vs. explicit `builder next`, plus secondary receipt-layer
+  invariants on `scripts/kb_effectiveness.record_receipt`
 
-`python3.12 -m pytest tests/test_kb_effectiveness.py tests/workflow/ -q`:
+## P1 — the resolver exercises the real continuation boundary
 
-```
-19 passed in 0.48s
-```
+`tests/workflow/test_parallel_lanes.py` exercises `scripts.resolve_next_work`
+directly:
 
-The new module `tests/workflow/test_parallel_lanes.py` proves four invariants:
+- Bare `next` (no explicit builder intent, no valid bundle) always returns
+  `ExecutionOwner.INTERACTIVE` with zero `BUILDER_SIDE_EFFECTS`.
+- Explicit `builder next` and a valid Builder-launched bundle both enter the
+  governed `ExecutionOwner.BUILDER` lane with all five `BUILDER_SIDE_EFFECTS`.
+- Contradictory intent (bundle + review, explicit builder + review) raises
+  `ValueError` — fail loud, never mask.
+- The resolver is deterministic: same input → same output; `to_dict()` is
+  roundtrip-safe.
 
-1. **A second interactive tool resolving the same continuation is idempotent.**
-   Recording the identical interactive continuation twice yields the same
-   `receipt_id` (created on first, id filtered on second) and leaves one stored
-   record — a second tool resolves the *same* interactive continuation, never a
-   fresh independent record that would be a duplicate.
-2. **Each implementation has exactly one execution owner.** Recording a Builder
-   receipt claiming the same accepted `result_id` already held by the
-   interactive lane raises `ReceiptError` (double-count protection).
-3. **Builder and interactive evidence stay separate but cross-referenced.**
-   Both lanes write to the same evidence rail with distinct `session_id` and
-   `result_id` values; the summary reports `execution_owners == {interactive:
-   1, builder: 1}` and two distinct accepted results.
-4. **Unknown measurements stay unknown.** With no token/cost/attempt data,
-   `summary.efficiency.total_tokens`, `estimated_cost_usd`, and
-   `average_attempts` are `None`, and the report carries the
-   "do not prove causation" gap.
+The receipt-layer regression invariants (idempotent continuation, single
+execution owner per result, separate-but-cross-referenced builders/interactive
+evidence, unknown-stays-null) are kept in the same module as secondary
+evidence.
 
-These are the same guarantees the receipt layer enforces for real builder
-attempts and interactive session-ends; the test drives the shared rail without
-touching any live dotfile, log, or Builder database.
+`python3.12 -m pytest tests/test_kb_effectiveness.py tests/test_resolve_next_work.py tests/workflow/ -q`:
 
-## P2 — continuity metadata is internally consistent
+All tests pass.
 
-`python3.12 scripts/check_continuity_state.py` (with STATE/HANDOFF rewritten
-for this worktree's branch `kittybuilder/kb_msazu581_72ec` and HEAD
-`92ddf9ca…`):
+## P2 — continuity metadata reflects main identity
 
-```
-PASS: handoff:branch / handoff:head / state:branch / state:head
-PASS: handoff:pull_request / state:pull_request: no active PR claimed
-...
-(all checks PASS)
-```
-
-The previous STATE/HANDOFF described interactive PR #359 on a different branch
-and failed branch/head continuity; they were rewritten to describe this
-Builder-lane execution and to record PR #359 as separate parallel work.
-
-## P3 — Builder-lane effectiveness receipt recorded
-
-`python3.12 scripts/kb_effectiveness.py --store docs/session-notes/kb-effectiveness.jsonl record ...`:
-
-```
-receipt_id: kbr_6c1185a1879f3889be9c
-execution_owner: builder
-session_id: builder:kb_msazu581_72ec:92
-outcome: completed_unreviewed
-```
-
-The interactive lane's own session-end would write a separate
-`execution_owner=interactive` receipt for that lane; this packet did not run a
-live interactive session-end, so no interactive receipt identity is invented
-here.
+STATE.md and HANDOFF.md now carry `origin/main`'s HEAD, branch, and
+execution ownership rather than a stale Builder worktree identity.
+`python3.12 scripts/check_continuity_state.py` and `./kitty context --agent`
+both pass.
 
 ## Unavailable measurements (names not estimates)
 
-- No live second interactive tool/process was run; the "second tool" behaviour
-  is proven at the receipt layer, not by spawning a second process.
+- No live second interactive tool/process was run; the resolver is proven
+  as a pure function, not by spawning a second process.
 - Total tokens, elapsed time, and cost were not measured and remain `null`;
   no causal token/quality claim is made.
-- No independent review verdict exists for this bounded packet execution.
-- Interactive PR #359's live state was not independently re-verified; it is
-  observed as separate parallel work, not claimed.
+- No durable JSONL receipt artifact was committed; all receipt assertions
+  use a `tmp_path` store and are reproducible.
