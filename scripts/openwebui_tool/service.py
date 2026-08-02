@@ -138,8 +138,11 @@ def dedupe_system_admin() -> str:
     return f"removed {len(extras)} duplicate admin account(s), kept {keeper} as admin"
 
 
-def claim_system_admin() -> None:
-    """Sign in once, serially, so the browser cannot race the first signup."""
+def claim_system_admin() -> str:
+    """Sign in once, serially, so the browser cannot race the first signup.
+
+    Returns the session token, which the agent installer needs.
+    """
     body = json.dumps(
         {"email": SYSTEM_ADMIN_EMAIL, "password": SYSTEM_ADMIN_PASSWORD}
     ).encode()
@@ -151,7 +154,7 @@ def claim_system_admin() -> None:
     )
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
-            json.load(response)
+            payload = json.load(response)
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode(errors="replace")[:300]
         raise Failure(
@@ -159,6 +162,11 @@ def claim_system_admin() -> None:
         ) from exc
     except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
         raise Failure(f"Open WebUI system signin failed: {exc}") from exc
+
+    token = payload.get("token")
+    if not isinstance(token, str) or not token:
+        raise Failure("Open WebUI signin succeeded but returned no session token")
+    return token
 
 
 def direct_stream_smoke(*, accept_charges: bool) -> None:
@@ -334,10 +342,41 @@ def start_webui(*, foreground: bool = False) -> None:
     # One serial signin before a browser can open several at once. On a fresh
     # database this is the request that creates admin@localhost, so every later
     # signin takes the "user already exists" branch instead of racing signup.
-    claim_system_admin()
+    token = claim_system_admin()
+    print(f"agents: {ensure_agents(token)}")
+
+
+def launch_agent_loaded() -> bool:
+    """Whether launchd currently owns the service."""
+    result = subprocess.run(
+        ["launchctl", "print", f"gui/{os.getuid()}/com.kitty.openwebui"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
 
 
 def stop_webui() -> None:
+    # KeepAlive restarts the process the moment it is killed, so signalling the
+    # pid while the job is loaded gives a service that looks stopped and then
+    # races whatever starts next for the port. Unload the job instead, and say
+    # so — this is the one command that turns login startup off.
+    if launch_agent_loaded():
+        subprocess.run(
+            ["launchctl", "bootout", f"gui/{os.getuid()}/com.kitty.openwebui"],
+            capture_output=True,
+            check=False,
+        )
+        for _ in range(50):
+            if not port_open():
+                break
+            time.sleep(0.2)
+        print(
+            "Login startup is now off. "
+            "Run 'openwebui_local.py install-autostart' to turn it back on."
+        )
+
     pid = read_pid()
     if pid is None:
         print("Open WebUI is not running")
@@ -440,3 +479,131 @@ def doctor() -> None:
         raise Failure(f"{len(failures)} doctor check(s) failed")
 
     print("All Open WebUI doctor checks passed")
+
+
+# Open WebUI calls these "models"; they are a base model plus a system prompt and
+# a tool set. Keeping the list short is the point — a workspace of near-identical
+# entries is the same problem as a model menu that lies.
+AGENTS: tuple[dict[str, object], ...] = (
+    {
+        "id": "daily-kitty",
+        "name": "Daily Kitty",
+        "base": "kitty-auto",
+        "description": "Everyday Kitty, with access to your memory, notes, projects, and calendar.",
+        "tools": True,
+        "system": (
+            "You are Kitty, working with Jacob rather than for him. Life comes "
+            "before code: when you suggest what is next, put job search, "
+            "benefits, education, health, and money ahead of any code project, "
+            "including Kitty itself.\n\n"
+            "You have tools onto Jacob's own memory, notes, projects, calendar, "
+            "and build queue. Anything personal or current is a tool call, never "
+            "a guess. If a tool says it has nothing, say that plainly."
+        ),
+    },
+    {
+        "id": "research",
+        "name": "Research",
+        "base": "kitty-think",
+        "description": "Slower, careful reasoning over Jacob's own notes and memory.",
+        "tools": True,
+        "system": (
+            "You are Kitty in research mode. Work from what Jacob has actually "
+            "written down: search his notes and memory before reasoning, cite "
+            "which source each claim came from, and say when a claim rests on "
+            "nothing you retrieved."
+        ),
+    },
+    {
+        "id": "coding",
+        "name": "Coding",
+        "base": "kitty-code",
+        "description": "Implementation and debugging. No tools, no distractions.",
+        "tools": False,
+        "system": (
+            "You are Kitty writing code. Prefer the standard library, the "
+            "platform, and dependencies already present over anything new. No "
+            "speculative abstractions. Explain what you skipped and when it "
+            "would be worth adding."
+        ),
+    },
+    {
+        "id": "tutor",
+        "name": "Tutor",
+        "base": "kitty-auto",
+        "description": "Teaches only from documents you have ingested, and admits when it has none.",
+        "tools": True,
+        "system": (
+            "You are Kitty's Tutor. Answer only from ingested documents via the "
+            "tutor tool. Never fill a gap from general knowledge — when the "
+            "tutor has nothing, say so and relay the command that fixes it. "
+            "Define every term before you use it; assume no background."
+        ),
+    },
+    {
+        "id": "builder-operator",
+        "name": "Builder Operator",
+        "base": "kitty-auto",
+        "description": "Reads KittyBuilder's queue and tells you what needs a decision.",
+        "tools": True,
+        "system": (
+            "You report KittyBuilder state from the builder tool and nothing "
+            "else. You do not start, approve, publish, or merge anything — say "
+            "what is queued, what is blocked, and what needs Jacob's decision. "
+            "Never infer state the tool did not report."
+        ),
+    },
+)
+
+
+def ensure_agents(token: str) -> str:
+    """Create or update the workspace agents. Safe to run on every bootstrap."""
+    created, updated = 0, 0
+    for agent in AGENTS:
+        body = {
+            "id": agent["id"],
+            "base_model_id": agent["base"],
+            "name": agent["name"],
+            "meta": {
+                "description": agent["description"],
+                "capabilities": {"vision": False, "citations": True},
+            },
+            "params": {"system": agent["system"]},
+            "is_active": True,
+        }
+        if agent["tools"]:
+            body["meta"]["toolIds"] = ["server:kitty"]
+        existing = _webui_request(
+            f"/api/v1/models/model?id={agent['id']}", token=token, allow_missing=True
+        )
+        if existing is None:
+            _webui_request("/api/v1/models/create", token=token, body=body)
+            created += 1
+        else:
+            _webui_request(
+                f"/api/v1/models/model/update?id={agent['id']}", token=token, body=body
+            )
+            updated += 1
+    return f"{created} agent(s) created, {updated} updated"
+
+
+def _webui_request(
+    path: str, *, token: str, body: dict | None = None, allow_missing: bool = False
+):
+    data = json.dumps(body).encode() if body is not None else None
+    request = urllib.request.Request(
+        f"http://{HOST}:{PORT}{path}",
+        data=data,
+        method="POST" if data else "GET",
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as exc:
+        if allow_missing and exc.code in (401, 404):
+            return None
+        detail = exc.read().decode(errors="replace")[:200]
+        raise Failure(f"Open WebUI {path} returned HTTP {exc.code}: {detail}") from exc
+    except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise Failure(f"Open WebUI {path} failed: {exc}") from exc

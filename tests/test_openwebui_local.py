@@ -55,7 +55,8 @@ def test_runtime_env_points_only_to_kitty(service_paths):
     assert env["OPENAI_API_BASE_URL"] == "http://127.0.0.1:8123/v1"
     assert env["OPENAI_API_KEY"] == "test-secret"
     assert env["ENABLE_OLLAMA_API"] == "False"
-    assert env["DEFAULT_MODELS"] == common.DEFAULT_MODEL
+    assert env["DEFAULT_MODELS"] == common.DEFAULT_AGENT
+    assert common.DEFAULT_AGENT in common.PINNED_AGENTS
     assert env["TASK_MODEL_EXTERNAL"] == common.TASK_MODEL
     assert env["WEBUI_AUTH"] == "False"
     assert env["ENABLE_PERSISTENT_CONFIG"] == "False"

@@ -25,10 +25,15 @@ HOST = os.environ.get("KITTY_OPENWEBUI_HOST", "127.0.0.1")
 # The existing Next.js UI, i.e. what `rollback` hands the day back to. Matches
 # UI_PORT in ./kitty.
 KITTY_UI_PORT = int(os.environ.get("UI_PORT", "4000"))
-# The id Open WebUI opens on. Must exist in the Gateway's /v1/models — the
-# health check treats its absence as "the Gateway is not really up".
+# The routing id the health check looks for. Must exist in the Gateway's
+# /v1/models — its absence means the Gateway is not really up.
 DEFAULT_MODEL = "kitty-auto"
 TASK_MODEL = "kitty-fast"
+# What Jacob actually opens on and sees pinned. These are Open WebUI workspace
+# agents (see AGENTS in service.py), each backed by one of the routing ids
+# above; the raw ids stay selectable but are plumbing, not the daily menu.
+DEFAULT_AGENT = "daily-kitty"
+PINNED_AGENTS = "daily-kitty,research,coding,tutor,builder-operator"
 VENV_DIR = SERVICE_ROOT / f"venv-{VERSION}"
 DATA_DIR = SERVICE_ROOT / "data-fresh"
 BACKUP_ROOT = SERVICE_ROOT / "backups"
@@ -319,8 +324,8 @@ def runtime_env() -> dict[str, str]:
             "OPENAI_API_KEY": gateway_secret,
             "TOOL_SERVER_CONNECTIONS": tool_server_connections(base, gateway_secret),
             "ENABLE_OLLAMA_API": "False",
-            "DEFAULT_MODELS": DEFAULT_MODEL,
-            "DEFAULT_PINNED_MODELS": DEFAULT_MODEL,
+            "DEFAULT_MODELS": DEFAULT_AGENT,
+            "DEFAULT_PINNED_MODELS": PINNED_AGENTS,
             # Titles and tag suggestions are throwaway work; they do not need
             # the tier the conversation is on.
             "TASK_MODEL_EXTERNAL": TASK_MODEL,
