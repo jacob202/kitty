@@ -47,12 +47,48 @@ def test_chat_turn_error_from_exception_keeps_detail():
 # ── SSE error event shape ─────────────────────────────────────────────────────
 
 
+def _sse_frames(event: bytes) -> list[str]:
+    return [
+        line[len("data: "):]
+        for line in event.decode().split("\n\n")
+        if line.startswith("data: ")
+    ]
+
+
 def test_sse_error_event_payload():
     event = sse_error_event(ChatErrorKind.ROUTING, "plain words for the phone")
     assert event.startswith(b"data: ")
-    payload = json.loads(event[len(b"data: "):].strip())
+    payload = json.loads(_sse_frames(event)[0])
     assert payload == {"error": {"kind": "routing", "message": "plain words for the phone"}}
-    assert b"[DONE]" not in event
+
+
+def test_sse_error_event_puts_kitty_frame_first():
+    """chat-client.ts throws on the error frame and never reads past it.
+
+    If anything preceded it, Kitty's own UI would render that and then throw —
+    the same failure shown twice.
+    """
+    frames = _sse_frames(sse_error_event(ChatErrorKind.ROUTING, "no credit"))
+    assert json.loads(frames[0])["error"]["kind"] == "routing"
+
+
+def test_sse_error_event_is_readable_by_an_openai_client():
+    """Open WebUI cannot parse Kitty's error frame.
+
+    Without an OpenAI-shaped chunk carrying the same copy, a provider rejection
+    reached the user as a blank assistant reply and nothing else.
+    """
+    frames = _sse_frames(sse_error_event(ChatErrorKind.ROUTING, "no credit"))
+    chunk = json.loads(frames[1])
+    assert chunk["choices"][0]["delta"]["content"] == "no credit"
+    assert chunk["choices"][0]["finish_reason"] == "error"
+    assert chunk["kitty_error_kind"] == "routing"
+
+
+def test_sse_error_event_closes_the_stream():
+    """The re-raise used to tear the connection down with no boundary, which
+    OpenAI-compatible clients report as a cut connection, not the real cause."""
+    assert _sse_frames(sse_error_event(ChatErrorKind.UPSTREAM, "boom"))[-1] == "[DONE]"
 
 
 # ── iter_chat_completions_stream surfaces failures ────────────────────────────

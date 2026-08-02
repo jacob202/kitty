@@ -82,11 +82,43 @@ class ChatTurnError(Exception):
 
 
 def sse_error_event(kind: ChatErrorKind | str, message: str) -> bytes:
-    """One SSE ``error`` event the frontend parses before the stream closes."""
+    """The terminal SSE sequence for a failed turn, readable by both clients.
+
+    Frame order is load-bearing:
+
+    1. Kitty's own ``{"error": {...}}`` frame. ``chat-client.ts`` throws the
+       moment it parses this and never reads further, so it must come first and
+       it sees exactly what it saw before.
+    2. An OpenAI-shaped chunk carrying the same copy as ``delta.content``.
+       Open WebUI (and any other OpenAI-compatible client) cannot read frame 1,
+       so without this the user got a silent empty reply on every failure.
+    3. ``[DONE]``. The stream used to be torn down by the re-raise with no
+       completion boundary, which those clients report as a cut connection
+       rather than the real cause.
+    """
     import json
 
-    payload = json.dumps(
-        {"error": {"kind": kind.value if isinstance(kind, ChatErrorKind) else kind, "message": message}},
+    kind_value = kind.value if isinstance(kind, ChatErrorKind) else kind
+    error_frame = json.dumps(
+        {"error": {"kind": kind_value, "message": message}},
         ensure_ascii=False,
+    )
+    content_frame = json.dumps(
+        {
+            "object": "chat.completion.chunk",
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"content": message},
+                    "finish_reason": "error",
+                }
+            ],
+            "kitty_error_kind": kind_value,
+        },
+        ensure_ascii=False,
+    )
+    return (
+        f"data: {error_frame}\n\n"
+        f"data: {content_frame}\n\n"
+        "data: [DONE]\n\n"
     ).encode("utf-8")
-    return b"data: " + payload + b"\n\n"
