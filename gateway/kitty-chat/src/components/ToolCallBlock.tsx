@@ -19,6 +19,7 @@ function formatArgs(raw: string): string {
 export function ToolCallBlock({ toolCall, isStreaming = false }: Props) {
   const [open, setOpen] = useState(false)
   const hasArgs = toolCall.arguments.length > 0 && toolCall.arguments !== '{}'
+  const status = toolCall.status ?? (isStreaming ? 'running' : 'done')
 
   return (
     <div style={wrapStyle}>
@@ -27,8 +28,9 @@ export function ToolCallBlock({ toolCall, isStreaming = false }: Props) {
         style={headerStyle}
         aria-expanded={open}
       >
-        <span style={dotStyle(isStreaming)} />
+        <span style={dotStyle(status)} />
         <span style={nameStyle}>{toolCall.name || 'tool call'}</span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: status === 'error' ? 'var(--c-red)' : 'var(--ink-2)', flexShrink: 0 }}>{status}</span>
         {hasArgs && <span style={chevronStyle}>{open ? '▾' : '▸'}</span>}
       </button>
       {open && hasArgs && (
@@ -43,7 +45,7 @@ export function ToolCallList({ toolCalls, isStreaming = false }: { toolCalls: To
   return (
     <div style={listStyle}>
       {toolCalls.map((tc) => (
-        <ToolCallBlock key={tc.id || tc.name} toolCall={tc} isStreaming={isStreaming} />
+        <ToolCallBlock key={tc.id || tc.name} toolCall={tc} isStreaming={isStreaming || tc.status === 'running'} />
       ))}
     </div>
   )
@@ -77,14 +79,14 @@ const headerStyle: CSSProperties = {
   textAlign: 'left',
 }
 
-function dotStyle(streaming: boolean): CSSProperties {
+function dotStyle(status: string): CSSProperties {
   return {
     width: 6,
     height: 6,
     borderRadius: 99,
-    background: streaming ? 'var(--c-yellow)' : 'var(--c-green)',
+    background: status === 'error' ? 'var(--c-red)' : status === 'running' || status === 'pending' ? 'var(--c-yellow)' : 'var(--c-green)',
     flexShrink: 0,
-    ...(streaming ? { animation: 'pulse 1.4s ease-in-out infinite' } : {}),
+    ...(status === 'running' || status === 'pending' ? { animation: 'pulse 1.4s ease-in-out infinite' } : {}),
   }
 }
 

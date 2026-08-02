@@ -8,6 +8,7 @@ interface Props {
   onSelectChat: (id: string) => void
   onNewChat: () => void
   onCloseChat: (id: string) => void
+  onTogglePin?: (id: string) => void
   collapsed?: boolean
   width?: string | number
 }
@@ -28,16 +29,18 @@ const SECTION_COLORS: Record<string, string> = {
   earlier: 'var(--c-purple)',
 }
 
-export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat, width = 268 }: Props) {
+export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat, onTogglePin, width = 268 }: Props) {
   const [search, setSearch] = useState('')
 
   const sorted = [...chats].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
   const now = Date.now()
   const dayMs = 86400 * 1000
 
-  const today = sorted.filter(c => (now - c.updatedAt.getTime()) < dayMs)
-  const yesterday = sorted.filter(c => (now - c.updatedAt.getTime()) >= dayMs && (now - c.updatedAt.getTime()) < dayMs * 2)
-  const earlier = sorted.filter(c => (now - c.updatedAt.getTime()) >= dayMs * 2)
+  const pinned = sorted.filter(c => c.pinned)
+  const unpinned = sorted.filter(c => !c.pinned)
+  const today = unpinned.filter(c => (now - c.updatedAt.getTime()) < dayMs)
+  const yesterday = unpinned.filter(c => (now - c.updatedAt.getTime()) >= dayMs && (now - c.updatedAt.getTime()) < dayMs * 2)
+  const earlier = unpinned.filter(c => (now - c.updatedAt.getTime()) >= dayMs * 2)
 
   const q = search.trim().toLowerCase()
   const searchResults = q ? sorted.filter(c => c.title.toLowerCase().includes(q)) : []
@@ -45,6 +48,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
   const groups: { key: string; label: string; items: Chat[] }[] = q
     ? (searchEmpty ? [] : [{ key: 'results', label: 'results', items: searchResults }])
     : [
+        ...(pinned.length ? [{ key: 'pinned', label: 'pinned', items: pinned }] : []),
         ...(today.length ? [{ key: 'today', label: 'today', items: today }] : []),
         ...(yesterday.length ? [{ key: 'yesterday', label: 'yesterday', items: yesterday }] : []),
         ...(earlier.length ? [{ key: 'earlier', label: 'earlier', items: earlier }] : []),
@@ -124,6 +128,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
                 dotColor={SECTION_COLORS[g.key] ?? 'var(--c-blue)'}
                 onSelect={onSelectChat}
                 onClose={onCloseChat}
+                onTogglePin={g.key === 'pinned' ? onTogglePin : undefined}
               />
             ))}
           </div>
@@ -150,12 +155,13 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
   )
 }
 
-function SessionRow({ chat, active, dotColor, onSelect, onClose }: {
+function SessionRow({ chat, active, dotColor, onSelect, onClose, onTogglePin }: {
   chat: Chat
   active: boolean
   dotColor: string
   onSelect: (id: string) => void
   onClose: (id: string) => void
+  onTogglePin?: (id: string) => void
 }) {
   const lastMsg = chat.messages.at(-1)
   const preview = lastMsg?.content?.slice(0, 40) || 'new chat'
@@ -189,6 +195,18 @@ function SessionRow({ chat, active, dotColor, onSelect, onClose }: {
         fontFamily: 'var(--font-mono)', fontSize: 10,
         color: 'var(--ink-2)', flexShrink: 0, marginTop: 3,
       }}>{timeAgo(chat.updatedAt)}</span>
+      {chat.pinned && (
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--c-yellow)', flexShrink: 0 }}>
+          pinned
+        </span>
+      )}
+      {!chat.pinned && onTogglePin && (
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)', flexShrink: 0, cursor: 'pointer' }}
+          onClick={(e) => { e.stopPropagation(); onTogglePin(chat.id) }}
+        >
+          unpin
+        </span>
+      )}
     </button>
   )
 }
