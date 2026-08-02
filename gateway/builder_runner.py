@@ -1770,9 +1770,11 @@ def _supervise_worker(spec_path: str | Path) -> int:
     spec_path = Path(spec_path)
     spec = json.loads(spec_path.read_text(encoding="utf-8"))
     status_path = spec_path.with_suffix(".status.json")
-    _write_status = lambda payload: status_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
-    )
+
+    def _write_status(payload: dict[str, Any]) -> None:
+        status_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8"
+        )
 
     def _wrapped_finalize(status: dict[str, Any]) -> int:
         try:
