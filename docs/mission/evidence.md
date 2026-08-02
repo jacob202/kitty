@@ -244,6 +244,100 @@ This verifies A3's stated acceptance. Every LLM call is a scripted stub — no
 real model output was parsed, no image was generated, no browser was
 involved. That is A6.
 
+## E11 — slice A4, real reference-conditioned editing
+
+`workflows/image_to_image_v1/` + `workers/comfy_worker/app.py` +
+`gateway/runpod_worker.py` + `tests/test_image_to_image.py`.
+
+```
+python -m pytest tests/test_image_to_image.py -q
+34 passed
+```
+
+The acceptance assertion is
+`test_compiled_workflow_carries_the_source_image_and_denoise`: the compiled
+ComfyUI request binds the uploaded artifact at the `LoadImage` node, the
+sampler's `latent_image` comes from `VAEEncode` rather than `EmptyLatentImage`,
+and `denoise` is 0.45. Its inverse pins the fail case issue #336 names —
+`test_a_reroll_with_preservation_words_has_no_source_image_input` compiles a
+text-to-image prompt containing "keep his face exactly the same" and asserts
+there is no `LoadImage` node and `denoise == 1.0`.
+
+`tests/test_comfy_worker.py` needed one change: `_comfy_nodes()` now advertises
+the node types of *every* installed bundle, because `/health` stopped verifying
+only `text_to_image_v1`. Without that the existing health tests would fail
+correctly — a worker with no `LoadImage` node cannot edit.
+
+## E12 — slice A5, conversational Image Studio
+
+`gateway/routes/extended.py` (six new routes) +
+`gateway/kitty-chat/src/components/ImageStudio.tsx` +
+`gateway/kitty-chat/tests/ImageStudio.test.tsx`.
+
+```
+npx vitest run
+44 test files, 320 passed
+
+npm run build
+✓ compiled, TypeScript finished, 5/5 static pages generated
+```
+
+Twelve tests in `ImageStudio.test.tsx`, covering the two-turn conversation with
+anchor selection, a clarifying question that renders nothing, a refusal shown as
+an answer rather than an error banner, controller-failure attribution, and the
+composer clearing.
+
+Two defects were found by this work, both fixed here:
+
+1. `/studio/generate`'s trailing `except Exception` swallowed the
+   `HTTPException` the new session-attach path raises and rewrapped it as a 500
+   whose body was the text of a 400. Any deliberate status chosen inside that
+   `try` had the same fate. Fixed with an explicit `except HTTPException: raise`
+   ahead of the generic clause.
+2. `tests/test_image_plans.py::TestPlanDispatchRoute`'s fake runner returned
+   `job_id="job_x"` with no matching row. The real `image_runner.run` always
+   leaves a durable job, and the route now binds that job to the session, so the
+   fake was testing a state the runner cannot produce. It now creates a real job
+   row.
+
+## E13 — slice B1, Builder execution map
+
+`docs/mission/builder-map.md`. No code changed; this is a static-analysis
+result.
+
+All 27 `builder_*` modules classified with a proving call site: 26 live, 1
+reachable only from tests, 0 dead. One invocation traced in seven steps from
+`kitty:809` to `subprocess.Popen` at `gateway/builder_runner.py:1138`.
+
+The finding: `builder_adapters` is implemented (`ShellWorkerSession` at
+`gateway/builder_adapters.py:44`, `OpenCodeServerSession` at `:305`),
+contract-tested, and unreachable. `run_packet` accepts `worker_session=`
+(`gateway/builder_loop.py:803`) and branches to `_run_via_session`
+(`:699`, called at `:1152`); `_cmd_initiative_run_packet` never passes it
+(`gateway/builder_cli.py:1427-1438`).
+
+This is static analysis, not execution. "Is imported" is not "does execute" —
+no packet was queued and no worker ran.
+
+## E14 — full suite after A4, A5 and B1
+
+```
+python -m pytest tests/ -q --cov=gateway --cov-fail-under=73
+5 failed, 3681 passed, 2 deselected, 29 subtests passed
+Total coverage: 78.05% (floor 73%)
+
+python -m ruff check gateway/ tests/ workers/     → All checks passed
+python -m vulture gateway/ --min-confidence 80 --exclude gateway/kitty-chat/  → no output
+python -m mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+  → 19 errors, identical before and after this change (verified by stashing)
+```
+
+The 5 failures are `test_check_continuity_state.py` (4) and
+`test_resume_script.py` (1). They fail identically on the unmodified checkout at
+this session's start and are caused by the stale `.claude/STATE.md` and
+`.claude/HANDOFF.md` checkpoint, whose recorded branch and HEAD no longer match.
+Nothing in this change touches `.claude/`.
+
 ## Not evidence — what this session could not produce
 
 No browser screenshot, no generated image, no artifact hash, no RunPod job,

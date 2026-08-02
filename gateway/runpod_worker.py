@@ -70,6 +70,29 @@ class WorkerOutput:
 
 
 @dataclass(frozen=True)
+class WorkerImage:
+    """A source image stored on the worker, addressable by a job request."""
+
+    image_id: str
+    sha256: str
+    media_type: str
+    size_bytes: int
+    width: int
+    height: int
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, object]) -> "WorkerImage":
+        return cls(
+            image_id=str(payload.get("image_id") or ""),
+            sha256=str(payload.get("sha256") or ""),
+            media_type=str(payload.get("media_type") or "application/octet-stream"),
+            size_bytes=_as_int(payload.get("size_bytes")),
+            width=_as_int(payload.get("width")),
+            height=_as_int(payload.get("height")),
+        )
+
+
+@dataclass(frozen=True)
 class WorkerJob:
     job_id: str
     status: str
@@ -178,6 +201,34 @@ class RunPodWorkerClient:
             raise RunPodWorkerError("worker health response was malformed")
         return dict(payload)
 
+    async def upload_source_image(
+        self, image_bytes: bytes, *, media_type: str = "application/octet-stream"
+    ) -> WorkerImage:
+        """Store an image on the worker and get back the id a job may reference.
+
+        This is the only way a follow-up edit can name its parent artifact. The
+        worker chooses the stored name from the content hash, so nothing the
+        caller supplies reaches the worker's filesystem.
+        """
+        if not image_bytes:
+            raise RunPodWorkerError("refusing to upload an empty source image")
+        try:
+            response = await self._client.post(
+                f"{self._base_url}/v1/images",
+                headers={**self._headers, "Content-Type": media_type},
+                content=image_bytes,
+            )
+        except httpx.RequestError as exc:
+            raise RunPodWorkerError(
+                f"connection failed while uploading the source image: {exc}"
+            ) from exc
+        if response.status_code >= 400:
+            raise RunPodWorkerError(
+                f"worker rejected the source image ({response.status_code}): "
+                f"{response.text[:500]}"
+            )
+        return _parse_image(response.json())
+
     async def submit(
         self,
         *,
@@ -190,25 +241,42 @@ class RunPodWorkerClient:
         steps: int,
         guidance: float,
         seed: int,
+        source_image_id: str | None = None,
+        denoise: float | None = None,
         client_action_id: str | None = None,
     ) -> WorkerJob:
+        payload: dict[str, Any] = {
+            "workflow_id": workflow_id,
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "checkpoint": checkpoint,
+            "width": width,
+            "height": height,
+            "steps": steps,
+            "guidance": guidance,
+            "seed": seed,
+            "count": 1,
+            "client_action_id": client_action_id,
+        }
+        # An edit is defined by the source image reaching the workflow, so the
+        # two edit fields travel together and are omitted together.
+        if source_image_id is not None:
+            if denoise is None:
+                raise RunPodWorkerError(
+                    "an edit must state its denoise strength; submitting a "
+                    "source image without one would render a full reroll"
+                )
+            payload["source_image_id"] = source_image_id
+            payload["denoise"] = denoise
+        elif denoise is not None:
+            raise RunPodWorkerError(
+                "denoise applies only to an edit; supply source_image_id too"
+            )
         try:
             response = await self._client.post(
                 f"{self._base_url}/v1/jobs",
                 headers=self._headers,
-                json={
-                    "workflow_id": workflow_id,
-                    "prompt": prompt,
-                    "negative_prompt": negative_prompt,
-                    "checkpoint": checkpoint,
-                    "width": width,
-                    "height": height,
-                    "steps": steps,
-                    "guidance": guidance,
-                    "seed": seed,
-                    "count": 1,
-                    "client_action_id": client_action_id,
-                },
+                json=payload,
             )
         except httpx.RequestError as exc:
             raise RunPodWorkerAmbiguousSubmissionError(
@@ -296,6 +364,15 @@ def _health_error_message(response: httpx.Response) -> str:
     if isinstance(detail, Mapping) and detail.get("message"):
         return str(detail["message"])
     return f"worker configuration failed: {response.text[:500]}"
+
+
+def _parse_image(payload: object) -> WorkerImage:
+    if not isinstance(payload, Mapping):
+        raise RunPodWorkerError("worker image response was not an object")
+    image = WorkerImage.from_payload(payload)
+    if not image.image_id:
+        raise RunPodWorkerError("worker image response did not include image_id")
+    return image
 
 
 def _parse_job(payload: object) -> WorkerJob:

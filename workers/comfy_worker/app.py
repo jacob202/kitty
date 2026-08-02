@@ -8,6 +8,7 @@ import hmac
 import json
 import math
 import os
+import re
 import time
 import uuid
 from copy import deepcopy
@@ -27,8 +28,18 @@ from pydantic import BaseModel, Field, field_validator
 DEFAULT_COMFY_URL = "http://127.0.0.1:8188"
 DEFAULT_WORKFLOW_ROOT = Path("/opt/kitty/workflows")
 DEFAULT_JOB_ROOT = Path("/workspace/jobs")
+DEFAULT_COMFY_INPUT_ROOT = Path("/opt/ComfyUI/input")
 MAX_REQUEST_BYTES = 128 * 1024
+MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_IMAGE_PIXELS = 100_000_000
+
+IMAGE_UPLOAD_PATH = "/v1/images"
+
+#: A source image is only ever addressed by the id the worker issued for it:
+#: the content hash plus the extension the worker chose from the decoded
+#: format. Client-supplied filenames never reach the filesystem, so there is no
+#: traversal to defend against later in the request.
+SOURCE_IMAGE_ID_PATTERN = re.compile(r"^[0-9a-f]{64}\.(?:png|jpg|webp)$")
 
 
 class WorkerConfigurationError(RuntimeError):
@@ -60,7 +71,30 @@ class JobRequest(BaseModel):
     guidance: float = Field(default=5.0, ge=0, le=30)
     seed: int | None = Field(default=None, ge=0, le=2**63 - 1)
     count: int = Field(default=1, ge=1, le=1)
+    source_image_id: str | None = Field(default=None, max_length=128)
+    denoise: float = Field(default=1.0, ge=0, le=1)
     client_action_id: str | None = Field(default=None, max_length=200)
+
+    @field_validator("source_image_id")
+    @classmethod
+    def source_image_is_a_worker_issued_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        clean = value.strip()
+        if not clean:
+            return None
+        if not SOURCE_IMAGE_ID_PATTERN.fullmatch(clean):
+            raise ValueError(
+                "source_image_id must be an id issued by POST /v1/images"
+            )
+        return clean
+
+    @field_validator("denoise")
+    @classmethod
+    def denoise_is_finite(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("denoise must be finite")
+        return value
 
     @field_validator("width", "height")
     @classmethod
@@ -103,11 +137,13 @@ class WorkerConfig:
     comfy_url: str = DEFAULT_COMFY_URL
     workflow_root: Path = DEFAULT_WORKFLOW_ROOT
     job_root: Path = DEFAULT_JOB_ROOT
+    comfy_input_root: Path = DEFAULT_COMFY_INPUT_ROOT
     default_checkpoint: str = "RealCoreXL.safetensors"
     allowed_checkpoints: frozenset[str] = frozenset({"RealCoreXL.safetensors"})
     generation_timeout_seconds: int = 420
     poll_interval_seconds: float = 2.0
     max_request_bytes: int = MAX_REQUEST_BYTES
+    max_image_bytes: int = MAX_IMAGE_BYTES
 
     @classmethod
     def from_env(cls) -> "WorkerConfig":
@@ -128,6 +164,9 @@ class WorkerConfig:
                 os.environ.get("KITTY_WORKFLOW_ROOT", str(DEFAULT_WORKFLOW_ROOT))
             ),
             job_root=Path(os.environ.get("KITTY_JOB_ROOT", str(DEFAULT_JOB_ROOT))),
+            comfy_input_root=Path(
+                os.environ.get("COMFY_INPUT_DIR", str(DEFAULT_COMFY_INPUT_ROOT))
+            ),
             default_checkpoint=default_checkpoint,
             allowed_checkpoints=allowed,
             generation_timeout_seconds=_env_int(
@@ -137,6 +176,7 @@ class WorkerConfig:
             max_request_bytes=_env_int(
                 "KITTY_MAX_REQUEST_BYTES", MAX_REQUEST_BYTES
             ),
+            max_image_bytes=_env_int("KITTY_MAX_IMAGE_BYTES", MAX_IMAGE_BYTES),
         )
         config.validate()
         return config
@@ -168,6 +208,10 @@ class WorkerConfig:
         if self.max_request_bytes <= 0:
             raise WorkerConfigurationError(
                 "KITTY_MAX_REQUEST_BYTES must be positive"
+            )
+        if self.max_image_bytes <= 0:
+            raise WorkerConfigurationError(
+                "KITTY_MAX_IMAGE_BYTES must be positive"
             )
 
 
@@ -319,6 +363,15 @@ class WorkflowBundle:
             required_node_types=frozenset(required_types),
         )
 
+    @property
+    def consumes_source_image(self) -> bool:
+        """Whether this workflow reads an uploaded image as an actual input.
+
+        The binding is the definition of an edit. A workflow without it cannot
+        preserve anything from a previous render no matter what the prompt says.
+        """
+        return "source_image" in self.bindings
+
     def compile(self, request: JobRequest, checkpoint: str) -> dict[str, Any]:
         values: dict[str, object] = {
             "prompt": request.prompt,
@@ -330,7 +383,14 @@ class WorkflowBundle:
             "guidance": request.guidance,
             "seed": request.seed if request.seed is not None else uuid.uuid4().int >> 65,
             "batch_size": request.count,
+            "source_image": request.source_image_id,
+            "denoise": request.denoise,
         }
+        if self.consumes_source_image and not request.source_image_id:
+            raise WorkerConfigurationError(
+                f"workflow {self.workflow_id!r} needs a source image; "
+                "compiling without one would render an unbound LoadImage node"
+            )
         compiled = deepcopy(self.workflow)
         for name, value in values.items():
             binding = self.bindings.get(name)
@@ -413,6 +473,45 @@ class WorkerRuntime:
         tmp_path = job_dir / "job.json.tmp"
         tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         tmp_path.replace(job_dir / "job.json")
+
+    def store_source_image(self, image_bytes: bytes) -> dict[str, Any]:
+        """Persist an uploaded image where ComfyUI's LoadImage node can read it.
+
+        The stored name is the content hash plus the extension derived from the
+        decoded format — never anything the client sent. Two uploads of the same
+        bytes collapse to one file and one id.
+        """
+        if len(image_bytes) > self.config.max_image_bytes:
+            raise WorkerConfigurationError(
+                f"image exceeds {self.config.max_image_bytes} bytes"
+            )
+        image_format, width, height = _validate_image_bytes(image_bytes, "upload")
+        extension, media_type = _image_format_metadata(image_format)
+        digest = hashlib.sha256(image_bytes).hexdigest()
+        image_id = f"{digest}{extension}"
+
+        self.config.comfy_input_root.mkdir(parents=True, exist_ok=True)
+        target = self.config.comfy_input_root / image_id
+        if not target.exists():
+            tmp_path = target.with_suffix(target.suffix + ".tmp")
+            tmp_path.write_bytes(image_bytes)
+            tmp_path.replace(target)
+        return {
+            "image_id": image_id,
+            "sha256": digest,
+            "media_type": media_type,
+            "size_bytes": len(image_bytes),
+            "width": width,
+            "height": height,
+        }
+
+    def source_image_exists(self, image_id: str) -> bool:
+        """Whether a worker-issued image id still resolves to a stored file.
+
+        ``image_id`` has already been pattern-validated by ``JobRequest``, so
+        this only answers existence — there is no path to sanitise here.
+        """
+        return (self.config.comfy_input_root / image_id).is_file()
 
     def existing_for_action(self, request: JobRequest) -> JobRecord | None:
         if request.client_action_id is None:
@@ -677,6 +776,13 @@ def create_app(
 
     @app.middleware("http")
     async def request_size_limit(request: Request, call_next: Any) -> Any:
+        # The JSON cap is deliberately small; only the upload route is allowed
+        # to carry an image, and it gets its own explicit ceiling.
+        limit = (
+            worker_config.max_image_bytes
+            if request.url.path == IMAGE_UPLOAD_PATH
+            else worker_config.max_request_bytes
+        )
         raw_length = request.headers.get("content-length")
         if raw_length:
             try:
@@ -686,7 +792,7 @@ def create_app(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     content={"detail": "invalid content-length"},
                 )
-            if length > worker_config.max_request_bytes:
+            if length > limit:
                 return JSONResponse(
                     status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                     content={"detail": "request body too large"},
@@ -699,13 +805,20 @@ def create_app(
 
     @app.get("/health")
     async def health() -> dict[str, object]:
+        # Every installed bundle is verified, not just a hardcoded one. A worker
+        # that reports healthy while its edit workflow is missing or corrupt is
+        # how a follow-up edit silently becomes a text-to-image reroll.
         try:
-            bundle = WorkflowBundle.load(
-                worker_config.workflow_root, "text_to_image_v1"
-            )
-            await runtime.assert_comfy_ready(
-                bundle, worker_config.default_checkpoint
-            )
+            bundles = _installed_bundles(worker_config.workflow_root)
+            if not bundles:
+                raise WorkerConfigurationError(
+                    f"no workflow bundle is installed under "
+                    f"{worker_config.workflow_root}"
+                )
+            for bundle in bundles:
+                await runtime.assert_comfy_ready(
+                    bundle, worker_config.default_checkpoint
+                )
         except WorkerConfigurationError as exc:
             raise HTTPException(
                 status_code=status.HTTP_424_FAILED_DEPENDENCY,
@@ -719,9 +832,30 @@ def create_app(
         return {
             "status": "ok",
             "comfy_url": worker_config.comfy_url,
-            "workflows": [bundle.workflow_id],
+            "workflows": [bundle.workflow_id for bundle in bundles],
+            "edit_workflows": [
+                bundle.workflow_id
+                for bundle in bundles
+                if bundle.consumes_source_image
+            ],
             "default_checkpoint": worker_config.default_checkpoint,
         }
+
+    @app.post(
+        IMAGE_UPLOAD_PATH,
+        status_code=status.HTTP_201_CREATED,
+        dependencies=[Depends(require_auth)],
+    )
+    async def upload_image(request: Request) -> dict[str, Any]:
+        """Accept a raw image body and return the id a job may reference."""
+        image_bytes = await request.body()
+        try:
+            return runtime.store_source_image(image_bytes)
+        except WorkerConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
 
     @app.post(
         "/v1/jobs",
@@ -747,6 +881,32 @@ def create_app(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(exc),
             ) from exc
+        # The source image and the workflow have to agree in both directions.
+        # Accepting an edit request against a text-to-image workflow is exactly
+        # how a reroll gets returned as though it were an edit.
+        if bundle.consumes_source_image and not request.source_image_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"workflow {request.workflow_id!r} requires source_image_id; "
+                    f"upload the source image to {IMAGE_UPLOAD_PATH} first"
+                ),
+            )
+        if request.source_image_id and not bundle.consumes_source_image:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"workflow {request.workflow_id!r} cannot consume a source "
+                    "image; it would be ignored and the result would be a reroll"
+                ),
+            )
+        if request.source_image_id and not runtime.source_image_exists(
+            request.source_image_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"source image {request.source_image_id!r} is not stored",
+            )
         checkpoint = request.checkpoint or worker_config.default_checkpoint
         if checkpoint not in worker_config.allowed_checkpoints:
             raise HTTPException(
@@ -851,6 +1011,23 @@ def create_app(
     return app
 
 
+def _installed_bundles(root: Path) -> list[WorkflowBundle]:
+    """Load every workflow bundle installed under *root*, in id order.
+
+    A directory that looks like a bundle but fails to load raises rather than
+    being skipped: a silently dropped bundle reads downstream as "not
+    installed", which is the same signal as a deliberate omission.
+    """
+    if not root.is_dir():
+        return []
+    bundles: list[WorkflowBundle] = []
+    for entry in sorted(root.iterdir()):
+        if not (entry / "manifest.yaml").is_file():
+            continue
+        bundles.append(WorkflowBundle.load(root, entry.name))
+    return bundles
+
+
 def _env_int(name: str, default: int) -> int:
     raw = os.environ.get(name)
     if raw is None:
@@ -941,9 +1118,11 @@ def _history_outputs(
     return found
 
 
-def _validate_image_bytes(image_bytes: bytes) -> tuple[str, int, int]:
+def _validate_image_bytes(
+    image_bytes: bytes, source: str = "ComfyUI"
+) -> tuple[str, int, int]:
     if not image_bytes:
-        raise WorkerConfigurationError("ComfyUI returned an empty image")
+        raise WorkerConfigurationError(f"{source} returned an empty image")
     try:
         with Image.open(BytesIO(image_bytes)) as image:
             image_format = str(image.format or "").upper()
@@ -951,12 +1130,12 @@ def _validate_image_bytes(image_bytes: bytes) -> tuple[str, int, int]:
             image.verify()
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise WorkerConfigurationError(
-            "ComfyUI returned bytes that are not a valid image"
+            f"{source} returned bytes that are not a valid image"
         ) from exc
     if not image_format or width <= 0 or height <= 0:
-        raise WorkerConfigurationError("ComfyUI returned invalid image metadata")
+        raise WorkerConfigurationError(f"{source} returned invalid image metadata")
     if width * height > MAX_IMAGE_PIXELS:
-        raise WorkerConfigurationError("ComfyUI image exceeds the pixel limit")
+        raise WorkerConfigurationError(f"{source} image exceeds the pixel limit")
     return image_format, width, height
 
 

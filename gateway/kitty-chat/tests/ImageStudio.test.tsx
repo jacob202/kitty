@@ -65,6 +65,23 @@ function onlineStatus() {
   }
 }
 
+function agentDecision(overrides: Record<string, unknown> = {}) {
+  return {
+    action: 'generate',
+    session_id: 'imgses_1',
+    summary: 'Rendering a golden-hour portrait.',
+    plan_id: 'imgplan_1',
+    plan: null,
+    operation: 'txt2img',
+    anchor_job_id: null,
+    protected_traits: [],
+    requested_changes: [],
+    question: null,
+    reason: null,
+    ...overrides,
+  }
+}
+
 /** Stub global fetch for Studio routes; route generation to a raw HTML error to
  *  exercise finding 4. */
 function stubStudioFetch(generateResponse?: unknown) {
@@ -72,6 +89,12 @@ function stubStudioFetch(generateResponse?: unknown) {
     if (String(url).includes('/proxy/studio/generate')) {
       if (generateResponse) return generateResponse
       return { ok: true, status: 200, json: async () => ({ job_id: 'job_1', filename: 'cat.png' }) }
+    }
+    if (String(url).includes('/proxy/studio/sessions')) {
+      return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', turns: [], jobs: [] }) }
+    }
+    if (String(url).includes('/proxy/studio/agent')) {
+      return { ok: true, status: 200, json: async () => agentDecision() }
     }
     if (String(url).includes('/proxy/studio/characters')) {
       return { ok: true, status: 200, json: async () => ({ characters: [] }) }
@@ -83,6 +106,11 @@ function stubStudioFetch(generateResponse?: unknown) {
   })
   vi.stubGlobal('fetch', mock)
   return mock
+}
+
+/** Plan inspection is optional detail now, so it lives behind "advanced". */
+function openAdvanced() {
+  fireEvent.click(screen.getByRole('button', { name: /advanced/i }))
 }
 
 describe('ImageStudio fail-closed and renderer distinction (PR#355 findings 2-4)', () => {
@@ -107,14 +135,15 @@ describe('ImageStudio fail-closed and renderer distinction (PR#355 findings 2-4)
       expect(screen.getByPlaceholderText(/describe what you want to create/i)).toBeInTheDocument()
 
       // Generation is present but disabled — not removed, never dispatched.
-      const generate = screen.getByRole('button', { name: 'generate', exact: true })
-      expect(generate).toBeDisabled()
+      const send = screen.getByTestId('studio-send')
+      expect(send).toBeDisabled()
 
       // Plan preview remains available offline (finding 3). With a prompt entered,
       // the button is clickable even while engines are down.
       fireEvent.change(screen.getByPlaceholderText(/describe what you want to create/i), {
         target: { value: 'a sleeping cat' },
       })
+      openAdvanced()
       const plan = screen.getByRole('button', { name: 'preview plan', exact: true })
       expect(plan).not.toBeDisabled()
 
@@ -131,6 +160,7 @@ describe('ImageStudio fail-closed and renderer distinction (PR#355 findings 2-4)
 
       const input = screen.getByPlaceholderText(/describe what you want to create/i)
       fireEvent.change(input, { target: { value: 'a sleeping cat' } })
+      openAdvanced()
       fireEvent.click(screen.getByRole('button', { name: 'preview plan', exact: true }))
 
       await waitFor(() => {
@@ -171,7 +201,7 @@ describe('ImageStudio fail-closed and renderer distinction (PR#355 findings 2-4)
       fireEvent.change(screen.getByPlaceholderText(/describe what you want to create/i), {
         target: { value: 'a cat' },
       })
-      fireEvent.click(screen.getByRole('button', { name: 'generate', exact: true }))
+      fireEvent.click(screen.getByTestId('studio-send'))
 
       // Primary message is human, not the raw HTML page.
       await waitFor(() => {
@@ -223,8 +253,11 @@ describe('Enter-key handler tracks current renderer availability (PR#355 finding
     ).length
 
     // Enter must fail closed against the CURRENT status: no new generate dispatch
-    // and the human offline message shows instead.
-    fireEvent.keyDown(screen.getByPlaceholderText(/describe what you want to create/i), { key: 'Enter' })
+    // and the human offline message shows instead. The composer empties itself
+    // after a send, so the follow-up request has to be typed again.
+    const composer = screen.getByPlaceholderText(/describe what you want to create/i)
+    fireEvent.change(composer, { target: { value: 'another dramatic cat' } })
+    fireEvent.keyDown(composer, { key: 'Enter' })
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/no image engine is online/)
     })
@@ -233,6 +266,211 @@ describe('Enter-key handler tracks current renderer availability (PR#355 finding
       String(url).includes('/proxy/studio/generate'),
     ).length
     expect(generateCallsAfterEnter).toBe(generateCallsBeforeEnter)
+  })
+})
+
+describe('conversational Image Studio (issue #336, slice A5)', () => {
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  /** Scripted studio backend: each agent turn returns the next queued decision. */
+  function stubConversation(decisions: Record<string, unknown>[]) {
+    let anchor: string | null = null
+    const remaining = [...decisions]
+    let jobCounter = 0
+    const mock = vi.fn(async (url: string, init?: { method?: string; body?: string }) => {
+      const target = String(url)
+      if (target.includes('/proxy/studio/generate')) {
+        jobCounter += 1
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            job_id: `job_${jobCounter}`,
+            filename: `render_${jobCounter}.png`,
+            recipe: 'comfyui_sdxl_standard',
+          }),
+        }
+      }
+      if (target.includes('/anchor')) {
+        anchor = JSON.parse(init?.body ?? '{}').job_id
+        return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', anchor_job_id: anchor }) }
+      }
+      if (target.includes('/proxy/studio/sessions')) {
+        return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', turns: [], jobs: [] }) }
+      }
+      if (target.includes('/proxy/studio/agent')) {
+        const next = remaining.shift() ?? agentDecision()
+        return { ok: true, status: 200, json: async () => next }
+      }
+      if (target.includes('/proxy/studio/characters')) {
+        return { ok: true, status: 200, json: async () => ({ characters: [] }) }
+      }
+      if (target.includes('/proxy/studio/recipes')) {
+        return { ok: true, status: 200, json: async () => ({ recipes: [] }) }
+      }
+      return { ok: true, status: 200, json: async () => ({ available_guidance_tags: [] }) }
+    })
+    vi.stubGlobal('fetch', mock)
+    return mock
+  }
+
+  async function send(text: string) {
+    const input = screen.getByPlaceholderText(/describe what you want to create/i)
+    fireEvent.change(input, { target: { value: text } })
+    fireEvent.click(screen.getByTestId('studio-send'))
+  }
+
+  beforeEach(() => {
+    vi.mocked(queries.useImageStatus).mockReturnValue(onlineStatus() as never)
+  })
+
+  it('runs a two-turn conversation: generate, select a result, then edit it', async () => {
+    const fetchMock = stubConversation([
+      agentDecision({ summary: 'Rendering a golden-hour portrait.' }),
+      agentDecision({
+        action: 'edit',
+        summary: 'Keeping the face and clothing, broadening the build.',
+        plan_id: 'imgplan_2',
+        operation: 'img2img',
+        anchor_job_id: 'job_1',
+        protected_traits: ['face', 'clothing'],
+        requested_changes: ['broader build'],
+      }),
+    ])
+
+    renderWithQueryClient(<ImageStudio />)
+    await waitFor(() => expect(screen.getByTestId('studio-send')).toBeInTheDocument())
+
+    // Turn one: a plain request produces one result inside the conversation.
+    await send('a portrait in golden-hour light')
+    await waitFor(() => {
+      expect(screen.getByText('a portrait in golden-hour light')).toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(screen.getByText('Rendering a golden-hour portrait.')).toBeInTheDocument()
+    })
+    await waitFor(() => expect(screen.getAllByTestId('studio-use-this')).toHaveLength(1))
+
+    // The render dispatches from the approved plan, never from the raw prompt.
+    const generateCall = fetchMock.mock.calls.find(([u]) =>
+      String(u).includes('/proxy/studio/generate'),
+    )
+    expect(JSON.parse((generateCall?.[1] as { body: string }).body)).toMatchObject({
+      plan_id: 'imgplan_1',
+      session_id: 'imgses_1',
+    })
+
+    // "use this" selects that result as the anchor for what follows.
+    fireEvent.click(screen.getAllByTestId('studio-use-this')[0])
+    await waitFor(() => {
+      expect(screen.getByTestId('studio-anchor-chip')).toBeInTheDocument()
+    })
+
+    // Turn two: the follow-up states what stays fixed and what changes.
+    await send('keep his face and clothing, make the build broader')
+    await waitFor(() => {
+      expect(screen.getByTestId('studio-turn-protected')).toHaveTextContent(
+        /staying fixed: face, clothing/i,
+      )
+    })
+    expect(screen.getByTestId('studio-turn-changes')).toHaveTextContent(
+      /changing: broader build/i,
+    )
+    await waitFor(() => expect(screen.getAllByTestId('studio-use-this')).toHaveLength(2))
+  })
+
+  it('a clarifying question is answered in the conversation and renders nothing', async () => {
+    const fetchMock = stubConversation([
+      agentDecision({
+        action: 'clarify',
+        summary: 'Which reference should I use?',
+        plan_id: null,
+        question: 'Which reference should I use?',
+      }),
+    ])
+
+    renderWithQueryClient(<ImageStudio />)
+    await waitFor(() => expect(screen.getByTestId('studio-send')).toBeInTheDocument())
+
+    await send('make it better')
+    await waitFor(() => {
+      expect(screen.getByText('Which reference should I use?')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByTestId('studio-use-this')).not.toBeInTheDocument()
+    expect(
+      fetchMock.mock.calls.filter(([u]) => String(u).includes('/proxy/studio/generate')),
+    ).toHaveLength(0)
+  })
+
+  it('a refusal is shown as an answer, not as an error banner', async () => {
+    stubConversation([
+      agentDecision({
+        action: 'cancel',
+        summary: 'There is no selected result to edit from.',
+        plan_id: null,
+        reason: 'There is no selected result to edit from.',
+      }),
+    ])
+
+    renderWithQueryClient(<ImageStudio />)
+    await waitFor(() => expect(screen.getByTestId('studio-send')).toBeInTheDocument())
+
+    await send('make his build broader')
+    await waitFor(() => {
+      expect(screen.getByText('There is no selected result to edit from.')).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('a failing controller names the image specialist, not the renderer', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const target = String(url)
+      if (target.includes('/proxy/studio/sessions')) {
+        return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1' }) }
+      }
+      if (target.includes('/proxy/studio/agent')) {
+        return {
+          ok: false,
+          status: 500,
+          text: async () => '<!DOCTYPE html><html><body><h1>Internal Server Error</h1></body></html>',
+        }
+      }
+      if (target.includes('/proxy/studio/characters')) {
+        return { ok: true, status: 200, json: async () => ({ characters: [] }) }
+      }
+      if (target.includes('/proxy/studio/recipes')) {
+        return { ok: true, status: 200, json: async () => ({ recipes: [] }) }
+      }
+      return { ok: true, status: 200, json: async () => ({ available_guidance_tags: [] }) }
+    }))
+
+    renderWithQueryClient(<ImageStudio />)
+    await waitFor(() => expect(screen.getByTestId('studio-send')).toBeInTheDocument())
+
+    await send('a portrait')
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        /image specialist hit an internal error/i,
+      )
+    })
+    expect(screen.queryByText(/check your renderer/i)).not.toBeInTheDocument()
+  })
+
+  it('the composer stays visible and empties itself after sending', async () => {
+    stubConversation([agentDecision()])
+    renderWithQueryClient(<ImageStudio />)
+    await waitFor(() => expect(screen.getByTestId('studio-send')).toBeInTheDocument())
+
+    await send('a portrait in golden-hour light')
+
+    const input = screen.getByPlaceholderText(/describe what you want to create/i)
+    await waitFor(() => expect(input).toHaveValue(''))
+    expect(input).toBeInTheDocument()
   })
 })
 
@@ -264,6 +502,7 @@ describe('operation-specific HTML error recovery (PR#355 finding 6)', () => {
     fireEvent.change(screen.getByPlaceholderText(/describe what you want to create/i), {
       target: { value: 'a sleeping cat' },
     })
+    openAdvanced()
     fireEvent.click(screen.getByRole('button', { name: 'preview plan', exact: true }))
 
     // The human message names the planning service; it must NOT blame the renderer.

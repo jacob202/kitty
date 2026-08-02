@@ -190,31 +190,101 @@ stop/split rule.
   image was generated.
 - **Local-testable:** yes (done)
 
-### A4 — Real reference-conditioned editing · NOT STARTED
+### A4 — Real reference-conditioned editing · VERIFIED (schema and binding only)
 
-- **Depends on:** A2, A3
-- **Change:** add and hash-pin `workflows/image_to_image_v1/`; extend the
-  worker request/client schema with authenticated image upload, path safety,
-  and explicit denoise/edit strength. Remove the hardcoded workflow name at
-  `workers/comfy_worker/app.py:704`. Keep the provider boundary replaceable so
-  Qwen-Image-Edit can challenge ComfyUI later.
-- **Acceptance:** a test asserting the renderer request carries the parent
-  artifact as an actual workflow input and a denoise value. A fresh
-  text-to-image reroll containing preservation words fails this slice.
-- **Local-testable:** partly — schema and binding yes, real render no
+- **Depends on:** A2, A3 (both met)
+- **Change landed:** `workflows/image_to_image_v1/` added and hash-pinned
+  (`workflow_sha256` in its manifest; tampering is rejected by the existing
+  `WorkflowBundle.load` check). The bundle is `LoadImage → VAEEncode → KSampler
+  → VAEDecode → SaveImage`, so the sampler starts from the encoded source image
+  rather than an empty latent. `JobRequest` gained `source_image_id` and
+  `denoise`; `WorkflowBundle.compile` binds both. The worker gained an
+  authenticated `POST /v1/images` that stores an upload under its own content
+  hash — the client's filename never reaches the filesystem, so there is no
+  traversal left to defend against downstream. `/health` no longer names
+  `text_to_image_v1`; it verifies every installed bundle and reports which
+  consume a source image. `RunPodWorkerClient` gained `upload_source_image` and
+  the two edit fields, which travel together and are omitted together.
+- **Acceptance met:** `tests/test_image_to_image.py`, 34 tests, all passing.
+  The acceptance assertion is
+  `TestCompiledRequest::test_compiled_workflow_carries_the_source_image_and_denoise`
+  — the compiled request carries the parent artifact at the `LoadImage` node and
+  a denoise value at the sampler. Its inverse,
+  `test_a_reroll_with_preservation_words_has_no_source_image_input`, pins the
+  fail case: a text-to-image prompt containing "keep his face exactly the same"
+  compiles with no `LoadImage` node and `denoise == 1.0`.
+- **Design notes for the next slice:**
+  - `WorkflowBundle.consumes_source_image` is the definition of an edit — the
+    binding, not the prompt. `create_job` enforces agreement in both
+    directions: an edit workflow without a source image is a 400, and a source
+    image against a text-only workflow is a 400 rather than a silently ignored
+    field.
+  - `gateway.image_agent.edit_workflow_available()` (A3) checks for this
+    bundle's directory. Adding it here is what flips A3's `CapabilityError`
+    off — the controller needed no change.
+  - The provider boundary is unchanged: the gateway addresses workflows by id,
+    so Qwen-Image-Edit can be added as another bundle later.
+- **Scope note:** schema and binding only, as this slice's own row predicted.
+  Nothing was rendered — no ComfyUI, no GPU, no artifact. The gateway's
+  `image_runner` still dispatches text-to-image; wiring an approved `img2img`
+  decision through to the worker is A6's job.
+- **Local-testable:** partly — schema and binding yes (done), real render no
 
-### A5 — Conversational Image Studio UI · NOT STARTED
+### A4b — Gateway dispatch of an approved edit · NOT STARTED
 
-- **Depends on:** A3
-- **Change:** refactor `ImageStudio.tsx` to chat-first. Always-visible
-  composer; references and active anchor as chips/thumbnails; assistant states
-  what changes and what stays fixed; real stages, cancel, cost, failure
-  detail; inline results with "use this" anchor selection; advanced controls
-  hidden by default; character library and gallery retained. Plan inspection
-  is optional detail, not a mandatory approval screen.
-- **Acceptance:** frontend tests for the two-turn conversation and anchor
-  selection; `make ui-test && make ui-build`.
-- **Local-testable:** yes (tests) / needs browser (real flow)
+- **Depends on:** A4
+- **Why this exists:** A4 made the worker capable of a real edit and A3 made the
+  controller able to decide on one, but `gateway/image_runner.run` still has no
+  `img2img` path — it takes `parent_id` for lineage only and always renders
+  text-to-image. Nothing joins the two. This was not in the original slice list
+  because the gap only became visible once both sides existed.
+- **Change:** teach `image_runner` an edit path that resolves the anchor job's
+  artifact, uploads it via `RunPodWorkerClient.upload_source_image`, and submits
+  `image_to_image_v1` with a denoise value from the plan.
+- **Acceptance:** a test asserting a decision with `operation == "img2img"`
+  produces a worker submission carrying `source_image_id` and `denoise`.
+- **Local-testable:** yes (against a mocked worker)
+
+### A5 — Conversational Image Studio UI · VERIFIED (tests only; browser unproven)
+
+- **Depends on:** A3 (met)
+- **Backend added here (A3's named gap):** `gateway/routes/extended.py` gained
+  `POST /studio/sessions`, `GET /studio/sessions`, `GET /studio/sessions/{id}`,
+  `POST /studio/sessions/{id}/anchor`, `DELETE /studio/sessions/{id}`, and
+  `POST /studio/agent`. `/studio/agent` maps each controller error to a
+  distinct status — 404 unknown session, 429 budget refused, 503 no capable
+  renderer, 400 unknown reference or unsupported operation, 502 malformed model
+  output or loop exhaustion — so the UI can say what actually went wrong.
+  `/studio/generate` now attaches its job to the session and counts the
+  attempt, which is what makes "use this" and restart-resume possible.
+- **Frontend change landed:** `ImageStudio.tsx` is chat-first. The composer is
+  always visible and empties itself after sending; a turn goes to
+  `/studio/agent` first and dispatches only what the controller approved, from
+  its `plan_id` rather than live form state. Results render inline as
+  conversation turns with a "use this" button that sets the session anchor;
+  the active anchor shows as a chip. Assistant turns state what stays fixed and
+  what changes. `clarify` and `cancel` are answers in the conversation, not
+  error banners. Plan inspection moved behind "advanced" — optional detail, no
+  longer a step between asking and getting an image. Character library, gallery,
+  offline/gateway-failure panels, and the fail-closed Enter behaviour are all
+  retained.
+- **Acceptance met:** `gateway/kitty-chat/tests/ImageStudio.test.tsx`, 12 tests,
+  all passing. The two required cases are
+  `runs a two-turn conversation: generate, select a result, then edit it` (which
+  also asserts the render dispatches from `plan_id`, not the prompt) and the
+  anchor-selection half of it. Plus: a clarifying question renders nothing, a
+  refusal is not an error banner, a failing controller names the image
+  specialist rather than the renderer, and the composer clears.
+- **Test-contract changes:** the primary button is `send`, not `generate`
+  (`data-testid="studio-send"`), and `preview plan` now lives behind
+  `advanced`. Both existing assertions were updated rather than deleted. The
+  PR #355 finding-5 stale-closure test needed the follow-up request retyped,
+  because the composer now clears after a send — the fail-closed invariant it
+  guards is unchanged and still asserted.
+- **Scope note:** this verifies A5's frontend tests only. No browser ran, no
+  screenshot exists, and the real two-turn flow against a live gateway is
+  unproven. That is A6.
+- **Local-testable:** yes (tests, done) / needs browser (real flow)
 
 ### A6 — Automatic compute lifecycle · NOT STARTED
 
@@ -230,16 +300,27 @@ stop/split rule.
 
 ## Outcome B — Trustworthy KittyBuilder
 
-### B1 — Reconstruct the real Builder execution path · NOT STARTED
+### B1 — Reconstruct the real Builder execution path · VERIFIED
 
-- **Depends on:** slice 0
-- **Change:** none. Produce `docs/mission/builder-map.md`: for each of the 27
-  `builder_*` modules, whether it is on the live path, referenced only by
-  tests, or dead. Trace one real invocation from `./kitty builder` through to
-  worker dispatch.
-- **Acceptance:** every module classified with the call site that proves it.
-- **Local-testable:** yes (static + CLI tracing)
-- **Note:** B2–B10 must not begin before this lands (decision D5).
+- **Depends on:** slice 0 (met)
+- **Change landed:** `docs/mission/builder-map.md`. No code changed.
+- **Acceptance met:** all 27 modules classified with a proving call site —
+  26 live, 1 reachable only from tests, 0 dead. One invocation traced in seven
+  steps from `kitty:809` to `subprocess.Popen` at
+  `gateway/builder_runner.py:1138`.
+- **The finding:** `builder_adapters` is implemented, contract-tested, and
+  unreachable. `ShellWorkerSession` and `OpenCodeServerSession` both exist;
+  `run_packet` accepts `worker_session=` and branches to `_run_via_session`; and
+  `_cmd_initiative_run_packet` never passes it
+  (`gateway/builder_cli.py:1427-1438`). "KittyBuilder supports pluggable worker
+  backends" is false today at the CLI. There is no dead module to delete, which
+  makes B2's real question a decision rather than a cleanup: wire the seam, or
+  say plainly that subprocess dispatch is the only supported backend.
+- **Scope note:** static analysis plus one traced path. No packet was queued and
+  no worker ran, so "is imported" is not "does execute". `builder_run.run_initiative`
+  and the HTTP control plane were not traced.
+- **Local-testable:** yes (done)
+- **Note:** B2–B10 may now begin (decision D5 satisfied).
 
 ### B2–B10 — NOT STARTED
 
