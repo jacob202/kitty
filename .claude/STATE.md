@@ -6,7 +6,7 @@
   "updated_at": "2026-08-02T00:00:00Z",
   "branch": "kittybuilder/kb_msb4yx3n_124c",
   "worktree": "kittybuilder/kb_msb4yx3n_124c",
-  "status": "in_progress",
+  "status": "complete",
   "completed_items": [
     "Extended gh PR advisory capture (mergeable, mergeStateStatus, baseRefOid) in builder_queue._gh_pr_status",
     "Persisted advisory merge/base fields on pr_attached/pr_updated event payload via attach_pr",
@@ -15,7 +15,7 @@
     "Added 6 focused recovery-action tests in test_builder_status.py"
   ],
   "blockers": [],
-  "next_action": "Report packet result and await review.",
+  "next_action": "None",
   "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
