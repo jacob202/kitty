@@ -1,10 +1,10 @@
-# Session State — Open WebUI daily-driver baseline complete
+# Session State — Open WebUI baseline and model menu complete
 
 <!-- kitty-state
 {
   "schema_version": 2,
   "updated_at": "2026-08-02T21:10:00Z",
-  "head_sha": "29f2165d",
+  "head_sha": "c37785cd",
   "branch": "feat/openwebui-tomorrow-ready",
   "worktree": "main",
   "status": "complete",
@@ -15,16 +15,20 @@
     "Handoff defect 4 (pending-account and duplicate-user trap) fixed idempotently",
     "Chat routing restored: AgentRouter token is revoked, Kitty runs on OpenRouter",
     "System prompt cut from 447,759 to ~24,200 chars; TTFT 26s to 6.4s",
-    "Kitty memory restored (mem0 ollama client + openai provider)"
+    "Kitty memory restored (mem0 ollama client + openai provider)",
+    "Slice 2: five-model menu (Auto/Fast/Think/Code/Vision) live and verified through Open WebUI",
+    "Image uploads no longer 500 the chat endpoint; Kitty Vision reads images",
+    "Guarded _prepare_main_worktree against hard-resetting the primary checkout"
   ],
   "blockers": [
-    "AGENT_ROUTER_TOKEN in .env is revoked (unauthorized_client_error); AgentRouter disabled, OpenRouter in use"
+    "AGENT_ROUTER_TOKEN in .env is revoked (unauthorized_client_error); AgentRouter disabled, OpenRouter in use",
+    "A Builder campaign with --publish --gate auto hard-resets the primary checkout to origin/main on every merge; the guard is on this branch, not on main"
   ],
-  "next_action": "Slice 2 — the user-facing model set (Kitty Auto/Fast/Think/Code/Vision/Image), which needs gateway-side aliases first",
+  "next_action": "Slice 3 — expose Kitty memory, projects, files, and planning to Open WebUI through its OpenAPI tool surface",
   "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
-    "HEAD changes beyond 29f2165d",
+    "HEAD changes beyond c37785cd",
     "config/providers.json active changes away from auto"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
