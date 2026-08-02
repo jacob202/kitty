@@ -14,7 +14,7 @@
     "A4b: gateway dispatches a real image edit to the worker; PROJECTS.md/PROBLEMS.md activated (df2d8b8, already on origin/main)"
   ],
   "blockers": [],
-  "next_action": "",
+  "next_action": "None",
   "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
