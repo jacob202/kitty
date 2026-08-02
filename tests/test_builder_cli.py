@@ -107,21 +107,45 @@ class TestParser:
 
 
 class TestDisabledCommands:
+    """Retired top-level launchers (run, loop, repl, delegate) are tombstoned.
+
+    They must never dispatch a Builder worker: each returns a non-zero exit
+    and prints a deprecation message that points the operator at the canonical
+    execution entry point (initiative run-packet), so ``./kitty builder -h``
+    exposes no ambiguous path for running a worker.
+    """
+
+    _RETIRED = ["run", "loop", "repl", "delegate"]
+
+    @staticmethod
+    def _argv(command: str) -> list[str]:
+        if command == "delegate":
+            return ["delegate", "opencode", "say hi"]
+        return [command, "build a thing"]
+
+    def test_retired_commands_never_dispatch_work(self, capsys):
+        for command in self._RETIRED:
+            capsys.readouterr()
+            rc = main(self._argv(command))
+            out, err = capsys.readouterr()
+            assert rc != 0, f"{command} must not report success"
+            message = out + err
+            assert "retired" in message, f"{command} must explain it is retired"
+            assert (
+                "initiative run-packet" in message
+            ), f"{command} must point at the canonical run-packet entry point"
+
     def test_run_not_enabled(self):
-        rc = main(["run", "build a thing"])
-        assert rc == 1
+        assert main(["run", "build a thing"]) == 1
 
     def test_loop_not_enabled(self):
-        rc = main(["loop", "build a thing"])
-        assert rc == 1
+        assert main(["loop", "build a thing"]) == 1
 
     def test_repl_not_enabled(self):
-        rc = main(["repl", "build a thing"])
-        assert rc == 1
+        assert main(["repl", "build a thing"]) == 1
 
     def test_delegate_not_enabled(self):
-        rc = main(["delegate", "opencode", "say hi"])
-        assert rc == 1
+        assert main(["delegate", "opencode", "say hi"]) == 1
 
 
 class TestExistingCommands:
