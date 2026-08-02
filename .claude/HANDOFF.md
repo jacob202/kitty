@@ -1,60 +1,59 @@
-# Handoff — PR #359 repaired after independent review and remains draft
+# Handoff — continuity checkpoints reconciled with live Git state
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T22:37:38Z",
-  "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14",
-  "branch": "docs/builder-cockpit-boundary",
-  "worktree": "seaslug",
+  "updated_at": "2026-08-02T00:41:20Z",
+  "head_sha": "e3b4c7a4c4c6f8d1b08c39a4fae38a5b56a92835",
+  "branch": "claude/fix-main-6qrojf",
+  "worktree": ".",
   "status": "valid",
   "completed_items": [
-    "Independent review #4835922501 found workflow-signal, KTL-001 applicability, continuity, and non-finite-cost defects at 4d667973.",
-    "Committed aef9d0ce to count workflow-signal repetition by distinct source_session values, publish signal files atomically, and validate all retained signal fields; d20a431b fixes the CI import-order failure.",
-    "Retired KTL-001 outside the active manifest set as a non-applicable planning record; KTL-002 remains the current corrective manifest.",
-    "Added focused regression tests for all review findings; no initiative was applied and Builder state was not modified."
+    "PR #359 merged (929634160a24ba656e486338363d8fa7a682193f into main); the prior blocker asking for its independent re-review is resolved.",
+    "docs/ACTIVE_MISSION.md base_sha updated from the orphaned da88c21b (not an ancestor of HEAD after a later history rewrite) to e3b4c7a4, restoring mission:base_sha to PASS.",
+    "scripts/resume.py: run() now catches FileNotFoundError so a missing `gh` binary reports 'gh: not found on PATH' instead of crashing the script."
   ],
-  "blockers": [
-    "PR #359 must receive an independent re-review of the post-review repair head before it can be marked ready."
-  ],
-  "next_action": "Obtain independent re-review of the pushed PR #359 repair head; keep it draft until that review approves the checked SHA.",
-  "parallel_work": [
-    {"kind": "pr", "ref": "#359", "owner": "interactive review-and-repair session", "touches": ["docs", "scripts", "tests"], "observed_at": "2026-08-01T22:33:17Z"}
-  ],
-  "recommendations": [
-    {"id": "pr359-independent-rereview", "what": "Obtain independent re-review of the pushed PR #359 repair head and keep it draft until that review approves the checked SHA.", "why": "Review #4835922501 found material defects repaired in aef9d0ce and d20a431b.", "class": "code", "status": "ready", "blocked_by": null, "release_check": null, "deferred_count": 0, "first_deferred": null}
-  ],
+  "blockers": [],
+  "next_action": "Verify docs/ACTIVE_MISSION.md's remaining acceptance criteria (Home/Chat dashboard separation, transient health-check recovery, blocking-check placement) against the running app; none were touched this session.",
+  "parallel_work": [],
+  "recommendations": [],
   "invalidation_conditions": [
-    "HEAD changes beyond d20a431be8010a7d42ff774c3a0bc724c98f9f14 except this checkpoint commit",
-    "PR #359 head changes or closes",
-    "an independent re-review records findings against the repair SHA"
+    "HEAD changes beyond e3b4c7a4c4c6f8d1b08c39a4fae38a5b56a92835 except this checkpoint commit",
+    "docs/ACTIVE_MISSION.md base_sha changes again"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {"number": 359, "url": "https://github.com/jacob202/kitty/pull/359", "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14", "draft": true, "state": "OPEN"}
+  "pull_request": null
 }
 -->
 
 ## What was done
 
-- Addressed every finding from independent review #4835922501 of `4d667973` in repair commits `aef9d0ce` and `d20a431b`.
-- Workflow signals now deduplicate by `(stable_key, source_session)`, use serialized collision-safe atomic writes, and validate retained records strictly before reporting.
-- KTL-001 is a non-applicable retired planning record; KTL-002 is the only current corrective manifest. Neither was applied and Builder state was untouched.
+- Fixed the two universal (non-environment-specific) causes of the 5 local
+  pytest failures reported against `f01a9db` (main):
+  - `mission:base_sha` FAIL: `docs/ACTIVE_MISSION.md` pointed at a commit a
+    later history rewrite orphaned. Reset to current `HEAD`.
+  - `scripts/resume.py` crashing with an unhandled `FileNotFoundError` when
+    `gh` is missing from `PATH`. `run()` now catches it like it already does
+    `TimeoutExpired`.
+- Refreshed this checkpoint and `.claude/STATE.md`, which both still pointed
+  at PR #359 (merged 2026-08-01) as an open draft awaiting re-review.
 
 ## In-flight / WIP
 
-- PR #359 is still a draft and requires independent re-review after the repair head is pushed.
+- None from this session.
 
 ## Other work in flight (not mine)
 
-- No parallel implementation was touched by this repair.
+- Not surveyed this session — this was a narrow, targeted fix.
 
 ## Blockers
 
-- PR #359 cannot be ready until an independent re-review approves its checked SHA.
+- None.
 
 ## Next move
 
-Obtain independent re-review of the pushed PR #359 repair head; keep it draft until that review approves the checked SHA.
+Verify `docs/ACTIVE_MISSION.md`'s remaining acceptance criteria against the
+running app; this session did not touch product behavior.
 
 ## Deferred, and what releases them
 
@@ -62,8 +61,8 @@ Obtain independent re-review of the pushed PR #359 repair head; keep it draft un
 
 ## Files changed this session
 
-- `docs/initiatives/README.md`, KTL-002 and the retired KTL-001 planning record, the leverage contract, `scripts/kb_effectiveness.py`, `scripts/session_learning.py`, and both focused test modules.
+- `docs/ACTIVE_MISSION.md`, `scripts/resume.py`, `.claude/STATE.md`, `.claude/HANDOFF.md`.
 
 ## Verification
 
-- Final repair verification runs after this checkpoint commit, before push.
+- `python3 -m pytest tests/test_check_continuity_state.py tests/test_resume_script.py -q`

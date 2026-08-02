@@ -14,7 +14,7 @@ mission is its active execution thread.
   "status": "running",
   "approved_at": "2026-07-31T11:29:42Z",
   "approved_by": "Jacob",
-  "base_sha": "da88c21bdd323f2d11a5e344c6fa0129668652a4",
+  "base_sha": "e3b4c7a4c4c6f8d1b08c39a4fae38a5b56a92835",
   "authority": "docs/ACTIVE_MISSION.md"
 }
 -->

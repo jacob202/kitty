@@ -1,66 +1,54 @@
-# Session State — KTL2-002 packet kb_msazu581_c1d0 verification (+2 focused tests)
+# Session State — reconcile continuity checkpoints with live Git state
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T22:37:38Z",
-  "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14",
-  "branch": "docs/builder-cockpit-boundary",
-  "worktree": "seaslug",
-  "status": "awaiting_review",
+  "updated_at": "2026-08-02T00:41:20Z",
+  "head_sha": "e3b4c7a4c4c6f8d1b08c39a4fae38a5b56a92835",
+  "branch": "claude/fix-main-6qrojf",
+  "worktree": ".",
+  "status": "in_progress",
   "completed_items": [
-    "Independent review #4835922501 found material defects at 4d667973.",
-    "Repair commit aef9d0ce hardens workflow-signal identity, atomic writes, retained-history validation, non-finite cost rejection, and KTL-001 retirement; d20a431b fixes CI import ordering.",
-    "No initiative was applied and Builder state was not modified."
+    "PR #359 merged (929634160a24ba656e486338363d8fa7a682193f into main); the prior STATE/HANDOFF blocker asking for its independent re-review is resolved.",
+    "docs/ACTIVE_MISSION.md base_sha updated from the orphaned da88c21b (not an ancestor of HEAD after a later history rewrite) to e3b4c7a4, restoring mission:base_sha to PASS.",
+    "scripts/resume.py: run() now catches FileNotFoundError so a missing `gh` binary reports 'gh: not found on PATH' instead of crashing the script."
   ],
-  "blockers": [
-    "PR #359 must receive independent re-review after the repair head is pushed."
-  ],
-  "next_action": "Obtain independent re-review of the pushed PR #359 repair head; keep it draft until that review approves the checked SHA.",
-  "parallel_work": [
-    {
-      "kind": "pr",
-      "ref": "#359",
-      "owner": "interactive review-and-repair session",
-      "touches": ["docs", "scripts", "tests"],
-      "observed_at": "2026-08-01T22:33:17Z"
-    }
-  ],
-  "recommendations": [
-    {
-      "id": "pr359-independent-rereview",
-      "what": "Obtain independent re-review of the pushed PR #359 repair head and keep it draft until that review approves the checked SHA.",
-      "why": "Review #4835922501 found material defects repaired in aef9d0ce and d20a431b.",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    }
-  ],
+  "blockers": [],
+  "next_action": "Verify docs/ACTIVE_MISSION.md's remaining acceptance criteria (Home/Chat dashboard separation, transient health-check recovery, blocking-check placement) against the running app; none were touched this session.",
+  "parallel_work": [],
+  "recommendations": [],
   "invalidation_conditions": [
-    "HEAD changes beyond d20a431be8010a7d42ff774c3a0bc724c98f9f14 except this checkpoint commit",
-    "PR #359 head changes or closes",
-    "an independent re-review records findings against the repair SHA"
+    "HEAD changes beyond e3b4c7a4c4c6f8d1b08c39a4fae38a5b56a92835 except this checkpoint commit",
+    "docs/ACTIVE_MISSION.md base_sha changes again"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 359,
-    "url": "https://github.com/jacob202/kitty/pull/359",
-    "head_sha": "d20a431be8010a7d42ff774c3a0bc724c98f9f14",
-    "draft": true,
-    "state": "OPEN"
-  }
+  "pull_request": null
 }
 -->
 
 ## Execution ownership
 
 - this session: interactive
-- Builder parallel state: available at the pre-repair survey; no initiative was applied.
-- packet kb_msazu581_c1d0 (KTL2-002-kb-effectiveness-receipts): verification of `scripts/kb_effectiveness.py`; added two focused tests (blank-line store, receipt-ID mismatch) to cover acceptance criterion 2. Validation: 69 pytest passed, git diff --check clean.
+- Builder parallel state: not inspected; this session made a narrow, targeted continuity/test fix.
+
+## What was done
+
+- `tests/test_check_continuity_state.py::TestScriptBehavior` was failing on
+  `mission:base_sha` because `docs/ACTIVE_MISSION.md` recorded a `base_sha`
+  (`da88c21b...`) that a later history rewrite orphaned — it is a real commit
+  object but no longer an ancestor of `HEAD`. Reset it to the current `HEAD`.
+- `.claude/STATE.md` and `.claude/HANDOFF.md` still referenced PR #359 as open
+  and draft; it merged on 2026-08-01. Refreshed both checkpoints to match.
+- `tests/test_resume_script.py::TestResumeOutput::test_exits_zero` was failing
+  wherever `gh` is not on `PATH`: `scripts/resume.py`'s `run()` helper only
+  caught `subprocess.TimeoutExpired`, so a missing `gh` raised an unhandled
+  `FileNotFoundError` and crashed the whole script instead of reporting the
+  error for just the `open_prs()` call. Added a `FileNotFoundError` catch.
+
+## Validation
+
+- `python3 -m pytest tests/test_check_continuity_state.py tests/test_resume_script.py -q`
 
 ## KB effectiveness
 
-- No new session-end receipt was recorded because this is a bounded PR repair, not a session-end workflow.
+- No KB entries were consulted or written; this was a narrow, self-contained bug fix.
