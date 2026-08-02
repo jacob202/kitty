@@ -126,9 +126,26 @@ export function DocumentsPanel({ isMobile = false }: { isMobile?: boolean }) {
           </p>
         )}
         {ingest.data && (
-          <p style={{ ...mutedStyle, color: STATUS_COLORS[ingest.data.status] ?? 'var(--ink-2)' }}>
-            {ingest.data.status}: {ingest.data.source_id} — {ingest.data.reason}
-          </p>
+          <div style={{
+            padding: '8px 12px', background: 'var(--bg)', borderRadius: 10,
+            border: `1px solid ${STATUS_COLORS[ingest.data.status] ?? 'var(--line)'}`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: 99, flexShrink: 0,
+                background: STATUS_COLORS[ingest.data.status] ?? 'var(--ink-2)',
+                ...(ingest.data.status === 'pending' ? { animation: 'pulse 1.4s ease-in-out infinite' } : {}),
+              }} />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: 'var(--ink)' }}>
+                {ingest.data.status === 'success' ? 'indexed' : ingest.data.status}
+              </span>
+              <span style={{ flex: 1 }} />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
+                {ingest.data.source_id}
+              </span>
+            </div>
+            <p style={{ ...mutedStyle, marginTop: 4, marginBottom: 0 }}>{ingest.data.reason}</p>
+          </div>
         )}
 
         <div

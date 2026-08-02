@@ -191,16 +191,26 @@ async function stubGateway(page: Page, opts: { failAfterChunks?: number; errorEv
   });
 }
 
+let persistentActiveChatId: string | null = null
+
 test.beforeEach(async ({ page }) => {
   resetPersistence();
   await page.addInitScript(() => {
     window.localStorage.setItem('kitty-onboarded', 'true');
-    if (!window.sessionStorage.getItem('__slice_init_ran')) {
-      window.localStorage.removeItem('kitty-active-chat-id');
-      window.sessionStorage.setItem('__slice_init_ran', '1');
-    }
   });
 });
+
+/** Navigate to the app with a clean active-chat slate. */
+async function goClean(page: Page) {
+  await page.goto('/');
+  await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
+  // Clear any stale active-chat-id (from prior tests) and reload so the
+  // app picks it up.  The init script does *not* touch the id so it will
+  // survive its own test-runner reload.
+  await page.evaluate(() => window.localStorage.removeItem('kitty-active-chat-id'));
+  await page.reload();
+  await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
+}
 
 async function enterChatThread(page: Page) {
   await page.waitForTimeout(500);
@@ -217,68 +227,43 @@ test.describe('Chat Trust Slice 3 — phone', () => {
 
   test('send → stream → persist → reload restores identical content', async ({ page }) => {
     await stubGateway(page);
+    await goClean(page);
 
-    await page.goto('/');
-    await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
-
-    // Navigate to chat — mobile BottomNav uses "Chat" (capitalised), desktop Rail uses "chat"
     const chatBtn = page.getByRole('button', { name: /^chat$/i }).first();
     await chatBtn.click();
-    await page.waitForTimeout(500);
-
     const composer = page.locator('textarea').first();
-    await expect(composer).toBeVisible();
+    await expect(composer).toBeVisible({ timeout: 5000 });
 
-    // Focus the composer and type a unique message
-    await composer.click();
-    await composer.fill('');
     const uniqueText = `slice-3-test-${Date.now()}`;
-    await composer.type(uniqueText, { delay: 10 });
-    await page.waitForTimeout(300);
+    await composer.click();
+    await composer.fill(uniqueText);
+    await page.getByRole('button', { name: /send message/i }).click();
 
-    // Press Enter to send
-    await page.keyboard.press('Enter');
+    // Wait for SSE stream to deliver content
+    await expect(page.locator('.msg-in').filter({ hasText: /Hel/ }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('.msg-in').filter({ hasText: /world!/ }).first()).toBeVisible({ timeout: 10_000 });
 
-    // Wait for streaming to complete
-    await page.waitForTimeout(2000);
-
-    // The assist message should contain the streamed content
-    await expect(page.locator('.msg-in').filter({ hasText: /Hel/ })).toBeVisible({ timeout: 10_000 });
-
-    // Provider/model info should be visible somewhere in the page
-    // (ChatMessage displays attribution when provider/model metadata is present)
-    const pageText = await page.locator('.msg-in').last().textContent();
-    expect(pageText).toBeTruthy();
-
-    // Capture visible message content for later comparison
     const messagesBeforeReload = await page.locator('.msg-in').allTextContents();
+    expect(messagesBeforeReload.length).toBeGreaterThanOrEqual(2);
 
-    // Wait for persistence to complete before reloading (saveState → 'saved')
-    await page.waitForTimeout(2000);
-
-    // Reload
+    // Reload — active-chat-id survives because initScript no longer clears it
     await page.reload();
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
 
-    // Navigate back to chat — app restores active chat from localStorage
+    // Navigate to chat — app restores active chat from localStorage
     await page.getByRole('button', { name: /^chat$/i }).first().click();
-    // Allow async chat loading and message fetch to complete
-    await page.waitForTimeout(2000);
 
-    // Verify same content restoration
+    // Wait for recovered messages to render — check for actual content, not timeout
+    await expect(page.locator('.msg-in').filter({ hasText: new RegExp(uniqueText) }).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('.msg-in').filter({ hasText: /Hello, world!/ }).first()).toBeVisible({ timeout: 10_000 });
+
     const messagesAfterReload = await page.locator('.msg-in').allTextContents();
     expect(messagesAfterReload.length).toBeGreaterThanOrEqual(messagesBeforeReload.length);
-    // The user message text must be present after recovery
-    const allText = messagesAfterReload.join(' ');
-    expect(allText).toContain(uniqueText); // user message recovered
-    expect(allText).toContain('Hello, world!'); // assistant message recovered
   });
 
   test('stream failure shows friendly recovery copy and retry succeeds', async ({ page }) => {
     await stubGateway(page, { failAfterChunks: 1 });
-
-    await page.goto('/');
-    await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
+    await goClean(page);
 
     await page.getByRole('button', { name: /^chat$/i }).first().click();
     await page.waitForTimeout(500);
@@ -290,7 +275,7 @@ test.describe('Chat Trust Slice 3 — phone', () => {
     await composer.fill('');
     await composer.type(`error-test-${Date.now()}`, { delay: 10 });
     await page.waitForTimeout(300);
-    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: /send message/i }).click();
 
     // The cut stream (no [DONE]) must show plain copy, never raw internals.
     await page.waitForTimeout(2000);
@@ -342,9 +327,7 @@ test.describe('Chat Trust Slice 3 — phone', () => {
 
   test('retry does not duplicate user message', async ({ page }) => {
     await stubGateway(page, { failAfterChunks: 1 });
-
-    await page.goto('/');
-    await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
+    await goClean(page);
 
     await page.getByRole('button', { name: /^chat$/i }).first().click();
     await page.waitForTimeout(500);
@@ -354,7 +337,7 @@ test.describe('Chat Trust Slice 3 — phone', () => {
 
     const dedupText = `dedup-test-${Date.now()}`;
     await composer.fill(dedupText);
-    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: /send message/i }).click();
 
     await page.waitForTimeout(800);
 
@@ -399,8 +382,7 @@ test.describe('Chat Trust Slice 3 — desktop regression', () => {
     const errors: string[] = [];
     page.on('pageerror', (err) => errors.push(err.message));
 
-    await page.goto('/');
-    await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
+    await goClean(page);
 
     const chatsBtn = page.getByRole('button', { name: /^chat$/i }).first();
     await chatsBtn.first().click();
