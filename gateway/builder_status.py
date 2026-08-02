@@ -226,7 +226,7 @@ def _control_plane_initiatives(conn: sqlite3.Connection) -> list[dict[str, Any]]
             }
             for initiative in initiatives
         ]
-    initiatives = _read_initiatives(conn)
+    initiative_rows = _read_initiatives(conn)
     return [
         {
             "initiative_id": str(row["id"]),
@@ -242,7 +242,7 @@ def _control_plane_initiatives(conn: sqlite3.Connection) -> list[dict[str, Any]]
             ),
             "updated_at": row["updated_at"],
         }
-        for row in initiatives
+        for row in initiative_rows
     ]
 
 
