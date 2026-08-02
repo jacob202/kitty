@@ -32,7 +32,7 @@
 - this session: builder worker (packet B5-pr-check-review-actionable, initiative trustworthy-kittybuilder-b2-b10-v1)
 - task_id: kb_msb4yx3n_124c
 
-## KB effectiveness
+## Implementation summary
 
 - no receipt recorded yet
 

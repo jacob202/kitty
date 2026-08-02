@@ -761,15 +761,11 @@ def _cmd_queue_publish(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_recover(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
-        recover_expired_leases,
-        recover_interrupted_runs,
-    )
+    from gateway.builder_queue import recover_durable_issues
 
-    result = recover_expired_leases()
-    runs_result = recover_interrupted_runs()
+    result = recover_durable_issues()
     if args.json:
-        print(json.dumps({**result, **runs_result}, indent=2, default=str))
+        print(json.dumps(result, indent=2, default=str))
     else:
         print(
             f"Recovered {result['total']} task(s): "
@@ -777,29 +773,44 @@ def _cmd_queue_recover(args: argparse.Namespace) -> int:
             f"{result['running_blocked']} running → blocked (stale_heartbeat)"
         )
         print(
-            f"Marked {runs_result['runs_interrupted']} dead run(s) as interrupted"
+            f"Marked {result['runs_interrupted']} dead run(s) as interrupted"
         )
-        reconciled_blocked = runs_result.get("running_tasks_blocked", 0)
-        reconciled_requeued = runs_result.get("claimed_tasks_requeued", 0)
+        reconciled_blocked = result.get("running_tasks_blocked", 0)
+        reconciled_requeued = result.get("claimed_tasks_requeued", 0)
         if reconciled_blocked or reconciled_requeued:
             print(
                 "Reconciled interrupted-run tasks: "
                 f"{reconciled_requeued} claimed → queued, "
                 f"{reconciled_blocked} running → blocked (run_interrupted)"
             )
-        deferred_ids = runs_result.get("starting_run_ids", [])
+        deferred_ids = result.get("starting_run_ids", [])
         if deferred_ids:
             print(
                 "Deferred fresh starting run(s) until the recovery grace "
                 f"window expires: {', '.join(deferred_ids)}"
             )
-        unverified_runs = runs_result.get("unverified_runs", [])
+        unverified_runs = result.get("unverified_runs", [])
         for run in unverified_runs:
             print(
                 "WARNING: left active run "
                 f"{run['run_id']} unchanged because its process could not be "
                 f"verified ({run['reason']})"
             )
+        promoted = result.get("promoted", [])
+        if promoted:
+            print(
+                "Promoted to done via merged PR: "
+                + ", ".join(promoted)
+            )
+        flagged = result.get("done_with_unmerged_pr_flagged", [])
+        if flagged:
+            print(
+                "WARNING: done task(s) with an unmerged PR need attention "
+                f"(possible inconsistent completion): {', '.join(flagged)}"
+            )
+        merge_errors = result.get("merge_errors", [])
+        for err in merge_errors:
+            print(f"  error {err.get('task_id', '?')}: {err.get('error')}", file=sys.stderr)
     return 0
 
 
@@ -812,15 +823,15 @@ def _cmd_queue_operator_cancel(args: argparse.Namespace) -> int:
     from gateway.builder_queue import (
         IllegalTransitionError,
         TaskNotFoundError,
-        transition_task,
+        operator_cancel_task,
     )
 
-    payload: dict[str, Any] = {"operator": True}
-    if args.reason:
-        payload["reason"] = args.reason
-
     try:
-        task = transition_task(args.id, "cancelled", payload=payload)
+        task = operator_cancel_task(
+            args.id,
+            reason=args.reason or "operator cancel from CLI",
+            actor="cli",
+        )
         if args.json:
             print(json.dumps(task, indent=2, default=str))
         else:
