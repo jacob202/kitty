@@ -278,20 +278,33 @@ async def image_status():
         raise RuntimeError("drawthings engine adapter does not expose is_available()")
     drawthings_available = bool(await asyncio.to_thread(probe))
 
+    from gateway.image_runner import openrouter_images_available
+
+    hosted_available, hosted_reason = openrouter_images_available()
     engines = [
         {"name": "comfyui", "label": "ComfyUI", "available": comfy_available},
         {"name": "drawthings", "label": "Draw Things", "available": drawthings_available},
+        {
+            "name": "openrouter",
+            "label": "Hosted (OpenRouter)",
+            "available": hosted_available,
+            "unavailable_reason": hosted_reason or None,
+        },
     ]
-    return {"available": comfy_available or drawthings_available, "backend": "comfyui", "engines": engines}
+    available = comfy_available or drawthings_available or hosted_available
+    backend = "comfyui" if comfy_available else ("openrouter" if hosted_available else "comfyui")
+    return {"available": available, "backend": backend, "engines": engines}
 
 
 @router.post("/image/generate")
 async def image_generate(req: ImageGenRequest):
-    from gateway.image_runner import ImageRunnerError, run
+    from gateway.image_runner import ENGINES, ImageRunnerError, run
 
     engine = req.engine.strip().lower()
-    if engine not in {"comfyui", "drawthings"}:
-        raise HTTPException(status_code=422, detail="engine must be 'comfyui' or 'drawthings'")
+    if engine not in ENGINES:
+        raise HTTPException(
+            status_code=422, detail=f"engine must be one of {', '.join(sorted(ENGINES))}"
+        )
 
     try:
         result = await run(engine, req.prompt, parent_id=req.parent_id)
