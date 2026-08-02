@@ -175,12 +175,14 @@ async def chat_completions(request: Request):
         trigger,
     )
     requested_model = body.get("model", "kitty-default")
+    # reroute_virtual_models lets "Kitty Auto" mean what it says: the classifier
+    # picks the tier. Every other menu id is a pin the caller chose, and stays.
     route_decision = resolve_chat_route(
         requested_model,
         user_text,
-        reroute_virtual_models=False,
+        reroute_virtual_models=True,
     )
-    model = route_decision.model if route_decision.source == "request" else route_model(user_text)
+    model = route_decision.model
 
     conversation_id = body.get("conversation_id")
     if conversation_id is not None and (

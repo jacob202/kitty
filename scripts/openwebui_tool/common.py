@@ -25,6 +25,10 @@ HOST = os.environ.get("KITTY_OPENWEBUI_HOST", "127.0.0.1")
 # The existing Next.js UI, i.e. what `rollback` hands the day back to. Matches
 # UI_PORT in ./kitty.
 KITTY_UI_PORT = int(os.environ.get("UI_PORT", "4000"))
+# The id Open WebUI opens on. Must exist in the Gateway's /v1/models — the
+# health check treats its absence as "the Gateway is not really up".
+DEFAULT_MODEL = "kitty-auto"
+TASK_MODEL = "kitty-fast"
 VENV_DIR = SERVICE_ROOT / f"venv-{VERSION}"
 DATA_DIR = SERVICE_ROOT / "data-fresh"
 BACKUP_ROOT = SERVICE_ROOT / "backups"
@@ -207,11 +211,11 @@ def verify_gateway() -> tuple[str, str]:
         for item in models.get("data", [])
         if isinstance(item, dict)
     }
-    if "kitty-default" not in model_ids:
+    if DEFAULT_MODEL not in model_ids:
         rendered = sorted(str(model_id) for model_id in model_ids)
-        fail(f"Kitty model discovery is missing kitty-default: {rendered}")
+        fail(f"Kitty model discovery is missing {DEFAULT_MODEL}: {rendered}")
 
-    print(f"Gateway ready: {base} (kitty-default discovered)")
+    print(f"Gateway ready: {base} ({len(model_ids)} models, {DEFAULT_MODEL} present)")
     return base, secret
 
 
@@ -229,12 +233,14 @@ def ensure_gateway_running() -> tuple[str, str]:
     if ready is not None:
         return ready
 
-    print("Gateway is unhealthy; restarting Kitty services cleanly")
-    run([ROOT / "kitty", "down"], cwd=ROOT, check=False)
-    time.sleep(2)
-    run([ROOT / "kitty", "up"], cwd=ROOT)
+    # `./kitty install` reloads the launchd jobs in place. `./kitty down`/`up`
+    # was worse than the problem: `down` boots those jobs out entirely, so a
+    # Gateway that was merely slow came back as a shell-owned process that dies
+    # with the terminal and never returns after a reboot.
+    print("Gateway is unhealthy; reloading the Kitty launch services")
+    run([ROOT / "kitty", "install"], cwd=ROOT)
 
-    ready = wait_for_gateway(45)
+    ready = wait_for_gateway(60)
     if ready is not None:
         return ready
 
@@ -287,9 +293,11 @@ def runtime_env() -> dict[str, str]:
             "OPENAI_API_BASE_URL": f"{base}/v1",
             "OPENAI_API_KEY": gateway_secret,
             "ENABLE_OLLAMA_API": "False",
-            "DEFAULT_MODELS": "kitty-default",
-            "DEFAULT_PINNED_MODELS": "kitty-default",
-            "TASK_MODEL_EXTERNAL": "kitty-default",
+            "DEFAULT_MODELS": DEFAULT_MODEL,
+            "DEFAULT_PINNED_MODELS": DEFAULT_MODEL,
+            # Titles and tag suggestions are throwaway work; they do not need
+            # the tier the conversation is on.
+            "TASK_MODEL_EXTERNAL": TASK_MODEL,
             "ENABLE_PERSISTENT_CONFIG": "False",
             "ENABLE_VERSION_UPDATE_CHECK": "False",
             "ENABLE_COMMUNITY_SHARING": "False",

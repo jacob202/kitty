@@ -113,9 +113,17 @@ def _env_slug(name: str, default: str) -> str:
     v = os.environ.get(name, "").strip()
     return v if v else default
 
+# Kept in step with gateway/litellm_config.yaml. The direct-provider chain runs
+# when LiteLLM is unreachable; a route missing here would be sent to OpenRouter
+# verbatim as "kitty-think", which is not a model id anywhere.
 _LITELLM_TO_OPENROUTER: dict[str, str] = {
     _LITELLM_DEFAULT: "openrouter/deepseek/deepseek-v4-pro",
     "kitty-default-or": "openrouter/deepseek/deepseek-v4-flash",
+    "kitty-sonnet": "openrouter/deepseek/deepseek-v4-pro",
+    "kitty-small": "openrouter/deepseek/deepseek-v4-flash",
+    "kitty-think": "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
+    "kitty-code": "openrouter/qwen/qwen3-coder",
+    "kitty-vision": "openrouter/mistralai/mistral-small-3.2-24b-instruct",
 }
 
 
