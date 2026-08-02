@@ -15,7 +15,7 @@
     "Added 6 focused recovery-action tests in test_builder_status.py"
   ],
   "blockers": [],
-  "next_action": "Packet reported; await review.",
+  "next_action": "None",
   "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
