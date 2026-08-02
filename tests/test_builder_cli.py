@@ -1043,38 +1043,40 @@ class TestQueueAttachPr:
 
 class TestQueueRecover:
     def test_dispatch(self, capsys):
-        result = {"claimed_requeued": 2, "running_blocked": 1, "total": 3}
+        result = {
+            "claimed_requeued": 2, "running_blocked": 1, "total": 3,
+            "runs_interrupted": 0, "run_ids": [],
+            "promoted": [], "merge_errors": [],
+            "done_with_unmerged_pr_flagged": [],
+        }
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
-                f"{_QUEUE_PATCH}.recover_expired_leases", return_value=result
+                f"{_QUEUE_PATCH}.recover_durable_issues", return_value=result
             ):
-                with patch(
-                    f"{_QUEUE_PATCH}.recover_interrupted_runs",
-                    return_value={"runs_interrupted": 0, "run_ids": []},
-                ):
-                    rc = main(["queue", "recover"])
+                rc = main(["queue", "recover"])
         assert rc == 0
         out = capsys.readouterr().out
         assert "Recovered 3" in out
         assert "2 claimed" in out
 
     def test_json(self, capsys):
-        result = {"claimed_requeued": 0, "running_blocked": 0, "total": 0}
+        result = {
+            "claimed_requeued": 0, "running_blocked": 0, "total": 0,
+            "runs_interrupted": 0, "run_ids": [],
+            "promoted": [], "merge_errors": [],
+            "done_with_unmerged_pr_flagged": [],
+        }
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
-                f"{_QUEUE_PATCH}.recover_expired_leases", return_value=result
+                f"{_QUEUE_PATCH}.recover_durable_issues", return_value=result
             ):
-                with patch(
-                    f"{_QUEUE_PATCH}.recover_interrupted_runs",
-                    return_value={"runs_interrupted": 0, "run_ids": []},
-                ):
-                    rc = main(["queue", "recover", "--json"])
+                rc = main(["queue", "recover", "--json"])
         assert rc == 0
         assert json.loads(capsys.readouterr().out)["total"] == 0
 
     def test_human_output_surfaces_unverified_live_runs(self, capsys):
-        tasks = {"claimed_requeued": 0, "running_blocked": 0, "total": 0}
-        runs = {
+        result = {
+            "claimed_requeued": 0, "running_blocked": 0, "total": 0,
             "runs_interrupted": 0,
             "run_ids": [],
             "starting_runs_deferred": 0,
@@ -1083,15 +1085,14 @@ class TestQueueRecover:
             "unverified_runs": [
                 {"run_id": "run_123", "reason": "process_identity_missing"}
             ],
+            "promoted": [], "merge_errors": [],
+            "done_with_unmerged_pr_flagged": [],
         }
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
-                f"{_QUEUE_PATCH}.recover_expired_leases", return_value=tasks
+                f"{_QUEUE_PATCH}.recover_durable_issues", return_value=result
             ):
-                with patch(
-                    f"{_QUEUE_PATCH}.recover_interrupted_runs", return_value=runs
-                ):
-                    rc = main(["queue", "recover"])
+                rc = main(["queue", "recover"])
 
         assert rc == 0
         out = capsys.readouterr().out
@@ -1104,17 +1105,17 @@ class TestQueueOperatorCancel:
         task = _fake_task("kb_oc1_aaaa", state="cancelled")
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
-                f"{_QUEUE_PATCH}.transition_task", return_value=task
-            ) as mock_tr:
+                f"{_QUEUE_PATCH}.operator_cancel_task", return_value=task
+            ) as mock_cancel:
                 rc = main([
                     "queue", "operator-cancel", "kb_oc1_aaaa",
                     "--reason", "stale demo",
                 ])
         assert rc == 0
-        mock_tr.assert_called_once_with(
+        mock_cancel.assert_called_once_with(
             "kb_oc1_aaaa",
-            "cancelled",
-            payload={"operator": True, "reason": "stale demo"},
+            reason="stale demo",
+            actor="cli",
         )
 
     def test_illegal_state_reports_error(self, capsys):
@@ -1122,7 +1123,7 @@ class TestQueueOperatorCancel:
 
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
-                f"{_QUEUE_PATCH}.transition_task",
+                f"{_QUEUE_PATCH}.operator_cancel_task",
                 side_effect=IllegalTransitionError("no"),
             ):
                 rc = main(["queue", "operator-cancel", "kb_oc2_bbbb"])

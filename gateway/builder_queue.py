@@ -126,6 +126,7 @@ __all__ = [
     # Re-exports from gateway.builder_queue_leases (lease lifecycle; audit §2.2 second cut).
     "claim_next",
     "claim_task",
+    "operator_cancel_task",
     "operator_release_task",
     "recover_expired_leases",
     "renew_lease",
@@ -169,6 +170,7 @@ __all__ = [
     "list_tasks",
     "queue_status",
     "recover_interrupted_runs",
+    "recover_durable_issues",
     "release_branch_lease",
     "RunNotFoundError",
     "RunStateConflictError",
@@ -626,7 +628,68 @@ def transition_task(
     return result
 
 
-# Claiming / lease-fencing functions were extracted to :mod:`gateway.builder_queue_leases` (audit §2.2 #2).
+def operator_cancel_task(
+    task_id: str,
+    *,
+    reason: str = "operator cancel",
+    actor: str | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Operator-cancel a task, refusing in-flight or published work.
+
+    Refuses tasks in ``running`` or ``pr_opened``: a running task has a live
+    worker (its PR may still merge later), and a ``pr_opened`` task already has
+    work published. Cancelling either through the command surface would let
+    ``operator-cancel`` act as an unblock shortcut that destroys a completed
+    implementation's eligibility at the queue layer.
+
+    Recovering a task cancelled *in error* is the job of the reconciliation
+    path (``recover_durable_issues`` / ``reconcile-merges``), which re-evaluates
+    the task against ground truth (its linked PR merged) — never by mutating DB
+    rows by hand.
+
+    Returns the updated task dict.
+
+    Raises:
+        TaskNotFoundError — task ID does not exist.
+        IllegalTransitionError — not cancellable (in-flight/published, archived,
+            already terminal, or raced by a concurrent transition).
+    """
+    conn = connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT id, state, archived_at FROM tasks WHERE id = ?",
+            (task_id,),
+        ).fetchone()
+        if row is None:
+            raise TaskNotFoundError(f"task not found: {task_id}")
+        if row["archived_at"] is not None:
+            raise IllegalTransitionError(
+                f"task {task_id} is archived and cannot be cancelled"
+            )
+        state = row["state"]
+        if state in (RUNNING, PR_OPENED):
+            raise IllegalTransitionError(
+                f"refusing to operator-cancel task {task_id} in state "
+                f"{state!r}; in-flight or published tasks must not be "
+                "cancelled through the command surface"
+            )
+        payload: dict[str, Any] = {"operator": True, "reason": reason}
+        if actor is not None:
+            payload["actor"] = actor
+        _apply_transition(conn, task_id, state, CANCELLED, payload=payload)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    result = get_task(task_id, db_path=db_path)
+    if result is None:
+        raise RuntimeError(f"Task {task_id} was cancelled but is not retrievable")
+    return result
 
 
 
@@ -1312,12 +1375,19 @@ def detect_merged_prs(
 ) -> dict[str, Any]:
     """Promote tasks whose linked PR has merged to ``done``.
 
-    Scans tasks currently in ``awaiting_review`` (or ``pr_opened``) that have a
-    ``pr_links`` row flagged merged, or whose merge status is resolved live via
-    ``pr_merged(pr_number)`` (injectable; defaults to ``_gh_pr_status``). On
-    merge, the task is driven to ``done`` through the legal state machine and
-    the ``pr_links`` row is marked merged — which unlocks dependent packets via
-    the existing KB-S1B eligibility rollup.
+    Scans tasks currently in ``awaiting_review`` (or ``pr_opened``, ``blocked``,
+    or task wrongly ``cancelled``) that have a ``pr_links`` row flagged merged,
+    or whose merge status is resolved live via ``pr_merged(pr_number)``
+    (injectable; defaults to ``_gh_pr_status``). On merge, the task is driven to
+    ``done`` through the legal state machine (or via the guarded reconciliation
+    path when recovering a wrongly-cancelled task that is terminal) and the
+    ``pr_links`` row is marked merged — which unlocks dependent packets via the
+    existing KB-S1B eligibility rollup.
+
+    Including ``cancelled`` in the scan is the supported recovery of a task that
+    an operator cancelled by mistake: a merged PR is ground truth that the work
+    completed, so the cancelled task is promoted to ``done`` instead of counting
+    as permanently failed.
 
     Merge detection is read-only against GitHub and never pushes or merges; the
     builder remains operator-controlled per the architecture.
@@ -1332,9 +1402,9 @@ def detect_merged_prs(
                    p.merged AS already_merged
             FROM tasks t
             JOIN pr_links p ON p.task_id = t.id
-            WHERE t.state IN (?, ?, ?)
+            WHERE t.state IN (?, ?, ?, ?)
             """,
-            (BLOCKED, PR_OPENED, AWAITING_REVIEW),
+            (BLOCKED, PR_OPENED, AWAITING_REVIEW, CANCELLED),
         ).fetchall()
     finally:
         conn.close()
@@ -1430,10 +1500,171 @@ def _promote_merged_task(task_id: str, db_path: Path | None) -> None:
     elif state == PR_OPENED:
         transition_task(task_id, AWAITING_REVIEW, db_path=db_path)
         transition_task(task_id, DONE, db_path=db_path)
+    elif state == CANCELLED:
+        _recover_cancelled_task_due_to_merge(task_id, db_path=db_path)
     else:
         raise IllegalTransitionError(
             f"task {task_id} in state {state!r} cannot be merged-promoted"
         )
+
+
+def _recover_cancelled_task_due_to_merge(
+    task_id: str, db_path: Path | None
+) -> None:
+    """Promote a wrongly-cancelled task to ``done`` once its PR is proven merged.
+
+    ``cancelled`` is a terminal state with no legal transitions, so this cannot
+    reuse ``transition_task``. Recovery is performed through the guarded
+    reconciliation path and is justified *only by merged-PR ground truth* (the
+    caller has already confirmed the linked PR merged). It appends an auditable
+    ``recovered`` event and clears any stale lease/blocked fields so a recovered
+    task is not mistakenly left in a partially-run state.
+    """
+    conn = connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT id, state, archived_at FROM tasks WHERE id = ?",
+            (task_id,),
+        ).fetchone()
+        if row is None:
+            raise TaskNotFoundError(f"task not found: {task_id}")
+        if row["archived_at"] is not None:
+            raise IllegalTransitionError(
+                f"task {task_id} is archived and cannot be recovered"
+            )
+        if row["state"] != CANCELLED:
+            raise IllegalTransitionError(
+                f"task {task_id} is in state {row['state']!r}; "
+                "only cancelled tasks can be merge-recovered"
+            )
+        cursor = conn.execute(
+            """
+            UPDATE tasks
+            SET state = ?,
+                blocked_reason = NULL,
+                last_error = NULL,
+                lease_owner = NULL,
+                lease_token = NULL,
+                lease_expires_at = NULL,
+                updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+            WHERE id = ? AND state = ? AND archived_at IS NULL
+            """,
+            (DONE, task_id, CANCELLED),
+        )
+        if cursor.rowcount != 1:
+            raise IllegalTransitionError(
+                f"recovery failed; task {task_id} changed, archived, or "
+                "no longer cancelled"
+            )
+        append_event(
+            task_id,
+            "recovered",
+            payload={
+                "from_state": CANCELLED,
+                "to_state": DONE,
+                "reason": "pr_merged",
+                "recover_via": "reconcile_merges",
+            },
+            conn=conn,
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def recover_durable_issues(
+    db_path: Path | None = None,
+    *,
+    pr_merged: Any = None,
+) -> dict[str, Any]:
+    """Recover and reconcile durable queue issues in one governed pass.
+
+    This is the supported recover path an operator runs instead of mutating DB
+    rows by hand. It tears down stale execution state *and* reconciles task
+    state against ground truth (merged PRs) in a single auditable pass:
+
+    - expired claimed  -> queued          (recover_expired_leases)
+    - expired running  -> blocked         (recover_expired_leases)
+    - dead runs        -> interrupted      (recover_interrupted_runs)
+    - merged-but-not-done (incl. wrongly cancelled) -> done (detect_merged_prs)
+    - done-with-unmerged-PR -> reported for operator attention (no silent demote)
+
+    ``pr_merged`` is injectable for tests (defaults to ``_gh_pr_status``).
+    """
+    leases = recover_expired_leases(db_path=db_path)
+    runs = recover_interrupted_runs(db_path=db_path)
+    merges = detect_merged_prs(db_path=db_path, pr_merged=pr_merged)
+    done_unmerged = _reconcile_done_unmerged_prs(
+        db_path=db_path, pr_merged=pr_merged
+    )
+    return {
+        **leases,
+        **runs,
+        "promoted": merges["promoted"],
+        "already_merged": merges["already_merged"],
+        "merge_errors": merges["errors"],
+        **done_unmerged,
+    }
+
+
+def _reconcile_done_unmerged_prs(
+    db_path: Path | None,
+    *,
+    pr_merged: Any = None,
+) -> dict[str, Any]:
+    """Find done tasks whose linked PR is not merged and reconcile them.
+
+    A task in ``done`` normally reaches that state via merge promotion, so a
+    done task with an unmerged PR link is inconsistent. It is not safe to
+    automatically demote a done task, so such tasks are surfaced for operator
+    attention rather than silently mutated. If GitHub instead confirms the PR
+    actually merged (the link was merely stale), the link is idempotently
+    marked merged as a consistency fix.
+
+    ``pr_merged`` is injectable for tests (defaults to ``_gh_pr_status``).
+    """
+    resolver = pr_merged or _gh_pr_status
+    init_db(db_path)
+    conn = connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT t.id AS task_id, p.pr_number AS pr_number
+            FROM tasks t
+            JOIN pr_links p ON p.task_id = t.id
+            WHERE t.state = ? AND p.merged = 0
+            """,
+            (DONE,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    marked: list[str] = []
+    flagged: list[str] = []
+    errors: list[dict[str, str]] = []
+    for row in rows:
+        task_id = str(row["task_id"])
+        pr_number = int(row["pr_number"])
+        try:
+            status = resolver(pr_number)
+        except Exception as exc:
+            errors.append({"task_id": task_id, "error": str(exc)})
+            continue
+        if status.get("merged"):
+            _mark_pr_merged(task_id, pr_number, db_path)
+            marked.append(task_id)
+        else:
+            flagged.append(task_id)
+
+    return {
+        "done_with_unmerged_pr_marked_merged": marked,
+        "done_with_unmerged_pr_flagged": flagged,
+        "done_with_unmerged_pr_errors": errors,
+    }
 
 
 def get_pr_links(
