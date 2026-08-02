@@ -7,6 +7,7 @@ honestly) and a tmp queue DB. Worker commands are tiny shell scripts.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -1056,3 +1057,251 @@ class TestRequestCancel:
     def test_cancel_unknown_run(self, db_path: Path):
         with pytest.raises(bq.RunNotFoundError):
             br.request_cancel("run_nope_0000", db_path=db_path)
+
+
+# ---------------------------------------------------------------------------
+# Durable detached execution (B7-detached-execution-durable)
+# ---------------------------------------------------------------------------
+
+
+class TestDetachedExecution:
+    def _wait_status(self, task_id, db_path, want, timeout=25.0):
+        start = time.monotonic()
+        while time.monotonic() - start < timeout:
+            status = br.detached_worker_status(task_id=task_id, db_path=db_path)
+            if status["status"] == want:
+                return status
+            time.sleep(0.2)
+        raise AssertionError(
+            f"status never became {want!r}; last={br.detached_worker_status(task_id=task_id, db_path=db_path)}"
+        )
+
+    def test_dispatch_is_non_blocking_and_worker_completes_with_attribution(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """run_worker_detached returns before the worker finishes, and the
+        worker's output is durably attributed to its run (criteria: survive
+        the caller, reconnect, attribute output)."""
+        task = _queued_task(db_path)
+        worker_cmd = ["sh", "-c", "echo detached > detached.txt; sleep 0.5"]
+
+        dispatch = br.run_worker_detached(
+            task["id"],
+            worker_cmd,
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            lease_seconds=5,
+            repo_root=repo,
+            db_path=db_path,
+            spec_dir=tmp_path / "detached",
+        )
+
+        # The caller returns immediately, owning nothing — the supervisor is a
+        # distinct process in its own session.
+        assert dispatch["status"] == "dispatched"
+        assert dispatch["supervisor_pid"] and dispatch["supervisor_pid"] != 0
+        assert dispatch["supervisor_pid"] != os.getpid()
+        assert Path(dispatch["spec_path"]).is_file()
+
+        completed = self._wait_status(task["id"], db_path, "completed")
+        assert completed["reconnectable"] is True
+        assert completed["final_report"]["outcome"] == bq.RUN_EXITED
+        worktree = Path(completed["worktree_path"])
+        assert (worktree / "detached.txt").is_file()
+        assert "detached" in (worktree / "detached.txt").read_text()
+
+        # The supervisor left a durable completion status beside its spec.
+        status_file = Path(dispatch["spec_path"]).with_suffix(".status.json")
+        assert status_file.is_file()
+        saved = json.loads(status_file.read_text())
+        assert saved["ok"] is True
+
+    def test_detached_worker_survives_caller_exit(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A worker is not stranded when the process that dispatched it dies
+        immediately (terminal disconnect / watcher death). The detached
+        supervisor keeps ownership and the run still completes."""
+        task = _queued_task(db_path)
+        spec_dir = tmp_path / "detached"
+        dispatch = br.run_worker_detached(
+            task["id"],
+            ["sh", "-c", "echo survivor > survivor.txt; sleep 1.0"],
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            lease_seconds=5,
+            repo_root=repo,
+            db_path=db_path,
+            spec_dir=spec_dir,
+        )
+        supervisor_pid = dispatch["supervisor_pid"]
+
+        # The supervisor lives in its own session, so it is not killed when the
+        # process that launched it (the loop / watcher / terminal) dies.
+        assert os.getpgid(supervisor_pid) != os.getpgid(os.getpid())
+
+        # The dispatcher is already gone from this call's perspective; the run
+        # still completes under the detached supervisor's ownership.
+        completed = self._wait_status(task["id"], db_path, "completed", timeout=30)
+        assert completed["final_report"]["outcome"] == bq.RUN_EXITED
+        worktree = Path(completed["worktree_path"])
+        assert (worktree / "survivor.txt").is_file()
+
+    def test_status_distinguishes_running_from_crashed_and_completed(
+        self, repo: Path, db_path: Path
+    ):
+        running_task = _queued_task(db_path)
+        claimed = bq.claim_task(running_task["id"], "runner", db_path=db_path)
+        running_run = bq.create_run(
+            running_task["id"],
+            ["sleep", "60"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.update_run(
+            running_run["id"],
+            state=bq.RUN_RUNNING,
+            pid=os.getpid(),
+            process_identity=bq.capture_process_identity(os.getpid()),
+            db_path=db_path,
+        )
+        running_status = br.detached_worker_status(
+            run_id=running_run["id"], db_path=db_path
+        )
+        assert running_status["status"] == "running"
+        assert running_status["reconnectable"] is True
+
+        # A dead pid behind an "active" run row is a crashed worker.
+        crashed_task = _queued_task(db_path)
+        claimed2 = bq.claim_task(crashed_task["id"], "runner", db_path=db_path)
+        crashed_run = bq.create_run(
+            crashed_task["id"],
+            ["sleep", "60"],
+            lease_token=claimed2["lease_token"],
+            claim_version=claimed2["claim_version"],
+            db_path=db_path,
+        )
+        bq.update_run(
+            crashed_run["id"],
+            state=bq.RUN_RUNNING,
+            pid=999999999,
+            process_identity="some recorded identity",
+            db_path=db_path,
+        )
+        crashed_status = br.detached_worker_status(
+            run_id=crashed_run["id"], db_path=db_path
+        )
+        assert crashed_status["status"] == "crashed"
+        assert crashed_status["reason"] == "process_not_running"
+
+        # A terminal run is completed and its output is attributable.
+        done_task = _queued_task(db_path)
+        run = br.run_worker(
+            done_task["id"],
+            ["sh", "-c", "echo ok > ok.txt"],
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+        done_status = br.detached_worker_status(run_id=run["id"], db_path=db_path)
+        assert done_status["status"] == "completed"
+        assert done_status["outcome"] == bq.RUN_EXITED
+        assert done_status["reconnectable"] is True
+
+    def test_reap_kills_orphaned_worker_and_skips_live_owner(
+        self, repo: Path, db_path: Path
+    ):
+        """A worker whose owner died (lease stale while the process is still
+        alive) is reaped; a worker with a live, current lease is left alone —
+        no orphaned workers accumulate across detach/restart cycles."""
+        import signal as _signal
+
+        # Real workers are spawned in their own session (pgid == pid), so model
+        # them the same way here for honest killpg + liveness behavior.
+        orphan_proc = subprocess.Popen(["sleep", "300"], start_new_session=True)
+        live_proc = subprocess.Popen(["sleep", "300"], start_new_session=True)
+        try:
+            orphan_task = _queued_task(db_path)
+            claimed = bq.claim_task(orphan_task["id"], "runner", db_path=db_path)
+            orphan_run = bq.create_run(
+                orphan_task["id"],
+                ["sleep", "300"],
+                lease_token=claimed["lease_token"],
+                claim_version=claimed["claim_version"],
+                db_path=db_path,
+            )
+            bq.update_run(
+                orphan_run["id"],
+                state=bq.RUN_RUNNING,
+                pid=orphan_proc.pid,
+                process_identity=bq.capture_process_identity(orphan_proc.pid),
+                db_path=db_path,
+            )
+            # Force the task's lease to have expired long ago -> owner is gone.
+            with bq.connect(db_path) as conn:
+                conn.execute(
+                    """
+                    UPDATE tasks SET lease_expires_at = '2000-01-01 00:00:00'
+                    WHERE id = ?
+                    """,
+                    (orphan_task["id"],),
+                )
+                conn.commit()
+
+            # A second worker whose lease is still current must NOT be reaped.
+            live_task = _queued_task(db_path)
+            claimed2 = bq.claim_task(live_task["id"], "runner", db_path=db_path)
+            live_run = bq.create_run(
+                live_task["id"],
+                ["sleep", "300"],
+                lease_token=claimed2["lease_token"],
+                claim_version=claimed2["claim_version"],
+                db_path=db_path,
+            )
+            bq.update_run(
+                live_run["id"],
+                state=bq.RUN_RUNNING,
+                pid=live_proc.pid,
+                process_identity=bq.capture_process_identity(live_proc.pid),
+                db_path=db_path,
+            )
+
+            result = br.reap_detached_workers(db_path=db_path, grace_seconds=0)
+        finally:
+            for proc in (orphan_proc, live_proc):
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
+
+        assert orphan_run["id"] in result["reaped"]
+        assert live_run["id"] not in result["reaped"]
+        assert live_run["id"] in result["skipped"]
+        # The orphan's process group was actually reclaimed (it terminated).
+        assert orphan_proc.poll() is not None
+
+    def test_detached_rejects_bad_timing_before_spawn(
+        self, repo: Path, db_path: Path
+    ):
+        task = _queued_task(db_path)
+        with pytest.raises(ValueError, match="heartbeat_seconds must be shorter"):
+            br.run_worker_detached(
+                task["id"],
+                ["true"],
+                lease_seconds=5,
+                heartbeat_seconds=5,
+                repo_root=repo,
+                db_path=db_path,
+            )
+        with pytest.raises(ValueError, match="timeout_seconds must be positive"):
+            br.run_worker_detached(
+                task["id"],
+                ["true"],
+                timeout_seconds=0,
+                repo_root=repo,
+                db_path=db_path,
+            )
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed is not None and refreshed["state"] == bq.QUEUED
