@@ -270,6 +270,73 @@ class TestEditRefusals:
         assert written.parent.name == result.job_id
 
 
+class TestWorkerConfiguration:
+    """Resolving the worker from the environment, without leaking its token."""
+
+    def test_unconfigured_worker_is_reported_as_unconfigured(self, monkeypatch):
+        from gateway import runpod_worker
+
+        monkeypatch.delenv(runpod_worker.WORKER_URL_ENV, raising=False)
+        monkeypatch.delenv(runpod_worker.WORKER_TOKEN_ENV, raising=False)
+        assert runpod_worker.worker_is_configured() is False
+
+    def test_both_settings_present_reads_as_configured(self, monkeypatch):
+        from gateway import runpod_worker
+
+        monkeypatch.setenv(runpod_worker.WORKER_URL_ENV, "https://worker.invalid")
+        monkeypatch.setenv(runpod_worker.WORKER_TOKEN_ENV, "t" * 48)
+        assert runpod_worker.worker_is_configured() is True
+
+    @pytest.mark.parametrize(
+        "present,missing",
+        [
+            ("WORKER_URL_ENV", "KITTY_WORKER_BEARER_TOKEN"),
+            ("WORKER_TOKEN_ENV", "KITTY_WORKER_URL"),
+        ],
+    )
+    def test_a_half_configured_worker_names_the_missing_setting(
+        self, monkeypatch, present: str, missing: str
+    ):
+        from gateway import runpod_worker
+        from gateway.runpod_worker import RunPodWorkerConfigurationError
+
+        monkeypatch.delenv(runpod_worker.WORKER_URL_ENV, raising=False)
+        monkeypatch.delenv(runpod_worker.WORKER_TOKEN_ENV, raising=False)
+        monkeypatch.setenv(getattr(runpod_worker, present), "value-here")
+
+        with pytest.raises(RunPodWorkerConfigurationError, match=missing):
+            runpod_worker.client_from_env()
+
+    def test_the_error_never_echoes_the_configured_value(self, monkeypatch):
+        from gateway import runpod_worker
+        from gateway.runpod_worker import RunPodWorkerConfigurationError
+
+        sentinel = "z" * 40
+        monkeypatch.delenv(runpod_worker.WORKER_URL_ENV, raising=False)
+        monkeypatch.setenv(runpod_worker.WORKER_TOKEN_ENV, sentinel)
+
+        with pytest.raises(RunPodWorkerConfigurationError) as caught:
+            runpod_worker.client_from_env()
+        assert sentinel not in str(caught.value)
+
+    @pytest.mark.asyncio
+    async def test_an_edit_without_a_configured_worker_fails_before_any_job(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """No worker means no render — and no orphan job left behind."""
+        from gateway import runpod_worker
+        from gateway.runpod_worker import RunPodWorkerConfigurationError
+
+        monkeypatch.delenv(runpod_worker.WORKER_URL_ENV, raising=False)
+        monkeypatch.delenv(runpod_worker.WORKER_TOKEN_ENV, raising=False)
+        anchor = _succeeded_anchor(tmp_path)
+
+        with pytest.raises(RunPodWorkerConfigurationError, match="not configured"):
+            await run_edit("broader build", anchor_job_id=anchor)
+
+        assert image_jobs.list_children(anchor) == []
+
+
 class TestSessionIntegration:
     @pytest.mark.asyncio
     async def test_an_edit_can_run_from_a_session_anchor(self, tmp_path: Path):

@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 import httpx
 
 from gateway.runpod_control import RunPodConfigurationError
+
+#: Where the authenticated Kitty worker is reachable, and the bearer token it
+#: expects. Both live in the operator's environment; neither is ever read from
+#: the repository, written to it, or logged.
+WORKER_URL_ENV = "KITTY_WORKER_URL"
+WORKER_TOKEN_ENV = "KITTY_WORKER_BEARER_TOKEN"
 
 
 class RunPodWorkerError(RuntimeError):
@@ -235,7 +242,9 @@ class RunPodWorkerClient:
         workflow_id: str,
         prompt: str,
         negative_prompt: str,
-        checkpoint: str,
+        # None lets the worker use its own allowlisted default rather than the
+        # gateway guessing a checkpoint name the worker may not have installed.
+        checkpoint: str | None,
         width: int,
         height: int,
         steps: int,
@@ -351,6 +360,41 @@ class RunPodWorkerClient:
         if not response.content:
             raise RunPodWorkerError("worker returned an empty output")
         return response.content
+
+
+def worker_is_configured() -> bool:
+    """Whether both worker settings are present, without revealing either."""
+    return bool(
+        os.environ.get(WORKER_URL_ENV, "").strip()
+        and os.environ.get(WORKER_TOKEN_ENV, "").strip()
+    )
+
+
+def client_from_env(
+    *, timeout_seconds: float = 30.0, client: httpx.AsyncClient | None = None
+) -> RunPodWorkerClient:
+    """Build a worker client from the operator's environment.
+
+    Raises ``RunPodWorkerConfigurationError`` naming the missing variable rather
+    than falling back to an unauthenticated or default endpoint — a silent
+    fallback here would send Jacob's images somewhere he did not configure.
+    The token's value never appears in the message.
+    """
+    base_url = os.environ.get(WORKER_URL_ENV, "").strip()
+    token = os.environ.get(WORKER_TOKEN_ENV, "").strip()
+    missing = [
+        name
+        for name, value in ((WORKER_URL_ENV, base_url), (WORKER_TOKEN_ENV, token))
+        if not value
+    ]
+    if missing:
+        raise RunPodWorkerConfigurationError(
+            f"the image worker is not configured: set {' and '.join(missing)} "
+            "in your environment"
+        )
+    return RunPodWorkerClient(
+        base_url, token, timeout_seconds=timeout_seconds, client=client
+    )
 
 
 def _health_error_message(response: httpx.Response) -> str:

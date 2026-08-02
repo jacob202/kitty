@@ -106,7 +106,7 @@ async def run_edit(
     prompt: str,
     *,
     anchor_job_id: str,
-    worker: Any,
+    worker: Any | None = None,
     denoise: float = DEFAULT_EDIT_DENOISE,
     recipe: Any | None = None,
     negative_prompt: str | None = None,
@@ -121,9 +121,11 @@ async def run_edit(
     merely contains preservation words is not an edit, and this path cannot
     produce one — the workflow has a ``LoadImage`` node that must be bound.
 
-    *worker* is supplied by the caller (a ``RunPodWorkerClient``). The runner
-    does not resolve worker credentials; that plumbing does not exist in the
-    gateway yet and needs Jacob's sign-off because it touches env and secrets.
+    Omitting *worker* resolves one from the operator's environment
+    (``KITTY_WORKER_URL`` and ``KITTY_WORKER_BEARER_TOKEN``). If either is
+    unset this raises rather than falling back to a default endpoint — sending
+    Jacob's images somewhere he did not configure is worse than not rendering.
+    Tests pass a stub instead.
 
     Invariant: if this function returns or raises, the job is terminal.
     """
@@ -132,6 +134,12 @@ async def run_edit(
             f"denoise must be within (0, 1], got {denoise}; 0 would return the "
             "source image unchanged"
         )
+
+    owns_worker = worker is None
+    if worker is None:
+        from gateway.runpod_worker import client_from_env
+
+        worker = client_from_env()
 
     source_bytes, source_name = _read_anchor_artifact(anchor_job_id)
 
@@ -191,6 +199,11 @@ async def run_edit(
     except Exception as exc:
         _mark_failed(job.job_id, f"{type(exc).__name__}: {exc}")
         raise
+    finally:
+        # Only close a client this call created; a caller-supplied worker
+        # belongs to the caller and may still be in use.
+        if owns_worker:
+            await worker.aclose()
 
     return JobResult(
         job_id=job.job_id,
