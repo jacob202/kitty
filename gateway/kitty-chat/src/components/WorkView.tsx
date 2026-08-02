@@ -47,7 +47,7 @@ export default function WorkView({ isMobile, onNavigate }: { isMobile: boolean; 
           <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink-2)', flex: 1 }}>
             {builderAttention} builder {builderAttention === 1 ? 'packet needs' : 'packets need'} attention
           </span>
-          <button type="button" onClick={() => k.setShowBuilderMachinery(true)}
+          <button type="button" onClick={() => k?.setShowBuilderMachinery(true)}
             style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 4, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink-2)', cursor: 'pointer' }}>
             show
           </button>
