@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 
 from gateway.model_discovery import (
     ModelDiscoveryError,
-    discovery_due,
     discover_openrouter,
+    discovery_due,
     load_snapshot,
 )
 from scripts import model_discovery as discovery_cli
@@ -64,7 +63,10 @@ def test_first_discovery_records_every_model_as_unevaluated_candidate(tmp_path):
     by_id = {item["id"]: item for item in saved["models"]}
     assert by_id["vendor/new-coder"]["suggested_roles"] == ["code"]
     assert by_id["vendor/new-vision"]["suggested_roles"] == ["vision"]
-    assert all(item["evaluation_status"] == "not_evaluated" for item in saved["models"])
+    assert all(
+        item["evaluation_status"] == "not_evaluated"
+        for item in saved["models"]
+    )
     assert snapshot.stat().st_mode & 0o777 == 0o600
     assert snapshot.parent.stat().st_mode & 0o777 == 0o700
 
@@ -74,16 +76,28 @@ def test_second_discovery_reports_only_real_catalogue_changes(tmp_path):
     discover_openrouter(
         snapshot_path=snapshot,
         now=NOW,
-        fetcher=lambda: {"data": [_row("vendor/old"), _row("vendor/stays")]},
+        fetcher=lambda: {
+            "data": [_row("vendor/old"), _row("vendor/stays")]
+        },
     )
 
     result = discover_openrouter(
         snapshot_path=snapshot,
         now=NOW + timedelta(days=7),
-        fetcher=lambda: {"data": [_row("vendor/stays"), _row("vendor/new-reasoning", description="reasoning model")]},
+        fetcher=lambda: {
+            "data": [
+                _row("vendor/stays"),
+                _row(
+                    "vendor/new-reasoning",
+                    description="reasoning model",
+                ),
+            ]
+        },
     )
 
-    assert [item["id"] for item in result.new_models] == ["vendor/new-reasoning"]
+    assert [item["id"] for item in result.new_models] == [
+        "vendor/new-reasoning"
+    ]
     assert result.new_models[0]["suggested_roles"] == ["think"]
     assert result.removed_model_ids == ("vendor/old",)
 
@@ -93,7 +107,9 @@ def test_discovery_rejects_duplicate_provider_ids(tmp_path):
         discover_openrouter(
             snapshot_path=tmp_path / "openrouter.json",
             now=NOW,
-            fetcher=lambda: {"data": [_row("same/model"), _row("same/model")]},
+            fetcher=lambda: {
+                "data": [_row("same/model"), _row("same/model")]
+            },
         )
 
 
@@ -104,20 +120,24 @@ def test_discovery_cadence_comes_from_the_model_policy(tmp_path):
         now=NOW,
         fetcher=lambda: {"data": [_row("vendor/model")]},
     )
-    policy = {
-        "discovery": {"cadence_days": 7},
-    }
+    policy = {"discovery": {"cadence_days": 7}}
 
-    assert discovery_due(
-        snapshot_path=snapshot,
-        now=NOW + timedelta(days=6, hours=23),
-        policy=policy,
-    ) is False
-    assert discovery_due(
-        snapshot_path=snapshot,
-        now=NOW + timedelta(days=7),
-        policy=policy,
-    ) is True
+    assert (
+        discovery_due(
+            snapshot_path=snapshot,
+            now=NOW + timedelta(days=6, hours=23),
+            policy=policy,
+        )
+        is False
+    )
+    assert (
+        discovery_due(
+            snapshot_path=snapshot,
+            now=NOW + timedelta(days=7),
+            policy=policy,
+        )
+        is True
+    )
 
 
 def test_snapshot_cannot_claim_that_discovery_promoted_a_model(tmp_path):
@@ -157,4 +177,6 @@ def test_launch_agent_is_weekly_local_and_has_no_provider_credentials(tmp_path):
 
 def test_missing_repository_python_refuses_autostart_definition(tmp_path):
     with pytest.raises(ModelDiscoveryError, match="Python is missing"):
-        discovery_cli.launch_agent_plist(python=tmp_path / "missing-python")
+        discovery_cli.launch_agent_plist(
+            python=tmp_path / "missing-python"
+        )
