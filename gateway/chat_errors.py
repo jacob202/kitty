@@ -91,7 +91,9 @@ def sse_error_event(kind: ChatErrorKind | str, message: str) -> bytes:
        it sees exactly what it saw before.
     2. An OpenAI-shaped chunk carrying the same copy as ``delta.content``.
        Open WebUI (and any other OpenAI-compatible client) cannot read frame 1,
-       so without this the user got a silent empty reply on every failure.
+       so without this the user got a silent empty reply on every failure. The
+       standard ``finish_reason`` remains schema-valid; Kitty's richer error kind
+       lives in the extension field.
     3. ``[DONE]``. The stream used to be torn down by the re-raise with no
        completion boundary, which those clients report as a cut connection
        rather than the real cause.
@@ -110,7 +112,7 @@ def sse_error_event(kind: ChatErrorKind | str, message: str) -> bytes:
                 {
                     "index": 0,
                     "delta": {"content": message},
-                    "finish_reason": "error",
+                    "finish_reason": "stop",
                 }
             ],
             "kitty_error_kind": kind_value,
