@@ -78,6 +78,11 @@ async def run(
             f"unknown engine {engine!r}; must be one of {', '.join(sorted(ENGINES))}"
         )
 
+    if engine == "flux":
+        return await _run_flux(
+            prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
+        )
+
     if engine == "openrouter":
         return await _run_openrouter(
             prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
@@ -392,7 +397,7 @@ def _mark_failed(job_id: str, message: str) -> None:
 
 #: Engines ``run`` will dispatch to. comfyui and drawthings are local; openrouter
 #: is the hosted lane and the only one that spends money.
-ENGINES = frozenset({"comfyui", "drawthings", "openrouter"})
+ENGINES = frozenset({"comfyui", "drawthings", "flux", "openrouter"})
 
 #: Accepts image input as well as text, so the same route does img2img editing.
 OPENROUTER_IMAGE_MODEL = os.environ.get(
@@ -511,5 +516,114 @@ async def _run_openrouter(
         job_id=job.job_id,
         filename=str(path),
         engine="openrouter",
+        recipe=recipe.recipe_id if recipe else None,
+    )
+
+
+#: Black Forest Labs. flux-dev generates, flux-kontext-pro edits an existing
+#: image. Roughly a third the price of the Gemini lane and materially better at
+#: photoreal, which is why it is the hosted default.
+FLUX_API = "https://api.bfl.ai/v1"
+FLUX_GENERATE_MODEL = os.environ.get("KITTY_FLUX_MODEL", "flux-dev")
+FLUX_EDIT_MODEL = os.environ.get("KITTY_FLUX_EDIT_MODEL", "flux-kontext-pro")
+
+
+def flux_images_available() -> tuple[bool, str]:
+    """Whether the Flux lane will run, and why not when it will not."""
+    if not paid_images_enabled():
+        return False, (
+            "Paid image generation is off. Flux costs about 2.5 cents a picture. "
+            "Set KITTY_IMAGE_PAID_ENABLED=1 in .env and restart Kitty to turn it on."
+        )
+    if not os.environ.get("BFL_API_KEY", "").strip():
+        return False, "BFL_API_KEY is not set"
+    return True, ""
+
+
+async def _run_flux(
+    prompt: str,
+    *,
+    recipe: Any | None = None,
+    parent_id: str | None = None,
+    source_image: bytes | None = None,
+) -> JobResult:
+    """Black Forest Labs lane, on the shared job lifecycle.
+
+    BFL is submit-then-poll rather than a single call, and a moderated request
+    comes back as a status rather than an error — both are surfaced verbatim so
+    a refusal never reads as a crash.
+    """
+    import asyncio as _asyncio
+    import base64
+
+    import httpx
+
+    enabled, reason = flux_images_available()
+    if not enabled:
+        raise ImageRunnerError(reason)
+
+    editing = source_image is not None
+    model = FLUX_EDIT_MODEL if editing else FLUX_GENERATE_MODEL
+    payload: dict[str, Any] = {"prompt": prompt}
+    if editing:
+        payload["input_image"] = base64.b64encode(source_image).decode()
+    else:
+        payload["width"] = 1024
+        payload["height"] = 1024
+
+    job = image_jobs.create_job(
+        provider="flux",
+        operation="img2img" if editing else ("variation" if parent_id else "txt2img"),
+        prompt=prompt,
+        parent_id=parent_id,
+        model_id=model,
+        workflow_template_id=recipe.workflow_template_id if recipe else None,
+    )
+
+    try:
+        image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        headers = {"x-key": os.environ["BFL_API_KEY"], "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=180) as client:
+            submit = await client.post(f"{FLUX_API}/{model}", headers=headers, json=payload)
+            if submit.status_code != 200:
+                raise ImageRunnerError(
+                    f"Flux returned HTTP {submit.status_code}: {submit.text[:300]}"
+                )
+            polling_url = submit.json()["polling_url"]
+
+            image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+            for _ in range(150):
+                poll = await client.get(polling_url, headers={"x-key": headers["x-key"]})
+                state = poll.json()
+                status = state.get("status")
+                if status not in {"Pending", "Queued", "Processing"}:
+                    break
+                await _asyncio.sleep(2)
+            else:
+                raise TimeoutError("Flux did not finish within 5 minutes")
+
+        if status != "Ready":
+            # "Request Moderated" and "Content Moderated" arrive here. Say which.
+            raise ImageRunnerError(f"Flux did not produce an image: {status}")
+        sample = (state.get("result") or {}).get("sample")
+        if not sample:
+            raise ImageRunnerError("Flux reported Ready but returned no image")
+
+        async with httpx.AsyncClient(timeout=180) as client:
+            download = await client.get(sample)
+            download.raise_for_status()
+            data = download.content
+
+        path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
+        image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
+    except Exception as exc:
+        _mark_failed(job.job_id, str(exc)[:500])
+        raise
+
+    return JobResult(
+        job_id=job.job_id,
+        filename=str(path),
+        engine="flux",
         recipe=recipe.recipe_id if recipe else None,
     )

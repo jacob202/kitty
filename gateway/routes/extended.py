@@ -278,21 +278,40 @@ async def image_status():
         raise RuntimeError("drawthings engine adapter does not expose is_available()")
     drawthings_available = bool(await asyncio.to_thread(probe))
 
-    from gateway.image_runner import openrouter_images_available
+    from gateway.image_runner import flux_images_available, openrouter_images_available
 
+    flux_available, flux_reason = flux_images_available()
     hosted_available, hosted_reason = openrouter_images_available()
     engines = [
         {"name": "comfyui", "label": "ComfyUI", "available": comfy_available},
         {"name": "drawthings", "label": "Draw Things", "available": drawthings_available},
         {
+            "name": "flux",
+            "label": "Flux (Black Forest Labs)",
+            "available": flux_available,
+            "unavailable_reason": flux_reason or None,
+            "cost_per_image_usd": 0.025,
+        },
+        {
             "name": "openrouter",
-            "label": "Hosted (OpenRouter)",
+            "label": "Gemini via OpenRouter",
             "available": hosted_available,
             "unavailable_reason": hosted_reason or None,
+            "cost_per_image_usd": 0.067,
         },
     ]
-    available = comfy_available or drawthings_available or hosted_available
-    backend = "comfyui" if comfy_available else ("openrouter" if hosted_available else "comfyui")
+    available = comfy_available or drawthings_available or flux_available or hosted_available
+    # Local first when it is up (free), then the cheapest hosted lane.
+    if comfy_available:
+        backend = "comfyui"
+    elif drawthings_available:
+        backend = "drawthings"
+    elif flux_available:
+        backend = "flux"
+    elif hosted_available:
+        backend = "openrouter"
+    else:
+        backend = "comfyui"
     return {"available": available, "backend": backend, "engines": engines}
 
 

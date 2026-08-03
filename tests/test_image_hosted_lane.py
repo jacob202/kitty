@@ -52,3 +52,26 @@ def test_a_disabled_lane_refuses_before_it_can_charge():
 def test_openrouter_is_a_dispatchable_engine():
     assert "openrouter" in image_runner.ENGINES
     assert {"comfyui", "drawthings"} <= image_runner.ENGINES
+
+
+def test_flux_is_off_until_the_same_switch_is_thrown(monkeypatch):
+    monkeypatch.setenv("BFL_API_KEY", "test-key")
+
+    available, reason = image_runner.flux_images_available()
+
+    assert available is False
+    assert "2.5 cents" in reason
+
+
+def test_flux_needs_its_own_key(monkeypatch):
+    monkeypatch.setenv("KITTY_IMAGE_PAID_ENABLED", "1")
+    monkeypatch.setenv("BFL_API_KEY", "")
+
+    available, reason = image_runner.flux_images_available()
+
+    assert available is False
+    assert "BFL_API_KEY" in reason
+
+
+def test_flux_is_a_dispatchable_engine():
+    assert "flux" in image_runner.ENGINES
