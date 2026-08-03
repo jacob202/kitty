@@ -1,4 +1,4 @@
-"""The tool surface Open WebUI is given."""
+"""The bounded tool surface Open WebUI is given."""
 
 from __future__ import annotations
 
@@ -14,13 +14,13 @@ from gateway.routes import tool_server
 client = TestClient(app)
 
 
-def test_the_spec_lists_only_kitty_tools():
-    """Open WebUI turns every operation in this spec into a tool the model sees.
+def _spec(server_url: str = "http://127.0.0.1:8123") -> dict:
+    return tool_server._tool_server_spec(server_url)
 
-    The Gateway's own /openapi.json describes the whole application; handing that
-    over would bury the useful operations and cost a fortune in prompt.
-    """
-    spec = tool_server.tool_server_openapi()
+
+def test_the_spec_lists_only_kitty_tools():
+    """The model must not receive the Gateway's hundreds of internal routes."""
+    spec = _spec()
 
     assert set(spec["paths"]) == {
         "/tools/v1/memory/search",
@@ -35,50 +35,110 @@ def test_the_spec_lists_only_kitty_tools():
 
 
 def test_every_operation_tells_the_model_what_it_is_for():
-    """A tool with no summary is a tool the model calls by accident."""
-    spec = tool_server.tool_server_openapi()
+    spec = _spec()
 
     for path, operations in spec["paths"].items():
         for method, operation in operations.items():
             assert operation.get("summary"), f"{method.upper()} {path}"
 
 
-def test_the_spec_names_a_reachable_server():
-    spec = tool_server.tool_server_openapi()
+def test_the_spec_uses_the_actual_gateway_origin():
+    spec = _spec("http://127.0.0.1:8765/")
 
-    assert spec["servers"] == [{"url": "http://127.0.0.1:8000"}]
+    assert spec["servers"] == [{"url": "http://127.0.0.1:8765"}]
 
 
-def test_builder_status_never_returns_the_initiative_corpus():
-    """The raw snapshot is 425KB here. A tool result goes into the model's
-    context verbatim, so this one reports counts and what needs a human."""
+def test_result_limits_are_small_positive_openapi_parameters():
+    spec = _spec()
+
+    for path in ("/tools/v1/memory/search", "/tools/v1/notes/search"):
+        parameters = {
+            parameter["name"]: parameter["schema"]
+            for parameter in spec["paths"][path]["get"]["parameters"]
+        }
+        assert parameters["limit"]["minimum"] == 1
+        assert parameters["limit"]["maximum"] == 10
+
+
+def test_memory_search_uses_the_unified_graph_and_bounds_rendered_items():
+    context = "## Journal\n- one\n- two\n\n## Inbox\n- three"
+
+    with patch("gateway.memory_graph.unified_context", return_value=context) as search:
+        result = asyncio.run(tool_server.search_memory("remember", limit=2))
+
+    search.assert_awaited_once_with("remember", _record=False)
+    assert result["context"] == "## Journal\n- one\n- two"
+    assert result["result_limit"] == 2
+
+
+def test_projects_are_life_first_not_creation_order():
+    projects = [
+        {"id": 1, "name": "kitty", "kind": "code"},
+        {"id": 2, "name": "benefits-admin", "kind": "admin"},
+    ]
+
+    with patch("gateway.project_store.list_projects", return_value=projects):
+        result = tool_server.list_projects()
+
+    assert [project["name"] for project in result["projects"]] == [
+        "benefits-admin",
+        "kitty",
+    ]
+
+
+def test_missing_next_step_is_a_normal_nullable_result():
+    with patch("gateway.next_step.get", return_value=None):
+        result = tool_server.project_next_step(7)
+
+    assert result == {"project_id": 7, "available": False, "next_step": None}
+
+
+def test_builder_status_uses_the_read_only_control_plane_projection():
     snapshot = {
         "queue": {"total": 3, "queued": 1},
         "initiatives": [
             {
-                "title": "an initiative",
-                "packets": [
-                    {"title": "fine", "task_state": "done", "body": "x" * 10_000},
-                    {
-                        "title": "stuck",
-                        "task_state": "blocked",
-                        "blocked_reason": "needs a decision",
-                        "body": "x" * 10_000,
-                    },
-                ],
-            }
+                "title": "fine",
+                "state": "running",
+                "pause_reason": None,
+                "packet_count": 20,
+            },
+            {
+                "title": "stuck",
+                "state": "blocked",
+                "pause_reason": "needs a decision",
+                "packet_count": 40,
+            },
         ],
     }
 
-    with patch.object(tool_server, "_ATTENTION_STATES", {"blocked", "failed"}), patch(
-        "gateway.builder_status.build_status_snapshot", return_value=snapshot
-    ):
+    with patch(
+        "gateway.builder_status.build_control_plane_summary", return_value=snapshot
+    ) as build:
         result = tool_server.builder_status()
 
+    build.assert_called_once()
     assert result["queue"] == {"total": 3, "queued": 1}
-    assert result["initiative_count"] == 1
-    assert [item["packet"] for item in result["needs_attention"]] == ["stuck"]
-    assert "body" not in str(result)
+    assert result["initiative_count"] == 2
+    assert result["needs_attention"] == [
+        {
+            "initiative": "stuck",
+            "state": "blocked",
+            "reason": "needs a decision",
+        }
+    ]
+    assert "packets" not in str(result)
+
+
+def test_absent_builder_database_is_unavailable_not_empty_success():
+    with patch(
+        "gateway.builder_status.build_control_plane_summary",
+        side_effect=FileNotFoundError("missing queue"),
+    ):
+        with pytest.raises(Exception) as excinfo:
+            tool_server.builder_status()
+
+    assert "builder unavailable" in str(excinfo.value)
 
 
 def test_a_backend_failure_is_reported_not_swallowed():
@@ -90,7 +150,6 @@ def test_a_backend_failure_is_reported_not_swallowed():
 
 
 def test_the_tools_are_behind_the_gateway_secret(monkeypatch):
-    """These read Jacob's memory and notes. Unauthenticated access is a leak."""
     monkeypatch.setenv("GATEWAY_SECRET", "the-secret")
     monkeypatch.delenv("KITTY_ENV", raising=False)
 
@@ -98,10 +157,7 @@ def test_the_tools_are_behind_the_gateway_secret(monkeypatch):
 
 
 def test_the_model_gets_readable_tool_names():
-    """FastAPI derives operationId from the function name plus the path, so the
-    model would be choosing between names like
-    "builder_status_tools_v1_builder_status_get"."""
-    spec = tool_server.tool_server_openapi()
+    spec = _spec()
 
     names = {
         operation["operationId"]
@@ -122,13 +178,12 @@ def test_the_model_gets_readable_tool_names():
 
 
 def test_an_empty_tutor_library_is_an_answer_not_a_failure():
-    """"I have nothing ingested on this" is a fact about the library. Raising
-    would make the model retry or report a crash instead of relaying the one
-    instruction that fixes it."""
     from gateway import tutor
 
     with patch.object(
-        tutor, "ask", side_effect=tutor.TutorError("no docs on X. Run: kitty tutor learn <path>")
+        tutor,
+        "ask",
+        side_effect=tutor.TutorError("no docs on X. Run: kitty tutor learn <path>"),
     ):
         result = asyncio.run(tool_server.ask_tutor("X"))
 
