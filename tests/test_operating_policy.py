@@ -88,6 +88,40 @@ def _character() -> dict:
     }
 
 
+def _engine_capabilities(**overrides) -> dict:
+    capabilities = {
+        "engine": "comfyui",
+        "base_families": ["flux"],
+        "identity_methods": ["pulid"],
+        "fusion_methods": ["weighted_mean"],
+        "maximum_references": 4,
+        "per_reference_weights": True,
+        "per_region_weights": True,
+        "adapter_models": ["pulid_flux_v0.9.1.safetensors"],
+    }
+    capabilities.update(overrides)
+    return capabilities
+
+
+def _full_builder_metrics(**overrides) -> dict:
+    metrics = {
+        "elapsed_seconds": 1800,
+        "processed_packets": 1,
+        "accepted_packets": 1,
+        "current_packet_elapsed_seconds": 300,
+        "consecutive_no_substantive_diff": 0,
+        "setup_metadata_seconds": 200,
+        "supervisor_tokens": 1000,
+        "worker_tokens": 3000,
+        "reset_recovery_events": 0,
+        "repeated_systemic_blocker_count": 0,
+        "projected_completion_seconds": 1800,
+        "simple_baseline_seconds": 1800,
+    }
+    metrics.update(overrides)
+    return metrics
+
+
 def test_checked_in_policies_are_valid():
     model_policy = load_model_policy()
     builder_policy = load_builder_policy()
@@ -141,22 +175,30 @@ def test_model_promotion_requires_repeated_representative_evidence():
     assert any("evaluation windows" in reason for reason in decision.reasons)
 
 
+def test_model_metrics_reject_nan_instead_of_comparing_it():
+    with pytest.raises(OperatingPolicyError, match="finite number"):
+        evaluate_model_candidate(
+            "fast",
+            _model_metrics(),
+            _model_metrics(cost_per_accepted_outcome=float("nan")),
+        )
+
+
 def test_twenty_four_hours_for_seven_packets_is_an_automatic_pause():
     decision = evaluate_builder_campaign(
-        {
-            "elapsed_seconds": 24 * 3600,
-            "processed_packets": 7,
-            "accepted_packets": 7,
-            "current_packet_elapsed_seconds": 1800,
-            "consecutive_no_substantive_diff": 0,
-            "setup_metadata_seconds": 8 * 3600,
-            "supervisor_tokens": 1_000_000,
-            "worker_tokens": 800_000,
-            "reset_recovery_events": 8,
-            "repeated_systemic_blocker_count": 4,
-            "projected_completion_seconds": 24 * 3600,
-            "simple_baseline_seconds": 3 * 3600,
-        }
+        _full_builder_metrics(
+            elapsed_seconds=24 * 3600,
+            processed_packets=7,
+            accepted_packets=7,
+            current_packet_elapsed_seconds=1800,
+            setup_metadata_seconds=8 * 3600,
+            supervisor_tokens=1_000_000,
+            worker_tokens=800_000,
+            reset_recovery_events=8,
+            repeated_systemic_blocker_count=4,
+            projected_completion_seconds=24 * 3600,
+            simple_baseline_seconds=3 * 3600,
+        )
     )
 
     assert decision.status == "pause"
@@ -168,7 +210,7 @@ def test_twenty_four_hours_for_seven_packets_is_an_automatic_pause():
     assert "simple-agent baseline" in joined
 
 
-def test_builder_metrics_never_invent_missing_evidence():
+def test_builder_metrics_never_invent_missing_evidence_before_observation_window():
     decision = evaluate_builder_campaign(
         {
             "elapsed_seconds": 100,
@@ -182,10 +224,28 @@ def test_builder_metrics_never_invent_missing_evidence():
     assert "setup_metadata_seconds" in decision.missing_metrics
 
 
-def test_character_contract_makes_description_and_reference_policy_explicit():
-    character = _character()
+def test_missing_core_builder_metrics_are_not_treated_as_continue():
+    decision = evaluate_builder_campaign({"processed_packets": 1, "accepted_packets": 0})
 
-    validate_character_contract(character)
+    assert decision.status == "insufficient_evidence"
+    assert "elapsed_seconds" in decision.missing_metrics
+
+
+def test_missing_required_telemetry_pauses_after_observation_window():
+    decision = evaluate_builder_campaign(
+        {
+            "elapsed_seconds": 3600,
+            "processed_packets": 2,
+            "accepted_packets": 2,
+        }
+    )
+
+    assert decision.status == "pause"
+    assert any("telemetry is missing" in reason for reason in decision.reasons)
+
+
+def test_character_contract_makes_description_and_reference_policy_explicit():
+    validate_character_contract(_character())
 
 
 def test_character_rejects_generated_derivatives_unless_explicitly_allowed():
@@ -204,29 +264,63 @@ def test_character_requires_exactly_one_primary_reference():
         validate_character_contract(character)
 
 
-def test_engine_cannot_silently_ignore_per_image_weights():
+def test_invalid_disabled_reference_is_not_silently_ignored():
     character = _character()
-    capabilities = {
-        "identity_methods": ["pulid"],
-        "fusion_methods": ["weighted_mean"],
-        "maximum_references": 4,
-        "per_reference_weights": False,
-    }
+    character["identity"]["references"].append(
+        {
+            "ref_id": "bad-disabled",
+            "purpose": "not-a-purpose",
+            "provenance": "real_photo",
+            "enabled": False,
+            "weight": 0,
+            "face_weight": 0,
+            "body_weight": 0,
+            "quality_score": 0.5,
+            "notes": None,
+        }
+    )
 
+    with pytest.raises(OperatingPolicyError, match="unsupported reference purpose"):
+        validate_character_contract(character)
+
+
+def test_weighted_reference_weights_must_add_to_one():
+    character = _character()
+    character["identity"]["references"][1]["weight"] = 0.2
+
+    with pytest.raises(OperatingPolicyError, match="add to 1"):
+        validate_character_contract(character)
+
+
+def test_engine_cannot_silently_ignore_per_image_weights():
     with pytest.raises(OperatingPolicyError, match="sliders work"):
-        resolve_character_for_engine(character, capabilities)
+        resolve_character_for_engine(
+            _character(),
+            _engine_capabilities(per_reference_weights=False),
+        )
+
+
+def test_engine_cannot_silently_ignore_face_and_body_weights():
+    with pytest.raises(OperatingPolicyError, match="face/body"):
+        resolve_character_for_engine(
+            _character(),
+            _engine_capabilities(per_region_weights=False),
+        )
+
+
+def test_engine_and_character_base_family_must_match():
+    with pytest.raises(OperatingPolicyError, match="base family"):
+        resolve_character_for_engine(
+            _character(),
+            _engine_capabilities(base_families=["qwen-image"]),
+        )
 
 
 def test_engine_resolution_returns_the_actual_prompt_and_weights():
-    character = deepcopy(_character())
-    capabilities = {
-        "identity_methods": ["pulid"],
-        "fusion_methods": ["weighted_mean"],
-        "maximum_references": 4,
-        "per_reference_weights": True,
-    }
-
-    resolved = resolve_character_for_engine(character, capabilities)
+    resolved = resolve_character_for_engine(
+        deepcopy(_character()),
+        _engine_capabilities(),
+    )
 
     assert resolved["identity_method"] == "pulid"
     assert [ref["weight"] for ref in resolved["references"]] == [0.7, 0.3]
