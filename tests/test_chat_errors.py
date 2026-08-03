@@ -76,12 +76,13 @@ def test_sse_error_event_is_readable_by_an_openai_client():
     """Open WebUI cannot parse Kitty's error frame.
 
     Without an OpenAI-shaped chunk carrying the same copy, a provider rejection
-    reached the user as a blank assistant reply and nothing else.
+    reached the user as a blank assistant reply and nothing else. The standard
+    finish reason must remain valid for strict OpenAI-compatible clients.
     """
     frames = _sse_frames(sse_error_event(ChatErrorKind.ROUTING, "no credit"))
     chunk = json.loads(frames[1])
     assert chunk["choices"][0]["delta"]["content"] == "no credit"
-    assert chunk["choices"][0]["finish_reason"] == "error"
+    assert chunk["choices"][0]["finish_reason"] == "stop"
     assert chunk["kitty_error_kind"] == "routing"
 
 
