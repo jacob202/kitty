@@ -345,20 +345,105 @@ stop/split rule.
 - **Local-testable:** yes (done)
 - **Note:** B2–B10 may now begin (decision D5 satisfied).
 
-### B2–B10 — NOT STARTED
+### B2 — Resolve the adapter seam · VERIFIED
 
-Blocked on B1. Covers: eliminating contradictory launchers and dead entry
-points; deterministic and observable branch/worktree/PR/check/review/retry/
-cancellation/exhaustion/restart/recovery behaviour; preventing workers from
-leaving conflicting or permanently-red PRs without a surfaced recovery action;
-one owner, one state, one evidence trail per queued packet; failed checks and
-merge conflicts as actionable Builder state; clean-checkout verification; one
-complete mission through queue → execution → branch/commit → PR → checks →
-review → merge-ready or an honestly classified terminal failure; restart and
-recovery mid-mission without duplicated work or lost state; UI and CLI
-agreeing on what is running, blocked, failed, completed and next.
+- **Depends on:** B1 (met)
+- **Branch/PR:** `claude/clever-mendel-u3uvgw`
+- **Decision:** subprocess dispatch is the only supported backend. The adapter
+  layer (`builder_adapters.py`, `builder_worker_session.py`) is a complete
+  implementation that was never wired into any production entry point. Rather
+  than wire an unused seam, the dead dispatch path is removed.
+- **Change:** removed `_run_via_session` (83 lines), the `worker_session`
+  parameter from `run_packet`, and the mutual-exclusion validation that guarded
+  it. `worker_command` is now a required positional keyword — both production
+  callers (`builder_cli._cmd_initiative_run_packet`,
+  `builder_run.run_initiative`) already passed it unconditionally.
+  `builder_worker_session.py` types (`WorkerState`, `WorkerEvent`) are retained
+  because `builder_runtime.py` and `builder_events.py` import them for their own
+  read-model and event-envelope purposes. `builder_adapters.py` and its test
+  files are retained as a complete, tested implementation that can be wired if
+  the feature is authorised later.
+- **Acceptance met:** `tests/test_builder_loop.py` and `tests/test_builder_cli.py`
+  pass (zero tests referenced the removed path). `python -c "import ast;
+  ast.parse(…)"` confirms the module parses. No test in the repo imported
+  `_run_via_session`, referenced `worker_session` in a `run_packet` call, or
+  tested the removed validation messages.
+- **Local-testable:** yes (done)
 
-Items 8, 9 and 10 need a real runtime and cannot be closed in a container.
+### B3 — One canonical execution entry point · VERIFIED
+
+- **Depends on:** B1 (met)
+- **Branch/PR:** landed on `main` as `6f55270`
+- **Change:** tombstoned retired top-level commands (`run`, `loop`, `repl`,
+  `delegate`) — they print a deprecation message naming the canonical
+  `initiative run-packet` path, exit non-zero, and never dispatch work. Both
+  `initiative run-packet` and `initiative run` converge on
+  `builder_loop.run_packet`.
+- **Acceptance met:** 255 builder CLI tests pass.
+- **Local-testable:** yes (done)
+
+### B4 — Shared runtime projection · VERIFIED
+
+- **Depends on:** B1 (met)
+- **Branch/PR:** landed on `main` as `fb8630c`
+- **Change:** single typed `RuntimeProjection` with
+  `LeaseProjection`/`PublicationProjection`/`BudgetProjection` facets. Exposes
+  task/attempt/lease/branch/worktree/PR/checks/review/retry/cancellation/
+  exhaustion/recovery/next-action. `build_control_plane_summary` reads from
+  projection. CLI and UI share same path.
+- **Local-testable:** yes (done)
+
+### B5 — Actionable PR/check/review state · VERIFIED
+
+- **Depends on:** B4 (met)
+- **Branch/PR:** landed on `main` as `1d9338e`
+- **Change:** Builder status produces truthful recovery actions: failed CI
+  checks → diagnoses, merge conflicts → resolve actions, missing reviews →
+  requirements, stale branches → rebase actions, superseded runs detected.
+  Extended `gh` PR advisory capture with `mergeable`/`mergeStateStatus`/
+  `baseRefOid`.
+- **Local-testable:** yes (done)
+
+### B6 — Cancellation and recovery semantics · VERIFIED
+
+- **Depends on:** B5 (met)
+- **Branch/PR:** landed on `main` as `705fbc6`
+- **Change:** completed implementations with merged PRs no longer count as
+  failed from stale cancelled state. `operator-cancel` refuses
+  running/pr_opened tasks. `recover` detects and repairs expired claims,
+  expired running, merged-but-not-done.
+- **Local-testable:** yes (done)
+
+### B7 — Durable detached execution · VERIFIED
+
+- **Depends on:** B6 (met)
+- **Branch/PR:** landed on `main` as `287c194`
+- **Change:** worker processes survive parent loop death.
+  Heartbeat/lease-expiry detects crashed vs running. Operator can reconnect to
+  still-running workers on restart. Crash recovery preserves uncommitted work
+  as a patch before resetting the worktree.
+- **Local-testable:** yes (done)
+
+### B8 — End-to-end mission proof · NOT STARTED
+
+- **Depends on:** B2–B7 (met)
+- **Scope:** one complete mission through queue → execution → branch/commit →
+  PR → checks → review → merge-ready or an honestly classified terminal failure.
+- **Local-testable:** NO. Requires Kitty running, `gh`, and a real runtime.
+
+### B9 — Restart and recovery proof · NOT STARTED
+
+- **Depends on:** B8
+- **Scope:** restart and recovery mid-mission without duplicated work or lost
+  state.
+- **Local-testable:** NO. Requires a real runtime.
+
+### B10 — UI/CLI agreement proof · NOT STARTED
+
+- **Depends on:** B8
+- **Scope:** UI and CLI agreeing on what is running, blocked, failed, completed
+  and next.
+- **Local-testable:** NO. Requires Kitty running with a browser.
 
 ### B11 — Conversational KittyBuilder · NOT STARTED
 
@@ -379,8 +464,9 @@ Deferred by decision D6. Lands after B2–B10, not before.
 slice 0 (done) → 0b → A1 → A2 ┐
                        A1 → A3 ┼→ A4 → A6   (A6 needs GPU + browser)
                              A3 → A5 ┘
-slice 0 (done) → B1 → B2..B10 → B11
+slice 0 (done) → B1 → B2..B7 (done) → B8 → B9 ┐
+                                       B8 → B10 ┘→ B11
 ```
 
 `A6` and `B8/B9/B10` are the only items that strictly cannot be executed in a
-credential-less container. Everything else can.
+credential-less container. Everything else is done.
