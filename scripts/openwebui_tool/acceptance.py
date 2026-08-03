@@ -6,8 +6,6 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-from gateway.model_routing import USER_FACING_MODELS
-
 from .common import (
     DEFAULT_AGENT,
     Failure,
@@ -21,6 +19,13 @@ from .common import (
 )
 from .service import AGENTS, claim_system_admin
 
+USER_FACING_MODEL_IDS = (
+    "kitty-auto",
+    "kitty-fast",
+    "kitty-think",
+    "kitty-code",
+    "kitty-vision",
+)
 EXPECTED_TOOL_OPERATIONS = frozenset(
     {
         "search_memory",
@@ -213,8 +218,7 @@ def _probe_tool_surface(base: str, secret: str) -> tuple[list[str], list[str]]:
 
 def _smoke_model_routes(base: str, secret: str) -> list[str]:
     failures: list[str] = []
-    for item in USER_FACING_MODELS:
-        model_id = item["id"]
+    for model_id in USER_FACING_MODEL_IDS:
         try:
             payload = _post_json(
                 f"{base}/v1/chat/completions",
@@ -277,8 +281,7 @@ def verify_features(*, accept_charges: bool = False) -> dict[str, object]:
     else:
         try:
             model_ids = _model_ids(request_json(f"{base}/v1/models", auth=secret, timeout=10))
-            expected_models = {item["id"] for item in USER_FACING_MODELS}
-            missing_models = expected_models - model_ids
+            missing_models = set(USER_FACING_MODEL_IDS) - model_ids
             if missing_models:
                 failures.append(f"Gateway model menu is missing {sorted(missing_models)}")
         except Failure as exc:
