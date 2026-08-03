@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import plistlib
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -18,8 +19,8 @@ if str(ROOT) not in sys.path:
 
 from gateway.model_discovery import (  # noqa: E402
     DISCOVERY_DIR,
-    OPENROUTER_SNAPSHOT,
     ModelDiscoveryError,
+    DiscoveryResult,
     discovery_due,
     discover_openrouter,
     load_snapshot,
@@ -35,13 +36,31 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    check = sub.add_parser("check", help="record catalogue changes when discovery is due")
-    check.add_argument("--force", action="store_true", help="ignore the weekly cadence")
+    check = sub.add_parser(
+        "check",
+        help="record catalogue changes when discovery is due",
+    )
+    check.add_argument(
+        "--force",
+        action="store_true",
+        help="ignore the weekly cadence",
+    )
+    check.add_argument(
+        "--include-existing",
+        action="store_true",
+        help="on the first check, queue the entire current catalogue for review",
+    )
 
     sub.add_parser("due", help="report whether a provider check is due")
     sub.add_parser("show", help="show the current candidate snapshot")
-    sub.add_parser("install-autostart", help="install the weekly local LaunchAgent")
-    sub.add_parser("uninstall-autostart", help="remove the weekly local LaunchAgent")
+    sub.add_parser(
+        "install-autostart",
+        help="install the weekly local LaunchAgent",
+    )
+    sub.add_parser(
+        "uninstall-autostart",
+        help="remove the weekly local LaunchAgent",
+    )
     return parser.parse_args()
 
 
@@ -123,9 +142,53 @@ def uninstall_autostart() -> None:
     print("Weekly model discovery removed; existing snapshots were preserved.")
 
 
+def notify_result(result: DiscoveryResult) -> None:
+    """Surface catalogue changes locally without exposing model/provider secrets."""
+    if result.incumbent_removed_roles:
+        roles = ", ".join(result.incumbent_removed_roles)
+        _notify(
+            "Kitty model needs attention",
+            f"OpenRouter no longer lists the incumbent for: {roles}.",
+        )
+        return
+    if result.new_models:
+        count = len(result.new_models)
+        suffix = "candidate" if count == 1 else "candidates"
+        _notify(
+            "New Kitty model candidates",
+            f"{count} new {suffix} recorded for evaluation.",
+        )
+
+
+def _notify(title: str, message: str) -> None:
+    executable = shutil.which("osascript")
+    if executable is None:
+        return
+    safe_title = title.replace("\\", "\\\\").replace('"', '\\"')
+    safe_message = message.replace("\\", "\\\\").replace('"', '\\"')
+    script = (
+        f'display notification "{safe_message}" '
+        f'with title "{safe_title}"'
+    )
+    subprocess.run(
+        [executable, "-e", script],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
 def _show(payload: dict[str, Any] | None) -> None:
     if payload is None:
-        print(json.dumps({"status": "never_checked", "promotion_performed": False}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "status": "never_checked",
+                    "promotion_performed": False,
+                },
+                indent=2,
+            )
+        )
         return
     models = payload.get("models", [])
     by_id = {
@@ -143,9 +206,14 @@ def _show(payload: dict[str, Any] | None) -> None:
             {
                 "provider": payload.get("provider"),
                 "checked_at": payload.get("checked_at"),
+                "baseline_created": payload.get("baseline_created", False),
                 "total_models": len(models),
                 "new_models": new_models,
                 "removed_model_ids": payload.get("removed_model_ids", []),
+                "incumbent_removed_roles": payload.get(
+                    "incumbent_removed_roles",
+                    [],
+                ),
                 "promotion_performed": False,
                 "next_action": (
                     "Evaluate a candidate with scripts/operating_policy.py "
@@ -167,19 +235,36 @@ def main() -> int:
                     json.dumps(
                         {
                             "status": "not_due",
-                            "checked_at": snapshot.get("checked_at") if snapshot else None,
+                            "checked_at": (
+                                snapshot.get("checked_at")
+                                if snapshot
+                                else None
+                            ),
                             "promotion_performed": False,
                         },
                         indent=2,
                     )
                 )
                 return 0
-            result = discover_openrouter()
-            print(json.dumps({"status": "checked", **result.to_dict()}, indent=2))
+            result = discover_openrouter(
+                include_existing=args.include_existing,
+            )
+            notify_result(result)
+            print(
+                json.dumps(
+                    {"status": "checked", **result.to_dict()},
+                    indent=2,
+                )
+            )
             return 0
         if args.command == "due":
             due = discovery_due()
-            print(json.dumps({"due": due, "promotion_performed": False}, indent=2))
+            print(
+                json.dumps(
+                    {"due": due, "promotion_performed": False},
+                    indent=2,
+                )
+            )
             return 0 if due else 3
         if args.command == "show":
             _show(load_snapshot(allow_missing=True))
