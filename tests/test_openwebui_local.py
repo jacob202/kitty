@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import plistlib
 import sqlite3
 import sys
@@ -27,24 +28,42 @@ def test_read_dotenv(tmp_path):
     }
 
 
+def test_read_dotenv_expands_in_assignment_order(tmp_path):
+    path = tmp_path / ".env"
+    path.write_text("BASE=8123\nGATEWAY_PORT=$BASE\n")
+
+    assert common.read_dotenv(path, base={}) == {
+        "BASE": "8123",
+        "GATEWAY_PORT": "8123",
+    }
+
+
 @pytest.fixture
 def service_paths(tmp_path, monkeypatch):
     root = tmp_path / "repo"
     home = tmp_path / "service"
     root.mkdir()
     (root / ".env").write_text("GATEWAY_PORT=8123\nGATEWAY_SECRET=test-secret\n")
-    data = home / "data-fresh"
+    data = home / f"data-{common.VERSION}"
     for module in (common, service):
         monkeypatch.setattr(module, "DATA_DIR", data, raising=False)
         monkeypatch.setattr(module, "SERVICE_ROOT", home, raising=False)
     monkeypatch.setattr(common, "ROOT", root)
     monkeypatch.setattr(common, "LOG_DIR", home / "logs")
     monkeypatch.setattr(common, "RUN_DIR", home / "run")
+    monkeypatch.setattr(common, "BACKUP_ROOT", home / "backups")
     monkeypatch.setattr(common, "SECRET_FILE", home / "webui-secret")
     for key in ("GATEWAY_SECRET", "KITTY_GATEWAY_SECRET", "GATEWAY_PORT"):
         monkeypatch.delenv(key, raising=False)
     data.mkdir(parents=True)
     return root, home
+
+
+def test_repository_config_wins_over_stale_shell_values(service_paths, monkeypatch):
+    monkeypatch.setenv("GATEWAY_PORT", "9999")
+    monkeypatch.setenv("GATEWAY_SECRET", "wrong-secret")
+
+    assert common.gateway_config() == ("http://127.0.0.1:8123", "test-secret")
 
 
 def test_runtime_env_points_only_to_kitty(service_paths):
@@ -63,12 +82,22 @@ def test_runtime_env_points_only_to_kitty(service_paths):
     assert (home / "webui-secret").stat().st_mode & 0o777 == 0o600
 
 
-def test_runtime_env_drops_kitty_import_path(service_paths, monkeypatch):
-    """Kitty's repo root holds a top-level ``mcp`` package.
+def test_runtime_env_allowlists_the_parent_environment(service_paths, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "must-not-leak")
+    monkeypatch.setenv("OPENAI_API_KEY", "must-not-leak")
+    monkeypatch.setenv("GITHUB_TOKEN", "must-not-leak")
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
 
-    Inheriting PYTHONPATH from ``./kitty`` shadows Open WebUI's MCP SDK, which
-    surfaces as ``cannot import name 'ClientSession' from 'mcp'``.
-    """
+    env = common.runtime_env()
+
+    assert env["PATH"] == "/usr/bin:/bin"
+    assert env["OPENAI_API_KEY"] == "test-secret"  # Kitty Gateway credential only.
+    assert "OPENROUTER_API_KEY" not in env
+    assert "GITHUB_TOKEN" not in env
+    assert env["NO_PROXY"] == "127.0.0.1,localhost"
+
+
+def test_runtime_env_drops_kitty_import_path(service_paths, monkeypatch):
     monkeypatch.setenv("PYTHONPATH", str(REPO_ROOT))
     monkeypatch.setenv("PYTHONHOME", "/somewhere/else")
     monkeypatch.setenv("PYTHONSTARTUP", str(REPO_ROOT / "sitecustomize.py"))
@@ -81,12 +110,32 @@ def test_runtime_env_drops_kitty_import_path(service_paths, monkeypatch):
     assert env["PYTHONNOUSERSITE"] == "1"
 
 
-def test_launch_agent_never_runs_from_the_repo(tmp_path, monkeypatch):
-    """WorkingDirectory is on sys.path, so the repo root shadows ``mcp`` too.
+def test_service_directories_are_owner_only(tmp_path, monkeypatch):
+    service_root = tmp_path / "service"
+    paths = [
+        service_root,
+        service_root / "data",
+        service_root / "backups",
+        service_root / "logs",
+        service_root / "run",
+    ]
+    monkeypatch.setattr(common, "SERVICE_ROOT", paths[0])
+    monkeypatch.setattr(common, "DATA_DIR", paths[1])
+    monkeypatch.setattr(common, "BACKUP_ROOT", paths[2])
+    monkeypatch.setattr(common, "LOG_DIR", paths[3])
+    monkeypatch.setattr(common, "RUN_DIR", paths[4])
 
-    An empty PYTHONPATH would be just as bad as a wrong one — it puts the
-    working directory back on the path — so the key must be absent entirely.
-    """
+    common.ensure_dirs()
+
+    assert all(path.stat().st_mode & 0o777 == 0o700 for path in paths)
+
+
+def test_non_loopback_host_is_rejected():
+    with pytest.raises(common.Failure):
+        common._require_loopback_host("0.0.0.0")
+
+
+def test_launch_agent_never_runs_from_the_repo(tmp_path, monkeypatch):
     home = tmp_path / "service"
     agent = tmp_path / "com.kitty.openwebui.plist"
     monkeypatch.setattr(system, "SERVICE_ROOT", home)
@@ -140,12 +189,7 @@ def _roles(path: Path) -> list[str]:
 
 
 def test_dedupe_collapses_the_signin_race(service_paths):
-    """WEBUI_AUTH=False checks for a user then inserts one, without a lock.
-
-    A first page load fires several signins at once, they all miss, and they all
-    insert — six identical admins on Jacob's Mac.
-    """
-    _, home = service_paths
+    _, _home = service_paths
     _seed_webui_db(service.webui_db_path(), ["keep", "dupe-1", "dupe-2"])
 
     assert service.count_system_admins() == 3
@@ -177,10 +221,6 @@ def test_dedupe_refuses_to_delete_an_account_that_owns_chats(service_paths):
 
 
 def test_dedupe_clears_the_pending_account_wall(service_paths):
-    """0.10.2 inserts at DEFAULT_USER_ROLE and promotes only when the new row is
-    the single one *after* its own insert. Six racing inserts mean nobody is
-    promoted, so every account sits at "pending" with no second user to approve
-    it — Open WebUI shows Account Activation Pending and blocks the door."""
     _seed_webui_db(service.webui_db_path(), ["keep", "dupe-1"], role="pending")
 
     service.dedupe_system_admin()
@@ -193,7 +233,6 @@ def test_dedupe_promotes_a_lone_pending_account(service_paths):
 
     assert "promoted to admin" in service.dedupe_system_admin()
     assert _roles(service.webui_db_path()) == ["admin"]
-    # Idempotent: a second pass has nothing left to promote.
     assert "promoted to admin" not in service.dedupe_system_admin()
 
 
@@ -207,12 +246,9 @@ def test_dedupe_without_a_database_is_a_no_op(service_paths):
 
 
 def test_stream_smoke_requires_explicit_charge_acceptance():
-    try:
+    with pytest.raises(common.Failure) as excinfo:
         service.direct_stream_smoke(accept_charges=False)
-    except common.Failure as exc:
-        assert "--accept-charges" in str(exc)
-    else:
-        raise AssertionError("expected Failure")
+    assert "--accept-charges" in str(excinfo.value)
 
 
 class _FakeStream:
@@ -227,7 +263,6 @@ class _FakeStream:
 
 
 def test_stream_smoke_reports_the_gateway_error_not_a_shrug(monkeypatch):
-    """The gateway names the cause; the smoke used to replace it with a shrug."""
     monkeypatch.setattr(service, "verify_gateway", lambda: ("http://gw", "secret"))
     error = json.dumps(
         {"error": {"kind": "routing", "message": "provider is out of credit"}}
