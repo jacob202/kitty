@@ -53,7 +53,6 @@ from gateway.builder_runner import (
     worktree_head,
     worktree_path,
 )
-
 from gateway.paths import BUILDER_QUEUE_DB
 
 DEFAULT_REVIEW_TIMEOUT = 1800
