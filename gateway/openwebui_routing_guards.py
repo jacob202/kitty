@@ -34,11 +34,13 @@ def _strip_openrouter_prefix(model: str) -> str:
 
 
 def normalize_direct_openrouter_models() -> None:
-    """Make every direct OpenRouter resolver return native provider/model ids."""
-    from gateway import llm_client
+    """Make direct OpenRouter requests use native provider/model ids.
 
-    for alias, model in tuple(llm_client._LITELLM_TO_OPENROUTER.items()):
-        llm_client._LITELLM_TO_OPENROUTER[alias] = _strip_openrouter_prefix(model)
+    Keep the shared LiteLLM mapping immutable: other callers and tests may need
+    the LiteLLM-qualified value. Only the direct provider resolver is wrapped at
+    the HTTP wire boundary.
+    """
+    from gateway import llm_client
 
     provider = llm_client.PROVIDERS.get("openrouter")
     if provider is None or provider.model_resolver is None:
@@ -175,7 +177,7 @@ def _body_receive(body: bytes) -> Receive:
     async def receive() -> Message:
         nonlocal sent
         if sent:
-            return {"type": "http.request", "body": b"", "more_body": False}
+            return {"type": "http.disconnect"}
         sent = True
         return {"type": "http.request", "body": body, "more_body": False}
 
