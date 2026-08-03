@@ -13,6 +13,8 @@ import os
 from pathlib import Path
 from typing import Any, Mapping
 
+import httpx
+
 from gateway.image_characters import (
     CHARACTER_STORAGE_DIR,
     CharacterError,
@@ -26,6 +28,7 @@ from gateway.operating_policy import (
 )
 
 CONTRACT_FILENAME = "character-contract-v1.json"
+EXPECTED_IPADAPTER_MODEL = "ip-adapter-plus_sdxl_vit-h.safetensors"
 
 
 class CharacterContractError(CharacterError):
@@ -60,12 +63,16 @@ def save_character_contract(
     target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     target.parent.chmod(0o700)
     temporary = target.with_name(f".{target.name}.tmp-{os.getpid()}")
-    temporary.write_text(
-        json.dumps(contract, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    temporary.chmod(0o600)
-    os.replace(temporary, target)
+    try:
+        temporary.write_text(
+            json.dumps(contract, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        temporary.chmod(0o600)
+        os.replace(temporary, target)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
     return load_character_contract(character_id)
 
 
@@ -110,7 +117,7 @@ def delete_character_contract(character_id: str) -> None:
 
 def comfyui_character_capabilities() -> dict[str, Any]:
     """The exact identity behavior implemented by the current ComfyUI workflow."""
-    from gateway.image_gen import IPADAPTER_MODEL, SDXL_PHOTONIC
+    from gateway.image_gen import SDXL_PHOTONIC
 
     return {
         "engine": "comfyui",
@@ -120,12 +127,58 @@ def comfyui_character_capabilities() -> dict[str, Any]:
         "maximum_references": 1,
         "per_reference_weights": False,
         "per_region_weights": False,
-        "adapter_models": [IPADAPTER_MODEL],
+        "adapter_models": [EXPECTED_IPADAPTER_MODEL],
         "adapter_strengths": [0.5, 0.7, 0.85],
         "checkpoint": SDXL_PHOTONIC,
         "sampler": "euler",
         "scheduler": "sgm_uniform",
     }
+
+
+async def comfyui_character_runtime_status() -> tuple[bool, str]:
+    """Prove the exact SDXL adapter exists before a character job is created.
+
+    The legacy readiness probe passed when *any* IP-Adapter model existed. Kitty
+    was configured with an SD1.5 FaceID file while sending it an SDXL checkpoint,
+    so a green readiness light did not mean the workflow was compatible.
+    """
+    from gateway import image_gen
+
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get(f"{image_gen.COMFY_URL}/object_info")
+        if response.status_code != 200:
+            return False, f"ComfyUI object_info returned HTTP {response.status_code}"
+        payload = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        return False, f"cannot inspect ComfyUI identity runtime: {exc}"
+    if not isinstance(payload, dict):
+        return False, "ComfyUI object_info was not a JSON object"
+
+    missing_nodes = sorted(image_gen.COMFY_IDENTITY_NODES.difference(payload))
+    if missing_nodes:
+        return False, f"ComfyUI identity nodes are missing: {missing_nodes}"
+    required = (
+        payload.get("IPAdapterModelLoader", {})
+        .get("input", {})
+        .get("required", {})
+    )
+    raw_options = required.get("ipadapter_file", [[]])
+    options: list[str] = []
+    if isinstance(raw_options, list) and raw_options:
+        first = raw_options[0]
+        if isinstance(first, list):
+            options = [str(item) for item in first]
+    if EXPECTED_IPADAPTER_MODEL not in options:
+        return False, (
+            "the SDXL character workflow requires "
+            f"{EXPECTED_IPADAPTER_MODEL!r}; available adapter models: {options}"
+        )
+
+    # The workflow function reads this module global at call time. Set it only
+    # after the exact file is proven present, replacing the legacy SD1.5 default.
+    image_gen.IPADAPTER_MODEL = EXPECTED_IPADAPTER_MODEL
+    return True, "ready"
 
 
 def resolve_comfyui_character(character_id: str) -> dict[str, Any]:
@@ -229,10 +282,12 @@ def _require_recipe_value(
 __all__ = [
     "CharacterContractError",
     "CONTRACT_FILENAME",
+    "EXPECTED_IPADAPTER_MODEL",
     "contract_path",
     "save_character_contract",
     "load_character_contract",
     "delete_character_contract",
     "comfyui_character_capabilities",
+    "comfyui_character_runtime_status",
     "resolve_comfyui_character",
 ]
