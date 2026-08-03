@@ -300,6 +300,31 @@ def tool_server_connections(base: str, gateway_secret: str) -> str:
     )
 
 
+# The chips on an empty chat. Life before code (ADR 0016), and each one is
+# answerable only by calling a tool — a starter prompt Kitty cannot act on
+# teaches Jacob the tools do not work.
+STARTER_PROMPTS = json.dumps(
+    [
+        {
+            "title": ["What's next", "on the thing that actually matters"],
+            "content": "Look at my projects and my calendar. What is the one next step worth doing today? Life before code.",
+        },
+        {
+            "title": ["Catch me up", "on what you know about me"],
+            "content": "Search your memory and tell me what you know about me and what I am working on. Say plainly if it is thin.",
+        },
+        {
+            "title": ["Find it in my notes", "search what I've written down"],
+            "content": "Search my notes for ",
+        },
+        {
+            "title": ["Builder status", "what needs a decision"],
+            "content": "Check KittyBuilder. What is queued, what is blocked, and what needs a decision from me?",
+        },
+    ]
+)
+
+
 def runtime_env() -> dict[str, str]:
     base, gateway_secret = gateway_config()
     if not gateway_secret:
@@ -311,7 +336,13 @@ def runtime_env() -> dict[str, str]:
             "DATA_DIR": str(DATA_DIR),
             "WEBUI_SECRET_KEY": ensure_webui_secret(),
             "WEBUI_URL": f"http://{HOST}:{PORT}",
-            "WEBUI_NAME": "Kitty Chat",
+            "WEBUI_NAME": "Kitty",
+            "DEFAULT_PROMPT_SUGGESTIONS": STARTER_PROMPTS,
+            # A phone is the common case, not the exception.
+            "ENABLE_TITLE_GENERATION": "True",
+            "ENABLE_AUTOCOMPLETE_GENERATION": "False",
+            "ENABLE_MESSAGE_RATING": "False",
+            "ENABLE_TAGS_GENERATION": "False",
             "WEBUI_AUTH": "False",
             # 0.10.2 inserts a new account with DEFAULT_USER_ROLE (normally
             # "pending") and only promotes it when it is the only row *after*
