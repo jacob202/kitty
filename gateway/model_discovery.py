@@ -84,6 +84,7 @@ def discover_openrouter(
 ) -> DiscoveryResult:
     """Fetch, normalize, diff, and atomically save the OpenRouter catalogue."""
     checked_at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    checked_at_text = checked_at.isoformat()
     previous = load_snapshot(snapshot_path, allow_missing=True)
     payload = dict(fetcher() if fetcher is not None else _fetch_openrouter())
     rows = payload.get("data")
@@ -98,7 +99,9 @@ def discover_openrouter(
         model = _normalize_model(raw)
         model_id = model["id"]
         if model_id in seen:
-            raise ModelDiscoveryError(f"OpenRouter catalogue repeats model id {model_id!r}")
+            raise ModelDiscoveryError(
+                f"OpenRouter catalogue repeats model id {model_id!r}"
+            )
         seen.add(model_id)
         normalized.append(model)
     normalized.sort(key=lambda item: item["id"])
@@ -116,7 +119,7 @@ def discover_openrouter(
     snapshot = {
         "schema_version": 1,
         "provider": "openrouter",
-        "checked_at": checked_at.isoformat(),
+        "checked_at": checked_at_text,
         "source": OPENROUTER_MODELS_URL,
         "models": normalized,
         "new_model_ids": new_ids,
@@ -126,7 +129,7 @@ def discover_openrouter(
     _atomic_json(snapshot_path, snapshot)
     return DiscoveryResult(
         provider="openrouter",
-        checked_at=snapshot["checked_at"],
+        checked_at=checked_at_text,
         total_models=len(normalized),
         new_models=new_models,
         removed_model_ids=removed_ids,
@@ -146,7 +149,9 @@ def load_snapshot(
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ModelDiscoveryError(f"model discovery snapshot is unreadable: {exc}") from exc
+        raise ModelDiscoveryError(
+            f"model discovery snapshot is unreadable: {exc}"
+        ) from exc
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
         raise ModelDiscoveryError(f"unsupported model discovery snapshot: {path}")
     if payload.get("promotion_performed") is not False:
@@ -206,7 +211,10 @@ def _normalize_model(raw: Mapping[str, Any]) -> dict[str, Any]:
         suggested_roles.append("vision")
     if any(term in searchable for term in ("coder", "coding", "code")):
         suggested_roles.append("code")
-    if any(term in searchable for term in ("reasoning", "thinking", "r1", "reasoner")):
+    if any(
+        term in searchable
+        for term in ("reasoning", "thinking", "r1", "reasoner")
+    ):
         suggested_roles.append("think")
     if not suggested_roles:
         suggested_roles.append("fast")
@@ -233,7 +241,11 @@ def _normalize_model(raw: Mapping[str, Any]) -> dict[str, Any]:
 
 def _string_values(value: Any) -> list[str]:
     if isinstance(value, str):
-        return [part.strip().casefold() for part in value.split("+") if part.strip()]
+        return [
+            part.strip().casefold()
+            for part in value.split("+")
+            if part.strip()
+        ]
     if isinstance(value, list):
         return sorted(
             {
