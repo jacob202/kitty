@@ -38,6 +38,26 @@ OUT_DIR = Path(os.environ.get("JAMES_OUT_DIR", "data/images/james"))
 HEADERS = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
 
 
+def upload_image(path: Path) -> str:
+    """Push a reference into ComfyUI's input folder and return its name."""
+    boundary = "----kitty" + uuid.uuid4().hex
+    body = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="image"; filename="{path.name}"\r\n'
+        "Content-Type: application/octet-stream\r\n\r\n"
+    ).encode() + path.read_bytes() + f"\r\n--{boundary}--\r\n".encode()
+    request = urllib.request.Request(
+        f"{COMFY_URL}/upload/image",
+        data=body,
+        headers={
+            "User-Agent": HEADERS["User-Agent"],
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=300) as response:
+        return json.load(response)["name"]
+
+
 def build_workflow(
     prompt: str,
     *,
@@ -48,6 +68,8 @@ def build_workflow(
     width: int,
     height: int,
     guidance: float,
+    source: str | None = None,
+    denoise: float = 1.0,
 ) -> dict:
     """Checkpoint -> identity LoRA -> anatomy LoRA -> sample -> save.
 
@@ -89,7 +111,7 @@ def build_workflow(
                 "cfg": 1.0,
                 "sampler_name": "euler",
                 "scheduler": "simple",
-                "denoise": 1.0,
+                "denoise": denoise,
                 "model": ["2", 0],
                 "positive": ["5", 0],
                 # Flux is guidance-distilled: CFG 1.0 means the negative branch
@@ -104,6 +126,17 @@ def build_workflow(
             "inputs": {"filename_prefix": "james", "images": ["8", 0]},
         },
     }
+    if source is not None:
+        # Starting from real pixels of Jacob's face beats any LoRA this pair was
+        # trained to be. Low denoise keeps the face and repaints everything else.
+        graph["10"] = {"class_type": "LoadImage", "inputs": {"image": source}}
+        graph["11"] = {
+            "class_type": "VAEEncode",
+            "inputs": {"pixels": ["10", 0], "vae": ["1", 2]},
+        }
+        graph["7"]["inputs"]["latent_image"] = ["11", 0]
+        del graph["6"]
+
     if anatomy > 0:
         graph["3"] = {
             "class_type": "LoraLoader",
@@ -190,7 +223,17 @@ def main() -> int:
     parser.add_argument("--width", type=int, default=896)
     parser.add_argument("--height", type=int, default=1152)
     parser.add_argument("--guidance", type=float, default=3.0)
+    parser.add_argument("--source", help="reference image to start from (img2img)")
+    parser.add_argument("--denoise", type=float, default=1.0)
     args = parser.parse_args()
+
+    source = None
+    if args.source:
+        source = upload_image(Path(args.source).expanduser())
+        if args.denoise >= 1.0:
+            # Denoise 1.0 discards the source entirely — silently ignoring the
+            # reference the caller just supplied.
+            raise SystemExit("--source needs --denoise below 1.0 (try 0.4)")
 
     workflow = build_workflow(
         args.prompt,
@@ -201,6 +244,8 @@ def main() -> int:
         width=args.width,
         height=args.height,
         guidance=args.guidance,
+        source=source,
+        denoise=args.denoise,
     )
     started = time.monotonic()
     try:
