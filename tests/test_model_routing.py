@@ -268,3 +268,60 @@ class TestLocalDetection:
 
         route = model_routing.describe_routing()["routes"][0]
         assert route["provider"] == "openai"
+
+
+# ── the user-facing menu ──────────────────────────────────────────────────────
+
+
+def test_every_menu_id_resolves_to_a_configured_litellm_route():
+    """A menu row that maps to a route litellm has never heard of is a 404 the
+    user only discovers by picking it."""
+    routes = {
+        entry["alias"] for entry in model_routing.describe_routing()["routes"]
+    }
+    for entry in model_routing.USER_FACING_MODELS:
+        assert entry["route"] in routes, f"{entry['id']} -> {entry['route']}"
+
+
+def test_menu_entries_are_distinct_models():
+    """Two rows pointing at the same upstream model is a menu that lies."""
+    by_alias = {
+        entry["alias"]: entry
+        for entry in model_routing.describe_routing()["routes"]
+    }
+    upstream = [
+        by_alias[entry["route"]]["upstream_model"]
+        for entry in model_routing.USER_FACING_MODELS
+        if entry["id"] != "kitty-auto"  # Auto has no model of its own
+    ]
+    assert len(set(upstream)) == len(upstream), upstream
+
+
+def test_auto_hands_the_tier_decision_back_to_kitty():
+    decision = model_routing.resolve_chat_route(
+        "kitty-auto", "explain how recursion works", reroute_virtual_models=True
+    )
+
+    assert decision.source == "complexity_classifier"
+    assert decision.model == model_routing.LITELLM_SONNET
+
+
+def test_a_pinned_menu_choice_is_not_second_guessed():
+    """Picking "Kitty Think" for a trivial message must stay on Think.
+
+    Rerouting every ``kitty-*`` id made the menu a suggestion the classifier
+    could overrule, which is not what picking a model means.
+    """
+    decision = model_routing.resolve_chat_route(
+        "kitty-think", "hi", reroute_virtual_models=True
+    )
+
+    assert decision.source == "request"
+    assert decision.model == model_routing.LITELLM_THINK
+
+
+def test_menu_ids_normalize_onto_litellm_routes():
+    normalize = model_routing.normalize_litellm_request_model
+    assert normalize("kitty-auto") == model_routing.LITELLM_DEFAULT
+    assert normalize("kitty-fast") == model_routing.LITELLM_SMALL
+    assert normalize("kitty-code") == model_routing.LITELLM_CODE

@@ -483,3 +483,56 @@ class TestMergeAndVerify:
             payload={"outcome": "reverted"}, db_path=db_path,
         )
         assert bp.tripwire_active(db_path) is False
+
+
+# ── merge-check worktree safety ───────────────────────────────────────────────
+
+
+def _fake_run_cmd(calls: list[list[str]], *, toplevel: str):
+    def run_cmd(args, cwd=None, check=False, **kwargs):
+        calls.append([str(a) for a in args])
+        stdout = toplevel if args[:2] == ["git", "rev-parse"] else ""
+        return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")
+
+    return run_cmd
+
+
+def test_prepare_main_worktree_refuses_to_reset_the_primary_checkout(tmp_path):
+    """`path.is_dir()` is not proof of a worktree.
+
+    A leftover directory inside the repo makes `git -C path` resolve to the
+    primary checkout, and the next command is `reset --hard origin/main` — it
+    would throw away whatever branch and uncommitted work is open there.
+    """
+    repo_root = tmp_path / "repo"
+    stray = bp._merge_check_worktree_path(repo_root, "task-1")
+    stray.mkdir(parents=True)
+    calls: list[list[str]] = []
+
+    with pytest.raises(bp.MergeError) as excinfo:
+        bp._prepare_main_worktree(
+            repo_root,
+            "task-1",
+            remote="origin",
+            run_cmd=_fake_run_cmd(calls, toplevel=str(repo_root)),
+        )
+
+    assert "not its own git worktree" in str(excinfo.value)
+    assert not any(call[:3] == ["git", "reset", "--hard"] for call in calls), calls
+
+
+def test_prepare_main_worktree_resets_a_real_worktree(tmp_path):
+    repo_root = tmp_path / "repo"
+    worktree = bp._merge_check_worktree_path(repo_root, "task-1")
+    worktree.mkdir(parents=True)
+    calls: list[list[str]] = []
+
+    result = bp._prepare_main_worktree(
+        repo_root,
+        "task-1",
+        remote="origin",
+        run_cmd=_fake_run_cmd(calls, toplevel=str(worktree)),
+    )
+
+    assert result == worktree
+    assert ["git", "reset", "--hard", "origin/main"] in calls
