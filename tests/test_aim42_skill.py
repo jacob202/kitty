@@ -1,6 +1,10 @@
 """Contract tests for the AIM42 software-improvement skill."""
 
-from gateway.skill_registry import discover, invoke, suggest
+from gateway.skill_registry import (
+    discover,
+    invoke,
+    suggest,
+)
 
 
 SKILL_NAME = "aim42-software-improvement"
