@@ -1,51 +1,46 @@
-# Handoff — Open WebUI daily-driver baseline complete, slice 2 next
+# Handoff — B5-pr-check-review-actionable (recovery actions in builder status)
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-02T21:10:00Z",
-  "head_sha": "29f2165d",
-  "branch": "feat/openwebui-tomorrow-ready",
-  "worktree": "main",
+  "updated_at": "2026-08-02T00:00:00Z",
+  "branch": "kittybuilder/kb_msb4yx3n_124c",
+  "worktree": "kittybuilder/kb_msb4yx3n_124c",
   "status": "valid",
   "completed_items": [
-    "All four defects in docs/plans/openwebui-agent-handoff-2026-08-02.md are fixed and verified live",
-    "All nine baseline criteria in that handoff's 'Immediate onboarding objective' pass",
-    "PR #384 updated"
+    "Extended gh PR advisory capture (mergeable, mergeStateStatus, baseRefOid) in builder_queue._gh_pr_status",
+    "Persisted advisory merge/base fields on pr_attached/pr_updated event payload via attach_pr",
+    "Added read-only _pr_advisory_projection + _recovery_actions to builder_status packet model",
+    "Repaired run projection to expose start_sha for superseded-run detection",
+    "Added 6 focused recovery-action tests in test_builder_status.py"
   ],
-  "blockers": [
-    "AGENT_ROUTER_TOKEN in .env is revoked; Jacob replaces it or leaves AgentRouter disabled"
-  ],
-  "next_action": "Slice 2 — the user-facing model set (Kitty Auto/Fast/Think/Code/Vision/Image)",
+  "blockers": [],
+  "next_action": "None",
   "parallel_work": [],
-  "recommendations": [
-    "Ollama serves knowledge embeddings but does not start at login; homebrew.mxcl.ollama.plist exists and is unloaded",
-    "10 pre-existing test failures on this branch's base are worth their own fix",
-    "./kitty up boots out the launchd jobs ./kitty install creates — the two startup paths still contradict each other"
-  ],
+  "recommendations": [],
   "invalidation_conditions": [
-    "HEAD changes beyond 29f2165d"
+    "HEAD changes beyond the current packet lease base"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": 384
+  "pull_request": null,
+  "head_sha": "734e49e9237fb2093af622ece9c3e62b2e61f19c"
 }
 -->
 
 ## What was done
 
-Slice 1 of the Open WebUI onboarding. Read
-`docs/plans/openwebui-onboarding-progress.md` for the evidence; the short
-version is that chat could not complete a single turn (revoked provider token
-behind a hard pin), every turn carried a 447KB system prompt of Builder
-initiative records, Kitty memory was dead on two separate missing dependencies,
-Open WebUI's MCP SDK was shadowed by Kitty's own `mcp/` package through both
-`PYTHONPATH` and the working directory, six pending admin accounts blocked the
-door, and a provider failure reached the user as a blank message.
-
-All of it is fixed, verified through the real UI, and survives a restart.
+- `gateway/builder_queue.py`: `_gh_pr_status` now fetches `mergeable`,
+  `mergeStateStatus`, `baseRefOid`; `sync_pr_status` forwards them and
+  `attach_pr` persists them on the advisory `pr_attached`/`pr_updated` event
+  payload (Section 11.4 — never on the task/pr_links row).
+- `gateway/builder_status.py`: added `_read_latest_pr_advisories` (bulk query,
+  SNAPSHOT_QUERY_COUNT 9 -> 10), `_pr_advisory_projection`, and
+  `_recovery_actions`. Each packet now carries `recovery_actions` (and
+  `pr_advisory`) with concrete next steps for failing CI, merge conflict,
+  waiting review, stale/base-behind rebase, and superseded runs. Run
+  projection exposes `start_sha`.
+- `tests/test_builder_status.py`: 6 focused tests (31 total pass).
 
 ## Next move
 
-Slice 2: the user-facing model set. It needs gateway-side aliases before Open
-WebUI can present `Kitty Auto` / `Fast` / `Think` / `Code` / `Vision` / `Image`
-as a menu — today the gateway exposes only `kitty-default`.
+Packet result written to `.kittybuilder-result-100.json`; await independent review.

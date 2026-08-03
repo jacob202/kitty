@@ -7,14 +7,10 @@
   "permission": {
     "bash": {
       "*": "allow",
-      "git push*": "deny",
       "git force-push*": "deny",
       "git reset*": "deny",
       "git clean*": "deny",
       "git restore*": "deny",
-      "gh pr create*": "deny",
-      "gh pr merge*": "deny",
-      "gh pr close*": "deny",
       "rm *": "deny"
     },
     "external_directory": {
