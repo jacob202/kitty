@@ -8,8 +8,12 @@ import json
 import sys
 from pathlib import Path
 
-from gateway.model_policy_alignment import validate_model_role_alignment
-from gateway.operating_policy import (
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from gateway.model_policy_alignment import validate_model_role_alignment  # noqa: E402
+from gateway.operating_policy import (  # noqa: E402
     OperatingPolicyError,
     evaluate_builder_campaign,
     evaluate_model_candidate,
