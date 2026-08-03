@@ -253,6 +253,30 @@
           "statement": "Kitty Image is selectable from the chat surface",
           "state": "pending",
           "evidence": "withheld until the lane is switched on \u2014 a menu row that fails when picked is worse than no row"
+        },
+        {
+          "id": "james-identity-proven",
+          "statement": "a photorealistic image of the James character generates on open weights, uncensored",
+          "state": "pass",
+          "evidence": "Flux + fal identity LoRA on RunPod ComfyUI, ~29s per image; recipe in docs/plans/james-workflow-2026-08-02.md"
+        },
+        {
+          "id": "img2img",
+          "statement": "generating from an uploaded reference works",
+          "state": "pass",
+          "evidence": "--source/--denoise in scripts/james_comfy.py; denoise 0.55 beats both LoRAs on likeness"
+        },
+        {
+          "id": "likeness-good-enough",
+          "statement": "likeness is close enough to the reference photographs",
+          "state": "fail",
+          "evidence": "both fal LoRAs give a family resemblance only; img2img holds the source composition so a new scene loses the face. Needs inpainting \u2014 item 1 of docs/plans/image-studio-next-four-2026-08-02.md"
+        },
+        {
+          "id": "characters-are-real",
+          "statement": "the character feature actually drives generation",
+          "state": "fail",
+          "evidence": "image_characters stores records and photos; nothing connects them to a render. Item 2 of the next-four plan"
         }
       ]
     }
@@ -289,5 +313,6 @@
       "state": "pre-existing",
       "note": "fails identically at HEAD before any change in this branch; keyless cloud providers are still dialled"
     }
-  ]
+  ],
+  "next_plan": "docs/plans/image-studio-next-four-2026-08-02.md"
 }
