@@ -338,6 +338,32 @@ this session's start and are caused by the stale `.claude/STATE.md` and
 `.claude/HANDOFF.md` checkpoint, whose recorded branch and HEAD no longer match.
 Nothing in this change touches `.claude/`.
 
+## E15 — slice B2, adapter seam resolution
+
+Decision: subprocess dispatch is the only supported backend. The adapter layer
+(`builder_adapters.py`, `builder_worker_session.py`) is complete but has zero
+production callers.
+
+Removed from `gateway/builder_loop.py`: `_run_via_session` (83 lines), the
+`worker_session: WorkerSession | None` parameter from `run_packet`, the
+mutual-exclusion validation, the `time` import, and the
+`builder_worker_session` import of `ModelPolicy`/`WorkerSession`/`WorkerState`.
+`worker_command` changed from `list[str] | None = None` to `list[str]`
+(required). Both production callers already passed it unconditionally.
+
+```
+.venv-ci/bin/python -m pytest tests/test_builder_loop.py tests/test_builder_cli.py -q
+181 passed in 33.79s
+
+.venv-ci/bin/python -m pytest tests/test_builder_status.py tests/test_builder_queue.py tests/test_builder_runner.py -q
+263 passed in 38.42s
+
+.venv-ci/bin/python -m pytest tests/test_builder_adapters.py tests/test_worker_session_contract.py tests/test_builder_worker_session.py -q
+109 passed in 2.56s
+```
+
+553 tests, zero failures. Zero tests referenced the removed path.
+
 ## Not evidence — what this session could not produce
 
 No browser screenshot, no generated image, no artifact hash, no RunPod job,

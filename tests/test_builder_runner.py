@@ -1216,8 +1216,6 @@ class TestDetachedExecution:
         """A worker whose owner died (lease stale while the process is still
         alive) is reaped; a worker with a live, current lease is left alone —
         no orphaned workers accumulate across detach/restart cycles."""
-        import signal as _signal
-
         # Real workers are spawned in their own session (pgid == pid), so model
         # them the same way here for honest killpg + liveness behavior.
         orphan_proc = subprocess.Popen(["sleep", "300"], start_new_session=True)
