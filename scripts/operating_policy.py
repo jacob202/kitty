@@ -8,6 +8,7 @@ import json
 import sys
 from pathlib import Path
 
+from gateway.model_policy_alignment import validate_model_role_alignment
 from gateway.operating_policy import (
     OperatingPolicyError,
     evaluate_builder_campaign,
@@ -34,17 +35,24 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("validate", help="validate the checked-in model and Builder policies")
+    sub.add_parser("validate", help="validate checked-in policies and live route alignment")
 
     model = sub.add_parser("model-evaluate", help="evaluate a model-role candidate")
-    model.add_argument("--role", required=True, choices=("fast", "think", "code", "vision"))
+    model.add_argument(
+        "--role",
+        required=True,
+        choices=("fast", "think", "code", "vision"),
+    )
     model.add_argument("--incumbent", required=True, type=_json_arg)
     model.add_argument("--candidate", required=True, type=_json_arg)
 
     builder = sub.add_parser("builder-check", help="check campaign economics")
     builder.add_argument("--metrics", required=True, type=_json_arg)
 
-    character = sub.add_parser("character-validate", help="validate one character contract")
+    character = sub.add_parser(
+        "character-validate",
+        help="validate one character contract",
+    )
     character.add_argument("--character", required=True, type=_json_arg)
     character.add_argument("--engine-capabilities", type=_json_arg)
     return parser.parse_args()
@@ -56,11 +64,13 @@ def main() -> int:
         if args.command == "validate":
             model = load_model_policy()
             builder = load_builder_policy()
+            alignment = validate_model_role_alignment(policy=model)
             print(
                 json.dumps(
                     {
                         "model_policy": "valid",
                         "model_roles": sorted(model["roles"]),
+                        "model_route_alignment": alignment,
                         "builder_policy": "valid",
                         "builder_tripwires": sorted(builder["tripwires"]),
                     },
