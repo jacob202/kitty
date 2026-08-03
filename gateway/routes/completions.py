@@ -50,6 +50,27 @@ def route_model(message: str) -> str:
     return resolve_chat_route("kitty-default", message, reroute_virtual_models=True).model
 
 
+def _message_text(content: object) -> str:
+    """The text of a message, whether or not it also carries images.
+
+    An OpenAI message with an attachment sends ``content`` as a list of parts,
+    not a string. Everything downstream — complexity, domain, memory, the
+    repairs-intent check — assumed a string, so uploading any image to the chat
+    endpoint raised ``'list' object has no attribute 'strip'`` and returned 500.
+    """
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    return "\n".join(
+        part["text"]
+        for part in content
+        if isinstance(part, dict)
+        and part.get("type") == "text"
+        and isinstance(part.get("text"), str)
+    )
+
+
 class CloseSessionRequest(BaseModel):
     messages: list[dict] = Field(default_factory=list)
     session_id: str = ""
@@ -130,11 +151,15 @@ async def chat_completions(request: Request):
         )
     messages = body.get("messages", [])
     stream = body.get("stream", True)
+    # A caller that sends tool schemas is the one that executes the calls —
+    # Open WebUI does exactly this. Kitty has no executor of its own here, so the
+    # schemas and the "tools are unavailable" instruction both hinge on this.
+    caller_supplies_tools = bool(body.get("tools"))
 
     user_text = ""
     for m in reversed(messages):
         if m.get("role") == "user":
-            user_text = m.get("content", "")
+            user_text = _message_text(m.get("content", ""))
             break
 
     # KX-05-02 / KX-06-01: detect repairs/signals intent and inject the current feed
@@ -175,11 +200,16 @@ async def chat_completions(request: Request):
         trigger,
     )
     requested_model = body.get("model", "kitty-default")
+    # reroute_virtual_models lets "Kitty Auto" mean what it says: the classifier
+    # picks the tier. Every other menu id is a pin the caller chose, and stays.
     route_decision = resolve_chat_route(
         requested_model,
         user_text,
-        reroute_virtual_models=False,
+        reroute_virtual_models=True,
     )
+    # route_model stays in the auto path: it is the seam callers and tests patch
+    # to redirect routing, and reading route_decision.model directly would walk
+    # straight past it.
     model = route_decision.model if route_decision.source == "request" else route_model(user_text)
 
     conversation_id = body.get("conversation_id")
@@ -250,10 +280,9 @@ async def chat_completions(request: Request):
             objective=thread_objective,
             tier=tier,
         )
-        system_prompt = (
-            f"{bundle.system}\n\n{compact_runtime_context(runtime_manifest)}"
-            f"\n\n{_NO_TOOL_EXECUTOR_SYSTEM}"
-        )
+        system_prompt = f"{bundle.system}\n\n{compact_runtime_context(runtime_manifest)}"
+        if not caller_supplies_tools:
+            system_prompt = f"{system_prompt}\n\n{_NO_TOOL_EXECUTOR_SYSTEM}"
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:
             _finish_lifecycle_or_raise(
@@ -269,25 +298,22 @@ async def chat_completions(request: Request):
     enriched = [m for m in messages if m.get("role") != "system"]
     enriched = [{"role": "system", "content": system_prompt}] + enriched
 
+    stripped = {
+        # content_class is a legacy D10 field (ADR 0022). It no longer routes
+        # anything, but keep filtering it so an old client can't leak it upstream.
+        "project_id",
+        "conversation_id",
+        "conversation_title",
+        "user_message_id",
+        "content_class",
+    }
+    if not caller_supplies_tools:
+        # Nothing on this side executes a tool call, so an unaccompanied schema
+        # would only invite one Kitty cannot complete.
+        stripped |= {"tools", "tool_choice", "parallel_tool_calls"}
+
     payload = {
-        **{
-            key: value
-            for key, value in body.items()
-            # content_class is a legacy D10 field (ADR 0022). It no longer routes
-            # anything, but keep filtering it so an old client can't leak it upstream.
-            if key not in {
-                "project_id",
-                "conversation_id",
-                "conversation_title",
-                "user_message_id",
-                "content_class",
-                # No executor exists on this endpoint. Forwarding tool schemas would
-                # invite tool calls that Kitty cannot complete.
-                "tools",
-                "tool_choice",
-                "parallel_tool_calls",
-            }
-        },
+        **{key: value for key, value in body.items() if key not in stripped},
         "messages": enriched,
         "model": model,
         "stream": stream,
@@ -314,7 +340,7 @@ async def chat_completions(request: Request):
       "system_prompt_chars": len(system_prompt),
       "memory_items_injected": len(bundle.injected_memory_items),
       "preprocessing_ms": int((time.monotonic() - t_start) * 1000),
-      "tool_execution": "unavailable",
+      "tool_execution": "caller" if caller_supplies_tools else "unavailable",
   },
   sort_keys=True,
         ),
@@ -442,7 +468,7 @@ async def chat_completions(request: Request):
             "X-Kitty-Model-Selected": model,
             "X-Kitty-Model-Requested": str(route_decision.requested_model),
             "X-Kitty-Provider-Selected": provider_label,
-            "X-Kitty-Tools-State": "unavailable",
+            "X-Kitty-Tools-State": "caller" if caller_supplies_tools else "unavailable",
         }
         if lifecycle_handle is not None:
             lifecycle_headers["X-Kitty-Turn-ID"] = lifecycle_handle.turn_id

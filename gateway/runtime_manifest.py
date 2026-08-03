@@ -373,8 +373,36 @@ async def compose_manifest(project_id: int | None = None) -> dict[str, Any]:
     }
 
 
+def _summarize_builder_fact(fact: dict[str, Any]) -> dict[str, Any]:
+    """Drop the initiative bodies from a Builder fact, keeping the counts.
+
+    The full snapshot carries every initiative record — 400KB+ on Jacob's Mac —
+    and inlining it made every chat turn pay ~107k tokens of prompt it never
+    reads. A turn only needs to know how much work is queued and whether the
+    projection is trustworthy; `./kitty builder ... --json` remains the place to
+    read initiative detail.
+    """
+    snapshot = fact.get("value")
+    if not isinstance(snapshot, dict):
+        return fact
+
+    initiatives = snapshot.get("initiatives")
+    summary = {
+        key: value for key, value in snapshot.items() if key != "initiatives"
+    }
+    summary["initiative_count"] = (
+        len(initiatives) if isinstance(initiatives, (list, dict)) else 0
+    )
+    return {**fact, "value": summary}
+
+
 def compact_runtime_context(manifest: dict[str, Any]) -> str:
     """Render only verified runtime facts needed by a model turn."""
+    execution = manifest["execution"]
+    builder = execution.get("builder")
+    if isinstance(builder, dict):
+        execution = {**execution, "builder": _summarize_builder_fact(builder)}
+
     context = {
         "manifest_revision": manifest["revision"],
         "generated_at": manifest["generated_at"],
@@ -382,7 +410,7 @@ def compact_runtime_context(manifest: dict[str, Any]) -> str:
         "application": manifest["application"],
         "clock": manifest["clock"],
         "context": manifest["context"],
-        "execution": manifest["execution"],
+        "execution": execution,
         "inference": {
             "routing_mode": manifest["inference"]["routing_mode"],
             "available_models": manifest["inference"]["available_models"],

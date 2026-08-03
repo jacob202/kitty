@@ -41,8 +41,18 @@ jobs:
           # TH-03 ratchet: floor = measured 76% (2026-07-19, pristine
           # worktree at origin/main) minus 3. Council --ignore flags removed:
           # both files were deleted in d260309 (2026-06-18).
+          set -o pipefail
           python -m pytest tests/ -q --tb=short \
-            --cov=gateway --cov-report=term-missing --cov-fail-under=73
+            --cov=gateway --cov-report=term-missing --cov-fail-under=73 \
+            2>&1 | tee pytest-output.txt
+
+      - name: Upload pytest output
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-output
+          path: pytest-output.txt
+          retention-days: 7
 
   lint:
     runs-on: ubuntu-latest

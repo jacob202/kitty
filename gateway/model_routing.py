@@ -28,6 +28,56 @@ LITELLM_CONFIG = ROOT / "gateway" / "litellm_config.yaml"
 LITELLM_DEFAULT = "kitty-default"
 LITELLM_SONNET = "kitty-sonnet"
 LITELLM_SMALL = "kitty-small"
+LITELLM_THINK = "kitty-think"
+LITELLM_CODE = "kitty-code"
+LITELLM_VISION = "kitty-vision"
+
+# The menu Jacob picks from. Everything else in this module is machinery; these
+# are the only ids a client should show a human, and each one has to mean
+# something different or it does not earn a row.
+#
+# ``kitty-auto`` carries no model of its own on purpose — it is the request to
+# let Kitty classify the turn, which is why it maps to the default route and is
+# listed in AUTO_ROUTED_MODELS below.
+USER_FACING_MODELS: tuple[dict[str, str], ...] = (
+    {
+        "id": "kitty-auto",
+        "route": LITELLM_DEFAULT,
+        "name": "Kitty Auto",
+        "description": "Everyday use. Kitty reads the message and picks the tier.",
+    },
+    {
+        "id": "kitty-fast",
+        "route": LITELLM_SMALL,
+        "name": "Kitty Fast",
+        "description": "Quick, cheap answers for short or simple work.",
+    },
+    {
+        "id": "kitty-think",
+        "route": LITELLM_THINK,
+        "name": "Kitty Think",
+        "description": "Slower and dearer. For problems worth the wait.",
+    },
+    {
+        "id": "kitty-code",
+        "route": LITELLM_CODE,
+        "name": "Kitty Code",
+        "description": "Writing and debugging code.",
+    },
+    {
+        "id": "kitty-vision",
+        "route": LITELLM_VISION,
+        "name": "Kitty Vision",
+        "description": "Reading images, screenshots, and photos.",
+    },
+)
+
+USER_FACING_ROUTES: dict[str, str] = {
+    entry["id"]: entry["route"] for entry in USER_FACING_MODELS
+}
+
+# Ids that hand the tier decision back to Kitty rather than pinning a model.
+AUTO_ROUTED_MODELS: frozenset[str] = frozenset({"kitty-auto", LITELLM_DEFAULT})
 
 LEGACY_MODEL_ALIASES: dict[str, str] = {
     "kitty-agent": LITELLM_DEFAULT,
@@ -78,12 +128,14 @@ def _split_model(model: str, api_base: Any = None) -> tuple[str, str]:
 
 
 def normalize_litellm_request_model(request_model: str | None) -> str | None:
-    """Map legacy Kitty aliases onto supported LiteLLM virtual routes."""
+    """Map Kitty's menu ids and legacy aliases onto LiteLLM virtual routes."""
     if request_model is None:
         return None
     model = request_model.strip()
     if not model:
         return model
+    if model in USER_FACING_ROUTES:
+        return USER_FACING_ROUTES[model]
     return LEGACY_MODEL_ALIASES.get(model, model)
 
 
@@ -149,7 +201,10 @@ def resolve_chat_route(
     """
     raw = requested_model.strip() if isinstance(requested_model, str) else None
     model = normalize_litellm_request_model(raw) if normalize_legacy_aliases else raw
-    if model and honor_requested_model and not (reroute_virtual_models and model.startswith("kitty-")):
+    # Only the auto ids hand the decision back to Kitty. Rerouting every
+    # ``kitty-*`` id would make picking "Kitty Think" a suggestion the
+    # classifier is free to overrule, which is not what a menu means.
+    if model and honor_requested_model and not (reroute_virtual_models and model in AUTO_ROUTED_MODELS):
         return RouteDecision(
             model=model,
             requested_model=raw,
