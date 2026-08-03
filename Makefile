@@ -1,4 +1,4 @@
-.PHONY: agent-wrap vibe-session test lint typecheck ci ui-test ui-build ui-tailnet smoke-test codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr
+.PHONY: agent-wrap vibe-session test lint typecheck ci ui-test ui-build ui-tailnet smoke-test codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr trust-eval
 
 agent-wrap:
 	python3.12 scripts/agent_wrapup.py
@@ -60,6 +60,34 @@ dogfood:
 healthcheck:
 	./kitty doctor --json | python3.12 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('summary',{}).get('fail',0)==0 else 1)"
 	./kitty builder initiative doctor --json | python3.12 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('ok') else 1)"
+
+# Run the live Kitty trust regression suite against the local Gateway.
+# This is deliberately opt-in because it invokes the configured model route and
+# may consume provider credits. Results stay under ignored data/ runtime state.
+trust-eval:
+	@if [ "$$KITTY_LIVE_EVAL" != "1" ]; then \
+		echo "Refusing live model calls. Re-run with: KITTY_LIVE_EVAL=1 make trust-eval"; \
+		exit 2; \
+	fi
+	@BASE_URL="$${KITTY_EVAL_BASE_URL:-http://127.0.0.1:8000}"; \
+	curl -fsS "$$BASE_URL/proxy/health" >/dev/null || { \
+		echo "Kitty Gateway is not healthy at $$BASE_URL/proxy/health. Run ./kitty up first."; \
+		exit 1; \
+	}; \
+	mkdir -p data/promptfoo; \
+	KITTY_EVAL_BASE_URL="$$BASE_URL" \
+	KITTY_EVAL_MODEL="$${KITTY_EVAL_MODEL:-kitty-default}" \
+	PROMPTFOO_CONFIG_DIR="$(CURDIR)/data/promptfoo" \
+	PROMPTFOO_CACHE_PATH="$(CURDIR)/data/promptfoo/cache" \
+	PROMPTFOO_DISABLE_TELEMETRY=1 \
+	PROMPTFOO_DISABLE_UPDATE=1 \
+	PROMPTFOO_EVAL_TIMEOUT_MS=60000 \
+	PROMPTFOO_MAX_EVAL_TIME_MS=600000 \
+	npx --yes promptfoo@0.121.19 eval \
+		-c evals/kitty/promptfooconfig.json \
+		--no-cache \
+		-j 1 \
+		--output data/promptfoo/kitty-trust-latest.json
 
 # Open the dev UI in the user's default browser with a checklist of what to
 # click — the loop I had to run by hand while dogfooding today, automated.

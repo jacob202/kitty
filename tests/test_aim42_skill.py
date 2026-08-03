@@ -2,7 +2,6 @@
 
 from gateway.skill_registry import discover, invoke, suggest
 
-
 SKILL_NAME = "aim42-software-improvement"
 
 
