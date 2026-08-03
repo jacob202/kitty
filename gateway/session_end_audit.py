@@ -1,20 +1,20 @@
-"""Read-only proof that OpenCode actually loaded and executed session-end.
+"""Read-only proof that OpenCode actually executed the session-end contract.
 
-A skill file existing in the repository is not execution evidence.  This audit
-checks four independent layers: discoverability/log evidence, a Builder-owned
-OpenCode effectiveness receipt, the measurements that receipt was required to
-capture, and a workflow signal for an economically bad campaign.
+A skill file or duplicate-skill warning is not execution evidence.  This audit
+uses Kitty's canonical hash-chain receipt parser and workflow-signal parser, then
+requires both records to describe the same Builder-owned OpenCode session.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
 from gateway.paths import ROOT
+from scripts.kb_effectiveness import ReceiptError, load_receipts
+from scripts.session_learning import SignalError, load_signals
 
 CANONICAL_SKILL = ROOT / ".agents/skills/session-end/SKILL.md"
 DEFAULT_SKILL_CANDIDATES = (
@@ -23,11 +23,13 @@ DEFAULT_SKILL_CANDIDATES = (
     Path.home() / ".claude/skills/session-end/SKILL.md",
 )
 DEFAULT_LOG_CANDIDATES = (
-    Path.home() / ".local/share/opencode/log/opencode.log",
-    Path.home() / ".cache/opencode/opencode.log",
-    Path.home() / ".config/opencode/opencode.log",
-    Path.home() / "Library/Logs/opencode.log",
-    ROOT / "opencode.log",
+    Path.home() / ".local/share/opencode/log",
+    Path.home() / ".cache/opencode",
+    Path.home() / ".config/opencode",
+    Path.home() / "Library/Logs",
+    Path.home() / "Library/Application Support/opencode",
+    Path.home() / "Library/Application Support/orca/opencode-hooks",
+    ROOT,
 )
 _REQUIRED_CAMPAIGN_MEASUREMENTS = (
     "elapsed_seconds",
@@ -40,10 +42,12 @@ _REQUIRED_CAMPAIGN_MEASUREMENTS = (
 _RELEVANT_SIGNAL_CATEGORIES = frozenset(
     {"paid_waste", "queue_integrity", "runtime_failure", "tool_failure"}
 )
+_LOG_POSITIVE_TERMS = ("loaded", "discovered", "resolved", "invoke", "using skill")
+_LOG_NEGATIVE_TERMS = ("duplicate", "conflict", "shadow", "warning", "disabled")
 
 
 class SessionEndAuditError(ValueError):
-    """The audit source exists but is corrupt or cannot support a claim."""
+    """The audit evidence is corrupt or cannot support a claim."""
 
 
 @dataclass(frozen=True)
@@ -100,23 +104,21 @@ def audit_session_end(
                 f"{canonical_skill} sha256={canonical_hash}",
             )
         )
+    findings.extend(_installed_skill_findings(skill_candidates, canonical_hash))
+    findings.append(_log_finding(log_candidates))
 
-    installed = _installed_skill_findings(skill_candidates, canonical_hash)
-    findings.extend(installed)
-    log_finding = _log_finding(log_candidates)
-    findings.append(log_finding)
-
-    receipts_path = receipt_store or (
-        Path.home() / "kb/metrics/kb-effectiveness.jsonl"
-    )
-    receipts = _load_receipts(receipts_path)
-    receipt = _latest_builder_opencode_receipt(receipts)
+    receipts_path = receipt_store or Path.home() / "kb/metrics/kb-effectiveness.jsonl"
+    try:
+        stored_receipts = load_receipts(receipts_path)
+    except ReceiptError as exc:
+        raise SessionEndAuditError(f"invalid effectiveness receipt store: {exc}") from exc
+    receipt = _latest_builder_opencode_receipt(stored_receipts)
     if receipt is None:
         findings.append(
             AuditFinding(
                 "builder_opencode_receipt",
                 "fail",
-                "no Builder-owned OpenCode effectiveness receipt was found",
+                "no validated Builder-owned OpenCode effectiveness receipt was found",
                 str(receipts_path),
             )
         )
@@ -125,56 +127,34 @@ def audit_session_end(
             AuditFinding(
                 "builder_opencode_receipt",
                 "pass",
-                "a Builder-owned OpenCode effectiveness receipt exists",
+                "a hash-chain-validated Builder-owned OpenCode receipt exists",
                 f"{receipts_path} session={receipt.get('session_id')}",
             )
         )
-        missing = [key for key in _REQUIRED_CAMPAIGN_MEASUREMENTS if receipt.get(key) is None]
-        identity_missing = [
-            key
-            for key in ("initiative_id", "packet_id", "result_id")
-            if receipt.get(key) is None
-        ]
-        notes = str(receipt.get("notes") or "").casefold()
-        model_evidence = "model" in notes and (
-            "deepseek" in notes or "provider" in notes or "openrouter" in notes
-        )
-        if missing or identity_missing or not model_evidence:
-            pieces = []
-            if missing:
-                pieces.append(f"measurements missing: {', '.join(missing)}")
-            if identity_missing:
-                pieces.append(f"Builder identity missing: {', '.join(identity_missing)}")
-            if not model_evidence:
-                pieces.append("notes contain no model/provider evidence")
-            findings.append(
-                AuditFinding(
-                    "receipt_completeness",
-                    "fail",
-                    "; ".join(pieces),
-                    f"session={receipt.get('session_id')}",
-                )
-            )
-        else:
-            findings.append(
-                AuditFinding(
-                    "receipt_completeness",
-                    "pass",
-                    "receipt includes campaign economics, Builder identity, and model/provider evidence",
-                    f"session={receipt.get('session_id')}",
-                )
-            )
+        findings.append(_receipt_completeness_finding(receipt))
 
-    signals_path = signal_root or (Path.home() / "kb/workflow-signals")
-    signals = _load_signals(signals_path)
-    matching_signal = _latest_builder_effectiveness_signal(signals)
-    if matching_signal is None:
+    signals_path = signal_root or Path.home() / "kb/workflow-signals"
+    try:
+        signals = load_signals(signals_path)
+    except SignalError as exc:
+        raise SessionEndAuditError(f"invalid workflow-signal store: {exc}") from exc
+    matching_signal = _matching_session_signal(signals, receipt)
+    if receipt is None:
         findings.append(
             AuditFinding(
                 "workflow_signal",
                 "fail",
-                "no workflow signal records the slow or metadata-heavy Builder campaign",
+                "a workflow signal cannot be attributed without a Builder-owned OpenCode receipt",
                 str(signals_path),
+            )
+        )
+    elif matching_signal is None:
+        findings.append(
+            AuditFinding(
+                "workflow_signal",
+                "fail",
+                "no validated workflow signal records the effectiveness failure for the same session",
+                f"{signals_path} source_session={receipt.get('session_id')}",
             )
         )
     else:
@@ -182,17 +162,13 @@ def audit_session_end(
             AuditFinding(
                 "workflow_signal",
                 "pass",
-                "a workflow signal records the Builder effectiveness failure",
+                "a validated workflow signal records the Builder effectiveness failure for the same session",
                 f"{matching_signal.get('id')} {matching_signal.get('stable_key')}",
             )
         )
 
-    # A log mention is useful evidence of discovery, but execution requires the
-    # receipt and signal.  Global skill copies are optional because OpenCode may
-    # load the repository's .agents skill directly.
     required_checks = {
         "canonical_skill",
-        "opencode_skill_log",
         "builder_opencode_receipt",
         "receipt_completeness",
         "workflow_signal",
@@ -202,25 +178,55 @@ def audit_session_end(
         for item in findings
         if item.status == "fail" and item.check in required_checks
     }
-    status = "verified" if not failed else "unverified"
     return SessionEndAudit(
-        status=status,
+        status="verified" if not failed else "unverified",
         findings=tuple(findings),
         latest_receipt=receipt,
         matching_signal=matching_signal,
     )
 
 
+def _receipt_completeness_finding(receipt: dict[str, Any]) -> AuditFinding:
+    missing = [key for key in _REQUIRED_CAMPAIGN_MEASUREMENTS if receipt.get(key) is None]
+    identity_missing = [
+        key
+        for key in ("initiative_id", "packet_id", "result_id")
+        if receipt.get(key) is None
+    ]
+    notes = str(receipt.get("notes") or "").casefold()
+    model_evidence = "model" in notes and "provider" in notes
+    pieces: list[str] = []
+    if missing:
+        pieces.append(f"measurements missing: {', '.join(missing)}")
+    if identity_missing:
+        pieces.append(f"Builder identity missing: {', '.join(identity_missing)}")
+    if not model_evidence:
+        pieces.append("notes contain no explicit model and provider evidence")
+    if pieces:
+        return AuditFinding(
+            "receipt_completeness",
+            "fail",
+            "; ".join(pieces),
+            f"session={receipt.get('session_id')}",
+        )
+    return AuditFinding(
+        "receipt_completeness",
+        "pass",
+        "receipt includes campaign economics, Builder identity, and explicit model/provider evidence",
+        f"session={receipt.get('session_id')}",
+    )
+
+
 def _installed_skill_findings(
     candidates: Iterable[Path], canonical_hash: str | None
 ) -> list[AuditFinding]:
-    found: list[AuditFinding] = []
+    findings: list[AuditFinding] = []
     for path in candidates:
         digest = _file_hash(path)
         if digest is None:
             continue
         if canonical_hash is not None and digest == canonical_hash:
-            found.append(
+            findings.append(
                 AuditFinding(
                     "installed_skill_copy",
                     "pass",
@@ -229,7 +235,7 @@ def _installed_skill_findings(
                 )
             )
         else:
-            found.append(
+            findings.append(
                 AuditFinding(
                     "installed_skill_copy",
                     "warn",
@@ -237,102 +243,82 @@ def _installed_skill_findings(
                     f"{path} sha256={digest}",
                 )
             )
-    if not found:
-        found.append(
+    if not findings:
+        findings.append(
             AuditFinding(
                 "installed_skill_copy",
                 "info",
-                "no global copy was found; OpenCode may still load the repository .agents skill",
+                "no global copy was found; OpenCode may load the repository .agents skill",
                 None,
             )
         )
-    return found
+    return findings
 
 
 def _log_finding(candidates: Iterable[Path]) -> AuditFinding:
     inspected: list[str] = []
-    for path in candidates:
-        if not path.is_file():
-            continue
+    for path in _candidate_log_files(candidates):
         inspected.append(str(path))
         try:
-            text = path.read_text(encoding="utf-8", errors="replace").casefold()
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError as exc:
             inspected[-1] += f" (unreadable: {exc})"
             continue
-        if "session-end" in text or "session_end" in text:
-            return AuditFinding(
-                "opencode_skill_log",
-                "pass",
-                "OpenCode log evidence mentions session-end",
-                str(path),
-            )
+        for raw_line in lines:
+            line = raw_line.casefold()
+            if "session-end" not in line and "session_end" not in line:
+                continue
+            if any(term in line for term in _LOG_NEGATIVE_TERMS):
+                continue
+            if any(term in line for term in _LOG_POSITIVE_TERMS):
+                return AuditFinding(
+                    "opencode_skill_log",
+                    "pass",
+                    "OpenCode log evidence shows session-end discovery or invocation",
+                    f"{path}: {raw_line.strip()[:240]}",
+                )
     return AuditFinding(
         "opencode_skill_log",
-        "fail",
-        "no inspected OpenCode log proves that session-end was discovered or invoked",
+        "warn",
+        "no inspected OpenCode log proves discovery or invocation; validated outputs remain the execution gate",
         ", ".join(inspected) if inspected else "no candidate log exists",
     )
 
 
-def _load_receipts(path: Path) -> list[dict[str, Any]]:
-    if not path.exists():
-        return []
-    if not path.is_file():
-        raise SessionEndAuditError(f"receipt store is not a file: {path}")
-    receipts: list[dict[str, Any]] = []
-    for line_no, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if not raw_line.strip():
-            raise SessionEndAuditError(f"blank receipt line at {path}:{line_no}")
-        try:
-            item = json.loads(raw_line)
-        except json.JSONDecodeError as exc:
-            raise SessionEndAuditError(
-                f"invalid receipt JSON at {path}:{line_no}: {exc}"
-            ) from exc
-        receipt = item.get("receipt") if isinstance(item, dict) else None
-        if not isinstance(receipt, dict):
-            raise SessionEndAuditError(f"receipt payload missing at {path}:{line_no}")
-        receipts.append(receipt)
-    return receipts
+def _candidate_log_files(candidates: Iterable[Path]) -> list[Path]:
+    files: set[Path] = set()
+    for path in candidates:
+        if path.is_file():
+            files.add(path)
+        elif path.is_dir():
+            files.update(item for item in path.rglob("*.log") if item.is_file())
+    return sorted(files)
 
 
 def _latest_builder_opencode_receipt(
-    receipts: Iterable[dict[str, Any]],
+    stored_receipts: Iterable[dict[str, Any]],
 ) -> dict[str, Any] | None:
     matches = [
-        receipt
-        for receipt in receipts
-        if str(receipt.get("tool") or "").casefold() == "opencode"
-        and receipt.get("execution_owner") == "builder"
+        item["receipt"]
+        for item in stored_receipts
+        if item["receipt"].get("execution_owner") == "builder"
+        and str(item["receipt"].get("tool") or "").casefold() == "opencode"
     ]
     if not matches:
         return None
     return max(matches, key=lambda item: str(item.get("recorded_at") or ""))
 
 
-def _load_signals(root: Path) -> list[dict[str, Any]]:
-    if not root.exists():
-        return []
-    if not root.is_dir():
-        raise SessionEndAuditError(f"workflow signal store is not a directory: {root}")
-    signals: list[dict[str, Any]] = []
-    for path in sorted(root.glob("*.json")):
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise SessionEndAuditError(f"invalid workflow signal {path}: {exc}") from exc
-        if not isinstance(payload, dict):
-            raise SessionEndAuditError(f"workflow signal must be an object: {path}")
-        signals.append(payload)
-    return signals
-
-
-def _latest_builder_effectiveness_signal(
-    signals: Iterable[dict[str, Any]],
+def _matching_session_signal(
+    signals: Iterable[dict[str, Any]], receipt: dict[str, Any] | None
 ) -> dict[str, Any] | None:
+    if receipt is None:
+        return None
+    session_id = receipt.get("session_id")
     matches: list[dict[str, Any]] = []
     for signal in signals:
+        if signal.get("source_session") != session_id:
+            continue
         category = str(signal.get("category") or "")
         searchable = " ".join(
             str(signal.get(key) or "")
