@@ -1,4 +1,5 @@
 """Tests for the image runner module — job lifecycle and engine dispatch."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -17,15 +18,12 @@ def _tmp_db(tmp_path, monkeypatch):
     monkeypatch.setattr("gateway.paths.KITTY_DB_FILE", db_file)
     monkeypatch.setattr("gateway.image_jobs._paths.KITTY_DB_FILE", db_file)
     from gateway import db as kitty_db
+
     kitty_db.migrate(db_file=db_file)
     return db_file
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
-
 def _fake_drawthings_engine(available: bool = True, data: bytes = b"fakepng"):
-    """Build a mock Draw Things engine."""
     engine = MagicMock()
     engine.model_name = "test-model"
     engine._adapter = MagicMock()
@@ -34,15 +32,15 @@ def _fake_drawthings_engine(available: bool = True, data: bytes = b"fakepng"):
     return engine
 
 
-# ── ComfyUI path (via image_gen.generate) ────────────────────────────────────
-
-
 class TestComfyUIPath:
     @pytest.mark.asyncio
     async def test_success_returns_job_result(self, tmp_path):
-        """Successful ComfyUI generation returns JobResult with terminal job."""
         with (
-            patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=True),
+            patch(
+                "gateway.image_gen.is_available",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
             patch("gateway.image_gen.generate", new_callable=AsyncMock) as mock_gen,
         ):
             mock_gen.return_value = {
@@ -58,19 +56,25 @@ class TestComfyUIPath:
 
     @pytest.mark.asyncio
     async def test_comfyui_not_running_raises(self):
-        """When ComfyUI is down, raises ImageRunnerError."""
-        with patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=False):
+        with patch(
+            "gateway.image_gen.is_available",
+            new_callable=AsyncMock,
+            return_value=False,
+        ):
             with pytest.raises(ImageRunnerError, match="not running"):
                 await run("comfyui", "a landscape")
 
     @pytest.mark.asyncio
     async def test_recipe_recorded_on_result(self, tmp_path):
-        """Recipe ID is passed through to JobResult."""
         recipe = MagicMock()
         recipe.recipe_id = "comfyui_sdxl_standard"
 
         with (
-            patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=True),
+            patch(
+                "gateway.image_gen.is_available",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
             patch("gateway.image_gen.generate", new_callable=AsyncMock) as mock_gen,
         ):
             mock_gen.return_value = {
@@ -82,18 +86,17 @@ class TestComfyUIPath:
             assert result.recipe == "comfyui_sdxl_standard"
 
 
-# ── Draw Things path ─────────────────────────────────────────────────────────
-
-
 class TestDrawThingsPath:
     @pytest.mark.asyncio
     async def test_success_returns_job_result(self, tmp_path):
-        """Successful Draw Things generation returns JobResult."""
         fake_engine = _fake_drawthings_engine(available=True, data=b"fakepng")
 
         with (
             patch("mcp.imagen.engines.get", return_value=fake_engine),
-            patch("mcp.imagen.io.save_image", return_value=tmp_path / "dt_out.png"),
+            patch(
+                "mcp.imagen.io.save_image",
+                return_value=tmp_path / "dt_out.png",
+            ),
         ):
             result = await run("drawthings", "a bear")
 
@@ -104,7 +107,6 @@ class TestDrawThingsPath:
 
     @pytest.mark.asyncio
     async def test_drawthings_not_running_raises(self):
-        """When Draw Things is down, raises ImageRunnerError."""
         fake_engine = _fake_drawthings_engine(available=False)
 
         with patch("mcp.imagen.engines.get", return_value=fake_engine):
@@ -112,10 +114,11 @@ class TestDrawThingsPath:
                 await run("drawthings", "a bear")
 
     @pytest.mark.asyncio
-    async def test_engine_failure_marks_job_failed(self, tmp_path):
-        """When the engine raises, the job reaches FAILED terminal state."""
+    async def test_engine_failure_marks_job_failed(self):
         fake_engine = _fake_drawthings_engine(available=True)
-        fake_engine.generate_async = AsyncMock(side_effect=RuntimeError("comfyui exploded"))
+        fake_engine.generate_async = AsyncMock(
+            side_effect=RuntimeError("comfyui exploded")
+        )
 
         with (
             patch("mcp.imagen.engines.get", return_value=fake_engine),
@@ -123,7 +126,6 @@ class TestDrawThingsPath:
         ):
             await run("drawthings", "a bear")
 
-        # The job should be in FAILED state (invariant: terminal on exit)
         jobs = image_jobs.list_recent(limit=1)
         assert len(jobs) == 1
         assert jobs[0].status is ImageJobStatus.FAILED
@@ -131,16 +133,17 @@ class TestDrawThingsPath:
 
     @pytest.mark.asyncio
     async def test_recipe_workflow_template_id_recorded(self, tmp_path):
-        """Recipe's workflow_template_id is recorded on the job."""
         recipe = MagicMock()
         recipe.recipe_id = "drawthings_standard"
         recipe.workflow_template_id = "dt_basic"
-
         fake_engine = _fake_drawthings_engine(available=True, data=b"fakepng")
 
         with (
             patch("mcp.imagen.engines.get", return_value=fake_engine),
-            patch("mcp.imagen.io.save_image", return_value=tmp_path / "dt_out.png"),
+            patch(
+                "mcp.imagen.io.save_image",
+                return_value=tmp_path / "dt_out.png",
+            ),
         ):
             await run("drawthings", "a bear", recipe=recipe)
 
@@ -149,38 +152,84 @@ class TestDrawThingsPath:
         assert jobs[0].workflow_template_id == "dt_basic"
 
 
-# ── Character path ───────────────────────────────────────────────────────────
-
-
 class TestCharacterPath:
     @pytest.mark.asyncio
-    async def test_character_no_refs_raises(self, tmp_path):
-        """Character with no reference images raises ImageRunnerError."""
-        mock_char = MagicMock()
-        mock_char.name = "TestChar"
+    async def test_legacy_character_without_contract_raises(self):
+        from gateway.image_character_contracts import CharacterContractError
 
         with (
-            patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=True),
-            patch("gateway.image_characters.get_character", return_value=mock_char),
-            patch("gateway.image_characters.list_character_refs", return_value=[]),
-            pytest.raises(ImageRunnerError, match="no reference images"),
+            patch(
+                "gateway.image_gen.is_available",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "gateway.image_gen.is_identity_ready",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "gateway.image_character_contracts.resolve_comfyui_character",
+                side_effect=CharacterContractError(
+                    "character only has legacy metadata/photos"
+                ),
+            ),
+            pytest.raises(ImageRunnerError, match="legacy metadata/photos"),
         ):
             await run("comfyui", "draw my character", character_id="char_abc")
 
     @pytest.mark.asyncio
-    async def test_character_success(self, tmp_path):
-        """Character generation with a primary ref succeeds."""
-        mock_char = MagicMock()
-        mock_char.name = "TestChar"
-        mock_ref = MagicMock()
-        mock_ref.is_primary = True
-        mock_ref.storage_path = str(tmp_path / "ref.png")
+    async def test_identity_runtime_must_be_ready(self):
+        with (
+            patch(
+                "gateway.image_gen.is_available",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "gateway.image_gen.is_identity_ready",
+                new_callable=AsyncMock,
+                return_value=False,
+            ),
+            pytest.raises(ImageRunnerError, match="identity workflow is not ready"),
+        ):
+            await run("comfyui", "draw my character", character_id="char_abc")
+
+    @pytest.mark.asyncio
+    async def test_character_success_uses_resolved_contract(self, tmp_path):
+        resolved = {
+            "positive_prompt": "late-thirties man, natural skin texture",
+            "negative_prompt": "beautified, waxy skin",
+            "reference_path": str(tmp_path / "ref.png"),
+            "identity_mode": "balanced",
+            "width": 896,
+            "height": 1152,
+            "steps": 26,
+            "guidance": 3.0,
+            "recipe_id": "jacob-sdxl-v1",
+            "identity_method": "ipadapter_faceid",
+            "references": [{"ref_id": "ref-primary"}],
+        }
 
         with (
-            patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=True),
-            patch("gateway.image_characters.get_character", return_value=mock_char),
-            patch("gateway.image_characters.list_character_refs", return_value=[mock_ref]),
-            patch("gateway.image_gen.generate_with_character", new_callable=AsyncMock) as mock_gen,
+            patch(
+                "gateway.image_gen.is_available",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "gateway.image_gen.is_identity_ready",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "gateway.image_character_contracts.resolve_comfyui_character",
+                return_value=resolved,
+            ),
+            patch(
+                "gateway.image_gen.generate_with_character",
+                new_callable=AsyncMock,
+            ) as mock_gen,
         ):
             mock_gen.return_value = {
                 "prompt_id": "p_char",
@@ -188,27 +237,52 @@ class TestCharacterPath:
                 "job_id": "job_char123",
                 "character_weight": 0.7,
             }
-            result = await run("comfyui", "draw my character", character_id="char_abc")
+            result = await run(
+                "comfyui",
+                "at a lake",
+                character_id="char_abc",
+                negative_prompt="hat",
+            )
 
-            assert result.character_weight == 0.7
-            assert result.engine == "comfyui"
-
-
-# ── Validation ───────────────────────────────────────────────────────────────
+        mock_gen.assert_awaited_once_with(
+            prompt="late-thirties man, natural skin texture, at a lake",
+            character_ref_path=str(tmp_path / "ref.png"),
+            identity_mode="balanced",
+            negative_prompt="beautified, waxy skin, hat",
+            width=896,
+            height=1152,
+            steps=26,
+            cfg=3.0,
+            guidance_tags=None,
+        )
+        assert result.character_weight == 0.7
+        assert result.recipe == "jacob-sdxl-v1"
+        assert result.routing_reason == (
+            "character contract char_abc: ipadapter_faceid with 1 reference(s)"
+        )
 
 
 class TestValidation:
     @pytest.mark.asyncio
     async def test_unknown_engine_raises(self):
-        """Unknown engine name raises ImageRunnerError."""
         with pytest.raises(ImageRunnerError, match="unknown engine"):
             await run("midjourney", "a bear")
 
     @pytest.mark.asyncio
     async def test_invalid_engine_strips_whitespace(self):
-        """Engine name is stripped and lowered."""
-        with patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=True):
-            with patch("gateway.image_gen.generate", new_callable=AsyncMock) as mock_gen:
-                mock_gen.return_value = {"prompt_id": "p", "filename": "f", "job_id": "j"}
+        with patch(
+            "gateway.image_gen.is_available",
+            new_callable=AsyncMock,
+            return_value=True,
+        ):
+            with patch(
+                "gateway.image_gen.generate",
+                new_callable=AsyncMock,
+            ) as mock_gen:
+                mock_gen.return_value = {
+                    "prompt_id": "p",
+                    "filename": "f",
+                    "job_id": "j",
+                }
                 result = await run("  ComfyUI  ", "test")
                 assert result.engine == "comfyui"
