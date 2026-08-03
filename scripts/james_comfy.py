@@ -196,6 +196,8 @@ def build_workflow(
     source: str | None = None,
     denoise: float = 1.0,
     mask: str | None = None,
+    pulid_face: str | None = None,
+    pulid_weight: float = 0.9,
 ) -> dict:
     """Checkpoint -> identity LoRA -> anatomy LoRA -> sample -> save.
 
@@ -207,7 +209,12 @@ def build_workflow(
             "class_type": "CheckpointLoaderSimple",
             "inputs": {"ckpt_name": CHECKPOINT},
         },
-        "2": {
+    }
+    # Strength 0 means "do not use it". Loading it anyway costs a file read and
+    # fails outright when that LoRA is not on this pod — which is exactly what
+    # happens when PuLID is carrying identity instead.
+    if identity > 0:
+        graph["2"] = {
             "class_type": "LoraLoader",
             "inputs": {
                 "lora_name": IDENTITY_LORA,
@@ -216,10 +223,13 @@ def build_workflow(
                 "model": ["1", 0],
                 "clip": ["1", 1],
             },
-        },
+        }
+    identity_model = ["2", 0] if identity > 0 else ["1", 0]
+    identity_clip = ["2", 1] if identity > 0 else ["1", 1]
+    graph.update({
         "4": {
             "class_type": "CLIPTextEncode",
-            "inputs": {"text": prompt, "clip": ["2", 1]},
+            "inputs": {"text": prompt, "clip": identity_clip},
         },
         "5": {
             "class_type": "FluxGuidance",
@@ -238,7 +248,7 @@ def build_workflow(
                 "sampler_name": "euler",
                 "scheduler": "simple",
                 "denoise": denoise,
-                "model": ["2", 0],
+                "model": identity_model,
                 "positive": ["5", 0],
                 # Flux is guidance-distilled: CFG 1.0 means the negative branch
                 # is never evaluated, so it only needs to be a valid conditioning.
@@ -251,7 +261,41 @@ def build_workflow(
             "class_type": "SaveImage",
             "inputs": {"filename_prefix": "james", "images": ["8", 0]},
         },
-    }
+    })
+    if pulid_face is not None:
+        # PuLID conditions the model on a face *embedding*, so identity survives a
+        # change of pose and lighting that pasting pixels cannot. It replaces the
+        # identity LoRA rather than stacking with it — both compete for the face.
+        graph["20"] = {
+            "class_type": "PulidFluxModelLoader",
+            "inputs": {"pulid_file": "pulid_flux_v0.9.1.safetensors"},
+        }
+        graph["21"] = {"class_type": "PulidFluxEvaClipLoader", "inputs": {}}
+        graph["22"] = {
+            "class_type": "PulidFluxInsightFaceLoader",
+            "inputs": {"provider": "CUDA"},
+        }
+        graph["23"] = {"class_type": "LoadImage", "inputs": {"image": pulid_face}}
+        graph["24"] = {
+            "class_type": "ApplyPulidFlux",
+            "inputs": {
+                "model": identity_model,
+                "pulid_flux": ["20", 0],
+                "eva_clip": ["21", 0],
+                "face_analysis": ["22", 0],
+                "image": ["23", 0],
+                "weight": pulid_weight,
+                "start_at": 0.0,
+                "end_at": 1.0,
+                "fusion": "mean",
+                "fusion_weight_max": 1.0,
+                "fusion_weight_min": 0.0,
+                "train_step": 1000,
+                "use_gray": True,
+            },
+        }
+        graph["7"]["inputs"]["model"] = ["24", 0]
+
     if source is not None:
         # Starting from real pixels of Jacob's face beats any LoRA this pair was
         # trained to be. Low denoise keeps the face and repaints everything else.
@@ -289,6 +333,8 @@ def build_workflow(
                 "clip": ["2", 1],
             },
         }
+        graph["3"]["inputs"]["model"] = identity_model
+        graph["3"]["inputs"]["clip"] = identity_clip
         graph["4"]["inputs"]["clip"] = ["3", 1]
         graph["7"]["inputs"]["model"] = ["3", 0]
     return graph
@@ -367,6 +413,8 @@ def main() -> int:
     parser.add_argument("--source", help="reference image to start from (img2img)")
     parser.add_argument("--denoise", type=float, default=1.0)
     parser.add_argument("--face-from", help="reference photo to composite in before blending")
+    parser.add_argument("--pulid", help="reference photo to condition identity on (face embedding)")
+    parser.add_argument("--pulid-weight", type=float, default=0.9)
     parser.add_argument(
         "--inpaint-face",
         action="store_true",
@@ -374,7 +422,9 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    source = mask_name = None
+    source = mask_name = pulid_name = None
+    if args.pulid:
+        pulid_name = upload_image(Path(args.pulid).expanduser())
     if args.inpaint_face and not args.source:
         raise SystemExit("--inpaint-face needs --source (the image to repaint)")
     if args.source:
@@ -404,6 +454,8 @@ def main() -> int:
         source=source,
         denoise=args.denoise,
         mask=mask_name,
+        pulid_face=pulid_name,
+        pulid_weight=args.pulid_weight,
     )
     started = time.monotonic()
     try:

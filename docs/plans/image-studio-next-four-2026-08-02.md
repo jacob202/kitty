@@ -45,6 +45,47 @@ generating. Stop command is at the end of the findings doc.
 
 ---
 
+## 0. SOLVED — PuLID-Flux is the likeness answer
+
+**2026-08-03.** After inpainting and face-pasting both failed, PuLID-Flux worked
+on the first real try. It conditions the model on a face *embedding*, so identity
+survives a change of pose, lighting, and scene — the exact thing pixels could not
+do.
+
+| Setting | Value |
+|---|---|
+| node | `sipie800/ComfyUI-PuLID-Flux-Enhanced` (cubiq's `PuLID_ComfyUI` is **SDXL only**) |
+| model | `pulid_flux_v0.9.1.safetensors` in `models/pulid/` |
+| face analysis | `antelopev2` unpacked into `models/insightface/models/` |
+| pip | `timm insightface onnxruntime-gpu facexlib` — `timm` missing is the usual import failure |
+| weight | 0.95 |
+| identity LoRA | **off** (`--identity 0.0`) — PuLID and the LoRA compete for the face |
+| speed | ~21s per image after the first (first run loads the face models, ~100s) |
+
+`scripts/james_comfy.py --pulid <reference photo> --identity 0.0`
+
+Verified across two unrelated scenes at different seeds: waist-deep in a lake at
+golden hour, and sitting on a rock at sunset. Same man in both, correct stocky
+build and body hair, no LoRA involved.
+
+**Do not** stack PuLID with the identity LoRA. Strength 0 now skips the LoRA node
+entirely rather than loading a file it will not use.
+
+### Pod traps found getting here
+
+- **Stopping a pod releases its GPU and you may not get it back.** Two pods were
+  stranded with `not enough free GPUs on the host machine`. Creating a *new* pod
+  always works; restarting an old one often does not. Models on that pod's volume
+  are then unreachable. A network volume is the real fix if this keeps hurting.
+- **`runpod/comfyui:cuda13.0` will not run on a host with an older driver.** One
+  pod came up with CUDA 12.4 and torch refused. Constrain with
+  `allowedCudaVersions: ["13.0","12.9","12.8"]` at create time.
+- `unzip` is not installed on the image — extract with Python's `zipfile`.
+- ComfyUI must be relaunched over SSH with the session held open (a `sleep` after
+  the `&`); `setsid`/`disown` alone did not survive.
+
+---
+
 ## 1. Inpainting — built, and it did NOT fix likeness
 
 **Status 2026-08-03: implemented, tested, verdict negative.** Read this before
