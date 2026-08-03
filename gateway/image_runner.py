@@ -82,11 +82,7 @@ async def run(
     )
 
 
-#: Fraction of the source image the sampler is allowed to rewrite. Low enough
-#: that identity survives, high enough that a requested change actually lands.
 DEFAULT_EDIT_DENOISE = 0.55
-
-#: The only workflow that consumes a source image as a real input (slice A4).
 EDIT_WORKFLOW_ID = "image_to_image_v1"
 
 
@@ -101,22 +97,7 @@ async def run_edit(
     checkpoint: str | None = None,
     seed: int | None = None,
 ) -> JobResult:
-    """Edit the anchor job's artifact, rather than rerolling from its prompt.
-
-    The anchor's rendered image is uploaded to the worker and passed to
-    ``image_to_image_v1`` as an actual workflow input, so what comes back is
-    derived from the selected result. A fresh text-to-image render whose prompt
-    merely contains preservation words is not an edit, and this path cannot
-    produce one — the workflow has a ``LoadImage`` node that must be bound.
-
-    Omitting *worker* resolves one from the operator's environment
-    (``KITTY_WORKER_URL`` and ``KITTY_WORKER_BEARER_TOKEN``). If either is
-    unset this raises rather than falling back to a default endpoint — sending
-    Jacob's images somewhere he did not configure is worse than not rendering.
-    Tests pass a stub instead.
-
-    Invariant: if this function returns or raises, the job is terminal.
-    """
+    """Edit the anchor job's artifact, rather than rerolling from its prompt."""
     if not 0 < denoise <= 1:
         raise ImageRunnerError(
             f"denoise must be within (0, 1], got {denoise}; 0 would return the "
@@ -253,7 +234,6 @@ async def _run_drawthings(
         raise ImageRunnerError("Draw Things is not running")
 
     workflow_template_id = recipe.workflow_template_id if recipe else None
-
     job = image_jobs.create_job(
         provider="drawthings",
         operation="variation" if parent_id else "txt2img",
@@ -317,35 +297,28 @@ async def _run_comfyui_character(
     negative_prompt: str | None = None,
     guidance_tags: list[str] | None = None,
 ) -> JobResult:
-    """Generate through the exact stored character contract.
-
-    Legacy behavior picked the primary photo—or simply the first photo—and
-    silently ignored the written description, all other references, weights,
-    fusion method, provenance, and recipe. The resolver now refuses every field
-    the current single-reference IP-Adapter workflow cannot honor.
-    """
+    """Generate through the exact stored character contract."""
     from gateway.image_character_contracts import (
         CharacterContractError,
+        comfyui_character_runtime_status,
         resolve_comfyui_character,
     )
-    from gateway.image_gen import (
-        generate_with_character,
-        is_available,
-        is_identity_ready,
-    )
+    from gateway.image_gen import generate_with_character, is_available
 
     if not await is_available():
         raise ImageRunnerError("ComfyUI is not running")
-    if not await is_identity_ready():
-        raise ImageRunnerError(
-            "ComfyUI is running but its identity workflow is not ready; "
-            "verify the IP-Adapter nodes and configured adapter model"
-        )
 
     try:
         resolved = resolve_comfyui_character(character_id)
     except CharacterContractError as exc:
         raise ImageRunnerError(str(exc)) from exc
+
+    ready, readiness_reason = await comfyui_character_runtime_status()
+    if not ready:
+        raise ImageRunnerError(
+            "ComfyUI is running but its identity workflow is not ready: "
+            f"{readiness_reason}"
+        )
 
     final_prompt = ", ".join(
         part.strip()
