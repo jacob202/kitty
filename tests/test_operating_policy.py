@@ -84,6 +84,12 @@ def _character() -> dict:
             "steps": 26,
             "guidance": 3.0,
             "denoise": 1.0,
+            "width": 896,
+            "height": 1152,
+            "checkpoint": "flux1-dev-fp8.safetensors",
+            "compatible_loras": [],
+            "incompatible_loras": ["xhirsute-4.0"],
+            "engine_options": {},
         },
     }
 
@@ -126,13 +132,22 @@ def test_checked_in_policies_are_valid():
     model_policy = load_model_policy()
     builder_policy = load_builder_policy()
 
-    assert set(model_policy["roles"]) == {"auto", "fast", "think", "code", "vision"}
+    assert set(model_policy["roles"]) == {
+        "auto",
+        "fast",
+        "think",
+        "code",
+        "vision",
+    }
     assert builder_policy["decision"]["on_tripwire"] == "pause"
 
 
 def test_model_candidate_can_win_on_quality():
     incumbent = _model_metrics()
-    candidate = _model_metrics(accepted_outcome_rate=0.87, cost_per_accepted_outcome=1.10)
+    candidate = _model_metrics(
+        accepted_outcome_rate=0.87,
+        cost_per_accepted_outcome=1.10,
+    )
 
     decision = evaluate_model_candidate("code", incumbent, candidate)
 
@@ -166,7 +181,11 @@ def test_cheaper_tokens_do_not_win_when_success_collapses():
 
 def test_model_promotion_requires_repeated_representative_evidence():
     incumbent = _model_metrics()
-    candidate = _model_metrics(sample_size=8, repeat_windows=1, accepted_outcome_rate=0.95)
+    candidate = _model_metrics(
+        sample_size=8,
+        repeat_windows=1,
+        accepted_outcome_rate=0.95,
+    )
 
     decision = evaluate_model_candidate("think", incumbent, candidate)
 
@@ -225,7 +244,9 @@ def test_builder_metrics_never_invent_missing_evidence_before_observation_window
 
 
 def test_missing_core_builder_metrics_are_not_treated_as_continue():
-    decision = evaluate_builder_campaign({"processed_packets": 1, "accepted_packets": 0})
+    decision = evaluate_builder_campaign(
+        {"processed_packets": 1, "accepted_packets": 0}
+    )
 
     assert decision.status == "insufficient_evidence"
     assert "elapsed_seconds" in decision.missing_metrics
@@ -289,6 +310,14 @@ def test_weighted_reference_weights_must_add_to_one():
     character["identity"]["references"][1]["weight"] = 0.2
 
     with pytest.raises(OperatingPolicyError, match="add to 1"):
+        validate_character_contract(character)
+
+
+def test_unknown_recipe_setting_is_rejected_instead_of_ignored():
+    character = _character()
+    character["recipe"]["mystery_slider"] = 0.9
+
+    with pytest.raises(OperatingPolicyError, match="unsupported settings"):
         validate_character_contract(character)
 
 
