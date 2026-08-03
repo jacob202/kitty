@@ -139,13 +139,13 @@ def normalize_litellm_request_model(request_model: str | None) -> str | None:
     return LEGACY_MODEL_ALIASES.get(model, model)
 
 
-def resolve_model_for_message(message: str) -> RouteDecision:
+def resolve_model_for_message(message: str, *, domain: str | None = None) -> RouteDecision:
     """Classify a message into Kitty's virtual model route."""
     from dotenv import load_dotenv
 
     from gateway.reasoning import classify_complexity
 
-    classification = classify_complexity(message)
+    classification = classify_complexity(message, domain=domain)
     if classification.tier == "deep":
         load_dotenv()
         override = os.environ.get("KITTY_REASONING_MODEL", "").strip()
@@ -192,6 +192,8 @@ def resolve_chat_route(
     honor_requested_model: bool = True,
     reroute_virtual_models: bool = False,
     normalize_legacy_aliases: bool = True,
+    domain: str | None = None,
+    has_image: bool = False,
 ) -> RouteDecision:
     """Return the model/provider decision without executing the LLM call.
 
@@ -213,7 +215,22 @@ def resolve_chat_route(
             reason="caller supplied an explicit model",
         )
 
-    decision = resolve_model_for_message(user_text)
+    if has_image:
+        # An image-only turn reduces to an empty string, so the complexity
+        # classifier has no modality signal and can only ever pick a text tier.
+        # Auto has to see the attachment or the upload silently goes to a model
+        # that cannot read it.
+        return RouteDecision(
+            model=LITELLM_VISION,
+            requested_model=raw,
+            source="modality",
+            tier="vision",
+            trigger="image_attachment",
+            selected_provider=_selected_provider_label(),
+            reason="the turn carries an image, so Auto routes to the vision model",
+        )
+
+    decision = resolve_model_for_message(user_text, domain=domain)
     return RouteDecision(
         model=decision.model,
         requested_model=raw,
