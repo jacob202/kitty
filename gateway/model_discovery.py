@@ -24,6 +24,12 @@ from gateway.paths import DATA_DIR
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 DISCOVERY_DIR = DATA_DIR / "model-discovery"
 OPENROUTER_SNAPSHOT = DISCOVERY_DIR / "openrouter.json"
+_REVIEW_FIELDS = (
+    "evaluation_status",
+    "evaluation_role",
+    "evaluation_notes",
+    "last_evaluated_at",
+)
 
 
 class ModelDiscoveryError(RuntimeError):
@@ -37,6 +43,8 @@ class DiscoveryResult:
     total_models: int
     new_models: tuple[dict[str, Any], ...]
     removed_model_ids: tuple[str, ...]
+    incumbent_removed_roles: tuple[str, ...]
+    baseline_created: bool
     snapshot_path: str
     promotion_performed: bool = False
 
@@ -47,6 +55,8 @@ class DiscoveryResult:
             "total_models": self.total_models,
             "new_models": list(self.new_models),
             "removed_model_ids": list(self.removed_model_ids),
+            "incumbent_removed_roles": list(self.incumbent_removed_roles),
+            "baseline_created": self.baseline_created,
             "snapshot_path": self.snapshot_path,
             "promotion_performed": self.promotion_performed,
         }
@@ -81,11 +91,25 @@ def discover_openrouter(
     snapshot_path: Path = OPENROUTER_SNAPSHOT,
     now: datetime | None = None,
     fetcher: Callable[[], Mapping[str, Any]] | None = None,
+    policy: Mapping[str, Any] | None = None,
+    include_existing: bool = False,
 ) -> DiscoveryResult:
-    """Fetch, normalize, diff, and atomically save the OpenRouter catalogue."""
+    """Fetch, normalize, diff, and atomically save the OpenRouter catalogue.
+
+    The first normal run establishes a quiet baseline. ``include_existing`` is
+    an explicit operator request to queue every current model for review.
+    Existing evaluation/disposition fields survive later catalogue refreshes.
+    """
     checked_at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     checked_at_text = checked_at.isoformat()
     previous = load_snapshot(snapshot_path, allow_missing=True)
+    baseline_created = previous is None
+    previous_models = {
+        item["id"]: item
+        for item in (previous or {}).get("models", [])
+        if isinstance(item, Mapping) and isinstance(item.get("id"), str)
+    }
+
     payload = dict(fetcher() if fetcher is not None else _fetch_openrouter())
     rows = payload.get("data")
     if not isinstance(rows, list):
@@ -103,18 +127,35 @@ def discover_openrouter(
                 f"OpenRouter catalogue repeats model id {model_id!r}"
             )
         seen.add(model_id)
+        previous_model = previous_models.get(model_id)
+        if previous_model is not None:
+            for field in _REVIEW_FIELDS:
+                if field in previous_model:
+                    model[field] = previous_model[field]
         normalized.append(model)
     normalized.sort(key=lambda item: item["id"])
 
-    previous_models = {
-        item["id"]: item
-        for item in (previous or {}).get("models", [])
-        if isinstance(item, Mapping) and isinstance(item.get("id"), str)
-    }
     current_models = {item["id"]: item for item in normalized}
-    new_ids = sorted(set(current_models) - set(previous_models))
+    if baseline_created and not include_existing:
+        new_ids: list[str] = []
+    else:
+        new_ids = sorted(set(current_models) - set(previous_models))
+        if baseline_created:
+            new_ids = sorted(current_models)
     removed_ids = tuple(sorted(set(previous_models) - set(current_models)))
     new_models = tuple(current_models[model_id] for model_id in new_ids)
+
+    model_policy = dict(policy or load_model_policy())
+    incumbent_removed_roles = tuple(
+        sorted(
+            role_name
+            for role_name, role in model_policy["roles"].items()
+            if isinstance(role, Mapping)
+            and isinstance(role.get("incumbent"), Mapping)
+            and role["incumbent"].get("provider") == "openrouter"
+            and role["incumbent"].get("model") in removed_ids
+        )
+    )
 
     snapshot = {
         "schema_version": 1,
@@ -124,6 +165,8 @@ def discover_openrouter(
         "models": normalized,
         "new_model_ids": new_ids,
         "removed_model_ids": list(removed_ids),
+        "incumbent_removed_roles": list(incumbent_removed_roles),
+        "baseline_created": baseline_created,
         "promotion_performed": False,
     }
     _atomic_json(snapshot_path, snapshot)
@@ -133,6 +176,8 @@ def discover_openrouter(
         total_models=len(normalized),
         new_models=new_models,
         removed_model_ids=removed_ids,
+        incumbent_removed_roles=incumbent_removed_roles,
+        baseline_created=baseline_created,
         snapshot_path=str(snapshot_path),
     )
 
@@ -204,16 +249,18 @@ def _normalize_model(raw: Mapping[str, Any]) -> dict[str, Any]:
     output_modalities = _string_values(architecture.get("output_modalities"))
     name = str(raw.get("name") or model_id)
     description = str(raw.get("description") or "")
-    searchable = f"{model_id} {name} {description}".casefold()
+    searchable_tokens = {
+        token.strip("-_./:()[]{}").casefold()
+        for token in f"{model_id} {name} {description}".split()
+    }
 
     suggested_roles: list[str] = []
-    if "image" in input_modalities or "vision" in searchable:
+    if "image" in input_modalities or "vision" in searchable_tokens:
         suggested_roles.append("vision")
-    if any(term in searchable for term in ("coder", "coding", "code")):
+    if searchable_tokens.intersection({"coder", "coding", "code"}):
         suggested_roles.append("code")
-    if any(
-        term in searchable
-        for term in ("reasoning", "thinking", "r1", "reasoner")
+    if searchable_tokens.intersection(
+        {"reasoning", "thinking", "r1", "reasoner"}
     ):
         suggested_roles.append("think")
     if not suggested_roles:
