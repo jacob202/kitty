@@ -45,7 +45,43 @@ generating. Stop command is at the end of the findings doc.
 
 ---
 
-## 1. Inpainting — the likeness fix
+## 1. Inpainting — built, and it did NOT fix likeness
+
+**Status 2026-08-03: implemented, tested, verdict negative.** Read this before
+repeating it.
+
+Two approaches were built and both work mechanically. Neither produced a good
+likeness, and the reason is worth knowing.
+
+**`--inpaint-face`** detects the face with YuNet on this Mac (227KB ONNX, no pod
+model needed), builds a feathered oval mask, and repaints only that region via
+`SetLatentNoiseMask`. Clean result, no seam, scene preserved. But repainting the
+face with the identity LoRA reproduces *the LoRA's* likeness — which is the thing
+that was not good enough. Concentrating it on a smaller region did not help.
+
+**`--face-from`** composites the real photograph's face onto the scene with
+`seamlessClone` and then blends at low denoise. Measured:
+
+| denoise | result |
+|---|---|
+| 0.25–0.30 | composite artifacts survive — foliage bleeds into the hairline, ghosting |
+| 0.45 | clean and seamless, but the sampler redraws enough that likeness drifts back to the LoRA |
+
+There is no value between them that is both clean and faithful, because the
+reference's head angle and lighting differ from the scene. Pixels cannot be
+argued into a different pose.
+
+**What would actually work:** a face model that conditions on a face *embedding*
+rather than pasting pixels — InstantID, PuLID, or IPAdapter-FaceID. Those carry
+identity through a pose change, which is exactly the gap. That is a custom-node
+install on the pod plus a model download, not a parameter.
+
+One bug worth remembering: the first `--face-from` pasted the crop *rectangle*,
+carrying the reference's jacket collar and background into the scene as a visible
+square. The patch mask handed to `seamlessClone` has to be an oval, not
+`np.full(..., 255)`.
+
+**Original reasoning, kept for context —**
 
 **Why first:** it is the only item that improves the thing Jacob actually
 complained about. Everything else is plumbing around a likeness that is not good

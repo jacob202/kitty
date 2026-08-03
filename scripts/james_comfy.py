@@ -58,6 +58,131 @@ def upload_image(path: Path) -> str:
         return json.load(response)["name"]
 
 
+YUNET_MODEL = Path(
+    os.environ.get(
+        "KITTY_FACE_DETECTOR",
+        Path.home() / "kitty-services/models/face_detection_yunet_2023mar.onnx",
+    )
+).expanduser()
+
+
+def face_mask(image_path: Path, *, feather: int = 48, grow: float = 0.35) -> Path:
+    """White over the face, black elsewhere, soft-edged.
+
+    Detected on this Mac rather than on the pod: the detector is 227KB against
+    the pod's alternative of a SAM3 checkpoint, and a mask is cheap to upload.
+    Raises when no face is found rather than inpainting the whole frame.
+    """
+    import cv2
+    import numpy as np
+
+    image = cv2.imread(str(image_path))
+    if image is None:
+        raise SystemExit(f"cannot read {image_path}")
+    if not YUNET_MODEL.exists():
+        raise SystemExit(
+            f"face detector missing at {YUNET_MODEL}. Fetch it with:\n"
+            "  curl -sL -o ~/kitty-services/models/face_detection_yunet_2023mar.onnx \\\n"
+            "    https://github.com/opencv/opencv_zoo/raw/main/models/"
+            "face_detection_yunet/face_detection_yunet_2023mar.onnx"
+        )
+
+    height, width = image.shape[:2]
+    detector = cv2.FaceDetectorYN.create(str(YUNET_MODEL), "", (width, height))
+    detector.setInputSize((width, height))
+    _, faces = detector.detect(image)
+    if faces is None or len(faces) == 0:
+        raise SystemExit(
+            f"no face found in {image_path.name}; refusing to inpaint the whole frame"
+        )
+
+    x, y, w, h = (int(v) for v in max(faces, key=lambda f: f[2] * f[3])[:4])
+    mask = np.zeros(image.shape[:2], dtype=np.uint8)
+    # Haar boxes the front of the face only. Grow it so hairline, jaw, and ears
+    # are inside the repaint — a mask that stops at the cheekbones leaves a seam
+    # exactly where skin tone changes most.
+    cx, cy = x + w // 2, y + h // 2
+    ax, ay = int(w * (0.5 + grow)), int(h * (0.5 + grow))
+    cv2.ellipse(mask, (cx, cy), (ax, ay), 0, 0, 360, 255, -1)
+    mask = cv2.GaussianBlur(mask, (feather | 1, feather | 1), 0)
+
+    target = image_path.with_name(f"{image_path.stem}_facemask.png")
+    cv2.imwrite(str(target), mask)
+    return target
+
+
+def paste_face(scene: Path, reference: Path) -> tuple[Path, Path]:
+    """Align the reference face onto the scene's face and return (image, mask).
+
+    Repainting the face region with the LoRA reproduces the LoRA's likeness,
+    which is the thing that was not good enough. Compositing the real face in
+    first means the sampler is blending actual pixels of Jacob rather than
+    inventing a face again; a low denoise then fixes lighting and edges.
+    """
+    import cv2
+    import numpy as np
+
+    def detect(path: Path):
+        image = cv2.imread(str(path))
+        if image is None:
+            raise SystemExit(f"cannot read {path}")
+        height, width = image.shape[:2]
+        detector = cv2.FaceDetectorYN.create(str(YUNET_MODEL), "", (width, height))
+        detector.setInputSize((width, height))
+        _, faces = detector.detect(image)
+        if faces is None or len(faces) == 0:
+            raise SystemExit(f"no face found in {path.name}")
+        return image, [int(v) for v in max(faces, key=lambda f: f[2] * f[3])[:4]]
+
+    scene_image, (sx, sy, sw, sh) = detect(scene)
+    ref_image, (rx, ry, rw, rh) = detect(reference)
+
+    # Scale the reference face to the scene's face box, then paste it there.
+    pad = 0.45
+    rx0, ry0 = max(0, int(rx - rw * pad)), max(0, int(ry - rh * pad))
+    rx1 = min(ref_image.shape[1], int(rx + rw * (1 + pad)))
+    ry1 = min(ref_image.shape[0], int(ry + rh * (1 + pad)))
+    crop = ref_image[ry0:ry1, rx0:rx1]
+
+    tx0, ty0 = max(0, int(sx - sw * pad)), max(0, int(sy - sh * pad))
+    tx1 = min(scene_image.shape[1], int(sx + sw * (1 + pad)))
+    ty1 = min(scene_image.shape[0], int(sy + sh * (1 + pad)))
+    resized = cv2.resize(crop, (tx1 - tx0, ty1 - ty0), interpolation=cv2.INTER_LANCZOS4)
+
+    blended = scene_image.copy()
+    centre = ((tx0 + tx1) // 2, (ty0 + ty1) // 2)
+    # An oval, not the crop rectangle. A full-white patch mask carries the
+    # reference's own background and collar across with the face, and the blend
+    # mask below only repairs the oval — so the rectangle's corners survive as a
+    # pasted-on square of someone else's photograph.
+    patch_h, patch_w = resized.shape[:2]
+    patch_mask = np.zeros((patch_h, patch_w), np.uint8)
+    cv2.ellipse(
+        patch_mask,
+        (patch_w // 2, patch_h // 2),
+        (int(patch_w * 0.40), int(patch_h * 0.46)),
+        0, 0, 360, 255, -1,
+    )
+    # seamlessClone matches the pasted skin to the scene's light before the
+    # sampler ever sees it, which is what stops a visible tonal edge.
+    blended = cv2.seamlessClone(resized, blended, patch_mask, centre, cv2.NORMAL_CLONE)
+
+    mask = np.zeros(scene_image.shape[:2], np.uint8)
+    cv2.ellipse(
+        mask,
+        centre,
+        ((tx1 - tx0) // 2, (ty1 - ty0) // 2),
+        0, 0, 360, 255, -1,
+    )
+    mask = cv2.GaussianBlur(mask, (49, 49), 0)
+
+    out_image = scene.with_name(f"{scene.stem}_swap.png")
+    out_mask = scene.with_name(f"{scene.stem}_swapmask.png")
+    cv2.imwrite(str(out_image), blended)
+    cv2.imwrite(str(out_mask), mask)
+    return out_image, out_mask
+
+
 def build_workflow(
     prompt: str,
     *,
@@ -70,6 +195,7 @@ def build_workflow(
     guidance: float,
     source: str | None = None,
     denoise: float = 1.0,
+    mask: str | None = None,
 ) -> dict:
     """Checkpoint -> identity LoRA -> anatomy LoRA -> sample -> save.
 
@@ -136,6 +262,21 @@ def build_workflow(
         }
         graph["7"]["inputs"]["latent_image"] = ["11", 0]
         del graph["6"]
+
+    if mask is not None:
+        # SetLatentNoiseMask rather than VAEEncodeForInpaint: the latter is for
+        # inpainting checkpoints and blanks the region first, which throws away
+        # the composition the face has to sit in.
+        graph["12"] = {"class_type": "LoadImage", "inputs": {"image": mask}}
+        graph["13"] = {
+            "class_type": "ImageToMask",
+            "inputs": {"image": ["12", 0], "channel": "red"},
+        }
+        graph["14"] = {
+            "class_type": "SetLatentNoiseMask",
+            "inputs": {"samples": ["11", 0], "mask": ["13", 0]},
+        }
+        graph["7"]["inputs"]["latent_image"] = ["14", 0]
 
     if anatomy > 0:
         graph["3"] = {
@@ -225,15 +366,31 @@ def main() -> int:
     parser.add_argument("--guidance", type=float, default=3.0)
     parser.add_argument("--source", help="reference image to start from (img2img)")
     parser.add_argument("--denoise", type=float, default=1.0)
+    parser.add_argument("--face-from", help="reference photo to composite in before blending")
+    parser.add_argument(
+        "--inpaint-face",
+        action="store_true",
+        help="repaint only the face region of --source (needs --denoise below 1.0)",
+    )
     args = parser.parse_args()
 
-    source = None
+    source = mask_name = None
+    if args.inpaint_face and not args.source:
+        raise SystemExit("--inpaint-face needs --source (the image to repaint)")
     if args.source:
         source = upload_image(Path(args.source).expanduser())
         if args.denoise >= 1.0:
             # Denoise 1.0 discards the source entirely — silently ignoring the
             # reference the caller just supplied.
             raise SystemExit("--source needs --denoise below 1.0 (try 0.4)")
+        if args.face_from:
+            swapped, swap_mask = paste_face(
+                Path(args.source).expanduser(), Path(args.face_from).expanduser()
+            )
+            source = upload_image(swapped)
+            mask_name = upload_image(swap_mask)
+        elif args.inpaint_face:
+            mask_name = upload_image(face_mask(Path(args.source).expanduser()))
 
     workflow = build_workflow(
         args.prompt,
@@ -246,6 +403,7 @@ def main() -> int:
         guidance=args.guidance,
         source=source,
         denoise=args.denoise,
+        mask=mask_name,
     )
     started = time.monotonic()
     try:
