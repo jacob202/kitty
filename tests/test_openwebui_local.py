@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-import os
 import plistlib
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 
@@ -44,8 +44,8 @@ def service_paths(tmp_path, monkeypatch):
     home = tmp_path / "service"
     root.mkdir()
     (root / ".env").write_text("GATEWAY_PORT=8123\nGATEWAY_SECRET=test-secret\n")
-    data = home / f"data-{common.VERSION}"
-    for module in (common, service):
+    data = home / "data-fresh"
+    for module in (common, service, system):
         monkeypatch.setattr(module, "DATA_DIR", data, raising=False)
         monkeypatch.setattr(module, "SERVICE_ROOT", home, raising=False)
     monkeypatch.setattr(common, "ROOT", root)
@@ -53,6 +53,10 @@ def service_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(common, "RUN_DIR", home / "run")
     monkeypatch.setattr(common, "BACKUP_ROOT", home / "backups")
     monkeypatch.setattr(common, "SECRET_FILE", home / "webui-secret")
+    monkeypatch.setattr(service, "PID_FILE", home / "run/openwebui.pid")
+    monkeypatch.setattr(service, "START_LOCK", home / "run/openwebui-start.lock")
+    monkeypatch.setattr(system, "BACKUP_ROOT", home / "backups")
+    monkeypatch.setattr(system, "SECRET_FILE", home / "webui-secret")
     for key in ("GATEWAY_SECRET", "KITTY_GATEWAY_SECRET", "GATEWAY_PORT"):
         monkeypatch.delenv(key, raising=False)
     data.mkdir(parents=True)
@@ -91,7 +95,7 @@ def test_runtime_env_allowlists_the_parent_environment(service_paths, monkeypatc
     env = common.runtime_env()
 
     assert env["PATH"] == "/usr/bin:/bin"
-    assert env["OPENAI_API_KEY"] == "test-secret"  # Kitty Gateway credential only.
+    assert env["OPENAI_API_KEY"] == "test-secret"
     assert "OPENROUTER_API_KEY" not in env
     assert "GITHUB_TOKEN" not in env
     assert env["NO_PROXY"] == "127.0.0.1,localhost"
@@ -146,7 +150,15 @@ def test_launch_agent_never_runs_from_the_repo(tmp_path, monkeypatch):
     monkeypatch.setattr(system, "ensure_webui_secret", lambda: "secret")
     monkeypatch.setattr(system, "stop_webui", lambda: None)
     monkeypatch.setattr(system, "wait_for_webui", lambda: None)
-    monkeypatch.setattr(system, "run", lambda *a, **k: None)
+    monkeypatch.setattr(system, "claim_system_admin", lambda: "token")
+    monkeypatch.setattr(system, "ensure_agents", lambda token: "ok")
+    monkeypatch.setattr(system, "write_desktop_shortcut", lambda: None)
+    monkeypatch.setattr(system, "_verify_launch_agent_enabled", lambda domain: None)
+    monkeypatch.setattr(
+        system,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="", stderr=""),
+    )
 
     system.install_launch_agent()
     plist = plistlib.loads(agent.read_bytes())
@@ -189,7 +201,6 @@ def _roles(path: Path) -> list[str]:
 
 
 def test_dedupe_collapses_the_signin_race(service_paths):
-    _, _home = service_paths
     _seed_webui_db(service.webui_db_path(), ["keep", "dupe-1", "dupe-2"])
 
     assert service.count_system_admins() == 3
@@ -268,8 +279,8 @@ def test_stream_smoke_reports_the_gateway_error_not_a_shrug(monkeypatch):
         {"error": {"kind": "routing", "message": "provider is out of credit"}}
     )
     monkeypatch.setattr(
-        service.urllib.request,
-        "urlopen",
+        service,
+        "open_local",
         lambda *a, **k: _FakeStream([f"data: {error}\n".encode(), b"data: [DONE]\n"]),
     )
 
@@ -284,8 +295,8 @@ def test_stream_smoke_rejects_a_stream_with_no_completion_boundary(monkeypatch):
     monkeypatch.setattr(service, "verify_gateway", lambda: ("http://gw", "secret"))
     chunk = json.dumps({"choices": [{"delta": {"content": "ready"}}]})
     monkeypatch.setattr(
-        service.urllib.request,
-        "urlopen",
+        service,
+        "open_local",
         lambda *a, **k: _FakeStream([f"data: {chunk}\n".encode()]),
     )
 
@@ -293,3 +304,71 @@ def test_stream_smoke_rejects_a_stream_with_no_completion_boundary(monkeypatch):
         service.direct_stream_smoke(accept_charges=True)
 
     assert "[DONE]" in str(excinfo.value)
+
+
+def test_stream_smoke_is_token_bounded_and_requires_ready(monkeypatch):
+    monkeypatch.setattr(service, "verify_gateway", lambda: ("http://gw", "secret"))
+    captured: dict = {}
+    chunk = json.dumps({"choices": [{"delta": {"content": "not ready"}}]})
+
+    def fake_open(request, *, timeout):
+        captured.update(json.loads(request.data))
+        return _FakeStream([f"data: {chunk}\n".encode(), b"data: [DONE]\n"])
+
+    monkeypatch.setattr(service, "open_local", fake_open)
+
+    with pytest.raises(common.Failure) as excinfo:
+        service.direct_stream_smoke(accept_charges=True)
+
+    assert captured["max_tokens"] == service.SMOKE_MAX_TOKENS
+    assert captured["temperature"] == 0
+    assert "expected exactly" in str(excinfo.value)
+
+
+def test_read_pid_refuses_a_reused_unrelated_process(service_paths, monkeypatch):
+    _, home = service_paths
+    service.PID_FILE.parent.mkdir(parents=True, exist_ok=True)
+    service.PID_FILE.write_text("123\n")
+    monkeypatch.setattr(service, "pid_alive", lambda pid: True)
+    monkeypatch.setattr(service, "_pid_owned_by_openwebui", lambda pid: False)
+
+    assert service.read_pid() is None
+    assert not (home / "run/openwebui.pid").exists()
+
+
+def test_daily_agent_advertises_vision_for_auto_routing():
+    daily = next(agent for agent in service.AGENTS if agent["id"] == "daily-kitty")
+    assert daily["vision"] is True
+
+
+def _make_sqlite(path: Path, value: str) -> None:
+    with sqlite3.connect(path) as connection:
+        connection.execute("CREATE TABLE marker (value TEXT)")
+        connection.execute("INSERT INTO marker VALUES (?)", (value,))
+        connection.commit()
+
+
+def _sqlite_value(path: Path) -> str:
+    with sqlite3.connect(path) as connection:
+        return connection.execute("SELECT value FROM marker").fetchone()[0]
+
+
+def test_atomic_restore_copy_preserves_live_database_on_invalid_source(tmp_path):
+    live = tmp_path / "webui.db"
+    invalid = tmp_path / "invalid.db"
+    _make_sqlite(live, "keep")
+    invalid.write_text("not sqlite")
+
+    with pytest.raises(common.Failure):
+        system._atomic_copy(invalid, live, validate_sqlite=True)
+
+    assert _sqlite_value(live) == "keep"
+
+
+def test_bootstrap_requires_smoke_before_enabling_autostart(monkeypatch):
+    monkeypatch.setattr(system, "start_webui", lambda: pytest.fail("must fail before start"))
+
+    with pytest.raises(common.Failure) as excinfo:
+        system.bootstrap(accept_charges=False, no_autostart=False)
+
+    assert "--accept-charges" in str(excinfo.value)
