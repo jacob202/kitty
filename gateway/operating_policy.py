@@ -1,6 +1,6 @@
 """Executable operating contracts for model roles, image characters, and Builder.
 
-A label, database row, or green unit test is not a working product.  These
+A label, database row, or green unit test is not a working product. These
 validators require the operating decisions and evidence needed to support the
 claim a role, character, or Builder campaign makes.
 """
@@ -11,7 +11,7 @@ import json
 import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
 from gateway.paths import CONFIG_DIR
 
@@ -57,6 +57,23 @@ _MODEL_METRIC_KEYS = frozenset(
 _BUILDER_CORE_METRICS = frozenset(
     {"elapsed_seconds", "processed_packets", "accepted_packets"}
 )
+_RECIPE_KEYS = frozenset(
+    {
+        "recipe_id",
+        "engine",
+        "sampler",
+        "scheduler",
+        "steps",
+        "guidance",
+        "denoise",
+        "width",
+        "height",
+        "checkpoint",
+        "compatible_loras",
+        "incompatible_loras",
+        "engine_options",
+    }
+)
 _WEIGHT_TOLERANCE = 1e-6
 
 
@@ -101,6 +118,7 @@ def load_builder_policy(path: Path = BUILDER_POLICY_PATH) -> dict[str, Any]:
 def validate_model_policy(policy: Mapping[str, Any]) -> None:
     if policy.get("schema_version") != 1:
         raise OperatingPolicyError("model policy schema_version must be 1")
+
     discovery = _mapping(policy.get("discovery"), "model policy discovery")
     cadence = _positive_int(discovery.get("cadence_days"), "discovery.cadence_days")
     if cadence > 365:
@@ -130,6 +148,7 @@ def validate_model_policy(policy: Mapping[str, Any]) -> None:
             raise OperatingPolicyError(
                 f"model role {role_name!r}.required_metrics contains duplicates"
             )
+
         route = str(role["route"])
         if route in routes:
             raise OperatingPolicyError(f"duplicate model route: {route}")
@@ -180,11 +199,7 @@ def evaluate_model_candidate(
     *,
     policy: Mapping[str, Any] | None = None,
 ) -> PolicyDecision:
-    """Decide whether a candidate may replace a role incumbent.
-
-    Token price alone never wins.  The unit is an accepted outcome including
-    retries, supervision, elapsed time, malformed responses, and tool failures.
-    """
+    """Decide whether a candidate may replace a role incumbent."""
 
     loaded = dict(policy or load_model_policy())
     validate_model_policy(loaded)
@@ -192,60 +207,58 @@ def evaluate_model_candidate(
         raise OperatingPolicyError(f"{role_name!r} is not a promotable model role")
 
     missing = tuple(
-        sorted(key for key in _MODEL_METRIC_KEYS if key not in incumbent or key not in candidate)
+        sorted(
+            key
+            for key in _MODEL_METRIC_KEYS
+            if key not in incumbent or key not in candidate
+        )
     )
     if missing:
         return PolicyDecision("insufficient_evidence", (), missing)
 
-    incumbent_metrics = _validated_model_metrics(incumbent, "incumbent")
-    candidate_metrics = _validated_model_metrics(candidate, "candidate")
+    current = _validated_model_metrics(incumbent, "incumbent")
+    proposed = _validated_model_metrics(candidate, "candidate")
     cfg = loaded["evaluation"]
     reasons: list[str] = []
 
-    if candidate_metrics["sample_size"] < int(cfg["minimum_representative_tasks"]):
+    if proposed["sample_size"] < int(cfg["minimum_representative_tasks"]):
         reasons.append("candidate sample is smaller than the required representative set")
-    if candidate_metrics["repeat_windows"] < int(cfg["repeat_windows"]):
+    if proposed["repeat_windows"] < int(cfg["repeat_windows"]):
         reasons.append("candidate was not reproduced across enough evaluation windows")
-    if candidate_metrics["critical_regressions"] > int(cfg["maximum_critical_regressions"]):
+    if proposed["critical_regressions"] > int(cfg["maximum_critical_regressions"]):
         reasons.append("candidate has a critical regression")
-    if candidate_metrics["malformed_rate"] > float(cfg["maximum_malformed_rate"]):
+    if proposed["malformed_rate"] > float(cfg["maximum_malformed_rate"]):
         reasons.append("candidate malformed-output rate is too high")
 
-    tool_regression = (
-        incumbent_metrics["tool_success_rate"] - candidate_metrics["tool_success_rate"]
-    )
+    tool_regression = current["tool_success_rate"] - proposed["tool_success_rate"]
     if tool_regression > float(cfg["maximum_tool_success_regression"]):
         reasons.append("candidate tool success regressed beyond policy")
 
-    incumbent_success = incumbent_metrics["accepted_outcome_rate"]
-    candidate_success = candidate_metrics["accepted_outcome_rate"]
-    success_delta = candidate_success - incumbent_success
-    success_regression = incumbent_success - candidate_success
+    success_delta = proposed["accepted_outcome_rate"] - current["accepted_outcome_rate"]
+    success_regression = current["accepted_outcome_rate"] - proposed["accepted_outcome_rate"]
     quality_win = success_delta >= float(cfg["quality_improvement_required"])
     quality_parity = success_regression <= float(cfg["maximum_success_rate_regression"])
+    cost_win = quality_parity and _reduction(
+        current["cost_per_accepted_outcome"],
+        proposed["cost_per_accepted_outcome"],
+    ) >= float(cfg["cost_reduction_required"])
+    speed_win = quality_parity and _reduction(
+        current["median_time_to_accepted_outcome"],
+        proposed["median_time_to_accepted_outcome"],
+    ) >= float(cfg["latency_reduction_required"])
 
-    cost_reduction = _reduction(
-        incumbent_metrics["cost_per_accepted_outcome"],
-        candidate_metrics["cost_per_accepted_outcome"],
-    )
-    latency_reduction = _reduction(
-        incumbent_metrics["median_time_to_accepted_outcome"],
-        candidate_metrics["median_time_to_accepted_outcome"],
-    )
-    economic_win = quality_parity and cost_reduction >= float(cfg["cost_reduction_required"])
-    speed_win = quality_parity and latency_reduction >= float(cfg["latency_reduction_required"])
-    if not (quality_win or economic_win or speed_win):
+    if not (quality_win or cost_win or speed_win):
         reasons.append(
             "candidate did not improve accepted outcomes, successful-outcome cost, "
             "or time-to-success enough to justify promotion"
         )
-
     return PolicyDecision("reject" if reasons else "promote", tuple(reasons))
 
 
 def validate_builder_policy(policy: Mapping[str, Any]) -> None:
     if policy.get("schema_version") != 1:
         raise OperatingPolicyError("Builder policy schema_version must be 1")
+
     window = _mapping(policy.get("observation_window"), "Builder observation_window")
     _nonnegative_number(window.get("minimum_elapsed_seconds"), "minimum_elapsed_seconds")
     _nonnegative_int(window.get("minimum_processed_packets"), "minimum_processed_packets")
@@ -291,6 +304,7 @@ def validate_builder_policy(policy: Mapping[str, Any]) -> None:
     )
     if len(required_fields) != len(set(required_fields)):
         raise OperatingPolicyError("required_receipt_fields contains duplicates")
+
     decision = _mapping(policy.get("decision"), "Builder decision")
     if decision.get("on_tripwire") != "pause":
         raise OperatingPolicyError("Builder decision.on_tripwire must be pause")
@@ -310,12 +324,7 @@ def evaluate_builder_campaign(
     *,
     policy: Mapping[str, Any] | None = None,
 ) -> PolicyDecision:
-    """Pause a campaign that is durable but economically ineffective.
-
-    Missing telemetry is never converted to zero.  Core measurements missing
-    entirely produce ``insufficient_evidence``; once the observation window has
-    elapsed, any other required measurement gap is itself a pause condition.
-    """
+    """Pause a durable campaign that is economically ineffective."""
 
     loaded = dict(policy or load_builder_policy())
     validate_builder_policy(loaded)
@@ -326,7 +335,7 @@ def evaluate_builder_campaign(
         return PolicyDecision("insufficient_evidence", (), missing)
 
     values = {
-        key: _optional_nonnegative_metric(metrics.get(key), key)
+        key: _nonnegative_number(metrics[key], f"Builder metric {key}")
         for key in required
         if metrics.get(key) is not None
     }
@@ -348,9 +357,9 @@ def evaluate_builder_campaign(
             "required effectiveness telemetry is missing after the observation window: "
             + ", ".join(missing)
         )
-
     if elapsed > float(cfg["maximum_campaign_elapsed_seconds"]):
         reasons.append("campaign exceeded the maximum wall-clock budget")
+
     current = values.get("current_packet_elapsed_seconds")
     if current is not None and current > float(cfg["maximum_current_packet_elapsed_seconds"]):
         reasons.append("current packet exceeded the small-packet time budget")
@@ -364,10 +373,12 @@ def evaluate_builder_campaign(
         cfg["maximum_consecutive_no_substantive_diff"]
     ):
         reasons.append("multiple consecutive attempts produced no substantive diff")
+
     setup = values.get("setup_metadata_seconds")
     if elapsed > 0 and setup is not None:
         if setup / elapsed > float(cfg["maximum_setup_metadata_fraction"]):
             reasons.append("setup and metadata work consume too much campaign time")
+
     supervisor = values.get("supervisor_tokens")
     worker = values.get("worker_tokens")
     if supervisor is not None and worker is not None:
@@ -377,6 +388,7 @@ def evaluate_builder_campaign(
             cfg["maximum_supervisor_to_worker_token_ratio"]
         ):
             reasons.append("supervisor token use exceeds the worker budget")
+
     resets = values.get("reset_recovery_events")
     if resets is not None and resets >= float(cfg["maximum_reset_recovery_events"]):
         reasons.append("reset/recovery churn exceeded policy")
@@ -385,6 +397,7 @@ def evaluate_builder_campaign(
         cfg["maximum_repeated_systemic_blocker_count"]
     ):
         reasons.append("the same systemic blocker repeated across packets")
+
     projected = values.get("projected_completion_seconds")
     baseline = values.get("simple_baseline_seconds")
     if projected is not None and baseline is not None:
@@ -419,15 +432,20 @@ def validate_character_contract(character: Mapping[str, Any]) -> None:
     if fusion not in _FUSION_METHODS:
         raise OperatingPolicyError(f"unsupported fusion method: {fusion!r}")
     _text(identity.get("base_family"), "character identity.base_family")
+
     adapter_model = identity.get("adapter_model")
     if method == "description_only":
-        if adapter_model not in {None, ""}:
+        if adapter_model is not None:
             raise OperatingPolicyError("description_only identity cannot claim an adapter model")
     else:
         _text(adapter_model, f"identity method {method!r}.adapter_model")
-    strength = identity.get("adapter_strength", 1.0)
-    _bounded_number(strength, "character identity.adapter_strength", 0, 2)
-    if not isinstance(identity.get("allow_generated_derivatives", False), bool):
+    _bounded_number(
+        identity.get("adapter_strength"),
+        "character identity.adapter_strength",
+        0,
+        2,
+    )
+    if not isinstance(identity.get("allow_generated_derivatives"), bool):
         raise OperatingPolicyError("allow_generated_derivatives must be boolean")
 
     references = identity.get("references")
@@ -435,7 +453,6 @@ def validate_character_contract(character: Mapping[str, Any]) -> None:
         raise OperatingPolicyError("character references must be a list of at most 12")
     seen: set[str] = set()
     enabled: list[Mapping[str, Any]] = []
-    allow_generated = bool(identity.get("allow_generated_derivatives", False))
     for index, raw_ref in enumerate(references):
         ref = _mapping(raw_ref, f"character reference[{index}]")
         ref_id = _text(ref.get("ref_id"), f"character reference[{index}].ref_id")
@@ -457,7 +474,10 @@ def validate_character_contract(character: Mapping[str, Any]) -> None:
         if notes is not None and not isinstance(notes, str):
             raise OperatingPolicyError(f"reference {ref_id!r}.notes must be string or null")
         if ref["enabled"]:
-            if provenance == "generated_derivative" and not allow_generated:
+            if (
+                provenance == "generated_derivative"
+                and not identity["allow_generated_derivatives"]
+            ):
                 raise OperatingPolicyError(
                     "generated derivative reference is disabled by the character policy"
                 )
@@ -467,10 +487,9 @@ def validate_character_contract(character: Mapping[str, Any]) -> None:
         raise OperatingPolicyError("description_only characters cannot claim reference conditioning")
     if method != "description_only" and not enabled:
         raise OperatingPolicyError(f"identity method {method!r} needs an enabled reference")
-    if enabled:
-        primary_count = sum(ref["purpose"] == "primary_face" for ref in enabled)
-        if primary_count != 1:
-            raise OperatingPolicyError("exactly one enabled primary_face reference is required")
+    if enabled and sum(ref["purpose"] == "primary_face" for ref in enabled) != 1:
+        raise OperatingPolicyError("exactly one enabled primary_face reference is required")
+
     weights = [float(ref["weight"]) for ref in enabled]
     if fusion == "single" and (len(enabled) != 1 or not _close(sum(weights), 1.0)):
         raise OperatingPolicyError("single fusion requires one enabled reference with weight 1")
@@ -484,15 +503,28 @@ def validate_character_contract(character: Mapping[str, Any]) -> None:
     prompt = _mapping(character.get("prompt"), "character prompt")
     if not isinstance(prompt.get("positive"), str) or not isinstance(prompt.get("negative"), str):
         raise OperatingPolicyError("character prompt positive and negative must be strings")
+
     recipe = _mapping(character.get("recipe"), "character recipe")
+    unknown_recipe_keys = sorted(set(recipe) - _RECIPE_KEYS)
+    if unknown_recipe_keys:
+        raise OperatingPolicyError(
+            f"character recipe contains unsupported settings: {unknown_recipe_keys}"
+        )
     _text(recipe.get("recipe_id"), "character recipe.recipe_id")
     _text(recipe.get("engine"), "character recipe.engine")
+    _mapping(recipe.get("engine_options"), "character recipe.engine_options")
     if recipe.get("steps") is not None:
         _positive_int(recipe["steps"], "character recipe.steps")
     if recipe.get("guidance") is not None:
         _nonnegative_number(recipe["guidance"], "character recipe.guidance")
     if recipe.get("denoise") is not None:
         _bounded_number(recipe["denoise"], "character recipe.denoise", 0, 1)
+    for key in ("width", "height"):
+        if recipe.get(key) is not None and _positive_int(recipe[key], f"character recipe.{key}") < 64:
+            raise OperatingPolicyError(f"character recipe.{key} must be at least 64")
+    for key in ("compatible_loras", "incompatible_loras"):
+        if recipe.get(key) is not None:
+            _unique_string_list(recipe[key], f"character recipe.{key}")
 
 
 def resolve_character_for_engine(
@@ -506,6 +538,7 @@ def resolve_character_for_engine(
     identity = character["identity"]
     method = str(identity["method"])
     fusion = str(identity["fusion_method"])
+
     engine = _text(caps.get("engine"), "engine capabilities.engine")
     if engine != recipe["engine"]:
         raise OperatingPolicyError(
@@ -532,6 +565,7 @@ def resolve_character_for_engine(
         raise OperatingPolicyError(
             f"engine cannot honor fusion method {fusion!r}; refusing to weight references falsely"
         )
+
     maximum_references = _nonnegative_int(
         caps.get("maximum_references"), "engine capabilities.maximum_references"
     )
@@ -544,6 +578,7 @@ def resolve_character_for_engine(
         raise OperatingPolicyError(
             "engine cannot honor per-reference weights; refusing to pretend the sliders work"
         )
+
     uses_region_weights = any(
         not _close(float(ref["face_weight"]), float(ref["weight"]))
         or not _close(float(ref["body_weight"]), float(ref["weight"]))
@@ -553,6 +588,7 @@ def resolve_character_for_engine(
         raise OperatingPolicyError(
             "engine cannot honor face/body reference weights; refusing to ignore them"
         )
+
     adapter_model = identity.get("adapter_model")
     advertised_adapters = caps.get("adapter_models")
     if adapter_model and advertised_adapters is not None:
@@ -574,7 +610,7 @@ def resolve_character_for_engine(
         "base_family": identity["base_family"],
         "identity_method": method,
         "adapter_model": adapter_model,
-        "adapter_strength": identity.get("adapter_strength", 1.0),
+        "adapter_strength": identity["adapter_strength"],
         "fusion_method": fusion,
         "references": enabled,
         "positive_prompt": ", ".join(part for part in (appearance, positive) if part),
@@ -628,10 +664,7 @@ def _string_list(value: Any, label: str, *, require_nonempty: bool = False) -> l
     if not isinstance(value, list) or (require_nonempty and not value):
         qualifier = "a non-empty" if require_nonempty else "an"
         raise OperatingPolicyError(f"{label} must be {qualifier} array of strings")
-    normalized = []
-    for item in value:
-        normalized.append(_text(item, f"{label} item"))
-    return normalized
+    return [_text(item, f"{label} item") for item in value]
 
 
 def _unique_string_list(value: Any, label: str) -> list[str]:
@@ -685,10 +718,6 @@ def _positive_int(value: Any, label: str) -> int:
 
 def _rate(value: Any, label: str) -> float:
     return _bounded_number(value, label, 0, 1)
-
-
-def _optional_nonnegative_metric(value: Any, label: str) -> float:
-    return _nonnegative_number(value, f"Builder metric {label}")
 
 
 def _reduction(incumbent: float | int, candidate: float | int) -> float:
