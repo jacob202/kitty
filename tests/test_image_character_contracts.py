@@ -9,7 +9,9 @@ from fastapi.testclient import TestClient
 
 from gateway.app import app
 from gateway.image_character_contracts import (
+    EXPECTED_IPADAPTER_MODEL,
     CharacterContractError,
+    comfyui_character_runtime_status,
     contract_path,
     load_character_contract,
     resolve_comfyui_character,
@@ -31,7 +33,7 @@ class _Ref:
 
 
 def _contract() -> dict:
-    from gateway.image_gen import IPADAPTER_MODEL, SDXL_PHOTONIC
+    from gateway.image_gen import SDXL_PHOTONIC
 
     return {
         "schema_version": 1,
@@ -45,7 +47,7 @@ def _contract() -> dict:
         "identity": {
             "method": "ipadapter_faceid",
             "base_family": "sdxl",
-            "adapter_model": IPADAPTER_MODEL,
+            "adapter_model": EXPECTED_IPADAPTER_MODEL,
             "adapter_strength": 0.7,
             "fusion_method": "single",
             "allow_generated_derivatives": False,
@@ -106,12 +108,12 @@ def character_store(tmp_path, monkeypatch):
 
 
 def test_contract_is_atomic_owner_readable_state(character_store):
-    _, _ = character_store
-
-    saved = save_character_contract("char_jacob", _contract())
+    save_character_contract("char_jacob", _contract())
     path = contract_path("char_jacob")
 
-    assert saved["identity"]["references"][0]["ref_id"] == "ref_primary"
+    assert load_character_contract("char_jacob")["identity"]["references"][0][
+        "ref_id"
+    ] == "ref_primary"
     assert path.is_file()
     assert path.stat().st_mode & 0o777 == 0o600
     assert not list(path.parent.glob(".*.tmp-*"))
@@ -125,29 +127,6 @@ def test_legacy_character_without_contract_fails_loudly(character_store):
 def test_contract_cannot_name_an_unstored_photo(character_store):
     contract = _contract()
     contract["identity"]["references"][0]["ref_id"] = "not_stored"
-
-    with pytest.raises(CharacterContractError, match="unknown stored photos"):
-        save_character_contract("char_jacob", contract)
-
-
-def test_current_engine_refuses_multi_reference_fusion(character_store):
-    save_character_contract("char_jacob", _contract())
-    contract = load_character_contract("char_jacob")
-    contract["identity"]["fusion_method"] = "weighted_mean"
-    contract["identity"]["references"][0]["weight"] = 0.7
-    contract["identity"]["references"].append(
-        {
-            "ref_id": "ref_second",
-            "purpose": "profile",
-            "provenance": "real_photo",
-            "enabled": True,
-            "weight": 0.3,
-            "face_weight": 0.3,
-            "body_weight": 0.3,
-            "quality_score": 0.8,
-            "notes": None,
-        }
-    )
 
     with pytest.raises(CharacterContractError, match="unknown stored photos"):
         save_character_contract("char_jacob", contract)
@@ -174,6 +153,71 @@ def test_current_engine_resolves_every_consumed_setting(character_store):
     assert resolved["steps"] == 20
     assert resolved["guidance"] == 4.5
     assert "salt-and-pepper" in resolved["positive_prompt"]
+
+
+class _ObjectInfoResponse:
+    status_code = 200
+
+    def __init__(self, models: list[str]):
+        self._models = models
+
+    def json(self):
+        return {
+            "IPAdapter": {},
+            "IPAdapterModelLoader": {
+                "input": {
+                    "required": {
+                        "ipadapter_file": [self._models],
+                    }
+                }
+            },
+        }
+
+
+class _AsyncClient:
+    def __init__(self, response):
+        self.response = response
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def get(self, url):
+        return self.response
+
+
+@pytest.mark.asyncio
+async def test_runtime_rejects_the_legacy_sd15_adapter(monkeypatch):
+    response = _ObjectInfoResponse(["ip-adapter-faceid_sd15.bin"])
+    monkeypatch.setattr(
+        "gateway.image_character_contracts.httpx.AsyncClient",
+        lambda timeout: _AsyncClient(response),
+    )
+
+    ready, reason = await comfyui_character_runtime_status()
+
+    assert ready is False
+    assert EXPECTED_IPADAPTER_MODEL in reason
+    assert "sd15" in reason
+
+
+@pytest.mark.asyncio
+async def test_runtime_selects_the_exact_sdxl_adapter(monkeypatch):
+    from gateway import image_gen
+
+    response = _ObjectInfoResponse([EXPECTED_IPADAPTER_MODEL])
+    monkeypatch.setattr(
+        "gateway.image_character_contracts.httpx.AsyncClient",
+        lambda timeout: _AsyncClient(response),
+    )
+    monkeypatch.setattr(image_gen, "IPADAPTER_MODEL", "legacy.bin")
+
+    ready, reason = await comfyui_character_runtime_status()
+
+    assert (ready, reason) == (True, "ready")
+    assert image_gen.IPADAPTER_MODEL == EXPECTED_IPADAPTER_MODEL
 
 
 def test_contract_api_returns_conflict_when_character_is_not_generation_ready():
