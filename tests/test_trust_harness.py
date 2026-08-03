@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "evals" / "kitty" / "promptfooconfig.json"
 MAKEFILE_PATH = ROOT / "Makefile"
@@ -50,7 +49,7 @@ def test_live_eval_make_target_is_cost_guarded_and_version_pinned():
     makefile = MAKEFILE_PATH.read_text(encoding="utf-8")
 
     assert "trust-eval:" in makefile
-    assert 'KITTY_LIVE_EVAL' in makefile
+    assert "KITTY_LIVE_EVAL" in makefile
     assert "promptfoo@0.121.19" in makefile
     assert "--no-cache" in makefile
     assert "KITTY_EVAL_BASE_URL" in makefile
