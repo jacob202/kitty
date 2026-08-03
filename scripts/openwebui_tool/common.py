@@ -21,9 +21,8 @@ SERVICE_ROOT = Path(
     )
 ).expanduser()
 
-# A version change can run irreversible database migrations. Upgrades therefore
-# need an explicit, backed-up flow rather than an environment override that
-# silently points a new binary at the old data directory.
+# Database migrations make casual version overrides unsafe. The supported
+# version is pinned here; changing it requires an explicit backup/upgrade flow.
 VERSION = "0.10.2"
 PORT = int(os.environ.get("KITTY_OPENWEBUI_PORT", "3000"))
 HOST = os.environ.get("KITTY_OPENWEBUI_HOST", "127.0.0.1").strip()
@@ -32,7 +31,9 @@ TASK_MODEL = "kitty-fast"
 DEFAULT_AGENT = "daily-kitty"
 PINNED_AGENTS = "daily-kitty,research,coding,tutor,builder-operator"
 VENV_DIR = SERVICE_ROOT / f"venv-{VERSION}"
-DATA_DIR = SERVICE_ROOT / f"data-{VERSION}"
+# Keep the already-live path. Version safety comes from removing the version
+# override, not from making existing chats appear to vanish into a new folder.
+DATA_DIR = SERVICE_ROOT / "data-fresh"
 BACKUP_ROOT = SERVICE_ROOT / "backups"
 LOG_DIR = SERVICE_ROOT / "logs"
 RUN_DIR = SERVICE_ROOT / "run"
@@ -53,8 +54,6 @@ def fail(message: str) -> None:
 
 
 def _require_loopback_host(host: str) -> None:
-    # WEBUI_AUTH=False is intentional for this single-user local shell. That is
-    # safe only while the listener is unreachable from the LAN.
     if host not in {"127.0.0.1", "localhost"}:
         fail(
             "KITTY_OPENWEBUI_HOST must be 127.0.0.1 or localhost while "
@@ -97,7 +96,7 @@ def _expand_with_env(raw_value: str, env_map: dict[str, str]) -> str:
 
 
 def read_dotenv(path: Path, *, base: dict[str, str] | None = None) -> dict[str, str]:
-    """Read the assignment subset accepted by Kitty's canonical launcher."""
+    """Read the dotenv assignment subset accepted by Kitty's launcher."""
     values: dict[str, str] = {}
     resolved = dict(os.environ if base is None else base)
     if not path.exists():
@@ -128,12 +127,7 @@ def read_dotenv(path: Path, *, base: dict[str, str] | None = None) -> dict[str, 
 
 
 def repo_env() -> dict[str, str]:
-    """Resolve configuration with the same precedence as ``./kitty``.
-
-    The shell is the expansion base, but repository assignments win. A stale
-    exported GATEWAY_PORT or secret must not redirect Open WebUI away from the
-    Gateway the canonical launcher actually starts.
-    """
+    """Use the shell as an expansion base, then let repository values win."""
     values = dict(os.environ)
     values.update(read_dotenv(ROOT / ".env", base=values))
     return values
@@ -150,8 +144,7 @@ def kitty_ui_port() -> int:
     return int(repo_env().get("UI_PORT", "4000"))
 
 
-# Compatibility export for callers that import the constant. It is resolved from
-# repository configuration, not the ambient shell.
+# Compatibility for older imports; new callers should resolve at use time.
 KITTY_UI_PORT = kitty_ui_port()
 
 
