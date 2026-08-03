@@ -51,6 +51,10 @@ def create_backup(
 
 
 def restore_drill(backup_dir: Path, restore_dir: Path) -> Path:
+    """Copy a backup into a brand-new directory (dry-run restore).
+
+    Kept as the non-destructive drill; the real restore path is ``restore``.
+    """
     backup = Path(backup_dir)
     target = Path(restore_dir)
     if not backup.exists():
@@ -65,14 +69,80 @@ def restore_drill(backup_dir: Path, restore_dir: Path) -> Path:
     return target
 
 
+def restore(
+    backup_dir: Path,
+    target_dir: Path = DEFAULT_SOURCE_DIR,
+    replace: bool = False,
+) -> Path:
+    """Restore a Kitty backup archive into ``target_dir`` in place.
+
+    Fail-loud guards, never silent fallbacks:
+
+    - The backup must be a real Kitty archive: it must exist, be a directory,
+      and carry ``backup_manifest.json``. Restoring an arbitrary directory is
+      refused rather than guessed at.
+    - An existing non-empty target is refused unless ``replace`` is set, in
+      which case the existing target is moved aside (never deleted) to
+      ``<target>.pre-restore-<stamp>``.
+    - After the copy, every restored ``*.db`` file must pass SQLite's
+      ``PRAGMA integrity_check``. A restored archive whose databases do not
+      open cleanly raises, so a corrupt restore cannot masquerade as success.
+    """
+    backup = Path(backup_dir)
+    target = Path(target_dir)
+    if not backup.exists():
+        raise RuntimeError(f"Kitty restore backup does not exist: {backup}")
+    if not backup.is_dir():
+        raise RuntimeError(f"Kitty restore backup is not a directory: {backup}")
+    if not (backup / "backup_manifest.json").is_file():
+        raise RuntimeError(f"Not a Kitty backup archive (no backup_manifest.json): {backup}")
+
+    if target.exists() and any(target.iterdir()):
+        if not replace:
+            raise RuntimeError(
+                f"Kitty restore target is not empty: {target} "
+                "(pass --replace to move the existing target aside first)"
+            )
+        aside = target.parent / f"{target.name}.pre-restore-{_utc_stamp()}"
+        shutil.move(str(target), str(aside))
+
+    target.mkdir(parents=True, exist_ok=True)
+    try:
+        for child in sorted(backup.iterdir()):
+            if child.name == "backup_manifest.json":
+                continue
+            dest = target / child.name
+            if child.is_dir():
+                shutil.copytree(child, dest, dirs_exist_ok=True)
+            else:
+                shutil.copy2(child, dest)
+        _verify_restored_sqlite(target)
+    except Exception:
+        shutil.rmtree(target, ignore_errors=True)
+        raise
+    return target
+
+
+def _verify_restored_sqlite(target_dir: Path) -> None:
+    bad: list[str] = []
+    for db in sorted(target_dir.rglob("*.db")):
+        try:
+            with sqlite3.connect(db) as conn:
+                row = conn.execute("PRAGMA integrity_check").fetchone()
+            if row is None or row[0] != "ok":
+                bad.append(f"{db}: integrity_check != ok")
+        except sqlite3.Error as exc:
+            bad.append(f"{db}: {exc}")
+    if bad:
+        raise RuntimeError("Restored SQLite failed integrity check:\n" + "\n".join(bad))
+
+
 def _backup_sqlite(source: Path, destination: Path) -> None:
     try:
         with sqlite3.connect(source) as src, sqlite3.connect(destination) as dst:
             src.backup(dst)
     except sqlite3.Error as exc:
-        raise RuntimeError(
-            f"SQLite backup failed from {source} to {destination}: {exc}"
-        ) from exc
+        raise RuntimeError(f"SQLite backup failed from {source} to {destination}: {exc}") from exc
 
 
 def _write_manifest(
@@ -104,12 +174,29 @@ def main(argv: list[str] | None = None) -> int:
     backup.add_argument("--source-dir", type=Path, default=DEFAULT_SOURCE_DIR)
     backup.add_argument("--backup-root", type=Path, default=DEFAULT_BACKUP_ROOT)
 
-    restore = subcommands.add_parser(
+    drill = subcommands.add_parser(
         "restore-drill",
         help="Restore a backup into a new directory for verification",
     )
-    restore.add_argument("backup_dir", type=Path)
-    restore.add_argument("restore_dir", type=Path)
+    drill.add_argument("backup_dir", type=Path)
+    drill.add_argument("restore_dir", type=Path)
+
+    real_restore = subcommands.add_parser(
+        "restore",
+        help="Restore a backup archive into the live data directory",
+    )
+    real_restore.add_argument("backup_dir", type=Path)
+    real_restore.add_argument(
+        "--target-dir",
+        type=Path,
+        default=DEFAULT_SOURCE_DIR,
+        help="directory to restore into (default: data/kitty)",
+    )
+    real_restore.add_argument(
+        "--replace",
+        action="store_true",
+        help="move the existing non-empty target aside before restoring",
+    )
 
     args = parser.parse_args(argv)
     if args.command == "backup":
@@ -118,6 +205,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "restore-drill":
         destination = restore_drill(args.backup_dir, args.restore_dir)
+        print(destination)
+        return 0
+    if args.command == "restore":
+        destination = restore(args.backup_dir, args.target_dir, replace=args.replace)
         print(destination)
         return 0
     raise RuntimeError(f"Unknown kitty_backup command: {args.command}")
