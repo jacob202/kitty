@@ -13,7 +13,6 @@ from gateway.image_runner import ImageRunnerError, JobResult, run
 
 @pytest.fixture(autouse=True)
 def _tmp_db(tmp_path, monkeypatch):
-    """Point the job store at a temp SQLite DB for isolation."""
     db_file = tmp_path / "kitty.db"
     monkeypatch.setattr("gateway.paths.KITTY_DB_FILE", db_file)
     monkeypatch.setattr("gateway.image_jobs._paths.KITTY_DB_FILE", db_file)
@@ -164,22 +163,35 @@ class TestCharacterPath:
                 return_value=True,
             ),
             patch(
-                "gateway.image_gen.is_identity_ready",
-                new_callable=AsyncMock,
-                return_value=True,
-            ),
-            patch(
                 "gateway.image_character_contracts.resolve_comfyui_character",
                 side_effect=CharacterContractError(
                     "character only has legacy metadata/photos"
                 ),
+            ),
+            patch(
+                "gateway.image_character_contracts.comfyui_character_runtime_status",
+                new_callable=AsyncMock,
+                return_value=(True, "ready"),
             ),
             pytest.raises(ImageRunnerError, match="legacy metadata/photos"),
         ):
             await run("comfyui", "draw my character", character_id="char_abc")
 
     @pytest.mark.asyncio
-    async def test_identity_runtime_must_be_ready(self):
+    async def test_identity_runtime_must_have_exact_sdxl_adapter(self):
+        resolved = {
+            "positive_prompt": "person",
+            "negative_prompt": "",
+            "reference_path": "ref.png",
+            "identity_mode": "balanced",
+            "width": 1024,
+            "height": 1024,
+            "steps": 8,
+            "guidance": 4.5,
+            "recipe_id": "contract-v1",
+            "identity_method": "ipadapter_faceid",
+            "references": [{"ref_id": "ref-primary"}],
+        }
         with (
             patch(
                 "gateway.image_gen.is_available",
@@ -187,11 +199,15 @@ class TestCharacterPath:
                 return_value=True,
             ),
             patch(
-                "gateway.image_gen.is_identity_ready",
-                new_callable=AsyncMock,
-                return_value=False,
+                "gateway.image_character_contracts.resolve_comfyui_character",
+                return_value=resolved,
             ),
-            pytest.raises(ImageRunnerError, match="identity workflow is not ready"),
+            patch(
+                "gateway.image_character_contracts.comfyui_character_runtime_status",
+                new_callable=AsyncMock,
+                return_value=(False, "required SDXL adapter is missing"),
+            ),
+            pytest.raises(ImageRunnerError, match="SDXL adapter is missing"),
         ):
             await run("comfyui", "draw my character", character_id="char_abc")
 
@@ -218,13 +234,13 @@ class TestCharacterPath:
                 return_value=True,
             ),
             patch(
-                "gateway.image_gen.is_identity_ready",
-                new_callable=AsyncMock,
-                return_value=True,
-            ),
-            patch(
                 "gateway.image_character_contracts.resolve_comfyui_character",
                 return_value=resolved,
+            ),
+            patch(
+                "gateway.image_character_contracts.comfyui_character_runtime_status",
+                new_callable=AsyncMock,
+                return_value=(True, "ready"),
             ),
             patch(
                 "gateway.image_gen.generate_with_character",
