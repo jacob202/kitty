@@ -8,7 +8,14 @@ import json
 import sys
 from pathlib import Path
 
-from gateway.session_end_audit import SessionEndAuditError, audit_session_end
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from gateway.session_end_audit import (  # noqa: E402
+    SessionEndAuditError,
+    audit_session_end,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -20,7 +27,7 @@ def parse_args() -> argparse.Namespace:
         action="append",
         type=Path,
         default=None,
-        help="OpenCode log to inspect; repeat for multiple logs",
+        help="OpenCode log or log directory to inspect; repeat as needed",
     )
     parser.add_argument(
         "--skill-copy",
