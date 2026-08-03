@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from gateway.openwebui_routing_guards import install_openwebui_routing_guards
 from gateway.routes import (
     actions,
     artifacts,
@@ -62,6 +63,7 @@ from gateway.routes import (
 
 
 def register_routes(app: FastAPI) -> None:
+    install_openwebui_routing_guards(app)
     for module in (
         artifacts,
         experts,

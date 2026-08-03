@@ -4,6 +4,7 @@ import argparse
 import subprocess
 import sys
 
+from .acceptance import verify_features
 from .common import Failure, install_openwebui
 from .service import (
     direct_stream_smoke,
@@ -54,6 +55,16 @@ def parse_args() -> argparse.Namespace:
     smoke_parser = subparsers.add_parser("smoke")
     smoke_parser.add_argument("--accept-charges", action="store_true")
 
+    verify_parser = subparsers.add_parser(
+        "verify",
+        help="verify every configured Kitty daily-driver surface",
+    )
+    verify_parser.add_argument(
+        "--accept-charges",
+        action="store_true",
+        help="also run bounded live turns through every model route and Daily Kitty",
+    )
+
     restore_parser = subparsers.add_parser("restore")
     restore_parser.add_argument(
         "--from",
@@ -72,6 +83,7 @@ def main() -> int:
                 accept_charges=args.accept_charges,
                 no_autostart=args.no_autostart,
             )
+            verify_features(accept_charges=args.accept_charges)
         elif args.command == "install":
             install_openwebui()
         elif args.command == "up":
@@ -89,6 +101,8 @@ def main() -> int:
             show_logs()
         elif args.command == "smoke":
             direct_stream_smoke(accept_charges=args.accept_charges)
+        elif args.command == "verify":
+            verify_features(accept_charges=args.accept_charges)
         elif args.command == "open":
             open_browser()
         elif args.command == "install-autostart":

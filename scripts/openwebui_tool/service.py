@@ -339,7 +339,7 @@ def wait_for_webui(timeout: float = 90.0) -> None:
 def _start_lock():
     ensure_dirs()
     with START_LOCK.open("a+") as handle:
-        handle.chmod(0o600)
+        os.fchmod(handle.fileno(), 0o600)
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
         try:
             yield

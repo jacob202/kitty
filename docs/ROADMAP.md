@@ -389,7 +389,10 @@ KLF-001 status: RUNNING. Acceptance items delivered via #325. Evidence at
 - Failure: backup produces an unrecoverable archive, or restored state differs.
 - Evidence: before/after doctor JSON output.
 - Owner: Jacob.
-- Status: PENDING.
+- Status: IN PROGRESS — restore path implemented and proven non-destructively on
+  a scratch replica (`docs/research/backup-restore-proof-2026-08-02.md`); the
+  live destructive `doctor --json` before/after comparison is deferred to Jacob's
+  explicit go-ahead.
 
 2.3 **Prove the move-in bar**
 - The five move-in criteria from `docs/packets/README.md` § "The finish line":
