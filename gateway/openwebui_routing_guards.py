@@ -34,13 +34,32 @@ def _strip_openrouter_prefix(model: str) -> str:
 
 
 def normalize_direct_openrouter_models() -> None:
-    """Make direct OpenRouter requests use native provider/model ids.
+    """Keep LiteLLM compatibility while sending native IDs to OpenRouter.
 
-    Keep the shared LiteLLM mapping immutable: other callers and tests may need
-    the LiteLLM-qualified value. Only the direct provider resolver is wrapped at
-    the HTTP wire boundary.
+    Older Kitty callers expect ``_openrouter_fallback_model`` to return a
+    LiteLLM-qualified ``openrouter/...`` value. OpenRouter's own HTTP API rejects
+    that transport prefix. Normalize the shared aliases, retain the legacy helper
+    contract for internal callers, and strip the prefix only in the direct
+    provider resolver that writes the actual OpenRouter request payload.
     """
     from gateway import llm_client
+
+    for alias, model in tuple(llm_client._LITELLM_TO_OPENROUTER.items()):
+        llm_client._LITELLM_TO_OPENROUTER[alias] = _strip_openrouter_prefix(model)
+
+    fallback = llm_client._openrouter_fallback_model
+    if not getattr(fallback, "_kitty_litellm_qualified_ids", False):
+
+        def qualified_fallback(litellm_model: str) -> str:
+            resolved = fallback(litellm_model)
+            if os.environ.get("KITTY_OPENROUTER_DIRECT_MODEL", "").strip():
+                return resolved
+            if litellm_model not in llm_client._LITELLM_TO_OPENROUTER:
+                return resolved
+            return resolved if resolved.startswith("openrouter/") else f"openrouter/{resolved}"
+
+        qualified_fallback._kitty_litellm_qualified_ids = True  # type: ignore[attr-defined]
+        llm_client._openrouter_fallback_model = qualified_fallback
 
     provider = llm_client.PROVIDERS.get("openrouter")
     if provider is None or provider.model_resolver is None:
@@ -147,15 +166,15 @@ class OpenWebUIRoutingMiddleware:
         try:
             payload = json.loads(raw_body)
         except (json.JSONDecodeError, UnicodeDecodeError):
-            await self.app(scope, _body_receive(raw_body), send)
+            await self.app(scope, _body_receive(raw_body, receive), send)
             return
         if not isinstance(payload, dict):
-            await self.app(scope, _body_receive(raw_body), send)
+            await self.app(scope, _body_receive(raw_body, receive), send)
             return
 
         override = auto_route_override(payload)
         if override is None:
-            await self.app(scope, _body_receive(raw_body), send)
+            await self.app(scope, _body_receive(raw_body, receive), send)
             return
 
         payload["model"] = override
@@ -168,18 +187,18 @@ class OpenWebUIRoutingMiddleware:
         ]
         headers.append((b"content-length", str(len(rewritten)).encode("ascii")))
         rewritten_scope["headers"] = headers
-        await self.app(rewritten_scope, _body_receive(rewritten), send)
+        await self.app(rewritten_scope, _body_receive(rewritten, receive), send)
 
 
-def _body_receive(body: bytes) -> Receive:
+def _body_receive(body: bytes, original_receive: Receive) -> Receive:
     sent = False
 
     async def receive() -> Message:
         nonlocal sent
-        if sent:
-            return {"type": "http.disconnect"}
-        sent = True
-        return {"type": "http.request", "body": body, "more_body": False}
+        if not sent:
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+        return await original_receive()
 
     return receive
 
