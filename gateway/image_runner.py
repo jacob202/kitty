@@ -562,10 +562,9 @@ async def _run_flux(
     if not enabled:
         raise ImageRunnerError(reason)
 
-    editing = source_image is not None
-    model = FLUX_EDIT_MODEL if editing else FLUX_GENERATE_MODEL
+    model = FLUX_EDIT_MODEL if source_image is not None else FLUX_GENERATE_MODEL
     payload: dict[str, Any] = {"prompt": prompt}
-    if editing:
+    if source_image is not None:
         payload["input_image"] = base64.b64encode(source_image).decode()
     else:
         payload["width"] = 1024
@@ -573,7 +572,9 @@ async def _run_flux(
 
     job = image_jobs.create_job(
         provider="flux",
-        operation="img2img" if editing else ("variation" if parent_id else "txt2img"),
+        operation="img2img"
+        if source_image is not None
+        else ("variation" if parent_id else "txt2img"),
         prompt=prompt,
         parent_id=parent_id,
         model_id=model,
