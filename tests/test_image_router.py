@@ -26,10 +26,22 @@ async def test_image_status_reports_each_engine(monkeypatch):
     result = await extended.image_status()
 
     assert result["available"] is True
-    assert result["engines"] == [
-        {"name": "comfyui", "label": "ComfyUI", "available": True},
-        {"name": "drawthings", "label": "Draw Things", "available": False},
+    # Local engines first because they are free, then the hosted lanes cheapest
+    # first. Each hosted entry carries its price so the caller can see what a
+    # generation costs before enabling it.
+    assert [engine["name"] for engine in result["engines"]] == [
+        "comfyui",
+        "drawthings",
+        "flux",
+        "openrouter",
     ]
+    by_name = {engine["name"]: engine for engine in result["engines"]}
+    assert by_name["comfyui"]["available"] is True
+    assert by_name["drawthings"]["available"] is False
+    # The paid lanes are gated, and an unavailable one has to say why.
+    assert by_name["flux"]["available"] is False
+    assert by_name["flux"]["unavailable_reason"]
+    assert by_name["flux"]["cost_per_image_usd"] < by_name["openrouter"]["cost_per_image_usd"]
 
 
 @pytest.mark.asyncio
