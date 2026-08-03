@@ -3,7 +3,7 @@
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-03T05:52:00Z",
+  "updated_at": "2026-08-03T05:58:00Z",
   "branch": "feat/openwebui-tomorrow-ready",
   "worktree": "feat/openwebui-tomorrow-ready",
   "status": "valid",
@@ -14,6 +14,7 @@
     "Hardened environment isolation, process ownership, launchd enablement, backup, restore, and rollback",
     "Added feature-level verification for settings, agents, models, tools, memory, notes, projects, calendar, Tutor contract, and Builder projection",
     "Added bounded paid acceptance for every advertised model route and an end-to-end Daily Kitty turn",
+    "Fixed ASGI request replay for streaming chat responses and kept OpenRouter normalization at the direct-provider boundary",
     "Documented bootstrap, daily verification, backup, restore, and rollback"
   ],
   "blockers": [
@@ -24,16 +25,16 @@
   "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
-    "PR #384 is rebased or force-pushed so commit ab34fcf140c8700d9a62395bf44d20286d6d51cc is no longer in its history",
+    "PR #384 is rebased or force-pushed so commit 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is no longer in its history",
     "Open WebUI, Gateway, provider, agent, or tool configuration changes after the recorded acceptance pass"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
     "number": 384,
     "state": "OPEN",
-    "head_sha": "ab34fcf140c8700d9a62395bf44d20286d6d51cc"
+    "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
   },
-  "head_sha": "ab34fcf140c8700d9a62395bf44d20286d6d51cc"
+  "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
 }
 -->
 
@@ -46,7 +47,7 @@
 - The bounded tool server exposes memory, notes, projects, calendar, Tutor, and read-only Builder projections.
 - Autostart, admin repair, PID ownership, backups, restore, rollback, and failure reporting are checked rather than assumed.
 
-## What the new acceptance gate proves
+## What the acceptance gate proves
 
 ```bash
 python3 scripts/openwebui_local.py verify
