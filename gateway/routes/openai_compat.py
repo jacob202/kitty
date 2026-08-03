@@ -18,20 +18,14 @@ def _as_openai_model(entry: dict[str, str]) -> dict:
         "root": entry["id"],
         "parent": None,
         "permission": [],
-        # Open WebUI renders these; without them the menu is a column of slugs.
         "name": entry["name"],
         "description": entry["description"],
     }
 
 
-# Third-party shells need stable identifiers, not Kitty's transient provider
-# inventory. These ids keep routing, memory, policy, and cost selection inside
-# Kitty instead of leaking those decisions into each client.
 _CATALOGUE: dict[str, dict] = {
     entry["id"]: _as_openai_model(entry) for entry in USER_FACING_MODELS
 }
-# Retrievable but unlisted: saved chats and older clients still send this id, and
-# a 404 on the id they were opened with would strand them.
 _CATALOGUE[LITELLM_DEFAULT] = _as_openai_model(
     {
         "id": LITELLM_DEFAULT,
@@ -41,20 +35,47 @@ _CATALOGUE[LITELLM_DEFAULT] = _as_openai_model(
 )
 
 
+def _selected_provider() -> str | None:
+    """Read the preference without invoking a provider or requiring its key."""
+    from gateway.provider_prefs import active_provider
+
+    return active_provider()
+
+
+def _visible_catalogue() -> list[dict]:
+    """Return only menu choices the current execution path can honor.
+
+    LiteLLM/automatic routing owns Kitty's virtual model aliases. OpenRouter's
+    direct fallback also maps them explicitly. Other exact-provider paths select
+    one provider-specific default model and cannot guarantee that choosing
+    Think, Code, or Vision will reach the advertised upstream model. Showing
+    those rows would make the menu lie, so exact-provider mode collapses to one
+    honest row until that provider gains explicit alias mappings.
+    """
+    selected = _selected_provider()
+    if selected in {None, "openrouter"}:
+        return [dict(_CATALOGUE[entry["id"]]) for entry in USER_FACING_MODELS]
+
+    auto = dict(_CATALOGUE["kitty-auto"])
+    label = selected.replace("_", " ").title()
+    auto["name"] = f"Kitty — {label}"
+    auto["description"] = (
+        f"Uses the model configured for the selected {label} provider. "
+        "Model-specific choices are hidden because this provider cannot "
+        "guarantee their advertised models."
+    )
+    return [auto]
+
+
 @router.get("/v1/models")
 def list_models() -> dict:
-    """Return the models Kitty offers a human, in menu order."""
-
-    return {
-        "object": "list",
-        "data": [dict(_CATALOGUE[entry["id"]]) for entry in USER_FACING_MODELS],
-    }
+    """Return the truthful human-facing model menu in display order."""
+    return {"object": "list", "data": _visible_catalogue()}
 
 
 @router.get("/v1/models/{model_id}")
 def retrieve_model(model_id: str) -> dict:
-    """Return one model using the OpenAI retrieval shape."""
-
+    """Retrieve saved/legacy model ids even when they are hidden from the menu."""
     entry = _CATALOGUE.get(model_id)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
