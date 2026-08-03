@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import shutil
@@ -10,10 +11,13 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
 
 from .common import (
     DATA_DIR,
+    DEFAULT_AGENT,
+    DEFAULT_MODEL,
     HOST,
     LOG_FILE,
     OPENWEBUI_BIN,
@@ -27,17 +31,17 @@ from .common import (
     ensure_gateway_running,
     install_openwebui,
     installed_version,
+    open_local,
     request_json,
     runtime_env,
     verify_gateway,
 )
 
-# Open WebUI's WEBUI_AUTH=False signin creates admin@localhost when no user
-# exists. The check and the insert are not atomic and `user.email` has no unique
-# index, so the concurrent signins a first page load fires all pass the check and
-# all insert — six identical admins on Jacob's Mac.
 SYSTEM_ADMIN_EMAIL = "admin@localhost"
 SYSTEM_ADMIN_PASSWORD = "admin"
+START_LOCK = PID_FILE.with_name("openwebui-start.lock")
+SMOKE_DEADLINE_SECONDS = 90.0
+SMOKE_MAX_TOKENS = 8
 
 
 def webui_db_path() -> Path:
@@ -67,21 +71,17 @@ def count_system_admins() -> int:
     database = webui_db_path()
     if not database.exists():
         return 0
-    with sqlite3.connect(database) as connection:
-        (count,) = connection.execute(
-            "SELECT COUNT(*) FROM user WHERE email = ?", (SYSTEM_ADMIN_EMAIL,)
-        ).fetchone()
+    try:
+        with sqlite3.connect(database) as connection:
+            (count,) = connection.execute(
+                "SELECT COUNT(*) FROM user WHERE email = ?", (SYSTEM_ADMIN_EMAIL,)
+            ).fetchone()
+    except sqlite3.Error:
+        return 0
     return int(count)
 
 
 def _promote_sole_admin(connection: sqlite3.Connection) -> bool:
-    """Give the one remaining account the admin role.
-
-    The race leaves every row at DEFAULT_USER_ROLE, because 0.10.2 promotes the
-    first user only when it is the single row *after* its own insert. Six rows
-    meant nobody was promoted and Open WebUI showed "Account Activation
-    Pending" with no second user to approve it.
-    """
     row = connection.execute(
         "SELECT id, role FROM user WHERE email = ?", (SYSTEM_ADMIN_EMAIL,)
     ).fetchone()
@@ -92,11 +92,7 @@ def _promote_sole_admin(connection: sqlite3.Connection) -> bool:
 
 
 def dedupe_system_admin() -> str:
-    """Collapse duplicate ``admin@localhost`` rows. Safe to run on every start.
-
-    Refuses rather than deleting when a duplicate owns rows: losing a chat to a
-    tidy-up would be worse than leaving the duplicates in place.
-    """
+    """Collapse duplicate system accounts without deleting owned data."""
     database = webui_db_path()
     if not database.exists():
         return "no database yet"
@@ -139,10 +135,7 @@ def dedupe_system_admin() -> str:
 
 
 def claim_system_admin() -> str:
-    """Sign in once, serially, so the browser cannot race the first signup.
-
-    Returns the session token, which the agent installer needs.
-    """
+    """Sign in once serially and return the local session token."""
     body = json.dumps(
         {"email": SYSTEM_ADMIN_EMAIL, "password": SYSTEM_ADMIN_PASSWORD}
     ).encode()
@@ -153,7 +146,7 @@ def claim_system_admin() -> str:
         headers={"Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with open_local(request, timeout=30) as response:
             payload = json.load(response)
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode(errors="replace")[:300]
@@ -170,6 +163,7 @@ def claim_system_admin() -> str:
 
 
 def direct_stream_smoke(*, accept_charges: bool) -> None:
+    """Run one tightly bounded paid turn and require the advertised answer."""
     if not accept_charges:
         raise Failure(
             "real streaming smoke may use provider credits; rerun with --accept-charges"
@@ -183,6 +177,8 @@ def direct_stream_smoke(*, accept_charges: bool) -> None:
                 {"role": "user", "content": "Reply with exactly: ready"}
             ],
             "stream": True,
+            "max_tokens": SMOKE_MAX_TOKENS,
+            "temperature": 0,
         }
     ).encode()
     request = urllib.request.Request(
@@ -196,14 +192,19 @@ def direct_stream_smoke(*, accept_charges: bool) -> None:
         },
     )
     started = time.monotonic()
+    deadline = started + SMOKE_DEADLINE_SECONDS
     first_token_at: float | None = None
     parts: list[str] = []
     done = False
     gateway_error: str | None = None
 
     try:
-        with urllib.request.urlopen(request, timeout=90) as response:
+        with open_local(request, timeout=SMOKE_DEADLINE_SECONDS) as response:
             for raw in response:
+                if time.monotonic() >= deadline:
+                    raise Failure(
+                        f"streaming smoke exceeded {SMOKE_DEADLINE_SECONDS:.0f}s overall deadline"
+                    )
                 line = raw.decode(errors="replace").strip()
                 if not line.startswith("data:"):
                     continue
@@ -217,9 +218,6 @@ def direct_stream_smoke(*, accept_charges: bool) -> None:
                 except json.JSONDecodeError:
                     continue
 
-                # The gateway states the real cause here (gateway/chat_errors.py).
-                # Reporting "no complete SSE response" instead threw that away and
-                # sent whoever ran the smoke looking in the wrong place.
                 error = event.get("error") if isinstance(event, dict) else None
                 if isinstance(error, dict):
                     gateway_error = (
@@ -235,6 +233,8 @@ def direct_stream_smoke(*, accept_charges: bool) -> None:
                 if isinstance(content, str) and content:
                     first_token_at = first_token_at or time.monotonic()
                     parts.append(content)
+    except Failure:
+        raise
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode(errors="replace")[:500]
         raise Failure(
@@ -258,6 +258,11 @@ def direct_stream_smoke(*, accept_charges: bool) -> None:
     total = time.monotonic() - started
     ttft = first_token_at - started
     text = "".join(parts).strip()
+    if text.casefold() != "ready":
+        raise Failure(
+            f"streaming smoke expected exactly 'ready', got {text!r}; "
+            f"the request was capped at {SMOKE_MAX_TOKENS} output tokens"
+        )
     print(f"Direct stream OK: TTFT={ttft:.2f}s total={total:.2f}s text={text!r}")
 
 
@@ -269,16 +274,42 @@ def pid_alive(pid: int) -> bool:
         return False
 
 
+def _process_command(pid: int) -> str:
+    result = subprocess.run(
+        ["ps", "-p", str(pid), "-o", "command="],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _pid_owned_by_openwebui(pid: int) -> bool:
+    command = _process_command(pid)
+    if not command:
+        return False
+    service_entry = str(Path(__file__).resolve().parents[1] / "openwebui_local.py")
+    return (
+        str(OPENWEBUI_BIN) in command
+        or (service_entry in command and " service" in f" {command}")
+    )
+
+
 def read_pid() -> int | None:
     try:
         pid = int(PID_FILE.read_text(encoding="utf-8").strip())
     except (FileNotFoundError, ValueError):
         return None
 
-    if not pid_alive(pid):
+    if not pid_alive(pid) or not _pid_owned_by_openwebui(pid):
         PID_FILE.unlink(missing_ok=True)
         return None
     return pid
+
+
+def _write_pid(pid: int) -> None:
+    PID_FILE.write_text(f"{pid}\n", encoding="utf-8")
+    PID_FILE.chmod(0o600)
 
 
 def port_open() -> bool:
@@ -304,50 +335,87 @@ def wait_for_webui(timeout: float = 90.0) -> None:
     )
 
 
+@contextmanager
+def _start_lock():
+    ensure_dirs()
+    with START_LOCK.open("a+") as handle:
+        handle.chmod(0o600)
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _signal_pid(pid: int, sig: signal.Signals) -> None:
+    try:
+        target = -pid if os.getpgid(pid) == pid else pid
+        os.kill(target, sig)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def _terminate_tracked_pid(pid: int) -> None:
+    if not _pid_owned_by_openwebui(pid):
+        PID_FILE.unlink(missing_ok=True)
+        return
+    _signal_pid(pid, signal.SIGTERM)
+    for _ in range(50):
+        if not pid_alive(pid):
+            break
+        time.sleep(0.2)
+    if pid_alive(pid) and _pid_owned_by_openwebui(pid):
+        _signal_pid(pid, signal.SIGKILL)
+    PID_FILE.unlink(missing_ok=True)
+
+
 def start_webui(*, foreground: bool = False) -> None:
     ensure_dirs()
     install_openwebui()
     ensure_gateway_running()
 
-    if read_pid():
-        wait_for_webui(timeout=5)
-        return
-    if port_open():
-        raise Failure(f"port {PORT} is already in use by another process")
+    with _start_lock():
+        pid = read_pid()
+        if pid is not None:
+            try:
+                wait_for_webui(timeout=5)
+                return
+            except Failure:
+                print(f"Open WebUI pid {pid} is alive but unhealthy; restarting it")
+                _terminate_tracked_pid(pid)
 
-    # While the server is down is the only safe moment to touch its database.
-    print(f"accounts: {dedupe_system_admin()}")
+        if port_open():
+            raise Failure(f"port {PORT} is already in use by another process")
 
-    command = [str(OPENWEBUI_BIN), "serve", "--host", HOST, "--port", str(PORT)]
-    if foreground:
-        PID_FILE.write_text(f"{os.getpid()}\n", encoding="utf-8")
-        # Python puts the working directory on sys.path, and Kitty's repo root
-        # holds a top-level ``mcp`` package that shadows Open WebUI's MCP SDK.
-        # The background branch already runs from SERVICE_ROOT; execve inherits
-        # this process's directory, so it has to move first.
-        os.chdir(SERVICE_ROOT)
-        os.execve(str(OPENWEBUI_BIN), command, runtime_env())
+        print(f"accounts: {dedupe_system_admin()}")
+        command = [str(OPENWEBUI_BIN), "serve", "--host", HOST, "--port", str(PORT)]
 
-    with LOG_FILE.open("ab", buffering=0) as log:
-        process = subprocess.Popen(
-            command,
-            cwd=SERVICE_ROOT,
-            env=runtime_env(),
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
-    PID_FILE.write_text(f"{process.pid}\n", encoding="utf-8")
-    wait_for_webui()
-    # One serial signin before a browser can open several at once. On a fresh
-    # database this is the request that creates admin@localhost, so every later
-    # signin takes the "user already exists" branch instead of racing signup.
-    token = claim_system_admin()
-    print(f"agents: {ensure_agents(token)}")
+        if foreground:
+            _write_pid(os.getpid())
+            os.chdir(SERVICE_ROOT)
+            os.execve(str(OPENWEBUI_BIN), command, runtime_env())
+
+        with LOG_FILE.open("ab", buffering=0) as log:
+            process = subprocess.Popen(
+                command,
+                cwd=SERVICE_ROOT,
+                env=runtime_env(),
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+        _write_pid(process.pid)
+        try:
+            wait_for_webui()
+        except Exception:
+            _terminate_tracked_pid(process.pid)
+            raise
+
+        token = claim_system_admin()
+        print(f"agents: {ensure_agents(token)}")
 
 
 def launch_agent_loaded() -> bool:
-    """Whether launchd currently owns the service."""
     result = subprocess.run(
         ["launchctl", "print", f"gui/{os.getuid()}/com.kitty.openwebui"],
         capture_output=True,
@@ -358,16 +426,16 @@ def launch_agent_loaded() -> bool:
 
 
 def stop_webui() -> None:
-    # KeepAlive restarts the process the moment it is killed, so signalling the
-    # pid while the job is loaded gives a service that looks stopped and then
-    # races whatever starts next for the port. Unload the job instead, and say
-    # so — this is the one command that turns login startup off.
     if launch_agent_loaded():
-        subprocess.run(
+        result = subprocess.run(
             ["launchctl", "bootout", f"gui/{os.getuid()}/com.kitty.openwebui"],
             capture_output=True,
+            text=True,
             check=False,
         )
+        if result.returncode != 0:
+            detail = result.stderr.strip() or result.stdout.strip()
+            raise Failure(f"could not unload Open WebUI launchd job: {detail}")
         for _ in range(50):
             if not port_open():
                 break
@@ -382,25 +450,7 @@ def stop_webui() -> None:
         print("Open WebUI is not running")
         return
 
-    try:
-        target = -pid if os.getpgid(pid) == pid else pid
-        os.kill(target, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-
-    for _ in range(50):
-        if not pid_alive(pid):
-            break
-        time.sleep(0.2)
-
-    if pid_alive(pid):
-        try:
-            target = -pid if os.getpgid(pid) == pid else pid
-            os.kill(target, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-
-    PID_FILE.unlink(missing_ok=True)
+    _terminate_tracked_pid(pid)
     print("Open WebUI stopped")
 
 
@@ -446,20 +496,45 @@ def show_logs() -> None:
     subprocess.run(["tail", "-n", "120", "-F", LOG_FILE], check=False)
 
 
+def _visible_model_ids(payload: object) -> set[str]:
+    rows: object = payload
+    if isinstance(payload, dict):
+        rows = payload.get("data", payload.get("models", []))
+    if not isinstance(rows, list):
+        return set()
+    return {
+        str(row.get("id"))
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("id"), str)
+    }
+
+
 def doctor() -> None:
     failures: list[str] = []
-    if installed_version() != VERSION:
+    try:
+        version = installed_version()
+    except Failure as exc:
+        failures.append(str(exc))
+        version = None
+    if version != VERSION:
         failures.append(f"Open WebUI {VERSION} is not installed")
 
-    checks = (
-        verify_gateway,
-        lambda: request_json(f"http://{HOST}:{PORT}/health", timeout=3),
-    )
-    for check in checks:
-        try:
-            check()
-        except Failure as exc:
-            failures.append(str(exc))
+    try:
+        verify_gateway()
+    except Failure as exc:
+        failures.append(str(exc))
+
+    try:
+        request_json(f"http://{HOST}:{PORT}/health", timeout=3)
+        token = claim_system_admin()
+        visible = _visible_model_ids(_webui_request("/api/models", token=token))
+        if DEFAULT_AGENT not in visible and DEFAULT_MODEL not in visible:
+            failures.append(
+                "Open WebUI is healthy but cannot see Kitty's default agent/model; "
+                f"visible ids: {sorted(visible)[:20]}"
+            )
+    except Failure as exc:
+        failures.append(str(exc))
 
     if not SECRET_FILE.exists():
         failures.append(f"missing persistent WebUI secret: {SECRET_FILE}")
@@ -481,9 +556,6 @@ def doctor() -> None:
     print("All Open WebUI doctor checks passed")
 
 
-# Open WebUI calls these "models"; they are a base model plus a system prompt and
-# a tool set. Keeping the list short is the point — a workspace of near-identical
-# entries is the same problem as a model menu that lies.
 AGENTS: tuple[dict[str, object], ...] = (
     {
         "id": "daily-kitty",
@@ -491,6 +563,7 @@ AGENTS: tuple[dict[str, object], ...] = (
         "base": "kitty-auto",
         "description": "Everyday Kitty, with access to your memory, notes, projects, and calendar.",
         "tools": True,
+        "vision": True,
         "system": (
             "You are Kitty, working with Jacob rather than for him. Life comes "
             "before code: when you suggest what is next, put job search, "
@@ -507,6 +580,7 @@ AGENTS: tuple[dict[str, object], ...] = (
         "base": "kitty-think",
         "description": "Slower, careful reasoning over Jacob's own notes and memory.",
         "tools": True,
+        "vision": False,
         "system": (
             "You are Kitty in research mode. Work from what Jacob has actually "
             "written down: search his notes and memory before reasoning, cite "
@@ -520,6 +594,7 @@ AGENTS: tuple[dict[str, object], ...] = (
         "base": "kitty-code",
         "description": "Implementation and debugging. No tools, no distractions.",
         "tools": False,
+        "vision": False,
         "system": (
             "You are Kitty writing code. Prefer the standard library, the "
             "platform, and dependencies already present over anything new. No "
@@ -533,6 +608,7 @@ AGENTS: tuple[dict[str, object], ...] = (
         "base": "kitty-auto",
         "description": "Teaches only from documents you have ingested, and admits when it has none.",
         "tools": True,
+        "vision": False,
         "system": (
             "You are Kitty's Tutor. Answer only from ingested documents via the "
             "tutor tool. Never fill a gap from general knowledge — when the "
@@ -546,6 +622,7 @@ AGENTS: tuple[dict[str, object], ...] = (
         "base": "kitty-auto",
         "description": "Reads KittyBuilder's queue and tells you what needs a decision.",
         "tools": True,
+        "vision": False,
         "system": (
             "You report KittyBuilder state from the builder tool and nothing "
             "else. You do not start, approve, publish, or merge anything — say "
@@ -566,7 +643,10 @@ def ensure_agents(token: str) -> str:
             "name": agent["name"],
             "meta": {
                 "description": agent["description"],
-                "capabilities": {"vision": False, "citations": True},
+                "capabilities": {
+                    "vision": bool(agent.get("vision", False)),
+                    "citations": True,
+                },
             },
             "params": {"system": agent["system"]},
             "is_active": True,
@@ -598,10 +678,10 @@ def _webui_request(
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with open_local(request, timeout=30) as response:
             return json.load(response)
     except urllib.error.HTTPError as exc:
-        if allow_missing and exc.code in (401, 404):
+        if allow_missing and exc.code == 404:
             return None
         detail = exc.read().decode(errors="replace")[:200]
         raise Failure(f"Open WebUI {path} returned HTTP {exc.code}: {detail}") from exc
