@@ -45,12 +45,34 @@ generating. Stop command is at the end of the findings doc.
 
 ---
 
-## 0. SOLVED — PuLID-Flux is the likeness answer
+## 0. PuLID-Flux — installed and running, likeness still NOT acceptable
 
-**2026-08-03.** After inpainting and face-pasting both failed, PuLID-Flux worked
-on the first real try. It conditions the model on a face *embedding*, so identity
-survives a change of pose, lighting, and scene — the exact thing pixels could not
-do.
+**2026-08-03. Do not trust an earlier draft of this section that said "SOLVED".
+It was wrong.** Jacob looked at the output and rejected it: the face is not his,
+and the body has essentially no hair against reference photographs where he is
+notably hairy. The claim was made from a resemblance in build and hair colour,
+not from an actual comparison against the references. That was a bad call and it
+is corrected here.
+
+What is true: PuLID-Flux is installed, loads, and carries *a* consistent face
+across scenes, poses, and lighting — which is more than the LoRA or pixel pasting
+managed. What is not true is that the face is Jacob's.
+
+**Three concrete suspects, none yet tested:**
+
+1. **One reference image.** PuLID takes multiple and fuses them
+   (`fusion: mean|concat|max`). It was given a single Facebook portrait. There
+   are 24 references sitting in `~/kitty-services/faces/james/`; using several
+   is the first thing to try.
+2. **The prompt fought the embedding.** "stocky heavy-set man" pushed the build
+   well past his actual one, and Flux's own bias toward a generic heavy man
+   filled the gap. Let PuLID carry the body and stop describing it.
+3. **Body hair was thrown away.** `--identity 0.0` disabled the LoRA stack
+   entirely, including `Male_Nude_and_Genital_Anatomy_for_Flux_1_Dev`. PuLID is
+   not a LoRA, so the anatomy LoRA can be stacked with it — that was an
+   unforced error.
+
+Weight 0.95 is also untuned; nothing above or below it was tried.
 
 | Setting | Value |
 |---|---|
@@ -64,9 +86,9 @@ do.
 
 `scripts/james_comfy.py --pulid <reference photo> --identity 0.0`
 
-Verified across two unrelated scenes at different seeds: waist-deep in a lake at
-golden hour, and sitting on a rock at sunset. Same man in both, correct stocky
-build and body hair, no LoRA involved.
+Two scenes at different seeds produced *the same* man consistently — but not
+Jacob, and with almost no body hair. Consistency was demonstrated. Likeness was
+not.
 
 **Do not** stack PuLID with the identity LoRA. Strength 0 now skips the LoRA node
 entirely rather than loading a file it will not use.
