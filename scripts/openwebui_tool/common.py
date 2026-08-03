@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import shutil
 import stat
@@ -19,23 +20,19 @@ SERVICE_ROOT = Path(
         Path.home() / "kitty-services/openwebui",
     )
 ).expanduser()
-VERSION = os.environ.get("KITTY_OPENWEBUI_VERSION", "0.10.2")
+
+# A version change can run irreversible database migrations. Upgrades therefore
+# need an explicit, backed-up flow rather than an environment override that
+# silently points a new binary at the old data directory.
+VERSION = "0.10.2"
 PORT = int(os.environ.get("KITTY_OPENWEBUI_PORT", "3000"))
-HOST = os.environ.get("KITTY_OPENWEBUI_HOST", "127.0.0.1")
-# The existing Next.js UI, i.e. what `rollback` hands the day back to. Matches
-# UI_PORT in ./kitty.
-KITTY_UI_PORT = int(os.environ.get("UI_PORT", "4000"))
-# The routing id the health check looks for. Must exist in the Gateway's
-# /v1/models — its absence means the Gateway is not really up.
+HOST = os.environ.get("KITTY_OPENWEBUI_HOST", "127.0.0.1").strip()
 DEFAULT_MODEL = "kitty-auto"
 TASK_MODEL = "kitty-fast"
-# What Jacob actually opens on and sees pinned. These are Open WebUI workspace
-# agents (see AGENTS in service.py), each backed by one of the routing ids
-# above; the raw ids stay selectable but are plumbing, not the daily menu.
 DEFAULT_AGENT = "daily-kitty"
 PINNED_AGENTS = "daily-kitty,research,coding,tutor,builder-operator"
 VENV_DIR = SERVICE_ROOT / f"venv-{VERSION}"
-DATA_DIR = SERVICE_ROOT / "data-fresh"
+DATA_DIR = SERVICE_ROOT / f"data-{VERSION}"
 BACKUP_ROOT = SERVICE_ROOT / "backups"
 LOG_DIR = SERVICE_ROOT / "logs"
 RUN_DIR = SERVICE_ROOT / "run"
@@ -53,6 +50,19 @@ class Failure(RuntimeError):
 
 def fail(message: str) -> None:
     raise Failure(message)
+
+
+def _require_loopback_host(host: str) -> None:
+    # WEBUI_AUTH=False is intentional for this single-user local shell. That is
+    # safe only while the listener is unreachable from the LAN.
+    if host not in {"127.0.0.1", "localhost"}:
+        fail(
+            "KITTY_OPENWEBUI_HOST must be 127.0.0.1 or localhost while "
+            "WEBUI_AUTH is disabled"
+        )
+
+
+_require_loopback_host(HOST)
 
 
 def run(
@@ -73,8 +83,23 @@ def run(
     )
 
 
-def read_dotenv(path: Path) -> dict[str, str]:
+_VAR_PATTERN = re.compile(r"\$(\w+|\{[^}]+\})")
+
+
+def _expand_with_env(raw_value: str, env_map: dict[str, str]) -> str:
+    def replace_var(match: re.Match[str]) -> str:
+        token = match.group(1)
+        if token.startswith("{") and token.endswith("}"):
+            token = token[1:-1]
+        return env_map.get(token, match.group(0))
+
+    return _VAR_PATTERN.sub(replace_var, raw_value)
+
+
+def read_dotenv(path: Path, *, base: dict[str, str] | None = None) -> dict[str, str]:
+    """Read the assignment subset accepted by Kitty's canonical launcher."""
     values: dict[str, str] = {}
+    resolved = dict(os.environ if base is None else base)
     if not path.exists():
         return values
 
@@ -89,17 +114,28 @@ def read_dotenv(path: Path) -> dict[str, str]:
         if not separator:
             continue
         key, value = key.strip(), value.strip()
+        if not key or not (key[0].isalpha() or key[0] == "_"):
+            continue
+        if not all(character.isalnum() or character == "_" for character in key):
+            continue
         if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
             value = value[1:-1]
-        if key:
-            values[key] = value
+        value = _expand_with_env(value, resolved)
+        values[key] = value
+        resolved[key] = value
 
     return values
 
 
 def repo_env() -> dict[str, str]:
-    values = read_dotenv(ROOT / ".env")
-    values.update(os.environ)
+    """Resolve configuration with the same precedence as ``./kitty``.
+
+    The shell is the expansion base, but repository assignments win. A stale
+    exported GATEWAY_PORT or secret must not redirect Open WebUI away from the
+    Gateway the canonical launcher actually starts.
+    """
+    values = dict(os.environ)
+    values.update(read_dotenv(ROOT / ".env", base=values))
     return values
 
 
@@ -110,9 +146,19 @@ def gateway_config() -> tuple[str, str]:
     return f"http://127.0.0.1:{port}", secret
 
 
+def kitty_ui_port() -> int:
+    return int(repo_env().get("UI_PORT", "4000"))
+
+
+# Compatibility export for callers that import the constant. It is resolved from
+# repository configuration, not the ambient shell.
+KITTY_UI_PORT = kitty_ui_port()
+
+
 def ensure_dirs() -> None:
     for path in (SERVICE_ROOT, DATA_DIR, BACKUP_ROOT, LOG_DIR, RUN_DIR):
-        path.mkdir(parents=True, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True, mode=0o700)
+        path.chmod(0o700)
 
 
 def uv_path() -> str:
@@ -137,12 +183,21 @@ def installed_version() -> str | None:
         [
             python,
             "-c",
-            "import importlib.metadata; print(importlib.metadata.version('open-webui'))",
+            (
+                "import importlib.metadata as m, sys; "
+                "\ntry: print(m.version('open-webui'))"
+                "\nexcept m.PackageNotFoundError: sys.exit(44)"
+            ),
         ],
         check=False,
         capture=True,
     )
-    return result.stdout.strip() if result.returncode == 0 else None
+    if result.returncode == 0:
+        return result.stdout.strip()
+    if result.returncode == 44:
+        return None
+    detail = result.stderr.strip() or result.stdout.strip() or "no diagnostic output"
+    fail(f"cannot inspect Open WebUI in {VENV_DIR}: {detail[:500]}")
 
 
 def install_openwebui() -> None:
@@ -178,12 +233,20 @@ def ensure_webui_secret() -> str:
     ensure_dirs()
     if not SECRET_FILE.exists():
         SECRET_FILE.write_text(secrets.token_hex(32) + "\n", encoding="utf-8")
-        SECRET_FILE.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    SECRET_FILE.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
     secret = SECRET_FILE.read_text(encoding="utf-8").strip()
     if len(secret) < 32:
         fail(f"Open WebUI secret at {SECRET_FILE} is unexpectedly short")
     return secret
+
+
+_NO_PROXY_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def open_local(request: str | urllib.request.Request, *, timeout: float):
+    """Open a loopback request without consulting ambient proxy variables."""
+    return _NO_PROXY_OPENER.open(request, timeout=timeout)
 
 
 def request_json(url: str, *, auth: str = "", timeout: float = 5.0) -> dict:
@@ -193,7 +256,7 @@ def request_json(url: str, *, auth: str = "", timeout: float = 5.0) -> dict:
     request = urllib.request.Request(url, headers=headers)
 
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with open_local(request, timeout=timeout) as response:
             return json.load(response)
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
@@ -224,67 +287,78 @@ def verify_gateway() -> tuple[str, str]:
     return base, secret
 
 
-def wait_for_gateway(attempts: int) -> tuple[str, str] | None:
+def wait_for_gateway(attempts: int, *, last_error: list[str] | None = None) -> tuple[str, str] | None:
+    latest = ""
     for _ in range(attempts):
         try:
             return verify_gateway()
-        except Failure:
+        except Failure as exc:
+            latest = str(exc)
             time.sleep(1)
+    if last_error is not None:
+        last_error[:] = [latest]
+    if latest:
+        print(f"Gateway not ready: {latest}")
     return None
 
 
 def ensure_gateway_running() -> tuple[str, str]:
-    ready = wait_for_gateway(12)
+    errors: list[str] = []
+    ready = wait_for_gateway(12, last_error=errors)
     if ready is not None:
         return ready
 
-    # `./kitty install` reloads the launchd jobs in place. `./kitty down`/`up`
-    # was worse than the problem: `down` boots those jobs out entirely, so a
-    # Gateway that was merely slow came back as a shell-owned process that dies
-    # with the terminal and never returns after a reboot.
     print("Gateway is unhealthy; reloading the Kitty launch services")
     run([ROOT / "kitty", "install"], cwd=ROOT)
 
-    ready = wait_for_gateway(60)
+    ready = wait_for_gateway(60, last_error=errors)
     if ready is not None:
         return ready
 
     base, _ = gateway_config()
+    cause = errors[-1] if errors else "no diagnostic was captured"
     fail(
-        "Kitty Gateway did not become ready after a clean restart. "
-        f"Run './kitty logs' and inspect {base}/health."
+        "Kitty Gateway did not become ready after a clean restart: "
+        f"{cause}. Run './kitty logs' and inspect {base}/health."
     )
 
 
-# Kitty's repo root holds a top-level ``mcp`` package, and ``./kitty`` exports
-# PYTHONPATH=<repo root>. Open WebUI's own ``mcp`` is the MCP SDK, so any
-# inherited PYTHONPATH turns its tool client into
-# "ImportError: cannot import name 'ClientSession' from 'mcp'". Nothing Open
-# WebUI needs comes from Kitty's interpreter, so drop the import-path knobs
-# outright rather than trying to filter individual entries.
-SHADOWING_ENV_VARS = ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP")
+_RUNTIME_ENV_KEYS = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "SHELL",
+        "TMPDIR",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "REQUESTS_CA_BUNDLE",
+        "CURL_CA_BUNDLE",
+    }
+)
 
 
 def sanitized_env(source: dict[str, str] | None = None) -> dict[str, str]:
-    """Return ``source`` with every Kitty import-path knob removed."""
-    env = dict(os.environ if source is None else source)
-    for name in SHADOWING_ENV_VARS:
-        env.pop(name, None)
-    # ~/.local/lib can shadow the pinned venv the same way PYTHONPATH does.
+    """Return the minimal non-secret environment Open WebUI needs to run."""
+    incoming = dict(os.environ if source is None else source)
+    env = {
+        key: value
+        for key, value in incoming.items()
+        if key in _RUNTIME_ENV_KEYS and isinstance(value, str) and value
+    }
+    env.setdefault("PATH", os.defpath)
+    env.setdefault("HOME", str(Path.home()))
     env["PYTHONNOUSERSITE"] = "1"
+    env["NO_PROXY"] = "127.0.0.1,localhost"
+    env["no_proxy"] = env["NO_PROXY"]
     return env
 
 
 def tool_server_connections(base: str, gateway_secret: str) -> str:
-    """Point Open WebUI at Kitty's own tool surface, not the whole Gateway.
-
-    ``/tools/v1/openapi.json`` lists six operations. The Gateway's own
-    ``/openapi.json`` lists more than two hundred, and Open WebUI turns every one
-    into a tool the model has to read past.
-    """
-    # `config`, `info`, and `type` are required by Open WebUI's own
-    # ToolServerConnection model. Omitting them made /api/v1/configs/tool_servers
-    # answer 500 — and log the whole connection, Gateway secret included.
     return json.dumps(
         [
             {
@@ -300,9 +374,6 @@ def tool_server_connections(base: str, gateway_secret: str) -> str:
     )
 
 
-# The chips on an empty chat. Life before code (ADR 0016), and each one is
-# answerable only by calling a tool — a starter prompt Kitty cannot act on
-# teaches Jacob the tools do not work.
 STARTER_PROMPTS = json.dumps(
     [
         {
@@ -326,6 +397,7 @@ STARTER_PROMPTS = json.dumps(
 
 
 def runtime_env() -> dict[str, str]:
+    _require_loopback_host(HOST)
     base, gateway_secret = gateway_config()
     if not gateway_secret:
         fail("missing Gateway secret; run './kitty up' first")
@@ -338,17 +410,11 @@ def runtime_env() -> dict[str, str]:
             "WEBUI_URL": f"http://{HOST}:{PORT}",
             "WEBUI_NAME": "Kitty",
             "DEFAULT_PROMPT_SUGGESTIONS": STARTER_PROMPTS,
-            # A phone is the common case, not the exception.
             "ENABLE_TITLE_GENERATION": "True",
             "ENABLE_AUTOCOMPLETE_GENERATION": "False",
             "ENABLE_MESSAGE_RATING": "False",
             "ENABLE_TAGS_GENERATION": "False",
             "WEBUI_AUTH": "False",
-            # 0.10.2 inserts a new account with DEFAULT_USER_ROLE (normally
-            # "pending") and only promotes it when it is the only row *after*
-            # the insert. Concurrent first-load signins therefore leave every
-            # account pending — the "Account Activation Pending" wall Jacob hit.
-            # This is a single-user local install; there is no one to approve.
             "DEFAULT_USER_ROLE": "admin",
             "ENABLE_OPENAI_API": "True",
             "OPENAI_API_BASE_URL": f"{base}/v1",
@@ -357,14 +423,10 @@ def runtime_env() -> dict[str, str]:
             "ENABLE_OLLAMA_API": "False",
             "DEFAULT_MODELS": DEFAULT_AGENT,
             "DEFAULT_PINNED_MODELS": PINNED_AGENTS,
-            # Titles and tag suggestions are throwaway work; they do not need
-            # the tier the conversation is on.
             "TASK_MODEL_EXTERNAL": TASK_MODEL,
             "ENABLE_PERSISTENT_CONFIG": "False",
             "ENABLE_VERSION_UPDATE_CHECK": "False",
             "ENABLE_COMMUNITY_SHARING": "False",
-            # Open WebUI ships an "arena-model" entry that appears next to
-            # kitty-default in the model menu and routes nowhere Kitty owns.
             "ENABLE_EVALUATION_ARENA_MODELS": "False",
             "ANONYMIZED_TELEMETRY": "False",
             "DO_NOT_TRACK": "true",
@@ -372,9 +434,7 @@ def runtime_env() -> dict[str, str]:
             "ENABLE_BASE_MODELS_CACHE": "True",
             "MODELS_CACHE_TTL": "300",
             "SAFE_MODE": "True",
-            "CORS_ALLOW_ORIGIN": (
-                f"http://{HOST}:{PORT};http://localhost:{PORT}"
-            ),
+            "CORS_ALLOW_ORIGIN": f"http://{HOST}:{PORT};http://localhost:{PORT}",
             "UVICORN_WORKERS": "1",
         }
     )
