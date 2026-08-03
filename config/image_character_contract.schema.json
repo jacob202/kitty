@@ -15,22 +15,38 @@
   ],
   "properties": {
     "schema_version": {"const": 1},
-    "character_id": {"type": "string", "minLength": 1},
+    "character_id": {"type": "string", "minLength": 1, "maxLength": 160},
     "name": {"type": "string", "minLength": 1, "maxLength": 120},
     "description": {
       "type": "object",
       "additionalProperties": false,
       "required": ["appearance", "preserve", "exclude"],
       "properties": {
-        "appearance": {"type": "string", "minLength": 1},
-        "preserve": {"type": "array", "items": {"type": "string", "minLength": 1}},
-        "exclude": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        "appearance": {"type": "string", "minLength": 1, "maxLength": 8000},
+        "preserve": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 500}
+        },
+        "exclude": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 500}
+        }
       }
     },
     "identity": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["method", "base_family", "fusion_method", "references"],
+      "required": [
+        "method",
+        "base_family",
+        "adapter_model",
+        "adapter_strength",
+        "fusion_method",
+        "allow_generated_derivatives",
+        "references"
+      ],
       "properties": {
         "method": {
           "enum": [
@@ -42,13 +58,13 @@
             "trained_adapter"
           ]
         },
-        "base_family": {"type": "string", "minLength": 1},
-        "adapter_model": {"type": ["string", "null"]},
+        "base_family": {"type": "string", "minLength": 1, "maxLength": 160},
+        "adapter_model": {"type": ["string", "null"], "minLength": 1, "maxLength": 500},
         "adapter_strength": {"type": "number", "minimum": 0, "maximum": 2},
         "fusion_method": {
           "enum": ["single", "equal_mean", "weighted_mean", "concat", "max"]
         },
-        "allow_generated_derivatives": {"type": "boolean", "default": false},
+        "allow_generated_derivatives": {"type": "boolean"},
         "references": {
           "type": "array",
           "maxItems": 12,
@@ -63,10 +79,11 @@
               "weight",
               "face_weight",
               "body_weight",
-              "quality_score"
+              "quality_score",
+              "notes"
             ],
             "properties": {
-              "ref_id": {"type": "string", "minLength": 1},
+              "ref_id": {"type": "string", "minLength": 1, "maxLength": 160},
               "purpose": {
                 "enum": [
                   "primary_face",
@@ -84,33 +101,61 @@
               "face_weight": {"type": "number", "minimum": 0, "maximum": 1},
               "body_weight": {"type": "number", "minimum": 0, "maximum": 1},
               "quality_score": {"type": "number", "minimum": 0, "maximum": 1},
-              "notes": {"type": ["string", "null"]}
+              "notes": {"type": ["string", "null"], "maxLength": 2000}
             }
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"method": {"const": "description_only"}}},
+          "then": {"properties": {"adapter_model": {"type": "null"}}},
+          "else": {
+            "properties": {
+              "adapter_model": {"type": "string", "minLength": 1, "maxLength": 500}
+            }
+          }
+        }
+      ]
     },
     "prompt": {
       "type": "object",
       "additionalProperties": false,
       "required": ["positive", "negative"],
       "properties": {
-        "positive": {"type": "string"},
-        "negative": {"type": "string"}
+        "positive": {"type": "string", "maxLength": 8000},
+        "negative": {"type": "string", "maxLength": 8000}
       }
     },
     "recipe": {
       "type": "object",
-      "additionalProperties": true,
-      "required": ["recipe_id", "engine"],
+      "additionalProperties": false,
+      "required": ["recipe_id", "engine", "engine_options"],
       "properties": {
-        "recipe_id": {"type": "string", "minLength": 1},
-        "engine": {"type": "string", "minLength": 1},
-        "sampler": {"type": ["string", "null"]},
-        "scheduler": {"type": ["string", "null"]},
+        "recipe_id": {"type": "string", "minLength": 1, "maxLength": 160},
+        "engine": {"type": "string", "minLength": 1, "maxLength": 160},
+        "sampler": {"type": ["string", "null"], "maxLength": 160},
+        "scheduler": {"type": ["string", "null"], "maxLength": 160},
         "steps": {"type": ["integer", "null"], "minimum": 1},
-        "guidance": {"type": ["number", "null"]},
-        "denoise": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+        "guidance": {"type": ["number", "null"], "minimum": 0},
+        "denoise": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "width": {"type": ["integer", "null"], "minimum": 64},
+        "height": {"type": ["integer", "null"], "minimum": 64},
+        "checkpoint": {"type": ["string", "null"], "maxLength": 500},
+        "compatible_loras": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 500}
+        },
+        "incompatible_loras": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 500}
+        },
+        "engine_options": {
+          "type": "object",
+          "description": "Engine-specific settings that are passed only after capability validation."
+        }
       }
     }
   }
