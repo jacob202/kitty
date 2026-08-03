@@ -37,7 +37,10 @@ def _write_receipt(path: Path, **overrides) -> None:
         "packet_id": "packet-7",
         "branch": "builder/dogfood",
         "head_sha": "a" * 40,
-        "notes": "DeepSeek V4 Pro supervised DeepSeek V4 Flash via OpenRouter; slow metadata-heavy run",
+        "notes": (
+            "model DeepSeek V4 Pro supervised model DeepSeek V4 Flash via "
+            "provider OpenRouter; slow metadata-heavy run"
+        ),
     }
     receipt.update(overrides)
     path.parent.mkdir(parents=True, exist_ok=True)
