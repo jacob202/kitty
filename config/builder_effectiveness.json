@@ -31,6 +31,8 @@
   ],
   "decision": {
     "on_tripwire": "pause",
+    "on_missing_core_metrics": "insufficient_evidence",
+    "on_missing_required_metrics_after_observation_window": "pause",
     "message": "Builder is preserving execution state but is not producing accepted outcomes efficiently. Pause, diagnose the repeated cause, reconsider packet decomposition and model assignment, then resume only with a bounded hypothesis."
   }
 }
