@@ -64,7 +64,12 @@ def get_pr_diff() -> tuple[str, int, str, str, str]:
     pr_number = int(pr.get("number", 0))
     head_sha = str(pr.get("head", {}).get("sha", ""))
 
+    # The repository is private: fetching the diff anonymously 404s, so send the
+    # Actions token just like the review post and OpenRouter calls below do.
+    token = os.environ.get("GITHUB_TOKEN") or ""
     req = Request(diff_url)
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
     with urlopen(req, timeout=30) as resp:
         diff = resp.read().decode("utf-8")
 

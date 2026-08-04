@@ -27,36 +27,21 @@ ui-test:
 ui-build:
 	cd gateway/kitty-chat && node node_modules/next/dist/bin/next build
 
-# Bind the UI on all interfaces so the phone can reach it over Tailscale.
-# The gateway stays loopback-only; the Next proxy talks to it server-side.
 ui-tailnet:
 	cd gateway/kitty-chat && node node_modules/next/dist/bin/next dev -H 0.0.0.0 -p 4000
 
-# Visual diff harness: screenshot a fixed set of routes against
-# data/visual-baselines/. Fails with a non-zero exit when any pixel changed.
-# Requires the dev server running at $VISUAL_DIFF_BASE_URL (default localhost:4000).
 visual-diff:
 	cd gateway/kitty-chat && npx tsx scripts/visual-diff.ts
 
-# Overwrite the baselines with whatever is on screen right now. Use only when
-# an intentional visual change ships — KX acceptance criteria call this out.
 visual-diff-update:
 	cd gateway/kitty-chat && npx tsx scripts/visual-diff.ts --update
 
-# Automated UI code review — runs static analysis for design-system violations,
-# accessibility gaps, mobile-safe-area issues, and common UI bugs. Zero-config.
-# Exits non-zero when errors are found (warnings + info don't fail the build).
 swarm-review:
 	cd gateway/kitty-chat && npx tsx scripts/swarm-review.ts
 
-# Dogfood — drives Kitty through real user flows (home, chat, tutor, all surfaces).
-# Requires a running dev server (cd gateway/kitty-chat && npm run dev).
-# Exits non-zero on any flow failure. Run after every UI change.
 dogfood:
 	cd gateway/kitty-chat && npx tsx scripts/dogfood.ts
 
-# Single command for "is Kitty healthy enough to demo?" — the things I had to
-# run separately while dogfooding today, bundled into one exit code.
 healthcheck:
 	./kitty doctor --json | python3.12 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('summary',{}).get('fail',0)==0 else 1)"
 	./kitty builder initiative doctor --json | python3.12 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('ok') else 1)"
@@ -70,11 +55,17 @@ trust-eval:
 		exit 2; \
 	fi
 	@BASE_URL="$${KITTY_EVAL_BASE_URL:-http://127.0.0.1:8000}"; \
-	curl -fsS "$$BASE_URL/proxy/health" >/dev/null || { \
-		echo "Kitty Gateway is not healthy at $$BASE_URL/proxy/health. Run ./kitty up first."; \
+	SECRET="$${GATEWAY_SECRET:-$$(python3.12 -c 'import os; from dotenv import load_dotenv; load_dotenv(".env"); print(os.getenv("GATEWAY_SECRET", ""))')}"; \
+	if [ -z "$$SECRET" ]; then \
+		echo "GATEWAY_SECRET is unavailable. Configure it in .env before running live evals."; \
+		exit 1; \
+	fi; \
+	curl -fsS "$$BASE_URL/health" >/dev/null || { \
+		echo "Kitty Gateway is not healthy at $$BASE_URL/health. Run ./kitty up first."; \
 		exit 1; \
 	}; \
 	mkdir -p data/promptfoo; \
+	GATEWAY_SECRET="$$SECRET" \
 	KITTY_EVAL_BASE_URL="$$BASE_URL" \
 	KITTY_EVAL_MODEL="$${KITTY_EVAL_MODEL:-kitty-default}" \
 	PROMPTFOO_CONFIG_DIR="$(CURDIR)/data/promptfoo" \
@@ -89,8 +80,6 @@ trust-eval:
 		-j 1 \
 		--output data/promptfoo/kitty-trust-latest.json
 
-# Open the dev UI in the user's default browser with a checklist of what to
-# click — the loop I had to run by hand while dogfooding today, automated.
 preview:
 	@echo "Open http://localhost:4000 (or http://$(shell ipconfig getifaddr en0 2>/dev/null || echo "<tailscale-ip>"):4000 from your phone)"
 	@echo ""
@@ -105,9 +94,6 @@ preview:
 	@echo "  8. Settings: gateway live, routing live, models loaded"
 	@open "http://localhost:4000" 2>/dev/null || xdg-open "http://localhost:4000" 2>/dev/null || echo "(no browser opener; open the URL manually)"
 
-# Print what a branch would do to the UI: boot its worktree, snapshot,
-# return the diff PNG path inline. For vibe-coder review of KX packets
-# without manually checking out every branch.
 diff-pr:
 	@if [ -z "$$BRANCH" ]; then echo "usage: make diff-pr BRANCH=<name>"; exit 2; fi
 	@echo "Diff for $$BRANCH against main:"
