@@ -6,7 +6,6 @@ from gateway.skill_registry import (
     suggest,
 )
 
-
 SKILL_NAME = "aim42-software-improvement"
 
 

@@ -2,7 +2,7 @@
 
 Branch: `feat/openwebui-tomorrow-ready` · PR: #384
 
-Machine-readable acceptance state: `docs/plans/openwebui-onboarding-checklist.json`  
+Machine-readable acceptance state: `docs/plans/openwebui-onboarding-checklist.json`
 Operator runbook: `docs/runbooks/OPENWEBUI_TOMORROW.md`
 
 ## Current objective

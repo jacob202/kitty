@@ -34,32 +34,17 @@ def _strip_openrouter_prefix(model: str) -> str:
 
 
 def normalize_direct_openrouter_models() -> None:
-    """Keep LiteLLM compatibility while sending native IDs to OpenRouter.
+    """Ensure the direct OpenRouter provider always receives native model IDs.
 
-    Older Kitty callers expect ``_openrouter_fallback_model`` to return a
-    LiteLLM-qualified ``openrouter/...`` value. OpenRouter's own HTTP API rejects
-    that transport prefix. Normalize the shared aliases, retain the legacy helper
-    contract for internal callers, and strip the prefix only in the direct
-    provider resolver that writes the actual OpenRouter request payload.
+    ``openrouter/`` is a LiteLLM transport prefix, not part of OpenRouter's
+    native model identifier. Keep the shared fallback map and helper native so
+    every direct caller sees the same valid value. The provider resolver also
+    strips a mistakenly prefixed environment override at the final boundary.
     """
     from gateway import llm_client
 
     for alias, model in tuple(llm_client._LITELLM_TO_OPENROUTER.items()):
         llm_client._LITELLM_TO_OPENROUTER[alias] = _strip_openrouter_prefix(model)
-
-    fallback = llm_client._openrouter_fallback_model
-    if not getattr(fallback, "_kitty_litellm_qualified_ids", False):
-
-        def qualified_fallback(litellm_model: str) -> str:
-            resolved = fallback(litellm_model)
-            if os.environ.get("KITTY_OPENROUTER_DIRECT_MODEL", "").strip():
-                return resolved
-            if litellm_model not in llm_client._LITELLM_TO_OPENROUTER:
-                return resolved
-            return resolved if resolved.startswith("openrouter/") else f"openrouter/{resolved}"
-
-        qualified_fallback._kitty_litellm_qualified_ids = True  # type: ignore[attr-defined]
-        llm_client._openrouter_fallback_model = qualified_fallback
 
     provider = llm_client.PROVIDERS.get("openrouter")
     if provider is None or provider.model_resolver is None:

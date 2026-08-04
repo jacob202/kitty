@@ -325,3 +325,36 @@ def test_menu_ids_normalize_onto_litellm_routes():
     assert normalize("kitty-auto") == model_routing.LITELLM_DEFAULT
     assert normalize("kitty-fast") == model_routing.LITELLM_SMALL
     assert normalize("kitty-code") == model_routing.LITELLM_CODE
+
+
+def test_auto_routes_an_image_turn_to_vision():
+    """An image-only turn reduces to an empty string, so the complexity
+    classifier has no modality signal and can only pick a text tier — the upload
+    then silently reaches a model that cannot read it."""
+    decision = model_routing.resolve_chat_route(
+        "kitty-auto", "", reroute_virtual_models=True, has_image=True
+    )
+
+    assert decision.model == model_routing.LITELLM_VISION
+    assert decision.source == "modality"
+
+
+def test_auto_honours_the_domain_classification():
+    """The route re-classified without the domain the endpoint had already
+    computed, so a domain-deep turn was routed as if it were not while telemetry
+    still reported deep."""
+    with_domain = model_routing.resolve_chat_route(
+        "kitty-auto", "I have a fever", reroute_virtual_models=True, domain="health"
+    )
+    from gateway.reasoning import classify_complexity
+
+    assert with_domain.tier == classify_complexity("I have a fever", domain="health").tier
+
+
+def test_a_pinned_choice_still_wins_over_an_image():
+    decision = model_routing.resolve_chat_route(
+        "kitty-code", "fix this", reroute_virtual_models=True, has_image=True
+    )
+
+    assert decision.model == model_routing.LITELLM_CODE
+    assert decision.source == "request"

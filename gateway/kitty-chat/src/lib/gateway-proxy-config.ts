@@ -18,6 +18,46 @@ export function resolveGatewaySecret(
   return proxySecret?.trim() || gatewaySecret?.trim() || ''
 }
 
+function parseHost(host: string | undefined): URL | null {
+  const value = host?.trim()
+  if (!value) return null
+
+  try {
+    return new URL(`http://${value}`)
+  } catch {
+    return null
+  }
+}
+
+export function isLoopbackHost(host: string | undefined): boolean {
+  const parsed = parseHost(host)
+  if (!parsed) return false
+
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+}
+
+export function isTrustedProxyRequest(
+  host: string | undefined,
+  origin: string | undefined
+): boolean {
+  const parsedHost = parseHost(host)
+  if (!parsedHost || !isLoopbackHost(host)) return false
+  if (!origin) return true
+
+  try {
+    const parsedOrigin = new URL(origin)
+    return (
+      parsedOrigin.protocol === 'http:' &&
+      parsedOrigin.hostname.replace(/^\[|\]$/g, '').toLowerCase() ===
+        parsedHost.hostname.replace(/^\[|\]$/g, '').toLowerCase() &&
+      parsedOrigin.port === parsedHost.port
+    )
+  } catch {
+    return false
+  }
+}
+
 export function parseEnvText(text: string): Record<string, string> {
   const values: Record<string, string> = {}
 
