@@ -1,158 +1,111 @@
 # Kitty Architecture
 
-**Date:** 2026-07-17
-**Status:** Canonical current architecture
+**Verified:** 2026-08-04 against repository evidence through `main` `c266b13c0c694929c728a3f3861187f56229dbac`.
 
-## Runtime
+## System boundary
 
-Kitty runs locally on Jacob's Mac.
+```text
+Jacob
+  ↕
+Open WebUI / other replaceable clients
+  ↕
+Kitty Gateway — product authority
+  ├─ context assembly and memory reads
+  ├─ projects, documents, Tutor, tools, automations, and image contracts
+  ├─ model/provider policy through LiteLLM and direct provider adapters
+  └─ approved Mission → KittyBuilder → structured Result/Evidence
+```
 
-| Process | Default | Purpose |
+### Kitty
+
+Kitty is the principal product system. It owns:
+
+- conversation behavior and continuity;
+- personal context and memory retrieval;
+- projects, documents, artifacts, Tutor, tools, and automations;
+- model/provider policy and truthful error presentation;
+- turning approved intent into a versioned Mission;
+- presenting Builder results, evidence, blockers, and approval requests.
+
+Kitty must remain useful when KittyBuilder is unavailable.
+
+### KittyBuilder
+
+KittyBuilder is the engineering execution control plane. It owns:
+
+- accepted Missions and initiatives;
+- packets, queues, workers, leases, attempts, retries, and recovery;
+- worktrees, branches, validation, reviews, PR publication, budgets, and evidence;
+- durable execution truth through its supported database, API, and CLI.
+
+Models, coding harnesses, GitHub comments, handoff prose, and UIs are adapters or projections—not execution authorities.
+
+### Clients
+
+ADR 0027 authorizes pinned stock Open WebUI as the current replaceable local daily-driver shell. Canonical Kitty state and business logic remain outside it.
+
+The custom Next.js client under `gateway/kitty-chat/` remains a retained fallback and development surface. Its supported commands bind to `127.0.0.1`; unauthenticated LAN/tailnet exposure is not supported.
+
+## Runtime processes
+
+| Process | Default address | Responsibility |
 |---|---|---|
-| Gateway | `127.0.0.1:${GATEWAY_PORT:-8000}` | FastAPI API, memory, tools, chat, capture |
-| LiteLLM | `127.0.0.1:${LITELLM_PORT:-8001}` | Model proxy and routing |
-| kitty-chat | `127.0.0.1:4000` in dev | Next.js UI |
+| Gateway | `127.0.0.1:8000` | Product APIs, chat boundary, memory, projects, tools, capture, Tutor, Builder projections |
+| LiteLLM | `127.0.0.1:8001` | Model proxy, routing, and fallback |
+| Open WebUI | `127.0.0.1:3000` | Replaceable daily-driver shell |
+| `kitty-chat` | `127.0.0.1:4000` | Retained alternate client and development surface |
 
-The `./kitty` launcher is the preferred local entrypoint. Older shell scripts remain for compatibility but should not be treated as product architecture.
+`./kitty` is the preferred service entrypoint. `scripts/openwebui_local.py` owns supported Open WebUI bootstrap, verification, backup, restore, and rollback operations.
 
-## Request Flow
-
-```text
-Browser / Raycast / Telegram / Siri
-  -> Gateway routes in gateway/routes/ (thin handlers)
-  -> context_assembler (deep prompt-assembly pipeline)
-  -> memory_graph + context_enrichment (read fan-in)
-  -> llm_client (table-driven provider dispatcher + fallback chain)
-  -> LiteLLM and provider fallback chain
-```
-
-The gateway is the product. Clients should be thin views over gateway APIs.
-
-## Project control plane
-
-ADR 0017 defines the control-plane boundary:
+## Request flow
 
 ```text
-Jacob ↔ Kitty → approved Mission → KittyBuilder → Result/Evidence → Kitty
+client request
+  → Gateway route
+  → domain module
+  → context_assembler
+  → memory_graph + bounded enrichment
+  → llm_client / LiteLLM / provider adapter
+  → streamed result with provider/model/error attribution
 ```
 
-Kitty is the principal product agent and intent compiler. It selectively
-retrieves relevant context, identifies missing or contradictory inputs,
-challenges assumptions, plans evidence, and selects an execution strategy. A
-versioned Mission is the only durable command crossing into Builder.
+Routes should remain thin. Product logic belongs in domain modules and established boundaries, not in clients or route handlers.
 
-KittyBuilder is the execution organization. Its existing initiative, packet,
-task, attempt, lease, run, review, recovery, budget, and publication stores own
-execution truth. Replaceable models and Orca are workers/adapters, never
-authorities. Builder returns structured result and evidence references. Direct
-table coupling, a second Builder state machine, and a permanent project-manager
-agent runtime are not part of this architecture.
+## State ownership
 
-The contract is ratified but autonomous Mission submission is not implemented.
-The cockpit provides explicit, confirmed operator commands through canonical
-Builder APIs; it does not submit Missions or infer authorization.
-
-## Important Modules
-
-| Path | Responsibility |
+| State | Authority |
 |---|---|
-| `gateway/app.py` | FastAPI app setup, middleware, lifespan |
-| `gateway/routes/register.py` | Route registration |
-| `gateway/routes/` | API route modules (thin — delegate to domain modules) |
-| `gateway/paths.py` | Path constants |
-| `gateway/context_assembler.py` | Deep prompt/context assembly pipeline (10-step) |
-| `gateway/memory_graph.py` | Unified read path across memory stores (adapters, `Item`, `GraphResult`) |
-| `gateway/llm_client.py` | Table-driven provider dispatcher + 6-provider fallback chain |
-| `gateway/storage_router.py` | Write seam for app-state stores |
-| `gateway/storage_sync.py` | Export/import snapshot for app-state (replaces former `storage_io` + `sync`) |
-| `gateway/domain_router.py` | Keyword domain classifier (soul/repair/health/research/code) |
-| `gateway/prompts.py` | Inline prompt catalog + on-disk prompt loader (`load_prompt`) |
-| `gateway/agent_runner.py` | Background agent loop + Algorithm reasoning phases |
-| `gateway/desktop_store.py` | Quick Capture inbox writer/status helper |
-| `gateway/cron.py` | Local scheduled actions |
-| `gateway/kitty-chat/` | Next.js UI |
-| `gateway/builder_status.py` | Bounded read-only projection over Builder-owned state |
-| `gateway/context_receipt.py` | Derived repository/continuity receipt; owns no durable state |
+| Product data | Kitty application stores behind established storage modules |
+| Context reads | `memory_graph` |
+| Builder execution | Builder database/API/CLI |
+| Architectural decisions | Accepted ADRs |
+| Delivery order | `docs/ROADMAP.md` |
+| Current approved work | `docs/ACTIVE_MISSION.md` |
+| Repository evidence | Git, GitHub, CI, and supported probes |
+| Session continuation | `.claude/STATE.md` and `.claude/HANDOFF.md` only while identity metadata remains valid |
 
-## Domain Modules (route islands)
+Storage is intentionally mixed: SQLite for canonical structured state, JSONL for append-oriented records, JSON for configuration/small state, ChromaDB and mem0 for semantic/reference memory, and filesystem artifacts for logs and evidence. New storage systems require an ADR.
 
-Route files are thin handlers that delegate product logic to domain modules:
+## Non-negotiable invariants
 
-| Domain module | Route file |
-|---|---|
-| `gateway/dream_insights.py` | `routes/dream.py` |
-| `gateway/feedback.py` | `routes/feedback.py` |
-| `gateway/insights.py` | `routes/insights.py` |
-| `gateway/loops.py` | `routes/loops.py` |
-| `gateway/monitors.py` | `routes/monitors.py` |
-| `gateway/perf.py` | `routes/perf.py` |
-| `gateway/prompts_catalog.py` | `routes/prompts.py` |
+- The Gateway remains the product authority.
+- Clients remain replaceable and do not own canonical Kitty business logic.
+- Builder state is never duplicated into a second queue or state machine.
+- Missing, stale, unavailable, or unverified evidence is reported explicitly.
+- Explicit provider selection fails loudly when unavailable; no silent paid fallback.
+- Access, retrieval, monitoring, memory, and action permissions remain separate.
+- Secrets are never committed, logged, or exposed to unauthenticated clients.
+- Custom local clients bind to loopback unless a separately reviewed authentication boundary exists.
+- User-facing capability is not called shipped until its real workflow is proven end to end.
 
-## Storage
+## Current proof gaps
 
-Current storage is mixed:
+Repository CI is green for Python tests, lint, typing, hygiene, Kitty Chat tests/build, and browser smoke. It does not prove:
 
-- JSONL: inbox, journal, logs, feedback, traces
-- SQLite (`KITTY_DB_FILE`): todos, chats, journal_entries, buddy_state, plugin_settings — via `gateway/db.py`
-- SQLite (subsystem DBs): cron, builds, task_queue, ingestion, web_monitors, autonomy, model_digest, signals — each module manages its own connection (see ADR-0001)
-- ChromaDB: reference knowledge vectors
-- mem0: semantic/personal memory
-- JSON: config and small state files
+- Jacob's current local process, launchd, credential, quota, or provider state;
+- a clean-start Open WebUI chat/persistence/restart workflow on Jacob's Mac;
+- the full real-phone insight return loop in #270;
+- paid image quality or likeness outcomes;
+- current local Builder queue state.
 
-### Signals
-
-`gateway/signal_store.py` is the append table for connector and system events (P1). It lives in the main Kitty SQLite database and is consumed by `gateway/memory_graph.py` via `SignalsAdapter`.
-
-Signal shape:
-
-```json
-{
-  "id": 1,
-  "ts": 1719900000.0,
-  "source": "web_monitor",
-  "kind": "watch_match",
-  "payload": {"watch_id": "abc123", "label": "Example"},
-  "seen": false
-}
-```
-
-`seen` is derived from the SQLite `processed_at` column (`seen` is true when `processed_at` is non-null). Emitters include:
-
-- `gateway/web_monitor.py` — emits a `web_monitor` signal on content change or keyword match.
-- `gateway/nudge.py` — emits a `nudge` signal for each active nudge, deduped by nudge id.
-
-Phase B consolidates app-owned episodic state behind a single SQLite story. It does not migrate ChromaDB, mem0, imported raw knowledge, logs, or backups first.
-
-## Architecture Rules
-
-- New context reads go through `memory_graph`.
-- App-state writes go through `storage_router`. Subsystem writes may use direct stores.
-- Do not put product logic in route files — delegate to domain modules.
-- Do not silently recover from storage or network failures; surface the failure clearly.
-- Do not add a new database, queue, cloud service, or mobile sync without an ADR.
-- Keep access, retrieval, monitoring, memory, and action permissions separate.
-- Build context selectively; missing context and stale evidence remain explicit.
-- Optimize routing for verified quality per cost, escalating only when justified.
-
-## Removed Modules
-
-The following shallow modules were deleted (deepening passes):
-
-**2026-07-02 pass:**
-
-- `gateway/llm_utils.py` — one retry function, sole caller was `llm_client`; inlined.
-- `gateway/prompt_loader.py` — 25-line pass-through; folded into `prompts.py`.
-- `gateway/algorithm.py` — leaf helper with one consumer; folded into `agent_runner.py`.
-- `gateway/agents.py` — orphaned persona loader; never imported by any module.
-- `gateway/storage_io.py` — backup/restore; merged into `storage_sync.py`.
-- `gateway/sync.py` — export logic; merged into `storage_sync.py`.
-- `gateway/domain_router.py` ABC layer — `DomainClassifier`/`_classify_cached`/`classifier` param; dead (no second implementation).
-
-**Track C pass (2026-07-06):**
-
-- `gateway/smoke_eval.py` — orphaned smoke-suite harness; deleted with its `gateway/eval_domain.py` substrate.
-- `gateway/eval_domain.py` — evaluation domain types only consumed by the deleted `smoke_eval.py`.
-- `gateway/parts.py` — small parts-mode helper; folded into `gateway/context_assembler.py`.
-- `gateway/prompts_catalog.py` — template list with one route consumer; folded into `gateway/prompts.py`.
-- `gateway/success_criteria.py` — ISA-lite derive/check helper; folded into `gateway/builder.py`.
-- `gateway/voice_session.py` — 19-line re-export shim with no callers; deleted.
+Those remain runtime verification tasks, not architecture claims.
