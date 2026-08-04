@@ -18,7 +18,7 @@ Kitty Gateway — product authority
 
 ### Kitty
 
-Kitty is the principal product system. It owns:
+Kitty is the principal product agent and system. It owns:
 
 - conversation behavior and continuity;
 - personal context and memory retrieval;
