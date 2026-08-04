@@ -31,7 +31,7 @@ Leave Kitty with one trustworthy operating picture and one proven daily-driver p
 6. Inventory active workflows and prepare enforceable default-branch protection through #399, retiring only conclusively obsolete automation.
 7. Preserve unique historical work and keep image Git history unchanged.
 
-## Acceptance
+## Acceptance Contract
 
 - `README.md`, Architecture, Decisions, Roadmap, Project Status, and this mission agree.
 - Main passes pytest, lint, typecheck, hygiene, Kitty Chat tests/build, and browser smoke.
