@@ -31,7 +31,7 @@ Kitty must remain useful when KittyBuilder is unavailable.
 
 ### KittyBuilder
 
-KittyBuilder is the engineering execution control plane. It owns:
+KittyBuilder is the execution organization and engineering control plane. It owns:
 
 - accepted Missions and initiatives;
 - packets, queues, workers, leases, attempts, retries, and recovery;
