@@ -49,6 +49,7 @@ def test_first_discovery_records_every_model_as_unevaluated_candidate(tmp_path):
                 _row("vendor/new-vision", modalities=["text", "image"]),
             ]
         },
+        include_existing=True,
     )
 
     assert result.total_models == 2
