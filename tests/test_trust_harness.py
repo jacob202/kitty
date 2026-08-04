@@ -27,7 +27,9 @@ def test_trust_harness_config_is_valid_and_live_gateway_scoped():
     assert provider_config["body"]["stream"] is False
     assert provider_config["maxRetries"] == 0
     assert provider_config["validateStatus"] == "status >= 200 && status <= 299"
-    assert "Authorization" not in provider_config.get("headers", {})
+    assert provider_config["headers"]["Authorization"] == (
+        "Bearer {{env.GATEWAY_SECRET}}"
+    )
 
 
 def test_trust_harness_has_bounded_regression_cases():
@@ -45,7 +47,7 @@ def test_trust_harness_has_bounded_regression_cases():
             assert assertion["type"].strip()
 
 
-def test_live_eval_make_target_is_cost_guarded_and_version_pinned():
+def test_live_eval_make_target_is_cost_guarded_version_pinned_and_authenticated():
     makefile = MAKEFILE_PATH.read_text(encoding="utf-8")
 
     assert "trust-eval:" in makefile
@@ -54,3 +56,7 @@ def test_live_eval_make_target_is_cost_guarded_and_version_pinned():
     assert "--no-cache" in makefile
     assert "KITTY_EVAL_BASE_URL" in makefile
     assert "KITTY_EVAL_MODEL" in makefile
+    assert 'curl -fsS "$$BASE_URL/health"' in makefile
+    assert "python3.12 -c" in makefile
+    assert "GATEWAY_SECRET=\"$$SECRET\"" in makefile
+    assert "/proxy/health" not in makefile
