@@ -53,23 +53,27 @@ def get_pr_diff() -> tuple[str, int, str, str, str]:
         print("No pull_request in event — not a PR event.", file=sys.stderr)
         sys.exit(0)
 
-    diff_url = pr.get("diff_url")
-    if not diff_url:
-        print("No diff_url in PR payload.", file=sys.stderr)
-        sys.exit(1)
-
     repo = event.get("repository", {})
     owner = repo.get("owner", {}).get("login", "")
     name = repo.get("name", "")
     pr_number = int(pr.get("number", 0))
     head_sha = str(pr.get("head", {}).get("sha", ""))
+    api_url = str(pr.get("url") or "")
+    if not api_url and owner and name and pr_number:
+        api_url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
+    if not api_url:
+        print("No API URL in PR payload.", file=sys.stderr)
+        sys.exit(1)
 
-    # The repository is private: fetching the diff anonymously 404s, so send the
-    # Actions token just like the review post and OpenRouter calls below do.
+    # GitHub's web .diff URL returns 404 for private repositories even when an
+    # Actions token is sent. Ask the authenticated REST PR endpoint for the diff
+    # representation instead.
     token = os.environ.get("GITHUB_TOKEN") or ""
-    req = Request(diff_url)
+    req = Request(api_url)
     if token:
         req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Accept", "application/vnd.github.v3.diff")
+    req.add_header("X-GitHub-Api-Version", "2022-11-28")
     with urlopen(req, timeout=30) as resp:
         diff = resp.read().decode("utf-8")
 
