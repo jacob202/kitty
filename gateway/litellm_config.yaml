@@ -49,9 +49,25 @@ model_list:
       api_key: os.environ/OPENROUTER_API_KEY
       max_tokens: 4096
 
+  # Reasoning tier. Deliberately not deepseek-v4-pro — that is what kitty-default
+  # already serves, so pointing "Think" at it made the menu entry a placebo.
+  - model_name: kitty-think
+    litellm_params:
+      model: openrouter/qwen/qwen3-235b-a22b-thinking-2507
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 16384
+
+  - model_name: kitty-code
+    litellm_params:
+      model: openrouter/qwen/qwen3-coder
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 16384
+
+  # mistral/mistral-small-latest is not an OpenRouter model id — this route
+  # answered 404 for every image Kitty ever sent it.
   - model_name: kitty-vision
     litellm_params:
-      model: openrouter/mistral/mistral-small-latest
+      model: openrouter/mistralai/mistral-small-3.2-24b-instruct
       api_key: os.environ/OPENROUTER_API_KEY
       max_tokens: 4096
 
