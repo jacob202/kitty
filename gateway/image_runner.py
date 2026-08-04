@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,7 @@ async def run(
     negative_prompt: str | None = None,
     parent_id: str | None = None,
     guidance_tags: list[str] | None = None,
+    source_image: bytes | None = None,
 ) -> JobResult:
     """Generate an image through the specified engine.
 
@@ -71,8 +73,20 @@ async def run(
     Invariant: if this function returns or raises, the job is in a terminal state.
     """
     engine = engine.strip().lower()
-    if engine not in {"comfyui", "drawthings"}:
-        raise ImageRunnerError(f"unknown engine {engine!r}; must be 'comfyui' or 'drawthings'")
+    if engine not in ENGINES:
+        raise ImageRunnerError(
+            f"unknown engine {engine!r}; must be one of {', '.join(sorted(ENGINES))}"
+        )
+
+    if engine == "flux":
+        return await _run_flux(
+            prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
+        )
+
+    if engine == "openrouter":
+        return await _run_openrouter(
+            prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
+        )
 
     if engine == "drawthings":
         return await _run_drawthings(
@@ -379,3 +393,238 @@ def _mark_failed(job_id: str, message: str) -> None:
         return
     image_jobs.update_job(job_id, normalized_error=message)
     image_jobs.transition(job_id, ImageJobStatus.FAILED)
+
+
+#: Engines ``run`` will dispatch to. comfyui and drawthings are local; openrouter
+#: is the hosted lane and the only one that spends money.
+ENGINES = frozenset({"comfyui", "drawthings", "flux", "openrouter"})
+
+#: Accepts image input as well as text, so the same route does img2img editing.
+OPENROUTER_IMAGE_MODEL = os.environ.get(
+    "KITTY_IMAGE_MODEL", "google/gemini-3.1-flash-image"
+)
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def paid_images_enabled() -> bool:
+    """Off unless Jacob turns it on.
+
+    Measured 2026-08-02: ~$0.067 per image on gemini-3.1-flash-image. Cheap next
+    to a rented GPU box, not free, and fal was retired over exactly this — so
+    nothing here spends until the switch is thrown. Read per call rather than at
+    import so the answer follows the environment.
+    """
+    return os.environ.get("KITTY_IMAGE_PAID_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def openrouter_images_available() -> tuple[bool, str]:
+    """Whether the hosted lane will run, and why not when it will not."""
+    if not paid_images_enabled():
+        return False, (
+            "Paid image generation is off. Every image costs about 7 cents. "
+            "Set KITTY_IMAGE_PAID_ENABLED=1 in .env and restart Kitty to turn it on."
+        )
+    if not os.environ.get("OPENROUTER_API_KEY", "").strip():
+        return False, "OPENROUTER_API_KEY is not set"
+    return True, ""
+
+
+async def _run_openrouter(
+    prompt: str,
+    *,
+    recipe: Any | None = None,
+    parent_id: str | None = None,
+    source_image: bytes | None = None,
+) -> JobResult:
+    """Hosted lane. Same job lifecycle as the local engines — one queue, one
+    history, one gallery, per the image-studio architecture."""
+    import base64
+
+    import httpx
+
+    enabled, reason = openrouter_images_available()
+    if not enabled:
+        raise ImageRunnerError(reason)
+
+    content: Any = prompt
+    if source_image is not None:
+        # The same model edits an uploaded image; identity survives far better
+        # than describing the photo and generating from scratch.
+        content = [
+            {"type": "text", "text": prompt},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": "data:image/png;base64,"
+                    + base64.b64encode(source_image).decode()
+                },
+            },
+        ]
+
+    job = image_jobs.create_job(
+        provider="openrouter",
+        operation="img2img" if source_image is not None else (
+            "variation" if parent_id else "txt2img"
+        ),
+        prompt=prompt,
+        parent_id=parent_id,
+        model_id=OPENROUTER_IMAGE_MODEL,
+        workflow_template_id=recipe.workflow_template_id if recipe else None,
+    )
+
+    try:
+        image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+        async with httpx.AsyncClient(timeout=300) as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}",
+                    "HTTP-Referer": "https://github.com/jacobbrizinski/kitty",
+                    "X-Title": "Kitty Image Studio",
+                },
+                json={
+                    "model": OPENROUTER_IMAGE_MODEL,
+                    "messages": [{"role": "user", "content": content}],
+                    "modalities": ["image", "text"],
+                },
+            )
+        if response.status_code != 200:
+            raise ImageRunnerError(
+                f"OpenRouter returned HTTP {response.status_code}: {response.text[:300]}"
+            )
+        payload = response.json()
+        message = payload["choices"][0]["message"]
+        images = message.get("images") or []
+        if not images:
+            # A text-only reply is usually a refusal; relay it rather than
+            # reporting a generic failure.
+            raise ImageRunnerError(
+                "the model returned no image: "
+                f"{str(message.get('content'))[:300] or 'no explanation given'}"
+            )
+        data_url = images[0]["image_url"]["url"]
+        data = base64.b64decode(data_url.split(",", 1)[1])
+        path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
+        image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
+    except Exception as exc:
+        _mark_failed(job.job_id, str(exc)[:500])
+        raise
+
+    return JobResult(
+        job_id=job.job_id,
+        filename=str(path),
+        engine="openrouter",
+        recipe=recipe.recipe_id if recipe else None,
+    )
+
+
+#: Black Forest Labs. flux-dev generates, flux-kontext-pro edits an existing
+#: image. Roughly a third the price of the Gemini lane and materially better at
+#: photoreal, which is why it is the hosted default.
+FLUX_API = "https://api.bfl.ai/v1"
+FLUX_GENERATE_MODEL = os.environ.get("KITTY_FLUX_MODEL", "flux-dev")
+FLUX_EDIT_MODEL = os.environ.get("KITTY_FLUX_EDIT_MODEL", "flux-kontext-pro")
+
+
+def flux_images_available() -> tuple[bool, str]:
+    """Whether the Flux lane will run, and why not when it will not."""
+    if not paid_images_enabled():
+        return False, (
+            "Paid image generation is off. Flux costs about 2.5 cents a picture. "
+            "Set KITTY_IMAGE_PAID_ENABLED=1 in .env and restart Kitty to turn it on."
+        )
+    if not os.environ.get("BFL_API_KEY", "").strip():
+        return False, "BFL_API_KEY is not set"
+    return True, ""
+
+
+async def _run_flux(
+    prompt: str,
+    *,
+    recipe: Any | None = None,
+    parent_id: str | None = None,
+    source_image: bytes | None = None,
+) -> JobResult:
+    """Black Forest Labs lane, on the shared job lifecycle.
+
+    BFL is submit-then-poll rather than a single call, and a moderated request
+    comes back as a status rather than an error — both are surfaced verbatim so
+    a refusal never reads as a crash.
+    """
+    import asyncio as _asyncio
+    import base64
+
+    import httpx
+
+    enabled, reason = flux_images_available()
+    if not enabled:
+        raise ImageRunnerError(reason)
+
+    model = FLUX_EDIT_MODEL if source_image is not None else FLUX_GENERATE_MODEL
+    payload: dict[str, Any] = {"prompt": prompt}
+    if source_image is not None:
+        payload["input_image"] = base64.b64encode(source_image).decode()
+    else:
+        payload["width"] = 1024
+        payload["height"] = 1024
+
+    job = image_jobs.create_job(
+        provider="flux",
+        operation="img2img"
+        if source_image is not None
+        else ("variation" if parent_id else "txt2img"),
+        prompt=prompt,
+        parent_id=parent_id,
+        model_id=model,
+        workflow_template_id=recipe.workflow_template_id if recipe else None,
+    )
+
+    try:
+        image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        headers = {"x-key": os.environ["BFL_API_KEY"], "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=180) as client:
+            submit = await client.post(f"{FLUX_API}/{model}", headers=headers, json=payload)
+            if submit.status_code != 200:
+                raise ImageRunnerError(
+                    f"Flux returned HTTP {submit.status_code}: {submit.text[:300]}"
+                )
+            polling_url = submit.json()["polling_url"]
+
+            image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+            for _ in range(150):
+                poll = await client.get(polling_url, headers={"x-key": headers["x-key"]})
+                state = poll.json()
+                status = state.get("status")
+                if status not in {"Pending", "Queued", "Processing"}:
+                    break
+                await _asyncio.sleep(2)
+            else:
+                raise TimeoutError("Flux did not finish within 5 minutes")
+
+        if status != "Ready":
+            # "Request Moderated" and "Content Moderated" arrive here. Say which.
+            raise ImageRunnerError(f"Flux did not produce an image: {status}")
+        sample = (state.get("result") or {}).get("sample")
+        if not sample:
+            raise ImageRunnerError("Flux reported Ready but returned no image")
+
+        async with httpx.AsyncClient(timeout=180) as client:
+            download = await client.get(sample)
+            download.raise_for_status()
+            data = download.content
+
+        path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
+        image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
+    except Exception as exc:
+        _mark_failed(job.job_id, str(exc)[:500])
+        raise
+
+    return JobResult(
+        job_id=job.job_id,
+        filename=str(path),
+        engine="flux",
+        recipe=recipe.recipe_id if recipe else None,
+    )
