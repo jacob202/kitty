@@ -1,54 +1,50 @@
-# Active Mission — Phase 2 Life-First Home Truth
+# Active Mission — Trustworthy Daily Driver
 
-**Roadmap phase:** Phase 2 ("Life-First Daily Driver") in `docs/ROADMAP.md`
-**Mission ID:** KLF-001
-**Status:** Running
-**Phase linkage:** This mission sits within Phase 2 of the roadmap. Phase 2 was
-not defined when KLF-001 was authored; the roadmap now defines it and this
-mission is its active execution thread.
+**Mission ID:** KTRUST-001  
+**Status:** Running  
+**Approved by:** Jacob on 2026-08-04  
+**Roadmap stage:** 1 — Trust baseline
 
 <!-- kitty-mission
 {
   "schema_version": 1,
-  "mission_id": "KLF-001",
+  "mission_id": "KTRUST-001",
   "status": "running",
-  "approved_at": "2026-07-31T11:29:42Z",
+  "approved_at": "2026-08-04T21:47:00Z",
   "approved_by": "Jacob",
-  "base_sha": "e3b4c7a4c4c6f8d1b08c39a4fae38a5b56a92835",
+  "base_sha": "c266b13c0c694929c728a3f3861187f56229dbac",
   "authority": "docs/ACTIVE_MISSION.md"
 }
 -->
 
 ## Objective
-Finish the recovered August life-first plan by making Home reliably expose one
-truthful life-project move, independently from active chat state or transient
-startup failures.
 
-## Authorization
-Jacob explicitly instructed OpenCode to recover, review, and execute the prior
-monthly plan, then approved reapplying the verified Home/Chat separation after
-a concurrent worktree reset.
+Leave Kitty with one trustworthy operating picture and one proven daily-driver path. Someone returning tomorrow must be able to tell what is authoritative, start Kitty, use the approved Open WebUI shell, recognize failures honestly, and know the next bounded task without reconstructing chat history.
 
 ## Scope
-1. Keep Home and Chat as separate product surfaces.
-2. Recover automatically from a transient Gateway health timeout.
-3. Ensure `/repairs` runs blocking checks outside the event loop.
-4. Label Builder transition-history defects accurately rather than as leases.
-5. Report healthy Kitty-owned listeners as running even when pidfiles are stale.
-6. Reconcile mission and checkpoint metadata with live Git state.
+
+1. Keep repository truth, architecture, roadmap, status, and active mission consistent.
+2. Maintain a green deterministic CI baseline and repair security/reliability defects before expansion.
+3. Land the isolated `pydantic-settings` security update.
+4. Prove the Open WebUI daily-driver path from clean start through real chat, persistence, restart, model/tool attribution, and understandable failure recovery.
+5. Complete one real #270 capture → return → respond loop on the phone/PWA with restart and deduplication evidence.
+6. Inventory active workflows and prepare enforceable default-branch protection through #399, retiring only conclusively obsolete automation.
+7. Preserve unique historical work and keep image Git history unchanged.
 
 ## Acceptance Contract
-- Home renders the life-first dashboard even when the active chat has messages.
-- A transient startup health failure retries and reaches the application.
-- Live Repairs reports the healthy Gateway and LiteLLM as healthy.
-- Builder rows lacking event history are not described as stale leases.
-- `./kitty status` reports healthy Kitty-owned listeners as running.
-- Focused frontend and backend tests pass.
-- The running app shows the same life-first step at desktop and mobile widths,
-  with no horizontal mobile overflow.
-- `./kitty context --agent` has no continuity failures.
 
-## Publication Authorization
-Jacob explicitly authorized commit, push, PR review, and merge for this mission.
-Secrets, auth, `.env`, paid execution, destructive data changes, new
-orchestration machinery, and unrelated product expansion remain excluded.
+- `README.md`, Architecture, Decisions, Roadmap, Project Status, and this mission agree.
+- Main passes pytest, lint, typecheck, hygiene, Kitty Chat tests/build, and browser smoke.
+- The vulnerable `pydantic-settings` pin is removed through an isolated green PR.
+- A clean local Open WebUI start produces a real streamed response, preserves the conversation across restart, and reports the actual model/provider or a useful failure.
+- One real #270 insight returns once at the intended time and records Act, Snooze, or Archive without duplication after restart.
+- The 51-workflow ledger exists and proposed required checks map to real CI contexts.
+- No image history is rewritten, purged, enumerated, or otherwise altered.
+
+## Stop rules
+
+Do not begin broad frontend redesign, Image Agent expansion, PAA refactoring, agent-pattern experiments, or new orchestration while this mission remains incomplete. Do not enable paid providers, GPU execution, or paid workflow behavior without explicit charge authorization.
+
+## Publication authorization
+
+Jacob authorized the repository maintenance, security corrections, documentation replacement, superseded-item closures, safe branch/workflow cleanup, and merges required for this mission. Destructive image-history changes are explicitly excluded.
