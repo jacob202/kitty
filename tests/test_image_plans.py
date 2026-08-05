@@ -315,13 +315,22 @@ class TestGuidanceToRenderer:
     async def test_runner_forwards_guidance_to_character_renderer(self, monkeypatch):
         """guidance_tags survive the runner → renderer boundary."""
         from gateway import image_runner
-        from gateway.image_characters import CharacterRef
 
         captured: dict = {}
 
-        class _Char:
-            character_id = "char_james"
-            name = "James"
+        resolved = {
+            "positive_prompt": "person",
+            "negative_prompt": "",
+            "reference_path": "/tmp/ref.png",
+            "identity_mode": "balanced",
+            "width": 1024,
+            "height": 1024,
+            "steps": 8,
+            "guidance": 4.5,
+            "recipe_id": "contract-v1",
+            "identity_method": "ipadapter_faceid",
+            "references": [{"ref_id": "ref-primary"}],
+        }
 
         async def fake_generate_with_character(**kwargs):
             captured.update(kwargs)
@@ -335,21 +344,20 @@ class TestGuidanceToRenderer:
         async def fake_available():
             return True
 
-        ref = CharacterRef(
-            ref_id="ref_1",
-            character_id="char_james",
-            storage_path="/tmp/ref.png",
-            is_primary=True,
-        )
+        async def fake_ready():
+            return True, "ready"
+
         monkeypatch.setattr("gateway.image_gen.is_available", fake_available)
         monkeypatch.setattr(
             "gateway.image_gen.generate_with_character", fake_generate_with_character
         )
         monkeypatch.setattr(
-            "gateway.image_characters.get_character", lambda _cid: _Char()
+            "gateway.image_character_contracts.resolve_comfyui_character",
+            lambda _cid: resolved,
         )
         monkeypatch.setattr(
-            "gateway.image_characters.list_character_refs", lambda _cid: [ref]
+            "gateway.image_character_contracts.comfyui_character_runtime_status",
+            fake_ready,
         )
 
         result = await image_runner._run_comfyui_character(

@@ -1,11 +1,12 @@
 """Image generation runner — deep module owning job lifecycle and engine dispatch.
 
 Routes become thin handlers: request model → run() → status-code mapping.
-The runner owns: job creation, engine dispatch, lifecycle transitions,
-artifact persistence, error normalization, and character-ref resolution.
+The runner owns job creation, engine dispatch, lifecycle transitions, artifact
+persistence, error normalization, and character-contract resolution.
 
 Invariant: if run() returns or raises, the job is in a terminal state.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -26,6 +27,7 @@ class ImageRunnerError(RuntimeError):
 @dataclass
 class JobResult:
     """Result of a successful image generation."""
+
     job_id: str
     filename: str
     prompt_id: str | None = None
@@ -48,29 +50,9 @@ async def run(
 ) -> JobResult:
     """Generate an image through the specified engine.
 
-    Args:
-        engine: Engine name ("comfyui" or "drawthings").
-        prompt: Generation prompt.
-        recipe: Optional Recipe object (from image_recipes). Records
-                workflow_template_id on the job; not yet used for workflow selection.
-        character_id: Optional character ID. If set, resolves the primary
-                      reference image and uses identity-preserving generation.
-        negative_prompt: Optional negative prompt override.
-        parent_id: Optional parent job ID for variations.
-        guidance_tags: Optional validated guidance tags. Carried through to the
-                       renderer request so guidance chosen at the plan boundary
-                       survives into what is actually rendered.
-
-    Returns:
-        JobResult with job_id, filename, and engine metadata.
-
-    Raises:
-        ImageRunnerError: On validation failure (e.g. character has no refs).
-        TimeoutError: On generation timeout.
-        ImageGenerationCancelled: If the job was canceled mid-flight.
-        RuntimeError: On engine/ComfyUI failure.
-
-    Invariant: if this function returns or raises, the job is in a terminal state.
+    A character ID is not merely a request to pick the first stored photo. It
+    requires a valid character contract whose identity method, reference set,
+    weights, prompt fragments, and recipe can all be honored by the engine.
     """
     engine = engine.strip().lower()
     if engine not in ENGINES:
@@ -90,10 +72,11 @@ async def run(
 
     if engine == "drawthings":
         return await _run_drawthings(
-            prompt, recipe=recipe, parent_id=parent_id,
+            prompt,
+            recipe=recipe,
+            parent_id=parent_id,
         )
 
-    # ComfyUI path
     if character_id:
         return await _run_comfyui_character(
             prompt,
@@ -104,15 +87,14 @@ async def run(
         )
 
     return await _run_comfyui(
-        prompt, recipe=recipe, parent_id=parent_id, guidance_tags=guidance_tags,
+        prompt,
+        recipe=recipe,
+        parent_id=parent_id,
+        guidance_tags=guidance_tags,
     )
 
 
-#: Fraction of the source image the sampler is allowed to rewrite. Low enough
-#: that identity survives, high enough that a requested change actually lands.
 DEFAULT_EDIT_DENOISE = 0.55
-
-#: The only workflow that consumes a source image as a real input (slice A4).
 EDIT_WORKFLOW_ID = "image_to_image_v1"
 
 
@@ -127,22 +109,7 @@ async def run_edit(
     checkpoint: str | None = None,
     seed: int | None = None,
 ) -> JobResult:
-    """Edit the anchor job's artifact, rather than rerolling from its prompt.
-
-    The anchor's rendered image is uploaded to the worker and passed to
-    ``image_to_image_v1`` as an actual workflow input, so what comes back is
-    derived from the selected result. A fresh text-to-image render whose prompt
-    merely contains preservation words is not an edit, and this path cannot
-    produce one — the workflow has a ``LoadImage`` node that must be bound.
-
-    Omitting *worker* resolves one from the operator's environment
-    (``KITTY_WORKER_URL`` and ``KITTY_WORKER_BEARER_TOKEN``). If either is
-    unset this raises rather than falling back to a default endpoint — sending
-    Jacob's images somewhere he did not configure is worse than not rendering.
-    Tests pass a stub instead.
-
-    Invariant: if this function returns or raises, the job is terminal.
-    """
+    """Edit the anchor job's artifact, rather than rerolling from its prompt."""
     if not 0 < denoise <= 1:
         raise ImageRunnerError(
             f"denoise must be within (0, 1], got {denoise}; 0 would return the "
@@ -196,7 +163,9 @@ async def run_edit(
         image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
 
         finished = await worker.wait(
-            submitted.job_id, timeout_seconds=600, poll_interval_seconds=2.0
+            submitted.job_id,
+            timeout_seconds=600,
+            poll_interval_seconds=2.0,
         )
         if not finished.outputs:
             raise ImageRunnerError(
@@ -207,15 +176,15 @@ async def run_edit(
         output_path = _persist_artifact(job.job_id, output.filename, artifact)
 
         image_jobs.update_job(
-            job.job_id, output_path=str(output_path), artifact_id=output.asset_id
+            job.job_id,
+            output_path=str(output_path),
+            artifact_id=output.asset_id,
         )
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, f"{type(exc).__name__}: {exc}")
         raise
     finally:
-        # Only close a client this call created; a caller-supplied worker
-        # belongs to the caller and may still be in use.
         if owns_worker:
             await worker.aclose()
 
@@ -230,11 +199,7 @@ async def run_edit(
 
 
 def _read_anchor_artifact(anchor_job_id: str) -> tuple[bytes, str]:
-    """Load the bytes a follow-up edit is supposed to build on.
-
-    Every rejection here happens before a job exists, so a missing or
-    unrenderable anchor fails at selection rather than as a mystery reroll.
-    """
+    """Load the bytes a follow-up edit is supposed to build on."""
     anchor = image_jobs.get_job(anchor_job_id)
     if anchor is None:
         raise ImageRunnerError(f"no image job {anchor_job_id!r} to edit from")
@@ -260,8 +225,6 @@ def _persist_artifact(job_id: str, filename: str, data: bytes) -> Path:
 
     out_dir = _paths.DATA_DIR / "images" / job_id
     out_dir.mkdir(parents=True, exist_ok=True)
-    # The worker chose this name; keep only its basename so a crafted response
-    # cannot write outside the job's own directory.
     target = out_dir / Path(filename).name
     target.write_bytes(data)
     return target
@@ -283,7 +246,6 @@ async def _run_drawthings(
         raise ImageRunnerError("Draw Things is not running")
 
     workflow_template_id = recipe.workflow_template_id if recipe else None
-
     job = image_jobs.create_job(
         provider="drawthings",
         operation="variation" if parent_id else "txt2img",
@@ -325,7 +287,11 @@ async def _run_comfyui(
     if not await is_available():
         raise ImageRunnerError("ComfyUI is not running")
 
-    result = await generate(prompt, parent_id=parent_id, guidance_tags=guidance_tags)
+    result = await generate(
+        prompt,
+        parent_id=parent_id,
+        guidance_tags=guidance_tags,
+    )
     return JobResult(
         job_id=result["job_id"],
         filename=result["filename"],
@@ -343,11 +309,11 @@ async def _run_comfyui_character(
     negative_prompt: str | None = None,
     guidance_tags: list[str] | None = None,
 ) -> JobResult:
-    """ComfyUI generation with character identity preservation."""
-    from gateway.image_characters import (
-        CharacterNotFoundError,
-        get_character,
-        list_character_refs,
+    """Generate through the exact stored character contract."""
+    from gateway.image_character_contracts import (
+        CharacterContractError,
+        comfyui_character_runtime_status,
+        resolve_comfyui_character,
     )
     from gateway.image_gen import generate_with_character, is_available
 
@@ -355,22 +321,37 @@ async def _run_comfyui_character(
         raise ImageRunnerError("ComfyUI is not running")
 
     try:
-        char = get_character(character_id)
-        refs = list_character_refs(character_id)
-    except CharacterNotFoundError as exc:
+        resolved = resolve_comfyui_character(character_id)
+    except CharacterContractError as exc:
         raise ImageRunnerError(str(exc)) from exc
 
-    primary = next((r for r in refs if r.is_primary), refs[0] if refs else None)
-    if not primary:
+    ready, readiness_reason = await comfyui_character_runtime_status()
+    if not ready:
         raise ImageRunnerError(
-            f"character {char.name!r} has no reference images — "
-            "upload at least one reference photo"
+            "ComfyUI is running but its identity workflow is not ready: "
+            f"{readiness_reason}"
         )
 
+    final_prompt = ", ".join(
+        part.strip()
+        for part in (resolved["positive_prompt"], prompt)
+        if isinstance(part, str) and part.strip()
+    )
+    final_negative = ", ".join(
+        part.strip()
+        for part in (resolved["negative_prompt"], negative_prompt)
+        if isinstance(part, str) and part.strip()
+    )
+
     result = await generate_with_character(
-        prompt=prompt,
-        character_ref_path=primary.storage_path,
-        negative_prompt=negative_prompt,
+        prompt=final_prompt,
+        character_ref_path=resolved["reference_path"],
+        identity_mode=resolved["identity_mode"],
+        negative_prompt=final_negative or None,
+        width=resolved["width"],
+        height=resolved["height"],
+        steps=resolved["steps"],
+        cfg=resolved["guidance"],
         guidance_tags=guidance_tags,
     )
 
@@ -379,7 +360,11 @@ async def _run_comfyui_character(
         filename=result["filename"],
         prompt_id=result.get("prompt_id"),
         engine="comfyui",
-        recipe=recipe.recipe_id if recipe else None,
+        recipe=resolved["recipe_id"],
+        routing_reason=(
+            f"character contract {character_id}: {resolved['identity_method']} "
+            f"with {len(resolved['references'])} reference(s)"
+        ),
         character_weight=result.get("character_weight"),
     )
 
