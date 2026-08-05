@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 
+
 def deduplicate_by_size(directory):
     """
     Recursively scans a directory and deletes duplicate files based on their size.

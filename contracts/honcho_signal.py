@@ -1,6 +1,8 @@
-from pydantic import BaseModel, Field
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
+from pydantic import BaseModel, Field
+
 
 class HonchoSignal(BaseModel):
     """A behavioral or psychological signal extracted from a conversation."""

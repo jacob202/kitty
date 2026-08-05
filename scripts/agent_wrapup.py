@@ -7,7 +7,6 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parent.parent
 LOG_DIR = ROOT / ".agent" / "session_logs"
 

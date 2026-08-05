@@ -1,7 +1,8 @@
 
-import sqlite3
 import json
+import sqlite3
 from pathlib import Path
+
 
 def council_audit(db_path):
     """
@@ -32,7 +33,7 @@ def council_audit(db_path):
     cursor.execute("SELECT id, filename, data FROM file")
     status_counts = {"success": 0, "error": 0, "unknown": 0}
     errors = []
-    
+
     for fid, name, data_raw in cursor.fetchall():
         try:
             d = json.loads(data_raw) if data_raw else {}

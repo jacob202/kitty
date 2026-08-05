@@ -1,6 +1,6 @@
 
-import sqlite3
 import json
+import sqlite3
 from pathlib import Path
 
 DB_PATH = Path("data/curation_status.db")
@@ -10,7 +10,7 @@ def init_status_db():
     """Initializes the database to track the curation progress of the 901 canonical books."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
+
     # Create the status table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS curation_status (
@@ -26,7 +26,7 @@ def init_status_db():
             processed_at DATETIME
         )
     """)
-    
+
     # Load manifest
     if not MANIFEST_PATH.exists():
         print(f"Error: Manifest not found at {MANIFEST_PATH}")
@@ -42,7 +42,7 @@ def init_status_db():
             INSERT OR IGNORE INTO curation_status (id, original_path, priority, size)
             VALUES (?, ?, ?, ?)
         """, (norm_name, data['path'], data['priority'], data['size']))
-    
+
     conn.commit()
     conn.close()
     print(f"✅ Status database initialized at {DB_PATH}")

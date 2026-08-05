@@ -18,7 +18,6 @@ from typing import Any, Literal
 
 import dspy
 
-
 # ---------- Signature: what Kitty asks Jacob's messy request to become ----------
 
 class CompileMission(dspy.Signature):
@@ -99,14 +98,14 @@ def _offline_check() -> None:
             request="figure out if dspy is worth it for next_step",
             prior_context_available=False,
         )
-    print(f"[proto2/A] Signature.OutputField parse: OK")
+    print("[proto2/A] Signature.OutputField parse: OK")
     print(f"[proto2/A]   objective:  {result.objective}")
     print(f"[proto2/A]   strategy:   {result.strategy}")
     print(f"[proto2/A]   missing:    {result.missing_context}")
     print(f"[proto2/A]   question:   {result.clarifying_question}")
     assert result.strategy == "research"
     assert result.missing_context == []
-    print(f"[proto2/A] structural pass — DSPy Signature/Module/Adapter wires up")
+    print("[proto2/A] structural pass — DSPy Signature/Module/Adapter wires up")
 
 
 # ---------- B. Live-eval rig ----------

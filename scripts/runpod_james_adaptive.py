@@ -18,6 +18,8 @@ from gateway.runpod_control import (  # noqa: E402
     RunPodAmbiguousCreateError,
     RunPodApiError,
     RunPodBudgetError,
+)
+from gateway.runpod_control import (
     RunPodControlClient as BaseRunPodControlClient,
 )
 from scripts import runpod_james_batch as batch  # noqa: E402

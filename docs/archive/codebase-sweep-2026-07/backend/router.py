@@ -4,7 +4,8 @@ the right specialist prompt + model tier.
 """
 
 from pathlib import Path
-from .config import settings, SOUL_DIR
+
+from .config import SOUL_DIR, settings
 
 SOUL_FILE = SOUL_DIR / "kitty.md"
 SPECIALISTS = {
