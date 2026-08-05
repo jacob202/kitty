@@ -2,6 +2,7 @@
 import sqlite3
 from pathlib import Path
 
+
 def inspect_db_schema(db_path):
     """
     Connects to an SQLite database and prints its schema.

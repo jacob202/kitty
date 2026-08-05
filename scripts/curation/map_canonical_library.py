@@ -1,9 +1,9 @@
 
-import os
 import json
+import os
 import re
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 # Priority order: 0 is highest (keep this), 3 is lowest
 PRIORITY_MAP = [
@@ -39,19 +39,19 @@ def map_canonical_library(root_dir: Path):
     Groups all versions of a book and picks the best one.
     """
     book_groups = defaultdict(list)
-    
+
     print("🔍 Scanning all directories for book versions...")
     for root, _, files in os.walk(root_dir):
         if "books_dedup_backup" in root: continue
-        
+
         for f in files:
-            if f.startswith(".") or f.endswith(".json") or f.endswith(".md"): 
+            if f.startswith(".") or f.endswith(".json") or f.endswith(".md"):
                 continue
-                
+
             full_path = Path(root) / f
             norm_name = normalize_name(f)
             priority = get_priority(str(full_path))
-            
+
             book_groups[norm_name].append({
                 "path": str(full_path),
                 "priority": priority,
@@ -60,7 +60,7 @@ def map_canonical_library(root_dir: Path):
 
     canonical_manifest = {}
     total_size = 0
-    
+
     print("⚖️ Selecting winners and calculating canonical size...")
     for norm_name, versions in book_groups.items():
         # Sort by priority (lowest number first), then by size (largest as tie-breaker for better scans)
@@ -72,8 +72,8 @@ def map_canonical_library(root_dir: Path):
     manifest_path = Path("data/canonical_library_manifest.json")
     with open(manifest_path, "w") as f:
         json.dump(canonical_manifest, f, indent=2)
-        
-    print(f"\n✅ Mapping Complete!")
+
+    print("\n✅ Mapping Complete!")
     print(f"   Unique Books Identified: {len(canonical_manifest)}")
     print(f"   Total Canonical Size: {total_size / (1024**3):.2f} GB")
     print(f"   Manifest Saved to: {manifest_path}")

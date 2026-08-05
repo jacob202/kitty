@@ -5,6 +5,7 @@ from pathlib import Path
 
 from gateway.knowledge import ingest
 
+
 async def main():
     """Iterates through all files in the knowledge base source directory and ingests them."""
     source_dir = Path("/Volumes/DATA/Books")

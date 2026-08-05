@@ -1,7 +1,7 @@
 import os
 import re
-from urllib.parse import unquote
 from pathlib import Path
+from urllib.parse import unquote
 
 BOOKS_DIR = Path("/Volumes/DATA/books")
 
@@ -21,22 +21,22 @@ CLEANUP_PATTERNS = [
 def clean_name(name: str) -> str:
     # 1. Unquote URL encoding
     name = unquote(name)
-    
+
     # 2. Basic cleanup
     base = Path(name).stem
     ext = Path(name).suffix
-    
+
     new_name = base
     for pattern in CLEANUP_PATTERNS:
         new_name = re.sub(pattern, "", new_name, flags=re.IGNORECASE)
-    
+
     # Remove extra spaces and underscores
     new_name = new_name.replace("_", " ").strip()
     new_name = re.sub(r"\s+", " ", new_name)
-    
+
     # Remove leading/trailing dashes/dots
     new_name = new_name.strip(" -.")
-    
+
     return f"{new_name}{ext}"
 
 def main():

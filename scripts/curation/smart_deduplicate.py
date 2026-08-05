@@ -1,8 +1,8 @@
 
 import os
 import shutil
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 # Priority order: 0 is highest (keep this), 3 is lowest (delete if others exist)
 PRIORITY_MAP = [
@@ -30,11 +30,11 @@ def smart_deduplicate(directory):
 
     sizes = defaultdict(list)
     print("Scanning files and calculating priorities...")
-    
+
     for root, _, files in os.walk(directory):
         if str(BACKUP_DIR) in root:
             continue
-            
+
         for filename in files:
             if filename.startswith("."): continue
             filepath = Path(root) / filename
@@ -55,23 +55,23 @@ def smart_deduplicate(directory):
 
         # Sort by priority (lower number is better)
         paths_with_priority = sorted([(get_priority(p), p) for p in paths])
-        
+
         # The first one is the winner
         best_priority, best_path = paths_with_priority[0]
         others = paths_with_priority[1:]
 
         print(f"\nSize {size}: Keeping {best_path} (Priority {best_priority})")
-        
+
         for priority, other_path in others:
             # Create relative path structure in backup to avoid collisions
             rel_path = os.path.relpath(other_path, directory)
             dest = BACKUP_DIR / rel_path
             dest.parent.mkdir(parents=True, exist_ok=True)
-            
+
             print(f"  Moving to backup: {other_path} (Priority {priority})")
             shutil.move(other_path, dest)
             moved_count += 1
-        
+
         kept_count += 1
 
     print(f"\nDone! Kept {kept_count} unique files. Moved {moved_count} duplicates to {BACKUP_DIR}.")
