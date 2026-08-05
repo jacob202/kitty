@@ -36,6 +36,16 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0024 | [KittyBuilder Has an Independent Operator Application](0024-independent-kittybuilder-operator-application.md) | Accepted | 2026-08-01 |
 | 0025 | [Session Learning Without a Second Backlog](0025-session-learning-without-a-second-backlog.md) | Accepted; amended 2026-08-01 | 2026-08-01 |
 | 0026 | [Measured KB Effectiveness and Single Execution Ownership](0026-measured-kb-effectiveness-and-execution-ownership.md) | Accepted | 2026-08-01 |
+| 0027 | [Open WebUI May Serve As Kitty's Replaceable Daily-Driver Shell](0027-open-webui-shell-boundary.md) | Accepted | 2026-08-02 |
+| 0028 | [Commodity Software Precedence Over Custom Code](0028-commodity-software-precedence.md)        | Accepted                       | 2026-08-05 |
+| 0029 | [Capability Manifest Is the Single Source of Runtime Truth](0029-capability-manifest-single-truth.md) | Accepted | 2026-08-05 |
+| 0030 | [Repository Simplification Is a Strategic Priority](0030-repository-simplification-strategic-priority.md) | Accepted | 2026-08-05 |
+| 0031 | [Architecture Migration to Open Brain/Ringer/Open Engine Is Deferred](0031-architecture-migration-deferred.md) | Accepted | 2026-08-05 |
+| 0032 | [Evidence-Backed Claims — No Fabricated Success](0032-evidence-backed-claims.md)               | Accepted                       | 2026-08-05 |
+| 0033 | [Open WebUI Shell Integration Boundary](0033-open-webui-shell-boundary.md)                     | Accepted                       | 2026-08-05 |
+| 0034 | [Memory Policy Is a Kitty Concern — Storage Remains an Open Decision](0034-memory-policy-vs-storage.md) | Accepted | 2026-08-05 |
+| 0035 | [Browser-Verified Evidence Required for UI Claims](0035-browser-verified-evidence.md)          | Accepted                       | 2026-08-05 |
+| 0036 | [Builder Infrastructure Preserved — Refactored for Extraction Readiness](0036-builder-infrastructure-refactor.md) | Accepted | 2026-08-05 |
 
 Historical decision detail remains in
 [`docs/retired/DECISIONS_AND_ROADMAP.md`](../retired/DECISIONS_AND_ROADMAP.md).
