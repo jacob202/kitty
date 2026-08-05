@@ -1,61 +1,57 @@
-# Session State — Open WebUI daily-driver acceptance
-
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-03T05:58:00Z",
-  "branch": "feat/openwebui-tomorrow-ready",
-  "worktree": "feat/openwebui-tomorrow-ready",
-  "status": "awaiting_review",
-  "completed_items": [
-    "Rebuilt PR #384 on current main without unrelated Image Studio changes",
-    "Pinned and isolated Open WebUI 0.10.2 as a loopback-only replaceable shell",
-    "Configured Kitty model menu, provider policy, five workspace agents, and bounded Kitty tools",
-    "Hardened environment isolation, process ownership, launchd enablement, backup, restore, and rollback",
-    "Added feature-level verification for settings, agents, models, tools, memory, notes, projects, calendar, Tutor contract, and Builder projection",
-    "Added bounded paid acceptance for every advertised model route and an end-to-end Daily Kitty turn",
-    "Fixed ASGI request replay for streaming chat responses and kept OpenRouter normalization at the direct-provider boundary",
-    "Documented bootstrap, daily verification, backup, restore, and rollback"
-  ],
-  "blockers": [
-    "Mac-local bootstrap and paid feature acceptance have not yet been run against Jacob's live credentials and launchd environment",
-    "An independent final review of the final PR head is still required"
-  ],
-  "next_action": "Run python3 scripts/openwebui_local.py bootstrap --accept-charges on Jacob's Mac, fix every reported failure, then record independent review evidence before marking PR #384 ready",
+  "branch": "main",
+  "head_sha": "5dd1e881c8e744a9d825a8a499222bb775fefa6d",
+  "worktree": "/Users/jacobbrizinski/Projects/kitty",
+  "updated_at": "2026-08-05T22:30:00Z",
+  "execution_owner": "interactive",
+  "tool": "opencode",
+  "status": "complete",
+  "active_mission": "docs/ACTIVE_MISSION.md",
+  "pull_request": null,
   "parallel_work": [],
   "recommendations": [],
-  "invalidation_conditions": [
-    "PR #384 is rebased or force-pushed so commit 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is no longer in its history",
-    "Open WebUI, Gateway, provider, agent, or tool configuration changes after the recorded acceptance pass"
-  ],
-  "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 384,
-    "state": "OPEN",
-    "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
-  },
-  "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
+  "completed_items": ["repo simplification audit", "43 dead files archived", "9 ADRs ratified (0028-0036)", "summary deliverables produced"],
+  "blockers": ["behind origin/main by 72 commits"],
+  "next_action": "present 9 ADRs and simplification audit to Jacob for review",
+  "invalidation_conditions": ["origin/main advances past 5dd1e881 without these commits"]
 }
 -->
+# State — 2026-08-05
 
 ## Execution ownership
+- this session: interactive
+- Builder parallel state: not inspected
 
-- this session: interactive Open WebUI onboarding and verification pass
-- pull request: #384 (`feat/openwebui-tomorrow-ready`)
-- product boundary: Open WebUI is the replaceable shell; Kitty Gateway remains authoritative
+## Branch state
+- branch: main
+- head: 5dd1e881
+- behind origin/main: 72 commits (unchanged from session start)
 
-## Verified in repository
+## Completed this session
+1. Repository simplification audit → commit 4c0bf06b (43 dead files archived)
+2. Architectural decision harvest → commit 5dd1e881 (9 new ADRs: 0028-0036)
 
-- loopback-only unauthenticated binding and minimal runtime environment;
-- pinned isolated Open WebUI installation and owner-only service state;
-- checked-in model roles and provider preferences;
-- five configured workspace agents with bounded tool attachment;
-- domain/modality-aware Auto routing and native direct OpenRouter wire IDs;
-- schema-valid failure streams and fail-loud provider/memory behavior;
-- PID ownership, launchd enablement, verified backup, atomic restore, and rollback identity checks;
-- feature acceptance command and tests;
-- pytest failure artifacts retained for actionable CI diagnostics.
+## Verification
+- Gateway imports pass cleanly (244 routes)
+- All deletions verified with broad rg across gateway/, tests/, scripts/
+- import analysis correction: `\b<mod>\b` is the correct search pattern, not `from gateway\.<mod>`
 
-## Not yet verified on Jacob's Mac
+## Recommendations
 
-The repository cannot prove live credentials, Open WebUI's installed database state, launchd behavior, or real provider responses. The branch must stay in review until the live bootstrap and `verify --accept-charges` pass on the Mac and any failures are fixed rather than waived.
+1. **deferred** — Present ADRs and simplification audit to Jacob for review
+   - release_check: `test -f docs/adr/0036-builder-infrastructure-refactor.md`
+
+2. **ready** — Audit suspicious wired modules (prefetcher, inbox_watcher, insight_loop, life_awareness, telegram_bot, antigravity_tools, web_tracker, self_review)
+   - release_check: `git status --porcelain`
+
+3. **ready** — Make Gate 0.7 enforceable (branch protection on main requiring CI checks)
+   - release_check: `test -z "$(gh api repos/:owner/:repo/branches/main/protection --jq '.required_status_checks.contexts' 2>/dev/null)"`
+
+## KB effectiveness
+- consulted: 25+ docs across research, audit, architecture, ADRs
+- used: all consulted
+- stale/wrong: 0
+- promoted to canonical: 9 ADRs
+- evidence gaps: token/cost data unavailable (interactive investigation, no model calls logged)

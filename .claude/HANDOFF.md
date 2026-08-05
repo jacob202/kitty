@@ -1,67 +1,69 @@
-# Handoff — Open WebUI daily-driver acceptance
-
 <!-- kitty-handoff
 {
-  "schema_version": 2,
-  "updated_at": "2026-08-03T05:58:00Z",
-  "branch": "feat/openwebui-tomorrow-ready",
-  "worktree": "feat/openwebui-tomorrow-ready",
-  "status": "valid",
-  "completed_items": [
-    "Rebuilt PR #384 on current main without unrelated Image Studio changes",
-    "Pinned and isolated Open WebUI 0.10.2 as a loopback-only replaceable shell",
-    "Configured Kitty model menu, provider policy, five workspace agents, and bounded Kitty tools",
-    "Hardened environment isolation, process ownership, launchd enablement, backup, restore, and rollback",
-    "Added feature-level verification for settings, agents, models, tools, memory, notes, projects, calendar, Tutor contract, and Builder projection",
-    "Added bounded paid acceptance for every advertised model route and an end-to-end Daily Kitty turn",
-    "Fixed ASGI request replay for streaming chat responses and kept OpenRouter normalization at the direct-provider boundary",
-    "Documented bootstrap, daily verification, backup, restore, and rollback"
-  ],
-  "blockers": [
-    "Mac-local bootstrap and paid feature acceptance have not yet been run against Jacob's live credentials and launchd environment",
-    "An independent final review of the final PR head is still required"
-  ],
-  "next_action": "Run python3 scripts/openwebui_local.py bootstrap --accept-charges on Jacob's Mac, fix every reported failure, then record independent review evidence before marking PR #384 ready",
+  "schema_version": 1,
+  "branch": "main",
+  "head_sha": "5dd1e881c8e744a9d825a8a499222bb775fefa6d",
+  "worktree": "/Users/jacobbrizinski/Projects/kitty",
+  "created_at": "2026-08-05T22:00:00Z",
+  "updated_at": "2026-08-05T22:30:00Z",
+  "execution_owner": "interactive",
+  "tool": "opencode",
+  "status": "complete",
+  "active_mission": "docs/ACTIVE_MISSION.md",
+  "pull_request": null,
+  "completed_items": ["repo simplification audit", "43 dead files archived", "9 ADRs ratified (0028-0036)", "summary deliverables produced"],
   "parallel_work": [],
   "recommendations": [],
-  "invalidation_conditions": [
-    "PR #384 is rebased or force-pushed so commit 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is no longer in its history",
-    "Open WebUI, Gateway, provider, agent, or tool configuration changes after the recorded acceptance pass"
-  ],
-  "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 384,
-    "state": "OPEN",
-    "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
-  },
-  "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
+  "blockers": ["behind origin/main by 72 commits"],
+  "next_action": "present 9 ADRs and simplification audit to Jacob for review",
+  "invalidation_conditions": ["origin/main advances past 5dd1e881 without these commits"]
 }
 -->
+# Handoff — 2026-08-05
 
-## What is configured
+## Session identity
+- **Tool:** opencode (DeepSeek v4 Pro)
+- **Execution owner:** interactive
+- **Branch:** main
+- **HEAD:** `5dd1e881` — docs(adr): ratify 9 architectural decisions
 
-- Open WebUI is pinned to `0.10.2`, isolated under `~/kitty-services/openwebui`, unauthenticated only on loopback, and receives a minimal non-secret environment.
-- Kitty Gateway is the only OpenAI-compatible backend exposed to the shell.
-- The visible model menu is Kitty Auto, Fast, Think, Code, and Vision.
-- Daily Kitty, Research, Coding, Tutor, and Builder Operator are created or repaired on startup with the intended base route, tool attachment, and vision capability.
-- The bounded tool server exposes memory, notes, projects, calendar, Tutor, and read-only Builder projections.
-- Autostart, admin repair, PID ownership, backups, restore, rollback, and failure reporting are checked rather than assumed.
+## Completed
 
-## What the acceptance gate proves
+### 1. Repository simplification (commit `4c0bf06b`)
+- 43 dead files archived via git rm. Zero import breakage verified.
+- 12 dead `gateway/actions/*.py` — zero importers across entire codebase
+- 3 dead `gateway/*.py` — compute_governor_cli, tutor_cli, workflow_templates
+- 13 dead `gateway/*.sh` — not referenced by ./kitty launcher
+- 7 dead `scripts/*.sh` — not referenced by ./kitty CLI
+- 3 stale plists — superseded by ./kitty launcher
+- 5 dead config/files — vercel.json, run.sh, runtime_manifest.json, opencode backup
 
-```bash
-python3 scripts/openwebui_local.py verify
-python3 scripts/openwebui_local.py verify --accept-charges
-```
+**Correction:** 7 modules initially classified dead were restored after broad-rg search revealed `from gateway import X, Y, Z` multi-import patterns missed by the original `from gateway\.<mod>|import gateway\.<mod>` regex. The lesson: use `\b<mod>\b` as the search pattern, not qualified imports.
 
-The first command checks the configured settings, model discovery, all five agents, the bounded OpenAPI tool contract, and live read-only Kitty projections. The second additionally sends bounded turns through all advertised model routes and through Daily Kitty in Open WebUI.
+### 2. Architectural decision records (commit `5dd1e881`)
+9 new ADRs (0028-0036) harvested from 2026-08 investigations:
+- 0028: Commodity software precedence over custom code
+- 0029: Capability Manifest as single source of runtime truth
+- 0030: Repository simplification is a strategic priority
+- 0031: Architecture migration to Open Brain/Ringer/Open Engine deferred
+- 0032: Evidence-backed claims — no fabricated success
+- 0033: Open WebUI shell integration boundary
+- 0034: Memory policy is a Kitty concern — storage remains open
+- 0035: Browser-verified evidence required for UI claims
+- 0036: Builder infrastructure preserved — refactored for extraction readiness
 
-## Required next move
+ADR README.md index updated.
 
-Run the full bootstrap on Jacob's Mac:
+## Evidence gaps
 
-```bash
-python3 scripts/openwebui_local.py bootstrap --accept-charges
-```
+- `prefetcher.py`, `inbox_watcher.py`, `insight_loop.py`, `life_awareness.py`, `telegram_bot.py`, `antigravity_tools.py`, `web_tracker.py`, `self_review.py`: Wired modules with unknown value. Audit needed.
+- Open Brain/Ringer/Open Engine maturity: UNKNOWN. Migration deferred (ADR 0031).
+- Gate 0.7 (branch protection): Defined, not enforced. Requires Jacob's GitHub admin.
+- Builder publication rail: Not exercised in audits.
 
-Do not mark PR #384 ready merely because CI passes. Fix every live verifier failure, rerun until clean, then obtain or record an independent review of the final head. No new feature work belongs in this branch before those acceptance gates pass.
+## Next move
+
+No active interactive assignment. The next session should:
+1. Present the 9 ADRs and simplification audit to Jacob for review
+2. Resolve the suspicious wired modules list (audit for value vs deletion)
+3. Make Gate 0.7 enforceable (required checks on main)
