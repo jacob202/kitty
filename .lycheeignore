@@ -6,3 +6,7 @@ https?://textgrad\.com.*
 
 # departuremono.com font CDN times out intermittently (archive preview files).
 https?://departuremono\.com.*
+
+# modal.com answers link checks with 403 Forbidden (bot-hostile); legitimately
+# reachable in a browser.
+https?://modal\.com.*
