@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  isLoopbackHost,
+  isTrustedProxyRequest,
   parseEnvText,
   resolveGatewaySecret,
   resolveGatewayUrl,
@@ -28,6 +30,44 @@ describe('resolveGatewaySecret', () => {
 
   it('returns an empty string when both secrets are missing', () => {
     expect(resolveGatewaySecret(undefined, undefined)).toBe('')
+  })
+})
+
+describe('proxy trust boundary', () => {
+  it.each(['localhost:4000', '127.0.0.1:4000', '[::1]:4000'])(
+    'accepts loopback host %s',
+    (host) => {
+      expect(isLoopbackHost(host)).toBe(true)
+    }
+  )
+
+  it.each(['192.168.1.20:4000', '10.0.0.5:4000', 'kitty.tailnet:4000', undefined])(
+    'rejects non-loopback host %s',
+    (host) => {
+      expect(isLoopbackHost(host)).toBe(false)
+    }
+  )
+
+  it('accepts a same-origin loopback mutation', () => {
+    expect(isTrustedProxyRequest('127.0.0.1:4000', 'http://127.0.0.1:4000')).toBe(true)
+  })
+
+  it('accepts a loopback request without Origin, such as navigation or curl', () => {
+    expect(isTrustedProxyRequest('localhost:4000', undefined)).toBe(true)
+  })
+
+  it('rejects a cross-origin request even when both hosts are loopback', () => {
+    expect(isTrustedProxyRequest('127.0.0.1:4000', 'http://127.0.0.1:3000')).toBe(false)
+  })
+
+  it('rejects a LAN request before the gateway secret can be forwarded', () => {
+    expect(isTrustedProxyRequest('192.168.1.20:4000', 'http://192.168.1.20:4000')).toBe(
+      false
+    )
+  })
+
+  it('rejects malformed origins', () => {
+    expect(isTrustedProxyRequest('localhost:4000', 'not a URL')).toBe(false)
   })
 })
 

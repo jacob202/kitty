@@ -741,8 +741,10 @@ def test_openrouter_fallback_model_falls_back_to_map():
 
     with patch.dict("os.environ", {}, clear=True):
         result = _openrouter_fallback_model("kitty-default")
-    # kitty-default maps to deepseek-v4-pro since the move off Anthropic.
-    assert result == "openrouter/deepseek/deepseek-v4-pro"
+    # kitty-default maps to deepseek-v4-pro since the move off Anthropic. No
+    # "openrouter/" prefix: this value goes straight into payload["model"] on the
+    # direct call, and OpenRouter rejects the prefixed form with HTTP 400.
+    assert result == "deepseek/deepseek-v4-pro"
 
     with patch.dict("os.environ", {}, clear=True):
         result = _openrouter_fallback_model("unknown-model")

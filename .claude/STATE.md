@@ -1,50 +1,61 @@
-# Session State — B5-pr-check-review-actionable
+# Session State — Open WebUI daily-driver acceptance
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-02T00:00:00Z",
-  "branch": "kittybuilder/kb_msb4yx3n_124c",
-  "worktree": "kittybuilder/kb_msb4yx3n_124c",
-  "status": "complete",
+  "updated_at": "2026-08-03T05:58:00Z",
+  "branch": "feat/openwebui-tomorrow-ready",
+  "worktree": "feat/openwebui-tomorrow-ready",
+  "status": "awaiting_review",
   "completed_items": [
-    "Extended gh PR advisory capture (mergeable, mergeStateStatus, baseRefOid) in builder_queue._gh_pr_status",
-    "Persisted advisory merge/base fields on pr_attached/pr_updated event payload via attach_pr",
-    "Added read-only _pr_advisory_projection + _recovery_actions to builder_status packet model",
-    "Repaired run projection to expose start_sha for superseded-run detection",
-    "Added 6 focused recovery-action tests in test_builder_status.py"
+    "Rebuilt PR #384 on current main without unrelated Image Studio changes",
+    "Pinned and isolated Open WebUI 0.10.2 as a loopback-only replaceable shell",
+    "Configured Kitty model menu, provider policy, five workspace agents, and bounded Kitty tools",
+    "Hardened environment isolation, process ownership, launchd enablement, backup, restore, and rollback",
+    "Added feature-level verification for settings, agents, models, tools, memory, notes, projects, calendar, Tutor contract, and Builder projection",
+    "Added bounded paid acceptance for every advertised model route and an end-to-end Daily Kitty turn",
+    "Fixed ASGI request replay for streaming chat responses and kept OpenRouter normalization at the direct-provider boundary",
+    "Documented bootstrap, daily verification, backup, restore, and rollback"
   ],
-  "blockers": [],
-  "next_action": "None",
+  "blockers": [
+    "Mac-local bootstrap and paid feature acceptance have not yet been run against Jacob's live credentials and launchd environment",
+    "An independent final review of the final PR head is still required"
+  ],
+  "next_action": "Run python3 scripts/openwebui_local.py bootstrap --accept-charges on Jacob's Mac, fix every reported failure, then record independent review evidence before marking PR #384 ready",
   "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
-    "HEAD changes beyond the current packet lease base"
+    "PR #384 is rebased or force-pushed so commit 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is no longer in its history",
+    "Open WebUI, Gateway, provider, agent, or tool configuration changes after the recorded acceptance pass"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null,
-  "head_sha": "734e49e9237fb2093af622ece9c3e62b2e61f19c"
+  "pull_request": {
+    "number": 384,
+    "state": "OPEN",
+    "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
+  },
+  "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
 }
 -->
 
 ## Execution ownership
 
-- this session: builder worker (packet B5-pr-check-review-actionable, initiative trustworthy-kittybuilder-b2-b10-v1)
-- task_id: kb_msb4yx3n_124c
+- this session: interactive Open WebUI onboarding and verification pass
+- pull request: #384 (`feat/openwebui-tomorrow-ready`)
+- product boundary: Open WebUI is the replaceable shell; Kitty Gateway remains authoritative
 
-## KB effectiveness
+## Verified in repository
 
-- no receipt recorded yet
+- loopback-only unauthenticated binding and minimal runtime environment;
+- pinned isolated Open WebUI installation and owner-only service state;
+- checked-in model roles and provider preferences;
+- five configured workspace agents with bounded tool attachment;
+- domain/modality-aware Auto routing and native direct OpenRouter wire IDs;
+- schema-valid failure streams and fail-loud provider/memory behavior;
+- PID ownership, launchd enablement, verified backup, atomic restore, and rollback identity checks;
+- feature acceptance command and tests;
+- pytest failure artifacts retained for actionable CI diagnostics.
 
-## Change summary
+## Not yet verified on Jacob's Mac
 
-- `gateway/builder_queue.py`: `_gh_pr_status` now fetches `mergeable`,
-  `mergeStateStatus`, `baseRefOid`; `attach_pr` persists them on the advisory
-  `pr_attached`/`pr_updated` event payload (never on the task/pr_links row:
-  Section 11.4).
-- `gateway/builder_status.py`: added `_read_latest_pr_advisories` (one bulk
-  query, SNAPSHOT_QUERY_COUNT 9 -> 10), `_pr_advisory_projection`, and
-  `_recovery_actions` which produce per-task recovery actions for failing CI,
-  merge conflict, waiting review, stale/base-behind rebase, and superseded
-  runs. Run projection now exposes `start_sha`.
-- `tests/test_builder_status.py`: 6 focused tests (31 total pass).
+The repository cannot prove live credentials, Open WebUI's installed database state, launchd behavior, or real provider responses. The branch must stay in review until the live bootstrap and `verify --accept-charges` pass on the Mac and any failures are fixed rather than waived.

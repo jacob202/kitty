@@ -53,6 +53,7 @@ class TestCommandHandlersRegistered:
             "run_validation",
             "publish",
             "recover_stale",
+            "reconcile_merges",
         }
 
     def test_each_handler_is_callable(self):

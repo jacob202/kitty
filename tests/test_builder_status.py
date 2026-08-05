@@ -252,6 +252,31 @@ def test_cancelled_task_is_not_presented_as_an_implementation_failure(tmp_path: 
     assert packet["failure_kind"] == "cancelled"
 
 
+def test_b4_projection_reflects_post_reconcile_done_state(tmp_path: Path):
+    """After reconcile-merges recovers a wrongly-cancelled task, B4 shows done.
+
+    Confirms the read-only projection (B4) reflects the post-recovery ground
+    truth rather than the prior cancelled state.
+    """
+    db_path, _repo, task_id = _apply_manifest(tmp_path)
+    bq.transition_task(task_id, bq.CANCELLED, db_path=db_path)
+    bq.attach_pr(task_id, 1001, db_path=db_path)
+
+    result = bq.detect_merged_prs(
+        db_path=db_path,
+        pr_merged=lambda _n: {"merged": True},
+    )
+    assert task_id in result["promoted"]
+
+    snapshot = builder_status.build_status_snapshot(db_path=db_path)
+    packet = snapshot["initiatives"][0]["packets"][0]
+    assert packet["task_state"] == "done"
+    assert packet["publication"]["merged"] is True
+    assert packet["failure_kind"] is None
+    assert snapshot["queue"]["done"] == 1
+    assert snapshot["queue"]["cancelled"] == 0
+
+
 def test_cancellation_decision_preserves_event_provenance_without_changing_task_state(
     tmp_path: Path,
 ):

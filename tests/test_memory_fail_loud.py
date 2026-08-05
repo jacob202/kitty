@@ -190,9 +190,12 @@ def test_search_memory_applies_namespace_before_backend_limit() -> None:
     with patch.object(memory, "_get_memory", return_value=backend):
         assert memory.search_memory("summary", limit=1, namespace="sessions") == rows
 
+    # user_id is a named argument, not a filter. Inside ``filters`` it left
+    # mem0's own user_id unset and every search raised ValidationError.
     backend.search.assert_called_once_with(
         "summary",
-        filters={"user_id": memory.USER_ID, "namespace": "sessions"},
+        user_id=memory.USER_ID,
+        filters={"namespace": "sessions"},
         limit=1,
     )
 
