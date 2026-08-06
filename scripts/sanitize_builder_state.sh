@@ -19,13 +19,13 @@ for f in .claude/STATE.md .claude/HANDOFF.md; do
   # Fix head_sha: update to actual HEAD if stale
   ACTUAL_HEAD=$(git rev-parse HEAD)
   if [ -n "$ACTUAL_HEAD" ]; then
-    sed -i '' "s/\"head_sha\": \"[^\"]*\"/\"head_sha\": \"$ACTUAL_HEAD\"/g" "$f"
+    sed -i '' "s|\"head_sha\": \"[^\"]*\"|\"head_sha\": \"$ACTUAL_HEAD\"|g" "$f"
   fi
   
   # Fix branch to match actual
   ACTUAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
   if [ -n "$ACTUAL_BRANCH" ]; then
-    sed -i '' "s/\"branch\": \"[^\"]*\"/\"branch\": \"$ACTUAL_BRANCH\"/g" "$f"
+    sed -i '' "s|\"branch\": \"[^\"]*\"|\"branch\": \"$ACTUAL_BRANCH\"|g" "$f"
   fi
 done
 
