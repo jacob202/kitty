@@ -32,5 +32,14 @@ A plan, issue, packet, report, metric, or chat statement does not become archite
 | D24 | Session learning without a second backlog | [0025](adr/0025-session-learning-without-a-second-backlog.md) |
 | D25 | Measured KB effectiveness and single execution ownership | [0026](adr/0026-measured-kb-effectiveness-and-execution-ownership.md) |
 | D26 | Open WebUI is a replaceable daily-driver shell | [0027](adr/0027-open-webui-shell-boundary.md) |
+| D27 | Commodity software precedes custom code | [0028](adr/0028-commodity-software-precedence.md) |
+| D28 | Capability Manifest is the single source of runtime truth | [0029](adr/0029-capability-manifest-single-truth.md) |
+| D29 | Repository simplification is a strategic priority | [0030](adr/0030-repository-simplification-strategic-priority.md) |
+| D30 | Open Brain/Ringer/Open Engine migration is deferred | [0031](adr/0031-architecture-migration-deferred.md) |
+| D31 | Evidence-backed claims — no fabricated success | [0032](adr/0032-evidence-backed-claims.md) |
+| D32 | Open WebUI shell integration boundary is enforced in code | [0033](adr/0033-open-webui-shell-boundary.md) |
+| D33 | Memory policy is a Kitty concern; storage remains open | [0034](adr/0034-memory-policy-vs-storage.md) |
+| D34 | UI claims require browser-verified evidence | [0035](adr/0035-browser-verified-evidence.md) |
+| D35 | Builder infrastructure is preserved, refactored for extraction readiness | [0036](adr/0036-builder-infrastructure-refactor.md) |
 
 The full status/date index is in [`docs/adr/README.md`](adr/README.md). Older combined decision material remains historical in [`docs/retired/DECISIONS_AND_ROADMAP.md`](retired/DECISIONS_AND_ROADMAP.md).
