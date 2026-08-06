@@ -58,9 +58,9 @@ Do not widen scope because nearby cleanup is tempting.
 
 ## 4. Verify independently
 
-The implementer may run checks, but cannot grant independent acceptance to its own work.
+The implementer may run checks, but cannot grant independent acceptance to its own work (Constitution VI.4: the worker that executes a change is never the reviewer that accepts it).
 
-Use a separate agent/context or a review-only pass that receives only:
+A review-only pass *in the same context* is a self-check: it feeds the repair loop and records implementation evidence, but it is not independent acceptance. When the final state depends on a verifier’s verdict, the verification must run in a genuinely separate trust boundary — a different agent or tool process, or a distinct review invocation that receives only:
 
 - the outcome contract;
 - the changed SHA or diff;
@@ -68,6 +68,8 @@ Use a separate agent/context or a review-only pass that receives only:
 - the produced evidence.
 
 The verifier must inspect the actual artifact and rerun the relevant checks. It returns a per-criterion verdict: `PASS`, `FAIL`, or `UNVERIFIED`, with concrete gaps.
+
+A solo interactive session that cannot invoke a genuinely separate verifier must finish as `implemented, awaiting verification` (or `blocked`/`failed`), never `verified`.
 
 ## 5. Repair with a hard cap
 
@@ -77,9 +79,11 @@ Feed only verifier gaps back to the implementer. Repeat up to the contract’s r
 
 Use exactly one honest state:
 
-- **verified** — every criterion passed independently;
+- **verified** — every criterion passed independently on the reviewed SHA or runtime artifact;
 - **implemented, awaiting verification** — implementation exists but independent review has not passed;
 - **blocked** — a named dependency prevents further progress;
 - **failed** — attempted work did not achieve the contracted outcome.
+
+The classification must bind to the durable record, not only to this conversation. Where Kitty’s Builder owns the state, reconcile the classification with `initiative_status`, attempt/run states, decision events, and PR check runs; a claim must not contradict that durable state.
 
 Never use “done,” “fixed,” or “working” without binding the claim to reproducible evidence.
