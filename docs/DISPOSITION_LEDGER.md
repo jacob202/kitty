@@ -1,13 +1,16 @@
-# Disposition Ledger — 2026-07-31
+# Disposition Ledger — 2026-08-05
 
 Every retained planning file in this repository has exactly one roadmap
 disposition. Nothing may remain unassigned. This ledger is authoritative; a
 file not listed here is either not a planning document or was added after the
 ledger date and needs disposition.
 
-**Roadmap authority:** `docs/ROADMAP.md`
-**Ledger date:** 2026-07-31
-**Base SHA:** `59f598c5` (origin/main)
+**Roadmap authority:** `docs/ROADMAP.md` (active authority, per ADR 0020)
+**V2 target plan:** `docs/ROADMAP_V2.md` — ratified by the Constitution v1 as V2 milestone targets (M1–M6). Accepted architecture, not execution schedule. Does not override `docs/ROADMAP.md` for active priority.
+**Derived synthesis:** `docs/KITTY_MASTER_PROGRAM.md` — merges ROADMAP, ROADMAP_V2, and the extension backlog into a dependency-ordered program. Not an independent authority.
+**Governance:** `docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md` — 12 adjudicated decisions governing all of the above.
+**Ledger date:** 2026-08-05
+**Base SHA:** `5dd1e881` (origin/main)
 
 ## Disposition classes
 
@@ -72,9 +75,9 @@ ledger date and needs disposition.
 | 018 | `018-expert-packs.md` | ARCHIVED | — | Shipped. ✅ |
 | 019 | `019-job-search-scaffold.md` | BLOCKED | Phase 4.3 | Parked by Jacob. Activates when he says. |
 | 020 | `020-github-connector.md` | BACKLOG | Phase 4.3 | Planned, not built. |
-| 021 | `021-memory-taste-and-creative-continuity.md` | SUPERSEDED | — | Renumbered to 023. |
+| 021 | `021-memory-taste-and-creative-continuity.md` | SUPERSEDED | — | Ghost file — renumbered to 023. Retained for provenance but not the canonical packet. `023-memory-taste-and-creative-continuity.md` is the active record. |
 | 021 | `021-project-registry-and-resume.md` | ARCHIVED | — | Shipped as 021. ✅ |
-| 022 | `022-chat-log-idea-mine.md` | SUPERSEDED | — | Renumbered to 024. |
+| 022 | `022-chat-log-idea-mine.md` | SUPERSEDED | — | Ghost file — renumbered to 024. Retained for provenance but not the canonical packet. `024-chat-log-idea-mine.md` is the active record. |
 | 022 | `022-magic-kitty.md` | BACKLOG | Phase 4.5 | In progress, partial. |
 | 023 | `023-memory-taste-and-creative-continuity.md` | ARCHIVED | — | Shipped. ✅ |
 | 024 | `024-chat-log-idea-mine.md` | BACKLOG | Phase 4.5 | Spec authored, after move-in. |
@@ -112,9 +115,10 @@ ledger date and needs disposition.
 | `ktf-001-resume-proof-v2.json` | ktf-001-resume-proof-v2 | ACTIVE | Phase 1.1 | KTF-001 restart: reconcile, author, prove. |
 | `ktf-002-acceptance-prose-v1.json` | ktf-002-acceptance-prose-v1 | BACKLOG | Phase 3.3 | Acceptance criteria fix. |
 | `ktf-003-outcome6-runtime-v1.json` | ktf-003-outcome6-runtime-v1 | SUPERSEDED | — | Outcome 6 runtime; tasks cancelled. Runtime change on main. |
-| `ktf-004-*` (4 files: daylight-*) | ktf-004-daylight-* | SUPERSEDED | — | Daylight proof manifests v1-v4. Replaced by Phase 1.3 outcomes. |
+| `ktf-004-*` (4 files: daylight-*) | ktf-004-daylight-* | SUPERSEDED | — | Daylight proof manifests v1-v4. Replaced by Phase 1.3 outcomes. All four (`daylight-evidence-v2`, `daylight-lifecycle-v3`, `daylight-lifecycle-v4`, `daylight-proof-v1`) are read-only provenance records; current reliability evidence lives in `ktf-004-current-main-reliability-proof-v1.json`. |
 | `ktf-004-current-main-reliability-proof-v1.json` | ktf-004-reliability | BACKLOG | Phase 1.1 | Reliability evidence manifest. |
 | `ktf-005-life-resume-loop-gate-v1.json` | REJECTED | — | Rejected as Builder manifest; human-only runbook. |
+| `ktl-002-measured-learning-boundary-v1.json` | ktl-002-measured-learning-boundary | BACKLOG | Phase 1.1 | KB effectiveness measurement and interactive/Builder lane boundary enforcement. |
 | `kx-01-resume-work-presentation.json` | kx-01 | BACKLOG | Phase 4.2 | Resume loop presentation. |
 | `kx-02-chat-execution.json` | kx-02 | BACKLOG | Phase 4.1 | Chat execution experience. |
 | `kx-03-shell-consolidation-v1.json` | kx-03 | BACKLOG | Phase 4.2 | Shell consolidation. |
@@ -126,9 +130,11 @@ ledger date and needs disposition.
 | `life-first-v1-integration.json` | life-first-v1-integration | BACKLOG | Phase 2.1 | Wire select_steps into user-facing paths. |
 | `p2-worker-contract-tests.json` | p2-worker-contract-tests | BACKLOG | Phase 3.1 | Worker contract tests. |
 | `packet-027-v1.json` | packet-027 | ACTIVE | Phase 1.1 | Builder restart/recovery proof. |
+| `phase1-smoke-recovery-v1.json` | phase1-smoke-recovery | BACKLOG | Phase 1.1 | Minimal smoke initiative for full Builder lifecycle proof (validate, apply, run, verify, crash recovery). |
 | `process-hardening-v1.json` | process-hardening-v1 | ACTIVE | Phase 3.3 | Reproducible review, durable receipts. |
 | `reasoning-backend-v1.json` | reasoning-backend-v1 | BACKLOG | Phase 4.1 | Packet 028 backend slices. |
 | `trust-lane-v1.json` | trust-lane-v1 | BACKLOG | Phase 3.3 | Trust lane sweep. |
+| `v2-driver-baseline-v1.json` | v2-driver-baseline-v1 | ACTIVE | M2-06 (V2 milestone) | First V2 initiative: 10 packets for daily-driver baseline, console re-role, and Builder Work integration. Uses the V2 M1-M6 milestone scheme per `docs/ROADMAP_V2.md`. Live-environment and operator-approval packets gated behind explicit operator consent; autonomous packets (M1-09, M2-04, M2-06, M3-03, M3-06) may proceed under Builder. |
 
 ### Initiative READMEs and evidence (.md/.sh)
 
@@ -207,6 +213,48 @@ Specific dispositions:
 
 ---
 
+## docs/ (governance and planning docs since 2026-08-05)
+
+| File | Disposition | Notes |
+|---|---|---|
+| `CONSTITUTION.md` | ACTIVE | Highest-level design artifact. Ratified 2026-08-05. Consolidates principles from ADRs 003, 017, 027, 028, 029, 032, 034, 036 plus KITTY_PRODUCT_ARCHITECTURE, BLUEPRINT, NORTH_STAR, FREE_MODEL_PACKET_STANDARD, and ROADMAP_V2. |
+| `ROADMAP_V2.md` | ACTIVE (ratified target) | V2 target plan with M1-M6 milestones. Ratified by the Constitution v1. Accepted architecture, not execution schedule. Does not override `docs/ROADMAP.md` for active priority. |
+| `KITTY_MASTER_PROGRAM.md` | ACTIVE (derived synthesis) | Derived synthesis of ROADMAP, ROADMAP_V2, and the extension backlog into a dependency-ordered program. Not an independent authority. |
+| `KNOWLEDGE_GRAPH.md` | ACTIVE | Repository knowledge archaeology. Maps ADR supersession chains, document dependencies, initiative-to-roadmap alignment, structural problems, and the minimum architectural-continuity graph for Builder. |
+| `CAPABILITY_MANIFEST.md` | ACTIVE (designed) | Capability Manifest v1 specification. DESIGNED per ADR 0029. Not yet built. |
+| `CONTINUITY_RECOVERY.md` | ACTIVE | Live unfinished-work inventory, zombie initiative registry, and prioritized recovery recommendations. References live Builder state and the KB. |
+| `OPENWEBUI_OS_ARCHITECTURE.md` | ACTIVE (research) | Open WebUI OS-architecture research for Kitty's integration boundary. |
+| `OPENWEBUI_PRODUCT_PLAN.md` | ACTIVE (target) | Open WebUI product plan and extension backlog reference. Implements Constitution v1 and ADR 0027. |
+| `OPENWEBUI_EXTENSION_BACKLOG.md` | ACTIVE (target) | 38 ranked extensions (S/A/B tiers). V2 product plan reference. |
+| `BUILDER_ORGANIZATION.md` | BACKLOG (design) | Design — not yet implemented. Not ratified. Builder's ratified role is execution control plane (ADR 0017). Organization concepts may inform future ADR amendments per ARCHITECTURE_RATIFICATION Decision 4. |
+| `BUILDER_V2.md` | BACKLOG (design) | Replacement blueprint — not yet implemented. Not ratified. Builder's ratified role is execution control plane (ADR 0017) with internal refactoring (ADR 0036). V2 redesign concepts may inform future ADR amendments per ARCHITECTURE_RATIFICATION Decision 4. |
+| `decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md` | ACTIVE | 12 adjudicated architectural decisions with evidence trails and 18 merge conditions for PR #408. Cross-cutting governance, not a numbered ADR. |
+| `CLOSEOUT_LEDGER_2026-08-05.md` | ACTIVE (historical) | Deliverable ledger for the 2026-08-05 closeout. |
+| `LOOSE_ENDS_2026-08-05.md` | ACTIVE (historical) | Loose-ends register for the 2026-08-05 closeout. |
+| `reference/OPENWEBUI_ECOSYSTEM_SURVEY.md` | ACTIVE (research) | Open WebUI ecosystem survey. |
+
+## docs/plans/ (3 additional since 2026-07-31)
+
+| File | Disposition | Notes |
+|---|---|---|
+| `openwebui-agent-handoff-2026-08-02.md` | SUPERSEDED | Open WebUI onboarding handoff. Baseline gaps (#1 PYTHONPATH, #2 dup admin) addressed on disk in `scripts/openwebui_tool/`. Absorbed into PR #384. |
+| `openwebui-onboarding-checklist.json` | ARCHIVED | Onboarding checklist consumed by PR #384 verification. |
+| `openwebui-onboarding-progress.md` | ARCHIVED | Progress tracking consumed by PR #384 merge. |
+
+## docs/runbooks/ (1 file)
+
+| File | Disposition | Notes |
+|---|---|---|
+| `OPENWEBUI_TOMORROW.md` | ACTIVE | Daily-driver operator runbook. Next-day startup and troubleshooting. |
+
+## docs/initiatives/ (corrected: 1 retired manifest)
+
+| File | Disposition | Notes |
+|---|---|---|
+| `retired/ktl-001-leverage-and-learning-v1.json.retired` | RETIRED | Retired KTL-001 manifest. Non-applicable planning history preserved for concept reuse. Superseded by `ktl-002-measured-learning-boundary-v1.json`. |
+
+---
+
 ## Active recommendations (from .claude/STATE.md and HANDOFF.md)
 
 | Recommendation ID | Disposition | Roadmap outcome | Notes |
@@ -227,15 +275,21 @@ Specific dispositions:
 
 ## Summary
 
-- **Total inventoried:** 136 items (plans, planning, packets, initiatives,
-  research, audit, phases, recon, recommendations, PRs)
-- **ACTIVE:** 12 (roadmap, ledger, active missions, contract docs, in-progress
-  packets/initiatives, review docs, context engineering)
+- **Total inventoried:** ~160 items (plans, planning, packets, initiatives,
+  research, audit, phases, recon, recommendations, PRs, governance, runbooks)
+- **ACTIVE:** 28 (roadmap, ledger, active missions, in-progress packets/
+  initiatives, review docs, context engineering, CONSTITUTION, ROADMAP_V2,
+  KITTY_MASTER_PROGRAM, KNOWLEDGE_GRAPH, CAPABILITY_MANIFEST,
+  CONTINUITY_RECOVERY, OPENWEBUI_OS_ARCHITECTURE, OPENWEBUI_PRODUCT_PLAN,
+  OPENWEBUI_EXTENSION_BACKLOG, OPENWEBUI_ECOSYSTEM_SURVEY, ARCHITECTURE_RATIFICATION,
+  CLOSEOUT_LEDGER, LOOSE_ENDS, OPENWEBUI_TOMORROW runbook, v2-driver-baseline)
 - **SCHEDULED:** 1 (Image Studio architecture → Phase 4.4)
 - **BLOCKED:** 5 (RunPod work, Image Studio, job search packet)
-- **BACKLOG:** 41 (preserved ideas across all phases)
+- **BACKLOG:** 46 (preserved ideas across all phases, including BUILDER_ORGANIZATION,
+  BUILDER_V2, ktl-002, phase1-smoke-recovery)
 - **SUPERSEDED:** 24 (consumed into shipped work or newer docs)
 - **REJECTED:** 1 (ktf-005 as Builder manifest)
-- **ARCHIVED:** 52 (historical records, shipped packets)
+- **ARCHIVED:** 53 (historical records, shipped packets)
+- **RETIRED:** 1 (ktl-001 in initiatives/retired/)
 
 **Unassigned: 0** — every retained file has exactly one disposition.
