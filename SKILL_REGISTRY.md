@@ -27,7 +27,7 @@ canonical under `.claude/skills/`.
 | remember | 2026-07-15 | KEEP | Persists durable preferences |
 | second-opinion | 2026-07-15 | KEEP | Independent model review before asking Jacob |
 
-### `.agents/skills/` (10 active + 8 archived)
+### `.agents/skills/` (11 active + 8 archived)
 
 | Skill | Verified | Verdict | Why |
 |---|---|---|---|
@@ -40,6 +40,7 @@ canonical under `.claude/skills/`.
 | provider-credit-debugging | 2026-07-15 | KEEP | Kitty-specific provider/credit debugging |
 | orca-orchestration | 2026-07-26 | KEEP | Parallel/phased Builder execution layer |
 | session-end | 2026-08-01 | KEEP | Surveys live work, preserves evidence/continuity, records execution ownership, writes a strict KB-effectiveness receipt, extracts durable knowledge/corrections, and records workflow signals |
+| verified-delivery | 2026-08-06 | KEEP | Evidence-bound outcome contract; distinguishes implementation checks from independent verification; provider-agnostic compaction/handoff contract |
 | expert-swarm | 2026-07-26 | UNVERIFIED | Low historical usage; requires Jacob confirmation before archive |
 
 Deleted 2026-07-21 after verification/confirmation: `debug-issue`,
