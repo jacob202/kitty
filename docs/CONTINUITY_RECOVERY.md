@@ -15,22 +15,22 @@ Each entry: **Source → Status → Value → Recommended action → Priority.**
 
 ---
 
-## 0. In-flight parallel work (do NOT treat as lost — does need disposition)
+## 0. In-flight parallel work (preserved on this branch)
 
-The following were produced 2026-08-05 by a parallel interactive lane and are **untracked/uncommitted**, so they are invisible to any clean checkout and unrecorded in the disposition ledger:
+The following were produced 2026-08-05 by a parallel interactive lane. They were untracked/uncommitted at the time of this survey; they are now committed on this branch (`closeout/2026-08-05-architecture-reconciliation`) and preserved in PR #408. See ARCHITECTURE_RATIFICATION_2026-08-06.md for their authority status.
 
 | Source | Status | Value | Recommended action | Priority |
 |---|---|---|---|---|
-| `docs/CONSTITUTION.md` (v1, modified) | Uncommitted | High — top design artifact | Commit with the 08-05 decision cluster; then enforce as authority | P1 |
-| `docs/ROADMAP_V2.md` | Uncommitted | High — sequenced V2 plan (M1–M6, 10 packets) | Commit; have Jacob approve M3 write-bounds; then materialize as Builder initiative `v2-driver-baseline` | P1 |
-| `docs/initiatives/v2-driver-baseline-v1.json` | Uncommitted | High — the "turn docs into Builder backlog" trigger | Validate + apply after ROADMAP_V2 approval | P1 |
-| `docs/OPENWEBUI_PRODUCT_PLAN.md` (876 ln) | Uncommitted | High | Commit; keep as the "configure > filter > pipe > function > MCP > never fork" contract | P1 |
-| `docs/OPENWEBUI_EXTENSION_BACKLOG.md` (2148 ln) | Uncommitted | High — 38 ranked extensions | Commit; convert to Builder-managed backlog (see §F) | P1 |
-| `docs/adr/0028…0036` (9 new ADRs) | Uncommitted | High — 0028 commodity, 0031 migration deferred, 0033 shell boundary, etc. | Commit; index in `docs/DECISIONS.md` + `KNOWLEDGE_GRAPH.md` | P1 |
-| `docs/BUILDER_ORGANIZATION.md` | Uncommitted | Medium — org design, "not yet implemented" | Commit; mark DESIGN; decide if it becomes an ADR/plan | P2 |
-| `docs/KNOWLEDGE_GRAPH.md` | Uncommitted | Medium — live catalog of superseded/stale statuses | Commit; keep maintained | P2 |
-| `docs/research/architecture-decision-summary-2026-08-05.md` | Uncommitted | Medium | Commit as the decision-tree reference | P2 |
-| `artifacts/` (forensics + handoff) | Untracked | High | Keep; my session's evidence dir | P3 (persist) |
+| `docs/CONSTITUTION.md` (v1, modified) | Committed on this branch | High — top design artifact | Ratified 2026-08-05; amendment process explicit in Article VII.5. Authority status per ARCHITECTURE_RATIFICATION Decision 6. | P1 |
+| `docs/ROADMAP_V2.md` | Committed on this branch | High — sequenced V2 plan (M1–M6, 10 packets) | Ratified target plan per Constitution v1 and ARCHITECTURE_RATIFICATION Decision 5. | P1 |
+| `docs/initiatives/v2-driver-baseline-v1.json` | Committed on this branch | High — the "turn docs into Builder backlog" trigger | Do not apply yet. Autonomous packets may proceed after governance prerequisites per ARCHITECTURE_RATIFICATION Decision 8. | P1 |
+| `docs/OPENWEBUI_PRODUCT_PLAN.md` (876 ln) | Committed on this branch | High | Preserved as product plan; keep as the "configure > filter > pipe > function > MCP > never fork" contract. | P1 |
+| `docs/OPENWEBUI_EXTENSION_BACKLOG.md` (2148 ln) | Committed on this branch | High — 38 ranked extensions | Preserved; convert to Builder-managed backlog (see §F). | P1 |
+| `docs/adr/0028…0036` (9 new ADRs) | Committed on this branch | High — 0028 commodity, 0031 migration deferred, 0033 shell boundary, etc. | Committed and indexed. ADR 0033 header corrected per ARCHITECTURE_RATIFICATION Decision 12. | P1 |
+| `docs/BUILDER_ORGANIZATION.md` | Committed on this branch | Medium — org design, "not yet implemented" | Marked DESIGN. Not ratified. May inform future ADRs per ARCHITECTURE_RATIFICATION Decision 4. | P2 |
+| `docs/KNOWLEDGE_GRAPH.md` | Committed on this branch | Medium — live catalog of superseded/stale statuses | Preserved; keep maintained. | P2 |
+| `docs/research/architecture-decision-summary-2026-08-05.md` | Committed on this branch | Medium | Preserved as the decision-tree reference. | P2 |
+| `artifacts/` (forensics + handoff) | Committed on this branch | High | Preserved evidence. B8 forensic report + Builder trust-model handoff. | P3 (persist) |
 
 ---
 

@@ -1,6 +1,7 @@
 # Open WebUI Ecosystem Survey — Capability Coverage
 
 **Date:** 2026-08-05
+**Status:** Research reference. Community plugin claims are sourced from GitHub repositories and marketplace listings as of 2026-08-05. Star counts, download counts, and maturity claims are community-reported and not independently verified against running instances. Verify specific plugin compatibility with the current Open WebUI version before relying on any claim.
 **Mission:** Determine, for every desired Kitty capability, whether it already exists as Open WebUI built-in, community plugin, MCP server, or OpenAPI integration before recommending any custom development.
 
 ## Survey methodology

@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-05
 **Status:** Accepted
-**Supersedes:** Extends ADR 0027 with operational boundary details
+**Extends:** ADR 0027 with operational boundary details
 
 ## Context
 

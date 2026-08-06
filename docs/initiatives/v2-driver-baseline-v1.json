@@ -2,6 +2,7 @@
   "manifest_version": 1,
   "initiative_id": "v2-driver-baseline-v1",
   "title": "V2 daily-driver baseline: prove the Open WebUI shell, re-role the console, surface Builder work",
+  "ratification": "This initiative may not be autonomously applied in full per ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 8. Autonomous packets (M1-09, M2-04, M2-06, M3-03, M3-06, M5-01, M5-02, M6-01) may proceed after Constitution commit and ROADMAP_V2 authority settlement. Live packets (M1-01, M1-02, M1-03, M1-04, M1-05) require Jacob's machine. Operator packets (M3-01, M3-09) require Jacob's M3 write-bounds review per ROADMAP_V2 §5 step 1.",
   "description": "First V2 initiative. Proves the merged Open WebUI daily-driver baseline on a real checkout and a real Mac, re-roles the Next.js app as the Kitty Console (read-only thin view over Gateway truth), and surfaces Builder work as product-level Work/evidence with safe approval boundaries. The first 10 packets from docs/ROADMAP_V2.md, ordered by dependency. Three classes of packet: (A) fully autonomous and verifiable in CI; (L) live/operator-machine validation that needs Jacob's real environment or a bounded paid endpoint; (O) requires explicit operator approval before effect. Packets that require a live Mac or operator sign-off MUST NOT be executed autonomously by Builder — they are recorded here so the plan is complete, and are dispatched only on Jacob's instruction. No packet expands storage, rewrites Gateway or Builder, or adds a new feature lane.",
   "packets": [
     {

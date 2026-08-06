@@ -1,6 +1,6 @@
 # Builder V2 — Execution Engine Redesign
 
-**Status:** Replacement blueprint — not yet implemented
+**Status:** Replacement blueprint — not yet implemented. Not ratified. Implementation requires separate ADR. ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 4 preserves this as design input; Builder's ratified role is execution control plane (ADR 0017) with internal refactoring (ADR 0036). V2 redesign concepts may inform future ADR amendments.
 **Author:** Jacob
 **Date:** 2026-08-05
 

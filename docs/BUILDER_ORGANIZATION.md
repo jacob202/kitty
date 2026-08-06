@@ -1,6 +1,6 @@
 # Builder Organization Architecture
 
-**Status:** Design — not yet implemented
+**Status:** Design — not yet implemented. Not ratified. Implementation requires separate ADR. ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 4 preserves this as design input; Builder's ratified role is execution control plane (ADR 0017). Organization concepts may inform future ADR amendments.
 **Author:** Jacob
 **Date:** 2026-08-05
 

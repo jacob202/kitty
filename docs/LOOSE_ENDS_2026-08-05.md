@@ -1,6 +1,7 @@
 # Loose Ends Register — 2026-08-05 (post-architecture-research closeout)
 
 **Companion to:** `docs/CLOSEOUT_LEDGER_2026-08-05.md`
+**Resolution:** ARCHITECTURE_RATIFICATION_2026-08-06.md resolved most architectural loose ends on 2026-08-06. P0-1 (needs_decision gate), P0-6 (uncommitted authority), P0-7 (V2 initiative), and P1-1/P1-2 (authority reconciliation) are addressed by the ratification. This register is a historical record of the state before ratification.
 **Purpose:** every remaining open item, classified P0–P3, with evidence, owner,
 blocking relationship, exact next action, and whether Jacob's approval is
 required. Nothing here is invented; each item is tied to a live fact.

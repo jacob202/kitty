@@ -1,6 +1,7 @@
 # Closeout Ledger — 2026-08-05 architecture research phase
 
 **Date:** 2026-08-05 (verified live 2026-08-05 19:xx CST)
+**Resolution:** ARCHITECTURE_RATIFICATION_2026-08-06.md adjudicated the 12 open architectural questions on 2026-08-06. This ledger is a historical record of the state before ratification. See the ratification for settled authority.
 **Scope:** Every artifact produced by the recent parallel research/architecture
 workers — recovered, verified, and dispositioned. This ledger is the map of
 what exists, where it lives, and what must happen next. It does not invent

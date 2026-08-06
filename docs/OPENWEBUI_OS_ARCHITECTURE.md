@@ -1,8 +1,7 @@
 # Open WebUI OS Architecture
 
 **Date:** 2026-08-05
-**Status:** Architectural recommendation — not yet an ADR
-**Supersedes guidance in:** ADR 0027 (evolves from "replaceable shell" to "permanent UI component")
+**Status:** Research recommendation — not an ADR. Open WebUI is the primary supported UI with technically replaceable contracts per ADR 0027, ADR 0033, Constitution I.2, and ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 1. This document's architectural decomposition and plugin strategy are valuable inputs; the "permanent UI component" framing is rejected by the ratification.
 **Companion document:** `docs/reference/OPENWEBUI_ECOSYSTEM_SURVEY.md`
 
 ## Summary
