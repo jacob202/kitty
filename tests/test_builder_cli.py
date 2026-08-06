@@ -1387,6 +1387,75 @@ class TestInitiativeFreePreset:
         assert kwargs["worker"] == "opencode-free"
 
 
+class TestInitiativeRunExitContract:
+    """Shell-level exit contract for ``initiative run``.
+
+    A ``needs_decision`` pause is an operator decision point, not ordinary
+    completion: the CLI must not exit 0 (which an orchestrator reads as "no
+    work to do") on the call that produces the pause OR on a later
+    invocation/process restart that observes the durable pause.
+    """
+
+    _BASE = {"processed": [], "succeeded": 0, "exhausted": 0}
+
+    def _run(self, summary: dict, capsys) -> int:
+        with patch(
+            "gateway.builder_run.run_initiative", return_value=summary
+        ):
+            return main(["initiative", "run", "init-1", "--free"])
+
+    def test_needs_decision_pause_exits_distinct_code(self, capsys):
+        rc = self._run(
+            {
+                **self._BASE,
+                "outcome": "paused",
+                "stop_class": "needs_decision",
+                "reason": "needs operator decision on p1: requirement may be ambiguous",
+            },
+            capsys,
+        )
+        from gateway.builder_cli import EXIT_NEEDS_DECISION
+
+        assert rc == EXIT_NEEDS_DECISION
+        assert rc not in (0, 1)
+        err = capsys.readouterr().err
+        assert "needs operator decision" in err
+
+    def test_needs_decision_pause_later_invocation_exits_distinct_code(self, capsys):
+        # Simulated second invocation after a process restart: the durable
+        # pause still reports needs_decision, so the exit status stays loud.
+        rc = self._run(
+            {
+                **self._BASE,
+                "outcome": "paused",
+                "stop_class": "needs_decision",
+                "reason": "needs operator decision on p1: requirement may be ambiguous",
+            },
+            capsys,
+        )
+        from gateway.builder_cli import EXIT_NEEDS_DECISION
+
+        assert rc == EXIT_NEEDS_DECISION
+
+    def test_routine_pause_keeps_exit_zero(self, capsys):
+        # Provider exhaustion / budget / effectiveness pauses are resumable
+        # and were never decision-gated: they keep exiting 0.
+        rc = self._run(
+            {**self._BASE, "outcome": "paused", "stop_class": "routine",
+             "reason": "provider exhaustion on p1"},
+            capsys,
+        )
+        assert rc == 0
+
+    def test_idle_keeps_exit_zero(self, capsys):
+        rc = self._run(
+            {**self._BASE, "outcome": "idle",
+             "reason": "no eligible packet"},
+            capsys,
+        )
+        assert rc == 0
+
+
 # ---------------------------------------------------------------------------
 # Initiative — list --needs-attention
 # ---------------------------------------------------------------------------

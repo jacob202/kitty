@@ -28,6 +28,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+# Exit code for ``initiative run`` when the initiative is paused awaiting a
+# ``needs_decision`` operator decision. Distinct from generic failure (1) and
+# ordinary completion (0): the run is durably parked and a human decision is
+# required, so an orchestrator must not read it as "nothing to do".
+EXIT_NEEDS_DECISION = 3
+
 # ---------------------------------------------------------------------------
 # JSON argument parsers (strict)
 # ---------------------------------------------------------------------------
@@ -1473,7 +1479,7 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_run(args: argparse.Namespace) -> int:
-    from gateway.builder_run import run_initiative
+    from gateway.builder_run import STOP_NEEDS_DECISION, run_initiative
 
     try:
         worker_command, review_command = _resolve_loop_commands(args)
@@ -1518,6 +1524,13 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
             print(
                 f"  {entry['outcome']}: {args.id}/{entry['packet_id']}"
             )
+        if summary.get("stop_class") == STOP_NEEDS_DECISION:
+            print(
+                f"needs operator decision: {args.id} is durably paused",
+                file=sys.stderr,
+            )
+    if summary.get("stop_class") == STOP_NEEDS_DECISION:
+        return EXIT_NEEDS_DECISION
     return 0 if summary["outcome"] in {"idle", "paused"} else 1
 
 

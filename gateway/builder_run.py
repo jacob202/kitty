@@ -130,6 +130,42 @@ def _pause_needs_decision(
     )
 
 
+def _paused_gate_summary(
+    initiative_id: str,
+    *,
+    db_path: Path | None,
+    processed: list[dict[str, Any]],
+    succeeded: int,
+    exhausted: int,
+) -> dict[str, Any]:
+    """Summarize an already-paused initiative from durable state.
+
+    The pause may predate this call (a later invocation or a process
+    restart), so the gate re-derives the stop_class from the durable
+    decision events instead of defaulting to routine. A pause recorded by
+    ``_pause_needs_decision`` therefore still reports ``stop_class=
+    needs_decision`` here, so the CLI can keep treating it as operator
+    decision required rather than ordinary completion.
+    """
+    reason = "initiative paused before loop step"
+    stop_class = STOP_ROUTINE
+    try:
+        status = bi.initiative_status(initiative_id, db_path=db_path)
+    except bi.InitiativeNotFoundError:
+        status = None
+    if status is not None:
+        reason = status.get("pause_reason") or reason
+        stop_class = status.get("stop_class") or STOP_ROUTINE
+    return {
+        "outcome": "paused",
+        "reason": reason,
+        "stop_class": stop_class,
+        "processed": processed,
+        "succeeded": succeeded,
+        "exhausted": exhausted,
+    }
+
+
 def _cancellation_provenance(loop_result: dict[str, Any]) -> dict[str, Any]:
     """Keep the worker-run evidence that caused a packet cancellation."""
     attempts = loop_result.get("attempts")
@@ -383,14 +419,13 @@ def run_initiative(
 
     while True:
         if bi.get_initiative_state(initiative_id, db_path=db_path) == bi.INITIATIVE_PAUSED:
-            return {
-                "outcome": "paused",
-                "reason": "initiative paused before loop step",
-                "stop_class": STOP_ROUTINE,
-                "processed": processed,
-                "succeeded": succeeded,
-                "exhausted": exhausted,
-            }
+            return _paused_gate_summary(
+                initiative_id,
+                db_path=db_path,
+                processed=processed,
+                succeeded=succeeded,
+                exhausted=exhausted,
+            )
 
         packet = bi.next_packet(initiative_id, db_path=db_path)
         if packet is None:
