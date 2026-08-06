@@ -1,0 +1,213 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "v2-driver-baseline-v1",
+  "title": "V2 daily-driver baseline: prove the Open WebUI shell, re-role the console, surface Builder work",
+  "description": "First V2 initiative. Proves the merged Open WebUI daily-driver baseline on a real checkout and a real Mac, re-roles the Next.js app as the Kitty Console (read-only thin view over Gateway truth), and surfaces Builder work as product-level Work/evidence with safe approval boundaries. The first 10 packets from docs/ROADMAP_V2.md, ordered by dependency. Three classes of packet: (A) fully autonomous and verifiable in CI; (L) live/operator-machine validation that needs Jacob's real environment or a bounded paid endpoint; (O) requires explicit operator approval before effect. Packets that require a live Mac or operator sign-off MUST NOT be executed autonomously by Builder — they are recorded here so the plan is complete, and are dispatched only on Jacob's instruction. No packet expands storage, rewrites Gateway or Builder, or adds a new feature lane.",
+  "packets": [
+    {
+      "id": "M1-01-bootstrap-clean-checkout",
+      "title": "Prove Open WebUI bootstrap from a clean checkout starts exactly one listener per service",
+      "objective": "Run the merged Open WebUI bootstrap path from a clean checkout and prove exactly one listener each for LiteLLM, Gateway, and Open WebUI. This packet produces the first V2 evidence artifact: the baseline is real from a fresh clone, not from a hand-tuned machine. It must verify listener counts, the 'account activation pending' trap absence, and a normal streaming message reaching [DONE]. It is live-environment validation: the code path already exists (scripts/openwebui_local.py, PR #384); this packet is the proof run and the evidence artifact.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "From a clean checkout on Jacob's Mac, `python3 scripts/openwebui_local.py bootstrap` starts exactly one listener each for LiteLLM, Gateway, Open WebUI (lsof/probe evidence recorded)",
+        "Login/session never hits the 'account activation pending' state; a single intentional admin row exists",
+        "kitty-default is the deliberate default model; a normal chat message streams to a clean terminal event ([DONE])",
+        "Chats and settings persist across a full service restart",
+        "Evidence artifact recorded under docs/research/v2-m1-01-bootstrap-evidence.md",
+        "Live run: requires Jacob's machine and consent; NOT autonomous"
+      ],
+      "allowed_paths": [
+        "scripts/openwebui_local.py",
+        "scripts/openwebui_tool/",
+        "docs/research/",
+        "tests/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 },
+      "validation_commands": ["python3.12 -m pytest tests/test_openwebui_local.py -q --tb=short"]
+    },
+    {
+      "id": "M1-09-pythonpath-regression-test",
+      "title": "Add a regression test proving the Open WebUI child process cannot inherit PYTHONPATH/PYTHONHOME",
+      "objective": "The environment sanitization exists (scripts/openwebui_tool/common.py sanitized_env drops everything not in the runtime allowlist), but there is no regression test locking it. Add a test that constructs a source env carrying repository-level PYTHONPATH/PYTHONHOME, runs sanitized_env, and asserts both are absent from the result; and a subprocess-level test that launches the service path with a poisoned env and proves the child cannot shadow third-party modules (e.g. the mcp import). Fully autonomous and CI-verifiable.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "New test asserts PYTHONPATH and PYTHONHOME are stripped by sanitized_env regardless of source env",
+        "A subprocess-level test proves a poisoned PYTHONPATH cannot shadow a third-party module import in the Open WebUI child",
+        "python3.12 -m pytest tests/test_openwebui_local.py tests/test_openwebui_common.py -q passes",
+        "No production behavior change; test-only packet"
+      ],
+      "allowed_paths": [
+        "scripts/openwebui_tool/common.py",
+        "tests/",
+        "scripts/openwebui_local.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 9 },
+      "validation_commands": ["python3.12 -m pytest tests/test_openwebui_local.py tests/test_openwebui_common.py -q --tb=short"]
+    },
+    {
+      "id": "M1-04-bootstrap-idempotency-smoke",
+      "title": "Prove bootstrap is idempotent across login, unclean shutdown, and duplicate-account cleanup",
+      "objective": "The handoff doc records a past trap: bootstrap trusted stale PIDs and the account bootstrap could create duplicate pending admin rows. The duplicate-account repair already exists (service.py). This packet turns that into a verified smoke: bootstrap from a clean state, restart mid-flight (unclean shutdown), bootstrap again, and prove the result is identical and idempotent, with the duplicate-account cleanup covered by an automated test. Operator sign-off is required only because it touches the live service lifecycle.",
+      "depends_on": ["M1-01-bootstrap-clean-checkout"],
+      "acceptance_criteria": [
+        "Bootstrap run twice in a row yields identical listener/PID/service state (doctor pass counts match)",
+        "An unclean shutdown followed by bootstrap recovers without duplicate services or stale-PID trust",
+        "Automated test covers the duplicate-account cleanup path (service.py repair)",
+        "python3.12 -m pytest tests/ -q passes for the touched suites",
+        "Requires operator approval: mutates live service lifecycle on Jacob's machine"
+      ],
+      "allowed_paths": [
+        "scripts/openwebui_tool/",
+        "tests/",
+        "docs/research/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": ["python3.12 -m pytest tests/test_openwebui_local.py -q --tb=short"]
+    },
+    {
+      "id": "M1-05-listener-parity",
+      "title": "Close listener duplication: same health across IPv4/IPv6 from the canonical checkout",
+      "objective": "ROADMAP outcome 0.5 documents two Next servers from different checkouts simultaneously on :4000 across IPv4/IPv6, with ./kitty probing one and the browser opening another. For V2 the equivalent hazard is Open WebUI vs console and gateway probe-vs-open mismatch. Prove ./kitty up from the canonical checkout produces one listener per port, that both loopback addresses hit the same process, and that ./kitty down removes every Kitty-owned listener. Fix the launcher path if a second checkout or dual-stack conflict is observed. Live-network verification; may need a small launcher fix.",
+      "depends_on": ["M1-01-bootstrap-clean-checkout"],
+      "acceptance_criteria": [
+        "`./kitty up` from the canonical checkout starts one listener per managed port",
+        "`curl http://127.0.0.1:4000/health` and `curl http://[::1]:4000/health` hit the same process (PID evidence)",
+        "`./kitty down` from the canonical checkout stops every Kitty-owned listener including dual-stack",
+        "`./kitty status` reports source SHA, build SHA, checkout path, PID, freshness per listener",
+        "Requires live network/manual verification on Jacob's machine"
+      ],
+      "allowed_paths": [
+        "kitty",
+        "scripts/",
+        "docs/research/",
+        "gateway/kitty-chat/",
+        "tests/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": ["python3.12 -m pytest tests/ -q --tb=short -k 'launcher or status or health'"]
+    },
+    {
+      "id": "M2-04-console-reads-gateway-truth",
+      "title": "Console reads all model/provider/connection truth from the Gateway, not a hardcoded catalog",
+      "objective": "Re-role the Next.js app toward the Kitty Console: stop it hardcoding the model/provider catalog and instead read connection, model menu (Kitty Auto/Fast/Think/Code/Vision), and connection state from Gateway /state and related query endpoints. This is the first concrete Console change; it must not change the chat shell, must not add a second chat engine, and must keep the existing rollback UI reachable. Fully autonomous and CI-verifiable via frontend tests and build.",
+      "depends_on": ["M1-09-pythonpath-regression-test"],
+      "acceptance_criteria": [
+        "Console renders the model menu and connection state from Gateway-backed runtime truth, not a local hardcoded catalog",
+        "Requested vs resolved model/location are distinguishable for a chat attempt",
+        "A failed/stale probe renders degraded/stale with a reason, never a fabricated default",
+        "make ui-test passes; make ui-build passes; python3.12 -m pytest tests/ -q passes",
+        "No new chat engine, no second state store, existing rollback UI still reachable"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/",
+        "gateway/routes/",
+        "gateway/",
+        "gateway/kitty-chat/tests/",
+        "tests/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 7 },
+      "validation_commands": ["make ui-build", "make ui-test", "python3.12 -m pytest tests/ -q --tb=short"]
+    },
+    {
+      "id": "M2-06-console-stale-render",
+      "title": "Console renders degraded/stale states honestly across the primary surfaces",
+      "objective": "A subsystem that is down or stale must render as degraded/stale with a reason, never as a plausible default, on the console's primary surfaces (Config/Builder/status views). Snapshot test locks the honest-empty-state language so no user-facing string claims success without evidence. Additive UI work over M2-04's Gateway-truth reads.",
+      "depends_on": ["M2-04-console-reads-gateway-truth"],
+      "acceptance_criteria": [
+        "Every primary console surface distinguishes available, degraded, stale, unknown for the subsystem it shows",
+        "A down/stale subsystem shows a reason string, not a default or empty success",
+        "Snapshot test asserts no fabricated-success phrasing on stale states",
+        "make ui-test passes; make ui-build passes; python3.12 -m pytest tests/ -q passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/",
+        "gateway/kitty-chat/tests/",
+        "tests/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 6 },
+      "validation_commands": ["make ui-build", "make ui-test", "python3.12 -m pytest tests/ -q --tb=short"]
+    },
+    {
+      "id": "M3-03-builder-read-projection",
+      "title": "Expose a non-mutating Builder read projection for the console/Work panel",
+      "objective": "Surface durable Builder state (initiative, packet, task, run status, leases, open decisions) to the Console/Work panel as a read-only projection that matches the CLI for the same queries. No new store, no new state machine, no mutation surface: only a bounded read endpoint over the existing Builder DB and projections. Autonomous and CI-verifiable by comparing projection output against CLI output.",
+      "depends_on": ["M2-04-console-reads-gateway-truth"],
+      "acceptance_criteria": [
+        "A read-only projection endpoint returns initiative/packet/task/run status, leases, and open decisions",
+        "Projection output matches `./kitty builder initiative status --json` (or equivalent CLI) for the same initiative on the same data",
+        "No mutation, no new table, no new state machine",
+        "python3.12 -m pytest tests/test_builder_* -q passes"
+      ],
+      "allowed_paths": [
+        "gateway/routes/",
+        "gateway/builder_*.py",
+        "tests/",
+        "gateway/kitty-chat/src/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 6 },
+      "validation_commands": ["python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_runner.py tests/test_builder_initiative.py -q --tb=short"]
+    },
+    {
+      "id": "M3-06-receipts-bind-evidence",
+      "title": "Bind execution receipts to evidence for initiative/task/run queries (no new store)",
+      "objective": "Every claim that a Builder run completed must be traceable to its receipts: runner success, deterministic checks, independent review. This packet binds receipt/evidence refs into the existing initiative/task/run read paths so a Work/console query can show the evidence behind a status. Additive read-side work over existing records; no new store.",
+      "depends_on": ["M3-03-builder-read-projection"],
+      "acceptance_criteria": [
+        "Task/run queries expose receipt and evidence refs (validation output, review verdict, artifact links)",
+        "A run marked complete shows the receipts that support it; a run without receipts is shown as unverified, not complete",
+        "No new store; existing tables only",
+        "python3.12 -m pytest tests/test_builder_* -q passes"
+      ],
+      "allowed_paths": [
+        "gateway/builder_*.py",
+        "gateway/routes/",
+        "tests/",
+        "gateway/kitty-chat/src/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 5 },
+      "validation_commands": ["python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_attempt.py tests/test_builder_runner.py -q --tb=short"]
+    },
+    {
+      "id": "M3-01-chat-propose-initiative",
+      "title": "Chat-to-Builder proposal: recommend an initiative/packet for operator approval (write-gated)",
+      "objective": "From Open WebUI chat, allow Kitty to produce a bounded, reviewable initiative proposal (packet) that is queued for operator approval — never executed from chat. This is the first write-capable chat→Builder surface and therefore requires explicit architectural review and operator approval. It must not permit arbitrary code execution from chat, must not mutate Builder state without an approval decision, and must be disableable so the shell falls back to read-only.",
+      "depends_on": ["M3-03-builder-read-projection", "M3-06-receipts-bind-evidence"],
+      "acceptance_criteria": [
+        "Chat can produce a proposal (initiative/packet draft) that appears in the queue as awaiting operator decision",
+        "No execution, push, merge, or mutation occurs without an explicit operator approval decision",
+        "The surface is disableable; with it disabled the shell is read-only again",
+        "Approval boundaries survive restart; proposal is bounded and reviewable",
+        "Requires architectural review (write boundary) and operator approval before enabling",
+        "python3.12 -m pytest tests/ -q --tb=short"
+      ],
+      "allowed_paths": [
+        "gateway/routes/",
+        "gateway/builder_*.py",
+        "tests/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 4 },
+      "validation_commands": ["python3.12 -m pytest tests/test_builder_initiative.py tests/test_builder_loop.py -q --tb=short"]
+    },
+    {
+      "id": "M1-02-live-accept-charges",
+      "title": "Live bounded paid acceptance: verify --accept-charges on the real daily driver",
+      "objective": "Run `python3 scripts/openwebui_local.py verify --accept-charges` on Jacob's Mac against live credentials, record the results, and fix every reported failure (do not weaken the smoke). This is the paid-endpoint, live-credentials gate that was never recorded run for the merged baseline. It requires Jacob's explicit go-ahead because it spends money on live model routes.",
+      "depends_on": ["M1-01-bootstrap-clean-checkout", "M1-09-pythonpath-regression-test"],
+      "acceptance_criteria": [
+        "verify --accept-charges completes every bounded route with evidence (not merely exit 0)",
+        "Streaming smoke proves a real response, first-content arrival, clean [DONE] terminal state, and surfaced error events",
+        "Every failure is fixed and re-verified; none are waived or weakened",
+        "Requires operator approval and paid-endpoint consent: Jacob must run/go-ahead"
+      ],
+      "allowed_paths": [
+        "scripts/openwebui_local.py",
+        "scripts/openwebui_tool/",
+        "docs/research/",
+        "tests/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 },
+      "validation_commands": ["python3.12 -m pytest tests/test_openwebui_local.py -q --tb=short"]
+    }
+  ]
+}
