@@ -90,6 +90,82 @@ def _classify_exhaustion(loop_result: dict[str, Any]) -> dict[str, Any]:
     return {"stop_class": STOP_ROUTINE, "reason": "packet exhausted"}
 
 
+def _pause_needs_decision(
+    initiative_id: str,
+    packet_id: str,
+    task_id: str,
+    loop_result: dict[str, Any],
+    classification: dict[str, Any],
+    *,
+    db_path: Path | None,
+) -> None:
+    """Durably pause an initiative on a ``needs_decision`` exhaustion stop.
+
+    A packet blocked on scope/identity escalation or an ambiguous
+    requirement must not be silently re-selected for another worker run
+    without a new operator decision. This writes the decision event and
+    pauses the initiative so the run loop stops instead of continuing.
+    """
+    bi.pause_initiative(
+        initiative_id,
+        f"needs operator decision on {packet_id}: {classification['reason']}",
+        db_path=db_path,
+    )
+    _decide(
+        task_id,
+        {
+            "initiative_id": initiative_id,
+            "packet_id": packet_id,
+            "decision": "packet_needs_decision",
+            "reason": loop_result.get("reason"),
+            "stop_class": classification["stop_class"],
+            "stop_class_reason": classification["reason"],
+            **(
+                {"findings": classification["findings"]}
+                if "findings" in classification
+                else {}
+            ),
+        },
+        db_path,
+    )
+
+
+def _paused_gate_summary(
+    initiative_id: str,
+    *,
+    db_path: Path | None,
+    processed: list[dict[str, Any]],
+    succeeded: int,
+    exhausted: int,
+) -> dict[str, Any]:
+    """Summarize an already-paused initiative from durable state.
+
+    The pause may predate this call (a later invocation or a process
+    restart), so the gate re-derives the stop_class from the durable
+    decision events instead of defaulting to routine. A pause recorded by
+    ``_pause_needs_decision`` therefore still reports ``stop_class=
+    needs_decision`` here, so the CLI can keep treating it as operator
+    decision required rather than ordinary completion.
+    """
+    reason = "initiative paused before loop step"
+    stop_class = STOP_ROUTINE
+    try:
+        status = bi.initiative_status(initiative_id, db_path=db_path)
+    except bi.InitiativeNotFoundError:
+        status = None
+    if status is not None:
+        reason = status.get("pause_reason") or reason
+        stop_class = status.get("stop_class") or STOP_ROUTINE
+    return {
+        "outcome": "paused",
+        "reason": reason,
+        "stop_class": stop_class,
+        "processed": processed,
+        "succeeded": succeeded,
+        "exhausted": exhausted,
+    }
+
+
 def _cancellation_provenance(loop_result: dict[str, Any]) -> dict[str, Any]:
     """Keep the worker-run evidence that caused a packet cancellation."""
     attempts = loop_result.get("attempts")
@@ -343,14 +419,13 @@ def run_initiative(
 
     while True:
         if bi.get_initiative_state(initiative_id, db_path=db_path) == bi.INITIATIVE_PAUSED:
-            return {
-                "outcome": "paused",
-                "reason": "initiative paused before loop step",
-                "stop_class": STOP_ROUTINE,
-                "processed": processed,
-                "succeeded": succeeded,
-                "exhausted": exhausted,
-            }
+            return _paused_gate_summary(
+                initiative_id,
+                db_path=db_path,
+                processed=processed,
+                succeeded=succeeded,
+                exhausted=exhausted,
+            )
 
         packet = bi.next_packet(initiative_id, db_path=db_path)
         if packet is None:
@@ -666,6 +741,28 @@ def run_initiative(
 
         if loop_result["outcome"] != "succeeded":
             assert classification is not None
+            if classification["stop_class"] == STOP_NEEDS_DECISION:
+                _pause_needs_decision(
+                    initiative_id,
+                    packet_id,
+                    task_id,
+                    loop_result,
+                    classification,
+                    db_path=db_path,
+                )
+                return {
+                    "outcome": "paused",
+                    "reason": (
+                        f"needs operator decision on {packet_id}: "
+                        f"{classification['reason']}"
+                    ),
+                    "stop_class": STOP_NEEDS_DECISION,
+                    "packet_id": packet_id,
+                    "task_id": task_id,
+                    "processed": processed,
+                    "succeeded": succeeded,
+                    "exhausted": exhausted,
+                }
             _decide(
                 task_id,
                 {
