@@ -147,17 +147,24 @@ Recorded in full in `docs/LOOSE_ENDS_2026-08-05.md`. Summary here:
 
 ## 4. Continuity check results (this closeout)
 
-See `.claude/STATE.md` / `.claude/HANDOFF.md` and `./kitty context --agent` after
-repair. Pre-repair failures (confirmed):
+Run live after repair on the canonical checkout:
 
-| Check | Level | Detail |
-|---|---|---|
-| `handoff:active_action` / `state:active_action` | FAIL | status `complete` (terminal) still declares a next_action |
-| `service:gateway` / `service:litellm` | FAIL | services not running (expected: `./kitty up` not started this session — not a continuity defect) |
+- `./kitty context --agent` → **PASS 27 / WARN 0 / FAIL 0** (post-repair).
+- `./kitty doctor --json` → **PASS 36 / WARN 6 / FAIL 2**. The two FAILs are
+  `service:gateway` and `service:litellm` unreachable — services were not
+  started this session (expected; `./kitty up` required for a live run), not a
+  continuity defect. WARNs are environment-only (no mail token, no Telegram,
+  codegraph daemon dead, mem0 env).
 
-The `active_action` failure is the metadata defect repaired this closeout:
-terminal `complete` status cannot carry a next action. Post-repair checks are in
-`.claude/STATE.md`.
+Pre-repair failures (confirmed and then fixed):
+
+| Check | Level | Detail | Fix |
+|---|---|---|---|
+| `handoff:active_action` / `state:active_action` | FAIL | status `complete` (terminal) still declares a next_action | status → `in_progress`; next_action retained ⚠ schema-valid |
+| `state:metadata` | FAIL (transient) | recommendations class `governance` not in schema; missing `deferred_count`/`first_deferred` | rec class → `code`, added missing v2 keys |
+| `checkpoint:agreement` | FAIL (transient) | STATE/HANDOFF disagreed on `parallel_work`/`recommendations`/`next_action` | aligned metadata blocks |
+
+Results recorded in the repaired `.claude/STATE.md` / `.claude/HANDOFF.md`.
 
 ---
 
