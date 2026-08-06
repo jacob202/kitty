@@ -183,9 +183,16 @@ class TestPlanDispatchRoute:
 
         async def fake_run(engine, prompt, **kwargs):
             captured.update({"engine": engine, "prompt": prompt, **kwargs})
+            from gateway import image_jobs
             from gateway.image_runner import JobResult
 
-            return JobResult(job_id="job_x", filename="/tmp/out.png", engine=engine)
+            # The real runner always leaves a durable job row behind, and the
+            # route now binds that row to the session. A fake that returns an
+            # id with no row would test a state the runner cannot produce.
+            job = image_jobs.create_job(
+                provider=engine, operation="txt2img", prompt=prompt
+            )
+            return JobResult(job_id=job.job_id, filename="/tmp/out.png", engine=engine)
 
         def fake_auto_route(**kwargs):
             from gateway.image_recipes import Recipe, RoutingDecision
@@ -308,13 +315,22 @@ class TestGuidanceToRenderer:
     async def test_runner_forwards_guidance_to_character_renderer(self, monkeypatch):
         """guidance_tags survive the runner → renderer boundary."""
         from gateway import image_runner
-        from gateway.image_characters import CharacterRef
 
         captured: dict = {}
 
-        class _Char:
-            character_id = "char_james"
-            name = "James"
+        resolved = {
+            "positive_prompt": "person",
+            "negative_prompt": "",
+            "reference_path": "/tmp/ref.png",
+            "identity_mode": "balanced",
+            "width": 1024,
+            "height": 1024,
+            "steps": 8,
+            "guidance": 4.5,
+            "recipe_id": "contract-v1",
+            "identity_method": "ipadapter_faceid",
+            "references": [{"ref_id": "ref-primary"}],
+        }
 
         async def fake_generate_with_character(**kwargs):
             captured.update(kwargs)
@@ -328,21 +344,20 @@ class TestGuidanceToRenderer:
         async def fake_available():
             return True
 
-        ref = CharacterRef(
-            ref_id="ref_1",
-            character_id="char_james",
-            storage_path="/tmp/ref.png",
-            is_primary=True,
-        )
+        async def fake_ready():
+            return True, "ready"
+
         monkeypatch.setattr("gateway.image_gen.is_available", fake_available)
         monkeypatch.setattr(
             "gateway.image_gen.generate_with_character", fake_generate_with_character
         )
         monkeypatch.setattr(
-            "gateway.image_characters.get_character", lambda _cid: _Char()
+            "gateway.image_character_contracts.resolve_comfyui_character",
+            lambda _cid: resolved,
         )
         monkeypatch.setattr(
-            "gateway.image_characters.list_character_refs", lambda _cid: [ref]
+            "gateway.image_character_contracts.comfyui_character_runtime_status",
+            fake_ready,
         )
 
         result = await image_runner._run_comfyui_character(

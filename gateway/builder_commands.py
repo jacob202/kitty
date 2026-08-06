@@ -24,7 +24,7 @@ from gateway.builder_initiative import (
     resume_initiative,
 )
 from gateway.builder_queue import TaskNotFoundError as QueueTaskNotFoundError
-from gateway.builder_queue import transition_task as _transition_task
+from gateway.builder_queue import operator_cancel_task as _operator_cancel_task
 from gateway.builder_queue_leases import operator_release_task
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -122,14 +122,10 @@ def command_cancel(
     reason: str = "operator cancel from cockpit",
 ) -> CommandResult:
     try:
-        result = _transition_task(
+        result = _operator_cancel_task(
             task_id,
-            "cancelled",
-            payload={
-                "operator": True,
-                "reason": reason,
-                "actor": actor,
-            },
+            reason=reason,
+            actor=actor,
         )
     except QueueTaskNotFoundError:
         return CommandResult(
@@ -379,6 +375,37 @@ def command_recover_stale(
     )
 
 
+def command_reconcile_merges(
+    *,
+    actor: str,
+) -> CommandResult:
+    """Promote tasks whose merged PR is not reflected in task state to done.
+
+    The supported recovery for a task cancelled (or left non-terminal) in error:
+    re-evaluate it against ground truth — its linked PR merged — instead of
+    mutating queue rows by hand.
+    """
+    try:
+        out = _run_kitty(["queue", "reconcile-merges", "--json"], timeout=60)
+        details = json.loads(out)
+    except (json.JSONDecodeError, OperatorCommandError) as exc:
+        return CommandResult(ok=False, action="reconcile_merges", error=str(exc))
+
+    _emit_event(
+        "command_completed",
+        {
+            "command": "reconcile_merges",
+            "actor": actor,
+        },
+    )
+    return CommandResult(
+        ok=True,
+        action="reconcile_merges",
+        detail=f"promoted {len(details.get('promoted', []))} merged task(s) to done",
+        evidence=details,
+    )
+
+
 COMMAND_HANDLERS: dict[str, Any] = {
     "requeue": command_requeue,
     "cancel": command_cancel,
@@ -387,4 +414,5 @@ COMMAND_HANDLERS: dict[str, Any] = {
     "run_validation": command_run_validation,
     "publish": command_publish,
     "recover_stale": command_recover_stale,
+    "reconcile_merges": command_reconcile_merges,
 }

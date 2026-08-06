@@ -43,7 +43,6 @@ from dspy_intent import (  # noqa: E402
     _DummyLM,  # for offline test
 )
 
-
 # ---------- Training data: hand-labelled small set ----------
 
 TRAINING_EXAMPLES = [
@@ -146,7 +145,7 @@ def _offline_check() -> None:
         metric=_mission_quality, max_bootstrapped_demos=2, max_labeled_demos=4,
     )
     assert optimizer is not None
-    print(f"[proto3/A] BootstrapFewShot instantiates against CompileMission: OK")
+    print("[proto3/A] BootstrapFewShot instantiates against CompileMission: OK")
     print(f"[proto3/A] MIPROv2 available: {hasattr(dspy, 'MIPROv2')}")
     print(f"[proto3/A] GEPA available:    {hasattr(dspy, 'GEPA')}")
     print(f"[proto3/A] SIMBA available:   {hasattr(dspy, 'SIMBA') or 'via teleprompt.simba'}")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from gateway.openwebui_routing_guards import install_openwebui_routing_guards
 from gateway.routes import (
     actions,
     artifacts,
@@ -25,6 +26,7 @@ from gateway.routes import (
     extended,
     feedback,
     idea_mine,
+    image_character_contracts,
     import_chatgpt,
     inbox,
     insights,
@@ -54,6 +56,7 @@ from gateway.routes import (
     state,
     status,
     telos,
+    tool_server,
     tutor,
     usage,
     voice,
@@ -61,6 +64,7 @@ from gateway.routes import (
 
 
 def register_routes(app: FastAPI) -> None:
+    install_openwebui_routing_guards(app)
     for module in (
         artifacts,
         experts,
@@ -82,6 +86,7 @@ def register_routes(app: FastAPI) -> None:
         dream,
         feedback,
         idea_mine,
+        image_character_contracts,
         import_chatgpt,
         inbox,
         insights,
@@ -109,6 +114,7 @@ def register_routes(app: FastAPI) -> None:
         state,
         status,
         telos,
+        tool_server,
         tutor,
         usage,
         voice,

@@ -4,13 +4,14 @@ This script demonstrates how to use the new task boundary, async feedback,
 codebase search, and team protocol features.
 """
 import asyncio
-from gateway.antigravity_tools import invoke_tool, get_tools
+
+from gateway.antigravity_tools import get_tools, invoke_tool
 
 
 async def demo_task_boundary():
     """Demonstrate task boundary tracking."""
     print("=== Task Boundary Demo ===")
-    
+
     # Open a new task
     result = await invoke_tool("task_boundary", {
         "action": "open",
@@ -18,7 +19,7 @@ async def demo_task_boundary():
         "summary": "Starting implementation of the new feature"
     })
     print(f"Opened task: {result}")
-    
+
     # Update progress
     result = await invoke_tool("task_boundary", {
         "action": "update",
@@ -27,7 +28,7 @@ async def demo_task_boundary():
         "summary": "Working on core logic"
     })
     print(f"Updated task: {result}")
-    
+
     # Close task
     result = await invoke_tool("task_boundary", {
         "action": "close",
@@ -41,7 +42,7 @@ async def demo_task_boundary():
 async def demo_notify_user():
     """Demonstrate user notifications."""
     print("\n=== Notification Demo ===")
-    
+
     result = await invoke_tool("notify_user", {
         "message": "Review requested for implementation_plan.md",
         "artifact_path": "/path/to/implementation_plan.md",
@@ -53,12 +54,12 @@ async def demo_notify_user():
 async def demo_codebase_search():
     """Demonstrate semantic code search."""
     print("\n=== Codebase Search Demo ===")
-    
+
     result = await invoke_tool("codebase_search", {
         "query": "task boundary tracking",
         "top_k": 3
     })
-    
+
     if result.get("success"):
         print(f"Found {result['count']} results:")
         for r in result.get("results", []):
@@ -70,7 +71,7 @@ async def demo_codebase_search():
 async def demo_team_protocol():
     """Demonstrate team coordination."""
     print("\n=== Team Protocol Demo ===")
-    
+
     # Share a discovery
     result = await invoke_tool("share_discovery", {
         "discovery": "Found that task boundaries are stored in task_boundaries.jsonl",
@@ -78,7 +79,7 @@ async def demo_team_protocol():
         "agent_name": "demo-agent"
     })
     print(f"Discovery shared: {result}")
-    
+
     # Get discoveries
     result = await invoke_tool("get_discoveries", {
         "agent_filter": "demo-agent"
@@ -92,12 +93,12 @@ async def main():
     print("Available tools:")
     for tool in get_tools():
         print(f"  - {tool['name']}: {tool['description'][:60]}...")
-    
+
     await demo_task_boundary()
     await demo_notify_user()
     await demo_codebase_search()
     await demo_team_protocol()
-    
+
     print("\n=== Demo Complete ===")
 
 

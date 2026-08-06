@@ -141,45 +141,173 @@ stop/split rule.
     plan must store it.
 - **Local-testable:** yes (done)
 
-### A3 — Bounded image-specialist controller · NOT STARTED
+### A3 — Bounded image-specialist controller · VERIFIED
 
-- **Depends on:** A1
-- **Change:** `gateway/image_agent.py`. Max three rounds, strict JSON actions,
-  deterministic validation. Local tools only: list session assets, retrieve one
-  guidance skill, inspect current anchor, create validated plan, generate,
-  edit/variation, cancel, clarify. Uses existing LLM routing and usage logging.
-  Malformed output, unknown references, unsupported operations, missing worker
-  capability, and budget refusal all fail loudly. The LLM chooses intent; it
-  never mutates job state.
-- **Acceptance:** strict-parse tests, loop-bound test, unknown-id rejection,
-  budget-refusal test, malformed-output failure test.
-- **Local-testable:** yes
+- **Depends on:** A1 (met)
+- **Change landed:** `gateway/image_agent.py`. `decide(session_id, request)`
+  runs at most `MAX_ROUNDS` (3) LLM calls through the existing `call_llm`
+  routing (`operation="image.agent"`, `response_format=json_object`) and
+  returns one validated `AgentDecision`. Read-only actions (`list_assets`,
+  `get_guidance`, `inspect_anchor`) feed an observation back and consume a
+  round; terminal actions (`generate`, `edit`, `cancel`, `clarify`) are
+  validated and returned. The controller persists an approved plan through
+  A2's `persist_plan` and records the turn — it never dispatches, so a
+  decision is inspectable before any renderer or GPU is touched.
+- **Acceptance met:** `tests/test_image_agent.py`, 32 tests, all passing;
+  `tests/test_image_plans.py` + `tests/test_image_sessions.py` +
+  `tests/test_image_jobs.py` + `tests/test_image_recipes.py` +
+  `tests/test_image_router.py` + `tests/test_image_cancel.py` +
+  `tests/test_image_backends.py` + `tests/test_db.py` → 161 passed, no
+  regressions. Covers strict parsing (non-JSON, JSON array, missing action,
+  unknown action, missing field, unexpected field, blank string, non-list,
+  repeated entry), the loop bound (three read-only actions exhaust it and
+  raise; an observation is fed back and the next round decides), unknown-id
+  rejection (character outside the session, anchor the user never selected,
+  unknown guidance tag), budget refusal on both attempt and spend ceilings,
+  and the capability boundary.
+- **Design notes for the next slice:**
+  - `_parse_action` is strict on purpose: no code-fence stripping, no
+    unknown-key tolerance, no defaulting of a missing field. A dropped
+    `denoise` key reads to the user as an honoured one.
+  - `edit_workflow_available()` is the capability gate, and it checks for the
+    `workflows/image_to_image_v1/` bundle. Until A4 adds it, every `edit`
+    raises `CapabilityError` rather than downgrading to a text-to-image
+    reroll — issue #336's explicit fail case, pinned by
+    `test_edit_is_refused_while_no_edit_workflow_is_installed`. A4 flips this
+    by adding the bundle; it does not need to touch the controller.
+  - `auto_route` ignores its `operation` argument, so `_route_recipe`
+    asserts `supports_img2img` itself. If A4 makes routing operation-aware,
+    that assertion becomes redundant rather than wrong.
+  - The model reads the anchor, it never chooses one. An `edit` naming a job
+    other than the session's current anchor is an unknown reference.
+  - **Gap A5 must close:** A3 adds no HTTP route. `decide()` is unreachable
+    from the browser until A5 adds a `/studio/agent` endpoint that calls it
+    and dispatches the returned `plan_id` through the existing
+    `/studio/generate` path. This was left out deliberately to keep an
+    unproven endpoint out of the API surface.
+- **Scope note:** this verifies A3's stated acceptance only. Every LLM call in
+  these tests is a scripted stub. No real model output has been parsed, and no
+  image was generated.
+- **Local-testable:** yes (done)
 
-### A4 — Real reference-conditioned editing · NOT STARTED
+### A4 — Real reference-conditioned editing · VERIFIED (schema and binding only)
 
-- **Depends on:** A2, A3
-- **Change:** add and hash-pin `workflows/image_to_image_v1/`; extend the
-  worker request/client schema with authenticated image upload, path safety,
-  and explicit denoise/edit strength. Remove the hardcoded workflow name at
-  `workers/comfy_worker/app.py:704`. Keep the provider boundary replaceable so
-  Qwen-Image-Edit can challenge ComfyUI later.
-- **Acceptance:** a test asserting the renderer request carries the parent
-  artifact as an actual workflow input and a denoise value. A fresh
-  text-to-image reroll containing preservation words fails this slice.
-- **Local-testable:** partly — schema and binding yes, real render no
+- **Depends on:** A2, A3 (both met)
+- **Change landed:** `workflows/image_to_image_v1/` added and hash-pinned
+  (`workflow_sha256` in its manifest; tampering is rejected by the existing
+  `WorkflowBundle.load` check). The bundle is `LoadImage → VAEEncode → KSampler
+  → VAEDecode → SaveImage`, so the sampler starts from the encoded source image
+  rather than an empty latent. `JobRequest` gained `source_image_id` and
+  `denoise`; `WorkflowBundle.compile` binds both. The worker gained an
+  authenticated `POST /v1/images` that stores an upload under its own content
+  hash — the client's filename never reaches the filesystem, so there is no
+  traversal left to defend against downstream. `/health` no longer names
+  `text_to_image_v1`; it verifies every installed bundle and reports which
+  consume a source image. `RunPodWorkerClient` gained `upload_source_image` and
+  the two edit fields, which travel together and are omitted together.
+- **Acceptance met:** `tests/test_image_to_image.py`, 34 tests, all passing.
+  The acceptance assertion is
+  `TestCompiledRequest::test_compiled_workflow_carries_the_source_image_and_denoise`
+  — the compiled request carries the parent artifact at the `LoadImage` node and
+  a denoise value at the sampler. Its inverse,
+  `test_a_reroll_with_preservation_words_has_no_source_image_input`, pins the
+  fail case: a text-to-image prompt containing "keep his face exactly the same"
+  compiles with no `LoadImage` node and `denoise == 1.0`.
+- **Design notes for the next slice:**
+  - `WorkflowBundle.consumes_source_image` is the definition of an edit — the
+    binding, not the prompt. `create_job` enforces agreement in both
+    directions: an edit workflow without a source image is a 400, and a source
+    image against a text-only workflow is a 400 rather than a silently ignored
+    field.
+  - `gateway.image_agent.edit_workflow_available()` (A3) checks for this
+    bundle's directory. Adding it here is what flips A3's `CapabilityError`
+    off — the controller needed no change.
+  - The provider boundary is unchanged: the gateway addresses workflows by id,
+    so Qwen-Image-Edit can be added as another bundle later.
+- **Scope note:** schema and binding only, as this slice's own row predicted.
+  Nothing was rendered — no ComfyUI, no GPU, no artifact. The gateway's
+  `image_runner` still dispatches text-to-image; wiring an approved `img2img`
+  decision through to the worker is A6's job.
+- **Local-testable:** partly — schema and binding yes (done), real render no
 
-### A5 — Conversational Image Studio UI · NOT STARTED
+### A4b — Gateway dispatch of an approved edit · VERIFIED (worker injected)
 
-- **Depends on:** A3
-- **Change:** refactor `ImageStudio.tsx` to chat-first. Always-visible
-  composer; references and active anchor as chips/thumbnails; assistant states
-  what changes and what stays fixed; real stages, cancel, cost, failure
-  detail; inline results with "use this" anchor selection; advanced controls
-  hidden by default; character library and gallery retained. Plan inspection
-  is optional detail, not a mandatory approval screen.
-- **Acceptance:** frontend tests for the two-turn conversation and anchor
-  selection; `make ui-test && make ui-build`.
-- **Local-testable:** yes (tests) / needs browser (real flow)
+- **Depends on:** A4 (met)
+- **Change landed:** `gateway/image_runner.run_edit()`. Resolves the anchor
+  job's artifact from disk, uploads it to the worker, and submits
+  `image_to_image_v1` with an explicit denoise. The worker is a parameter, not
+  a module lookup — see the blocker below.
+- **Acceptance met:** `tests/test_image_edit_dispatch.py`, 14 tests, all
+  passing; `tests/test_image_runner.py` + the rest of the image suite → 198
+  passed, no regressions. The acceptance assertion is
+  `test_edit_sends_the_anchor_artifact_and_a_denoise`. Also covers: the job
+  records `img2img` + `parent_id` + workflow id, lineage links to the anchor,
+  a successful edit ends terminal with a verified artifact, and every refusal
+  path (unknown anchor, unfinished anchor, artifact missing from disk,
+  out-of-range denoise, worker success with no artifact, worker failure) leaves
+  the job terminal rather than dangling.
+- **Security note:** the worker chooses the output filename, so
+  `_persist_artifact` keeps only its basename. Pinned by
+  `test_a_crafted_output_filename_cannot_escape_the_job_directory`.
+- **What this discovered — the real finding:** the gateway has **two unrelated
+  image dispatch paths**, and A4 extended the one nothing calls.
+  - Live: `gateway/image_gen.py` talks straight to `COMFY_URL`, building
+    workflows inline in Python (`_wf_sdxl`, `_wf_ipadapter_sdxl`). This is what
+    `image_runner.run` uses today.
+  - Unwired: `workers/comfy_worker/` + `gateway/runpod_worker.py` +
+    `workflows/*` hash-pinned bundles. `RunPodWorkerClient` has **zero callers
+    in `gateway/`**, and there is no `KITTY_WORKER_*` env plumbing anywhere in
+    the gateway.
+  Issue #336 names the worker lane as the one to reuse and its acceptance
+  requires RunPod, so the worker lane is the intended target — but connecting
+  it is not a code change alone.
+- **BLOCKED on Jacob:** wiring `run_edit` to a real worker needs a worker base
+  URL and bearer token read from env/secrets. `AGENTS.md` and `CLAUDE.md`
+  non-negotiable 4 put secrets/auth/env changes behind explicit approval, so
+  this slice stops at an injected worker. Everything above the credential
+  boundary is done and tested.
+- **Local-testable:** yes, done (stub worker; no renderer, no GPU, no artifact)
+
+### A5 — Conversational Image Studio UI · VERIFIED (tests only; browser unproven)
+
+- **Depends on:** A3 (met)
+- **Backend added here (A3's named gap):** `gateway/routes/extended.py` gained
+  `POST /studio/sessions`, `GET /studio/sessions`, `GET /studio/sessions/{id}`,
+  `POST /studio/sessions/{id}/anchor`, `DELETE /studio/sessions/{id}`, and
+  `POST /studio/agent`. `/studio/agent` maps each controller error to a
+  distinct status — 404 unknown session, 429 budget refused, 503 no capable
+  renderer, 400 unknown reference or unsupported operation, 502 malformed model
+  output or loop exhaustion — so the UI can say what actually went wrong.
+  `/studio/generate` now attaches its job to the session and counts the
+  attempt, which is what makes "use this" and restart-resume possible.
+- **Frontend change landed:** `ImageStudio.tsx` is chat-first. The composer is
+  always visible and empties itself after sending; a turn goes to
+  `/studio/agent` first and dispatches only what the controller approved, from
+  its `plan_id` rather than live form state. Results render inline as
+  conversation turns with a "use this" button that sets the session anchor;
+  the active anchor shows as a chip. Assistant turns state what stays fixed and
+  what changes. `clarify` and `cancel` are answers in the conversation, not
+  error banners. Plan inspection moved behind "advanced" — optional detail, no
+  longer a step between asking and getting an image. Character library, gallery,
+  offline/gateway-failure panels, and the fail-closed Enter behaviour are all
+  retained.
+- **Acceptance met:** `gateway/kitty-chat/tests/ImageStudio.test.tsx`, 12 tests,
+  all passing. The two required cases are
+  `runs a two-turn conversation: generate, select a result, then edit it` (which
+  also asserts the render dispatches from `plan_id`, not the prompt) and the
+  anchor-selection half of it. Plus: a clarifying question renders nothing, a
+  refusal is not an error banner, a failing controller names the image
+  specialist rather than the renderer, and the composer clears.
+- **Test-contract changes:** the primary button is `send`, not `generate`
+  (`data-testid="studio-send"`), and `preview plan` now lives behind
+  `advanced`. Both existing assertions were updated rather than deleted. The
+  PR #355 finding-5 stale-closure test needed the follow-up request retyped,
+  because the composer now clears after a send — the fail-closed invariant it
+  guards is unchanged and still asserted.
+- **Scope note:** this verifies A5's frontend tests only. No browser ran, no
+  screenshot exists, and the real two-turn flow against a live gateway is
+  unproven. That is A6.
+- **Local-testable:** yes (tests, done) / needs browser (real flow)
 
 ### A6 — Automatic compute lifecycle · NOT STARTED
 
@@ -195,31 +323,127 @@ stop/split rule.
 
 ## Outcome B — Trustworthy KittyBuilder
 
-### B1 — Reconstruct the real Builder execution path · NOT STARTED
+### B1 — Reconstruct the real Builder execution path · VERIFIED
 
-- **Depends on:** slice 0
-- **Change:** none. Produce `docs/mission/builder-map.md`: for each of the 27
-  `builder_*` modules, whether it is on the live path, referenced only by
-  tests, or dead. Trace one real invocation from `./kitty builder` through to
-  worker dispatch.
-- **Acceptance:** every module classified with the call site that proves it.
-- **Local-testable:** yes (static + CLI tracing)
-- **Note:** B2–B10 must not begin before this lands (decision D5).
+- **Depends on:** slice 0 (met)
+- **Change landed:** `docs/mission/builder-map.md`. No code changed.
+- **Acceptance met:** all 27 modules classified with a proving call site —
+  26 live, 1 reachable only from tests, 0 dead. One invocation traced in seven
+  steps from `kitty:809` to `subprocess.Popen` at
+  `gateway/builder_runner.py:1138`.
+- **The finding:** `builder_adapters` is implemented, contract-tested, and
+  unreachable. `ShellWorkerSession` and `OpenCodeServerSession` both exist;
+  `run_packet` accepts `worker_session=` and branches to `_run_via_session`; and
+  `_cmd_initiative_run_packet` never passes it
+  (`gateway/builder_cli.py:1427-1438`). "KittyBuilder supports pluggable worker
+  backends" is false today at the CLI. There is no dead module to delete, which
+  makes B2's real question a decision rather than a cleanup: wire the seam, or
+  say plainly that subprocess dispatch is the only supported backend.
+- **Scope note:** static analysis plus one traced path. No packet was queued and
+  no worker ran, so "is imported" is not "does execute". `builder_run.run_initiative`
+  and the HTTP control plane were not traced.
+- **Local-testable:** yes (done)
+- **Note:** B2–B10 may now begin (decision D5 satisfied).
 
-### B2–B10 — NOT STARTED
+### B2 — Resolve the adapter seam · VERIFIED
 
-Blocked on B1. Covers: eliminating contradictory launchers and dead entry
-points; deterministic and observable branch/worktree/PR/check/review/retry/
-cancellation/exhaustion/restart/recovery behaviour; preventing workers from
-leaving conflicting or permanently-red PRs without a surfaced recovery action;
-one owner, one state, one evidence trail per queued packet; failed checks and
-merge conflicts as actionable Builder state; clean-checkout verification; one
-complete mission through queue → execution → branch/commit → PR → checks →
-review → merge-ready or an honestly classified terminal failure; restart and
-recovery mid-mission without duplicated work or lost state; UI and CLI
-agreeing on what is running, blocked, failed, completed and next.
+- **Depends on:** B1 (met)
+- **Branch/PR:** `claude/clever-mendel-u3uvgw`
+- **Decision:** subprocess dispatch is the only supported backend. The adapter
+  layer (`builder_adapters.py`, `builder_worker_session.py`) is a complete
+  implementation that was never wired into any production entry point. Rather
+  than wire an unused seam, the dead dispatch path is removed.
+- **Change:** removed `_run_via_session` (83 lines), the `worker_session`
+  parameter from `run_packet`, and the mutual-exclusion validation that guarded
+  it. `worker_command` is now a required positional keyword — both production
+  callers (`builder_cli._cmd_initiative_run_packet`,
+  `builder_run.run_initiative`) already passed it unconditionally.
+  `builder_worker_session.py` types (`WorkerState`, `WorkerEvent`) are retained
+  because `builder_runtime.py` and `builder_events.py` import them for their own
+  read-model and event-envelope purposes. `builder_adapters.py` and its test
+  files are retained as a complete, tested implementation that can be wired if
+  the feature is authorised later.
+- **Acceptance met:** `tests/test_builder_loop.py` and `tests/test_builder_cli.py`
+  pass (zero tests referenced the removed path). `python -c "import ast;
+  ast.parse(…)"` confirms the module parses. No test in the repo imported
+  `_run_via_session`, referenced `worker_session` in a `run_packet` call, or
+  tested the removed validation messages.
+- **Local-testable:** yes (done)
 
-Items 8, 9 and 10 need a real runtime and cannot be closed in a container.
+### B3 — One canonical execution entry point · VERIFIED
+
+- **Depends on:** B1 (met)
+- **Branch/PR:** landed on `main` as `6f55270`
+- **Change:** tombstoned retired top-level commands (`run`, `loop`, `repl`,
+  `delegate`) — they print a deprecation message naming the canonical
+  `initiative run-packet` path, exit non-zero, and never dispatch work. Both
+  `initiative run-packet` and `initiative run` converge on
+  `builder_loop.run_packet`.
+- **Acceptance met:** 255 builder CLI tests pass.
+- **Local-testable:** yes (done)
+
+### B4 — Shared runtime projection · VERIFIED
+
+- **Depends on:** B1 (met)
+- **Branch/PR:** landed on `main` as `fb8630c`
+- **Change:** single typed `RuntimeProjection` with
+  `LeaseProjection`/`PublicationProjection`/`BudgetProjection` facets. Exposes
+  task/attempt/lease/branch/worktree/PR/checks/review/retry/cancellation/
+  exhaustion/recovery/next-action. `build_control_plane_summary` reads from
+  projection. CLI and UI share same path.
+- **Local-testable:** yes (done)
+
+### B5 — Actionable PR/check/review state · VERIFIED
+
+- **Depends on:** B4 (met)
+- **Branch/PR:** landed on `main` as `1d9338e`
+- **Change:** Builder status produces truthful recovery actions: failed CI
+  checks → diagnoses, merge conflicts → resolve actions, missing reviews →
+  requirements, stale branches → rebase actions, superseded runs detected.
+  Extended `gh` PR advisory capture with `mergeable`/`mergeStateStatus`/
+  `baseRefOid`.
+- **Local-testable:** yes (done)
+
+### B6 — Cancellation and recovery semantics · VERIFIED
+
+- **Depends on:** B5 (met)
+- **Branch/PR:** landed on `main` as `705fbc6`
+- **Change:** completed implementations with merged PRs no longer count as
+  failed from stale cancelled state. `operator-cancel` refuses
+  running/pr_opened tasks. `recover` detects and repairs expired claims,
+  expired running, merged-but-not-done.
+- **Local-testable:** yes (done)
+
+### B7 — Durable detached execution · VERIFIED
+
+- **Depends on:** B6 (met)
+- **Branch/PR:** landed on `main` as `287c194`
+- **Change:** worker processes survive parent loop death.
+  Heartbeat/lease-expiry detects crashed vs running. Operator can reconnect to
+  still-running workers on restart. Crash recovery preserves uncommitted work
+  as a patch before resetting the worktree.
+- **Local-testable:** yes (done)
+
+### B8 — End-to-end mission proof · NOT STARTED
+
+- **Depends on:** B2–B7 (met)
+- **Scope:** one complete mission through queue → execution → branch/commit →
+  PR → checks → review → merge-ready or an honestly classified terminal failure.
+- **Local-testable:** NO. Requires Kitty running, `gh`, and a real runtime.
+
+### B9 — Restart and recovery proof · NOT STARTED
+
+- **Depends on:** B8
+- **Scope:** restart and recovery mid-mission without duplicated work or lost
+  state.
+- **Local-testable:** NO. Requires a real runtime.
+
+### B10 — UI/CLI agreement proof · NOT STARTED
+
+- **Depends on:** B8
+- **Scope:** UI and CLI agreeing on what is running, blocked, failed, completed
+  and next.
+- **Local-testable:** NO. Requires Kitty running with a browser.
 
 ### B11 — Conversational KittyBuilder · NOT STARTED
 
@@ -240,8 +464,9 @@ Deferred by decision D6. Lands after B2–B10, not before.
 slice 0 (done) → 0b → A1 → A2 ┐
                        A1 → A3 ┼→ A4 → A6   (A6 needs GPU + browser)
                              A3 → A5 ┘
-slice 0 (done) → B1 → B2..B10 → B11
+slice 0 (done) → B1 → B2..B7 (done) → B8 → B9 ┐
+                                       B8 → B10 ┘→ B11
 ```
 
 `A6` and `B8/B9/B10` are the only items that strictly cannot be executed in a
-credential-less container. Everything else can.
+credential-less container. Everything else is done.

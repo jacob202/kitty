@@ -112,6 +112,10 @@ def _recover_messages(conversation_id: str) -> list[dict]:
 
     Falls back gracefully: a missing conversation (no ledger entry yet) yields
     an empty list so the caller can keep using the legacy chat blob.
+
+    Deduplication: when the same user message is retried (same
+    source_message_id across turns), only the most recent turn's messages are
+    retained so restarts never show duplicated user text.
     """
     try:
         state = chat_lifecycle.list_conversation(conversation_id)
@@ -119,6 +123,7 @@ def _recover_messages(conversation_id: str) -> list[dict]:
         return []
 
     messages: list[dict] = []
+    seen_source_ids: set[str] = set()
     for turn in state.get("turns", []):
         if turn is None:
             continue
@@ -129,6 +134,14 @@ def _recover_messages(conversation_id: str) -> list[dict]:
                 break
         turn_status = turn.get("status")
         for msg in turn.get("messages", []):
+            # Deduplicate: earlier turns sharing a client-side user message id
+            # are superseded by the latest turn. Skip stale duplicates.
+            source_id = msg.get("source_message_id")
+            if source_id is not None and msg["role"] == "user":
+                if source_id in seen_source_ids:
+                    continue
+                seen_source_ids.add(source_id)
+
             raw_artifacts = msg.get("artifact_ids") or "[]"
             try:
                 artifact_ids = json.loads(raw_artifacts) if isinstance(raw_artifacts, str) else raw_artifacts

@@ -11,6 +11,7 @@ import json
 import re
 import sqlite3
 from collections import defaultdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -24,7 +25,7 @@ SCHEMA_VERSION = 2
 CONTROL_PLANE_SUMMARY_VERSION = 1
 ATTEMPT_HISTORY_LIMIT = 10
 REVIEW_FINDING_LIMIT = 5
-SNAPSHOT_QUERY_COUNT = 9
+SNAPSHOT_QUERY_COUNT = 10
 _MESSAGE_CAP = 500
 _OBJECTIVE_CAP = 1200
 _PATH_PATTERN = re.compile(r"(?<![A-Za-z0-9_])/(?:[^\s/]+/)+[^\s/]+")
@@ -54,6 +55,72 @@ _INVESTIGATION_AVAILABILITY = {
 PacketKey = tuple[str, str]
 
 
+@dataclass(frozen=True)
+class LeaseProjection:
+    """Typed, single-schema lease facet of a packet's runtime projection."""
+
+    id: int | None
+    worker_id: str | None
+    branch: str | None
+    worktree_path: str | None
+    base_sha: str | None
+    created_at: Any
+
+
+@dataclass(frozen=True)
+class PublicationProjection:
+    """Typed PR/check/review facet of a packet's runtime projection."""
+
+    pr_number: int | None
+    pr_state: str | None
+    pr_url: str | None
+    checks_state: str | None
+    review_state: str | None
+    head_sha: str | None
+    merged: bool
+    merged_at: Any
+
+
+@dataclass(frozen=True)
+class BudgetProjection:
+    """Typed retry-budget facet of a packet's runtime projection."""
+
+    used: int
+    max_attempts: int | None
+    exhausted: bool | None
+
+
+@dataclass(frozen=True)
+class RuntimeProjection:
+    """Single typed runtime projection of one packet's end-to-end Builder state.
+
+    This is the one schema from which queue, task, attempt, lease, branch,
+    worktree, PR, checks, review, retry, cancellation, exhaustion, recovery, and
+    next-action facts derive for both the UI snapshot and the control-plane
+    summary. It is intentionally frozen and DB-agnostic so it can be constructed
+    and tested in isolation from live Builder state.
+    """
+
+    initiative_id: str
+    packet_id: str
+    task_id: str | None
+    task_state: str | None
+    attempt_count: int
+    lease: LeaseProjection | None
+    publication: PublicationProjection | None
+    budget: BudgetProjection
+    failure_kind: str | None
+    cancellation_state: str | None
+    exhaustion_state: bool | None
+    recovery_state: str | None
+    eligibility_state: str | None
+    next_action: str | None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable dict of this projection (UI/CLI surface)."""
+        return asdict(self)
+
+
 def build_status_snapshot(*, db_path: Path | None = None) -> dict[str, Any]:
     """Return a deterministic snapshot with a fixed SQL query budget.
 
@@ -72,6 +139,7 @@ def build_status_snapshot(*, db_path: Path | None = None) -> dict[str, Any]:
         publications = _index_rows(_read_latest_publications(conn), "task_id")
         events = _index_rows(_read_latest_events(conn), "task_id")
         decisions = _index_rows(_read_latest_decisions(conn), "task_id")
+        pr_advisories = _index_rows(_read_latest_pr_advisories(conn), "task_id")
 
         packet_models: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for row in packet_rows:
@@ -85,6 +153,7 @@ def build_status_snapshot(*, db_path: Path | None = None) -> dict[str, Any]:
                     publication_row=publications.get(str(row["task_id"])),
                     event_row=events.get(str(row["task_id"])),
                     decision_row=decisions.get(str(row["task_id"])),
+                    pr_advisory_row=pr_advisories.get(str(row["task_id"])),
                 )
             )
 
@@ -123,6 +192,10 @@ def build_control_plane_summary(*, db_path: Path) -> dict[str, Any]:
     of inspection. The detailed UI projection retains its existing initialization
     contract; this smaller control-plane interface fails loudly when the durable
     database or required schema is unavailable.
+
+    Both the detailed UI snapshot and this control-plane summary derive packet
+    facts from the same typed :class:`RuntimeProjection`, so CLI and UI read one
+    schema for the same Builder state.
     """
     path = Path(db_path).expanduser().resolve()
     if not path.exists():
@@ -133,34 +206,113 @@ def build_control_plane_summary(*, db_path: Path) -> dict[str, Any]:
     apply_pragmas(conn)
     try:
         conn.execute("PRAGMA query_only = ON")
-        initiative_rows = conn.execute(
-            """
-            SELECT i.id, i.title, i.state, i.pause_reason, i.updated_at,
-                   COUNT(p.packet_id) AS packet_count
-            FROM initiatives i
-            LEFT JOIN initiative_packets p ON p.initiative_id = i.id
-            GROUP BY i.id
-            ORDER BY i.created_at ASC, i.id ASC
-            """
-        ).fetchall()
-        initiatives = [
-            {
-                "initiative_id": str(row["id"]),
-                "title": str(row["title"]),
-                "state": str(row["state"]),
-                "pause_reason": _safe_message(row["pause_reason"]),
-                "packet_count": int(row["packet_count"]),
-                "updated_at": row["updated_at"],
-            }
-            for row in initiative_rows
-        ]
         return {
             "schema_version": CONTROL_PLANE_SUMMARY_VERSION,
             "queue": _queue_projection(conn),
-            "initiatives": initiatives,
+            "initiatives": _control_plane_initiatives(conn),
         }
     finally:
         conn.close()
+
+
+def _projection_available(conn: sqlite3.Connection) -> bool:
+    """Whether the full packet-detail schema (packet_attempts) is present.
+
+    The control-plane summary is read-only and never runs migrations, so it can
+    only build the full :class:`RuntimeProjection` when the durable schema has
+    already been migrated. A base-migrated DB (initiatives + tasks only, such as
+    one created by ``apply_manifest`` without an attempt) still reports the
+    queue and initiative rollup from the shared projection path for the facts it
+    can read.
+    """
+    try:
+        conn.execute(
+            "SELECT 1 FROM packet_attempts LIMIT 1"
+        ).fetchone()
+        return True
+    except sqlite3.OperationalError:
+        return False
+
+
+def _control_plane_initiatives(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Initiative rollup for the control-plane summary.
+
+    Uses the shared typed projection when the detail schema is present so the
+    summary advertises the same facts as the UI snapshot. On a base-migrated DB
+    (no attempt/run schema yet) it degrades to the initiative + task facts that
+    are actually readable rather than guessing at packet detail.
+    """
+    if _projection_available(conn):
+        initiatives = _build_initiative_projection(conn)
+        return [
+            {
+                "initiative_id": initiative["initiative_id"],
+                "title": initiative["title"],
+                "state": initiative["state"],
+                "pause_reason": initiative["pause_reason"],
+                "packet_count": len(initiative["packets"]),
+                "updated_at": initiative["updated_at"],
+            }
+            for initiative in initiatives
+        ]
+    initiative_rows = _read_initiatives(conn)
+    return [
+        {
+            "initiative_id": str(row["id"]),
+            "title": str(row["title"]),
+            "state": str(row["state"]),
+            "pause_reason": _safe_message(row["pause_reason"]),
+            "packet_count": int(
+                conn.execute(
+                    "SELECT COUNT(*) AS c FROM initiative_packets "
+                    "WHERE initiative_id = ?",
+                    (str(row["id"]),),
+                ).fetchone()["c"]
+            ),
+            "updated_at": row["updated_at"],
+        }
+        for row in initiative_rows
+    ]
+
+
+def _build_initiative_projection(
+    conn: sqlite3.Connection,
+) -> list[dict[str, Any]]:
+    """Read the durable rows once and build every initiative's typed projection.
+
+    Shared by the UI snapshot and the control-plane summary so both expose
+    identical packet facts (task, attempt, lease, branch, worktree, PR, checks,
+    review, retry, cancellation/exhaustion/recovery, and next action) from the
+    same :class:`RuntimeProjection` schema rather than ad-hoc queries.
+    """
+    initiative_rows = _read_initiatives(conn)
+    packet_rows = _read_packets(conn)
+    attempts = _group_attempts(_read_attempts(conn))
+    leases = _index_rows(_read_leases(conn), "initiative_id", "packet_id")
+    runs = _index_rows(_read_latest_runs(conn), "task_id")
+    publications = _index_rows(_read_latest_publications(conn), "task_id")
+    events = _index_rows(_read_latest_events(conn), "task_id")
+    decisions = _index_rows(_read_latest_decisions(conn), "task_id")
+
+    packet_models: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in packet_rows:
+        key = (str(row["initiative_id"]), str(row["packet_id"]))
+        packet_models[key[0]].append(
+            _packet_model(
+                row,
+                attempt_rows=attempts.get(key, []),
+                lease_row=leases.get(key),
+                run_row=runs.get(str(row["task_id"])),
+                publication_row=publications.get(str(row["task_id"])),
+                event_row=events.get(str(row["task_id"])),
+                decision_row=decisions.get(str(row["task_id"])),
+            )
+        )
+
+    return [
+        _initiative_projection(row, packet_models.get(str(row["id"]), []))
+        for row in initiative_rows
+    ]
 
 
 def _read_initiatives(conn: sqlite3.Connection) -> list[sqlite3.Row]:
@@ -223,7 +375,7 @@ def _read_leases(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         """
         WITH ranked AS (
             SELECT a.initiative_id, a.packet_id, l.lease_id, l.worker_id,
-                   l.branch, l.base_sha, l.created_at,
+                   l.branch, l.worktree_path, l.base_sha, l.created_at,
                    ROW_NUMBER() OVER (
                        PARTITION BY a.initiative_id, a.packet_id
                        ORDER BY a.attempt_no DESC, a.id DESC
@@ -233,7 +385,7 @@ def _read_leases(conn: sqlite3.Connection) -> list[sqlite3.Row]:
             WHERE a.outcome IS NULL
         )
         SELECT initiative_id, packet_id, lease_id, worker_id, branch,
-               base_sha, created_at
+               worktree_path, base_sha, created_at
         FROM ranked
         WHERE row_rank = 1
         ORDER BY initiative_id ASC, packet_id ASC
@@ -247,7 +399,7 @@ def _read_latest_runs(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         WITH ranked AS (
             SELECT r.id, r.task_id, r.state, r.started_at,
                    r.last_heartbeat_at, r.ended_at, r.exit_code,
-                   r.final_report_json, r.created_at, r.updated_at,
+                   r.final_report_json, r.start_sha, r.created_at, r.updated_at,
                    ROW_NUMBER() OVER (
                        PARTITION BY r.task_id
                        ORDER BY r.created_at DESC, r.id DESC
@@ -322,6 +474,26 @@ def _read_latest_decisions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def _read_latest_pr_advisories(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        WITH ranked AS (
+            SELECT e.id, e.task_id, e.payload_json, e.created_at,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY e.task_id
+                       ORDER BY e.id DESC
+                   ) AS row_rank
+            FROM events e
+            INNER JOIN initiative_packets p ON p.task_id = e.task_id
+            WHERE e.type IN ('pr_attached', 'pr_updated')
+        )
+        SELECT * FROM ranked
+        WHERE row_rank = 1
+        ORDER BY task_id ASC
+        """
+    ).fetchall()
+
+
 def _group_attempts(rows: list[sqlite3.Row]) -> dict[PacketKey, list[sqlite3.Row]]:
     grouped: dict[PacketKey, list[sqlite3.Row]] = defaultdict(list)
     for row in rows:
@@ -365,6 +537,8 @@ def _initiative_projection(
             exhausted_packet_ids=exhausted_ids,
             data_available=packet.pop("_eligibility_data_available"),
         )
+        packet["projection"] = _runtime_projection(packet).to_dict()
+        packet.pop("_lease_worktree_path", None)
 
     counts = _initiative_counts(packets)
     eligible_packets = [
@@ -416,6 +590,7 @@ def _packet_model(
     publication_row: sqlite3.Row | None,
     event_row: sqlite3.Row | None,
     decision_row: sqlite3.Row | None,
+    pr_advisory_row: sqlite3.Row | None = None,
 ) -> dict[str, Any]:
     issues: list[str] = []
     depends_on, dependency_issue = _decode_string_list(
@@ -471,6 +646,10 @@ def _packet_model(
         last_event=last_event,
     )
     unique_issues = list(dict.fromkeys(issues))
+    lease_worktree_path = (
+        _safe_message(lease_row["worktree_path"], cap=512)
+        if lease_row is not None else None
+    )
     return {
         "initiative_id": row["initiative_id"],
         "packet_id": row["packet_id"],
@@ -492,6 +671,7 @@ def _packet_model(
         "attempt_history_truncated": attempt_count > len(attempt_history),
         "attempt_history": attempt_history,
         "lease": lease,
+        "_lease_worktree_path": lease_worktree_path,
         "run": run,
         "publication": publication,
         "last_event": last_event,
@@ -502,6 +682,14 @@ def _packet_model(
         "last_error": _safe_message(row["last_error"]),
         "updated_at": row["task_updated_at"],
         "base_sha": _safe_sha(row["base_sha"]),
+        "pr_advisory": _pr_advisory_projection(pr_advisory_row),
+        "recovery_actions": _recovery_actions(
+            task_state=row["task_state"],
+            publication=publication,
+            pr_advisory=_pr_advisory_projection(pr_advisory_row),
+            run=run,
+            lease=lease,
+        ),
         "data_quality": {
             "state": "partial" if unique_issues else "complete",
             "issues": unique_issues,
@@ -510,6 +698,7 @@ def _packet_model(
             key: dict(value)
             for key, value in _INVESTIGATION_AVAILABILITY.items()
         },
+        "projection": None,
     }
 
 
@@ -673,6 +862,125 @@ def _lease_projection(row: sqlite3.Row | None) -> dict[str, Any] | None:
     }
 
 
+def _runtime_projection(packet: dict[str, Any]) -> RuntimeProjection:
+    """Build the single typed runtime projection from an already-projected packet.
+
+    This is a pure, DB-agnostic mapping so the projection can be constructed and
+    tested in isolation from live Builder state. ``worktree_path`` is threaded
+    through a private slot populated from the lease row so the public (safe) lease
+    dict still omits it while the typed projection carries the full runtime fact.
+    """
+    lease = packet.get("lease") or {}
+    publication = packet.get("publication") or {}
+    budget = packet.get("budget") or {}
+    worktree_path = packet.get("_lease_worktree_path")
+    eligibility = packet.get("eligibility") or {}
+    return RuntimeProjection(
+        initiative_id=packet["initiative_id"],
+        packet_id=packet["packet_id"],
+        task_id=packet.get("task_id"),
+        task_state=packet.get("task_state"),
+        attempt_count=int(packet.get("attempt_count") or 0),
+        lease=LeaseProjection(
+            id=lease.get("id"),
+            worker_id=lease.get("worker_id"),
+            branch=lease.get("branch"),
+            worktree_path=worktree_path,
+            base_sha=lease.get("base_sha"),
+            created_at=lease.get("created_at"),
+        ),
+        publication=PublicationProjection(
+            pr_number=publication.get("pr_number"),
+            pr_state=_derive_pr_state(publication),
+            pr_url=publication.get("pr_url"),
+            checks_state=publication.get("checks_state"),
+            review_state=publication.get("review_state"),
+            head_sha=publication.get("head_sha"),
+            merged=bool(publication.get("merged")),
+            merged_at=publication.get("merged_at"),
+        ),
+        budget=BudgetProjection(
+            used=int(budget.get("used") or 0),
+            max_attempts=budget.get("max"),
+            exhausted=budget.get("exhausted"),
+        ),
+        failure_kind=packet.get("failure_kind"),
+        cancellation_state=_derive_cancellation_state(packet),
+        exhaustion_state=_derive_exhaustion_state(packet),
+        recovery_state=_derive_recovery_state(packet),
+        eligibility_state=eligibility.get("state"),
+        next_action=_derive_next_action(packet),
+    )
+
+
+def _derive_pr_state(publication: dict[str, Any]) -> str | None:
+    if not publication.get("pr_number"):
+        return None
+    if publication.get("merged"):
+        return "merged"
+    return "open"
+
+
+def _derive_cancellation_state(packet: dict[str, Any]) -> str | None:
+    if packet.get("cancellation") is not None:
+        return "cancelled"
+    if packet.get("task_state") == bq.CANCELLED:
+        return "cancelled"
+    return None
+
+
+def _derive_exhaustion_state(packet: dict[str, Any]) -> bool | None:
+    exhausted = (packet.get("budget") or {}).get("exhausted")
+    return None if exhausted is None else bool(exhausted)
+
+
+def _derive_recovery_state(packet: dict[str, Any]) -> str | None:
+    """Surface a recovery hint when the durable record shows a recoverable lane.
+
+    Cancellation/exhaustion are terminal and never presented as recoverable.
+    Otherwise a failure kind that the recovery scan owns (identity, scope,
+    infrastructure) or an expired-claim blocked packet is a recovery candidate.
+    """
+    if packet.get("cancellation") is not None or packet.get("task_state") == bq.CANCELLED:
+        return None
+    if (packet.get("budget") or {}).get("exhausted") is True:
+        return None
+    failure_kind = packet.get("failure_kind")
+    if failure_kind in {"identity", "scope", "infrastructure"}:
+        return "recoverable"
+    if packet.get("task_state") == bq.BLOCKED:
+        return "blocked"
+    return None
+
+
+def _derive_next_action(packet: dict[str, Any]) -> str | None:
+    """Return the one next eligible action for a packet from its projected facts."""
+    if packet.get("task_state") is None:
+        return "unavailable"
+    if packet.get("cancellation") is not None or packet.get("task_state") == bq.CANCELLED:
+        return "cancelled"
+    exhausted = (packet.get("budget") or {}).get("exhausted")
+    if exhausted is True:
+        return "exhausted"
+    eligibility = packet.get("eligibility") or {}
+    if eligibility.get("state") == "eligible":
+        return "claim"
+    task_state = packet.get("task_state")
+    if task_state == bq.DONE:
+        return "done"
+    if task_state == bq.QUEUED:
+        return "queued"
+    if task_state == bq.PR_OPENED:
+        return "await_checks"
+    if task_state == bq.AWAITING_REVIEW:
+        return "await_review"
+    if task_state == bq.BLOCKED:
+        return "recover"
+    if eligibility.get("state") == "waiting":
+        return "wait"
+    return None
+
+
 def _run_projection(
     row: sqlite3.Row | None,
 ) -> tuple[dict[str, Any] | None, bool, list[str]]:
@@ -691,6 +999,7 @@ def _run_projection(
             "last_heartbeat_at": row["last_heartbeat_at"],
             "ended_at": row["ended_at"],
             "exit_code": row["exit_code"],
+            "start_sha": _safe_sha(row["start_sha"]),
             "updated_at": row["updated_at"],
         },
         infrastructure_failure,
@@ -723,6 +1032,147 @@ def _publication_projection(
         },
         issues,
     )
+
+
+def _pr_advisory_projection(
+    row: sqlite3.Row | None,
+) -> dict[str, Any] | None:
+    """Project the latest PR advisory event (mergeability / base-behind state).
+
+    These GitHub advisory fields are persisted on the ``pr_attached`` /
+    ``pr_updated`` event payload (Section 11.4 — never task state) so the
+    read-only projection can derive truthful recovery actions.
+    """
+    if row is None:
+        return None
+    payload, _issue = _decode_optional_object(
+        row["payload_json"], "PR advisory payload"
+    )
+    if not isinstance(payload, dict):
+        return None
+    return {
+        "mergeable": _known_string(payload, "mergeable"),
+        "merge_state_status": _known_string(payload, "merge_state_status"),
+        "base_sha": _safe_sha(payload.get("base_sha")),
+        "head_sha": _safe_sha(payload.get("head_sha")),
+        "created_at": row["created_at"],
+    }
+
+
+def _recovery_actions(
+    *,
+    task_state: str | None,
+    publication: dict[str, Any] | None,
+    pr_advisory: dict[str, Any] | None,
+    run: dict[str, Any] | None,
+    lease: dict[str, Any] | None,
+) -> list[dict[str, str]]:
+    """Derive truthful, actionable recovery steps for a task.
+
+    Turns silent blocked/pr-pending states into a concrete next action based
+    on the advisory CI/review/mergeability data the ``sync-pr`` reconciliation
+    persisted. Each item is ``{"action", "detail"}``; ordering is deterministic.
+    ``base`` falls back to the live lease branch so messages name the branch.
+    """
+    actions: list[dict[str, str]] = []
+    base = (lease or {}).get("branch")
+    pr_number = (publication or {}).get("pr_number")
+    checks_state = (publication or {}).get("checks_state")
+    review_state = (publication or {}).get("review_state")
+    merged = bool((publication or {}).get("merged"))
+    mergeable = (pr_advisory or {}).get("mergeable") if pr_advisory else None
+    merge_state = (
+        (pr_advisory or {}).get("merge_state_status") if pr_advisory else None
+    )
+    run_state = (run or {}).get("state") if run else None
+
+    # 1. Merge conflict — resolve conflicts in the branch instead of "blocked".
+    if (
+        publication is not None
+        and not merged
+        and (
+            mergeable == "CONFLICTING"
+            or (merge_state or "").upper() in {"DIRTY", "BLOCKED"}
+        )
+    ):
+        branch = base or f"PR #{pr_number}"
+        actions.append(
+            {
+                "action": f"resolve conflicts in branch {branch}",
+                "detail": (
+                    "The PR cannot merge because its branch conflicts with the "
+                    "base branch. Resolve the conflicts, then rerun checks."
+                ),
+            }
+        )
+
+    # 2. Stale branch — base behind main; rebase onto main.
+    if (
+        publication is not None
+        and not merged
+        and (merge_state or "").upper() == "BEHIND"
+    ):
+        branch = base or f"PR #{pr_number}"
+        actions.append(
+            {
+                "action": f"rebase branch {branch} onto main",
+                "detail": (
+                    "The PR's base is behind main. Rebase the branch onto the "
+                    "latest main so it can merge cleanly."
+                ),
+            }
+        )
+
+    # 3. Failing CI check — rerun / fix the failing check.
+    if publication is not None and not merged and checks_state == "failed":
+        branch = base or f"PR #{pr_number}"
+        actions.append(
+            {
+                "action": f"fix or rerun the failing CI check on {branch}",
+                "detail": (
+                    "A required GitHub check is failing for this PR. Fix the "
+                    "failing job or rerun it, then re-sync PR status."
+                ),
+            }
+        )
+
+    # 4. PR waits for review — surface the review requirement.
+    if (
+        publication is not None
+        and not merged
+        and (publication.get("pr_url") or pr_number)
+        and review_state in {"pending", None}
+    ):
+        branch = base or f"PR #{pr_number}"
+        actions.append(
+            {
+                "action": f"request review on PR #{pr_number} ({branch})",
+                "detail": (
+                    "The PR is waiting for a review before it can proceed. "
+                    "Request a reviewer to advance it."
+                ),
+            }
+        )
+
+    # 5. Superseded run — a newer commit was pushed; the run check is stale.
+    if run_state in {bq.RUN_FAILED, bq.RUN_LEASE_LOST} and publication is not None:
+        run_sha = (run or {}).get("start_sha")
+        head_sha = (publication or {}).get("head_sha") or (pr_advisory or {}).get(
+            "head_sha"
+        )
+        if run_sha and head_sha and run_sha != head_sha:
+            actions.append(
+                {
+                    "action": "check the latest commit, not the stale run",
+                    "detail": (
+                        "A newer commit was pushed after this run started, so the "
+                        "run's recorded status is superseded and is not the "
+                        "blocking signal for this PR. Re-sync PR status."
+                    ),
+                }
+            )
+
+    return actions
 
 
 def _event_projection(

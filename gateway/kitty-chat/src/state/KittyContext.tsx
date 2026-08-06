@@ -20,7 +20,7 @@ import type {
   ChatColor,
 } from '@/lib/types'
 import { MODELS, COLOR_CYCLE } from '@/lib/types'
-import { streamChat } from '@/lib/chat-client'
+import { streamChat, friendlyChatError } from '@/lib/chat-client'
 import { inferMood } from '@/lib/mood'
 import { useKittyState } from '@/hooks/useKittyState'
 import {
@@ -148,6 +148,8 @@ interface KittyContextValue {
   handleSend: () => Promise<void>
   handleStop: () => void
   handleRetry: () => void
+  handleSwitchBranch: (messageIndex: number, branchIndex: number) => void
+  handleTogglePin: (chatId: string) => void
 
   // input
   input: string
@@ -612,15 +614,28 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
       void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), messages: [...history, { ...aiMsg, content: accumulated, mood, ...extras }] })
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') {
-        const interruptedContent = accumulated ? `${accumulated}\n\n⚠ generation stopped before completion.` : '⚠ generation stopped before Kitty returned a response.'
+        const interruptedContent = accumulated ? `${accumulated}\n\n⚠ generation stopped before completion — tap retry below.` : '⚠ generation stopped before Kitty returned a response — tap retry below.'
         const interruptedMessage: Message = { ...aiMsg, content: interruptedContent, mood: 'confused', turnStatus: 'interrupted' }
         updateChat(chat.id, (c) => ({ ...c, updatedAt: new Date(), messages: c.messages.map((m) => (m.id === aiMsgId ? interruptedMessage : m)) }))
         void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), messages: [...history, interruptedMessage] })
         return
       }
       setLastOutcome('broke')
-      updateChat(chat.id, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content: `⚠ ${err instanceof Error ? err.message : 'error connecting to gateway'}`, mood: 'confused' as const } : m)) }))
-      void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), messages: history })
+      const { userMessage } = friendlyChatError(err)
+      const failedContent = `⚠ ${userMessage}`
+      const failedMessage: Message = {
+        ...aiMsg,
+        content: failedContent,
+        mood: 'confused' as const,
+        turnStatus: 'failed',
+        ...(provider ? { provider } : {}),
+        ...(requestedModel ? { requestedModel } : {}),
+      }
+      updateChat(chat.id, (c) => ({ ...c, updatedAt: new Date(), messages: c.messages.map((m) => (m.id === aiMsgId ? failedMessage : m)) }))
+      // Persist the failed turn so restart/resume stays honest: the user sees
+      // their message plus the truthful failure with its retry path, instead of
+      // a send that silently produced nothing after reload.
+      void persistChat({ id: chat.id, title, model: turnModel.id, color: chat.color, createdAt: chat.createdAt, updatedAt: new Date(), messages: [...history, failedMessage] })
     } finally { setIsStreaming(false); abortRef.current = null }
   }, [activeModel, activeProject?.id, updateChat, persistChat])
 
@@ -642,11 +657,40 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   const handleRetry = useCallback(() => {
     if (!activeChat || isStreaming) return
     const history = [...activeChat.messages]
-    while (history.length && history.at(-1)?.role === 'assistant') history.pop()
-    if (history.length === 0) return
-    updateChat(activeChat.id, (c) => ({ ...c, messages: history }))
-    void runStream(activeChat, history, activeChat.title)
+    let prefixEnd = history.length
+    while (prefixEnd && history[prefixEnd - 1]?.role === 'assistant') prefixEnd--
+    if (prefixEnd === 0) return
+    const prefix = history.slice(0, prefixEnd)
+    const oldBranch = history.slice(prefixEnd)
+    const branches = { ...(activeChat.retryBranches ?? {}) }
+    const key = prefixEnd - 1 // user message index
+    const existing = branches[key] ?? []
+    branches[key] = [...existing, oldBranch]
+    updateChat(activeChat.id, (c) => ({ ...c, messages: prefix, retryBranches: branches, updatedAt: new Date() }))
+    void runStream({ ...activeChat, messages: prefix, retryBranches: branches }, prefix, activeChat.title)
   }, [activeChat, isStreaming, updateChat, runStream])
+
+  const handleSwitchBranch = useCallback((messageIndex: number, branchIndex: number) => {
+    if (!activeChat) return
+    const branches = activeChat.retryBranches?.[messageIndex]
+    if (!branches?.[branchIndex]) return
+    const prefixEnd = messageIndex + 1
+    const prefix = activeChat.messages.slice(0, prefixEnd)
+    const selected = branches[branchIndex]
+    const remaining = branches.filter((_, i) => i !== branchIndex)
+    const newBranches = { ...(activeChat.retryBranches ?? {}) }
+    newBranches[messageIndex] = [...remaining, activeChat.messages.slice(prefixEnd)]
+    updateChat(activeChat.id, (c) => ({
+      ...c,
+      messages: [...prefix, ...selected],
+      retryBranches: newBranches,
+      updatedAt: new Date(),
+    }))
+  }, [activeChat, updateChat])
+
+  const handleTogglePin = useCallback((chatId: string) => {
+    setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, pinned: !c.pinned } : c)))
+  }, [])
 
   const handleStop = useCallback(() => { abortRef.current?.abort() }, [])
 
@@ -711,7 +755,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
 
   const value: KittyContextValue = {
     chats, activeChat, activeChatId, handleNewChat, handleNewExpertChat, handleSelectChat, handleCloseChat,
-    handleSend, handleStop, handleRetry,
+    handleSend, handleStop, handleRetry, handleSwitchBranch, handleTogglePin,
     input, setInput, attachments, setAttachments, handleAddFiles, handleRemoveAttachment,
     attachmentErrors, isStreaming,
     activeModel, availableModels, overrideModel, setOverrideModel, handleSelectModel,

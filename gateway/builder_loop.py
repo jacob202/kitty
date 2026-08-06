@@ -31,7 +31,6 @@ import hashlib
 import json
 import os
 import subprocess
-import time
 from pathlib import Path
 from typing import Any
 
@@ -49,14 +48,10 @@ from gateway.builder_runner import (
     preflight_worktree,
     remove_worktree,
     run_worker,
+    worktree_changed_paths,
     worktree_diff_sha256,
     worktree_head,
     worktree_path,
-)
-from gateway.builder_worker_session import (
-    ModelPolicy,
-    WorkerSession,
-    WorkerState,
 )
 from gateway.paths import BUILDER_QUEUE_DB
 
@@ -448,6 +443,23 @@ def _validate_review_context(
     return context
 
 
+def _cumulative_evidence(worktree: Path, base_sha: str) -> dict[str, Any]:
+    """Bind the packet's final state to its durable ``base_sha``.
+
+    On a repair retry the retained implementation is committed on an earlier
+    attempt, so the reviewer and the final report must cover the *cumulative*
+    change since the packet base — not only the latest retry's delta. The
+    per-attempt delta stays in each run record (``run_worker`` measures from
+    the retry-local HEAD); this block is the packet-level final evidence.
+    """
+    return {
+        "base_sha": base_sha,
+        "review_sha": worktree_head(worktree),
+        "diff_sha256": worktree_diff_sha256(worktree, base_sha),
+        "changed_paths": worktree_changed_paths(worktree, base_sha),
+    }
+
+
 def _read_contract(path: Path, kind: str) -> tuple[dict[str, Any] | None, str | None]:
     """Read a contract file. Returns (contract, error)."""
     if not path.is_file():
@@ -678,96 +690,11 @@ def _governor_settle(
     )
 
 
-def _run_via_session(
-    session: WorkerSession,
-    *,
-    task_id: str,
-    worktree: Path,
-    brief: str,
-    attempt_id: str,
-    packet_id: str,
-    model: str | None,
-    provider: str | None,
-    timeout_seconds: int,
-    heartbeat_seconds: int,
-    base_sha: str,
-    extra_env: dict[str, str] | None = None,
-) -> dict[str, Any]:
-    """Execute a packet via a WorkerSession instead of subprocess.
-
-    The session owns worker lifecycle; task state, lease, and worktree are
-    managed by the caller. Returns a dict matching ``run_worker``'s shape
-    so the rest of the loop can treat it identically.
-    """
-    policy = ModelPolicy(model=model, provider=provider)
-    identity = session.start(
-        worktree=worktree,
-        brief=brief,
-        model_policy=policy,
-        packet_id=packet_id,
-        attempt_id=attempt_id,
-    )
-
-    started = time.monotonic()
-    deadline = started + timeout_seconds
-
-    while True:
-        time.sleep(heartbeat_seconds)
-        if not session.is_alive(identity):
-            break
-        if time.monotonic() > deadline:
-            session.cancel(identity, reason="timeout")
-            break
-
-    snap = session.snapshot(identity)
-    transcript_path = session.transcript(identity)
-
-    exit_code: int | None = 0 if snap.state == WorkerState.COMPLETED else 1
-    if snap.state == WorkerState.CANCELLED:
-        state = "cancelled"
-    elif snap.state == WorkerState.FAILED:
-        state = "failed"
-        exit_code = 1
-    elif snap.state == WorkerState.COMPLETED:
-        state = "exited"
-        exit_code = 0
-    else:
-        state = "failed"
-        exit_code = 1
-
-    return {
-        "id": identity.session_id,
-        "state": state,
-        "exit_code": exit_code,
-        "pid": None,
-        "final_report": {
-            "run_id": identity.session_id,
-            "outcome": state,
-            "exit_code": exit_code,
-            "branch": "",
-            "worktree": str(worktree),
-            "log_path": str(transcript_path) if transcript_path else "",
-            "start_sha": base_sha,
-            "command": [],
-            "worker": "session-adapter",
-            "model": snap.model,
-            "provider": snap.provider,
-            "changed_paths": snap.changed_paths,
-            "scope_violations": snap.scope_violations,
-            "error": snap.error,
-            "worker_started": True,
-        },
-        "log_path": str(transcript_path) if transcript_path else "",
-        "model": snap.model,
-        "provider": snap.provider,
-    }
-
-
 def run_packet(
     initiative_id: str,
     packet_id: str,
     *,
-    worker_command: list[str] | None = None,
+    worker_command: list[str],
     review_command: list[str] | None = None,
     worker: str = "packet-loop",
     model: str | None = None,
@@ -782,7 +709,6 @@ def run_packet(
     db_path: Path | None = None,
     governor_db: Path | None = None,
     governor_override: str | None = None,
-    worker_session: WorkerSession | None = None,
 ) -> dict[str, Any]:
     """Run the bounded repair loop for one packet.
 
@@ -795,22 +721,7 @@ def run_packet(
     before any model is dispatched. Omitting it leaves the loop ungoverned,
     which is what library callers and tests get by default; the CLI and the
     autonomous runner both pass it.
-
-    When *worker_session* is provided, worker execution uses the session's
-    ``start`` / ``events`` / ``snapshot`` API instead of the subprocess-based
-    ``run_worker``. The session owns worker lifecycle; the loop retains
-    ownership of task state, lease, worktree, and scope checking.
     """
-    if not worker_command and worker_session is None:
-        raise LoopError(
-            "either worker_command or worker_session must be provided"
-        )
-    if worker_command is not None and worker_session is not None:
-        raise LoopError(
-            "only one of worker_command or worker_session may be provided, "
-            "not both"
-        )
-
     ba.init_db(db_path)
     try:
         # An open attempt is recoverable only after this liveness probe has
@@ -936,6 +847,55 @@ def run_packet(
 
     history: list[dict[str, Any]] = []
     while True:
+        # Choose this attempt's worktree disposition from the previous attempt
+        # BEFORE anything is durably opened, so a failed cleanup can never
+        # strand a new attempt or its lease (P1-2). Only an explicitly
+        # repairable previous outcome — deterministic validation failure or a
+        # clean reviewer ``request_changes`` verdict, where the post-worker
+        # worktree is still bound to the worker result — keeps its dirty tree
+        # as repair input for the next attempt (P1-1). Anything else — a
+        # worker that crashed/was interrupted mid-execution, or a review
+        # execution/mutation/evidence-integrity failure — archives the tree
+        # into the failed attempt's artifact dir as evidence and resets so the
+        # next attempt starts clean and inherits nothing.
+        reuse_dirty_worktree = False
+        if history:
+            prior = history[-1]
+            if prior.get("repairable"):
+                reuse_dirty_worktree = True
+            else:
+                prior_dir = _attempt_dir(task_id, prior["attempt_id"], db_path)
+                try:
+                    worktree_evidence = archive_and_reset_worktree(
+                        worktree_path(task_id, repo_root=repo_root), prior_dir
+                    )
+                except Exception as exc:
+                    _record_infrastructure_failure(
+                        task_id,
+                        reason=(
+                            "clean retry worktree reset failed: "
+                            f"{type(exc).__name__}: {exc}"
+                        ),
+                        phase="clean_retry_worktree",
+                        attempt_id=prior["attempt_id"],
+                        db_path=db_path,
+                    )
+                    raise LoopError(
+                        f"cannot reset worktree for clean retry after attempt "
+                        f"{prior['attempt_no']}: {exc}"
+                    ) from exc
+                if worktree_evidence.get("state") == "archived_and_reset":
+                    bq.append_event(
+                        task_id,
+                        "worktree_archived_for_clean_retry",
+                        payload={
+                            "attempt_id": prior["attempt_id"],
+                            "attempt_no": prior["attempt_no"],
+                            "phase": "clean_retry_worktree",
+                        },
+                        db_path=db_path,
+                    )
+
         try:
             preflight_worktree(task_id, repo_root=repo_root)
         except RunnerError as exc:
@@ -1077,51 +1037,26 @@ def run_packet(
         entry["manifest_path"] = str(manifest_path)
 
         try:
-            if worker_session is not None:
-                wt_path = worktree_path(task_id, repo_root=repo_root)
-                with open(bundle_path, encoding="utf-8") as fh:
-                    bundle_data = json.load(fh)
-                brief_text = bundle_data.get("brief", bundle_data.get("description", ""))
-                run = _run_via_session(
-                    worker_session,
-                    task_id=task_id,
-                    worktree=wt_path,
-                    brief=brief_text,
-                    attempt_id=str(attempt_id),
-                    packet_id=packet_id,
-                    model=model,
-                    provider=provider,
-                    timeout_seconds=timeout_seconds,
-                    heartbeat_seconds=heartbeat_seconds,
-                    base_sha=base_sha,
-                    extra_env={
-                        "KB_ATTEMPT_ID": str(attempt_id),
-                        "KB_BUNDLE_PATH": str(bundle_path),
-                        "KB_RESULT_PATH": str(result_path),
-                        "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
-                    },
-                )
-            else:
-                assert worker_command is not None
-                run = run_worker(
-                    task_id,
-                    worker_command,
-                    worker=worker,
-                    model=model,
-                    provider=provider,
-                    timeout_seconds=timeout_seconds,
-                    lease_seconds=lease_seconds,
-                    heartbeat_seconds=heartbeat_seconds,
-                    repo_root=repo_root,
-                    db_path=db_path,
-                    base_sha=base_sha,
-                    extra_env={
-                        "KB_ATTEMPT_ID": str(attempt_id),
-                        "KB_BUNDLE_PATH": str(bundle_path),
-                        "KB_RESULT_PATH": str(result_path),
-                        "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
-                    },
-                )
+            run = run_worker(
+                task_id,
+                worker_command,
+                worker=worker,
+                model=model,
+                provider=provider,
+                timeout_seconds=timeout_seconds,
+                lease_seconds=lease_seconds,
+                heartbeat_seconds=heartbeat_seconds,
+                repo_root=repo_root,
+                db_path=db_path,
+                base_sha=base_sha,
+                reuse_dirty_worktree=reuse_dirty_worktree,
+                extra_env={
+                    "KB_ATTEMPT_ID": str(attempt_id),
+                    "KB_BUNDLE_PATH": str(bundle_path),
+                    "KB_RESULT_PATH": str(result_path),
+                    "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
+                },
+            )
         except Exception as exc:
             orchestration_failure = (
                 f"worker orchestration failed: {type(exc).__name__}: {exc}"
@@ -1208,6 +1143,13 @@ def run_packet(
         # structured findings so run_initiative can classify the packet
         # exhaustion without re-deriving them.
         scope_escalation: dict[str, Any] | None = None
+        # Whether this attempt's failure leaves a worktree that is safe to
+        # reuse as repair input for the next attempt. Set only where the
+        # post-worker tree is still bound to the worker result: deterministic
+        # validation failure and a clean reviewer ``request_changes`` verdict.
+        # Review execution/mutation/evidence-integrity failures are not
+        # repairable state and must never feed the next worker.
+        repairable = False
 
         if run["state"] == bq.RUN_CANCELLED:
             entry["outcome"] = ba.ATTEMPT_ABORTED
@@ -1348,6 +1290,9 @@ def run_packet(
             write_run_manifest(manifest_path, manifest)
             if validated["validation"]["status"] == ba.VALIDATION_FAILED:
                 failure = "deterministic validation failed"
+                # Validation is a read of the worker's own output — the tree
+                # is still bound to the worker result, so it is repair input.
+                repairable = True
                 # CP-03 failure signature: (validation command, exit code,
                 # review finding class) — crude and mechanical by design, see
                 # docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md §1.3/§4.4.
@@ -1367,23 +1312,30 @@ def run_packet(
 
         if failure is None and review_command:
             review_context_path = attempt_dir / "review-context.json"
-            start_sha = str(run_report.get("start_sha") or "")
             review_worktree = worktree_path(task_id, repo_root=repo_root)
+            # Bind the reviewer to the packet-cumulative state since the
+            # durable base_sha, not only this retry's delta: on a repair retry
+            # the retained implementation (committed on an earlier attempt)
+            # must be part of what the reviewer approves. The retry-local
+            # delta stays in this attempt's run record as per-attempt evidence.
+            cumulative = _cumulative_evidence(review_worktree, base_sha)
             review_context = _write_review_context(
                 review_context_path,
                 task_id=task_id,
                 attempt_id=attempt_id,
-                review_sha=worktree_head(review_worktree),
-                diff_sha256=str(run_report.get("diff_sha256") or ""),
-                changed_paths=list(run_report.get("changed_paths") or []),
+                review_sha=cumulative["review_sha"],
+                diff_sha256=cumulative["diff_sha256"],
+                changed_paths=cumulative["changed_paths"],
             )
             manifest["review_context"] = {
                 "path": str(review_context_path),
+                "base_sha": base_sha,
                 "review_sha": review_context["review_sha"],
                 "diff_sha256": review_context["diff_sha256"],
                 "changed_paths": review_context["changed_paths"],
             }
             write_run_manifest(manifest_path, manifest)
+            review_note_path = Path(attempt_dir) / "review-note.md"
             review_error = _run_review_command(
                 review_command,
                 cwd=worktree_path(task_id, repo_root=repo_root),
@@ -1393,6 +1345,7 @@ def run_packet(
                     "KB_BUNDLE_PATH": str(bundle_path),
                     "KB_IMPL_RESULT_PATH": str(result_path),
                     "KB_REVIEW_RESULT_PATH": str(review_path),
+                    "KB_REVIEW_NOTE_PATH": str(review_note_path),
                     "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
                     "KB_REVIEW_CONTEXT_PATH": str(review_context_path),
                     "KB_REVIEW_SHA": str(review_context["review_sha"]),
@@ -1440,7 +1393,7 @@ def run_packet(
                             task_id=task_id,
                             attempt_id=attempt_id,
                             worktree=review_worktree,
-                            start_sha=start_sha,
+                            start_sha=base_sha,
                         )
                     except ValueError as exc:
                         failure = f"review evidence invalid: {exc}"
@@ -1460,6 +1413,9 @@ def run_packet(
                             **_review_evidence(review),
                             "review_sha": review_context["review_sha"],
                             "diff_sha256": review_context["diff_sha256"],
+                            "review_note": str(review_note_path)
+                            if review_note_path.exists()
+                            else None,
                         }
                         bq.append_event(
                             task_id,
@@ -1476,6 +1432,15 @@ def run_packet(
                         write_run_manifest(manifest_path, manifest)
                         if review.get("verdict") != "approve":
                             failure = f"review verdict {review.get('verdict')}"
+                            # Only a clean request_changes — reviewer exited 0,
+                            # produced a valid contract, and the review
+                            # evidence validated (tree unchanged since the
+                            # worker) — is repair input. Every other verdict
+                            # or any review failure leaves ``repairable``
+                            # False, so the next worker never inherits a tree
+                            # the reviewer could have touched.
+                            if review.get("verdict") == "request_changes":
+                                repairable = True
                             # CP-03 failure signature component: the set of
                             # finding severities the reviewer raised.
                             entry["review_finding_class"] = sorted(
@@ -1487,6 +1452,14 @@ def run_packet(
                             )
 
         if failure is None:
+            # Final success evidence covers the packet cumulatively since the
+            # durable base_sha (including implementation retained from earlier
+            # repair attempts), while each attempt's run record keeps its own
+            # retry-local delta.
+            task_worktree = worktree_path(task_id, repo_root=repo_root)
+            manifest["cumulative"] = _cumulative_evidence(
+                task_worktree, base_sha
+            )
             manifest["outcome"] = "succeeded"
             write_run_manifest(manifest_path, manifest)
             _close_bound_attempt(
@@ -1497,7 +1470,6 @@ def run_packet(
             # A worker's done marker is the explicit handoff boundary. Remove
             # only after every success gate passes; failed or interrupted work
             # must remain available for inspection and recovery.
-            task_worktree = worktree_path(task_id, repo_root=repo_root)
             if (task_worktree / "done.txt").is_file():
                 remove_worktree(
                     task_id, repo_root=repo_root, discard_done_marker=True
@@ -1530,6 +1502,7 @@ def run_packet(
 
         entry["outcome"] = ba.ATTEMPT_FAILED
         entry["failure"] = failure
+        entry["repairable"] = repairable
         manifest["outcome"] = "failed"
         manifest["failure"] = _text_evidence(failure)
         write_run_manifest(manifest_path, manifest)

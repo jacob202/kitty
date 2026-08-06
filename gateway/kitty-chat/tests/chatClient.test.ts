@@ -1,5 +1,10 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { streamChat, type StreamChunk } from '../src/lib/chat-client'
+import {
+  streamChat,
+  ChatSendError,
+  friendlyChatError,
+  type StreamChunk,
+} from '../src/lib/chat-client'
 import type { Message } from '../src/lib/types'
 
 function sseResponse(events: string[]): Response {
@@ -81,5 +86,90 @@ describe('streamChat memory trailer (CR-05)', () => {
       { content: 'Hi', done: false },
       { content: '', done: true },
     ])
+  })
+})
+
+describe('streamChat truthful failure recovery', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  async function rejected(events: string[]): Promise<unknown> {
+    vi.stubGlobal('fetch', vi.fn(async () => sseResponse(events)))
+    const messages: Message[] = [
+      { id: 'm1', role: 'user', content: 'hi', timestamp: new Date() },
+    ]
+    const out: unknown[] = []
+    try {
+      for await (const chunk of streamChat('kitty-default', messages)) out.push(chunk)
+    } catch (err) {
+      return err
+    }
+    return out
+  }
+
+  it('maps a cut stream (no [DONE]) to friendly cut-off copy, never raw jargon', async () => {
+    const err = await rejected(['data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n'])
+    expect(err).toBeInstanceOf(ChatSendError)
+    const sendError = err as ChatSendError
+    expect(sendError.kind).toBe('cut-off')
+    expect(sendError.userMessage).toContain('cut off')
+    // Regression: the old raw programmer string must never reach the user.
+    expect(sendError.userMessage).not.toContain('Stream closed without [DONE]')
+  })
+
+  it('round-trips a gateway SSE error event with its plain-language message', async () => {
+    const err = await rejected([
+      'data: {"error":{"kind":"routing","message":"kitty could not reach the model provider"}}\n\n',
+    ])
+    expect(err).toBeInstanceOf(ChatSendError)
+    const sendError = err as ChatSendError
+    expect(sendError.kind).toBe('routing')
+    expect(sendError.userMessage).toBe('kitty could not reach the model provider')
+  })
+
+  it('throws friendly routing copy when the gateway rejects with 4xx JSON', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ error: { message: 'provider out of credit' } }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+    const messages: Message[] = [{ id: 'm1', role: 'user', content: 'hi', timestamp: new Date() }]
+    await expect(
+      (async () => {
+        const out: StreamChunk[] = []
+        for await (const chunk of streamChat('kitty-default', messages)) out.push(chunk)
+        return out
+      })()
+    ).rejects.toMatchObject({ kind: 'routing', userMessage: expect.stringContaining('different model') })
+  })
+
+  it('throws friendly upstream copy on 5xx', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ detail: 'gateway exploded' }), {
+          status: 502,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+    const messages: Message[] = [{ id: 'm1', role: 'user', content: 'hi', timestamp: new Date() }]
+    await expect(
+      (async () => {
+        const out: StreamChunk[] = []
+        for await (const chunk of streamChat('kitty-default', messages)) out.push(chunk)
+        return out
+      })()
+    ).rejects.toMatchObject({ kind: 'upstream', userMessage: expect.stringContaining('provider') })
+  })
+
+  it('maps a fetch network failure to network copy', () => {
+    const mapped = friendlyChatError(new TypeError('Failed to fetch'))
+    expect(mapped.kind).toBe('network')
+    expect(mapped.userMessage).toContain('gateway')
+    expect(mapped.userMessage).not.toContain('Failed to fetch')
   })
 })

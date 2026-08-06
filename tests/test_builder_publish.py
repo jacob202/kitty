@@ -197,6 +197,38 @@ class TestPublishTask:
         assert result["pr"]["action"] == "update"
         assert result["pr"]["pr_number"] == 7
 
+    def test_new_pr_is_created_as_draft(self, tmp_path: Path, db_path: Path):
+        task = _make_blocked_task(db_path)
+        root = _init_worktree(tmp_path, task)
+        branch = default_branch_name(task)
+        create_args: list[str] = []
+
+        def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            if args[:3] == ["git", "symbolic-ref", "--quiet"]:
+                return subprocess.CompletedProcess(
+                    args, 0, stdout=branch + "\n", stderr=""
+                )
+            if args[:2] == ["git", "status"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "push"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:3] == ["gh", "pr", "list"]:
+                return subprocess.CompletedProcess(args, 0, stdout="[]\n", stderr="")
+            if args[:3] == ["gh", "pr", "create"]:
+                create_args[:] = list(args)
+                return subprocess.CompletedProcess(
+                    args, 0, stdout="https://github.com/example/kitty/pull/12\n", stderr=""
+                )
+            if args[:2] == ["git", "rev-parse"]:
+                return subprocess.CompletedProcess(args, 0, stdout="abc\n", stderr="")
+            raise AssertionError(args)
+
+        result = bp.publish_task(
+            task["id"], repo_root=root, db_path=db_path, run_cmd=fake
+        )
+        assert result["pr"]["action"] == "create"
+        assert "--draft" in create_args
+
     def test_refuses_dirty_worktree(self, tmp_path: Path, db_path: Path):
         task = _make_blocked_task(db_path)
         root = _init_worktree(tmp_path, task)
@@ -451,3 +483,56 @@ class TestMergeAndVerify:
             payload={"outcome": "reverted"}, db_path=db_path,
         )
         assert bp.tripwire_active(db_path) is False
+
+
+# ── merge-check worktree safety ───────────────────────────────────────────────
+
+
+def _fake_run_cmd(calls: list[list[str]], *, toplevel: str):
+    def run_cmd(args, cwd=None, check=False, **kwargs):
+        calls.append([str(a) for a in args])
+        stdout = toplevel if args[:2] == ["git", "rev-parse"] else ""
+        return subprocess.CompletedProcess(args, 0, stdout=stdout, stderr="")
+
+    return run_cmd
+
+
+def test_prepare_main_worktree_refuses_to_reset_the_primary_checkout(tmp_path):
+    """`path.is_dir()` is not proof of a worktree.
+
+    A leftover directory inside the repo makes `git -C path` resolve to the
+    primary checkout, and the next command is `reset --hard origin/main` — it
+    would throw away whatever branch and uncommitted work is open there.
+    """
+    repo_root = tmp_path / "repo"
+    stray = bp._merge_check_worktree_path(repo_root, "task-1")
+    stray.mkdir(parents=True)
+    calls: list[list[str]] = []
+
+    with pytest.raises(bp.MergeError) as excinfo:
+        bp._prepare_main_worktree(
+            repo_root,
+            "task-1",
+            remote="origin",
+            run_cmd=_fake_run_cmd(calls, toplevel=str(repo_root)),
+        )
+
+    assert "not its own git worktree" in str(excinfo.value)
+    assert not any(call[:3] == ["git", "reset", "--hard"] for call in calls), calls
+
+
+def test_prepare_main_worktree_resets_a_real_worktree(tmp_path):
+    repo_root = tmp_path / "repo"
+    worktree = bp._merge_check_worktree_path(repo_root, "task-1")
+    worktree.mkdir(parents=True)
+    calls: list[list[str]] = []
+
+    result = bp._prepare_main_worktree(
+        repo_root,
+        "task-1",
+        remote="origin",
+        run_cmd=_fake_run_cmd(calls, toplevel=str(worktree)),
+    )
+
+    assert result == worktree
+    assert ["git", "reset", "--hard", "origin/main"] in calls

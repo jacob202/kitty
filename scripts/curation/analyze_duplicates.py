@@ -1,7 +1,8 @@
 
 import os
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
+
 
 def analyze_duplicates(directory):
     """

@@ -2,27 +2,28 @@
 
 Start here: `START_HERE.md`.
 
-## Project Paths
+## Project paths
 
-- Active project: `~/Projects/kitty` (NOT Desktop backups)
-- Always verify the Git common directory belongs to `~/Projects/kitty`; an
-  isolated worktree may live below that canonical checkout
-- If working directory is under `~/Desktop/` or a backup folder, STOP and ask
-  the user to confirm
+- Active project: `~/Projects/kitty` (not Desktop backups).
+- Verify the Git common directory belongs to that canonical checkout; isolated
+  worktrees may live below it.
+- If the working directory is under `~/Desktop/` or a backup folder, stop and
+  ask Jacob to confirm.
 
 ## Cold-start bootloader
 
-Do this before relying on inherited context:
+Before relying on inherited context:
 
 1. Verify the canonical checkout and current worktree.
 2. Inspect `git status --short --branch`, HEAD, worktrees, and `origin/main`.
 3. Run `./kitty context --agent`; stop on failed freshness checks.
 4. Follow the receipt's reading order beginning with `docs/AUTHORITY_MAP.md`.
 5. Read `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, and `.claude/STATE.md`.
-6. Read `.claude/HANDOFF.md` only when its structured status is `valid`.
-7. Inspect Builder through `./kitty builder ... --json` when Builder state is
+6. Read `.claude/HANDOFF.md` only while its identity remains valid.
+7. Inspect Builder through supported read-only projections when Builder state is
    relevant.
-8. Re-verify scope, evidence, packet class, and authorization before acting.
+8. Re-verify scope, execution ownership, evidence, and authorization before
+   mutation.
 
 ## Context engineering default
 
@@ -31,29 +32,60 @@ Follow `docs/reference/CONTEXT_ENGINEERING.md`: begin with
 expand only for unresolved evidence questions. For code changes, finish the full
 canonical reading order before mutation.
 
-## Execution Defaults
+## Two execution lanes
 
-- When the user requests a feature/fix, complete the full approved loop:
-  implement, install/setup, verify locally, and preserve evidence.
-- After any non-trivial code change, run the narrowest tests that actually cover
-  it and report exact pass/fail counts. Not the full suite: naming the specific
-  files is the point. Full suite, lint, typecheck, and build are `/qg` (or
-  `/qg all`) on request, and CI runs them on every PR. `AGENTS.md` states this
-  same rule — change both or neither.
+KittyBuilder and an interactive Claude Code session are not the same workflow.
+
+### KittyBuilder
+
+Builder owns approved initiatives, packets, queue state, leases, attempts,
+worker dispatch, validation, independent review, recovery, and publication
+evidence. It should progress through its approved queue under its own scheduler.
+It may use Claude Code, OpenCode, Codex, or shell adapters as replaceable worker
+backends, but those Builder-launched processes remain Builder-owned.
+
+### Interactive Claude Code
+
+A manually opened Claude Code session is an interactive engineering workspace
+for the assignment Jacob gave it: investigation, planning, implementation,
+review, recovery, or another named task. It may inspect Builder to understand
+state and avoid duplicate work. It does not consume Builder's queue unless:
+
+- Builder launched it with a valid packet bundle;
+- Jacob explicitly says `builder next`, `take the next Builder packet`, or names
+  a Builder task/packet; or
+- a supported ownership transfer and live lease assign that packet to it.
+
+Every implementation has exactly one execution owner: `interactive` or
+`builder`, never both. Reviewing Builder output does not transfer implementation
+ownership.
+
+## Execution defaults
+
+- For a named feature/fix, complete the approved interactive loop: implement,
+  set up, verify locally, and preserve evidence.
+- For a bare `next`, `continue`, `resume`, or `do the next thing`, execute
+  `.agents/skills/next/SKILL.md`. Continue only this interactive assignment from
+  its valid checkpoint. Do not apply initiatives, claim packets, drain Builder,
+  duplicate another worker, or invent unrelated work.
+- Explicit Builder phrases use Builder's governed workflow instead; they are not
+  aliases for bare `next`.
+- After a non-trivial code change, run the narrowest tests that cover it and
+  report exact pass/fail counts. Full suite, lint, typecheck, and build are `/qg`
+  or CI unless Jacob explicitly requests them. `AGENTS.md` states the same rule.
 - Local commits are expected.
-- Interactive-agent pushes still require Jacob's explicit approval. Builder may
-  push its own approved packet branches, create/update PRs, mark them ready,
-  and evidence-gated merge low-risk work only under ADRs 0018 and 0021.
+- Interactive pushes require Jacob's explicit approval. Builder may publish its
+  approved packet branches only under ADRs 0018 and 0021.
 
-## Auth & Environment
+## Auth and environment
 
-- Before any `gh` or git push, check for a stale `GITHUB_TOKEN` environment
-  variable and unset it if it conflicts with `gh auth`.
+- Before `gh` or git push, check for a stale `GITHUB_TOKEN`; prefer keyring auth
+  when the ambient token conflicts.
+- Never print secrets.
 - For LiteLLM/MLX setups, prefer existing local MLX models over pulling new
-  Ollama models; verify keys are exported in the current shell, not merely
-  present in `.env`.
+  Ollama models and verify credentials in the current shell.
 
-## Working Contract
+## Working contract
 
 Jacob describes outcomes in plain language. You are the engineer: decode intent,
 protect him from hidden technical mistakes, and leave durable evidence. Be
@@ -62,81 +94,100 @@ direct when an idea has a problem. Do not flatter bad plans into existence.
 Put working detail in files and evidence artifacts. Chat gets the outcome,
 failures, and decisions Jacob must make.
 
+### How to write to Jacob
+
+Assume he does not code. Anything he reads has to land without a background in
+programming. This governs every word in chat; it does not change what goes in
+code, commits, or files.
+
+1. **Simple language.** Short words, short sentences. No jargon unless the same
+   sentence says what it means. Name what broke and what it does, not the class,
+   function, or tool that holds it.
+2. **Do not narrate.** No play-by-play of what you are about to do, are doing, or
+   just did. No tour of how you got there. He wants the result, not the trip.
+   Having a voice is fine; describing your own process is not.
+3. **Every reply is instructions, a report, or options.** Instructions: exactly
+   what to do, in order, with the exact command or text to use. A report: what is
+   true now, what changed, what broke, what it costs him. Options: the real
+   choices, what each one means for him, and which one you pick. If a reply is
+   none of these three, it is not finished.
+4. **No vague information.** "Should be fine", "might be related", "some issues",
+   "mostly working" are not answers. Say which thing, where, and what it means
+   for him. If you do not know, say you do not know and say what you will do to
+   find out.
+5. **Translate every technical fact.** If a detail earns its place in chat, it
+   gets one line saying what it means for him. A number, a file name, or an error
+   string on its own is not information he can use.
+
 ### Asking Jacob for things
 
-Quit dancing around it. When you actually need him, say so in one block, at the
-end, in this shape:
+When genuinely blocked:
 
-1. **One ask.** Roll every outstanding question, decision, and credential into a
-   single numbered list. Never spread asks across paragraphs or turns.
-2. **Pick the easiest path and name it.** Don't present options and wait. Choose
-   the lowest-effort route for him, say which you chose, and say what you'll do
-   the moment he answers.
-3. **Give him the exact artifact.** If he has to run something, paste the exact
-   command. If he has to prompt another agent, paste the whole prompt ready to
-   copy — not a description of it.
-4. **Never ask for what you can get yourself.** Check the env, the repo, the
-   GitHub API, and your own tools first. "I can't" is only true after you tried.
-5. **Do not re-litigate with review bots.** Fix what is right, ignore the rest,
-   and never open a back-and-forth thread with an automated reviewer.
+1. Make one consolidated ask.
+2. Pick and name the lowest-effort path.
+3. Provide the exact command or copy-ready prompt.
+4. Never ask for information available from the repo, environment, GitHub, or
+   connected tools.
+5. Do not litigate with review bots; fix valid findings and ignore invalid ones.
 
-Blocking on Jacob is a last resort, not a status update. If part of the work can
-proceed without him, do that part first and ask once at the end.
+Proceed with every unblocked part before asking.
 
-## Initiative
+## Non-negotiables
 
-See `.claude/rules/initiative.md`. Persona and noticing rules live in
-`config/SOUL.md`.
+1. Fail loud. No swallowed exceptions, fake defaults, or invented data.
+2. Verify before claiming. Unknown remains unknown.
+3. Keep diffs focused; do not reformat unrelated code.
+4. Do not force-push, rewrite history, delete user data, touch secrets/auth/env,
+   spend money, or add heavy dependencies without explicit authorization.
+5. Builder's publication carve-out applies only to approved packets and the
+   accepted evidence/merge policies. Workers never receive GitHub credentials
+   or approve themselves.
+6. Auto-merge remains forbidden for dependency/lockfile/CI/auth/security/
+   destructive/schema/human-judgment work, collisions, unverifiable gates, or
+   scope expansion.
+7. Durable architecture decisions belong in ADRs; workflow lessons belong in
+   canonical docs/tests/skills when proven; workflow signals follow ADR 0025.
+8. `docs/ROADMAP.md` is the only active roadmap.
+9. Session-end uses `.agents/skills/session-end/SKILL.md` and never creates a
+   second backlog or silently schedules Builder work.
+10. KB effectiveness uses `scripts/kb_effectiveness.py`. A wiki write is not
+    proof of learning. Tokens, cost, quality, and time remain `null` unless
+    supported by evidence; cohort differences are observational, not causal.
 
-## Non-Negotiables
+## Session state
 
-1. Fail loud. No silent exception swallowing, fake defaults, or invented data.
-2. Verify before claiming. Done means a command ran and its output was read.
-   If a claim cannot be checked, say so explicitly.
-3. Keep diffs small. Do not reformat or rewrite unrelated code.
-4. Do not force-push human branches, rewrite history, delete user data, touch
-   secrets/auth/env, spend money, or add heavy dependencies without explicit
-   confirmation.
-5. **Builder carve-out:** under approved packets and ADRs 0018/0021, the
-   operator-context Builder path may commit, push its disposable packet branch,
-   create/update a PR, mark it ready, and merge only low-risk evidence-gated
-   work. Workers never receive GitHub credentials or approve themselves.
-6. Auto-merge is forbidden for dependency/lockfile/CI/auth/security/destructive/
-   schema/human-judgment work, path collisions, unverifiable gates, or scope
-   expansion. Such work may stop at a draft PR when authorized.
-7. New durable architecture decisions go in `docs/DECISIONS.md` / `docs/adr/`;
-   workflow lessons go in `docs/LEARNINGS.md`.
-8. `docs/ROADMAP.md` is the only active roadmap. Other plans are inputs, not
-   authority.
+Read `.claude/HANDOFF.md` and `.claude/STATE.md` at session start, but trust them
+only while identity and invalidation conditions remain valid. They are shared
+continuity files, not a Builder queue or session diary. Builder workers must not
+edit `.claude/`.
 
-## Session State
+At session end:
 
-Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session,
-but trust either only while its identity and invalidation conditions remain
-valid.
-
-These are shared files, not a session journal. Before writing either: fetch and
-read the live `origin/main` copy. Do not clobber a different active workstream.
-Isolated Builder worker attempts must not touch `.claude/`.
+- record the single execution owner;
+- record KB entries consulted, used, and stale/wrong;
+- write one idempotent KB effectiveness receipt;
+- preserve exact tests, review, PR, token/cost, and outcome evidence;
+- record workflow signals separately from execution authority;
+- leave one interactive next action or explicit no-op;
+- never turn bare continuation into Builder queue consumption.
 
 ## Authority
 
-`docs/AUTHORITY_MAP.md` is the only routing map for project truth. This file is
-a bootloader and Claude-specific glossary, not a second status, architecture,
-or roadmap authority.
+`docs/AUTHORITY_MAP.md` routes project truth. This file is a Claude-specific
+bootloader and glossary, not a second roadmap or status authority.
 
-## Runtime Shape
+## Runtime shape
 
 Kitty is a local-first single-user companion on Jacob's Mac:
 
-- FastAPI gateway in `gateway/`
-- Next.js UI in `gateway/kitty-chat/`
-- LiteLLM proxy for model routing
-- Runtime data under `data/`
-- Logs under `logs/`
+- FastAPI gateway in `gateway/`;
+- Next.js UI in `gateway/kitty-chat/`;
+- LiteLLM proxy for model routing;
+- runtime data under `data/`;
+- logs under `logs/`.
 
-All prompt/search context reads should go through `gateway/memory_graph.py`.
-Direct store imports remain acceptable for subsystem-owned writes and tests.
+Prompt/search context reads should go through `gateway/memory_graph.py`. Direct
+store imports remain acceptable for subsystem-owned writes and tests.
 
 ## Commands
 
@@ -145,14 +196,16 @@ bash scripts/preflight.sh
 ./kitty up
 ./kitty status
 ./kitty doctor --json
+./kitty builder initiative doctor --json
+python3 scripts/kb_effectiveness.py summary --window-days 30 --report
 python3.12 -m pytest tests/ -q --tb=short
 make ui-test && make ui-build
 make agent-wrap
 ```
 
-If a command fails, report the failure exactly. Do not round up to passing.
+If a command fails, report it exactly. Do not round up to passing.
 
-## Voice Glossary
+## Voice glossary
 
 - "the gateway" → `gateway/`
 - "the chat thing" / "the UI" → `gateway/kitty-chat/`
@@ -164,12 +217,21 @@ If a command fails, report the failure exactly. Do not round up to passing.
 - "mission" → `docs/ACTIVE_MISSION.md`
 - "roadmap" → `docs/ROADMAP.md`
 - "execution state" → Builder's supported projections
+- "next" → continue the current interactive assignment
+- "builder next" → explicit governed Builder work selection/execution
+- "review builder" → interactive independent review without ownership transfer
+- "session end" → evidence, KB effectiveness, learning, continuity, then stop
 - "Goose" → external chat tool, not part of Kitty runtime
 - "Honcho" → `gateway/honcho.py`
 
 ## Cross-tool knowledge base
 
-`~/kb` is the shared context layer for AI tools and cross-project knowledge.
-Read `~/kb/INDEX.md` then `~/kb/NOW.md` when cross-project context matters and
-check `~/kb/corrections/` before repeating failed approaches. Kitty-specific
-truth remains in this repository.
+`~/kb` is shared context for AI tools and cross-project knowledge. Read
+`~/kb/INDEX.md`, then `~/kb/NOW.md`, and relevant corrections when cross-project
+context matters. Retrieve only task-relevant entries.
+
+Workflow signals under `~/kb/workflow-signals/` are evidence history, not an
+execution queue. Effectiveness receipts under
+`~/kb/metrics/kb-effectiveness.jsonl` measure retrieval usefulness, staleness,
+known token/cost coverage, attempts, review, regressions, avoided duplication,
+and canonical promotion. Kitty-specific truth remains in this repository.

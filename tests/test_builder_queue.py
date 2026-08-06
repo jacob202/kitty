@@ -2938,3 +2938,152 @@ class TestMergeDetection:
         assert 99 in result["synced"]
         assert any(e["pr_number"] == "42" for e in result["errors"])
         assert bq.get_task(t1["id"], db_path=db_path)["state"] == bq.AWAITING_REVIEW
+
+    def test_detect_merged_prs_reconciles_wrongly_cancelled_task(self, db_path: Path):
+        """A task cancelled in error, whose PR has merged, is recovered to done.
+
+        This is the supported recovery path for a mistaken operator-cancel:
+        the merged PR is ground truth, so reconcile-merges promotes the
+        cancelled task — no manual DB mutation.
+        """
+        task = bq.create_task("cancelled-but-merged", db_path=db_path)
+        bq.transition_task(task["id"], bq.CANCELLED, db_path=db_path)
+        bq.attach_pr(task["id"], 7, db_path=db_path)
+
+        result = bq.detect_merged_prs(
+            db_path=db_path,
+            pr_merged=lambda _n: {
+                "merged": True,
+                "url": "u",
+                "head_sha": "h",
+                "checks_state": "passed",
+                "review_state": "approved",
+            },
+        )
+        assert result["promoted"] == [task["id"]]
+        assert result["errors"] == []
+        recovered = bq.get_task(task["id"], db_path=db_path)
+        assert recovered["state"] == bq.DONE
+        assert bq.get_pr_links(task["id"], db_path=db_path)[0]["merged"] == 1
+        events = bq.list_events(task["id"], db_path=db_path)
+        assert any(e["type"] == "recovered" for e in events)
+
+    def test_detect_merged_prs_does_not_promote_cancelled_with_unmerged_pr(
+        self, db_path: Path
+    ):
+        task = bq.create_task("cancelled-unmerged", db_path=db_path)
+        bq.transition_task(task["id"], bq.CANCELLED, db_path=db_path)
+        bq.attach_pr(task["id"], 8, db_path=db_path)
+
+        result = bq.detect_merged_prs(
+            db_path=db_path,
+            pr_merged=lambda _n: {"merged": False},
+        )
+        assert result["promoted"] == []
+        assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.CANCELLED
+
+
+class TestOperatorCancelGuard:
+    """operator-cancel must not be usable as an unblock shortcut."""
+
+    def _running_task(self, db_path: Path) -> dict:
+        task = bq.create_task("running", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker", db_path=db_path)
+        bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+        return bq.get_task(task["id"], db_path=db_path)
+
+    def test_refuses_running(self, db_path: Path):
+        task = self._running_task(db_path)
+        with pytest.raises(bq.IllegalTransitionError) as exc:
+            bq.operator_cancel_task(task["id"], reason="r", db_path=db_path)
+        assert "running" in str(exc.value)
+        assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.RUNNING
+
+    def test_refuses_pr_opened(self, db_path: Path):
+        task = self._running_task(db_path)
+        bq.transition_task(task["id"], bq.PR_OPENED, db_path=db_path)
+        with pytest.raises(bq.IllegalTransitionError) as exc:
+            bq.operator_cancel_task(task["id"], reason="r", db_path=db_path)
+        assert "pr_opened" in str(exc.value)
+        assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.PR_OPENED
+
+    def test_cancels_queued_and_appends_event(self, db_path: Path):
+        task = bq.create_task("queued", db_path=db_path)
+        bq.operator_cancel_task(task["id"], reason="cleanup", actor="test",
+                                db_path=db_path)
+        assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.CANCELLED
+        events = bq.list_events(task["id"], db_path=db_path)
+        cancel = [e for e in events if e["type"] == bq.CANCELLED]
+        assert cancel and cancel[0]["payload"].get("actor") == "test"
+
+    def test_missing_task_not_found(self, db_path: Path):
+        with pytest.raises(bq.TaskNotFoundError):
+            bq.operator_cancel_task("nope", db_path=db_path)
+
+
+class TestRecoverDurableIssues:
+    """The recover command reconciles stale execution AND merged-PR truth."""
+
+    def _drive_to_done(self, task_id: str, db_path: Path) -> None:
+        """Drive a fresh queued task to done through the legal state machine."""
+        claimed = bq.claim_task(task_id, "worker", db_path=db_path)
+        bq.worker_transition_task(
+            task_id,
+            bq.RUNNING,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.transition_task(task_id, bq.PR_OPENED, db_path=db_path)
+        bq.transition_task(task_id, bq.AWAITING_REVIEW, db_path=db_path)
+        bq.transition_task(task_id, bq.DONE, db_path=db_path)
+
+    def test_repairs_expired_and_promotes_merged_cancelled(self, db_path: Path):
+        # Expired claimed -> queued.
+        expired = bq.create_task("expired-claim", db_path=db_path)
+        bq.claim_task(expired["id"], "worker", db_path=db_path)
+        _set_task_fields(db_path, expired["id"], lease_expires_at="2000-01-01 00:00:00")
+
+        # Wrongly cancelled task whose PR has merged -> done.
+        merged = bq.create_task("cancelled-merged", db_path=db_path)
+        bq.transition_task(merged["id"], bq.CANCELLED, db_path=db_path)
+        bq.attach_pr(merged["id"], 11, db_path=db_path)
+
+        # Done task whose linked PR is actually not merged -> flagged (no demote).
+        done_unmerged = bq.create_task("done-unmerged", db_path=db_path)
+        self._drive_to_done(done_unmerged["id"], db_path)
+        bq.attach_pr(done_unmerged["id"], 12, db_path=db_path)
+
+        def resolver(pr_number: int) -> dict:
+            if pr_number == 11:
+                return {"merged": True}
+            if pr_number == 12:
+                return {"merged": False}
+            raise AssertionError(f"unexpected pr {pr_number}")
+
+        result = bq.recover_durable_issues(db_path=db_path, pr_merged=resolver)
+
+        assert result["claimed_requeued"] == 1
+        assert bq.get_task(expired["id"], db_path=db_path)["state"] == bq.QUEUED
+        assert merged["id"] in result["promoted"]
+        assert bq.get_task(merged["id"], db_path=db_path)["state"] == bq.DONE
+        assert done_unmerged["id"] in result["done_with_unmerged_pr_flagged"]
+        assert bq.get_task(done_unmerged["id"], db_path=db_path)["state"] == bq.DONE
+
+    def test_reconcile_marks_stale_done_link_merged(self, db_path: Path):
+        """A done task whose PR actually merged gets its link marked consistently."""
+        task = bq.create_task("done-actually-merged", db_path=db_path)
+        self._drive_to_done(task["id"], db_path)
+        bq.attach_pr(task["id"], 21, db_path=db_path)
+
+        result = bq.recover_durable_issues(
+            db_path=db_path, pr_merged=lambda _n: {"merged": True}
+        )
+        assert result["done_with_unmerged_pr_marked_merged"] == [task["id"]]
+        assert bq.get_pr_links(task["id"], db_path=db_path)[0]["merged"] == 1

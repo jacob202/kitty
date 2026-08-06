@@ -268,3 +268,93 @@ class TestLocalDetection:
 
         route = model_routing.describe_routing()["routes"][0]
         assert route["provider"] == "openai"
+
+
+# ── the user-facing menu ──────────────────────────────────────────────────────
+
+
+def test_every_menu_id_resolves_to_a_configured_litellm_route():
+    """A menu row that maps to a route litellm has never heard of is a 404 the
+    user only discovers by picking it."""
+    routes = {
+        entry["alias"] for entry in model_routing.describe_routing()["routes"]
+    }
+    for entry in model_routing.USER_FACING_MODELS:
+        assert entry["route"] in routes, f"{entry['id']} -> {entry['route']}"
+
+
+def test_menu_entries_are_distinct_models():
+    """Two rows pointing at the same upstream model is a menu that lies."""
+    by_alias = {
+        entry["alias"]: entry
+        for entry in model_routing.describe_routing()["routes"]
+    }
+    upstream = [
+        by_alias[entry["route"]]["upstream_model"]
+        for entry in model_routing.USER_FACING_MODELS
+        if entry["id"] != "kitty-auto"  # Auto has no model of its own
+    ]
+    assert len(set(upstream)) == len(upstream), upstream
+
+
+def test_auto_hands_the_tier_decision_back_to_kitty():
+    decision = model_routing.resolve_chat_route(
+        "kitty-auto", "explain how recursion works", reroute_virtual_models=True
+    )
+
+    assert decision.source == "complexity_classifier"
+    assert decision.model == model_routing.LITELLM_SONNET
+
+
+def test_a_pinned_menu_choice_is_not_second_guessed():
+    """Picking "Kitty Think" for a trivial message must stay on Think.
+
+    Rerouting every ``kitty-*`` id made the menu a suggestion the classifier
+    could overrule, which is not what picking a model means.
+    """
+    decision = model_routing.resolve_chat_route(
+        "kitty-think", "hi", reroute_virtual_models=True
+    )
+
+    assert decision.source == "request"
+    assert decision.model == model_routing.LITELLM_THINK
+
+
+def test_menu_ids_normalize_onto_litellm_routes():
+    normalize = model_routing.normalize_litellm_request_model
+    assert normalize("kitty-auto") == model_routing.LITELLM_DEFAULT
+    assert normalize("kitty-fast") == model_routing.LITELLM_SMALL
+    assert normalize("kitty-code") == model_routing.LITELLM_CODE
+
+
+def test_auto_routes_an_image_turn_to_vision():
+    """An image-only turn reduces to an empty string, so the complexity
+    classifier has no modality signal and can only pick a text tier — the upload
+    then silently reaches a model that cannot read it."""
+    decision = model_routing.resolve_chat_route(
+        "kitty-auto", "", reroute_virtual_models=True, has_image=True
+    )
+
+    assert decision.model == model_routing.LITELLM_VISION
+    assert decision.source == "modality"
+
+
+def test_auto_honours_the_domain_classification():
+    """The route re-classified without the domain the endpoint had already
+    computed, so a domain-deep turn was routed as if it were not while telemetry
+    still reported deep."""
+    with_domain = model_routing.resolve_chat_route(
+        "kitty-auto", "I have a fever", reroute_virtual_models=True, domain="health"
+    )
+    from gateway.reasoning import classify_complexity
+
+    assert with_domain.tier == classify_complexity("I have a fever", domain="health").tier
+
+
+def test_a_pinned_choice_still_wins_over_an_image():
+    decision = model_routing.resolve_chat_route(
+        "kitty-code", "fix this", reroute_virtual_models=True, has_image=True
+    )
+
+    assert decision.model == model_routing.LITELLM_CODE
+    assert decision.source == "request"

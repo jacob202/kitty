@@ -46,13 +46,24 @@ def _knowledge_type(raw: str) -> tutor.KnowledgeType:
 @router.post("/tutor/ask")
 async def tutor_ask(req: TutorAsk) -> dict:
     """Answer a learning question (vocab-first, grounded, never guesses)."""
-    return await tutor.ask(req.topic)
+    try:
+        return await tutor.ask(req.topic)
+    except tutor.TutorError as exc:
+        # "I have nothing ingested on this" is a fact about the library, not a
+        # server fault. As a 500 it read as a crash and hid the one instruction
+        # that fixes it, which is carried in the message.
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/tutor/learn")
 async def tutor_learn(req: TutorLearn) -> dict:
     """Ingest a document into the Tutor's knowledge collection."""
-    result = await tutor.ingest(req.path, label=req.label)
+    try:
+        result = await tutor.ingest(req.path, label=req.label)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"no such document: {req.path}") from exc
+    except tutor.TutorError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ingested": True, "result": str(result)}
 
 

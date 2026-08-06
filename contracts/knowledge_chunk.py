@@ -1,6 +1,8 @@
 """Schema for a knowledge chunk stored in ChromaDB."""
 from __future__ import annotations
+
 from datetime import datetime, timezone
+
 from pydantic import BaseModel, Field
 
 

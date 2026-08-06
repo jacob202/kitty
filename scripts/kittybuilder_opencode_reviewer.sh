@@ -13,20 +13,16 @@ set -euo pipefail
 : "${KB_ATTEMPT_ID:?KB_ATTEMPT_ID is required}"
 : "${KB_TASK_ID:?KB_TASK_ID is required}"
 
-# Free-reviewer ladder: KITTYBUILDER_REVIEW_MODEL forces exactly one model,
-# KITTYBUILDER_REVIEW_MODELS (space-separated) replaces the default ladder.
-# Keep it disjoint from the builder ladder head so the review stays independent.
+# Reviewer model: one frontier model by default (deepseek-v4-pro via
+# OpenRouter). KITTYBUILDER_REVIEW_MODEL forces exactly one model;
+# KITTYBUILDER_REVIEW_MODELS (space-separated) replaces the default.
 if [[ -n "${KITTYBUILDER_REVIEW_MODEL:-}" ]]; then
   models=("${KITTYBUILDER_REVIEW_MODEL}")
 elif [[ -n "${KITTYBUILDER_REVIEW_MODELS:-}" ]]; then
   read -r -a models <<<"${KITTYBUILDER_REVIEW_MODELS}"
 else
   models=(
-    "opencode/nemotron-3-ultra-free"
-    "opencode/mimo-v2.5-free"
-    "opencode/north-mini-code-free"
-    "openrouter/tencent/hy3:free"
-    "openrouter/free"
+    "openrouter/deepseek/deepseek-v4-pro"
   )
 fi
 before=$(git rev-parse HEAD)
@@ -147,10 +143,10 @@ for model in "${models[@]}"; do
 done
 
 if [[ -z "${chosen_model}" ]]; then
-  echo "ERROR: every free reviewer model failed without producing ${local_review}: ${models[*]}" >&2
+  echo "ERROR: every reviewer model failed without producing ${local_review}: ${models[*]}" >&2
   exit 75
 fi
-echo "Free review completed with ${chosen_model}."
+echo "Review completed with ${chosen_model}."
 
 python3 - "${local_review}" <<'PY'
 import json
@@ -163,6 +159,43 @@ if not isinstance(review, dict) or review.get("contract_version") != 1:
 if review.get("verdict") not in {"approve", "request_changes", "reject"}:
     raise SystemExit("ERROR: reviewer result has an invalid verdict")
 PY
+
+# A short human-readable note that Builder, Kitty, and Jacob can all read
+# alongside the structured review contract. KB_REVIEW_NOTE_PATH is runner-owned
+# and optional; the note is derived deterministically from the validated review.
+if [[ -n "${KB_REVIEW_NOTE_PATH:-}" ]]; then
+  python3 - "${local_review}" "${KB_REVIEW_NOTE_PATH}" "${KB_REVIEW_SHA}" "${chosen_model}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+review = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+note_path = Path(sys.argv[2])
+sha = sys.argv[3]
+model = sys.argv[4]
+lines = [
+    "# KittyBuilder review note",
+    "",
+    f"- Reviewed commit: `{sha}`",
+    f"- Verdict: {review.get('verdict')}",
+    f"- Model: {model}",
+    "",
+    "## Summary",
+    "",
+    str(review.get("summary", "")),
+]
+findings = review.get("findings")
+if isinstance(findings, list) and findings:
+    lines += ["", "## Findings", ""]
+    for item in findings:
+        if isinstance(item, dict):
+            lines.append(f"- [{item.get('severity', 'note')}] {item.get('note', '')}")
+        else:
+            lines.append(f"- {item}")
+lines.append("")
+note_path.write_text("\n".join(lines), encoding="utf-8")
+PY
+fi
 
 candidate=$(mktemp "${TMPDIR:-/tmp}/kittybuilder-review.XXXXXX")
 trap 'rm -f "${local_bundle}" "${local_impl}" "${local_context}" "${local_review_context}" "${local_review}" "${candidate}"' EXIT

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Quick fal.ai image generator. Usage: python3 gen.py "your prompt here" """
-import sys, os, fal_client
+import sys
+
+import fal_client
 
 if len(sys.argv) < 2:
     print("Usage: gen.py \"prompt\" [num_images]")

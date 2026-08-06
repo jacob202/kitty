@@ -203,6 +203,167 @@ predate the guard.
 This verifies A1's stated acceptance. It does **not** verify any user-visible
 behaviour — no image was generated, no browser was involved. That is A6.
 
+## E10 — slice A3, bounded image-specialist controller
+
+`gateway/image_agent.py` + `tests/test_image_agent.py`.
+
+```
+.venv/bin/python -m pytest tests/test_image_agent.py -q
+32 passed in 5.39s
+
+.venv/bin/python -m pytest tests/test_image_plans.py tests/test_image_sessions.py \
+  tests/test_image_jobs.py tests/test_image_recipes.py tests/test_image_router.py \
+  tests/test_image_cancel.py tests/test_image_backends.py tests/test_db.py -q
+161 passed in 16.90s
+
+.venv/bin/python -m ruff check gateway/image_agent.py tests/test_image_agent.py
+All checks passed!
+
+.venv/bin/python -m mypy gateway/image_agent.py
+Success: no issues found in 1 source file
+
+.venv/bin/python -m vulture gateway/image_agent.py --min-confidence 80
+(no output)
+```
+
+Two test-harness defects were found and fixed here, both in the new tests
+rather than in shipped code. `image_recipes` binds `KITTY_DB_FILE` at import
+(`gateway/image_recipes.py:13`), so redirecting `gateway.paths.KITTY_DB_FILE`
+alone would have written the recipe table into the real database — the
+fixture now monkeypatches the module-level name, matching
+`tests/test_image_recipes.py:23`. And `image_jobs` has no `created → running`
+transition (`gateway/image_jobs.py:56`), so the anchor helper goes through
+`submitted` like the real dispatch path does.
+
+`test_edit_is_refused_when_no_recipe_supports_img2img` forces the routing
+decision rather than disabling recipes: all four default recipes declare
+`supports_img2img`, so disabling them leaves zero available recipes and the
+test would have passed on the wrong error.
+
+This verifies A3's stated acceptance. Every LLM call is a scripted stub — no
+real model output was parsed, no image was generated, no browser was
+involved. That is A6.
+
+## E11 — slice A4, real reference-conditioned editing
+
+`workflows/image_to_image_v1/` + `workers/comfy_worker/app.py` +
+`gateway/runpod_worker.py` + `tests/test_image_to_image.py`.
+
+```
+python -m pytest tests/test_image_to_image.py -q
+34 passed
+```
+
+The acceptance assertion is
+`test_compiled_workflow_carries_the_source_image_and_denoise`: the compiled
+ComfyUI request binds the uploaded artifact at the `LoadImage` node, the
+sampler's `latent_image` comes from `VAEEncode` rather than `EmptyLatentImage`,
+and `denoise` is 0.45. Its inverse pins the fail case issue #336 names —
+`test_a_reroll_with_preservation_words_has_no_source_image_input` compiles a
+text-to-image prompt containing "keep his face exactly the same" and asserts
+there is no `LoadImage` node and `denoise == 1.0`.
+
+`tests/test_comfy_worker.py` needed one change: `_comfy_nodes()` now advertises
+the node types of *every* installed bundle, because `/health` stopped verifying
+only `text_to_image_v1`. Without that the existing health tests would fail
+correctly — a worker with no `LoadImage` node cannot edit.
+
+## E12 — slice A5, conversational Image Studio
+
+`gateway/routes/extended.py` (six new routes) +
+`gateway/kitty-chat/src/components/ImageStudio.tsx` +
+`gateway/kitty-chat/tests/ImageStudio.test.tsx`.
+
+```
+npx vitest run
+44 test files, 320 passed
+
+npm run build
+✓ compiled, TypeScript finished, 5/5 static pages generated
+```
+
+Twelve tests in `ImageStudio.test.tsx`, covering the two-turn conversation with
+anchor selection, a clarifying question that renders nothing, a refusal shown as
+an answer rather than an error banner, controller-failure attribution, and the
+composer clearing.
+
+Two defects were found by this work, both fixed here:
+
+1. `/studio/generate`'s trailing `except Exception` swallowed the
+   `HTTPException` the new session-attach path raises and rewrapped it as a 500
+   whose body was the text of a 400. Any deliberate status chosen inside that
+   `try` had the same fate. Fixed with an explicit `except HTTPException: raise`
+   ahead of the generic clause.
+2. `tests/test_image_plans.py::TestPlanDispatchRoute`'s fake runner returned
+   `job_id="job_x"` with no matching row. The real `image_runner.run` always
+   leaves a durable job, and the route now binds that job to the session, so the
+   fake was testing a state the runner cannot produce. It now creates a real job
+   row.
+
+## E13 — slice B1, Builder execution map
+
+`docs/mission/builder-map.md`. No code changed; this is a static-analysis
+result.
+
+All 27 `builder_*` modules classified with a proving call site: 26 live, 1
+reachable only from tests, 0 dead. One invocation traced in seven steps from
+`kitty:809` to `subprocess.Popen` at `gateway/builder_runner.py:1138`.
+
+The finding: `builder_adapters` is implemented (`ShellWorkerSession` at
+`gateway/builder_adapters.py:44`, `OpenCodeServerSession` at `:305`),
+contract-tested, and unreachable. `run_packet` accepts `worker_session=`
+(`gateway/builder_loop.py:803`) and branches to `_run_via_session`
+(`:699`, called at `:1152`); `_cmd_initiative_run_packet` never passes it
+(`gateway/builder_cli.py:1427-1438`).
+
+This is static analysis, not execution. "Is imported" is not "does execute" —
+no packet was queued and no worker ran.
+
+## E14 — full suite after A4, A5 and B1
+
+```
+python -m pytest tests/ -q --cov=gateway --cov-fail-under=73
+5 failed, 3681 passed, 2 deselected, 29 subtests passed
+Total coverage: 78.05% (floor 73%)
+
+python -m ruff check gateway/ tests/ workers/     → All checks passed
+python -m vulture gateway/ --min-confidence 80 --exclude gateway/kitty-chat/  → no output
+python -m mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+  → 19 errors, identical before and after this change (verified by stashing)
+```
+
+The 5 failures are `test_check_continuity_state.py` (4) and
+`test_resume_script.py` (1). They fail identically on the unmodified checkout at
+this session's start and are caused by the stale `.claude/STATE.md` and
+`.claude/HANDOFF.md` checkpoint, whose recorded branch and HEAD no longer match.
+Nothing in this change touches `.claude/`.
+
+## E15 — slice B2, adapter seam resolution
+
+Decision: subprocess dispatch is the only supported backend. The adapter layer
+(`builder_adapters.py`, `builder_worker_session.py`) is complete but has zero
+production callers.
+
+Removed from `gateway/builder_loop.py`: `_run_via_session` (83 lines), the
+`worker_session: WorkerSession | None` parameter from `run_packet`, the
+mutual-exclusion validation, the `time` import, and the
+`builder_worker_session` import of `ModelPolicy`/`WorkerSession`/`WorkerState`.
+`worker_command` changed from `list[str] | None = None` to `list[str]`
+(required). Both production callers already passed it unconditionally.
+
+```
+.venv-ci/bin/python -m pytest tests/test_builder_loop.py tests/test_builder_cli.py -q
+181 passed in 33.79s
+
+.venv-ci/bin/python -m pytest tests/test_builder_status.py tests/test_builder_queue.py tests/test_builder_runner.py -q
+263 passed in 38.42s
+
+.venv-ci/bin/python -m pytest tests/test_builder_adapters.py tests/test_worker_session_contract.py tests/test_builder_worker_session.py -q
+109 passed in 2.56s
+```
+
+553 tests, zero failures. Zero tests referenced the removed path.
+
 ## Not evidence — what this session could not produce
 
 No browser screenshot, no generated image, no artifact hash, no RunPod job,
@@ -211,3 +372,55 @@ The container has no `.env`, no RunPod credentials, no display, no GPU, and
 is not Jacob's Mac. Issue #336's acceptance test and Outcome B items 8–10
 were not attempted, because attempting them would have produced only
 fabricated results.
+
+---
+
+# KTL2-003 — parallel-lanes proof
+
+This packet is a zero-cost, non-destructive proof that the Builder execution
+lane and the interactive continuation lane stay separate. Two modules now
+cover it:
+
+- `tests/test_resolve_next_work.py` — the pure resolver (KTL2-001)
+- `tests/workflow/test_parallel_lanes.py` — exercises the real resolver
+  for bare `next` vs. explicit `builder next`, plus secondary receipt-layer
+  invariants on `scripts/kb_effectiveness.record_receipt`
+
+## P1 — the resolver exercises the real continuation boundary
+
+`tests/workflow/test_parallel_lanes.py` exercises `scripts.resolve_next_work`
+directly:
+
+- Bare `next` (no explicit builder intent, no valid bundle) always returns
+  `ExecutionOwner.INTERACTIVE` with zero `BUILDER_SIDE_EFFECTS`.
+- Explicit `builder next` and a valid Builder-launched bundle both enter the
+  governed `ExecutionOwner.BUILDER` lane with all five `BUILDER_SIDE_EFFECTS`.
+- Contradictory intent (bundle + review, explicit builder + review) raises
+  `ValueError` — fail loud, never mask.
+- The resolver is deterministic: same input → same output; `to_dict()` is
+  roundtrip-safe.
+
+The receipt-layer regression invariants (idempotent continuation, single
+execution owner per result, separate-but-cross-referenced builders/interactive
+evidence, unknown-stays-null) are kept in the same module as secondary
+evidence.
+
+`python3.12 -m pytest tests/test_kb_effectiveness.py tests/test_resolve_next_work.py tests/workflow/ -q`:
+
+All tests pass.
+
+## P2 — continuity metadata reflects main identity
+
+STATE.md and HANDOFF.md now carry `origin/main`'s HEAD, branch, and
+execution ownership rather than a stale Builder worktree identity.
+`python3.12 scripts/check_continuity_state.py` and `./kitty context --agent`
+both pass.
+
+## Unavailable measurements (names not estimates)
+
+- No live second interactive tool/process was run; the resolver is proven
+  as a pure function, not by spawning a second process.
+- Total tokens, elapsed time, and cost were not measured and remain `null`;
+  no causal token/quality claim is made.
+- No durable JSONL receipt artifact was committed; all receipt assertions
+  use a `tmp_path` store and are reproducible.

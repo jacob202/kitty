@@ -256,6 +256,7 @@ def _open_or_update_pr(
             "gh",
             "pr",
             "create",
+            "--draft",
             "--head",
             branch,
             "--base",
@@ -530,6 +531,21 @@ def _prepare_main_worktree(
         raise MergeError(f"git fetch {remote} main failed: {detail}")
 
     if path.is_dir():
+        # `path.is_dir()` is not proof of a worktree. A leftover or half-removed
+        # directory inside the repo makes `git -C path` walk up to the primary
+        # checkout, and this command is `reset --hard` — it would throw away
+        # whatever branch and uncommitted work Jacob has open there. Confirm the
+        # directory is its own worktree before resetting anything in it.
+        toplevel = run_cmd(
+            ["git", "rev-parse", "--show-toplevel"], cwd=path, check=False
+        )
+        resolved = Path((toplevel.stdout or "").strip() or path)
+        if toplevel.returncode != 0 or resolved.resolve() != path.resolve():
+            raise MergeError(
+                f"{path} exists but is not its own git worktree (git resolves it "
+                f"to {resolved}); refusing to run 'git reset --hard' there. "
+                "Remove the directory and rerun."
+            )
         reset = run_cmd(
             ["git", "reset", "--hard", f"{remote}/main"], cwd=path, check=False
         )

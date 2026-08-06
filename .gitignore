@@ -111,3 +111,6 @@ gateway/kitty-chat/test-results/
 .slim/clonedeps/repos/
 # END oh-my-opencode-slim clonedeps
 .opencode/
+
+# Personal reference photos — never in git. Live at ~/kitty-services/faces/
+config/imagen/faces/*/

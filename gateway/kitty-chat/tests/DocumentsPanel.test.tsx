@@ -75,7 +75,13 @@ describe('DocumentsPanel mobile (#346 Slice 1, PR#355 finding 1)', () => {
       error: null, mutate: vi.fn(),
     } as never)
     renderPanel(true)
+<<<<<<< HEAD
     expect(screen.getByText(/success: doc-1 — indexed 12 chunks/i)).toBeInTheDocument()
+=======
+    expect(screen.getByText('indexed')).toBeInTheDocument()
+    expect(screen.getByText('doc-1')).toBeInTheDocument()
+    expect(screen.getByText('indexed 12 chunks')).toBeInTheDocument()
+>>>>>>> origin/main
   })
 
   it('keeps the full path/URL control on desktop', () => {

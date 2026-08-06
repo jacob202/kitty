@@ -245,6 +245,7 @@ test.describe('phone dogfood — slice 1', () => {
     await expect(page.getByTestId('studio-offline')).toBeVisible();
     await expect(page.getByTestId('studio-check-again')).toBeVisible();
 
+<<<<<<< HEAD
     // Renderer-independent work stays available (finding 3): the editor is
     // visible; with a prompt entered, plan preview is enabled — but generation
     // stays disabled because no renderer is available.
@@ -252,6 +253,16 @@ test.describe('phone dogfood — slice 1', () => {
     await expect(page.locator('main').getByRole('button', { name: 'preview plan', exact: true })).toBeEnabled();
     const generate = page.locator('main').getByRole('button', { name: 'generate', exact: true });
     await expect(generate).toBeDisabled();
+=======
+    // Renderer-independent work stays available (finding 3): the composer is
+    // visible; with a prompt entered, plan preview is enabled — but sending
+    // stays disabled because no renderer is available. Plan inspection moved
+    // behind "advanced" when Studio became chat-first (issue #336, slice A5).
+    await page.locator('main').getByPlaceholder(/describe what you want to create/i).fill('a sleeping cat');
+    await page.locator('main').getByRole('button', { name: /advanced/i }).click();
+    await expect(page.locator('main').getByRole('button', { name: 'preview plan', exact: true })).toBeEnabled();
+    await expect(page.getByTestId('studio-send')).toBeDisabled();
+>>>>>>> origin/main
     await expect(page.locator('main').getByPlaceholder(/describe what you want to create/i)).toBeVisible();
 
     // No raw Internal Server Error; only the human offline message.

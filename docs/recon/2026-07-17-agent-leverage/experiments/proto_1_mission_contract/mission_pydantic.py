@@ -165,7 +165,7 @@ def _demo() -> None:
         raise SystemExit("expected extra='forbid' to reject unknown fields")
     except ValidationError as exc:
         assert "extra_field" in str(exc)
-        print(f"[proto1a] unknown-field rejection: OK")
+        print("[proto1a] unknown-field rejection: OK")
 
     # 3. Reject a bad SHA — the field validator earns its keep.
     bad = mission.model_dump()
@@ -175,7 +175,7 @@ def _demo() -> None:
         raise SystemExit("expected SHA validator to reject non-hex")
     except ValidationError as exc:
         assert "base_sha" in str(exc)
-        print(f"[proto1a] bad-SHA rejection: OK")
+        print("[proto1a] bad-SHA rejection: OK")
 
     # 4. State machine enum coverage.
     for s in MissionState:
@@ -189,7 +189,7 @@ def _demo() -> None:
         raise SystemExit("expected validation to reject minimal payload")
     except ValidationError as exc:
         assert "objective" in str(exc) or "mission_id" in str(exc)
-        print(f"[proto1a] missing-required rejection: OK")
+        print("[proto1a] missing-required rejection: OK")
 
     print("[proto1a] all checks pass — plain Pydantic Mission is viable.")
 

@@ -8,6 +8,7 @@ import { Message, type MemoryEvidence } from '@/lib/types'
 import { deleteMemory } from '@/lib/gateway'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
+import { ToolCallList } from './ToolCallBlock'
 
 interface Props {
   message: Message
@@ -17,11 +18,15 @@ interface Props {
   onRetry?: () => void
   chatId: string
   messageIndex: number
-  /** Phone layout: reveal hover-only actions and size targets for touch. */
   compact?: boolean
+  /** Number of saved retry branches for this message. */
+  branchCount?: number
+  /** Total branches (current + saved). */
+  totalBranches?: number
+  onSwitchBranch?: (branchIndex: number) => void
 }
 
-export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, chatId, messageIndex, compact = false }: Props) {
+export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, chatId, messageIndex, compact = false, branchCount = 0, totalBranches = 0, onSwitchBranch }: Props) {
   const isUser = message.role === 'user'
   const isKitty = !isUser
   const attachments = message.attachments ?? []
@@ -107,9 +112,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               <>
                 <MessageContent content={message.content} isUser={isUser} />
                 {message.toolCalls && message.toolCalls.length > 0 && (
-                  <div role="status" style={{ marginTop: 8, fontSize: 11, color: 'var(--ink-2)' }}>
-                    Tool request detected — not executed by this chat runtime.
-                  </div>
+                  <ToolCallList toolCalls={message.toolCalls} isStreaming={isStreaming} />
                 )}
               </>
             )}
@@ -169,6 +172,28 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
         )}
         {showActions && (message.provider || message.requestedModel || message.model || message.toolsState || message.routing?.length) && (
           <Attribution message={message} />
+        )}
+        {totalBranches > 0 && (
+          <div style={{ ...actionRowStyle, gap: 6 }}>
+            <span style={{ fontSize: 10, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
+              {totalBranches === 1 ? '1 response' : `${totalBranches} responses`}
+            </span>
+            {branchCount > 0 && onSwitchBranch && Array.from({ length: branchCount + 1 }, (_, i) => (
+              <button key={i} onClick={() => onSwitchBranch(i)}
+                style={{
+                  border: '1px solid var(--line)', borderRadius: 4,
+                  background: i === branchCount ? 'var(--ginger-fade)' : 'var(--surface)',
+                  color: 'var(--ink-2)', cursor: 'pointer',
+                  fontFamily: 'var(--font-mono)', fontSize: 9, padding: '1px 6px',
+                }}
+              >
+                {i + 1}
+              </button>
+            ))}
+            <span style={{ fontSize: 10, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
+              showing {branchCount + 1}
+            </span>
+          </div>
         )}
       </div>
     </div>
@@ -261,7 +286,7 @@ function Attribution({ message }: { message: Message }) {
     : 'automatic routing'
   const modelLabel = message.requestedModel ?? message.model
   return (
-    <div style={{ ...actionRowStyle, flexWrap: 'wrap', gap: 6 }}>
+    <div style={{ ...actionRowStyle, flexWrap: 'wrap', gap: 6 }} data-testid="chat-attribution">
       <span style={{ fontSize: 10, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
         {providerLabel}{modelLabel ? ` · requested ${modelLabel}` : ''}
       </span>
@@ -390,7 +415,10 @@ function MemoryBlock({ items }: { items: MemoryEvidence[] }) {
       {open && (
         <ul style={memoryListStyle}>
           {items.map((item, i) => (
-            <MemoryRow key={item.memoryId ?? `text-${i}`} item={item} />
+            <li key={item.memoryId ?? `text-${i}`} style={memoryItemStyle}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)', marginRight: 4 }}>[{i + 1}]</span>
+              <MemoryRow item={item} />
+            </li>
           ))}
         </ul>
       )}

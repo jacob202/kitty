@@ -1,6 +1,8 @@
 """Schema for a single parsed page extracted from a PDF."""
 from __future__ import annotations
+
 from datetime import datetime, timezone
+
 from pydantic import BaseModel, Field
 
 

@@ -14,12 +14,9 @@ import socket
 import subprocess
 import sys
 import time
-
 from pathlib import Path
-from typing import TextIO
 from urllib.error import URLError
 from urllib.request import urlopen
-
 
 ROOT = Path(__file__).resolve().parent.parent
 VENV_PYTHON = ROOT / "venv" / "bin" / "python"

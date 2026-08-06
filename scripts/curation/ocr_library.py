@@ -1,8 +1,7 @@
 import os
 import subprocess
-import time
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 SOURCE_ROOT = Path("/Volumes/DATA/books/ingestion_curated_deep")
 CONVERTED_ROOT = Path("/Volumes/DATA/books/ingestion_curated_deep_ocr")
@@ -10,12 +9,12 @@ CONVERTED_ROOT = Path("/Volumes/DATA/books/ingestion_curated_deep_ocr")
 def run_ocr(file_path):
     rel_path = file_path.relative_to(SOURCE_ROOT)
     dest_path = CONVERTED_ROOT / rel_path
-    
+
     if dest_path.exists():
         return f"SKIP: {rel_path}"
-    
+
     dest_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     print(f"OCR START: {rel_path}")
     try:
         # --skip-text: Skip if text already exists (saves time)
@@ -45,7 +44,7 @@ def main():
 
     # We prioritize Engineering and Automotive as they contain the most non-searchable diagrams
     priorities = ["Engineering", "Automotive"]
-    
+
     all_pdfs = []
     for root, dirs, files in os.walk(SOURCE_ROOT):
         for f in files:
@@ -54,10 +53,10 @@ def main():
                 all_pdfs.append(path)
 
     print(f"Found {len(all_pdfs)} PDFs. Starting parallel OCR (2 jobs)...")
-    
+
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(run_ocr, all_pdfs))
-    
+
     for r in results:
         print(r)
 

@@ -55,3 +55,12 @@ def test_local_is_tried_even_with_no_keys_anywhere():
             llm_client.call_llm([{"role": "user", "content": "hi"}], model="kitty-default")
 
     assert any("8010" in u for u in dialled), dialled
+
+
+def test_direct_openrouter_ids_carry_no_litellm_prefix():
+    """This map feeds the direct OpenRouter call, whose value goes straight into
+    payload["model"]. "openrouter/" is LiteLLM's routing prefix — verified
+    against the live API, it answers HTTP 400 "is not a valid model ID"."""
+    for route, upstream in llm_client._LITELLM_TO_OPENROUTER.items():
+        assert not upstream.startswith("openrouter/"), f"{route} -> {upstream}"
+        assert upstream.count("/") == 1, f"{route} -> {upstream}"

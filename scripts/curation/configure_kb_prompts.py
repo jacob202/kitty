@@ -1,6 +1,4 @@
 import os
-import requests
-from pathlib import Path
 
 # OpenWebUI API details
 API_URL = "http://127.0.0.1:3000/api/v1"

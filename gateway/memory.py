@@ -9,7 +9,7 @@ import time
 from typing import Any, Optional
 
 from gateway.errors import StorageUnavailable
-from gateway.paths import DATA_DIR
+from gateway.paths import DATA_DIR, LITELLM_BASE, LITELLM_KEY
 
 # Durable, file-backed record of every session consolidation. This persists
 # independent of the Mem0 stack (which needs a live LLM + embedder), so a
@@ -21,18 +21,20 @@ SESSION_CONSOLIDATION_LOG = DATA_DIR / "session_consolidation_log.jsonl"
 class MemoryError(StorageUnavailable):
     """Raised when a memory read/write operation fails unexpectedly.
 
-    Subclasses ``StorageUnavailable`` so the 11 ``raise MemoryError(msg,
-    details={...})`` sites below actually work: ``RuntimeError`` takes no
-    keyword arguments, so every one of them raised ``TypeError`` instead of
-    the structured error TL-05 intended, and the global ``KittyError`` handler
-    never saw a memory failure.
+    Subclasses ``StorageUnavailable`` so the structured ``details`` payload is
+    preserved by Kitty's normal error handler.
     """
+
 
 logger = logging.getLogger("kitty.memory")
 
 MEM0_DATA_DIR = DATA_DIR / "mem0"
 USER_ID = "jacob"
 MEMORY_LIST_ALL_LIMIT = 100_000
+# Automatic routing uses Kitty's cheap LiteLLM virtual route. When Jacob pins
+# OpenRouter exactly, Mem0 needs a concrete OpenRouter model id instead.
+MEMORY_ROUTE_DEFAULT = "kitty-small"
+MEMORY_OPENROUTER_MODEL_DEFAULT = "deepseek/deepseek-v4-flash"
 
 _MEM0_IMPORT_ERROR: ImportError | None = None
 try:
@@ -156,17 +158,90 @@ def _memory_write_changed(payload: Any) -> bool:
     return changed
 
 
-def _build_mem0_config() -> dict:
-    """Build Mem0 config at runtime using the routing system."""
-    from gateway.llm_client import route_model
+def _configured_provider_key(provider) -> str:
+    if provider.key_resolver is not None:
+        return provider.key_resolver()
+    for env_name in provider.api_key_env:
+        raw = os.environ.get(env_name, "")
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip().strip('"').strip("'")
+    return ""
 
-    model = os.environ.get("KITTY_MEMORY_MODEL") or route_model("memory context building")
+
+def _configured_provider_model(provider) -> str:
+    if provider.model_resolver is not None:
+        return provider.model_resolver(None)
+    if provider.model_env:
+        configured = os.environ.get(provider.model_env, "").strip()
+        if configured:
+            return configured
+    return provider.model_default
+
+
+def _mem0_llm_target() -> dict[str, str]:
+    """Resolve Mem0 extraction through Kitty's live provider policy.
+
+    Calling Kitty's full Gateway endpoint here would recurse through context
+    assembly and memory search. Automatic mode therefore targets the isolated
+    LiteLLM service directly. When Jacob pins an exact provider, Mem0 uses that
+    provider's OpenAI-compatible base URL, key, and configured default model.
+    """
+    from gateway.llm_client import PROVIDERS, selected_provider_name
+
+    selected = selected_provider_name()
+    if selected is None:
+        return {
+            "provider": "litellm",
+            "model": os.environ.get("KITTY_MEMORY_ROUTE", MEMORY_ROUTE_DEFAULT),
+            "api_key": LITELLM_KEY,
+            "openai_base_url": f"{LITELLM_BASE.rstrip('/')}/v1",
+        }
+
+    provider = PROVIDERS[selected]
+    api_key = _configured_provider_key(provider)
+    if provider.requires_key and not api_key:
+        raise MemoryError(
+            f"memory provider {selected!r} is selected but has no API key",
+            details={"operation": "memory configuration", "provider": selected},
+        )
+
+    if selected == "openrouter":
+        model = os.environ.get(
+            "KITTY_MEMORY_MODEL", MEMORY_OPENROUTER_MODEL_DEFAULT
+        ).strip()
+    else:
+        model = _configured_provider_model(provider)
+
+    if not model:
+        raise MemoryError(
+            f"memory provider {selected!r} has no configured model",
+            details={"operation": "memory configuration", "provider": selected},
+        )
+
+    return {
+        "provider": selected,
+        "model": model,
+        "api_key": api_key or "not-required",
+        "openai_base_url": provider.base_url.rstrip("/"),
+    }
+
+
+def _build_mem0_config() -> dict:
+    """Build Mem0 config without bypassing Kitty's provider preference."""
+    target = _mem0_llm_target()
+    logger.debug(
+        "mem0 llm provider=%s model=%s base=%s",
+        target["provider"],
+        target["model"],
+        target["openai_base_url"],
+    )
     return {
         "llm": {
-            "provider": "litellm",
+            "provider": "openai",
             "config": {
-                "model": model,
-                "api_key": os.environ.get("OPENROUTER_API_KEY", ""),
+                "model": target["model"],
+                "api_key": target["api_key"],
+                "openai_base_url": target["openai_base_url"],
             },
         },
         "embedder": {
@@ -241,11 +316,9 @@ def search_memory(query: str, limit: int = 5, namespace: Optional[str] = None) -
     invalid response. A successful search with no matches returns ``[]``.
     """
     mem = _get_memory()
-    filters = {"user_id": USER_ID}
-    if namespace:
-        filters["namespace"] = namespace
+    filters = {"namespace": namespace} if namespace else None
     try:
-        results = mem.search(query, filters=filters, limit=limit)
+        results = mem.search(query, user_id=USER_ID, filters=filters, limit=limit)
     except Exception as exc:
         raise _memory_failure(
             "memory search",
@@ -265,11 +338,7 @@ def search_memory(query: str, limit: int = 5, namespace: Optional[str] = None) -
 
 
 def get_context_block(query: str, limit: int = 5) -> str:
-    """Return a formatted context block to inject into the system prompt.
-
-    A backend failure becomes an explicit degraded marker rather than the
-    empty string used for a successful search with no matches.
-    """
+    """Return a formatted context block to inject into the system prompt."""
     try:
         memories = search_memory(query, limit=limit)
     except MemoryError as exc:
@@ -286,10 +355,7 @@ def get_context_block(query: str, limit: int = 5) -> str:
 
 
 def list_memories(namespace: Optional[str] = None, limit: int = 50) -> list[dict]:
-    """List all stored memories. Optionally filter by namespace.
-
-    Raises MemoryError on unexpected backend failures.
-    """
+    """List all stored memories. Optionally filter by namespace."""
     mem = _get_memory()
     backend_limit = MEMORY_LIST_ALL_LIMIT if limit == 0 else limit
     try:
@@ -322,10 +388,7 @@ def list_memories(namespace: Optional[str] = None, limit: int = 50) -> list[dict
 
 
 def delete_memory(memory_id: str) -> bool:
-    """Delete a specific memory by ID.
-
-    Raises MemoryError on unexpected backend failures.
-    """
+    """Delete a specific memory by ID."""
     mem = _get_memory()
     try:
         existing = mem.get(memory_id)
@@ -385,12 +448,7 @@ def delete_memory(memory_id: str) -> bool:
 def write_session_consolidation_record(
     session_id: str, user_msgs: list[str], stored: bool
 ) -> None:
-    """Append a durable consolidation record to the session log.
-
-    Persists regardless of Mem0 availability so a closed session always leaves
-    an auditable trail (issue #160). Failures here are logged, never swallowed
-    into a fake success — but they must not mask the caller's own result.
-    """
+    """Append a durable consolidation record to the session log."""
     record = {
         "session_id": session_id or "anonymous",
         "ts": time.strftime("%Y-%m-%dT%H:%M:%S"),
@@ -412,16 +470,7 @@ def write_session_consolidation_record(
 
 
 def consolidate_session(session_id: str, messages: list[dict]) -> bool:
-    """Extract key facts from a closed session and persist to long-term memory.
-
-    Reads user messages from the session, creates a summary, and stores
-    it via add_memory(). Returns True if facts were stored and False when the
-    session has no user content. Raises MemoryError on persistence failure.
-
-    A durable record is always written to the session consolidation log so the
-    act of closing a session is provably persisted (issue #160), independent of
-    whether the Mem0 backend accepted the entry.
-    """
+    """Extract key facts from a closed session and persist to long-term memory."""
     if not messages:
         logger.info(
             "Session %s closed with no messages — nothing to consolidate",
@@ -441,7 +490,6 @@ def consolidate_session(session_id: str, messages: list[dict]) -> bool:
         write_session_consolidation_record(session_id, [], False)
         return False
 
-    # Build a concise session summary from user messages
     joined = "\n".join(f"- {msg[:120]}" for msg in user_msgs[-20:])
     session_summary = f"[session {session_id or 'anonymous'}] Key topics discussed:\n{joined}"
 

@@ -1,53 +1,61 @@
-# Session State — main was red; dependency resolution restored
+# Session State — Open WebUI daily-driver acceptance
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-01T04:30:00Z",
-  "head_sha": "b68268b0333aedcf04085829deebe88371f832ef",
-  "branch": "claude/kitty-stabilization-fbydi0",
-  "worktree": "piddock",
-  "status": "in_progress",
+  "updated_at": "2026-08-03T05:58:00Z",
+  "branch": "feat/openwebui-tomorrow-ready",
+  "worktree": "feat/openwebui-tomorrow-ready",
+  "status": "awaiting_review",
   "completed_items": [
-    "Reconciliation: Gate 0.1 'main is green' is FALSE. tests.yml failed on 8 consecutive main commits (runs 1124-1139), current HEAD b68268b included.",
-    "Root cause: Dependabot commit 600c0fa raised openai to >=2.49.0,<2.50.0. mem0ai 0.1.x requires openai<1.110.0, so 'pip install -r requirements.txt' is unresolvable. CI never reached pytest.",
-    "Fix: openai pin restored to >=1.90.0,<1.110.0 with a comment recording the mem0ai coupling. Clean venv install resolves (mem0ai 0.1.118 + openai 1.109.1).",
-    "Test evidence (single full run, 2026-08-01): 3452 passed, 7 failed, coverage 77.50% against the 73% floor.",
-    "4 of 7 failures are container-environmental (no gh binary, no launchd, canonical-checkout path). 3 were real committed-state defects, repaired here: short head_sha, merged PR #331 declared active, HANDOFF missing pull_request key.",
-    "Verified issue #336 diagnosis against code: plan is not persisted, /studio/generate takes raw form state not a plan id, worker hardcodes text_to_image_v1 (workers/comfy_worker/app.py:704), no image_agent.py, no image-session table."
+    "Rebuilt PR #384 on current main without unrelated Image Studio changes",
+    "Pinned and isolated Open WebUI 0.10.2 as a loopback-only replaceable shell",
+    "Configured Kitty model menu, provider policy, five workspace agents, and bounded Kitty tools",
+    "Hardened environment isolation, process ownership, launchd enablement, backup, restore, and rollback",
+    "Added feature-level verification for settings, agents, models, tools, memory, notes, projects, calendar, Tutor contract, and Builder projection",
+    "Added bounded paid acceptance for every advertised model route and an end-to-end Daily Kitty turn",
+    "Fixed ASGI request replay for streaming chat responses and kept OpenRouter normalization at the direct-provider boundary",
+    "Documented bootstrap, daily verification, backup, restore, and rollback"
   ],
-  "blockers": [],
-  "next_action": "Land the green-main repair, then execute docs/mission/execution.md slice A1 on a machine with Kitty runtime and RunPod credentials.",
+  "blockers": [
+    "Mac-local bootstrap and paid feature acceptance have not yet been run against Jacob's live credentials and launchd environment",
+    "An independent final review of the final PR head is still required"
+  ],
+  "next_action": "Run python3 scripts/openwebui_local.py bootstrap --accept-charges on Jacob's Mac, fix every reported failure, then record independent review evidence before marking PR #384 ready",
   "parallel_work": [],
-  "recommendations": [
-    {
-      "id": "dependabot-guardrail-sibling-pins",
-      "what": "Gate Dependabot on resolvability: run 'pip install -r requirements.txt' in the guardrails workflow before a bump can merge",
-      "why": "600c0fa merged a bump that made the tree unresolvable and reddened main for 8 commits",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "image-agent-slice-a1",
-      "what": "Execute docs/mission/execution.md slice A1 — durable image-agent sessions and approved-plan dispatch for issue #336",
-      "why": "Issue #336 is Jacob-authorized and supersedes the roadmap's Phase 3 blocking of the image lane",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    }
-  ],
+  "recommendations": [],
   "invalidation_conditions": [
-    "origin/main advances past b68268b0333aedcf04085829deebe88371f832ef",
-    "tests.yml turns green on main (the dependency repair landed)"
+    "PR #384 is rebased or force-pushed so commit 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is no longer in its history",
+    "Open WebUI, Gateway, provider, agent, or tool configuration changes after the recorded acceptance pass"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": {
+    "number": 384,
+    "state": "OPEN",
+    "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
+  },
+  "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
 }
 -->
+
+## Execution ownership
+
+- this session: interactive Open WebUI onboarding and verification pass
+- pull request: #384 (`feat/openwebui-tomorrow-ready`)
+- product boundary: Open WebUI is the replaceable shell; Kitty Gateway remains authoritative
+
+## Verified in repository
+
+- loopback-only unauthenticated binding and minimal runtime environment;
+- pinned isolated Open WebUI installation and owner-only service state;
+- checked-in model roles and provider preferences;
+- five configured workspace agents with bounded tool attachment;
+- domain/modality-aware Auto routing and native direct OpenRouter wire IDs;
+- schema-valid failure streams and fail-loud provider/memory behavior;
+- PID ownership, launchd enablement, verified backup, atomic restore, and rollback identity checks;
+- feature acceptance command and tests;
+- pytest failure artifacts retained for actionable CI diagnostics.
+
+## Not yet verified on Jacob's Mac
+
+The repository cannot prove live credentials, Open WebUI's installed database state, launchd behavior, or real provider responses. The branch must stay in review until the live bootstrap and `verify --accept-charges` pass on the Mac and any failures are fixed rather than waived.
