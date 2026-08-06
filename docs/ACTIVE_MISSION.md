@@ -1,50 +1,106 @@
-# Active Mission — Trustworthy Daily Driver
+# Active Mission — Two-Week Builder Proof
 
-**Mission ID:** KTRUST-001  
+**Mission ID:** KPROOF-001  
 **Status:** Running  
 **Approved by:** Jacob on 2026-08-04  
-**Roadmap stage:** 1 — Trust baseline
+**Proof window:** 2026-08-04 through 2026-08-18  
+**Budget ceiling:** $25 CAD  
+**Base SHA:** `b3f68aae84525f980d44db8d7b9e6d728457b0db`
 
 <!-- kitty-mission
 {
   "schema_version": 1,
-  "mission_id": "KTRUST-001",
+  "mission_id": "KPROOF-001",
   "status": "running",
-  "approved_at": "2026-08-04T21:47:00Z",
+  "approved_at": "2026-08-04T18:27:00-06:00",
   "approved_by": "Jacob",
-  "base_sha": "c266b13c0c694929c728a3f3861187f56229dbac",
-  "authority": "docs/ACTIVE_MISSION.md"
+  "base_sha": "b3f68aae84525f980d44db8d7b9e6d728457b0db",
+  "authority": "docs/ACTIVE_MISSION.md",
+  "deadline": "2026-08-18",
+  "budget_cad": 25
 }
 -->
 
-## Objective
+## Decision to prove
 
-Leave Kitty with one trustworthy operating picture and one proven daily-driver path. Someone returning tomorrow must be able to tell what is authoritative, start Kitty, use the approved Open WebUI shell, recognize failures honestly, and know the next bounded task without reconstructing chat history.
+Can Kitty provide a genuinely better way to take a software request from conversation to a working, verified feature without Jacob manually coordinating the agents?
 
-## Scope
+Kitty continues only as this bounded proof. The proof is not authorization to build the full vision.
 
-1. Keep repository truth, architecture, roadmap, status, and active mission consistent.
-2. Maintain a green deterministic CI baseline and repair security/reliability defects before expansion.
-3. Land the isolated `pydantic-settings` security update.
-4. Prove the Open WebUI daily-driver path from clean start through real chat, persistence, restart, model/tool attribution, and understandable failure recovery.
-5. Complete one real #270 capture → return → respond loop on the phone/PWA with restart and deduplication evidence.
-6. Inventory active workflows and prepare enforceable default-branch protection through #399, retiring only conclusively obsolete automation.
-7. Preserve unique historical work and keep image Git history unchanged.
+## Phase 1 — Evidence-driven audit
 
-## Acceptance Contract
+Inspect the running application, Builder's actual execution path, working integrations, dead or unwired UI, GitHub history and issues, and repair-versus-replacement options. Separate direct evidence from inference and unknowns.
 
-- `README.md`, Architecture, Decisions, Roadmap, Project Status, and this mission agree.
-- Main passes pytest, lint, typecheck, hygiene, Kitty Chat tests/build, and browser smoke.
-- The vulnerable `pydantic-settings` pin is removed through an isolated green PR.
-- A clean local Open WebUI start produces a real streamed response, preserves the conversation across restart, and reports the actual model/provider or a useful failure.
-- One real #270 insight returns once at the intended time and records Act, Snooze, or Archive without duplication after restart.
-- The 51-workflow ledger exists and proposed required checks map to real CI contexts.
-- No image history is rewritten, purged, enumerated, or otherwise altered.
+The audit must produce:
 
-## Stop rules
+- what demonstrably works;
+- what only appears to work;
+- what should be preserved;
+- what should be repaired or replaced;
+- the smallest two-week implementation sequence;
+- a tiny webpage prototype of the proposed conversation-and-progress experience.
 
-Do not begin broad frontend redesign, Image Agent expansion, PAA refactoring, agent-pattern experiments, or new orchestration while this mission remains incomplete. Do not enable paid providers, GPU execution, or paid workflow behavior without explicit charge authorization.
+No repository rebuild or broad implementation begins during the audit.
 
-## Publication authorization
+## Phase 2 — Experience test
 
-Jacob authorized the repository maintenance, security corrections, documentation replacement, superseded-item closures, safe branch/workflow cleanup, and merges required for this mission. Destructive image-history changes are explicitly excluded.
+The prototype must show:
+
+- a polished Kitty conversation;
+- decisive guidance about the next move;
+- relevant personal and project context;
+- visible Builder progress beside the conversation;
+- the ability to question or redirect work while it runs;
+- a plain statement of what is happening now and what comes next.
+
+It passes only if Jacob genuinely prefers the experience to opening ChatGPT or Claude directly for the same project task.
+
+## Phase 3 — One real Builder loop
+
+Use one currently dead interaction in the Build Work area and complete this loop:
+
+1. Jacob discusses the broken interaction with Kitty.
+2. Kitty helps define the desired outcome.
+3. Jacob approves the result contract.
+4. Builder creates a durable job.
+5. Builder chooses an available capable model.
+6. Context survives model or provider changes.
+7. Builder edits the code.
+8. Builder launches the real application.
+9. Builder exercises the feature end to end.
+10. A second model reviews the implementation and result.
+11. Builder repairs remaining defects.
+12. Kitty reports completion only after the interaction works in the running product.
+
+Jacob must be able to continue chatting with Kitty and ask what it is doing, why, and what comes next.
+
+## Non-negotiable rules
+
+- Runtime behavior outranks documentation, tests, commits, and agent claims.
+- Existing working code comes first; Git history and evidence come second.
+- Architecture may change only when evidence supports it.
+- Models are replaceable workers. Provider or usage exhaustion must not erase the job or its context.
+- Ask before exceeding the proof budget, deleting anything, sending messages, publishing, or changing account or security settings.
+- Jacob may steer and answer meaningful questions, but manual agent coordination counts as proof failure.
+- Do not add image generation, broad computer control, deep memory, elaborate routing, another agent framework, or a major redesign during this mission.
+
+## Pass condition
+
+By 2026-08-18:
+
+- Builder completes one real feature loop;
+- the result works in the launched application;
+- the experience is pleasant, fast, clear, and understandable;
+- Jacob would voluntarily choose Kitty over direct ChatGPT or Claude for the next project task.
+
+## Failure condition
+
+Pause Kitty for several months if Builder still requires constant supervision, the interface remains frustrating, or Jacob still prefers direct tools.
+
+Preserve working integrations, repository history, the prototype, audit, and findings. Use existing AI tools separately until the technology or Jacob's capacity changes enough to justify another attempt.
+
+## Product boundary
+
+The central product is a personal AI operator that understands the project, recommends the next move, visibly carries the work through to a functioning result, and keeps going when individual models or sessions fail.
+
+Everything else must earn its place by helping that loop work.
