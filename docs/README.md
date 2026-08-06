@@ -19,6 +19,7 @@ Existing does not mean current. Use this index instead of inferring authority fr
 ## Supporting material
 
 - `plans/` — candidate work and implementation inputs; not authority until absorbed.
+- `research/` — dated research and decision inputs (indexed in [`research/README.md`](research/README.md)); ADR inputs, not authority.
 - `packets/` — scoped execution contracts and historical packet material.
 - `audit/` — dated findings and evidence.
 - `reference/` — reusable technical guidance.
