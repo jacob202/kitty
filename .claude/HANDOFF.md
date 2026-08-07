@@ -1,67 +1,94 @@
-# Handoff — Open WebUI daily-driver acceptance
+# Handoff — Builder trust repair + V2 baseline experiment
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-03T05:58:00Z",
-  "branch": "feat/openwebui-tomorrow-ready",
-  "worktree": "feat/openwebui-tomorrow-ready",
+  "updated_at": "2026-08-07T00:30:00Z",
+  "branch": "jacob202/builder-trust-repair",
+  "worktree": "amphipod",
   "status": "valid",
   "completed_items": [
-    "Rebuilt PR #384 on current main without unrelated Image Studio changes",
-    "Pinned and isolated Open WebUI 0.10.2 as a loopback-only replaceable shell",
-    "Configured Kitty model menu, provider policy, five workspace agents, and bounded Kitty tools",
-    "Hardened environment isolation, process ownership, launchd enablement, backup, restore, and rollback",
-    "Added feature-level verification for settings, agents, models, tools, memory, notes, projects, calendar, Tutor contract, and Builder projection",
-    "Added bounded paid acceptance for every advertised model route and an end-to-end Daily Kitty turn",
-    "Fixed ASGI request replay for streaming chat responses and kept OpenRouter normalization at the direct-provider boundary",
-    "Documented bootstrap, daily verification, backup, restore, and rollback"
+    "Backed up canonical Builder DB",
+    "Paused trustworthy-kittybuilder-b2-b10-v1 initiative in canonical DB",
+    "Cleaned B8 stale worktree and local branch",
+    "Fixed ktf-004 stale NULL-outcome attempt",
+    "Confirmed no open attempts, no active runs/leases, no orphaned workers",
+    "Confirmed B8 blocked (9/3 attempts, shadow_run_complete), B9/B10 queued",
+    "Fixed sed delimiter bug in sanitize_builder_state.sh (a9ffa88c)",
+    "Executed V2 baseline experiment: 3 autonomous packets (M1-09, M2-04, M3-03)",
+    "Proved stop/resume/recovery with crash + recover + resume flow",
+    "Wrote runtime-state receipt (docs/research/runtime-state-receipt-2026-08-06.md)",
+    "Killed stale tmux builder-b2-b10 session",
+    "Session-end: KB entries, effectiveness receipt, workflow signals, NOW update"
   ],
-  "blockers": [
-    "Mac-local bootstrap and paid feature acceptance have not yet been run against Jacob's live credentials and launchd environment",
-    "An independent final review of the final PR head is still required"
+  "blockers": [],
+  "next_action": "Create PR for jacob202/builder-trust-repair (sed fix + runtime receipt) -> merge to main",
+  "parallel_work": [
+    {"kind": "pull_request", "ref": "#412", "owner": "jacob202", "touches": ["docs", "gateway"], "observed_at": "2026-08-06T21:07:00Z"},
+    {"kind": "pull_request", "ref": "#411", "owner": "jacob202", "touches": ["gateway"], "observed_at": "2026-08-06T21:10:00Z"},
+    {"kind": "worktree", "ref": "audit-core-runtime-2026-08-01", "owner": "builder", "touches": ["tests", "gateway"], "observed_at": "2026-08-01T00:00:00Z"}
   ],
-  "next_action": "Run python3 scripts/openwebui_local.py bootstrap --accept-charges on Jacob's Mac, fix every reported failure, then record independent review evidence before marking PR #384 ready",
-  "parallel_work": [],
-  "recommendations": [],
+  "recommendations": [
+    {
+      "id": "rec-2026-08-07-create-pr",
+      "what": "Create PR for jacob202/builder-trust-repair",
+      "why": "Sed delimiter fix must reach main so Builder workers benefit from the fix",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    },
+    {
+      "id": "rec-2026-08-07-prompt7",
+      "what": "PROMPT 7: two-week product proof through PR #406",
+      "why": "After architecture ratification accepted and sed fix merged, execute product proof",
+      "class": "code",
+      "status": "deferred",
+      "blocked_by": "rec-2026-08-07-create-pr",
+      "release_check": "test -f docs/initiatives/v2-driver-baseline-v1.json",
+      "deferred_count": 1,
+      "first_deferred": "2026-08-07T00:30:00Z"
+    }
+  ],
   "invalidation_conditions": [
-    "PR #384 is rebased or force-pushed so commit 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is no longer in its history",
-    "Open WebUI, Gateway, provider, agent, or tool configuration changes after the recorded acceptance pass"
+    "PR #412 merges or is rebased, changing origin/main SHA from 4ba13d18",
+    "Canonical DB state is modified by another process",
+    "Branch jacob202/builder-trust-repair is force-pushed"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 384,
-    "state": "OPEN",
-    "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
-  },
-  "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
+  "pull_request": null,
+  "head_sha": "7f8a6f815650739b4b78ebcc2f721afae830f9ca"
 }
 -->
 
-## What is configured
+## Execution ownership
 
-- Open WebUI is pinned to `0.10.2`, isolated under `~/kitty-services/openwebui`, unauthenticated only on loopback, and receives a minimal non-secret environment.
-- Kitty Gateway is the only OpenAI-compatible backend exposed to the shell.
-- The visible model menu is Kitty Auto, Fast, Think, Code, and Vision.
-- Daily Kitty, Research, Coding, Tutor, and Builder Operator are created or repaired on startup with the intended base route, tool attachment, and vision capability.
-- The bounded tool server exposes memory, notes, projects, calendar, Tutor, and read-only Builder projections.
-- Autostart, admin repair, PID ownership, backups, restore, rollback, and failure reporting are checked rather than assumed.
+- this session: interactive OpenCode
+- Builder state: read-only; canonical DB repaired but no Builder packet was claimed
 
-## What the acceptance gate proves
+## What was accomplished
 
-```bash
-python3 scripts/openwebui_local.py verify
-python3 scripts/openwebui_local.py verify --accept-charges
+1. **Runtime reconciliation:** Paused B2-B10 initiative in canonical DB. B8 blocked (9/3 attempts), B9/B10 queued. All open attempts resolved. No active runs/leases. DB integrity confirmed.
+2. **sed delimiter bug:** Fixed in `scripts/sanitize_builder_state.sh` — `/` → `|` delimiter to survive branch names. Committed at `a9ffa88c`, pushed.
+3. **V2 baseline experiment:** 3 autonomous packets executed through Builder free-model worker. All produced correct output with passing tests. Verdict: proceed to larger experiment.
+4. **Session contamination:** External opencode process switched branch mid-session. Detected and recovered during session-end.
+
+## Commits on branch
+
+```
+7f8a6f81 docs: record Builder runtime repair receipt
+a9ffa88c fix(builder): use pipe delimiter in sanitize sed to survive branch names with slashes
 ```
 
-The first command checks the configured settings, model discovery, all five agents, the bounded OpenAPI tool contract, and live read-only Kitty projections. The second additionally sends bounded turns through all advertised model routes and through Daily Kitty in Open WebUI.
+## KB and receipts
 
-## Required next move
+- KB entry: `wiki/2026-08-06-builder-sanitize-sed-delimiter-bug.md`
+- Correction: `corrections/2026-08-06-needs-decision-p0-resolved-by-pr410.md`
+- KB effectiveness: `kbr_2bb3f4a9f5fe3e8ca5d9` (NOW.md stale)
+- Workflow signals: `builder-sanitize-sed-delimiter` (tool_failure), `parallel-session-worktree-contamination` (collision)
 
-Run the full bootstrap on Jacob's Mac:
+## Next interactive move
 
-```bash
-python3 scripts/openwebui_local.py bootstrap --accept-charges
-```
-
-Do not mark PR #384 ready merely because CI passes. Fix every live verifier failure, rerun until clean, then obtain or record an independent review of the final head. No new feature work belongs in this branch before those acceptance gates pass.
+Create PR for `jacob202/builder-trust-repair` so the sed fix reaches main, enabling worker stability for subsequent experiments and PROMPT 7.
