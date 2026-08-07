@@ -195,7 +195,7 @@ class RunPodControlClient:
         method: str,
         path: str,
         *,
-        params: Mapping[str, object] | None = None,
+        params: Mapping[str, str | int | float | bool | None] | None = None,
         json_body: Mapping[str, object] | None = None,
         allow_no_content: bool = False,
     ) -> Any:
