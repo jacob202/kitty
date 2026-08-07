@@ -62,7 +62,7 @@ jobs:
       - name: Build and push by commit SHA
         id: push
         if: steps.guard.outputs.built == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: workers/comfy_worker/Dockerfile
