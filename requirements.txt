@@ -4,7 +4,7 @@ python-multipart==0.0.32
 pydantic==2.13.4
 pydantic-settings==2.14.2
 python-dotenv==1.2.2
-filelock==3.32.0
+filelock==3.32.2
 httpx==0.28.1
 requests==2.34.2
 aiohttp==3.14.3
