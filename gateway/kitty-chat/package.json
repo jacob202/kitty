@@ -23,7 +23,7 @@
     "react-photo-album": "^3.6.0",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.0",
-    "yet-another-react-lightbox": "^3.32.1"
+    "yet-another-react-lightbox": "^3.32.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",
