@@ -1,7 +1,7 @@
 # Active Mission — Two-Week Builder Proof
 
 **Mission ID:** KPROOF-001  
-**Status:** Audit running  
+**Status:** Running  
 **Approved by:** Jacob on 2026-08-04  
 **Proof window:** 2026-08-04 through 2026-08-18  
 **Budget ceiling:** $25 CAD  
@@ -11,7 +11,7 @@
 {
   "schema_version": 1,
   "mission_id": "KPROOF-001",
-  "status": "audit_running",
+  "status": "running",
   "approved_at": "2026-08-04T18:27:00-06:00",
   "approved_by": "Jacob",
   "base_sha": "b3f68aae84525f980d44db8d7b9e6d728457b0db",
