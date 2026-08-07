@@ -641,6 +641,29 @@ def test_finalize_openai_shape_response_malformed():
 
     assert result == ""
 
+def test_finalize_openai_shape_response_none_content():
+    """A response with content: null must not crash on .strip() (AttributeError)."""
+    from gateway.llm_client import _finalize_openai_shape_response
+
+    data = {
+        "choices": [{"message": {"content": None}}],
+        "model": "gpt-4o",
+    }
+
+    with patch("gateway.llm_client.log_llm_usage") as mock_log:
+        result = _finalize_openai_shape_response(
+            data,
+            provider="openai",
+            model_logged="gpt-4o",
+            operation="llm.call",
+            route="openai_direct",
+            request_model=None,
+            metadata=None,
+        )
+
+    assert result == ""
+    mock_log.assert_called_once()
+
 
 # ── chat wrapper + observability ──────────────────────────────────────────
 

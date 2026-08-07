@@ -108,6 +108,29 @@ class TestSchedule:
         assert row["schedule_value"] == "07:00"
         assert row["enabled"] == 1
 
+    def test_schedule_idempotent_same_action(self, tmp_kitty_db):
+        from gateway.cron import list_schedules, schedule
+
+        sid1 = schedule("sched-1", "brief.refresh", "interval", "60")
+        sid2 = schedule("sched-2", "brief.refresh", "interval", "60")
+
+        assert sid2 == sid1
+        rows = list_schedules()
+        assert len(rows) == 1
+        assert rows[0]["id"] == sid1
+
+    def test_schedule_different_action_not_collapsed(self, tmp_kitty_db):
+        from gateway.cron import list_schedules, schedule
+
+        sid_a = schedule("sched-a", "action.alpha", "daily", "08:00")
+        sid_b = schedule("sched-b", "action.beta", "daily", "12:00")
+
+        assert sid_a != sid_b
+        rows = list_schedules()
+        assert len(rows) == 2
+        actions = {r["action"] for r in rows}
+        assert actions == {"action.alpha", "action.beta"}
+
 
 class TestRemove:
     def test_remove_existing(self, tmp_kitty_db):
