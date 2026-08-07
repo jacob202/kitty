@@ -8,17 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-try:
-    from pydantic import BaseModel, Field, field_validator, model_validator
-except ImportError:
-    BaseModel = object
-    Field = None
-
-    def field_validator(*args: Any, **kwargs: Any) -> Any:
-        return lambda f: f
-
-    def model_validator(*args: Any, **kwargs: Any) -> Any:
-        return lambda f: f
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class WorkflowNodeParam(BaseModel):
