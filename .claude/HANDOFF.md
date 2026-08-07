@@ -1,67 +1,78 @@
-# Handoff — Open WebUI daily-driver acceptance
+# Handoff — Integration Cleanup (2026-08-07)
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-03T05:58:00Z",
-  "branch": "feat/openwebui-tomorrow-ready",
-  "worktree": "feat/openwebui-tomorrow-ready",
-  "status": "valid",
+  "updated_at": "2026-08-07T06:20:00Z",
+  "branch": "docs/ratification-governance-replacement",
+  "worktree": "orca/workspaces/kitty/amphipod",
+  "status": "awaiting_review",
   "completed_items": [
-    "Rebuilt PR #384 on current main without unrelated Image Studio changes",
-    "Pinned and isolated Open WebUI 0.10.2 as a loopback-only replaceable shell",
-    "Configured Kitty model menu, provider policy, five workspace agents, and bounded Kitty tools",
-    "Hardened environment isolation, process ownership, launchd enablement, backup, restore, and rollback",
-    "Added feature-level verification for settings, agents, models, tools, memory, notes, projects, calendar, Tutor contract, and Builder projection",
-    "Added bounded paid acceptance for every advertised model route and an end-to-end Daily Kitty turn",
-    "Fixed ASGI request replay for streaming chat responses and kept OpenRouter normalization at the direct-provider boundary",
-    "Documented bootstrap, daily verification, backup, restore, and rollback"
+    "Restored cold-start contract: added ## Objective and ## Acceptance Contract to ACTIVE_MISSION.md (branch fix/cold-start-mission-headers, 6e807f5)",
+    "Fixed stale STATE.md/HANDOFF.md for merged PR #384 on fix/cold-start-mission-headers branch",
+    "Repaired PR #413: cron dedup now checks (action, schedule_type, schedule_value, metadata) not action alone; +4 regression tests",
+    "Kept _finalize_openai_shape_response non-string content guard (independently verified correct)",
+    "Superseded PR #412 with clean replacement PR #434 from current origin/main — carries only ratification record + genuinely missing authority-map corrections",
+    "Closed PR #411 as superseded — all intended fixes already on main via PR #355; branch contains literal conflict markers",
+    "All 1,210 tests pass (cold-start, cron, llm_client, builder)"
   ],
-  "blockers": [
-    "Mac-local bootstrap and paid feature acceptance have not yet been run against Jacob's live credentials and launchd environment",
-    "An independent final review of the final PR head is still required"
+  "blockers": [],
+  "next_action": "Independent review of PR #413 (fix/gateway-llm-cron) and PR #434 (docs/ratification-governance-replacement). After review: merge fix/cold-start-mission-headers to restore main CI green. Then begin KPROOF-001 Phase 3.",
+  "parallel_work": [
+    {
+      "kind": "interactive",
+      "ref": "docs/architecture-ratification-governance",
+      "owner": "Jacob (prerequisite research, completed 2026-08-06)",
+      "touches": ["docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md"],
+      "observed_at": "2026-08-07T06:20:00Z"
+    }
   ],
-  "next_action": "Run python3 scripts/openwebui_local.py bootstrap --accept-charges on Jacob's Mac, fix every reported failure, then record independent review evidence before marking PR #384 ready",
-  "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
-    "PR #384 is rebased or force-pushed so commit 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is no longer in its history",
-    "Open WebUI, Gateway, provider, agent, or tool configuration changes after the recorded acceptance pass"
+    "PR #413 or #434 is rebased or force-pushed so its recorded HEAD is no longer in history",
+    "KPROOF-001 Phase 3 begins and changes cold-start contract or PR baseline"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 384,
-    "state": "OPEN",
-    "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
-  },
-  "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
+  "pull_request": null,
+  "head_sha": "71b64e0bf5d5b94ebd70def5447b741734024b79"
 }
 -->
 
-## What is configured
+## What was done
 
-- Open WebUI is pinned to `0.10.2`, isolated under `~/kitty-services/openwebui`, unauthenticated only on loopback, and receives a minimal non-secret environment.
-- Kitty Gateway is the only OpenAI-compatible backend exposed to the shell.
-- The visible model menu is Kitty Auto, Fast, Think, Code, and Vision.
-- Daily Kitty, Research, Coding, Tutor, and Builder Operator are created or repaired on startup with the intended base route, tool attachment, and vision capability.
-- The bounded tool server exposes memory, notes, projects, calendar, Tutor, and read-only Builder projections.
-- Autostart, admin repair, PID ownership, backups, restore, rollback, and failure reporting are checked rather than assumed.
+Bounded integration cleanup before KPROOF-001 Phase 3. Four concurrent correction streams:
 
-## What the acceptance gate proves
+### 1. Cold-start contract (fix/cold-start-mission-headers, 6e807f5)
+- Added `## Objective` and `## Acceptance Contract` headings to ACTIVE_MISSION.md
+- Updated STATE.md/HANDOFF.md to reflect merged PR #384 (terminal status, null PR)
+- Cold-start test passes
 
-```bash
-python3 scripts/openwebui_local.py verify
-python3 scripts/openwebui_local.py verify --accept-charges
-```
+### 2. PR #413 repair (fix/gateway-llm-cron, 6d59940f)
+- Cron dedup: action + schedule_type + schedule_value + metadata, not action alone
+- Same action with different config → distinct rows
+- Regression: exact-match idempotent, same-action-different-value, same-action-different-type, Gateway startup no-duplicate
+- llm_client.py null-content guard kept (independently verified correct)
+- 1,210 tests pass
 
-The first command checks the configured settings, model discovery, all five agents, the bounded OpenAPI tool contract, and live read-only Kitty projections. The second additionally sends bounded turns through all advertised model routes and through Daily Kitty in Open WebUI.
+### 3. PR #412 → #434 (docs/ratification-governance-replacement, 71b64e0b)
+- Clean branch from origin/main, carrying only the ratification record
+- AUTHORITY_MAP.md: +constitution, +ratification entries; updated conflict rules
+- adr/README.md: +cross-cutting decisions section
+- DISPOSITION_LEDGER.md: date bump + governance reference
+- #412 closed as superseded
 
-## Required next move
+### 4. PR #411 closed
+- Conflict markers (old handleGenerate vs current handleSend in ImageStudio.tsx)
+- All intended fixes already on main via PR #355
 
-Run the full bootstrap on Jacob's Mac:
+## Open PRs
 
-```bash
-python3 scripts/openwebui_local.py bootstrap --accept-charges
-```
+- **#413** — fix/gateway-llm-cron — ready for independent review
+- **#434** — docs/ratification-governance-replacement — ready for independent review
 
-Do not mark PR #384 ready merely because CI passes. Fix every live verifier failure, rerun until clean, then obtain or record an independent review of the final head. No new feature work belongs in this branch before those acceptance gates pass.
+## KB effectiveness
+
+- Receipt: `kbr_c81e116f337f502daa95` (stored in ~/kb/metrics/kb-effectiveness.jsonl)
+- Task class: code_change
+- Outcome: completed_unreviewed
+- Evidence gaps: token count, cost, elapsed time (null)

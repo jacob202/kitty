@@ -1,61 +1,72 @@
-# Session State — Open WebUI daily-driver acceptance
+# Session State — Integration Cleanup (2026-08-07)
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-03T05:58:00Z",
-  "branch": "feat/openwebui-tomorrow-ready",
-  "worktree": "feat/openwebui-tomorrow-ready",
+  "updated_at": "2026-08-07T06:20:00Z",
+  "branch": "docs/ratification-governance-replacement",
+  "worktree": "orca/workspaces/kitty/amphipod",
   "status": "awaiting_review",
   "completed_items": [
-    "Rebuilt PR #384 on current main without unrelated Image Studio changes",
-    "Pinned and isolated Open WebUI 0.10.2 as a loopback-only replaceable shell",
-    "Configured Kitty model menu, provider policy, five workspace agents, and bounded Kitty tools",
-    "Hardened environment isolation, process ownership, launchd enablement, backup, restore, and rollback",
-    "Added feature-level verification for settings, agents, models, tools, memory, notes, projects, calendar, Tutor contract, and Builder projection",
-    "Added bounded paid acceptance for every advertised model route and an end-to-end Daily Kitty turn",
-    "Fixed ASGI request replay for streaming chat responses and kept OpenRouter normalization at the direct-provider boundary",
-    "Documented bootstrap, daily verification, backup, restore, and rollback"
+    "Restored cold-start contract: ACTIVE_MISSION.md now has ## Objective and ## Acceptance Contract (branch fix/cold-start-mission-headers)",
+    "Fixed stale STATE.md/HANDOFF.md for merged PR #384 — terminal state, null PR",
+    "Repaired PR #413: cron dedup checks full (action, type, value, metadata); +4 regression tests; LLM null-content guard kept",
+    "Updated PR #413 body with ## Summary and ## Test plan contracts",
+    "Superseded PR #412 with PR #434: clean branch from origin/main, ratification record only",
+    "Added AUTHORITY_MAP constitution + ratification entries and conflict rules",
+    "Updated adr/README with cross-cutting decisions section",
+    "Closed PR #411 as superseded — all fixes on main, branch has conflict markers",
+    "All 1,210 tests pass"
   ],
-  "blockers": [
-    "Mac-local bootstrap and paid feature acceptance have not yet been run against Jacob's live credentials and launchd environment",
-    "An independent final review of the final PR head is still required"
+  "blockers": [],
+  "next_action": "Independent review of PR #413 (fix/gateway-llm-cron) and PR #434 (docs/ratification-governance-replacement). After review: merge fix/cold-start-mission-headers to restore main CI green. Then begin KPROOF-001 Phase 3.",
+  "parallel_work": [
+    {
+      "kind": "interactive",
+      "ref": "docs/architecture-ratification-governance",
+      "owner": "Jacob (prerequisite research, completed 2026-08-06)",
+      "touches": ["docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md"],
+      "observed_at": "2026-08-07T06:20:00Z"
+    }
   ],
-  "next_action": "Run python3 scripts/openwebui_local.py bootstrap --accept-charges on Jacob's Mac, fix every reported failure, then record independent review evidence before marking PR #384 ready",
-  "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
-    "PR #384 is rebased or force-pushed so commit 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is no longer in its history",
-    "Open WebUI, Gateway, provider, agent, or tool configuration changes after the recorded acceptance pass"
+    "PR #413 or #434 is rebased or force-pushed",
+    "KPROOF-001 Phase 3 begins and changes cold-start contract or PR baseline"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 384,
-    "state": "OPEN",
-    "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
-  },
-  "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
+  "pull_request": null,
+  "head_sha": "71b64e0bf5d5b94ebd70def5447b741734024b79"
 }
 -->
 
 ## Execution ownership
 
-- this session: interactive Open WebUI onboarding and verification pass
-- pull request: #384 (`feat/openwebui-tomorrow-ready`)
-- product boundary: Open WebUI is the replaceable shell; Kitty Gateway remains authoritative
+- this session: interactive (OpenCode, Orca worktree)
+- no Builder task/lease claimed during this session
 
-## Verified in repository
+## KB effectiveness
 
-- loopback-only unauthenticated binding and minimal runtime environment;
-- pinned isolated Open WebUI installation and owner-only service state;
-- checked-in model roles and provider preferences;
-- five configured workspace agents with bounded tool attachment;
-- domain/modality-aware Auto routing and native direct OpenRouter wire IDs;
-- schema-valid failure streams and fail-loud provider/memory behavior;
-- PID ownership, launchd enablement, verified backup, atomic restore, and rollback identity checks;
-- feature acceptance command and tests;
-- pytest failure artifacts retained for actionable CI diagnostics.
+- receipt: kbr_c81e116f337f502daa95
+- consulted: 0
+- used: 0
+- stale/wrong: 0
+- token/quality evidence gaps: token count null, cost null, elapsed time null
 
-## Not yet verified on Jacob's Mac
+## What was done
 
-The repository cannot prove live credentials, Open WebUI's installed database state, launchd behavior, or real provider responses. The branch must stay in review until the live bootstrap and `verify --accept-charges` pass on the Mac and any failures are fixed rather than waived.
+Bounded integration cleanup before KPROOF-001 Phase 3:
+
+1. **Cold-start contract:** Added required headings to ACTIVE_MISSION.md, fixed stale state for merged PR #384
+2. **PR #413:** Fixed cron dedup (full config check, not action alone); kept LLM null-content guard; +4 regression tests
+3. **PR #412 → #434:** Clean replacement from origin/main — ratification record + authority-map corrections only
+4. **PR #411:** Closed — conflict markers, all fixes already on main
+
+## Open PRs awaiting review
+
+- #413 fix/gateway-llm-cron (ready)
+- #434 docs/ratification-governance-replacement (ready)
+
+## Branches needing merge
+
+- fix/cold-start-mission-headers (6e807f5) — restores cold-start CI green
