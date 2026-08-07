@@ -33,4 +33,4 @@ mem0ai>=0.1.118,<0.2
 # as optional and prompts on stdin when it is missing, which under launchd is an
 # EOFError that takes all of Kitty's memory down. Declare it so it is never absent.
 ollama>=0.4,<1
-trafilatura>=1.12,<3
+trafilatura>=2.2.0,<3
