@@ -95,7 +95,7 @@ The recommended target is a **Kitty PAA profile**:
 | PAA requirement | Status | Kitty evidence and gap |
 | --- | --- | --- |
 | Generic loop connects models to tools | PARTIAL | Kitty has agent/tool loops, but there is no isolated replaceable loop contract proven across implementations. |
-| Agent Loop does not construct prompts or select context | DELIBERATE DEVIATION | Kitty explicitly owns product behavior in `context_assembler` and Gateway domain modules. ADR 0028 defines a Principal/Application layer rather than pretending this is generic-loop behavior. |
+| Agent Loop does not construct prompts or select context | DELIBERATE DEVIATION | Kitty explicitly owns product behavior in `context_assembler` and Gateway domain modules. ADR 0037 defines a Principal/Application layer rather than pretending this is generic-loop behavior. |
 | Agent Loop has no personality, approval state, or product scope | PARTIAL / DEVIATION | Kitty's personality and preferences are mostly configuration/memory, but approval, context, routing, and product behavior are not cleanly isolated from the runtime package. |
 | Multiple concurrent loops are independent | UNKNOWN | Requires a focused runtime/concurrency test. |
 | No default iteration cap imposed by architecture | UNKNOWN | Requires code-path and runtime review across all loops. Deployment-specific safety budgets are allowed, but must not be confused with an architectural hard cap. |
@@ -204,7 +204,7 @@ source. It is **not** a replacement base for Kitty.
 
 The authoritative work breakdown is issue #389.
 
-1. **PAA-0 — Profile and evidence baseline:** accept ADR 0028; keep this matrix
+1. **PAA-0 — Profile and evidence baseline:** accept ADR 0037; keep this matrix
    current; never claim strict conformance.
 2. **PAA-1 — Owner-data manifest and complete export:** build on PR #388 and
    `storage_sync`; classify canonical, derived, secret, cache, and execution

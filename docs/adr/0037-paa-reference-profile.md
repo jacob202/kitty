@@ -1,11 +1,13 @@
-# ADR 0028: Adopt PAA as Kitty's Reference Architecture and Portability Profile
+# ADR 0037: Adopt PAA as Kitty's Reference Architecture and Portability Profile
 
 **Status:** Accepted  
 **Date:** 2026-08-03  
 **Decision authority:** Jacob explicitly directed the project to adopt the
 Personal AI Architecture approach after reviewing BrainDrive and PAA.  
-**Numbering note:** ADR 0027 is reserved by PR #384 for the Open WebUI
-replaceable-shell decision.
+**Numbering note:** originally filed as ADR 0028; renumbered 2026-08-07 because
+0028 was independently reused by "Commodity Software Precedence" and this file
+was never added to the ADR index, so the number collided silently. No decision
+content changed.
 
 ## Context
 
