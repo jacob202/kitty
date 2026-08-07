@@ -46,6 +46,7 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0034 | [Memory Policy Is a Kitty Concern — Storage Remains an Open Decision](0034-memory-policy-vs-storage.md) | Accepted | 2026-08-05 |
 | 0035 | [Browser-Verified Evidence Required for UI Claims](0035-browser-verified-evidence.md)          | Accepted                       | 2026-08-05 |
 | 0036 | [Builder Infrastructure Preserved — Refactored for Extraction Readiness](0036-builder-infrastructure-refactor.md) | Accepted | 2026-08-05 |
+| 0037 | [Adopt PAA as Kitty's Reference Architecture and Portability Profile](0037-paa-reference-profile.md) | Accepted | 2026-08-03 |
 
 Historical decision detail remains in
 [`docs/retired/DECISIONS_AND_ROADMAP.md`](../retired/DECISIONS_AND_ROADMAP.md).
