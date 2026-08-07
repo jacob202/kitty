@@ -125,7 +125,7 @@ jobs:
 
       - name: Upload raw diagnostic record
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: runpod-template-diag
           path: runpod-template-diag.json
