@@ -32,5 +32,5 @@ mem0ai>=0.1.118,<0.2
 # gateway/memory.py configures mem0's Ollama embedder. mem0 treats this client
 # as optional and prompts on stdin when it is missing, which under launchd is an
 # EOFError that takes all of Kitty's memory down. Declare it so it is never absent.
-ollama>=0.4,<1
+ollama>=0.6.2,<1
 trafilatura>=1.12,<3
