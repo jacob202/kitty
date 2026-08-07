@@ -21,6 +21,9 @@
 }
 -->
 
+## Objective
+
+
 ## Decision to prove
 
 Can Kitty provide a genuinely better way to take a software request from conversation to a working, verified feature without Jacob manually coordinating the agents?
@@ -83,6 +86,9 @@ Jacob must be able to continue chatting with Kitty and ask what it is doing, why
 - Ask before exceeding the proof budget, deleting anything, sending messages, publishing, or changing account or security settings.
 - Jacob may steer and answer meaningful questions, but manual agent coordination counts as proof failure.
 - Do not add image generation, broad computer control, deep memory, elaborate routing, another agent framework, or a major redesign during this mission.
+
+## Acceptance Contract
+
 
 ## Pass condition
 
