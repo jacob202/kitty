@@ -8,6 +8,81 @@ Evidence labels: **VERIFIED** (directly inspected), **INFERENCE** (strongest con
 
 ---
 
+## 0. The reason the problem exists
+
+Everything in sections 1–7 is a symptom. This section is the cause. Read it first; the rest is supporting detail.
+
+### The structural fact
+
+**Production is unbounded. Evaluation is one person who cannot read code.**
+
+Agents can generate work faster than Jacob can inspect it, and the one inspection he can perform reliably is *reading prose*. He cannot look at a diff and tell whether it is correct. He can look at a document and tell whether it is coherent.
+
+Any system with unlimited production and a single fixed evaluator fills up with whatever that evaluator is able to accept. Not by anyone's intent — by gradient. Documents always succeed. Documents never fail a test. Documents always look like progress. Working software can fail, and failing is expensive.
+
+So the project produces documents. 443 markdown files, 81,281 lines, against 66,301 lines of Python. That ratio is not a discipline problem. **It is the shape of the incentive.**
+
+### The consequence: nothing in this system can say "no"
+
+Every recurring failure on Jacob's list is the same missing capability — the ability to reject work without him.
+
+| Failure | The rejection that does not exist |
+|---|---|
+| Architecture churn | Nothing rejects a new architecture document |
+| Reviews of reviews | Nothing rejects a review that changes no decision |
+| Duplicate work across agents | Nothing rejects a second branch for work already done |
+| Trusting persuasive reports | Nothing rejects a confident claim with no evidence |
+| Stale state believed | Nothing rejects a handoff whose facts have expired |
+| Token overspend | Nothing rejects re-reading 20,000 lines of prose |
+
+And at the code level, the identical pathology: **VERIFIED** — `/builder/action` returns HTTP 200 carrying `{ok: false}` when the action failed. The software cannot reject its own failure either. This is the same disease one layer down.
+
+### The proof: even the enforcement is prose
+
+**VERIFIED.** `gateway/context_receipt.py:1045` runs a check named `docs:duplicate_authority_claims` — built specifically to stop competing authority documents. It scans `_CLAIM_SCAN_PATHS`, which is exactly four files: `AGENTS.md`, `CLAUDE.md`, `START_HERE.md`, `docs/PROJECT_STATUS.md`. It reads their **text** for phrases matching `_DUPLICATE_AUTHORITY_PATTERNS`.
+
+It never inspects the filesystem. It cannot see `ROADMAP_V2.md`. It cannot see `KITTY_MASTER_PROGRAM.md`. It cannot see that two ADRs are numbered 0028 or that two share the title `open-webui-shell-boundary`. All of those landed while this check reported **PASS**.
+
+**The guard against document sprawl is a document-reader.** It validates the map and never looks at the territory. When prose is the only thing anyone can evaluate, even the enforcement mechanism becomes prose-inspection.
+
+### Why every previous fix failed
+
+Every response to every failure has been to **write a rule**: 37 ADRs, a 418-line Constitution, a 224-line `AGENTS.md`, 10 non-negotiables in `CLAUDE.md`, an Authority Map, a Capability Manifest.
+
+Check them against reality:
+
+- ADR 0020 requires one canonical roadmap. Four roadmap-class documents exist.
+- Non-negotiable #1 is "Fail loud. No swallowed exceptions, fake defaults." The action endpoint returns success on failure.
+- ADR 0035 requires browser-verified evidence. The mission's Days 1–2 evidence gate has no commits.
+
+**A rule that is not executable is a wish.** The project's entire immune response has been to write wishes, which is itself the disease: writing is the only move the evaluator can score, so the system writes even when the correct move is to build.
+
+**VERIFIED — the single hardest piece of evidence:** the `main` branch reports `protected: false`. Branch protection is the one mechanism in this entire stack that can reject work without Jacob reading anything, and it is switched off. It has been sitting on the open-decisions list as "Gate 0 prevention mechanisms — defined, not enforced — needs Jacob's GitHub admin." Meanwhile nine more ADRs were ratified.
+
+The project wrote 37 rules and turned off the one enforcer.
+
+### What actually has to change
+
+Not "fewer documents." Not "more discipline." Not another guardrail on a symptom.
+
+**Build the ability to reject, and make the rejection test one Jacob can confirm himself in five seconds.**
+
+The only judgment a non-coder can make with total confidence is *did the thing do the thing*. So that becomes the sole definition of done. Documents are not banned — they are made **worthless**, because they cannot produce that evidence. That inverts the gradient. Writing stops being the cheapest path to "done."
+
+This reframes the product. **KittyBuilder is not valuable because it runs workers** — workers are a commodity, Claude Code already runs. It is valuable if and only if it can *reject its own output*. Delegation without rejection does not reduce Jacob's load; it multiplies unverified work, which is precisely what 150 branches, 22 open pull requests and 45 initiative files already are.
+
+The product is not conversation-to-code. **The product is a machine that can tell Jacob no.**
+
+Three consequences, in order of cost:
+
+1. **Turn on branch protection.** Two minutes in GitHub settings. Every other control is theatre until the merge boundary can reject. Cheapest possible fix, longest outstanding.
+2. **Change the definition of done to a working demonstration.** Nothing merges on the strength of a description. This is what the first slice tests.
+3. **Cut to one lane.** Unbounded production against fixed evaluation produces inventory, not output. Parallelism is only valuable up to the rate work can be verified, and that rate is currently one human who cannot read code.
+
+One thing here is not solvable in software, and it should be named plainly: **no mechanism can stop Jacob from opening a chat window and asking for another architecture review.** That is the one behaviour only he can end.
+
+---
+
 ## 1. Verdict
 
 ### A — the foundation is sound enough. Stop planning. Build.
@@ -232,7 +307,20 @@ Already chosen on 2026-08-04. Confirmed here with one change: **make it spoken, 
 
 **Requires:** no new platform, no new tables, no new nouns, no new reviewer.
 
-**Passes only if:** Jacob never opens a terminal, never edits a JSON file, and can tell from the chat alone whether it worked — then confirm it in the running app.
+### Test the "no" path first
+
+Per §0, the thing under test is not delegation. It is **rejection**. So the acceptance order is inverted from the usual:
+
+1. **Break it on purpose first.** Point the retry at work that cannot succeed. Kitty must come back and say *it failed, here is why, here is the run ID*. If it reports success, or reports nothing, the architecture is dead and no amount of happy-path polish redeems it.
+2. **Only then run the passing case.**
+
+A system that cannot report its own failure is worse than no system, because it converts Jacob's remaining ability to verify — noticing something is broken — into false confidence. That is the `{ok: false}` bug generalised, and it is the single defect most worth fixing in the entire repository.
+
+**Passes only if:** Jacob never opens a terminal, never edits a JSON file, sees an honest failure before he sees a success, and can tell from the chat alone which one he got — then confirms it in the running app.
+
+### Before any of this: turn on branch protection
+
+Two minutes of GitHub settings, and it is the only change here that Jacob must make himself. Require the existing checks on `main`. Until the merge boundary can reject work, every other control in this document is advisory, and the project keeps merging descriptions of software.
 
 ---
 
