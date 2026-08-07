@@ -1,67 +1,70 @@
-# Handoff — Open WebUI daily-driver acceptance
+<!-- kitty-handoff {"schema_version":2,"updated_at":"2026-08-07T03:40:00Z","head_sha":"7806252cf3294abfb1d93684478dd35d90a61c2f","branch":"fix/gateway-llm-cron","worktree":"/Users/jacobbrizinski/orca/workspaces/kitty/amphipod","status":"awaiting_review","completed_items":["fixed None.content strip bug in llm_client","fixed cron schedule duplicate flood with dedup check","added 3 regression tests","verified with 1042 builder tests passing","live E2E chat streamed successfully via kitty-default","PR #413 created"],"blockers":[],"next_action":"Review and merge PR #413","invalidation_conditions":["origin/main advances past 4ba13d18"],"active_mission":"docs/ACTIVE_MISSION.md","pull_request":{"number":413,"url":"https://github.com/jacob202/kitty/pull/413","state":"OPEN","head_sha":"7806252cf3294abfb1d93684478dd35d90a61c2f"},"parallel_work":[],"recommendations":[]} -->
 
-<!-- kitty-handoff
-{
-  "schema_version": 2,
-  "updated_at": "2026-08-03T05:58:00Z",
-  "branch": "feat/openwebui-tomorrow-ready",
-  "worktree": "feat/openwebui-tomorrow-ready",
-  "status": "valid",
-  "completed_items": [
-    "Rebuilt PR #384 on current main without unrelated Image Studio changes",
-    "Pinned and isolated Open WebUI 0.10.2 as a loopback-only replaceable shell",
-    "Configured Kitty model menu, provider policy, five workspace agents, and bounded Kitty tools",
-    "Hardened environment isolation, process ownership, launchd enablement, backup, restore, and rollback",
-    "Added feature-level verification for settings, agents, models, tools, memory, notes, projects, calendar, Tutor contract, and Builder projection",
-    "Added bounded paid acceptance for every advertised model route and an end-to-end Daily Kitty turn",
-    "Fixed ASGI request replay for streaming chat responses and kept OpenRouter normalization at the direct-provider boundary",
-    "Documented bootstrap, daily verification, backup, restore, and rollback"
-  ],
-  "blockers": [
-    "Mac-local bootstrap and paid feature acceptance have not yet been run against Jacob's live credentials and launchd environment",
-    "An independent final review of the final PR head is still required"
-  ],
-  "next_action": "Run python3 scripts/openwebui_local.py bootstrap --accept-charges on Jacob's Mac, fix every reported failure, then record independent review evidence before marking PR #384 ready",
-  "parallel_work": [],
-  "recommendations": [],
-  "invalidation_conditions": [
-    "PR #384 is rebased or force-pushed so commit 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is no longer in its history",
-    "Open WebUI, Gateway, provider, agent, or tool configuration changes after the recorded acceptance pass"
-  ],
-  "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 384,
-    "state": "OPEN",
-    "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
-  },
-  "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
-}
--->
+## Session summary
 
-## What is configured
+Investigated a functional gateway outage. Found two root causes in logs,
+applied fixes, added regression tests, verified with live E2E chat.
 
-- Open WebUI is pinned to `0.10.2`, isolated under `~/kitty-services/openwebui`, unauthenticated only on loopback, and receives a minimal non-secret environment.
-- Kitty Gateway is the only OpenAI-compatible backend exposed to the shell.
-- The visible model menu is Kitty Auto, Fast, Think, Code, and Vision.
-- Daily Kitty, Research, Coding, Tutor, and Builder Operator are created or repaired on startup with the intended base route, tool attachment, and vision capability.
-- The bounded tool server exposes memory, notes, projects, calendar, Tutor, and read-only Builder projections.
-- Autostart, admin repair, PID ownership, backups, restore, rollback, and failure reporting are checked rather than assumed.
+### Outcomes
 
-## What the acceptance gate proves
+| Fix | File | Issue |
+|-----|------|-------|
+| None-content guard | `gateway/llm_client.py:206` | `data["choices"][0]["message"]["content"].strip()` crashed on null content → AttributeError → provider chain exhausted |
+| Cron dedup | `gateway/cron.py:131` | No dedup in `schedule()` → 20,272 duplicate `insights.return_due` rows flooded the log |
 
-```bash
-python3 scripts/openwebui_local.py verify
-python3 scripts/openwebui_local.py verify --accept-charges
-```
+### Exact verified results
 
-The first command checks the configured settings, model discovery, all five agents, the bounded OpenAPI tool contract, and live read-only Kitty projections. The second additionally sends bounded turns through all advertised model routes and through Daily Kitty in Open WebUI.
+- `pytest tests/test_llm_client.py tests/test_cron.py tests/test_builder_run.py` → **118 passed**
+- `pytest tests/test_builder_*.py` → **1042 passed**, 29 subtests
+- `mypy gateway/llm_client.py gateway/cron.py` → no issues
+- Live E2E streamed chat: `kitty-default` returned "Where do you want to start?" with `[DONE]` boundary and memory items
+- Gateway health: `{"status":"ok","service":"kitty-gateway","litellm_reachable":true}`
 
-## Required next move
+### Files committed
 
-Run the full bootstrap on Jacob's Mac:
+- `gateway/llm_client.py` (+3/-1)
+- `gateway/cron.py` (+11)
+- `tests/test_llm_client.py` (+23)
+- `tests/test_cron.py` (+23)
 
-```bash
-python3 scripts/openwebui_local.py bootstrap --accept-charges
-```
+### PR
 
-Do not mark PR #384 ready merely because CI passes. Fix every live verifier failure, rerun until clean, then obtain or record an independent review of the final head. No new feature work belongs in this branch before those acceptance gates pass.
+- **PR #413** — `fix/gateway-llm-cron` → `main` (OPEN, unreviewed)
+- **Branch:** `fix/gateway-llm-cron`
+- **SHA:** `7806252cf3294abfb1d93684478dd35d90a61c2f`
+- **URL:** https://github.com/jacob202/kitty/pull/413
+
+### Cron DB mutation (no backup)
+
+- 20,272 duplicate rows deleted from `data/kitty/kitty.db`
+- Evidence preserved: query output in tool-output, 20,272 matching log lines
+- 1 row remains; restart confirms dedup works ("already exists; skipping duplicate")
+- **No SQLite backup was created before deletion** — honest gap
+
+## Execution ownership
+
+- **This session:** interactive (OpenCode)
+- **Parallel:** canonical worktree session on `docs/architecture-ratification-governance` (PR #412, architecture ratification) — independent, no collision
+- **Builder:** `trustworthy-kittybuilder-b2-b10-v1` paused (B8 blocked); nothing claimed or scheduled
+
+## Next move
+
+**This interactive assignment is complete.** Next action:
+
+1. Review PR #413 (gateway fix) — merge after independent review confirms the None-content fix and cron dedup are correct
+2. Canonical checkout working tree needs cleanup: `gateway/llm_client.py` and `gateway/cron.py` are dirty (edits applied directly to running gateway; same fixes as PR #413)
+3. Gateway is running from canonical checkout with GATEWAY_SECRET set; restart without it in production or configure it properly
+
+## Deferred items
+
+None.
+
+## KB effectiveness
+
+- Receipt: `kbr_7e4c31e04e347fa230e9`
+- Consulted: 0, Used: 0, Stale: 0
+- Token/quality evidence gaps: all token/cost/elapsed metrics null
+
+## Workflow signals
+
+- `worktree-edit-loss-on-branch-switch` (medium, tool_failure, observe): Uncommitted edits silently lost during branch switch in multi-worktree repo. `wfs_20260807t033627z_af1063fafc3a2589`

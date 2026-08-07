@@ -1,61 +1,41 @@
-# Session State — Open WebUI daily-driver acceptance
+<!-- kitty-state {"schema_version":2,"updated_at":"2026-08-07T03:40:00Z","head_sha":"7806252cf3294abfb1d93684478dd35d90a61c2f","branch":"fix/gateway-llm-cron","worktree":"/Users/jacobbrizinski/orca/workspaces/kitty/amphipod","status":"awaiting_review","completed_items":["gateway llm_client None-content guard","gateway cron schedule dedup","3 regression tests","live E2E chat evidence","PR #413"],"blockers":[],"next_action":"Review and merge PR #413","invalidation_conditions":["origin/main advances past 4ba13d18"],"active_mission":"docs/ACTIVE_MISSION.md","pull_request":{"number":413,"url":"https://github.com/jacob202/kitty/pull/413","state":"OPEN","head_sha":"7806252cf3294abfb1d93684478dd35d90a61c2f"},"parallel_work":[],"recommendations":[]} -->
+# STATE — checkpoint v2
 
-<!-- kitty-state
-{
-  "schema_version": 2,
-  "updated_at": "2026-08-03T05:58:00Z",
-  "branch": "feat/openwebui-tomorrow-ready",
-  "worktree": "feat/openwebui-tomorrow-ready",
-  "status": "awaiting_review",
-  "completed_items": [
-    "Rebuilt PR #384 on current main without unrelated Image Studio changes",
-    "Pinned and isolated Open WebUI 0.10.2 as a loopback-only replaceable shell",
-    "Configured Kitty model menu, provider policy, five workspace agents, and bounded Kitty tools",
-    "Hardened environment isolation, process ownership, launchd enablement, backup, restore, and rollback",
-    "Added feature-level verification for settings, agents, models, tools, memory, notes, projects, calendar, Tutor contract, and Builder projection",
-    "Added bounded paid acceptance for every advertised model route and an end-to-end Daily Kitty turn",
-    "Fixed ASGI request replay for streaming chat responses and kept OpenRouter normalization at the direct-provider boundary",
-    "Documented bootstrap, daily verification, backup, restore, and rollback"
-  ],
-  "blockers": [
-    "Mac-local bootstrap and paid feature acceptance have not yet been run against Jacob's live credentials and launchd environment",
-    "An independent final review of the final PR head is still required"
-  ],
-  "next_action": "Run python3 scripts/openwebui_local.py bootstrap --accept-charges on Jacob's Mac, fix every reported failure, then record independent review evidence before marking PR #384 ready",
-  "parallel_work": [],
-  "recommendations": [],
-  "invalidation_conditions": [
-    "PR #384 is rebased or force-pushed so commit 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is no longer in its history",
-    "Open WebUI, Gateway, provider, agent, or tool configuration changes after the recorded acceptance pass"
-  ],
-  "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 384,
-    "state": "OPEN",
-    "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
-  },
-  "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
-}
--->
+## Identity
+
+- **Session:** 2026-08-06 OpenCode (interactive)
+- **Worktree:** `/Users/jacobbrizinski/orca/workspaces/kitty/amphipod`
+- **Branch:** `fix/gateway-llm-cron`
+- **HEAD:** `7806252cf3294abfb1d93684478dd35d90a61c2f`
+- **Dirty:** clean (except `.claude/HANDOFF.md`, `.claude/STATE.md`)
 
 ## Execution ownership
 
-- this session: interactive Open WebUI onboarding and verification pass
-- pull request: #384 (`feat/openwebui-tomorrow-ready`)
-- product boundary: Open WebUI is the replaceable shell; Kitty Gateway remains authoritative
+- **This session:** interactive
+- **Builder parallel state:** available — `trustworthy-kittybuilder-b2-b10-v1` paused (B8 blocked), 4 initiatives total, 2 queued packets, no active runs/attempts/leases
 
-## Verified in repository
+## KB effectiveness
 
-- loopback-only unauthenticated binding and minimal runtime environment;
-- pinned isolated Open WebUI installation and owner-only service state;
-- checked-in model roles and provider preferences;
-- five configured workspace agents with bounded tool attachment;
-- domain/modality-aware Auto routing and native direct OpenRouter wire IDs;
-- schema-valid failure streams and fail-loud provider/memory behavior;
-- PID ownership, launchd enablement, verified backup, atomic restore, and rollback identity checks;
-- feature acceptance command and tests;
-- pytest failure artifacts retained for actionable CI diagnostics.
+- **Receipt:** `kbr_7e4c31e04e347fa230e9`
+- **Consulted:** 0, **Used:** 0, **Stale:** 0
+- **Token/quality evidence gaps:** token count, cost (USD), elapsed time all null
 
-## Not yet verified on Jacob's Mac
+## parallel_work
 
-The repository cannot prove live credentials, Open WebUI's installed database state, launchd behavior, or real provider responses. The branch must stay in review until the live bootstrap and `verify --accept-charges` pass on the Mac and any failures are fixed rather than waived.
+| Branch | Owner | PR | Summary |
+|--------|-------|----|---------|
+| `docs/architecture-ratification-governance` | interactive (OpenCode) | #412 | Architecture ratification, Constitution, 18 merge conditions |
+
+No collision — this session's gateway fix targets `main` directly.
+
+## recommendations
+
+1. **Review and merge PR #413** (ready) — `fix/gateway-llm-cron` contains the None-content guard and cron dedup. Both fixes are verified by tests (1042 passed) and live E2E chat evidence. Release check: null (ready).
+
+2. **Restart production gateway from canonical checkout with GATEWAY_SECRET configured** (ready) — the current running gateway was started with `GATEWAY_SECRET=test-secret-for-e2e` to pass the live chat test. Restart without hardcoded secret or configure properly. Release check: null (ready).
+
+3. **Clean up canonical checkout dirty files** (ready) — `gateway/llm_client.py` and `gateway/cron.py` in the canonical worktree were edited directly. The same fixes are now in PR #413. Either merge #413 into the canonical's base or apply the canonical edits as a commit on `docs/architecture-ratification-governance`. Release check: null (ready).
+
+## next_action
+
+1. Review and merge PR #413 (gateway fix)
