@@ -765,7 +765,7 @@ export function useExecuteRepair() {
 export function useBuilderAction() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       action,
       initiativeId,
       packetId,
@@ -775,9 +775,15 @@ export function useBuilderAction() {
       initiativeId?: string
       packetId?: string
       reason?: string
-    }) => executeBuilderAction(action, initiativeId, packetId, reason),
+    }) => {
+      const result = await executeBuilderAction(action, initiativeId, packetId, reason)
+      if (!result.ok) {
+        throw new Error(result.error || 'Builder action failed')
+      }
+      return result
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['runtime'] })
+      queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
     },
   })
 }

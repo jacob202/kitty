@@ -63,6 +63,38 @@ const surfaceLayout: CSSProperties = {
   boxSizing: 'border-box',
 }
 
+const errorBar: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 10px',
+  borderRadius: 4,
+  background: '#F4433611',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: '#F44336',
+}
+
+const successBar: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 10px',
+  borderRadius: 4,
+  background: '#4CAF5011',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: '#4CAF50',
+}
+
+function ActionResultBar({ result }: { result: { ok: boolean; text: string } }) {
+  return (
+    <div style={result.ok ? successBar : errorBar} role="status">
+      <span>{result.ok ? '✓' : '✗'} {result.text}</span>
+    </div>
+  )
+}
+
 /** Home-page summary backed by the same truthful runtime fact as the detail view. */
 export function BuilderGlance({ onOpen }: BuilderGlanceProps) {
   const query = useGatewayRuntimeManifest()
@@ -346,6 +378,7 @@ function BuilderControls({
   const action = useBuilderAction()
   const [busy, setBusy] = useState(false)
   const [confirmCleanup, setConfirmCleanup] = useState(false)
+  const [lastResult, setLastResult] = useState<{ ok: boolean; text: string } | null>(null)
 
   const pausedInitiatives = snapshot.initiatives.filter((i) => i.state === 'paused')
   const activeInitiatives = snapshot.initiatives.filter((i) => i.state === 'active')
@@ -362,10 +395,13 @@ function BuilderControls({
 
   const runAction = (builderAction: string, initiativeId?: string, packetId?: string) => {
     setBusy(true)
+    setLastResult(null)
     action.mutate(
       { action: builderAction, initiativeId, packetId },
       {
         onSettled: () => setBusy(false),
+        onSuccess: () => setLastResult({ ok: true, text: `${builderAction} succeeded` }),
+        onError: (err) => setLastResult({ ok: false, text: err instanceof Error ? err.message : 'action failed' }),
       },
     )
   }
@@ -383,6 +419,7 @@ function BuilderControls({
       <div style={cardHeader}>
         <div style={cardTitle}>controls</div>
       </div>
+      {lastResult && <ActionResultBar result={lastResult} />}
 
       {pausedInitiatives.map((initiative) => (
         <div key={initiative.initiative_id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -720,6 +757,7 @@ function PacketDetail({
   const headingRef = useRef<HTMLHeadingElement>(null)
   const action = useBuilderAction()
   const [busy, setBusy] = useState(false)
+  const [lastResult, setLastResult] = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
     headingRef.current?.focus()
@@ -731,9 +769,14 @@ function PacketDetail({
 
   const runAction = (builderAction: string) => {
     setBusy(true)
+    setLastResult(null)
     action.mutate(
       { action: builderAction, initiativeId: packet.initiative_id, packetId: packet.packet_id },
-      { onSettled: () => setBusy(false) },
+      {
+        onSettled: () => setBusy(false),
+        onSuccess: () => setLastResult({ ok: true, text: `${builderAction} succeeded` }),
+        onError: (err) => setLastResult({ ok: false, text: err instanceof Error ? err.message : 'action failed' }),
+      },
     )
   }
 
@@ -765,6 +808,7 @@ function PacketDetail({
       {packet.data_quality.state === 'partial' && (
         <DataQualityNotice detail={packet.data_quality.issues.join(' ')} />
       )}
+      {lastResult && <ActionResultBar result={lastResult} />}
       {needsAction && (
         <div style={{ ...card, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderColor: 'var(--c-yellow)' }}>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', flex: 1 }}>
