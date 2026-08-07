@@ -209,7 +209,8 @@ def _finalize_openai_shape_response(
 ) -> str:
     """Extract assistant text, normalize usage, append JSONL row, return text."""
     try:
-        text = data["choices"][0]["message"]["content"].strip()
+        content = data["choices"][0]["message"]["content"]
+        text = content.strip() if isinstance(content, str) else ""
     except (KeyError, IndexError, TypeError):
         logger.error("Malformed response from %s: %s", provider, data)
         return ""
