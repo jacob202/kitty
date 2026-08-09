@@ -1,0 +1,21 @@
+{
+  "available": true,
+  "fact_state": "degraded",
+  "reason": "Builder status includes 2 partial packet records.",
+  "observed_at": "2026-08-05T02:26:46.284284Z",
+  "valid_until": "2026-08-05T02:27:01.284284Z",
+  "queue": {
+    "total": 107,
+    "queued": 3,
+    "claimed": 0,
+    "running": 0,
+    "blocked": 9,
+    "pr_opened": 0,
+    "awaiting_review": 0,
+    "done": 51,
+    "failed": 1,
+    "cancelled": 43
+  },
+  "initiative_count": 31,
+  "candidate_count": 62
+}

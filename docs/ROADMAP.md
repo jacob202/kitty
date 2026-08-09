@@ -1,10 +1,9 @@
 # Kitty Canonical Roadmap
 
-**Status:** Active authority
+**Status:** SUPERSEDED (2026-08-08). Replaced by `docs/ROADMAP_V2.md`.
+**Preserved:** Historical record only. Do not treat as active authority.
 **Ratified:** 2026-07-26; rewritten 2026-07-31 (recovery baseline)
-**Owner:** Jacob, with Kitty or an explicitly assigned strong-model planner
-**Authority:** ADR 0020 and `docs/AUTHORITY_MAP.md`
-**V2 target plan:** `docs/ROADMAP_V2.md` defines the V2 target architecture delivery sequence (M1–M6 milestones, packet catalog). This ROADMAP remains the active execution authority; ROADMAP_V2 is the ratified target plan — accepted architecture, not execution schedule. `docs/ARCHITECTURE_RATIFICATION_2026-08-06.md` Decision 5 governs the relationship.
+**Superseding authority:** `docs/ROADMAP_V2.md`
 
 This is the only active roadmap. Older roadmaps, plans, audits, packets, and
 initiative manifests remain evidence or backlog input until they are reviewed

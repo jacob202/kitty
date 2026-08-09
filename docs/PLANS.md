@@ -2,16 +2,16 @@
 
 **Status:** Navigation and disposition index; not a roadmap  
 **Updated:** 2026-07-28  
-**Roadmap authority:** `docs/ROADMAP.md` under ADR 0020  
+**Roadmap authority:** `docs/ROADMAP_V2.md` (active authority; `docs/ROADMAP.md` superseded 2026-08-08)  
 **Active mission:** `docs/ACTIVE_MISSION.md`
 
-`docs/ROADMAP.md` is the only active roadmap. This file exists to point readers
+`docs/ROADMAP_V2.md` is the only active roadmap (replaced `docs/ROADMAP.md` 2026-08-08). This file exists to point readers
 to reviewed plans and to prevent older session plans from silently regaining
 authority.
 
 ## Operating rule
 
-- Use `docs/ROADMAP.md` for priority and sequencing.
+- Use `docs/ROADMAP_V2.md` for priority and sequencing.
 - Use `docs/ACTIVE_MISSION.md` for the current bounded mission.
 - Treat every file under `docs/plans/` or `docs/planning/` as supporting
   evidence unless the canonical roadmap explicitly activates it.

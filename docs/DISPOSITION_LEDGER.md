@@ -1,16 +1,16 @@
-# Disposition Ledger — 2026-08-05
+# Disposition Ledger — 2026-08-08
 
 Every retained planning file in this repository has exactly one roadmap
 disposition. Nothing may remain unassigned. This ledger is authoritative; a
 file not listed here is either not a planning document or was added after the
 ledger date and needs disposition.
 
-**Roadmap authority:** `docs/ROADMAP.md` (active authority, per ADR 0020)
-**V2 target plan:** `docs/ROADMAP_V2.md` — ratified by the Constitution v1 as V2 milestone targets (M1–M6). Accepted architecture, not execution schedule. Does not override `docs/ROADMAP.md` for active priority.
+**Roadmap authority:** `docs/ROADMAP_V2.md` (active authority, replaced `docs/ROADMAP.md` 2026-08-08)
+**Superseded roadmap:** `docs/ROADMAP.md` — preserved historical record, no longer active authority.
 **Derived synthesis:** `docs/KITTY_MASTER_PROGRAM.md` — merges ROADMAP, ROADMAP_V2, and the extension backlog into a dependency-ordered program. Not an independent authority.
 **Governance:** `docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md` — 12 adjudicated decisions governing all of the above.
-**Ledger date:** 2026-08-05
-**Base SHA:** `5dd1e881` (origin/main)
+**Ledger date:** 2026-08-08
+**Base SHA:** `4d4fa5a7` (origin/main)
 
 ## Disposition classes
 

@@ -238,15 +238,14 @@ class TestAttemptLifecycle:
         with pytest.raises(ba.AttemptError, match="outcome"):
             ba.close_attempt(attempt["id"], "done", db_path=db_path)
 
-    def test_crashed_attempt_does_not_consume_budget(self, db_path: Path):
-        """Crashed attempts should not count toward max_attempts budget."""
-        for _ in range(2):  # policy.max_attempts = 2, but crashes don't count
+    def test_crashed_attempt_consumes_budget(self, db_path: Path):
+        """Crashed attempts count toward max_attempts budget."""
+        for _ in range(2):  # policy.max_attempts = 2
             attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
             ba.close_attempt(attempt["id"], ba.ATTEMPT_CRASHED, db_path=db_path)
 
-        # Third attempt should still be possible — budget was not consumed.
-        attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
-        assert attempt["attempt_no"] == 3
+        with pytest.raises(ba.AttemptLimitError):
+            ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
 
     def test_list_stale_attempts_requires_interrupted_run_evidence(self, db_path: Path):
         assert ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path) == []
@@ -603,7 +602,7 @@ class TestCli:
 
 
 class TestAttemptBudgetConsistency:
-    """P027: crashed attempts are budget-neutral; exhaustion agrees with start_attempt."""
+    """P027: crashed attempts consume budget; exhaustion agrees with start_attempt."""
 
     def _run(self, db_path, outcomes):
         ids = []
@@ -613,15 +612,14 @@ class TestAttemptBudgetConsistency:
             ids.append(attempt["id"])
         return ids
 
-    def test_two_crashed_attempts_do_not_exhaust(self, db_path):
+    def test_two_crashed_attempts_do_exhaust(self, db_path):
         self._run(db_path, [ba.ATTEMPT_CRASHED, ba.ATTEMPT_CRASHED])
         status = bi.initiative_status(INITIATIVE, db_path)
-        assert status["state"] != "failed"
+        assert status["state"] == "failed"
         eligible = {p["packet_id"] for p in bi.eligible_packets(INITIATIVE, db_path)}
-        assert PACKET in eligible
-        # Another attempt may still start (budget not consumed by crashes).
-        third = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
-        assert third is not None
+        assert PACKET not in eligible
+        with pytest.raises(ba.AttemptLimitError):
+            ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
 
     def test_two_failed_attempts_exhaust_and_reject(self, db_path):
         self._run(db_path, [ba.ATTEMPT_FAILED, ba.ATTEMPT_FAILED])
@@ -632,13 +630,14 @@ class TestAttemptBudgetConsistency:
         with pytest.raises(ba.AttemptLimitError):
             ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
 
-    def test_one_crashed_plus_one_failed_counts_as_one(self, db_path):
+    def test_one_crashed_plus_one_failed_counts_as_two(self, db_path):
         self._run(db_path, [ba.ATTEMPT_CRASHED, ba.ATTEMPT_FAILED])
         status = bi.initiative_status(INITIATIVE, db_path)
-        assert status["state"] != "failed"
-        # Only the genuine failure consumes budget, so another attempt is allowed.
-        another = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
-        assert another is not None
+        assert status["state"] == "failed"
+        eligible = {p["packet_id"] for p in bi.eligible_packets(INITIATIVE, db_path)}
+        assert PACKET not in eligible
+        with pytest.raises(ba.AttemptLimitError):
+            ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
 
     def test_successful_packet_remains_complete_and_not_exhausted(self, db_path):
         self._run(db_path, [ba.ATTEMPT_SUCCEEDED])

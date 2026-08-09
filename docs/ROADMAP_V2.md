@@ -1,11 +1,11 @@
 # Kitty Version 2 — Master Roadmap
 
-**Status:** Proposed (v2 target architecture)
-**Date:** 2026-08-05
+**Status:** Active authority (replaces `docs/ROADMAP.md`)
+**Date:** 2026-08-08
 **Owner:** Jacob (authorization); Kitty (planning); KittyBuilder (execution)
-**Relation to current docs:** this is the Version 2 target plan. The current
-`docs/ROADMAP.md`, `docs/KITTY_PRODUCT_ARCHITECTURE.md` Phase 0–6, and ADR 0027
-remain authority; this doc sequences their delivery as releasable milestones.
+**Relation to current docs:** this is the active roadmap. The superseded
+`docs/ROADMAP.md` is preserved as historical record; it is no longer active
+authority.
 
 ---
 

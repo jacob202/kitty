@@ -1,0 +1,13 @@
+commit cec062f7f12e48b8d15bab6361b6c61839d6e2eb (HEAD -> main)
+Author: jacob202 <jacobbrizinski@gmail.com>
+Date:   Mon Aug 3 08:24:06 2026 -0600
+
+    test: add cost-guarded Kitty trust harness (#395)
+    
+    Add an opt-in Promptfoo regression suite against Kitty's real chat gateway, protect it behind explicit live-call authorization, and validate the harness contract in CI. Also repair the inherited AIM42 Ruff formatting failure so all repository gates pass.
+
+ Makefile                         |  30 +++++++-
+ evals/kitty/promptfooconfig.json | 147 +++++++++++++++++++++++++++++++++++++++
+ tests/test_aim42_skill.py        |   1 -
+ tests/test_trust_harness.py      |  56 +++++++++++++++
+ 4 files changed, 232 insertions(+), 2 deletions(-)
