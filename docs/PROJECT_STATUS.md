@@ -1,6 +1,6 @@
 # Project Status
 
-**Repository evidence verified:** 2026-08-04 through `main` `6f6966568a8d84125896472fc0c58752b4efb919`, plus this documentation-only reconciliation in PR #404.
+**Repository evidence verified:** 2026-08-08 through `main` `574899d64dbc5f27af4140d7c2d33222b1e3f248`, plus current GitHub PR/check state inspected during this reconciliation.
 
 This file is a dated evidence summary, not a live runtime dashboard. Use Git/GitHub for repository state, supported probes for local services, and Builder's supported database/API/CLI for execution state.
 
@@ -9,58 +9,62 @@ This file is a dated evidence summary, not a live runtime dashboard. Use Git/Git
 - Kitty Gateway is the product authority for conversation behavior, memory/context, projects, tools, Tutor, provider policy, and user-facing workflows.
 - Open WebUI is the accepted replaceable local daily-driver shell under ADR 0027.
 - The custom `kitty-chat` client remains a loopback-only fallback and development surface.
-- KittyBuilder is the separate execution organization and engineering control plane. GitHub issue comments are no longer a command queue.
+- KittyBuilder is the separate durable execution/control plane for accepted Missions, packets, workers, attempts, recovery, validation/review, budgets, and evidence.
+- Models and coding harnesses are replaceable workers; their narration is not execution truth.
 
-## What's shipped
+## Authority correction
 
-- PR #400 restored native OpenRouter model IDs and returned deterministic pytest to green.
-- PR #401 repaired private-repository PR diff retrieval for Agent Review.
-- PR #402 removed unauthenticated all-interface `kitty-chat` listeners, enforced loopback binding, and completed issue #158.
-- PR #403 upgraded `pydantic-settings` to 2.14.2, outside the GHSA-4xgf-cpjx-pc3j affected range.
-- PR #405 removed age-based stale auto-closure and added the complete 51-record Actions ledger without changing current RunPod/image workflows.
-- Issues #127, #158, #160, #161, and #381 are closed with evidence or explicit supersession comments.
-- Current CI includes pytest, lint, typecheck, hygiene, Kitty Chat tests/build, and browser smoke; all passed on the merged maintenance/security heads.
-- ADR 0027 exists on `main` and defines the Open WebUI shell boundary.
-- Personal image history remains unchanged by explicit owner decision.
+`docs/ROADMAP.md` and this status file were reconciled on 2026-08-04 for the earlier trustworthy-daily-driver mission. Later, commit `89057bb23f4ed9195e6d198d883c80d5a8a14764` explicitly replaced that mission with **KPROOF-001 — Two-Week Builder Proof**. The active mission was therefore newer than the roadmap/status that still described the superseded execution order.
+
+The current authority is now explicit: KPROOF-001 gates broader roadmap work until its 2026-08-18 verdict.
+
+## What is verified in the repository
+
+- `docs/ACTIVE_MISSION.md` defines KPROOF-001 as the one approved active mission: prove one conversation-to-working-feature Builder loop without Jacob manually coordinating workers.
+- `docs/proof/TWO_WEEK_PROOF_AUDIT.md` completed the source/history audit far enough to choose the first proving seam; it still requires live Mac runtime evidence before claiming the seam works.
+- Builder has durable queue/runtime/recovery machinery and a bounded runtime projection; recent merged work also made `needs_decision` pause the initiative truthfully rather than continuing execution.
+- Current `main` still has the Builder action trust defect identified by the proof audit: `useBuilderAction()` does not reject an HTTP-success payload with `{ok:false}`, and it invalidates `['runtime']` instead of the runtime-manifest cache used by the Builder surface.
+- PR #437 is a candidate repair for that defect. Its patch converts `{ok:false}` into a mutation error, refreshes the runtime-manifest query, and adds visible action result feedback.
+- PR #437 has **not** passed repository CI. The GitHub Actions jobs did not reach a runner: GitHub recorded that they were not started because account payments failed or the Actions spending limit needs to be increased. That is an infrastructure/billing blocker, not a passing or failing code result.
+- PR #437 also lacks independent running-app acceptance on its current head. Its recorded evidence is mocked/local UI behavior, so it must not be described as the completed KPROOF control seam.
+- `main` currently ends at `574899d64dbc5f27af4140d7c2d33222b1e3f248`; recent maintenance includes the mypy cleanup and removal of the completed one-time RunPod diagnostic workflow.
 
 ## Active work
 
-The one approved mission is [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md): establish a trustworthy daily-driver baseline before broader expansion.
+The one approved mission is [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md): **KPROOF-001 — Two-Week Builder Proof**.
 
-Immediate work:
+Current order:
 
-1. merge this authority/documentation reconciliation in #404 after current CI;
-2. apply the #399 admin/API mutation bundle when a capable interface is available: disable orphaned registry records, enable enforceable default-branch rules, and enable security alerts;
-3. prove the local Open WebUI clean-start/chat/persistence/restart path;
-4. complete one real #270 phone/PWA continuity loop.
+1. establish the live Mac baseline through supported context/status/doctor/Builder projections;
+2. verify the chosen Builder action failure/recovery seam against the running application;
+3. repair or replace the #437 candidate only from current evidence, with a regression test for false-success handling;
+4. prove conversation → approved durable job;
+5. complete one real Builder feature loop with launched-app validation and independent review;
+6. prove interruption/provider recovery;
+7. make the continue-or-pause verdict by 2026-08-18.
 
-Preserved but not current execution:
-
-- #391 contains useful PAA alignment documentation but requires rebase and revalidation;
-- #396 contains valuable model-policy, image-contract, and Builder-effectiveness work but is too broad to merge as one runtime-unproven unit;
-- #316, #317, and #320 are independent dependency updates requiring separate current-CI review.
+No broader frontend, image, memory, agent-framework, or orchestration work is current execution unless it is strictly required by that proof.
 
 ## Known unknowns
 
-Repository evidence does not prove:
+Repository and GitHub evidence do not prove:
 
-- Jacob's current local service, launchd, credential, quota, or provider state;
-- that Open WebUI completes a real streamed chat and persistence/restart loop on Jacob's Mac today;
-- **Builder investigation:** current local initiatives, packets, attempts, leases, and budgets remain unverified through GitHub;
-- the real-phone timed-return and deduplication evidence required by #270;
-- paid image-generation quality, likeness, cost, or cleanup state.
+- Jacob's current local checkout/worktree state;
+- current Gateway, LiteLLM, Open WebUI, `kitty-chat`, or launchd state on the Mac;
+- current credentials, quotas, or provider availability;
+- current local Builder initiatives, packets, attempts, leases, runs, or budgets;
+- that PR #437 works against the real `/builder/action` path in the running application;
+- that an approved conversation can currently create a durable Builder job without manual translation;
+- that Builder context survives a real worker/provider interruption end to end.
 
 Unknown is not success and must not be presented as failure without evidence.
 
-## Governance gaps
+## Current blockers and trust gaps
 
-- The default-branch ruleset remains disabled.
-- GitHub still reports 51 active workflow registry records, but current `main` contains 11 workflow YAML files after #405; four records are GitHub-managed and 35 are registry-only historical entries.
-- Dependabot security alerts remain disabled through the accessible repository state.
-- No release or milestone identifies a known-good daily-driver baseline.
-- GitHub Projects were not verifiable through the connected API.
-
-Issue #399 owns the remaining correction. The exact workflow IDs and recommended rules are in [`audit/GITHUB_WORKFLOW_LEDGER_2026-08-04.md`](audit/GITHUB_WORKFLOW_LEDGER_2026-08-04.md).
+- GitHub Actions runners are blocked by the account billing/spending state, so red Actions results from affected runs cannot currently serve as code-quality evidence.
+- PR #437 needs a current-base regression test and real running-app acceptance before it can satisfy the KPROOF seam.
+- The committed `.claude/STATE.md` / `.claude/HANDOFF.md` still describe the already-merged Open WebUI session and therefore do not represent the current KPROOF execution checkpoint; this reconciliation invalidates that inherited handoff rather than treating it as current work.
+- Local Builder/runtime facts remain unavailable from GitHub alone.
 
 ## Supported live checks
 
@@ -68,7 +72,6 @@ Issue #399 owns the remaining correction. The exact workflow IDs and recommended
 ./kitty context --agent
 ./kitty status
 ./kitty doctor --json
-python3 scripts/openwebui_local.py verify
 ./kitty builder initiative doctor --json
 ```
 
