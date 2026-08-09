@@ -1,57 +1,30 @@
-<!-- kitty-state
-{
-  "schema_version": 2,
-  "branch": "main",
-  "head_sha": "5dd1e881c8e744a9d825a8a499222bb775fefa6d",
-  "worktree": "/Users/jacobbrizinski/Projects/kitty",
-  "updated_at": "2026-08-05T22:30:00Z",
-  "execution_owner": "interactive",
-  "tool": "opencode",
-  "status": "complete",
-  "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null,
-  "parallel_work": [],
-  "recommendations": [],
-  "completed_items": ["repo simplification audit", "43 dead files archived", "9 ADRs ratified (0028-0036)", "summary deliverables produced"],
-  "blockers": ["behind origin/main by 72 commits"],
-  "next_action": "present 9 ADRs and simplification audit to Jacob for review",
-  "invalidation_conditions": ["origin/main advances past 5dd1e881 without these commits"]
-}
--->
-# State — 2026-08-05
+<!-- kitty-state {"schema_version":2,"updated_at":"2026-08-07T03:40:00Z","head_sha":"fe021ce975e41684c7381c650bf03ce11067ef5d","branch":"docs/architecture-ratification-governance","worktree":"/Users/jacobbrizinski/Projects/kitty","status":"in_progress","completed_items":["architecture ratification: 12 decisions adjudicated","governance PR #412 created with 6 files","PR #408 reconciled with 12 authority corrections"],"blockers":[],"next_action":"Review and merge PR #412 (governance).","invalidation_conditions":["HEAD changes outside a checkpoint commit","branch or worktree changes","pull request state changes"],"active_mission":"docs/ACTIVE_MISSION.md","pull_request":{"number":412,"state":"OPEN","head_sha":"fe021ce975e41684c7381c650bf03ce11067ef5d"},"recommendations":[{"id":"rec-1","what":"Review and merge PR #412 (governance)","why":"Establishes the explicit authority hierarchy (Constitution > ADRs > ROADMAP > ROADMAP_V2 > KITTY_MASTER_PROGRAM) before any V2 execution can proceed","class":"code","status":"ready","blocked_by":null,"release_check":null,"deferred_count":0,"first_deferred":null},{"id":"rec-2","what":"Review and merge PR #408 (reconciliation)","why":"Preserves the 35-file closeout research with all 12 authority corrections applied and every document status explicit","class":"code","status":"ready","blocked_by":null,"release_check":null,"deferred_count":0,"first_deferred":null}],"parallel_work":[{"kind":"builder","ref":"trustworthy-kittybuilder-b2-b10-v1","status":"paused, B8 blocked, B9/B10 queued","owner":"Builder","observed_at":"2026-08-06T21:30:00Z","touches":["docs","scripts","tests"]}]} -->
+
+# Session State — 2026-08-06 architecture ratification
+
+**Schema version:** 2
+**Branch:** `docs/architecture-ratification-governance`
+**HEAD:** `fe021ce975e41684c7381c650bf03ce11067ef5d`
+**Valid until:** branch merged or superseded
 
 ## Execution ownership
+
 - this session: interactive
-- Builder parallel state: not inspected
-
-## Branch state
-- branch: main
-- head: 5dd1e881
-- behind origin/main: 72 commits (unchanged from session start)
-
-## Completed this session
-1. Repository simplification audit → commit 4c0bf06b (43 dead files archived)
-2. Architectural decision harvest → commit 5dd1e881 (9 new ADRs: 0028-0036)
-
-## Verification
-- Gateway imports pass cleanly (244 routes)
-- All deletions verified with broad rg across gateway/, tests/, scripts/
-- import analysis correction: `\b<mod>\b` is the correct search pattern, not `from gateway\.<mod>`
-
-## Recommendations
-
-1. **deferred** — Present ADRs and simplification audit to Jacob for review
-   - release_check: `test -f docs/adr/0036-builder-infrastructure-refactor.md`
-
-2. **ready** — Audit suspicious wired modules (prefetcher, inbox_watcher, insight_loop, life_awareness, telegram_bot, antigravity_tools, web_tracker, self_review)
-   - release_check: `git status --porcelain`
-
-3. **ready** — Make Gate 0.7 enforceable (branch protection on main requiring CI checks)
-   - release_check: `test -z "$(gh api repos/:owner/:repo/branches/main/protection --jq '.required_status_checks.contexts' 2>/dev/null)"`
+- Builder parallel state: `trustworthy-kittybuilder-b2-b10-v1` paused, B8 blocked, B9/B10 queued
 
 ## KB effectiveness
-- consulted: 25+ docs across research, audit, architecture, ADRs
-- used: all consulted
+
+- receipt: `kbr_5356e7c45664277831c5`
+- consulted: 3
+- used: 1
 - stale/wrong: 0
-- promoted to canonical: 9 ADRs
-- evidence gaps: token/cost data unavailable (interactive investigation, no model calls logged)
+- token/quality evidence gaps: tokens, cost, elapsed time all null
+
+## Outcomes
+
+1. Created governance PR #412: 6 files, 12 adjudicated decisions, explicit authority hierarchy
+2. Reconciled PR #408: 12 corrections applied to 35-file closeout branch, all 18 merge conditions satisfied
+
+## Next action
+
+Review and merge PR #412 (governance).
