@@ -87,10 +87,32 @@ const successBar: CSSProperties = {
   color: '#4CAF50',
 }
 
-function ActionResultBar({ result }: { result: { ok: boolean; text: string } }) {
+const pendingBar: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 10px',
+  borderRadius: 4,
+  background: 'var(--surface-2, #80808011)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: 'var(--ink-2)',
+}
+
+/** kind:
+ * - 'accepted': the request was accepted by the server — not proof the
+ *   requested transition landed. Never render this as green.
+ * - 'confirmed': the subsequent runtime-manifest refetch showed the
+ *   packet's durable state actually changed.
+ * - 'failed': the server rejected the request. */
+type ActionResult = { kind: 'accepted' | 'confirmed' | 'failed'; text: string }
+
+function ActionResultBar({ result }: { result: ActionResult }) {
+  const style = result.kind === 'confirmed' ? successBar : result.kind === 'failed' ? errorBar : pendingBar
+  const glyph = result.kind === 'confirmed' ? '✓' : result.kind === 'failed' ? '✗' : '…'
   return (
-    <div style={result.ok ? successBar : errorBar} role="status">
-      <span>{result.ok ? '✓' : '✗'} {result.text}</span>
+    <div style={style} role="status">
+      <span>{glyph} {result.text}</span>
     </div>
   )
 }
@@ -573,11 +595,31 @@ function PacketDetail({
   const headingRef = useRef<HTMLHeadingElement>(null)
   const action = useBuilderAction()
   const [busy, setBusy] = useState(false)
-  const [lastResult, setLastResult] = useState<{ ok: boolean; text: string } | null>(null)
+  const [lastResult, setLastResult] = useState<ActionResult | null>(null)
+  // Set when a mutation is accepted but not yet proven against durable
+  // state. Cleared once the refreshed packet actually differs from the
+  // pre-action snapshot, or a new action starts. A mutation resolving
+  // without throwing only means the request was accepted — it is not
+  // proof the requested transition reached the durable record, so
+  // "succeeded" may never be shown from the mutation callback alone.
+  const pendingConfirmationRef = useRef<{
+    builderAction: string
+    updatedAt: string | null
+    taskState: string | null
+  } | null>(null)
 
   useEffect(() => {
     headingRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    const pending = pendingConfirmationRef.current
+    if (!pending) return
+    if (packet.updated_at !== pending.updatedAt || packet.task_state !== pending.taskState) {
+      pendingConfirmationRef.current = null
+      setLastResult({ kind: 'confirmed', text: `${pending.builderAction} confirmed — packet state updated` })
+    }
+  }, [packet.updated_at, packet.task_state])
 
   const isDead = packet.task_state === 'cancelled' || packet.task_state === 'failed'
   const isPacketStale = isStalePacket(packet)
@@ -586,12 +628,22 @@ function PacketDetail({
   const runAction = (builderAction: string) => {
     setBusy(true)
     setLastResult(null)
+    pendingConfirmationRef.current = null
     action.mutate(
       { action: builderAction, initiativeId: packet.initiative_id, packetId: packet.packet_id },
       {
         onSettled: () => setBusy(false),
-        onSuccess: () => setLastResult({ ok: true, text: `${builderAction} succeeded` }),
-        onError: (err) => setLastResult({ ok: false, text: err instanceof Error ? err.message : 'action failed' }),
+        onSuccess: () => {
+          pendingConfirmationRef.current = {
+            builderAction,
+            updatedAt: packet.updated_at,
+            taskState: packet.task_state,
+          }
+          setLastResult({ kind: 'accepted', text: `${builderAction} request accepted — refreshing status` })
+        },
+        onError: (err) => {
+          setLastResult({ kind: 'failed', text: err instanceof Error ? err.message : 'action failed' })
+        },
       },
     )
   }
