@@ -1,7 +1,7 @@
 # Active Mission — Two-Week Builder Proof
 
 **Mission ID:** KPROOF-001  
-**Status:** Audit running  
+**Status:** Running  
 **Approved by:** Jacob on 2026-08-04  
 **Proof window:** 2026-08-04 through 2026-08-18  
 **Budget ceiling:** $25 CAD  
@@ -11,7 +11,7 @@
 {
   "schema_version": 1,
   "mission_id": "KPROOF-001",
-  "status": "audit_running",
+  "status": "running",
   "approved_at": "2026-08-04T18:27:00-06:00",
   "approved_by": "Jacob",
   "base_sha": "b3f68aae84525f980d44db8d7b9e6d728457b0db",
@@ -20,6 +20,9 @@
   "budget_cad": 25
 }
 -->
+
+## Objective
+
 
 ## Decision to prove
 
@@ -83,6 +86,9 @@ Jacob must be able to continue chatting with Kitty and ask what it is doing, why
 - Ask before exceeding the proof budget, deleting anything, sending messages, publishing, or changing account or security settings.
 - Jacob may steer and answer meaningful questions, but manual agent coordination counts as proof failure.
 - Do not add image generation, broad computer control, deep memory, elaborate routing, another agent framework, or a major redesign during this mission.
+
+## Acceptance Contract
+
 
 ## Pass condition
 

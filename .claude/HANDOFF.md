@@ -1,12 +1,12 @@
-# Handoff — Open WebUI daily-driver acceptance
+# Handoff — Open WebUI daily-driver acceptance (merged)
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-03T05:58:00Z",
+  "updated_at": "2026-08-06T06:00:00Z",
   "branch": "feat/openwebui-tomorrow-ready",
   "worktree": "feat/openwebui-tomorrow-ready",
-  "status": "valid",
+  "status": "complete",
   "completed_items": [
     "Rebuilt PR #384 on current main without unrelated Image Studio changes",
     "Pinned and isolated Open WebUI 0.10.2 as a loopback-only replaceable shell",
@@ -17,24 +17,16 @@
     "Fixed ASGI request replay for streaming chat responses and kept OpenRouter normalization at the direct-provider boundary",
     "Documented bootstrap, daily verification, backup, restore, and rollback"
   ],
-  "blockers": [
-    "Mac-local bootstrap and paid feature acceptance have not yet been run against Jacob's live credentials and launchd environment",
-    "An independent final review of the final PR head is still required"
-  ],
-  "next_action": "Run python3 scripts/openwebui_local.py bootstrap --accept-charges on Jacob's Mac, fix every reported failure, then record independent review evidence before marking PR #384 ready",
+  "blockers": [],
+  "next_action": "N/A",
   "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
-    "PR #384 is rebased or force-pushed so commit 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is no longer in its history",
-    "Open WebUI, Gateway, provider, agent, or tool configuration changes after the recorded acceptance pass"
+    "KPROOF-001 Phase 3 implementation changes the product surface, builder loop, or interaction contract beyond what this session recorded"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 384,
-    "state": "OPEN",
-    "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
-  },
-  "head_sha": "3d4c2404182173f2184f09aa7b6a4951d6e7f63a"
+  "pull_request": null,
+  "head_sha": "9560b8bcf2fd5664d727b71fd1209fa62f69fb96"
 }
 -->
 

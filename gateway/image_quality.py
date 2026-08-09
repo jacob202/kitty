@@ -3,13 +3,15 @@ from __future__ import annotations
 
 import io
 from dataclasses import dataclass, field
+from typing import Any
 
+Image: Any = None
+HAS_PIL = False
 try:
     from PIL import Image
     HAS_PIL = True
 except ImportError:
-    HAS_PIL = False
-    Image = None
+    pass
 
 
 @dataclass

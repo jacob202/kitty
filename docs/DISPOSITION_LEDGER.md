@@ -239,3 +239,36 @@ Specific dispositions:
 - **ARCHIVED:** 52 (historical records, shipped packets)
 
 **Unassigned: 0** — every retained file has exactly one disposition.
+
+---
+
+## Addendum — 2026-08-05 closeout (files added after the ledger date)
+
+The following documents were produced by the 2026-08-05 architecture research
+phase and preserved on `closeout/2026-08-05-architecture-reconciliation`. Full
+detail and owners are in [`CLOSEOUT_LEDGER_2026-08-05.md`](CLOSEOUT_LEDGER_2026-08-05.md).
+
+| File | Disposition | Roadmap outcome | Notes |
+|---|---|---|---|
+| `docs/adr/0028-…0036-*.md` | ACTIVE | ADR authority | Accepted; indexed in DECISIONS.md D27–D35 |
+| `docs/OPENWEBUI_OS_ARCHITECTURE.md` | BACKLOG | Phase 2 daily-driver | Proposal (would evolve ADR 0027 to permanent shell); awaits Jacob decision |
+| `docs/OPENWEBUI_PRODUCT_PLAN.md` | BACKLOG | Phase 2 (M1/M2) | Needs review |
+| `docs/OPENWEBUI_EXTENSION_BACKLOG.md` | BACKLOG | Phase 2 (M1/M2) | Needs review → Builder-managed backlog |
+| `docs/ROADMAP_V2.md` | BACKLOG | — | Proposed milestones M1–M6; authority conflict with ROADMAP.md (C-5) |
+| `docs/initiatives/v2-driver-baseline-v1.json` | BLOCKED | Phase 2 | NOT applied; blocked on needs_decision fix + Jacob approval (P0-7) |
+| `docs/BUILDER_ORGANIZATION.md` | BACKLOG | Phase 1/3 | Design, not implemented |
+| `docs/BUILDER_V2.md` | BACKLOG | Phase 1/3 | Replacement blueprint, not implemented |
+| `docs/CAPABILITY_MANIFEST.md` | SCHEDULED | Phase 2 (M1 Home, M2 console) | Core spec implementing ADR 0029; Jacob sign-off (P1-3) |
+| `docs/KITTY_MASTER_PROGRAM.md` | BACKLOG | — | Proposed; supersede claim conflicts with ROADMAP.md (C-5) |
+| `docs/CONSTITUTION.md` (v1) | ACTIVE (pending ratification) | Top-level design authority | Ratification decision (C-6) |
+| `docs/KNOWLEDGE_GRAPH.md` | BACKLOG | — | Analysis catalog |
+| `docs/CONTINUITY_RECOVERY.md` | BACKLOG | — | Needs review |
+| `docs/research/architecture-decision-summary-2026-08-05.md` | ACTIVE | Research index | Decision-tree reference |
+| `docs/research/architecture-migration-analysis-2026-08-05.md` | BACKLOG | — | Migration deferred (ADR 0031) |
+| `docs/research/README.md` | ACTIVE | Research index | Research index (new) |
+| `docs/CLOSEOUT_LEDGER_2026-08-05.md` | ACTIVE | — | This closeout ledger |
+| `docs/LOOSE_ENDS_2026-08-05.md` | ACTIVE | — | P0–P3 register; drives next action |
+| `artifacts/forensic-b8-wrong-assignment-2026-08-05.md` | ACTIVE | — | Evidence for P0-1 fix |
+| `artifacts/handoff-builder-trust-model-v1.md` | BACKLOG | Phase 1 | Task brief; deliverable not yet produced |
+
+**Carried to origin/main:** awaiting Jacob review/merge of the closeout branch.
