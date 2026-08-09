@@ -1,7 +1,7 @@
 # Kitty Master Program — Builder's North Star
 
-**Date:** 2026-08-08
-**Authority:** Derived synthesis of `docs/ROADMAP_V2.md` (active authority), the superseded `docs/ROADMAP.md` (historical record), and the extension backlog into a single dependency-ordered program. Authority chain: ROADMAP_V2.md defines active priority; ROADMAP.md is preserved historical record; this document synthesizes both into one complete reference. It is not an independent authority.
+**Date:** 2026-08-05
+**Authority:** Derived synthesis of `docs/ROADMAP.md` (active authority), `docs/ROADMAP_V2.md` (V2 target plan), and the extension backlog into a single dependency-ordered program. Authority chain: ROADMAP.md (ADRs 0020, 0028–0036, Constitution) defines active priority; ROADMAP_V2.md defines V2 milestone targets; this document synthesizes both into one complete reference. It is not an independent authority. ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 5 governs the relationship.
 **Question answered:** If Jacob disappeared for six months, exactly what order should Builder execute everything?
 
 This document is the merged, deduplicated, dependency-ordered program. Every piece of work from the roadmap (Gate 0 + Phases 1–4), the V2 milestones (M1–M6), the extension backlog (38 extensions ranked), the product architecture (Phases 0–6), the open issues, the active missions, the Builder initiatives, the disposition ledger's backlog, the knowledge graph's recommendations, and the continuity recovery's priorities — everything — is sequenced here exactly once.
@@ -12,9 +12,9 @@ No phase, milestone, or outcome from any source document is lost. Conflicts betw
 
 ## Phase Numbering — Derived Synthesis
 
-This P0–P8 scheme is a derived synthesis for reading convenience. The authoritative scheme for active work is ROADMAP_V2.md (M1–M6). The superseded scheme is ROADMAP.md (Gate/Phase/Outcome). Do not use P<n> in Builder manifests, packet IDs, or the disposition ledger.
+This P0–P8 scheme is a derived synthesis for reading convenience. The authoritative scheme for active work is ROADMAP.md (Gate/Phase/Outcome). The V2 target scheme is ROADMAP_V2.md (M1–M6). Do not use P<n> in Builder manifests, packet IDs, or the disposition ledger.
 
-Three schemes existed: `ROADMAP.md` (Gate/Phase/Outcome), `ROADMAP_V2.md` (M1–M6), and `KITTY_PRODUCT_ARCHITECTURE.md` (Phase 0–6). This document uses a single unified scheme:
+Three schemes existed: `ROADMAP.md` (Gate/Phase/Outcome), `ROADMAP_V2.md` (M1–M6), and `KITTY_PRODUCT_ARCHITECTURE.md` (Phase 0–6). This document maps all three into a single unified scheme for cross-reference convenience.
 
 ```
 P0 — Repository Foundation
@@ -142,7 +142,7 @@ These apply to every packet in every phase:
 **Status:** NOT STARTED (P0 priority per continuity recovery §7)
 **Source:** Continuity recovery §7, KB signal `builder-needs-decision-must-gate-loop`, forensic B8 analysis
 **Dependencies:** None.
-**Scope:** This gates resolution of B8/B9/B10 and future initiatives touching the same trust-hole class. It does not gate unrelated Builder work per ADR 0021.
+**Scope:** This gates resolution of B8/B9/B10 and future initiatives touching the same trust-hole class. It does not gate unrelated Builder work per ADR 0021. ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 9 clarifies the boundary.
 **Deliverable:** `docs/plans/builder-trust-model-v1.md`. Enforce `needs_decision` as a gating state. Make the B8 class of trust-hole impossible.
 **Acceptance:** No packet can be reassigned to a new worker without an explicit `needs_decision` event that survives restart. Independent review verifies the model prevents the B8 resurrection pattern.
 **Owner:** Chief Architect role. Verifier: independent Reviewer.
@@ -450,7 +450,7 @@ These apply to every packet in every phase:
 - All seven P4 extensions are independent of each other (they share Gateway endpoints but don't depend on each other's Open WebUI code)
 - P4.1–P4.7 can all be built in parallel by different workers
 - P4.3 (Honest State Header) depends on P2.4 (Capability Manifest v1)
-- P4.1–P4.2 and P4.4–P4.7 may proceed with minimal runtime truth endpoints (existing `/state/next`, `/state/brief`, `/state/resume`). Verify these endpoints are ready before starting P4 extension work.
+- P4.1–P4.2 and P4.4–P4.7 may proceed with minimal runtime truth endpoints (existing `/state/next`, `/state/brief`, `/state/resume`). Verify these endpoints are ready before starting P4 extension work. ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 10 clarifies the dependency.
 - P4.6 (Builder Mission Center) depends on P3.1 being complete
 
 ---
@@ -895,7 +895,7 @@ Kitty is complete when:
 ## Authority and Supersession
 
 This document:
-- **Is:** A derived synthesis of `docs/ROADMAP.md` (active authority, per ADR 0020), `docs/ROADMAP_V2.md` (V2 target plan), and the extension backlog into a single dependency-ordered program.
+- **Is:** A derived synthesis of `docs/ROADMAP.md` (active authority, per ADR 0020), `docs/ROADMAP_V2.md` (V2 target plan), and the extension backlog into a single dependency-ordered program. ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 5 governs the relationship.
 - **Implements:** Constitution v1, all ratified ADRs 0001–0036, KITTY_PRODUCT_ARCHITECTURE.md, OPENWEBUI_PRODUCT_PLAN.md, OPENWEBUI_EXTENSION_BACKLOG.md, CONTINUITY_RECOVERY.md, KNOWLEDGE_GRAPH.md, BUILDER_ORGANIZATION.md, BLUEPRINT.md, ALIGNMENT_MAP.md, all active missions, and all Builder initiatives.
 - **Is superseded by:** A future ADR that explicitly revises the program. Routine amendments may be made by updating this document with a dated revision note.
 - **Does not override:** The Constitution, any ratified ADR, or live Gateway/Builder/runtime evidence. If this document and the running system disagree, the running system wins — then this document must be updated.

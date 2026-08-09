@@ -1,11 +1,27 @@
 import type { NextRequest } from 'next/server'
 
-import { resolveProxyConfig } from '@/lib/gateway-proxy-config'
+import {
+  isTrustedProxyRequest,
+  resolveProxyConfig,
+} from '@/lib/gateway-proxy-config'
 
 async function handler(
   req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
+  const requestHost = req.headers.get('host') ?? req.nextUrl.host
+  const requestOrigin = req.headers.get('origin') ?? undefined
+
+  if (!isTrustedProxyRequest(requestHost, requestOrigin)) {
+    return Response.json(
+      {
+        error:
+          'Kitty gateway proxy is loopback-only. Authenticated LAN or tailnet proxy access is not configured.',
+      },
+      { status: 403 }
+    )
+  }
+
   const { gatewayUrl, gatewaySecret } = resolveProxyConfig()
   const { path } = await params
   const target = `${gatewayUrl}/${path.join('/')}${req.nextUrl.search}`
@@ -66,8 +82,8 @@ async function handler(
   })
 }
 
-export const GET    = handler
-export const POST   = handler
+export const GET = handler
+export const POST = handler
 export const DELETE = handler
-export const PUT    = handler
-export const PATCH  = handler
+export const PUT = handler
+export const PATCH = handler

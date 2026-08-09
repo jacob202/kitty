@@ -11,12 +11,12 @@ import argparse
 import logging
 import random
 import sys
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add the project root to sys.path so we can import gateway
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from gateway.memory_weave import get_weave

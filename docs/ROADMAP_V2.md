@@ -1,11 +1,9 @@
 # Kitty Version 2 — Master Roadmap
 
-**Status:** Active authority (replaces `docs/ROADMAP.md`)
-**Date:** 2026-08-08
+**Status:** Ratified target plan — accepted architecture, not execution schedule. Ratified by the Constitution v1 ratification table (2026-08-05). ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 5 governs the relationship with `docs/ROADMAP.md` (active authority).
+**Date:** 2026-08-05
 **Owner:** Jacob (authorization); Kitty (planning); KittyBuilder (execution)
-**Relation to current docs:** this is the active roadmap. The superseded
-`docs/ROADMAP.md` is preserved as historical record; it is no longer active
-authority.
+**Relation to current docs:** this is the Version 2 target plan. `docs/ROADMAP.md` remains the active execution authority (ADR 0020). This doc sequences V2 delivery as releasable milestones (M1–M6).
 
 ---
 

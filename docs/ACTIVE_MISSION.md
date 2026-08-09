@@ -1,54 +1,112 @@
-# Active Mission — Phase 2 Life-First Home Truth
+# Active Mission — Two-Week Builder Proof
 
-**Roadmap phase:** Phase 2 ("Life-First Daily Driver") in `docs/ROADMAP.md`
-**Mission ID:** KLF-001
-**Status:** Running
-**Phase linkage:** This mission sits within Phase 2 of the roadmap. Phase 2 was
-not defined when KLF-001 was authored; the roadmap now defines it and this
-mission is its active execution thread.
+**Mission ID:** KPROOF-001  
+**Status:** Running  
+**Approved by:** Jacob on 2026-08-04  
+**Proof window:** 2026-08-04 through 2026-08-18  
+**Budget ceiling:** $25 CAD  
+**Base SHA:** `b3f68aae84525f980d44db8d7b9e6d728457b0db`
 
 <!-- kitty-mission
 {
   "schema_version": 1,
-  "mission_id": "KLF-001",
+  "mission_id": "KPROOF-001",
   "status": "running",
-  "approved_at": "2026-07-31T11:29:42Z",
+  "approved_at": "2026-08-04T18:27:00-06:00",
   "approved_by": "Jacob",
-  "base_sha": "e3b4c7a4c4c6f8d1b08c39a4fae38a5b56a92835",
-  "authority": "docs/ACTIVE_MISSION.md"
+  "base_sha": "b3f68aae84525f980d44db8d7b9e6d728457b0db",
+  "authority": "docs/ACTIVE_MISSION.md",
+  "deadline": "2026-08-18",
+  "budget_cad": 25
 }
 -->
 
 ## Objective
-Finish the recovered August life-first plan by making Home reliably expose one
-truthful life-project move, independently from active chat state or transient
-startup failures.
 
-## Authorization
-Jacob explicitly instructed OpenCode to recover, review, and execute the prior
-monthly plan, then approved reapplying the verified Home/Chat separation after
-a concurrent worktree reset.
 
-## Scope
-1. Keep Home and Chat as separate product surfaces.
-2. Recover automatically from a transient Gateway health timeout.
-3. Ensure `/repairs` runs blocking checks outside the event loop.
-4. Label Builder transition-history defects accurately rather than as leases.
-5. Report healthy Kitty-owned listeners as running even when pidfiles are stale.
-6. Reconcile mission and checkpoint metadata with live Git state.
+## Decision to prove
+
+Can Kitty provide a genuinely better way to take a software request from conversation to a working, verified feature without Jacob manually coordinating the agents?
+
+Kitty continues only as this bounded proof. The proof is not authorization to build the full vision.
+
+## Phase 1 — Evidence-driven audit
+
+Inspect the running application, Builder's actual execution path, working integrations, dead or unwired UI, GitHub history and issues, and repair-versus-replacement options. Separate direct evidence from inference and unknowns.
+
+The audit must produce:
+
+- what demonstrably works;
+- what only appears to work;
+- what should be preserved;
+- what should be repaired or replaced;
+- the smallest two-week implementation sequence;
+- a tiny webpage prototype of the proposed conversation-and-progress experience.
+
+No repository rebuild or broad implementation begins during the audit.
+
+## Phase 2 — Experience test
+
+The prototype must show:
+
+- a polished Kitty conversation;
+- decisive guidance about the next move;
+- relevant personal and project context;
+- visible Builder progress beside the conversation;
+- the ability to question or redirect work while it runs;
+- a plain statement of what is happening now and what comes next.
+
+It passes only if Jacob genuinely prefers the experience to opening ChatGPT or Claude directly for the same project task.
+
+## Phase 3 — One real Builder loop
+
+Use one currently dead interaction in the Build Work area and complete this loop:
+
+1. Jacob discusses the broken interaction with Kitty.
+2. Kitty helps define the desired outcome.
+3. Jacob approves the result contract.
+4. Builder creates a durable job.
+5. Builder chooses an available capable model.
+6. Context survives model or provider changes.
+7. Builder edits the code.
+8. Builder launches the real application.
+9. Builder exercises the feature end to end.
+10. A second model reviews the implementation and result.
+11. Builder repairs remaining defects.
+12. Kitty reports completion only after the interaction works in the running product.
+
+Jacob must be able to continue chatting with Kitty and ask what it is doing, why, and what comes next.
+
+## Non-negotiable rules
+
+- Runtime behavior outranks documentation, tests, commits, and agent claims.
+- Existing working code comes first; Git history and evidence come second.
+- Architecture may change only when evidence supports it.
+- Models are replaceable workers. Provider or usage exhaustion must not erase the job or its context.
+- Ask before exceeding the proof budget, deleting anything, sending messages, publishing, or changing account or security settings.
+- Jacob may steer and answer meaningful questions, but manual agent coordination counts as proof failure.
+- Do not add image generation, broad computer control, deep memory, elaborate routing, another agent framework, or a major redesign during this mission.
 
 ## Acceptance Contract
-- Home renders the life-first dashboard even when the active chat has messages.
-- A transient startup health failure retries and reaches the application.
-- Live Repairs reports the healthy Gateway and LiteLLM as healthy.
-- Builder rows lacking event history are not described as stale leases.
-- `./kitty status` reports healthy Kitty-owned listeners as running.
-- Focused frontend and backend tests pass.
-- The running app shows the same life-first step at desktop and mobile widths,
-  with no horizontal mobile overflow.
-- `./kitty context --agent` has no continuity failures.
 
-## Publication Authorization
-Jacob explicitly authorized commit, push, PR review, and merge for this mission.
-Secrets, auth, `.env`, paid execution, destructive data changes, new
-orchestration machinery, and unrelated product expansion remain excluded.
+
+## Pass condition
+
+By 2026-08-18:
+
+- Builder completes one real feature loop;
+- the result works in the launched application;
+- the experience is pleasant, fast, clear, and understandable;
+- Jacob would voluntarily choose Kitty over direct ChatGPT or Claude for the next project task.
+
+## Failure condition
+
+Pause Kitty for several months if Builder still requires constant supervision, the interface remains frustrating, or Jacob still prefers direct tools.
+
+Preserve working integrations, repository history, the prototype, audit, and findings. Use existing AI tools separately until the technology or Jacob's capacity changes enough to justify another attempt.
+
+## Product boundary
+
+The central product is a personal AI operator that understands the project, recommends the next move, visibly carries the work through to a functioning result, and keeps going when individual models or sessions fail.
+
+Everything else must earn its place by helping that loop work.

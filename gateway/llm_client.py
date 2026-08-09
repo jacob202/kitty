@@ -116,14 +116,20 @@ def _env_slug(name: str, default: str) -> str:
 # Kept in step with gateway/litellm_config.yaml. The direct-provider chain runs
 # when LiteLLM is unreachable; a route missing here would be sent to OpenRouter
 # verbatim as "kitty-think", which is not a model id anywhere.
+# Bare "provider/model" ids, with no "openrouter/" prefix. That prefix is
+# LiteLLM's routing marker, and this map feeds the *direct* OpenRouter call whose
+# resolved value goes straight into payload["model"]. Verified against the live
+# API: "openrouter/qwen/qwen3-coder" answers HTTP 400 "is not a valid model ID",
+# "qwen/qwen3-coder" succeeds. The prefix was on the pre-existing entries too, so
+# the direct fallback has never worked for any route.
 _LITELLM_TO_OPENROUTER: dict[str, str] = {
-    _LITELLM_DEFAULT: "openrouter/deepseek/deepseek-v4-pro",
-    "kitty-default-or": "openrouter/deepseek/deepseek-v4-flash",
-    "kitty-sonnet": "openrouter/deepseek/deepseek-v4-pro",
-    "kitty-small": "openrouter/deepseek/deepseek-v4-flash",
-    "kitty-think": "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
-    "kitty-code": "openrouter/qwen/qwen3-coder",
-    "kitty-vision": "openrouter/mistralai/mistral-small-3.2-24b-instruct",
+    _LITELLM_DEFAULT: "deepseek/deepseek-v4-pro",
+    "kitty-default-or": "deepseek/deepseek-v4-flash",
+    "kitty-sonnet": "deepseek/deepseek-v4-pro",
+    "kitty-small": "deepseek/deepseek-v4-flash",
+    "kitty-think": "qwen/qwen3-235b-a22b-thinking-2507",
+    "kitty-code": "qwen/qwen3-coder",
+    "kitty-vision": "mistralai/mistral-small-3.2-24b-instruct",
 }
 
 

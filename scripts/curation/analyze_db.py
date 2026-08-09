@@ -1,8 +1,8 @@
 
+import json
 import sqlite3
 from pathlib import Path
-from collections import defaultdict
-import json
+
 
 def analyze_db(db_path, books_dir):
     """
@@ -48,7 +48,7 @@ def analyze_db(db_path, books_dir):
                         has_content = False
                 except (json.JSONDecodeError, TypeError):
                     pass
-            
+
             if has_content:
                 files_with_content += 1
             else:
@@ -57,7 +57,7 @@ def analyze_db(db_path, books_dir):
             # Check if orphaned
             if file_info["filename"] not in book_files:
                 orphaned_files += 1
-        
+
         print(f"Total files: {total_files}")
         print(f"Files with content: {files_with_content}")
         print(f"Empty or unprocessed files: {empty_files}")

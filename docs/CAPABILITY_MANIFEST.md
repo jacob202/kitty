@@ -3,7 +3,7 @@
 **Schema version:** 2
 **Authority:** Architectural. Governed by Constitution v1 Article III.5, ADR 0029, ADR 0032, and KITTY_PRODUCT_ARCHITECTURE.md Section 4.
 **Date:** 2026-08-05
-**Status:** Core specification — supersedes the schema described in KITTY_PRODUCT_ARCHITECTURE.md Section 4 and the v1 layout in `gateway/runtime_manifest.py`.
+**Status:** Designed — not yet built. Per ADR 0029, the Capability Manifest is the designated single source of runtime truth, but implementation has not begun. This document is the authoritative specification; it supersedes earlier schema descriptions. Live runtime truth currently derives from existing endpoints (`gateway/runtime_manifest.py`, `builder_status.py`).
 
 The Capability Manifest is Kitty's single source of runtime truth. Every UI, every client, every shell, every prompt — they all consume this document. No other endpoint, no other config file, no other inferred state has the authority to contradict it.
 

@@ -12,10 +12,11 @@ count or wall-clock runtime) is exhausted, or an operator pause is observed.
 Each packet decision is written durably to the events table so a restart can
 reconcile what already happened.
 
-The loop is deliberately thin: it owns orchestration and budgets only. All
-real work (worker execution, validation, review, publish, merge) is delegated
-to the stage modules. It never force-pushes and never advances a task past
-the state its workers (or, for merges, the CP-06 evidence gate) leave it in.
+The loop is deliberately thin: it owns orchestration, budgets, and the
+outcome-level effectiveness stop. All real work (worker execution, validation,
+review, publish, merge) is delegated to the stage modules. It never force-pushes
+and never advances a task past the state its workers (or, for merges, the CP-06
+evidence gate) leave it in.
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from gateway import builder_initiative as bi
 from gateway import builder_loop as bl
 from gateway import builder_publish as bp
 from gateway import builder_queue as bq
+from gateway import operating_policy as op
 
 EVENT_DECISION = "initiative_decision"
 
@@ -52,10 +54,7 @@ STOP_NEEDS_DECISION = "needs_decision"
 
 
 def _failure_signature(attempt: dict[str, Any]) -> tuple[Any, Any, Any]:
-    """The crude, mechanical (validation command, exit code, review finding
-    class) tuple two attempts must share to count as "the same failure".
-    Deliberately not output-diffing or fuzzy matching — see CP-03 note.
-    """
+    """The crude, mechanical failure signature used for repeat detection."""
     validation_failure = attempt.get("validation_failure") or {}
     review_finding_class = attempt.get("review_finding_class")
     return (
@@ -66,10 +65,7 @@ def _failure_signature(attempt: dict[str, Any]) -> tuple[Any, Any, Any]:
 
 
 def _classify_exhaustion(loop_result: dict[str, Any]) -> dict[str, Any]:
-    """Classify why a packet exhausted: routine retry-out, or a decision
-    that needs Jacob. Returns at least ``stop_class`` and ``reason``; a
-    scope/identity escalation also carries ``findings``.
-    """
+    """Classify packet exhaustion as routine or requiring Jacob's decision."""
     escalation = loop_result.get("escalation")
     if escalation is not None:
         return {
@@ -80,16 +76,94 @@ def _classify_exhaustion(loop_result: dict[str, Any]) -> dict[str, Any]:
 
     attempts = loop_result.get("attempts", [])
     budget_consuming = [
-        a for a in attempts if a.get("outcome") in ba._BUDGET_CONSUMING_OUTCOMES
+        attempt
+        for attempt in attempts
+        if attempt.get("outcome") in ba._BUDGET_CONSUMING_OUTCOMES
     ]
     if len(budget_consuming) >= 2:
-        signatures = {_failure_signature(a) for a in budget_consuming}
+        signatures = {_failure_signature(attempt) for attempt in budget_consuming}
         if len(signatures) == 1:
             return {
                 "stop_class": STOP_NEEDS_DECISION,
                 "reason": "requirement may be ambiguous",
             }
     return {"stop_class": STOP_ROUTINE, "reason": "packet exhausted"}
+
+
+def _pause_needs_decision(
+    initiative_id: str,
+    packet_id: str,
+    task_id: str,
+    loop_result: dict[str, Any],
+    classification: dict[str, Any],
+    *,
+    db_path: Path | None,
+) -> None:
+    """Durably pause an initiative on a ``needs_decision`` exhaustion stop.
+
+    A packet blocked on scope/identity escalation or an ambiguous
+    requirement must not be silently re-selected for another worker run
+    without a new operator decision. This writes the decision event and
+    pauses the initiative so the run loop stops instead of continuing.
+    """
+    bi.pause_initiative(
+        initiative_id,
+        f"needs operator decision on {packet_id}: {classification['reason']}",
+        db_path=db_path,
+    )
+    _decide(
+        task_id,
+        {
+            "initiative_id": initiative_id,
+            "packet_id": packet_id,
+            "decision": "packet_needs_decision",
+            "reason": loop_result.get("reason"),
+            "stop_class": classification["stop_class"],
+            "stop_class_reason": classification["reason"],
+            **(
+                {"findings": classification["findings"]}
+                if "findings" in classification
+                else {}
+            ),
+        },
+        db_path,
+    )
+
+
+def _paused_gate_summary(
+    initiative_id: str,
+    *,
+    db_path: Path | None,
+    processed: list[dict[str, Any]],
+    succeeded: int,
+    exhausted: int,
+) -> dict[str, Any]:
+    """Summarize an already-paused initiative from durable state.
+
+    The pause may predate this call (a later invocation or a process
+    restart), so the gate re-derives the stop_class from the durable
+    decision events instead of defaulting to routine. A pause recorded by
+    ``_pause_needs_decision`` therefore still reports ``stop_class=
+    needs_decision`` here, so the CLI can keep treating it as operator
+    decision required rather than ordinary completion.
+    """
+    reason = "initiative paused before loop step"
+    stop_class = STOP_ROUTINE
+    try:
+        status = bi.initiative_status(initiative_id, db_path=db_path)
+    except bi.InitiativeNotFoundError:
+        status = None
+    if status is not None:
+        reason = status.get("pause_reason") or reason
+        stop_class = status.get("stop_class") or STOP_ROUTINE
+    return {
+        "outcome": "paused",
+        "reason": reason,
+        "stop_class": stop_class,
+        "processed": processed,
+        "succeeded": succeeded,
+        "exhausted": exhausted,
+    }
 
 
 def _cancellation_provenance(loop_result: dict[str, Any]) -> dict[str, Any]:
@@ -106,14 +180,99 @@ def _cancellation_provenance(loop_result: dict[str, Any]) -> dict[str, Any]:
 
 
 def _decide(
-    task_id: str, payload: dict[str, Any], db_path: Path | None
+    task_id: str,
+    payload: dict[str, Any],
+    db_path: Path | None,
 ) -> None:
     """Log a durable packet decision. Fail-loud on a missing task log."""
     bq.append_event(task_id, EVENT_DECISION, payload, db_path=db_path)
 
 
+def _effectiveness_metrics(
+    *,
+    campaign_started: float,
+    packet_started: float,
+    processed_packets: int,
+    accepted_packets: int,
+) -> dict[str, float | int | None]:
+    """Measurements the initiative loop owns without guessing.
+
+    Builder does not yet have trustworthy cumulative token, metadata-time,
+    reset, blocker, projection, or simple-baseline measurements. They remain
+    ``None``. After the policy observation window that missing telemetry is a
+    pause condition, not permission to continue indefinitely.
+    """
+    now = time.monotonic()
+    return {
+        "elapsed_seconds": max(now - campaign_started, 0.0),
+        "processed_packets": processed_packets,
+        "accepted_packets": accepted_packets,
+        "current_packet_elapsed_seconds": max(now - packet_started, 0.0),
+        "consecutive_no_substantive_diff": None,
+        "setup_metadata_seconds": None,
+        "supervisor_tokens": None,
+        "worker_tokens": None,
+        "reset_recovery_events": None,
+        "repeated_systemic_blocker_count": None,
+        "projected_completion_seconds": None,
+        "simple_baseline_seconds": None,
+    }
+
+
+def _effectiveness_pause(
+    initiative_id: str,
+    packet_id: str,
+    task_id: str,
+    *,
+    campaign_started: float,
+    packet_started: float,
+    processed_packets: int,
+    accepted_packets: int,
+    db_path: Path | None,
+) -> dict[str, Any] | None:
+    """Pause a campaign that is durable but not economically trustworthy."""
+    metrics = _effectiveness_metrics(
+        campaign_started=campaign_started,
+        packet_started=packet_started,
+        processed_packets=processed_packets,
+        accepted_packets=accepted_packets,
+    )
+    decision = op.evaluate_builder_campaign(metrics)
+    if decision.status not in {"pause", "insufficient_evidence"}:
+        return None
+
+    reasons = list(decision.reasons)
+    if not reasons:
+        reasons = [
+            "Builder lacks the core measurements required to judge campaign effectiveness"
+        ]
+    reason = "Builder effectiveness guard: " + "; ".join(reasons)
+    bi.pause_initiative(initiative_id, reason, db_path=db_path)
+    _decide(
+        task_id,
+        {
+            "initiative_id": initiative_id,
+            "packet_id": packet_id,
+            "decision": "effectiveness_paused",
+            "reason": reason,
+            "stop_class": STOP_ROUTINE,
+            "effectiveness": decision.to_dict(),
+            "metrics": metrics,
+        },
+        db_path,
+    )
+    return {
+        "outcome": "paused",
+        "reason": reason,
+        "stop_class": STOP_ROUTINE,
+        "effectiveness": decision.to_dict(),
+    }
+
+
 def _packet_validation_commands(
-    initiative_id: str, packet_id: str, db_path: Path | None
+    initiative_id: str,
+    packet_id: str,
+    db_path: Path | None,
 ) -> list[str]:
     conn = bq.connect(db_path)
     try:
@@ -139,14 +298,11 @@ def _attempt_auto_merge(
     repo_root: Path | None,
     db_path: Path | None,
 ) -> dict[str, Any]:
-    """CP-06: merge behind the evidence gate, revalidate, revert on red.
-
-    Never raises — a merge-path failure degrades to the pre-CP-06
-    park-at-awaiting_review shape (``outcome: "merge_failed"``) rather than
-    aborting the whole initiative run over an infrastructure hiccup.
-    """
+    """CP-06: merge behind the evidence gate, revalidate, revert on red."""
     validation_commands = _packet_validation_commands(
-        initiative_id, packet_id, db_path
+        initiative_id,
+        packet_id,
+        db_path,
     )
     try:
         result = bp.merge_and_verify(
@@ -197,7 +353,7 @@ def _attempt_auto_merge(
             },
             db_path,
         )
-    else:  # skipped_tripwire
+    else:
         _decide(
             task_id,
             {
@@ -231,27 +387,28 @@ def run_initiative(
     gate: str = GATE_AUTO,
     max_initiative_attempts: int | None = None,
     max_runtime_seconds: int | None = None,
+    effectiveness_guard: bool = True,
     repo_root: Path | None = None,
     db_path: Path | None = None,
     governor_db: Path | None = None,
 ) -> dict[str, Any]:
     """Drive an initiative to completion, one eligible packet at a time.
 
-    Returns a summary dict: ``outcome`` is one of ``idle`` (no eligible packet
-    left), ``paused`` (budget exceeded or operator pause), or ``aborted`` (loop
-    error that cannot be reconciled here). ``processed`` lists per-packet
-    outcomes; ``reason`` explains any non-idle exit.
+    ``effectiveness_guard`` is default-on. It evaluates the campaign after each
+    durable packet outcome and pauses on wall-time, packet-time, throughput, or
+    missing post-observation telemetry. Disabling it is an explicit operator
+    action intended for bounded diagnostics, not normal campaigns.
     """
     if max_initiative_attempts is not None and max_initiative_attempts < 0:
         raise ValueError("max_initiative_attempts must be non-negative")
     if max_runtime_seconds is not None and max_runtime_seconds <= 0:
         raise ValueError("max_runtime_seconds must be positive")
     if gate not in (GATE_AUTO, GATE_MANUAL):
-        raise ValueError(f"gate must be {GATE_AUTO!r} or {GATE_MANUAL!r}, got {gate!r}")
+        raise ValueError(
+            f"gate must be {GATE_AUTO!r} or {GATE_MANUAL!r}, got {gate!r}"
+        )
 
     bi.init_db(db_path)
-    # Restart reconciliation is part of the durable loop contract: stale
-    # leases/runs must be resolved before another packet can be claimed.
     bq.recover_expired_leases(db_path=db_path)
     bq.recover_interrupted_runs(db_path=db_path)
     started = time.monotonic()
@@ -262,14 +419,13 @@ def run_initiative(
 
     while True:
         if bi.get_initiative_state(initiative_id, db_path=db_path) == bi.INITIATIVE_PAUSED:
-            return {
-                "outcome": "paused",
-                "reason": "initiative paused before loop step",
-                "stop_class": STOP_ROUTINE,
-                "processed": processed,
-                "succeeded": succeeded,
-                "exhausted": exhausted,
-            }
+            return _paused_gate_summary(
+                initiative_id,
+                db_path=db_path,
+                processed=processed,
+                succeeded=succeeded,
+                exhausted=exhausted,
+            )
 
         packet = bi.next_packet(initiative_id, db_path=db_path)
         if packet is None:
@@ -318,7 +474,9 @@ def run_initiative(
             and (time.monotonic() - started) > max_runtime_seconds
         ):
             bi.pause_initiative(
-                initiative_id, "initiative runtime budget exceeded", db_path=db_path
+                initiative_id,
+                "initiative runtime budget exceeded",
+                db_path=db_path,
             )
             _decide(
                 task_id,
@@ -340,6 +498,7 @@ def run_initiative(
                 "exhausted": exhausted,
             }
 
+        packet_started = time.monotonic()
         try:
             loop_result = bl.run_packet(
                 initiative_id,
@@ -458,13 +617,6 @@ def run_initiative(
                                 "succeeded": succeeded,
                                 "exhausted": exhausted,
                             }
-                        # "merged": task is now DONE; the next while-loop
-                        # iteration's next_packet() picks up newly-eligible
-                        # downstream packets in this same invocation.
-                        # "skipped_tripwire" / "merge_failed": task stays at
-                        # awaiting_review; next_packet() finds nothing more
-                        # eligible under this packet and the loop exits idle
-                        # — the same shape as pre-CP-06 park-and-wait.
                 except bp.PublishError as exc:
                     _decide(
                         task_id,
@@ -565,14 +717,52 @@ def run_initiative(
             }
         )
 
+        if effectiveness_guard:
+            pause = _effectiveness_pause(
+                initiative_id,
+                packet_id,
+                task_id,
+                campaign_started=started,
+                packet_started=packet_started,
+                processed_packets=len(processed),
+                accepted_packets=succeeded,
+                db_path=db_path,
+            )
+            if pause is not None:
+                return {
+                    **pause,
+                    "processed": processed,
+                    "succeeded": succeeded,
+                    "exhausted": exhausted,
+                }
+
         if loop_result["outcome"] == bl.LOOP_CANCELLED:
-            # Cancellation is durable evidence of a stopped worker, not retry
-            # exhaustion. The task's existing terminal/blocked state remains
-            # authoritative while unrelated eligible work may continue.
             continue
 
         if loop_result["outcome"] != "succeeded":
-            assert classification is not None  # set in the exhaustion branch above
+            assert classification is not None
+            if classification["stop_class"] == STOP_NEEDS_DECISION:
+                _pause_needs_decision(
+                    initiative_id,
+                    packet_id,
+                    task_id,
+                    loop_result,
+                    classification,
+                    db_path=db_path,
+                )
+                return {
+                    "outcome": "paused",
+                    "reason": (
+                        f"needs operator decision on {packet_id}: "
+                        f"{classification['reason']}"
+                    ),
+                    "stop_class": STOP_NEEDS_DECISION,
+                    "packet_id": packet_id,
+                    "task_id": task_id,
+                    "processed": processed,
+                    "succeeded": succeeded,
+                    "exhausted": exhausted,
+                }
             _decide(
                 task_id,
                 {
@@ -585,10 +775,7 @@ def run_initiative(
                 },
                 db_path,
             )
-            # The exhausted/cancelled packet is no longer eligible. Loop again so
-            # Builder can select unrelated approved work; dependencies on this
-            # packet remain blocked by builder_initiative's existing rules.
             continue
 
-        # Continue to the next eligible packet. Dependent packets remain
-        # gated until merge reconciliation promotes this task to DONE.
+        # Continue to the next eligible packet. Dependent packets remain gated
+        # until merge reconciliation promotes this task to DONE.

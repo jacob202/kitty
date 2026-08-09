@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Review the current git diff using the dedicated @reviewer agent."""
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 # Add project root to sys.path
@@ -11,11 +11,12 @@ sys.path.insert(0, str(ROOT))
 from gateway.agents import get_agent_prompt
 from gateway.llm_client import call_llm
 
+
 def main():
     print("Gathering git diff...")
     diff_proc = subprocess.run(["git", "diff", "HEAD"], capture_output=True, text=True)
     diff_text = diff_proc.stdout.strip()
-    
+
     if not diff_text:
         print("No changes found to review.")
         return 0

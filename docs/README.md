@@ -1,44 +1,44 @@
 # Kitty Documentation
 
-This directory separates current authority from planning inputs, evidence, and history. Existing does not mean current.
+Existing does not mean current. Use this index instead of inferring authority from filenames, detail, or recency.
 
 ## Current authority
 
-| Document | Purpose |
+| Concern | Document |
 |---|---|
-| [`AUTHORITY_MAP.md`](AUTHORITY_MAP.md) | Routes each kind of truth to its owner |
-| [`NORTH_STAR.md`](NORTH_STAR.md) | Product purpose and life-first outcome |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Current runnable system and boundaries |
-| [`DECISIONS.md`](DECISIONS.md) | Accepted decisions and ADR routing |
-| [`ROADMAP.md`](ROADMAP.md) | Sole active delivery sequence |
-| [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | Verified shipped state at a stated commit |
-| [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md) | One approved current mission |
-| [`FEATURE_REALITY_2026-07-28.md`](FEATURE_REALITY_2026-07-28.md) | Product-surface reality check |
-| [`CODEBASE_MAP.md`](CODEBASE_MAP.md) | Human- and AI-readable repository map |
+| Truth ownership | [`AUTHORITY_MAP.md`](AUTHORITY_MAP.md) |
+| Product purpose | [`NORTH_STAR.md`](NORTH_STAR.md) |
+| Architecture and boundaries | [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+| Durable decisions | [`DECISIONS.md`](DECISIONS.md) and [`adr/`](adr/) |
+| Active delivery order | [`ROADMAP.md`](ROADMAP.md) |
+| Verified repository state | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) |
+| One approved mission | [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md) |
+| Code/data-flow map | [`reference/CODEBASE_MAP.md`](reference/CODEBASE_MAP.md) |
+| Current GitHub truth pass | [`audit/GITHUB_OPERATING_PICTURE_2026-08-04.md`](audit/GITHUB_OPERATING_PICTURE_2026-08-04.md) |
 
 ## Supporting material
 
-- `adr/` — durable architectural decisions.
-- `plans/` — candidate work, implementation plans, research, and preserved planning inputs. These do not override the roadmap unless explicitly absorbed.
-- `packets/` — scoped execution contracts and historical packet material; verify approval and freshness before use.
-- `audit/` — bounded findings and evidence.
-- `reference/` — reusable technical references.
-- `reference/VIBE_CODER_WORKFLOW.md` — session-first coding workflow scaffold and checklist.
-- `phases/` and `planning/` — legacy organization that should be migrated or archived when touched.
+- `plans/` — candidate work and implementation inputs; not authority until absorbed.
+- `research/` — dated research and decision inputs (indexed in [`research/README.md`](research/README.md)); ADR inputs, not authority.
+- `packets/` — scoped execution contracts and historical packet material.
+- `audit/` — dated findings and evidence.
+- `reference/` — reusable technical guidance.
+- `phases/` and `planning/` — legacy organization; treat as historical unless current authority links to it.
 
-## Historical material
+## History
 
-`archive/` contains superseded documents, old handoffs, completed session plans, and retired operating material. Archived content can preserve reasoning, but it is never current instruction.
+`archive/` preserves superseded plans, handoffs, status snapshots, and operating material. Archived content may explain why a decision was made, but it is never current instruction.
 
-## Reading order
-
-For a cold start, use the canonical order in [`../START_HERE.md`](../START_HERE.md). Do not browse the directory alphabetically and infer authority from filenames or recency.
+The pre-reconciliation roadmap is preserved by Git history and indexed at [`archive/ROADMAP_PRE_RECONCILIATION_2026-08-04.md`](archive/ROADMAP_PRE_RECONCILIATION_2026-08-04.md).
 
 ## Maintenance rule
 
-When a document becomes obsolete:
+When current truth changes:
 
-1. extract any still-valid decision, learning, or evidence into its canonical owner;
-2. move the original into `archive/` without rewriting its historical claims;
-3. record why it moved in the archive index or a dated manifest;
-4. repair inbound links and remove it from current navigation.
+1. update the canonical owner;
+2. preserve superseded reasoning in `archive/`, an ADR, or a dated audit;
+3. repair inbound links;
+4. remove the obsolete document from current navigation;
+5. never convert historical prose into live execution state.
+
+For a cold start, follow [`../START_HERE.md`](../START_HERE.md).

@@ -50,6 +50,13 @@ def route_model(message: str) -> str:
     return resolve_chat_route("kitty-default", message, reroute_virtual_models=True).model
 
 
+def _has_image(content: object) -> bool:
+    """Whether a message carries an image part."""
+    return isinstance(content, list) and any(
+        isinstance(part, dict) and part.get("type") == "image_url" for part in content
+    )
+
+
 def _message_text(content: object) -> str:
     """The text of a message, whether or not it also carries images.
 
@@ -157,9 +164,12 @@ async def chat_completions(request: Request):
     caller_supplies_tools = bool(body.get("tools"))
 
     user_text = ""
+    turn_has_image = False
     for m in reversed(messages):
         if m.get("role") == "user":
-            user_text = _message_text(m.get("content", ""))
+            content = m.get("content", "")
+            user_text = _message_text(content)
+            turn_has_image = _has_image(content)
             break
 
     # KX-05-02 / KX-06-01: detect repairs/signals intent and inject the current feed
@@ -206,11 +216,19 @@ async def chat_completions(request: Request):
         requested_model,
         user_text,
         reroute_virtual_models=True,
+        domain=domain,
+        has_image=turn_has_image,
     )
     # route_model stays in the auto path: it is the seam callers and tests patch
     # to redirect routing, and reading route_decision.model directly would walk
     # straight past it.
-    model = route_decision.model if route_decision.source == "request" else route_model(user_text)
+    # route_model stays the patchable seam for the plain text-auto path, but a
+    # modality decision already knows better than a re-classification can.
+    model = (
+        route_decision.model
+        if route_decision.source in {"request", "modality"}
+        else route_model(user_text)
+    )
 
     conversation_id = body.get("conversation_id")
     if conversation_id is not None and (

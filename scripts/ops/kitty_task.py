@@ -17,12 +17,13 @@ Usage:
 """
 
 import sys
-import os
+
 sys.path.insert(0, '/Users/jacobbrizinski/Projects/kitty')
+
+import asyncio
 
 from gateway.antigravity_tools import invoke_tool
 from gateway.task_boundary import task_boundary
-import asyncio
 
 
 def task_summary():
@@ -172,17 +173,17 @@ def main():
     if len(sys.argv) < 2:
         print(__doc__)
         return
-    
+
     command = sys.argv[1]
-    
+
     if command == "summary":
         task_summary()
-    
+
     elif command == "open":
         name = sys.argv[2] if len(sys.argv) > 2 else "Unnamed Task"
         summary = " ".join(sys.argv[3:]) if len(sys.argv) > 3 else ""
         task_open(name, summary)
-    
+
     elif command == "update":
         if len(sys.argv) < 3:
             print("❌ Task ID required")
@@ -191,7 +192,7 @@ def main():
         status = sys.argv[3] if len(sys.argv) > 3 else "in_progress"
         summary = " ".join(sys.argv[4:]) if len(sys.argv) > 4 else ""
         task_update(task_id, status, summary)
-    
+
     elif command == "close":
         if len(sys.argv) < 3:
             print("❌ Task ID required")
@@ -199,35 +200,35 @@ def main():
         task_id = sys.argv[2]
         summary = " ".join(sys.argv[3:]) if len(sys.argv) > 3 else "Complete"
         task_close(task_id, summary)
-    
+
     elif command == "notify":
         message = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else "Notification"
         notify(message)
-    
+
     elif command == "discover":
         discovery = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else None
         if not discovery:
             print("❌ Discovery text required")
             return
         share_discovery(discovery)
-    
+
     elif command == "discoveries":
         get_discoveries()
-    
+
     elif command == "feedback":
         artifact = sys.argv[2] if len(sys.argv) > 2 else None
         if not artifact:
             print("❌ Artifact path required")
             return
         check_feedback(artifact)
-    
+
     elif command == "search":
         query = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else None
         if not query:
             print("❌ Search query required")
             return
         search_codebase(query)
-    
+
     else:
         print(f"❌ Unknown command: {command}")
         print(__doc__)

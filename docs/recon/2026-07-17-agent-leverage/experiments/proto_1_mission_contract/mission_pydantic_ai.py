@@ -23,11 +23,9 @@ from datetime import datetime, timezone
 
 sys.path.insert(0, str(__file__.rsplit("/", 1)[0]))
 from mission_pydantic import Mission  # noqa: E402
-
 from pydantic_ai import Agent, ModelRetry  # noqa: E402
 from pydantic_ai.messages import ModelResponse, TextPart  # noqa: E402
 from pydantic_ai.models.function import AgentInfo, FunctionModel  # noqa: E402
-
 
 # ---------- A. Structural surface ----------
 

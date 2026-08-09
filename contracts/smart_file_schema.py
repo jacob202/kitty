@@ -1,7 +1,9 @@
 
 import json
 from typing import List, Optional
+
 from pydantic import BaseModel, Field
+
 
 class FileMetadata(BaseModel):
     """
@@ -13,17 +15,17 @@ class FileMetadata(BaseModel):
     canonical_name: str
     file_type: str  # pdf, epub, md, etc.
     hash: str
-    
+
     # 2. Curation & Categorization
     primary_category: str
     sub_category: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
-    
+
     # 3. The "Soul" (Deep LLM Analysis)
     soul: str = Field(description="The core essence and provocative purpose of the book.")
     hooks: List[str] = Field(description="Specific, spicy insights or 'hooks' extracted from the text.")
     takes: List[str] = Field(description="Unique perspectives or 'takes' this book offers on its subject.")
-    
+
     # 4. Structural Intelligence
     specialist_instruction: str = Field(description="Instructions for a specialist agent on how to use this specific file.")
     summary: str

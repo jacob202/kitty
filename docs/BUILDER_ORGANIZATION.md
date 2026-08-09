@@ -1,9 +1,8 @@
 # Builder Organization Architecture
 
-**Status:** Design — not yet implemented. Not ratified. Implementation requires separate ADR.
+**Status:** Design — not yet implemented. Not ratified. Implementation requires separate ADR. ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 4 preserves this as design input; Builder's ratified role is execution control plane (ADR 0017). Organization concepts may inform future ADR amendments.
 **Author:** Jacob
 **Date:** 2026-08-05
-**Ratification:** `docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md` Decision 4 — preserved as design input. Builder's ratified role is execution control plane (ADR 0017). Organization concepts (Chief Architect, Reviewer, Implementer) may inform future ADR amendments.
 
 Builder is not a workflow engine. It is an engineering organization of
 specialized workers, each with bounded authority, defined inputs and outputs,

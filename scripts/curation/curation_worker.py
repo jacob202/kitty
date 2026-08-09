@@ -2,24 +2,28 @@
 import asyncio
 import hashlib
 import json
-import os
-import sys
-from pathlib import Path
 import sqlite3
+import sys
 from datetime import datetime
-import mimetypes
+from pathlib import Path
+
 import requests
-
 import yaml
-from gateway import clerk, llm_client
-from contracts.smart_file_schema import FileMetadata
 
-from gateway.config import OWUI_URL, OWUI_ADMIN_EMAIL, OWUI_ADMIN_PASSWORD, CANONICAL_LIBRARY_DIR, STATUS_DB_PATH
+from contracts.smart_file_schema import FileMetadata
+from gateway import clerk, llm_client
+from gateway.config import (
+    CANONICAL_LIBRARY_DIR,
+    OWUI_ADMIN_EMAIL,
+    OWUI_ADMIN_PASSWORD,
+    OWUI_URL,
+)
+
 
 # --- OpenWebUI Helpers ---
 def owui_login():
-    resp = requests.post(f"{OWUI_URL}/api/v1/auths/signin", 
-                         json={"email": OWUI_ADMIN_EMAIL, "password": OWUI_ADMIN_PASSWORD}, 
+    resp = requests.post(f"{OWUI_URL}/api/v1/auths/signin",
+                         json={"email": OWUI_ADMIN_EMAIL, "password": OWUI_ADMIN_PASSWORD},
                          timeout=20)
     resp.raise_for_status()
     return resp.json().get("token")
@@ -75,10 +79,10 @@ def update_db_status(book_id, status, error=None, **kwargs):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     now = datetime.now().isoformat()
-    
+
     updates = [f"{k}=1" for k, v in kwargs.items() if v]
     update_str = ", ".join(updates) + (", " if updates else "")
-    
+
     query = f"UPDATE curation_status SET status=?, error_message=?, {update_str} processed_at=? WHERE id=?"
     cursor.execute(query, (status, error, now, book_id))
     conn.commit()
@@ -88,7 +92,7 @@ async def process_and_upload(book_id: str, source_path: Path):
     """The One-Pass Curation Engine: Extract -> Synthesize -> Assemble -> Upload."""
     print(f"🚀 Starting Full Pipeline: {book_id}")
     update_db_status(book_id, 'in_progress')
-    
+
     try:
         # 1. Extraction
         raw_text = clerk._extract_text(source_path)
@@ -120,7 +124,7 @@ async def process_and_upload(book_id: str, source_path: Path):
             processed_at=datetime.now().strftime("%Y-%m-%d"),
             model_used="kitty-default"
         )
-        
+
         frontmatter = yaml.dump(metadata.model_dump(), sort_keys=False)
         header = f"\n# {metadata.canonical_name}\n\n> **The Soul:** {metadata.soul}\n\n## 🎯 Hooks\n" + \
                  "\n".join([f"- {h}" for h in metadata.hooks]) + \
@@ -128,9 +132,9 @@ async def process_and_upload(book_id: str, source_path: Path):
                  "\n".join([f"- {t}" for t in metadata.takes]) + \
                  f"\n\n## 🛠️ Specialist Instruction\n*{metadata.specialist_instruction}*\n\n---\n\n## 📋 Table of Contents\n" + \
                  "\n".join([f"- {item}" for item in metadata.table_of_contents]) + "\n\n---\n"
-        
+
         full_content = f"---\n{frontmatter}---\n{header}\n{raw_text}"
-        
+
         dest_dir = CANONICAL_LIBRARY_DIR / metadata.primary_category / metadata.sub_category
         dest_dir.mkdir(parents=True, exist_ok=True)
         target_path = dest_dir / f"{metadata.canonical_name}.md"
@@ -140,7 +144,7 @@ async def process_and_upload(book_id: str, source_path: Path):
         # 4. Upload to OpenWebUI
         token = owui_login()
         kb_map = owui_get_kbs(token)
-        
+
         kb_name = metadata.primary_category.lower()
         if kb_name not in kb_map:
             kb_name = "general reference"
@@ -149,13 +153,13 @@ async def process_and_upload(book_id: str, source_path: Path):
         if kb_id:
             # Upload file
             with target_path.open("rb") as f:
-                up_resp = requests.post(f"{OWUI_URL}/api/v1/files/", 
+                up_resp = requests.post(f"{OWUI_URL}/api/v1/files/",
                                         headers={"Authorization": f"Bearer {token}"},
                                         files={"file": (target_path.name, f, "text/markdown")},
                                         timeout=120)
                 up_resp.raise_for_status()
                 file_id = up_resp.json().get("id")
-                
+
                 # Add to KB
                 add_resp = requests.post(f"{creds['url']}/api/v1/knowledge/{kb_id}/file/add",
                                          headers={"Authorization": f"Bearer {token}"},
