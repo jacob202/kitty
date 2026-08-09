@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { BuilderSurface } from '../src/components/BuilderSurface'
+import { useBuilderAction } from '../src/lib/queries'
 import type {
   BuilderFailureKind,
   BuilderPacketStatus,
@@ -17,6 +18,9 @@ vi.mock('../src/lib/queries', () => ({
 const NOW = '2026-07-17T03:00:00Z'
 
 afterEach(cleanup)
+afterEach(() => {
+  vi.mocked(useBuilderAction).mockReturnValue({ isPending: false, mutate: vi.fn() } as ReturnType<typeof useBuilderAction>)
+})
 
 function builderFact(
   value: BuilderStatusSnapshot,
@@ -467,5 +471,65 @@ describe('BuilderSurface', () => {
     expect(
       screen.queryByRole('button', { name: /run|retry|cancel|approve|reject|publish|merge/i }),
     ).toBeNull()
+  })
+
+  it('surfaces a rejected action as an immediate, visible failure', () => {
+    const deadPacket: BuilderPacketStatus = { ...PACKET, packet_id: 'DEAD-1', title: 'Dead packet', task_state: 'failed' }
+    const snapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      initiatives: [{ ...SNAPSHOT.initiatives[0], packets: [deadPacket] }],
+    }
+    let onError: ((err: unknown) => void) | undefined
+    const mutate = vi.fn((_vars: unknown, opts: { onError?: (err: unknown) => void }) => {
+      onError = opts.onError
+    })
+    vi.mocked(useBuilderAction).mockReturnValue({ isPending: false, mutate } as unknown as ReturnType<typeof useBuilderAction>)
+
+    render(<BuilderSurface fact={builderFact(snapshot)} isLoading={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View packet Dead packet' }))
+    fireEvent.click(screen.getByRole('button', { name: 'requeue' }))
+
+    act(() => { onError?.(new Error('requeue rejected: packet lease is still active')) })
+
+    expect(screen.getByText(/requeue rejected: packet lease is still active/)).toBeInTheDocument()
+  })
+
+  it('does not claim a completed action until refreshed durable state proves it', () => {
+    const deadPacket: BuilderPacketStatus = { ...PACKET, packet_id: 'DEAD-1', title: 'Dead packet', task_state: 'failed' }
+    const snapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      initiatives: [{ ...SNAPSHOT.initiatives[0], packets: [deadPacket] }],
+    }
+    let onSuccess: (() => void) | undefined
+    const mutate = vi.fn((_vars: unknown, opts: { onSuccess?: () => void }) => {
+      onSuccess = opts.onSuccess
+    })
+    vi.mocked(useBuilderAction).mockReturnValue({ isPending: false, mutate } as unknown as ReturnType<typeof useBuilderAction>)
+
+    const { rerender } = render(<BuilderSurface fact={builderFact(snapshot)} isLoading={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View packet Dead packet' }))
+    fireEvent.click(screen.getByRole('button', { name: 'requeue' }))
+
+    // The server accepted the request. That is not proof the durable
+    // record actually transitioned — must not read as a completion claim.
+    act(() => { onSuccess?.() })
+    expect(screen.getByText(/requeue request accepted — refreshing status/)).toBeInTheDocument()
+    expect(screen.queryByText(/confirmed/)).toBeNull()
+
+    // A manifest refetch comes back with the packet unchanged — still no
+    // completion claim.
+    rerender(<BuilderSurface fact={builderFact(snapshot)} isLoading={false} />)
+    expect(screen.getByText(/requeue request accepted — refreshing status/)).toBeInTheDocument()
+    expect(screen.queryByText(/confirmed/)).toBeNull()
+
+    // Only once the refreshed durable state actually differs does this
+    // become a confirmed completion.
+    const updatedPacket: BuilderPacketStatus = { ...deadPacket, task_state: 'queued', updated_at: '2026-07-17T03:05:00Z' }
+    const refreshedSnapshot: BuilderStatusSnapshot = {
+      ...snapshot,
+      initiatives: [{ ...snapshot.initiatives[0], packets: [updatedPacket] }],
+    }
+    rerender(<BuilderSurface fact={builderFact(refreshedSnapshot)} isLoading={false} />)
+    expect(screen.getByText(/requeue confirmed — packet state updated/)).toBeInTheDocument()
   })
 })

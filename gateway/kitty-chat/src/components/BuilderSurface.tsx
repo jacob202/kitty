@@ -63,6 +63,60 @@ const surfaceLayout: CSSProperties = {
   boxSizing: 'border-box',
 }
 
+const errorBar: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 10px',
+  borderRadius: 4,
+  background: '#F4433611',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: '#F44336',
+}
+
+const successBar: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 10px',
+  borderRadius: 4,
+  background: '#4CAF5011',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: '#4CAF50',
+}
+
+const pendingBar: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 10px',
+  borderRadius: 4,
+  background: 'var(--surface-2, #80808011)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: 'var(--ink-2)',
+}
+
+/** kind:
+ * - 'accepted': the request was accepted by the server — not proof the
+ *   requested transition landed. Never render this as green.
+ * - 'confirmed': the subsequent runtime-manifest refetch showed the
+ *   packet's durable state actually changed.
+ * - 'failed': the server rejected the request. */
+type ActionResult = { kind: 'accepted' | 'confirmed' | 'failed'; text: string }
+
+function ActionResultBar({ result }: { result: ActionResult }) {
+  const style = result.kind === 'confirmed' ? successBar : result.kind === 'failed' ? errorBar : pendingBar
+  const glyph = result.kind === 'confirmed' ? '✓' : result.kind === 'failed' ? '✗' : '…'
+  return (
+    <div style={style} role="status">
+      <span>{glyph} {result.text}</span>
+    </div>
+  )
+}
+
 /** Home-page summary backed by the same truthful runtime fact as the detail view. */
 export function BuilderGlance({ onOpen }: BuilderGlanceProps) {
   const query = useGatewayRuntimeManifest()
@@ -334,185 +388,6 @@ function BuilderNextActionCard({
   )
 }
 
-function BuilderControls({
-  snapshot,
-  selection,
-  onRefresh,
-}: {
-  snapshot: BuilderStatusSnapshot
-  selection: PacketSelection | null
-  onRefresh: () => void
-}) {
-  const action = useBuilderAction()
-  const [busy, setBusy] = useState(false)
-  const [confirmCleanup, setConfirmCleanup] = useState(false)
-
-  const pausedInitiatives = snapshot.initiatives.filter((i) => i.state === 'paused')
-  const activeInitiatives = snapshot.initiatives.filter((i) => i.state === 'active')
-  const zombiePackets = snapshot.initiatives.flatMap((i) =>
-    i.packets.map((p) => ({ ...p, _initiativeId: i.initiative_id })).filter(
-      (p) => p.task_state === 'cancelled' || p.task_state === 'failed'
-    )
-  )
-  const stalePackets = snapshot.initiatives.flatMap((i) =>
-    i.packets.map((p) => ({ ...p, _initiativeId: i.initiative_id })).filter(
-      isStalePacket
-    )
-  )
-
-  const runAction = (builderAction: string, initiativeId?: string, packetId?: string) => {
-    setBusy(true)
-    action.mutate(
-      { action: builderAction, initiativeId, packetId },
-      {
-        onSettled: () => setBusy(false),
-      },
-    )
-  }
-
-  const hasControls = pausedInitiatives.length > 0
-    || zombiePackets.length > 0
-    || stalePackets.length > 0
-
-  if (!hasControls) {
-    return null
-  }
-
-  return (
-    <section style={{ ...card, display: 'grid', gap: 12 }} aria-label="Builder controls">
-      <div style={cardHeader}>
-        <div style={cardTitle}>controls</div>
-      </div>
-
-      {pausedInitiatives.map((initiative) => (
-        <div key={initiative.initiative_id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', flex: 1, minWidth: 120 }}>
-            {initiative.title} is paused
-          </span>
-          {initiative.pause_reason && (
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', flex: 1, minWidth: 120 }}>
-              {initiative.pause_reason}
-            </span>
-          )}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => runAction('resume', initiative.initiative_id)}
-            style={actionButton}
-          >
-            resume
-          </button>
-        </div>
-      ))}
-
-      {activeInitiatives.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', flex: 1 }}>
-            {activeInitiatives.map((i) => i.title).join(', ')}
-          </span>
-        </div>
-      )}
-
-      {stalePackets.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--c-yellow)' }}>
-            {stalePackets.length} stale packet{stalePackets.length === 1 ? '' : 's'} — claimed or running too long
-          </span>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => runAction('recover_stale')}
-              style={{ ...actionButton, borderColor: 'var(--c-yellow)', color: 'var(--c-yellow)' }}
-            >
-              {busy ? '…' : 'recover stale'}
-            </button>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', alignSelf: 'center' }}>
-              scans expired claims and requeues them
-            </span>
-          </div>
-          {stalePackets.slice(0, 5).map((p) => (
-            <div key={p.packet_id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', paddingLeft: 4 }}>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {p.title} — {staleLabel(p)}
-              </span>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => runAction('requeue', p._initiativeId, p.packet_id)}
-                style={{ ...actionButton, fontSize: 10, padding: '4px 8px' }}
-              >
-                requeue
-              </button>
-            </div>
-          ))}
-          {stalePackets.length > 5 && (
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
-              +{stalePackets.length - 5} more
-            </span>
-          )}
-        </div>
-      )}
-
-      {zombiePackets.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
-            {zombiePackets.length} dead task{zombiePackets.length === 1 ? '' : 's'} — cancelled or failed
-          </span>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {zombiePackets.slice(0, 5).map((p) => (
-              <button
-                key={p.packet_id}
-                type="button"
-                disabled={busy}
-                onClick={() => runAction('requeue', p._initiativeId, p.packet_id)}
-                style={{ ...actionButton, color: 'var(--c-blue)' }}
-              >
-                {busy ? '…' : `requeue ${p.title.slice(0, 20)}${p.title.length > 20 ? '…' : ''}`}
-              </button>
-            ))}
-            {zombiePackets.length > 5 && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', alignSelf: 'center' }}>
-                +{zombiePackets.length - 5} more — view in packet list to requeue individually
-              </span>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {!confirmCleanup ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setConfirmCleanup(true)}
-                style={{ ...actionButton, alignSelf: 'flex-start', borderColor: 'var(--c-red)', color: 'var(--c-red)' }}
-              >
-                clean up dead work
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => { runAction('cleanup'); setConfirmCleanup(false) }}
-                  style={{ ...actionButton, alignSelf: 'flex-start', background: 'var(--c-red)', color: '#fff', borderColor: 'var(--c-red)' }}
-                >
-                  {busy ? '…' : 'confirm — permanent'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmCleanup(false)}
-                  style={{ ...actionButton, alignSelf: 'center' }}
-                >
-                  cancel
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </section>
-  )
-}
-
 const STALE_THRESHOLD_MS = 10 * 60 * 1000
 
 function isStalePacket(packet: BuilderPacketStatus): boolean {
@@ -720,10 +595,31 @@ function PacketDetail({
   const headingRef = useRef<HTMLHeadingElement>(null)
   const action = useBuilderAction()
   const [busy, setBusy] = useState(false)
+  const [lastResult, setLastResult] = useState<ActionResult | null>(null)
+  // Set when a mutation is accepted but not yet proven against durable
+  // state. Cleared once the refreshed packet actually differs from the
+  // pre-action snapshot, or a new action starts. A mutation resolving
+  // without throwing only means the request was accepted — it is not
+  // proof the requested transition reached the durable record, so
+  // "succeeded" may never be shown from the mutation callback alone.
+  const pendingConfirmationRef = useRef<{
+    builderAction: string
+    updatedAt: string | null
+    taskState: string | null
+  } | null>(null)
 
   useEffect(() => {
     headingRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    const pending = pendingConfirmationRef.current
+    if (!pending) return
+    if (packet.updated_at !== pending.updatedAt || packet.task_state !== pending.taskState) {
+      pendingConfirmationRef.current = null
+      setLastResult({ kind: 'confirmed', text: `${pending.builderAction} confirmed — packet state updated` })
+    }
+  }, [packet.updated_at, packet.task_state])
 
   const isDead = packet.task_state === 'cancelled' || packet.task_state === 'failed'
   const isPacketStale = isStalePacket(packet)
@@ -731,9 +627,24 @@ function PacketDetail({
 
   const runAction = (builderAction: string) => {
     setBusy(true)
+    setLastResult(null)
+    pendingConfirmationRef.current = null
     action.mutate(
       { action: builderAction, initiativeId: packet.initiative_id, packetId: packet.packet_id },
-      { onSettled: () => setBusy(false) },
+      {
+        onSettled: () => setBusy(false),
+        onSuccess: () => {
+          pendingConfirmationRef.current = {
+            builderAction,
+            updatedAt: packet.updated_at,
+            taskState: packet.task_state,
+          }
+          setLastResult({ kind: 'accepted', text: `${builderAction} request accepted — refreshing status` })
+        },
+        onError: (err) => {
+          setLastResult({ kind: 'failed', text: err instanceof Error ? err.message : 'action failed' })
+        },
+      },
     )
   }
 
@@ -765,6 +676,7 @@ function PacketDetail({
       {packet.data_quality.state === 'partial' && (
         <DataQualityNotice detail={packet.data_quality.issues.join(' ')} />
       )}
+      {lastResult && <ActionResultBar result={lastResult} />}
       {needsAction && (
         <div style={{ ...card, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderColor: 'var(--c-yellow)' }}>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', flex: 1 }}>

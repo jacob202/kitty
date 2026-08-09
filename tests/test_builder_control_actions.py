@@ -10,8 +10,11 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from gateway import action_queue
+from gateway.routes import builder_control
 
 BUILDER_KINDS = [
     "builder.run_next",
@@ -70,3 +73,34 @@ def test_run_kitty_fails_loud_on_nonzero_exit():
     with patch.object(action_queue.subprocess, "run", return_value=_Proc()):
         with pytest.raises(RuntimeError, match="boom"):
             action_queue._run_kitty(["queue", "status"])
+
+
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    monkeypatch.setattr(action_queue, "ACTIONS_DB_FILE", tmp_path / "kitty.db", raising=False)
+    action_queue.reload_registry()
+    app = FastAPI()
+    app.include_router(builder_control.router)
+    yield TestClient(app)
+    action_queue.reload_registry()
+
+
+def test_builder_action_reports_failure_when_the_executor_fails(client):
+    """action_queue.execute() catches executor exceptions and records
+    status='failed' instead of raising — /builder/action must propagate that
+    record instead of assuming a returned (non-raising) execute() succeeded."""
+    with patch.object(action_queue, "_run_kitty", side_effect=RuntimeError("boom")):
+        r = client.post("/builder/action", json={"action": "resume", "initiative_id": "demo-init"})
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is False
+    assert "boom" in body["error"]
+
+
+def test_builder_action_reports_success_when_the_executor_succeeds(client):
+    with patch.object(action_queue, "_run_kitty", return_value=""):
+        r = client.post("/builder/action", json={"action": "resume", "initiative_id": "demo-init"})
+
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
