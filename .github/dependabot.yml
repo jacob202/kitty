@@ -1,10 +1,22 @@
 version: 2
+
+# Each Dependabot PR fires a full Tests run: six jobs, ~13 billed minutes once
+# GitHub rounds every job up to the minute. At the previous limits a weekly
+# window could open 25 separate PRs, which is roughly 425 minutes per batch and
+# most of the 2,000-minute monthly allowance a private repo gets for free.
+# Grouping collapses each ecosystem into one PR per window without dropping any
+# update. Dependabot security alerts are a separate flow and are still raised
+# individually, so urgent fixes are not delayed by grouping.
 updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      python:
+        patterns:
+          - "*"
     labels:
       - "dependencies"
       - "python"
@@ -18,6 +30,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      frontend:
+        patterns:
+          - "*"
     labels:
       - "dependencies"
       - "frontend"
@@ -30,6 +46,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns:
+          - "*"
     labels:
       - "dependencies"
       - "ci"

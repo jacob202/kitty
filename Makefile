@@ -10,13 +10,21 @@ vibe-session:
 test:
 	python3.12 -m pytest tests/ -q --tb=short
 
+# Mirrors the pytest job's coverage gate. `test` stays uncovered so the
+# narrow-test loop during development is not slowed by instrumentation.
+test-ci:
+	python3.12 -m pytest tests/ -q --tb=short \
+		--cov=gateway --cov-report=term-missing --cov-fail-under=73
+
+# Paths match the lint and typecheck jobs exactly. They were narrower than CI,
+# so `make ci` could pass on code the Tests workflow would reject.
 lint:
-	./venv/bin/ruff check gateway/ tests/
+	./venv/bin/ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
 
 typecheck:
-	python3.12 -m mypy gateway/
+	python3.12 -m mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
 
-ci: lint typecheck test ui-test ui-build
+ci: lint typecheck test-ci ui-test ui-build
 
 smoke-test:
 	cd gateway/kitty-chat && npx playwright test
