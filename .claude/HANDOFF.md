@@ -1,59 +1,60 @@
-# Handoff — Open WebUI daily-driver acceptance (merged)
+# Handoff — superseded; do not resume
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-06T06:00:00Z",
-  "branch": "feat/openwebui-tomorrow-ready",
-  "worktree": "feat/openwebui-tomorrow-ready",
-  "status": "complete",
+  "updated_at": "2026-08-09T02:20:00Z",
+  "branch": "fix/kproof-authority-reconciliation-2026-08-08",
+  "worktree": "github-connected-reconciliation",
+  "status": "invalid",
   "completed_items": [
-    "Rebuilt PR #384 on current main without unrelated Image Studio changes",
-    "Pinned and isolated Open WebUI 0.10.2 as a loopback-only replaceable shell",
-    "Configured Kitty model menu, provider policy, five workspace agents, and bounded Kitty tools",
-    "Hardened environment isolation, process ownership, launchd enablement, backup, restore, and rollback",
-    "Added feature-level verification for settings, agents, models, tools, memory, notes, projects, calendar, Tutor contract, and Builder projection",
-    "Added bounded paid acceptance for every advertised model route and an end-to-end Daily Kitty turn",
-    "Fixed ASGI request replay for streaming chat responses and kept OpenRouter normalization at the direct-provider boundary",
-    "Documented bootstrap, daily verification, backup, restore, and rollback"
+    "Confirmed KPROOF-001 replaced the earlier trustworthy-daily-driver mission after the 2026-08-04 roadmap reconciliation",
+    "Reconciled docs/ROADMAP.md with KPROOF-001",
+    "Reconciled docs/PROJECT_STATUS.md with current repository and GitHub evidence",
+    "Confirmed PR #437 Actions jobs never reached a runner because GitHub blocked execution for account billing/spending reasons"
   ],
-  "blockers": [],
-  "next_action": "N/A",
-  "parallel_work": [],
+  "blockers": [
+    "This GitHub-connected session cannot inspect Jacob's live Mac runtime or local Builder database",
+    "GitHub Actions runners are currently blocked by the account billing/spending state"
+  ],
+  "next_action": "Do not resume the merged Open WebUI #384 session; establish a fresh KPROOF-001 checkpoint from the canonical Mac checkout.",
+  "parallel_work": [
+    {
+      "kind": "pull_request",
+      "ref": "#437",
+      "owner": "jacob202",
+      "touches": [
+        "gateway/kitty-chat/src/components/BuilderSurface.tsx",
+        "gateway/kitty-chat/src/lib/queries.ts"
+      ],
+      "observed_at": "2026-08-09T02:20:00Z"
+    }
+  ],
   "recommendations": [],
   "invalidation_conditions": [
-    "KPROOF-001 Phase 3 implementation changes the product surface, builder loop, or interaction contract beyond what this session recorded"
+    "This handoff is intentionally invalid because it replaces the superseded Open WebUI #384 continuation and was not created from a verified live Mac runtime session."
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null,
-  "head_sha": "9560b8bcf2fd5664d727b71fd1209fa62f69fb96"
+  "head_sha": "f1e820fea6dc6bac41e05c7ba2ef1b15fbae8646"
 }
 -->
 
-## What is configured
+## Why this handoff is invalid
 
-- Open WebUI is pinned to `0.10.2`, isolated under `~/kitty-services/openwebui`, unauthenticated only on loopback, and receives a minimal non-secret environment.
-- Kitty Gateway is the only OpenAI-compatible backend exposed to the shell.
-- The visible model menu is Kitty Auto, Fast, Think, Code, and Vision.
-- Daily Kitty, Research, Coding, Tutor, and Builder Operator are created or repaired on startup with the intended base route, tool attachment, and vision capability.
-- The bounded tool server exposes memory, notes, projects, calendar, Tutor, and read-only Builder projections.
-- Autostart, admin repair, PID ownership, backups, restore, rollback, and failure reporting are checked rather than assumed.
+The previous handoff told the next session to continue Open WebUI PR #384 even though that work had already merged and the approved mission had later changed to KPROOF-001. Reusing it would send a cold-starting agent into superseded work.
 
-## What the acceptance gate proves
+This file now fails closed on purpose. It is **not** an execution checkpoint.
 
-```bash
-python3 scripts/openwebui_local.py verify
-python3 scripts/openwebui_local.py verify --accept-charges
-```
+## Current authority
 
-The first command checks the configured settings, model discovery, all five agents, the bounded OpenAPI tool contract, and live read-only Kitty projections. The second additionally sends bounded turns through all advertised model routes and through Daily Kitty in Open WebUI.
+Read, in order:
 
-## Required next move
+1. `docs/ROADMAP.md` — KPROOF-001 is the current gate.
+2. `docs/ACTIVE_MISSION.md` — the approved two-week Builder proof and acceptance contract.
+3. `docs/PROJECT_STATUS.md` — current repository/GitHub evidence and explicit unknowns.
+4. `.claude/STATE.md` — the current interactive checkpoint when its metadata validates.
 
-Run the full bootstrap on Jacob's Mac:
+## Runtime boundary
 
-```bash
-python3 scripts/openwebui_local.py bootstrap --accept-charges
-```
-
-Do not mark PR #384 ready merely because CI passes. Fix every live verifier failure, rerun until clean, then obtain or record an independent review of the final head. No new feature work belongs in this branch before those acceptance gates pass.
+GitHub evidence cannot establish the live Mac service state, local Builder queue, credentials, providers, or running UI. A future local session must generate those facts through supported probes; it must not fill them from this handoff.

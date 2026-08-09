@@ -1,97 +1,104 @@
 # Kitty Roadmap
 
-**Current stage:** 1 — Trustworthy Daily Driver  
+**Current gate:** KPROOF-001 — Two-Week Builder Proof  
 **Active mission:** [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md)  
-**Last reconciled:** 2026-08-04
+**Proof deadline:** 2026-08-18  
+**Last reconciled:** 2026-08-08
 
-This is the sole active delivery order. It is intentionally short. Issues, plans, packets, branches, and research do not become current work unless this roadmap or the active mission explicitly places them next.
+This is the sole active delivery order. Issues, plans, packets, branches, and research do not become current work unless this roadmap or the active mission explicitly places them next.
 
-The pre-reconciliation roadmap remains available in Git history and is indexed by [`archive/ROADMAP_PRE_RECONCILIATION_2026-08-04.md`](archive/ROADMAP_PRE_RECONCILIATION_2026-08-04.md).
+## Current operating rule
 
-## Operating rule
+KPROOF-001 temporarily gates every broader roadmap stage. Finish the smallest real proof, verify it in the running system, and make the continue-or-pause decision before widening scope.
 
-Finish the smallest real user outcome, prove it in the running system, and only then widen scope. Reliability, security, truthful status, and completed daily workflows outrank speculative architecture or more surfaces.
+The previous trustworthy-daily-driver sequence is preserved below as post-proof work. It is **not** parallel execution while KPROOF-001 is running, except where an item is directly required to prove the active mission.
 
-## Stage 1 — Trustworthy daily driver
+Runtime behavior outranks documentation, tests, commits, and agent claims. Reliability, truthful status, bounded cost, recovery, and a completed user outcome outrank speculative architecture or more surfaces.
 
-**Goal:** Jacob can start Kitty, use the approved Open WebUI shell, receive a real response, preserve continuity, recover from failures, and understand what is happening without terminal archaeology.
+## Active gate — KPROOF-001
+
+**Decision to prove:** Can Kitty take a software request from conversation to a working, verified feature without Jacob manually coordinating the agents?
 
 Execute in this order:
 
-1. **Repository and security baseline**
-   - keep deterministic CI green;
-   - merge isolated security updates;
-   - fix false or broken review gates rather than bypassing them;
-   - keep custom clients loopback-only until real authentication exists.
+1. **Establish live baseline**
+   - inspect the canonical Mac checkout, current services, Builder state, provider availability, and test/build baseline;
+   - treat unavailable evidence as unknown rather than reconstructing it from prose;
+   - do not spend proof budget merely to inspect state.
 
-2. **One authoritative operating picture**
-   - keep README, Architecture, Decisions, Project Status, Active Mission, and this roadmap consistent;
-   - preserve superseded material as history, not parallel authority;
-   - keep image Git history unchanged by explicit owner decision.
+2. **Confirm the experience direction**
+   - compare the bounded conversation-plus-progress prototype with the current usable surfaces;
+   - keep only the smallest experience Jacob would actually choose for the proof.
 
-3. **Prove Open WebUI locally**
-   - clean start from supported commands;
-   - real streamed chat;
-   - actual model/provider attribution;
-   - conversation persistence across restart;
-   - bounded tools and memory behavior;
-   - understandable failure and recovery when a dependency is unavailable;
-   - no paid verification without explicit charge authorization.
+3. **Repair the truthful Builder control seam**
+   - make failed Builder actions fail visibly rather than appearing successful;
+   - refresh the authoritative runtime projection after successful actions;
+   - expose only the minimum contextual recovery action needed for the proof;
+   - verify the behavior in the running application, including a failure path.
 
-4. **Finish one continuity loop**
-   - complete #270 on the real phone/PWA;
-   - capture one non-sensitive insight;
-   - return it once at the intended time;
-   - record Act, Snooze, or Archive;
-   - prove restart and retry do not duplicate the return or action.
+4. **Prove conversation → approved durable job**
+   - turn one bounded conversation outcome into an inspectable Mission/result contract;
+   - require one meaningful approval;
+   - persist the job without Jacob translating it into a worker prompt or CLI sequence.
 
-5. **Enforce repository trust**
-   - complete #399's ledger for all active workflows;
-   - retain the smallest justified CI/operations set;
-   - retire only conclusively obsolete one-shot workflows;
-   - map required checks to real stable contexts;
-   - enable default-branch enforcement when the configuration can be applied safely.
+5. **Complete one real feature loop**
+   - let Builder select a capable worker;
+   - edit in an isolated branch/worktree;
+   - launch the real application and exercise the requested behavior;
+   - capture validation evidence and a second-model review;
+   - repair findings through the same durable job.
 
-### Stage 1 exit gate
+6. **Prove recovery**
+   - demonstrate that a controlled interruption or worker/provider failure does not erase the job, context, evidence, or next action;
+   - no manual reconstruction counts as success.
 
-Stage 1 is complete only when:
+7. **Make the verdict**
+   - score functioning result, Jacob intervention, clarity, recovery, total spend, and whether Jacob would voluntarily choose Kitty for the next project task;
+   - continue or pause exactly as `docs/ACTIVE_MISSION.md` requires.
 
-- main is green and the known security patch is merged;
-- the authority documents agree;
-- Open WebUI passes the clean-start/chat/persistence/restart proof on Jacob's Mac;
-- #270 has real phone and deduplication evidence;
-- the workflow ledger and enforceable protection configuration exist;
-- no primary claim depends on chat history or unsupported inference.
+### KPROOF-001 exit gate
 
-## Stage 2 — Complete existing user workflows
+The proof passes only when one real Builder feature loop works in the launched application, survives the required review/recovery checks, stays within the authorized budget, and the resulting experience is preferable to manually coordinating direct AI tools.
 
-Begin only after Stage 1 exits.
+If the proof fails by 2026-08-18, pause Kitty for several months and preserve the evidence rather than negotiating the standard downward.
+
+## Post-proof sequence — not active during KPROOF-001
+
+If KPROOF-001 passes, reconcile this roadmap from the proof evidence before starting the next stage. The retained order is:
+
+### Trustworthy daily driver
+
+- keep deterministic repository gates honest;
+- keep authority documents consistent;
+- prove Open WebUI clean start, real chat, persistence, restart, attribution, and understandable failure recovery on Jacob's Mac;
+- complete one real #270 phone/PWA capture → return → response loop with restart/deduplication evidence;
+- finish the workflow ledger/default-branch enforcement work only when it can be applied safely.
+
+### Complete existing user workflows
 
 Prioritize existing workflows over new surfaces:
 
 1. documents/projects: native import, progress, search, source opening, and useful failures;
 2. Tutor: grounded question/answer loop with inspectable sources;
-3. normal-language work submission: clear acknowledgement, progress, result, and recovery without exposing Builder internals;
+3. normal-language work submission beyond the single KPROOF feature: acknowledgement, progress, result, and recovery without exposing Builder internals;
 4. Image Lab: one real generation and one genuine reference-conditioned continuation with cost/provenance/cleanup evidence;
 5. selected automations that remove repeated work and remain explicit, bounded, and reversible.
 
 A capability is `proven`, `preview`, `developer-only`, `blocked`, or `hidden`. Unproven capability must not look shipped.
 
-## Stage 3 — Portability and leverage
+### Portability and leverage
 
-Begin only after Stage 2 produces stable daily value.
+Only after stable daily value:
 
-Candidate work:
-
-- rebase and revalidate #391 / #389 as a bounded PAA portability profile;
-- split and salvage #396 by subsystem rather than merging it whole;
-- evaluate task-level agent patterns from #390 through identical KittyBench tasks and budgets;
-- build Product Studio/audit capabilities only by reusing the proven browser evidence harness;
-- improve model routing through measured outcomes, not reputation or model-generated deciding scores.
+- revalidate bounded PAA portability work rather than adopting a framework wholesale;
+- salvage broad historical PRs by subsystem instead of merging them as unverified units;
+- evaluate agent/model patterns through identical tasks, budgets, and evidence;
+- reuse the proven browser evidence harness for later product-studio/audit work;
+- improve routing through measured outcomes, not reputation or model-generated scores.
 
 ## Explicitly deferred
 
-Until prior gates pass, do not start:
+Until the active gate passes, do not start:
 
 - another custom frontend foundation;
 - broad PAA or agent-framework refactoring;
@@ -106,7 +113,7 @@ Until prior gates pass, do not start:
 Work is complete only when its claim can be reconstructed from supported evidence:
 
 - exact commit/PR and changed paths;
-- deterministic commands and exit results;
+- deterministic commands and exact results;
 - live runtime steps for user-facing behavior;
 - service-on and service-off behavior where relevant;
 - explicit remaining limitations;
