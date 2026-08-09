@@ -129,6 +129,21 @@ def schedule(
     now = time.time()
 
     with kitty_db.connect(KITTY_DB_FILE) as conn:
+        existing = conn.execute(
+            f"SELECT id FROM {TABLE} "
+            "WHERE action = ? AND schedule_type = ? AND schedule_value = ? AND metadata = ? "
+            "LIMIT 1",
+            (action, schedule_type, schedule_value, json.dumps(metadata or {})),
+        ).fetchone()
+        if existing:
+            logger.warning(
+                "Cron schedule for action %r (%s %s) already exists (id=%s); skipping duplicate",
+                action,
+                schedule_type,
+                schedule_value,
+                existing[0],
+            )
+            return existing[0]
         conn.execute(
             f"INSERT INTO {TABLE} "
             "(id, name, action, schedule_type, schedule_value, metadata, created_at) "
