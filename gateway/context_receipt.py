@@ -1427,6 +1427,7 @@ def build_context_receipt(
     max_age: timedelta = DEFAULT_MAX_CHECKPOINT_AGE,
     github_lookup: GitHubLookup | None = None,
     recent_commit_limit: int = DEFAULT_RECENT_COMMITS,
+    include_builder: bool = True,
 ) -> dict[str, Any]:
     """Build the stable JSON-ready context receipt for an agent cold start."""
     repo_root = _resolve_repo_root(repo_root)
@@ -1440,7 +1441,19 @@ def build_context_receipt(
         github_lookup=github_lookup,
     )
     checks: list[ContinuityCheck] = inspection["checks"]
-    builder = _builder_summary(inspection["canonical_checkout"])
+    canonical_checkout = inspection["canonical_checkout"]
+    if include_builder:
+        builder = _builder_summary(canonical_checkout)
+    else:
+        builder = {
+            "state": "not_requested",
+            "source": "gateway.builder_status.build_control_plane_summary",
+            "database": str(canonical_checkout / "data" / "kittybuilder" / "builder_queue.db"),
+            "reason": "Builder inspection was not requested for this task",
+            "schema_version": None,
+            "queue": None,
+            "initiatives": None,
+        }
     origin_main_relation = _origin_main_relation(repo_root, head)
     unknowns = [
         {
@@ -1454,7 +1467,7 @@ def build_context_receipt(
         unknowns.append(
             {"field": "git.origin_main", "reason": origin_main_relation["reason"]}
         )
-    if builder["state"] != "available":
+    if builder["state"] not in {"available", "not_requested"}:
         unknowns.append({"field": "builder", "reason": builder["reason"]})
     for field, value in (
         ("continuity.state", inspection["state"]),
@@ -1518,6 +1531,58 @@ def build_context_receipt(
     }
 
 
+def compact_context_receipt(receipt: dict[str, Any]) -> dict[str, Any]:
+    """Return a small read-only projection for informational cold starts.
+
+    The full receipt remains the authority for implementation and Builder work.
+    This projection keeps freshness checks, current identity, authority routing,
+    and explicit unknowns while omitting repeated checkpoint payloads, worktree
+    paths, and per-initiative history that simple questions do not need.
+    """
+    repository = receipt["repository"]
+    git = receipt["git"]
+    working_tree = git["working_tree"]
+    builder = receipt["builder"]
+    initiatives = builder.get("initiatives")
+    compact_builder = {
+        key: builder[key]
+        for key in ("state", "source", "database", "reason", "schema_version", "queue")
+    }
+    compact_builder["initiative_count"] = len(initiatives) if isinstance(initiatives, list) else None
+    return {
+        "schema_version": receipt["schema_version"],
+        "mode": "compact",
+        "ok": receipt["ok"],
+        "repository": {
+            "repo_path": repository["repo_path"],
+            "canonical_checkout": repository["canonical_checkout"],
+            "registered_worktree_count": len(repository["registered_worktrees"]),
+        },
+        "git": {
+            "branch": git["branch"],
+            "head": git["head"],
+            "origin_main": git["origin_main"],
+            "working_tree": {
+                "state": working_tree["state"],
+                "changed_paths": working_tree["changed_paths"],
+            },
+            "recent_commits": git["recent_commits"],
+        },
+        "continuity": {
+            "summary": receipt["continuity"]["summary"],
+            "checks": receipt["continuity"]["checks"],
+            "active_mission": receipt["continuity"]["active_mission"],
+        },
+        "documentation": receipt["documentation"],
+        "builder": compact_builder,
+        "blockers": receipt["blockers"],
+        "next_action": receipt["next_action"],
+        "recommendations": receipt["recommendations"],
+        "evidence": receipt["evidence"],
+        "unknowns": receipt["unknowns"],
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="derive a deterministic Kitty context receipt")
     parser.add_argument(
@@ -1526,15 +1591,26 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help="emit deterministic JSON for an agent cold start",
     )
+    parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="omit bulky checkpoint, worktree, and initiative detail",
+    )
+    parser.add_argument(
+        "--skip-builder",
+        action="store_true",
+        help="do not inspect the Builder database for informational work",
+    )
     args = parser.parse_args(argv)
     if not args.agent:
         parser.error("--agent is required")
     try:
-        receipt = build_context_receipt(ROOT)
+        receipt = build_context_receipt(ROOT, include_builder=not args.skip_builder)
     except ContextReceiptError as exc:
         print(f"context receipt failed: {exc}", file=sys.stderr)
         return 1
-    print(json.dumps(receipt, indent=2, sort_keys=True))
+    output = compact_context_receipt(receipt) if args.compact else receipt
+    print(json.dumps(output, indent=2, sort_keys=True))
     return 0 if receipt["ok"] else 1
 
 

@@ -9,7 +9,11 @@ from pathlib import Path
 
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
-from gateway.context_receipt import build_context_receipt, run_continuity_checks
+from gateway.context_receipt import (
+    build_context_receipt,
+    compact_context_receipt,
+    run_continuity_checks,
+)
 
 NOW = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
 
@@ -204,6 +208,29 @@ def test_receipt_reads_builder_through_read_only_summary(tmp_path: Path):
     assert receipt["builder"]["state"] == "available", receipt["builder"]
     assert receipt["builder"]["queue"]["total"] == 0
     assert receipt["builder"]["initiatives"] == []
+
+
+def test_compact_receipt_preserves_freshness_and_omits_bulky_detail(tmp_path: Path):
+    repo, _head = _repo(tmp_path)
+
+    receipt = build_context_receipt(
+        repo,
+        expected_canonical=repo,
+        now=NOW,
+        include_builder=False,
+    )
+    compact = compact_context_receipt(receipt)
+
+    assert compact["mode"] == "compact"
+    assert compact["ok"] is True
+    assert compact["git"]["head"] == receipt["git"]["head"]
+    assert compact["continuity"]["checks"] == receipt["continuity"]["checks"]
+    assert compact["documentation"] == receipt["documentation"]
+    assert compact["builder"]["state"] == "not_requested"
+    assert compact["builder"]["initiative_count"] is None
+    assert "state" not in compact["continuity"]
+    assert "handoff" not in compact["continuity"]
+    assert "registered_worktrees" not in compact["repository"]
 
 
 def test_mismatched_head_warns_when_new_commit_changes_non_checkpoint_file(tmp_path: Path):

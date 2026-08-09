@@ -1,94 +1,53 @@
 # Context Engineering Playbook
 
-This playbook optimizes cold start and long-running work without weakening authority or verification.
+Keep only high-signal context for the requested outcome. `START_HERE.md` owns
+cold-start checks and `verified-delivery` owns completion language.
 
-## Goal
+## Load by task
 
-Keep the smallest high-signal context that can produce the desired outcome. Expand only when evidence requires it, and move durable state outside the active conversation before context becomes noisy or is compacted.
+1. Run the full `./kitty context --agent` for code/Builder work. For
+   informational or planning work, use `./kitty context --agent --compact
+   --skip-builder`; treat unknowns as unknowns.
+2. Classify the request:
+   - informational: authority map plus directly relevant authority;
+   - planning: add roadmap, active mission, and checkpoint when relevant;
+   - code change: use the full `START_HERE.md` order.
+3. Load the smallest code, test, runtime, or Builder surface that answers the
+   open question. Expand only when evidence requires it.
+4. For implementation or repair, load the outcome contract before editing.
+5. Re-check authorization, ownership, branch, and exact files immediately
+   before mutation.
 
-## Diagnose the context problem
+## Keep and clear
 
-Use the mechanism that matches the actual source of growth:
+Keep the user outcome, acceptance criteria, canonical constraints, branch/
+worktree/SHA, changed paths, live failures, blockers, and next verification.
 
-- **Tool-result clearing:** discard old, bulky, re-fetchable file reads and API responses while retaining that the call occurred.
-- **Compaction:** replace an overgrown conversation with a concise continuation record. This is necessarily lossy.
-- **Memory:** persist structured facts, decisions, progress, and corrections outside the conversation so they survive sessions and compaction.
-- **Subagents/fresh contexts:** isolate investigation or verification so one task does not contaminate another with irrelevant history.
+Clear, summarize, or re-fetch bulky file reads, API responses, repeated
+discussion, speculative explanations, stale plans, and evidence already
+represented by a reproducible receipt.
 
-Do not use memory as a transcript dump, compaction as an excuse to lose requirements, or a huge context window as a substitute for retrieval discipline.
+Use memory for durable facts and corrections, not transcript dumps. Use a fresh
+context for independent investigation or verification when acceptance depends
+on a separate trust boundary.
 
-## Baseline sequence
+## Handoff and completion
 
-1. Run `./kitty context --agent`.
-2. Classify the request: informational, planning, or code change.
-3. Load only canonical sources needed for that class:
-   - informational: `docs/AUTHORITY_MAP.md` plus directly relevant authority files;
-   - planning: add `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, and `.claude/STATE.md`;
-   - code change: use the full `START_HERE.md` reading order.
-4. Gather local evidence for the specific scope before changing files.
-5. For implementation or repair work, load `.agents/skills/verified-delivery/SKILL.md` and create an outcome contract before editing.
-6. Re-check authorization and live state immediately before mutation.
+Before compaction or handoff, preserve the outcome contract and non-goals,
+accepted decisions and their authority, current branch/worktree, and SHA plus
+implementation state,
+exact verification commands and results, unresolved failures and blockers, and
+one concrete next action. On resume, validate that record against live Git and
+runtime state.
 
-## What active context should contain
+Use exactly one completion state: `verified`, `implemented, awaiting
+verification`, `blocked`, or `failed`. Do not infer runtime success from code
+inspection, a green aggregate status, a wiki write, or optimistic wording.
 
-Keep:
+## Anti-waste rule
 
-- the current user-visible outcome and acceptance criteria;
-- canonical constraints and explicit decisions;
-- the smallest relevant code/test surface;
-- current branch, worktree, SHA, changed paths, and live failures;
-- unresolved questions, blockers, and the next verification action.
-
-Clear, summarize, or re-fetch:
-
-- large tool outputs and whole-file reads no longer under examination;
-- repeated discussion and speculative explanations;
-- stale plans and superseded decisions;
-- evidence already represented by a concise receipt or reproducible command.
-
-## Compaction and handoff contract
-
-Before compaction, a context reset, or a cross-tool handoff, preserve explicitly:
-
-1. outcome contract and non-goals;
-2. accepted decisions and their authority;
-3. current implementation state, branch/worktree, and SHA;
-4. exact verification commands and results;
-5. unresolved failures and blockers;
-6. one concrete next action.
-
-After resuming, validate this record against live Git/runtime state before trusting it.
-
-## Task-scoped expansion rules
-
-- Do not read broad historical plans by default.
-- Prefer authority docs and live runtime projections over handoff prose.
-- Treat unknowns from the context receipt as unresolved, not as permission to guess.
-- Expand context in small steps, each tied to an explicit open question.
-- Keep implementation and independent verification in separate contexts when acceptance matters.
-
-## Mutation gate
-
-Before any edit, confirm:
-
-- requested outcome is concrete and in scope;
-- observable acceptance criteria exist;
-- the relevant authority path is identified;
-- live Git/runtime evidence does not contradict inherited prose;
-- the exact files to change are known;
-- required verification can be performed or will be reported as unavailable.
-
-## Completion gate
-
-A plausible artifact is not a verified outcome. Use the states defined by `verified-delivery`:
-
-- `verified`;
-- `implemented, awaiting verification`;
-- `blocked`;
-- `failed`.
-
-Never claim “done,” “fixed,” or “working” without reproducible evidence bound to the reviewed SHA or runtime artifact.
-
-## Source pattern
-
-This playbook adapts Anthropic’s distinction between memory, compaction, and tool-result clearing, and its grade-and-revise Outcomes pattern, into Kitty’s provider-independent workflow. Claude API implementations may later use the corresponding first-party context-management and Managed Agents features, but the behavioral contract above applies regardless of provider.
+Do not run Builder checks, broad repository archaeology, full test suites, or
+large CodeGraph queries unless the task has an unresolved question that needs
+them. Prefer one batched, bounded command with an explicit end condition over
+repeated read/run/check loops. If a tool result is oversized, narrow the next
+query instead of re-reading the whole output.
