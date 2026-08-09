@@ -1,50 +1,45 @@
-# Handoff — superseded; do not resume
+# Handoff — main verified out of band; next move needs the Mac
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-09T02:20:00Z",
-  "branch": "fix/kproof-authority-reconciliation-2026-08-08",
-  "worktree": "github-connected-reconciliation",
-  "status": "invalid",
+  "updated_at": "2026-08-09T08:41:35Z",
+  "branch": "main",
+  "worktree": "main",
+  "status": "blocked",
   "completed_items": [
-    "Confirmed KPROOF-001 replaced the earlier trustworthy-daily-driver mission after the 2026-08-04 roadmap reconciliation",
-    "Reconciled docs/ROADMAP.md with KPROOF-001",
-    "Reconciled docs/PROJECT_STATUS.md with current repository and GitHub evidence",
-    "Confirmed PR #437 Actions jobs never reached a runner because GitHub blocked execution for account billing/spending reasons"
+    "Verified main at ece1bad0341a7743681a0619e9266b186e8478d8 against every gate the Tests workflow defines, in a CI-equivalent container",
+    "Established that GitHub Actions has run no workflow step since 2026-08-06: jobs get no runner, fail in 1-2 seconds, produce no logs, and return empty check output",
+    "Merged and recorded the out-of-band verification receipt in docs/audit/MAIN_GATE_VERIFICATION_2026-08-09.md (#444)",
+    "Repaired the STATE/HANDOFF agreement failure that #441 introduced and that turned main's test suite red"
   ],
   "blockers": [
-    "This GitHub-connected session cannot inspect Jacob's live Mac runtime or local Builder database",
-    "GitHub Actions runners are currently blocked by the account billing/spending state"
+    "GitHub Actions runners are blocked by the account billing/spending state; no branch change clears it and no PR check can go green until it is fixed",
+    "This GitHub-connected container cannot inspect Jacob's Mac checkout, services, credentials, providers, or local Builder database"
   ],
-  "next_action": "Do not resume the merged Open WebUI #384 session; establish a fresh KPROOF-001 checkpoint from the canonical Mac checkout.",
-  "parallel_work": [
-    {
-      "kind": "pull_request",
-      "ref": "#437",
-      "owner": "jacob202",
-      "touches": [
-        "gateway/kitty-chat/src/components/BuilderSurface.tsx",
-        "gateway/kitty-chat/src/lib/queries.ts"
-      ],
-      "observed_at": "2026-08-09T02:20:00Z"
-    }
-  ],
+  "next_action": "Clear the GitHub Actions billing block at https://github.com/settings/billing, then establish the live KPROOF-001 Mac baseline from the canonical checkout.",
+  "parallel_work": [],
   "recommendations": [],
   "invalidation_conditions": [
-    "This handoff is intentionally invalid because it replaces the superseded Open WebUI #384 continuation and was not created from a verified live Mac runtime session."
+    "main moves beyond ece1bad0341a7743681a0619e9266b186e8478d8, which makes the recorded gate results describe a commit that is no longer main",
+    "GitHub Actions runners return, which restores automated verdicts and retires the out-of-band verification",
+    "docs/ACTIVE_MISSION.md no longer names KPROOF-001 as the running mission",
+    "live Mac or Builder evidence contradicts the repository/GitHub picture recorded here"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null,
-  "head_sha": "f1e820fea6dc6bac41e05c7ba2ef1b15fbae8646"
+  "head_sha": "ece1bad0341a7743681a0619e9266b186e8478d8"
 }
 -->
 
-## Why this handoff is invalid
+## What this handoff is
 
-The previous handoff told the next session to continue Open WebUI PR #384 even though that work had already merged and the approved mission had later changed to KPROOF-001. Reusing it would send a cold-starting agent into superseded work.
+A repository-and-GitHub checkpoint, not a runtime one. It records what `main`
+verifiably is and what is blocking, and nothing about Jacob's machine.
 
-This file now fails closed on purpose. It is **not** an execution checkpoint.
+Do not resume any older session from this file. The Open WebUI #384 work and the
+#441 authority reconciliation are both merged and finished; treat any reference
+to them as history.
 
 ## Current authority
 
@@ -52,9 +47,22 @@ Read, in order:
 
 1. `docs/ROADMAP.md` — KPROOF-001 is the current gate.
 2. `docs/ACTIVE_MISSION.md` — the approved two-week Builder proof and acceptance contract.
-3. `docs/PROJECT_STATUS.md` — current repository/GitHub evidence and explicit unknowns.
-4. `.claude/STATE.md` — the current interactive checkpoint when its metadata validates.
+3. `docs/PROJECT_STATUS.md` — repository/GitHub evidence and explicit unknowns.
+4. `docs/audit/MAIN_GATE_VERIFICATION_2026-08-09.md` — why CI is red and what the gates actually say.
+5. `.claude/STATE.md` — the current interactive checkpoint.
+
+## The one thing blocking everything automated
+
+GitHub Actions has executed no workflow step since 2026-08-06. Jobs are assigned
+no runner and fail within two seconds, on every branch and every event type. It
+is an account billing/spending state, visible only at
+<https://github.com/settings/billing>, and no branch change clears it.
+
+Until it clears, `make ci` is the gate. It was aligned to the workflow's exact
+commands in #442, so a local pass and a CI pass now mean the same thing.
 
 ## Runtime boundary
 
-GitHub evidence cannot establish the live Mac service state, local Builder queue, credentials, providers, or running UI. A future local session must generate those facts through supported probes; it must not fill them from this handoff.
+GitHub evidence cannot establish the live Mac service state, local Builder queue,
+credentials, providers, or running UI. A future local session must generate those
+facts through supported probes; it must not fill them from this handoff.
