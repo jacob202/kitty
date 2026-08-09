@@ -1,4 +1,4 @@
-# Disposition Ledger — 2026-07-31
+# Disposition Ledger — 2026-08-05
 
 Every retained planning file in this repository has exactly one roadmap
 disposition. Nothing may remain unassigned. This ledger is authoritative; a
@@ -6,8 +6,9 @@ file not listed here is either not a planning document or was added after the
 ledger date and needs disposition.
 
 **Roadmap authority:** `docs/ROADMAP.md`
-**Ledger date:** 2026-07-31
-**Base SHA:** `59f598c5` (origin/main)
+**Governance:** `docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md` — 12 adjudicated decisions governing architecture, roadmap, and document authority.
+**Ledger date:** 2026-08-05
+**Base SHA:** `4ba13d18` (origin/main)
 
 ## Disposition classes
 

@@ -48,5 +48,11 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0036 | [Builder Infrastructure Preserved — Refactored for Extraction Readiness](0036-builder-infrastructure-refactor.md) | Accepted | 2026-08-05 |
 | 0037 | [Adopt PAA as Kitty's Reference Architecture and Portability Profile](0037-paa-reference-profile.md) | Accepted | 2026-08-03 |
 
+## Cross-cutting decisions
+
+| Document | Title | Date |
+| --- | --- | --- |
+| [ARCHITECTURE_RATIFICATION_2026-08-06.md](../decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md) | 12 adjudicated architectural decisions with evidence and merge conditions | 2026-08-06 |
+
 Historical decision detail remains in
 [`docs/retired/DECISIONS_AND_ROADMAP.md`](../retired/DECISIONS_AND_ROADMAP.md).

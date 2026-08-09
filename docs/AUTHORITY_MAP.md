@@ -8,12 +8,14 @@ report the contradiction rather than blending the claims.
 
 | Concern ID | Authority | Owns | Does not own |
 |---|---|---|---|
+| `constitution` | `docs/CONSTITUTION.md` | Highest architectural authority. All ADRs, roadmaps, and plans must be consistent with it. Amended only by explicit Constitution-amendment ADRs per Article VII.5. | Implementation details, live status, or specific packet contents |
 | `product_purpose` | `docs/NORTH_STAR.md` | Why Kitty exists and the life-first outcome | Current implementation or queue state |
 | `engineering_doctrine` | `AGENTS.md` | Safety, verification, change, Git, and agent operating rules | Product architecture or live status |
 | `execution_frame` | `docs/ALIGNMENT_MAP.md` | Kitty/KittyBuilder layering, authority order, delivery phases, non-goals, and required architecture analysis | Live status or specific packet contents |
 | `free_execution_contract` | `docs/FREE_MODEL_PACKET_STANDARD.md` | What a packet must be for unattended free execution and deterministic acceptance | Packet priority or live readiness |
 | `architecture` | `docs/ARCHITECTURE.md` | Current runnable system shape and component boundaries | Durable decision history or roadmap priority |
 | `decisions` | `docs/DECISIONS.md` | Accepted decisions, amendments, supersession, and routing into `docs/adr/` | Live status or implementation sequencing |
+| `ratification` | `docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md` | Cross-cutting architectural adjudication of 12 decisions. Records exact authority sources, evidence, and merge conditions. | Numbered ADRs or routine decisions |
 | `roadmap` | `docs/ROADMAP.md` | The one active forward-looking sequence and phase exit criteria | Live Builder state or historical planning narrative |
 | `planning_inputs` | `docs/plans/` | Existing plans, planning notes, packets, research, audits, and initiative manifests as preserved ideas, evidence, candidate work, or executable contracts when explicitly approved | Roadmap authority merely by existing |
 | `disposition_ledger` | `docs/DISPOSITION_LEDGER.md` | The canonical disposition (ACTIVE, SCHEDULED, BLOCKED, BACKLOG, SUPERSEDED, REJECTED, ARCHIVED) of every retained planning file | Disposition of files not yet inventoried |
@@ -36,14 +38,16 @@ machine. Runtime files under `data/` are local and are never committed.
 
 1. Live Git, the current worktree, GitHub, and supported runtime probes beat
    prose.
-2. An accepted ADR beats an older architecture or plan claim.
-3. `docs/ROADMAP.md` is the only active planning sequence. Older plans are
+2. `docs/CONSTITUTION.md` is the highest-level design artifact. All other
+   documents that contradict it are wrong.
+3. An accepted ADR beats an older architecture or plan claim.
+4. `docs/ROADMAP.md` is the only active planning sequence. Older plans are
    inputs until explicitly absorbed, rejected, or archived.
-4. `docs/PROJECT_STATUS.md` may summarize shipped work but cannot redefine an
+5. `docs/PROJECT_STATUS.md` may summarize shipped work but cannot redefine an
    ADR, roadmap, Mission, or live runtime fact.
-5. `.claude/STATE.md` and `.claude/HANDOFF.md` are invalid when their recorded
+6. `.claude/STATE.md` and `.claude/HANDOFF.md` are invalid when their recorded
    Git identity, mission, path, or invalidation conditions no longer match.
-6. Missing or unverifiable facts are `unknown`; they are never filled from an
+7. Missing or unverifiable facts are `unknown`; they are never filled from an
    old handoff, report, or plausible guess.
 
 ## Context receipts
