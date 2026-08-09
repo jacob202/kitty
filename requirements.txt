@@ -1,16 +1,16 @@
-fastapi==0.140.7
-uvicorn==0.51.0
+fastapi==0.141.1
+uvicorn==0.52.1
 python-multipart==0.0.32
 pydantic==2.13.4
 pydantic-settings==2.14.2
 python-dotenv==1.2.2
-filelock==3.32.0
+filelock==3.32.2
 httpx==0.28.1
 requests==2.34.2
 aiohttp==3.14.3
 websockets==16.1.1
 python-socketio==5.16.3
-feedparser==6.0.12
+feedparser==6.0.14
 edge-tts==7.2.8
 faster-whisper==1.2.1
 chromadb==1.5.8
@@ -32,5 +32,5 @@ mem0ai>=0.1.118,<0.2
 # gateway/memory.py configures mem0's Ollama embedder. mem0 treats this client
 # as optional and prompts on stdin when it is missing, which under launchd is an
 # EOFError that takes all of Kitty's memory down. Declare it so it is never absent.
-ollama>=0.4,<1
-trafilatura>=1.12,<3
+ollama>=0.6.2,<1
+trafilatura>=2.2.0,<3
