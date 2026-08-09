@@ -1,6 +1,6 @@
 # Project Status
 
-**Repository evidence verified:** 2026-08-08 through `main` `574899d64dbc5f27af4140d7c2d33222b1e3f248`, plus current GitHub PR/check state inspected during this reconciliation.
+**Repository evidence verified:** 2026-08-09 through `main` `ece1bad0341a7743681a0619e9266b186e8478d8`, plus current GitHub PR/check state.
 
 This file is a dated evidence summary, not a live runtime dashboard. Use Git/GitHub for repository state, supported probes for local services, and Builder's supported database/API/CLI for execution state.
 
@@ -18,16 +18,16 @@ This file is a dated evidence summary, not a live runtime dashboard. Use Git/Git
 
 The current authority is now explicit: KPROOF-001 gates broader roadmap work until its 2026-08-18 verdict.
 
-## What is verified in the repository
+## What's shipped
 
 - `docs/ACTIVE_MISSION.md` defines KPROOF-001 as the one approved active mission: prove one conversation-to-working-feature Builder loop without Jacob manually coordinating workers.
 - `docs/proof/TWO_WEEK_PROOF_AUDIT.md` completed the source/history audit far enough to choose the first proving seam; it still requires live Mac runtime evidence before claiming the seam works.
 - Builder has durable queue/runtime/recovery machinery and a bounded runtime projection; recent merged work also made `needs_decision` pause the initiative truthfully rather than continuing execution.
-- Current `main` still has the Builder action trust defect identified by the proof audit: `useBuilderAction()` does not reject an HTTP-success payload with `{ok:false}`, and it invalidates `['runtime']` instead of the runtime-manifest cache used by the Builder surface.
-- PR #437 is a candidate repair for that defect. Its patch converts `{ok:false}` into a mutation error, refreshes the runtime-manifest query, and adds visible action result feedback.
-- PR #437 has **not** passed repository CI. The GitHub Actions jobs did not reach a runner: GitHub recorded that they were not started because account payments failed or the Actions spending limit needs to be increased. That is an infrastructure/billing blocker, not a passing or failing code result.
-- PR #437 also lacks independent running-app acceptance on its current head. Its recorded evidence is mocked/local UI behavior, so it must not be described as the completed KPROOF control seam.
-- `main` currently ends at `574899d64dbc5f27af4140d7c2d33222b1e3f248`; recent maintenance includes the mypy cleanup and removal of the completed one-time RunPod diagnostic workflow.
+- #437 merged the Builder action trust repair: `useBuilderAction()` now converts an HTTP-success `{ok:false}` payload into a mutation error, refreshes the runtime-manifest query rather than `['runtime']`, and surfaces the action result. It merged without repository CI, and its recorded evidence is mocked/local UI behavior — so it must not yet be described as the completed KPROOF control seam.
+- #442 removed Dependabot version updates, cancels superseded PR runs, and aligned `make ci` to the `Tests` workflow's exact commands and coverage gate.
+- #444 recorded the out-of-band gate verification while Actions is unavailable.
+- **Repository CI has run no workflow step since 2026-08-06.** Jobs are assigned no runner and fail within two seconds on every branch and event type — an account billing/spending state, not a code result. Red checks currently carry no information. `main` was instead verified gate-by-gate in a CI-equivalent container; see [`audit/MAIN_GATE_VERIFICATION_2026-08-09.md`](audit/MAIN_GATE_VERIFICATION_2026-08-09.md).
+- `main` currently ends at `ece1bad0341a7743681a0619e9266b186e8478d8`.
 
 ## Active work
 
@@ -52,8 +52,8 @@ Repository and GitHub evidence do not prove:
 - Jacob's current local checkout/worktree state;
 - current Gateway, LiteLLM, Open WebUI, `kitty-chat`, or launchd state on the Mac;
 - current credentials, quotas, or provider availability;
-- current local Builder initiatives, packets, attempts, leases, runs, or budgets;
-- that PR #437 works against the real `/builder/action` path in the running application;
+- **Builder investigation:** current local initiatives, packets, attempts, leases, runs, and budgets remain unverified through GitHub;
+- that the merged #437 behavior works against the real `/builder/action` path in the running application;
 - that an approved conversation can currently create a durable Builder job without manual translation;
 - that Builder context survives a real worker/provider interruption end to end.
 
