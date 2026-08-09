@@ -5,6 +5,14 @@ on:
   push:
     branches: [ main ]
 
+# Six jobs per run, including a full pytest suite and a Playwright browser
+# smoke. Without this, every push to a PR branch left the superseded run
+# burning metered minutes to completion on a result nobody would read.
+# Pushes to main are never cancelled: main's history needs a verdict per commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   pytest:
     runs-on: ubuntu-latest
