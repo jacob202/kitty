@@ -44,7 +44,8 @@ python3.12 -m pip install -r mcp/builder/requirements.txt
 ```
 
 The MCP SDK is kept in the MCP-specific requirements file rather than added to
-Kitty's core runtime dependency set.
+Kitty's core runtime dependency set. This bridge intentionally stays on the
+repo's existing FastMCP v1 API; moving to v2 is a separate migration.
 
 ## Local stdio server
 
@@ -100,6 +101,11 @@ can invoke mutation tools.
 - `save_design(slug, markdown, expected_base_sha)`
 - `save_plan(slug, markdown, expected_design_sha, expected_base_sha)`
 
+For a plan, `expected_base_sha` is the commit the plan branch starts from; in
+the normal workflow it is the design commit itself. The tool also requires
+`expected_design_sha` to be an ancestor of that base. Later `mission_prepare`
+requires the full chain `code base -> design commit -> plan commit`.
+
 There is no generic `write_file`. Planning writes derive their own path under:
 
 ```text
@@ -120,13 +126,27 @@ preconditions so they cannot silently edit the operator's current checkout.
   loop in a detached process and returns promptly. Durable progress is read back
   from Builder, not from launcher narration.
 - `execution_pause(...)`, `execution_resume(...)`, `execution_cancel(...)`
-  delegate to canonical Builder state transitions.
+  delegate through Builder's audited operator-command layer.
 - `publication_status(...)` is read-only.
 - `publication_prepare(task_id, confirmed=true, ...)` uses Builder's governed
   push/PR path. It refuses unless separately confirmed and never merges.
 
 No MCP tool exposes arbitrary shell, SQL, raw Git push, PR merge, secrets/env,
 or unrestricted filesystem mutation.
+
+### Approval nonce semantics
+
+The approval nonce is a deterministic **version binding**, not authentication
+and not an independent one-use state machine. It binds the exact Mission digest,
+code base, design commit and plan commit presented for approval. Any change
+invalidates the binding. Replaying the identical approved version is harmless:
+Builder's existing immutable/idempotent `apply_manifest` contract returns the
+already-existing initiative instead of duplicating queue work.
+
+This is intentional. Tracking a separate "used nonce" table in MCP would make
+the bridge a second state authority, which this architecture explicitly avoids.
+Human confirmation still belongs to the client/UI; model-supplied prose is not
+proof of human authorization.
 
 ## Typical workflow
 
@@ -168,7 +188,9 @@ The result is intentionally bounded and includes:
 - one next action.
 
 If design/plan linkage or runtime evidence is missing, it is returned as unknown;
-it is never converted into success.
+it is never converted into success. If Kitty's cold-start receipt itself is not
+trusted, `resume_context()` returns `ok=false`/`state=attention` while preserving
+the durable Builder facts for diagnosis; it does not hide the contradiction.
 
 ## Safety and consequential actions
 
@@ -185,6 +207,8 @@ Existing repository policy still applies. MCP does not grant a bypass.
 - `execution_start` is idempotency-aware: if the durable projection already
   shows live work for the selected Mission/packet, it returns that work rather
   than launching a second owner.
+- A failed packet does not block unrelated eligible queued packets; selecting a
+  failed/blocked packet explicitly refuses until it is recovered or resolved.
 
 ## Evidence and debugging
 
