@@ -10,6 +10,31 @@ from . import commands as _commands
 from . import context as _context
 from . import repo_tools as _repo
 
+
+def _server_host() -> str:
+    host = os.environ.get("KITTYBUILDER_MCP_HOST", "127.0.0.1").strip()
+    if not host:
+        raise RuntimeError("KITTYBUILDER_MCP_HOST must not be blank")
+    return host
+
+
+def _server_port() -> int:
+    raw = os.environ.get("KITTYBUILDER_MCP_PORT", "8765")
+    try:
+        port = int(raw)
+    except ValueError as exc:
+        raise RuntimeError("KITTYBUILDER_MCP_PORT must be an integer") from exc
+    if not 1 <= port <= 65535:
+        raise RuntimeError("KITTYBUILDER_MCP_PORT must be between 1 and 65535")
+    return port
+
+
+# This repo intentionally stays on FastMCP v1 for now to match mcp/imagen.
+# In v1, HTTP host/port/json/stateless settings belong to the FastMCP
+# constructor; ``run()`` accepts the transport only.
+_HOST = _server_host()
+_PORT = _server_port()
+
 mcp = FastMCP(
     "kittybuilder",
     instructions=(
@@ -21,6 +46,10 @@ mcp = FastMCP(
         "recovery and execution truth. Never infer completion from model narration. "
         "Publication requires a separate explicit confirmation and this server never merges."
     ),
+    host=_HOST,
+    port=_PORT,
+    json_response=True,
+    stateless_http=True,
 )
 
 
@@ -165,15 +194,15 @@ def execution_start(
 
 
 @mcp.tool()
-def execution_pause(mission_id: str, reason: str) -> dict:
-    """Pause an initiative through canonical Builder semantics."""
-    return _commands.execution_pause(mission_id, reason)
+def execution_pause(mission_id: str, reason: str, actor: str = "mcp-client") -> dict:
+    """Pause an initiative through canonical audited Builder semantics."""
+    return _commands.execution_pause(mission_id, reason, actor=actor)
 
 
 @mcp.tool()
-def execution_resume(mission_id: str) -> dict:
-    """Clear an initiative pause through canonical Builder semantics."""
-    return _commands.execution_resume(mission_id)
+def execution_resume(mission_id: str, actor: str = "mcp-client") -> dict:
+    """Clear an initiative pause through canonical audited Builder semantics."""
+    return _commands.execution_resume(mission_id, actor=actor)
 
 
 @mcp.tool()
@@ -182,7 +211,7 @@ def execution_cancel(
     reason: str,
     actor: str = "mcp-client",
 ) -> dict:
-    """Durably cancel one Builder task through the operator path."""
+    """Durably cancel one Builder task through the audited operator path."""
     return _commands.execution_cancel(task_id, reason, actor=actor)
 
 
@@ -215,26 +244,16 @@ def main() -> None:
             "KITTYBUILDER_MCP_TRANSPORT must be 'stdio' or 'streamable-http'"
         )
 
-    host = os.environ.get("KITTYBUILDER_MCP_HOST", "127.0.0.1").strip()
-    if host not in {"127.0.0.1", "localhost", "::1"}:
+    # Never expose Builder directly on a public interface. Remote clients must
+    # reach the loopback endpoint through an authenticated supported tunnel or
+    # reverse proxy.
+    if _HOST not in {"127.0.0.1", "localhost", "::1"}:
         raise RuntimeError(
             "public MCP bind is refused; keep KittyBuilder on loopback and use an "
             "authenticated supported tunnel/reverse proxy for remote clients"
         )
-    try:
-        port = int(os.environ.get("KITTYBUILDER_MCP_PORT", "8765"))
-    except ValueError as exc:
-        raise RuntimeError("KITTYBUILDER_MCP_PORT must be an integer") from exc
-    if not 1 <= port <= 65535:
-        raise RuntimeError("KITTYBUILDER_MCP_PORT must be between 1 and 65535")
 
-    mcp.run(
-        "streamable-http",
-        host=host,
-        port=port,
-        json_response=True,
-        stateless_http=True,
-    )
+    mcp.run("streamable-http")
 
 
 if __name__ == "__main__":
