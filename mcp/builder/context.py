@@ -171,7 +171,9 @@ def work_result(
     )
 
 
-def _artifact_refs(initiative: dict[str, Any] | None) -> tuple[dict[str, str], list[dict[str, str]]]:
+def _artifact_refs(
+    initiative: dict[str, Any] | None,
+) -> tuple[dict[str, str], list[dict[str, str]]]:
     unknowns: list[dict[str, str]] = []
     refs: dict[str, str] = {}
     manifest = (initiative or {}).get("manifest") or {}
@@ -188,11 +190,17 @@ def _artifact_refs(initiative: dict[str, Any] | None) -> tuple[dict[str, str], l
             )
     if not refs.get("design_path") or not refs.get("design_sha"):
         unknowns.append(
-            {"field": "artifacts.design", "reason": "no approved design artifact linkage recorded"}
+            {
+                "field": "artifacts.design",
+                "reason": "no approved design artifact linkage recorded",
+            }
         )
     if not refs.get("plan_path") or not refs.get("plan_sha"):
         unknowns.append(
-            {"field": "artifacts.plan", "reason": "no approved implementation plan linkage recorded"}
+            {
+                "field": "artifacts.plan",
+                "reason": "no approved implementation plan linkage recorded",
+            }
         )
     return refs, unknowns
 
@@ -248,7 +256,6 @@ def resume_context(
     if "task_id" in work:
         current = work
         initiative_work = None
-        # Recover the initiative projection to retain title/next-packet context.
         mission_status = work_status(mission_id=resolved_mission)
         if mission_status.get("ok"):
             initiative_work = mission_status.get("work")
@@ -267,9 +274,14 @@ def resume_context(
         or (current or {}).get("last_error")
         or (initiative_work or {}).get("pause_reason")
     )
-    next_action = (current or {}).get("projection", {}).get("next_action")
+    next_action = ((current or {}).get("projection") or {}).get("next_action")
     if not next_action:
-        next_action = (initiative_work or {}).get("next_packet") or status_result.get("next_action")
+        next_action = (
+            (initiative_work or {}).get("next_packet")
+            or status_result.get("next_action")
+            or kitty.get("next_action")
+            or "Inspect work_status and resolve any unknowns before continuing."
+        )
 
     unknowns = list(raw_context.get("unknowns") or []) + linkage_unknowns
     if initiative_error:
@@ -292,10 +304,24 @@ def resume_context(
             "merged": publication.get("merged"),
         }
 
+    cold_start_ok = bool(kitty.get("ok"))
+    state = (
+        (current or {}).get("task_state")
+        or (initiative_work or {}).get("state")
+        or status_result.get("state")
+    )
+    if not cold_start_ok:
+        state = "attention"
+
     return receipt(
         "resume_context",
-        ok=True,
-        state=(current or {}).get("task_state") or (initiative_work or {}).get("state"),
+        ok=cold_start_ok,
+        state=state,
+        error_code=None if cold_start_ok else "context_attention",
+        error=None
+        if cold_start_ok
+        else kitty.get("error")
+        or "Kitty cold-start receipt is not trusted; continuity needs attention.",
         next_action=next_action,
         objective=objective,
         artifacts={
@@ -337,7 +363,7 @@ def resume_context(
         unknowns=unknowns,
         sources={
             "kitty": "gateway.context_receipt.build_context_receipt",
-            "builder": "gateway.builder_status.build_status_snapshot",
+            "builder": "gateway.builder_status_readonly.build_status_snapshot_readonly",
             "initiative": "gateway.builder_status_readonly.get_initiative_readonly",
         },
     )
