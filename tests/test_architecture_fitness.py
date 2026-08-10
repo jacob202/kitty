@@ -27,11 +27,7 @@ from gateway.models.builder import (
 
 def test_production_mount_exposes_one_canonical_builder_command_boundary():
     """The shipped app must not reintroduce the retired action route."""
-    paths = {
-        path
-        for route in app.routes
-        if (path := getattr(route, "path", None)) is not None
-    }
+    paths = set(app.openapi()["paths"])
 
     assert "/builder/initiative" in paths
     assert "/builder/command" in paths
