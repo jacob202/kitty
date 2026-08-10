@@ -81,7 +81,9 @@ def test_mission_prepare_binds_artifacts_manifest_and_base_without_applying(
     apply.assert_not_called()
 
 
-def test_mission_prepare_refuses_stale_base(monkeypatch: pytest.MonkeyPatch, manifest: dict) -> None:
+def test_mission_prepare_refuses_stale_base(
+    monkeypatch: pytest.MonkeyPatch, manifest: dict
+) -> None:
     _patch_prepare_dependencies(monkeypatch, base="b" * 40, digest="d" * 64)
 
     result = commands.mission_prepare(
@@ -172,7 +174,9 @@ def test_mission_approve_replay_is_harmless_idempotent(
     assert approved["tasks"][0]["task_id"] == "kb_1"
 
 
-def test_mission_approve_rejects_stale_nonce(monkeypatch: pytest.MonkeyPatch, manifest: dict) -> None:
+def test_mission_approve_rejects_stale_nonce(
+    monkeypatch: pytest.MonkeyPatch, manifest: dict
+) -> None:
     base = "b" * 40
     digest = "d" * 64
     _patch_prepare_dependencies(monkeypatch, base=base, digest=digest)
@@ -188,26 +192,53 @@ def test_mission_approve_rejects_stale_nonce(monkeypatch: pytest.MonkeyPatch, ma
     assert result["error_code"] == "approval_mismatch"
 
 
-def test_pause_resume_cancel_delegate_to_canonical_builder_functions(
+def test_pause_resume_cancel_delegate_to_audited_builder_commands(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    pause = MagicMock()
-    resume = MagicMock()
-    cancel = MagicMock(return_value={"id": "kb_1", "state": "cancelled"})
-    monkeypatch.setattr(commands.bi, "pause_initiative", pause)
-    monkeypatch.setattr(commands.bi, "resume_initiative", resume)
-    monkeypatch.setattr(commands.bq, "operator_cancel_task", cancel)
+    pause = MagicMock(
+        return_value=MagicMock(
+            ok=True,
+            action="pause",
+            task_id=None,
+            error=None,
+            detail="paused",
+            evidence={},
+        )
+    )
+    resume = MagicMock(
+        return_value=MagicMock(
+            ok=True,
+            action="resume",
+            task_id=None,
+            error=None,
+            detail="resumed",
+            evidence={},
+        )
+    )
+    cancel = MagicMock(
+        return_value=MagicMock(
+            ok=True,
+            action="cancel",
+            task_id="kb_1",
+            error=None,
+            detail="cancelled",
+            evidence={"new_state": "cancelled"},
+        )
+    )
+    monkeypatch.setattr(commands, "command_pause", pause)
+    monkeypatch.setattr(commands, "command_resume", resume)
+    monkeypatch.setattr(commands, "command_cancel", cancel)
 
-    paused = commands.execution_pause("mission-1", "user asked")
-    resumed = commands.execution_resume("mission-1")
+    paused = commands.execution_pause("mission-1", "user asked", actor="chatgpt")
+    resumed = commands.execution_resume("mission-1", actor="chatgpt")
     cancelled = commands.execution_cancel("kb_1", "superseded", actor="chatgpt")
 
     assert paused["ok"] and paused["state"] == "paused"
     assert resumed["ok"] and resumed["state"] == "active"
     assert cancelled["ok"] and cancelled["state"] == "cancelled"
-    pause.assert_called_once_with("mission-1", reason="user asked")
-    resume.assert_called_once_with("mission-1")
-    cancel.assert_called_once_with("kb_1", reason="superseded", actor="chatgpt")
+    pause.assert_called_once_with("mission-1", actor="chatgpt", reason="user asked")
+    resume.assert_called_once_with("mission-1", actor="chatgpt")
+    cancel.assert_called_once_with("kb_1", actor="chatgpt", reason="superseded")
 
 
 def test_execution_start_does_not_duplicate_existing_live_work(
@@ -239,9 +270,13 @@ def test_execution_start_does_not_duplicate_existing_live_work(
     popen.assert_not_called()
 
 
-def test_execution_start_launches_fixed_free_builder_argv_and_returns_promptly(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def _patch_launchable_work(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    state: str = "active",
+    packets: list[dict] | None = None,
+) -> MagicMock:
     monkeypatch.setattr(commands.repo_tools, "repo_root", lambda: tmp_path)
     (tmp_path / "kitty").write_text("#!/bin/sh\n", encoding="utf-8")
     monkeypatch.setattr(
@@ -249,19 +284,25 @@ def test_execution_start_launches_fixed_free_builder_argv_and_returns_promptly(
         "work_status",
         lambda **_: {
             "ok": True,
-            "state": "active",
+            "state": state,
             "work": {
                 "initiative_id": "mission-1",
-                "state": "active",
-                "packets": [
-                    {"packet_id": "p1", "task_id": "kb_1", "task_state": "queued"}
-                ],
+                "state": state,
+                "packets": packets
+                or [{"packet_id": "p1", "task_id": "kb_1", "task_state": "queued"}],
             },
         },
     )
     proc = MagicMock(pid=4321)
     popen = MagicMock(return_value=proc)
     monkeypatch.setattr(commands.subprocess, "Popen", popen)
+    return popen
+
+
+def test_execution_start_launches_fixed_free_builder_argv_and_returns_promptly(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    popen = _patch_launchable_work(monkeypatch, tmp_path)
 
     result = commands.execution_start("mission-1", free=True)
 
@@ -274,6 +315,66 @@ def test_execution_start_launches_fixed_free_builder_argv_and_returns_promptly(
     assert "--publish" not in argv
     assert popen.call_args.kwargs["shell"] is False
     assert popen.call_args.kwargs["start_new_session"] is True
+
+
+def test_failed_rollup_does_not_stop_unrelated_queued_work(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    popen = _patch_launchable_work(
+        monkeypatch,
+        tmp_path,
+        state="failed",
+        packets=[
+            {
+                "packet_id": "p1",
+                "task_id": "kb_1",
+                "task_state": "failed",
+                "last_error": "old packet failed",
+            },
+            {
+                "packet_id": "p2",
+                "task_id": "kb_2",
+                "task_state": "queued",
+                "eligibility": {"state": "eligible"},
+            },
+        ],
+    )
+
+    result = commands.execution_start("mission-1", free=True)
+
+    assert result["ok"] is True
+    assert result["state"] == "launched"
+    assert popen.called
+
+
+def test_selected_failed_packet_is_not_blindly_relaunched(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    popen = _patch_launchable_work(
+        monkeypatch,
+        tmp_path,
+        state="failed",
+        packets=[
+            {
+                "packet_id": "p1",
+                "task_id": "kb_1",
+                "task_state": "failed",
+                "last_error": "old packet failed",
+            },
+            {
+                "packet_id": "p2",
+                "task_id": "kb_2",
+                "task_state": "queued",
+                "eligibility": {"state": "eligible"},
+            },
+        ],
+    )
+
+    result = commands.execution_start("mission-1", packet_id="p1", free=True)
+
+    assert result["ok"] is False
+    assert result["error_code"] == "selected_work_not_runnable"
+    popen.assert_not_called()
 
 
 def test_execution_start_paid_route_requires_explicit_spend_authorization(
@@ -291,7 +392,9 @@ def test_execution_start_paid_route_requires_explicit_spend_authorization(
     assert result["error_code"] == "spend_not_authorized"
 
 
-def test_publication_prepare_requires_explicit_confirmation(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_publication_prepare_requires_explicit_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     publish = MagicMock()
     monkeypatch.setattr(commands, "command_publish", publish)
 
