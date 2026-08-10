@@ -46,7 +46,7 @@ def test_mission_prepare_requires_base_to_design_to_plan_ancestry(
         seen.append((left, right))
         return True
 
-    monkeypatch.setattr(commands.repo_tools, "commit_is_ancestor", ancestor)
+    monkeypatch.setattr(commands, "_commit_is_ancestor", ancestor)
 
     result = commands.mission_prepare(
         _manifest(),
@@ -66,8 +66,8 @@ def test_mission_prepare_rejects_unrelated_planning_commit(
 ) -> None:
     _patch_common(monkeypatch)
     monkeypatch.setattr(
-        commands.repo_tools,
-        "commit_is_ancestor",
+        commands,
+        "_commit_is_ancestor",
         lambda left, right: not (left == "1" * 40 and right == "2" * 40),
     )
 
