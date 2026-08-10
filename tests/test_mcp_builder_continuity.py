@@ -120,7 +120,10 @@ def test_resume_context_reconstructs_work_without_conversation_history(
     assert resumed["blocker"] == "provider exhausted"
     assert resumed["next_action"] == "recover"
     assert isinstance(resumed["next_action"], str)
-    assert resumed["sources"]["builder"] == "gateway.builder_status.build_status_snapshot"
+    assert (
+        resumed["sources"]["builder"]
+        == "gateway.builder_status_readonly.build_status_snapshot_readonly"
+    )
     assert "conversation" not in resumed
 
 
@@ -182,3 +185,55 @@ def test_resume_context_reports_missing_artifact_linkage_as_unknown_not_success(
     fields = {item["field"] for item in resumed["unknowns"]}
     assert "artifacts.design" in fields
     assert "artifacts.plan" in fields
+
+
+def test_resume_context_does_not_hide_untrusted_cold_start_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        context,
+        "kitty_context",
+        lambda: {
+            "ok": False,
+            "state": "attention",
+            "operation": "kitty_context",
+            "error": None,
+            "context": {
+                "git": {"head": "c" * 40},
+                "unknowns": [{"field": "continuity", "reason": "checkpoint mismatch"}],
+            },
+        },
+    )
+    monkeypatch.setattr(
+        context,
+        "work_status",
+        lambda **_: {
+            "ok": True,
+            "operation": "work_status",
+            "state": "queued",
+            "work": {
+                "initiative_id": "mission-1",
+                "state": "queued",
+                "packets": [
+                    {
+                        "packet_id": "p1",
+                        "objective": "Do work",
+                        "task_id": "kb_1",
+                        "task_state": "queued",
+                        "attempt_history": [],
+                        "projection": None,
+                    }
+                ],
+            },
+        },
+    )
+    monkeypatch.setattr(context, "get_initiative", lambda *_a, **_k: None)
+
+    resumed = context.resume_context(mission_id="mission-1")
+
+    assert resumed["ok"] is False
+    assert resumed["state"] == "attention"
+    assert resumed["error_code"] == "context_attention"
+    assert any(item["field"] == "continuity" for item in resumed["unknowns"])
+    assert isinstance(resumed["next_action"], str)
+    assert resumed["next_action"]
