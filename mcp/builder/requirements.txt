@@ -1,2 +1,2 @@
-# Keep the current FastMCP v1 API used by this repo; v2 is a separate migration.
-mcp[cli]>=1.0.0,<2
+# Match the repo's existing FastMCP v1 API; v2 is a separate breaking migration.
+mcp[cli]>=1.27,<2
