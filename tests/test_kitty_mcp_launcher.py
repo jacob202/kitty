@@ -23,7 +23,9 @@ def launcher_repo(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     fake_python.write_text(
         "#!/usr/bin/env bash\n"
         "if [[ \"${1:-} ${2:-}\" == \"-m mcp.builder.server\" ]]; then\n"
-        "  trap 'exit 0' TERM INT\n"
+        "  trap 'rm -f \"$TEST_SERVER_PID\"; exit 0' TERM INT EXIT\n"
+        "  sleep 0.4\n"
+        "  echo $$ > \"$TEST_SERVER_PID\"\n"
         "  while true; do sleep 0.1; done\n"
         "fi\n"
         "printf '%s\\n' \"$*\" >> \"$TEST_MODULE_CALLS\"\n",
@@ -39,6 +41,10 @@ def launcher_repo(tmp_path: Path) -> tuple[Path, dict[str, str]]:
         "  if [[ \"${TEST_FORCE_UNRELATED:-0}\" == \"1\" ]]; then echo 'n/tmp'; else echo \"n$TEST_KITTY_ROOT\"; fi\n"
         "  exit 0\n"
         "fi\n"
+        "if [[ \" $* \" == *\"TCP:${KITTYBUILDER_MCP_PORT:-18765}\"* && -s \"$TEST_SERVER_PID\" ]]; then\n"
+        "  pid=$(cat \"$TEST_SERVER_PID\")\n"
+        "  if kill -0 \"$pid\" 2>/dev/null; then echo \"$pid\"; exit 0; fi\n"
+        "fi\n"
         "exit 1\n",
         encoding="utf-8",
     )
@@ -47,6 +53,7 @@ def launcher_repo(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     env.update(
         TEST_KITTY_ROOT=str(root),
         TEST_MODULE_CALLS=str(tmp_path / "calls.txt"),
+        TEST_SERVER_PID=str(tmp_path / "server-listener.pid"),
         PATH=f"{fake_bin}:{env['PATH']}",
         KITTYBUILDER_MCP_PORT="18765",
     )
@@ -76,6 +83,17 @@ def test_mcp_up_is_idempotent_and_down_stops_only_owned_process(launcher_repo):
     assert stopped.returncode == 0, stopped.stderr
     assert not pid_file.exists()
 
+
+
+def test_mcp_up_waits_for_owned_listener_before_success(launcher_repo):
+    root, env = launcher_repo
+    marker = Path(env["TEST_SERVER_PID"])
+
+    result = run_kitty(root, env, "mcp", "up")
+
+    assert result.returncode == 0, result.stderr
+    assert marker.exists(), "up returned before the MCP listener became ready"
+    subprocess.run([root / "kitty", "mcp", "down"], cwd=root, env=env, check=True)
 
 def test_mcp_public_bind_is_refused_before_launch(launcher_repo):
     root, env = launcher_repo

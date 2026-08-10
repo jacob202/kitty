@@ -543,6 +543,25 @@ cmd_resume() {
   fi
 }
 
+mcp_listener_has_pid() {
+  local expected_pid="$1" current
+  for current in $(listener_pids "$MCP_PORT"); do
+    [[ "$current" == "$expected_pid" ]] && return 0
+  done
+  return 1
+}
+
+wait_mcp_listener() {
+  local pid="$1" i=0
+  while [[ "$i" -lt 100 ]]; do
+    kill -0 "$pid" 2>/dev/null || return 1
+    mcp_listener_has_pid "$pid" && return 0
+    sleep 0.05
+    i=$((i + 1))
+  done
+  return 1
+}
+
 cmd_mcp_up() {
   case "$MCP_HOST" in
     127.0.0.1|localhost|::1) ;;
@@ -557,8 +576,12 @@ cmd_mcp_up() {
     pid="$(cat "$MCP_PIDFILE")"
     command="$(pid_command "$pid")"
     if pid_owned_by_kitty "$pid" && [[ "$command" == *"mcp.builder.server"* ]]; then
-      echo "MCP already running (pid $pid)"
-      return 0
+      if wait_mcp_listener "$pid"; then
+        echo "MCP already running (pid $pid)"
+        return 0
+      fi
+      echo "Error: owned KittyBuilder MCP process $pid did not become ready on :$MCP_PORT; see $MCP_LOG" >&2
+      return 1
     fi
     echo "Error: $MCP_PIDFILE points at live process $pid that is not the owned KittyBuilder MCP server." >&2
     return 1
@@ -591,10 +614,12 @@ cmd_mcp_up() {
   mv "$tmp_pid" "$MCP_PIDFILE"
   local pid
   pid="$(cat "$MCP_PIDFILE")"
-  sleep 0.1
-  if ! kill -0 "$pid" 2>/dev/null; then
+  if ! wait_mcp_listener "$pid"; then
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -TERM "$pid" 2>/dev/null || true
+    fi
     rm -f "$MCP_PIDFILE"
-    echo "Error: KittyBuilder MCP exited during startup; see $MCP_LOG" >&2
+    echo "Error: KittyBuilder MCP did not become ready on :$MCP_PORT; see $MCP_LOG" >&2
     return 1
   fi
   echo "MCP running on http://$MCP_HOST:$MCP_PORT/mcp (pid $pid)"
