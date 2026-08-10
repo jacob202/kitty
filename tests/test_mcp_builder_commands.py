@@ -41,6 +41,7 @@ def _patch_prepare_dependencies(
 ) -> None:
     monkeypatch.setattr(commands.repo_tools, "repo_root", lambda: Path("/tmp/kitty"))
     monkeypatch.setattr(commands.repo_tools, "read_tracked_file", lambda *a, **k: {"ok": True})
+    monkeypatch.setattr(commands, "_commit_is_ancestor", lambda *_args: True)
     monkeypatch.setattr(commands.bi, "resolve_base_sha", lambda *_a, **_k: base)
     monkeypatch.setattr(commands.bi, "validate_manifest", lambda _m: [])
     monkeypatch.setattr(commands.bi, "warn_manifest", lambda _m, repo_root=None: [])
