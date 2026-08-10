@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from gateway.builder_status_readonly import (
     build_status_snapshot_readonly,
+)
+from gateway.builder_status_readonly import (
     get_initiative_readonly as get_initiative,
 )
 from gateway.context_receipt import build_context_receipt
@@ -17,6 +20,9 @@ from .schemas import MCP_ARTIFACT_MARKER, receipt
 
 
 def _builder_db_path() -> Path:
+    override = os.environ.get("KITTY_BUILDER_DATA_DIR")
+    if override:
+        return Path(override) / "builder_queue.db"
     return repo_root() / "data" / "kittybuilder" / "builder_queue.db"
 
 
@@ -245,13 +251,12 @@ def resume_context(
             next_action="Supply the Builder mission or task ID to resume.",
         )
 
+    initiative_error: str | None = None
     try:
         initiative = get_initiative(resolved_mission, db_path=_builder_db_path())
     except Exception as exc:
         initiative = None
         initiative_error = f"{type(exc).__name__}: {exc}"
-    else:
-        initiative_error = None
 
     if "task_id" in work:
         current = work
