@@ -350,6 +350,7 @@ def resume_context(
         current_work={
             "packet_id": (current or {}).get("packet_id"),
             "task_id": (current or {}).get("task_id"),
+            "attempt_id": (latest or {}).get("id"),
             "state": (current or {}).get("task_state"),
             "attempt_count": (current or {}).get("attempt_count"),
         },
