@@ -145,6 +145,46 @@ class TestRunInitiative:
         assert summary["reason"] == "halt"
         assert summary["stop_class"] == br.STOP_ROUTINE
 
+    def test_packet_loop_pause_is_not_classified_as_exhaustion(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        _apply(db_path, [_packet("P1")], repo_root=repo)
+        initiative = bi.get_initiative(INITIATIVE, db_path=db_path)
+        assert initiative is not None
+        task_id = initiative["packets"][0]["task_id"]
+
+        def paused_loop(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            bi.pause_initiative(
+                INITIATIVE, "operator pause during packet", db_path=db_path
+            )
+            return {
+                "outcome": br.bl.LOOP_PAUSED,
+                "reason": "operator pause during packet",
+                "attempts": [{"attempt_id": 42}],
+            }
+
+        monkeypatch.setattr(br.bl, "run_packet", paused_loop)
+        summary = _run(repo, db_path, tmp_path)
+
+        assert summary["outcome"] == "paused"
+        assert summary["reason"] == "operator pause during packet"
+        assert summary["exhausted"] == 0
+        assert summary["processed"] == [
+            {"packet_id": "P1", "task_id": task_id, "outcome": br.bl.LOOP_PAUSED}
+        ]
+        decisions = [
+            event["payload"]
+            for event in bq.list_events(task_id, db_path=db_path)
+            if event["type"] == br.EVENT_DECISION
+        ]
+        assert decisions == [{
+            "initiative_id": INITIATIVE,
+            "packet_id": "P1",
+            "decision": "packet_paused",
+            "reason": "operator pause during packet",
+            "stop_class": br.STOP_ROUTINE,
+        }]
+
     def test_attempt_budget_pauses_with_reason(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):

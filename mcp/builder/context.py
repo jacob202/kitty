@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,9 @@ from .schemas import MCP_ARTIFACT_MARKER, receipt
 
 
 def _builder_db_path() -> Path:
+    override = os.environ.get("KITTY_BUILDER_DATA_DIR")
+    if override:
+        return Path(override) / "builder_queue.db"
     return repo_root() / "data" / "kittybuilder" / "builder_queue.db"
 
 
