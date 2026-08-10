@@ -8,7 +8,8 @@ from typing import Any
 Image: Any = None
 HAS_PIL = False
 try:
-    from PIL import Image
+    from PIL import Image as PILImage
+    Image = PILImage
     HAS_PIL = True
 except ImportError:
     pass
@@ -74,7 +75,7 @@ def check_reference_image(data: bytes) -> QualityResult:
         return result
 
     try:
-        img = Image.open(io.BytesIO(data))
+        img = PILImage.open(io.BytesIO(data))
         result.format = img.format
         result.width, result.height = img.size
     except Exception:

@@ -195,11 +195,12 @@ class TestProviderChain:
 
     @pytest.fixture(autouse=True)
     def isolated_prefs(self, tmp_path, monkeypatch):
-        from gateway import provider_prefs
+        from gateway import llm_client, provider_prefs
 
         monkeypatch.setattr(
             provider_prefs, "PROVIDER_PREFS_FILE", tmp_path / "providers.json"
         )
+        monkeypatch.setattr(llm_client, "load_dotenv", lambda *args, **kwargs: False)
 
     def test_local_mlx_is_in_the_chain(self):
         names = {p["name"] for p in model_routing.describe_providers()["providers"]}

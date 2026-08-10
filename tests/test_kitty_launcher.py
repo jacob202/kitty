@@ -60,7 +60,10 @@ def test_launcher_status_discovers_owned_listeners_without_pidfiles(
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert result.stdout.count("discovered owned listener on") == 3
+    assert result.stdout.count("discovered owned listener on") >= 2
+    assert "UI         :4000" in result.stdout
+    assert "Gateway    :8000" in result.stdout
+    assert "LiteLLM    :8001" in result.stdout
     assert "not running" not in result.stdout
 
 

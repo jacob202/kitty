@@ -210,7 +210,7 @@ def test_resolve_agentrouter_key_strips_quotes():
 
     with (
         patch("gateway.llm_client.load_dotenv"),
-        patch.dict("os.environ", {"AGENTROUTER_API_KEY": '"sk-test-key"'}),
+        patch.dict("os.environ", {"AGENTROUTER_API_KEY": '"sk-test-key"'}, clear=True),
     ):
         key = resolve_agentrouter_api_key()
     assert key == "sk-test-key"
@@ -222,7 +222,7 @@ def test_resolve_agentrouter_key_multiline_uses_first():
 
     with (
         patch("gateway.llm_client.load_dotenv"),
-        patch.dict("os.environ", {"AGENTROUTER_API_KEY": "sk-line1\nsk-line2"}),
+        patch.dict("os.environ", {"AGENTROUTER_API_KEY": "sk-line1\nsk-line2"}, clear=True),
     ):
         key = resolve_agentrouter_api_key()
     assert key == "sk-line1"

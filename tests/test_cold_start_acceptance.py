@@ -42,7 +42,7 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
         "product_purpose": "docs/NORTH_STAR.md",
         "architecture": "docs/ARCHITECTURE.md",
         "decisions": "docs/DECISIONS.md",
-        "roadmap": "docs/ROADMAP.md",
+        "roadmap": "docs/ROADMAP_V2.md",
         "live_status": "docs/PROJECT_STATUS.md",
         "active_mission": "docs/ACTIVE_MISSION.md",
         "session_checkpoint": ".claude/STATE.md",
