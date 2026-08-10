@@ -188,3 +188,23 @@ def test_work_result_never_calls_worker_narration_completion(
 
     assert result["result"]["complete"] is False
     assert result["state"] == "running"
+
+
+def test_status_snapshot_honors_builder_data_dir_override(
+    monkeypatch: pytest.MonkeyPatch,
+    snapshot: dict,
+) -> None:
+    override = Path("/tmp/kproof-canonical-builder")
+    monkeypatch.setenv("KITTY_BUILDER_DATA_DIR", str(override))
+    seen: dict[str, Path] = {}
+
+    def fake_readonly(*, db_path: Path) -> dict:
+        seen["db_path"] = db_path
+        return snapshot
+
+    monkeypatch.setattr(context, "build_status_snapshot_readonly", fake_readonly)
+
+    result = context._status_snapshot()
+
+    assert result is snapshot
+    assert seen["db_path"] == override / "builder_queue.db"
