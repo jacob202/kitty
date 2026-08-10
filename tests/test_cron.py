@@ -108,6 +108,54 @@ class TestSchedule:
         assert row["schedule_value"] == "07:00"
         assert row["enabled"] == 1
 
+    def test_schedule_idempotent_exact_match(self, tmp_kitty_db):
+        from gateway.cron import list_schedules, schedule
+
+        sid1 = schedule("sched-1", "brief.refresh", "interval", "60")
+        sid2 = schedule("sched-2", "brief.refresh", "interval", "60")
+
+        assert sid2 == sid1
+        rows = list_schedules()
+        assert len(rows) == 1
+        assert rows[0]["id"] == sid1
+        assert rows[0]["action"] == "brief.refresh"
+        assert rows[0]["schedule_type"] == "interval"
+        assert rows[0]["schedule_value"] == "60"
+
+    def test_schedule_same_action_different_value_not_collapsed(self, tmp_kitty_db):
+        from gateway.cron import list_schedules, schedule
+
+        sid_a = schedule("sched-a", "insights.return_due", "interval", "15")
+        sid_b = schedule("sched-b", "insights.return_due", "interval", "30")
+
+        assert sid_a != sid_b
+        rows = list_schedules()
+        assert len(rows) == 2
+        values = {r["schedule_value"] for r in rows}
+        assert values == {"15", "30"}
+
+    def test_schedule_same_action_different_type_not_collapsed(self, tmp_kitty_db):
+        from gateway.cron import list_schedules, schedule
+
+        sid_a = schedule("sched-a", "notify.daily", "daily", "08:00")
+        sid_b = schedule("sched-b", "notify.daily", "interval", "60")
+
+        assert sid_a != sid_b
+        rows = list_schedules()
+        assert len(rows) == 2
+
+    def test_schedule_gateway_startup_does_not_create_duplicates(self, tmp_kitty_db):
+        from gateway.cron import list_schedules, schedule
+
+        params = ("insights return due", "insights.return_due", "interval", "15")
+        for i in range(5):
+            schedule(*params)
+
+        rows = list_schedules()
+        assert len(rows) == 1
+        assert rows[0]["action"] == "insights.return_due"
+        assert rows[0]["schedule_value"] == "15"
+
 
 class TestRemove:
     def test_remove_existing(self, tmp_kitty_db):

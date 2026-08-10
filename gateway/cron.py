@@ -130,13 +130,17 @@ def schedule(
 
     with kitty_db.connect(KITTY_DB_FILE) as conn:
         existing = conn.execute(
-            f"SELECT id FROM {TABLE} WHERE action = ? LIMIT 1",
-            (action,),
+            f"SELECT id FROM {TABLE} "
+            "WHERE action = ? AND schedule_type = ? AND schedule_value = ? AND metadata = ? "
+            "LIMIT 1",
+            (action, schedule_type, schedule_value, json.dumps(metadata or {})),
         ).fetchone()
         if existing:
             logger.warning(
-                "Cron schedule for action %r already exists (id=%s); skipping duplicate",
+                "Cron schedule for action %r (%s %s) already exists (id=%s); skipping duplicate",
                 action,
+                schedule_type,
+                schedule_value,
                 existing[0],
             )
             return existing[0]

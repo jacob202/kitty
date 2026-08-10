@@ -60,7 +60,9 @@ def builder_action(body: BuilderActionRequest):
             preview=f"User requested {body.action} from the Builder surface",
             payload=payload,
         )
-        execute(action["id"])
+        executed = execute(action["id"])
+        if executed["status"] == "failed":
+            return {"ok": False, "action_id": action["id"], "error": executed["result"]}
         return {"ok": True, "action_id": action["id"]}
     except Exception as exc:
         logger.warning("Builder action %s failed: %s", body.action, exc)
