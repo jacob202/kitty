@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 import pytest
@@ -126,8 +125,8 @@ async def test_doctor_uses_readonly_evidence_and_never_execution_mutations(
     monkeypatch.setattr(operator, "_check_github", lambda _config, publication_required=False: operator._check("github", "warn", "GitHub external", classification="external"))
     monkeypatch.setattr(operator, "_check_provider", lambda _config: operator._check("provider", "warn", "free route unavailable", classification="external"))
 
-    from mcp.builder import commands
     from gateway import builder_initiative, builder_queue
+    from mcp.builder import commands
 
     def forbidden(*_args, **_kwargs):
         raise AssertionError("doctor called a mutating execution/storage function")

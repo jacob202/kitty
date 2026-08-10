@@ -562,7 +562,8 @@ async def run_proof(config: ProofConfig) -> dict[str, Any]:
                     next_action="Resolve GitHub publication readiness; proof will not publish automatically.",
                 )
             publication = pub_status.get("publication") or publication
-            if not _publication_identity(publication) or not _publication_identity(publication).get("pr_number"):
+            publication_identity = _publication_identity(publication)
+            if not publication_identity or not publication_identity.get("pr_number"):
                 return _finish(
                     receipt,
                     config,

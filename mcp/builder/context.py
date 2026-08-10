@@ -8,6 +8,8 @@ from typing import Any
 
 from gateway.builder_status_readonly import (
     build_status_snapshot_readonly,
+)
+from gateway.builder_status_readonly import (
     get_initiative_readonly as get_initiative,
 )
 from gateway.context_receipt import build_context_receipt

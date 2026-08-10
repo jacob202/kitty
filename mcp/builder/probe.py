@@ -73,8 +73,13 @@ async def call_tool_json(
         return structured
 
     content = list(getattr(result, "content", []) or [])
-    text_blocks = [getattr(item, "text", None) for item in content if getattr(item, "type", None) == "text"]
-    text_blocks = [text for text in text_blocks if isinstance(text, str)]
+    text_blocks: list[str] = []
+    for item in content:
+        if getattr(item, "type", None) != "text":
+            continue
+        text = getattr(item, "text", None)
+        if isinstance(text, str):
+            text_blocks.append(text)
     if len(text_blocks) != 1:
         raise ProbeError(
             f"MCP tool {name!r} returned no structured object and {len(text_blocks)} text blocks"

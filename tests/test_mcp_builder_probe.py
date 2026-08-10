@@ -38,8 +38,12 @@ def _wait_for_listener(port: int, proc: subprocess.Popen[str]) -> None:
 def mcp_server():
     port = _free_port()
     env = os.environ.copy()
+    inherited_pythonpath = env.get("PYTHONPATH", "")
     env.update(
-        PYTHONPATH=str(REPO_ROOT),
+        PYTHONPATH=(
+            str(REPO_ROOT)
+            + (os.pathsep + inherited_pythonpath if inherited_pythonpath else "")
+        ),
         KITTY_REPO_ROOT=str(REPO_ROOT),
         KITTYBUILDER_MCP_TRANSPORT="streamable-http",
         KITTYBUILDER_MCP_HOST="127.0.0.1",

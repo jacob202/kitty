@@ -10,8 +10,8 @@ from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway.builder_status_readonly import (
     build_status_snapshot_readonly,
-    get_initiative_readonly,
     get_attempt_validation_index_readonly,
+    get_initiative_readonly,
 )
 
 
