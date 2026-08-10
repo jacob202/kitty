@@ -16,7 +16,6 @@ from typing import Any
 
 from gateway import builder_initiative as initiative
 from gateway import builder_status as status
-from gateway.db import apply_pragmas
 
 
 def _readonly_connection(db_path: Path) -> sqlite3.Connection:
@@ -26,7 +25,11 @@ def _readonly_connection(db_path: Path) -> sqlite3.Connection:
     uri = f"{path.as_uri()}?mode=ro"
     conn = sqlite3.connect(uri, uri=True)
     conn.row_factory = sqlite3.Row
-    apply_pragmas(conn)
+    # Deliberately avoid the app-wide pragma helper here: it includes
+    # ``journal_mode=WAL``, which is appropriate for normal mutable connections
+    # but is not part of a strict inspection-only contract.
+    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA query_only = ON")
     return conn
 
