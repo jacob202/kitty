@@ -108,6 +108,25 @@ def test_kitty_context_delegates_to_authoritative_context_receipt(
     assert result["context"]["unknowns"][0]["field"] == "builder"
 
 
+def test_status_snapshot_uses_genuinely_read_only_builder_projection(
+    monkeypatch: pytest.MonkeyPatch,
+    snapshot: dict,
+) -> None:
+    seen: dict[str, Path] = {}
+    monkeypatch.setattr(context, "repo_root", lambda: Path("/tmp/kitty"))
+
+    def fake_readonly(*, db_path: Path) -> dict:
+        seen["db_path"] = db_path
+        return snapshot
+
+    monkeypatch.setattr(context, "build_status_snapshot_readonly", fake_readonly)
+
+    result = context._status_snapshot()
+
+    assert result is snapshot
+    assert seen["db_path"] == Path("/tmp/kitty/data/kittybuilder/builder_queue.db")
+
+
 def test_work_status_filters_exact_mission(monkeypatch: pytest.MonkeyPatch, snapshot: dict) -> None:
     monkeypatch.setattr(context, "_status_snapshot", lambda: snapshot)
 
