@@ -15,8 +15,12 @@ import subprocess
 from typing import Any
 
 from gateway import builder_initiative as bi
-from gateway import builder_queue as bq
-from gateway.builder_commands import command_publish
+from gateway.builder_commands import (
+    command_cancel,
+    command_pause,
+    command_publish,
+    command_resume,
+)
 
 from . import repo_tools
 from .context import work_status
@@ -25,6 +29,7 @@ from .schemas import MCP_ARTIFACT_MARKER, receipt
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _LIVE_TASK_STATES = frozenset({"claimed", "running", "pr_opened", "awaiting_review"})
+_TERMINAL_OR_BLOCKED = frozenset({"blocked", "failed", "cancelled"})
 
 
 def _validate_id(value: str, *, label: str) -> str:
@@ -111,7 +116,6 @@ def _verify_bound_artifacts(refs: dict[str, str], *, base_sha: str) -> None:
     if not _SHA_RE.fullmatch(design_sha) or not _SHA_RE.fullmatch(plan_sha):
         raise ValueError("design_sha and plan_sha must be full 40-character commit SHAs")
 
-    # Prove the exact files exist at the exact commits before checking ancestry.
     repo_tools.read_tracked_file(design_path, ref=design_sha, start_line=1, end_line=1)
     repo_tools.read_tracked_file(plan_path, ref=plan_sha, start_line=1, end_line=1)
     if not _commit_is_ancestor(base_sha, design_sha):
@@ -304,18 +308,37 @@ def mission_approve(
         )
 
 
-def execution_pause(mission_id: str, reason: str) -> dict[str, Any]:
+def _command_error(operation: str, result: Any, *, state: str) -> dict[str, Any]:
+    return receipt(
+        operation,
+        ok=False,
+        state=state,
+        error_code=f"{operation.removeprefix('execution_')}_failed",
+        error=result.error or result.detail or f"Builder {operation} failed",
+        evidence=result.evidence,
+    )
+
+
+def execution_pause(
+    mission_id: str,
+    reason: str,
+    *,
+    actor: str = "mcp-client",
+) -> dict[str, Any]:
     try:
         _validate_id(mission_id, label="mission_id")
         if not reason or not reason.strip():
             raise ValueError("pause reason must be non-empty")
-        bi.pause_initiative(mission_id, reason=reason)
+        result = command_pause(mission_id, actor=actor, reason=reason)
+        if not result.ok:
+            return _command_error("execution_pause", result, state="unknown")
         return receipt(
             "execution_pause",
             ok=True,
             state="paused",
             mission_id=mission_id,
-            summary=f"Builder initiative {mission_id} paused.",
+            summary=result.detail or f"Builder initiative {mission_id} paused.",
+            evidence=result.evidence,
             next_action="Resume when the blocker or decision is resolved.",
         )
     except Exception as exc:
@@ -328,16 +351,23 @@ def execution_pause(mission_id: str, reason: str) -> dict[str, Any]:
         )
 
 
-def execution_resume(mission_id: str) -> dict[str, Any]:
+def execution_resume(
+    mission_id: str,
+    *,
+    actor: str = "mcp-client",
+) -> dict[str, Any]:
     try:
         _validate_id(mission_id, label="mission_id")
-        bi.resume_initiative(mission_id)
+        result = command_resume(mission_id, actor=actor)
+        if not result.ok:
+            return _command_error("execution_resume", result, state="unknown")
         return receipt(
             "execution_resume",
             ok=True,
             state="active",
             mission_id=mission_id,
-            summary=f"Builder initiative {mission_id} resumed.",
+            summary=result.detail or f"Builder initiative {mission_id} resumed.",
+            evidence=result.evidence,
             next_action="Call execution_start to continue eligible work.",
         )
     except Exception as exc:
@@ -360,13 +390,16 @@ def execution_cancel(
         _validate_id(task_id, label="task_id")
         if not reason or not reason.strip():
             raise ValueError("cancel reason must be non-empty")
-        result = bq.operator_cancel_task(task_id, reason=reason, actor=actor)
+        result = command_cancel(task_id, actor=actor, reason=reason)
+        if not result.ok:
+            return _command_error("execution_cancel", result, state="unknown")
         return receipt(
             "execution_cancel",
             ok=True,
-            state=result.get("state"),
+            state=(result.evidence or {}).get("new_state") or "cancelled",
             task_id=task_id,
-            summary=f"Builder task {task_id} cancelled durably.",
+            summary=result.detail or f"Builder task {task_id} cancelled durably.",
+            evidence=result.evidence,
         )
     except Exception as exc:
         return receipt(
@@ -386,6 +419,13 @@ def _selected_packets(work: dict[str, Any], packet_id: str | None) -> list[dict[
     if not selected:
         raise ValueError(f"packet not found in mission: {packet_id}")
     return selected
+
+
+def _packet_can_be_launched(packet: dict[str, Any]) -> bool:
+    if packet.get("task_state") != "queued":
+        return False
+    eligibility = packet.get("eligibility") or {}
+    return eligibility.get("state") not in {"blocked", "exhausted"}
 
 
 def execution_start(
@@ -453,19 +493,36 @@ def execution_start(
                 error="Mission is paused and must be explicitly resumed before execution.",
                 next_action="Resolve the pause reason, then call execution_resume.",
             )
-        if mission_state == "failed":
+
+        if packet_id and packets[0].get("task_state") in _TERMINAL_OR_BLOCKED:
+            selected = packets[0]
+            return receipt(
+                "execution_start",
+                ok=False,
+                state="needs_decision",
+                error_code="selected_work_not_runnable",
+                error=(
+                    f"selected packet {packet_id} is {selected.get('task_state')}; "
+                    "refusing blind relaunch"
+                ),
+                next_action="Inspect/recover the selected packet before starting it again.",
+                blocker=selected.get("blocked_reason") or selected.get("last_error"),
+            )
+
+        runnable = [packet for packet in packets if _packet_can_be_launched(packet)]
+        if mission_state == "failed" and not runnable:
             blockers = [
                 packet.get("blocked_reason") or packet.get("last_error")
                 for packet in packets
-                if packet.get("task_state") in {"blocked", "failed", "cancelled"}
+                if packet.get("task_state") in _TERMINAL_OR_BLOCKED
             ]
             return receipt(
                 "execution_start",
                 ok=False,
                 state="needs_decision",
                 error_code="mission_needs_decision",
-                error="Mission has blocked/failed durable state; refusing blind relaunch.",
-                next_action="Inspect work_status, recover/resolve the blocker, then resume.",
+                error="Mission has no runnable selected packet; refusing blind relaunch.",
+                next_action="Inspect/recover the blocked or failed work before continuing.",
                 blockers=[value for value in blockers if value],
             )
 
