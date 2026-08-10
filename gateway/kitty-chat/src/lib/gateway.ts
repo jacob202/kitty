@@ -1813,29 +1813,6 @@ export async function executeRepair(repairId: string, actionKind: string, checkN
   )
 }
 
-export interface BuilderActionResult {
-  ok: boolean
-  action_id?: number
-  error?: string
-}
-
-export async function executeBuilderAction(
-  action: string,
-  initiativeId?: string,
-  packetId?: string,
-  reason?: string,
-): Promise<BuilderActionResult> {
-  return await gfetch<BuilderActionResult>(
-    '/builder/action',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, initiative_id: initiativeId, packet_id: packetId, reason }),
-    },
-    8000,
-  )
-}
-
 // ── Builder operator commands (KB-BRAIN-05) ───────────────────────────────────
 
 export interface OperatorCommandPayload {

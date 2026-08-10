@@ -52,7 +52,7 @@ _OUTCOMES = frozenset({ATTEMPT_SUCCEEDED, ATTEMPT_FAILED, ATTEMPT_ABORTED, ATTEM
 # ``crashed`` is budget-neutral and ``succeeded`` completes the packet, so
 # neither counts toward exhaustion. Single source of truth, also used by
 # builder_initiative._attempts_exhausted so the rollup agrees with this module.
-_BUDGET_CONSUMING_OUTCOMES = frozenset({ATTEMPT_FAILED, ATTEMPT_ABORTED, ATTEMPT_CRASHED})
+_BUDGET_CONSUMING_OUTCOMES = frozenset({ATTEMPT_FAILED, ATTEMPT_ABORTED})
 
 _IMPL_STATUSES = frozenset({"completed", "failed", "aborted"})
 _REVIEW_VERDICTS = frozenset({"approve", "request_changes", "reject"})

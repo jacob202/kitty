@@ -53,6 +53,39 @@ class TestOperatorCommandEndpoint:
         assert isinstance(body.get("available"), list)
         assert len(body["available"]) > 0
 
+    def test_legacy_action_route_is_not_registered(self, client):
+        response = client.post("/builder/action", json={"action": "resume"})
+        assert response.status_code == 404
+
+    def test_approved_mission_route_materializes_durable_work(self, client, monkeypatch, tmp_path):
+        from gateway import builder_initiative
+
+        db_path = tmp_path / "builder_queue.db"
+        monkeypatch.setattr(builder_route, "BUILDER_QUEUE_DB", db_path)
+        monkeypatch.setattr(builder_route, "PROJECT_ROOT", tmp_path)
+        response = client.post(
+            "/builder/initiative",
+            json={
+                "mission_id": "route-mission-v1",
+                "objective": "Persist this approved mission",
+                "approved_at": "2026-08-08T00:00:00Z",
+                "state": "approved",
+                "origin": {"base_sha": "a" * 40},
+                "execution": {"allowed_paths": ["gateway/routes/builder.py"]},
+                "evidence_plan": {
+                    "acceptance_criteria": [{"description": "a task is durable"}]
+                },
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "created"
+        assert body["initiative_id"] == "route-mission-v1"
+        assert builder_initiative.get_initiative(
+            "route-mission-v1", db_path=db_path
+        )["manifest"]["packets"][0]["id"] == "P1"
+
     def test_requeue_missing_task_id_raises(self, client):
         response = client.post("/builder/command", json={"action": "requeue"})
         assert response.status_code == 200

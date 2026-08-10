@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { bodyText, card, cardHeader, cardMeta, cardTitle, emptyState, itemCard } from '@/lib/ui'
-import { useGatewayRuntimeManifest, useBuilderAction } from '@/lib/queries'
+import { useGatewayRuntimeManifest, useOperatorCommand } from '@/lib/queries'
 import { Button } from '@/components/ui/Button'
 import { ArrowLeft, Home } from 'lucide-react'
 import type {
@@ -343,7 +343,7 @@ function BuilderControls({
   selection: PacketSelection | null
   onRefresh: () => void
 }) {
-  const action = useBuilderAction()
+  const command = useOperatorCommand()
   const [busy, setBusy] = useState(false)
   const [confirmCleanup, setConfirmCleanup] = useState(false)
 
@@ -360,10 +360,15 @@ function BuilderControls({
     )
   )
 
-  const runAction = (builderAction: string, initiativeId?: string, packetId?: string) => {
+  const runAction = (builderAction: string, initiativeId?: string, taskId?: string) => {
     setBusy(true)
-    action.mutate(
-      { action: builderAction, initiativeId, packetId },
+    command.mutate(
+      {
+        action: builderAction,
+        initiative_id: initiativeId,
+        task_id: taskId,
+        reason: `Builder surface requested ${builderAction}`,
+      },
       {
         onSettled: () => setBusy(false),
       },
@@ -439,7 +444,7 @@ function BuilderControls({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => runAction('requeue', p._initiativeId, p.packet_id)}
+                onClick={() => runAction('requeue', p._initiativeId, p.task_id)}
                 style={{ ...actionButton, fontSize: 10, padding: '4px 8px' }}
               >
                 requeue
@@ -465,7 +470,7 @@ function BuilderControls({
                 key={p.packet_id}
                 type="button"
                 disabled={busy}
-                onClick={() => runAction('requeue', p._initiativeId, p.packet_id)}
+                onClick={() => runAction('requeue', p._initiativeId, p.task_id)}
                 style={{ ...actionButton, color: 'var(--c-blue)' }}
               >
                 {busy ? '…' : `requeue ${p.title.slice(0, 20)}${p.title.length > 20 ? '…' : ''}`}
@@ -492,7 +497,7 @@ function BuilderControls({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => { runAction('cleanup'); setConfirmCleanup(false) }}
+                  onClick={() => { runAction('recover_stale'); setConfirmCleanup(false) }}
                   style={{ ...actionButton, alignSelf: 'flex-start', background: 'var(--c-red)', color: '#fff', borderColor: 'var(--c-red)' }}
                 >
                   {busy ? '…' : 'confirm — permanent'}
@@ -718,7 +723,7 @@ function PacketDetail({
   onHome?: () => void
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null)
-  const action = useBuilderAction()
+  const command = useOperatorCommand()
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -731,8 +736,13 @@ function PacketDetail({
 
   const runAction = (builderAction: string) => {
     setBusy(true)
-    action.mutate(
-      { action: builderAction, initiativeId: packet.initiative_id, packetId: packet.packet_id },
+    command.mutate(
+      {
+        action: builderAction,
+        initiative_id: packet.initiative_id,
+        task_id: packet.task_id,
+        reason: `Builder surface requested ${builderAction}`,
+      },
       { onSettled: () => setBusy(false) },
     )
   }

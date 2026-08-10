@@ -9,14 +9,19 @@ import type {
   RuntimeFact,
 } from '../src/lib/gateway'
 
+const operatorCommandMutate = vi.hoisted(() => vi.fn())
+
 vi.mock('../src/lib/queries', () => ({
   useGatewayRuntimeManifest: vi.fn(),
-  useBuilderAction: vi.fn(() => ({ isPending: false, mutate: vi.fn() })),
+  useOperatorCommand: vi.fn(() => ({ isPending: false, mutate: operatorCommandMutate })),
 }))
 
 const NOW = '2026-07-17T03:00:00Z'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  operatorCommandMutate.mockReset()
+})
 
 function builderFact(
   value: BuilderStatusSnapshot,
@@ -351,6 +356,30 @@ describe('BuilderSurface', () => {
       'Ready for an authorized run: BUILDER-UI-1',
     )
     expect(screen.getByText(/This UI does not start Builder work/)).toBeInTheDocument()
+  })
+
+  it('uses the canonical command payload when requeueing a dead packet', () => {
+    const deadSnapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      initiatives: [{
+        ...SNAPSHOT.initiatives[0],
+        packets: [{ ...PACKET, task_state: 'failed' }],
+      }],
+    }
+
+    render(<BuilderSurface fact={builderFact(deadSnapshot)} isLoading={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View packet Expose truthful Builder status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'requeue' }))
+
+    expect(operatorCommandMutate).toHaveBeenCalledWith(
+      {
+        action: 'requeue',
+        initiative_id: PACKET.initiative_id,
+        task_id: PACKET.task_id,
+        reason: 'Builder surface requested requeue',
+      },
+      expect.anything(),
+    )
   })
 
   it('prioritizes a paused initiative reason as the next decision', () => {

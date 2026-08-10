@@ -135,6 +135,23 @@ class Mission(BaseModel):
     state: MissionState = MissionState.proposed
 
 
+class BuilderCommandRequest(BaseModel):
+    """Canonical request shape for Kitty's Builder operator controls.
+
+    Both the current command route and the legacy action-queue adapter accept
+    this same boundary object. The adapters remain responsible only for their
+    transport-specific response and audit behavior.
+    """
+
+    action: str
+    task_id: str | None = None
+    initiative_id: str | None = None
+    packet_id: str | None = None
+    reason: str | None = None
+    actor: str | None = None
+    expected_version: int | None = None
+
+
 # ---------------------------------------------------------------------------
 # Worker context / contract models
 # ---------------------------------------------------------------------------
@@ -246,6 +263,7 @@ __all__ = [
     "AgentPresetConfig",
     "Assumption",
     "AttemptResult",
+    "BuilderCommandRequest",
     "ContextTier",
     "EvidenceCriterion",
     "Mission",
