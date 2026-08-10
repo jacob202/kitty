@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# Run the Tests workflow's gates before anything leaves this machine.
+#
+# GitHub Actions is the usual gate. When it cannot run — no runner minutes, no
+# network, no budget — a push carries no verdict at all, and broken code reaches
+# main unnoticed. This hook is the standing local replacement: same commands,
+# same thresholds, no account required.
+#
+# Install: make hooks
+# Bypass:  git push --no-verify   (deliberate, and it says so in the output)
+set -uo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "${ROOT_DIR}" || exit 1
+
+RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; OFF=$'\033[0m'
+[[ -t 2 ]] || { RED=""; GREEN=""; YELLOW=""; DIM=""; OFF=""; }
+
+say() { printf '%s\n' "$*" >&2; }
+
+# Fail loud rather than waving a push through on a half-built toolchain. A gate
+# that silently skips is worse than no gate: it reports success it never checked.
+PYTHON_BIN="${PYTHON_BIN:-${ROOT_DIR}/venv/bin/python}"
+if [[ ! -x "${PYTHON_BIN}" ]]; then
+  if command -v python3.12 >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python3.12)"
+  else
+    say "${RED}Push blocked — no Python to test with.${OFF}"
+    say "Looked for ./venv/bin/python and python3.12, found neither."
+    say "Fix: python3.12 -m venv venv && ./venv/bin/pip install -r requirements.txt"
+    exit 1
+  fi
+fi
+
+RUFF="${ROOT_DIR}/venv/bin/ruff"
+[[ -x "${RUFF}" ]] || RUFF=""
+
+# Frontend gates cost several minutes and only matter when the frontend moved.
+# Everything else runs every time — the last two breakages on main were both
+# docs-only changes.
+BASE_REF="$(git rev-parse --verify --quiet origin/main || true)"
+if [[ -n "${BASE_REF}" ]]; then
+  CHANGED="$(git diff --name-only "${BASE_REF}...HEAD" 2>/dev/null || true)"
+else
+  CHANGED=""
+fi
+if [[ -z "${BASE_REF}" ]] || grep -q '^gateway/kitty-chat/' <<<"${CHANGED}"; then
+  RUN_FRONTEND=1
+else
+  RUN_FRONTEND=0
+fi
+
+FAILED=()
+run_gate() {
+  local label="$1"; shift
+  say "${DIM}→ ${label}${OFF}"
+  if "$@" >/tmp/kitty-pre-push.$$ 2>&1; then
+    say "  ${GREEN}ok${OFF}  ${label}"
+  else
+    say "  ${RED}FAILED${OFF}  ${label}"
+    tail -n 25 /tmp/kitty-pre-push.$$ >&2
+    FAILED+=("${label}")
+  fi
+  rm -f /tmp/kitty-pre-push.$$
+}
+
+say ""
+say "Checking before push — the same gates CI runs."
+
+if [[ -n "${RUFF}" ]]; then
+  run_gate "code style" "${RUFF}" check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+else
+  run_gate "code style" "${PYTHON_BIN}" -m ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+fi
+
+run_gate "types" "${PYTHON_BIN}" -m mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+
+run_gate "tests" "${PYTHON_BIN}" -m pytest tests/ -q --tb=short \
+  --cov=gateway --cov-report=term-missing --cov-fail-under=73
+
+if [[ "${RUN_FRONTEND}" == "1" ]]; then
+  run_gate "web tests" bash -c 'cd gateway/kitty-chat && ./node_modules/.bin/vitest run'
+  run_gate "web build" bash -c 'cd gateway/kitty-chat && node node_modules/next/dist/bin/next build'
+else
+  say "  ${DIM}skipped${OFF}  web tests and build — nothing under gateway/kitty-chat/ changed"
+fi
+
+say ""
+if [[ ${#FAILED[@]} -eq 0 ]]; then
+  say "${GREEN}All clear.${OFF} Pushing."
+  say ""
+  exit 0
+fi
+
+say "${RED}Push blocked.${OFF} ${#FAILED[@]} of these failed: ${FAILED[*]}"
+say ""
+say "Nothing was sent. Fix the failure above, or run ${YELLOW}make ci${OFF} to see it in full."
+say "If you are certain this is fine, push again with ${YELLOW}--no-verify${OFF}."
+say ""
+exit 1

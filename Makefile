@@ -1,4 +1,4 @@
-.PHONY: agent-wrap vibe-session test lint typecheck ci ui-test ui-build ui-tailnet smoke-test codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr trust-eval
+.PHONY: agent-wrap vibe-session test lint typecheck ci hooks ui-test ui-build ui-tailnet smoke-test codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr trust-eval
 
 agent-wrap:
 	python3.12 scripts/agent_wrapup.py
@@ -25,6 +25,12 @@ typecheck:
 	python3.12 -m mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
 
 ci: lint typecheck test-ci ui-test ui-build
+
+# Point git at scripts/hooks/ so the pre-push gate survives clone and reinstall.
+# core.hooksPath is per-clone config, so this is not automatic -- run it once.
+hooks:
+	git config core.hooksPath scripts/hooks
+	@echo "pre-push gate installed. Bypass a single push with: git push --no-verify"
 
 smoke-test:
 	cd gateway/kitty-chat && npx playwright test
