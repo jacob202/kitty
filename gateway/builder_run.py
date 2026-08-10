@@ -681,6 +681,35 @@ def run_initiative(
                 "succeeded": succeeded,
                 "exhausted": exhausted,
             }
+        elif loop_result["outcome"] == bl.LOOP_PAUSED:
+            processed.append(
+                {
+                    "packet_id": packet_id,
+                    "task_id": task_id,
+                    "outcome": loop_result["outcome"],
+                }
+            )
+            _decide(
+                task_id,
+                {
+                    "initiative_id": initiative_id,
+                    "packet_id": packet_id,
+                    "decision": "packet_paused",
+                    "reason": loop_result.get("reason"),
+                    "stop_class": STOP_ROUTINE,
+                },
+                db_path,
+            )
+            return {
+                "outcome": "paused",
+                "reason": loop_result.get("reason") or "operator pause",
+                "stop_class": STOP_ROUTINE,
+                "packet_id": packet_id,
+                "task_id": task_id,
+                "processed": processed,
+                "succeeded": succeeded,
+                "exhausted": exhausted,
+            }
         elif loop_result["outcome"] == bl.LOOP_CANCELLED:
             _decide(
                 task_id,

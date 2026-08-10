@@ -436,6 +436,41 @@ class TestRunPacket:
         second = ba.get_attempt(result["attempts"][1]["attempt_id"], db_path=db_path)
         assert second["bundle"]["prior_attempts"][0]["outcome"] == "failed"
 
+    def test_operator_pause_between_attempts_stops_retry(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        _apply(db_path, max_attempts=2, repo_root=repo)
+        source_root = Path(__file__).resolve().parents[1]
+        pause_helper = tmp_path / "pause_initiative.py"
+        pause_helper.write_text(
+            "import sys\n"
+            f"sys.path.insert(0, {str(source_root)!r})\n"
+            "from pathlib import Path\n"
+            "from gateway import builder_initiative as bi\n"
+            f"bi.pause_initiative({INITIATIVE!r}, 'operator pause during attempt', "
+            "db_path=Path(sys.argv[1]))\n",
+            encoding="utf-8",
+        )
+        worker = _script(
+            tmp_path,
+            "pause_then_fail_validation.sh",
+            (
+                f"python3.12 {pause_helper} {db_path}\n"
+                f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
+            ),
+        )
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=worker,
+            repo_root=repo, db_path=db_path,
+        )
+
+        assert result["outcome"] == "paused"
+        assert result["reason"] == "operator pause during attempt"
+        assert len(result["attempts"]) == 1
+        assert len(ba.list_attempts(INITIATIVE, PACKET, db_path=db_path)) == 1
+
     def test_budget_exhaustion_leaves_task_blocked(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):

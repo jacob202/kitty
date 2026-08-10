@@ -40,7 +40,9 @@ TASK_OUTPUT_DIR = DATA_DIR / "task_outputs"
 # KittyBuilder orchestrator queue — separate from the generic TASK_DB.
 # Phase 1A stores the durable task/event store here; see
 # docs/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md. Do not reuse TASK_DB for this.
-KITTYBUILDER_DIR = DATA_DIR / "kittybuilder"
+KITTYBUILDER_DIR = Path(
+    _os.environ.get("KITTY_BUILDER_DATA_DIR", str(DATA_DIR / "kittybuilder"))
+)
 BUILDER_QUEUE_DB = KITTYBUILDER_DIR / "builder_queue.db"
 
 # Compute governor — agent-work receipts and the local weekly usage estimate.
