@@ -21,7 +21,7 @@ V2 adds four bounded capabilities:
 
 1. `kitty mcp up|down|status|doctor` — one operator surface for the existing v1 server.
 2. Ordered end-to-end diagnostics that identify the earliest broken boundary and one corrective action.
-3. `kitty mcp proof` — a proof runner/receipt path for one real KPROOF software Mission using the existing MCP and Builder contracts.
+3. `kitty mcp proof <mission-id>` — a proof runner/receipt path for one real KPROOF software Mission using the existing MCP and Builder contracts.
 4. A fresh-session continuity proof that rehydrates the Mission through `resume_context()` without a pasted transcript.
 
 V2 does **not** add another orchestrator, database, queue, worker protocol, generic shell, generic filesystem mutation, new model router, broad UI redesign, or a larger MCP tool surface unless implementation discovers a concrete missing primitive that makes the approved proof impossible. Such a discovery returns to design review rather than silently expanding scope.
@@ -97,6 +97,8 @@ Status is observational. It does not install, migrate, start, recover, or mutate
 
 `kitty mcp doctor [--json]` runs ordered checks. Later checks may be skipped when an earlier dependency makes them meaningless.
 
+Doctor is diagnostic and non-mutating. It does not start the MCP server, install dependencies, migrate or recover Builder state, create/approve/start Missions, authorize spend, or publish work. If the MCP process is stopped, that is reported at the process boundary with `kitty mcp up` as the next action rather than being silently repaired.
+
 Order:
 
 1. **Canonical checkout** — this is the expected Kitty repository and Git state is intelligible.
@@ -141,13 +143,13 @@ This proves the same serialization/transport/tool-registration seam an actual cl
 
 ## 7. Proof runner
 
-### `kitty mcp proof`
+### `kitty mcp proof <mission-id>`
 
 This is an evidence collector and gate runner, not a second workflow engine.
 
-It operates on a **real explicitly approved Builder Mission**. It does not create a fake success path, bypass `mission_prepare/mission_approve`, auto-approve user intent, or mutate code itself.
+It operates on a **real explicitly approved Builder Mission**. It does not create a fake success path, bypass `mission_prepare/mission_approve`, auto-approve user intent, or mutate code itself. The live acceptance Mission must have been prepared and approved through the real MCP protocol/client boundary; a direct Builder CLI setup cannot satisfy that part of the proof.
 
-The final KPROOF run must use a real product interaction/feature that satisfies KPROOF-001, not a toy `hello world` change. A synthetic fixture may be used in automated tests for deterministic error cases, but cannot satisfy the product proof.
+The final KPROOF run must use a **currently dead interaction in the Build Work area**, as required by KPROOF-001, and restore that real product behavior. A toy `hello world` change cannot satisfy the product proof. A synthetic fixture may still be used in automated tests for deterministic error cases.
 
 The proof lifecycle is:
 
@@ -165,7 +167,7 @@ preflight doctor
   -> write proof receipt
 ```
 
-The runner may call existing MCP tools. It may not write Builder SQLite directly, parse worker prose as truth, merge a PR, authorize spend, or silently publish.
+The runner may call existing MCP tools. It may not write Builder SQLite directly, parse worker prose as truth, merge a PR, authorize spend, auto-approve a Mission, or silently publish.
 
 ### Proof receipt
 
@@ -239,7 +241,7 @@ V1 authorization rules remain unchanged:
 - no deletes/account/security/auth changes are added;
 - public MCP bind remains refused.
 
-`kitty mcp proof` must stop with `incomplete` if it reaches an authorization gate it cannot cross. It reports the required decision instead of treating the gate as failure or bypassing it.
+`kitty mcp proof <mission-id>` must stop with `incomplete` if it reaches an authorization gate it cannot cross. It reports the required decision instead of treating the gate as failure or bypassing it.
 
 ## 11. Failure handling
 
@@ -272,6 +274,7 @@ Implementation follows TDD and separates deterministic tests from the final live
 - PID ownership and unrelated-port refusal;
 - idempotent start/stop;
 - no public bind;
+- doctor is non-mutating and reports a stopped server instead of starting it;
 - ordered doctor short-circuit/first-failure behavior;
 - structured JSON schema and one-next-action rule;
 - real MCP protocol initialize/list/call against an ephemeral local server;
@@ -287,7 +290,7 @@ Run the focused tests first, then the repository lint/typecheck/pytest/UI gates 
 
 ### Live acceptance
 
-The final live test occurs on Jacob's canonical Mac checkout and uses a real KPROOF feature/interaction. Runtime product behavior outranks the deterministic suite.
+The final live test occurs on Jacob's canonical Mac checkout and uses the dead Build Work interaction selected under KPROOF-001. Runtime product behavior outranks the deterministic suite.
 
 ## 13. Acceptance contract
 
@@ -297,12 +300,12 @@ V2 passes only when all of the following are evidenced on the canonical Mac chec
 2. Repeating `up` does not create a duplicate owner.
 3. `kitty mcp doctor --json` completes with no local blocking failure.
 4. A real MCP client initializes, lists the governed v1 tools, and calls `kitty_context()` successfully/truthfully.
-5. One real explicitly approved KPROOF software Mission is driven through existing KittyBuilder execution.
+5. One real Build Work interaction Mission is prepared and explicitly approved through the MCP protocol, then driven through existing KittyBuilder execution without Jacob manually coordinating workers.
 6. Builder produces deterministic validation evidence and required independent review evidence.
-7. The relevant behavior works in the launched product/application, not merely in tests.
+7. The repaired Build Work behavior works in the launched product/application, not merely in tests.
 8. Publication/PR evidence is captured if separately authorized.
 9. A newly initialized MCP client session recovers the same Mission/artifact/execution truth with `resume_context()` and no pasted transcript.
-10. `kitty mcp proof` emits a `pass` receipt only after all required evidence exists.
+10. `kitty mcp proof <mission-id>` emits a `pass` receipt only after all required evidence exists.
 11. `kitty mcp down` stops only its owned process and leaves unrelated processes untouched.
 
 If the system still requires Jacob to manually coordinate workers/agents, reconstruct old context, or guess which subsystem failed, KPROOF has not passed.
