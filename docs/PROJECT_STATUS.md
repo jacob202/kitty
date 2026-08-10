@@ -1,6 +1,6 @@
 # Project Status
 
-**Repository evidence verified:** 2026-08-09 through `main` `ece1bad0341a7743681a0619e9266b186e8478d8`, plus current GitHub PR/check state.
+**Repository evidence verified:** 2026-08-10 through `main` `d54fd8966edd1f8a14802ed19e26a07917498caf`, plus current GitHub PR/check state.
 
 This file is a dated evidence summary, not a live runtime dashboard. Use Git/GitHub for repository state, supported probes for local services, and Builder's supported database/API/CLI for execution state.
 
@@ -26,8 +26,9 @@ The current authority is now explicit: KPROOF-001 gates broader roadmap work unt
 - #437 merged the Builder action trust repair: `useBuilderAction()` now converts an HTTP-success `{ok:false}` payload into a mutation error, refreshes the runtime-manifest query rather than `['runtime']`, and surfaces the action result. It merged without repository CI, and its recorded evidence is mocked/local UI behavior — so it must not yet be described as the completed KPROOF control seam.
 - #442 removed Dependabot version updates, cancels superseded PR runs, and aligned `make ci` to the `Tests` workflow's exact commands and coverage gate.
 - #444 recorded the out-of-band gate verification while Actions is unavailable.
-- **Repository CI has run no workflow step since 2026-08-06.** Jobs are assigned no runner and fail within two seconds on every branch and event type — an account billing/spending state, not a code result. Red checks currently carry no information. `main` was instead verified gate-by-gate in a CI-equivalent container; see [`audit/MAIN_GATE_VERIFICATION_2026-08-09.md`](audit/MAIN_GATE_VERIFICATION_2026-08-09.md).
-- `main` currently ends at `ece1bad0341a7743681a0619e9266b186e8478d8`.
+- **Repository CI has run no workflow step since 2026-08-06.** Jobs are assigned no runner and fail within seconds on every branch and event type — an account billing/spending state, not a code result. Red checks currently carry no information. `main` was instead verified gate-by-gate in a CI-equivalent container; see [`audit/MAIN_GATE_VERIFICATION_2026-08-10.md`](audit/MAIN_GATE_VERIFICATION_2026-08-10.md), which supersedes the 2026-08-09 receipt.
+- `main` currently ends at `d54fd8966edd1f8a14802ed19e26a07917498caf`, which added the KittyBuilder MCP bridge as a direct-to-`main` squash with no green check.
+- **`main` at `d54fd896` fails its own `lint` and `typecheck` gates.** Both errors are in `mcp/builder/context.py`: a ruff `I001` un-sorted import block, and a mypy `None`-into-`str` assignment. Neither changes runtime behaviour and the bridge's own tests pass, but the `Tests` workflow would reject both. The repair is on `claude/next-4gj621`.
 
 ## Active work
 
