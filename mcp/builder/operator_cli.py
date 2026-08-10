@@ -27,6 +27,13 @@ def _print_human(payload: dict[str, Any]) -> None:
     print(f"  next: {payload.get('next_action') or 'none'}")
 
 
+def _print_proof_human(payload: dict[str, Any]) -> None:
+    print(f"MCP proof: {str(payload.get('verdict', 'incomplete')).upper()}")
+    print(f"Mission: {payload.get('mission_id') or 'unknown'}")
+    print(f"Evidence: {payload.get('receipt_path') or 'not written'}")
+    print(f"Next: {payload.get('next_action') or 'inspect proof evidence'}")
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="kitty mcp")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -35,11 +42,13 @@ def _parser() -> argparse.ArgumentParser:
         item.add_argument("--json", action="store_true", dest="as_json")
     doctor = sub.choices["doctor"]
     doctor.add_argument("--publication-required", action="store_true")
+
     proof = sub.add_parser("proof")
     proof.add_argument("mission_id")
+    proof.add_argument("--timeout", type=int, default=3600, dest="timeout_seconds")
+    proof.add_argument("--poll", type=float, default=2.0, dest="poll_seconds")
+    proof.add_argument("--require-publication", action="store_true", dest="publication_required")
     proof.add_argument("--json", action="store_true", dest="as_json")
-    proof.add_argument("--start", action="store_true")
-    proof.add_argument("--publication-required", action="store_true")
     return parser
 
 
@@ -48,23 +57,43 @@ def main(argv: list[str] | None = None) -> int:
     config = operator.load_config()
     if args.command == "status":
         payload = operator.status_report(config)
-    elif args.command == "doctor":
-        payload = asyncio.run(operator.doctor_report(config, publication_required=args.publication_required))
-    else:
-        from . import proof as proof_module
+        if args.as_json:
+            _print_json(payload)
+        else:
+            _print_human(payload)
+        return 0 if payload.get("ok") else 1
+
+    if args.command == "doctor":
         payload = asyncio.run(
-            proof_module.proof_report(
+            operator.doctor_report(
                 config,
-                mission_id=args.mission_id,
-                start=args.start,
                 publication_required=args.publication_required,
             )
         )
+        if args.as_json:
+            _print_json(payload)
+        else:
+            _print_human(payload)
+        return 0 if payload.get("ok") else 1
+
+    from . import proof as proof_module
+
+    payload = asyncio.run(
+        proof_module.proof_report(
+            config,
+            mission_id=args.mission_id,
+            timeout_seconds=args.timeout_seconds,
+            poll_seconds=args.poll_seconds,
+            publication_required=args.publication_required,
+        )
+    )
     if args.as_json:
         _print_json(payload)
     else:
-        _print_human(payload)
-    return 0 if payload.get("ok") else 1
+        _print_proof_human(payload)
+    return {"pass": 0, "fail": 1, "incomplete": 2}.get(
+        str(payload.get("verdict")), 2
+    )
 
 
 if __name__ == "__main__":
