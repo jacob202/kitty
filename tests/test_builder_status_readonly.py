@@ -8,7 +8,10 @@ import pytest
 
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
-from gateway.builder_status_readonly import build_status_snapshot_readonly
+from gateway.builder_status_readonly import (
+    build_status_snapshot_readonly,
+    get_initiative_readonly,
+)
 
 
 def _manifest() -> dict:
@@ -71,3 +74,21 @@ def test_readonly_snapshot_leaves_existing_database_bytes_and_schema_unchanged(
     assert snapshot["initiatives"][0]["packets"][0]["task_state"] == "queued"
     assert _schema_version(db_path) == before_schema
     assert _digest(db_path) == before_digest
+
+
+def test_readonly_initiative_lookup_returns_manifest_without_mutating_db(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "builder.db"
+    ba.init_db(db_path)
+    monkeypatch.setattr(bi, "resolve_base_sha", lambda _root=None: "a" * 40)
+    bi.apply_manifest(_manifest(), db_path=db_path, repo_root=tmp_path)
+    before = _digest(db_path)
+
+    initiative = get_initiative_readonly("readonly-proof", db_path=db_path)
+
+    assert initiative is not None
+    assert initiative["manifest"] == _manifest()
+    assert initiative["packets"][0]["packet_id"] == "packet-1"
+    assert _digest(db_path) == before
