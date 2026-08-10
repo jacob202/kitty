@@ -36,6 +36,7 @@ from typing import Any
 
 from gateway import builder_attempt as ba
 from gateway import builder_identity as bid
+from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 from gateway import compute_governor as cg
 from gateway.builder_brief import default_branch_name
@@ -64,6 +65,7 @@ DEFAULT_MAX_CONSECUTIVE_RECOVERIES = 3
 LOOP_SUCCEEDED = "succeeded"
 LOOP_EXHAUSTED = "exhausted"
 LOOP_CANCELLED = "cancelled"
+LOOP_PAUSED = "paused"
 
 LOOP_PROVIDER_EXHAUSTED = "provider_exhausted"
 PROVIDER_EXHAUSTED_EXIT_CODE = 75
@@ -847,6 +849,18 @@ def run_packet(
 
     history: list[dict[str, Any]] = []
     while True:
+        if bi.get_initiative_state(initiative_id, db_path=db_path) == bi.INITIATIVE_PAUSED:
+            initiative = bi.get_initiative(initiative_id, db_path=db_path) or {}
+            return {
+                "outcome": LOOP_PAUSED,
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "task_id": task_id,
+                "task_state": (bq.get_task(task_id, db_path=db_path) or {}).get("state"),
+                "reason": initiative.get("pause_reason") or "operator pause",
+                "attempts": history,
+            }
+
         # Choose this attempt's worktree disposition from the previous attempt
         # BEFORE anything is durably opened, so a failed cleanup can never
         # strand a new attempt or its lease (P1-2). Only an explicitly

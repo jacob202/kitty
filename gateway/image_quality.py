@@ -5,13 +5,19 @@ import io
 from dataclasses import dataclass, field
 from typing import Any
 
+# Bind Pillow by assignment rather than by a second `from PIL import Image`.
+# Re-importing onto an already-annotated name is a redefinition, which mypy
+# rejects whenever Pillow is absent from its environment -- as it is in the
+# typecheck job, which installs only mypy.
 Image: Any = None
 HAS_PIL = False
 try:
-    from PIL import Image
-    HAS_PIL = True
+    import PIL.Image
 except ImportError:
     pass
+else:
+    Image = PIL.Image
+    HAS_PIL = True
 
 
 @dataclass
