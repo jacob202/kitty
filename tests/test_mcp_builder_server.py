@@ -28,8 +28,7 @@ class FastMCPStub:
         self.run_calls.append((args, kwargs))
 
 
-@pytest.fixture()
-def server(monkeypatch: pytest.MonkeyPatch):
+def _load_server(monkeypatch: pytest.MonkeyPatch):
     FastMCPStub.instances.clear()
     fastmcp_mod = types.ModuleType("mcp.server.fastmcp")
     fastmcp_mod.FastMCP = FastMCPStub  # type: ignore[attr-defined]
@@ -40,9 +39,13 @@ def server(monkeypatch: pytest.MonkeyPatch):
     return importlib.import_module("mcp.builder.server")
 
 
-def test_server_registers_only_high_level_builder_tools(server) -> None:
+def test_server_registers_only_high_level_builder_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    server = _load_server(monkeypatch)
     instance = FastMCPStub.instances[-1]
 
+    assert server.mcp is instance
     assert instance.name == "kittybuilder"
     assert set(instance.tools) == {
         "kitty_context",
@@ -67,37 +70,63 @@ def test_server_registers_only_high_level_builder_tools(server) -> None:
     assert instance.run_calls == []
 
 
-def test_main_defaults_to_stdio(server, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_fastmcp_v1_http_settings_are_constructor_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KITTYBUILDER_MCP_HOST", "127.0.0.1")
+    monkeypatch.setenv("KITTYBUILDER_MCP_PORT", "8765")
+
+    _load_server(monkeypatch)
     instance = FastMCPStub.instances[-1]
+
+    assert instance.kwargs["host"] == "127.0.0.1"
+    assert instance.kwargs["port"] == 8765
+    assert instance.kwargs["json_response"] is True
+    assert instance.kwargs["stateless_http"] is True
+
+
+def test_main_defaults_to_stdio(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("KITTYBUILDER_MCP_TRANSPORT", raising=False)
+    server = _load_server(monkeypatch)
+    instance = FastMCPStub.instances[-1]
 
     server.main()
 
     assert instance.run_calls[-1] == (("stdio",), {})
 
 
-def test_streamable_http_binds_loopback_by_default(
-    server, monkeypatch: pytest.MonkeyPatch
+def test_streamable_http_uses_v1_run_signature(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    instance = FastMCPStub.instances[-1]
     monkeypatch.setenv("KITTYBUILDER_MCP_TRANSPORT", "streamable-http")
-    monkeypatch.delenv("KITTYBUILDER_MCP_HOST", raising=False)
+    monkeypatch.setenv("KITTYBUILDER_MCP_HOST", "127.0.0.1")
     monkeypatch.setenv("KITTYBUILDER_MCP_PORT", "8765")
+    server = _load_server(monkeypatch)
+    instance = FastMCPStub.instances[-1]
 
     server.main()
 
-    args, kwargs = instance.run_calls[-1]
-    assert args == ("streamable-http",)
-    assert kwargs["host"] == "127.0.0.1"
-    assert kwargs["port"] == 8765
-    assert kwargs["json_response"] is True
-    assert kwargs["stateless_http"] is True
+    assert instance.run_calls[-1] == (("streamable-http",), {})
 
 
-def test_public_http_bind_requires_explicit_opt_in(server, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_public_http_bind_is_refused_before_server_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("KITTYBUILDER_MCP_TRANSPORT", "streamable-http")
     monkeypatch.setenv("KITTYBUILDER_MCP_HOST", "0.0.0.0")
-    monkeypatch.delenv("KITTYBUILDER_MCP_ALLOW_PUBLIC_BIND", raising=False)
+    server = _load_server(monkeypatch)
+    instance = FastMCPStub.instances[-1]
 
     with pytest.raises(RuntimeError, match="public MCP bind"):
         server.main()
+
+    assert instance.run_calls == []
+
+
+def test_invalid_http_port_fails_loudly_at_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("KITTYBUILDER_MCP_PORT", "not-a-port")
+
+    with pytest.raises(RuntimeError, match="KITTYBUILDER_MCP_PORT"):
+        _load_server(monkeypatch)
