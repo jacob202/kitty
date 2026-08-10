@@ -223,3 +223,86 @@ data/kittybuilder/mcp-launch/
 
 That log is diagnostic, not authoritative. Use Builder's supported projection
 for execution truth.
+
+## V2 dogfood operator commands
+
+V2 adds an operator layer around the same governed v1 MCP server. It does not
+add tools or move execution authority out of KittyBuilder.
+
+```bash
+./kitty mcp up
+./kitty mcp status --json
+./kitty mcp doctor --json
+./kitty mcp proof <approved-mission-id> --json
+./kitty mcp down
+```
+
+`mcp up` starts the Streamable HTTP server on loopback and records only its
+owned PID/log. Repeated `up` is idempotent. `mcp down` refuses to signal a live
+PID unless the process belongs to this Kitty worktree and its command is the
+KittyBuilder MCP server.
+
+`mcp status` and `mcp doctor` are observational. They never install packages,
+start or recover Builder work, migrate the Builder database, publish, or spend.
+If the MCP SDK is missing or outside the supported v1 range, the only automatic
+remediation is none: the operator prints this explicit command for a human to
+run deliberately:
+
+```bash
+python3.12 -m pip install -r mcp/builder/requirements.txt
+```
+
+Doctor checks boundaries in dependency order: checkout, Python/MCP runtime,
+owned process/listener, real MCP transport, exact governed tool contract,
+`kitty_context`, read-only Builder truth, repository/worktree prerequisites,
+GitHub readiness, then the free OpenCode worker/reviewer route. It reports the
+first blocking boundary and one next action; external GitHub/provider warnings
+are kept separate from local Kitty defects.
+
+### KPROOF evidence runner
+
+`kitty mcp proof` accepts only a Mission that already exists in durable Builder
+state after explicit approval. It may call `execution_start` only with
+`free=true` and `spend_authorized=false`. It never calls `mission_approve`,
+`publication_prepare`, merge, delete, retry-worker, or paid-provider actions.
+Builder remains responsible for implementation, retry/repair, deterministic
+validation, independent review, and publication state.
+
+The real KPROOF packet must contain exactly one approved validation command
+prefixed with `KITTY_KPROOF_RUNTIME=1 `. For the Retry-this-work proof the exact
+runtime command is:
+
+```text
+KITTY_KPROOF_RUNTIME=1 cd gateway/kitty-chat && npx playwright test tests/smoke/retry-work.spec.ts
+```
+
+The proof runner hashes that exact approved command and matches the SHA-256 to
+Builder's persisted deterministic validation index. The read-only proof index
+contains command hashes/verdicts only—never raw commands or output tails. A
+missing/duplicate marker, hash mismatch, failed runtime command, missing review,
+or unknown required evidence cannot produce PASS.
+
+Proof receipts are atomic evidence caches under:
+
+```text
+data/kittybuilder/mcp-proof/
+```
+
+They contain bounded Mission/artifact/task/attempt identities, validation and
+review verdicts, runtime-command hash, optional PR identity, continuity result,
+verdict, blocker/unknowns, and one next action. They are not workflow state and
+can be recomputed from Builder/Git/GitHub truth.
+
+### Fresh-session continuity invariant
+
+A passing proof closes its first MCP client session completely, opens a newly
+initialized second session, and calls only:
+
+```text
+resume_context(mission_id="<id>")
+```
+
+The second session must recover the same approved Mission/manifest, design and
+plan SHAs, original base SHA, durable task and attempt IDs, PR/head when present,
+blocker/unknowns, and a non-empty next action. No transcript or previous MCP
+response object is injected into session two.
