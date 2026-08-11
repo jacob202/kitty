@@ -61,7 +61,7 @@ class Imagen4Engine:
             config=types.GenerateImagesConfig(
                 number_of_images=1,
                 aspect_ratio=aspect_ratio,
-                person_generation="ALLOW_ADULT",
+                person_generation=types.PersonGeneration.ALLOW_ADULT,
             ),
         )
         images = response.generated_images or []

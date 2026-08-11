@@ -210,6 +210,8 @@ def _expand_prompt(raw: str, mode: str = "generate") -> tuple[str, bool]:
                 ),
             )
             for cand in response.candidates or []:
+                if cand.content is None:
+                    continue
                 for part in cand.content.parts or []:
                     text = getattr(part, "text", None)
                     if text and text.strip():
@@ -479,7 +481,7 @@ def generate_image_imagen(
         config=types.GenerateImagesConfig(
             number_of_images=max(1, min(count, 4)),
             aspect_ratio=aspect_ratio,
-            person_generation="ALLOW_ADULT",
+            person_generation=types.PersonGeneration.ALLOW_ADULT,
         ),
     )
 
