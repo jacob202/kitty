@@ -39,6 +39,8 @@ this pass puts a number on it.
 | Image characters + references | `image_characters.py` | **Not exported.** Named, privacy-scoped subjects Jacob created. |
 | Image conversational sessions | `image_sessions.py` | **Not exported.** "Keep his face, make his build broader" continuity state (#336). |
 | Preferences | referenced by `storage_sync.export_preferences` | **Placeholder only** — the function exists and returns `{}`; no real preference store is wired to it (verify: find where preferences actually live — likely `config/PREFERENCES.md` per the `remember` skill, i.e. file-based, not SQLite, which is why the DB export is empty). |
+| Onboarding preferences (name, theme) | `onboarding.py` | **Not exported. Corrected in PR review** — originally filed under execution evidence below, which was wrong: `PREFERRED_NAME_KEY` and `THEME_KEY` are owner-chosen values, not rebuildable state. Only `ONBOARDING_COMPLETE_KEY` (the completion flag) is execution evidence; the store mixes both in one `app_settings` table, so the whole store needs to move to canonical unless the export is built to split fields, not just tables. |
+| Quick-capture inbox | `desktop_store.py` (`data/inbox.jsonl`, `data/inbox_processed.jsonl`) | **Not exported. Missed on the first pass, caught in PR review.** Owner-authored captures — this document's own "derived" section already relies on `inbox.jsonl` as the source triage classifications are re-derived from, but the file itself was never classified or listed as a store needing export. It's the canonical input, not a byproduct. |
 
 ## Derived / rebuildable (reconstructable from canonical data or external sources)
 
@@ -62,7 +64,6 @@ this pass puts a number on it.
 | Insight-loop lifecycle | `insight_loop.py` |
 | Artifact provenance | `artifact_store.py` |
 | Expert/proactive state (snooze, inbox lifecycle) | `expert_state.py` |
-| Onboarding progress | `onboarding.py` |
 | Next-step navigator cache | `next_step.py` |
 | Composed "what's going on now" | `state_composer.py` (computed on read, not stored — likely `NOT NEEDED` for export, since it's a live projection, not a store) |
 | Active-project scope | `project_context.py` |
@@ -75,11 +76,23 @@ from the export).
 
 ## Secret (excluded by construction)
 
-`gateway/config.py`, `gateway/auth.py` — API keys, credentials, tokens.
+**Corrected in PR review** — the original version of this section named
+`gateway/config.py` and `gateway/auth.py`, which are *readers*, not secret
+stores: `config.py` calls `load_dotenv(PROJECT_ROOT / ".env")` and
+`auth.py` reads `GATEWAY_SECRET` from the environment. Neither file holds a
+credential itself. The actual artifacts to exclude are:
+
+- `.env` (repo root) — loaded by `config.py` at import time; holds provider
+  API keys and `GATEWAY_SECRET`.
+- `data/gmail_token.json` — referenced in `gateway/doctor.py:211`; OAuth
+  token for the Gmail connector.
+
 `(verify)`: confirm no canonical store above embeds a secret inline (e.g. a
 connector's OAuth token stored alongside its signal history) before writing
-the real export — PAA-1's acceptance requires excluded/rebuildable stores
-to be reported explicitly, not just assumed clean.
+the real export, and check for other per-connector token files beyond
+Gmail's — this pass only confirmed the one `doctor.py` names — PAA-1's
+acceptance requires excluded/rebuildable stores to be reported explicitly,
+not just assumed clean.
 
 ## Cache
 
@@ -93,9 +106,16 @@ pass.
 The real PAA-1 gap isn't designing a schema — the pieces PAA-1 asks for
 (canonical/derived/secret/cache/execution-evidence classification) map
 cleanly onto the existing module boundaries. The gap is that
-`storage_sync.py` covers 5 of at least 11 canonical stores. Extending it to
-the other 6 (chats, chat lifecycle, projects, deadlines, idea-mine,
-image characters/sessions) is real engineering — schema per store, import
-validation, a fresh-install semantic-parity test — and is the right next
-PAA-1 slice, but is implementation work, not audit, so it isn't attempted in
-this pass.
+`storage_sync.py` covers 5 of at least 13 canonical stores. Extending it to
+the other 8 (chats, chat lifecycle, projects, deadlines, idea-mine, image
+characters/sessions, onboarding preferences, quick-capture inbox) is real
+engineering — schema per store, import validation, a fresh-install
+semantic-parity test — and is the right next PAA-1 slice, but is
+implementation work, not audit, so it isn't attempted in this pass.
+
+This document's own first draft undercounted canonical stores by two
+(onboarding preferences, quick-capture inbox) and misidentified the secret
+artifacts as modules instead of files — both caught in PR review, not by
+this pass's own method. Worth remembering for whoever runs the next slice:
+treat this classification as a starting inventory, not a verified-complete
+one.
