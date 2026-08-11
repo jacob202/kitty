@@ -30,7 +30,7 @@ python3 scripts/agent_council.py --dry-run "test council wiring"
 ## Evidence artifacts
 
 - `scripts/agent_council.py`
-- `.skills/agent-council/SKILL.md`
+- `.agents/skills/agent-council/SKILL.md`
 - `tests/test_agent_council.py`
 - Focused command output recorded in the final handoff.
 
