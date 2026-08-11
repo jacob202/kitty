@@ -286,6 +286,12 @@ async def health():
     }
 
 
+@app.get("/ping")
+async def ping():
+    """Lightweight liveness check — always returns ok when the gateway is up."""
+    return {"status": "ok"}
+
+
 @app.get("/mood")
 async def get_mood():
     """Return Kitty's current mood and session stats for the UI."""
