@@ -1,4 +1,0 @@
-From github.com:jacob202/kitty
- * branch              main       -> FETCH_HEAD
- * branch              proof/two-week-builder-loop -> FETCH_HEAD
-   7caea1d6..6a6d6256  main       -> origin/main
