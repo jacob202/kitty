@@ -138,9 +138,8 @@ class Mission(BaseModel):
 class BuilderCommandRequest(BaseModel):
     """Canonical request shape for Kitty's Builder operator controls.
 
-    Both the current command route and the legacy action-queue adapter accept
-    this same boundary object. The adapters remain responsible only for their
-    transport-specific response and audit behavior.
+    The command route owns transport-specific response and audit behavior;
+    Builder state remains behind the canonical command boundary.
     """
 
     action: str
