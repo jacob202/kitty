@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Any
 
@@ -14,12 +15,20 @@ from .scrub import SecretScrubber
 from .service import VibeService
 from .workspace import GitWorktreeManager
 
+DISCORD_MESSAGE_LIMIT = 1900
+
+
+def _bounded_text(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    if limit <= 1:
+        return text[:limit]
+    return text[: limit - 1] + "…"
+
 
 def _status_card(state: str, detail: str) -> str:
-    return (
-        f"{state} · **Codex** · read-only\n"
-        f"{detail}"
-    )
+    prefix = f"{state} · **Codex** · read-only\n"
+    return prefix + _bounded_text(detail, DISCORD_MESSAGE_LIMIT - len(prefix))
 
 
 def _result_card(event_kind: str, message: str) -> str:
@@ -30,7 +39,7 @@ def _result_card(event_kind: str, message: str) -> str:
         f"**Evidence:** {message}"
     )
 
-def split_discord_message(text: str, limit: int = 1900) -> list[str]:
+def split_discord_message(text: str, limit: int = DISCORD_MESSAGE_LIMIT) -> list[str]:
     if limit <= 0:
         raise ValueError("limit must be positive")
     if not text:
@@ -45,10 +54,14 @@ class VibeController:
         *,
         war_room_channel_id: int | None = None,
         scrubber: SecretScrubber | None = None,
+        status_interval_seconds: float = 2.0,
     ) -> None:
+        if status_interval_seconds < 0:
+            raise ValueError("status_interval_seconds must be non-negative")
         self.service = service
         self.war_room_channel_id = war_room_channel_id
         self.scrubber = scrubber or SecretScrubber.from_environment()
+        self.status_interval_seconds = status_interval_seconds
 
     async def handle(self, interaction: Any, request: str) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -84,17 +97,27 @@ class VibeController:
             )
             return
         await interaction.followup.send(f"Task thread: {thread.mention}", ephemeral=True)
-        await thread.send(f"**Task:** {safe_request}\n**Worker:** Codex\n**Mode:** read-only")
+        task_card = f"**Task:** {safe_request}\n**Worker:** Codex\n**Mode:** read-only"
+        for chunk in split_discord_message(task_card):
+            await thread.send(chunk)
         status_message = await thread.send(
             _status_card("🟡 **STARTING**", "Preparing isolated audited run…")
         )
 
+        last_progress_edit_at: float | None = None
+        loop = asyncio.get_running_loop()
         async for event in self.service.run(safe_request):
             safe_message = self.scrubber.scrub(event.message)
             if event.kind == "progress":
-                await status_message.edit(
-                    content=_status_card("🟢 **WORKING**", safe_message)
-                )
+                now = loop.time()
+                if (
+                    last_progress_edit_at is None
+                    or now - last_progress_edit_at >= self.status_interval_seconds
+                ):
+                    await status_message.edit(
+                        content=_status_card("🟢 **WORKING**", safe_message)
+                    )
+                    last_progress_edit_at = now
                 continue
 
             terminal_state = "✅ **COMPLETE**" if event.kind == "done" else "❌ **FAILED**"

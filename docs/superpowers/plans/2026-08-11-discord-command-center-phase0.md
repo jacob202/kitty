@@ -76,4 +76,4 @@
 - [x] Run focused tests, ruff on new Python files, and mypy on the integration package.
 - [x] Run one real local Codex smoke; clean diff audit observed.
 - [x] Inspect changed paths and prove no Builder-owned paths changed.
-- [ ] Commit the verified Phase 0 implementation on the isolated branch.
+- [x] Commit the Phase 0 implementation on the isolated branch; final independent verification is a separate delivery gate.

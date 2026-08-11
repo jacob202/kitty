@@ -667,3 +667,62 @@ def test_codex_command_execution_progress_is_semantic_not_raw() -> None:
 
     assert rendered == "Inspecting repository…"
     assert "secret-looking-command" not in rendered
+
+
+def test_vibe_keeps_all_thread_content_within_discord_limit() -> None:
+    log: list[str] = []
+    interaction = _Interaction(log)
+    service = _FakeService(log)
+    controller = VibeController(service, status_interval_seconds=0)
+
+    asyncio.run(controller.handle(interaction, "x" * 5000))
+
+    rendered = interaction.thread.messages + interaction.thread.edit_history
+    assert rendered
+    assert max(map(len, rendered)) <= 1900
+
+
+class _BurstProgressService:
+    async def run(self, request: str):
+        yield ProgressEvent(kind="progress", message="x" * 5000)
+        yield ProgressEvent(kind="progress", message="step two")
+        yield ProgressEvent(kind="progress", message="step three")
+        yield ProgressEvent(kind="done", message="audit clean")
+
+
+def test_vibe_throttles_burst_progress_status_edits() -> None:
+    log: list[str] = []
+    interaction = _Interaction(log)
+    controller = VibeController(_BurstProgressService(), status_interval_seconds=9999)
+
+    asyncio.run(controller.handle(interaction, "inspect repo"))
+
+    # One progress edit is allowed; burst duplicates are coalesced, then terminal state is shown.
+    assert log.count("message_edit") == 2
+    assert max(map(len, interaction.thread.edit_history)) <= 1900
+    assert "step two" not in "\n".join(interaction.thread.edit_history)
+    assert "step three" not in "\n".join(interaction.thread.edit_history)
+    assert "COMPLETE" in interaction.thread.messages[1]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="sandbox-exec is macOS-specific")
+def test_sandbox_profile_denies_symlink_write_escape(tmp_path: Path) -> None:
+    from integrations.discord_command_center.runner import build_sandbox_profile
+
+    worktree = tmp_path / "worktree"
+    runtime = worktree / "runtime"
+    runtime.mkdir(parents=True)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("safe\n")
+    escape = worktree / "escape.txt"
+    escape.symlink_to(outside)
+    profile = build_sandbox_profile(worktree, {"TMPDIR": str(runtime)})
+
+    result = subprocess.run(
+        ["/usr/bin/sandbox-exec", "-p", profile, "/bin/sh", "-c", f'echo PWNED > "{escape}"'],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert outside.read_text() == "safe\n"

@@ -17,6 +17,8 @@ cd ~/Projects/kitty/.worktrees/feat/discord-command-center-phase0
 
 A successful smoke ends with `done` and `read-only diff audit clean`. A mutation ends with `readonly_violation` and the disposable worktree is preserved for inspection.
 
+Progress status edits are coalesced to at most one every 2 seconds, and all Discord message/edit payloads are bounded to 1900 characters.
+
 ### Why Codex shows `danger-full-access` internally
 
 Command Center deliberately disables Codex's *internal* sandbox because nesting it inside macOS `sandbox-exec` prevents Codex's app-server and shell from starting. This does **not** give the worker unrestricted macOS writes: the parent `sandbox-exec` profile is the actual OS boundary, permitting writes only inside the disposable run worktree (plus `/dev/null`). The read-only guarantee remains the mandatory post-run git audit; any repository mutation fails loudly and preserves the worktree.

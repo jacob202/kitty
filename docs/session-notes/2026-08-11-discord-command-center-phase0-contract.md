@@ -39,10 +39,10 @@ Two focused repair cycles per failing acceptance criterion, then report the exac
 
 ## Evidence — 2026-08-11
 
-- Post-review focused suite: `24 passed` (`tests/test_discord_command_center_phase0.py` + existing `tests/test_agent_council.py`); this includes membership-failure, pre-worker and outbound secret-scrubbing, timeout, cancellation, SIGKILL escalation, ignored-file mutation detection, and macOS sandbox behavior coverage.
+- Final focused suite: `30 passed` (`tests/test_discord_command_center_phase0.py` + existing `tests/test_agent_council.py`); this includes membership failure, pre-worker/outbound secret scrubbing, timeout/cancellation/SIGKILL escalation, ignored-file mutation detection, Discord 1900-character bounds, burst progress throttling, and macOS sandbox behavior.
 - Static checks: Ruff clean; mypy clean for `integrations/discord_command_center`.
-- macOS sandbox proof: write inside disposable worktree succeeds; `/dev/null` succeeds; write outside is denied.
-- Real Codex smoke: rerun after review repairs; completed local repository inspection and ended `read-only diff audit clean` with exit 0.
+- macOS sandbox proof: write inside disposable worktree succeeds; `/dev/null` succeeds; direct outside writes and writes through an in-worktree symlink to an outside file are denied.
+- Real Codex smoke: rerun after final Discord status/rate-limit hardening; completed local repository inspection and ended `read-only diff audit clean` with exit 0.
 - Forced-write proof: a real `/usr/bin/touch` inside the run worktree produced terminal `readonly_violation`; dirty worktree preserved with `FORCED_READONLY_VIOLATION.txt`.
 - Ignored-write proof: a real sandboxed `/usr/bin/touch ignored.txt` in a disposable repo whose `.gitignore` ignores that path still produced terminal `readonly_violation`; audit evidence was `!! ignored.txt`.
 - Collision check: no changes to Builder-owned routing/worker/governor/config paths.
