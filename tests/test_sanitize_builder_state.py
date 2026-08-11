@@ -41,3 +41,9 @@ def test_sanitizer_handles_builder_branch_with_slash(tmp_path: Path) -> None:
     assert '"status": "complete"' in text
     assert '"next_action": "None"' in text
     assert f'"head_sha": "{_git(tmp_path, "rev-parse", "HEAD")}"' in text
+
+
+def test_worker_only_sanitizes_state_when_packet_owns_it() -> None:
+    worker = (SCRIPT.parent / "kittybuilder_opencode_worker.sh").read_text(encoding="utf-8")
+    assert 'get("allowed_paths")' in worker
+    assert 'if [[ "${owns_builder_state}" == "yes" ]]' in worker
