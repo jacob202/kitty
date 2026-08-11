@@ -82,3 +82,16 @@ def test_paid_reviewer_must_be_independent_model(tmp_path: Path):
 
     with pytest.raises(bpr.PaidRoutingError, match="reviewer model"):
         bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, payload))
+
+
+def test_opencode_config_has_separate_free_and_paid_agents():
+    config = json.loads((Path(__file__).resolve().parents[1] / "opencode.jsonc").read_text())
+    agents = config["agent"]
+
+    assert agents["free-builder"]["model"].endswith("-free")
+    assert agents["free-reviewer"]["model"].endswith("-free")
+    assert agents["paid-builder"]["model"] == (
+        "openrouter/deepseek/deepseek-v4-flash"
+    )
+    assert agents["paid-reviewer"]["model"] == "openrouter/qwen/qwen3.7-plus"
+    assert agents["paid-reviewer"]["permission"]["edit"] == "deny"

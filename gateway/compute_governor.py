@@ -78,8 +78,8 @@ ROUTE_FRONTIER = "frontier"
 
 ROUTE_MODELS: dict[str, str | None] = {
     ROUTE_FREE: None,
-    ROUTE_CHEAP: "deepseek-v4-flash",
-    ROUTE_FRONTIER: "deepseek-v4-pro",
+    ROUTE_CHEAP: "deepseek/deepseek-v4-flash",
+    ROUTE_FRONTIER: "deepseek/deepseek-v4-pro",
 }
 
 # Token shape of one governed pass, used to price a dispatch before running it.
@@ -158,6 +158,7 @@ class Dispatch:
     risk_class: str
     stopping_condition: str
     blocker_evidence: str | None = None
+    requested_route: str | None = None
 
     def fingerprint(self) -> str:
         """Stable hash of everything that would change the work itself.
@@ -177,6 +178,7 @@ class Dispatch:
                 "exclusions": sorted(self.exclusions),
                 "risk_class": self.risk_class,
                 "stopping_condition": self.stopping_condition,
+                "requested_route": self.requested_route,
             },
             sort_keys=True,
         )
@@ -234,6 +236,10 @@ def validate_dispatch(dispatch: Dispatch) -> list[str]:
         errors.append(f"task_type must be one of {sorted(TASK_TYPES)}, got {dispatch.task_type!r}")
     if dispatch.risk_class not in RISK_CLASSES:
         errors.append(f"risk_class must be one of {sorted(RISK_CLASSES)}, got {dispatch.risk_class!r}")
+    if dispatch.requested_route is not None and dispatch.requested_route not in ROUTE_MODELS:
+        errors.append(
+            f"requested_route must be one of {sorted(ROUTE_MODELS)}, got {dispatch.requested_route!r}"
+        )
     if dispatch.work_kind not in ACCEPTED_WORK_KINDS and dispatch.work_kind not in REJECTED_WORK_KINDS:
         errors.append(
             f"work_kind {dispatch.work_kind!r} is not declared; accepted kinds are "
@@ -429,7 +435,19 @@ def decide(
             f"{dispatch.head_sha[:12]}"
         ]
 
-    wants_frontier = dispatch.risk_class in _FRONTIER_RISK_CLASSES
+    if dispatch.requested_route == ROUTE_FREE:
+        reasons.append("explicit free route requires no paid reserve")
+        return Decision(
+            action=ACTION_RUN,
+            route=ROUTE_FREE,
+            reasons=tuple(reasons),
+            dispatch_hash=fingerprint,
+        )
+
+    wants_frontier = (
+        dispatch.requested_route == ROUTE_FRONTIER
+        or dispatch.risk_class in _FRONTIER_RISK_CLASSES
+    )
     if not wants_frontier:
         cheap_cost = estimate_pass_cost_cad(ROUTE_CHEAP)
         if cheap_cost > reserve.remaining_cad:
@@ -592,10 +610,10 @@ def estimate_pass_cost_cad(route: str) -> float:
 # Reserve thresholds live here so the loop, the CLI, and the tests read one file.
 ROOT_CONFIG_PATH = ROOT / "config" / "compute_governor.json"
 
-# Derived, not guessed. At snapshot prices one cheap pass costs ~CAD 0.0146 and
+# Derived, not guessed. At snapshot prices one cheap pass costs ~CAD 0.0094 and
 # one frontier pass ~CAD 0.0895. A working week of ~10 tasks x 3 head SHAs x
-# (plan + review + implement) at 85% routine is ~CAD 2.36, or ~CAD 3.54 with
-# retry headroom. CAD 6.00 puts the 25% frontier floor at CAD 4.50 spent — above
+# (plan + review + implement) at 85% routine is ~CAD 1.97, or ~CAD 2.95 with
+# 50% retry headroom. CAD 6.00 puts the 25% frontier floor at CAD 4.50 spent — above
 # a normal week, so routine weeks never downgrade, and a bad week degrades to
 # Flash instead of stopping. Recompute if the price registry moves.
 DEFAULT_RESERVE_CONFIG: dict[str, float] = {
@@ -674,6 +692,11 @@ def dispatch_from_mapping(payload: dict[str, Any]) -> Dispatch:
         risk_class=str(payload.get("risk_class", "")),
         stopping_condition=str(payload.get("stopping_condition", "")),
         blocker_evidence=payload.get("blocker_evidence"),
+        requested_route=(
+            str(payload["requested_route"])
+            if payload.get("requested_route") is not None
+            else None
+        ),
     )
 
 

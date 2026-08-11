@@ -602,11 +602,62 @@ def _create_attempt_artifacts(
     )
 
 
+def _is_explicit_free_model(model: str) -> bool:
+    return model == "openrouter/free" or model.endswith(":free") or (
+        model.startswith("opencode/") and model.endswith("-free")
+    )
+
+
+def _sanitize_free_adapter_env(adapter_env: dict[str, str]) -> dict[str, str]:
+    """Force the free lane to remain free even for direct library callers."""
+    for key in ("KITTYBUILDER_MODEL", "KITTYBUILDER_REVIEW_MODEL"):
+        model = adapter_env.get(key, "").strip()
+        if model and not _is_explicit_free_model(model):
+            raise LoopError(f"free route rejects paid model override {model!r}")
+    for key in ("KITTYBUILDER_MODELS", "KITTYBUILDER_REVIEW_MODELS"):
+        for model in adapter_env.get(key, "").split():
+            if not _is_explicit_free_model(model):
+                raise LoopError(f"free route rejects paid model override {model!r}")
+    return {
+        "KITTYBUILDER_AGENT": "free-builder",
+        "KITTYBUILDER_REVIEW_AGENT": "free-reviewer",
+        "KITTYBUILDER_MODEL": adapter_env.get("KITTYBUILDER_MODEL", ""),
+        "KITTYBUILDER_REVIEW_MODEL": adapter_env.get("KITTYBUILDER_REVIEW_MODEL", ""),
+        "KITTYBUILDER_MODELS": adapter_env.get("KITTYBUILDER_MODELS", ""),
+        "KITTYBUILDER_REVIEW_MODELS": adapter_env.get("KITTYBUILDER_REVIEW_MODELS", ""),
+    }
+
+
+def _configure_paid_route(
+    tier: str, worker: str, adapter_env: dict[str, str]
+) -> tuple[Any, str, dict[str, str]]:
+    """Bind an explicit paid tier to child-only adapter environment."""
+    from gateway.builder_paid_routing import resolve_paid_route
+
+    route = resolve_paid_route(tier)
+    env = dict(adapter_env)
+    env.update(
+        {
+            "KITTYBUILDER_AGENT": "paid-builder",
+            "KITTYBUILDER_REVIEW_AGENT": "paid-reviewer",
+            "KITTYBUILDER_MODEL": route.worker_model,
+            "KITTYBUILDER_REVIEW_MODEL": route.reviewer_model,
+            "KITTYBUILDER_MODELS": "",
+            "KITTYBUILDER_REVIEW_MODELS": "",
+        }
+    )
+    if worker.startswith("opencode-paid-"):
+        worker = f"opencode-paid-{route.tier}"
+    return route, worker, env
+
+
 def _governor_dispatch(
     initiative_id: str,
     packet_id: str,
     *,
     base_sha: str,
+    risk_class: str = "routine",
+    requested_route: str | None = None,
 ) -> "cg.Dispatch":
     """Describe this packet run in the governor's terms.
 
@@ -622,8 +673,9 @@ def _governor_dispatch(
         acceptance_tests=("packet contract validation_commands",),
         allowed_scope=("packet allowed_paths",),
         exclusions=("paths outside the packet contract",),
-        risk_class="routine",
+        risk_class=risk_class,
         stopping_condition="the bounded repair loop succeeds or exhausts its attempt budget",
+        requested_route=requested_route,
     )
 
 
@@ -634,6 +686,8 @@ def _governor_gate(
     *,
     base_sha: str,
     governor_db: Path | None,
+    risk_class: str,
+    requested_route: str | None,
     override_reason: str | None,
     db_path: Path | None,
 ) -> "cg.Decision | None":
@@ -646,7 +700,13 @@ def _governor_gate(
     reserve = cg.reserve_from_ledger(governor_db, config)
     decision = cg.decide(
         governor_db,
-        _governor_dispatch(initiative_id, packet_id, base_sha=base_sha),
+        _governor_dispatch(
+            initiative_id,
+            packet_id,
+            base_sha=base_sha,
+            risk_class=risk_class,
+            requested_route=requested_route,
+        ),
         reserve=reserve,
         override_reason=override_reason,
     )
@@ -682,6 +742,9 @@ def _governor_settle(
     attempts: list[dict[str, Any]],
     model: str | None,
     provider: str | None,
+    risk_class: str,
+    projected_cost_cad: float | None,
+    requested_route: str | None,
     override_reason: str | None,
 ) -> None:
     """Write the receipt for a finished packet run.
@@ -694,13 +757,19 @@ def _governor_settle(
     route = decision.route or cg.ROUTE_FREE
     cg.record_receipt(
         governor_db,
-        _governor_dispatch(initiative_id, packet_id, base_sha=base_sha),
+        _governor_dispatch(
+            initiative_id,
+            packet_id,
+            base_sha=base_sha,
+            risk_class=risk_class,
+            requested_route=requested_route,
+        ),
         outcome=cg.OUTCOME_SETTLED if outcome == LOOP_SUCCEEDED else cg.OUTCOME_FAILED,
         route=route,
         model=model,
         provider=provider,
         retries=max(len(attempts) - 1, 0),
-        estimated_usage_cad=cg.estimate_pass_cost_cad(route) * max(len(attempts), 1),
+        estimated_usage_cad=(projected_cost_cad or cg.estimate_pass_cost_cad(route)) * max(len(attempts), 1),
         override_reason=override_reason,
     )
 
@@ -711,6 +780,7 @@ def run_packet(
     *,
     worker_command: list[str],
     review_command: list[str] | None = None,
+    adapter_env: dict[str, str] | None = None,
     worker: str = "packet-loop",
     model: str | None = None,
     provider: str | None = None,
@@ -725,6 +795,9 @@ def run_packet(
     db_path: Path | None = None,
     governor_db: Path | None = None,
     governor_override: str | None = None,
+    governor_risk_class: str = "routine",
+    governor_projected_cost_cad: float | None = None,
+    governor_requested_route: str | None = None,
 ) -> dict[str, Any]:
     """Run the bounded repair loop for one packet.
 
@@ -738,6 +811,10 @@ def run_packet(
     which is what library callers and tests get by default; the CLI and the
     autonomous runner both pass it.
     """
+    effective_adapter_env = dict(adapter_env or {})
+    if governor_requested_route == cg.ROUTE_FREE:
+        effective_adapter_env = _sanitize_free_adapter_env(effective_adapter_env)
+
     ba.init_db(db_path)
     try:
         # An open attempt is recoverable only after this liveness probe has
@@ -851,15 +928,60 @@ def run_packet(
             f"{initiative_id}/{packet_id}"
         )
 
+    if governor_requested_route in {cg.ROUTE_CHEAP, cg.ROUTE_FRONTIER}:
+        requested_paid, worker, effective_adapter_env = _configure_paid_route(
+            governor_requested_route, worker, effective_adapter_env
+        )
+        model = requested_paid.worker_model
+        provider = requested_paid.provider
+        governor_projected_cost_cad = requested_paid.projected_cost_cad
+
     governor_decision = _governor_gate(
         initiative_id,
         packet_id,
         task_id,
         base_sha=base_sha,
         governor_db=governor_db,
+        risk_class=governor_risk_class,
+        requested_route=governor_requested_route,
         override_reason=governor_override,
         db_path=db_path,
     )
+    if (
+        governor_requested_route is not None
+        and governor_decision is not None
+        and governor_decision.route != governor_requested_route
+    ):
+        if (
+            governor_decision.action == cg.ACTION_DOWNGRADE
+            and governor_decision.route in {cg.ROUTE_CHEAP, cg.ROUTE_FRONTIER}
+        ):
+            authorized, worker, effective_adapter_env = _configure_paid_route(
+                governor_decision.route, worker, effective_adapter_env
+            )
+            model = authorized.worker_model
+            provider = authorized.provider
+            governor_projected_cost_cad = authorized.projected_cost_cad
+            bq.append_event(
+                task_id,
+                "compute_governor_route_downgraded",
+                payload={
+                    "requested_route": governor_requested_route,
+                    "authorized_route": governor_decision.route,
+                    "worker_model": authorized.worker_model,
+                    "reviewer_model": authorized.reviewer_model,
+                    "projected_cost_cad": authorized.projected_cost_cad,
+                    "reasons": list(governor_decision.reasons),
+                    "base_sha": base_sha,
+                    "counts_toward_budget": False,
+                },
+                db_path=db_path,
+            )
+        else:
+            raise LoopError(
+                f"compute governor authorized route {governor_decision.route!r} "
+                f"instead of requested route {governor_requested_route!r}"
+            )
 
     history: list[dict[str, Any]] = []
     while True:
@@ -975,6 +1097,9 @@ def run_packet(
                 attempts=history,
                 model=model,
                 provider=provider,
+                risk_class=governor_risk_class,
+                projected_cost_cad=governor_projected_cost_cad,
+                requested_route=governor_requested_route,
                 override_reason=governor_override,
             )
             return {
@@ -1076,6 +1201,14 @@ def run_packet(
                 f"failed to create artifacts for attempt {attempt_id}: {exc}"
             ) from exc
         entry["manifest_path"] = str(manifest_path)
+        if governor_decision is not None:
+            manifest["governor"] = {
+                **governor_decision.to_dict(),
+                "risk_class": governor_risk_class,
+                "requested_route": governor_requested_route,
+                "projected_cost_cad": governor_projected_cost_cad,
+            }
+            write_run_manifest(manifest_path, manifest)
 
         try:
             worker_timeout_seconds = _bounded_timeout(
@@ -1095,6 +1228,7 @@ def run_packet(
                 base_sha=base_sha,
                 reuse_dirty_worktree=reuse_dirty_worktree,
                 extra_env={
+                    **effective_adapter_env,
                     "KB_ATTEMPT_ID": str(attempt_id),
                     "KB_BUNDLE_PATH": str(bundle_path),
                     "KB_RESULT_PATH": str(result_path),
@@ -1216,6 +1350,9 @@ def run_packet(
                 attempts=history,
                 model=model,
                 provider=provider,
+                risk_class=governor_risk_class,
+                projected_cost_cad=governor_projected_cost_cad,
+                requested_route=governor_requested_route,
                 override_reason=governor_override,
             )
             return {
@@ -1393,6 +1530,7 @@ def run_packet(
                 review_command,
                 cwd=worktree_path(task_id, repo_root=repo_root),
                 env_extra={
+                    **effective_adapter_env,
                     "KB_TASK_ID": str(task_id),
                     "KB_ATTEMPT_ID": str(attempt_id),
                     "KB_BUNDLE_PATH": str(bundle_path),
@@ -1550,6 +1688,9 @@ def run_packet(
                 attempts=history,
                 model=model,
                 provider=provider,
+                risk_class=governor_risk_class,
+                projected_cost_cad=governor_projected_cost_cad,
+                requested_route=governor_requested_route,
                 override_reason=governor_override,
             )
             return {
@@ -1586,6 +1727,9 @@ def run_packet(
                 attempts=history,
                 model=model,
                 provider=provider,
+                risk_class=governor_risk_class,
+                projected_cost_cad=governor_projected_cost_cad,
+                requested_route=governor_requested_route,
                 override_reason=governor_override,
             )
             return {

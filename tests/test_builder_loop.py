@@ -2390,3 +2390,164 @@ class TestComputeGovernorGate:
         )
 
         assert second["outcome"] == bl.LOOP_SUCCEEDED
+
+
+def test_governor_dispatch_preserves_paid_risk_class():
+    dispatch = bl._governor_dispatch(
+        INITIATIVE, PACKET, base_sha="a" * 40, risk_class="risky"
+    )
+    assert dispatch.risk_class == "risky"
+
+
+def test_paid_route_decision_and_cost_are_durable_before_worker(
+    repo: Path, db_path: Path, tmp_path: Path
+):
+    governor_db = tmp_path / "governor-paid" / "receipts.db"
+    _apply(db_path, repo_root=repo)
+
+    result = bl.run_packet(
+        INITIATIVE,
+        PACKET,
+        worker_command=_good_worker(tmp_path),
+        review_command=_approve_reviewer(tmp_path),
+        repo_root=repo,
+        db_path=db_path,
+        governor_db=governor_db,
+        model="openrouter/deepseek/deepseek-v4-flash",
+        provider="openrouter",
+        governor_risk_class="routine",
+        governor_projected_cost_cad=0.04,
+    )
+
+    assert result["outcome"] == bl.LOOP_SUCCEEDED
+    manifest = json.loads(
+        Path(result["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
+    )
+    assert manifest["governor"]["action"] == "run"
+    assert manifest["governor"]["route"] == "cheap"
+    assert manifest["governor"]["risk_class"] == "routine"
+    assert manifest["governor"]["projected_cost_cad"] == 0.04
+
+    conn = sqlite3.connect(governor_db)
+    try:
+        row = conn.execute(
+            "SELECT route, model, provider, estimated_usage_cad "
+            "FROM work_receipts ORDER BY receipt_id DESC LIMIT 1"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    assert row[0] == "cheap"
+    assert row[1] == "openrouter/deepseek/deepseek-v4-flash"
+    assert row[2] == "openrouter"
+    assert row[3] == pytest.approx(0.04)
+
+
+def test_paid_frontier_downgrade_runs_the_authorized_cheap_route(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+):
+    governor_db = tmp_path / "governor-downgrade" / "receipts.db"
+    _apply(db_path, repo_root=repo)
+    decision = bl.cg.Decision(
+        action=bl.cg.ACTION_DOWNGRADE,
+        route=bl.cg.ROUTE_CHEAP,
+        reasons=("frontier reserve floor reached",),
+        dispatch_hash="d" * 64,
+    )
+    monkeypatch.setenv(
+        "KITTYBUILDER_MODEL", "openrouter/deepseek/deepseek-v4-pro"
+    )
+    worker = _script(
+        tmp_path,
+        "downgraded-worker.sh",
+        ': "${KB_WORKER_TIMEOUT_SECONDS:?required}"\n'
+        'test "$KITTYBUILDER_MODEL" = "openrouter/deepseek/deepseek-v4-flash"\n'
+        'echo ok > done.txt\n'
+        f'cat > "$KB_RESULT_PATH" <<\'EOF\'\n{_GOOD_IMPL}\nEOF\n',
+    )
+
+    with patch("gateway.builder_loop.cg.decide", return_value=decision):
+        result = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=worker,
+            repo_root=repo,
+            db_path=db_path,
+            governor_db=governor_db,
+            model="openrouter/deepseek/deepseek-v4-pro",
+            provider="openrouter",
+            governor_risk_class="risky",
+            governor_requested_route="frontier",
+        )
+
+    assert result["outcome"] == bl.LOOP_SUCCEEDED
+    manifest = json.loads(
+        Path(result["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
+    )
+    assert manifest["model"] == "openrouter/deepseek/deepseek-v4-flash"
+    assert manifest["governor"]["route"] == "cheap"
+    assert manifest["governor"]["requested_route"] == "frontier"
+
+
+def test_explicit_free_route_receipt_stays_zero_cost(
+    repo: Path, db_path: Path, tmp_path: Path
+):
+    governor_db = tmp_path / "governor-free" / "receipts.db"
+    _apply(db_path, repo_root=repo)
+
+    result = bl.run_packet(
+        INITIATIVE,
+        PACKET,
+        worker_command=_good_worker(tmp_path),
+        repo_root=repo,
+        db_path=db_path,
+        governor_db=governor_db,
+        model="opencode/deepseek-v4-flash-free",
+        provider="opencode",
+        governor_requested_route="free",
+    )
+
+    assert result["outcome"] == bl.LOOP_SUCCEEDED
+    manifest = json.loads(
+        Path(result["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
+    )
+    assert manifest["governor"]["route"] == "free"
+    assert manifest["governor"]["requested_route"] == "free"
+
+    conn = sqlite3.connect(governor_db)
+    try:
+        row = conn.execute(
+            "SELECT route, model, provider, estimated_usage_cad "
+            "FROM work_receipts ORDER BY receipt_id DESC LIMIT 1"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row == (
+        "free",
+        "opencode/deepseek-v4-flash-free",
+        "opencode",
+        0.0,
+    )
+
+
+def test_free_route_rejects_paid_adapter_env_before_attempt(
+    repo: Path, db_path: Path, tmp_path: Path
+):
+    governor_db = tmp_path / "governor-free-reject" / "receipts.db"
+    _apply(db_path, repo_root=repo)
+
+    with pytest.raises(bl.LoopError, match="free route"):
+        bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo,
+            db_path=db_path,
+            governor_db=governor_db,
+            governor_requested_route="free",
+            adapter_env={
+                "KITTYBUILDER_MODEL": "openrouter/deepseek/deepseek-v4-flash"
+            },
+        )
+
+    assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path) == []

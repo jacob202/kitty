@@ -333,11 +333,11 @@ def test_explain_names_the_action_and_every_reason(db: Path):
 
 def test_pass_costs_come_from_the_shared_price_registry():
     # Recomputed by hand from gateway/token_spend_report's snapshot prices:
-    # flash 60k in @ 0.14 + 8k out @ 0.28 = 0.01064 USD; pro 120k in @ 0.435 +
+    # OpenRouter Flash 60k in @ 0.09 + 8k out @ 0.18 = 0.00684 USD; pro 120k in @ 0.435 +
     # 15k out @ 0.87 = 0.06525 USD. Both converted at the recorded FX rate.
     from gateway.token_spend_report import USD_TO_CAD
 
-    assert cg.estimate_pass_cost_cad(cg.ROUTE_CHEAP) == pytest.approx(0.01064 * USD_TO_CAD)
+    assert cg.estimate_pass_cost_cad(cg.ROUTE_CHEAP) == pytest.approx(0.00684 * USD_TO_CAD)
     assert cg.estimate_pass_cost_cad(cg.ROUTE_FRONTIER) == pytest.approx(0.06525 * USD_TO_CAD)
 
 
@@ -380,3 +380,39 @@ def test_default_budget_covers_a_modelled_week_without_downgrading():
         f"a modelled week costs CAD {modelled:.2f} but the frontier floor bites at "
         f"CAD {downgrade_at:.2f} spent — recompute the budget"
     )
+
+
+def test_explicit_free_route_runs_without_spend_even_when_reserve_is_empty(db: Path):
+    dispatch = _dispatch(requested_route=cg.ROUTE_FREE)
+
+    decision = cg.decide(db, dispatch, reserve=_reserve(spent=20.0, budget=20.0))
+
+    assert (decision.action, decision.route) == (cg.ACTION_RUN, cg.ROUTE_FREE)
+    assert cg.estimate_pass_cost_cad(decision.route) == 0.0
+
+
+def test_requested_route_is_part_of_dispatch_identity():
+    free = _dispatch(requested_route=cg.ROUTE_FREE)
+    paid = _dispatch(requested_route=cg.ROUTE_CHEAP)
+
+    assert free.fingerprint() != paid.fingerprint()
+
+
+def test_dispatch_from_mapping_preserves_requested_route():
+    payload = {
+        "task_type": "implement",
+        "work_kind": "implementation",
+        "subject_ref": "init/p1",
+        "head_sha": SHA_A,
+        "artifact": "packet init/p1",
+        "acceptance_tests": ["pytest -q"],
+        "allowed_scope": ["gateway/"],
+        "exclusions": ["data/"],
+        "risk_class": "routine",
+        "stopping_condition": "tests pass",
+        "requested_route": "free",
+    }
+
+    dispatch = cg.dispatch_from_mapping(payload)
+
+    assert dispatch.requested_route == cg.ROUTE_FREE

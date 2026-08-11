@@ -15,16 +15,22 @@ budget_started=${SECONDS}
 : "${KB_ATTEMPT_ID:?KB_ATTEMPT_ID is required}"
 : "${KB_TASK_ID:?KB_TASK_ID is required}"
 
-# Reviewer model: one frontier model by default (deepseek-v4-pro via
-# OpenRouter). KITTYBUILDER_REVIEW_MODEL forces exactly one model;
-# KITTYBUILDER_REVIEW_MODELS (space-separated) replaces the default.
+adapter_agent="${KITTYBUILDER_REVIEW_AGENT:-free-reviewer}"
+if [[ "${adapter_agent}" == "paid-reviewer" ]]; then
+  lane_label="paid"
+else
+  lane_label="free"
+fi
+
+# Route selection may force one reviewer model; otherwise the free adapter
+# remains on its zero-cost default.
 if [[ -n "${KITTYBUILDER_REVIEW_MODEL:-}" ]]; then
   models=("${KITTYBUILDER_REVIEW_MODEL}")
 elif [[ -n "${KITTYBUILDER_REVIEW_MODELS:-}" ]]; then
   read -r -a models <<<"${KITTYBUILDER_REVIEW_MODELS}"
 else
   models=(
-    "openrouter/deepseek/deepseek-v4-pro"
+    "opencode/nemotron-3-ultra-free"
   )
 fi
 before=$(git rev-parse HEAD)
@@ -137,11 +143,11 @@ for model in "${models[@]}"; do
   attempt_before="$(fingerprint)"
   remaining_models=$((${#models[@]} - model_index))
   slot_seconds=$(model_timeout "${remaining_models}")
-  echo "=== free reviewer attempt: ${model} (${slot_seconds}s slot) ==="
+  echo "=== ${lane_label} reviewer attempt: ${model} (${slot_seconds}s slot) ==="
   set +e
   python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" \
-    opencode run --auto --agent free-reviewer --model "${model}" \
-    --title "KittyBuilder free packet reviewer" "${prompt}"
+    opencode run --auto --agent "${adapter_agent}" --model "${model}" \
+    --title "KittyBuilder ${lane_label} packet reviewer" "${prompt}"
   rc=$?
   set -e
   model_index=$((model_index + 1))
@@ -161,7 +167,7 @@ for model in "${models[@]}"; do
     echo "ERROR: read-only reviewer ${model} changed the worktree" >&2
     exit 1
   fi
-  echo "WARNING: reviewer ${model} exited ${rc} without a review; trying the next free model." >&2
+  echo "WARNING: reviewer ${model} exited ${rc} without a review; trying the next ${lane_label} model." >&2
 done
 
 if [[ -z "${chosen_model}" ]]; then
