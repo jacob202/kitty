@@ -1099,6 +1099,7 @@ def run_packet(
                     "KB_BUNDLE_PATH": str(bundle_path),
                     "KB_RESULT_PATH": str(result_path),
                     "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
+                    "KB_WORKER_TIMEOUT_SECONDS": str(worker_timeout_seconds),
                 },
             )
         except Exception as exc:
@@ -1402,6 +1403,9 @@ def run_packet(
                     "KB_REVIEW_CONTEXT_PATH": str(review_context_path),
                     "KB_REVIEW_SHA": str(review_context["review_sha"]),
                     "KB_REVIEW_DIFF_SHA256": str(review_context["diff_sha256"]),
+                    "KB_REVIEW_TIMEOUT_SECONDS": str(
+                        _bounded_timeout(review_timeout_seconds, deadline_monotonic)
+                    ),
                 },
                 timeout_seconds=_bounded_timeout(
                     review_timeout_seconds, deadline_monotonic

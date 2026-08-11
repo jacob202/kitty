@@ -122,6 +122,7 @@ def _good_worker(tmp_path: Path) -> list[str]:
     return _script(
         tmp_path,
         "worker.sh",
+        ': "${KB_WORKER_TIMEOUT_SECONDS:?KB_WORKER_TIMEOUT_SECONDS is required}"\n'
         f"echo ok > done.txt\ncat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
     )
 
@@ -154,6 +155,7 @@ def _approve_reviewer(tmp_path: Path) -> list[str]:
         ': "${KB_TASK_ID:?KB_TASK_ID is required}"\n'
         ': "${KB_ATTEMPT_ID:?KB_ATTEMPT_ID is required}"\n'
         ': "${KB_CONTEXT_MANIFEST_PATH:?KB_CONTEXT_MANIFEST_PATH is required}"\n'
+        ': "${KB_REVIEW_TIMEOUT_SECONDS:?KB_REVIEW_TIMEOUT_SECONDS is required}"\n'
         f"cat > \"$KB_REVIEW_RESULT_PATH\" <<'EOF'\n{_APPROVE}\nEOF\n",
     )
 

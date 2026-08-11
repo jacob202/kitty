@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+budget_started=${SECONDS}
+
 # Read-only independent reviewer for KittyBuilder packet attempts.
 
 : "${KB_BUNDLE_PATH:?KB_BUNDLE_PATH is required}"
@@ -114,18 +116,38 @@ fingerprint() {
   git status --porcelain=v1 --untracked-files=all -- . ':(exclude).omo/run-continuation/**'
 }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TIMEOUT_RUNNER="${SCRIPT_DIR}/run_with_timeout.py"
+review_budget=${KB_REVIEW_TIMEOUT_SECONDS:-900}
+
+model_timeout() {
+  local remaining_models="$1"
+  local elapsed=$((SECONDS - budget_started))
+  local remaining=$((review_budget - elapsed))
+  (( remaining > 0 )) || remaining=1
+  echo $(((remaining + remaining_models - 1) / remaining_models))
+}
+
 # A reviewer model may hand off to the next free model only when it failed
 # cleanly: no review written and no worktree mutation. A written review file
 # is never discarded in favour of another model, and any mutation is fatal.
 chosen_model=""
+model_index=0
 for model in "${models[@]}"; do
   attempt_before="$(fingerprint)"
-  echo "=== free reviewer attempt: ${model} ==="
+  remaining_models=$((${#models[@]} - model_index))
+  slot_seconds=$(model_timeout "${remaining_models}")
+  echo "=== free reviewer attempt: ${model} (${slot_seconds}s slot) ==="
   set +e
-  opencode run --auto --agent free-reviewer --model "${model}" \
+  python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" \
+    opencode run --auto --agent free-reviewer --model "${model}" \
     --title "KittyBuilder free packet reviewer" "${prompt}"
   rc=$?
   set -e
+  model_index=$((model_index + 1))
+  if [[ ${rc} -eq 124 ]]; then
+    echo "WARNING: reviewer ${model} timed out after ${slot_seconds}s." >&2
+  fi
   if [[ -f "${local_review}" ]]; then
     if [[ ${rc} -ne 0 ]]; then
       echo "ERROR: reviewer ${model} wrote ${local_review} but exited ${rc}; refusing the review." >&2

@@ -6,11 +6,14 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = ROOT / "scripts" / "kittybuilder_opencode_worker.sh"
 REVIEWER = ROOT / "scripts" / "kittybuilder_opencode_reviewer.sh"
+TIMEOUT_RUNNER = ROOT / "scripts" / "run_with_timeout.py"
 
 
 def _manifest(bundle: Path, *, task_id: str = "task-1", attempt_id: str = "7") -> Path:
@@ -53,6 +56,13 @@ if model in fail_models:
     if os.environ.get("FAKE_OPENCODE_FAIL_MUTATE"):
         Path("partial-work.txt").write_text("partial\\n", encoding="utf-8")
     raise SystemExit(1)
+hang_models = set(
+    filter(None, os.environ.get("FAKE_OPENCODE_HANG_MODELS", "").split(","))
+)
+if model in hang_models:
+    import time
+
+    time.sleep(float(os.environ.get("FAKE_OPENCODE_HANG_SECONDS", "2")))
 prompt = args[-1]
 match = re.search(r"[Ww]rite a JSON object to (.+?) with exactly", prompt)
 if not match:
@@ -123,6 +133,78 @@ def _review_binding(tmp_path: Path, *, task_id: str = "task-1", attempt_id: int 
         encoding="utf-8",
     )
     return path
+
+
+
+def test_timeout_runner_kills_descendant_process_group(tmp_path: Path):
+    child_pid = tmp_path / "child.pid"
+    script = tmp_path / "spawn-child.sh"
+    script.write_text(
+        '#!/bin/sh\nsleep 30 &\necho "$!" > "$1"\nwait\n',
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+
+    completed = subprocess.run(
+        [sys.executable, str(TIMEOUT_RUNNER), "1", str(script), str(child_pid)],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+
+    assert completed.returncode == 124
+    pid = int(child_pid.read_text())
+    for _ in range(20):
+        state = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "stat="],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if not state or state.startswith("Z"):
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError(f"timed-out descendant {pid} is still running: {state}")
+
+
+def test_timeout_runner_forwards_outer_termination_to_descendants(tmp_path: Path):
+    child_pid = tmp_path / "outer-child.pid"
+    script = tmp_path / "spawn-outer-child.sh"
+    script.write_text(
+        '#!/bin/sh\nsleep 30 &\necho "$!" > "$1"\nwait\n',
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+
+    proc = subprocess.Popen(
+        [sys.executable, str(TIMEOUT_RUNNER), "30", str(script), str(child_pid)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    for _ in range(50):
+        if child_pid.exists():
+            break
+        time.sleep(0.02)
+    else:
+        proc.kill()
+        raise AssertionError("timeout helper never started its descendant")
+
+    pid = int(child_pid.read_text())
+    proc.terminate()
+    proc.wait(timeout=5)
+    assert proc.returncode != 0
+    for _ in range(20):
+        state = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "stat="],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if not state or state.startswith("Z"):
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError(f"outer termination left descendant {pid} running: {state}")
 
 
 def test_worker_stages_and_validates_local_context(tmp_path: Path):
@@ -339,6 +421,36 @@ def test_worker_falls_through_ladder_on_clean_model_failure(tmp_path: Path):
     assert "Free builder completed with free-b" in completed.stdout
 
 
+def test_worker_times_out_silent_model_and_falls_through(tmp_path: Path):
+    _init_git_repo(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    result = tmp_path / "implementation.json"
+    fake = _fake_opencode(tmp_path)
+    model_log = tmp_path.parent / f"{tmp_path.name}-model-used.txt"
+    env = _env(fake, bundle=bundle, context=context, result=result)
+    env.update(
+        {
+            "KITTYBUILDER_MODELS": "free-a free-b",
+            "KB_WORKER_TIMEOUT_SECONDS": "2",
+            "FAKE_OPENCODE_HANG_MODELS": "free-a",
+            "FAKE_OPENCODE_HANG_SECONDS": "2",
+            "FAKE_OPENCODE_MODEL_LOG": str(model_log),
+        }
+    )
+
+    completed = subprocess.run(
+        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=8
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(result.read_text())["status"] == "completed"
+    assert model_log.read_text() == "free-b"
+    assert "timed out" in completed.stderr
+    assert "trying the next free model" in completed.stderr
+
+
 def test_worker_never_falls_back_over_partial_work(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
@@ -536,6 +648,48 @@ def test_reviewer_falls_through_ladder_on_clean_model_failure(tmp_path: Path):
     assert json.loads(review.read_text())["verdict"] == "approve"
     assert "trying the next free model" in completed.stderr
     assert "Review completed with rev-b" in completed.stdout
+
+
+def test_reviewer_times_out_silent_model_and_falls_through(tmp_path: Path):
+    _init_git_repo(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    implementation = tmp_path / "implementation.json"
+    implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
+    review = tmp_path / "review.json"
+    fake = _fake_opencode(tmp_path)
+    binding = _review_binding(tmp_path)
+    model_log = tmp_path.parent / f"{tmp_path.name}-review-model-used.txt"
+    env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
+    env.update(
+        {
+            "KB_IMPL_RESULT_PATH": str(implementation),
+            "KB_REVIEW_RESULT_PATH": str(review),
+            "FAKE_OPENCODE_REVIEW": "1",
+            "KITTYBUILDER_REVIEW_MODELS": "rev-a rev-b",
+            "KB_REVIEW_TIMEOUT_SECONDS": "2",
+            "FAKE_OPENCODE_HANG_MODELS": "rev-a",
+            "FAKE_OPENCODE_HANG_SECONDS": "2",
+            "FAKE_OPENCODE_MODEL_LOG": str(model_log),
+            "KB_REVIEW_CONTEXT_PATH": str(binding),
+            "KB_REVIEW_SHA": subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True,
+                capture_output=True, text=True,
+            ).stdout.strip(),
+            "KB_REVIEW_DIFF_SHA256": "0" * 64,
+        }
+    )
+
+    completed = subprocess.run(
+        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=8
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(review.read_text())["verdict"] == "approve"
+    assert model_log.read_text() == "rev-b"
+    assert "timed out" in completed.stderr
+    assert "trying the next free model" in completed.stderr
 
 
 def test_reviewer_defaults_to_pro_and_writes_review_note(tmp_path: Path):
