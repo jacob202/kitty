@@ -1,6 +1,6 @@
 # Project Status
 
-**Repository evidence verified:** 2026-08-09 through `main` `ece1bad0341a7743681a0619e9266b186e8478d8`, plus current GitHub PR/check state.
+**Repository evidence verified:** 2026-08-11 through `main` `6de35bde4da298ca7e1c51401397eda201bf6dcc`, plus current GitHub PR/check state.
 
 This file is a dated evidence summary, not a live runtime dashboard. Use Git/GitHub for repository state, supported probes for local services, and Builder's supported database/API/CLI for execution state.
 
@@ -25,9 +25,10 @@ The current authority is now explicit: KPROOF-001 gates broader roadmap work unt
 - Builder has durable queue/runtime/recovery machinery and a bounded runtime projection; recent merged work also made `needs_decision` pause the initiative truthfully rather than continuing execution.
 - #437 merged the Builder action trust repair: `useBuilderAction()` now converts an HTTP-success `{ok:false}` payload into a mutation error, refreshes the runtime-manifest query rather than `['runtime']`, and surfaces the action result. It merged without repository CI, and its recorded evidence is mocked/local UI behavior — so it must not yet be described as the completed KPROOF control seam.
 - #442 removed Dependabot version updates, cancels superseded PR runs, and aligned `make ci` to the `Tests` workflow's exact commands and coverage gate.
-- #444 recorded the out-of-band gate verification while Actions is unavailable.
-- **Repository CI has run no workflow step since 2026-08-06.** Jobs are assigned no runner and fail within two seconds on every branch and event type — an account billing/spending state, not a code result. Red checks currently carry no information. `main` was instead verified gate-by-gate in a CI-equivalent container; see [`audit/MAIN_GATE_VERIFICATION_2026-08-09.md`](audit/MAIN_GATE_VERIFICATION_2026-08-09.md).
-- `main` currently ends at `ece1bad0341a7743681a0619e9266b186e8478d8`.
+- #444 recorded the out-of-band gate verification while Actions was unavailable.
+- **The GitHub Actions outage ended on 2026-08-10 between 23:03Z and 23:20Z.** From 2026-08-06 until then, jobs were assigned no runner and failed within 3–13 seconds on every branch and event type — an account billing/spending state, not a code result, so red checks from that window carry no information. `Tests` runs now take 200–314 seconds and execute for real. Out-of-band verification is retired; CI is the gate again. Evidence: [`audit/MAIN_GATE_VERIFICATION_2026-08-10.md`](audit/MAIN_GATE_VERIFICATION_2026-08-10.md), which supersedes the 2026-08-09 receipt.
+- **`main` at `d54fd896` was red on `lint` and `typecheck`** — both in `mcp/builder/context.py`, added by the KittyBuilder MCP bridge as a direct-to-`main` squash with no green check. Independently confirmed out of band, and fixed in #453 along with a third failure in `gateway/image_quality.py`. #453 also added `scripts/hooks/pre-push`, a local gate for exactly this class of failure.
+- `main` currently ends at `6de35bde4da298ca7e1c51401397eda201bf6dcc`, and `Tests` passes on it (run 275s, real execution).
 
 ## Active work
 
@@ -61,9 +62,9 @@ Unknown is not success and must not be presented as failure without evidence.
 
 ## Current blockers and trust gaps
 
-- GitHub Actions runners are blocked by the account billing/spending state, so red Actions results from affected runs cannot currently serve as code-quality evidence.
+- Red Actions results dated 2026-08-06 through 2026-08-10 23:03Z came from the runner outage and cannot serve as code-quality evidence. Results after 23:20Z on 2026-08-10 are real and must be read as such.
+- Nothing server-side blocks an unchecked merge to `main`: the default-branch ruleset that would require passing checks (issue #399) is still disabled. #453's pre-push hook is a local guard only, so a merge made elsewhere can still land red.
 - PR #437 needs a current-base regression test and real running-app acceptance before it can satisfy the KPROOF seam.
-- The committed `.claude/STATE.md` / `.claude/HANDOFF.md` still describe the already-merged Open WebUI session and therefore do not represent the current KPROOF execution checkpoint; this reconciliation invalidates that inherited handoff rather than treating it as current work.
 - Local Builder/runtime facts remain unavailable from GitHub alone.
 
 ## Supported live checks
