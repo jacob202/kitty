@@ -788,6 +788,17 @@ def run_packet(
             "blocked task with a stale attempt"
         )
 
+    try:
+        model, provider = bi.resolve_packet_routing(
+            initiative_id,
+            packet_id,
+            model=model,
+            provider=provider,
+            db_path=db_path,
+        )
+    except (bi.InitiativeNotFoundError, bi.MissionSubmissionError) as exc:
+        raise LoopError(f"durable routing policy rejected execution: {exc}") from exc
+
     crash_count, crash_reason = _consecutive_identical_crashes(
         task_id, db_path=db_path
     )
