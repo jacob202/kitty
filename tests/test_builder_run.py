@@ -194,6 +194,31 @@ class TestRunInitiative:
         assert summary["processed"] == []
         assert "attempt budget" in summary["reason"]
 
+    def test_runtime_budget_caps_inflight_worker_and_prevents_retry(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        packet = _packet("P1")
+        packet["policy"]["max_attempts"] = 2
+        _apply(db_path, [packet], repo_root=repo)
+
+        slow = tmp_path / "slow-worker.sh"
+        slow.write_text("#!/bin/sh\nsleep 3\n", encoding="utf-8")
+        slow.chmod(0o755)
+
+        summary = br.run_initiative(
+            INITIATIVE,
+            worker_command=["/bin/sh", str(slow)],
+            timeout_seconds=2,
+            max_runtime_seconds=1,
+            db_path=db_path,
+            repo_root=repo,
+        )
+
+        assert summary["outcome"] == "paused", summary
+        assert "runtime budget" in summary["reason"]
+        attempts = br.ba.list_attempts(INITIATIVE, "P1", db_path=db_path)
+        assert len(attempts) == 1
+
     def test_dependency_gates_next_packet(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
