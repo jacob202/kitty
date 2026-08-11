@@ -62,39 +62,34 @@ The proof passes only when one real Builder feature loop works in the launched a
 
 If the proof fails by 2026-08-18, pause Kitty for several months and preserve the evidence rather than negotiating the standard downward.
 
-## Post-proof sequence — not active during KPROOF-001
+## After the proof — Version 2, milestones M1 to M6
 
-If KPROOF-001 passes, reconcile this roadmap from the proof evidence before starting the next stage. The retained order is:
+There is one roadmap: this file. [`ROADMAP_V2.md`](ROADMAP_V2.md) is its detail appendix
+for the milestones below — objectives, packet catalog, and Builder initiative mapping.
+It is not a second plan to choose between, and nothing in it starts while KPROOF-001 is
+the active gate.
 
-### Trustworthy daily driver
+If KPROOF-001 passes, reconcile this order from the proof evidence before starting M1.
 
-- keep deterministic repository gates honest;
-- keep authority documents consistent;
-- prove Open WebUI clean start, real chat, persistence, restart, attribution, and understandable failure recovery on Jacob's Mac;
-- complete one real #270 phone/PWA capture → return → response loop with restart/deduplication evidence;
-- finish the workflow ledger/default-branch enforcement work only when it can be applied safely.
+| # | Milestone | What is true when it is done |
+|---|---|---|
+| M1 | Daily-driver shell is real | Open WebUI is the primary daily driver, live, replacing the Next.js shell |
+| M2 | Console becomes the operator surface | The Next.js app stops competing as a chat shell and is re-roled as the operator console |
+| M3 | Builder → Work integration | The shell and console show real Builder execution as product-level work, not internals |
+| M4 | Failure, interruption, and receipts | A turn and a Builder run survive any provider, network, or crash failure, with honest receipts |
+| M5 | Storage spine consolidation | The flagged simplification lands once everything relies on the Gateway authority and evidence spines |
+| M6 | Ship the Console officially | The Console is the supported operator experience, with docs, onboarding, and backup/restore |
 
-### Complete existing user workflows
+Each milestone is user-visible, independently releasable, leaves the tree green, and
+reduces complexity. They are ordered by dependency, so M2 does not begin before M1 lands.
 
-Prioritize existing workflows over new surfaces:
+Carried into M1–M6 rather than tracked separately: keeping repository gates honest and
+authority documents consistent; the real #270 phone/PWA capture → return → response loop;
+documents/projects import and search; the Tutor question/answer loop; Image Lab's one real
+generation with cost and provenance evidence; and the default-branch enforcement work.
 
-1. documents/projects: native import, progress, search, source opening, and useful failures;
-2. Tutor: grounded question/answer loop with inspectable sources;
-3. normal-language work submission beyond the single KPROOF feature: acknowledgement, progress, result, and recovery without exposing Builder internals;
-4. Image Lab: one real generation and one genuine reference-conditioned continuation with cost/provenance/cleanup evidence;
-5. selected automations that remove repeated work and remain explicit, bounded, and reversible.
-
-A capability is `proven`, `preview`, `developer-only`, `blocked`, or `hidden`. Unproven capability must not look shipped.
-
-### Portability and leverage
-
-Only after stable daily value:
-
-- revalidate bounded PAA portability work rather than adopting a framework wholesale;
-- salvage broad historical PRs by subsystem instead of merging them as unverified units;
-- evaluate agent/model patterns through identical tasks, budgets, and evidence;
-- reuse the proven browser evidence harness for later product-studio/audit work;
-- improve routing through measured outcomes, not reputation or model-generated scores.
+A capability is `proven`, `preview`, `developer-only`, `blocked`, or `hidden`. Unproven
+capability must not look shipped.
 
 ## Explicitly deferred
 
