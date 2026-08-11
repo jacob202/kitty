@@ -135,7 +135,7 @@ for model in "${models[@]}"; do
   set +e
   python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" \
     opencode run --auto --agent "${adapter_agent}" --model "${model}" \
-    --title "KittyBuilder ${lane_label} packet worker" "${prompt}"
+    --title "KittyBuilder ${lane_label} packet worker" "${prompt}" </dev/null
   rc=$?
   set -e
   model_index=$((model_index + 1))
