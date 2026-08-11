@@ -14,6 +14,7 @@ def isolated_prefs(tmp_path, monkeypatch):
     from gateway import provider_prefs
 
     monkeypatch.setattr(provider_prefs, "PROVIDER_PREFS_FILE", tmp_path / "providers.json")
+    monkeypatch.setattr(llm_client, "load_dotenv", lambda *args, **kwargs: False)
 
 
 @pytest.fixture(autouse=True)

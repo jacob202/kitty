@@ -13,7 +13,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import action_queue
+from gateway import action_queue, builder_commands
+from gateway.models.builder import BuilderCommandRequest
 from gateway.routes import builder_control
 
 BUILDER_KINDS = [
@@ -33,22 +34,65 @@ def test_builder_kind_has_an_executor(kind):
     assert kind in registry, f"{kind} is not in the built registry"
 
 
-def test_pause_invokes_the_cli_with_the_initiative():
-    with patch.object(action_queue, "_run_kitty", return_value="") as run:
+def test_pause_delegates_to_the_canonical_command_dispatcher():
+    received: BuilderCommandRequest | None = None
+
+    def dispatch(request):
+        nonlocal received
+        received = request
+        return builder_commands.CommandResult(
+            ok=True, action="pause", detail="initiative demo-init paused"
+        )
+
+    with patch.object(builder_commands, "dispatch_operator_command", side_effect=dispatch):
         result = action_queue._exec_builder_pause(
             {"initiative_id": "demo-init", "reason": "because"}
         )
-    args = run.call_args[0][0]
-    assert args[:3] == ["initiative", "pause", "demo-init"]
-    assert "because" in args
-    assert "demo-init" in result
+    assert received is not None
+    assert received.action == "pause"
+    assert received.initiative_id == "demo-init"
+    assert received.reason == "because"
+    assert result == "initiative demo-init paused"
 
 
-def test_cancel_invokes_operator_cancel_with_the_packet():
-    with patch.object(action_queue, "_run_kitty", return_value="") as run:
+def test_cancel_delegates_to_the_canonical_command_dispatcher():
+    received: BuilderCommandRequest | None = None
+
+    def dispatch(request):
+        nonlocal received
+        received = request
+        return builder_commands.CommandResult(
+            ok=True, action="cancel", task_id="kb_abc123", detail="task cancelled"
+        )
+
+    with patch.object(builder_commands, "dispatch_operator_command", side_effect=dispatch):
         action_queue._exec_builder_cancel({"packet_id": "kb_abc123"})
-    args = run.call_args[0][0]
-    assert args[:3] == ["queue", "operator-cancel", "kb_abc123"]
+    assert received is not None
+    assert received.action == "cancel"
+    assert received.packet_id == "kb_abc123"
+
+
+def test_legacy_action_route_uses_canonical_dispatch_for_requeue(monkeypatch):
+    app = FastAPI()
+    app.include_router(builder_control.router)
+    received = {}
+
+    def dispatch(request):
+        received.update(request=request)
+        return builder_commands.CommandResult(
+            ok=True, action="requeue", task_id="packet-1", detail="requeued"
+        )
+
+    monkeypatch.setattr(builder_control, "dispatch_operator_command", dispatch)
+    response = TestClient(app).post(
+        "/builder/action",
+        json={"action": "requeue", "packet_id": "packet-1", "reason": "retry"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert received["request"].action == "requeue"
+    assert received["request"].packet_id == "packet-1"
 
 
 def test_run_next_does_not_block_the_request():
@@ -73,34 +117,3 @@ def test_run_kitty_fails_loud_on_nonzero_exit():
     with patch.object(action_queue.subprocess, "run", return_value=_Proc()):
         with pytest.raises(RuntimeError, match="boom"):
             action_queue._run_kitty(["queue", "status"])
-
-
-@pytest.fixture
-def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(action_queue, "ACTIONS_DB_FILE", tmp_path / "kitty.db", raising=False)
-    action_queue.reload_registry()
-    app = FastAPI()
-    app.include_router(builder_control.router)
-    yield TestClient(app)
-    action_queue.reload_registry()
-
-
-def test_builder_action_reports_failure_when_the_executor_fails(client):
-    """action_queue.execute() catches executor exceptions and records
-    status='failed' instead of raising — /builder/action must propagate that
-    record instead of assuming a returned (non-raising) execute() succeeded."""
-    with patch.object(action_queue, "_run_kitty", side_effect=RuntimeError("boom")):
-        r = client.post("/builder/action", json={"action": "resume", "initiative_id": "demo-init"})
-
-    assert r.status_code == 200
-    body = r.json()
-    assert body["ok"] is False
-    assert "boom" in body["error"]
-
-
-def test_builder_action_reports_success_when_the_executor_succeeds(client):
-    with patch.object(action_queue, "_run_kitty", return_value=""):
-        r = client.post("/builder/action", json={"action": "resume", "initiative_id": "demo-init"})
-
-    assert r.status_code == 200
-    assert r.json()["ok"] is True

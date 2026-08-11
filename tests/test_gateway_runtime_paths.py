@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 import subprocess
@@ -48,18 +47,6 @@ def test_gateway_launcher_scripts_use_live_gateway_paths() -> None:
             'source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"',
             'LITELLM_CONFIG="${LITELLM_CONFIG:-gateway/litellm_config.yaml}"',
             'LITELLM_REQUIREMENTS_FILE="${LITELLM_REQUIREMENTS_FILE:-gateway/requirements.litellm.txt}"',
-        ],
-        "gateway/start_tool_servers.sh": [
-            'source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"',
-        ],
-        "gateway/status_all.sh": [
-            'source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"',
-        ],
-        "gateway/doctor.sh": [
-            'exec "${PYTHON_BIN}" "${ROOT_DIR}/gateway/doctor.py" "$@"',
-        ],
-        "gateway/run_doctor_check.sh": [
-            'json_out="$(bash gateway/doctor.sh --json 2>/dev/null || true)"',
         ],
     }
 
@@ -117,27 +104,9 @@ def test_litellm_launcher_avoids_repo_package_shadowing(tmp_path: Path) -> None:
     )
 
 
-def test_start_all_and_runtime_manifest_point_at_live_gateway_scripts() -> None:
-    start_all = _read_text("gateway/start_all.sh")
-    for snippet in (
-        'source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"',
-        "bash gateway/start_litellm.sh",
-        "bash gateway/start_gateway.sh",
-        "bash gateway/start_jupyter_exec.sh",
-        "bash gateway/start_tool_servers.sh",
-        "bash gateway/doctor.sh",
-    ):
-        assert snippet in start_all
-
-    # Open WebUI has been removed from the stack — start_all must not reference it.
-    assert "openwebui" not in start_all.lower()
-
-    manifest = json.loads(_read_text("gateway/runtime_manifest.json"))
-    assert manifest["required_files"] == [
-        "gateway/start_all.sh",
-        "gateway/start_gateway.sh",
-        "gateway/start_litellm.sh",
-    ]
-    service_ids = {svc["id"] for svc in manifest["services"]}
-    assert "openwebui" not in service_ids
-    assert "openwebui" not in manifest
+def test_kitty_launcher_points_at_live_gateway_scripts() -> None:
+    launcher = _read_text("kitty")
+    assert 'bash "$KITTY_ROOT/gateway/start_litellm.sh"' in launcher
+    assert 'bash "$KITTY_ROOT/gateway/start_gateway.sh"' in launcher
+    assert "start_tool_servers.sh" not in launcher
+    assert "start_all.sh" not in launcher

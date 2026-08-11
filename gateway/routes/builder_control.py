@@ -8,35 +8,40 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+
+from gateway.builder_commands import command_result_payload, dispatch_operator_command
+from gateway.models.builder import BuilderCommandRequest
 
 logger = logging.getLogger("kitty.builder_control")
 router = APIRouter(tags=["builder"])
 
 
-class BuilderActionRequest(BaseModel):
-    action: str
-    initiative_id: str | None = None
-    packet_id: str | None = None
-    reason: str | None = None
+# Compatibility alias for clients that imported the legacy request name.
+BuilderActionRequest = BuilderCommandRequest
+
+_CANONICAL_ACTIONS = frozenset({"requeue", "recover_stale"})
+
+_LEGACY_ACTION_KINDS = {
+    "run_next": "builder.run_next",
+    "pause": "builder.pause_initiative",
+    "resume": "builder.resume_initiative",
+    "cancel": "builder.cancel_task",
+    "cleanup": "builder.cleanup",
+}
 
 
 @router.post("/builder/action")
 def builder_action(body: BuilderActionRequest):
+    if body.action in _CANONICAL_ACTIONS:
+        result = dispatch_operator_command(
+            body.model_copy(update={"actor": body.actor or "builder-ui"})
+        )
+        return command_result_payload(result)
+
     from gateway.action_queue import execute, propose
 
-    action_map = {
-        "run_next": "builder.run_next",
-        "pause": "builder.pause_initiative",
-        "resume": "builder.resume_initiative",
-        "cancel": "builder.cancel_task",
-        "cleanup": "builder.cleanup",
-        "requeue": "builder.requeue_packet",
-        "recover_stale": "builder.recover_stale",
-    }
-
-    kind = action_map.get(body.action)
-    if not kind:
+    kind = _LEGACY_ACTION_KINDS.get(body.action)
+    if kind is None:
         return {"ok": False, "error": f"Unknown action: {body.action}"}
 
     try:

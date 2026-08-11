@@ -10,29 +10,49 @@ events and returns structured results.
 
 from __future__ import annotations
 
-import inspect
 import logging
 import uuid
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 
-from gateway.builder_commands import COMMAND_HANDLERS as _COMMAND_HANDLERS
+from gateway.builder_commands import (
+    COMMAND_HANDLERS,
+    command_result_payload,
+    dispatch_operator_command,
+)
 from gateway.builder_events import builder_events
+from gateway.builder_initiative import (
+    InitiativeConflictError,
+    MissionSubmissionError,
+    submit_mission,
+)
+from gateway.models.builder import BuilderCommandRequest, Mission
+from gateway.paths import BUILDER_QUEUE_DB, PROJECT_ROOT
 
 logger = logging.getLogger("kitty.builder_routes")
 router = APIRouter(tags=["builder"])
 
 
-class OperatorCommandRequest(BaseModel):
-    action: str
-    task_id: str | None = None
-    initiative_id: str | None = None
-    packet_id: str | None = None
-    reason: str | None = None
-    actor: str | None = None
-    expected_version: int | None = None
+# Kept as a module-level alias for callers importing the old route model.
+OperatorCommandRequest = BuilderCommandRequest
+# Kept for callers/tests that inspected the route's old registry alias.
+_COMMAND_HANDLERS = COMMAND_HANDLERS
+
+
+@router.post("/builder/initiative")
+def submit_builder_mission(body: Mission):
+    """Accept Kitty's approved Mission and materialize Builder work durably."""
+    try:
+        return submit_mission(
+            body,
+            db_path=BUILDER_QUEUE_DB,
+            repo_root=PROJECT_ROOT,
+        )
+    except MissionSubmissionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except InitiativeConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/builder/events")
@@ -73,39 +93,9 @@ async def builder_operator_command(body: OperatorCommandRequest):
     must never mutate queue storage or infer success from HTTP 200 alone —
     inspect ``result.ok`` and ``result.error``.
     """
-    handler = _COMMAND_HANDLERS.get(body.action)
-    if handler is None:
-        return {
-            "ok": False,
-            "error": f"unknown action: {body.action}",
-            "available": sorted(_COMMAND_HANDLERS.keys()),
-        }
-
     try:
-        supplied = {
-            "actor": body.actor or "cockpit-operator",
-            "reason": body.reason,
-            "task_id": body.task_id,
-            "initiative_id": body.initiative_id,
-            "expected_version": body.expected_version,
-        }
-        accepted = inspect.signature(handler).parameters
-        kwargs = {
-            name: value
-            for name, value in supplied.items()
-            if name in accepted and value is not None
-        }
-
-        result = handler(**kwargs)
-        return {
-            "ok": result.ok,
-            "action": result.action,
-            "task_id": result.task_id,
-            "error": result.error,
-            "detail": result.detail,
-            "event_id": result.event_id,
-            "evidence": result.evidence,
-        }
+        result = dispatch_operator_command(body)
+        return command_result_payload(result)
     except Exception as exc:
         logger.exception("operator command %s failed", body.action)
         return {"ok": False, "action": body.action, "error": str(exc)}

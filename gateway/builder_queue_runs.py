@@ -6,7 +6,8 @@ lease lifecycle cut was \u00a72.2 second cut, into :mod:`gateway.builder_queue_l
 
 Owns the lifecycle of execution attempts against claimed tasks: create run,
 heartbeat / progress updates, finalize with fence-aware report attachment,
-PID-reuse fencing via ``capture_process_identity`` (ps -o lstart), and the
+PID-reuse fencing via ``capture_process_identity`` (process start time and
+command), and the
 ``recover_interrupted_runs`` operator-side crash-recovery scan. Also owns
 the run-state machine constants and lifecycle exception classes.
 
@@ -636,7 +637,7 @@ def finalize_run(
 def capture_process_identity(pid: int) -> str | None:
     try:
         result = subprocess.run(
-            ["ps", "-o", "lstart=", "-p", str(pid)],
+            ["ps", "-o", "lstart=", "-o", "command=", "-p", str(pid)],
             capture_output=True,
             text=True,
             timeout=5,

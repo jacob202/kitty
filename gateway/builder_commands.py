@@ -26,6 +26,7 @@ from gateway.builder_initiative import (
 from gateway.builder_queue import TaskNotFoundError as QueueTaskNotFoundError
 from gateway.builder_queue import operator_cancel_task as _operator_cancel_task
 from gateway.builder_queue_leases import operator_release_task
+from gateway.models.builder import BuilderCommandRequest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 KITTY_CLI = REPO_ROOT / "kitty"
@@ -46,6 +47,68 @@ class CommandResult:
     detail: str | None = None
     event_id: int | None = None
     evidence: dict[str, Any] = field(default_factory=dict)
+
+
+_COMMAND_ARGUMENTS: dict[str, frozenset[str]] = {
+    "requeue": frozenset({"task_id", "actor", "reason"}),
+    "cancel": frozenset({"task_id", "actor", "reason"}),
+    "pause": frozenset({"initiative_id", "actor", "reason"}),
+    "resume": frozenset({"initiative_id", "actor"}),
+    "run_validation": frozenset({"task_id", "actor", "reason"}),
+    "publish": frozenset({"task_id", "actor", "reason"}),
+    "recover_stale": frozenset({"actor", "expected_version"}),
+    "reconcile_merges": frozenset({"actor"}),
+}
+
+
+def dispatch_operator_command(request: BuilderCommandRequest) -> CommandResult:
+    """Dispatch one validated Builder command through the canonical registry.
+
+    The API routes used reflection to discover each handler's arguments. That
+    made the boundary depend on private function signatures and silently
+    discarded ``packet_id`` even though the UI sent it. Keep the accepted
+    fields explicit here so command contracts are auditable and testable.
+    """
+    handler = COMMAND_HANDLERS.get(request.action)
+    if handler is None:
+        return CommandResult(
+            ok=False,
+            action=request.action,
+            error=f"unknown action: {request.action}",
+            evidence={"available": sorted(COMMAND_HANDLERS)},
+        )
+
+    task_id = request.task_id or request.packet_id
+    values: dict[str, Any] = {
+        "task_id": task_id,
+        "initiative_id": request.initiative_id,
+        "actor": request.actor or "cockpit-operator",
+        "reason": request.reason,
+        "expected_version": request.expected_version,
+    }
+    kwargs = {
+        name: value
+        for name, value in values.items()
+        if name in _COMMAND_ARGUMENTS[request.action] and value is not None
+    }
+    return handler(**kwargs)
+
+
+def command_result_payload(result: CommandResult) -> dict[str, Any]:
+    """Serialize the shared command result for HTTP and compatibility adapters."""
+    payload: dict[str, Any] = {
+        "ok": result.ok,
+        "action": result.action,
+        "task_id": result.task_id,
+        "error": result.error,
+        "detail": result.detail,
+        "event_id": result.event_id,
+        "evidence": result.evidence,
+    }
+    available = result.evidence.get("available")
+    if available is not None:
+        payload["available"] = available
+    return payload
 
 
 def _emit_event(event_type: str, payload: dict[str, Any]) -> None:
@@ -254,8 +317,7 @@ def command_run_validation(
             action="run_validation",
             task_id=task_id,
             error=(
-                "task has no acceptance criteria; validation requires a "
-                "declared stop condition"
+                "task has no acceptance criteria; validation requires a declared stop condition"
             ),
         )
 
@@ -277,10 +339,7 @@ def command_run_validation(
                     ok=False,
                     action="run_validation",
                     task_id=task_id,
-                    error=(
-                        f"validation failed: {cmd_text[:120]} exited "
-                        f"{proc.returncode}"
-                    ),
+                    error=(f"validation failed: {cmd_text[:120]} exited {proc.returncode}"),
                     evidence={
                         "failed_command": cmd_text[:500],
                         "stderr": proc.stderr[:500],

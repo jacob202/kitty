@@ -1,5 +1,16 @@
 # Kitty Blueprint — 2026-07-11
 
+> **Post-dated ADRs ratified since this document:** ADRs 0027 (Open WebUI
+> replaceable shell), 0028 (commodity software precedence), 0029 (Capability
+> Manifest single truth), 0030 (repository simplification), 0031 (architecture
+> migration deferred), 0032 (evidence-backed claims), 0033 (Open WebUI shell
+> integration boundary), 0034 (memory policy vs storage), 0035 (browser-verified
+> evidence), and 0036 (Builder infrastructure refactor). These ratified 2026-08-05
+> and may refine or override specific claims below. Image Studio direction (PR
+> #306, RunPod worker) represents a different path than the ComfyUI dependency
+> assumed here. See `docs/ROADMAP_V2.md` for the current proposed delivery milestones. `docs/CONSTITUTION.md` is now the highest-level design artifact.
+
+
 Product direction, written by Fable from the
 `docs/fable-context` bundle, the Codex audit, the verified visual references,
 and the live system state observed on 2026-07-11. Durable decisions extracted
@@ -101,7 +112,7 @@ Fake, broken, or unproven — must not be presented as working:
 | Gmail | token expired | Needs You card, one-tap reauth guidance |
 | Telegram | disabled | postpone; remove from UI |
 | Chroma | zero collections | seed from real capture flow, not synthetic data |
-| Image gen | ComfyUI not running | keep the truthful status card (already done); slice waits for env |
+| Image gen | ComfyUI not running; RunPod PR #306 (DRAFT, blocked Phase 3.4) is a separate approach | keep the truthful status card (already done); RunPod lane preserves its own runbook per ROADMAP_V2 §0 |
 | Browser-verified UI | never done | this session starts it; becomes a release gate |
 | agent_runner/task_runner completion states | can report false `completed` | T2 — escalated to Codex/Jacob (Card B) |
 

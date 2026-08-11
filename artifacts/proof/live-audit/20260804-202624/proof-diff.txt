@@ -1,0 +1,4 @@
+ docs/ACTIVE_MISSION.md             | 118 ++++++++----
+ docs/proof/TWO_WEEK_PROOF_AUDIT.md | 263 ++++++++++++++++++++++++++
+ docs/proof/prototype/index.html    | 366 +++++++++++++++++++++++++++++++++++++
+ 3 files changed, 716 insertions(+), 31 deletions(-)

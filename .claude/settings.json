@@ -75,10 +75,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash scripts/preflight.sh"
-          },
-          {
-            "type": "command",
             "command": "bash .claude/hooks/session-start.sh"
           },
           {

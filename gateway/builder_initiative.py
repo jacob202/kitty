@@ -34,6 +34,7 @@ from typing import Any
 
 from gateway import builder_attempt as ba
 from gateway import builder_queue as bq
+from gateway.models.builder import Mission, MissionState
 
 MANIFEST_VERSION = 1
 
@@ -91,6 +92,10 @@ class InitiativeConflictError(ValueError):
 
 class InitiativeNotFoundError(ValueError):
     """Raised when an initiative ID does not exist."""
+
+
+class MissionSubmissionError(ValueError):
+    """Raised when a Mission cannot be represented by the initiative contract."""
 
 
 # ---------------------------------------------------------------------------
@@ -686,12 +691,119 @@ def warn_manifest(
 # ---------------------------------------------------------------------------
 
 
+def mission_to_manifest(mission: Mission) -> dict[str, Any]:
+    """Project one approved, bounded Mission into the canonical manifest.
+
+    The current Mission schema describes one executable packet at this
+    boundary. Fields that would change routing, evidence, or execution shape
+    are rejected instead of being silently discarded; Kitty can add a richer
+    packet authoring contract later without making this adapter ambiguous.
+    """
+    if mission.state not in (MissionState.approved, MissionState.accepted):
+        raise MissionSubmissionError(
+            f"mission {mission.mission_id!r} must be approved before submission; "
+            f"got state {mission.state.value!r}"
+        )
+    if mission.approved_at is None:
+        raise MissionSubmissionError(
+            f"mission {mission.mission_id!r} is {mission.state.value!r} but has no approved_at"
+        )
+
+    execution = mission.execution
+    budgets = mission.budgets
+    evidence = mission.evidence_plan
+    unsupported: list[str] = []
+    if execution.strategy:
+        unsupported.append("execution.strategy")
+    if execution.packets:
+        unsupported.append("execution.packets (packet details are not authored here)")
+    if execution.dependencies:
+        unsupported.append("execution.dependencies")
+    if execution.forbidden_operations:
+        unsupported.append("execution.forbidden_operations")
+    if execution.worker_constraints:
+        unsupported.append("execution.worker_constraints")
+    if execution.routing_policy:
+        unsupported.append("execution.routing_policy")
+    if budgets.max_time_seconds != 3600:
+        unsupported.append("budgets.max_time_seconds")
+    if budgets.max_tokens is not None:
+        unsupported.append("budgets.max_tokens")
+    if budgets.max_cost is not None:
+        unsupported.append("budgets.max_cost")
+    if evidence.required_artifacts:
+        unsupported.append("evidence_plan.required_artifacts")
+    if evidence.independent_review:
+        unsupported.append("evidence_plan.independent_review")
+    if unsupported:
+        raise MissionSubmissionError(
+            "Mission fields are not representable by the current initiative "
+            f"contract: {', '.join(unsupported)}"
+        )
+
+    acceptance_criteria = [
+        criterion.description.strip() for criterion in evidence.acceptance_criteria
+    ]
+    if not acceptance_criteria:
+        raise MissionSubmissionError(
+            "evidence_plan.acceptance_criteria must contain at least one criterion"
+        )
+    allowed_paths = [path.strip() for path in execution.allowed_paths]
+    if not allowed_paths:
+        raise MissionSubmissionError(
+            "execution.allowed_paths must contain at least one repo-relative path"
+        )
+
+    validation_commands = list(evidence.validation_commands)
+    for criterion in evidence.acceptance_criteria:
+        if criterion.validation_command and criterion.validation_command not in validation_commands:
+            validation_commands.append(criterion.validation_command)
+
+    return {
+        "manifest_version": MANIFEST_VERSION,
+        "initiative_id": mission.mission_id,
+        "title": mission.objective,
+        "description": mission.rationale or mission.objective,
+        "packets": [
+            {
+                "id": "P1",
+                "title": mission.objective,
+                "objective": mission.objective,
+                "depends_on": [],
+                "acceptance_criteria": acceptance_criteria,
+                "allowed_paths": allowed_paths,
+                "policy": {"max_attempts": budgets.max_attempts},
+                "validation_commands": validation_commands,
+            }
+        ],
+    }
+
+
+def submit_mission(
+    mission: Mission,
+    *,
+    dry_run: bool = False,
+    db_path: Path | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Validate and durably submit one approved Mission as an initiative."""
+    manifest = mission_to_manifest(mission)
+    return apply_manifest(
+        manifest,
+        dry_run=dry_run,
+        db_path=db_path,
+        repo_root=repo_root,
+        base_sha=mission.origin.base_sha,
+    )
+
+
 def apply_manifest(
     manifest: dict[str, Any],
     *,
     dry_run: bool = False,
     db_path: Path | None = None,
     repo_root: Path | None = None,
+    base_sha: str | None = None,
 ) -> dict[str, Any]:
     """Validate and apply a manifest. Atomic and idempotent.
 
@@ -766,7 +878,16 @@ def apply_manifest(
         # Resolve only for a first real apply. Dry runs and immutable re-applies
         # do not depend on live refs; newly created packets must never persist
         # an unbound base.
-        base_sha = resolve_base_sha(repo_root)
+        durable_base_sha = (
+            resolve_base_sha(repo_root) if base_sha is None else base_sha
+        )
+        if (
+            len(durable_base_sha) != 40
+            or any(character not in "0123456789abcdef" for character in durable_base_sha)
+        ):
+            raise BaseSHAResolutionError(
+                f"provided base SHA must be a 40-character lowercase hex SHA, got {durable_base_sha!r}"
+            )
 
         conn.execute(
             """
@@ -819,7 +940,7 @@ def apply_manifest(
                     json.dumps(packet["allowed_paths"]),
                     json.dumps(policy) if policy else None,
                     json.dumps(validation_commands) if validation_commands else None,
-                    base_sha,
+                    durable_base_sha,
                     task["id"],
                 ),
             )

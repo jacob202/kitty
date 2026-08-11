@@ -1,0 +1,16 @@
+
+--- port 3000 ---
+COMMAND   PID           USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  77891 jacobbrizinski   31u  IPv4 0xf27e5fce1b355807      0t0  TCP 127.0.0.1:3000 (LISTEN)
+
+--- port 4000 ---
+COMMAND   PID           USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+node    57167 jacobbrizinski   13u  IPv4 0x5676e3307bf7cfa9      0t0  TCP 127.0.0.1:4000 (LISTEN)
+
+--- port 8000 ---
+COMMAND   PID           USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  56765 jacobbrizinski   65u  IPv4 0x63c7aa537193c8dc      0t0  TCP 127.0.0.1:8000 (LISTEN)
+
+--- port 8001 ---
+COMMAND   PID           USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  56902 jacobbrizinski   13u  IPv4 0xa80d0f6d17a982cc      0t0  TCP 127.0.0.1:8001 (LISTEN)

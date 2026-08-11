@@ -16,7 +16,10 @@ report the contradiction rather than blending the claims.
 | `architecture` | `docs/ARCHITECTURE.md` | Current runnable system shape and component boundaries | Durable decision history or roadmap priority |
 | `decisions` | `docs/DECISIONS.md` | Accepted decisions, amendments, supersession, and routing into `docs/adr/` | Live status or implementation sequencing |
 | `ratification` | `docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md` | Cross-cutting architectural adjudication of 12 decisions. Records exact authority sources, evidence, and merge conditions. | Numbered ADRs or routine decisions |
-| `roadmap` | `docs/ROADMAP.md` | The one active forward-looking sequence and phase exit criteria | Live Builder state or historical planning narrative |
+| `roadmap` | `docs/ROADMAP_V2.md` | Active roadmap authority (replaced `docs/ROADMAP.md` 2026-08-08). M1–M6 milestones, packet catalog, and phase exit criteria. | Live Builder state or historical planning narrative |
+| `roadmap_v1_superseded` | `docs/ROADMAP.md` | Superseded roadmap. Preserved historical record only. | Active priority or execution sequencing |
+| `master_program` | `docs/KITTY_MASTER_PROGRAM.md` | Derived synthesis of ROADMAP, ROADMAP_V2, and the extension backlog into a single dependency-ordered program. Not an independent authority. | Active priority or execution sequencing independent of ROADMAP.md |
+| `knowledge_graph` | `docs/KNOWLEDGE_GRAPH.md` | The relationship map across ADRs, architecture docs, roadmaps, research, issues, PRs, initiatives, and packets | Implementation or live status |
 | `planning_inputs` | `docs/plans/` | Existing plans, planning notes, packets, research, audits, and initiative manifests as preserved ideas, evidence, candidate work, or executable contracts when explicitly approved | Roadmap authority merely by existing |
 | `disposition_ledger` | `docs/DISPOSITION_LEDGER.md` | The canonical disposition (ACTIVE, SCHEDULED, BLOCKED, BACKLOG, SUPERSEDED, REJECTED, ARCHIVED) of every retained planning file | Disposition of files not yet inventoried |
 | `launcher_contract` | `docs/reference/LAUNCHER_CONTRACT.md` | The single launcher interface across production and development modes; required shared properties | Alternative server entry points or silently bootable paths |
@@ -41,8 +44,7 @@ machine. Runtime files under `data/` are local and are never committed.
 2. `docs/CONSTITUTION.md` is the highest-level design artifact. All other
    documents that contradict it are wrong.
 3. An accepted ADR beats an older architecture or plan claim.
-4. `docs/ROADMAP.md` is the only active planning sequence. Older plans are
-   inputs until explicitly absorbed, rejected, or archived.
+4. `docs/ROADMAP_V2.md` is the active planning sequence. `docs/ROADMAP.md` is superseded historical record. Older plans are inputs until explicitly absorbed, rejected, or archived.
 5. `docs/PROJECT_STATUS.md` may summarize shipped work but cannot redefine an
    ADR, roadmap, Mission, or live runtime fact.
 6. `.claude/STATE.md` and `.claude/HANDOFF.md` are invalid when their recorded

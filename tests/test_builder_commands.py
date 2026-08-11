@@ -8,7 +8,9 @@ from gateway.builder_commands import (
     command_pause,
     command_requeue,
     command_resume,
+    dispatch_operator_command,
 )
+from gateway.models.builder import BuilderCommandRequest
 
 
 class TestCommandResult:
@@ -59,6 +61,39 @@ class TestCommandHandlersRegistered:
     def test_each_handler_is_callable(self):
         for key, handler in COMMAND_HANDLERS.items():
             assert callable(handler), f"{key} handler must be callable"
+
+
+class TestOperatorCommandDispatch:
+    def test_packet_id_is_the_task_id_alias_for_legacy_ui_payloads(self, monkeypatch):
+        received = {}
+
+        def fake_cancel(task_id, *, actor, reason):
+            received.update(task_id=task_id, actor=actor, reason=reason)
+            return CommandResult(ok=True, action="cancel", task_id=task_id)
+
+        monkeypatch.setitem(COMMAND_HANDLERS, "cancel", fake_cancel)
+        result = dispatch_operator_command(
+            BuilderCommandRequest(
+                action="cancel",
+                packet_id="packet-1",
+                reason="stop it",
+                actor="builder-ui",
+            )
+        )
+
+        assert result.ok is True
+        assert received == {
+            "task_id": "packet-1",
+            "actor": "builder-ui",
+            "reason": "stop it",
+        }
+
+    def test_unknown_action_returns_available_commands(self):
+        result = dispatch_operator_command(BuilderCommandRequest(action="not-a-command"))
+
+        assert result.ok is False
+        assert result.error == "unknown action: not-a-command"
+        assert "cancel" in result.evidence["available"]
 
 
 class TestRequeueMissingTask:

@@ -53,7 +53,7 @@ def _visible_catalogue() -> list[dict]:
     honest row until that provider gains explicit alias mappings.
     """
     selected = _selected_provider()
-    if selected in {None, "openrouter"}:
+    if selected is None or selected == "openrouter":
         return [dict(_CATALOGUE[entry["id"]]) for entry in USER_FACING_MODELS]
 
     auto = dict(_CATALOGUE["kitty-auto"])

@@ -184,30 +184,67 @@ def _exec_builder_run_next(payload: dict[str, Any]) -> str:
 
 
 def _exec_builder_pause(payload: dict[str, Any]) -> str:
-    initiative = str(payload["initiative_id"]).strip()
-    reason = str(payload.get("reason") or "paused from the Builder screen")
-    _run_kitty(["initiative", "pause", initiative, "--reason", reason])
-    return f"initiative {initiative} paused"
+    from gateway.builder_commands import dispatch_operator_command
+    from gateway.models.builder import BuilderCommandRequest
+
+    result = dispatch_operator_command(
+        BuilderCommandRequest(
+            action="pause",
+            initiative_id=str(payload["initiative_id"]).strip(),
+            reason=str(payload.get("reason") or "paused from the Builder screen"),
+            actor="action-queue",
+        )
+    )
+    if not result.ok:
+        raise RuntimeError(result.error or "Builder pause failed")
+    return result.detail or "Builder pause completed"
 
 
 def _exec_builder_resume(payload: dict[str, Any]) -> str:
-    initiative = str(payload["initiative_id"]).strip()
-    _run_kitty(["initiative", "resume", initiative])
-    return f"initiative {initiative} resumed"
+    from gateway.builder_commands import dispatch_operator_command
+    from gateway.models.builder import BuilderCommandRequest
+
+    result = dispatch_operator_command(
+        BuilderCommandRequest(
+            action="resume",
+            initiative_id=str(payload["initiative_id"]).strip(),
+            actor="action-queue",
+        )
+    )
+    if not result.ok:
+        raise RuntimeError(result.error or "Builder resume failed")
+    return result.detail or "Builder resume completed"
 
 
 def _exec_builder_cancel(payload: dict[str, Any]) -> str:
-    task_id = str(payload["packet_id"]).strip()
-    reason = str(payload.get("reason") or "cancelled from the Builder screen")
-    _run_kitty(["queue", "operator-cancel", task_id, "--reason", reason])
-    return f"task {task_id} cancelled"
+    from gateway.builder_commands import dispatch_operator_command
+    from gateway.models.builder import BuilderCommandRequest
+
+    result = dispatch_operator_command(
+        BuilderCommandRequest(
+            action="cancel",
+            packet_id=str(payload["packet_id"]).strip(),
+            reason=str(payload.get("reason") or "cancelled from the Builder screen"),
+            actor="action-queue",
+        )
+    )
+    if not result.ok:
+        raise RuntimeError(result.error or "Builder cancel failed")
+    return result.detail or "Builder cancel completed"
 
 
 def _exec_builder_cleanup(payload: dict[str, Any]) -> str:
     """Reclaim tasks whose worker died. Safe to run any time — the queue only
     releases leases whose heartbeat has actually gone stale."""
-    out = _run_kitty(["queue", "recover"])
-    return out or "queue recovery ran; nothing needed reclaiming"
+    from gateway.builder_commands import dispatch_operator_command
+    from gateway.models.builder import BuilderCommandRequest
+
+    result = dispatch_operator_command(
+        BuilderCommandRequest(action="recover_stale", actor="action-queue")
+    )
+    if not result.ok:
+        raise RuntimeError(result.error or "Builder recovery failed")
+    return result.detail or "queue recovery ran; nothing needed reclaiming"
 
 
 _EXECUTORS: dict[str, Callable[[dict[str, Any]], str]] = {

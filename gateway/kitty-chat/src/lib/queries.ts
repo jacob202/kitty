@@ -83,7 +83,6 @@ import {
   fetchRepairs,
   executeRepair,
   // builder control
-  executeBuilderAction,
   executeOperatorCommand,
   // experts
   fetchExpertList,
@@ -758,32 +757,6 @@ export function useExecuteRepair() {
       executeRepair(repairId, actionKind, checkName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['repairs'] })
-    },
-  })
-}
-
-export function useBuilderAction() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({
-      action,
-      initiativeId,
-      packetId,
-      reason,
-    }: {
-      action: string
-      initiativeId?: string
-      packetId?: string
-      reason?: string
-    }) => {
-      const result = await executeBuilderAction(action, initiativeId, packetId, reason)
-      if (!result.ok) {
-        throw new Error(result.error || 'Builder action failed')
-      }
-      return result
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
     },
   })
 }

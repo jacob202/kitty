@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kitty — Builder Proof</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0c12;
+      --panel: rgba(22, 24, 36, 0.88);
+      --panel-2: #191b28;
+      --line: rgba(255,255,255,.09);
+      --ink: #f7f4ff;
+      --muted: #aaa9ba;
+      --purple: #a994ff;
+      --blue: #72b7ff;
+      --green: #71d9a3;
+      --yellow: #f4cf74;
+      --red: #ff8c9e;
+      --shadow: 0 24px 80px rgba(0,0,0,.42);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 18% 5%, rgba(132,103,255,.22), transparent 34rem),
+        radial-gradient(circle at 88% 90%, rgba(45,162,255,.12), transparent 38rem),
+        var(--bg);
+    }
+    button, textarea { font: inherit; }
+    button { color: inherit; }
+    .shell { max-width: 1440px; margin: 0 auto; padding: 18px; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 18px;
+      padding: 10px 4px 18px;
+    }
+    .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+    .mark {
+      display: grid; place-items: center; width: 38px; height: 38px; border-radius: 13px;
+      background: linear-gradient(135deg, #c7baff, #7dafff); color: #11131a; font-size: 21px;
+      box-shadow: 0 10px 30px rgba(127,111,255,.35);
+    }
+    .brand strong { display: block; letter-spacing: -.02em; }
+    .brand span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .budget {
+      display: flex; align-items: center; gap: 9px; border: 1px solid var(--line);
+      border-radius: 999px; background: rgba(13,15,23,.75); padding: 8px 12px; color: var(--muted); font-size: 12px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 14px var(--green); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, .75fr); gap: 14px; min-height: calc(100vh - 92px); }
+    .panel {
+      border: 1px solid var(--line); border-radius: 24px; background: var(--panel);
+      backdrop-filter: blur(18px); box-shadow: var(--shadow); min-width: 0;
+    }
+    .chat { display: flex; flex-direction: column; overflow: hidden; }
+    .chat-head, .work-head {
+      padding: 18px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .eyebrow { color: var(--purple); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; font-weight: 800; }
+    h1, h2, p { margin: 0; }
+    h1 { font-size: 18px; margin-top: 4px; letter-spacing: -.02em; }
+    h2 { font-size: 16px; letter-spacing: -.015em; }
+    .context-pill { font-size: 11px; color: var(--muted); border: 1px solid var(--line); padding: 7px 10px; border-radius: 999px; white-space: nowrap; }
+    .messages { padding: 26px 22px 18px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; flex: 1; }
+    .message { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 11px; max-width: 850px; }
+    .message.user { align-self: flex-end; grid-template-columns: minmax(0, 1fr) 34px; max-width: 720px; }
+    .avatar { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: #25283a; border: 1px solid var(--line); font-size: 14px; }
+    .user .avatar { order: 2; background: #332d51; }
+    .bubble { padding: 14px 15px; border: 1px solid var(--line); border-radius: 6px 18px 18px 18px; background: rgba(27,29,43,.88); line-height: 1.55; font-size: 14px; }
+    .user .bubble { border-radius: 18px 6px 18px 18px; background: linear-gradient(135deg, rgba(111,84,196,.72), rgba(58,87,145,.72)); }
+    .bubble p + p { margin-top: 10px; }
+    .decision {
+      margin-top: 14px; border: 1px solid rgba(169,148,255,.32); background: rgba(83,65,141,.16); border-radius: 15px; padding: 14px;
+    }
+    .decision strong { display: block; font-size: 13px; }
+    .decision ul { margin: 10px 0 0; padding-left: 18px; color: #d7d4e2; font-size: 13px; line-height: 1.5; }
+    .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+    .btn {
+      border: 1px solid var(--line); border-radius: 11px; background: #232636; padding: 9px 12px; cursor: pointer; font-size: 12px; font-weight: 700;
+      transition: transform .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: rgba(255,255,255,.2); }
+    .btn.primary { background: linear-gradient(135deg, #947cff, #5a9dff); color: white; border: 0; }
+    .btn.ghost { color: var(--muted); background: transparent; }
+    .btn:disabled { opacity: .48; cursor: not-allowed; transform: none; }
+    .composer { padding: 14px 18px 18px; border-top: 1px solid var(--line); background: rgba(11,12,18,.5); }
+    .compose-box { display: flex; gap: 9px; align-items: flex-end; border: 1px solid var(--line); border-radius: 16px; background: #151722; padding: 9px; }
+    textarea { width: 100%; resize: none; border: 0; outline: 0; background: transparent; color: var(--ink); min-height: 44px; max-height: 110px; padding: 6px; }
+    textarea::placeholder { color: #77788a; }
+    .work { display: flex; flex-direction: column; overflow: hidden; }
+    .work-scroll { padding: 16px; overflow-y: auto; display: grid; gap: 12px; }
+    .now-card { border: 1px solid rgba(114,183,255,.24); background: rgba(55,111,171,.10); border-radius: 16px; padding: 14px; }
+    .now-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .status { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 800; color: var(--blue); text-transform: uppercase; letter-spacing: .08em; }
+    .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
+    .now-card h3 { margin: 9px 0 5px; font-size: 15px; }
+    .small { font-size: 12px; line-height: 1.5; color: var(--muted); }
+    .progress { height: 7px; background: #10121a; border-radius: 999px; overflow: hidden; margin-top: 12px; }
+    .progress > div { height: 100%; width: 0%; background: linear-gradient(90deg, var(--purple), var(--blue)); transition: width .5s ease; }
+    .timeline { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+    .step { display: grid; grid-template-columns: 25px minmax(0,1fr) auto; gap: 10px; align-items: start; padding: 12px; border-bottom: 1px solid var(--line); background: rgba(17,19,29,.62); }
+    .step:last-child { border-bottom: 0; }
+    .step-icon { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #262938; color: #85879a; font-size: 11px; }
+    .step.active .step-icon { background: rgba(114,183,255,.17); color: var(--blue); box-shadow: inset 0 0 0 1px rgba(114,183,255,.32); }
+    .step.done .step-icon { background: rgba(113,217,163,.16); color: var(--green); }
+    .step strong { display: block; font-size: 12px; margin-top: 2px; }
+    .step span { display: block; font-size: 10px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+    .step time { font-size: 10px; color: #747587; white-space: nowrap; padding-top: 3px; }
+    .detail-card { border: 1px solid var(--line); border-radius: 16px; padding: 13px; background: rgba(18,20,30,.65); }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .detail-grid div { border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+    .detail-grid label { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: #77798c; }
+    .detail-grid strong { display: block; font-size: 12px; margin-top: 5px; overflow-wrap: anywhere; }
+    .control-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .inline-note { display: none; margin-top: 10px; padding: 11px; border: 1px solid rgba(244,207,116,.28); background: rgba(132,99,22,.12); border-radius: 12px; color: #e8dfc8; font-size: 12px; line-height: 1.45; }
+    .inline-note.show { display: block; }
+    .hidden { display: none !important; }
+    @media (max-width: 900px) {
+      .shell { padding: 10px; }
+      .layout { grid-template-columns: 1fr; min-height: auto; }
+      .chat { min-height: 720px; }
+      .work { min-height: 720px; }
+      .topbar { padding: 8px 4px 12px; }
+      .budget span { display: none; }
+    }
+    @media (max-width: 520px) {
+      .messages { padding: 18px 12px; }
+      .chat-head, .work-head { padding: 15px; }
+      .context-pill { display: none; }
+      .detail-grid, .control-row { grid-template-columns: 1fr; }
+      .bubble { font-size: 13px; }
+      .panel { border-radius: 19px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">🐈</div>
+        <div><strong>Kitty</strong><span>Two-week Builder proof</span></div>
+      </div>
+      <div class="budget"><span class="dot"></span><span>Proof budget</span><strong id="budget">$0.00 / $25 CAD</strong></div>
+    </header>
+
+    <div class="layout">
+      <section class="panel chat" aria-label="Kitty conversation">
+        <header class="chat-head">
+          <div><div class="eyebrow">Conversation</div><h1>Repair the dead Build Work interaction</h1></div>
+          <div class="context-pill">Kitty · main @ b3f68aa</div>
+        </header>
+
+        <div class="messages" id="messages">
+          <article class="message user">
+            <div class="bubble"><p>The retry interaction in Build Work looks built, but it doesn’t actually give me confidence anything happened. Fix it without turning this into another redesign.</p></div>
+            <div class="avatar">J</div>
+          </article>
+
+          <article class="message">
+            <div class="avatar">K</div>
+            <div class="bubble">
+              <p>I found the smallest trustworthy target. The backend action path exists, but the controls are not mounted, the page calls itself read-only, and a successful mutation refreshes the wrong cache key.</p>
+              <p>I recommend one bounded outcome: when failed work is selected, show <strong>Retry this work</strong>, explain the effect, require approval, then follow durable Builder state until the running app proves the result.</p>
+              <div class="decision">
+                <strong>Result contract</strong>
+                <ul>
+                  <li>No new queue, framework, or redesign.</li>
+                  <li>False backend success becomes a visible failure.</li>
+                  <li>Status comes from Builder records, not the button response.</li>
+                  <li>Completion requires launched-app evidence and independent review.</li>
+                  <li>No paid model call without a budget event.</li>
+                </ul>
+                <div class="button-row">
+                  <button class="btn primary" id="approve">Approve and start</button>
+                  <button class="btn ghost" id="revise">Change the outcome</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <footer class="composer">
+          <div class="compose-box">
+            <textarea id="composer" placeholder="Ask what Kitty is doing, why, or redirect the work…"></textarea>
+            <button class="btn primary" id="send">Send</button>
+          </div>
+        </footer>
+      </section>
+
+      <aside class="panel work" aria-label="Builder progress">
+        <header class="work-head">
+          <div><div class="eyebrow">Visible work</div><h2 id="job-title">Awaiting approval</h2></div>
+          <span class="status" id="status"><span class="pulse"></span>Ready</span>
+        </header>
+
+        <div class="work-scroll">
+          <section class="now-card">
+            <div class="now-line"><span class="status" id="phase">Now</span><span class="small" id="percent">0%</span></div>
+            <h3 id="now-title">Confirm the result contract</h3>
+            <p class="small" id="now-detail">Builder has not been started. Nothing is spending or changing yet.</p>
+            <div class="progress"><div id="progress"></div></div>
+          </section>
+
+          <section class="timeline" id="timeline">
+            <div class="step active" data-step="0"><div class="step-icon">1</div><div><strong>Outcome approved</strong><span>Scope, budget, acceptance, and stop rules.</span></div><time>now</time></div>
+            <div class="step" data-step="1"><div class="step-icon">2</div><div><strong>Durable job created</strong><span>Mission and evidence contract stored.</span></div><time>—</time></div>
+            <div class="step" data-step="2"><div class="step-icon">3</div><div><strong>Implementation</strong><span>Worker edits the isolated branch.</span></div><time>—</time></div>
+            <div class="step" data-step="3"><div class="step-icon">4</div><div><strong>Running-app proof</strong><span>Launch and exercise the real interaction.</span></div><time>—</time></div>
+            <div class="step" data-step="4"><div class="step-icon">5</div><div><strong>Independent review</strong><span>Second model checks code and user outcome.</span></div><time>—</time></div>
+            <div class="step" data-step="5"><div class="step-icon">6</div><div><strong>Complete</strong><span>Only after evidence clears every gate.</span></div><time>—</time></div>
+          </section>
+
+          <section class="detail-card">
+            <div class="eyebrow">Job truth</div>
+            <div class="detail-grid">
+              <div><label>Job</label><strong id="job-id">Not created</strong></div>
+              <div><label>Worker</label><strong id="worker">Not selected</strong></div>
+              <div><label>Next</label><strong id="next">Approve outcome</strong></div>
+              <div><label>Spend</label><strong id="spend">$0.00 CAD</strong></div>
+            </div>
+          </section>
+
+          <div class="control-row">
+            <button class="btn" id="ask">What are you doing?</button>
+            <button class="btn" id="why">Why this worker?</button>
+            <button class="btn" id="redirect">Redirect work</button>
+            <button class="btn" id="evidence">Show evidence</button>
+          </div>
+          <div class="inline-note" id="note"></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    const messages = document.querySelector('#messages');
+    const approve = document.querySelector('#approve');
+    const revise = document.querySelector('#revise');
+    const composer = document.querySelector('#composer');
+    const send = document.querySelector('#send');
+    const progress = document.querySelector('#progress');
+    const percent = document.querySelector('#percent');
+    const status = document.querySelector('#status');
+    const phase = document.querySelector('#phase');
+    const nowTitle = document.querySelector('#now-title');
+    const nowDetail = document.querySelector('#now-detail');
+    const jobTitle = document.querySelector('#job-title');
+    const jobId = document.querySelector('#job-id');
+    const worker = document.querySelector('#worker');
+    const next = document.querySelector('#next');
+    const note = document.querySelector('#note');
+    let running = false;
+    let currentStep = 0;
+
+    const stages = [
+      { pct: 12, title: 'Creating the durable job', detail: 'Kitty is storing the approved outcome, allowed paths, budget ceiling, validation commands, and stop rules.', state: 'Queued', next: 'Select capable worker', worker: 'Policy selecting…' },
+      { pct: 32, title: 'Inspecting the broken seam', detail: 'The worker is tracing the UI control, HTTP mutation, action queue, and authoritative runtime refresh before editing.', state: 'Working', next: 'Apply narrow repair', worker: 'Code worker · available tier' },
+      { pct: 57, title: 'Implementing the repair', detail: 'The change is isolated to mutation semantics, cache refresh, one contextual control, and focused tests.', state: 'Working', next: 'Launch real app', worker: 'Code worker · context preserved' },
+      { pct: 76, title: 'Exercising the running product', detail: 'Kitty is launching the real application and verifying approval, failure feedback, durable state, refresh, and recovery.', state: 'Verifying', next: 'Independent review', worker: 'Browser proof lane' },
+      { pct: 90, title: 'Independent review in progress', detail: 'A second model is reviewing both the implementation and whether the interaction is understandable without internal Builder knowledge.', state: 'Review', next: 'Repair findings or finish', worker: 'Independent reviewer' },
+      { pct: 100, title: 'Proof interaction complete', detail: 'The retry interaction works in the launched product, durable state matches the UI, and the independent review found no blocking defect.', state: 'Complete', next: 'Jacob decides whether to continue', worker: 'Released' }
+    ];
+
+    function addMessage(role, text) {
+      const article = document.createElement('article');
+      article.className = `message ${role === 'user' ? 'user' : ''}`;
+      article.innerHTML = role === 'user'
+        ? `<div class="bubble"><p>${escapeHtml(text)}</p></div><div class="avatar">J</div>`
+        : `<div class="avatar">K</div><div class="bubble"><p>${text}</p></div>`;
+      messages.appendChild(article);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function escapeHtml(value) {
+      return value.replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    }
+
+    function setStep(index) {
+      document.querySelectorAll('.step').forEach((el, i) => {
+        el.classList.toggle('done', i < index);
+        el.classList.toggle('active', i === index);
+        if (i < index) el.querySelector('.step-icon').textContent = '✓';
+        if (i === index) el.querySelector('time').textContent = 'now';
+      });
+      currentStep = index;
+    }
+
+    function applyStage(index) {
+      const stage = stages[index];
+      progress.style.width = `${stage.pct}%`;
+      percent.textContent = `${stage.pct}%`;
+      nowTitle.textContent = stage.title;
+      nowDetail.textContent = stage.detail;
+      status.innerHTML = `<span class="pulse"></span>${stage.state}`;
+      phase.textContent = stage.state === 'Complete' ? 'Done' : 'Now';
+      next.textContent = stage.next;
+      worker.textContent = stage.worker;
+      setStep(Math.min(index + 1, 5));
+      if (index === stages.length - 1) {
+        status.innerHTML = '<span class="dot"></span>Complete';
+        addMessage('kitty', 'The interaction is complete in this prototype only after the launched-app and independent-review gates clear. The real proof must use the same standard—no completion claim from a button click, commit, or passing unit test alone.');
+      }
+    }
+
+    function runSimulation() {
+      running = true;
+      approve.disabled = true;
+      revise.disabled = true;
+      approve.textContent = 'Approved';
+      jobTitle.textContent = 'Repair truthful Builder retry';
+      jobId.textContent = 'KPROOF-RETRY-001';
+      addMessage('kitty', 'Approved. I created one bounded job. I’ll keep the conversation open while Builder works, and I’ll only interrupt for a consequential decision or budget approval.');
+      stages.forEach((_, index) => setTimeout(() => applyStage(index), 700 + index * 1250));
+    }
+
+    approve.addEventListener('click', runSimulation);
+    revise.addEventListener('click', () => {
+      composer.value = 'Change the outcome so…';
+      composer.focus();
+    });
+
+    function sendMessage() {
+      const text = composer.value.trim();
+      if (!text) return;
+      addMessage('user', text);
+      composer.value = '';
+      const lower = text.toLowerCase();
+      let reply = running
+        ? `I’m at ${stages[Math.min(Math.max(currentStep - 1, 0), stages.length - 1)].title.toLowerCase()}. The next gate is ${next.textContent.toLowerCase()}.`
+        : 'Nothing has started. I’m waiting for you to approve or revise the result contract.';
+      if (lower.includes('stop') || lower.includes('pause')) reply = 'I would record a pause request against the durable job, preserve its current evidence, and stop before the next side effect. The prototype does not execute a real job.';
+      if (lower.includes('why')) reply = 'The worker is selected by capability, availability, budget, and risk. A model name is not authority; the durable job and acceptance gates are.';
+      addMessage('kitty', reply);
+    }
+
+    send.addEventListener('click', sendMessage);
+    composer.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }
+    });
+
+    document.querySelector('#ask').addEventListener('click', () => {
+      note.textContent = running ? nowDetail.textContent : 'Nothing is running. Approval is the next meaningful action.';
+      note.classList.add('show');
+    });
+    document.querySelector('#why').addEventListener('click', () => {
+      note.textContent = 'Worker choice is replaceable and policy-driven: capability first, then availability and cost. Context belongs to the job, not the worker session.';
+      note.classList.add('show');
+    });
+    document.querySelector('#redirect').addEventListener('click', () => {
+      composer.value = 'Redirect this work: keep the current evidence, but change…';
+      composer.focus();
+      note.textContent = 'A redirect should update the approved outcome or create a bounded amendment. It must not silently rewrite acceptance after implementation starts.';
+      note.classList.add('show');
+    });
+    document.querySelector('#evidence').addEventListener('click', () => {
+      note.textContent = 'Evidence expected: approved outcome, job ID, selected worker/provider, branch and base SHA, changed paths, test commands and exit codes, running-app trace, reviewer verdict, spend, and unresolved limitations.';
+      note.classList.add('show');
+    });
+  </script>
+</body>
+</html>
