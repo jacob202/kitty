@@ -111,7 +111,7 @@ def _format_codex_progress(line: str) -> str | None:
     try:
         payload = json.loads(line)
     except json.JSONDecodeError:
-        return line
+        return "Codex is working…"
 
     event_type = payload.get("type")
     if event_type == "item.completed":

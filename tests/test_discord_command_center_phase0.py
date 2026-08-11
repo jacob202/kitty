@@ -644,6 +644,15 @@ def test_sandbox_profile_allows_worktree_only_and_dev_null(tmp_path: Path) -> No
     assert not outside.exists()
 
 
+def test_plaintext_child_output_is_not_forwarded_verbatim() -> None:
+    from integrations.discord_command_center.service import _format_codex_progress
+
+    rendered = _format_codex_progress("/bin/zsh -lc secret-looking-command")
+
+    assert rendered == "Codex is working…"
+    assert "secret-looking-command" not in rendered
+
+
 def test_codex_command_execution_progress_is_semantic_not_raw() -> None:
     import json
 
