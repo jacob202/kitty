@@ -1,21 +1,20 @@
-# Session State — agent council relay merged
+# Session State — Kitty/KittyBuilder boundary refactor
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-11T01:00:00Z",
+  "updated_at": "2026-08-11T01:05:00Z",
   "branch": "feat/agent-council-relay",
   "worktree": "/Users/jacobbrizinski/Projects/kitty",
-  "head_sha": "7ec0bd92803530bb423813ed1f3c5fffd5b2ed21",
-  "status": "complete",
+  "head_sha": "e42657c7",
+  "status": "implemented_awaiting_verification",
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "completed_items": ["Published PR #458, verified all required checks green, and confirmed merge commit 7916d78c"],
-  "blockers": ["Builder projection unavailable under Python 3.9"],
-  "invalidation_conditions": ["A future session changes the merged PR history","The current dirty worktree is discovered to belong to this assignment"],
-  "next_action": "none",
+  "completed_items": ["Committed e42657c7 with Mission submission/routing and legacy Builder action retirement"],
+  "blockers": ["Independent verification required","One unrelated killed-worker recovery test remains failing","Builder projection unavailable under Python 3.9"],
+  "invalidation_conditions": ["A future session changes e42657c7","The unrelated agent-council dirty files are claimed by this assignment"],
+  "next_action": "Independently review e42657c7, then decide whether to open a PR",
   "parallel_work": [
-    {"kind":"worktree_dirty","ref":"concurrent edits and deletions across config, gateway, scripts, tests, and docs","owner":"unknown; preserve","touches":["config/action_tiers.json","gateway/action_queue.py","gateway/builder_initiative.py","gateway/builder_loop.py","gateway/routes/builder_control.py","gateway/routes/tool_server.py","scripts/agent_council.py","tests/test_agent_council.py","tests/test_architecture_fitness.py","tests/test_builder_control_actions.py","tests/test_builder_initiative.py","tests/test_builder_run.py","tests/test_tool_server.py","docs/session-notes/2026-08-10-builder-action-retirement-contract.md"],"observed_at":"2026-08-11T01:00:00Z"},
-    {"kind":"pull_request","ref":"#457","owner":"other session","touches":["scripts","tests"],"observed_at":"2026-08-11T00:43:26Z"}
+    {"kind":"worktree_dirty","ref":"unrelated agent-council edits","owner":"prior interactive session; preserve","touches":["scripts/agent_council.py","tests/test_agent_council.py"],"observed_at":"2026-08-11T01:05:00Z"}
   ],
   "recommendations": [],
   "pull_request": null
@@ -31,21 +30,20 @@
 ## Current checkpoint
 
 - Branch: `feat/agent-council-relay`
-- HEAD: `165862c2c8ab8e86e50f8271d3c3ebef78abdf4f`
-- PR: https://github.com/jacob202/kitty/pull/458 — merged at `7916d78c`.
-- All required checks passed at the merged head.
-- Concurrent dirty paths span config, gateway, scripts, tests, and docs;
-  preserve them and do not reconcile them from this session.
+- HEAD: `e42657c7` (`refactor: consolidate Kitty Builder control boundary`).
+- No PR exists for this commit.
+- The committed Builder slice is clean; only unrelated agent-council edits remain dirty.
+- Independent verification is outstanding; Builder projection is unavailable under Python 3.9.
 
 ## Recommendations
 
-1. **Ready:** classify the remaining concurrent dirty work in an isolated worktree.
+1. **Ready:** independently review `e42657c7`, then decide whether to open a PR.
+2. **Deferred:** repair the killed-worker recovery test/behavior in a separate slice.
 
 ## KB effectiveness
 
-- receipt: `kbr_b38d6f9f532ed6569630`
-- consulted: 1 (`~/kb/NOW.md`)
-- used: 0
-- stale/wrong: 1 (`~/kb/NOW.md` described older branch/PR state)
-- token, cost, elapsed-time, and independent human-review measurements are
-  unavailable; GitHub CI is independent evidence but human review is pending.
+- receipt: to be recorded for this session
+- consulted: `~/kb/NOW.md`, `~/kb/INDEX.md`, `~/kb/identity.md`
+- used: current worktree continuity and preservation boundary
+- stale/wrong: prior root entry described older PR/HEAD state
+- token, cost, elapsed-time, and independent review measurements are unavailable.
