@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import os
 from pathlib import Path
+from typing import cast
 
 from mcp.imagen.config import settings
 from mcp.imagen.engines.base import RefusalError
@@ -61,7 +62,7 @@ class Imagen4Engine:
             config=types.GenerateImagesConfig(
                 number_of_images=1,
                 aspect_ratio=aspect_ratio,
-                person_generation="ALLOW_ADULT",
+                person_generation=cast(types.PersonGeneration, "ALLOW_ADULT"),
             ),
         )
         images = response.generated_images or []

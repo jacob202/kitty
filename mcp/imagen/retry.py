@@ -9,7 +9,8 @@ name and attempt number — no payload dump (AGENTS.md prime directive).
 from __future__ import annotations
 
 import logging
-from typing import Callable, TypeVar
+from importlib import import_module
+from typing import Any, Callable, TypeVar
 
 import httpx
 from tenacity import (
@@ -22,18 +23,31 @@ from tenacity import (
 
 from mcp.imagen.logger import log
 
+_google_exceptions: Any
 try:
-    from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
+    _google_exceptions = import_module("google.api_core.exceptions")
 except ImportError:  # pragma: no cover — google-api-core may not be installed in test env
-    ResourceExhausted = type("ResourceExhausted", (Exception,), {})
-    ServiceUnavailable = type("ServiceUnavailable", (Exception,), {})
+    _google_exceptions = None
+
+if _google_exceptions is None:
+    class _FallbackResourceExhausted(Exception):
+        pass
+
+    class _FallbackServiceUnavailable(Exception):
+        pass
+
+    _GOOGLE_RETRYABLE = (_FallbackResourceExhausted, _FallbackServiceUnavailable)
+else:
+    _GOOGLE_RETRYABLE = (
+        getattr(_google_exceptions, "ResourceExhausted"),
+        getattr(_google_exceptions, "ServiceUnavailable"),
+    )
 
 T = TypeVar("T")
 
 # Retry on rate-limit (429), service-down (503), and httpx-level transport errors.
 _RETRYABLE = (
-    ResourceExhausted,
-    ServiceUnavailable,
+    *_GOOGLE_RETRYABLE,
     httpx.HTTPStatusError,
     httpx.TimeoutException,
     httpx.ConnectError,

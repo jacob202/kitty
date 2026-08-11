@@ -43,6 +43,7 @@ import os
 import shutil
 import time
 from pathlib import Path
+from typing import cast
 
 from mcp.server.fastmcp import FastMCP, Image
 
@@ -210,7 +211,10 @@ def _expand_prompt(raw: str, mode: str = "generate") -> tuple[str, bool]:
                 ),
             )
             for cand in response.candidates or []:
-                for part in cand.content.parts or []:
+                content = cand.content
+                if content is None:
+                    continue
+                for part in content.parts or []:
                     text = getattr(part, "text", None)
                     if text and text.strip():
                         return text.strip(), True
@@ -479,7 +483,7 @@ def generate_image_imagen(
         config=types.GenerateImagesConfig(
             number_of_images=max(1, min(count, 4)),
             aspect_ratio=aspect_ratio,
-            person_generation="ALLOW_ADULT",
+            person_generation=cast(types.PersonGeneration, "ALLOW_ADULT"),
         ),
     )
 
