@@ -60,12 +60,18 @@ class VibeController:
         )
         try:
             await thread.add_user(interaction.user)
-        except (discord.HTTPException, AttributeError):
-            pass
+        except (discord.HTTPException, AttributeError) as exc:
+            await interaction.followup.send(
+                "Command Center could not add you to the private task thread; "
+                "the task was not started. "
+                f"({type(exc).__name__})",
+                ephemeral=True,
+            )
+            return
         await interaction.followup.send(f"Task thread: {thread.mention}", ephemeral=True)
         await thread.send(f"**Request:** {safe_request}")
 
-        async for event in self.service.run(request):
+        async for event in self.service.run(safe_request):
             prefix = "" if event.kind == "progress" else f"**{event.kind.upper()}** — "
             safe_message = self.scrubber.scrub(event.message)
             for chunk in split_discord_message(prefix + safe_message):

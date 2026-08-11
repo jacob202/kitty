@@ -7,7 +7,7 @@ From a dedicated Discord Command Center bot, Jacob can run `/vibe <request>` and
 ## Acceptance criteria
 
 1. The slash-command handler defers before any planning/execution work.
-2. One Codex adapter runs with strict argv, `shell=False` equivalent, `--ephemeral`, `--sandbox read-only`, and a disposable git worktree.
+2. One Codex adapter runs with strict argv, `shell=False` equivalent, `--ephemeral`, an explicit advisory read-only instruction/mode, and a disposable git worktree. On macOS the outer `sandbox-exec` profile is the OS write boundary; Codex's internal sandbox may be disabled when sandbox nesting prevents the runtime from starting. The post-run git audit remains the mutation verifier.
 3. The child receives an explicit environment allow-list that excludes `DISCORD_BOT_TOKEN` and unrelated repository secrets.
 4. Run time is bounded; cancellation/timeout terminates the child and escalates to kill after a grace period.
 5. Progress is chunked safely for Discord and posted to the task thread rather than depending on a long-lived interaction followup.
@@ -39,10 +39,10 @@ Two focused repair cycles per failing acceptance criterion, then report the exac
 
 ## Evidence — 2026-08-11
 
-- Focused suite: `17 passed` (`tests/test_discord_command_center_phase0.py` + existing `tests/test_agent_council.py`).
+- Post-review focused suite: `22 passed` (`tests/test_discord_command_center_phase0.py` + existing `tests/test_agent_council.py`); this includes explicit membership-failure, pre-worker secret-scrubbing, timeout, cancellation, SIGKILL-escalation, and macOS sandbox behavior coverage.
 - Static checks: Ruff clean; mypy clean for `integrations/discord_command_center`.
 - macOS sandbox proof: write inside disposable worktree succeeds; `/dev/null` succeeds; write outside is denied.
-- Real Codex smoke: completed local repository inspection and ended `read-only diff audit clean` with exit 0.
+- Real Codex smoke: rerun after review repairs; completed local repository inspection and ended `read-only diff audit clean` with exit 0.
 - Forced-write proof: a real `/usr/bin/touch` inside the run worktree produced terminal `readonly_violation`; dirty worktree preserved with `FORCED_READONLY_VIOLATION.txt`.
 - Collision check: no changes to Builder-owned routing/worker/governor/config paths.
 - Full Discord acceptance remains unverified until a Command Center bot token and test guild/channel are configured.

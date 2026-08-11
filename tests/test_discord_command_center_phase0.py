@@ -225,8 +225,10 @@ class _Interaction:
 class _FakeService:
     def __init__(self, log: list[str]) -> None:
         self.log = log
+        self.requests: list[str] = []
 
     async def run(self, request: str):
+        self.requests.append(request)
         self.log.append("service_start")
         yield ProgressEvent(kind="progress", message="working")
         yield ProgressEvent(kind="done", message="audit clean")
@@ -243,6 +245,44 @@ def test_vibe_controller_defers_before_execution_and_posts_to_thread() -> None:
     assert log.index("defer") < log.index("service_start")
     assert "working" in "\n".join(interaction.thread.messages)
     assert "audit clean" in "\n".join(interaction.thread.messages)
+
+
+class _MembershipFailThread(_Thread):
+    async def add_user(self, user) -> None:
+        self.log.append("add_user_failed")
+        raise AttributeError("membership failed")
+
+
+def test_vibe_membership_failure_is_visible_and_does_not_start_worker() -> None:
+    log: list[str] = []
+    interaction = _Interaction(log)
+    failed_thread = _MembershipFailThread(log)
+    interaction.thread = failed_thread
+    interaction.channel = _Channel(log, failed_thread)
+    service = _FakeService(log)
+    controller = VibeController(service)
+
+    asyncio.run(controller.handle(interaction, "inspect repo"))
+
+    assert "service_start" not in log
+    assert service.requests == []
+    assert any("not started" in message.lower() for message in interaction.followup.messages)
+
+
+def test_vibe_scrubs_request_before_worker_launch() -> None:
+    from integrations.discord_command_center.scrub import SecretScrubber
+
+    log: list[str] = []
+    interaction = _Interaction(log)
+    service = _FakeService(log)
+    controller = VibeController(
+        service,
+        scrubber=SecretScrubber(secret_values=("discord-super-secret",)),
+    )
+
+    asyncio.run(controller.handle(interaction, "inspect discord-super-secret"))
+
+    assert service.requests == ["inspect [REDACTED]"]
 
 
 def test_secret_scrubber_redacts_env_values_and_key_shapes() -> None:
@@ -351,6 +391,155 @@ def test_subprocess_runner_closes_worker_stdin(tmp_path: Path, monkeypatch) -> N
 
     assert events[-1].exit_code == 0
     assert captured["stdin"] == asyncio.subprocess.DEVNULL
+
+
+def test_subprocess_runner_timeout_terminates_worker(tmp_path: Path, monkeypatch) -> None:
+    from integrations.discord_command_center.runner import SubprocessRunner
+
+    class _BlockingStdout:
+        async def readline(self) -> bytes:
+            await asyncio.Event().wait()
+            return b""
+
+    class _Process:
+        stdout = _BlockingStdout()
+        returncode = None
+
+        def __init__(self) -> None:
+            self.terminated = False
+            self.killed = False
+
+        def terminate(self) -> None:
+            self.terminated = True
+
+        def kill(self) -> None:
+            self.killed = True
+
+        async def wait(self) -> int:
+            if self.terminated or self.killed:
+                self.returncode = -15 if self.terminated else -9
+                return self.returncode
+            await asyncio.Event().wait()
+            return 0
+
+    process = _Process()
+
+    async def fake_create(*args, **kwargs):
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create)
+    runner = SubprocessRunner(kill_grace_seconds=0.01)
+    events = asyncio.run(
+        _collect(
+            runner.stream(
+                ("/bin/echo", "ok"),
+                cwd=tmp_path,
+                environment={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "TMPDIR": str(tmp_path)},
+                timeout_seconds=0.01,
+            )
+        )
+    )
+
+    assert process.terminated is True
+    assert process.killed is False
+    assert events[-1].code == "timeout"
+    assert events[-1].exit_code == 124
+
+
+def test_subprocess_runner_escalates_to_kill_after_grace_period() -> None:
+    from integrations.discord_command_center.runner import SubprocessRunner
+
+    class _StubbornProcess:
+        returncode = None
+
+        def __init__(self) -> None:
+            self.terminated = False
+            self.killed = False
+
+        def terminate(self) -> None:
+            self.terminated = True
+
+        def kill(self) -> None:
+            self.killed = True
+
+        async def wait(self) -> int:
+            if self.killed:
+                self.returncode = -9
+                return -9
+            await asyncio.Event().wait()
+            return 0
+
+    process = _StubbornProcess()
+    runner = SubprocessRunner(kill_grace_seconds=0.01)
+
+    asyncio.run(runner._terminate(process))
+
+    assert process.terminated is True
+    assert process.killed is True
+    assert process.returncode == -9
+
+
+def test_subprocess_runner_cancellation_terminates_worker(tmp_path: Path, monkeypatch) -> None:
+    from integrations.discord_command_center.runner import SubprocessRunner
+
+    async def exercise() -> tuple[bool, bool]:
+        created = asyncio.Event()
+
+        class _BlockingStdout:
+            async def readline(self) -> bytes:
+                await asyncio.Event().wait()
+                return b""
+
+        class _Process:
+            stdout = _BlockingStdout()
+            returncode = None
+
+            def __init__(self) -> None:
+                self.terminated = False
+                self.killed = False
+
+            def terminate(self) -> None:
+                self.terminated = True
+
+            def kill(self) -> None:
+                self.killed = True
+
+            async def wait(self) -> int:
+                if self.terminated or self.killed:
+                    self.returncode = -15 if self.terminated else -9
+                    return self.returncode
+                await asyncio.Event().wait()
+                return 0
+
+        process = _Process()
+
+        async def fake_create(*args, **kwargs):
+            created.set()
+            return process
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create)
+        runner = SubprocessRunner(kill_grace_seconds=0.01)
+        task = asyncio.create_task(
+            _collect(
+                runner.stream(
+                    ("/bin/echo", "ok"),
+                    cwd=tmp_path,
+                    environment={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "TMPDIR": str(tmp_path)},
+                    timeout_seconds=30,
+                )
+            )
+        )
+        await created.wait()
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return process.terminated, process.killed
+
+    terminated, killed = asyncio.run(exercise())
+
+    assert terminated is True
+    assert killed is False
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="sandbox-exec is macOS-specific")
