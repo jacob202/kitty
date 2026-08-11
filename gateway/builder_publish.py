@@ -45,19 +45,24 @@ def _command_timeout_seconds(args: list[str]) -> int:
 
 
 def _stop_process_group(proc: subprocess.Popen[str]) -> None:
-    if proc.poll() is not None:
-        return
     try:
         os.killpg(proc.pid, signal.SIGTERM)
     except ProcessLookupError:
+        if proc.poll() is None:
+            proc.wait()
         return
     try:
         proc.wait(timeout=COMMAND_KILL_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+        pass
+    # The session leader may exit on SIGTERM while a hook/test descendant
+    # ignores it and keeps stdout/stderr pipes open. Escalate against the
+    # process group regardless of the leader's exit state.
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    if proc.poll() is None:
         proc.wait()
 
 
@@ -91,6 +96,9 @@ def _default_run(
         _stop_process_group(proc)
         stdout, stderr = proc.communicate()
         raise PublishError(f"command timed out after {timeout}s: {args!r}") from exc
+    except KeyboardInterrupt:
+        _stop_process_group(proc)
+        raise
     result = subprocess.CompletedProcess(args, proc.returncode, stdout, stderr)
     if check and result.returncode != 0:
         raise subprocess.CalledProcessError(
