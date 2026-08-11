@@ -3,11 +3,12 @@
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-11T00:44:18Z",
+  "updated_at": "2026-08-11T00:51:56Z",
   "branch": "feat/agent-council-relay",
   "worktree": "/Users/jacobbrizinski/Projects/kitty",
   "status": "awaiting_review",
   "execution_owner": "interactive",
+  "active_mission": "docs/ACTIVE_MISSION.md",
   "completed_items": [
     "Published PR #458 from origin/main at 9fc47974",
     "Added the relay, focused tests, canonical skill, and outcome contract",
@@ -17,16 +18,21 @@
     "Human adversarial review and merge remain outstanding",
     "Builder read-only projection is unavailable under local Python 3.9"
   ],
+  "invalidation_conditions": [
+    "PR #458 head changes",
+    "Any required check becomes non-green",
+    "Human review rejects the worker permission boundary"
+  ],
   "next_action": "Review PR #458 adversarially, then merge if accepted",
   "parallel_work": [
-    {"kind":"worktree_dirty","ref":"gateway/routes/tool_server.py; tests/test_tool_server.py","owner":"unknown; preserve"},
-    {"kind":"pull_request","ref":"#457","owner":"other branch/session"}
+    {"kind":"worktree_dirty","ref":"gateway/routes/tool_server.py; tests/test_tool_server.py","owner":"unknown; preserve","touches":["gateway/routes/tool_server.py","tests/test_tool_server.py"],"observed_at":"2026-08-11T00:43:26Z"},
+    {"kind":"pull_request","ref":"#457","owner":"other session","touches":["scripts","tests"],"observed_at":"2026-08-11T00:43:26Z"}
   ],
   "recommendations": [
-    {"rank":1,"action":"Review and merge PR #458","status":"ready","release_check":null}
+    {"id":"review-merge-pr-458","what":"Review and merge PR #458","why":"The relay is implemented and all required CI checks pass; only human boundary review remains.","class":"code","status":"ready","blocked_by":null,"release_check":null,"deferred_count":0,"first_deferred":null}
   ],
-  "pull_request": "https://github.com/jacob202/kitty/pull/458",
-  "head_sha": "9fc47974a51e62beb67ed8a12d2d6c0420d472cf",
+  "pull_request": {"number":458,"state":"OPEN","head_sha":"165862c2c8ab8e86e50f8271d3c3ebef78abdf4f"},
+  "head_sha": "165862c2c8ab8e86e50f8271d3c3ebef78abdf4f",
   "kb_receipt": "kbr_b38d6f9f532ed6569630"
 }
 -->
@@ -34,7 +40,7 @@
 ## Outcome
 
 PR [#458](https://github.com/jacob202/kitty/pull/458) is open from
-`feat/agent-council-relay` at `9fc47974`. It adds the bounded read-only agent
+`feat/agent-council-relay` at `165862c2`. It adds the bounded read-only agent
 council relay, focused tests, the canonical `.agents/skills/agent-council/`
 skill, and its outcome contract.
 
@@ -69,4 +75,3 @@ Merge only after that review accepts the boundary.
 - KB effectiveness receipt: `kbr_b38d6f9f532ed6569630`.
 - Correction: `~/kb/corrections/2026-08-11-local-prepush-ci-divergence.md`.
 - Workflow signal: `local-prepush-ci-divergence` (observed, not promoted).
-
