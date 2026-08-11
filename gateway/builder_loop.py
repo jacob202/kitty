@@ -29,8 +29,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +75,17 @@ PROVIDER_EXHAUSTED_EXIT_CODE = 75
 
 class LoopError(RuntimeError):
     """Raised when the packet loop cannot proceed at all."""
+
+
+def _runtime_budget_expired(deadline_monotonic: float | None) -> bool:
+    return deadline_monotonic is not None and time.monotonic() >= deadline_monotonic
+
+
+def _bounded_timeout(timeout_seconds: int, deadline_monotonic: float | None) -> int:
+    if deadline_monotonic is None:
+        return timeout_seconds
+    remaining = max(0.0, deadline_monotonic - time.monotonic())
+    return max(1, min(timeout_seconds, math.ceil(remaining)))
 
 
 def _attempt_dir(task_id: str, attempt_id: int, db_path: Path | None) -> Path:
@@ -704,6 +717,7 @@ def run_packet(
     timeout_seconds: int = 3600,
     validation_timeout_seconds: int = ba.DEFAULT_VALIDATION_TIMEOUT,
     review_timeout_seconds: int = DEFAULT_REVIEW_TIMEOUT,
+    deadline_monotonic: float | None = None,
     lease_seconds: int = DEFAULT_LEASE_SECONDS,
     heartbeat_seconds: int = DEFAULT_HEARTBEAT_SECONDS,
     max_consecutive_recoveries: int = DEFAULT_MAX_CONSECUTIVE_RECOVERIES,
@@ -858,6 +872,19 @@ def run_packet(
                 "task_id": task_id,
                 "task_state": (bq.get_task(task_id, db_path=db_path) or {}).get("state"),
                 "reason": initiative.get("pause_reason") or "operator pause",
+                "attempts": history,
+            }
+
+        if _runtime_budget_expired(deadline_monotonic):
+            reason = "initiative runtime budget exceeded"
+            bi.pause_initiative(initiative_id, reason, db_path=db_path)
+            return {
+                "outcome": LOOP_PAUSED,
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "task_id": task_id,
+                "task_state": (bq.get_task(task_id, db_path=db_path) or {}).get("state"),
+                "reason": reason,
                 "attempts": history,
             }
 
@@ -1051,15 +1078,18 @@ def run_packet(
         entry["manifest_path"] = str(manifest_path)
 
         try:
+            worker_timeout_seconds = _bounded_timeout(
+                timeout_seconds, deadline_monotonic
+            )
             run = run_worker(
                 task_id,
                 worker_command,
                 worker=worker,
                 model=model,
                 provider=provider,
-                timeout_seconds=timeout_seconds,
+                timeout_seconds=worker_timeout_seconds,
                 lease_seconds=lease_seconds,
-                heartbeat_seconds=heartbeat_seconds,
+                heartbeat_seconds=min(heartbeat_seconds, worker_timeout_seconds),
                 repo_root=repo_root,
                 db_path=db_path,
                 base_sha=base_sha,
@@ -1292,11 +1322,16 @@ def run_packet(
             else:
                 failure = error
 
+        if failure is None and _runtime_budget_expired(deadline_monotonic):
+            failure = "initiative runtime budget exceeded"
+
         if failure is None:
             validated = ba.run_validation(
                 attempt_id,
                 cwd=worktree_path(task_id, repo_root=repo_root),
-                timeout_seconds=validation_timeout_seconds,
+                timeout_seconds=_bounded_timeout(
+                    validation_timeout_seconds, deadline_monotonic
+                ),
                 db_path=db_path,
             )
             entry["validation_status"] = validated["validation"]["status"]
@@ -1323,6 +1358,9 @@ def run_packet(
                         "command": failed_command.get("command"),
                         "exit_code": failed_command.get("exit_code"),
                     }
+
+        if failure is None and _runtime_budget_expired(deadline_monotonic):
+            failure = "initiative runtime budget exceeded"
 
         if failure is None and review_command:
             review_context_path = attempt_dir / "review-context.json"
@@ -1365,7 +1403,9 @@ def run_packet(
                     "KB_REVIEW_SHA": str(review_context["review_sha"]),
                     "KB_REVIEW_DIFF_SHA256": str(review_context["diff_sha256"]),
                 },
-                timeout_seconds=review_timeout_seconds,
+                timeout_seconds=_bounded_timeout(
+                    review_timeout_seconds, deadline_monotonic
+                ),
             )
             if (
                 review_error is not None
@@ -1464,6 +1504,9 @@ def run_packet(
                                     if isinstance(f, dict) and f.get("severity")
                                 }
                             )
+
+        if failure is None and _runtime_budget_expired(deadline_monotonic):
+            failure = "initiative runtime budget exceeded"
 
         if failure is None:
             # Final success evidence covers the packet cumulatively since the

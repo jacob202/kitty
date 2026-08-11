@@ -412,6 +412,9 @@ def run_initiative(
     bq.recover_expired_leases(db_path=db_path)
     bq.recover_interrupted_runs(db_path=db_path)
     started = time.monotonic()
+    deadline_monotonic = (
+        started + max_runtime_seconds if max_runtime_seconds is not None else None
+    )
     total_attempts = 0
     processed: list[dict[str, Any]] = []
     succeeded = 0
@@ -511,6 +514,7 @@ def run_initiative(
                 timeout_seconds=timeout_seconds,
                 validation_timeout_seconds=validation_timeout_seconds,
                 review_timeout_seconds=review_timeout_seconds,
+                deadline_monotonic=deadline_monotonic,
                 repo_root=repo_root,
                 db_path=db_path,
                 governor_db=governor_db,
