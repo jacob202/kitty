@@ -53,6 +53,8 @@ if agent_log:
 model_log = os.environ.get("FAKE_OPENCODE_MODEL_LOG", "")
 if model_log:
     Path(model_log).write_text(model, encoding="utf-8")
+if os.environ.get("FAKE_OPENCODE_READ_STDIN"):
+    sys.stdin.read()
 fail_models = set(
     filter(None, os.environ.get("FAKE_OPENCODE_FAIL_MODELS", "").split(","))
 )
@@ -812,3 +814,86 @@ def test_reviewer_honours_explicit_paid_agent_and_model(tmp_path: Path):
     assert completed.returncode == 0, completed.stderr
     assert agent_log.read_text() == "paid-reviewer"
     assert model_log.read_text() == "openrouter/qwen/qwen3.7-plus"
+
+
+def _wait_without_closing_stdin(proc: subprocess.Popen[str]) -> tuple[str, str]:
+    for _ in range(40):
+        if proc.poll() is not None:
+            break
+        time.sleep(0.025)
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=2)
+        if proc.stdin is not None:
+            proc.stdin.close()
+        raise AssertionError("adapter waited for parent stdin EOF")
+    if proc.stdin is not None:
+        proc.stdin.close()
+    stdout = proc.stdout.read() if proc.stdout is not None else ""
+    stderr = proc.stderr.read() if proc.stderr is not None else ""
+    return stdout, stderr
+
+
+def test_worker_closes_stdin_before_launching_opencode(tmp_path: Path):
+    repo = tmp_path / "stdin-worker"
+    repo.mkdir()
+    _init_git_repo(repo)
+    bundle = tmp_path / "stdin-worker-bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-stdin"}\n')
+    context = _manifest(bundle)
+    result = tmp_path / "stdin-worker-result.json"
+    fake = _fake_opencode(tmp_path)
+    env = _env(fake, bundle=bundle, context=context, result=result)
+    env.update({"FAKE_OPENCODE_READ_STDIN": "1"})
+    proc = subprocess.Popen(
+        [str(WORKER)], cwd=repo, env=env,
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    stdout, stderr = _wait_without_closing_stdin(proc)
+
+    assert proc.returncode == 0, stderr
+    assert json.loads(result.read_text())["status"] == "completed"
+    assert "completed with" in stdout
+
+
+def test_reviewer_closes_stdin_before_launching_opencode(tmp_path: Path):
+    repo = tmp_path / "stdin-reviewer"
+    repo.mkdir()
+    _init_git_repo(repo)
+    bundle = tmp_path / "stdin-review-bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-stdin"}\n')
+    context = _manifest(bundle)
+    implementation = tmp_path / "stdin-implementation.json"
+    implementation.write_text('{"contract_version":1}\n')
+    review = tmp_path / "stdin-review.json"
+    fake = _fake_opencode(tmp_path)
+    binding = _review_binding(repo)
+    env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
+    env.update({
+        "KB_IMPL_RESULT_PATH": str(implementation),
+        "KB_REVIEW_RESULT_PATH": str(review),
+        "FAKE_OPENCODE_REVIEW": "1",
+        "FAKE_OPENCODE_READ_STDIN": "1",
+        "KB_REVIEW_CONTEXT_PATH": str(binding),
+        "KB_REVIEW_SHA": subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo, check=True,
+            capture_output=True, text=True,
+        ).stdout.strip(),
+        "KB_REVIEW_DIFF_SHA256": "0" * 64,
+    })
+    proc = subprocess.Popen(
+        [str(REVIEWER)], cwd=repo, env=env,
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    _stdout, stderr = _wait_without_closing_stdin(proc)
+
+    assert proc.returncode == 0, stderr
+    assert json.loads(review.read_text())["verdict"] == "approve"
