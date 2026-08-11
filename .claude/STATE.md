@@ -6,7 +6,7 @@
   "updated_at": "2026-08-11T01:05:00Z",
   "branch": "feat/agent-council-relay",
   "worktree": "/Users/jacobbrizinski/Projects/kitty",
-  "head_sha": "e42657c7",
+  "head_sha": "20b583bc52c747b99531ba87fe63a426713d1348",
   "status": "implemented_awaiting_verification",
   "active_mission": "docs/ACTIVE_MISSION.md",
   "completed_items": ["Committed e42657c7 with Mission submission/routing and legacy Builder action retirement"],
@@ -30,7 +30,7 @@
 ## Current checkpoint
 
 - Branch: `feat/agent-council-relay`
-- HEAD: `e42657c7` (`refactor: consolidate Kitty Builder control boundary`).
+- HEAD: `20b583bc`; Builder code commit: `e42657c7` (`refactor: consolidate Kitty Builder control boundary`).
 - No PR exists for this commit.
 - Tracked upstream is `origin/feat/agent-council-relay` at `afaa8c99`; local branch is ahead 1.
 - The local branch currently reports its tracked origin branch as `[gone]`.

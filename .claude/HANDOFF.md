@@ -30,14 +30,15 @@
   ],
   "recommendations": [],
   "pull_request": null,
-  "head_sha": "e42657c7",
+  "head_sha": "20b583bc52c747b99531ba87fe63a426713d1348",
   "kb_receipt": null
 }
 -->
 
 ## Outcome
 
-Committed `e42657c7` (`refactor: consolidate Kitty Builder control boundary`).
+Current HEAD is `20b583bc`; the Builder code is committed at `e42657c7`
+(`refactor: consolidate Kitty Builder control boundary`).
 Tracked upstream is `origin/feat/agent-council-relay` at `afaa8c99`; local branch is ahead 1.
 The local branch currently reports its tracked origin branch as `[gone]`.
 The commit contains the Mission-to-Builder submission/routing seam and retires
