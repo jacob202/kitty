@@ -97,6 +97,23 @@ def test_worktree_audit_detects_untracked_mutation(tmp_path: Path) -> None:
     assert "unexpected.txt" in audit.status_lines[0]
 
 
+def test_worktree_audit_detects_ignored_mutation(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    (repo / ".gitignore").write_text("ignored.txt\n")
+    _git(repo, "add", ".gitignore")
+    _git(repo, "commit", "-m", "ignore fixture")
+    manager = GitWorktreeManager(repo=repo, base_ref="HEAD")
+
+    worktree = manager.create("ignored-audit-run")
+    (worktree / "ignored.txt").write_text("hidden mutation\n")
+
+    audit = manager.audit(worktree)
+
+    assert audit.dirty is True
+    assert any("ignored.txt" in line for line in audit.status_lines)
+
+
 class _FakeRunner:
     def __init__(self, *, mutate: bool = False) -> None:
         self.mutate = mutate
@@ -283,6 +300,29 @@ def test_vibe_scrubs_request_before_worker_launch() -> None:
     asyncio.run(controller.handle(interaction, "inspect discord-super-secret"))
 
     assert service.requests == ["inspect [REDACTED]"]
+
+
+class _SecretOutputService:
+    async def run(self, request: str):
+        yield ProgressEvent(kind="progress", message="worker leaked discord-super-secret")
+        yield ProgressEvent(kind="done", message="done")
+
+
+def test_vibe_scrubs_worker_output_before_thread_send() -> None:
+    from integrations.discord_command_center.scrub import SecretScrubber
+
+    log: list[str] = []
+    interaction = _Interaction(log)
+    controller = VibeController(
+        _SecretOutputService(),
+        scrubber=SecretScrubber(secret_values=("discord-super-secret",)),
+    )
+
+    asyncio.run(controller.handle(interaction, "inspect repo"))
+
+    posted = "\n".join(interaction.thread.messages)
+    assert "discord-super-secret" not in posted
+    assert "worker leaked [REDACTED]" in posted
 
 
 def test_secret_scrubber_redacts_env_values_and_key_shapes() -> None:

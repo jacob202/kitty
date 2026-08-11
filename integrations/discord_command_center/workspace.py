@@ -39,6 +39,13 @@ class GitWorktreeManager:
             "status", "--porcelain=v1", "--untracked-files=all", cwd=path
         )
         status_lines = tuple(line for line in status.splitlines() if line.strip())
+        ignored = self._git(
+            "ls-files", "--others", "--ignored", "--exclude-standard", cwd=path
+        )
+        ignored_lines = tuple(
+            f"!! {line}" for line in ignored.splitlines() if line.strip()
+        )
+        status_lines = status_lines + ignored_lines
         insertions = 0
         deletions = 0
         numstat = self._git("diff", "--numstat", "HEAD", "--", cwd=path)

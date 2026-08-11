@@ -39,10 +39,11 @@ Two focused repair cycles per failing acceptance criterion, then report the exac
 
 ## Evidence — 2026-08-11
 
-- Post-review focused suite: `22 passed` (`tests/test_discord_command_center_phase0.py` + existing `tests/test_agent_council.py`); this includes explicit membership-failure, pre-worker secret-scrubbing, timeout, cancellation, SIGKILL-escalation, and macOS sandbox behavior coverage.
+- Post-review focused suite: `24 passed` (`tests/test_discord_command_center_phase0.py` + existing `tests/test_agent_council.py`); this includes membership-failure, pre-worker and outbound secret-scrubbing, timeout, cancellation, SIGKILL escalation, ignored-file mutation detection, and macOS sandbox behavior coverage.
 - Static checks: Ruff clean; mypy clean for `integrations/discord_command_center`.
 - macOS sandbox proof: write inside disposable worktree succeeds; `/dev/null` succeeds; write outside is denied.
 - Real Codex smoke: rerun after review repairs; completed local repository inspection and ended `read-only diff audit clean` with exit 0.
 - Forced-write proof: a real `/usr/bin/touch` inside the run worktree produced terminal `readonly_violation`; dirty worktree preserved with `FORCED_READONLY_VIOLATION.txt`.
+- Ignored-write proof: a real sandboxed `/usr/bin/touch ignored.txt` in a disposable repo whose `.gitignore` ignores that path still produced terminal `readonly_violation`; audit evidence was `!! ignored.txt`.
 - Collision check: no changes to Builder-owned routing/worker/governor/config paths.
 - Full Discord acceptance remains unverified until a Command Center bot token and test guild/channel are configured.
