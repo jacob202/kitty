@@ -86,7 +86,19 @@ reduces complexity. They are ordered by dependency, so M2 does not begin before 
 Carried into M1–M6 rather than tracked separately: keeping repository gates honest and
 authority documents consistent; the real #270 phone/PWA capture → return → response loop;
 documents/projects import and search; the Tutor question/answer loop; Image Lab's one real
-generation with cost and provenance evidence; and the default-branch enforcement work.
+generation with cost and provenance evidence; the default-branch enforcement work; and
+selected bounded automations that remove repeated work and stay explicit and reversible.
+
+### After M6 — portability and leverage
+
+Not scheduled against a milestone, and not started before M6 lands. Kept here so it keeps
+a place in the order rather than disappearing:
+
+- revalidate bounded PAA portability work rather than adopting a framework wholesale;
+- salvage broad historical PRs by subsystem instead of merging them as unverified units;
+- evaluate agent and model patterns through identical tasks, budgets, and evidence;
+- reuse the proven browser evidence harness for later product-studio and audit work;
+- improve routing through measured outcomes, not reputation or model-generated scores.
 
 A capability is `proven`, `preview`, `developer-only`, `blocked`, or `hidden`. Unproven
 capability must not look shipped.

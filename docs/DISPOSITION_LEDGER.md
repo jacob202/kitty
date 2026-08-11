@@ -255,7 +255,7 @@ detail and owners are in [`CLOSEOUT_LEDGER_2026-08-05.md`](CLOSEOUT_LEDGER_2026-
 | `docs/OPENWEBUI_OS_ARCHITECTURE.md` | BACKLOG | Phase 2 daily-driver | Proposal (would evolve ADR 0027 to permanent shell); awaits Jacob decision |
 | `docs/OPENWEBUI_PRODUCT_PLAN.md` | BACKLOG | Phase 2 (M1/M2) | Needs review |
 | `docs/OPENWEBUI_EXTENSION_BACKLOG.md` | BACKLOG | Phase 2 (M1/M2) | Needs review → Builder-managed backlog |
-| `docs/ROADMAP_V2.md` | BACKLOG | — | Proposed milestones M1–M6; authority conflict with ROADMAP.md (C-5) |
+| `docs/ROADMAP_V2.md` | SCHEDULED | ROADMAP.md M1–M6 | Detail appendix to `ROADMAP.md`, which now names M1–M6 as the single post-proof order. The C-5 authority conflict is resolved: there is one roadmap and this is its detail, not a rival plan. |
 | `docs/initiatives/v2-driver-baseline-v1.json` | BLOCKED | Phase 2 | NOT applied; blocked on needs_decision fix + Jacob approval (P0-7) |
 | `docs/BUILDER_ORGANIZATION.md` | BACKLOG | Phase 1/3 | Design, not implemented |
 | `docs/BUILDER_V2.md` | BACKLOG | Phase 1/3 | Replacement blueprint, not implemented |
