@@ -730,43 +730,29 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(item => typeof item === 'string')
 }
 
-export async function spawnAgent(goal: string, agentType: AgentType = 'explorer'): Promise<number | null> {
-  try {
-    const json = await gfetch<{ session_id?: number }>('/agent/spawn', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, agent_type: agentType }),
-    })
-    return json.session_id ?? null
-  } catch {
-    return null
+export async function spawnAgent(goal: string, agentType: AgentType = 'explorer'): Promise<number> {
+  const json = await gfetch<{ session_id?: number }>('/agent/spawn', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ goal, agent_type: agentType }),
+  })
+  if (json.session_id === undefined) {
+    throw new Error('gateway accepted the agent but returned no session id')
   }
+  return json.session_id
 }
 
-export async function fetchAgentStatus(sessionId: number): Promise<AgentSession | null> {
-  try {
-    return await gfetch<AgentSession>(`/agent/${sessionId}`)
-  } catch {
-    return null
-  }
+export async function fetchAgentStatus(sessionId: number): Promise<AgentSession> {
+  return await gfetch<AgentSession>(`/agent/${sessionId}`)
 }
 
 export async function fetchAgentSessions(limit = 10): Promise<AgentSession[]> {
-  try {
-    const json = await gfetch<{ agents?: AgentSession[] }>(`/agents?limit=${limit}`)
-    return json.agents ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ agents?: AgentSession[] }>(`/agents?limit=${limit}`)
+  return json.agents ?? []
 }
 
-export async function stopAgent(sessionId: number): Promise<boolean> {
-  try {
-    await gfetch(`/agent/${sessionId}/stop`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+export async function stopAgent(sessionId: number): Promise<void> {
+  await gfetch(`/agent/${sessionId}/stop`, { method: 'POST' })
 }
 
 // ── Todos ────────────────────────────────────────────────────────────────────
@@ -797,14 +783,12 @@ export async function addGatewayTodo(content: string): Promise<GatewayTodo> {
   })
 }
 
-export async function completeGatewayTodo(id: number): Promise<boolean> {
+export async function completeGatewayTodo(id: number): Promise<void> {
   await gfetch(`/todos/${id}/complete`, { method: 'POST' })
-  return true
 }
 
-export async function deleteGatewayTodo(id: number): Promise<boolean> {
+export async function deleteGatewayTodo(id: number): Promise<void> {
   await gfetch(`/todos/${id}`, { method: 'DELETE' })
-  return true
 }
 
 // ── Prompt Templates ─────────────────────────────────────────────────────────
@@ -818,12 +802,8 @@ export interface GatewayPromptTemplate {
 }
 
 export async function fetchGatewayPrompts(): Promise<GatewayPromptTemplate[]> {
-  try {
-    const json = await gfetch<{ templates?: GatewayPromptTemplate[] }>('/prompts')
-    return json.templates ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ templates?: GatewayPromptTemplate[] }>('/prompts')
+  return json.templates ?? []
 }
 
 // ── Tasks ────────────────────────────────────────────────────────────────────
@@ -845,12 +825,8 @@ export interface GatewayTask {
 }
 
 export async function fetchGatewayTasks(limit = 20): Promise<GatewayTask[]> {
-  try {
-    const json = await gfetch<{ tasks?: GatewayTask[] }>(`/tasks?limit=${limit}`)
-    return json.tasks ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ tasks?: GatewayTask[] }>(`/tasks?limit=${limit}`)
+  return json.tasks ?? []
 }
 
 /** Throws on failure. Swallowing the error here made a dead gateway look like a
@@ -893,34 +869,22 @@ export interface GatewayMonitor {
 }
 
 export async function fetchGatewayMonitors(): Promise<GatewayMonitor[]> {
-  try {
-    const json = await gfetch<{ watches?: GatewayMonitor[] }>('/monitors')
-    return json.watches ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ watches?: GatewayMonitor[] }>('/monitors')
+  return json.watches ?? []
 }
 
-export async function addGatewayMonitor(url: string, label: string): Promise<string | null> {
-  try {
-    const json = await gfetch<{ watch_id?: string }>('/monitor/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, label }),
-    })
-    return json.watch_id ?? null
-  } catch {
-    return null
-  }
+export async function addGatewayMonitor(url: string, label: string): Promise<string> {
+  const json = await gfetch<{ watch_id?: string }>('/monitor/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, label }),
+  })
+  if (!json.watch_id) throw new Error('gateway accepted the monitor but returned no watch id')
+  return json.watch_id
 }
 
-export async function removeGatewayMonitor(watchId: string): Promise<boolean> {
-  try {
-    await gfetch(`/monitor/${watchId}`, { method: 'DELETE' })
-    return true
-  } catch {
-    return false
-  }
+export async function removeGatewayMonitor(watchId: string): Promise<void> {
+  await gfetch(`/monitor/${watchId}`, { method: 'DELETE' })
 }
 
 export async function fetchGatewaySearch(
@@ -996,13 +960,8 @@ export async function fetchGatewayLoops(): Promise<GatewayLoopsPayload> {
   }
 }
 
-export async function toggleGatewayLoop(loopId: string): Promise<boolean> {
-  try {
-    await gfetch(`/loop/${loopId}/toggle`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+export async function toggleGatewayLoop(loopId: string): Promise<void> {
+  await gfetch(`/loop/${loopId}/toggle`, { method: 'POST' })
 }
 
 // ── Insights Fetch ────────────────────────────────────────────────────────────
@@ -1024,13 +983,8 @@ export async function fetchGatewayInsights(limit = 10): Promise<GatewayInsightsP
   }
 }
 
-export async function dismissGatewayInsight(insightId: string): Promise<boolean> {
-  try {
-    await gfetch(`/insight/${insightId}/dismiss`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+export async function dismissGatewayInsight(insightId: string): Promise<void> {
+  await gfetch(`/insight/${insightId}/dismiss`, { method: 'POST' })
 }
 
 // ── Cron Schedules ────────────────────────────────────────────────────────────
@@ -1048,21 +1002,13 @@ export interface CronSchedule {
 }
 
 export async function fetchCronSchedules(): Promise<CronSchedule[]> {
-  try {
-    const json = await gfetch<{ schedules?: CronSchedule[] }>('/cron/schedules')
-    return json.schedules ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ schedules?: CronSchedule[] }>('/cron/schedules')
+  return json.schedules ?? []
 }
 
 export async function fetchCronActions(): Promise<string[]> {
-  try {
-    const json = await gfetch<{ actions?: string[] }>('/cron/actions')
-    return json.actions ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ actions?: string[] }>('/cron/actions')
+  return json.actions ?? []
 }
 
 export async function createCronSchedule(
@@ -1070,26 +1016,18 @@ export async function createCronSchedule(
   action: string,
   scheduleType: CronScheduleType,
   scheduleValue: string,
-): Promise<string | null> {
-  try {
-    const json = await gfetch<{ id?: string }>('/cron/schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, action, schedule_type: scheduleType, schedule_value: scheduleValue }),
-    })
-    return json.id ?? null
-  } catch {
-    return null
-  }
+): Promise<string> {
+  const json = await gfetch<{ id?: string }>('/cron/schedule', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, action, schedule_type: scheduleType, schedule_value: scheduleValue }),
+  })
+  if (!json.id) throw new Error('gateway accepted the schedule but returned no id')
+  return json.id
 }
 
-export async function deleteCronSchedule(id: string): Promise<boolean> {
-  try {
-    await gfetch(`/cron/schedule/${id}`, { method: 'DELETE' })
-    return true
-  } catch {
-    return false
-  }
+export async function deleteCronSchedule(id: string): Promise<void> {
+  await gfetch(`/cron/schedule/${id}`, { method: 'DELETE' })
 }
 
 export async function updateCronSchedule(
@@ -1098,22 +1036,16 @@ export async function updateCronSchedule(
   action: string,
   scheduleType: CronScheduleType,
   scheduleValue: string,
-): Promise<boolean> {
+): Promise<void> {
   await gfetch(`/cron/schedule/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, action, schedule_type: scheduleType, schedule_value: scheduleValue }),
   })
-  return true
 }
 
-export async function toggleCronSchedule(id: string): Promise<boolean> {
-  try {
-    await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+export async function toggleCronSchedule(id: string): Promise<void> {
+  await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
 }
 
 // ── Dream / Performance ─────────────────────────────────────────────────────
@@ -1195,25 +1127,17 @@ export async function fetchImageStatus(): Promise<ImageStatus> {
 export async function generateImage(
   prompt: string,
   engine = 'comfyui',
-): Promise<{ filename: string; job_id?: string; engine?: string } | null> {
-  try {
-    return await gfetch<{ filename: string; job_id?: string; engine?: string }>('/image/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, engine }),
-    })
-  } catch {
-    return null
-  }
+): Promise<{ filename: string; job_id?: string; engine?: string }> {
+  return await gfetch<{ filename: string; job_id?: string; engine?: string }>('/image/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, engine }),
+  })
 }
 
 export async function fetchImageHistory(limit = 20): Promise<ImageEntry[]> {
-  try {
-    const json = await gfetch<{ images?: ImageEntry[] }>(`/image/history?limit=${limit}`)
-    return json.images ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ images?: ImageEntry[] }>(`/image/history?limit=${limit}`)
+  return json.images ?? []
 }
 
 // ── State / Actions ──────────────────────────────────────────────────────────
@@ -1340,19 +1264,15 @@ export interface CaptureResult {
 export async function uploadCaptureFile(
   file: File,
   opts?: { conversationId?: string; projectId?: number },
-): Promise<CaptureResult | null> {
+): Promise<CaptureResult> {
   const formData = new FormData()
   formData.append('file', file)
   if (opts?.conversationId) formData.append('conversation_id', opts.conversationId)
   if (opts?.projectId !== undefined) formData.append('project_id', String(opts.projectId))
-  try {
-    return await gfetch<CaptureResult>('/capture/file', {
-      method: 'POST',
-      body: formData,
-    })
-  } catch {
-    return null
-  }
+  return await gfetch<CaptureResult>('/capture/file', {
+    method: 'POST',
+    body: formData,
+  })
 }
 
 // ── Projects ─────────────────────────────────────────────────────────────────

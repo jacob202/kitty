@@ -197,11 +197,6 @@ export function DocumentsPanel({ isMobile = false }: { isMobile?: boolean }) {
             {upload.error instanceof Error ? upload.error.message : 'gateway error'}
           </p>
         )}
-        {upload.data === null && !upload.isPending && upload.isSuccess && (
-          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
-            upload failed — the file may be too large or the wrong type.
-          </p>
-        )}
         {upload.data && (
           <p style={{ ...mutedStyle, color: STATUS_COLORS[upload.data.status] ?? 'var(--ink-2)' }}>
             {upload.data.status}: {upload.data.message} — it appears under sources once indexing
