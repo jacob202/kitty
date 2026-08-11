@@ -194,19 +194,32 @@ class _Response:
         self.log.append("defer")
 
 
+class _SentMessage:
+    def __init__(self, thread: "_Thread", index: int) -> None:
+        self.thread = thread
+        self.index = index
+
+    async def edit(self, *, content: str) -> None:
+        self.thread.log.append("message_edit")
+        self.thread.edit_history.append(content)
+        self.thread.messages[self.index] = content
+
+
 class _Thread:
     mention = "<#thread>"
 
     def __init__(self, log: list[str]) -> None:
         self.log = log
         self.messages: list[str] = []
+        self.edit_history: list[str] = []
 
     async def add_user(self, user) -> None:
         self.log.append("add_user")
 
-    async def send(self, content: str) -> None:
+    async def send(self, content: str) -> _SentMessage:
         self.log.append("thread_send")
         self.messages.append(content)
+        return _SentMessage(self, len(self.messages) - 1)
 
 
 class _Channel:
@@ -258,10 +271,27 @@ def test_vibe_controller_defers_before_execution_and_posts_to_thread() -> None:
 
     asyncio.run(controller.handle(interaction, "inspect repo"))
 
+    posted = "\n".join(interaction.thread.messages)
     assert log[0] == "defer"
     assert log.index("defer") < log.index("service_start")
-    assert "working" in "\n".join(interaction.thread.messages)
-    assert "audit clean" in "\n".join(interaction.thread.messages)
+    assert "Codex" in posted
+    assert "COMPLETE" in posted
+    assert "audit clean" in posted
+    assert "message_edit" in log
+
+
+def test_vibe_progress_updates_one_status_message_in_place() -> None:
+    log: list[str] = []
+    interaction = _Interaction(log)
+    controller = VibeController(_FakeService(log))
+
+    asyncio.run(controller.handle(interaction, "inspect repo"))
+
+    # Request + one mutable status card + one terminal evidence card.
+    assert log.count("thread_send") == 3
+    assert log.count("message_edit") == 2
+    assert any("Worker:** Codex" in message for message in interaction.thread.messages)
+    assert any("Evidence:** audit clean" in message for message in interaction.thread.messages)
 
 
 class _MembershipFailThread(_Thread):
@@ -320,9 +350,9 @@ def test_vibe_scrubs_worker_output_before_thread_send() -> None:
 
     asyncio.run(controller.handle(interaction, "inspect repo"))
 
-    posted = "\n".join(interaction.thread.messages)
-    assert "discord-super-secret" not in posted
-    assert "worker leaked [REDACTED]" in posted
+    rendered = "\n".join(interaction.thread.messages + interaction.thread.edit_history)
+    assert "discord-super-secret" not in rendered
+    assert "worker leaked [REDACTED]" in rendered
 
 
 def test_secret_scrubber_redacts_env_values_and_key_shapes() -> None:
@@ -612,3 +642,19 @@ def test_sandbox_profile_allows_worktree_only_and_dev_null(tmp_path: Path) -> No
     assert outside_result.returncode != 0
     assert (tmp_path / "inside").exists()
     assert not outside.exists()
+
+
+def test_codex_command_execution_progress_is_semantic_not_raw() -> None:
+    import json
+
+    from integrations.discord_command_center.service import _format_codex_progress
+
+    event = json.dumps({
+        "type": "item.completed",
+        "item": {"type": "command_execution", "command": "/bin/zsh -lc secret-looking-command"},
+    })
+
+    rendered = _format_codex_progress(event)
+
+    assert rendered == "Inspecting repository…"
+    assert "secret-looking-command" not in rendered

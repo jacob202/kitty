@@ -45,3 +45,20 @@ The adapter also disables Codex apps, plugins, browser/computer use, image gener
 ## Verification
 
 Unit tests prove command construction, defer-before-execution ordering, diff violation detection, worktree preservation, and output chunking. A local Codex smoke proves the disposable-worktree/diff-audit path. Full Discord acceptance remains blocked until a Discord application/token and test guild are available.
+## Interaction patterns adopted after Buzz review
+
+The Command Center should borrow Buzz's collaboration ergonomics without borrowing its relay/forge architecture.
+
+- **Visible identity:** every task surface names the logical worker (`Codex`, later Builder worker/reviewer) and its role/mode. Use one Command Center Discord app; do not create one Discord bot identity per model or worker.
+- **One task, one thread:** a task thread is the human conversation and projection surface. When Gateway-backed tasks arrive, replies inside a participating task thread should steer that task without repeated mentions; the thread-to-task binding remains authoritative in Gateway.
+- **At-a-glance activity:** prefer one mutable status item with `state · worker · current meaningful action`. Do not turn tool calls into a scrolling transcript. Silence, timeout, waiting, blocked, and failed are explicit states.
+- **Semantic progress:** render what happened and the outcome, not transport details or raw shell commands. Raw logs remain evidence/debug detail, not the headline.
+- **Explicit handoffs:** when execution moves from planner → worker → reviewer, show the transition in the thread. The handoff is a projection of Gateway/Builder state, never a Discord-local assignment.
+- **Approvals stay external-authority:** Discord may show Approve/Reject controls only for an approval request issued by Gateway/Builder. Approval must carry the authoritative task/plan identity (including `plan_hash` where applicable) and be revalidated by Gateway before action.
+- **Outcome cards:** terminal presentation should summarize outcome, worker, PR/artifacts, checks/evidence, blockers, and next action. Every field must come from authoritative evidence; missing fields say unavailable rather than being inferred.
+- **Who is working:** a future `/status` or war-room view may list active work as a read-only Gateway projection (`task · state · worker · current action`). No Discord task database or scheduler.
+- **Thread lifecycle:** terminal tasks may be archived only after Gateway/Builder reports a terminal state. Discord thread state never closes or completes Builder work by itself.
+
+### Explicit non-copy rules
+
+Do not copy Buzz's relay-as-workspace/event-log ownership, forge/workflow engine, cryptographic agent identity model, branch-as-authoritative-channel model, or broad agent permissions. Do not rely on repeated `@mention` delivery once an agent/task is already participating in a thread; Buzz's current mention/thread bugs are evidence that routing semantics need one authoritative binding rather than duplicated mention filters.

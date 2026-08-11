@@ -120,8 +120,7 @@ def _format_codex_progress(line: str) -> str | None:
         if item_type == "agent_message":
             return str(item.get("text") or "").strip() or None
         if item_type == "command_execution":
-            command = str(item.get("command") or "").strip()
-            return f"Codex inspected via: {command}" if command else None
+            return "Inspecting repository…"
     if event_type in {"error", "turn.failed"}:
         message = payload.get("message") or payload.get("error") or payload
         return f"Codex error: {message}"

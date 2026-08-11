@@ -15,6 +15,21 @@ from .service import VibeService
 from .workspace import GitWorktreeManager
 
 
+def _status_card(state: str, detail: str) -> str:
+    return (
+        f"{state} · **Codex** · read-only\n"
+        f"{detail}"
+    )
+
+
+def _result_card(event_kind: str, message: str) -> str:
+    label = "✅ **COMPLETE**" if event_kind == "done" else "❌ **FAILED**"
+    return (
+        f"{label}\n"
+        "**Worker:** Codex\n"
+        f"**Evidence:** {message}"
+    )
+
 def split_discord_message(text: str, limit: int = 1900) -> list[str]:
     if limit <= 0:
         raise ValueError("limit must be positive")
@@ -69,12 +84,22 @@ class VibeController:
             )
             return
         await interaction.followup.send(f"Task thread: {thread.mention}", ephemeral=True)
-        await thread.send(f"**Request:** {safe_request}")
+        await thread.send(f"**Task:** {safe_request}\n**Worker:** Codex\n**Mode:** read-only")
+        status_message = await thread.send(
+            _status_card("🟡 **STARTING**", "Preparing isolated audited run…")
+        )
 
         async for event in self.service.run(safe_request):
-            prefix = "" if event.kind == "progress" else f"**{event.kind.upper()}** — "
             safe_message = self.scrubber.scrub(event.message)
-            for chunk in split_discord_message(prefix + safe_message):
+            if event.kind == "progress":
+                await status_message.edit(
+                    content=_status_card("🟢 **WORKING**", safe_message)
+                )
+                continue
+
+            terminal_state = "✅ **COMPLETE**" if event.kind == "done" else "❌ **FAILED**"
+            await status_message.edit(content=_status_card(terminal_state, safe_message))
+            for chunk in split_discord_message(_result_card(event.kind, safe_message)):
                 await thread.send(chunk)
 
 
