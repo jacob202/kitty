@@ -1,0 +1,20 @@
+{
+  "category": "missing_automation",
+  "evidence": "mypy over gateway/ mcp/ workers/ reported 'Success: no issues found in 279 source files' in a venv holding only requirements.txt, and seven errors across mcp/imagen/retry.py, engines/imagen4.py, and server.py in the same tree once google-genai and google-api-core were installed. google-genai and google-api-core appear only in mcp/imagen/requirements.txt, which .github/workflows/tests.yml never installs.",
+  "fingerprint": "e0e80f91d21af669",
+  "id": "wfs_20260811t080241z_e0e80f91d21af669_2fcb11a59e0427b5",
+  "impact": "Seven real type errors sat on main unseen. They surfaced only through #453's pre-push hook, which runs where the image stack is installed, and there they blocked every push regardless of what the change touched, including a docs-only commit.",
+  "occurrence_count": 1,
+  "promotion_reason": "single non-critical observation; collect another occurrence",
+  "promotion_status": "observe",
+  "recorded_at": "2026-08-11T08:02:41.532687Z",
+  "schema_version": 1,
+  "severity": "medium",
+  "source_session": "claude-code/claude-next-4gj621/2026-08-11T08:00Z",
+  "stable_key": "ci-cannot-typecheck-imagen-deps",
+  "store_scope": "repo-fallback",
+  "suggested_change": "Install mcp/imagen/requirements.txt in the typecheck job so CI checks the same surface the pre-push hook does.",
+  "summary": "The Tests workflow's typecheck job installs only requirements.txt, so mcp/imagen's declared dependencies resolve to Any and an entire class of type error is invisible to CI while blocking every local push.",
+  "verified_by": "mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py run in two venvs, with and without google-genai/google-api-core installed",
+  "window_days": 30
+}

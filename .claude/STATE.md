@@ -1,53 +1,171 @@
-# Session State — agent council relay PR awaiting review
+# Session State — CI is back; KPROOF-001 is paused on a blocker that is now fixed
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-11T00:51:56Z",
-  "branch": "feat/agent-council-relay",
-  "worktree": "/Users/jacobbrizinski/Projects/kitty",
-  "head_sha": "165862c2c8ab8e86e50f8271d3c3ebef78abdf4f",
-  "status": "awaiting_review",
-  "active_mission": "docs/ACTIVE_MISSION.md",
-  "completed_items": ["Published PR #458 and verified all required checks green"],
-  "blockers": ["Human adversarial review and merge remain outstanding","Builder projection unavailable under Python 3.9"],
-  "invalidation_conditions": ["PR #458 head changes","Any required check becomes non-green"],
-  "next_action": "Review PR #458 adversarially, then merge if accepted",
+  "updated_at": "2026-08-11T08:05:00Z",
+  "branch": "claude/next-4gj621",
+  "worktree": "main",
+  "status": "complete",
+  "completed_items": [
+    "Established that the GitHub Actions outage ended on 2026-08-10 between 23:03:51Z and 23:20:19Z: Tests runs went from 3-13 second no-runner failures to 200-314 second real executions",
+    "Found main at d54fd896 red on lint and typecheck, both in mcp/builder/context.py; recorded it and corrected docs/PROJECT_STATUS.md, which still declared CI dead and main at ece1bad (PR #454, merged)",
+    "Fixed the seven mcp/imagen type errors CI cannot see; superseded by #460 mid-flight, so PR #467 was closed with an empty diff",
+    "Read the live Builder projection from Jacob's Mac: 109 tasks, KPROOF-001 paused on a data-directory blocker that main now fixes"
+  ],
+  "blockers": [
+    "This GitHub-connected container cannot inspect Jacob's Mac checkout, services, credentials, providers, or local Builder database; the Builder projection fails here on a missing pydantic import",
+    "Jacob's canonical checkout cannot check out main: the amphipod worktree holds it"
+  ],
+  "next_action": "none",
   "parallel_work": [
-    {"kind":"worktree_dirty","ref":"gateway/routes/tool_server.py; tests/test_tool_server.py","owner":"unknown; preserve","touches":["gateway/routes/tool_server.py","tests/test_tool_server.py"],"observed_at":"2026-08-11T00:43:26Z"},
-    {"kind":"pull_request","ref":"#457","owner":"other session","touches":["scripts","tests"],"observed_at":"2026-08-11T00:43:26Z"}
+    {
+      "kind": "pull_request",
+      "ref": "#468 docs(audit): AAA-1 decision audit, PAA-1 store classification, ADR collision fix (claude/reoi-issues-yvpsx6)",
+      "owner": "other session; not this one",
+      "observed_at": "2026-08-11T08:00:00Z",
+      "touches": ["docs/", "no overlap with this branch"]
+    },
+    {
+      "kind": "pull_request",
+      "ref": "#465 feat(builder): add Codex CLI fallback adapter (feat/codex-builder-adapter)",
+      "owner": "other session; not this one",
+      "observed_at": "2026-08-11T08:00:00Z",
+      "touches": ["gateway/", "no overlap with this branch"]
+    },
+    {
+      "kind": "branch",
+      "ref": "origin/feat/agent-council-relay, 5 commits beyond main and not an ancestor of it; PR #458 already merged at an earlier head",
+      "owner": "other session; not this one",
+      "observed_at": "2026-08-11T08:00:00Z",
+      "touches": ["mcp/imagen/", "gateway/", "scripts/", "tests/", "carries a third independent imagen fix that main has since superseded"]
+    }
   ],
   "recommendations": [
-    {"id":"review-merge-pr-458","what":"Review and merge PR #458","why":"The relay is implemented and all required CI checks pass; only human boundary review remains.","class":"code","status":"ready","blocked_by":null,"release_check":null,"deferred_count":0,"first_deferred":null}
+    {
+      "id": "resume-kproof-001",
+      "what": "Resume KPROOF-001 through Builder's supported operator path",
+      "why": "It paused itself at 2026-08-10 23:04 because its task worktree base d54fd896 lacked the KITTY_BUILDER_DATA_DIR fix and workers were reading checkout-local Builder state. That fix is on main in b4ab8b0. The mission deadline is 2026-08-18.",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    },
+    {
+      "id": "ci-typecheck-imagen-requirements",
+      "what": "Install mcp/imagen/requirements.txt in the Tests workflow typecheck job",
+      "why": "CI resolves google-genai and google-api-core to Any and cannot see mcp/imagen type errors at all; seven sat on main unseen and only surfaced through the local pre-push hook, where they blocked every push. CI-scope, so it needs Jacob's approval.",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    },
+    {
+      "id": "sync-staged-kb-payload",
+      "what": "Copy docs/session-notes/2026-08-11-kb-payload.md, the effectiveness receipt, and both workflow signals into ~/kb",
+      "why": "~/kb does not exist in this container, so two wiki entries, two corrections, one receipt, and two signals are staged in the repo instead. Cross-tool repeat detection does not work until they are merged.",
+      "class": "code",
+      "status": "deferred",
+      "blocked_by": "~/kb is not present in this container",
+      "release_check": "test -d ~/kb",
+      "deferred_count": 0,
+      "first_deferred": "2026-08-11T08:05:00Z"
+    }
   ],
-  "pull_request": {"number":458,"state":"OPEN","head_sha":"165862c2c8ab8e86e50f8271d3c3ebef78abdf4f"}
+  "invalidation_conditions": [
+    "KPROOF-001 leaves the paused state, which retires the resume recommendation",
+    "main moves beyond dda9868 in a way that touches mcp/imagen/ or .github/workflows/tests.yml",
+    "GitHub Actions stops executing again, which would restore the need for out-of-band verification",
+    "docs/ACTIVE_MISSION.md no longer names KPROOF-001 as the running mission"
+  ],
+  "active_mission": "docs/ACTIVE_MISSION.md",
+  "pull_request": null,
+  "head_sha": "5b21f7426e5f4d085fb41e5817a62c1bb84c0448"
 }
 -->
 
 ## Execution ownership
 
 - this session: `interactive`
-- Builder parallel state: unavailable; local Python 3.9 could not import the
-  repository's PEP 604 annotations.
-
-## Current checkpoint
-
-- Branch: `feat/agent-council-relay`
-- HEAD: `165862c2c8ab8e86e50f8271d3c3ebef78abdf4f`
-- PR: https://github.com/jacob202/kitty/pull/458
-- PR state: open, mergeable, clean, all checks green.
-- Unrelated dirty paths: `gateway/routes/tool_server.py`,
-  `tests/test_tool_server.py`; preserve them.
-
-## Recommendations
-
-1. **Ready:** adversarially review PR #458 and merge if accepted.
+- Builder parallel state: read from Jacob's Mac projection at 2026-08-11 00:0xZ
+  and reproduced here only as evidence. This session claimed, executed, and
+  scheduled nothing in Builder's queue.
 
 ## KB effectiveness
 
-- receipt: `kbr_b38d6f9f532ed6569630`
-- consulted: 1 (`~/kb/NOW.md`)
+- receipt: `kbr_e24216337393bb50acbb` in `docs/session-notes/kb-effectiveness.jsonl` (repo fallback)
+- consulted: 0
 - used: 0
-- stale/wrong: 1 (`~/kb/NOW.md` described older branch/PR state)
-- token, cost, elapsed-time, and independent human-review measurements are
-  unavailable; GitHub CI is independent evidence but human review is pending.
+- stale/wrong: 0
+- token/quality evidence gaps: `~/kb` is absent in this container, so nothing was
+  consulted and retrieval usefulness is unmeasurable for this session. Token,
+  cost, and elapsed-time measurement is unavailable from this harness. The
+  outcome is `completed_unreviewed`, not `accepted`: PR #454 merged on 12 green
+  checks, but CI is a gate and no independent human review happened.
+
+## What this session established
+
+**The Actions outage is over.** It ended on 2026-08-10 between 23:03:51Z and
+23:20:19Z. `Tests` runs went from 3–13 second no-runner failures to 200–314
+second real executions. Out-of-band verification is retired; CI is authoritative
+again, and red checks are information again. Full method and timings:
+[`docs/audit/MAIN_GATE_VERIFICATION_2026-08-10.md`](../docs/audit/MAIN_GATE_VERIFICATION_2026-08-10.md).
+
+**`main` was red before it lifted.** `d54fd896` failed `lint` and `typecheck`,
+both in `mcp/builder/context.py`, landed as a direct-to-`main` squash with no
+green check. Fixed in #453. Recorded in #454 along with the `PROJECT_STATUS`
+correction.
+
+**The live Builder baseline exists now.** From Jacob's Mac: 109 tasks — 51 done,
+43 cancelled, 10 blocked, 3 queued, 1 running, 1 failed, across 33 initiatives.
+`KPROOF-001` is **paused**, and its recorded reason is precise: the task worktree
+base `d54fd896` lacked the `KITTY_BUILDER_DATA_DIR` fix, so worker status
+commands created and read checkout-local Builder state. It paused rather than
+retry on split state. `KPROOF-RETRY-001` was pre-built at 23:57 and is also
+paused.
+
+**That blocker is fixed.** `b4ab8b0 fix(builder): honor canonical data directory`
+is on `main`; `gateway/paths.py` and `mcp/builder/context.py` both honour
+`KITTY_BUILDER_DATA_DIR`.
+
+## Exact verification results
+
+At bare `d54fd896`, reproducing every `Tests` job with the workflow's own
+commands: ruff **FAIL** (1 error), mypy **FAIL** (1 error), pytest **3987
+passed** / 2 deselected / 29 subtests / **78.40%** vs a 73% floor, vitest **341
+passed** / 45 files, `next build` clean, playwright **29 passed / 15 skipped**,
+vulture exit 0.
+
+With the repair applied: ruff clean, mypy clean over 293 files, pytest **3987
+passed / 78.38%**. PR #454 then passed **12 green checks** on real runners.
+
+For the imagen work: mypy went from **7 errors in 3 files** to **Success, no
+issues found in 279 source files** with `google-genai` and `google-api-core`
+installed, and stayed clean in a CI-equivalent venv without them. ruff clean.
+`pytest -k "imagen or retry"` — **108 passed**, 3894 deselected. PR #467 passed
+**11 green checks** before being closed as superseded.
+
+Two selected test failures are container artifacts, not defects:
+`tests/test_builder_loop.py::TestRecoveryExercise::test_killed_run_packet_recovers_end_to_end`
+(load-sensitive; passes uncontended) and
+`::TestRunPacket::test_operator_pause_between_attempts_stops_retry` (shells out
+to a hardcoded `python3.12` that has no project dependencies here). The second
+fails identically with all changes stashed.
+
+## Dropped recommendation
+
+`review-merge-pr-458` is complete, not deferred. PR #458 merged at
+2026-08-11T00:57:05Z by jacob202 at head `7ec0bd9`.
+
+## Unknown until checked on Jacob's Mac
+
+- Gateway, LiteLLM, Open WebUI, `kitty-chat`, and launchd state;
+- current provider credentials and quotas;
+- whether the one `running` Builder task is live or an orphaned lease from the
+  run that paused KPROOF-001;
+- whether the merged #437 Builder action behavior works end to end in the
+  running application.
