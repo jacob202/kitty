@@ -25,7 +25,11 @@ for f in .claude/STATE.md .claude/HANDOFF.md; do
   # Fix branch to match actual
   ACTUAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
   if [ -n "$ACTUAL_BRANCH" ]; then
-    sed -i '' "s/\"branch\": \"[^\"]*\"/\"branch\": \"$ACTUAL_BRANCH\"/g" "$f"
+    # Git branch names routinely contain "/" (for example
+    # kittybuilder/kb_...). Escape the replacement and use a non-slash
+    # delimiter so sed cannot reinterpret the branch as flags or backrefs.
+    BRANCH_REPLACEMENT=$(printf '%s' "$ACTUAL_BRANCH" | sed 's/[\&|]/\\&/g')
+    sed -i '' "s|\"branch\": \"[^\"]*\"|\"branch\": \"$BRANCH_REPLACEMENT\"|g" "$f"
   fi
 done
 
