@@ -25,8 +25,12 @@ from mcp.imagen.logger import log
 try:
     from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
 except ImportError:  # pragma: no cover — google-api-core may not be installed in test env
-    ResourceExhausted = type("ResourceExhausted", (Exception,), {})
-    ServiceUnavailable = type("ServiceUnavailable", (Exception,), {})
+
+    class ResourceExhausted(Exception):  # type: ignore[no-redef]
+        pass
+
+    class ServiceUnavailable(Exception):  # type: ignore[no-redef]
+        pass
 
 T = TypeVar("T")
 

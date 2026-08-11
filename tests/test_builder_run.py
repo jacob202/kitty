@@ -615,6 +615,23 @@ class TestStopClassIntegration:
         assert status["state"] == bi.INITIATIVE_PAUSED
         assert status["eligible"] == ["P1"]
 
+    def test_durable_routing_policy_rejects_execution_override(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        packet = _packet("P1")
+        packet["policy"]["routing"] = {"model": "approved-model", "provider": "approved-provider"}
+        _apply(db_path, [packet], repo_root=repo)
+
+        with pytest.raises(br.bl.LoopError, match="routing policy rejected"):
+            br.bl.run_packet(
+                INITIATIVE,
+                "P1",
+                worker_command=_worker(tmp_path),
+                model="different-model",
+                repo_root=repo,
+                db_path=db_path,
+            )
+
 
 class TestCp06AutoMerge:
     """CP-06: run_initiative's gate="auto"/"manual" wiring around publish.
