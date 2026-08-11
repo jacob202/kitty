@@ -87,6 +87,29 @@ in this module, not proven inert everywhere the value flows to. Listed
 explicitly; a full trace of where `authority_score` is read downstream (UI
 sort order? filtering threshold?) is unverified and out of scope here.
 
+### 8. `gateway/deadline_extractor.py` + `gateway/deadline_sweep.py` — confidence-weighted ranking
+
+**Missed by the original grep** (caught in second-round PR review).
+`deadline_extractor.py:28-33` asks the model for `confidence
+(high|medium|low|needs_jacob)`, defaulting to `needs_jacob` and rejecting
+any value outside the four-item set (`deadline_extractor.py:73-75`) — a
+closed categorical, not a bare float, and validated on the way in. That
+categorical then genuinely composes a decision: `deadline_sweep.py:40-55`'s
+`_score()` multiplies `proximity × amount_weight × confidence_weight`,
+where `confidence_weight` is a fixed lookup table
+(`{"high": 1.5, "medium": 1.2, "low": 1.0, "needs_jacob": 1.0}`) selecting
+the top-ranked deadline for an optional push.
+
+**Compliant, and the clearest example in the codebase of the pattern #390
+asks for**: the model commits to a bounded category, an unrecognized value
+can't reach the weighting table (it's rejected before storage), and Python
+composes the final ranking from a constant dict, not a live per-call model
+number. Listed here because an audit that claims to search for
+"every... categorical commitment used in a decision" should show its best
+compliant example, not just its gaps — and because this surface was absent
+from the original version of this document despite fitting its own search
+criteria exactly.
+
 ## Surfaces checked and confirmed absent
 
 - `gateway/image_plan.py`, `gateway/image_guidance.py` — no confidence/score
@@ -100,17 +123,21 @@ sort order? filtering threshold?) is unverified and out of scope here.
 ## Answer to AAA-0's open question
 
 AAA-0 asked whether `action_queue.py` and `compute_governor.py` are the only
-two decision surfaces in scope. They're the only two that **compose** a
-decision from categorical inputs. Three more surfaces carry a bare
-LLM-emitted number (`triage.py`, `magic_kitty.py`, `librarian.py`) — this
-audit's grep pattern list missed the latter two on the first pass, which is
-itself evidence this kind of search needs more than one keyword set to
-trust as complete. Of the three, only `triage.py`'s confidence is confirmed
-to gate a real decision (routing to `needs_jacob`), and that gate has a
-concrete validation gap (see above). `magic_kitty.py` and `librarian.py`'s
-numbers have no confirmed downstream consumer in the modules that produce
-them, but "no consumer found in this file" is not the same claim as "proven
-inert" — a full call-site trace wasn't done.
+two decision surfaces in scope. They're not — `deadline_extractor.py` +
+`deadline_sweep.py` also compose a real decision from a categorical model
+output, correctly. Three more surfaces carry a bare LLM-emitted number
+(`triage.py`, `magic_kitty.py`, `librarian.py`) — this audit's grep pattern
+list missed `magic_kitty.py`, `librarian.py`, and the entire deadline
+surface on the first pass, and missed nothing new in a second review round
+focused specifically on hunting for what the first pass missed. That's
+itself the evidence this kind of search needs more than one keyword set,
+and needs adversarial re-review, to trust as complete. Of the numeric-float
+surfaces, only `triage.py`'s confidence is confirmed to gate a real
+decision (routing to `needs_jacob`), and that gate has a concrete
+validation gap (see above). `magic_kitty.py` and `librarian.py`'s numbers
+have no confirmed downstream consumer in the modules that produce them, but
+"no consumer found in this file" is not the same claim as "proven inert" —
+a full call-site trace wasn't done.
 
 ## Net finding
 
