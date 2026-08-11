@@ -171,6 +171,33 @@ def test_timeout_runner_kills_descendant_process_group(tmp_path: Path):
         raise AssertionError(f"timed-out descendant {pid} is still running: {state}")
 
 
+def test_timeout_runner_closes_child_stdin_when_parent_stdin_stays_open(tmp_path: Path):
+    marker = tmp_path / "stdin-eof.txt"
+    script = tmp_path / "read-stdin.py"
+    script.write_text(
+        "import sys\nfrom pathlib import Path\nsys.stdin.read()\nPath(sys.argv[1]).write_text('eof\\n', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+
+    proc = subprocess.Popen(
+        [sys.executable, str(TIMEOUT_RUNNER), "1", sys.executable, str(script), str(marker)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        returncode = proc.wait(timeout=3)
+        stdout = proc.stdout.read() if proc.stdout else ""
+        stderr = proc.stderr.read() if proc.stderr else ""
+    finally:
+        if proc.stdin:
+            proc.stdin.close()
+
+    assert returncode == 0, f"stdout={stdout!r} stderr={stderr!r}"
+    assert marker.read_text(encoding="utf-8") == "eof\n"
+
+
 def test_timeout_runner_forwards_outer_termination_to_descendants(tmp_path: Path):
     child_pid = tmp_path / "outer-child.pid"
     script = tmp_path / "spawn-outer-child.sh"
