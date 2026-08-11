@@ -5,8 +5,8 @@ disposition. Nothing may remain unassigned. This ledger is authoritative; a
 file not listed here is either not a planning document or was added after the
 ledger date and needs disposition.
 
-**Roadmap authority:** `docs/ROADMAP_V2.md` (active authority, replaced `docs/ROADMAP.md` 2026-08-08)
-**Superseded roadmap:** `docs/ROADMAP.md` — preserved historical record, no longer active authority.
+**Roadmap authority:** `docs/ROADMAP.md` — the only roadmap. It names the KPROOF-001 gate and milestones M1–M6 as one order.
+**Milestone detail:** `docs/ROADMAP_V2.md` — appendix to the above, not a second authority and not a replacement for it.
 **Derived synthesis:** `docs/KITTY_MASTER_PROGRAM.md` — merges ROADMAP, ROADMAP_V2, and the extension backlog into a dependency-ordered program. Not an independent authority.
 **Governance:** `docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md` — 12 adjudicated decisions governing all of the above.
 **Ledger date:** 2026-08-08
@@ -134,7 +134,7 @@ ledger date and needs disposition.
 | `process-hardening-v1.json` | process-hardening-v1 | ACTIVE | Phase 3.3 | Reproducible review, durable receipts. |
 | `reasoning-backend-v1.json` | reasoning-backend-v1 | BACKLOG | Phase 4.1 | Packet 028 backend slices. |
 | `trust-lane-v1.json` | trust-lane-v1 | BACKLOG | Phase 3.3 | Trust lane sweep. |
-| `v2-driver-baseline-v1.json` | v2-driver-baseline-v1 | ACTIVE | M2-06 (V2 milestone) | First V2 initiative: 10 packets for daily-driver baseline, console re-role, and Builder Work integration. Uses the V2 M1-M6 milestone scheme per `docs/ROADMAP_V2.md`. Live-environment and operator-approval packets gated behind explicit operator consent; autonomous packets (M1-09, M2-04, M2-06, M3-03, M3-06) may proceed under Builder. |
+| `v2-driver-baseline-v1.json` | v2-driver-baseline-v1 | BLOCKED | M1–M6, after the KPROOF-001 verdict | First V2 initiative: 10 packets for daily-driver baseline, console re-role, and Builder Work integration, on the M1–M6 scheme detailed in `docs/ROADMAP_V2.md`. **Not ACTIVE while KPROOF-001 runs** — applying it queues tasks, and `eligible_packets()` would then hand a worker any dependency-free packet (M1-09, M2-04, M2-06, M3-03, M3-06), widening the experiment before the proof returns a verdict. Matches the `docs/initiatives/` row below. Live-environment and operator-approval packets remain separately gated behind explicit operator consent. |
 
 ### Initiative READMEs and evidence (.md/.sh)
 
@@ -218,7 +218,7 @@ Specific dispositions:
 | File | Disposition | Notes |
 |---|---|---|
 | `CONSTITUTION.md` | ACTIVE | Highest-level design artifact. Ratified 2026-08-05. Consolidates principles from ADRs 003, 017, 027, 028, 029, 032, 034, 036 plus KITTY_PRODUCT_ARCHITECTURE, BLUEPRINT, NORTH_STAR, FREE_MODEL_PACKET_STANDARD, and ROADMAP_V2. |
-| `ROADMAP_V2.md` | ACTIVE (ratified target) | V2 target plan with M1-M6 milestones. Ratified by the Constitution v1. Accepted architecture, not execution schedule. Does not override `docs/ROADMAP.md` for active priority. |
+| `ROADMAP_V2.md` | BLOCKED | Milestone detail behind `ROADMAP.md`'s M1–M6. Ratified by the Constitution v1 as accepted architecture, not an execution schedule. Blocked on the KPROOF-001 verdict. |
 | `KITTY_MASTER_PROGRAM.md` | ACTIVE (derived synthesis) | Derived synthesis of ROADMAP, ROADMAP_V2, and the extension backlog into a dependency-ordered program. Not an independent authority. |
 | `KNOWLEDGE_GRAPH.md` | ACTIVE | Repository knowledge archaeology. Maps ADR supersession chains, document dependencies, initiative-to-roadmap alignment, structural problems, and the minimum architectural-continuity graph for Builder. |
 | `CAPABILITY_MANIFEST.md` | ACTIVE (designed) | Capability Manifest v1 specification. DESIGNED per ADR 0029. Not yet built. |
