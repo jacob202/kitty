@@ -38,6 +38,7 @@
 ## Outcome
 
 Committed `e42657c7` (`refactor: consolidate Kitty Builder control boundary`).
+Tracked upstream is `origin/feat/agent-council-relay` at `afaa8c99`; local branch is ahead 1.
 The local branch currently reports its tracked origin branch as `[gone]`.
 The commit contains the Mission-to-Builder submission/routing seam and retires
 the unmounted `/builder/action` compatibility surface. The follow-up handoff
