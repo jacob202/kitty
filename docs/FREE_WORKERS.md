@@ -78,10 +78,17 @@ review is only worth anything if it's independent.
 
 ## Timeouts
 
-The worker timeout (`--timeout`, default 3600s) covers the whole ladder walk
-for one attempt, not one model. If every free endpoint is slow the attempt
-fails loudly at the deadline; that is an availability fact worth seeing, not
-a bug in the loop.
+The worker timeout (`--timeout`, default 3600s) remains the hard budget for the
+whole ladder walk, not a fresh budget for every model. Builder passes the
+remaining worker/reviewer budget into the adapters. Each model receives a fair
+share of the time still available to the models that remain, so a silent or
+hung endpoint cannot consume the entire attempt and disable fallback.
+
+A model that times out cleanly (no result contract and no worktree change) may
+hand off to the next model. Any partial work still stops fallback immediately.
+Forcing one model intentionally gives that single model the remaining whole
+budget. The outer Builder timeout remains authoritative and can terminate the
+adapter at the campaign deadline.
 
 ## Multi-Agent Orchestration via Orca
 
