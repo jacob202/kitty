@@ -13,6 +13,12 @@ set -uo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}" || exit 1
 
+# Git exports repository-local GIT_* variables to hooks. Clear them before
+# launching tests so nested temporary repos use their own .git directories.
+while IFS= read -r var; do
+  [[ -n "${var}" ]] && unset "${var}"
+done < <(git rev-parse --local-env-vars)
+
 RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; OFF=$'\033[0m'
 [[ -t 2 ]] || { RED=""; GREEN=""; YELLOW=""; DIM=""; OFF=""; }
 
