@@ -105,7 +105,7 @@ def build_workers(repo: Path, prompt: str) -> tuple[Worker, ...]:
         instruction,
     ]
     if opencode_variant:
-        opencode[5:5] = ["--variant", opencode_variant]
+        opencode[6:6] = ["--variant", opencode_variant]
     opencode_environment = {
         "OPENCODE_CONFIG_CONTENT": json.dumps(
             {
@@ -132,7 +132,7 @@ def build_workers(repo: Path, prompt: str) -> tuple[Worker, ...]:
         )
         if opencode_variant:
             fallback_parts = list(claude_fallback)
-            fallback_parts[5:5] = ["--variant", opencode_variant]
+            fallback_parts[6:6] = ["--variant", opencode_variant]
             claude_fallback = tuple(fallback_parts)
     return (
         Worker("Codex", tuple(codex)),

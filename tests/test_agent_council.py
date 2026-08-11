@@ -26,6 +26,19 @@ def test_build_workers_use_read_only_controls(tmp_path: Path) -> None:
     assert workers[2].environment == {
         "OPENCODE_CONFIG_CONTENT": '{"permission": {"edit": "deny", "bash": "deny", "external_directory": "deny"}}'
     }
+    assert commands["OpenCode"][4:8] == (
+        "--model",
+        "opencode/deepseek-v4-flash-free",
+        "--variant",
+        "minimal",
+    )
+    assert claude.fallback_command is not None
+    assert claude.fallback_command[4:8] == (
+        "--model",
+        "opencode/claude-sonnet-4",
+        "--variant",
+        "minimal",
+    )
 
 
 def test_dry_run_labels_every_worker(tmp_path: Path) -> None:
