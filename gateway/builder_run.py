@@ -377,6 +377,7 @@ def run_initiative(
     *,
     worker_command: list[str],
     review_command: list[str] | None = None,
+    adapter_env: dict[str, str] | None = None,
     worker: str = "builder-loop",
     model: str | None = None,
     provider: str | None = None,
@@ -391,6 +392,9 @@ def run_initiative(
     repo_root: Path | None = None,
     db_path: Path | None = None,
     governor_db: Path | None = None,
+    governor_risk_class: str = "routine",
+    governor_projected_cost_cad: float | None = None,
+    governor_requested_route: str | None = None,
 ) -> dict[str, Any]:
     """Drive an initiative to completion, one eligible packet at a time.
 
@@ -508,6 +512,7 @@ def run_initiative(
                 packet_id,
                 worker_command=worker_command,
                 review_command=review_command,
+                adapter_env=adapter_env,
                 worker=worker,
                 model=model,
                 provider=provider,
@@ -518,6 +523,9 @@ def run_initiative(
                 repo_root=repo_root,
                 db_path=db_path,
                 governor_db=governor_db,
+                governor_risk_class=governor_risk_class,
+                governor_projected_cost_cad=governor_projected_cost_cad,
+                governor_requested_route=governor_requested_route,
             )
         except bl.LoopError as exc:
             _decide(

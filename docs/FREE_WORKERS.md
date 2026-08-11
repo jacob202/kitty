@@ -1,35 +1,40 @@
-# Free Workers — Token-Efficient Delegation
+# Builder Model Routing — Free + Paid Value Lanes
 
-The point: Claude/Codex tokens are the scarce resource; free OpenCode models
-are not. Kitty's delegation loop is built so the expensive model does the
-thinking once (packets, contracts, review of the final diff) and zero-cost
-models do the typing. This doc is the operating manual for that split.
+KittyBuilder has two explicit execution lanes. `--free` is genuinely zero-cost
+and never falls into a paid model. `--paid` is the governed value lane: routine
+work defaults to DeepSeek V4 Flash, while frontier spend is an explicit
+escalation. Both lanes use the same durable Builder attempts, worktrees,
+validation, review, evidence, and publication rails.
 
 ## Who does what
 
 | Stage | Who | Cost |
 | ----- | --- | ---- |
 | Author the packet (objective, allowed paths, acceptance, validation) | Claude/Codex | paid, once |
-| Implement the packet in an isolated worktree | free OpenCode builder ladder | free |
-| Independent review of the attempt (frontier check) | `deepseek-v4-pro` reviewer | paid, small |
+| Implement the packet in an isolated worktree | free ladder or governed paid worker | free or bounded paid |
+| Independent review of the attempt | separate read-only reviewer model | same selected lane |
 | Deterministic validation (declared test commands) | the runner itself | free |
 | Final diff review + merge decision | Jacob (with Claude if needed) | paid, small |
 
-A packet that a free model can't finish after the bounded repair loop comes
-back as honest evidence (`exhausted`, with transcripts and manifests) — that,
-and only that, is when paid tokens re-enter.
+Route choice is explicit and durable. Free exhaustion pauses honestly; it does
+not silently spend. Paid execution is selected with `--paid` and is admitted
+only after the compute governor authorizes the route and projected cost.
 
 ## One-command launch
 
 Both adapters gate on the same zero-cost builder ladder the free train uses
 (`opencode/deepseek-v4-flash-free` → `opencode/mimo-v2.5-free` →
 `opencode/nemotron-3-ultra-free` → `opencode/north-mini-code-free` →
-OpenRouter free fallbacks). The reviewer is independent of that ladder: it runs
-`openrouter/deepseek/deepseek-v4-pro` (frontier) by default so the review is a
-real second opinion rather than a cheap echo; force a free review only when you
-explicitly want to spend nothing (`KITTYBUILDER_REVIEW_MODEL=…-free`). Free
-endpoints rate-limit and flake; the worker ladder is what makes a single attempt
-survive that without burning the attempt budget.
+OpenRouter free fallbacks). The free reviewer defaults to a different free
+model and remains read-only. Free endpoints rate-limit and flake; the ladder is
+what lets one attempt survive clean provider failures without burning the
+attempt budget.
+
+The paid lane is separate: `--paid` selects the configured `cheap` route, and
+`--paid --tier frontier` requests the frontier route. The governor may downgrade
+frontier to cheap; Builder switches the actual worker and reviewer models before
+opening an attempt, so the evidence can never say "cheap" while a frontier model
+actually runs.
 
 Hand-off rules (fail-loud, no debris):
 
@@ -46,19 +51,26 @@ Overrides:
 ```bash
 KITTYBUILDER_MODEL=opencode/mimo-v2.5-free          # force one builder model
 KITTYBUILDER_MODELS="modelA modelB"                  # replace the builder ladder
-KITTYBUILDER_REVIEW_MODEL=...                        # force one reviewer model (default: openrouter/deepseek/deepseek-v4-pro)
+KITTYBUILDER_REVIEW_MODEL=...                        # force one reviewer model (free adapter default stays free)
 KITTYBUILDER_REVIEW_MODELS="modelA modelB"           # replace the reviewer model list
 ```
 
-`--free --model <id>` on the CLI is shorthand for forcing one builder model.
-Keep the reviewer ladder disjoint from the builder model actually used — the
-review is only worth anything if it's independent.
+`--free --model <id>` accepts only an explicitly free model identifier. Paid
+models require `--paid`; inherited model-ladder overrides are cleared when the
+free preset is selected. Keep the reviewer disjoint from the builder model —
+the review is only worth anything if it is independent.
+
+```bash
+./kitty builder initiative run-packet <initiative> <packet> --free
+./kitty builder initiative run-packet <initiative> <packet> --paid
+./kitty builder initiative run-packet <initiative> <packet> --paid --tier frontier
+```
 
 ## Safety rails (already enforced, don't re-litigate)
 
 - `opencode.jsonc` denies push, PR create/merge, destructive git, `rm`,
-  external directories, and subagent spawning even under `--auto`, and pins
-  the `free-builder`/`free-reviewer` agents to free providers only.
+  external directories, and subagent spawning even under `--auto`. Free and
+  paid execution use separate `free-*` and `paid-*` agent definitions.
 - The adapters verify task/attempt identity and bundle SHA-256 before any
   model runs, stage runner files into the worktree, and only copy validated
   contract JSON back out.
@@ -68,13 +80,13 @@ review is only worth anything if it's independent.
   only — never `.env`, credentials, runtime personal data, or private
   memories.
 
-## What still costs paid tokens (keep it that way)
+## Paid value lane
 
-1. Writing good packets. A vague packet wastes free attempts and then paid
-   diagnosis; a tight one (docs/packets/TEMPLATE.md) is the whole trick.
-2. Reading the final diff before merge.
-3. Unblocking an `exhausted` packet — read the attempt manifests under
-   `data/kittybuilder/` and the transcripts before spending anything else.
+`config/builder_paid_routes.json` is the checked-in allowlist and per-attempt
+ceiling. Routine paid implementation uses DeepSeek V4 Flash through OpenRouter;
+review uses Qwen3.7 Plus for model-family independence. Frontier execution is a
+separate explicit tier and uses the stronger configured worker/reviewer pair.
+The compute governor remains the spend authority and receipts are durable.
 
 ## Timeouts
 
@@ -142,8 +154,8 @@ Routing follows ADR 0021, in three tiers:
 | Route | Model | When |
 | ----- | ----- | ---- |
 | `free` | the zero-cost OpenCode ladder above | whenever a free worker can carry the packet |
-| `cheap` | `deepseek-v4-flash` | routine paid work — the default once the free ladder is not in play |
-| `frontier` | `deepseek-v4-pro` | `risky` merges and verified `blocker`s only, and `blocker` must name the failure |
+| `cheap` | `deepseek/deepseek-v4-flash` | routine paid work — explicit value tier |
+| `frontier` | `deepseek/deepseek-v4-pro` | explicit risky/blocker escalation subject to reserve floors |
 
 Reserve pressure protects the frontier route, not the work itself. Below
 `frontier_floor_ratio` a frontier dispatch downgrades to Flash; below
@@ -159,11 +171,11 @@ source; the governor imports it rather than keeping its own copy):
 
 | Pass | Model | Tokens | Cost |
 | ---- | ----- | ------ | ---- |
-| routine | V4 Flash | 60k in / 8k out | CAD 0.0146 |
+| routine | V4 Flash | 60k in / 8k out | CAD 0.0094 |
 | frontier | V4 Pro | 120k in / 15k out | CAD 0.0895 |
 
 A working week of ~10 tasks x 3 head SHAs x (plan + review + implement), at 85%
-routine, is **CAD 2.36** — call it **CAD 3.54** with retry headroom. The budget
+routine, is about **CAD 1.97** — about **CAD 2.95** with 50% retry headroom. The budget
 is set to **CAD 6.00/week**, which puts the 25% frontier floor at CAD 4.50
 spent: above a normal week, so routine weeks never downgrade, and a bad week
 degrades to Flash instead of stopping. Thresholds live in
@@ -180,9 +192,10 @@ surprise bill.
 ### Where the gate actually fires
 
 `run_packet` consults the governor when it is given a `governor_db`, right after
-the packet's durable base SHA is resolved and before any attempt is created. A
-refusal appends a `compute_governor_refused` event to the task and raises, so
-the reason is durable rather than a log line.
+the packet's durable base SHA is resolved and before any attempt is created.
+The requested route is part of the dispatch identity: explicit free runs are
+authorized as `free` with zero estimated spend, while paid routes are checked
+against reserve policy. Refusals and route downgrades are durable events.
 
 `./kitty builder initiative run-packet` passes it **by default** — a real
 dispatch spends real money, so the receipt check is opt-out (`--no-governor`),
