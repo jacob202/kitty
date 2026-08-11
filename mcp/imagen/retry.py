@@ -22,20 +22,22 @@ from tenacity import (
 
 from mcp.imagen.logger import log
 
-# Collected rather than rebound: assigning stand-in classes over the imported
-# names redefines them, and nothing can raise a stand-in anyway. Without
-# google-api-core there is simply nothing extra to retry on.
 try:
     from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable
-
-    _GOOGLE_RETRYABLE: tuple[type[BaseException], ...] = (ResourceExhausted, ServiceUnavailable)
 except ImportError:  # pragma: no cover — google-api-core may not be installed in test env
-    _GOOGLE_RETRYABLE = ()
+
+    class ResourceExhausted(Exception):  # type: ignore[no-redef]
+        pass
+
+    class ServiceUnavailable(Exception):  # type: ignore[no-redef]
+        pass
 
 T = TypeVar("T")
 
 # Retry on rate-limit (429), service-down (503), and httpx-level transport errors.
-_RETRYABLE = _GOOGLE_RETRYABLE + (
+_RETRYABLE = (
+    ResourceExhausted,
+    ServiceUnavailable,
     httpx.HTTPStatusError,
     httpx.TimeoutException,
     httpx.ConnectError,

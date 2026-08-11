@@ -167,6 +167,9 @@ jobs:
       - name: Wait for server
         run: npx wait-on http://localhost:4000 --timeout 30000
       - name: Run smoke tests
+        env:
+          PLAYWRIGHT_PORT: "4000"
+          PLAYWRIGHT_REUSE_EXISTING_SERVER: "1"
         run: npx playwright test
       - name: Upload report
         if: failure()

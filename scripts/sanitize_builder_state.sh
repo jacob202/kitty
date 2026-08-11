@@ -3,35 +3,59 @@
 # so they pass CI schema validation. Run from the worktree root.
 set -euo pipefail
 
+ACTUAL_HEAD=$(git rev-parse HEAD)
+ACTUAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+file_changed_by_worker() {
+  local file="$1"
+  if ! git diff --quiet -- "$file"; then
+    return 0
+  fi
+  if ! git diff --cached --quiet -- "$file"; then
+    return 0
+  fi
+  if git ls-files --others --exclude-standard -- "$file" | grep -q .; then
+    return 0
+  fi
+  return 1
+}
+
 for f in .claude/STATE.md .claude/HANDOFF.md; do
   [ -f "$f" ] || continue
-  
-  # Fix status: "clean" -> "complete"
-  sed -i '' 's/"status": "clean"/"status": "complete"/g' "$f"
-  
-  # Fix next_action: terminal status "complete" must have next_action "None"
-  # Only fix if status is actually "complete"
-  if grep -q '"status": "complete"' "$f"; then
-    # Replace any next_action value that isn't "None" with "None"
-    sed -i '' 's/"next_action": "[^"]*"/"next_action": "None"/g' "$f"
-  fi
-  
-  # Fix head_sha: update to actual HEAD if stale
-  ACTUAL_HEAD=$(git rev-parse HEAD)
-  if [ -n "$ACTUAL_HEAD" ]; then
-    sed -i '' "s/\"head_sha\": \"[^\"]*\"/\"head_sha\": \"$ACTUAL_HEAD\"/g" "$f"
-  fi
-  
-  # Fix branch to match actual
-  ACTUAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-  if [ -n "$ACTUAL_BRANCH" ]; then
-    sed -i '' "s/\"branch\": \"[^\"]*\"/\"branch\": \"$ACTUAL_BRANCH\"/g" "$f"
-  fi
-done
+  file_changed_by_worker "$f" || continue
 
-# If HANDOFF exists, sync its status to "valid" (not the same as STATE "complete")
-if [ -f .claude/HANDOFF.md ]; then
-  sed -i '' 's/"status": "complete"/"status": "valid"/g' .claude/HANDOFF.md
-fi
+  python3 - "$f" "$ACTUAL_HEAD" "$ACTUAL_BRANCH" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+head_sha = sys.argv[2]
+branch = sys.argv[3]
+text = path.read_text(encoding="utf-8")
+
+text = re.sub(r'"status"\s*:\s*"clean"', '"status": "complete"', text)
+if re.search(r'"status"\s*:\s*"complete"', text):
+    text = re.sub(
+        r'("next_action"\s*:\s*")[^"]*(")',
+        lambda match: f'{match.group(1)}None{match.group(2)}',
+        text,
+    )
+text = re.sub(
+    r'("head_sha"\s*:\s*")[^"]*(")',
+    lambda match: f'{match.group(1)}{head_sha}{match.group(2)}',
+    text,
+)
+text = re.sub(
+    r'("branch"\s*:\s*")[^"]*(")',
+    lambda match: f'{match.group(1)}{branch}{match.group(2)}',
+    text,
+)
+if path.name == "HANDOFF.md":
+    text = re.sub(r'"status"\s*:\s*"complete"', '"status": "valid"', text)
+
+path.write_text(text, encoding="utf-8")
+PY
+done
 
 echo "STATE/HANDOFF sanitized"

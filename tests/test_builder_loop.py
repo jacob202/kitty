@@ -122,6 +122,7 @@ def _good_worker(tmp_path: Path) -> list[str]:
     return _script(
         tmp_path,
         "worker.sh",
+        ': "${KB_WORKER_TIMEOUT_SECONDS:?KB_WORKER_TIMEOUT_SECONDS is required}"\n'
         f"echo ok > done.txt\ncat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
     )
 
@@ -154,6 +155,7 @@ def _approve_reviewer(tmp_path: Path) -> list[str]:
         ': "${KB_TASK_ID:?KB_TASK_ID is required}"\n'
         ': "${KB_ATTEMPT_ID:?KB_ATTEMPT_ID is required}"\n'
         ': "${KB_CONTEXT_MANIFEST_PATH:?KB_CONTEXT_MANIFEST_PATH is required}"\n'
+        ': "${KB_REVIEW_TIMEOUT_SECONDS:?KB_REVIEW_TIMEOUT_SECONDS is required}"\n'
         f"cat > \"$KB_REVIEW_RESULT_PATH\" <<'EOF'\n{_APPROVE}\nEOF\n",
     )
 
@@ -1203,12 +1205,27 @@ class TestRecoveryExercise:
             stderr=subprocess.DEVNULL,
         )
         try:
-            # Wait until the worker has really started producing partial work.
+            # Wait until the worker is both visibly active and durably bound
+            # to its run row. The worker can create junk.txt a few milliseconds
+            # before the parent records PID/process identity; killing in that
+            # gap tests the separate fresh-STARTING grace path instead of the
+            # live-run recovery contract this exercise is meant to cover.
             wt = repo / ".worktrees" / "kittybuilder" / task_id
             deadline = time.time() + 60
-            while time.time() < deadline and not (wt / "junk.txt").exists():
+            while time.time() < deadline:
+                runs = bq.list_runs(task_id=task_id, db_path=db_path)
+                latest = runs[-1] if runs else None
+                if (
+                    (wt / "junk.txt").exists()
+                    and latest is not None
+                    and latest["state"] == bq.RUN_RUNNING
+                    and latest.get("pid")
+                    and latest.get("process_identity")
+                ):
+                    break
                 time.sleep(0.1)
-            assert (wt / "junk.txt").exists(), "worker never started"
+            else:
+                raise AssertionError("worker never reached durable running state")
 
             proc.kill()  # SIGKILL: the orchestrator dies without cleanup
             proc.wait()

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+budget_started=${SECONDS}
+
 # KittyBuilder worker adapter for free OpenCode routing. The queue runner owns
 # the worktree and contract paths; this script only asks OpenCode to implement
 # the bounded packet and write the required implementation JSON.
@@ -99,18 +101,38 @@ fingerprint() {
   git status --porcelain=v1 --untracked-files=all
 }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TIMEOUT_RUNNER="${SCRIPT_DIR}/run_with_timeout.py"
+worker_budget=${KB_WORKER_TIMEOUT_SECONDS:-3600}
+
+model_timeout() {
+  local remaining_models="$1"
+  local elapsed=$((SECONDS - budget_started))
+  local remaining=$((worker_budget - elapsed))
+  (( remaining > 0 )) || remaining=1
+  echo $(((remaining + remaining_models - 1) / remaining_models))
+}
+
 # A model may hand off to the next free model only when it failed cleanly:
 # no result written and no change to HEAD or the worktree. Falling back over
 # partial work would let a second model build on debris the first left behind.
 chosen_model=""
+model_index=0
 for model in "${models[@]}"; do
   before="$(fingerprint)"
-  echo "=== free builder attempt: ${model} ==="
+  remaining_models=$((${#models[@]} - model_index))
+  slot_seconds=$(model_timeout "${remaining_models}")
+  echo "=== free builder attempt: ${model} (${slot_seconds}s slot) ==="
   set +e
-  opencode run --auto --agent free-builder --model "${model}" \
+  python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" \
+    opencode run --auto --agent free-builder --model "${model}" \
     --title "KittyBuilder free packet worker" "${prompt}"
   rc=$?
   set -e
+  model_index=$((model_index + 1))
+  if [[ ${rc} -eq 124 ]]; then
+    echo "WARNING: ${model} timed out after ${slot_seconds}s." >&2
+  fi
   if [[ -f "${local_result}" ]]; then
     if [[ ${rc} -ne 0 ]]; then
       echo "ERROR: ${model} wrote ${local_result} but exited ${rc}; refusing the result and any fallback." >&2

@@ -33,10 +33,8 @@ from __future__ import annotations
 
 import json
 import logging
-import subprocess
 import time
 import uuid
-from pathlib import Path
 from typing import Any, Callable
 
 from gateway import calendar_integration, delegation, storage_router
@@ -138,125 +136,11 @@ def _exec_calendar_create(payload: dict[str, Any]) -> str:
     return f"calendar event created: {title}"
 
 
-# --- Builder control -------------------------------------------------------
-# config/action_tiers.json has carried T0 tiers for all five of these since
-# 2026-07-02, but no executors existed — so every Builder button in the UI
-# posted to /builder/action, got HTTP 200, and did nothing. These call the same
-# `./kitty builder ...` CLI the operator uses, rather than re-implementing the
-# queue's lease/fencing rules in a second place.
-
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-def _run_kitty(args: list[str], *, timeout: int = 120) -> str:
-    """Run `./kitty builder ...` and fail loud on a non-zero exit."""
-    proc = subprocess.run(
-        [str(_REPO_ROOT / "kitty"), "builder", *args],
-        cwd=str(_REPO_ROOT),
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-    if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout or "").strip()[:400] or "no output"
-        raise RuntimeError(f"`kitty builder {' '.join(args)}` exited {proc.returncode}: {detail}")
-    return (proc.stdout or "").strip()
-
-
-def _exec_builder_run_next(payload: dict[str, Any]) -> str:
-    """Start a drain in the background. Never block the HTTP request — a packet
-    run takes minutes to hours, so this hands off to the same locked script cron
-    uses and returns immediately."""
-    script = _REPO_ROOT / "scripts" / "nightly_packet_drain.sh"
-    if not script.exists():
-        raise RuntimeError(f"drain script missing: {script}")
-    initiative = str(payload.get("initiative_id") or "").strip()
-    cmd = [str(script)] + ([initiative] if initiative else [])
-    subprocess.Popen(
-        cmd,
-        cwd=str(_REPO_ROOT),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
-    target = initiative or "the active initiative"
-    return f"builder run started in the background for {target} (free models, manual gate)"
-
-
-def _exec_builder_pause(payload: dict[str, Any]) -> str:
-    from gateway.builder_commands import dispatch_operator_command
-    from gateway.models.builder import BuilderCommandRequest
-
-    result = dispatch_operator_command(
-        BuilderCommandRequest(
-            action="pause",
-            initiative_id=str(payload["initiative_id"]).strip(),
-            reason=str(payload.get("reason") or "paused from the Builder screen"),
-            actor="action-queue",
-        )
-    )
-    if not result.ok:
-        raise RuntimeError(result.error or "Builder pause failed")
-    return result.detail or "Builder pause completed"
-
-
-def _exec_builder_resume(payload: dict[str, Any]) -> str:
-    from gateway.builder_commands import dispatch_operator_command
-    from gateway.models.builder import BuilderCommandRequest
-
-    result = dispatch_operator_command(
-        BuilderCommandRequest(
-            action="resume",
-            initiative_id=str(payload["initiative_id"]).strip(),
-            actor="action-queue",
-        )
-    )
-    if not result.ok:
-        raise RuntimeError(result.error or "Builder resume failed")
-    return result.detail or "Builder resume completed"
-
-
-def _exec_builder_cancel(payload: dict[str, Any]) -> str:
-    from gateway.builder_commands import dispatch_operator_command
-    from gateway.models.builder import BuilderCommandRequest
-
-    result = dispatch_operator_command(
-        BuilderCommandRequest(
-            action="cancel",
-            packet_id=str(payload["packet_id"]).strip(),
-            reason=str(payload.get("reason") or "cancelled from the Builder screen"),
-            actor="action-queue",
-        )
-    )
-    if not result.ok:
-        raise RuntimeError(result.error or "Builder cancel failed")
-    return result.detail or "Builder cancel completed"
-
-
-def _exec_builder_cleanup(payload: dict[str, Any]) -> str:
-    """Reclaim tasks whose worker died. Safe to run any time — the queue only
-    releases leases whose heartbeat has actually gone stale."""
-    from gateway.builder_commands import dispatch_operator_command
-    from gateway.models.builder import BuilderCommandRequest
-
-    result = dispatch_operator_command(
-        BuilderCommandRequest(action="recover_stale", actor="action-queue")
-    )
-    if not result.ok:
-        raise RuntimeError(result.error or "Builder recovery failed")
-    return result.detail or "queue recovery ran; nothing needed reclaiming"
-
-
 _EXECUTORS: dict[str, Callable[[dict[str, Any]], str]] = {
     "todo.create": _exec_todo_create,
     "note.draft": _exec_note_draft,
     "packet.delegate": _exec_packet_delegate,
     "calendar.event.create": _exec_calendar_create,
-    "builder.run_next": _exec_builder_run_next,
-    "builder.pause_initiative": _exec_builder_pause,
-    "builder.resume_initiative": _exec_builder_resume,
-    "builder.cancel_task": _exec_builder_cancel,
-    "builder.cleanup": _exec_builder_cleanup,
 }
 
 

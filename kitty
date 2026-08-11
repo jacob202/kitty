@@ -543,6 +543,17 @@ cmd_builder() {
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12)"
   fi
+
+  if [[ -z "${KITTY_BUILDER_DATA_DIR:-}" ]]; then
+    local git_common_dir canonical_root
+    git_common_dir="$(git -C "$KITTY_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    canonical_root="$KITTY_ROOT"
+    if [[ -n "$git_common_dir" ]]; then
+      canonical_root="$(dirname "$git_common_dir")"
+    fi
+    export KITTY_BUILDER_DATA_DIR="$canonical_root/data/kittybuilder"
+  fi
+
   "$python_bin" -m gateway.builder_cli "$@"
 }
 

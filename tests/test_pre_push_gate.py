@@ -111,3 +111,10 @@ def test_make_hooks_points_git_at_the_hook_directory():
     assert "\nhooks:" in makefile, "no `make hooks` target to install the gate"
     assert "core.hooksPath scripts/hooks" in makefile
     assert "hooks" in makefile.split("\n", 1)[0], "`hooks` missing from .PHONY"
+
+
+def test_hook_clears_git_local_env_before_gates(hook_text):
+    """Nested git commands in pytest must not inherit the pushing repo's GIT_* vars."""
+    clear_marker = "git rev-parse --local-env-vars"
+    assert clear_marker in hook_text, "pre-push leaks Git's local environment into pytest"
+    assert hook_text.index(clear_marker) < hook_text.index('run_gate "code style"')
