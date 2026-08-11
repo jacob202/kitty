@@ -11,10 +11,10 @@
   "active_mission": "docs/ACTIVE_MISSION.md",
   "completed_items": ["Committed e42657c7 with Mission submission/routing and legacy Builder action retirement"],
   "blockers": ["Independent verification required","One unrelated killed-worker recovery test remains failing","Builder projection unavailable under Python 3.9"],
-  "invalidation_conditions": ["A future session changes e42657c7","The unrelated agent-council dirty files are claimed by this assignment"],
+  "invalidation_conditions": ["A future session changes e42657c7","The parallel agent-council changes in 56c2064e are claimed by this assignment"],
   "next_action": "Independently review e42657c7, then decide whether to open a PR",
   "parallel_work": [
-    {"kind":"worktree_dirty","ref":"unrelated agent-council edits","owner":"prior interactive session; preserve","touches":["scripts/agent_council.py","tests/test_agent_council.py"],"observed_at":"2026-08-11T01:05:00Z"}
+    {"kind":"parallel_commit","ref":"agent-council changes included in 56c2064e","owner":"prior interactive session; not independently reviewed here","touches":["scripts/agent_council.py","tests/test_agent_council.py"],"observed_at":"2026-08-11T01:07:00Z"}
   ],
   "recommendations": [],
   "pull_request": null
@@ -33,7 +33,7 @@
 - HEAD: `e42657c7` (`refactor: consolidate Kitty Builder control boundary`).
 - No PR exists for this commit.
 - The local branch currently reports its tracked origin branch as `[gone]`.
-- The committed Builder slice is clean; only unrelated agent-council edits remain dirty.
+- The worktree is clean. Commit `56c2064e` also contains parallel agent-council changes not independently reviewed here.
 - Independent verification is outstanding; Builder projection is unavailable under Python 3.9.
 
 ## Recommendations

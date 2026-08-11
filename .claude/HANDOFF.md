@@ -22,11 +22,11 @@
   ],
   "invalidation_conditions": [
     "A future session changes commit e42657c7",
-    "The unrelated agent-council dirty files are claimed by this assignment"
+    "The parallel agent-council changes in 56c2064e are claimed by this assignment"
   ],
   "next_action": "Independently review e42657c7, then decide whether to open a PR",
   "parallel_work": [
-    {"kind":"worktree_dirty","ref":"unrelated agent-council edits","owner":"prior interactive session; preserve","touches":["scripts/agent_council.py","tests/test_agent_council.py"],"observed_at":"2026-08-11T01:05:00Z"}
+    {"kind":"parallel_commit","ref":"agent-council changes included in 56c2064e","owner":"prior interactive session; not independently reviewed here","touches":["scripts/agent_council.py","tests/test_agent_council.py"],"observed_at":"2026-08-11T01:07:00Z"}
   ],
   "recommendations": [],
   "pull_request": null,
@@ -40,7 +40,9 @@
 Committed `e42657c7` (`refactor: consolidate Kitty Builder control boundary`).
 The local branch currently reports its tracked origin branch as `[gone]`.
 The commit contains the Mission-to-Builder submission/routing seam and retires
-the unmounted `/builder/action` compatibility surface.
+the unmounted `/builder/action` compatibility surface. The follow-up handoff
+commit `56c2064e` also contains parallel agent-council changes that this
+session did not independently review.
 
 ## Verification
 
@@ -52,8 +54,9 @@ the unmounted `/builder/action` compatibility surface.
 
 ## Boundaries
 
-- Do not stage or discard unrelated edits in `scripts/agent_council.py` and
-  `tests/test_agent_council.py`.
+- The worktree is clean, but `scripts/agent_council.py` and
+  `tests/test_agent_council.py` in `56c2064e` belong to parallel prior work and
+  were not independently reviewed in this session.
 - Builder projection was unavailable under Python 3.9; treat it as unavailable,
   not empty.
 - The isolated publish test passed after restoring transient `.git/config`
