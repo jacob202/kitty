@@ -1,46 +1,43 @@
-# Handoff — agent council relay PR published
+# Handoff — agent council relay merged
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-11T00:51:56Z",
+  "updated_at": "2026-08-11T01:00:00Z",
   "branch": "feat/agent-council-relay",
   "worktree": "/Users/jacobbrizinski/Projects/kitty",
-  "status": "awaiting_review",
+  "status": "complete",
   "execution_owner": "interactive",
   "active_mission": "docs/ACTIVE_MISSION.md",
   "completed_items": [
     "Published PR #458 from origin/main at 9fc47974",
     "Added the relay, focused tests, canonical skill, and outcome contract",
-    "Verified all PR checks green"
+    "Verified all PR checks green",
+    "PR #458 merged at 7916d78c"
   ],
   "blockers": [
-    "Human adversarial review and merge remain outstanding",
     "Builder read-only projection is unavailable under local Python 3.9"
   ],
   "invalidation_conditions": [
-    "PR #458 head changes",
-    "Any required check becomes non-green",
-    "Human review rejects the worker permission boundary"
+    "A future session changes the merged PR history",
+    "The current dirty worktree is discovered to belong to this assignment"
   ],
-  "next_action": "Review PR #458 adversarially, then merge if accepted",
+  "next_action": "none",
   "parallel_work": [
-    {"kind":"worktree_dirty","ref":"gateway/routes/tool_server.py; tests/test_tool_server.py","owner":"unknown; preserve","touches":["gateway/routes/tool_server.py","tests/test_tool_server.py"],"observed_at":"2026-08-11T00:43:26Z"},
+    {"kind":"worktree_dirty","ref":"concurrent edits and deletions across config, gateway, scripts, tests, and docs","owner":"unknown; preserve","touches":["config/action_tiers.json","gateway/action_queue.py","gateway/builder_initiative.py","gateway/builder_loop.py","gateway/routes/builder_control.py","gateway/routes/tool_server.py","scripts/agent_council.py","tests/test_agent_council.py","tests/test_architecture_fitness.py","tests/test_builder_control_actions.py","tests/test_builder_initiative.py","tests/test_builder_run.py","tests/test_tool_server.py","docs/session-notes/2026-08-10-builder-action-retirement-contract.md"],"observed_at":"2026-08-11T01:00:00Z"},
     {"kind":"pull_request","ref":"#457","owner":"other session","touches":["scripts","tests"],"observed_at":"2026-08-11T00:43:26Z"}
   ],
-  "recommendations": [
-    {"id":"review-merge-pr-458","what":"Review and merge PR #458","why":"The relay is implemented and all required CI checks pass; only human boundary review remains.","class":"code","status":"ready","blocked_by":null,"release_check":null,"deferred_count":0,"first_deferred":null}
-  ],
-  "pull_request": {"number":458,"state":"OPEN","head_sha":"165862c2c8ab8e86e50f8271d3c3ebef78abdf4f"},
-  "head_sha": "165862c2c8ab8e86e50f8271d3c3ebef78abdf4f",
+  "recommendations": [],
+  "pull_request": null,
+  "head_sha": "7ec0bd92803530bb423813ed1f3c5fffd5b2ed21",
   "kb_receipt": "kbr_b38d6f9f532ed6569630"
 }
 -->
 
 ## Outcome
 
-PR [#458](https://github.com/jacob202/kitty/pull/458) is open from
-`feat/agent-council-relay` at `165862c2`. It adds the bounded read-only agent
+PR [#458](https://github.com/jacob202/kitty/pull/458) merged at
+`7916d78c`. It added the bounded read-only agent
 council relay, focused tests, the canonical `.agents/skills/agent-council/`
 skill, and its outcome contract.
 
@@ -65,9 +62,8 @@ skill, and its outcome contract.
 
 ## Next action
 
-Perform human adversarial review of PR #458, focusing on worker command
-construction, read-only enforcement, timeout behavior, and the Claude fallback.
-Merge only after that review accepts the boundary.
+No action remains for this assignment. A future session must first isolate and
+classify the concurrent dirty worktree before touching any overlapping paths.
 
 ## Session records
 
