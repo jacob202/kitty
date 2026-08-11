@@ -25,7 +25,8 @@ Explicitly out of scope:
 
 `config.py` loads only Command Center settings and never logs secret values.
 `workspace.py` creates/reaps one detached disposable git worktree per run and returns an explicit diff audit.
-`adapters/codex.py` owns strict argv construction for `codex exec --ephemeral --sandbox read-only --json`.
+`adapters/codex.py` owns strict argv construction for an advisory read-only Codex run. Codex user config is ignored; its internal sandbox is disabled because nested macOS sandboxes prevent its app-server/shell from starting. The outer `sandbox-exec` profile is the OS write boundary.
+The adapter also disables Codex apps, plugins, browser/computer use, image generation, and multi-agent features for this Phase 0 local-inspection path.
 `runner.py` owns bounded `asyncio.create_subprocess_exec` execution, environment allow-listing, output truncation, and optional macOS `sandbox-exec` containment.
 `service.py` composes workspace + runner and makes a non-empty readonly diff a loud `readonly_violation`; violating worktrees are preserved.
 `bot.py` is thin Discord wiring: defer first, create private thread, run service, post milestones.
@@ -33,12 +34,12 @@ Explicitly out of scope:
 ## Safety
 
 - No shell invocation; all child commands are argv arrays.
-- Codex read-only is advisory, not trusted as the proof.
+- Codex read-only is advisory, not trusted as the proof. The prompt forbids mutation, while the outer macOS sandbox prevents writes outside the worktree and the post-run audit detects writes inside it.
 - Every run occurs in a disposable git worktree.
-- `sandbox-exec` denies writes outside the run worktree while allowing required system reads/network.
+- `sandbox-exec` denies writes outside the run worktree while allowing `/dev/null`, required system reads, and network. A macOS behavioral test proves inside-write/outside-deny semantics.
 - Post-run `git status --porcelain` is authoritative for mutation detection.
 - Clean run worktrees are removed; violating worktrees are preserved and named in the local log only.
-- Child environment is an allow-list plus required process basics; Discord token is never passed to Codex.
+- Child environment is an allow-list plus required process basics; Discord token is never passed to Codex. Codex HOME/state is disposable inside the worktree and removed before the git audit; only the existing auth file is linked read-only for startup.
 - Default run timeout is 900 seconds; termination escalates from terminate to kill.
 
 ## Verification

@@ -40,10 +40,10 @@
 - `SubprocessRunner.stream(command, cwd, env, timeout) -> AsyncIterator[ProgressEvent]`.
 - `VibeService.run(request) -> AsyncIterator[ProgressEvent]` ending in one terminal event.
 
-- [ ] Write tests for strict Codex argv, secret-free child env, diff auditing, clean cleanup, and violation preservation.
-- [ ] Run the focused test file and verify RED failures are caused by missing Command Center modules.
-- [ ] Implement the minimum core modules to satisfy those tests.
-- [ ] Re-run the focused tests and keep them green before moving on.
+- [x] Write tests for strict Codex argv, secret-free child env, diff auditing, clean cleanup, and violation preservation.
+- [x] Run the focused test file and verify RED failures are caused by missing Command Center modules.
+- [x] Implement the minimum core modules to satisfy those tests.
+- [x] Re-run the focused tests and keep them green before moving on.
 
 ### Task 2: Thin Discord `/vibe` wiring
 
@@ -55,10 +55,10 @@
 - `VibeController.handle(interaction, request) -> None` defers before invoking `VibeService`.
 - `create_bot(config) -> discord.Client` registers one guild-scoped `/vibe` command when a guild ID is configured.
 
-- [ ] Add a fake-interaction test proving `defer()` is the first externally visible action and progress goes to the created thread.
-- [ ] Run the focused test and verify the new test fails for missing Discord wiring.
-- [ ] Implement the thin controller/bot without putting execution policy in Discord callbacks.
-- [ ] Re-run focused tests.
+- [x] Add a fake-interaction test proving `defer()` is the first externally visible action and progress goes to the created thread.
+- [x] Run the focused test and verify the new test fails for missing Discord wiring.
+- [x] Implement the thin controller/bot without putting execution policy in Discord callbacks.
+- [x] Re-run focused tests.
 
 ### Task 3: Local smoke and operator runbook
 
@@ -71,9 +71,9 @@
 **Interfaces:**
 - `python -m integrations.discord_command_center.smoke --repo <path>` performs one bounded local Codex readonly run and reports the audit result without requiring Discord.
 
-- [ ] Add smoke argument/format tests without a live model call.
-- [ ] Implement the smoke entry point and concise onboarding/run commands.
-- [ ] Run focused tests, ruff on new Python files, and mypy on the integration package if compatible.
-- [ ] Run one real local Codex smoke; require clean diff audit.
-- [ ] Inspect `git diff --name-only` and prove no Builder-owned paths changed.
+- [x] Add smoke argument/format tests without a live model call.
+- [x] Implement the smoke entry point and concise onboarding/run commands.
+- [x] Run focused tests, ruff on new Python files, and mypy on the integration package.
+- [x] Run one real local Codex smoke; clean diff audit observed.
+- [x] Inspect changed paths and prove no Builder-owned paths changed.
 - [ ] Commit the verified Phase 0 implementation on the isolated branch.
