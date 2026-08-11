@@ -34,6 +34,9 @@ class Worker:
     name: str
     command: tuple[str, ...]
     environment: dict[str, str] | None = None
+    healthcheck_command: tuple[str, ...] | None = None
+    healthcheck_timeout: int | None = None
+    healthcheck_label: str | None = None
     fallback_command: tuple[str, ...] | None = None
     fallback_environment: dict[str, str] | None = None
     fallback_label: str | None = None
@@ -52,13 +55,16 @@ def build_workers(repo: Path, prompt: str) -> tuple[Worker, ...]:
     instruction = (
         "You are a read-only member of an agent council. Do not edit files, "
         "run mutating commands, publish anything, contact external services, "
-        "or spend money. Analyze the request independently and return concise "
-        "evidence, risks, and a recommendation.\n\nREQUEST:\n" + prompt
+        "or spend money. Analyze the request independently. Return at most "
+        "three bullet points and one final recommendation sentence. Do not "
+        "use tools. Do not think aloud. If required evidence is unavailable "
+        "to you, say that plainly.\n\nREQUEST:\n" + prompt
     )
     codex_model = os.environ.get("COUNCIL_CODEX_MODEL", "gpt-5.4-mini")
     opencode_model = os.environ.get(
         "COUNCIL_OPENCODE_MODEL", "opencode/deepseek-v4-flash-free"
     )
+    opencode_variant = os.environ.get("COUNCIL_OPENCODE_VARIANT", "minimal")
     claude_model = os.environ.get("COUNCIL_CLAUDE_MODEL")
     claude_fallback_model = os.environ.get(
         "COUNCIL_CLAUDE_FALLBACK_MODEL", DEFAULT_CLAUDE_FALLBACK_MODEL
@@ -98,6 +104,8 @@ def build_workers(repo: Path, prompt: str) -> tuple[Worker, ...]:
         str(repo),
         instruction,
     ]
+    if opencode_variant:
+        opencode[5:5] = ["--variant", opencode_variant]
     opencode_environment = {
         "OPENCODE_CONFIG_CONTENT": json.dumps(
             {
@@ -122,11 +130,18 @@ def build_workers(repo: Path, prompt: str) -> tuple[Worker, ...]:
             str(repo),
             instruction,
         )
+        if opencode_variant:
+            fallback_parts = list(claude_fallback)
+            fallback_parts[5:5] = ["--variant", opencode_variant]
+            claude_fallback = tuple(fallback_parts)
     return (
         Worker("Codex", tuple(codex)),
         Worker(
             "Claude",
             tuple(claude),
+            healthcheck_command=(_executable(DEFAULT_CLAUDE, "claude"), "--version"),
+            healthcheck_timeout=5,
+            healthcheck_label="Claude CLI version probe",
             fallback_command=claude_fallback,
             fallback_environment=opencode_environment if claude_fallback else None,
             fallback_label=(
@@ -169,13 +184,40 @@ def _run_command(
 def run_worker(worker: Worker, timeout: int, dry_run: bool) -> str:
     if dry_run:
         lines = [f"$ {' '.join(worker.command)}"]
+        if (
+            worker.healthcheck_command
+            and worker.healthcheck_timeout
+            and worker.healthcheck_label
+        ):
+            lines.append(
+                "Health check "
+                f"({worker.healthcheck_label}, {worker.healthcheck_timeout}s): "
+                f"$ {' '.join(worker.healthcheck_command)}"
+            )
         if worker.fallback_command and worker.fallback_label:
             lines.append(
                 f"Fallback ({worker.fallback_label}): $ {' '.join(worker.fallback_command)}"
             )
         return "\n".join(lines)
 
-    primary = _run_command(worker.command, timeout, worker.environment)
+    if worker.healthcheck_command and worker.healthcheck_timeout:
+        healthcheck = _run_command(
+            worker.healthcheck_command,
+            worker.healthcheck_timeout,
+            worker.environment,
+        )
+        if not healthcheck.ok:
+            primary = CommandResult(
+                False,
+                "ERROR: "
+                f"{worker.healthcheck_label or 'worker health check'} failed before request execution.\n"
+                f"{healthcheck.output}",
+            )
+        else:
+            primary = _run_command(worker.command, timeout, worker.environment)
+    else:
+        primary = _run_command(worker.command, timeout, worker.environment)
+
     if primary.ok or not worker.fallback_command or not worker.fallback_label:
         return primary.output
 

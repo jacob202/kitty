@@ -38,6 +38,7 @@
 ## Outcome
 
 Committed `e42657c7` (`refactor: consolidate Kitty Builder control boundary`).
+The local branch currently reports its tracked origin branch as `[gone]`.
 The commit contains the Mission-to-Builder submission/routing seam and retires
 the unmounted `/builder/action` compatibility surface.
 

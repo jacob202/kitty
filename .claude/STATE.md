@@ -32,6 +32,7 @@
 - Branch: `feat/agent-council-relay`
 - HEAD: `e42657c7` (`refactor: consolidate Kitty Builder control boundary`).
 - No PR exists for this commit.
+- The local branch currently reports its tracked origin branch as `[gone]`.
 - The committed Builder slice is clean; only unrelated agent-council edits remain dirty.
 - Independent verification is outstanding; Builder projection is unavailable under Python 3.9.
 
