@@ -34,6 +34,28 @@ def test_production_mount_exposes_one_canonical_builder_command_boundary():
     assert "/builder/action" not in paths
 
 
+def test_legacy_builder_action_adapter_is_retired():
+    """The retired route must not survive as an unmounted compatibility path."""
+    repo_root = Path(__file__).parents[1]
+    assert not (repo_root / "gateway" / "routes" / "builder_control.py").exists()
+
+    action_queue_source = (repo_root / "gateway" / "action_queue.py").read_text(
+        encoding="utf-8"
+    )
+    tiers_source = (repo_root / "config" / "action_tiers.json").read_text(
+        encoding="utf-8"
+    )
+    for kind in (
+        "builder.run_next",
+        "builder.pause_initiative",
+        "builder.resume_initiative",
+        "builder.cancel_task",
+        "builder.cleanup",
+    ):
+        assert kind not in action_queue_source
+        assert kind not in tiers_source
+
+
 def test_approved_mission_is_the_durable_idempotent_handoff(tmp_path: Path):
     """Mission submission materializes Builder state without duplicate tasks."""
     db_path = tmp_path / "builder_queue.db"

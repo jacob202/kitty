@@ -16,7 +16,8 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, Field
 
-from gateway.paths import BUILDER_QUEUE_DB
+from gateway.models.builder import Mission
+from gateway.paths import BUILDER_QUEUE_DB, PROJECT_ROOT
 
 logger = logging.getLogger("kitty.tool_server")
 
@@ -215,6 +216,64 @@ def builder_status() -> dict:
         "needs_attention": attention[:_TOOL_RESULT_LIMIT],
         "needs_attention_total": len(attention),
     }
+
+
+@router.post(
+    "/builder/mission",
+    operation_id="submit_builder_mission",
+    summary="Submit an approved Mission to KittyBuilder",
+)
+def submit_builder_mission(body: Mission) -> dict:
+    """Materialize Kitty's approved Mission through Builder's durable boundary."""
+    from gateway.builder_initiative import (
+        BaseSHAResolutionError,
+        InitiativeConflictError,
+        ManifestError,
+        MissionSubmissionError,
+        submit_mission,
+    )
+
+    try:
+        return submit_mission(
+            body,
+            db_path=BUILDER_QUEUE_DB,
+            repo_root=PROJECT_ROOT,
+        )
+    except (MissionSubmissionError, ManifestError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except InitiativeConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except BaseSHAResolutionError as exc:
+        raise HTTPException(status_code=503, detail=f"Builder unavailable: {exc}") from exc
+
+
+@router.get(
+    "/builder/mission/{mission_id}",
+    operation_id="builder_mission_result",
+    summary="Read a Mission's durable Builder result and evidence",
+)
+def builder_mission_result(mission_id: str) -> dict:
+    """Return Builder's read-only projection for one Mission/initiative."""
+    from gateway.builder_status_readonly import build_status_snapshot_readonly
+
+    try:
+        snapshot = build_status_snapshot_readonly(db_path=BUILDER_QUEUE_DB)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=f"Builder unavailable: {exc}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Builder read failed: {exc}") from exc
+
+    initiative = next(
+        (
+            item
+            for item in snapshot.get("initiatives", [])
+            if item.get("initiative_id") == mission_id
+        ),
+        None,
+    )
+    if initiative is None:
+        raise HTTPException(status_code=404, detail=f"Mission {mission_id!r} was not found")
+    return {"mission_id": mission_id, "result": initiative}
 
 
 def _tool_server_spec(server_url: str) -> dict:

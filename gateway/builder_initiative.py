@@ -68,7 +68,8 @@ _PACKET_KEYS = frozenset(
     }
 )
 _MAX_VALIDATION_COMMANDS = 20
-_POLICY_KEYS = frozenset({"max_attempts", "priority"})
+_POLICY_KEYS = frozenset({"max_attempts", "priority", "routing"})
+_ROUTING_POLICY_KEYS = frozenset({"model", "provider"})
 
 # bridge_source for tasks materialized from initiative packets.
 BRIDGE_SOURCE = "initiative"
@@ -297,6 +298,21 @@ def _validate_policy(policy: Any, label: str, errors: list[str]) -> None:
         errors.append(f"{label}: policy.max_attempts must be an integer >= 1")
     if "priority" in policy and not _is_int(policy["priority"]):
         errors.append(f"{label}: policy.priority must be an integer")
+    routing = policy.get("routing")
+    if routing is not None:
+        if not isinstance(routing, dict):
+            errors.append(f"{label}: policy.routing must be a JSON object")
+        else:
+            unknown_routing = set(routing) - _ROUTING_POLICY_KEYS
+            if unknown_routing:
+                errors.append(
+                    f"{label}: unknown routing keys: {sorted(unknown_routing)}"
+                )
+            for key in _ROUTING_POLICY_KEYS & set(routing):
+                if not isinstance(routing[key], str) or not routing[key].strip():
+                    errors.append(
+                        f"{label}: policy.routing.{key} must be a non-empty string"
+                    )
 
 
 def validate_manifest(manifest: Any) -> list[str]:
@@ -695,9 +711,9 @@ def mission_to_manifest(mission: Mission) -> dict[str, Any]:
     """Project one approved, bounded Mission into the canonical manifest.
 
     The current Mission schema describes one executable packet at this
-    boundary. Fields that would change routing, evidence, or execution shape
-    are rejected instead of being silently discarded; Kitty can add a richer
-    packet authoring contract later without making this adapter ambiguous.
+    boundary. Unsupported fields are rejected instead of being silently
+    discarded; the supported model/provider routing policy is persisted with
+    the packet so Builder can enforce it at dispatch time.
     """
     if mission.state not in (MissionState.approved, MissionState.accepted):
         raise MissionSubmissionError(
@@ -723,8 +739,12 @@ def mission_to_manifest(mission: Mission) -> dict[str, Any]:
         unsupported.append("execution.forbidden_operations")
     if execution.worker_constraints:
         unsupported.append("execution.worker_constraints")
-    if execution.routing_policy:
-        unsupported.append("execution.routing_policy")
+    routing_policy = dict(execution.routing_policy)
+    unknown_routing = set(routing_policy) - _ROUTING_POLICY_KEYS
+    if unknown_routing:
+        unsupported.append(
+            "execution.routing_policy keys: " + ", ".join(sorted(unknown_routing))
+        )
     if budgets.max_time_seconds != 3600:
         unsupported.append("budgets.max_time_seconds")
     if budgets.max_tokens is not None:
@@ -759,6 +779,10 @@ def mission_to_manifest(mission: Mission) -> dict[str, Any]:
         if criterion.validation_command and criterion.validation_command not in validation_commands:
             validation_commands.append(criterion.validation_command)
 
+    policy: dict[str, Any] = {"max_attempts": budgets.max_attempts}
+    if routing_policy:
+        policy["routing"] = routing_policy
+
     return {
         "manifest_version": MANIFEST_VERSION,
         "initiative_id": mission.mission_id,
@@ -772,7 +796,7 @@ def mission_to_manifest(mission: Mission) -> dict[str, Any]:
                 "depends_on": [],
                 "acceptance_criteria": acceptance_criteria,
                 "allowed_paths": allowed_paths,
-                "policy": {"max_attempts": budgets.max_attempts},
+                "policy": policy,
                 "validation_commands": validation_commands,
             }
         ],
@@ -795,6 +819,35 @@ def submit_mission(
         repo_root=repo_root,
         base_sha=mission.origin.base_sha,
     )
+
+
+def resolve_packet_routing(
+    initiative_id: str,
+    packet_id: str,
+    *,
+    model: str | None,
+    provider: str | None,
+    db_path: Path | None = None,
+) -> tuple[str | None, str | None]:
+    """Resolve model/provider from durable packet policy without overrides."""
+    initiative = get_initiative(initiative_id, db_path=db_path)
+    if initiative is None:
+        raise InitiativeNotFoundError(initiative_id)
+    packet = next(
+        (item for item in initiative["packets"] if item["packet_id"] == packet_id),
+        None,
+    )
+    if packet is None:
+        raise InitiativeNotFoundError(f"{initiative_id}/{packet_id}")
+    routing = (packet.get("policy") or {}).get("routing") or {}
+    for key, requested in (("model", model), ("provider", provider)):
+        configured = routing.get(key)
+        if configured is not None and requested is not None and configured != requested:
+            raise MissionSubmissionError(
+                f"{initiative_id}/{packet_id} routing policy fixes {key}={configured!r}; "
+                f"requested override {requested!r} is not allowed"
+            )
+    return routing.get("model", model), routing.get("provider", provider)
 
 
 def apply_manifest(
