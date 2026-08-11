@@ -726,3 +726,43 @@ def test_sandbox_profile_denies_symlink_write_escape(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert outside.read_text() == "safe\n"
+
+
+def test_secret_scrubber_redacts_named_secret_assignments() -> None:
+    from integrations.discord_command_center.scrub import SecretScrubber
+
+    scrubbed = SecretScrubber().scrub(
+        "repo secret: INTERNAL_DB_PASSWORD=hunter2-longer Authorization: Bearer abcdefghijklmnop"
+    )
+
+    assert "hunter2-longer" not in scrubbed
+    assert "abcdefghijklmnop" not in scrubbed
+    assert "INTERNAL_DB_PASSWORD=[REDACTED]" in scrubbed
+    assert "Authorization: [REDACTED]" in scrubbed
+
+
+class _NamedSecretOutputService:
+    async def run(self, request: str):
+        yield ProgressEvent(
+            kind="progress",
+            message="repo secret: INTERNAL_DB_PASSWORD=hunter2-longer",
+        )
+        yield ProgressEvent(kind="done", message="audit clean")
+
+
+def test_vibe_dlp_blocks_named_repository_secret_from_thread() -> None:
+    from integrations.discord_command_center.scrub import SecretScrubber
+
+    log: list[str] = []
+    interaction = _Interaction(log)
+    controller = VibeController(
+        _NamedSecretOutputService(),
+        scrubber=SecretScrubber(),
+        status_interval_seconds=0,
+    )
+
+    asyncio.run(controller.handle(interaction, "inspect repo"))
+
+    rendered = "\n".join(interaction.thread.messages + interaction.thread.edit_history)
+    assert "hunter2-longer" not in rendered
+    assert "INTERNAL_DB_PASSWORD=[REDACTED]" in rendered

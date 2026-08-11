@@ -10,6 +10,15 @@ _TOKEN_PATTERNS = (
     re.compile(r"\bgh[pousr]_[A-Za-z0-9]{16,}\b"),
     re.compile(r"\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}\b"),
 )
+_SECRET_ASSIGNMENT = re.compile(
+    r"\b([A-Za-z][A-Za-z0-9_]*(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL)[A-Za-z0-9_]*)"
+    r"(\s*=\s*)([^\s'\";]+)",
+    re.IGNORECASE,
+)
+_AUTHORIZATION_BEARER = re.compile(
+    r"\b(Authorization:)\s*Bearer\s+[^\s,;]+",
+    re.IGNORECASE,
+)
 
 
 class SecretScrubber:
@@ -32,6 +41,10 @@ class SecretScrubber:
         scrubbed = text
         for value in self.secret_values:
             scrubbed = scrubbed.replace(value, "[REDACTED]")
+        scrubbed = _SECRET_ASSIGNMENT.sub(
+            lambda match: f"{match.group(1)}{match.group(2)}[REDACTED]", scrubbed
+        )
+        scrubbed = _AUTHORIZATION_BEARER.sub(r"\1 [REDACTED]", scrubbed)
         for pattern in _TOKEN_PATTERNS:
             scrubbed = pattern.sub("[REDACTED]", scrubbed)
         return scrubbed
