@@ -1,9 +1,9 @@
-# Kitty Version 2 — Master Roadmap
+# Version 2 Milestone Detail — appendix to ROADMAP.md
 
 **Status:** Ratified target plan — accepted architecture, not execution schedule. Ratified by the Constitution v1 ratification table (2026-08-05). ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 5 governs the relationship with `docs/ROADMAP.md` (active authority).
 **Date:** 2026-08-05
 **Owner:** Jacob (authorization); Kitty (planning); KittyBuilder (execution)
-**Relation to current docs:** this is the Version 2 target plan. `docs/ROADMAP.md` remains the active execution authority (ADR 0020). This doc sequences V2 delivery as releasable milestones (M1–M6).
+**Relation to current docs:** [`ROADMAP.md`](ROADMAP.md) is the only roadmap. It names milestones M1–M6; this file is the detail behind them — objectives, packet catalog, and Builder initiative mapping. It is an appendix, never an alternative order to choose between (ADR 0020).
 
 ---
 

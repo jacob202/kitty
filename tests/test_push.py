@@ -11,6 +11,23 @@ def _clear_log(monkeypatch, tmp_path):
     monkeypatch.setattr(push, "PUSH_LOG_FILE", tmp_path / "push_log.jsonl")
 
 
+def _freeze_clock(monkeypatch, when: datetime):
+    """Pin push's wall clock.
+
+    `_in_quiet_hours` compares `start <= now < end`, so no literal window covers
+    a full day -- "00:00-23:59" leaves 23:59:00-23:59:59 outside it. Tests that
+    relied on that window passed 1439 minutes out of 1440 and reddened main on
+    the one, which is exactly when Jacob pushes.
+    """
+
+    class _FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return when
+
+    monkeypatch.setattr(push, "datetime", _FrozenDatetime)
+
+
 class TestChannels:
     def test_default_channel_order(self, monkeypatch):
         monkeypatch.delenv("PUSH_CHANNELS", raising=False)
@@ -107,8 +124,9 @@ class TestPushToJacob:
 
     def test_quiet_hours_defers_info_and_does_not_touch_channels(self, monkeypatch, tmp_path):
         _clear_log(monkeypatch, tmp_path)
+        _freeze_clock(monkeypatch, datetime(2026, 1, 1, 2, 0))
         profile = tmp_path / "user_profile.json"
-        profile.write_text('{"quiet_hours": "00:00-23:59"}', encoding="utf-8")
+        profile.write_text('{"quiet_hours": "23:00-08:00"}', encoding="utf-8")
         monkeypatch.setattr(push, "USER_PROFILE_PATH", profile)
         called = []
         with patch.dict(push._SENDERS, {"imessage": lambda *_: called.append(1) or True}):
@@ -119,8 +137,9 @@ class TestPushToJacob:
     def test_quiet_hours_does_not_defer_alert(self, monkeypatch, tmp_path):
         _clear_log(monkeypatch, tmp_path)
         monkeypatch.setenv("PUSH_CHANNELS", "imessage")
+        _freeze_clock(monkeypatch, datetime(2026, 1, 1, 2, 0))
         profile = tmp_path / "user_profile.json"
-        profile.write_text('{"quiet_hours": "00:00-23:59"}', encoding="utf-8")
+        profile.write_text('{"quiet_hours": "23:00-08:00"}', encoding="utf-8")
         monkeypatch.setattr(push, "USER_PROFILE_PATH", profile)
         with patch.dict(push._SENDERS, {"imessage": lambda *_: True}):
             assert push.push_to_jacob("wake up", kind="alert") is True
