@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import re
+import signal
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
@@ -32,6 +33,34 @@ class PublishError(RuntimeError):
     """Raised when a publish precondition fails or git/gh return an error."""
 
 
+DEFAULT_COMMAND_TIMEOUT_SECONDS = 120
+GIT_PUSH_TIMEOUT_SECONDS = 600
+COMMAND_KILL_GRACE_SECONDS = 5
+
+
+def _command_timeout_seconds(args: list[str]) -> int:
+    if len(args) >= 2 and args[0] == "git" and args[1] == "push":
+        return GIT_PUSH_TIMEOUT_SECONDS
+    return DEFAULT_COMMAND_TIMEOUT_SECONDS
+
+
+def _stop_process_group(proc: subprocess.Popen[str]) -> None:
+    if proc.poll() is not None:
+        return
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        proc.wait(timeout=COMMAND_KILL_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+
+
 def _default_run(
     args: list[str],
     *,
@@ -43,20 +72,31 @@ def _default_run(
     # worker process (repo AGENTS.md requirement).
     env.pop("GITHUB_TOKEN", None)
     env.pop("GH_TOKEN", None)
+    timeout = _command_timeout_seconds(args)
     try:
-        return subprocess.run(
+        proc = subprocess.Popen(
             args,
             cwd=str(cwd) if cwd is not None else None,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            check=check,
-            timeout=120,
             env=env,
+            start_new_session=True,
         )
-    except subprocess.TimeoutExpired as exc:
-        raise PublishError(f"command timed out after 120s: {args!r}") from exc
     except OSError as exc:
         raise PublishError(f"command failed to launch {args!r}: {exc}") from exc
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        _stop_process_group(proc)
+        stdout, stderr = proc.communicate()
+        raise PublishError(f"command timed out after {timeout}s: {args!r}") from exc
+    result = subprocess.CompletedProcess(args, proc.returncode, stdout, stderr)
+    if check and result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            result.returncode, args, output=stdout, stderr=stderr
+        )
+    return result
 
 
 def _require_task(task_id: str, db_path: Path | None) -> dict[str, Any]:
