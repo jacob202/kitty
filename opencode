@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+args = sys.argv
+model = args[args.index("--model") + 1] if "--model" in args else ""
+model_log = os.environ.get("FAKE_OPENCODE_MODEL_LOG", "")
+if model_log:
+    Path(model_log).write_text(model, encoding="utf-8")
+fail_models = set(
+    filter(None, os.environ.get("FAKE_OPENCODE_FAIL_MODELS", "").split(","))
+)
+if model in fail_models:
+    if os.environ.get("FAKE_OPENCODE_FAIL_MUTATE"):
+        Path("partial-work.txt").write_text("partial\n", encoding="utf-8")
+    raise SystemExit(1)
+prompt = args[-1]
+match = re.search(r"[Ww]rite a JSON object to (.+?) with exactly", prompt)
+if not match:
+    raise SystemExit("prompt did not contain a contract output path")
+output = Path(match.group(1))
+if os.environ.get("FAKE_OPENCODE_MUTATE"):
+    Path("reviewer-mutated.txt").write_text("mutation\n", encoding="utf-8")
+if os.environ.get("FAKE_OPENCODE_CONTINUATION"):
+    continuation = Path(".omo/run-continuation/session.json")
+    continuation.parent.mkdir(parents=True, exist_ok=True)
+    continuation.write_text("runtime receipt\n", encoding="utf-8")
+if os.environ.get("FAKE_OPENCODE_IMPLEMENT_CHANGE"):
+    Path("implemented.txt").write_text("real change\n", encoding="utf-8")
+if os.environ.get("FAKE_OPENCODE_REVIEW"):
+    payload = {"contract_version": 1, "verdict": "approve", "summary": "ok"}
+else:
+    status = os.environ.get("FAKE_OPENCODE_STATUS", "completed")
+    payload = {"contract_version": 1, "status": status, "summary": "ok"}
+output.write_text(json.dumps(payload), encoding="utf-8")
