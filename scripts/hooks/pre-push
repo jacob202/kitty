@@ -26,13 +26,22 @@ say() { printf '%s\n' "$*" >&2; }
 
 # Fail loud rather than waving a push through on a half-built toolchain. A gate
 # that silently skips is worse than no gate: it reports success it never checked.
+COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+CANONICAL_ROOT="${ROOT_DIR}"
+if [[ -n "${COMMON_DIR}" && "$(basename "${COMMON_DIR}")" == ".git" ]]; then
+  CANONICAL_ROOT="$(dirname "${COMMON_DIR}")"
+fi
+
 PYTHON_BIN="${PYTHON_BIN:-${ROOT_DIR}/venv/bin/python}"
+if [[ ! -x "${PYTHON_BIN}" && -x "${CANONICAL_ROOT}/venv/bin/python" ]]; then
+  PYTHON_BIN="${CANONICAL_ROOT}/venv/bin/python"
+fi
 if [[ ! -x "${PYTHON_BIN}" ]]; then
   if command -v python3.12 >/dev/null 2>&1; then
     PYTHON_BIN="$(command -v python3.12)"
   else
     say "${RED}Push blocked — no Python to test with.${OFF}"
-    say "Looked for ./venv/bin/python and python3.12, found neither."
+    say "Looked for the worktree/canonical Kitty venv and python3.12, found none."
     say "Fix: python3.12 -m venv venv && ./venv/bin/pip install -r requirements.txt"
     exit 1
   fi
