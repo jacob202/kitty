@@ -10,6 +10,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 _worktree_root = Path(__file__).resolve().parents[2]
 if str(_worktree_root) not in sys.path:
     sys.path.insert(0, str(_worktree_root))
@@ -47,3 +49,11 @@ except ModuleNotFoundError:
 
     sys.modules["mcp.server"] = _server
     sys.modules["mcp.server.fastmcp"] = _fastmcp
+
+
+@pytest.fixture(autouse=True)
+def isolate_imagen_faces_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep optional face-model tests independent of the user's real face cache."""
+    from mcp.imagen.config import settings
+
+    monkeypatch.setattr(settings, "faces_dir", tmp_path / "faces")

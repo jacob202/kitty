@@ -76,7 +76,10 @@ def test_face_match_import_error_falls_back():
     ref_dir.mkdir(parents=True, exist_ok=True)
     (ref_dir / "ref.png").write_bytes(b"fake-png")
 
-    with patch("mcp.imagen.verify.log.warning") as mock_warn:
+    with (
+        patch("importlib.util.find_spec", return_value=None),
+        patch("mcp.imagen.verify.log.warning") as mock_warn,
+    ):
         result = score_face_match(b"not-a-real-png", cfg)
         assert result == 1.0
         mock_warn.assert_called_once()
