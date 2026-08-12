@@ -61,22 +61,27 @@ def test_face_match_no_cfg():
     assert score_face_match(b"test", None) == 1.0
 
 
-def test_face_match_no_ref_dir():
+def test_face_match_no_ref_dir(tmp_path, monkeypatch):
     from mcp.imagen.verify import score_face_match
 
+    monkeypatch.setattr(settings, "faces_dir", tmp_path / "faces")
     cfg = {"character": "nobody", "threshold": 0.6}
     assert score_face_match(b"test", cfg) == 1.0
 
 
-def test_face_match_import_error_falls_back():
+def test_face_match_import_error_falls_back(tmp_path, monkeypatch):
     from mcp.imagen.verify import score_face_match
 
+    monkeypatch.setattr(settings, "faces_dir", tmp_path / "faces")
     cfg = {"character": "nobody", "threshold": 0.6}
     ref_dir = settings.faces_dir / "nobody"
     ref_dir.mkdir(parents=True, exist_ok=True)
     (ref_dir / "ref.png").write_bytes(b"fake-png")
 
-    with patch("mcp.imagen.verify.log.warning") as mock_warn:
+    with (
+        patch("importlib.util.find_spec", return_value=None),
+        patch("mcp.imagen.verify.log.warning") as mock_warn,
+    ):
         result = score_face_match(b"not-a-real-png", cfg)
         assert result == 1.0
         mock_warn.assert_called_once()
