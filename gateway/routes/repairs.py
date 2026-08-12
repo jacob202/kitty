@@ -278,10 +278,16 @@ async def dismiss_repair(body: dict):
             signal_id_str = repair_id.replace("signal-", "", 1)
             try:
                 signal_id = int(signal_id_str)
-                from gateway import signal_store
-                signal_store.mark_processed(signal_id)
-            except (ValueError, Exception):
-                pass
+            except ValueError as exc:
+                raise ValueError(
+                    f"signal repair id {repair_id!r} has a non-numeric signal id"
+                ) from exc
+            from gateway import signal_store
+
+            # Must not be swallowed: an unmarked signal reappears on the next
+            # poll, so a silently failed mark reports a dismissal that did not
+            # happen.
+            signal_store.mark_processed(signal_id)
 
         action = propose(
             source_kind="repairs",
