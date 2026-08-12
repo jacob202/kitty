@@ -635,6 +635,32 @@ def test_default_run_starts_command_in_own_process_group(monkeypatch):
 
 
 
+def test_default_run_strips_kitty_runtime_paths_from_publish_subprocess(monkeypatch):
+    seen: dict[str, Any] = {}
+
+    class FakeProcess:
+        returncode = 0
+
+        def communicate(self, *, timeout: float):
+            return "ok", ""
+
+    def fake_popen(args, **kwargs):
+        seen.update(kwargs)
+        return FakeProcess()
+
+    monkeypatch.setenv("KITTY_BUILDER_DATA_DIR", "/tmp/live-builder-data")
+    monkeypatch.setenv("KITTY_ROOT", "/tmp/control-checkout")
+    monkeypatch.setenv("KITTY_PROJECT_BASE", "/tmp/projects")
+    monkeypatch.setattr(bp.subprocess, "Popen", fake_popen)
+
+    bp._default_run(["git", "status"])
+
+    env = seen["env"]
+    assert "KITTY_BUILDER_DATA_DIR" not in env
+    assert "KITTY_ROOT" not in env
+    assert "KITTY_PROJECT_BASE" not in env
+
+
 def test_stop_process_group_kills_descendant_when_leader_exits_on_term(tmp_path: Path):
     child_pid = tmp_path / "child.pid"
     script = tmp_path / "leader-exits.sh"

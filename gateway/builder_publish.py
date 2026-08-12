@@ -79,6 +79,11 @@ def _default_run(
     # worker process (repo AGENTS.md requirement).
     env.pop("GITHUB_TOKEN", None)
     env.pop("GH_TOKEN", None)
+    # Publish subprocesses must not leak the caller's live Kitty checkout/data
+    # paths into git hooks. Hooks test the branch being pushed, not the
+    # operator's control checkout or live Builder database.
+    for key in ("KITTY_BUILDER_DATA_DIR", "KITTY_ROOT", "KITTY_PROJECT_BASE"):
+        env.pop(key, None)
     timeout = _command_timeout_seconds(args)
     try:
         proc = subprocess.Popen(
