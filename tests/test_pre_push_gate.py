@@ -118,3 +118,12 @@ def test_hook_clears_git_local_env_before_gates(hook_text):
     clear_marker = "git rev-parse --local-env-vars"
     assert clear_marker in hook_text, "pre-push leaks Git's local environment into pytest"
     assert hook_text.index(clear_marker) < hook_text.index('run_gate "code style"')
+
+
+def test_linked_worktree_uses_canonical_repo_venv_before_system_python(hook_text):
+    """Builder worktrees must use the canonical Kitty venv, matching CI deps."""
+    assert "--git-common-dir" in hook_text
+    assert "CANONICAL_ROOT" in hook_text
+    canonical_venv = '${CANONICAL_ROOT}/venv/bin/python'
+    assert canonical_venv in hook_text
+    assert hook_text.index(canonical_venv) < hook_text.index("python3.12")
