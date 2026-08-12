@@ -598,11 +598,16 @@ def test_stop_process_group_kills_descendant_when_leader_exits_on_term(tmp_path:
         assert child_pid.exists()
         pid = int(child_pid.read_text())
         bp._stop_process_group(proc)
-        state = subprocess.run(
-            ["ps", "-p", str(pid), "-o", "stat="],
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
+        state = ""
+        for _ in range(200):
+            state = subprocess.run(
+                ["ps", "-p", str(pid), "-o", "stat="],
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            if not state or state.startswith("Z"):
+                break
+            time.sleep(0.01)
         assert not state or state.startswith("Z"), state
     finally:
         try:
