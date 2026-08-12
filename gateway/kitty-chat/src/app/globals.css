@@ -142,7 +142,10 @@
 
 /* ── Typography ────────────────────────────────────────────── */
 :root {
-  /* --font-display / --font-body / --font-mono come from next/font in layout.tsx */
+  /* Local/system stacks keep production builds independent of external font CDNs. */
+  --font-display: "Avenir Next", Avenir, "Helvetica Neue", Arial, sans-serif;
+  --font-body: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --t-hero:    5rem;
   --t-display: 3rem;
   --t-h1:      2.25rem;
