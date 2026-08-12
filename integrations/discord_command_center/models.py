@@ -21,3 +21,4 @@ class ProgressEvent:
     message: str
     exit_code: int | None = None
     code: str | None = None
+    answer: str | None = None

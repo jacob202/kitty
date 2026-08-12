@@ -264,6 +264,15 @@ class _FakeService:
         yield ProgressEvent(kind="done", message="audit clean")
 
 
+class _AnswerService:
+    async def run(self, request: str):
+        yield ProgressEvent(
+            kind="done",
+            message="read-only diff audit clean",
+            answer="The repository purpose is documented in the root README.",
+        )
+
+
 def test_vibe_controller_defers_before_execution_and_posts_to_thread() -> None:
     log: list[str] = []
     interaction = _Interaction(log)
@@ -278,6 +287,17 @@ def test_vibe_controller_defers_before_execution_and_posts_to_thread() -> None:
     assert "COMPLETE" in posted
     assert "audit clean" in posted
     assert "message_edit" in log
+
+
+def test_vibe_controller_posts_worker_answer_with_terminal_evidence() -> None:
+    log: list[str] = []
+    interaction = _Interaction(log)
+
+    asyncio.run(VibeController(_AnswerService()).handle(interaction, "inspect repo"))
+
+    posted = "\n".join(interaction.thread.messages)
+    assert "The repository purpose is documented in the root README." in posted
+    assert "read-only diff audit clean" in posted
 
 
 def test_vibe_progress_updates_one_status_message_in_place() -> None:
@@ -407,6 +427,28 @@ class _ExplodingMutatingRunner:
         yield ProgressEvent(kind="progress", message="unreachable")
 
 
+class _AnswerRunner:
+    async def stream(self, command, *, cwd, environment, timeout_seconds):
+        yield ProgressEvent(
+            kind="progress",
+            message=(
+                '{"type":"item.completed","item":{"type":"agent_message",'
+                '"text":"final repository answer"}}'
+            ),
+        )
+        yield ProgressEvent(kind="process_exit", message="codex exited", exit_code=0)
+
+
+def test_service_carries_worker_answer_into_terminal_event(tmp_path: Path) -> None:
+    service, _ = _make_service(tmp_path, mutate=False)
+    service.runner = _AnswerRunner()
+
+    events = asyncio.run(_collect(service.run("inspect repo")))
+
+    assert events[-1].kind == "done"
+    assert events[-1].answer == "final repository answer"
+
+
 def test_mutation_takes_precedence_over_runner_error(tmp_path: Path) -> None:
     service, manager = _make_service(tmp_path, mutate=False)
     service.runner = _ExplodingMutatingRunner()
@@ -418,6 +460,22 @@ def test_mutation_takes_precedence_over_runner_error(tmp_path: Path) -> None:
     preserved = list(manager.run_root.glob("*"))
     assert len(preserved) == 1
     assert (preserved[0] / "mutation-before-crash.txt").exists()
+
+
+def test_unavailable_post_run_audit_fails_loud_and_preserves_worktree(tmp_path: Path) -> None:
+    service, manager = _make_service(tmp_path, mutate=False)
+
+    def fail_audit(path: Path):
+        raise RuntimeError("git metadata unavailable")
+
+    manager.audit = fail_audit  # type: ignore[method-assign]
+
+    events = asyncio.run(_collect(service.run("inspect repo")))
+
+    assert events[-1].kind == "failed"
+    assert events[-1].code == "audit_unavailable"
+    assert "post-run read-only audit unavailable" in events[-1].message
+    assert len(list(manager.run_root.glob("*"))) == 1
 
 
 def test_subprocess_runner_closes_worker_stdin(tmp_path: Path, monkeypatch) -> None:
@@ -461,6 +519,58 @@ def test_subprocess_runner_closes_worker_stdin(tmp_path: Path, monkeypatch) -> N
 
     assert events[-1].exit_code == 0
     assert captured["stdin"] == asyncio.subprocess.DEVNULL
+
+
+def test_subprocess_runner_timeout_covers_wait_after_stdout_closes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from integrations.discord_command_center.runner import SubprocessRunner
+
+    class _ClosedStdout:
+        async def readline(self) -> bytes:
+            return b""
+
+    class _Process:
+        stdout = _ClosedStdout()
+        returncode = None
+
+        def __init__(self) -> None:
+            self.terminated = False
+            self.killed = False
+
+        def terminate(self) -> None:
+            self.terminated = True
+
+        def kill(self) -> None:
+            self.killed = True
+
+        async def wait(self) -> int:
+            if self.terminated or self.killed:
+                self.returncode = -15 if self.terminated else -9
+                return self.returncode
+            await asyncio.Event().wait()
+            return 0
+
+    process = _Process()
+
+    async def fake_create(*args, **kwargs):
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create)
+    events = asyncio.run(
+        _collect(
+            SubprocessRunner(kill_grace_seconds=0.01).stream(
+                ("/bin/echo", "ok"),
+                cwd=tmp_path,
+                environment={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "TMPDIR": str(tmp_path)},
+                timeout_seconds=0.01,
+            )
+        )
+    )
+
+    assert process.terminated is True
+    assert events[-1].code == "timeout"
+    assert events[-1].exit_code == 124
 
 
 def test_subprocess_runner_timeout_terminates_worker(tmp_path: Path, monkeypatch) -> None:

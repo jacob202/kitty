@@ -31,13 +31,12 @@ def _status_card(state: str, detail: str) -> str:
     return prefix + _bounded_text(detail, DISCORD_MESSAGE_LIMIT - len(prefix))
 
 
-def _result_card(event_kind: str, message: str) -> str:
+def _result_card(event_kind: str, message: str, answer: str | None = None) -> str:
     label = "✅ **COMPLETE**" if event_kind == "done" else "❌ **FAILED**"
-    return (
-        f"{label}\n"
-        "**Worker:** Codex\n"
-        f"**Evidence:** {message}"
-    )
+    result = f"{label}\n**Worker:** Codex\n"
+    if answer:
+        result += f"**Result:** {answer}\n"
+    return result + f"**Evidence:** {message}"
 
 def split_discord_message(text: str, limit: int = DISCORD_MESSAGE_LIMIT) -> list[str]:
     if limit <= 0:
@@ -108,6 +107,7 @@ class VibeController:
         loop = asyncio.get_running_loop()
         async for event in self.service.run(safe_request):
             safe_message = self.scrubber.scrub(event.message)
+            safe_answer = self.scrubber.scrub(event.answer or "") or None
             if event.kind == "progress":
                 now = loop.time()
                 if (
@@ -122,7 +122,9 @@ class VibeController:
 
             terminal_state = "✅ **COMPLETE**" if event.kind == "done" else "❌ **FAILED**"
             await status_message.edit(content=_status_card(terminal_state, safe_message))
-            for chunk in split_discord_message(_result_card(event.kind, safe_message)):
+            for chunk in split_discord_message(
+                _result_card(event.kind, safe_message, safe_answer)
+            ):
                 await thread.send(chunk)
 
 

@@ -96,7 +96,27 @@ class SubprocessRunner:
                         kind="progress",
                         message=line.decode("utf-8", errors="replace").rstrip(),
                     )
-            exit_code = await process.wait()
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                await self._terminate(process)
+                yield ProgressEvent(
+                    kind="process_exit",
+                    message=f"codex timed out after {timeout_seconds}s",
+                    exit_code=124,
+                    code="timeout",
+                )
+                return
+            try:
+                exit_code = await asyncio.wait_for(process.wait(), timeout=remaining)
+            except TimeoutError:
+                await self._terminate(process)
+                yield ProgressEvent(
+                    kind="process_exit",
+                    message=f"codex timed out after {timeout_seconds}s",
+                    exit_code=124,
+                    code="timeout",
+                )
+                return
             yield ProgressEvent(
                 kind="process_exit",
                 message=f"codex exited with {exit_code}",

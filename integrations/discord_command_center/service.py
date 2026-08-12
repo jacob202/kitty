@@ -34,6 +34,7 @@ class VibeService:
         runtime = CodexRuntime(worktree, self.environment)
         exit_event: ProgressEvent | None = None
         runner_error: Exception | None = None
+        final_answer: str | None = None
         cancelled = False
 
         try:
@@ -56,6 +57,9 @@ class VibeService:
                     exit_event = event
                     continue
                 message = _format_codex_progress(event.message)
+                agent_answer = _extract_agent_answer(event.message)
+                if agent_answer:
+                    final_answer = agent_answer
                 if message:
                     yield ProgressEvent(kind="progress", message=message)
         except asyncio.CancelledError:
@@ -70,7 +74,18 @@ class VibeService:
                 if not audit.dirty:
                     self.workspace.remove(worktree)
 
-        audit = self.workspace.audit(worktree)
+        try:
+            audit = self.workspace.audit(worktree)
+        except Exception as exc:
+            yield ProgressEvent(
+                kind="failed",
+                code="audit_unavailable",
+                message=(
+                    "Command Center post-run read-only audit unavailable: "
+                    f"{type(exc).__name__}: {exc}; preserving worktree for inspection."
+                ),
+            )
+            return
         if audit.dirty:
             detail = ""
             if runner_error is not None:
@@ -102,7 +117,11 @@ class VibeService:
             return
 
         self.workspace.remove(worktree)
-        yield ProgressEvent(kind="done", message="Codex completed; read-only diff audit clean.")
+        yield ProgressEvent(
+            kind="done",
+            message="Codex completed; read-only diff audit clean.",
+            answer=final_answer,
+        )
 
 
 def _format_codex_progress(line: str) -> str | None:
@@ -118,10 +137,23 @@ def _format_codex_progress(line: str) -> str | None:
         item = payload.get("item") or {}
         item_type = item.get("type")
         if item_type == "agent_message":
-            return str(item.get("text") or "").strip() or None
+            return _extract_agent_answer(line)
         if item_type == "command_execution":
             return "Inspecting repository…"
     if event_type in {"error", "turn.failed"}:
         message = payload.get("message") or payload.get("error") or payload
         return f"Codex error: {message}"
     return None
+
+
+def _extract_agent_answer(line: str) -> str | None:
+    try:
+        payload = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if payload.get("type") != "item.completed":
+        return None
+    item = payload.get("item") or {}
+    if item.get("type") != "agent_message":
+        return None
+    return str(item.get("text") or "").strip() or None
