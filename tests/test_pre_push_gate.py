@@ -150,3 +150,10 @@ def test_linked_worktree_uses_canonical_repo_venv_before_system_python(hook_text
     canonical_venv = '${CANONICAL_ROOT}/venv/bin/python'
     assert canonical_venv in hook_text
     assert hook_text.index(canonical_venv) < hook_text.index("python3.12")
+
+
+def test_hook_clears_builder_data_dir_before_gates(hook_text):
+    """Builder-local DB routing must not leak into CI-parity tests."""
+    clear_marker = "unset KITTY_BUILDER_DATA_DIR"
+    assert clear_marker in hook_text, "pre-push leaks Builder's proof DB override into pytest"
+    assert hook_text.index(clear_marker) < hook_text.index('run_gate "code style"')

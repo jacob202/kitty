@@ -19,6 +19,11 @@ while IFS= read -r var; do
   [[ -n "${var}" ]] && unset "${var}"
 done < <(git rev-parse --local-env-vars)
 
+# Builder runs intentionally route queue state through a per-run data directory.
+# CI does not set that override, so scrub it before CI-parity gates; otherwise
+# tests observe the live proof database instead of their repository-local fixtures.
+unset KITTY_BUILDER_DATA_DIR
+
 RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; OFF=$'\033[0m'
 [[ -t 2 ]] || { RED=""; GREEN=""; YELLOW=""; DIM=""; OFF=""; }
 
