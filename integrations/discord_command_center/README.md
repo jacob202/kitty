@@ -38,6 +38,9 @@ Configure the bot at runtime; never commit its token:
 export COMMAND_CENTER_DISCORD_TOKEN='...'
 export COMMAND_CENTER_GUILD_ID='123456789012345678'
 export COMMAND_CENTER_WAR_ROOM_CHANNEL_ID='123456789012345678'  # optional in Phase 0
+export COMMAND_CENTER_ALLOWED_USER_IDS='123456789012345678'  # required; comma-separated
+# Or authorize a role instead of individual users:
+# export COMMAND_CENTER_ALLOWED_ROLE_IDS='123456789012345678'
 export COMMAND_CENTER_REPO="$HOME/Projects/kitty"
 export COMMAND_CENTER_CODEX_PATH='/Applications/ChatGPT.app/Contents/Resources/codex'
 export COMMAND_CENTER_CODEX_MODEL='gpt-5.4-mini'
@@ -45,6 +48,7 @@ export COMMAND_CENTER_CODEX_MODEL='gpt-5.4-mini'
 ```
 
 The Discord token is excluded from the Codex child environment. Outbound thread text is scrubbed for configured secret values and common OpenAI/GitHub/Discord token shapes.
+The bot fails closed unless at least one allowed user ID or role ID is configured; authorization is checked before creating a task thread or starting Codex.
 
 ## Current boundary to KittyBuilder
 

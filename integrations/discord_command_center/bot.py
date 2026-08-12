@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import Collection
 from typing import Any
 
 import discord
@@ -52,6 +53,8 @@ class VibeController:
         service: VibeService,
         *,
         war_room_channel_id: int | None = None,
+        allowed_user_ids: Collection[int] | None = None,
+        allowed_role_ids: Collection[int] | None = None,
         scrubber: SecretScrubber | None = None,
         status_interval_seconds: float = 2.0,
     ) -> None:
@@ -59,12 +62,19 @@ class VibeController:
             raise ValueError("status_interval_seconds must be non-negative")
         self.service = service
         self.war_room_channel_id = war_room_channel_id
+        self.allowed_user_ids = frozenset(allowed_user_ids) if allowed_user_ids is not None else None
+        self.allowed_role_ids = frozenset(allowed_role_ids) if allowed_role_ids is not None else None
         self.scrubber = scrubber or SecretScrubber.from_environment()
         self.status_interval_seconds = status_interval_seconds
 
     async def handle(self, interaction: Any, request: str) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
         safe_request = self.scrubber.scrub(request)
+        if not self._authorized(interaction):
+            await interaction.followup.send(
+                "You are not authorized to start Command Center tasks.", ephemeral=True
+            )
+            return
         channel = interaction.channel
         if channel is None or not hasattr(channel, "create_thread"):
             await interaction.followup.send(
@@ -127,6 +137,19 @@ class VibeController:
             ):
                 await thread.send(chunk)
 
+    def _authorized(self, interaction: Any) -> bool:
+        if self.allowed_user_ids is None and self.allowed_role_ids is None:
+            return True
+        user = getattr(interaction, "user", None)
+        user_id = getattr(user, "id", None)
+        if user_id in (self.allowed_user_ids or frozenset()):
+            return True
+        role_ids = {
+            getattr(role, "id", None)
+            for role in (getattr(user, "roles", ()) or ())
+        }
+        return bool(role_ids & (self.allowed_role_ids or frozenset()))
+
 
 def create_bot(config: CommandCenterConfig) -> commands.Bot:
     config.require_discord()
@@ -140,7 +163,12 @@ def create_bot(config: CommandCenterConfig) -> commands.Bot:
         timeout_seconds=config.run_timeout_seconds,
         environment=os.environ,
     )
-    controller = VibeController(service, war_room_channel_id=config.war_room_channel_id)
+    controller = VibeController(
+        service,
+        war_room_channel_id=config.war_room_channel_id,
+        allowed_user_ids=config.allowed_user_ids,
+        allowed_role_ids=config.allowed_role_ids,
+    )
     guild_id = config.guild_id
     assert guild_id is not None
     guild = discord.Object(id=guild_id)

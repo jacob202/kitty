@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import signal
 from collections.abc import AsyncIterator, Mapping, Sequence
 from pathlib import Path
 
@@ -60,6 +61,7 @@ class SubprocessRunner:
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            start_new_session=True,
         )
         assert process.stdout is not None
         loop = asyncio.get_running_loop()
@@ -129,11 +131,11 @@ class SubprocessRunner:
     async def _terminate(self, process: asyncio.subprocess.Process) -> None:
         if process.returncode is not None:
             return
-        process.terminate()
+        _signal_process_group(process, signal.SIGTERM)
         try:
             await asyncio.wait_for(process.wait(), timeout=self.kill_grace_seconds)
         except TimeoutError:
-            process.kill()
+            _signal_process_group(process, signal.SIGKILL)
             await process.wait()
 
     def _sandbox_command(
@@ -163,3 +165,11 @@ def build_sandbox_profile(cwd: Path, environment: Mapping[str, str]) -> str:
 
 def _escape_sbpl(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _signal_process_group(process: asyncio.subprocess.Process, sig: int) -> None:
+    try:
+        os.killpg(process.pid, sig)
+    except ProcessLookupError:
+        if process.returncode is None:
+            raise

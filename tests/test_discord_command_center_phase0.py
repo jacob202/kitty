@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from integrations.discord_command_center.adapters.codex import CodexAdapter
 from integrations.discord_command_center.bot import VibeController, split_discord_message
+from integrations.discord_command_center.config import CommandCenterConfig
 from integrations.discord_command_center.models import ProgressEvent
 from integrations.discord_command_center.runner import build_child_environment
 from integrations.discord_command_center.service import VibeService
@@ -79,6 +83,17 @@ def test_child_environment_is_allowlisted_and_secret_free(monkeypatch) -> None:
     assert "OPENAI_API_KEY" not in child
     assert "DISCORD_BOT_TOKEN" not in child
     assert "COMMAND_CENTER_DISCORD_TOKEN" not in child
+
+
+def test_discord_config_requires_an_authorization_allowlist() -> None:
+    config = CommandCenterConfig(
+        repo=Path("/tmp/repo"),
+        discord_token="token",
+        guild_id=1,
+    )
+
+    with pytest.raises(RuntimeError, match="authorization"):
+        config.require_discord()
 
 
 def test_worktree_audit_detects_untracked_mutation(tmp_path: Path) -> None:
@@ -287,6 +302,22 @@ def test_vibe_controller_defers_before_execution_and_posts_to_thread() -> None:
     assert "COMPLETE" in posted
     assert "audit clean" in posted
     assert "message_edit" in log
+
+
+def test_vibe_rejects_user_outside_authorization_allowlist() -> None:
+    log: list[str] = []
+    interaction = _Interaction(log)
+    interaction.user = SimpleNamespace(id=99, roles=[])
+    service = _FakeService(log)
+
+    asyncio.run(
+        VibeController(service, allowed_user_ids={1}).handle(interaction, "inspect repo")
+    )
+
+    assert "create_thread" not in log
+    assert "service_start" not in log
+    assert service.requests == []
+    assert any("not authorized" in message.lower() for message in interaction.followup.messages)
 
 
 def test_vibe_controller_posts_worker_answer_with_terminal_evidence() -> None:
@@ -519,6 +550,7 @@ def test_subprocess_runner_closes_worker_stdin(tmp_path: Path, monkeypatch) -> N
 
     assert events[-1].exit_code == 0
     assert captured["stdin"] == asyncio.subprocess.DEVNULL
+    assert captured["start_new_session"] is True
 
 
 def test_subprocess_runner_timeout_covers_wait_after_stdout_closes(
@@ -533,6 +565,7 @@ def test_subprocess_runner_timeout_covers_wait_after_stdout_closes(
     class _Process:
         stdout = _ClosedStdout()
         returncode = None
+        pid = 2468
 
         def __init__(self) -> None:
             self.terminated = False
@@ -557,6 +590,14 @@ def test_subprocess_runner_timeout_covers_wait_after_stdout_closes(
         return process
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create)
+    signals: list[tuple[int, int]] = []
+
+    def signal_group(pid: int, sig: int) -> None:
+        signals.append((pid, sig))
+        process.terminated = sig == signal.SIGTERM
+        process.killed = sig == signal.SIGKILL
+
+    monkeypatch.setattr(os, "killpg", signal_group)
     events = asyncio.run(
         _collect(
             SubprocessRunner(kill_grace_seconds=0.01).stream(
@@ -568,7 +609,7 @@ def test_subprocess_runner_timeout_covers_wait_after_stdout_closes(
         )
     )
 
-    assert process.terminated is True
+    assert signals == [(process.pid, signal.SIGTERM)]
     assert events[-1].code == "timeout"
     assert events[-1].exit_code == 124
 
@@ -584,6 +625,7 @@ def test_subprocess_runner_timeout_terminates_worker(tmp_path: Path, monkeypatch
     class _Process:
         stdout = _BlockingStdout()
         returncode = None
+        pid = 1234
 
         def __init__(self) -> None:
             self.terminated = False
@@ -608,6 +650,13 @@ def test_subprocess_runner_timeout_terminates_worker(tmp_path: Path, monkeypatch
         return process
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create)
+    signals: list[tuple[int, int]] = []
+    def signal_group(pid: int, sig: int) -> None:
+        signals.append((pid, sig))
+        process.terminated = sig == signal.SIGTERM
+        process.killed = sig == signal.SIGKILL
+
+    monkeypatch.setattr(os, "killpg", signal_group)
     runner = SubprocessRunner(kill_grace_seconds=0.01)
     events = asyncio.run(
         _collect(
@@ -620,17 +669,18 @@ def test_subprocess_runner_timeout_terminates_worker(tmp_path: Path, monkeypatch
         )
     )
 
-    assert process.terminated is True
+    assert signals == [(process.pid, signal.SIGTERM)]
     assert process.killed is False
     assert events[-1].code == "timeout"
     assert events[-1].exit_code == 124
 
 
-def test_subprocess_runner_escalates_to_kill_after_grace_period() -> None:
+def test_subprocess_runner_escalates_to_kill_after_grace_period(monkeypatch) -> None:
     from integrations.discord_command_center.runner import SubprocessRunner
 
     class _StubbornProcess:
         returncode = None
+        pid = 4321
 
         def __init__(self) -> None:
             self.terminated = False
@@ -650,12 +700,17 @@ def test_subprocess_runner_escalates_to_kill_after_grace_period() -> None:
             return 0
 
     process = _StubbornProcess()
+    signals: list[tuple[int, int]] = []
+    def signal_group(pid: int, sig: int) -> None:
+        signals.append((pid, sig))
+        process.killed = sig == signal.SIGKILL
+
+    monkeypatch.setattr(os, "killpg", signal_group)
     runner = SubprocessRunner(kill_grace_seconds=0.01)
 
     asyncio.run(runner._terminate(process))
 
-    assert process.terminated is True
-    assert process.killed is True
+    assert signals == [(process.pid, signal.SIGTERM), (process.pid, signal.SIGKILL)]
     assert process.returncode == -9
 
 
@@ -673,6 +728,7 @@ def test_subprocess_runner_cancellation_terminates_worker(tmp_path: Path, monkey
         class _Process:
             stdout = _BlockingStdout()
             returncode = None
+            pid = 5678
 
             def __init__(self) -> None:
                 self.terminated = False
@@ -698,6 +754,13 @@ def test_subprocess_runner_cancellation_terminates_worker(tmp_path: Path, monkey
             return process
 
         monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create)
+        signals: list[tuple[int, int]] = []
+        def signal_group(pid: int, sig: int) -> None:
+            signals.append((pid, sig))
+            process.terminated = sig == signal.SIGTERM
+            process.killed = sig == signal.SIGKILL
+
+        monkeypatch.setattr(os, "killpg", signal_group)
         runner = SubprocessRunner(kill_grace_seconds=0.01)
         task = asyncio.create_task(
             _collect(
@@ -714,7 +777,7 @@ def test_subprocess_runner_cancellation_terminates_worker(tmp_path: Path, monkey
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
-        return process.terminated, process.killed
+        return bool(signals), process.killed
 
     terminated, killed = asyncio.run(exercise())
 
@@ -849,6 +912,21 @@ def test_secret_scrubber_redacts_named_secret_assignments() -> None:
     assert "abcdefghijklmnop" not in scrubbed
     assert "INTERNAL_DB_PASSWORD=[REDACTED]" in scrubbed
     assert "Authorization: [REDACTED]" in scrubbed
+
+
+def test_secret_scrubber_redacts_fine_grained_and_quoted_tokens() -> None:
+    from integrations.discord_command_center.scrub import SecretScrubber
+
+    scrubbed = SecretScrubber().scrub(
+        'github_pat_11ABCDEFG1234567890abcdef '
+        'DATABASE_PASSWORD="hunter2-longer" API_KEY=\'abcdefghijklmnop\''
+    )
+
+    assert "github_pat_11ABCDEFG1234567890abcdef" not in scrubbed
+    assert 'DATABASE_PASSWORD="hunter2-longer"' not in scrubbed
+    assert "API_KEY='abcdefghijklmnop'" not in scrubbed
+    assert "DATABASE_PASSWORD=\"[REDACTED]\"" in scrubbed
+    assert "API_KEY='[REDACTED]'" in scrubbed
 
 
 class _NamedSecretOutputService:
