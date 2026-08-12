@@ -1,77 +1,65 @@
-# Handoff — agent council relay PR published
+# Handoff — KPROOF publication prep complete
 
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-11T00:51:56Z",
-  "branch": "feat/agent-council-relay",
+  "updated_at": "2026-08-12T01:52:00Z",
+  "branch": "main",
   "worktree": "/Users/jacobbrizinski/Projects/kitty",
-  "status": "awaiting_review",
+  "head_sha": "18dc32f4f72d15f3594ebf1f0a0a50269e7cc908",
+  "status": "complete",
   "execution_owner": "interactive",
   "active_mission": "docs/ACTIVE_MISSION.md",
   "completed_items": [
-    "Published PR #458 from origin/main at 9fc47974",
-    "Added the relay, focused tests, canonical skill, and outcome contract",
-    "Verified all PR checks green"
+    "Merged governed paid Builder routing in PR #470",
+    "Merged OpenCode stdin EOF repair in PR #472",
+    "Merged bounded Builder publication timeout in PR #473",
+    "Merged linked-worktree canonical venv resolution in PR #475",
+    "KPROOF-PAID-006 implemented and independently approved on attempt 1; publication exposed repository gate defects"
   ],
-  "blockers": [
-    "Human adversarial review and merge remain outstanding",
-    "Builder read-only projection is unavailable under local Python 3.9"
-  ],
+  "blockers": [],
   "invalidation_conditions": [
-    "PR #458 head changes",
-    "Any required check becomes non-green",
-    "Human review rejects the worker permission boundary"
+    "origin/main changes",
+    "Builder publication or validation behavior changes",
+    "KPROOF evidence is superseded by a newer controlled run"
   ],
-  "next_action": "Review PR #458 adversarially, then merge if accepted",
+  "next_action": "None",
   "parallel_work": [
-    {"kind":"worktree_dirty","ref":"gateway/routes/tool_server.py; tests/test_tool_server.py","owner":"unknown; preserve","touches":["gateway/routes/tool_server.py","tests/test_tool_server.py"],"observed_at":"2026-08-11T00:43:26Z"},
-    {"kind":"pull_request","ref":"#457","owner":"other session","touches":["scripts","tests"],"observed_at":"2026-08-11T00:43:26Z"}
+    {
+      "kind": "pull_request",
+      "ref": "#474 Discord Command Center Phase 0",
+      "owner": "parallel workflow",
+      "touches": ["integrations/discord_command_center", "tests/test_discord_command_center_phase0.py", "requirements.txt"],
+      "observed_at": "2026-08-12T01:52:00Z"
+    }
   ],
   "recommendations": [
-    {"id":"review-merge-pr-458","what":"Review and merge PR #458","why":"The relay is implemented and all required CI checks pass; only human boundary review remains.","class":"code","status":"ready","blocked_by":null,"release_check":null,"deferred_count":0,"first_deferred":null}
+    {
+      "id": "kproof-final-publication",
+      "what": "Run one fresh paid KPROOF from current main with focused pytest and Ruff before publication",
+      "why": "Execution and independent review now pass on the first attempt; the remaining proof target is autonomous publication through the real repository gate.",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    }
   ],
-  "pull_request": {"number":458,"state":"OPEN","head_sha":"165862c2c8ab8e86e50f8271d3c3ebef78abdf4f"},
-  "head_sha": "165862c2c8ab8e86e50f8271d3c3ebef78abdf4f",
-  "kb_receipt": "kbr_b38d6f9f532ed6569630"
+  "pull_request": null
 }
 -->
 
 ## Outcome
 
-PR [#458](https://github.com/jacob202/kitty/pull/458) is open from
-`feat/agent-council-relay` at `165862c2`. It adds the bounded read-only agent
-council relay, focused tests, the canonical `.agents/skills/agent-council/`
-skill, and its outcome contract.
+The Builder execution/review spine is now evidenced independently by KPROOF-PAID-006 and KPROOF-VERSION-007: paid DeepSeek workers completed their scoped changes on attempt 1, deterministic validation passed, and independent Qwen review approved with no scope violations.
 
-## Verification
+The remaining end-to-end gap is publication. KPROOF-PAID-006 was deliberately left failed when the real pre-push gate caught one worker formatting defect plus repository-local gate drift. PR #475 repairs the linked-worktree Python environment; this checkpoint removes the obsolete PR #458 claim that was also red-gating unrelated publication.
 
-- `python3.12 -m pytest -q tests/test_agent_council.py` — 4 passed.
-- `ruff check scripts/agent_council.py tests/test_agent_council.py` — passed.
-- `python3 scripts/agent_council.py --help` — passed.
-- `python3 scripts/agent_council.py --dry-run "test council wiring"` — all workers and fallback labeled.
-- GitHub PR #458: description, lint, typecheck, pytest, hygiene, kitty-chat,
-  browser-smoke, review, risk-guardrails, suggest-tests, and auto-label — all
-  passed.
+## Next controlled experiment
 
-## Boundaries
+Start from current `main`, create a fresh tiny feature packet, declare both focused pytest and Ruff validation, use the governed cheap paid worker plus independent paid reviewer, and let Builder publish through the normal pre-push gate. Do not rescue the run manually if it fails.
 
-- Do not stage or discard unrelated edits in `gateway/routes/tool_server.py`
-  and `tests/test_tool_server.py`.
-- Builder projection was unavailable under Python 3.9; treat it as unavailable,
-  not empty.
-- The local pre-push hook failed on unrelated `mcp/imagen/*` mypy errors;
-  GitHub CI was green and the bypass was recorded in the correction note.
+## Parallel lane
 
-## Next action
-
-Perform human adversarial review of PR #458, focusing on worker command
-construction, read-only enforcement, timeout behavior, and the Claude fallback.
-Merge only after that review accepts the boundary.
-
-## Session records
-
-- Execution owner: `interactive`.
-- KB effectiveness receipt: `kbr_b38d6f9f532ed6569630`.
-- Correction: `~/kb/corrections/2026-08-11-local-prepush-ci-divergence.md`.
-- Workflow signal: `local-prepush-ci-divergence` (observed, not promoted).
+PR #474 is Discord Command Center Phase 0. It remains separate from Builder routing, execution, review, and publication ownership.

@@ -1,53 +1,60 @@
-# Session State — agent council relay PR awaiting review
+# Session State — KPROOF publication prep complete
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-11T00:51:56Z",
-  "branch": "feat/agent-council-relay",
+  "updated_at": "2026-08-12T01:52:00Z",
+  "branch": "main",
   "worktree": "/Users/jacobbrizinski/Projects/kitty",
-  "head_sha": "165862c2c8ab8e86e50f8271d3c3ebef78abdf4f",
-  "status": "awaiting_review",
+  "head_sha": "18dc32f4f72d15f3594ebf1f0a0a50269e7cc908",
+  "status": "complete",
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "completed_items": ["Published PR #458 and verified all required checks green"],
-  "blockers": ["Human adversarial review and merge remain outstanding","Builder projection unavailable under Python 3.9"],
-  "invalidation_conditions": ["PR #458 head changes","Any required check becomes non-green"],
-  "next_action": "Review PR #458 adversarially, then merge if accepted",
+  "completed_items": [
+    "Merged governed paid Builder routing in PR #470",
+    "Merged OpenCode stdin EOF repair in PR #472",
+    "Merged bounded Builder publication timeout in PR #473",
+    "Merged linked-worktree canonical venv resolution in PR #475",
+    "KPROOF-PAID-006 implemented and independently approved on attempt 1; publication exposed repository gate defects"
+  ],
+  "blockers": [],
+  "invalidation_conditions": [
+    "origin/main changes",
+    "Builder publication or validation behavior changes",
+    "KPROOF evidence is superseded by a newer controlled run"
+  ],
+  "next_action": "None",
   "parallel_work": [
-    {"kind":"worktree_dirty","ref":"gateway/routes/tool_server.py; tests/test_tool_server.py","owner":"unknown; preserve","touches":["gateway/routes/tool_server.py","tests/test_tool_server.py"],"observed_at":"2026-08-11T00:43:26Z"},
-    {"kind":"pull_request","ref":"#457","owner":"other session","touches":["scripts","tests"],"observed_at":"2026-08-11T00:43:26Z"}
+    {
+      "kind": "pull_request",
+      "ref": "#474 Discord Command Center Phase 0",
+      "owner": "parallel workflow",
+      "touches": ["integrations/discord_command_center", "tests/test_discord_command_center_phase0.py", "requirements.txt"],
+      "observed_at": "2026-08-12T01:52:00Z"
+    }
   ],
   "recommendations": [
-    {"id":"review-merge-pr-458","what":"Review and merge PR #458","why":"The relay is implemented and all required CI checks pass; only human boundary review remains.","class":"code","status":"ready","blocked_by":null,"release_check":null,"deferred_count":0,"first_deferred":null}
+    {
+      "id": "kproof-final-publication",
+      "what": "Run one fresh paid KPROOF from current main with focused pytest and Ruff before publication",
+      "why": "Execution and independent review now pass on the first attempt; the remaining proof target is autonomous publication through the real repository gate.",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    }
   ],
-  "pull_request": {"number":458,"state":"OPEN","head_sha":"165862c2c8ab8e86e50f8271d3c3ebef78abdf4f"}
+  "pull_request": null
 }
 -->
 
-## Execution ownership
+## Verified checkpoint
 
-- this session: `interactive`
-- Builder parallel state: unavailable; local Python 3.9 could not import the
-  repository's PEP 604 annotations.
+KittyBuilder has twice reached successful paid implementation plus independent review on the controlled proof lane. PRs #470, #472, #473, and #475 repaired the paid route, non-interactive OpenCode stdin boundary, bounded publication timeout/process group, and linked-worktree Python environment respectively.
 
-## Current checkpoint
+KPROOF-PAID-006 remains a failed proof rather than being manually rescued: its worker and reviewer passed on attempt 1, but the real pre-push gate caught a missing trailing newline and stale repository continuity state. The next controlled proof must include Ruff in packet validation and must pass publication without bypasses.
 
-- Branch: `feat/agent-council-relay`
-- HEAD: `165862c2c8ab8e86e50f8271d3c3ebef78abdf4f`
-- PR: https://github.com/jacob202/kitty/pull/458
-- PR state: open, mergeable, clean, all checks green.
-- Unrelated dirty paths: `gateway/routes/tool_server.py`,
-  `tests/test_tool_server.py`; preserve them.
+## Parallel work
 
-## Recommendations
-
-1. **Ready:** adversarially review PR #458 and merge if accepted.
-
-## KB effectiveness
-
-- receipt: `kbr_b38d6f9f532ed6569630`
-- consulted: 1 (`~/kb/NOW.md`)
-- used: 0
-- stale/wrong: 1 (`~/kb/NOW.md` described older branch/PR state)
-- token, cost, elapsed-time, and independent human-review measurements are
-  unavailable; GitHub CI is independent evidence but human review is pending.
+PR #474 (Discord Command Center Phase 0) is a separate control-surface lane and is not part of the Builder proof.
