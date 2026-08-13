@@ -12,6 +12,9 @@ import {
   fetchGatewaySessionContext,
   fetchGatewayUsageSummary,
   fetchGatewayRuntimeManifest,
+  fetchGatewayWork,
+  fetchGatewayWorkDetail,
+  fetchGatewayWorkEvents,
   fetchGatewaySearch,
   fetchGatewayWeather,
   // todos
@@ -104,6 +107,7 @@ import {
   type GatewayInsightsPayload,
   type GatewayPersonality,
   type GatewayRuntimeManifest,
+  type GatewayWorkList,
 } from '@/lib/gateway'
 
 // ── Dashboard payload queries ────────────────────────────────────────────────
@@ -198,6 +202,40 @@ export function useGatewayRuntimeManifest(projectId?: number) {
     queryFn: () => fetchGatewayRuntimeManifest(projectId),
     refetchInterval: (query) => hasActiveBuilderRun(query.state.data) ? 5_000 : 15_000,
     staleTime: 10_000,
+  })
+}
+
+export function useGatewayWork(limit = 100) {
+  return useQuery({
+    queryKey: ['gateway', 'work', limit],
+    queryFn: () => fetchGatewayWork(limit),
+    refetchInterval: (query) => hasActiveWork(query.state.data) ? 4_000 : 15_000,
+    staleTime: 3_000,
+  })
+}
+
+export function hasActiveWork(snapshot: GatewayWorkList | undefined): boolean {
+  return snapshot?.items.some(item => (
+    item.state === 'pending' || item.state === 'running' || item.state === 'review'
+  )) ?? false
+}
+
+export function useGatewayWorkDetail(workId: string | null) {
+  return useQuery({
+    queryKey: ['gateway', 'work', 'detail', workId],
+    queryFn: () => fetchGatewayWorkDetail(workId as string),
+    enabled: Boolean(workId),
+    staleTime: 3_000,
+  })
+}
+
+export function useGatewayWorkEvents(workId: string | null) {
+  return useQuery({
+    queryKey: ['gateway', 'work', 'events', workId],
+    queryFn: () => fetchGatewayWorkEvents(workId as string),
+    enabled: Boolean(workId),
+    refetchInterval: workId ? 5_000 : false,
+    staleTime: 2_000,
   })
 }
 
