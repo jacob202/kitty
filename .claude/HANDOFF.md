@@ -56,25 +56,14 @@
     },
     {
       "id": "ci-typecheck-imagen-requirements",
-      "what": "Install mcp/imagen/requirements.txt in the Tests workflow typecheck job",
-      "why": "CI resolves google-genai and google-api-core to Any and cannot see mcp/imagen type errors at all; seven sat on main unseen and only surfaced through the local pre-push hook, where they blocked every push. CI-scope, so it needs Jacob's approval.",
+      "what": "Install requirements.txt and mcp/imagen/requirements.txt in the Tests workflow typecheck job",
+      "why": "The typecheck job installs only mypy and four stub packages and no project dependencies at all, so every third-party import across gateway/, mcp/, and workers/ resolves to Any. Seven real mcp/imagen errors sat on main unseen and surfaced only through the local pre-push hook, where they blocked every push. CI-scope, so it needs Jacob's approval.",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
       "release_check": null,
       "deferred_count": 0,
       "first_deferred": null
-    },
-    {
-      "id": "sync-staged-kb-payload",
-      "what": "Copy docs/session-notes/2026-08-11-kb-payload.md, the effectiveness receipt, and both workflow signals into ~/kb",
-      "why": "~/kb does not exist in this container, so two wiki entries, two corrections, one receipt, and two signals are staged in the repo instead. Cross-tool repeat detection does not work until they are merged.",
-      "class": "code",
-      "status": "deferred",
-      "blocked_by": "~/kb is not present in this container",
-      "release_check": "test -d ~/kb",
-      "deferred_count": 0,
-      "first_deferred": "2026-08-11T08:05:00Z"
     }
   ],
   "invalidation_conditions": [
@@ -85,7 +74,7 @@
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null,
-  "head_sha": "5b21f7426e5f4d085fb41e5817a62c1bb84c0448",
+  "head_sha": "7c18b8e83571e63450ff24d1d6a6eec1f74a8088",
   "kb_receipt": "kbr_e24216337393bb50acbb"
 }
 -->
@@ -110,8 +99,10 @@ Two pull requests, one merged and one closed:
   superseded while in CI by `cd35d96` (via #460). The conflict was resolved in
   `main`'s favour, which left the branch with an empty diff.
 
-`claude/next-4gj621` now has **no diff against `origin/main`**. Nothing on it is
-waiting to land.
+No code is left on `claude/next-4gj621`: its `mcp/imagen` changes were resolved
+in `main`'s favour. What remains is this closeout — the checkpoint, the KB
+payload, the effectiveness receipt, and two workflow signals — published as
+PR #471 because this container is ephemeral and unpushed evidence is lost.
 
 ## The headline: the Actions outage is over
 
@@ -154,7 +145,7 @@ With the repair: ruff clean, mypy clean over 293 files, pytest **3987 passed /
 
 Imagen work: mypy **7 errors in 3 files → Success, no issues found in 279 source
 files** with `google-genai` and `google-api-core` installed, and clean again in a
-CI-equivalent venv without them. ruff clean. `pytest -k "imagen or retry"` —
+venv holding only `requirements.txt`. ruff clean. `pytest -k "imagen or retry"` —
 **108 passed**. PR #467: **11 green checks**.
 
 Two selected failures are container artifacts, not defects. Both live in

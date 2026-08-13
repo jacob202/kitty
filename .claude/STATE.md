@@ -55,25 +55,14 @@
     },
     {
       "id": "ci-typecheck-imagen-requirements",
-      "what": "Install mcp/imagen/requirements.txt in the Tests workflow typecheck job",
-      "why": "CI resolves google-genai and google-api-core to Any and cannot see mcp/imagen type errors at all; seven sat on main unseen and only surfaced through the local pre-push hook, where they blocked every push. CI-scope, so it needs Jacob's approval.",
+      "what": "Install requirements.txt and mcp/imagen/requirements.txt in the Tests workflow typecheck job",
+      "why": "The typecheck job installs only mypy and four stub packages and no project dependencies at all, so every third-party import across gateway/, mcp/, and workers/ resolves to Any. Seven real mcp/imagen errors sat on main unseen and surfaced only through the local pre-push hook, where they blocked every push. CI-scope, so it needs Jacob's approval.",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
       "release_check": null,
       "deferred_count": 0,
       "first_deferred": null
-    },
-    {
-      "id": "sync-staged-kb-payload",
-      "what": "Copy docs/session-notes/2026-08-11-kb-payload.md, the effectiveness receipt, and both workflow signals into ~/kb",
-      "why": "~/kb does not exist in this container, so two wiki entries, two corrections, one receipt, and two signals are staged in the repo instead. Cross-tool repeat detection does not work until they are merged.",
-      "class": "code",
-      "status": "deferred",
-      "blocked_by": "~/kb is not present in this container",
-      "release_check": "test -d ~/kb",
-      "deferred_count": 0,
-      "first_deferred": "2026-08-11T08:05:00Z"
     }
   ],
   "invalidation_conditions": [
@@ -84,7 +73,7 @@
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null,
-  "head_sha": "5b21f7426e5f4d085fb41e5817a62c1bb84c0448"
+  "head_sha": "7c18b8e83571e63450ff24d1d6a6eec1f74a8088"
 }
 -->
 
@@ -97,12 +86,13 @@
 
 ## KB effectiveness
 
-- receipt: `kbr_e24216337393bb50acbb` in `docs/session-notes/kb-effectiveness.jsonl` (repo fallback)
+- receipt: `kbr_e24216337393bb50acbb` in `~/kb/metrics/kb-effectiveness.jsonl`, mirrored at `docs/session-notes/kb-effectiveness.jsonl`
 - consulted: 0
 - used: 0
 - stale/wrong: 0
-- token/quality evidence gaps: `~/kb` is absent in this container, so nothing was
-  consulted and retrieval usefulness is unmeasurable for this session. Token,
+- token/quality evidence gaps: `~/kb` did not exist at session start, so nothing was
+  consulted and retrieval usefulness is unmeasurable for this session. It was
+  created and populated before close. Token,
   cost, and elapsed-time measurement is unavailable from this harness. The
   outcome is `completed_unreviewed`, not `accepted`: PR #454 merged on 12 green
   checks, but CI is a gate and no independent human review happened.
@@ -145,7 +135,7 @@ passed / 78.38%**. PR #454 then passed **12 green checks** on real runners.
 
 For the imagen work: mypy went from **7 errors in 3 files** to **Success, no
 issues found in 279 source files** with `google-genai` and `google-api-core`
-installed, and stayed clean in a CI-equivalent venv without them. ruff clean.
+installed, and stayed clean in a venv holding only `requirements.txt`. ruff clean.
 `pytest -k "imagen or retry"` — **108 passed**, 3894 deselected. PR #467 passed
 **11 green checks** before being closed as superseded.
 

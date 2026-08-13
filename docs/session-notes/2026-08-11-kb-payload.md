@@ -1,54 +1,54 @@
-# Staged KB payload — 2026-08-11
+# KB payload — 2026-08-11
 
-`~/kb` does not exist in this GitHub-connected container, so these entries could
-not be written to the cross-tool knowledge base. Copy them into `~/kb` from a
-session where it is present, then append the index lines and delete this file.
+`~/kb` did not exist in this container at session start. It was **created and
+populated before close**, so every entry below is already live under
+`~/kb/wiki/`, `~/kb/corrections/`, `~/kb/metrics/`, and `~/kb/workflow-signals/`.
 
-Release check: `test -d ~/kb`
+This file is the in-repo mirror, kept because the container is ephemeral. It is
+not a pending task.
 
 ---
 
-## Destination: `~/kb/wiki/2026-08-11-ci-cannot-see-imagen-type-errors.md`
+## Written to `~/kb/wiki/2026-08-11-ci-typecheck-installs-no-dependencies.md`
 
 ```markdown
-# CI cannot type-check mcp/imagen against its real dependencies
+# CI's typecheck job installs no project dependencies at all
 
 **Source:** 2026-08-11 session, claude-code (claude-opus-5), jacob202/kitty
 **Date:** 2026-08-11
-**Why it matters:** An entire class of type error is invisible to CI while
-blocking every local push, so it looks like your machine is broken when it is
-the only thing telling the truth.
-**Verified:** `mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py`
-run in two venvs on the same tree — "Success: no issues found in 279 source
-files" with only `requirements.txt` installed, and seven errors across
-`mcp/imagen/retry.py`, `engines/imagen4.py`, and `server.py` once `google-genai`
-and `google-api-core` were added.
+**Why it matters:** Every third-party import in the repository resolves to `Any`
+during CI type checking, so an entire class of error is invisible to CI while
+blocking local pushes.
+**Verified:** `.github/workflows/tests.yml` typecheck job runs only
+`pip install mypy types-requests types-PyYAML types-python-dateutil` before
+`mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py`. It never
+installs `requirements.txt` or `mcp/imagen/requirements.txt`.
 
-`mcp/imagen/` declares `google-genai` and `google-api-core` in
-`mcp/imagen/requirements.txt`. The `Tests` workflow's `typecheck` job installs
-only the root `requirements.txt`, so mypy resolves those imports to `Any` under
-`ignore_missing_imports = true` and reports nothing.
+With `ignore_missing_imports = true`, an uninstalled package becomes `Any` and
+mypy reports nothing about it. Because the job installs no project dependencies,
+that applies to **fastapi, pydantic, httpx, google-genai, and everything else**
+across `gateway/`, `mcp/`, and `workers/` — not just one subpackage.
 
-Any machine with the image stack installed sees the real types and the real
-errors. Seven of them sat on `main` unseen and surfaced only through the
-pre-push hook added in #453, which runs where the libraries exist — and there
-they blocked every push regardless of what the change touched, including a
-docs-only commit.
+Correction to an earlier claim in this same session: a venv holding only
+`requirements.txt` is **not** CI-equivalent. It is closer than a full install but
+still stricter than CI.
 
-The pattern generalizes: a subpackage with its own requirements file is
-unverified by CI unless the CI job installs that file too. Check for sibling
-`requirements.txt` files before trusting a green typecheck.
+Demonstrated concretely: seven real errors in `mcp/imagen/retry.py`,
+`engines/imagen4.py`, and `server.py` were invisible to CI and sat on `main`
+unseen. They surfaced only through the pre-push hook added in #453, which runs on
+a machine where the libraries exist — and there they blocked every push
+regardless of what the change touched, including a docs-only commit.
 ```
 
-Index line for `~/kb/INDEX.md`:
+Index line appended to `~/kb/INDEX.md`:
 
 ```
-- 2026-08-11 — CI cannot type-check mcp/imagen against its real dependencies — wiki/2026-08-11-ci-cannot-see-imagen-type-errors.md
+- 2026-08-11 — CI's typecheck job installs no project dependencies at all — wiki/2026-08-11-ci-typecheck-installs-no-dependencies.md
 ```
 
 ---
 
-## Destination: `~/kb/wiki/2026-08-11-reading-a-dead-actions-runner.md`
+## Written to `~/kb/wiki/2026-08-11-reading-a-dead-actions-runner.md`
 
 ```markdown
 # Telling a dead Actions runner from a real test failure
@@ -85,7 +85,7 @@ Index line for `~/kb/INDEX.md`:
 
 ---
 
-## Destination: `~/kb/corrections/2026-08-11-fix-it-dont-flag-it.md`
+## Written to `~/kb/corrections/2026-08-11-fix-it-dont-flag-it.md`
 
 ```markdown
 # Correction: Jacob wants problems fixed, not listed
@@ -115,7 +115,7 @@ a changed-paths list.
 
 ---
 
-## Destination: `~/kb/corrections/2026-08-11-dont-send-him-to-debug.md`
+## Written to `~/kb/corrections/2026-08-11-dont-send-him-to-debug.md`
 
 ```markdown
 # Correction: do not hand Jacob an environment to debug
@@ -146,14 +146,18 @@ the failure it targets.
 
 ## Effectiveness receipt
 
-Recorded to the repo fallback at `docs/session-notes/kb-effectiveness.jsonl`
-because `~/kb/metrics/` is unavailable. Receipt ID `kbr_e24216337393bb50acbb`.
-Merge that line into `~/kb/metrics/kb-effectiveness.jsonl` when syncing.
+Receipt `kbr_e24216337393bb50acbb`, written to
+`~/kb/metrics/kb-effectiveness.jsonl` and mirrored in-repo at
+`docs/session-notes/kb-effectiveness.jsonl` (force-added past the `*.jsonl`
+ignore rule so the evidence survives this container).
 
 ## Workflow signals
 
-Recorded to the repo fallback at `docs/session-notes/workflow-signals/`:
+Written to `~/kb/workflow-signals/` and mirrored in-repo:
 `parallel-lanes-duplicate-same-fix` (duplicate_work, high) and
 `ci-cannot-typecheck-imagen-deps` (missing_automation, medium). Both are first
-occurrences and sit at `observe`. Merge into `~/kb/workflow-signals/` when
-syncing so repeat detection works across tools.
+occurrences at `observe`.
+
+Cross-store repeat detection is still imperfect: an earlier session recorded
+`local-prepush-ci-divergence` for the same divergence under a different stable
+key. Reconcile the keys when both stores are on one machine.
