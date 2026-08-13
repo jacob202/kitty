@@ -14,7 +14,10 @@ silent defaulting to ``unknown``.
 
 from __future__ import annotations
 
+import json
 import logging
+from collections import Counter
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -129,6 +132,21 @@ def _build_work_id(task_id: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _parse_json_field(raw: Any) -> Any:
+    """Parse a JSON string into a structured dict; return as-is if already dict."""
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return raw
+    return raw
+
+
+# ---------------------------------------------------------------------------
 # Projection: list work items
 # ---------------------------------------------------------------------------
 
@@ -138,8 +156,8 @@ def list_work(
     source: str | None = None,
     limit: int = 100,
     db_path: Path | None = None,
-) -> list[dict[str, Any]]:
-    """List work items, optionally filtered.
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """List work items with campaign-level truth, optionally filtered.
 
     In v1 only ``source=builder`` is supported.  Any other source value
     raises ``WorkSourceError``.
@@ -150,7 +168,8 @@ def list_work(
         limit: Maximum items to return (clamped to 1-500).
 
     Returns:
-        A list of work item dicts.
+        A tuple of (campaign, items) where campaign is the envelope dict
+        and items is the list of work item dicts.
 
     Raises:
         WorkStateError: if *state* is not a recognised Work state.
@@ -182,29 +201,57 @@ def list_work(
             )
 
     if builder_states:
-        tasks: list[dict[str, Any]] = []
+        full_tasks: list[dict[str, Any]] = []
         for bs in sorted(builder_states):
-            tasks.extend(bq.list_tasks(state=bs, db_path=db_path))
+            full_tasks.extend(bq.list_tasks(state=bs, db_path=db_path))
     else:
-        tasks = bq.list_tasks(db_path=db_path)
+        full_tasks = bq.list_tasks(db_path=db_path)
 
     # Clamp limit.
     if limit < 1:
         limit = 1
     elif limit > 500:
         limit = 500
-    tasks = tasks[:limit]
 
-    result: list[dict[str, Any]] = []
-    for task in tasks:
+    # Aggregate normalized-state counts over the full matching set.
+    state_counts: Counter[str] = Counter()
+    for task in full_tasks:
         work_state = _normalize_state(task["state"])
-        result.append(_task_to_list_item(task, work_state))
+        state_counts[work_state] += 1
 
-    return result
+    # Apply limit for the page.
+    page_tasks = full_tasks[:limit]
+
+    items: list[dict[str, Any]] = []
+    for task in page_tasks:
+        work_state = _normalize_state(task["state"])
+        items.append(_task_to_list_item(task, work_state))
+
+    now = datetime.now(timezone.utc)
+    valid_until = now + timedelta(seconds=30)
+
+    campaign = {
+        "schema_version": 1,
+        "observed_at": now.isoformat(),
+        "valid_until": valid_until.isoformat(),
+        "source_health": {"kind": "builder", "state": "available"},
+        "state_counts": dict(state_counts),
+        "total_items": len(full_tasks),
+        "item_limit": limit,
+    }
+
+    return campaign, items
 
 
 def _task_to_list_item(task: dict[str, Any], work_state: str) -> dict[str, Any]:
     """Build a list-level Work item dict from a Builder task dict."""
+    evidence = {
+        "approval": {
+            "state": "unavailable",
+            "reason": "No durable Gateway approval binding exists; "
+            "Builder awaiting_review/review is not Jacob approval",
+        },
+    }
     return {
         "work_id": _build_work_id(task["id"]),
         "source": SOURCE_BUILDER,
@@ -220,7 +267,7 @@ def _task_to_list_item(task: dict[str, Any], work_state: str) -> dict[str, Any]:
         "error": task.get("last_error"),
         "latest_run": None,
         "latest_pr": None,
-        "evidence": None,
+        "evidence": evidence,
         "links": [],
     }
 
@@ -293,8 +340,15 @@ def get_work(
                 else:
                     errors.append(str(report_errors))
 
-    # Evidence: run output, attempt output, and PR links — never invented.
-    evidence: dict[str, Any] = {}
+    # Evidence: structured persisted implementation, validation, review,
+    # publication, and run-report facts — never raw *_json strings.
+    evidence: dict[str, Any] = {
+        "approval": {
+            "state": "unavailable",
+            "reason": "No durable Gateway approval binding exists; "
+            "Builder awaiting_review/review is not Jacob approval",
+        },
+    }
     if latest_run:
         if latest_run.get("log_path"):
             evidence["run_log"] = latest_run["log_path"]
@@ -302,12 +356,18 @@ def get_work(
         if run_report:
             evidence["run_report"] = run_report
     if latest_attempt:
-        impl = latest_attempt.get("implementation_json")
-        if impl:
-            evidence["implementation"] = impl
-        validation = latest_attempt.get("validation_json")
-        if validation:
-            evidence["validation"] = validation
+        # Structured implementation evidence — parse JSON to structured dict.
+        impl_raw = latest_attempt.get("implementation_json")
+        if impl_raw:
+            evidence["implementation"] = _parse_json_field(impl_raw)
+        # Structured validation evidence.
+        validation_raw = latest_attempt.get("validation_json")
+        if validation_raw:
+            evidence["validation"] = _parse_json_field(validation_raw)
+        # Structured review evidence.
+        review_raw = latest_attempt.get("review_json")
+        if review_raw:
+            evidence["review"] = _parse_json_field(review_raw)
     if latest_pr:
         evidence["pr"] = latest_pr
 

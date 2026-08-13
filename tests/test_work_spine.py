@@ -107,13 +107,13 @@ class TestParseWorkId:
 
 
 class TestListWork:
-    def test_empty_returns_empty_list(self, db_path: Path):
-        items = ws.list_work(db_path=db_path)
+    def test_empty_returns_empty_items(self, db_path: Path):
+        campaign, items = ws.list_work(db_path=db_path)
         assert items == []
 
     def test_state_filter_pending_includes_queued(self, db_path: Path):
         _task(db_path=db_path, title="Queued task")
-        items = ws.list_work(state="pending", db_path=db_path)
+        campaign, items = ws.list_work(state="pending", db_path=db_path)
         assert len(items) == 1
         assert items[0]["state"] == "pending"
         assert items[0]["source_state"] == bq.QUEUED
@@ -121,7 +121,7 @@ class TestListWork:
     def test_state_filter_pending_includes_claimed(self, db_path: Path):
         t = _task(db_path=db_path, title="Claimed task")
         bq.transition_task(t["id"], bq.CLAIMED, db_path=db_path)
-        items = ws.list_work(state="pending", db_path=db_path)
+        campaign, items = ws.list_work(state="pending", db_path=db_path)
         assert len(items) == 1
         assert items[0]["state"] == "pending"
         assert items[0]["source_state"] == bq.CLAIMED
@@ -131,7 +131,7 @@ class TestListWork:
         bq.transition_task(t["id"], bq.CLAIMED, db_path=db_path)
         bq.transition_task(t["id"], bq.RUNNING, db_path=db_path)
         bq.transition_task(t["id"], bq.PR_OPENED, db_path=db_path)
-        items = ws.list_work(state="review", db_path=db_path)
+        campaign, items = ws.list_work(state="review", db_path=db_path)
         assert len(items) == 1
         assert items[0]["state"] == "review"
         assert items[0]["source_state"] == bq.PR_OPENED
@@ -142,7 +142,7 @@ class TestListWork:
         bq.transition_task(t["id"], bq.RUNNING, db_path=db_path)
         bq.transition_task(t["id"], bq.PR_OPENED, db_path=db_path)
         bq.transition_task(t["id"], bq.AWAITING_REVIEW, db_path=db_path)
-        items = ws.list_work(state="review", db_path=db_path)
+        campaign, items = ws.list_work(state="review", db_path=db_path)
         assert len(items) == 1
         assert items[0]["state"] == "review"
         assert items[0]["source_state"] == bq.AWAITING_REVIEW
@@ -154,14 +154,14 @@ class TestListWork:
         bq.transition_task(t["id"], bq.PR_OPENED, db_path=db_path)
         bq.transition_task(t["id"], bq.AWAITING_REVIEW, db_path=db_path)
         bq.transition_task(t["id"], bq.DONE, db_path=db_path)
-        items = ws.list_work(state="completed", db_path=db_path)
+        campaign, items = ws.list_work(state="completed", db_path=db_path)
         assert len(items) == 1
         assert items[0]["state"] == "completed"
         assert items[0]["source_state"] == bq.DONE
 
     def test_source_filter_only_builder(self, db_path: Path):
         _task(db_path=db_path, title="Task")
-        items = ws.list_work(source="builder", db_path=db_path)
+        campaign, items = ws.list_work(source="builder", db_path=db_path)
         assert len(items) == 1
 
     def test_non_builder_source_raises(self, db_path: Path):
@@ -171,11 +171,11 @@ class TestListWork:
     def test_limit(self, db_path: Path):
         for _ in range(5):
             _task(db_path=db_path)
-        items = ws.list_work(limit=2, db_path=db_path)
+        campaign, items = ws.list_work(limit=2, db_path=db_path)
         assert len(items) == 2
 
     def test_limit_clamped(self, db_path: Path):
-        items = ws.list_work(limit=1000, db_path=db_path)
+        campaign, items = ws.list_work(limit=1000, db_path=db_path)
         assert isinstance(items, list)
 
     def test_invalid_state_raises(self, db_path: Path):
@@ -198,9 +198,9 @@ class TestListWork:
             ws.list_work(db_path=db_path)
 
     def test_result_shape(self, db_path: Path):
-        """Every list item has all required fields."""
+        """Every list item has all required fields including evidence.approval."""
         t = _task(db_path=db_path, title="Shape test", priority=5)
-        items = ws.list_work(db_path=db_path)
+        campaign, items = ws.list_work(db_path=db_path)
         assert len(items) == 1
         item = items[0]
         assert item["work_id"] == f"builder:{t['id']}"
@@ -217,8 +217,67 @@ class TestListWork:
         assert item["error"] is None
         assert item["latest_run"] is None
         assert item["latest_pr"] is None
-        assert item["evidence"] is None
         assert item["links"] == []
+        # evidence must always contain approval
+        assert item["evidence"] is not None
+        assert item["evidence"]["approval"]["state"] == "unavailable"
+        assert "binding" in item["evidence"]["approval"]["reason"]
+
+
+# ---------------------------------------------------------------------------
+# Tests: list_work — campaign-level truth
+# ---------------------------------------------------------------------------
+
+
+class TestListWorkCampaign:
+    def test_campaign_schema_version(self, db_path: Path):
+        _task(db_path=db_path)
+        campaign, _ = ws.list_work(db_path=db_path)
+        assert campaign["schema_version"] == 1
+
+    def test_campaign_observed_at_is_iso(self, db_path: Path):
+        _task(db_path=db_path)
+        campaign, _ = ws.list_work(db_path=db_path)
+        assert "T" in campaign["observed_at"]
+
+    def test_campaign_valid_until_30s_after(self, db_path: Path):
+        from datetime import datetime
+
+        _task(db_path=db_path)
+        campaign, _ = ws.list_work(db_path=db_path)
+        observed = datetime.fromisoformat(campaign["observed_at"])
+        valid = datetime.fromisoformat(campaign["valid_until"])
+        delta = valid - observed
+        assert delta.total_seconds() == 30
+
+    def test_campaign_source_health(self, db_path: Path):
+        _task(db_path=db_path)
+        campaign, _ = ws.list_work(db_path=db_path)
+        assert campaign["source_health"] == {"kind": "builder", "state": "available"}
+
+    def test_campaign_total_items_matches_full_set(self, db_path: Path):
+        for _ in range(5):
+            _task(db_path=db_path)
+        campaign, items = ws.list_work(limit=2, db_path=db_path)
+        assert campaign["total_items"] == 5
+        assert campaign["item_limit"] == 2
+        assert len(items) == 2
+
+    def test_campaign_state_counts(self, db_path: Path):
+        _task(db_path=db_path, title="Queued")
+        t2 = _task(db_path=db_path, title="Running")
+        bq.transition_task(t2["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(t2["id"], bq.RUNNING, db_path=db_path)
+        campaign, _ = ws.list_work(db_path=db_path)
+        assert campaign["state_counts"]["pending"] == 1
+        assert campaign["state_counts"]["running"] == 1
+
+    def test_campaign_empty_returns_zero_totals(self, db_path: Path):
+        campaign, items = ws.list_work(db_path=db_path)
+        assert campaign["total_items"] == 0
+        assert campaign["item_limit"] == 100
+        assert campaign["state_counts"] == {}
+        assert items == []
 
 
 # ---------------------------------------------------------------------------
@@ -251,8 +310,11 @@ class TestGetWork:
         assert item["error"] is None
         assert item["latest_run"] is None
         assert item["latest_pr"] is None
-        assert item["evidence"] is None
         assert item["links"] == []
+        # evidence must always contain approval
+        assert item["evidence"] is not None
+        assert item["evidence"]["approval"]["state"] == "unavailable"
+        assert "binding" in item["evidence"]["approval"]["reason"]
 
     def test_blocked_task_has_blocker(self, db_path: Path):
         t = _task(db_path=db_path, title="Blocked")
@@ -296,6 +358,9 @@ class TestGetWork:
         item = ws.get_work(f"builder:{t['id']}", db_path=db_path)
         assert item["source"] == "builder"
         assert item["source_id"] == t["id"]
+        # evidence must always contain approval
+        assert item["evidence"] is not None
+        assert item["evidence"]["approval"]["state"] == "unavailable"
 
     def test_source_state_preserves_raw_builder_state(self, db_path: Path):
         t = _task(db_path=db_path, title="Raw state")

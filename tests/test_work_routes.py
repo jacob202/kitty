@@ -61,7 +61,8 @@ class TestListWork:
         response = client.get("/work")
         assert response.status_code == 200
         body = response.json()
-        assert body == {"items": []}
+        assert body["items"] == []
+        assert body["schema_version"] == 1
 
     def test_returns_tasks(self, client: TestClient, db_path: Path):
         _task(db_path=db_path)
@@ -97,7 +98,9 @@ class TestListWork:
     def test_state_filter_no_match(self, client: TestClient):
         response = client.get("/work?state=completed")
         assert response.status_code == 200
-        assert response.json() == {"items": []}
+        body = response.json()
+        assert body["items"] == []
+        assert body["total_items"] == 0
 
     def test_invalid_state_returns_400(self, client: TestClient):
         response = client.get("/work?state=bogus")
@@ -141,6 +144,51 @@ class TestListWork:
         assert "evidence" in item
         assert "links" in item
 
+    def test_campaign_fields(self, client: TestClient, db_path: Path):
+        """GET /work returns schema_version, observed_at, valid_until, source_health."""
+        _task(db_path=db_path)
+        response = client.get("/work")
+        body = response.json()
+        assert body["schema_version"] == 1
+        assert "T" in body["observed_at"]
+        assert "T" in body["valid_until"]
+        assert body["source_health"] == {"kind": "builder", "state": "available"}
+
+    def test_campaign_total_items(self, client: TestClient, db_path: Path):
+        """total_items reflects the full matching set, not the page."""
+        for _ in range(5):
+            _task(db_path=db_path)
+        response = client.get("/work?limit=2")
+        body = response.json()
+        assert body["total_items"] == 5
+        assert body["item_limit"] == 2
+        assert len(body["items"]) == 2
+
+    def test_campaign_state_counts(self, client: TestClient, db_path: Path):
+        """state_counts aggregates all matching items."""
+        _task(db_path=db_path)
+        t2 = bq.create_task(
+            title="Running task",
+            description="A running task",
+            acceptance_criteria=["works"],
+            bridge_source="test",
+            db_path=db_path,
+        )
+        bq.transition_task(t2["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(t2["id"], bq.RUNNING, db_path=db_path)
+        response = client.get("/work")
+        body = response.json()
+        assert body["state_counts"]["pending"] >= 1
+        assert body["state_counts"]["running"] == 1
+
+    def test_item_approval_always_unavailable(self, client: TestClient, db_path: Path):
+        """Every item's evidence.approval is state=unavailable with binding reason."""
+        _task(db_path=db_path)
+        response = client.get("/work")
+        item = response.json()["items"][0]
+        assert item["evidence"]["approval"]["state"] == "unavailable"
+        assert "binding" in item["evidence"]["approval"]["reason"]
+
 
 # ---------------------------------------------------------------------------
 # GET /work/{work_id}
@@ -175,6 +223,15 @@ class TestGetWork:
         body = response.json()
         assert body["source"] == "builder"
         assert body["source_id"] == t["id"]
+
+    def test_detail_evidence_approval(self, client: TestClient, db_path: Path):
+        """Detail evidence always contains approval with state=unavailable."""
+        t = _task(db_path=db_path)
+        work_id = f"builder:{t['id']}"
+        response = client.get(f"/work/{work_id}")
+        body = response.json()
+        assert body["evidence"]["approval"]["state"] == "unavailable"
+        assert "binding" in body["evidence"]["approval"]["reason"]
 
 
 # ---------------------------------------------------------------------------

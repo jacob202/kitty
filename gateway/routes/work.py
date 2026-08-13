@@ -30,14 +30,21 @@ def list_work(
     Builder's default sort (state, priority, id).
     """
     try:
-        items = ws.list_work(
+        campaign, items = ws.list_work(
             state=state, source=source, limit=limit, db_path=BUILDER_QUEUE_DB
         )
     except ws.WorkStateError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ws.WorkSourceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"items": items}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Unexpected Builder read failure: {type(exc).__name__}: "
+            f"{str(exc)[:200]}",
+        ) from exc
+    campaign["items"] = items
+    return campaign
 
 
 @router.get("/work/{work_id}")
@@ -47,6 +54,7 @@ def get_work(work_id: str) -> dict:
     Returns 404 when the work ID does not exist.
     Returns 400 when the work ID prefix is unrecognised or the Builder
     task state is unknown.
+    Returns 503 on unexpected Builder read failures.
     """
     try:
         item = ws.get_work(work_id, db_path=BUILDER_QUEUE_DB)
@@ -54,6 +62,12 @@ def get_work(work_id: str) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except (ws.WorkSourceError, ws.WorkStateError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Unexpected Builder read failure: {type(exc).__name__}: "
+            f"{str(exc)[:200]}",
+        ) from exc
     return item
 
 
@@ -63,6 +77,7 @@ def get_work_events(work_id: str) -> dict:
 
     Returns 404 when the work ID does not exist.
     Returns 400 when the work ID prefix is unrecognised.
+    Returns 503 on unexpected Builder read failures.
     """
     try:
         events = ws.get_work_events(work_id, db_path=BUILDER_QUEUE_DB)
@@ -70,4 +85,10 @@ def get_work_events(work_id: str) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ws.WorkSourceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Unexpected Builder read failure: {type(exc).__name__}: "
+            f"{str(exc)[:200]}",
+        ) from exc
     return {"events": events}
