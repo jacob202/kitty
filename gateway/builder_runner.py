@@ -216,6 +216,7 @@ def ensure_worktree(
                 "--",
                 ".",
                 f":(exclude){bs.OPENCODE_CONTINUATION_RESIDUE_PREFIX}**",
+                ":(exclude).kittybuilder-codex-*",
             ],
             cwd=path,
         )
