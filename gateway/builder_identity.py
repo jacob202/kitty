@@ -113,16 +113,13 @@ def _get_allowed_paths(
     fail identity verification on the same stale scope it was just fixed
     for, silently discarding an otherwise-successful attempt.
     """
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         rows = conn.execute(
             "SELECT t.allowed_paths_json FROM initiative_packets ip "
             "JOIN tasks t ON t.id = ip.task_id "
             "WHERE ip.packet_id = ? LIMIT 2",
             (packet_id,),
         ).fetchall()
-    finally:
-        conn.close()
     if not rows:
         raise IdentityError(f"packet {packet_id!r} has no allowlist row")
     if len(rows) != 1:

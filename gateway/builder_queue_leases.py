@@ -44,6 +44,7 @@ from gateway.builder_queue_db import (
     LeaseConflictError,
     TaskNotFoundError,
     connect,
+    transaction,
 )
 
 logger = logging.getLogger("kitty.builder_queue_leases")
@@ -510,9 +511,7 @@ def renew_lease(
     if lease_seconds <= 0:
         raise ValueError("lease_seconds must be positive")
 
-    conn = connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
+    with transaction(db_path) as conn:
         cursor = conn.execute(
             """
             UPDATE tasks
@@ -531,12 +530,6 @@ def renew_lease(
                 "or lease already expired"
             )
         result = _bq._get_task_on_conn(conn, task_id)
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
     if result is None:
         raise RuntimeError(f"Task {task_id} lease renewed but is not retrievable")

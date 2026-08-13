@@ -306,8 +306,7 @@ def get_packet_base_sha(
     Raises AttemptError if the packet is missing or has no base_sha.
     """
     init_db(db_path)
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         row = _packet_row(conn, initiative_id, packet_id)
         base_sha = row["base_sha"] if "base_sha" in row.keys() else None
         if not base_sha or not isinstance(base_sha, str) or not base_sha.strip():
@@ -316,8 +315,6 @@ def get_packet_base_sha(
                 "cannot proceed without a bound base SHA"
             )
         return base_sha
-    finally:
-        conn.close()
 
 
 def _build_bundle_on_conn(
@@ -359,13 +356,10 @@ def build_context_bundle(
 ) -> dict[str, Any]:
     """Preview the bundle the NEXT attempt would receive. Read-only."""
     init_db(db_path)
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         packet = _packet_row(conn, initiative_id, packet_id)
         next_no = _attempt_count(conn, initiative_id, packet_id) + 1
         return _build_bundle_on_conn(conn, packet, next_no)
-    finally:
-        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -431,8 +425,7 @@ def list_stale_attempts(
     recovery may close its attempt and release its branch lease.
     """
     init_db(db_path)
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         rows = conn.execute(
             """
             SELECT * FROM packet_attempts
@@ -442,8 +435,6 @@ def list_stale_attempts(
             (initiative_id, packet_id),
         ).fetchall()
         attempts = [_row_to_attempt(r) for r in rows]
-    finally:
-        conn.close()
     return _liveness_certified_stale_attempts(attempts, db_path)
 
 
@@ -455,8 +446,7 @@ def list_all_stale_attempts(db_path: Path | None = None) -> list[dict[str, Any]]
     attempts cannot have their leases released by a recovery scan.
     """
     init_db(db_path)
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         rows = conn.execute(
             """
             SELECT * FROM packet_attempts
@@ -465,8 +455,6 @@ def list_all_stale_attempts(db_path: Path | None = None) -> list[dict[str, Any]]
             """
         ).fetchall()
         attempts = [_row_to_attempt(r) for r in rows]
-    finally:
-        conn.close()
     return _liveness_certified_stale_attempts(attempts, db_path)
 
 
@@ -962,8 +950,7 @@ def run_validation(
     the packet declares no commands. Output tails are capped at OUTPUT_CAP.
     """
     init_db(db_path)
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         row = _open_attempt_row(conn, attempt_id)
         if row["validation_json"] is not None:
             raise AttemptStateError(
@@ -976,8 +963,6 @@ def run_validation(
             else []
         )
         task_id = row["task_id"]
-    finally:
-        conn.close()
 
     if commands:
         if cwd is None:
@@ -1164,14 +1149,11 @@ def get_attempt(
 ) -> dict[str, Any] | None:
     """Return one attempt with decoded bundle/results, or None."""
     init_db(db_path)
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM packet_attempts WHERE id = ?", (attempt_id,)
         ).fetchone()
         return _row_to_attempt(row) if row else None
-    finally:
-        conn.close()
 
 
 def list_attempts(
@@ -1181,8 +1163,7 @@ def list_attempts(
 ) -> list[dict[str, Any]]:
     """List attempts for an initiative (optionally one packet), oldest first."""
     init_db(db_path)
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         if packet_id is not None:
             rows = conn.execute(
                 """
@@ -1202,5 +1183,3 @@ def list_attempts(
                 (initiative_id,),
             ).fetchall()
         return [_row_to_attempt(r) for r in rows]
-    finally:
-        conn.close()

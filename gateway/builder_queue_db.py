@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
 
 from gateway.paths import BUILDER_QUEUE_DB
@@ -461,6 +463,10 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
     called here — callers that need a schema-fresh DB should call
     ``init_db`` first. Most library paths go through the helpers below,
     which call this internally.
+
+    Prefer :func:`transaction` or :func:`reading` over calling this
+    directly — they cannot leak a connection on an early return or a
+    raise, which hand-written ``try/finally`` blocks repeatedly did.
     """
     path = Path(db_path) if db_path is not None else _default_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -468,3 +474,33 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     _apply_pragmas(conn)
     return conn
+
+
+@contextmanager
+def transaction(db_path: Path | None = None) -> Generator[sqlite3.Connection]:
+    """Run a write transaction: BEGIN IMMEDIATE, commit, rollback on error.
+
+    ``BEGIN IMMEDIATE`` takes the write lock up front so two workers
+    racing for the same lease fail fast at BEGIN instead of at COMMIT,
+    after both have already done their reads.
+    """
+    conn = connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+@contextmanager
+def reading(db_path: Path | None = None) -> Generator[sqlite3.Connection]:
+    """Open a read-only connection that always closes. No transaction."""
+    conn = connect(db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()

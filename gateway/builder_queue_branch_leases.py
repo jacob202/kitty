@@ -35,7 +35,12 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from gateway.builder_queue_db import BranchLeaseConflictError, connect, init_db
+from gateway.builder_queue_db import (
+    BranchLeaseConflictError,
+    connect,
+    init_db,
+    reading,
+)
 
 logger = logging.getLogger("kitty.builder_queue_branch_leases")
 
@@ -168,15 +173,12 @@ def verify_branch_lease(
 ) -> dict[str, Any] | None:
     """Return the active lease for ``initiative_id/packet_id``, or ``None`` when absent."""
     init_db(db_path)
-    conn = connect(db_path)
-    try:
+    with reading(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM branch_leases WHERE initiative_id = ? AND packet_id = ?",
             (initiative_id, packet_id),
         ).fetchone()
         return dict(row) if row is not None else None
-    finally:
-        conn.close()
 
 
 def get_branch_lease(
@@ -184,14 +186,11 @@ def get_branch_lease(
 ) -> dict[str, Any] | None:
     """Return one active lease by ID, or ``None`` when absent."""
     init_db(db_path)
-    conn = connect(db_path)
-    try:
+    with reading(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM branch_leases WHERE lease_id = ?", (lease_id,)
         ).fetchone()
         return dict(row) if row is not None else None
-    finally:
-        conn.close()
 
 
 def _release_branch_lease_on_conn(

@@ -129,8 +129,7 @@ def build_status_snapshot(*, db_path: Path | None = None) -> dict[str, Any]:
     pattern as initiatives gain packets.
     """
     ba.init_db(db_path)
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         initiative_rows = _read_initiatives(conn)
         packet_rows = _read_packets(conn)
         attempts = _group_attempts(_read_attempts(conn))
@@ -181,8 +180,6 @@ def build_status_snapshot(*, db_path: Path | None = None) -> dict[str, Any]:
             "queue": _queue_projection(conn),
             "initiatives": initiatives,
         }
-    finally:
-        conn.close()
 
 
 def build_control_plane_summary(*, db_path: Path) -> dict[str, Any]:

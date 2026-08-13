@@ -560,7 +560,13 @@ def test_lease_projection_uses_composite_packet_identity(tmp_path: Path):
 
 
 def test_snapshot_query_count_is_constant_with_packet_count(tmp_path: Path, monkeypatch):
-    real_connect = bq.connect
+    # Patch the DB layer's connect, not the builder_queue re-export: the
+    # snapshot opens its connection through bq.reading(), whose own call to
+    # connect() binds inside builder_queue_db. Patching the re-export leaves
+    # the real connect in place and counts zero queries.
+    from gateway import builder_queue_db
+
+    real_connect = builder_queue_db.connect
     select_counts: list[int] = []
 
     def traced_connect(db_path=None):
@@ -592,7 +598,7 @@ def test_snapshot_query_count_is_constant_with_packet_count(tmp_path: Path, monk
     one_packet_db = prepare_snapshot(1, tmp_path / "one")
     twelve_packet_db = prepare_snapshot(12, tmp_path / "twelve")
     monkeypatch.setattr(ba, "init_db", lambda _db_path=None: None)
-    monkeypatch.setattr(bq, "connect", traced_connect)
+    monkeypatch.setattr(builder_queue_db, "connect", traced_connect)
 
     def query_count(db_path: Path) -> int:
         select_counts.clear()

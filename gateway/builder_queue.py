@@ -63,6 +63,8 @@ from .builder_queue_db import (  # noqa: F401
     IllegalTransitionError,
     LeaseConflictError,
     TaskNotFoundError,
+    reading,
+    transaction,
 )
 from .builder_queue_leases import (  # noqa: F401
     claim_next,
@@ -120,9 +122,11 @@ __all__ = [
     "LEGAL_TRANSITIONS",
     "PR_OPENED",
     "QUEUED",
+    "reading",
     "RUNNING",
     "TaskNotFoundError",
     "TERMINAL_STATES",
+    "transaction",
     # Re-exports from gateway.builder_queue_leases (lease lifecycle; audit §2.2 second cut).
     "claim_next",
     "claim_task",
@@ -381,14 +385,11 @@ def get_task(
     task_id: str, db_path: Path | None = None
 ) -> dict[str, Any] | None:
     """Return the task dict for ``task_id`` or ``None`` if absent."""
-    conn = connect(db_path)
-    try:
+    with reading(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM tasks WHERE id = ?", (task_id,)
         ).fetchone()
         return _row_to_task(row) if row is not None else None
-    finally:
-        conn.close()
 
 
 def _get_task_on_conn(conn: sqlite3.Connection, task_id: str) -> dict[str, Any] | None:
@@ -411,8 +412,7 @@ def list_tasks(
     (state, priority DESC, id ASC) so consumers see a stable, scan-friendly
     ordering.
     """
-    conn = connect(db_path)
-    try:
+    with reading(db_path) as conn:
         clauses: list[WhereClause] = []
         if state is not None:
             clauses.append(WhereClause("state", "=", state))
@@ -428,8 +428,6 @@ def list_tasks(
             params if where_sql else (),
         ).fetchall()
         return [_row_to_task(r) for r in rows]
-    finally:
-        conn.close()
 
 
 def append_event(
@@ -594,9 +592,7 @@ def transition_task(
             concurrent state change.
         ValueError — unknown *new_state*.
     """
-    conn = connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
+    with transaction(db_path) as conn:
         row = conn.execute(
             "SELECT id, state, archived_at FROM tasks WHERE id = ?",
             (task_id,),
@@ -613,12 +609,6 @@ def transition_task(
         _apply_transition(
             conn, task_id, row["state"], new_state, payload=payload
         )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
     result = get_task(task_id, db_path=db_path)
     if result is None:
@@ -655,9 +645,7 @@ def operator_cancel_task(
         IllegalTransitionError — not cancellable (in-flight/published, archived,
             already terminal, or raced by a concurrent transition).
     """
-    conn = connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
+    with transaction(db_path) as conn:
         row = conn.execute(
             "SELECT id, state, archived_at FROM tasks WHERE id = ?",
             (task_id,),
@@ -679,12 +667,6 @@ def operator_cancel_task(
         if actor is not None:
             payload["actor"] = actor
         _apply_transition(conn, task_id, state, CANCELLED, payload=payload)
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
     result = get_task(task_id, db_path=db_path)
     if result is None:
@@ -823,8 +805,7 @@ def list_events(
     Raises:
         TaskNotFoundError — task ID does not exist.
     """
-    conn = connect(db_path)
-    try:
+    with reading(db_path) as conn:
         task_exists = conn.execute(
             "SELECT 1 FROM tasks WHERE id = ?", (task_id,)
         ).fetchone()
@@ -840,8 +821,6 @@ def list_events(
             (task_id,),
         ).fetchall()
         return [_row_to_event(r) for r in rows]
-    finally:
-        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -854,8 +833,7 @@ def queue_status(
 ) -> dict[str, Any]:
     """Return a summary of queue counts per state and total."""
     init_db(db_path)
-    conn = connect(db_path)
-    try:
+    with reading(db_path) as conn:
         rows = conn.execute(
             """
             SELECT state, COUNT(*) as count
@@ -884,8 +862,6 @@ def queue_status(
             "failed": per_state.get(FAILED, 0),
             "cancelled": per_state.get(CANCELLED, 0),
         }
-    finally:
-        conn.close()
 
 
 def find_silent_transitions(
@@ -902,8 +878,7 @@ def find_silent_transitions(
     caught immediately instead of reconstructed later from git archaeology.
     """
     init_db(db_path)
-    conn = connect(db_path)
-    try:
+    with reading(db_path) as conn:
         rows = conn.execute(
             """
             SELECT t.id, t.title, t.state, t.bridge_external_id, t.updated_at,
@@ -918,8 +893,6 @@ def find_silent_transitions(
             (QUEUED,),
         ).fetchall()
         return [dict(row) for row in rows]
-    finally:
-        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1138,9 +1111,7 @@ def attach_pr(
     if pr_number <= 0:
         raise ValueError("pr_number must be a positive integer")
 
-    conn = connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
+    with transaction(db_path) as conn:
         task_row = conn.execute(
             "SELECT id FROM tasks WHERE id = ?", (task_id,)
         ).fetchone()
@@ -1205,12 +1176,6 @@ def attach_pr(
             "SELECT * FROM pr_links WHERE task_id = ? AND pr_number = ?",
             (task_id, pr_number),
         ).fetchone()
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
     return dict(link_row)
 
@@ -1338,13 +1303,10 @@ def sync_pr_status(
     """
     fetcher = pr_status or _gh_pr_status
     init_db(db_path)
-    conn = connect(db_path)
-    try:
+    with reading(db_path) as conn:
         links = conn.execute(
             "SELECT task_id, pr_number FROM pr_links"
         ).fetchall()
-    finally:
-        conn.close()
 
     synced: list[int] = []
     errors: list[dict[str, str]] = []
@@ -1412,8 +1374,7 @@ def detect_merged_prs(
     """
     resolver = pr_merged or _gh_pr_status
     init_db(db_path)
-    conn = connect(db_path)
-    try:
+    with reading(db_path) as conn:
         candidate_rows = conn.execute(
             """
             SELECT t.id AS task_id, t.state AS task_state, p.pr_number AS pr_number,
@@ -1424,8 +1385,6 @@ def detect_merged_prs(
             """,
             (BLOCKED, PR_OPENED, AWAITING_REVIEW, CANCELLED),
         ).fetchall()
-    finally:
-        conn.close()
 
     promoted: list[str] = []
     already_done: list[str] = []
@@ -1538,9 +1497,7 @@ def _recover_cancelled_task_due_to_merge(
     ``recovered`` event and clears any stale lease/blocked fields so a recovered
     task is not mistakenly left in a partially-run state.
     """
-    conn = connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
+    with transaction(db_path) as conn:
         row = conn.execute(
             "SELECT id, state, archived_at FROM tasks WHERE id = ?",
             (task_id,),
@@ -1586,12 +1543,6 @@ def _recover_cancelled_task_due_to_merge(
             },
             conn=conn,
         )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
 
 def recover_durable_issues(
@@ -1647,8 +1598,7 @@ def _reconcile_done_unmerged_prs(
     """
     resolver = pr_merged or _gh_pr_status
     init_db(db_path)
-    conn = connect(db_path)
-    try:
+    with reading(db_path) as conn:
         rows = conn.execute(
             """
             SELECT t.id AS task_id, p.pr_number AS pr_number
@@ -1658,8 +1608,6 @@ def _reconcile_done_unmerged_prs(
             """,
             (DONE,),
         ).fetchall()
-    finally:
-        conn.close()
 
     marked: list[str] = []
     flagged: list[str] = []
@@ -1693,8 +1641,7 @@ def get_pr_links(
 
     Raises TaskNotFoundError if the task does not exist.
     """
-    conn = connect(db_path)
-    try:
+    with reading(db_path) as conn:
         task_row = conn.execute(
             "SELECT id FROM tasks WHERE id = ?", (task_id,)
         ).fetchone()
@@ -1705,8 +1652,6 @@ def get_pr_links(
             (task_id,),
         ).fetchall()
         return [dict(r) for r in rows]
-    finally:
-        conn.close()
 
 
 # ---------------------------------------------------------------------------
