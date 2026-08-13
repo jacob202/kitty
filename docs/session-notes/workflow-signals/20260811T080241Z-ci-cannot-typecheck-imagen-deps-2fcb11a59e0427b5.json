@@ -13,7 +13,7 @@
   "source_session": "claude-code/claude-next-4gj621/2026-08-11T08:00Z",
   "stable_key": "ci-cannot-typecheck-imagen-deps",
   "store_scope": "repo-fallback",
-  "suggested_change": "Install mcp/imagen/requirements.txt in the typecheck job so CI checks the same surface the pre-push hook does.",
+  "suggested_change": "Install both requirements.txt and mcp/imagen/requirements.txt in the typecheck job; installing only Imagen's leaves fastapi, pydantic, httpx and the rest resolving to Any.",
   "summary": "The Tests workflow's typecheck job installs only requirements.txt, so mcp/imagen's declared dependencies resolve to Any and an entire class of type error is invisible to CI while blocking every local push.",
   "verified_by": "mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py run in two venvs, with and without google-genai/google-api-core installed",
   "window_days": 30

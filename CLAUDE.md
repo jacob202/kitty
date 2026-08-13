@@ -107,7 +107,10 @@ or don't?"* and *"I can't keep track of all the shit you offhandedly mention."*
    sentence and give the exact command. Nothing else.
 4. **Never defer your own work.** "Deferred: copy X into the KB" is not a
    recommendation, it is you declining to do your job. Create the directory and
-   write the file.
+   write the file. In an ephemeral container, also mirror it into the repository
+   and commit — `~/kb` there is unversioned and dies with the container, so the
+   copy that survives is the one in git. `docs/session-notes/` is that mirror,
+   and `*.jsonl` needs `git add -f`.
 5. **Never end a reply with an unowned problem.** If it is not worth fixing, it
    is not worth mentioning.
 
@@ -186,11 +189,14 @@ only while identity and invalidation conditions remain valid. They are shared
 continuity files, not a Builder queue or session diary. Builder workers must not
 edit `.claude/`.
 
-**Write `.claude/STATE.md` and `.claude/HANDOFF.md` exactly once per session, at
-session end.** Not on every milestone, not to correct a field, not twice because
-a validator complained. Gather every fact first, validate the payload, then write
-both files in one pass. Repeated rewrites burn tokens and produce churn nobody
-reads.
+**Write `.claude/STATE.md` and `.claude/HANDOFF.md` once per session, at session
+end.** Not on every milestone, not to log progress, not to record a thought.
+Gather every fact first, then write both files in one pass.
+
+The one exception is repair: if `scripts/check_continuity_state.py` rejects what
+you wrote, fix it and re-validate until it passes. A checkpoint that fails its
+own validator is worse than churn — it turns the test suite red and leaves the
+next session an invalid continuation point.
 
 At session end:
 
@@ -215,7 +221,9 @@ Friction and cost come from the same place: rounds of chat that move nothing.
   wrong call would make the product less effective or his life more complicated.
 - One reply per outcome. Do not narrate progress, restate what you just did, or
   send him a status line that contains no decision and no result.
-- Do not re-verify what you already verified this session.
+- Do not re-verify an artifact you have not touched since you verified it. Any
+  edit invalidates every earlier result for that artifact — a test run from
+  before your last change says nothing about the tree you are about to publish.
 
 ## Authority
 

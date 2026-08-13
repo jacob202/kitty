@@ -61,11 +61,17 @@ the outage as ongoing after it had already lifted.
 **Verified:** Actions API run history for `.github/workflows/tests.yml`, read
 2026-08-10 23:12Z and again 2026-08-11 08:00Z.
 
-Duration is the tell. When the account cannot get a runner, jobs are assigned
-none and end in **3–13 seconds** with `runner_id: 0`, an empty runner name, a
-404 on the log download, and empty check-run output. No workflow line executes,
-so the result carries no information about the code. A real run of this
-repository's `Tests` workflow takes **200–314 seconds**.
+Runner metadata is the proof; duration is only the clue that sends you looking.
+A legitimate run can also fail in seconds when an early command rejects the code,
+so never conclude "outage" from timing alone.
+
+Confirm all four before discarding a red result: `runner_id: 0`, an empty runner
+name, a 404 on the log download, and empty check-run output. Those mean no
+workflow line executed, so the result carries no information about the code. If
+any of them is absent, the failure is real and belongs to the code.
+
+For scale: outage runs here ended in **3–13 seconds**; a real `Tests` run takes
+**200–314 seconds**.
 
 The 2026-08-06 outage ended on 2026-08-10 between 23:03Z and 23:20Z. Last dead
 run: `a736ee52` at 23:03:51Z. First live run: `59900f20` at 23:20:19Z. Nothing
