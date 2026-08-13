@@ -267,6 +267,52 @@ export interface BuilderStatusSnapshot {
   initiatives: BuilderInitiativeStatus[]
 }
 
+export type GatewayWorkState = 'active' | 'paused' | 'failed' | 'blocked' | 'completed' | 'ready' | 'waiting'
+
+export interface GatewayWorkItem {
+  id: string
+  title: string | null
+  state: GatewayWorkState
+  source: { kind: 'builder'; initiative_id: string; packet_id: string | null }
+  current_packet: {
+    id: string | null
+    title: string | null
+    objective?: string | null
+    task_id: string | null
+    task_state: string | null
+    next_action?: string | null
+    updated_at?: string | null
+  } | null
+  current_run: {
+    id: string | null
+    state: string | null
+    started_at?: string | null
+    ended_at?: string | null
+  } | null
+  blocker: { state?: string; reason?: string | null; blocked_by?: string[] } | null
+  next_action: string | null
+  evidence: Record<string, unknown>
+  data_quality: { state: string; issues?: string[] }
+  updated_at: string | null
+}
+
+export interface GatewayWorkSnapshot {
+  schema_version: number
+  observed_at: string
+  valid_until: string
+  source: {
+    kind: 'builder'
+    state: 'available' | 'degraded'
+    reason?: string | null
+    [key: string]: unknown
+  }
+  counts: Record<GatewayWorkState | 'total', number>
+  queue: BuilderQueueStatus | null
+  items: GatewayWorkItem[]
+  item_limit: number
+  total_items: number
+}
+
 export interface GatewayRuntimeManifest {
   schema_version: number
   manifest_id: string
@@ -637,6 +683,25 @@ async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs =
   } finally {
     window.clearTimeout(timeoutId)
   }
+}
+
+export async function fetchGatewayWorkSnapshot(): Promise<GatewayWorkSnapshot> {
+  const payload = await gfetch<unknown>('/work')
+  if (
+    !isRecord(payload)
+    || payload.schema_version !== 1
+    || typeof payload.observed_at !== 'string'
+    || typeof payload.valid_until !== 'string'
+    || !isRecord(payload.source)
+    || payload.source.kind !== 'builder'
+    || !isRecord(payload.counts)
+    || !Array.isArray(payload.items)
+    || typeof payload.item_limit !== 'number'
+    || typeof payload.total_items !== 'number'
+  ) {
+    throw new Error('Gateway /work returned an invalid payload')
+  }
+  return payload as unknown as GatewayWorkSnapshot
 }
 
 // ── Thread goals (per-chat objective, CR-01) ─────────────────────────────────
