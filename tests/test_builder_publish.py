@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -536,3 +539,130 @@ def test_prepare_main_worktree_resets_a_real_worktree(tmp_path):
 
     assert result == worktree
     assert ["git", "reset", "--hard", "origin/main"] in calls
+
+
+def test_publish_timeout_policy_gives_git_push_a_longer_window():
+    assert bp._command_timeout_seconds(["git", "status"]) == 120
+    assert bp._command_timeout_seconds(["gh", "pr", "list"]) == 120
+    assert bp._command_timeout_seconds(["git", "push", "origin", "HEAD"]) >= 1200
+
+
+def test_default_run_starts_command_in_own_process_group(monkeypatch):
+    seen: dict[str, Any] = {}
+
+    class FakeProcess:
+        returncode = 0
+
+        def communicate(self, *, timeout: float):
+            seen["timeout"] = timeout
+            return "ok", ""
+
+    def fake_popen(args, **kwargs):
+        seen["args"] = args
+        seen.update(kwargs)
+        return FakeProcess()
+
+    monkeypatch.setattr(bp.subprocess, "Popen", fake_popen)
+    result = bp._default_run(["git", "status"])
+
+    assert result.returncode == 0
+    assert seen["start_new_session"] is True
+    assert seen["timeout"] == 120
+
+
+
+def test_stop_process_group_kills_descendant_when_leader_exits_on_term(tmp_path: Path):
+    child_pid = tmp_path / "child.pid"
+    script = tmp_path / "leader-exits.sh"
+    script.write_text(
+        '#!/bin/sh\n'
+        'trap "exit 0" TERM\n'
+        '(trap "" TERM; while :; do sleep 1; done) &\n'
+        'echo "$!" > "$1"\n'
+        'wait\n',
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    proc = subprocess.Popen(
+        [str(script), str(child_pid)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        for _ in range(500):
+            if child_pid.exists():
+                break
+            time.sleep(0.01)
+        assert child_pid.exists()
+        pid = int(child_pid.read_text())
+        bp._stop_process_group(proc)
+        state = ""
+        for _ in range(200):
+            state = subprocess.run(
+                ["ps", "-p", str(pid), "-o", "stat="],
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            if not state or state.startswith("Z"):
+                break
+            time.sleep(0.01)
+        assert not state or state.startswith("Z"), state
+    finally:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+def test_default_run_interrupt_cleans_up_process_group(monkeypatch):
+    signals: list[int] = []
+
+    class FakeProcess:
+        pid = 4242
+        returncode = None
+
+        def communicate(self, *, timeout: float):
+            raise KeyboardInterrupt
+
+        def poll(self):
+            return self.returncode
+
+        def wait(self, timeout=None):
+            self.returncode = -signal.SIGTERM
+            return self.returncode
+
+    monkeypatch.setattr(bp.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+    monkeypatch.setattr(bp.os, "killpg", lambda pid, sig: signals.append(sig))
+
+    with pytest.raises(KeyboardInterrupt):
+        bp._default_run(["git", "status"])
+
+    assert signal.SIGTERM in signals
+    assert signal.SIGKILL in signals
+
+
+def test_default_run_timeout_reaps_descendant_process_group(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setattr(bp, "DEFAULT_COMMAND_TIMEOUT_SECONDS", 1.0)
+    monkeypatch.setattr(bp, "COMMAND_KILL_GRACE_SECONDS", 0.1)
+    child_pid = tmp_path / "child.pid"
+    script = tmp_path / "spawn-child.sh"
+    script.write_text(
+        '#!/bin/sh\nsleep 30 &\necho "$!" > "$1"\nwait\n',
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+
+    with pytest.raises(bp.PublishError, match="timed out after 1.0s"):
+        bp._default_run([str(script), str(child_pid)], cwd=tmp_path)
+
+    pid = int(child_pid.read_text())
+    state = subprocess.run(
+        ["ps", "-p", str(pid), "-o", "stat="],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert not state or state.startswith("Z"), state

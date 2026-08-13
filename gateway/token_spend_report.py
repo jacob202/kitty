@@ -18,9 +18,12 @@ PRICE_REGISTRY_USD_PER_MTOKENS: dict[str, dict[str, float]] = {
     "deepseek-v4-flash": {"input": 0.14, "cached_input": 0.0028, "output": 0.28},
     "deepseek-v4-pro": {"input": 0.435, "cached_input": 0.003625, "output": 0.87},
     "openrouter/deepseek/deepseek-v4-pro": {"input": 0.435, "cached_input": 0.003625, "output": 0.87},
-    "deepseek/deepseek-v4-flash": {"input": 0.14, "output": 0.28},
-    "deepseek/deepseek-v4-flash-20260423": {"input": 0.14, "output": 0.28},
+    "deepseek/deepseek-v4-pro": {"input": 0.435, "output": 0.87},
+    "deepseek/deepseek-v4-flash": {"input": 0.09, "output": 0.18},
+    "deepseek/deepseek-v4-flash-20260423": {"input": 0.09, "output": 0.18},
     "deepseek/deepseek-r1": {"input": 0.70, "output": 2.50},
+    "qwen/qwen3.7-plus": {"input": 0.32, "cached_input": 0.064, "output": 1.28},
+    "qwen/qwen3.7-max": {"input": 1.25, "output": 3.75},
     "qwen/qwen3-coder:free": {"input": 0.0, "output": 0.0},
 }
 

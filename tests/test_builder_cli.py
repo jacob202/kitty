@@ -1,6 +1,7 @@
 """Tests for the KittyBuilder control-plane CLI."""
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1358,17 +1359,20 @@ class TestInitiativeFreePreset:
         assert "provide --free" in capsys.readouterr().err
 
     def test_run_packet_free_model_forces_single_ladder_model(self, monkeypatch):
-        import os
-
         monkeypatch.setenv("KITTYBUILDER_MODEL", "sentinel")
-        with patch("gateway.builder_loop.run_packet", return_value=self._RESULT):
+        with patch(
+            "gateway.builder_loop.run_packet", return_value=self._RESULT
+        ) as mock_rp:
             rc = main([
                 "initiative", "run-packet", "init-1", "p1",
                 "--free", "--model", "opencode/mimo-v2.5-free", "--json",
             ])
 
         assert rc == 0
-        assert os.environ["KITTYBUILDER_MODEL"] == "opencode/mimo-v2.5-free"
+        assert mock_rp.call_args.kwargs["adapter_env"]["KITTYBUILDER_MODEL"] == (
+            "opencode/mimo-v2.5-free"
+        )
+        assert os.environ["KITTYBUILDER_MODEL"] == "sentinel"
 
     def test_initiative_run_free_dispatches_adapter_scripts(self):
         with patch(
@@ -1758,3 +1762,103 @@ class TestInitiativeListHealthIndicator:
         assert len(parsed) == 2
         assert parsed[0]["id"] == "init-alpha"
         assert parsed[1]["id"] == "init-beta"
+
+
+class TestInitiativePaidPreset:
+    _RESULT = {
+        "outcome": "succeeded",
+        "initiative_id": "init-1",
+        "packet_id": "p1",
+        "task_id": "kb_123",
+        "attempts": [],
+    }
+
+    def test_run_packet_paid_defaults_to_cheap_value_route(self, monkeypatch):
+        for key in (
+            "KITTYBUILDER_AGENT",
+            "KITTYBUILDER_REVIEW_AGENT",
+            "KITTYBUILDER_MODEL",
+            "KITTYBUILDER_REVIEW_MODEL",
+        ):
+            monkeypatch.delenv(key, raising=False)
+        with patch("gateway.builder_loop.run_packet", return_value=self._RESULT) as mock_rp:
+            rc = main(["initiative", "run-packet", "init-1", "p1", "--paid", "--json"])
+
+        assert rc == 0
+        kwargs = mock_rp.call_args.kwargs
+        assert kwargs["worker"] == "opencode-paid-cheap"
+        assert kwargs["model"] == "openrouter/deepseek/deepseek-v4-flash"
+        assert kwargs["provider"] == "openrouter"
+        assert kwargs["governor_risk_class"] == "routine"
+        assert kwargs["adapter_env"]["KITTYBUILDER_AGENT"] == "paid-builder"
+        assert kwargs["adapter_env"]["KITTYBUILDER_REVIEW_AGENT"] == "paid-reviewer"
+        assert kwargs["adapter_env"]["KITTYBUILDER_MODEL"] == (
+            "openrouter/deepseek/deepseek-v4-flash"
+        )
+
+    def test_run_packet_frontier_is_explicit_paid_escalation(self):
+        with patch("gateway.builder_loop.run_packet", return_value=self._RESULT) as mock_rp:
+            rc = main([
+                "initiative", "run-packet", "init-1", "p1",
+                "--paid", "--tier", "frontier", "--json",
+            ])
+
+        assert rc == 0
+        kwargs = mock_rp.call_args.kwargs
+        assert kwargs["worker"] == "opencode-paid-frontier"
+        assert kwargs["model"] == "openrouter/deepseek/deepseek-v4-pro"
+        assert kwargs["provider"] == "openrouter"
+        assert kwargs["governor_risk_class"] == "risky"
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            ["--free"],
+            ["--worker-command", '["true"]'],
+            ["--model", "openrouter/other/model"],
+        ],
+    )
+    def test_paid_rejects_ambiguous_execution_overrides(self, extra, capsys):
+        rc = main(["initiative", "run-packet", "init-1", "p1", "--paid", *extra])
+
+        assert rc == 1
+        assert "--paid" in capsys.readouterr().err
+
+
+def test_free_preset_rejects_a_paid_model_override(capsys):
+    with patch("gateway.builder_loop.run_packet") as mock_run:
+        rc = main([
+            "initiative", "run-packet", "init-1", "p1",
+            "--free", "--model", "openrouter/deepseek/deepseek-v4-flash",
+        ])
+
+    assert rc == 1
+    assert "free model" in capsys.readouterr().err.lower()
+    mock_run.assert_not_called()
+
+
+def test_free_preset_clears_inherited_model_ladders(monkeypatch):
+    monkeypatch.setenv("KITTYBUILDER_MODELS", "openrouter/paid/model")
+    monkeypatch.setenv("KITTYBUILDER_REVIEW_MODELS", "openrouter/paid/reviewer")
+    result = {"outcome": "succeeded", "initiative_id": "init-1", "packet_id": "p1", "attempts": []}
+    with patch("gateway.builder_loop.run_packet", return_value=result) as mock_run:
+        rc = main(["initiative", "run-packet", "init-1", "p1", "--free", "--json"])
+
+    assert rc == 0
+    env = mock_run.call_args.kwargs["adapter_env"]
+    assert env["KITTYBUILDER_MODELS"] == ""
+    assert env["KITTYBUILDER_REVIEW_MODELS"] == ""
+    assert os.environ["KITTYBUILDER_MODELS"] == "openrouter/paid/model"
+    assert os.environ["KITTYBUILDER_REVIEW_MODELS"] == "openrouter/paid/reviewer"
+
+
+def test_paid_route_cannot_bypass_compute_governor(capsys):
+    with patch("gateway.builder_loop.run_packet") as mock_run:
+        rc = main([
+            "initiative", "run-packet", "init-1", "p1",
+            "--paid", "--no-governor",
+        ])
+
+    assert rc == 1
+    assert "governor" in capsys.readouterr().err.lower()
+    mock_run.assert_not_called()

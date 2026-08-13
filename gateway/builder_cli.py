@@ -80,27 +80,75 @@ def _free_adapter_commands() -> tuple[list[str], list[str]]:
     return commands[0], commands[1]
 
 
+def _free_adapter_env(model: str | None = None) -> dict[str, str]:
+    env = {
+        "KITTYBUILDER_AGENT": "free-builder",
+        "KITTYBUILDER_REVIEW_AGENT": "free-reviewer",
+        "KITTYBUILDER_MODEL": model or "",
+        "KITTYBUILDER_REVIEW_MODEL": "",
+        "KITTYBUILDER_MODELS": "",
+        "KITTYBUILDER_REVIEW_MODELS": "",
+    }
+    return env
+
+
+def _paid_adapter_env(route: Any) -> dict[str, str]:
+    return {
+        "KITTYBUILDER_AGENT": "paid-builder",
+        "KITTYBUILDER_REVIEW_AGENT": "paid-reviewer",
+        "KITTYBUILDER_MODEL": route.worker_model,
+        "KITTYBUILDER_REVIEW_MODEL": route.reviewer_model,
+        "KITTYBUILDER_MODELS": "",
+        "KITTYBUILDER_REVIEW_MODELS": "",
+    }
+
+
+def _is_explicit_free_model(model: str) -> bool:
+    return model == "openrouter/free" or model.endswith(":free") or (
+        model.startswith("opencode/") and model.endswith("-free")
+    )
+
+
 def _resolve_loop_commands(
     args: argparse.Namespace,
-) -> tuple[list[str], list[str] | None]:
-    """Turn --free or --worker-command/--review-command into loop commands."""
+) -> tuple[list[str], list[str] | None, Any | None, dict[str, str]]:
+    """Resolve loop commands plus child-only adapter environment."""
+    if args.free and args.paid:
+        raise ValueError("--free and --paid are mutually exclusive")
+    if args.paid:
+        if getattr(args, "no_governor", False):
+            raise ValueError("--paid requires the compute governor; remove --no-governor")
+        if args.worker_command or args.review_command or args.model or args.provider:
+            raise ValueError(
+                "--paid selects governed worker/reviewer models and provider; "
+                "drop --worker-command/--review-command/--model/--provider or drop --paid"
+            )
+        from gateway.builder_paid_routing import resolve_paid_route
+
+        route = resolve_paid_route(args.tier)
+        worker_command, review_command = _free_adapter_commands()
+        return worker_command, review_command, route, _paid_adapter_env(route)
     if args.free:
         if args.worker_command or args.review_command:
             raise ValueError(
                 "--free already selects the OpenCode adapter scripts; "
                 "drop --worker-command/--review-command or drop --free"
             )
-        if args.model:
-            # The ladder in the adapter honours a forced single model.
-            os.environ["KITTYBUILDER_MODEL"] = args.model
-        return _free_adapter_commands()
-    worker_command = _parse_json_array(args.worker_command)
-    review_command = _parse_json_array(args.review_command)
-    if not worker_command:
+        if args.model and not _is_explicit_free_model(args.model):
+            raise ValueError(
+                "--free --model requires an explicitly free model id; use --paid for paid models"
+            )
+        worker_command, review_command = _free_adapter_commands()
+        return worker_command, review_command, None, _free_adapter_env(args.model)
+    if args.tier != "cheap":
+        raise ValueError("--tier requires --paid")
+    custom_worker_command = _parse_json_array(args.worker_command)
+    custom_review_command = _parse_json_array(args.review_command)
+    if not custom_worker_command:
         raise ValueError(
-            "provide --free or a non-empty --worker-command JSON array"
+            "provide --free, --paid, or a non-empty --worker-command JSON array"
         )
-    return worker_command, review_command
+    return custom_worker_command, custom_review_command, None, {}
 
 
 # ---------------------------------------------------------------------------
@@ -1429,13 +1477,23 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
     from gateway.builder_runner import RunnerError
 
     try:
-        worker_command, review_command = _resolve_loop_commands(args)
+        worker_command, review_command, paid_route, adapter_env = _resolve_loop_commands(args)
     except (json.JSONDecodeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     worker = args.worker
     if args.free and worker == "packet-loop":
         worker = "opencode-free"
+    elif paid_route is not None and worker == "packet-loop":
+        worker = f"opencode-paid-{paid_route.tier}"
+    selected_model = paid_route.worker_model if paid_route is not None else args.model
+    selected_provider = paid_route.provider if paid_route is not None else args.provider
+    governor_risk_class = (
+        "risky" if paid_route is not None and paid_route.tier == "frontier" else "routine"
+    )
+    governor_projected_cost_cad = (
+        paid_route.projected_cost_cad if paid_route is not None else None
+    )
 
     if args.watch and not args.json:
         print(f"watch: starting {args.id}/{args.packet}")
@@ -1446,9 +1504,17 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
             args.packet,
             worker_command=worker_command,
             review_command=review_command,
+            adapter_env=adapter_env,
             worker=worker,
-            model=args.model,
-            provider=args.provider,
+            model=selected_model,
+            provider=selected_provider,
+            governor_risk_class=governor_risk_class,
+            governor_projected_cost_cad=governor_projected_cost_cad,
+            governor_requested_route=(
+                paid_route.governor_route
+                if paid_route is not None
+                else ("free" if args.free else None)
+            ),
             timeout_seconds=args.timeout,
             # Governed by default at the CLI boundary: a real dispatch pays real
             # money, so the receipt check is opt-out, not opt-in.
@@ -1482,22 +1548,40 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
     from gateway.builder_run import STOP_NEEDS_DECISION, run_initiative
 
     try:
-        worker_command, review_command = _resolve_loop_commands(args)
+        worker_command, review_command, paid_route, adapter_env = _resolve_loop_commands(args)
     except (json.JSONDecodeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     worker = args.worker
     if args.free and worker == "packet-loop":
         worker = "opencode-free"
+    elif paid_route is not None and worker == "packet-loop":
+        worker = f"opencode-paid-{paid_route.tier}"
+    selected_model = paid_route.worker_model if paid_route is not None else args.model
+    selected_provider = paid_route.provider if paid_route is not None else args.provider
+    governor_risk_class = (
+        "risky" if paid_route is not None and paid_route.tier == "frontier" else "routine"
+    )
+    governor_projected_cost_cad = (
+        paid_route.projected_cost_cad if paid_route is not None else None
+    )
 
     try:
         summary = run_initiative(
             args.id,
             worker_command=worker_command,
             review_command=review_command,
+            adapter_env=adapter_env,
             worker=worker,
-            model=args.model,
-            provider=args.provider,
+            model=selected_model,
+            provider=selected_provider,
+            governor_risk_class=governor_risk_class,
+            governor_projected_cost_cad=governor_projected_cost_cad,
+            governor_requested_route=(
+                paid_route.governor_route
+                if paid_route is not None
+                else ("free" if args.free else None)
+            ),
             timeout_seconds=args.timeout,
             publish=args.publish,
             gate=args.gate,
@@ -1919,6 +2003,8 @@ COMMANDS: list[CommandSpec] = [
                 [_a("id", "initiative ID"),
                  _a("packet", "packet ID"),
                  _a("--free", "use the free OpenCode adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
+                 _a("--paid", "use the governed paid OpenRouter worker/reviewer route", action="store_true"),
+                 _a("--tier", "with --paid: value tier (cheap default) or explicit frontier escalation", choices=["cheap", "frontier"], default="cheap"),
                  _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
                  _a("--review-command", "optional reviewer command as a JSON array (omit = validation-gated only)", default=None),
                  _a("--worker", "worker name", default="packet-loop"),
@@ -1948,6 +2034,8 @@ COMMANDS: list[CommandSpec] = [
                 _cmd_initiative_run,
                 [_a("id", "initiative ID"),
                  _a("--free", "use the free OpenCode adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
+                 _a("--paid", "use the governed paid OpenRouter worker/reviewer route", action="store_true"),
+                 _a("--tier", "with --paid: value tier (cheap default) or explicit frontier escalation", choices=["cheap", "frontier"], default="cheap"),
                  _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
                  _a("--review-command", "optional reviewer command as a JSON array (omit = validation-gated only)", default=None),
                  _a("--worker", "worker name", default="packet-loop"),

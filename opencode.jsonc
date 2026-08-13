@@ -42,6 +42,28 @@
         "task": "deny",
         "external_directory": "deny"
       }
+    },
+    "paid-builder": {
+      "description": "Governed Kitty implementation using an explicitly selected paid OpenRouter model",
+      "model": "openrouter/deepseek/deepseek-v4-flash",
+      "prompt": "Work only inside the current isolated Kitty worktree. Read AGENTS.md, .claude/HANDOFF.md, .claude/STATE.md, and the supplied task card before editing. Implement only the bounded packet and run its exact validation. Use only the model selected by the governed paid route. Never push, merge, broaden scope, touch secrets or env files, inspect runtime personal data, ask questions, or spawn subagents.",
+      "permission": {
+        "edit": "allow",
+        "question": "deny",
+        "task": "deny",
+        "external_directory": "deny"
+      }
+    },
+    "paid-reviewer": {
+      "description": "Independent read-only review using an explicitly selected paid OpenRouter model",
+      "model": "openrouter/qwen/qwen3.7-plus",
+      "prompt": "Review the current Kitty worktree independently. Inspect the diff, packet contract, tests, and evidence. Do not edit files. Use only the model selected by the governed paid review route. Never push, merge, inspect secrets or env files, ask questions, or spawn subagents. Approve only when acceptance criteria and validation evidence honestly pass.",
+      "permission": {
+        "edit": "deny",
+        "question": "deny",
+        "task": "deny",
+        "external_directory": "deny"
+      }
     }
   },
   "experimental": {

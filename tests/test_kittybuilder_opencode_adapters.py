@@ -46,9 +46,15 @@ from pathlib import Path
 
 args = sys.argv
 model = args[args.index("--model") + 1] if "--model" in args else ""
+agent = args[args.index("--agent") + 1] if "--agent" in args else ""
+agent_log = os.environ.get("FAKE_OPENCODE_AGENT_LOG", "")
+if agent_log:
+    Path(agent_log).write_text(agent, encoding="utf-8")
 model_log = os.environ.get("FAKE_OPENCODE_MODEL_LOG", "")
 if model_log:
     Path(model_log).write_text(model, encoding="utf-8")
+if os.environ.get("FAKE_OPENCODE_READ_STDIN"):
+    sys.stdin.read()
 fail_models = set(
     filter(None, os.environ.get("FAKE_OPENCODE_FAIL_MODELS", "").split(","))
 )
@@ -433,15 +439,15 @@ def test_worker_times_out_silent_model_and_falls_through(tmp_path: Path):
     env.update(
         {
             "KITTYBUILDER_MODELS": "free-a free-b",
-            "KB_WORKER_TIMEOUT_SECONDS": "2",
+            "KB_WORKER_TIMEOUT_SECONDS": "8",
             "FAKE_OPENCODE_HANG_MODELS": "free-a",
-            "FAKE_OPENCODE_HANG_SECONDS": "2",
+            "FAKE_OPENCODE_HANG_SECONDS": "6",
             "FAKE_OPENCODE_MODEL_LOG": str(model_log),
         }
     )
 
     completed = subprocess.run(
-        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=8
+        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15
     )
 
     assert completed.returncode == 0, completed.stderr
@@ -668,9 +674,9 @@ def test_reviewer_times_out_silent_model_and_falls_through(tmp_path: Path):
             "KB_REVIEW_RESULT_PATH": str(review),
             "FAKE_OPENCODE_REVIEW": "1",
             "KITTYBUILDER_REVIEW_MODELS": "rev-a rev-b",
-            "KB_REVIEW_TIMEOUT_SECONDS": "2",
+            "KB_REVIEW_TIMEOUT_SECONDS": "8",
             "FAKE_OPENCODE_HANG_MODELS": "rev-a",
-            "FAKE_OPENCODE_HANG_SECONDS": "2",
+            "FAKE_OPENCODE_HANG_SECONDS": "6",
             "FAKE_OPENCODE_MODEL_LOG": str(model_log),
             "KB_REVIEW_CONTEXT_PATH": str(binding),
             "KB_REVIEW_SHA": subprocess.run(
@@ -682,7 +688,7 @@ def test_reviewer_times_out_silent_model_and_falls_through(tmp_path: Path):
     )
 
     completed = subprocess.run(
-        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=8
+        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15
     )
 
     assert completed.returncode == 0, completed.stderr
@@ -692,10 +698,8 @@ def test_reviewer_times_out_silent_model_and_falls_through(tmp_path: Path):
     assert "trying the next free model" in completed.stderr
 
 
-def test_reviewer_defaults_to_pro_and_writes_review_note(tmp_path: Path):
-    """The reviewer runs openrouter/deepseek/deepseek-v4-pro (frontier) by
-    default instead of the free ladder, and writes a human-readable note that
-    Builder/Kitty/Jacob can read alongside the structured review."""
+def test_reviewer_defaults_to_free_model_and_writes_review_note(tmp_path: Path):
+    """The free reviewer stays on a zero-cost model unless paid routing is explicit."""
     repo = tmp_path / "repo"
     repo.mkdir()
     _init_git_repo(repo)
@@ -731,9 +735,165 @@ def test_reviewer_defaults_to_pro_and_writes_review_note(tmp_path: Path):
     )
 
     assert completed.returncode == 0, completed.stderr
-    assert model_log.read_text() == "openrouter/deepseek/deepseek-v4-pro"
+    assert model_log.read_text() == "opencode/nemotron-3-ultra-free"
     assert json.loads(review.read_text())["verdict"] == "approve"
     note_text = note.read_text()
     assert "# KittyBuilder review note" in note_text
     assert "Verdict: approve" in note_text
     assert "Reviewed commit:" in note_text
+
+
+def test_worker_honours_explicit_paid_agent_without_changing_free_default(tmp_path: Path):
+    repo = tmp_path / "repo-paid-worker"
+    repo.mkdir()
+    _init_git_repo(repo)
+    bundle = tmp_path / "paid-worker-bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-paid"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    result = tmp_path / "paid-worker-result.json"
+    fake = _fake_opencode(tmp_path)
+    model_log = tmp_path / "paid-worker-model.txt"
+    agent_log = tmp_path / "paid-worker-agent.txt"
+    env = _env(fake, bundle=bundle, context=context, result=result)
+    env.update(
+        {
+            "FAKE_OPENCODE_IMPLEMENT_CHANGE": "1",
+            "FAKE_OPENCODE_MODEL_LOG": str(model_log),
+            "FAKE_OPENCODE_AGENT_LOG": str(agent_log),
+            "KITTYBUILDER_AGENT": "paid-builder",
+            "KITTYBUILDER_MODEL": "openrouter/deepseek/deepseek-v4-flash",
+        }
+    )
+
+    completed = subprocess.run(
+        [str(WORKER)], cwd=repo, env=env, capture_output=True, text=True
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert agent_log.read_text() == "paid-builder"
+    assert model_log.read_text() == "openrouter/deepseek/deepseek-v4-flash"
+
+
+def test_reviewer_honours_explicit_paid_agent_and_model(tmp_path: Path):
+    repo = tmp_path / "repo-paid-review"
+    repo.mkdir()
+    _init_git_repo(repo)
+    bundle = tmp_path / "paid-review-bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-paid"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    implementation = tmp_path / "paid-review-implementation.json"
+    implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
+    review = tmp_path / "paid-review.json"
+    fake = _fake_opencode(tmp_path)
+    binding = _review_binding(repo)
+    model_log = tmp_path / "paid-review-model.txt"
+    agent_log = tmp_path / "paid-review-agent.txt"
+    env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
+    env.update(
+        {
+            "KB_IMPL_RESULT_PATH": str(implementation),
+            "KB_REVIEW_RESULT_PATH": str(review),
+            "FAKE_OPENCODE_REVIEW": "1",
+            "FAKE_OPENCODE_MODEL_LOG": str(model_log),
+            "FAKE_OPENCODE_AGENT_LOG": str(agent_log),
+            "KITTYBUILDER_REVIEW_AGENT": "paid-reviewer",
+            "KITTYBUILDER_REVIEW_MODEL": "openrouter/qwen/qwen3.7-plus",
+            "KB_REVIEW_CONTEXT_PATH": str(binding),
+            "KB_REVIEW_SHA": subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo, check=True,
+                capture_output=True, text=True,
+            ).stdout.strip(),
+            "KB_REVIEW_DIFF_SHA256": "0" * 64,
+        }
+    )
+
+    completed = subprocess.run(
+        [str(REVIEWER)], cwd=repo, env=env, capture_output=True, text=True
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert agent_log.read_text() == "paid-reviewer"
+    assert model_log.read_text() == "openrouter/qwen/qwen3.7-plus"
+
+
+def _wait_without_closing_stdin(proc: subprocess.Popen[str]) -> tuple[str, str]:
+    for _ in range(40):
+        if proc.poll() is not None:
+            break
+        time.sleep(0.025)
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=2)
+        if proc.stdin is not None:
+            proc.stdin.close()
+        raise AssertionError("adapter waited for parent stdin EOF")
+    if proc.stdin is not None:
+        proc.stdin.close()
+    stdout = proc.stdout.read() if proc.stdout is not None else ""
+    stderr = proc.stderr.read() if proc.stderr is not None else ""
+    return stdout, stderr
+
+
+def test_worker_closes_stdin_before_launching_opencode(tmp_path: Path):
+    repo = tmp_path / "stdin-worker"
+    repo.mkdir()
+    _init_git_repo(repo)
+    bundle = tmp_path / "stdin-worker-bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-stdin"}\n')
+    context = _manifest(bundle)
+    result = tmp_path / "stdin-worker-result.json"
+    fake = _fake_opencode(tmp_path)
+    env = _env(fake, bundle=bundle, context=context, result=result)
+    env.update({"FAKE_OPENCODE_READ_STDIN": "1"})
+    proc = subprocess.Popen(
+        [str(WORKER)], cwd=repo, env=env,
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    stdout, stderr = _wait_without_closing_stdin(proc)
+
+    assert proc.returncode == 0, stderr
+    assert json.loads(result.read_text())["status"] == "completed"
+    assert "completed with" in stdout
+
+
+def test_reviewer_closes_stdin_before_launching_opencode(tmp_path: Path):
+    repo = tmp_path / "stdin-reviewer"
+    repo.mkdir()
+    _init_git_repo(repo)
+    bundle = tmp_path / "stdin-review-bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-stdin"}\n')
+    context = _manifest(bundle)
+    implementation = tmp_path / "stdin-implementation.json"
+    implementation.write_text('{"contract_version":1}\n')
+    review = tmp_path / "stdin-review.json"
+    fake = _fake_opencode(tmp_path)
+    binding = _review_binding(repo)
+    env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
+    env.update({
+        "KB_IMPL_RESULT_PATH": str(implementation),
+        "KB_REVIEW_RESULT_PATH": str(review),
+        "FAKE_OPENCODE_REVIEW": "1",
+        "FAKE_OPENCODE_READ_STDIN": "1",
+        "KB_REVIEW_CONTEXT_PATH": str(binding),
+        "KB_REVIEW_SHA": subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo, check=True,
+            capture_output=True, text=True,
+        ).stdout.strip(),
+        "KB_REVIEW_DIFF_SHA256": "0" * 64,
+    })
+    proc = subprocess.Popen(
+        [str(REVIEWER)], cwd=repo, env=env,
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    _stdout, stderr = _wait_without_closing_stdin(proc)
+
+    assert proc.returncode == 0, stderr
+    assert json.loads(review.read_text())["verdict"] == "approve"

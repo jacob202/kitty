@@ -30,7 +30,11 @@ ci: lint typecheck test-ci ui-test ui-build
 # core.hooksPath is per-clone config, so this is not automatic -- run it once.
 hooks:
 	git config core.hooksPath scripts/hooks
-	@echo "pre-push gate installed. Bypass a single push with: git push --no-verify"
+	@if [ -z "$$(git config --get core.sshCommand || true)" ]; then \
+		git config core.sshCommand "ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=30"; \
+	fi
+	@echo "pre-push gate installed. SSH keepalive configured when no custom core.sshCommand exists."
+	@echo "Bypass a single push with: git push --no-verify"
 
 smoke-test:
 	cd gateway/kitty-chat && npx playwright test

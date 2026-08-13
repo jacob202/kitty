@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "paid_openrouter_enabled": true,
+  "routes": {
+    "cheap": {
+      "provider": "openrouter",
+      "worker_model": "openrouter/deepseek/deepseek-v4-flash",
+      "reviewer_model": "openrouter/qwen/qwen3.7-plus",
+      "governor_route": "cheap",
+      "max_projected_cad_per_attempt": 0.10
+    },
+    "frontier": {
+      "provider": "openrouter",
+      "worker_model": "openrouter/deepseek/deepseek-v4-pro",
+      "reviewer_model": "openrouter/qwen/qwen3.7-max",
+      "governor_route": "frontier",
+      "max_projected_cad_per_attempt": 0.50
+    }
+  }
+}

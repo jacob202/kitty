@@ -3,9 +3,9 @@ set -euo pipefail
 
 budget_started=${SECONDS}
 
-# KittyBuilder worker adapter for free OpenCode routing. The queue runner owns
-# the worktree and contract paths; this script only asks OpenCode to implement
-# the bounded packet and write the required implementation JSON.
+# KittyBuilder OpenCode worker adapter. The queue runner owns the worktree and
+# contract paths; route selection supplies a free or paid agent/model through
+# the child environment.
 
 : "${KB_BUNDLE_PATH:?KB_BUNDLE_PATH is required}"
 : "${KB_RESULT_PATH:?KB_RESULT_PATH is required}"
@@ -16,6 +16,15 @@ budget_started=${SECONDS}
 if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   echo "ERROR: the free worker must run inside the task's isolated git worktree" >&2
   exit 1
+fi
+
+adapter_agent="${KITTYBUILDER_AGENT:-free-builder}"
+if [[ "${adapter_agent}" == "paid-builder" ]]; then
+  lane_label="paid"
+  completion_label="Paid"
+else
+  lane_label="free"
+  completion_label="Free"
 fi
 
 # Free-model ladder: KITTYBUILDER_MODEL forces exactly one model,
@@ -122,11 +131,11 @@ for model in "${models[@]}"; do
   before="$(fingerprint)"
   remaining_models=$((${#models[@]} - model_index))
   slot_seconds=$(model_timeout "${remaining_models}")
-  echo "=== free builder attempt: ${model} (${slot_seconds}s slot) ==="
+  echo "=== ${lane_label} builder attempt: ${model} (${slot_seconds}s slot) ==="
   set +e
   python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" \
-    opencode run --auto --agent free-builder --model "${model}" \
-    --title "KittyBuilder free packet worker" "${prompt}"
+    opencode run --auto --agent "${adapter_agent}" --model "${model}" \
+    --title "KittyBuilder ${lane_label} packet worker" "${prompt}" </dev/null
   rc=$?
   set -e
   model_index=$((model_index + 1))
@@ -146,14 +155,14 @@ for model in "${models[@]}"; do
     echo "ERROR: ${model} changed the worktree without writing ${local_result}; no fallback over partial work." >&2
     exit 1
   fi
-  echo "WARNING: ${model} exited ${rc} without a result or worktree change; trying the next free model." >&2
+  echo "WARNING: ${model} exited ${rc} without a result or worktree change; trying the next ${lane_label} model." >&2
 done
 
 if [[ -z "${chosen_model}" ]]; then
-  echo "ERROR: every free model failed cleanly without producing a result: ${models[*]}" >&2
+  echo "ERROR: every ${lane_label} model failed cleanly without producing a result: ${models[*]}" >&2
   exit 75
 fi
-echo "Free builder completed with ${chosen_model}."
+echo "${completion_label} builder completed with ${chosen_model}."
 
 result_status=$(python3 - "${local_result}" <<'PY'
 import json
