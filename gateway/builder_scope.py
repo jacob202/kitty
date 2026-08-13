@@ -78,8 +78,13 @@ SESSION_STATE_RESIDUE = frozenset({".claude/STATE.md", ".claude/HANDOFF.md"})
 # <attempt_id>.json at the worktree root so the model can read them via a
 # relative path, and cleans them up before finishing. A run that's killed or
 # inspected mid-attempt can still show these as changed paths.
+#
+# The Codex adapter (scripts/kittybuilder_codex_adapter.py) stages
+# .kittybuilder-codex-{attempt_id} and .kittybuilder-codex-review-{attempt_id}
+# at the worktree root while a Codex worker runs; same mid-run residue risk.
 WORKER_STAGING_PREFIXES = (
     ".kittybuilder-bundle-",
+    ".kittybuilder-codex-",
     ".kittybuilder-context-",
     ".kittybuilder-result-",
 )
