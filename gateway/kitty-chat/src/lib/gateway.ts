@@ -267,6 +267,69 @@ export interface BuilderStatusSnapshot {
   initiatives: BuilderInitiativeStatus[]
 }
 
+export type GatewayWorkState = 'pending' | 'running' | 'blocked' | 'review' | 'completed' | 'failed' | 'cancelled'
+
+export interface GatewayWorkApproval {
+  state: 'unavailable' | string
+  reason?: string | null
+}
+
+export interface GatewayWorkEvidence {
+  approval?: GatewayWorkApproval
+  implementation?: unknown
+  validation?: unknown
+  review?: unknown
+  publication?: unknown
+  run_log?: string
+  run_report?: unknown
+  [key: string]: unknown
+}
+
+export interface GatewayWorkItem {
+  work_id: string
+  source: 'builder'
+  source_id: string
+  title: string
+  summary: string | null
+  state: GatewayWorkState
+  source_state: string
+  priority: number
+  created_at: string | null
+  updated_at: string | null
+  blocker: string | null
+  error: string | null
+  latest_run: Record<string, unknown> | null
+  latest_pr: Record<string, unknown> | null
+  evidence: GatewayWorkEvidence | null
+  links: Array<{ type: string; url: string }>
+}
+
+export interface GatewayWorkList {
+  schema_version: 1
+  observed_at: string
+  valid_until: string
+  source_health: { kind: 'builder'; state: string; reason?: string | null }
+  state_counts: Partial<Record<GatewayWorkState, number>>
+  total_items: number
+  item_limit: number
+  items: GatewayWorkItem[]
+}
+
+export interface GatewayWorkEvent {
+  id?: number
+  task_id?: string
+  event_type?: string
+  type?: string
+  created_at?: string
+  timestamp?: string
+  payload?: unknown
+  [key: string]: unknown
+}
+
+export interface GatewayWorkEvents {
+  events: GatewayWorkEvent[]
+}
+
 export interface GatewayRuntimeManifest {
   schema_version: number
   manifest_id: string
@@ -637,6 +700,33 @@ async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs =
   } finally {
     window.clearTimeout(timeoutId)
   }
+}
+
+async function fetchGatewayWorkJson<T>(path: string): Promise<T> {
+  const response = await fetchWithTimeout(`${GATEWAY_BASE}${path}`, DEFAULT_TIMEOUT_MS)
+  if (!response.ok) {
+    let detail = `Gateway returned ${response.status} ${response.statusText}`.trim()
+    try {
+      const body = await response.json() as { detail?: unknown }
+      if (typeof body?.detail === 'string' && body.detail.trim()) detail = body.detail.trim()
+    } catch {
+      // Preserve the concrete HTTP status when the body is not JSON.
+    }
+    throw new Error(detail)
+  }
+  return await response.json() as T
+}
+
+export async function fetchGatewayWork(limit = 100): Promise<GatewayWorkList> {
+  return await fetchGatewayWorkJson<GatewayWorkList>(`/work?limit=${encodeURIComponent(limit)}`)
+}
+
+export async function fetchGatewayWorkDetail(workId: string): Promise<GatewayWorkItem> {
+  return await fetchGatewayWorkJson<GatewayWorkItem>(`/work/${encodeURIComponent(workId)}`)
+}
+
+export async function fetchGatewayWorkEvents(workId: string): Promise<GatewayWorkEvents> {
+  return await fetchGatewayWorkJson<GatewayWorkEvents>(`/work/${encodeURIComponent(workId)}/events`)
 }
 
 // ── Thread goals (per-chat objective, CR-01) ─────────────────────────────────
