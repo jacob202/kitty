@@ -114,6 +114,12 @@ or don't?"* and *"I can't keep track of all the shit you offhandedly mention."*
 5. **Never end a reply with an unowned problem.** If it is not worth fixing, it
    is not worth mentioning.
 
+This bans deferring work you could have done. It does not ban the session-end
+deferred recommendation, which exists for genuine blockers — a required artifact,
+a real collision, pending authorization. Those keep their safe release check.
+"Someone should copy this file" is not a blocker; "this needs Jacob's approval"
+is.
+
 When a local tool blocks him, give the single command that unblocks him now and
 take the underlying repair yourself. Do not send him into a diagnostic loop, and
 never present a fix as complete before verifying it clears the failure it

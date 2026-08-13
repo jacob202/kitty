@@ -65,10 +65,13 @@ Runner metadata is the proof; duration is only the clue that sends you looking.
 A legitimate run can also fail in seconds when an early command rejects the code,
 so never conclude "outage" from timing alone.
 
-Confirm all four before discarding a red result: `runner_id: 0`, an empty runner
-name, a 404 on the log download, and empty check-run output. Those mean no
-workflow line executed, so the result carries no information about the code. If
-any of them is absent, the failure is real and belongs to the code.
+All four together — `runner_id: 0`, an empty runner name, a 404 on the log
+download, and empty check-run output — mean no workflow line executed, so the
+result carries no information about the code.
+
+A partial match is **unknown**, not a code failure. Infrastructure can also fail
+after a runner is assigned, and GitHub sometimes returns logs for a run that
+executed nothing. Fewer than four markers means read the logs before deciding.
 
 For scale: outage runs here ended in **3–13 seconds**; a real `Tests` run takes
 **200–314 seconds**.
