@@ -4,9 +4,12 @@ Provides a stable ``WorkItem`` view of Builder queue state using the
 ``builder:<task_id>`` identity scheme. No new Work database: every query
 delegates to the public read surfaces of the Builder modules.
 
-Known Builder task states map to identical Work states. An unknown task state
-from the Builder store raises ``WorkStateError`` immediately — no silent
-defaulting to ``unknown``.
+Builder is the only v1 source of truth.  Every item has ``source`` equal
+to ``"builder"`` and ``source_id`` equal to the Builder task id.
+
+Known Builder task states map to normalized Work states.  An unknown task
+state from the Builder store raises ``WorkStateError`` immediately — no
+silent defaulting to ``unknown``.
 """
 
 from __future__ import annotations
@@ -27,29 +30,28 @@ logger = logging.getLogger("kitty.work_spine")
 
 WORK_ID_PREFIX = "builder:"
 
-# Normalized Work states mirror the Builder task state machine.
-# Every Builder state in _VALID_STATES maps one-to-one here.
-WORK_STATE_QUEUED = "queued"
-WORK_STATE_CLAIMED = "claimed"
+# Normalized Work states — the public contract.
+# queued/claimed → pending; awaiting_review/pr_opened → review.
+WORK_STATE_PENDING = "pending"
 WORK_STATE_RUNNING = "running"
 WORK_STATE_BLOCKED = "blocked"
-WORK_STATE_PR_OPENED = "pr_opened"
-WORK_STATE_AWAITING_REVIEW = "awaiting_review"
+WORK_STATE_REVIEW = "review"
 WORK_STATE_COMPLETED = "completed"
 WORK_STATE_FAILED = "failed"
 WORK_STATE_CANCELLED = "cancelled"
 
-_VALID_WORK_STATES = frozenset({
-    WORK_STATE_QUEUED,
-    WORK_STATE_CLAIMED,
+_WORK_STATES = frozenset({
+    WORK_STATE_PENDING,
     WORK_STATE_RUNNING,
     WORK_STATE_BLOCKED,
-    WORK_STATE_PR_OPENED,
-    WORK_STATE_AWAITING_REVIEW,
+    WORK_STATE_REVIEW,
     WORK_STATE_COMPLETED,
     WORK_STATE_FAILED,
     WORK_STATE_CANCELLED,
 })
+
+# Builder source label — the only valid source in v1.
+SOURCE_BUILDER = "builder"
 
 # ---------------------------------------------------------------------------
 # Errors
@@ -77,12 +79,12 @@ class WorkSourceError(WorkError):
 # ---------------------------------------------------------------------------
 
 _BUILDER_TO_WORK_STATE: dict[str, str] = {
-    bq.QUEUED: WORK_STATE_QUEUED,
-    bq.CLAIMED: WORK_STATE_CLAIMED,
+    bq.QUEUED: WORK_STATE_PENDING,
+    bq.CLAIMED: WORK_STATE_PENDING,
     bq.RUNNING: WORK_STATE_RUNNING,
     bq.BLOCKED: WORK_STATE_BLOCKED,
-    bq.PR_OPENED: WORK_STATE_PR_OPENED,
-    bq.AWAITING_REVIEW: WORK_STATE_AWAITING_REVIEW,
+    bq.AWAITING_REVIEW: WORK_STATE_REVIEW,
+    bq.PR_OPENED: WORK_STATE_REVIEW,
     bq.DONE: WORK_STATE_COMPLETED,
     bq.FAILED: WORK_STATE_FAILED,
     bq.CANCELLED: WORK_STATE_CANCELLED,
@@ -111,10 +113,10 @@ def _normalize_state(builder_state: str) -> str:
 def _parse_work_id(work_id: str) -> tuple[str, str]:
     """Split a ``builder:<task_id>`` work ID into (source, task_id).
 
-    Raises ``WorkNotFoundError`` if the prefix is not recognised.
+    Raises ``WorkSourceError`` if the prefix is not recognised.
     """
     if work_id.startswith(WORK_ID_PREFIX):
-        return "builder", work_id[len(WORK_ID_PREFIX):]
+        return SOURCE_BUILDER, work_id[len(WORK_ID_PREFIX):]
     raise WorkSourceError(
         f"work ID {work_id!r} has unrecognised source prefix; "
         f"expected {WORK_ID_PREFIX!r}<task_id>"
@@ -124,17 +126,6 @@ def _parse_work_id(work_id: str) -> tuple[str, str]:
 def _build_work_id(task_id: str) -> str:
     """Return a ``builder:<task_id>`` work ID for the given task."""
     return f"{WORK_ID_PREFIX}{task_id}"
-
-
-def _builder_source_label(task: dict[str, Any]) -> str:
-    """Return a human-readable source label for a Builder task.
-
-    Uses ``bridge_source`` when available, otherwise ``"builder_queue"``.
-    """
-    bridge = task.get("bridge_source")
-    if bridge and isinstance(bridge, str) and bridge.strip():
-        return bridge
-    return "builder_queue"
 
 
 # ---------------------------------------------------------------------------
@@ -150,48 +141,54 @@ def list_work(
 ) -> list[dict[str, Any]]:
     """List work items, optionally filtered.
 
+    In v1 only ``source=builder`` is supported.  Any other source value
+    raises ``WorkSourceError``.
+
     Args:
         state: Filter by normalized Work state.
-        source: Filter by Builder ``bridge_source`` (e.g. ``"initiative"``).
+        source: Must be ``"builder"`` in v1 (or ``None``).
         limit: Maximum items to return (clamped to 1-500).
 
     Returns:
-        A list of work item dicts, each with:
-        ``work_id``, ``state``, ``source``, ``title``, ``task_id``,
-        ``created_at``, ``updated_at``, ``blocked_reason`` (or None).
+        A list of work item dicts.
 
     Raises:
         WorkStateError: if *state* is not a recognised Work state.
+        WorkSourceError: if *source* is not ``"builder"``.
     """
-    if state is not None and state not in _VALID_WORK_STATES:
-        raise WorkStateError(
-            f"unrecognised Work state {state!r}; "
-            f"valid: {sorted(_VALID_WORK_STATES)}"
+    # v1: only source=builder is valid.
+    if source is not None and source != SOURCE_BUILDER:
+        raise WorkSourceError(
+            f"unsupported source {source!r}; only {SOURCE_BUILDER!r} is supported in v1"
         )
 
-    # Map Work state back to Builder state for the query.
-    builder_state: str | None = None
+    if state is not None and state not in _WORK_STATES:
+        raise WorkStateError(
+            f"unrecognised Work state {state!r}; "
+            f"valid: {sorted(_WORK_STATES)}"
+        )
+
+    # Map Work state back to Builder states for the query.
+    # Multiple Builder states can map to one Work state (e.g. queued/claimed →
+    # pending), so collect all matching Builder states and query each.
+    builder_states: list[str] = []
     if state is not None:
-        # Reverse lookup: find the builder state for this work state.
         for bs, ws in _BUILDER_TO_WORK_STATE.items():
             if ws == state:
-                builder_state = bs
-                break
-        if builder_state is None:
+                builder_states.append(bs)
+        if not builder_states:
             raise WorkStateError(
                 f"cannot resolve Work state {state!r} to a Builder state"
             )
 
-    tasks = bq.list_tasks(state=builder_state, db_path=db_path)
+    if builder_states:
+        tasks: list[dict[str, Any]] = []
+        for bs in sorted(builder_states):
+            tasks.extend(bq.list_tasks(state=bs, db_path=db_path))
+    else:
+        tasks = bq.list_tasks(db_path=db_path)
 
-    # Filter by source (bridge_source) and clamp limit.
-    # NOTE: bq.list_tasks has no source filter, so we post-filter in Python.
-    if source is not None:
-        tasks = [
-            t for t in tasks
-            if (t.get("bridge_source") or "builder_queue") == source
-        ]
-
+    # Clamp limit.
     if limit < 1:
         limit = 1
     elif limit > 500:
@@ -200,23 +197,32 @@ def list_work(
 
     result: list[dict[str, Any]] = []
     for task in tasks:
-        try:
-            work_state = _normalize_state(task["state"])
-        except WorkStateError:
-            # Fail loud: unknown Builder state should not pass silently.
-            raise
-        result.append({
-            "work_id": _build_work_id(task["id"]),
-            "state": work_state,
-            "source": _builder_source_label(task),
-            "title": task.get("title", ""),
-            "task_id": task["id"],
-            "created_at": task.get("created_at"),
-            "updated_at": task.get("updated_at"),
-            "blocked_reason": task.get("blocked_reason"),
-        })
+        work_state = _normalize_state(task["state"])
+        result.append(_task_to_list_item(task, work_state))
 
     return result
+
+
+def _task_to_list_item(task: dict[str, Any], work_state: str) -> dict[str, Any]:
+    """Build a list-level Work item dict from a Builder task dict."""
+    return {
+        "work_id": _build_work_id(task["id"]),
+        "source": SOURCE_BUILDER,
+        "source_id": task["id"],
+        "title": task.get("title", ""),
+        "summary": task.get("description"),
+        "state": work_state,
+        "source_state": task["state"],
+        "priority": task.get("priority", 0),
+        "created_at": task.get("created_at"),
+        "updated_at": task.get("updated_at"),
+        "blocker": task.get("blocked_reason"),
+        "error": task.get("last_error"),
+        "latest_run": None,
+        "latest_pr": None,
+        "evidence": None,
+        "links": [],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -230,9 +236,6 @@ def get_work(
 ) -> dict[str, Any]:
     """Return a single work item with full detail.
 
-    The detail includes the latest run, latest attempt, latest PR link,
-    errors, and timestamps.
-
     Raises:
         WorkNotFoundError: if the work ID does not exist.
         WorkSourceError: if the work ID prefix is unrecognised.
@@ -244,37 +247,26 @@ def get_work(
     if task is None:
         raise WorkNotFoundError(f"work {work_id!r} not found")
 
-    try:
-        work_state = _normalize_state(task["state"])
-    except WorkStateError:
-        raise
+    work_state = _normalize_state(task["state"])
 
-    # Latest run for this task.
+    # Latest run — fail loud if the read fails.
     latest_run: dict[str, Any] | None = None
-    try:
-        runs = bq.list_runs(task_id=task_id, db_path=db_path)
-        if runs:
-            latest_run = runs[-1]
-    except Exception as exc:
-        logger.warning("Failed to list runs for task %s: %s", task_id, exc)
+    runs = bq.list_runs(task_id=task_id, db_path=db_path)
+    if runs:
+        latest_run = runs[-1]
 
-    # Latest attempt for this task (across all packets in all initiatives).
+    # Latest attempt — fail loud if the read fails.
     latest_attempt: dict[str, Any] | None = None
-    try:
-        # Attempts are keyed to initiative_id+packet_id, not task_id directly.
-        # The task's bridge_external_id is "<initiative_id>/<packet_id>".
-        bridge_ext = task.get("bridge_external_id") or ""
-        if bridge_ext and "/" in bridge_ext:
-            initiative_id, packet_id = bridge_ext.split("/", 1)
-            attempts = ba.list_attempts(
-                initiative_id, packet_id=packet_id, db_path=db_path
-            )
-            if attempts:
-                latest_attempt = attempts[-1]
-    except Exception as exc:
-        logger.warning("Failed to list attempts for task %s: %s", task_id, exc)
+    bridge_ext = task.get("bridge_external_id") or ""
+    if bridge_ext and "/" in bridge_ext:
+        initiative_id, packet_id = bridge_ext.split("/", 1)
+        attempts = ba.list_attempts(
+            initiative_id, packet_id=packet_id, db_path=db_path
+        )
+        if attempts:
+            latest_attempt = attempts[-1]
 
-    # Latest PR link.
+    # Latest PR link — fail loud if the read fails.
     latest_pr: dict[str, Any] | None = None
     try:
         pr_links = bq.get_pr_links(task_id, db_path=db_path)
@@ -282,14 +274,15 @@ def get_work(
             latest_pr = pr_links[-1]
     except TaskNotFoundError:
         pass  # No PR links for this task.
-    except Exception as exc:
-        logger.warning("Failed to get PR links for task %s: %s", task_id, exc)
 
     # Errors from the task and its last run.
     errors: list[str] = []
     failure_reason = task.get("failure_reason")
     if failure_reason:
         errors.append(str(failure_reason))
+    last_error = task.get("last_error")
+    if last_error:
+        errors.append(str(last_error))
     if latest_run and latest_run.get("final_report"):
         report = latest_run["final_report"]
         if isinstance(report, dict):
@@ -300,21 +293,50 @@ def get_work(
                 else:
                     errors.append(str(report_errors))
 
+    # Evidence: run output, attempt output, and PR links — never invented.
+    evidence: dict[str, Any] = {}
+    if latest_run:
+        if latest_run.get("log_path"):
+            evidence["run_log"] = latest_run["log_path"]
+        run_report = latest_run.get("final_report")
+        if run_report:
+            evidence["run_report"] = run_report
+    if latest_attempt:
+        impl = latest_attempt.get("implementation_json")
+        if impl:
+            evidence["implementation"] = impl
+        validation = latest_attempt.get("validation_json")
+        if validation:
+            evidence["validation"] = validation
+    if latest_pr:
+        evidence["pr"] = latest_pr
+
+    # Links: PR links and bridge URLs.
+    links: list[dict[str, str]] = []
+    if latest_pr:
+        if latest_pr.get("pr_url"):
+            links.append({"type": "pr", "url": latest_pr["pr_url"]})
+    bridge_comment = task.get("bridge_comment_url")
+    if bridge_comment:
+        links.append({"type": "bridge", "url": bridge_comment})
+
     return {
         "work_id": work_id,
-        "state": work_state,
-        "source": _builder_source_label(task),
+        "source": SOURCE_BUILDER,
+        "source_id": task["id"],
         "title": task.get("title", ""),
-        "description": task.get("description"),
-        "task_id": task["id"],
+        "summary": task.get("description"),
+        "state": work_state,
+        "source_state": task["state"],
+        "priority": task.get("priority", 0),
         "created_at": task.get("created_at"),
         "updated_at": task.get("updated_at"),
-        "blocked_reason": task.get("blocked_reason"),
-        "failure_reason": failure_reason,
-        "errors": errors,
+        "blocker": task.get("blocked_reason"),
+        "error": last_error,
         "latest_run": latest_run,
-        "latest_attempt": latest_attempt,
         "latest_pr": latest_pr,
+        "evidence": evidence or None,
+        "links": links,
     }
 
 
@@ -328,6 +350,9 @@ def get_work_events(
     db_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Return all events for a work item in chronological order.
+
+    Events are returned in exactly the Builder append-only order with
+    source timestamps and source event identity preserved.
 
     Raises:
         WorkNotFoundError: if the work ID does not exist.

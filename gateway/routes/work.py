@@ -4,7 +4,8 @@ GET /work                         — list work items (state, source, limit filt
 GET /work/{work_id}               — single work item detail
 GET /work/{work_id}/events        — work item events in chronological order
 
-All data is projected from public Builder read APIs. No new database.
+All data is projected from public Builder read APIs.  Builder is the only
+v1 source of truth.  ``source`` is always ``"builder"``.
 """
 
 from __future__ import annotations
@@ -20,16 +21,21 @@ router = APIRouter(tags=["work"])
 @router.get("/work")
 def list_work(
     state: str | None = Query(None, description="Filter by normalized Work state"),
-    source: str | None = Query(None, description="Filter by Builder bridge_source"),
+    source: str | None = Query(None, description='Must be "builder" in v1'),
     limit: int = Query(100, description="Maximum items to return (1-500)"),
 ) -> dict:
     """List work items from the Builder queue, optionally filtered.
 
-    Results are ordered by Builder's default sort (state, priority, id).
+    In v1 only ``source=builder`` is supported.  Results are ordered by
+    Builder's default sort (state, priority, id).
     """
     try:
-        items = ws.list_work(state=state, source=source, limit=limit, db_path=BUILDER_QUEUE_DB)
+        items = ws.list_work(
+            state=state, source=source, limit=limit, db_path=BUILDER_QUEUE_DB
+        )
     except ws.WorkStateError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ws.WorkSourceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"items": items}
 

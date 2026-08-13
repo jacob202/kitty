@@ -69,9 +69,21 @@ class TestListWork:
         assert response.status_code == 200
         body = response.json()
         assert len(body["items"]) == 1
-        assert body["items"][0]["state"] == "queued"
+        assert body["items"][0]["state"] == "pending"
+        assert body["items"][0]["source"] == "builder"
 
-    def test_state_filter(self, client: TestClient, db_path: Path):
+    def test_state_filter_pending(self, client: TestClient, db_path: Path):
+        t = _task(db_path=db_path)
+        bq.transition_task(t["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(t["id"], bq.RUNNING, db_path=db_path)
+        _task(db_path=db_path)  # another queued task
+
+        response = client.get("/work?state=pending")
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body["items"]) == 1
+
+    def test_state_filter_running(self, client: TestClient, db_path: Path):
         t = _task(db_path=db_path)
         bq.transition_task(t["id"], bq.CLAIMED, db_path=db_path)
         bq.transition_task(t["id"], bq.RUNNING, db_path=db_path)
@@ -91,18 +103,15 @@ class TestListWork:
         response = client.get("/work?state=bogus")
         assert response.status_code == 400
 
-    def test_source_filter(self, client: TestClient, db_path: Path):
-        _task(db_path=db_path)  # source=test
-        bq.create_task(
-            title="Initiative task",
-            bridge_source="initiative",
-            db_path=db_path,
-        )
-        response = client.get("/work?source=initiative")
+    def test_source_builder_works(self, client: TestClient, db_path: Path):
+        _task(db_path=db_path)
+        response = client.get("/work?source=builder")
         assert response.status_code == 200
-        body = response.json()
-        assert len(body["items"]) == 1
-        assert body["items"][0]["source"] == "initiative"
+        assert len(response.json()["items"]) == 1
+
+    def test_non_builder_source_returns_400(self, client: TestClient):
+        response = client.get("/work?source=initiative")
+        assert response.status_code == 400
 
     def test_limit(self, client: TestClient, db_path: Path):
         for _ in range(5):
@@ -110,6 +119,27 @@ class TestListWork:
         response = client.get("/work?limit=2")
         assert response.status_code == 200
         assert len(response.json()["items"]) == 2
+
+    def test_item_has_all_required_fields(self, client: TestClient, db_path: Path):
+        _task(db_path=db_path)
+        response = client.get("/work")
+        item = response.json()["items"][0]
+        assert "work_id" in item
+        assert "source" in item
+        assert "source_id" in item
+        assert "title" in item
+        assert "summary" in item
+        assert "state" in item
+        assert "source_state" in item
+        assert "priority" in item
+        assert "created_at" in item
+        assert "updated_at" in item
+        assert "blocker" in item
+        assert "error" in item
+        assert "latest_run" in item
+        assert "latest_pr" in item
+        assert "evidence" in item
+        assert "links" in item
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +155,9 @@ class TestGetWork:
         assert response.status_code == 200
         body = response.json()
         assert body["work_id"] == work_id
-        assert body["state"] == "queued"
+        assert body["source"] == "builder"
+        assert body["source_id"] == t["id"]
+        assert body["state"] == "pending"
         assert body["title"] == "Route test task"
 
     def test_missing_id_returns_404(self, client: TestClient):
@@ -135,6 +167,14 @@ class TestGetWork:
     def test_unrecognised_prefix_returns_400(self, client: TestClient):
         response = client.get("/work/github:42")
         assert response.status_code == 400
+
+    def test_source_and_source_id_in_response(self, client: TestClient, db_path: Path):
+        t = _task(db_path=db_path)
+        work_id = f"builder:{t['id']}"
+        response = client.get(f"/work/{work_id}")
+        body = response.json()
+        assert body["source"] == "builder"
+        assert body["source_id"] == t["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -150,8 +190,19 @@ class TestGetWorkEvents:
         assert response.status_code == 200
         body = response.json()
         assert "events" in body
-        assert len(body["events"]) >= 1  # at least the "created" event
+        assert len(body["events"]) >= 1
         assert body["events"][0]["type"] == "created"
+
+    def test_events_in_builder_order(self, client: TestClient, db_path: Path):
+        t = _task(db_path=db_path)
+        bq.transition_task(t["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(t["id"], bq.RUNNING, db_path=db_path)
+        work_id = f"builder:{t['id']}"
+        response = client.get(f"/work/{work_id}/events")
+        events = response.json()["events"]
+        assert len(events) >= 3
+        for i in range(1, len(events)):
+            assert events[i]["id"] > events[i - 1]["id"]
 
     def test_missing_id_returns_404(self, client: TestClient):
         response = client.get("/work/builder:kb_nonexistent_0000/events")
