@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from gateway import builder_attempt as ba
+from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 from gateway import work_spine as ws
 
@@ -19,6 +21,41 @@ def db_path(tmp_path: Path) -> Path:
     """A fresh Builder queue DB with schema initialised."""
     p = tmp_path / "kittybuilder" / "builder_queue.db"
     bq.init_db(p)
+    return p
+
+
+# ---------------------------------------------------------------------------
+# Helpers for structured-evidence tests
+# ---------------------------------------------------------------------------
+
+_INITIATIVE = "test-init"
+_PACKET = "test-packet"
+
+
+def _manifest() -> dict:
+    return {
+        "manifest_version": 1,
+        "initiative_id": _INITIATIVE,
+        "title": "Test initiative",
+        "packets": [
+            {
+                "id": _PACKET,
+                "title": "Test packet",
+                "objective": "Test objective",
+                "acceptance_criteria": ["works"],
+                "allowed_paths": ["gateway/x.py"],
+                "policy": {"max_attempts": 2},
+            },
+        ],
+    }
+
+
+@pytest.fixture
+def db_path_with_initiative(tmp_path: Path) -> Path:
+    """A fresh DB with initiative/packet rows for attempt tests."""
+    p = tmp_path / "kittybuilder" / "builder_queue.db"
+    ba.init_db(p)
+    bi.apply_manifest(_manifest(), db_path=p)
     return p
 
 
@@ -464,3 +501,176 @@ class TestReadOnly:
         assert original is not None and after is not None
         assert original["state"] == after["state"]
         assert original["updated_at"] == after["updated_at"]
+
+
+# ---------------------------------------------------------------------------
+# Tests: structured evidence from Builder attempt fields
+# ---------------------------------------------------------------------------
+
+
+class TestStructuredEvidence:
+    """Evidence implementation/validation/review use already-parsed dicts."""
+
+    def test_evidence_implementation_from_attempt(self, db_path_with_initiative: Path):
+        """implementation comes from the attempt's structured field, not raw JSON."""
+        t = _task(
+            db_path=db_path_with_initiative, title="Impl evidence",
+            bridge_external_id=f"{_INITIATIVE}/{_PACKET}",
+        )
+        bq.transition_task(t["id"], bq.CLAIMED, db_path=db_path_with_initiative)
+        bq.transition_task(t["id"], bq.RUNNING, db_path=db_path_with_initiative)
+        # Create an attempt and record implementation result.
+        attempt = ba.start_attempt(
+            _INITIATIVE, _PACKET, db_path=db_path_with_initiative
+        )
+        # Patch the attempt's task_id to match our task.
+        conn = bq.connect(db_path_with_initiative)
+        try:
+            conn.execute(
+                "UPDATE packet_attempts SET task_id = ? WHERE id = ?",
+                (t["id"], attempt["id"]),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        ba.record_implementation_result(
+            attempt["id"],
+            {"contract_version": 1, "status": "completed", "summary": "impl done"},
+            db_path=db_path_with_initiative,
+        )
+        item = ws.get_work(f"builder:{t['id']}", db_path=db_path_with_initiative)
+        assert item["evidence"] is not None
+        assert "implementation" in item["evidence"]
+        impl = item["evidence"]["implementation"]
+        assert isinstance(impl, dict)
+        assert impl["status"] == "completed"
+        assert impl["summary"] == "impl done"
+
+    def test_evidence_validation_from_attempt(self, db_path_with_initiative: Path):
+        """validation comes from the attempt's structured field, not raw JSON."""
+        t = _task(
+            db_path=db_path_with_initiative, title="Val evidence",
+            bridge_external_id=f"{_INITIATIVE}/{_PACKET}",
+        )
+        bq.transition_task(t["id"], bq.CLAIMED, db_path=db_path_with_initiative)
+        bq.transition_task(t["id"], bq.RUNNING, db_path=db_path_with_initiative)
+        attempt = ba.start_attempt(
+            _INITIATIVE, _PACKET, db_path=db_path_with_initiative
+        )
+        conn = bq.connect(db_path_with_initiative)
+        try:
+            conn.execute(
+                "UPDATE packet_attempts SET task_id = ? WHERE id = ?",
+                (t["id"], attempt["id"]),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        ba.record_implementation_result(
+            attempt["id"],
+            {"contract_version": 1, "status": "completed", "summary": "impl done"},
+            db_path=db_path_with_initiative,
+        )
+        # Record a validation result via the raw DB (run_validation needs cwd).
+        conn = bq.connect(db_path_with_initiative)
+        try:
+            import json
+            conn.execute(
+                "UPDATE packet_attempts SET validation_json = ? WHERE id = ?",
+                (json.dumps({"status": "passed", "commands": []}), attempt["id"]),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        item = ws.get_work(f"builder:{t['id']}", db_path=db_path_with_initiative)
+        assert "validation" in item["evidence"]
+        val = item["evidence"]["validation"]
+        assert isinstance(val, dict)
+        assert val["status"] == "passed"
+
+    def test_evidence_no_raw_json_strings(self, db_path: Path):
+        """No evidence value should be a raw JSON string."""
+        t = _task(db_path=db_path, title="No raw strings")
+        item = ws.get_work(f"builder:{t['id']}", db_path=db_path)
+        for key, val in (item.get("evidence") or {}).items():
+            assert not isinstance(val, str), (
+                f"evidence[{key!r}] is a raw string; expected structured dict"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Tests: evidence.publication
+# ---------------------------------------------------------------------------
+
+
+class TestEvidencePublication:
+    """evidence.publication exposes persisted PR/publication facts."""
+
+    def test_publication_present_when_pr_exists(self, db_path: Path):
+        t = _task(db_path=db_path, title="PR pub")
+        bq.attach_pr(
+            t["id"],
+            42,
+            pr_url="https://github.com/test/repo/pull/42",
+            head_sha="abc123def456",
+            checks_state="passed",
+            review_state="approved",
+            db_path=db_path,
+        )
+        item = ws.get_work(f"builder:{t['id']}", db_path=db_path)
+        assert "publication" in item["evidence"]
+        pub = item["evidence"]["publication"]
+        assert pub["pr_number"] == 42
+        assert pub["pr_url"] == "https://github.com/test/repo/pull/42"
+        assert pub["head_sha"] == "abc123def456"
+        assert pub["checks_state"] == "passed"
+        assert pub["review_state"] == "approved"
+        assert pub["merged"] is False
+
+    def test_publication_not_present_without_pr(self, db_path: Path):
+        t = _task(db_path=db_path, title="No PR")
+        item = ws.get_work(f"builder:{t['id']}", db_path=db_path)
+        # evidence exists but has no publication key
+        assert item["evidence"] is not None
+        assert "publication" not in item["evidence"]
+
+    def test_publication_pr_url_also_in_top_level(self, db_path: Path):
+        """latest_pr remains as a top-level field alongside evidence.publication."""
+        t = _task(db_path=db_path, title="Dual PR")
+        bq.attach_pr(
+            t["id"],
+            99,
+            pr_url="https://github.com/test/repo/pull/99",
+            head_sha="xyz789",
+            db_path=db_path,
+        )
+        item = ws.get_work(f"builder:{t['id']}", db_path=db_path)
+        assert item["latest_pr"] is not None
+        assert item["latest_pr"]["pr_number"] == 99
+        assert item["evidence"]["publication"]["pr_number"] == 99
+
+
+# ---------------------------------------------------------------------------
+# Tests: _format_503_detail
+# ---------------------------------------------------------------------------
+
+
+class TestFormat503Detail:
+    """_format_503_detail returns a concrete, bounded string."""
+
+    def test_short_exception_stays_under_240(self):
+        detail = ws._format_503_detail(RuntimeError("something broke"))
+        assert len(detail) <= 240
+        assert "RuntimeError" in detail
+        assert "something broke" in detail
+        assert detail.startswith("Unexpected Builder read failure:")
+
+    def test_long_exception_is_truncated(self):
+        long_msg = "x" * 500
+        detail = ws._format_503_detail(RuntimeError(long_msg))
+        assert len(detail) <= 240
+        assert detail.endswith("...")
+
+    def test_exception_type_always_included(self):
+        detail = ws._format_503_detail(ValueError("bad value"))
+        assert "ValueError" in detail

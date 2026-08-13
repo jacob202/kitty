@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from gateway import builder_queue as bq
+from gateway import work_spine as ws
 from gateway.routes import work as work_route
 
 # ---------------------------------------------------------------------------
@@ -279,3 +281,45 @@ class TestRouteRegistration:
     def test_work_router_has_tags(self):
         assert hasattr(work_route.router, "tags")
         assert "work" in work_route.router.tags
+
+
+# ---------------------------------------------------------------------------
+# Tests: 503 behavior — bounded, concrete detail
+# ---------------------------------------------------------------------------
+
+
+class TestBounded503:
+    """Every endpoint returns 503 with a concrete, ≤240-char detail on
+    unexpected Builder failures."""
+
+    def test_list_503_detail_bounded(self, client: TestClient):
+        """GET /work returns a bounded 503 detail when list_work fails."""
+        with patch.object(ws, "list_work", side_effect=RuntimeError("db boom")):
+            resp = client.get("/work")
+        assert resp.status_code == 503
+        detail = resp.json()["detail"]
+        assert len(detail) <= 240
+        assert "RuntimeError" in detail
+        assert "db boom" in detail
+
+    def test_detail_503_detail_bounded(self, client: TestClient, db_path: Path):
+        """GET /work/{id} returns a bounded 503 detail when get_work fails."""
+        t = _task(db_path=db_path)
+        with patch.object(ws, "get_work", side_effect=OSError("disk error")):
+            resp = client.get(f"/work/builder:{t['id']}")
+        assert resp.status_code == 503
+        detail = resp.json()["detail"]
+        assert len(detail) <= 240
+        assert "OSError" in detail
+        assert "disk error" in detail
+
+    def test_events_503_detail_bounded(self, client: TestClient, db_path: Path):
+        """GET /work/{id}/events returns a bounded 503 detail on failure."""
+        t = _task(db_path=db_path)
+        with patch.object(ws, "get_work_events", side_effect=ConnectionError("net")):
+            resp = client.get(f"/work/builder:{t['id']}/events")
+        assert resp.status_code == 503
+        detail = resp.json()["detail"]
+        assert len(detail) <= 240
+        assert "ConnectionError" in detail
+        assert "net" in detail
