@@ -89,4 +89,3 @@ def test_work_layer_depends_only_on_builder_snapshot_boundary():
     assert "build_status_snapshot" in route_source
     assert "builder_queue" not in route_source
     assert "sqlite3" not in route_source
-

@@ -196,4 +196,3 @@ def test_projection_preserves_observation_window_and_counts():
         "ready": 1,
         "waiting": 0,
     }
-
