@@ -6,11 +6,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, StrictInt
 
 from gateway import project_context
-from gateway.routes import work as work_routes
 from gateway.runtime_manifest import compose_manifest
 
 router = APIRouter(tags=["runtime"])
-router.include_router(work_routes.router)
 
 
 class ActiveProjectRequest(BaseModel):
