@@ -279,8 +279,7 @@ def _check_runs(db_path: Path | None) -> list[Check]:
 
     checks: list[Check] = []
 
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         stale_claimed = conn.execute(
             """
             SELECT id FROM tasks
@@ -299,8 +298,6 @@ def _check_runs(db_path: Path | None) -> list[Check]:
             """,
             (bq.RUNNING,),
         ).fetchall()
-    finally:
-        conn.close()
 
     stale_ids = [row["id"] for row in (*stale_claimed, *stale_running)]
     if stale_ids:

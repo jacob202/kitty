@@ -170,9 +170,7 @@ def create_run(
         raise ValueError("command must be a non-empty list")
 
     run_id = generate_run_id()
-    conn = _db.connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
+    with _db.transaction(db_path) as conn:
         task_row = conn.execute(
             "SELECT id FROM tasks WHERE id = ?", (task_id,)
         ).fetchone()
@@ -228,23 +226,14 @@ def create_run(
             ),
         )
         row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
     return _row_to_run(row)
 
 
 def get_run(run_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
     import gateway.builder_queue_db as _db
-    conn = _db.connect(db_path)
-    try:
+    with _db.reading(db_path) as conn:
         row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
         return _row_to_run(row) if row is not None else None
-    finally:
-        conn.close()
 
 
 def list_runs(
@@ -259,15 +248,12 @@ def list_runs(
     if state is not None:
         clauses.append(WhereClause("state", "=", state))
     where_sql, params = build_where(clauses)
-    conn = _db.connect(db_path)
-    try:
+    with _db.reading(db_path) as conn:
         rows = conn.execute(
             f"SELECT * FROM runs WHERE {where_sql or '1 = 1'} ORDER BY id ASC",
             params if where_sql else (),
         ).fetchall()
         return [_row_to_run(r) for r in rows]
-    finally:
-        conn.close()
 
 
 def update_run(
@@ -316,9 +302,7 @@ def update_run(
         clauses.append(WhereClause("state", "IN", sorted(expected_states)))
     where_sql, where_params = build_where(clauses)
 
-    conn = _db.connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
+    with _db.transaction(db_path) as conn:
         current = conn.execute(
             "SELECT state FROM runs WHERE id = ?", (run_id,)
         ).fetchone()
@@ -336,12 +320,6 @@ def update_run(
                 f"run {run_id} not in expected state for this update"
             )
         row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
     return _row_to_run(row)
 
 
@@ -374,9 +352,7 @@ def finalize_run(
     if not isinstance(report, dict) or not report:
         raise ValueError("run report must be a non-empty object")
 
-    conn = _db.connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
+    with _db.transaction(db_path) as conn:
         run_row = conn.execute(
             "SELECT * FROM runs WHERE id = ?", (run_id,)
         ).fetchone()
@@ -625,12 +601,6 @@ def finalize_run(
         final_row = conn.execute(
             "SELECT * FROM runs WHERE id = ?", (run_id,)
         ).fetchone()
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
     return _row_to_run(final_row)
 
 
@@ -667,9 +637,7 @@ def recover_interrupted_runs(
     running_tasks_blocked = 0
     claimed_tasks_requeued = 0
     conflicts = 0
-    conn = _db.connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
+    with _db.transaction(db_path) as conn:
         active_clauses = [WhereClause("state", "IN", sorted(RUN_ACTIVE_STATES))]
         active_where, active_params = build_where(active_clauses)
         rows = conn.execute(
@@ -834,12 +802,6 @@ def recover_interrupted_runs(
                         claimed_tasks_requeued += 1
             interrupted.append(run_id)
 
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
     return {
         "runs_interrupted": len(interrupted),

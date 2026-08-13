@@ -788,8 +788,7 @@ def _recent_auto_merge_outcomes(
     """Outcomes ("merged"/"reverted") of the last N auto-merge attempts,
     newest first, across *all* tasks — the tripwire is global, not
     per-initiative, per the plan's own wording."""
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         rows = conn.execute(
             """
             SELECT payload_json FROM events
@@ -799,8 +798,6 @@ def _recent_auto_merge_outcomes(
             """,
             (AUTO_MERGE_OUTCOME_EVENT, limit),
         ).fetchall()
-    finally:
-        conn.close()
     outcomes = []
     for row in rows:
         try:

@@ -1087,8 +1087,7 @@ def get_initiative(
 ) -> dict[str, Any] | None:
     """Return the initiative dict with its packets (ordered), or None."""
     init_db(db_path)
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM initiatives WHERE id = ?", (initiative_id,)
         ).fetchone()
@@ -1105,8 +1104,6 @@ def get_initiative(
         ).fetchall()
         initiative["packets"] = [_row_to_packet(r) for r in packet_rows]
         return initiative
-    finally:
-        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1124,8 +1121,7 @@ def _read_packets_with_states(
     ``state=None`` rather than fabricating one.
     """
     init_db(db_path)
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         exists = conn.execute(
             "SELECT 1 FROM initiatives WHERE id = ?", (initiative_id,)
         ).fetchone()
@@ -1165,8 +1161,6 @@ def _read_packets_with_states(
                 }
             )
         return packets
-    finally:
-        conn.close()
 
 
 def _compute_unreachable(
@@ -1887,16 +1881,13 @@ def get_initiative_state(
     operator writes via pause/resume and that the run loop consults as a gate.
     """
     init_db(db_path)
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         row = conn.execute(
             "SELECT state FROM initiatives WHERE id = ?", (initiative_id,)
         ).fetchone()
         if row is None:
             raise InitiativeNotFoundError(initiative_id)
         return str(row["state"])
-    finally:
-        conn.close()
 
 
 def set_initiative_state(

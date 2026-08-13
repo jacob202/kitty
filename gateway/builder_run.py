@@ -274,8 +274,7 @@ def _packet_validation_commands(
     packet_id: str,
     db_path: Path | None,
 ) -> list[str]:
-    conn = bq.connect(db_path)
-    try:
+    with bq.reading(db_path) as conn:
         row = conn.execute(
             """
             SELECT validation_commands_json FROM initiative_packets
@@ -283,8 +282,6 @@ def _packet_validation_commands(
             """,
             (initiative_id, packet_id),
         ).fetchone()
-    finally:
-        conn.close()
     if row is None or not row["validation_commands_json"]:
         return []
     return json.loads(row["validation_commands_json"])
