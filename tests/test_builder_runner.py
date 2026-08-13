@@ -356,6 +356,36 @@ class TestRunWorker:
         assert run["final_report"]["scope_violations"] == []
         assert ".kittybuilder-bundle-1.json" in run["final_report"]["changed_paths"]
 
+    def test_codex_adapter_staging_residue_is_not_a_scope_violation(
+        self, repo: Path, db_path: Path
+    ):
+        """scripts/kittybuilder_codex_adapter.py stages .kittybuilder-codex-
+        and .kittybuilder-codex-review- files at the worktree root; the scope
+        check must treat them as runner-owned residue."""
+        task = _queued_task(db_path, allowed_paths=["gateway/"])
+        command = [
+            "sh",
+            "-c",
+            "mkdir -p gateway && echo ok > gateway/ok.py && "
+            "echo staged > .kittybuilder-codex-42.json && "
+            "echo staged > .kittybuilder-codex-review-42.json && "
+            "echo nope > outside.txt",
+        ]
+
+        run = br.run_worker(
+            task["id"],
+            command,
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_SCOPE_VIOLATION
+        assert run["final_report"]["scope_violations"] == ["outside.txt"]
+        assert ".kittybuilder-codex-42.json" in run["final_report"]["changed_paths"]
+        assert ".kittybuilder-codex-review-42.json" in run["final_report"]["changed_paths"]
+
     def test_opencode_continuation_residue_is_not_a_scope_violation(
         self, repo: Path, db_path: Path
     ):
