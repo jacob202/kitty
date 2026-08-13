@@ -15,10 +15,7 @@ it('fetches the read-only Gateway /work snapshot', async () => {
     item_limit: 50,
     total_items: 0,
   }
-  const fetchMock = vi.fn(async () => new Response(JSON.stringify(snapshot), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  }))
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify(snapshot), { status: 200 }))
   vi.stubGlobal('fetch', fetchMock)
 
   const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot

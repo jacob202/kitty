@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from gateway.routes import work as work_route
+from gateway.routes.register import register_routes
 
 
 @pytest.fixture
@@ -89,3 +90,22 @@ def test_work_layer_depends_only_on_builder_snapshot_boundary():
     assert "build_status_snapshot" in route_source
     assert "builder_queue" not in route_source
     assert "sqlite3" not in route_source
+
+
+def test_work_route_is_mounted_in_gateway_registry(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        work_route,
+        "build_status_snapshot",
+        lambda: {
+            "schema_version": 2,
+            "integrity": {"state": "complete", "partial_packets": 0, "total_packets": 0},
+            "queue": {"total": 0, "queued": 0, "claimed": 0, "running": 0, "blocked": 0, "pr_opened": 0, "awaiting_review": 0, "done": 0, "failed": 0, "cancelled": 0},
+            "initiatives": [],
+        },
+    )
+    app = FastAPI()
+    register_routes(app)
+
+    response = TestClient(app).get("/work")
+    assert response.status_code == 200
+    assert response.json()["schema_version"] == 1

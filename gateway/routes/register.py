@@ -60,7 +60,6 @@ from gateway.routes import (
     usage,
     version,
     voice,
-    work,
 )
 
 
@@ -119,7 +118,6 @@ def register_routes(app: FastAPI) -> None:
         usage,
         version,
         voice,
-        work,
         extended,
         magic,
     ):
