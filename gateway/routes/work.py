@@ -40,8 +40,7 @@ def list_work(
     except Exception as exc:
         raise HTTPException(
             status_code=503,
-            detail=f"Unexpected Builder read failure: {type(exc).__name__}: "
-            f"{str(exc)[:200]}",
+            detail=ws._format_503_detail(exc),
         ) from exc
     campaign["items"] = items
     return campaign
@@ -65,8 +64,7 @@ def get_work(work_id: str) -> dict:
     except Exception as exc:
         raise HTTPException(
             status_code=503,
-            detail=f"Unexpected Builder read failure: {type(exc).__name__}: "
-            f"{str(exc)[:200]}",
+            detail=ws._format_503_detail(exc),
         ) from exc
     return item
 
@@ -88,7 +86,6 @@ def get_work_events(work_id: str) -> dict:
     except Exception as exc:
         raise HTTPException(
             status_code=503,
-            detail=f"Unexpected Builder read failure: {type(exc).__name__}: "
-            f"{str(exc)[:200]}",
+            detail=ws._format_503_detail(exc),
         ) from exc
     return {"events": events}

@@ -1,43 +1,32 @@
-# Session State — repo-wide pre-push gate repair
+# Session State — Work Spine final contract corrections
 
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-12T03:59:16Z",
-  "head_sha": "18dc32f4f72d15f3594ebf1f0a0a50269e7cc908",
-  "branch": "fix/repo-prepush-gate-repair",
+  "updated_at": "2026-08-13T00:00:00Z",
+  "head_sha": "df4c65460af9c06f665f547909656854c60d1d37",
+  "branch": "kittybuilder/kb_mss0qpz0_1208",
   "worktree": ".",
-  "status": "in_progress",
+  "status": "completed",
   "completed_items": [
-    "Reproduced the repo-wide gate failures on current origin/main",
-    "Isolated Imagen tests from the user's real face-model cache"
+    "Structured evidence from Builder attempt fields (no raw *_json reparsing)",
+    "evidence.publication for persisted PR/publication facts",
+    "Centralized _format_503_detail with ≤240 char bound",
+    "14 focused regression tests added and passing",
+    "All validation commands pass (pytest, ruff, mypy, git diff --check)"
   ],
   "blockers": [],
-  "next_action": "Repair the repo-wide pre-push gate, then publish the reviewed Builder process cleanup",
-  "invalidation_conditions": [
-    "origin/main advances before this gate repair is merged",
-    "the repo-wide pre-push gate remains red after the repair"
-  ],
+  "next_action": "Submit result for Builder review",
+  "invalidation_conditions": [],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null,
-  "parallel_work": [
-    {
-      "kind": "local_commit",
-      "ref": "e7302fb0deae4397438a67bac268c61e01c1c38f",
-      "owner": "interactive",
-      "touches": [
-        "gateway/builder_publish.py",
-        "tests/test_builder_publish.py"
-      ],
-      "observed_at": "2026-08-12T03:59:16Z"
-    }
-  ],
+  "parallel_work": [],
   "recommendations": []
 }
 -->
 
 ## Current work
 
-- Repair the seven baseline gate failures on current main.
-- Keep the independently reviewed publication fix `e7302fb0` separate.
-- After the gate is healthy, publish/merge that fix and resume KPROOF publication.
+- Work Spine final contract corrections completed (attempt 156).
+- Structured evidence, publication namespace, and bounded 503 formatting implemented.
+- All validation gates green.

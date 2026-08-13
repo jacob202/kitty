@@ -14,7 +14,6 @@ silent defaulting to ``unknown``.
 
 from __future__ import annotations
 
-import json
 import logging
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -136,13 +135,16 @@ def _build_work_id(task_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _parse_json_field(raw: Any) -> Any:
-    """Parse a JSON string into a structured dict; return as-is if already dict."""
-    if isinstance(raw, str):
-        try:
-            return json.loads(raw)
-        except (json.JSONDecodeError, TypeError):
-            return raw
+def _format_503_detail(exc: Exception) -> str:
+    """Format an unexpected Builder failure for HTTP 503 responses.
+
+    Returns a concrete detail string of at most 240 characters.  The
+    message always includes the exception type so operators can identify
+    the failure class without reading logs.
+    """
+    raw = f"Unexpected Builder read failure: {type(exc).__name__}: {exc}"
+    if len(raw) > 240:
+        return raw[:237] + "..."
     return raw
 
 
@@ -356,20 +358,30 @@ def get_work(
         if run_report:
             evidence["run_report"] = run_report
     if latest_attempt:
-        # Structured implementation evidence — parse JSON to structured dict.
-        impl_raw = latest_attempt.get("implementation_json")
-        if impl_raw:
-            evidence["implementation"] = _parse_json_field(impl_raw)
-        # Structured validation evidence.
-        validation_raw = latest_attempt.get("validation_json")
-        if validation_raw:
-            evidence["validation"] = _parse_json_field(validation_raw)
-        # Structured review evidence.
-        review_raw = latest_attempt.get("review_json")
-        if review_raw:
-            evidence["review"] = _parse_json_field(review_raw)
+        # Use the already-parsed structured values from _row_to_attempt —
+        # never re-parse raw *_json strings.
+        impl = latest_attempt.get("implementation")
+        if impl is not None:
+            evidence["implementation"] = impl
+        validation = latest_attempt.get("validation")
+        if validation is not None:
+            evidence["validation"] = validation
+        review = latest_attempt.get("review")
+        if review is not None:
+            evidence["review"] = review
     if latest_pr:
         evidence["pr"] = latest_pr
+        # Expose latest persisted PR/publication facts under
+        # evidence.publication for consumers that expect that namespace.
+        evidence["publication"] = {
+            "pr_number": latest_pr.get("pr_number"),
+            "pr_url": latest_pr.get("pr_url"),
+            "head_sha": latest_pr.get("head_sha"),
+            "checks_state": latest_pr.get("checks_state"),
+            "review_state": latest_pr.get("review_state"),
+            "merged": bool(latest_pr.get("merged")),
+            "merged_at": latest_pr.get("merged_at"),
+        }
 
     # Links: PR links and bridge URLs.
     links: list[dict[str, str]] = []
