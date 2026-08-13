@@ -544,7 +544,7 @@ def test_prepare_main_worktree_resets_a_real_worktree(tmp_path):
 def test_publish_timeout_policy_gives_git_push_a_longer_window():
     assert bp._command_timeout_seconds(["git", "status"]) == 120
     assert bp._command_timeout_seconds(["gh", "pr", "list"]) == 120
-    assert bp._command_timeout_seconds(["git", "push", "origin", "HEAD"]) >= 600
+    assert bp._command_timeout_seconds(["git", "push", "origin", "HEAD"]) >= 1200
 
 
 def test_default_run_starts_command_in_own_process_group(monkeypatch):
