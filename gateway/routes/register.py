@@ -58,6 +58,7 @@ from gateway.routes import (
     tool_server,
     tutor,
     usage,
+    version,
     voice,
 )
 
@@ -115,6 +116,7 @@ def register_routes(app: FastAPI) -> None:
         tool_server,
         tutor,
         usage,
+        version,
         voice,
         extended,
         magic,
