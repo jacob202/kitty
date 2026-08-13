@@ -293,8 +293,12 @@ def _pr_body(task: dict[str, Any]) -> str:
                 parsed = None
             if isinstance(parsed, dict):
                 report = parsed
+    summary = f"- {task['title']}"
+    test_plan = "- [ ] Builder validation and repository CI"
     if isinstance(report, dict) and report:
         body = (
+            f"## Summary\n{summary}\n\n"
+            f"## Test plan\n{test_plan}\n\n"
             f"## KittyBuilder task `{task['id']}`\n\n"
             f"**Title:** {task['title']}\n\n"
             f"## Final report\n\n```json\n"
@@ -302,6 +306,8 @@ def _pr_body(task: dict[str, Any]) -> str:
         )
     else:
         body = (
+            f"## Summary\n{summary}\n\n"
+            f"## Test plan\n{test_plan}\n\n"
             f"## KittyBuilder task `{task['id']}`\n\n"
             f"**Title:** {task['title']}\n\n"
             f"_No final_report_json on the task yet._\n"
@@ -582,9 +588,19 @@ def _merge_check_worktree_path(repo_root: Path, task_id: str) -> Path:
     return repo_root / ".worktrees" / "kittybuilder-merge-check" / task_id
 
 
+def _mark_pr_ready(
+    pr_number: int, *, cwd: Path, run_cmd: RunCmd
+) -> None:
+    result = run_cmd(["gh", "pr", "ready", str(pr_number)], cwd=cwd, check=False)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip() or "no output"
+        raise MergeError(f"gh pr ready failed (exit {result.returncode}): {detail}")
+
+
 def _gh_pr_merge(
     pr_number: int, *, cwd: Path, run_cmd: RunCmd
 ) -> dict[str, Any]:
+    _mark_pr_ready(pr_number, cwd=cwd, run_cmd=run_cmd)
     args = ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch=false"]
     result = run_cmd(args, cwd=cwd, check=False)
     if result.returncode != 0:
