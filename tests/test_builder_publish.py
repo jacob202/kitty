@@ -205,6 +205,7 @@ class TestPublishTask:
         root = _init_worktree(tmp_path, task)
         branch = default_branch_name(task)
         create_args: list[str] = []
+        create_body: list[str] = []
 
         def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
             if args[:3] == ["git", "symbolic-ref", "--quiet"]:
@@ -219,6 +220,7 @@ class TestPublishTask:
                 return subprocess.CompletedProcess(args, 0, stdout="[]\n", stderr="")
             if args[:3] == ["gh", "pr", "create"]:
                 create_args[:] = list(args)
+                create_body[:] = [args[args.index("--body") + 1]]
                 return subprocess.CompletedProcess(
                     args, 0, stdout="https://github.com/example/kitty/pull/12\n", stderr=""
                 )
@@ -231,6 +233,8 @@ class TestPublishTask:
         )
         assert result["pr"]["action"] == "create"
         assert "--draft" in create_args
+        assert "## Summary" in create_body[0]
+        assert "## Test plan" in create_body[0]
 
     def test_refuses_dirty_worktree(self, tmp_path: Path, db_path: Path):
         task = _make_blocked_task(db_path)
@@ -277,6 +281,8 @@ def _merge_stub(*, revalidate_ok: bool = True, merge_commit_sha: str = "deadbeef
 
     def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         calls.append(list(args))
+        if args[:3] == ["gh", "pr", "ready"]:
+            return subprocess.CompletedProcess(args, 0, stdout="marked ready\n", stderr="")
         if args[:3] == ["gh", "pr", "merge"]:
             return subprocess.CompletedProcess(args, 0, stdout="merged\n", stderr="")
         if args[:3] == ["gh", "pr", "view"]:
@@ -324,6 +330,7 @@ class TestMergeAndVerify:
         assert result["outcome"] == "merged"
         assert result["merge_commit_sha"] == "deadbeef00"
         assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.DONE
+        assert any(c[:3] == ["gh", "pr", "ready"] for c in calls)
         assert any(c[:3] == ["gh", "pr", "merge"] for c in calls)
         assert not any(c[:2] == ["git", "revert"] for c in calls)
         events = {e["type"] for e in bq.list_events(task["id"], db_path=db_path)}
@@ -372,6 +379,8 @@ class TestMergeAndVerify:
         task = _make_pr_opened_task(db_path, tmp_path)
 
         def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            if args[:3] == ["gh", "pr", "ready"]:
+                return subprocess.CompletedProcess(args, 0, stdout="marked ready\n", stderr="")
             if args[:3] == ["gh", "pr", "merge"]:
                 return subprocess.CompletedProcess(args, 1, stdout="", stderr="conflict")
             if args[:2] == ["git", "fetch"]:
@@ -395,6 +404,8 @@ class TestMergeAndVerify:
 
         def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
             calls.append(list(args))
+            if args[:3] == ["gh", "pr", "ready"]:
+                return subprocess.CompletedProcess(args, 0, stdout="marked ready\n", stderr="")
             if args[:3] == ["gh", "pr", "merge"]:
                 return subprocess.CompletedProcess(args, 1, stdout="", stderr="conflict")
             if args[:2] == ["git", "fetch"]:
@@ -424,6 +435,8 @@ class TestMergeAndVerify:
 
         def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
             calls.append(list(args))
+            if args[:3] == ["gh", "pr", "ready"]:
+                return subprocess.CompletedProcess(args, 0, stdout="marked ready\n", stderr="")
             if args[:3] == ["gh", "pr", "merge"]:
                 merge_attempts["n"] += 1
                 if merge_attempts["n"] == 1:
