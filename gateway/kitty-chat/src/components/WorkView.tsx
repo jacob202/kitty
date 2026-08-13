@@ -2,8 +2,7 @@
 
 import type { CSSProperties, ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { useWorkSnapshot } from '@/lib/queries'
-import type { GatewayWorkItem, GatewayWorkState } from '@/lib/gateway'
+import { useWorkSnapshot, type GatewayWorkItem, type GatewayWorkState } from '@/lib/work'
 
 const STATE_COLORS: Record<GatewayWorkState, string> = {
   active: 'var(--c-yellow)',

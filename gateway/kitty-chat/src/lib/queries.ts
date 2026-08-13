@@ -12,7 +12,6 @@ import {
   fetchGatewaySessionContext,
   fetchGatewayUsageSummary,
   fetchGatewayRuntimeManifest,
-  fetchGatewayWorkSnapshot,
   fetchGatewaySearch,
   fetchGatewayWeather,
   // todos
@@ -199,15 +198,6 @@ export function useGatewayRuntimeManifest(projectId?: number) {
     queryFn: () => fetchGatewayRuntimeManifest(projectId),
     refetchInterval: (query) => hasActiveBuilderRun(query.state.data) ? 5_000 : 15_000,
     staleTime: 10_000,
-  })
-}
-
-export function useWorkSnapshot() {
-  return useQuery({
-    queryKey: ['work'],
-    queryFn: fetchGatewayWorkSnapshot,
-    refetchInterval: 10_000,
-    staleTime: 5_000,
   })
 }
 

@@ -4,19 +4,7 @@ import WorkView from '../src/components/WorkView'
 
 const { useWorkSnapshot } = vi.hoisted(() => ({ useWorkSnapshot: vi.fn() }))
 
-vi.mock('../src/lib/queries', () => ({
-  useWorkSnapshot,
-  useTodos: vi.fn(() => ({ data: [] })),
-  useGatewayRuntimeManifest: vi.fn(() => ({ data: undefined })),
-}))
-
-vi.mock('../src/components/TaskPanel', () => ({ TaskPanel: () => null }))
-vi.mock('../src/components/TodoPanel', () => ({ TodoPanel: () => null }))
-vi.mock('../src/components/BuilderSurface', () => ({
-  BuilderPanel: () => null,
-  attentionCount: () => 0,
-  activePacketCount: () => 0,
-}))
+vi.mock('../src/lib/work', () => ({ useWorkSnapshot }))
 const SNAPSHOT = {
   schema_version: 1,
   observed_at: '2026-08-13T21:00:00Z',

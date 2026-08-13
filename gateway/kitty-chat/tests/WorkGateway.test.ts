@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import * as gateway from '../src/lib/gateway'
+import * as work from '../src/lib/work'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -21,7 +21,7 @@ it('fetches the read-only Gateway /work snapshot', async () => {
   }))
   vi.stubGlobal('fetch', fetchMock)
 
-  const fetchWork = (gateway as Record<string, unknown>).fetchGatewayWorkSnapshot
+  const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot
   expect(typeof fetchWork).toBe('function')
   const result = await (fetchWork as () => Promise<unknown>)()
 
