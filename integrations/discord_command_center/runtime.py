@@ -25,6 +25,10 @@ class CodexRuntime:
         (self.path / "auth.json").symlink_to(auth_source)
         return self.path
 
+    @property
+    def auth_source(self) -> Path:
+        return self._auth_source().resolve()
+
     def cleanup(self) -> None:
         if self.path.exists() or self.path.is_symlink():
             shutil.rmtree(self.path)

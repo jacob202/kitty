@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import discord
 import pytest
 
 from integrations.discord_command_center.adapters.codex import CodexAdapter
@@ -129,6 +130,23 @@ def test_worktree_audit_detects_ignored_mutation(tmp_path: Path) -> None:
     assert any("ignored.txt" in line for line in audit.status_lines)
 
 
+def test_worktree_audit_uses_authenticated_git_metadata_after_git_file_tamper(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    manager = GitWorktreeManager(repo=repo, base_ref="HEAD")
+    worktree = manager.create("authenticated-audit-run")
+
+    (worktree / ".git").write_text("gitdir: /tmp/attacker-gitdir\n")
+    (worktree / "unexpected.txt").write_text("mutation\n")
+
+    audit = manager.audit(worktree)
+
+    assert audit.dirty is True
+    assert any("unexpected.txt" in line for line in audit.status_lines)
+
+
 class _FakeRunner:
     def __init__(self, *, mutate: bool = False) -> None:
         self.mutate = mutate
@@ -241,9 +259,11 @@ class _Channel:
     def __init__(self, log: list[str], thread: _Thread) -> None:
         self.log = log
         self.thread = thread
+        self.created_kwargs: dict[str, object] = {}
 
     async def create_thread(self, **kwargs):
         self.log.append("create_thread")
+        self.created_kwargs = kwargs
         return self.thread
 
 
@@ -302,6 +322,17 @@ def test_vibe_controller_defers_before_execution_and_posts_to_thread() -> None:
     assert "COMPLETE" in posted
     assert "audit clean" in posted
     assert "message_edit" in log
+
+
+def test_vibe_creates_non_invitable_private_thread_and_adds_requester() -> None:
+    log: list[str] = []
+    interaction = _Interaction(log)
+
+    asyncio.run(VibeController(_FakeService(log)).handle(interaction, "inspect repo"))
+
+    assert interaction.channel.created_kwargs["type"] == discord.ChannelType.private_thread
+    assert interaction.channel.created_kwargs["invitable"] is False
+    assert log.index("add_user") < log.index("service_start")
 
 
 def test_vibe_rejects_user_outside_authorization_allowlist() -> None:
@@ -509,6 +540,26 @@ def test_unavailable_post_run_audit_fails_loud_and_preserves_worktree(tmp_path: 
     assert len(list(manager.run_root.glob("*"))) == 1
 
 
+def test_worktree_creation_failure_is_terminal(tmp_path: Path) -> None:
+    class _FailingWorkspace:
+        def create(self, run_id: str) -> Path:
+            raise OSError("worktree root unavailable")
+
+    service = VibeService(
+        workspace=_FailingWorkspace(),  # type: ignore[arg-type]
+        adapter=CodexAdapter(executable="/bin/echo", model="test-model"),
+        runner=_FakeRunner(),
+        timeout_seconds=9,
+        environment={},
+    )
+
+    events = asyncio.run(_collect(service.run("inspect repo")))
+
+    assert events[-1].kind == "failed"
+    assert events[-1].code == "worktree_create_failed"
+    assert "worktree root unavailable" in events[-1].message
+
+
 def test_subprocess_runner_closes_worker_stdin(tmp_path: Path, monkeypatch) -> None:
     from integrations.discord_command_center.runner import SubprocessRunner
 
@@ -712,6 +763,140 @@ def test_subprocess_runner_escalates_to_kill_after_grace_period(monkeypatch) -> 
 
     assert signals == [(process.pid, signal.SIGTERM), (process.pid, signal.SIGKILL)]
     assert process.returncode == -9
+
+
+@pytest.mark.parametrize("failure", [ValueError("oversized"), RuntimeError("read failed")])
+def test_subprocess_runner_stdout_failure_terminates_process_group(
+    failure: Exception, tmp_path: Path, monkeypatch
+) -> None:
+    from integrations.discord_command_center.runner import SubprocessRunner
+
+    class _BrokenStdout:
+        async def readline(self) -> bytes:
+            if isinstance(failure, ValueError):
+                return b"x" * 32
+            raise failure
+
+    class _Process:
+        stdout = _BrokenStdout()
+        returncode = None
+        pid = 6789
+
+        async def wait(self) -> int:
+            self.returncode = -15
+            return self.returncode
+
+    process = _Process()
+    signals: list[tuple[int, int]] = []
+
+    async def fake_create(*args, **kwargs):
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create)
+    monkeypatch.setattr(os, "killpg", lambda pid, sig: signals.append((pid, sig)))
+
+    with pytest.raises((ValueError, RuntimeError)):
+        asyncio.run(
+            _collect(
+                SubprocessRunner(kill_grace_seconds=0.01, max_line_bytes=16).stream(
+                    ("/bin/echo", "ok"),
+                    cwd=tmp_path,
+                    environment={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "TMPDIR": str(tmp_path)},
+                    timeout_seconds=1,
+                )
+            )
+        )
+
+    assert signals == [(process.pid, signal.SIGTERM)]
+
+
+def test_subprocess_runner_keeps_terminal_json_after_progress_limit(tmp_path: Path, monkeypatch) -> None:
+    from integrations.discord_command_center.runner import SubprocessRunner
+
+    answer = b'{"type":"item.completed","item":{"type":"agent_message","text":"answer"}}\n'
+
+    class _Stdout:
+        def __init__(self) -> None:
+            self.lines = [b'{"type":"progress"}\n'] * 3 + [answer]
+
+        async def readline(self) -> bytes:
+            return self.lines.pop(0) if self.lines else b""
+
+    class _Process:
+        stdout = _Stdout()
+        returncode = 0
+
+        async def wait(self) -> int:
+            return 0
+
+    async def fake_create(*args, **kwargs):
+        return _Process()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create)
+    events = asyncio.run(
+        _collect(
+            SubprocessRunner(max_lines=2).stream(
+                ("/bin/echo", "ok"),
+                cwd=tmp_path,
+                environment={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "TMPDIR": str(tmp_path)},
+                timeout_seconds=1,
+            )
+        )
+    )
+
+    assert any(event.message == answer.decode().rstrip() for event in events)
+    assert events[-1].exit_code == 0
+
+
+def test_subprocess_runner_reports_untrusted_terminal_evidence_after_progress_limit(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from integrations.discord_command_center.runner import SubprocessRunner
+
+    class _Stdout:
+        def __init__(self) -> None:
+            self.lines = [b"not-json\n"] * 3
+
+        async def readline(self) -> bytes:
+            return self.lines.pop(0) if self.lines else b""
+
+    class _Process:
+        stdout = _Stdout()
+        returncode = 0
+
+        async def wait(self) -> int:
+            return 0
+
+    async def fake_create(*args, **kwargs):
+        return _Process()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create)
+    events = asyncio.run(
+        _collect(
+            SubprocessRunner(max_lines=2).stream(
+                ("/bin/echo", "ok"),
+                cwd=tmp_path,
+                environment={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "TMPDIR": str(tmp_path)},
+                timeout_seconds=1,
+            )
+        )
+    )
+
+    assert events[-1].code == "terminal_evidence_untrusted"
+
+
+def test_sandbox_profile_denies_host_reads_and_allows_runtime_paths(tmp_path: Path) -> None:
+    from integrations.discord_command_center.runner import build_sandbox_profile
+
+    profile = build_sandbox_profile(
+        tmp_path,
+        {"TMPDIR": str(tmp_path / "runtime"), "CODEX_AUTH_FILE": "/tmp/auth.json"},
+    )
+
+    assert "(deny file-read*)" in profile
+    assert f'(allow file-read* (subpath "{tmp_path}"))' in profile
+    assert '(allow file-read* (literal "/tmp/auth.json"))' not in profile
+    assert f'(allow file-read* (subpath "{Path("/tmp/auth.json").resolve()}"))' in profile
 
 
 def test_subprocess_runner_cancellation_terminates_worker(tmp_path: Path, monkeypatch) -> None:

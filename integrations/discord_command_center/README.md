@@ -28,7 +28,7 @@ Phase 0 also disables Codex apps, plugins, browser use, computer use, image gene
 
 ## Discord application
 
-Create a separate bot application named **Command Center**. Phase 0 needs OAuth scopes `bot` and `applications.commands` and these channel permissions: Send Messages, Send Messages in Threads, Create Private Threads, Read Message History, Embed Links, and Attach Files.
+Create a separate bot application named **Command Center**. Phase 0 needs OAuth scopes `bot` and `applications.commands` and these channel permissions: Send Messages, Send Messages in Threads, Create Private Threads, Read Message History, Embed Links, Attach Files, and Manage Threads. `Manage Threads` is narrowly required because the bot creates non-invitable private threads and must add the requesting member with `add_user`; it does not grant Administrator or broader moderation permissions.
 
 Do **not** grant Administrator. `Manage Messages`, public-thread creation, reactions, and the privileged `MESSAGE_CONTENT` intent are Phase 1 requirements; enable `MESSAGE_CONTENT` before reaction-to-task ships.
 

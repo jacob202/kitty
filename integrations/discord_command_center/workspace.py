@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .models import DiffAudit
@@ -15,6 +15,7 @@ class GitWorktreeManager:
     repo: Path
     base_ref: str = "HEAD"
     run_root: Path | None = None
+    _authenticated: dict[Path, "WorktreeIdentity"] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
         self.repo = self.repo.resolve()
@@ -31,15 +32,33 @@ class GitWorktreeManager:
         if path.exists():
             raise FileExistsError(f"run worktree already exists: {path}")
         run_root.mkdir(parents=True, exist_ok=True)
-        self._git("worktree", "add", "--detach", str(path), self.base_ref, cwd=self.repo)
+        repo_git_dir = self._git_path("rev-parse", "--git-dir", cwd=self.repo)
+        repo_common_dir = self._git_path("rev-parse", "--git-common-dir", cwd=self.repo)
+        base_commit = self._git("rev-parse", self.base_ref, cwd=self.repo)
+        self._git("worktree", "add", "--detach", str(path), base_commit, cwd=self.repo)
+        worktree_git_dir = self._git_path("rev-parse", "--git-dir", cwd=path)
+        worktree_common_dir = self._git_path("rev-parse", "--git-common-dir", cwd=path)
+        worktree_commit = self._git("rev-parse", "HEAD", cwd=path)
+        if worktree_commit != base_commit or worktree_common_dir != repo_common_dir:
+            raise RuntimeError("linked worktree identity did not match its controlling repository")
+        self._authenticated[path] = WorktreeIdentity(
+            repo_git_dir=repo_git_dir,
+            repo_common_dir=repo_common_dir,
+            worktree_git_dir=worktree_git_dir,
+            base_commit=base_commit,
+        )
         return path
 
     def audit(self, path: Path) -> DiffAudit:
-        status = self._git(
+        identity = self._authenticated.get(path.resolve())
+        if identity is None:
+            raise RuntimeError(f"worktree was not authenticated before audit: {path}")
+        self._verify_identity(identity, path)
+        status = self._trusted_git(
             "status", "--porcelain=v1", "--untracked-files=all", cwd=path
         )
         status_lines = tuple(line for line in status.splitlines() if line.strip())
-        ignored = self._git(
+        ignored = self._trusted_git(
             "ls-files", "--others", "--ignored", "--exclude-standard", cwd=path
         )
         ignored_lines = tuple(
@@ -48,7 +67,7 @@ class GitWorktreeManager:
         status_lines = status_lines + ignored_lines
         insertions = 0
         deletions = 0
-        numstat = self._git("diff", "--numstat", "HEAD", "--", cwd=path)
+        numstat = self._trusted_git("diff", "--numstat", identity.base_commit, "--", cwd=path)
         for line in numstat.splitlines():
             parts = line.split("\t", 2)
             if len(parts) < 2:
@@ -67,11 +86,37 @@ class GitWorktreeManager:
     def remove(self, path: Path) -> None:
         self._git("worktree", "remove", "--force", str(path), cwd=self.repo)
         self._git("worktree", "prune", cwd=self.repo)
+        self._authenticated.pop(path.resolve(), None)
+
+    def _verify_identity(self, identity: "WorktreeIdentity", path: Path) -> None:
+        if self._git_path("rev-parse", "--git-dir", cwd=self.repo) != identity.repo_git_dir:
+            raise RuntimeError("controlling repository gitdir changed")
+        if self._git_path("rev-parse", "--git-common-dir", cwd=self.repo) != identity.repo_common_dir:
+            raise RuntimeError("controlling repository common gitdir changed")
+        if self._git("rev-parse", self.base_ref, cwd=self.repo) != identity.base_commit:
+            raise RuntimeError("controlling repository base commit changed")
+        if self._trusted_git("rev-parse", "HEAD", cwd=path) != identity.base_commit:
+            raise RuntimeError("linked worktree base commit changed")
+
+    def _trusted_git(self, *args: str, cwd: Path) -> str:
+        identity = self._authenticated[cwd.resolve()]
+        return self._run_git(
+            ("--git-dir", str(identity.worktree_git_dir), "--work-tree", str(cwd), *args)
+        )
+
+    @classmethod
+    def _git_path(cls, *args: str, cwd: Path) -> Path:
+        value = Path(cls._git(*args, cwd=cwd))
+        return (cwd / value).resolve() if not value.is_absolute() else value.resolve()
 
     @staticmethod
     def _git(*args: str, cwd: Path) -> str:
+        return GitWorktreeManager._run_git(("-C", str(cwd), *args))
+
+    @staticmethod
+    def _run_git(args: tuple[str, ...]) -> str:
         result = subprocess.run(
-            ["/usr/bin/git", "-C", str(cwd), *args],
+            ["/usr/bin/git", *args],
             check=False,
             capture_output=True,
             text=True,
@@ -82,3 +127,11 @@ class GitWorktreeManager:
                 f"git {' '.join(args)} failed with exit {result.returncode}: {detail}"
             )
         return result.stdout.strip()
+
+
+@dataclass(frozen=True)
+class WorktreeIdentity:
+    repo_git_dir: Path
+    repo_common_dir: Path
+    worktree_git_dir: Path
+    base_commit: str

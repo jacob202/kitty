@@ -30,10 +30,22 @@ class VibeService:
 
     async def run(self, request: str) -> AsyncIterator[ProgressEvent]:
         run_id = f"cc-{uuid.uuid4().hex[:12]}"
-        worktree = self.workspace.create(run_id)
+        try:
+            worktree = self.workspace.create(run_id)
+        except Exception as exc:
+            yield ProgressEvent(
+                kind="failed",
+                code="worktree_create_failed",
+                message=(
+                    "Command Center could not create its disposable worktree: "
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            )
+            return
         runtime = CodexRuntime(worktree, self.environment)
         exit_event: ProgressEvent | None = None
         runner_error: Exception | None = None
+        worker_error: ProgressEvent | None = None
         final_answer: str | None = None
         cancelled = False
 
@@ -43,6 +55,7 @@ class VibeService:
             child_env["HOME"] = str(runtime_path)
             child_env["CODEX_HOME"] = str(runtime_path)
             child_env["TMPDIR"] = str(runtime_path)
+            child_env["CODEX_AUTH_FILE"] = str(runtime.auth_source)
             child_env.pop("TMP", None)
             child_env.pop("TEMP", None)
             command = self.adapter.command(request, worktree)
@@ -55,6 +68,9 @@ class VibeService:
             ):
                 if event.kind == "process_exit":
                     exit_event = event
+                    continue
+                if event.kind == "process_error":
+                    worker_error = event
                     continue
                 message = _format_codex_progress(event.message)
                 agent_answer = _extract_agent_answer(event.message)
@@ -106,6 +122,15 @@ class VibeService:
                 kind="failed",
                 code="runner_error",
                 message=f"Command Center run failed: {type(runner_error).__name__}: {runner_error}",
+            )
+            return
+
+        if worker_error is not None:
+            self.workspace.remove(worktree)
+            yield ProgressEvent(
+                kind="failed",
+                code=worker_error.code or "worker_error",
+                message=f"Codex reported an error: {_format_codex_progress(worker_error.message) or worker_error.message}",
             )
             return
 
