@@ -25,3 +25,17 @@ it('fetches the read-only Gateway /work snapshot', async () => {
   expect(fetchMock.mock.calls[0]?.[0]).toBe('/proxy/work')
   expect(result).toEqual(snapshot)
 })
+
+it('preserves Gateway error detail and endpoint', async () => {
+  const fetchMock = vi.fn(async () => new Response(
+    JSON.stringify({ detail: 'work source unavailable' }),
+    { status: 503, statusText: 'Service Unavailable', headers: { 'Content-Type': 'application/json' } },
+  ))
+  vi.stubGlobal('fetch', fetchMock)
+
+  const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
+
+  await expect(fetchWork()).rejects.toThrow(
+    'GET /proxy/work failed: 503 Service Unavailable: work source unavailable',
+  )
+})

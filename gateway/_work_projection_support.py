@@ -7,6 +7,15 @@ from datetime import timezone
 from gateway._work_projection_select import _sort_timestamp
 
 _MAX_REASON_LENGTH = 240
+_WORK_STATE_PRIORITY = {
+    "active": 0,
+    "blocked": 1,
+    "failed": 2,
+    "ready": 3,
+    "waiting": 4,
+    "paused": 5,
+    "completed": 6,
+}
 
 
 def _project_queue(queue):
@@ -29,24 +38,40 @@ def _project_queue(queue):
 
 def _source_projection(builder_status):
     integrity = builder_status.get("integrity") or {}
-    if integrity.get("state") == "partial":
-        partial = int(integrity.get("partial_packets", 0) or 0)
-        total = int(integrity.get("total_packets", 0) or 0)
+    integrity_state = integrity.get("state")
+    if integrity_state == "complete":
         return {
             "kind": "builder",
-            "state": "degraded",
+            "state": "available",
             "snapshot_schema_version": builder_status.get("schema_version"),
             "integrity": integrity,
-            "reason": _bounded_reason(
-                f"Builder snapshot integrity is partial: {partial} of {total} packets are incomplete."
-            ),
         }
+
+    partial = int(integrity.get("partial_packets", 0) or 0)
+    total = int(integrity.get("total_packets", 0) or 0)
+    if integrity_state == "partial":
+        reason = f"Builder snapshot integrity is partial: {partial} of {total} packets are incomplete."
+    else:
+        reason = f"Builder snapshot integrity state is unsupported: {integrity_state or 'missing'}."
     return {
         "kind": "builder",
-        "state": "available",
+        "state": "degraded",
         "snapshot_schema_version": builder_status.get("schema_version"),
         "integrity": integrity,
+        "reason": _bounded_reason(reason),
     }
+
+
+def _rank_work_items(items):
+    recent_first = sorted(
+        items,
+        key=lambda item: (item.get("updated_at") or "", item.get("id") or ""),
+        reverse=True,
+    )
+    return sorted(
+        recent_first,
+        key=lambda item: _WORK_STATE_PRIORITY.get(item.get("state"), 99),
+    )
 
 
 def _count_states(items):

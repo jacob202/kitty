@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 
 const GATEWAY_BASE = '/proxy'
 const DEFAULT_TIMEOUT_MS = 8000
+const MAX_ERROR_DETAIL = 240
 
 export type GatewayWorkState =
   | 'active'
@@ -26,21 +27,19 @@ export interface GatewayWorkQueue {
   failed: number
   cancelled: number
 }
+
 export interface GatewayWorkItem {
   id: string
   title: string | null
   state: GatewayWorkState
-  source: {
-    kind: 'builder'
-    initiative_id: string
-    packet_id: string | null
-  }
+  source: { kind: 'builder'; initiative_id: string; packet_id: string | null }
   current_packet: {
     id: string | null
     title: string | null
     objective?: string | null
     task_id: string | null
     task_state: string | null
+    failure_kind?: string | null
     next_action?: string | null
     updated_at?: string | null
   } | null
@@ -50,17 +49,10 @@ export interface GatewayWorkItem {
     started_at?: string | null
     ended_at?: string | null
   } | null
-  blocker: {
-    state?: string
-    reason?: string | null
-    blocked_by?: string[]
-  } | null
+  blocker: { state?: string; reason?: string | null; blocked_by?: string[] } | null
   next_action: string | null
   evidence: Record<string, unknown>
-  data_quality: {
-    state: string
-    issues?: string[]
-  }
+  data_quality: { state: string; issues?: string[] }
   updated_at: string | null
 }
 
@@ -84,6 +76,7 @@ export interface GatewayWorkSnapshot {
 const WORK_STATES = new Set<GatewayWorkState>([
   'active', 'paused', 'failed', 'blocked', 'completed', 'ready', 'waiting',
 ])
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -115,13 +108,29 @@ function isWorkSnapshot(value: unknown): value is GatewayWorkSnapshot {
     && typeof value.total_items === 'number'
   )
 }
+
+async function errorDetail(response: Response): Promise<string | null> {
+  try {
+    const body: unknown = await response.json()
+    if (isRecord(body) && typeof body.detail === 'string') {
+      return body.detail.slice(0, MAX_ERROR_DETAIL)
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
 export async function fetchGatewayWorkSnapshot(): Promise<GatewayWorkSnapshot> {
+  const endpoint = `${GATEWAY_BASE}/work`
   const controller = new AbortController()
   const timeoutId = globalThis.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
   try {
-    const response = await fetch(`${GATEWAY_BASE}/work`, { signal: controller.signal })
+    const response = await fetch(endpoint, { signal: controller.signal })
     if (!response.ok) {
-      throw new Error(`Gateway returned ${response.status} ${response.statusText}`.trim())
+      const detail = await errorDetail(response)
+      const suffix = detail ? `: ${detail}` : ''
+      throw new Error(`GET ${endpoint} failed: ${response.status} ${response.statusText}${suffix}`.trim())
     }
     const payload: unknown = await response.json()
     if (!isWorkSnapshot(payload)) {
