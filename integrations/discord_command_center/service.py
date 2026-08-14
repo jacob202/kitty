@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import uuid
 from collections.abc import AsyncIterator, Mapping
 
@@ -10,6 +11,9 @@ from .models import ProgressEvent
 from .runner import SubprocessRunner, build_child_environment
 from .runtime import CodexRuntime
 from .workspace import GitWorktreeManager
+
+logger = logging.getLogger(__name__)
+_CANCELLATION_CLEANUP_TIMEOUT_SECONDS = 5
 
 
 class VibeService:
@@ -48,6 +52,7 @@ class VibeService:
         worker_error: ProgressEvent | None = None
         final_answer: str | None = None
         cancelled = False
+        runtime_cleanup_error: Exception | None = None
 
         try:
             runtime_path = runtime.prepare()
@@ -84,11 +89,25 @@ class VibeService:
         except Exception as exc:
             runner_error = exc
         finally:
-            runtime.cleanup()
             if cancelled:
-                audit = self.workspace.audit(worktree)
-                if not audit.dirty:
-                    self.workspace.remove(worktree)
+                await self._best_effort_cancellation_cleanup(runtime, worktree)
+            else:
+                try:
+                    runtime.cleanup()
+                except Exception as exc:
+                    runtime_cleanup_error = exc
+
+        if runtime_cleanup_error is not None:
+            yield ProgressEvent(
+                kind="failed",
+                code="runtime_cleanup_failed",
+                message=(
+                    "Command Center could not clean up its disposable runtime: "
+                    f"{type(runtime_cleanup_error).__name__}: {runtime_cleanup_error}; "
+                    "preserving worktree for inspection."
+                ),
+            )
+            return
 
         try:
             audit = self.workspace.audit(worktree)
@@ -117,7 +136,10 @@ class VibeService:
             return
 
         if runner_error is not None:
-            self.workspace.remove(worktree)
+            cleanup_event = self._remove_event(worktree, runner_error)
+            if cleanup_event is not None:
+                yield cleanup_event
+                return
             yield ProgressEvent(
                 kind="failed",
                 code="runner_error",
@@ -126,7 +148,10 @@ class VibeService:
             return
 
         if worker_error is not None:
-            self.workspace.remove(worktree)
+            cleanup_event = self._remove_event(worktree, worker_error)
+            if cleanup_event is not None:
+                yield cleanup_event
+                return
             yield ProgressEvent(
                 kind="failed",
                 code=worker_error.code or "worker_error",
@@ -137,16 +162,63 @@ class VibeService:
         if exit_event is None or exit_event.exit_code != 0:
             code = exit_event.code if exit_event else "missing_exit_status"
             detail = exit_event.message if exit_event else "worker ended without exit evidence"
-            self.workspace.remove(worktree)
+            cleanup_event = self._remove_event(worktree, RuntimeError(detail))
+            if cleanup_event is not None:
+                yield cleanup_event
+                return
             yield ProgressEvent(kind="failed", code=code, message=detail)
             return
 
-        self.workspace.remove(worktree)
+        cleanup_event = self._remove_event(worktree)
+        if cleanup_event is not None:
+            yield cleanup_event
+            return
         yield ProgressEvent(
             kind="done",
             message="Codex completed; read-only diff audit clean.",
             answer=final_answer,
         )
+
+    def _remove_event(
+        self, worktree, prior_error: Exception | ProgressEvent | None = None
+    ) -> ProgressEvent | None:
+        try:
+            self.workspace.remove(worktree)
+        except Exception as exc:
+            prior = (
+                f" after {type(prior_error).__name__}: {prior_error}"
+                if prior_error is not None
+                else ""
+            )
+            return ProgressEvent(
+                kind="failed",
+                code="worktree_cleanup_failed",
+                message=(
+                    "Command Center could not confirm disposable worktree cleanup"
+                    f"{prior}: {type(exc).__name__}: {exc}; preserving worktree for inspection."
+                ),
+            )
+        return None
+
+    async def _best_effort_cancellation_cleanup(self, runtime, worktree) -> None:
+        await self._bounded_cleanup_call("runtime cleanup", runtime.cleanup)
+        audit = await self._bounded_cleanup_call(
+            "cancellation audit", self.workspace.audit, worktree
+        )
+        if audit is not None and not audit.dirty:
+            await self._bounded_cleanup_call(
+                "cancellation worktree removal", self.workspace.remove, worktree
+            )
+
+    async def _bounded_cleanup_call(self, label, function, *args):
+        try:
+            return await asyncio.wait_for(
+                asyncio.shield(asyncio.to_thread(function, *args)),
+                timeout=_CANCELLATION_CLEANUP_TIMEOUT_SECONDS,
+            )
+        except BaseException as exc:
+            logger.warning("best-effort %s failed: %s: %s", label, type(exc).__name__, exc)
+            return None
 
 
 def _format_codex_progress(line: str) -> str | None:

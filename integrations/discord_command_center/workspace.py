@@ -44,8 +44,8 @@ class GitWorktreeManager:
                 raise RuntimeError(
                     "linked worktree identity did not match its controlling repository"
                 )
-        except Exception:
-            self._remove_created_worktree(path)
+        except Exception as primary_error:
+            self._remove_created_worktree(path, primary_error)
             raise
         self._authenticated[path] = WorktreeIdentity(
             repo_git_dir=repo_git_dir,
@@ -111,9 +111,45 @@ class GitWorktreeManager:
             ("--git-dir", str(identity.worktree_git_dir), "--work-tree", str(cwd), *args)
         )
 
-    def _remove_created_worktree(self, path: Path) -> None:
-        self._git("worktree", "remove", "--force", str(path), cwd=self.repo)
-        self._git("worktree", "prune", cwd=self.repo)
+    def _remove_created_worktree(self, path: Path, primary_error: Exception) -> None:
+        cleanup_error: Exception | None = None
+        try:
+            self._git("worktree", "remove", "--force", str(path), cwd=self.repo)
+        except Exception as exc:
+            cleanup_error = exc
+
+        verification_error: Exception | None = None
+        try:
+            path_exists = path.exists()
+            registered = self._worktree_is_registered(path)
+            remaining = path_exists or registered
+        except Exception as exc:
+            remaining = False
+            verification_error = exc
+
+        if cleanup_error is not None or verification_error is not None or remaining:
+            if cleanup_error is not None:
+                detail = f"cleanup failed: {type(cleanup_error).__name__}: {cleanup_error}"
+            elif verification_error is not None:
+                detail = (
+                    f"verification failed: {type(verification_error).__name__}: "
+                    f"{verification_error}"
+                )
+            else:
+                detail = "the exact path or registration remains"
+            raise RuntimeError(
+                f"{type(primary_error).__name__}: {primary_error}; "
+                f"cleanup not confirmed for {path}: {detail}"
+            ) from primary_error
+
+    def _worktree_is_registered(self, path: Path) -> bool:
+        output = self._git("worktree", "list", "--porcelain", cwd=self.repo)
+        target = path.resolve()
+        return any(
+            line.startswith("worktree ")
+            and Path(line.removeprefix("worktree ")).resolve() == target
+            for line in output.splitlines()
+        )
 
     @classmethod
     def _git_path(cls, *args: str, cwd: Path) -> Path:

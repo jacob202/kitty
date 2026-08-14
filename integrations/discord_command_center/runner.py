@@ -29,9 +29,9 @@ _ENV_ALLOWLIST = {
 
 
 def build_child_environment(source: Mapping[str, str] | None = None) -> dict[str, str]:
-    source = source or os.environ
+    source = os.environ if source is None else source
     child = {key: value for key, value in source.items() if key in _ENV_ALLOWLIST and value}
-    child.setdefault("PATH", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin")
+    child.setdefault("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
     child.setdefault("HOME", str(Path.home()))
     child.setdefault("TMPDIR", "/private/tmp")
     return child
@@ -202,19 +202,19 @@ def build_sandbox_profile(
         "/usr/bin",
         "/usr/sbin",
         "/usr/lib",
-        "/usr/local/bin",
+        "/System/Library",
     ]
     read_literals = ["/dev/null", "/dev/urandom", "/dev/random"]
     executable = Path(command[0])
     if not executable.is_absolute():
         executable = (worktree / executable).resolve()
     read_literals.append(str(executable.resolve()))
-    read_subpaths.extend(path for path in ("/System", "/Library") if Path(path).exists())
-    if Path("/opt/homebrew").exists():
-        read_subpaths.append("/opt/homebrew")
+    bundled_rg = executable.parent / "rg"
+    if bundled_rg.is_file():
+        read_literals.append(str(bundled_rg.resolve()))
     auth_file = environment.get("CODEX_AUTH_FILE")
     if auth_file:
-        read_subpaths.append(str(Path(auth_file).resolve()))
+        read_literals.append(str(Path(auth_file).resolve()))
     git_subpaths, git_literals = _git_metadata_read_paths(worktree)
     read_subpaths.extend(git_subpaths)
     read_literals.extend(git_literals)

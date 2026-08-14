@@ -175,6 +175,55 @@ def test_worktree_creation_cleans_exact_path_after_authentication_failure(
     assert str(failed_path) not in _git(repo, "worktree", "list", "--porcelain")
 
 
+def test_worktree_creation_preserves_authentication_failure_when_cleanup_is_unconfirmed(
+    tmp_path: Path, monkeypatch
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    manager = GitWorktreeManager(repo=repo, run_root=tmp_path / "runs")
+    unrelated = manager.create("unrelated-run")
+    failed_path = manager.run_root / "failed-auth-run"
+    original_git_path = manager._git_path
+    original_git = manager._git
+
+    def fail_authentication(*args: str, cwd: Path) -> Path:
+        if cwd.resolve() == failed_path.resolve():
+            raise RuntimeError("authentication failed")
+        return original_git_path(*args, cwd=cwd)
+
+    def fail_exact_cleanup(*args: str, cwd: Path) -> str:
+        if args[:3] == ("worktree", "remove", "--force") and Path(args[3]).resolve() == failed_path.resolve():
+            raise RuntimeError("cleanup remove failed")
+        return original_git(*args, cwd=cwd)
+
+    monkeypatch.setattr(manager, "_git_path", fail_authentication)
+    monkeypatch.setattr(manager, "_git", fail_exact_cleanup)
+
+    with pytest.raises(RuntimeError, match="authentication failed") as raised:
+        manager.create("failed-auth-run")
+
+    assert raised.value.__cause__ is not None
+    assert "cleanup not confirmed" in str(raised.value)
+    assert unrelated.exists()
+    assert failed_path.exists()
+    assert str(failed_path) in _git(repo, "worktree", "list", "--porcelain")
+
+
+def test_service_reports_terminal_cleanup_failure_as_failed_event(tmp_path: Path) -> None:
+    service, manager = _make_service(tmp_path, mutate=False)
+
+    def fail_remove(path: Path) -> None:
+        raise RuntimeError("cleanup remove failed")
+
+    manager.remove = fail_remove  # type: ignore[method-assign]
+
+    events = asyncio.run(_collect(service.run("inspect repo")))
+
+    assert events[-1].kind == "failed"
+    assert events[-1].code == "worktree_cleanup_failed"
+    assert "cleanup remove failed" in events[-1].message
+
+
 def test_worktree_audit_stays_bound_to_captured_base_commit_when_ref_moves(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
@@ -528,6 +577,37 @@ class _ExplodingMutatingRunner:
         (cwd / "mutation-before-crash.txt").write_text("bad\n")
         raise RuntimeError("worker crashed")
         yield ProgressEvent(kind="progress", message="unreachable")
+
+
+class _CancelledRunner:
+    async def stream(self, command, *, cwd, environment, timeout_seconds):
+        raise asyncio.CancelledError
+        yield ProgressEvent(kind="progress", message="unreachable")
+
+
+def test_service_preserves_cancellation_when_cleanup_and_audit_fail(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    service, manager = _make_service(tmp_path, mutate=False)
+    service.runner = _CancelledRunner()
+
+    from integrations.discord_command_center.runtime import CodexRuntime
+
+    def fail_runtime_cleanup(self) -> None:
+        raise RuntimeError("runtime cleanup failed")
+
+    def fail_audit(path: Path):
+        raise RuntimeError("audit failed")
+
+    monkeypatch.setattr(CodexRuntime, "cleanup", fail_runtime_cleanup)
+    manager.audit = fail_audit  # type: ignore[method-assign]
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(_collect(service.run("inspect repo")))
+
+    assert "runtime cleanup failed" in caplog.text
+    assert "audit failed" in caplog.text
+    assert len(list(manager.run_root.glob("*"))) == 1
 
 
 class _AnswerRunner:
@@ -958,8 +1038,7 @@ def test_sandbox_profile_denies_host_reads_and_allows_runtime_paths(tmp_path: Pa
 
     assert "(deny file-read*)" in profile
     assert f'(allow file-read* (subpath "{tmp_path}"))' in profile
-    assert '(allow file-read* (literal "/tmp/auth.json"))' not in profile
-    assert f'(allow file-read* (subpath "{Path("/tmp/auth.json").resolve()}"))' in profile
+    assert f'(allow file-read* (literal "{Path("/tmp/auth.json").resolve()}"))' in profile
 
 
 def test_sandbox_profile_allows_configured_codex_and_narrow_linked_git_metadata(
@@ -987,6 +1066,40 @@ def test_sandbox_profile_allows_configured_codex_and_narrow_linked_git_metadata(
     assert f'(allow file-read* (subpath "{common_dir}"))' not in profile
     assert f'(allow file-read* (subpath "{Path.home()}"))' not in profile
     assert 'allow file-read* (subpath "/")' not in profile
+
+
+def test_sandbox_profile_uses_exact_codex_bundle_and_evidence_based_system_reads(
+    tmp_path: Path,
+) -> None:
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    codex = tmp_path / "ChatGPT.app" / "Contents" / "Resources" / "codex"
+    codex.parent.mkdir(parents=True)
+    codex.write_text("")
+    (codex.parent / "rg").write_text("")
+    auth = tmp_path / "codex-home" / "auth.json"
+    auth.parent.mkdir()
+    auth.write_text("{}")
+
+    profile = build_sandbox_profile(
+        worktree,
+        {"TMPDIR": str(worktree / "runtime"), "CODEX_AUTH_FILE": str(auth)},
+        command=(str(codex),),
+    )
+
+    assert f'(allow file-read* (literal "{codex}"))' in profile
+    assert f'(allow file-read* (literal "{codex.parent / "rg"}"))' in profile
+    assert f'(allow file-read* (literal "{auth}"))' in profile
+    assert '(allow file-read* (subpath "/Library"))' not in profile
+    assert '(allow file-read* (subpath "/opt/homebrew"))' not in profile
+    assert '(allow file-read* (subpath "/usr/local/bin"))' not in profile
+    assert '(allow file-read* (subpath "/System/Library"))' in profile
+    assert '(allow file-read* (subpath "/usr/lib"))' in profile
+    assert f'(allow file-read* (subpath "{Path.home()}"))' not in profile
+
+
+def test_child_environment_default_path_stays_within_system_executable_roots() -> None:
+    assert build_child_environment({})["PATH"] == "/usr/bin:/bin:/usr/sbin:/sbin"
 
 
 def test_subprocess_runner_cancellation_terminates_worker(tmp_path: Path, monkeypatch) -> None:
