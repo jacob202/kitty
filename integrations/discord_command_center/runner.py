@@ -31,7 +31,7 @@ _ENV_ALLOWLIST = {
 def build_child_environment(source: Mapping[str, str] | None = None) -> dict[str, str]:
     source = os.environ if source is None else source
     child = {key: value for key, value in source.items() if key in _ENV_ALLOWLIST and value}
-    child.setdefault("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
+    child["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
     child.setdefault("HOME", str(Path.home()))
     child.setdefault("TMPDIR", "/private/tmp")
     return child

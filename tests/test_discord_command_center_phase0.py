@@ -70,7 +70,7 @@ def test_codex_command_is_bounded_readonly_argv(tmp_path: Path) -> None:
 def test_child_environment_is_allowlisted_and_secret_free(monkeypatch) -> None:
     source = {
         "HOME": "/Users/test",
-        "PATH": "/usr/bin:/bin",
+        "PATH": "/opt/homebrew/bin:/Users/test/bin:/usr/local/bin",
         "LANG": "en_CA.UTF-8",
         "TERM": "xterm-256color",
         "CODEX_HOME": "/Users/test/.codex",
@@ -82,7 +82,7 @@ def test_child_environment_is_allowlisted_and_secret_free(monkeypatch) -> None:
     child = build_child_environment(source)
 
     assert child["HOME"] == "/Users/test"
-    assert child["PATH"] == "/usr/bin:/bin"
+    assert child["PATH"] == "/usr/bin:/bin:/usr/sbin:/sbin"
     assert child["CODEX_HOME"] == "/Users/test/.codex"
     assert "OPENAI_API_KEY" not in child
     assert "DISCORD_BOT_TOKEN" not in child
