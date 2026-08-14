@@ -188,6 +188,7 @@ def build_sandbox_profile(
     command: Sequence[str] | None = None,
 ) -> str:
     worktree = cwd.resolve()
+    command_was_explicit = command is not None
     command = command or (DEFAULT_CODEX,)
     for key in ("TMPDIR", "TMP", "TEMP"):
         value = environment.get(key)
@@ -204,7 +205,21 @@ def build_sandbox_profile(
         "/usr/lib",
         "/System/Library",
     ]
-    read_literals = ["/dev/null", "/dev/urandom", "/dev/random"]
+    if command_was_explicit:
+        read_subpaths.extend(
+            [
+                "/Applications/ChatGPT.app/Contents/Resources",
+                "/Library/Preferences",
+                "/System/Cryptexes",
+                "/System/Volumes/Preboot/Cryptexes/OS/System/Library",
+                "/System/Volumes/Preboot/Cryptexes/Rosetta",
+                "/private/var/db/timezone",
+                "/usr/share/icu",
+            ]
+        )
+    # Codex and basic system utilities resolve paths by reading the root directory entry.
+    # This is an exact directory-entry allowance, not a readable root subpath.
+    read_literals = ["/", "/dev/null", "/dev/urandom", "/dev/random"]
     executable = Path(command[0])
     if not executable.is_absolute():
         executable = (worktree / executable).resolve()
@@ -218,17 +233,53 @@ def build_sandbox_profile(
     git_subpaths, git_literals = _git_metadata_read_paths(worktree)
     read_subpaths.extend(git_subpaths)
     read_literals.extend(git_literals)
+    metadata_literals: set[str] = set()
+    runtime_rules = ""
+    if command_was_explicit:
+        metadata_literals.update(
+            {
+                "/",
+                "/Applications",
+                "/dev",
+                "/etc",
+                "/Library",
+                "/private",
+                "/System",
+                "/Users",
+                "/usr",
+                "/var",
+            }
+        )
+        for path in (worktree, executable, Path(auth_file).resolve() if auth_file else None):
+            if path is not None:
+                metadata_literals.update(str(parent) for parent in path.parents)
+        runtime_rules = (
+            '(allow network-outbound) '
+            '(allow system-info (info-type "net.link.addr")) '
+            '(allow system-socket (require-all (socket-domain AF_SYSTEM) '
+            '(socket-protocol 2))) '
+            '(allow user-preference-read) '
+            '(allow ipc-posix-shm-read-data '
+            '(ipc-posix-name "apple.shm.notification_center") '
+            '(ipc-posix-name "apple.cfprefs.daemonv1") '
+            '(ipc-posix-name "apple.cfprefs.501v1")) '
+        )
     read_rules = " ".join(
         [
             *(f'(allow file-read* (subpath "{_escape_sbpl(path)}"))' for path in read_subpaths),
             *(f'(allow file-read* (literal "{_escape_sbpl(path)}"))' for path in read_literals),
+            *(
+                f'(allow file-read-metadata (literal "{_escape_sbpl(path)}"))'
+                for path in sorted(metadata_literals)
+            ),
         ]
     )
     return (
         f'(version 1) (allow process*) (allow sysctl-read) (allow mach-lookup) '
         f'(deny file-read*) {read_rules} '
+        f'(allow file-write* (subpath "{escaped}")) '
         f'(deny file-write* (require-not (subpath "{escaped}"))) '
-        '(allow file-write* (literal "/dev/null"))'
+        f'(allow file-write* (literal "/dev/null")) {runtime_rules}'
     )
 
 
