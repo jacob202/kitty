@@ -88,19 +88,24 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      # Every requirements file covering a checked path must be installed here.
-      # Without them `ignore_missing_imports` turns each third-party import into
-      # `Any`, and mypy silently checks nothing about it — that is how seven real
-      # errors in mcp/imagen/ reached main unseen while the pre-push hook, which
-      # runs where the libraries exist, blocked every push on them.
+      # The checked paths' dependencies must be installed. Without them
+      # `ignore_missing_imports` turns every third-party import into `Any` and
+      # mypy silently checks nothing about it — that is how seven real errors in
+      # mcp/imagen/ reached main unseen while the pre-push hook, which runs where
+      # the libraries exist, blocked every push on them.
+      #
+      # workers/comfy_worker/requirements.txt is deliberately excluded: it is a
+      # separately deployed service pinning fastapi 0.140.0 / pydantic 2.12.5
+      # against the gateway's 0.141.1 / 2.13.4, so adding it makes pip
+      # unresolvable. Its imports are the same packages, and type checking needs
+      # them present, not pinned to that service's versions.
       - name: Mypy
         run: |
           python -m pip install --upgrade pip
           pip install mypy types-requests types-PyYAML types-python-dateutil
           pip install -r requirements.txt \
             -r mcp/builder/requirements.txt \
-            -r mcp/imagen/requirements.txt \
-            -r workers/comfy_worker/requirements.txt
+            -r mcp/imagen/requirements.txt
           mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
 
   kitty-chat:
