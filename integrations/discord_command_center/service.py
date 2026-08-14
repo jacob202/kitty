@@ -7,7 +7,7 @@ import uuid
 from collections.abc import AsyncIterator, Mapping
 
 from .adapters.codex import CodexAdapter
-from .models import ProgressEvent
+from .models import DiffAudit, ProgressEvent
 from .runner import SubprocessRunner, build_child_environment
 from .runtime import CodexRuntime
 from .workspace import GitWorktreeManager
@@ -201,24 +201,29 @@ class VibeService:
         return None
 
     async def _best_effort_cancellation_cleanup(self, runtime, worktree) -> None:
-        await self._bounded_cleanup_call("runtime cleanup", runtime.cleanup)
-        audit = await self._bounded_cleanup_call(
+        runtime_cleanup_succeeded, _ = await self._bounded_cleanup_call(
+            "runtime cleanup", runtime.cleanup
+        )
+        if not runtime_cleanup_succeeded:
+            return
+        audit_succeeded, audit = await self._bounded_cleanup_call(
             "cancellation audit", self.workspace.audit, worktree
         )
-        if audit is not None and not audit.dirty:
+        if audit_succeeded and isinstance(audit, DiffAudit) and not audit.dirty:
             await self._bounded_cleanup_call(
                 "cancellation worktree removal", self.workspace.remove, worktree
             )
 
-    async def _bounded_cleanup_call(self, label, function, *args):
+    async def _bounded_cleanup_call(self, label, function, *args) -> tuple[bool, object]:
         try:
-            return await asyncio.wait_for(
+            result = await asyncio.wait_for(
                 asyncio.shield(asyncio.to_thread(function, *args)),
                 timeout=_CANCELLATION_CLEANUP_TIMEOUT_SECONDS,
             )
+            return True, result
         except BaseException as exc:
             logger.warning("best-effort %s failed: %s: %s", label, type(exc).__name__, exc)
-            return None
+            return False, None
 
 
 def _format_codex_progress(line: str) -> str | None:

@@ -209,6 +209,33 @@ def test_worktree_creation_preserves_authentication_failure_when_cleanup_is_unco
     assert str(failed_path) in _git(repo, "worktree", "list", "--porcelain")
 
 
+def test_worktree_creation_preserves_add_failure_and_cleans_exact_path(
+    tmp_path: Path, monkeypatch
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    manager = GitWorktreeManager(repo=repo, run_root=tmp_path / "runs")
+    unrelated = manager.create("unrelated-run")
+    original_git = manager._git
+
+    def fail_add(*args: str, cwd: Path) -> str:
+        if args[:2] == ("worktree", "add"):
+            raise RuntimeError("simulated worktree add failure")
+        return original_git(*args, cwd=cwd)
+
+    monkeypatch.setattr(manager, "_git", fail_add)
+
+    with pytest.raises(RuntimeError, match="simulated worktree add failure") as raised:
+        manager.create("failed-add-run")
+
+    assert raised.value.__cause__ is not None
+    assert "simulated worktree add failure" in str(raised.value.__cause__)
+    assert unrelated.exists()
+    failed_path = manager.run_root / "failed-add-run"
+    assert not failed_path.exists()
+    assert str(failed_path) not in _git(repo, "worktree", "list", "--porcelain")
+
+
 def test_service_reports_terminal_cleanup_failure_as_failed_event(tmp_path: Path) -> None:
     service, manager = _make_service(tmp_path, mutate=False)
 
@@ -585,28 +612,54 @@ class _CancelledRunner:
         yield ProgressEvent(kind="progress", message="unreachable")
 
 
-def test_service_preserves_cancellation_when_cleanup_and_audit_fail(
+def test_service_preserves_cancellation_when_audit_fails(
     tmp_path: Path, monkeypatch, caplog
 ) -> None:
     service, manager = _make_service(tmp_path, mutate=False)
     service.runner = _CancelledRunner()
 
-    from integrations.discord_command_center.runtime import CodexRuntime
-
-    def fail_runtime_cleanup(self) -> None:
-        raise RuntimeError("runtime cleanup failed")
-
     def fail_audit(path: Path):
         raise RuntimeError("audit failed")
 
-    monkeypatch.setattr(CodexRuntime, "cleanup", fail_runtime_cleanup)
     manager.audit = fail_audit  # type: ignore[method-assign]
 
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(_collect(service.run("inspect repo")))
 
-    assert "runtime cleanup failed" in caplog.text
     assert "audit failed" in caplog.text
+    assert len(list(manager.run_root.glob("*"))) == 1
+
+
+def test_service_cancellation_runtime_cleanup_failure_skips_audit_and_remove(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    service, manager = _make_service(tmp_path, mutate=False)
+    service.runner = _CancelledRunner()
+    calls: list[str] = []
+
+    from integrations.discord_command_center.runtime import CodexRuntime
+
+    def fail_runtime_cleanup(self) -> None:
+        calls.append("runtime.cleanup")
+        raise RuntimeError("runtime cleanup failed")
+
+    def audit(path: Path):
+        calls.append("audit")
+        raise AssertionError("audit must not run after runtime cleanup failure")
+
+    def remove(path: Path) -> None:
+        calls.append("remove")
+        raise AssertionError("remove must not run after runtime cleanup failure")
+
+    monkeypatch.setattr(CodexRuntime, "cleanup", fail_runtime_cleanup)
+    manager.audit = audit  # type: ignore[method-assign]
+    manager.remove = remove  # type: ignore[method-assign]
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(_collect(service.run("inspect repo")))
+
+    assert calls == ["runtime.cleanup"]
+    assert "runtime cleanup failed" in caplog.text
     assert len(list(manager.run_root.glob("*"))) == 1
 
 

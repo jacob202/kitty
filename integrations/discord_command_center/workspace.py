@@ -35,8 +35,8 @@ class GitWorktreeManager:
         repo_git_dir = self._git_path("rev-parse", "--git-dir", cwd=self.repo)
         repo_common_dir = self._git_path("rev-parse", "--git-common-dir", cwd=self.repo)
         base_commit = self._git("rev-parse", self.base_ref, cwd=self.repo)
-        self._git("worktree", "add", "--detach", str(path), base_commit, cwd=self.repo)
         try:
+            self._git("worktree", "add", "--detach", str(path), base_commit, cwd=self.repo)
             worktree_git_dir = self._git_path("rev-parse", "--git-dir", cwd=path)
             worktree_common_dir = self._git_path("rev-parse", "--git-common-dir", cwd=path)
             worktree_commit = self._git("rev-parse", "HEAD", cwd=path)
@@ -127,10 +127,8 @@ class GitWorktreeManager:
             remaining = False
             verification_error = exc
 
-        if cleanup_error is not None or verification_error is not None or remaining:
-            if cleanup_error is not None:
-                detail = f"cleanup failed: {type(cleanup_error).__name__}: {cleanup_error}"
-            elif verification_error is not None:
+        if verification_error is not None or remaining:
+            if verification_error is not None:
                 detail = (
                     f"verification failed: {type(verification_error).__name__}: "
                     f"{verification_error}"
@@ -141,6 +139,16 @@ class GitWorktreeManager:
                 f"{type(primary_error).__name__}: {primary_error}; "
                 f"cleanup not confirmed for {path}: {detail}"
             ) from primary_error
+        cleanup_detail = ""
+        if cleanup_error is not None:
+            cleanup_detail = (
+                f" after cleanup command failure ({type(cleanup_error).__name__}: "
+                f"{cleanup_error})"
+            )
+        raise RuntimeError(
+            f"{type(primary_error).__name__}: {primary_error}; "
+            f"exact-path cleanup confirmed for {path}{cleanup_detail}"
+        ) from primary_error
 
     def _worktree_is_registered(self, path: Path) -> bool:
         output = self._git("worktree", "list", "--porcelain", cwd=self.repo)
