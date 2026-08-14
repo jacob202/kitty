@@ -30,7 +30,10 @@ Phase 0 also disables Codex apps, plugins, browser use, computer use, image gene
 
 Create a separate bot application named **Command Center**. Phase 0 needs OAuth scopes `bot` and `applications.commands` and these channel permissions: Send Messages, Send Messages in Threads, Create Private Threads, Read Message History, Embed Links, Attach Files, and Manage Threads. `Manage Threads` is narrowly required because the bot creates non-invitable private threads and must add the requesting member with `add_user`; it does not grant Administrator or broader moderation permissions.
 
-Do **not** grant Administrator. `Manage Messages`, public-thread creation, reactions, and the privileged `MESSAGE_CONTENT` intent are Phase 1 requirements; enable `MESSAGE_CONTENT` before reaction-to-task ships.
+Do **not** grant Administrator. The reaction-to-task phase may require
+`Manage Messages`, public-thread creation, reactions, and the privileged
+`MESSAGE_CONTENT` intent; this control slice does not. Keep `MESSAGE_CONTENT`
+disabled until reaction-to-task is explicitly implemented and reviewed.
 
 Configure the bot at runtime; never commit its token:
 
@@ -44,12 +47,34 @@ export COMMAND_CENTER_ALLOWED_USER_IDS='123456789012345678'  # required; comma-s
 export COMMAND_CENTER_REPO="$HOME/Projects/kitty"
 export COMMAND_CENTER_CODEX_PATH='/Applications/ChatGPT.app/Contents/Resources/codex'
 export COMMAND_CENTER_CODEX_MODEL='gpt-5.4-mini'
+# Safety limits; defaults are two total active runs and one per user.
+export COMMAND_CENTER_MAX_CONCURRENT_RUNS='2'
+export COMMAND_CENTER_MAX_RUNS_PER_USER='1'
 ~/Projects/kitty/venv/bin/python -m integrations.discord_command_center.bot
 ```
 
 The Discord token is excluded from the Codex child environment. Outbound thread text is scrubbed for configured secret values and common OpenAI/GitHub/Discord token shapes.
 The bot fails closed unless at least one allowed user ID or role ID is configured; authorization is checked before creating a task thread or starting Codex.
 
+## Phase 1 controls
+
+The bot remains slash-command-only and continues to use only the `guilds`
+gateway intent. Each task receives an opaque ID in the ephemeral response and
+task card. `/vibe-status` shows the requesting user's active task IDs, private
+thread IDs, and elapsed time without echoing request text. `/vibe-cancel`
+cancels the requesting user's active task by ID, or by the current private task
+thread when no ID is supplied. Cancellation uses the existing worker process
+group termination, cleanup, and audit path; uncertain cleanup preserves the
+worktree for inspection.
+
+Admission is bounded before a private thread is created. A full global limit or
+per-user limit returns an ephemeral rejection and starts no worker. The task
+registry is intentionally process-local: a bot restart does not claim that
+in-flight tasks survive, and no durable queue or retry authority is introduced.
+
 ## Current boundary to KittyBuilder
 
-Editing work does not exist in Phase 0. Phase 1 may create an approved Builder proposal through a narrow Gateway endpoint, then consume Builder status/evidence. Command Center must stop there: KittyBuilder remains the execution service and inner spend authority.
+Editing work does not exist in Phase 0 or this Phase 1 control slice. A later
+phase may create an approved Builder proposal through a narrow Gateway endpoint,
+then consume Builder status/evidence. Command Center must stop there:
+KittyBuilder remains the execution service and inner spend authority.
