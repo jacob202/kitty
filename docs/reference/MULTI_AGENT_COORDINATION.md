@@ -21,6 +21,12 @@ initiative/task/attempt state as the marker; lack of GitHub publication approval
 must never block otherwise authorized Builder work. An authorized coordinator
 may later project that Builder state into #490.
 
+For interactive claims in issue #490, include a lease expiry in `STATUS` as
+`lease_until=<ISO-8601 timestamp>`. Keep the lease short enough to represent an
+active session (normally no more than four hours) and refresh it only while the
+lane is actually being worked. Builder work uses Builder's own lease/state and
+does not need a second GitHub lease.
+
 A private chat statement or internal plan is not an ownership claim other
 agents can rely on.
 
@@ -50,15 +56,34 @@ not decide that overlap is unlikely before performing the check. A lane that
 cannot mutate GitHub may still read the coordination surface when available and
 must use supported Builder/local evidence for collision detection.
 
+Ownership is deterministic. An existing valid owner keeps the lane until an
+explicit supported transfer or a valid reclamation. If two overlapping
+interactive claims are created before either observes the other, the earliest
+unexpired durable claim in issue #490 wins; the later claimant must not select
+`OWN`. If durable timestamps cannot establish an order, implementation stops
+for that lane until the campaign lead records the authoritative owner. Builder
+ownership follows Builder's supported ownership/lease state rather than GitHub
+comment ordering.
+
 If another active lane overlaps, choose exactly one:
 
-- **OWN** — continue as the authoritative implementation owner.
+- **OWN** — continue only when durable evidence identifies this execution lane
+  as the authoritative implementation owner.
 - **REVIEW** — inspect the existing implementation.
 - **INTEGRATE** — handle CI, conflicts, acceptance, or merge work.
 - **DEPENDENCY** — do useful non-overlapping work until the owner unblocks.
 
 Never start a competing implementation merely because the authoritative lane
 is temporarily inaccessible.
+
+An expired interactive lease is not permission to recreate work. Before
+reclaiming it, the campaign lead must inspect the referenced GitHub, Builder,
+and available local evidence for recoverable or still-running work. If work is
+recoverable, preserve it and use `INTEGRATE` or record an explicit ownership
+transfer. If no active execution or recoverable owner work remains, record a
+reclamation marker in issue #490 naming the previous owner, the evidence used,
+and the new owner before implementation resumes. Age by itself is not enough
+to discard work.
 
 Never reconstruct unpublished local work from prose, summaries, or remembered
 diffs when the original work is recoverable.
