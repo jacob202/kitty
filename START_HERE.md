@@ -10,21 +10,20 @@ live evidence; it does not duplicate current state.
    `~/Projects/kitty`; Desktop copies are invalid.
 2. Inspect `git status --short --branch`, branch, HEAD, `origin/main`, and
    recent commits. Do not fetch, switch, stash, or clean merely to simplify
-   output.
-3. If work may overlap another active agent, read
+   output. If work may overlap another active agent, also read
    `docs/reference/MULTI_AGENT_COORDINATION.md` and the live coordination
    issue it names before claiming an implementation lane.
-4. Run the receipt for the task class. Informational/planning work may use
+3. Run the receipt for the task class. Informational/planning work may use
    `./kitty context --agent --compact --skip-builder`; code or Builder work
    uses full `./kitty context --agent`. A failed, unknown, stale, or
    contradictory receipt remains unverified; handoff prose cannot repair it.
-5. Read only the authority files required by the task, using the receipt's
+4. Read only the authority files required by the task, using the receipt's
    order. For code changes, use the complete order below.
-6. Read `docs/ACTIVE_MISSION.md` when the task is product or implementation
+5. Read `docs/ACTIVE_MISSION.md` when the task is product or implementation
    work. Confirm scope, approval, base SHA, evidence, and authorization.
-7. Inspect Builder through supported read-only commands only when Builder
+6. Inspect Builder through supported read-only commands only when Builder
    state, execution ownership, or collision risk matters.
-8. Immediately before mutation, re-check live branch/HEAD, scope, owner,
+7. Immediately before mutation, re-check live branch/HEAD, scope, owner,
    authorization, and the exact files to change.
 
 ## Task routing
