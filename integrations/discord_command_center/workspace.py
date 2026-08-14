@@ -36,11 +36,17 @@ class GitWorktreeManager:
         repo_common_dir = self._git_path("rev-parse", "--git-common-dir", cwd=self.repo)
         base_commit = self._git("rev-parse", self.base_ref, cwd=self.repo)
         self._git("worktree", "add", "--detach", str(path), base_commit, cwd=self.repo)
-        worktree_git_dir = self._git_path("rev-parse", "--git-dir", cwd=path)
-        worktree_common_dir = self._git_path("rev-parse", "--git-common-dir", cwd=path)
-        worktree_commit = self._git("rev-parse", "HEAD", cwd=path)
-        if worktree_commit != base_commit or worktree_common_dir != repo_common_dir:
-            raise RuntimeError("linked worktree identity did not match its controlling repository")
+        try:
+            worktree_git_dir = self._git_path("rev-parse", "--git-dir", cwd=path)
+            worktree_common_dir = self._git_path("rev-parse", "--git-common-dir", cwd=path)
+            worktree_commit = self._git("rev-parse", "HEAD", cwd=path)
+            if worktree_commit != base_commit or worktree_common_dir != repo_common_dir:
+                raise RuntimeError(
+                    "linked worktree identity did not match its controlling repository"
+                )
+        except Exception:
+            self._remove_created_worktree(path)
+            raise
         self._authenticated[path] = WorktreeIdentity(
             repo_git_dir=repo_git_dir,
             repo_common_dir=repo_common_dir,
@@ -91,10 +97,11 @@ class GitWorktreeManager:
     def _verify_identity(self, identity: "WorktreeIdentity", path: Path) -> None:
         if self._git_path("rev-parse", "--git-dir", cwd=self.repo) != identity.repo_git_dir:
             raise RuntimeError("controlling repository gitdir changed")
-        if self._git_path("rev-parse", "--git-common-dir", cwd=self.repo) != identity.repo_common_dir:
+        if (
+            self._git_path("rev-parse", "--git-common-dir", cwd=self.repo)
+            != identity.repo_common_dir
+        ):
             raise RuntimeError("controlling repository common gitdir changed")
-        if self._git("rev-parse", self.base_ref, cwd=self.repo) != identity.base_commit:
-            raise RuntimeError("controlling repository base commit changed")
         if self._trusted_git("rev-parse", "HEAD", cwd=path) != identity.base_commit:
             raise RuntimeError("linked worktree base commit changed")
 
@@ -103,6 +110,10 @@ class GitWorktreeManager:
         return self._run_git(
             ("--git-dir", str(identity.worktree_git_dir), "--work-tree", str(cwd), *args)
         )
+
+    def _remove_created_worktree(self, path: Path) -> None:
+        self._git("worktree", "remove", "--force", str(path), cwd=self.repo)
+        self._git("worktree", "prune", cwd=self.repo)
 
     @classmethod
     def _git_path(cls, *args: str, cwd: Path) -> Path:

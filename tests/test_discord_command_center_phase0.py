@@ -15,7 +15,10 @@ from integrations.discord_command_center.adapters.codex import CodexAdapter
 from integrations.discord_command_center.bot import VibeController, split_discord_message
 from integrations.discord_command_center.config import CommandCenterConfig
 from integrations.discord_command_center.models import ProgressEvent
-from integrations.discord_command_center.runner import build_child_environment
+from integrations.discord_command_center.runner import (
+    build_child_environment,
+    build_sandbox_profile,
+)
 from integrations.discord_command_center.service import VibeService
 from integrations.discord_command_center.workspace import GitWorktreeManager
 
@@ -145,6 +148,44 @@ def test_worktree_audit_uses_authenticated_git_metadata_after_git_file_tamper(
 
     assert audit.dirty is True
     assert any("unexpected.txt" in line for line in audit.status_lines)
+
+
+def test_worktree_creation_cleans_exact_path_after_authentication_failure(
+    tmp_path: Path, monkeypatch
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    manager = GitWorktreeManager(repo=repo, run_root=tmp_path / "runs")
+    unrelated = manager.create("unrelated-run")
+    failed_path = manager.run_root / "failed-auth-run"
+    original_git_path = manager._git_path
+
+    def fail_for_new_worktree(*args: str, cwd: Path) -> Path:
+        if cwd.resolve() == failed_path.resolve():
+            raise RuntimeError("simulated identity validation failure")
+        return original_git_path(*args, cwd=cwd)
+
+    monkeypatch.setattr(manager, "_git_path", fail_for_new_worktree)
+
+    with pytest.raises(RuntimeError, match="simulated identity"):
+        manager.create("failed-auth-run")
+
+    assert not failed_path.exists()
+    assert unrelated.exists()
+    assert str(failed_path) not in _git(repo, "worktree", "list", "--porcelain")
+
+
+def test_worktree_audit_stays_bound_to_captured_base_commit_when_ref_moves(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _git(repo, "branch", "audit-base")
+    manager = GitWorktreeManager(repo=repo, base_ref="audit-base", run_root=tmp_path / "runs")
+    worktree = manager.create("moving-base-ref")
+
+    _git(repo, "commit", "--allow-empty", "-m", "advance canonical HEAD")
+    _git(repo, "branch", "-f", "audit-base", "HEAD")
+
+    assert manager.audit(worktree).files == 0
 
 
 class _FakeRunner:
@@ -642,7 +683,6 @@ def test_subprocess_runner_timeout_covers_wait_after_stdout_closes(
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create)
     signals: list[tuple[int, int]] = []
-
     def signal_group(pid: int, sig: int) -> None:
         signals.append((pid, sig))
         process.terminated = sig == signal.SIGTERM
@@ -752,6 +792,7 @@ def test_subprocess_runner_escalates_to_kill_after_grace_period(monkeypatch) -> 
 
     process = _StubbornProcess()
     signals: list[tuple[int, int]] = []
+
     def signal_group(pid: int, sig: int) -> None:
         signals.append((pid, sig))
         process.killed = sig == signal.SIGKILL
@@ -801,7 +842,11 @@ def test_subprocess_runner_stdout_failure_terminates_process_group(
                 SubprocessRunner(kill_grace_seconds=0.01, max_line_bytes=16).stream(
                     ("/bin/echo", "ok"),
                     cwd=tmp_path,
-                    environment={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "TMPDIR": str(tmp_path)},
+                    environment={
+                        "HOME": str(tmp_path),
+                        "PATH": "/usr/bin:/bin",
+                        "TMPDIR": str(tmp_path),
+                    },
                     timeout_seconds=1,
                 )
             )
@@ -810,7 +855,9 @@ def test_subprocess_runner_stdout_failure_terminates_process_group(
     assert signals == [(process.pid, signal.SIGTERM)]
 
 
-def test_subprocess_runner_keeps_terminal_json_after_progress_limit(tmp_path: Path, monkeypatch) -> None:
+def test_subprocess_runner_keeps_terminal_json_after_progress_limit(
+    tmp_path: Path, monkeypatch
+) -> None:
     from integrations.discord_command_center.runner import SubprocessRunner
 
     answer = b'{"type":"item.completed","item":{"type":"agent_message","text":"answer"}}\n'
@@ -838,7 +885,11 @@ def test_subprocess_runner_keeps_terminal_json_after_progress_limit(tmp_path: Pa
             SubprocessRunner(max_lines=2).stream(
                 ("/bin/echo", "ok"),
                 cwd=tmp_path,
-                environment={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "TMPDIR": str(tmp_path)},
+                environment={
+                    "HOME": str(tmp_path),
+                    "PATH": "/usr/bin:/bin",
+                    "TMPDIR": str(tmp_path),
+                },
                 timeout_seconds=1,
             )
         )
@@ -876,7 +927,11 @@ def test_subprocess_runner_reports_untrusted_terminal_evidence_after_progress_li
             SubprocessRunner(max_lines=2).stream(
                 ("/bin/echo", "ok"),
                 cwd=tmp_path,
-                environment={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "TMPDIR": str(tmp_path)},
+                environment={
+                    "HOME": str(tmp_path),
+                    "PATH": "/usr/bin:/bin",
+                    "TMPDIR": str(tmp_path),
+                },
                 timeout_seconds=1,
             )
         )
@@ -885,9 +940,17 @@ def test_subprocess_runner_reports_untrusted_terminal_evidence_after_progress_li
     assert events[-1].code == "terminal_evidence_untrusted"
 
 
-def test_sandbox_profile_denies_host_reads_and_allows_runtime_paths(tmp_path: Path) -> None:
-    from integrations.discord_command_center.runner import build_sandbox_profile
+def test_subprocess_runner_does_not_trust_started_agent_message_as_terminal_evidence() -> None:
+    from integrations.discord_command_center.runner import _terminal_evidence
 
+    started = b'{"type":"item.started","item":{"type":"agent_message","text":"not final"}}'
+    completed = b'{"type":"item.completed","item":{"type":"agent_message","text":"final"}}'
+
+    assert _terminal_evidence(started) is None
+    assert _terminal_evidence(completed) == "answer"
+
+
+def test_sandbox_profile_denies_host_reads_and_allows_runtime_paths(tmp_path: Path) -> None:
     profile = build_sandbox_profile(
         tmp_path,
         {"TMPDIR": str(tmp_path / "runtime"), "CODEX_AUTH_FILE": "/tmp/auth.json"},
@@ -897,6 +960,33 @@ def test_sandbox_profile_denies_host_reads_and_allows_runtime_paths(tmp_path: Pa
     assert f'(allow file-read* (subpath "{tmp_path}"))' in profile
     assert '(allow file-read* (literal "/tmp/auth.json"))' not in profile
     assert f'(allow file-read* (subpath "{Path("/tmp/auth.json").resolve()}"))' in profile
+
+
+def test_sandbox_profile_allows_configured_codex_and_narrow_linked_git_metadata(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    manager = GitWorktreeManager(repo=repo, run_root=tmp_path / "runs")
+    worktree = manager.create("sandbox-git-run")
+    executable = "/Applications/ChatGPT.app/Contents/Resources/codex"
+
+    profile = build_sandbox_profile(
+        worktree, {"TMPDIR": str(worktree / "runtime")}, command=(executable,)
+    )
+    git_dir = Path(_git(worktree, "rev-parse", "--git-dir"))
+    common_dir = Path(_git(worktree, "rev-parse", "--git-common-dir"))
+    if not git_dir.is_absolute():
+        git_dir = (worktree / git_dir).resolve()
+    if not common_dir.is_absolute():
+        common_dir = (worktree / common_dir).resolve()
+
+    assert f'(allow file-read* (literal "{executable}"))' in profile
+    assert f'(allow file-read* (subpath "{git_dir}"))' in profile
+    assert f'(allow file-read* (subpath "{common_dir / "objects"}"))' in profile
+    assert f'(allow file-read* (subpath "{common_dir}"))' not in profile
+    assert f'(allow file-read* (subpath "{Path.home()}"))' not in profile
+    assert 'allow file-read* (subpath "/")' not in profile
 
 
 def test_subprocess_runner_cancellation_terminates_worker(tmp_path: Path, monkeypatch) -> None:
@@ -940,6 +1030,7 @@ def test_subprocess_runner_cancellation_terminates_worker(tmp_path: Path, monkey
 
         monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create)
         signals: list[tuple[int, int]] = []
+
         def signal_group(pid: int, sig: int) -> None:
             signals.append((pid, sig))
             process.terminated = sig == signal.SIGTERM
@@ -952,7 +1043,11 @@ def test_subprocess_runner_cancellation_terminates_worker(tmp_path: Path, monkey
                 runner.stream(
                     ("/bin/echo", "ok"),
                     cwd=tmp_path,
-                    environment={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "TMPDIR": str(tmp_path)},
+                    environment={
+                        "HOME": str(tmp_path),
+                        "PATH": "/usr/bin:/bin",
+                        "TMPDIR": str(tmp_path),
+                    },
                     timeout_seconds=30,
                 )
             )
@@ -1016,10 +1111,12 @@ def test_codex_command_execution_progress_is_semantic_not_raw() -> None:
 
     from integrations.discord_command_center.service import _format_codex_progress
 
-    event = json.dumps({
-        "type": "item.completed",
-        "item": {"type": "command_execution", "command": "/bin/zsh -lc secret-looking-command"},
-    })
+    event = json.dumps(
+        {
+            "type": "item.completed",
+            "item": {"type": "command_execution", "command": "/bin/zsh -lc secret-looking-command"},
+        }
+    )
 
     rendered = _format_codex_progress(event)
 
@@ -1103,14 +1200,14 @@ def test_secret_scrubber_redacts_fine_grained_and_quoted_tokens() -> None:
     from integrations.discord_command_center.scrub import SecretScrubber
 
     scrubbed = SecretScrubber().scrub(
-        'github_pat_11ABCDEFG1234567890abcdef '
-        'DATABASE_PASSWORD="hunter2-longer" API_KEY=\'abcdefghijklmnop\''
+        "github_pat_11ABCDEFG1234567890abcdef "
+        "DATABASE_PASSWORD=\"hunter2-longer\" API_KEY='abcdefghijklmnop'"
     )
 
     assert "github_pat_11ABCDEFG1234567890abcdef" not in scrubbed
     assert 'DATABASE_PASSWORD="hunter2-longer"' not in scrubbed
     assert "API_KEY='abcdefghijklmnop'" not in scrubbed
-    assert "DATABASE_PASSWORD=\"[REDACTED]\"" in scrubbed
+    assert 'DATABASE_PASSWORD="[REDACTED]"' in scrubbed
     assert "API_KEY='[REDACTED]'" in scrubbed
 
 
