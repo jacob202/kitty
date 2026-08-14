@@ -10,7 +10,10 @@ live evidence; it does not duplicate current state.
    `~/Projects/kitty`; Desktop copies are invalid.
 2. Inspect `git status --short --branch`, branch, HEAD, `origin/main`, and
    recent commits. Do not fetch, switch, stash, or clean merely to simplify
-   output.
+   output. Before any substantial implementation, also read
+   `docs/reference/MULTI_AGENT_COORDINATION.md`, check its live coordination
+   issue, and inspect the relevant Builder/local ownership state before
+   claiming an implementation lane.
 3. Run the receipt for the task class. Informational/planning work may use
    `./kitty context --agent --compact --skip-builder`; code or Builder work
    uses full `./kitty context --agent`. A failed, unknown, stale, or
@@ -49,6 +52,10 @@ live evidence; it does not duplicate current state.
 9. [`.claude/STATE.md`](.claude/STATE.md)
 10. [`.claude/HANDOFF.md`](.claude/HANDOFF.md) — only if its identity is valid
 <!-- kitty-reading-order:end -->
+
+`docs/reference/MULTI_AGENT_COORDINATION.md` is an operational coordination
+supplement, not another authority file. Its live issue is mutable campaign
+state and must be revalidated against current GitHub/Builder/Mac truth.
 
 ## Minimal command set
 

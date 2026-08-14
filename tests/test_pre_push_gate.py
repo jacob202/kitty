@@ -113,8 +113,47 @@ def test_make_hooks_points_git_at_the_hook_directory():
     assert "hooks" in makefile.split("\n", 1)[0], "`hooks` missing from .PHONY"
 
 
+def test_make_hooks_configures_ssh_keepalive_without_overwriting_custom_command(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+
+    subprocess.run(["make", "-f", str(ROOT / "Makefile"), "hooks"], cwd=repo, check=True)
+    configured = subprocess.run(
+        ["git", "config", "--get", "core.sshCommand"],
+        cwd=repo, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    assert "ServerAliveInterval=30" in configured
+    assert "ServerAliveCountMax=30" in configured
+
+    custom = "ssh -F /tmp/custom-ssh-config"
+    subprocess.run(["git", "config", "core.sshCommand", custom], cwd=repo, check=True)
+    subprocess.run(["make", "-f", str(ROOT / "Makefile"), "hooks"], cwd=repo, check=True)
+    preserved = subprocess.run(
+        ["git", "config", "--get", "core.sshCommand"],
+        cwd=repo, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    assert preserved == custom
+
+
 def test_hook_clears_git_local_env_before_gates(hook_text):
     """Nested git commands in pytest must not inherit the pushing repo's GIT_* vars."""
     clear_marker = "git rev-parse --local-env-vars"
     assert clear_marker in hook_text, "pre-push leaks Git's local environment into pytest"
+    assert hook_text.index(clear_marker) < hook_text.index('run_gate "code style"')
+
+
+def test_linked_worktree_uses_canonical_repo_venv_before_system_python(hook_text):
+    """Builder worktrees must use the canonical Kitty venv, matching CI deps."""
+    assert "--git-common-dir" in hook_text
+    assert "CANONICAL_ROOT" in hook_text
+    canonical_venv = '${CANONICAL_ROOT}/venv/bin/python'
+    assert canonical_venv in hook_text
+    assert hook_text.index(canonical_venv) < hook_text.index("python3.12")
+
+
+def test_hook_clears_builder_data_dir_before_gates(hook_text):
+    """Builder-local DB routing must not leak into CI-parity tests."""
+    clear_marker = "unset KITTY_BUILDER_DATA_DIR"
+    assert clear_marker in hook_text, "pre-push leaks Builder's proof DB override into pytest"
     assert hook_text.index(clear_marker) < hook_text.index('run_gate "code style"')

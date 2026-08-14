@@ -114,3 +114,4 @@ gateway/kitty-chat/test-results/
 
 # Personal reference photos — never in git. Live at ~/kitty-services/faces/
 config/imagen/faces/*/
+docs/session-notes/workflow-signals/.workflow-signals.lock
