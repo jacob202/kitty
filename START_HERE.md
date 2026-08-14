@@ -10,9 +10,10 @@ live evidence; it does not duplicate current state.
    `~/Projects/kitty`; Desktop copies are invalid.
 2. Inspect `git status --short --branch`, branch, HEAD, `origin/main`, and
    recent commits. Do not fetch, switch, stash, or clean merely to simplify
-   output. If work may overlap another active agent, also read
-   `docs/reference/MULTI_AGENT_COORDINATION.md` and the live coordination
-   issue it names before claiming an implementation lane.
+   output. Before any substantial implementation, also read
+   `docs/reference/MULTI_AGENT_COORDINATION.md`, check its live coordination
+   issue, and inspect the relevant Builder/local ownership state before
+   claiming an implementation lane.
 3. Run the receipt for the task class. Informational/planning work may use
    `./kitty context --agent --compact --skip-builder`; code or Builder work
    uses full `./kitty context --agent`. A failed, unknown, stale, or
