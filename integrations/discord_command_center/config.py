@@ -13,6 +13,8 @@ class CommandCenterConfig:
     codex_executable: str = DEFAULT_CODEX
     codex_model: str = "gpt-5.4-mini"
     run_timeout_seconds: int = 900
+    max_concurrent_runs: int = 2
+    max_runs_per_user: int = 1
     discord_token: str | None = None
     guild_id: int | None = None
     war_room_channel_id: int | None = None
@@ -22,14 +24,16 @@ class CommandCenterConfig:
     @classmethod
     def from_env(cls) -> "CommandCenterConfig":
         repo = Path(os.environ.get("COMMAND_CENTER_REPO", Path.cwd())).expanduser().resolve()
-        timeout = int(os.environ.get("COMMAND_CENTER_RUN_TIMEOUT_SECONDS", "900"))
-        if timeout <= 0:
-            raise ValueError("COMMAND_CENTER_RUN_TIMEOUT_SECONDS must be positive")
+        timeout = _positive_int("COMMAND_CENTER_RUN_TIMEOUT_SECONDS", "900")
+        max_concurrent_runs = _positive_int("COMMAND_CENTER_MAX_CONCURRENT_RUNS", "2")
+        max_runs_per_user = _positive_int("COMMAND_CENTER_MAX_RUNS_PER_USER", "1")
         return cls(
             repo=repo,
             codex_executable=os.environ.get("COMMAND_CENTER_CODEX_PATH", DEFAULT_CODEX),
             codex_model=os.environ.get("COMMAND_CENTER_CODEX_MODEL", "gpt-5.4-mini"),
             run_timeout_seconds=timeout,
+            max_concurrent_runs=max_concurrent_runs,
+            max_runs_per_user=max_runs_per_user,
             discord_token=os.environ.get("COMMAND_CENTER_DISCORD_TOKEN"),
             guild_id=_optional_int("COMMAND_CENTER_GUILD_ID"),
             war_room_channel_id=_optional_int("COMMAND_CENTER_WAR_ROOM_CHANNEL_ID"),
@@ -48,6 +52,13 @@ class CommandCenterConfig:
                 "COMMAND_CENTER_ALLOWED_USER_IDS or COMMAND_CENTER_ALLOWED_ROLE_IDS"
             )
         return self
+
+
+def _positive_int(name: str, default: str) -> int:
+    value = int(os.environ.get(name, default))
+    if value <= 0:
+        raise ValueError(f"{name} must be positive")
+    return value
 
 
 def _optional_int(name: str) -> int | None:
