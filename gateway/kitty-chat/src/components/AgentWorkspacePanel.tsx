@@ -113,7 +113,12 @@ export function AgentWorkspacePanel() {
       setDraft('')
       await loadWorkspace(workspaceId, false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The agent handoff failed')
+      const message = err instanceof Error ? err.message : 'The agent handoff failed'
+      // A rejected/ambiguous submission can mean another tab won the durable
+      // turn lease. Reconcile before re-enabling the composer so this tab sees
+      // the authoritative running turn instead of remaining incorrectly idle.
+      await loadWorkspace(workspaceId, false)
+      setError(message)
     } finally {
       setBusy(false)
     }
