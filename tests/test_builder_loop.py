@@ -130,7 +130,7 @@ def _good_worker(tmp_path: Path) -> list[str]:
 def _install_publication_gate(repo: Path, body: str) -> None:
     hook = repo / "scripts" / "hooks" / "pre-push"
     hook.parent.mkdir(parents=True, exist_ok=True)
-    hook.write_text("#!/bin/bash\nset -e\n" + body, encoding="utf-8")
+    hook.write_text("#!/bin/bash\nset -e\nif [[ \"${1:-}\" == \"--preflight\" ]]; then exit 0; fi\n" + body, encoding="utf-8")
     hook.chmod(0o755)
     subprocess.run(["git", "add", str(hook.relative_to(repo))], cwd=repo, check=True)
     subprocess.run(

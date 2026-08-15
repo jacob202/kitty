@@ -110,6 +110,14 @@ def test_publication_environment_preflight_stops_before_attempt(
     task_id = _apply(db_path, repo)
     marker = tmp_path / "worker-ran"
     _stub_janitor(monkeypatch)
+    seen_preflight_paths: list[Path] = []
+    real_preflight = bl.bj.publication_preflight
+
+    def capture_preflight(repo_root: Path, **kwargs):
+        seen_preflight_paths.append(Path(repo_root))
+        return real_preflight(repo_root, **kwargs)
+
+    monkeypatch.setattr(bl.bj, "publication_preflight", capture_preflight)
 
     result = bl.run_packet(
         INITIATIVE,
@@ -123,6 +131,7 @@ def test_publication_environment_preflight_stops_before_attempt(
     assert result["outcome"] == bl.LOOP_INFRASTRUCTURE_BLOCKED
     assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path) == []
     assert not marker.exists(), "worker must not run when publication environment is unavailable"
+    assert seen_preflight_paths == [repo]
     assert bq.get_task(task_id, db_path=db_path)["state"] == bq.QUEUED
     infra = [
         event
@@ -170,3 +179,23 @@ def test_late_publication_infrastructure_failure_is_crashed_not_failed(
     # real implementation-failure budget slot available.
     second = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
     assert second["attempt_no"] == 2
+
+
+def test_unexpected_publication_preflight_exit_fails_before_attempt(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_gate(
+        repo,
+        'if [[ "${1:-}" == "--preflight" ]]; then echo "bad preflight contract" >&2; exit 1; fi\nexit 0\n',
+    )
+    task_id = _apply(db_path, repo)
+    marker = tmp_path / "worker-ran-unexpected"
+    _stub_janitor(monkeypatch)
+    with pytest.raises(bl.LoopError, match="publication environment preflight failed unexpectedly"):
+        bl.run_packet(
+            INITIATIVE, PACKET, worker_command=_worker(tmp_path, marker),
+            repo_root=repo, db_path=db_path, publication_preflight=True,
+        )
+    assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path) == []
+    assert not marker.exists()
+    assert bq.get_task(task_id, db_path=db_path)["state"] == bq.QUEUED

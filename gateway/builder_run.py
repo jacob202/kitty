@@ -662,6 +662,35 @@ def run_initiative(
                         "succeeded": succeeded,
                         "exhausted": exhausted,
                     }
+        elif loop_result["outcome"] == bl.LOOP_INFRASTRUCTURE_BLOCKED:
+            processed.append(
+                {
+                    "packet_id": packet_id,
+                    "task_id": task_id,
+                    "outcome": loop_result["outcome"],
+                }
+            )
+            _decide(
+                task_id,
+                {
+                    "initiative_id": initiative_id,
+                    "packet_id": packet_id,
+                    "decision": "infrastructure_blocked",
+                    "reason": loop_result.get("reason"),
+                    "stop_class": STOP_ROUTINE,
+                },
+                db_path,
+            )
+            return {
+                "outcome": bl.LOOP_INFRASTRUCTURE_BLOCKED,
+                "reason": loop_result.get("reason"),
+                "stop_class": STOP_ROUTINE,
+                "packet_id": packet_id,
+                "task_id": task_id,
+                "processed": processed,
+                "succeeded": succeeded,
+                "exhausted": exhausted,
+            }
         elif loop_result["outcome"] == bl.LOOP_PROVIDER_EXHAUSTED:
             processed.append(
                 {

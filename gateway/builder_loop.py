@@ -70,6 +70,7 @@ LOOP_SUCCEEDED = "succeeded"
 LOOP_EXHAUSTED = "exhausted"
 LOOP_CANCELLED = "cancelled"
 LOOP_PAUSED = "paused"
+LOOP_INFRASTRUCTURE_BLOCKED = "infrastructure_blocked"
 
 LOOP_PROVIDER_EXHAUSTED = "provider_exhausted"
 PROVIDER_EXHAUSTED_EXIT_CODE = 75
@@ -1102,7 +1103,7 @@ def run_packet(
                     )
 
         try:
-            preflight_worktree(task_id, repo_root=repo_root)
+            worktree_preflight = preflight_worktree(task_id, repo_root=repo_root)
         except RunnerError as exc:
             bq.append_event(
                 task_id,
@@ -1115,6 +1116,40 @@ def run_packet(
                 db_path=db_path,
             )
             raise LoopError(f"builder preflight failed: {exc}") from exc
+
+        if publication_preflight:
+            publication_root = Path(worktree_preflight["repo_root"])
+            publication_probe = bj.publication_preflight(publication_root)
+            detail = (publication_probe.stderr or publication_probe.stdout or "").strip()
+            if (
+                publication_probe.returncode != 0
+                and publication_probe.returncode != PROVIDER_EXHAUSTED_EXIT_CODE
+            ):
+                suffix = f": {detail}" if detail else ""
+                raise LoopError(
+                    "publication environment preflight failed unexpectedly "
+                    f"(exit {publication_probe.returncode}){suffix}"
+                )
+            if publication_probe.returncode == PROVIDER_EXHAUSTED_EXIT_CODE:
+                reason = "publication environment preflight exited 75" + (
+                    f": {detail}" if detail else ""
+                )
+                _record_infrastructure_failure(
+                    task_id,
+                    reason=reason,
+                    phase="publication_preflight",
+                    attempt_id=None,
+                    db_path=db_path,
+                )
+                return {
+                    "outcome": LOOP_INFRASTRUCTURE_BLOCKED,
+                    "initiative_id": initiative_id,
+                    "packet_id": packet_id,
+                    "task_id": task_id,
+                    "task_state": (bq.get_task(task_id, db_path=db_path) or {}).get("state"),
+                    "reason": reason,
+                    "attempts": history,
+                }
 
         try:
             expected_branch = default_branch_name(task)
@@ -1510,6 +1545,7 @@ def run_packet(
         janitor_head_before: str | None = None
         janitor_head_after: str | None = None
         janitor_pass_no: int | None = None
+        gate: dict[str, Any] | None = None
         if failure is None and publication_preflight:
             janitor_passes += 1
             janitor_pass_no = janitor_passes
@@ -1605,6 +1641,46 @@ def run_packet(
                     entry["validation_failure"] = {
                         "command": failed_command.get("command"),
                         "exit_code": failed_command.get("exit_code"),
+                    }
+
+                if gate is not None and gate.get("exit_code") == PROVIDER_EXHAUSTED_EXIT_CODE:
+                    reason = "publication gate exited 75"
+                    output_tail = str(gate.get("output_tail", "")).strip()
+                    if output_tail:
+                        reason += f": {output_tail}"
+                    entry["outcome"] = ba.ATTEMPT_CRASHED
+                    entry["failure"] = reason
+                    entry["repairable"] = False
+                    manifest["outcome"] = "crashed"
+                    manifest["failure"] = _text_evidence(reason)
+                    write_run_manifest(manifest_path, manifest)
+                    worktree_evidence = archive_and_reset_worktree(
+                        worktree_path(task_id, repo_root=repo_root), attempt_dir
+                    )
+                    _close_bound_attempt(attempt, lease, ba.ATTEMPT_CRASHED, db_path=db_path)
+                    _record_infrastructure_failure(
+                        task_id,
+                        reason=reason,
+                        phase="publication_gate",
+                        attempt_id=attempt_id,
+                        db_path=db_path,
+                    )
+                    blocked_task = bq.get_task(task_id, db_path=db_path)
+                    if blocked_task is not None and blocked_task["state"] == bq.BLOCKED:
+                        bq.operator_release_task(
+                            task_id,
+                            reason="publication infrastructure unavailable; retry queued",
+                            db_path=db_path,
+                        )
+                    return {
+                        "outcome": LOOP_INFRASTRUCTURE_BLOCKED,
+                        "initiative_id": initiative_id,
+                        "packet_id": packet_id,
+                        "task_id": task_id,
+                        "task_state": (bq.get_task(task_id, db_path=db_path) or {}).get("state"),
+                        "reason": reason,
+                        "attempts": history,
+                        "worktree": worktree_evidence,
                     }
 
         if failure is None and _runtime_budget_expired(deadline_monotonic):
