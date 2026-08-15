@@ -1,0 +1,50 @@
+{
+  "bundle_version": 1,
+  "initiative_id": "autonomous-campaign-supervisor-v3",
+  "packet_id": "autonomous-supervisor-walking-skeleton",
+  "task_id": "kb_mstyw34s_2249",
+  "attempt_no": 2,
+  "objective": "Implement the complete bounded walking skeleton in one Builder branch: runtime preflight for worker and validation processes, stateless supervisor and fixed CLI/launchd launcher, strict Claude worker/reviewer adapter, focused tests, and authority/recovery documentation.",
+  "acceptance_criteria": [
+    "Clean worktrees run worker and declared validation commands through the existing root runtime without creating a venv, symlink, untracked setup file, or installing dependencies.",
+    "A supervisor tick takes one OS lock, deterministically selects eligible active Builder initiatives, launches no more than two canonical runs, and returns truthful receipts; duplicate ticks do nothing.",
+    "Supervisor CLI exposes only fixed tick/status commands; launchd generation uses RunAtLoad, StartInterval 900, no KeepAlive, safe PATH, canonical root, and fixed logs; tests do not install the service.",
+    "Claude adapter supports strict worker/reviewer contracts with Sonnet worker, Opus reviewer, fake CLI tests, reviewer immutability, exit 75 for unavailable executable/auth with no output/change, and no fallback.",
+    "Builder remains the only durable authority; publication remains manual; Discord is documented as typed projection/control only with no shell, approval, publication, or merge path.",
+    "Focused runtime, supervisor, adapter, CLI, launchd, Builder-run, and continuity tests pass without a live Claude request."
+  ],
+  "allowed_paths": [
+    "scripts/kittybuilder_opencode_worker.sh",
+    "gateway/builder_attempt.py",
+    "tests/test_builder_attempt.py",
+    "tests/test_kittybuilder_opencode_adapters.py",
+    "gateway/builder_supervisor.py",
+    "gateway/builder_cli.py",
+    "scripts/start_builder_supervisor.sh",
+    "scripts/kitty_desktop_launchd.py",
+    "tests/test_builder_supervisor.py",
+    "tests/test_builder_cli.py",
+    "tests/test_desktop_launchd.py",
+    "scripts/kittybuilder_claude_adapter.py",
+    "tests/test_kittybuilder_claude_adapter.py",
+    "docs/KITTYBUILDER_MCP.md",
+    "docs/CONTINUITY_RECOVERY.md"
+  ],
+  "policy": {
+    "max_attempts": 3,
+    "priority": 20
+  },
+  "validation_commands": [
+    "python3.12 -m pytest tests/test_builder_attempt.py tests/test_kittybuilder_opencode_adapters.py tests/test_kittybuilder_claude_adapter.py -q",
+    "python3.12 -m pytest tests/test_builder_supervisor.py tests/test_builder_run.py tests/test_builder_cli.py tests/test_desktop_launchd.py -q",
+    "python3.12 -m pytest tests/test_mcp_builder_server.py tests/test_mcp_builder_commands.py tests/test_mcp_builder_continuity.py -q"
+  ],
+  "prior_attempts": [
+    {
+      "attempt_no": 1,
+      "outcome": "failed",
+      "implementation": null,
+      "review": null
+    }
+  ]
+}
