@@ -1,0 +1,2 @@
+ok_worker attempt 3
+bundle_task=kb_msauan2z_473e
