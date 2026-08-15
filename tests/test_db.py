@@ -173,6 +173,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "029_image_sessions.sql",
         "030_image_plans.sql",
         "031_agent_workspace.sql",
+        "032_agent_workspace_turns.sql",
     ]
 
 

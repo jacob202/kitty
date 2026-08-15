@@ -647,6 +647,7 @@ export interface AgentWorkspaceMessage {
 
 export interface AgentWorkspaceEvent {
   id: string
+  sequence: number
   workspace_id: string
   type: string
   actor_kind: 'user' | 'agent' | 'system'
@@ -654,6 +655,18 @@ export interface AgentWorkspaceEvent {
   message_id: string | null
   metadata: Record<string, unknown>
   created_at: number
+}
+
+export interface AgentWorkspaceTurn {
+  id: string
+  workspace_id: string
+  user_message_id: string
+  status: 'running' | 'completed' | 'failed' | 'interrupted'
+  active_agent_id: string | null
+  error_type: string | null
+  error_message: string | null
+  started_at: number
+  finished_at: number | null
 }
 
 export interface AgentWorkspace {
@@ -666,6 +679,7 @@ export interface AgentWorkspace {
   agents: AgentWorkspaceAgent[]
   messages: AgentWorkspaceMessage[]
   events: AgentWorkspaceEvent[]
+  turns: AgentWorkspaceTurn[]
 }
 
 async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
@@ -829,7 +843,7 @@ export async function fetchAgentWorkspace(workspaceId: string): Promise<AgentWor
 export async function runAgentWorkspaceTurn(
   workspaceId: string,
   message: string,
-): Promise<{ status: string; workspace_id: string; messages: AgentWorkspaceMessage[]; events: AgentWorkspaceEvent[] }> {
+): Promise<{ status: 'running'; workspace_id: string; turn: AgentWorkspaceTurn }> {
   return gfetch(`/agent-workspaces/${encodeURIComponent(workspaceId)}/turns`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

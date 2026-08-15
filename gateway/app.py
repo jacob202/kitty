@@ -39,6 +39,15 @@ def _reconcile_tasks_on_startup() -> None:
         logger.warning("reconciled %d orphaned background task(s) at startup", reconciled)
 
 
+def _reconcile_agent_workspace_turns_on_startup() -> None:
+    """Make room work truthful after the in-process executor has restarted."""
+    from gateway.agent_workspace import interrupt_running_turns
+
+    reconciled = interrupt_running_turns()
+    if reconciled:
+        logger.warning("interrupted %d orphaned shared-agent room turn(s) at startup", reconciled)
+
+
 async def _brief_bg_loop():
     """Warm the brief cache on startup, then refresh every 15 minutes."""
     from gateway.brief import generate_brief
@@ -59,7 +68,9 @@ async def lifespan(app: FastAPI):
     validate_env()
     _reconcile_image_jobs_on_startup()
     _reconcile_tasks_on_startup()
+    _reconcile_agent_workspace_turns_on_startup()
     from gateway.image_recipes import seed_default_recipes
+
     seed_default_recipes()
     try:
         from gateway.telegram_bot import is_configured as tg_configured
@@ -125,6 +136,7 @@ async def lifespan(app: FastAPI):
         register_action("monitors.check", _action_check_monitors)
         register_action("memory.consolidate", _action_memory_consolidate)
         register_action("inbox.triage", _action_triage_inbox)
+
         def _action_poll_github():
             from gateway.connectors import github
 
@@ -145,6 +157,7 @@ async def lifespan(app: FastAPI):
 
             result = evening_reflection()
             from gateway.push import push_to_jacob
+
             push_to_jacob(
                 result.get("reflection", "")[:300],
                 kind="info",
@@ -158,11 +171,13 @@ async def lifespan(app: FastAPI):
             suggestions = result.get("proactive_suggestions", [])
             if suggestions:
                 from gateway.push import push_to_jacob
+
                 text = suggestions[0].get("text", "")
                 push_to_jacob(text, kind="info", title="Life Suggestion")
 
         async def _action_insights_return_due():
             from gateway.insight_loop import return_due
+
             await return_due()
 
         register_action("life.evening_reflection", _action_life_evening_reflection)

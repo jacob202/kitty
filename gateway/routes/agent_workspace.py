@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from gateway import agent_workspace
@@ -52,15 +50,22 @@ def get_messages(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@router.post("/agent-workspaces/{workspace_id}/turns")
-async def run_turn(workspace_id: str, request: WorkspaceTurnRequest) -> dict:
+@router.post("/agent-workspaces/{workspace_id}/turns", status_code=status.HTTP_202_ACCEPTED)
+def start_turn(
+    workspace_id: str,
+    request: WorkspaceTurnRequest,
+    background_tasks: BackgroundTasks,
+) -> dict:
     try:
-        return await asyncio.to_thread(
-            agent_workspace.run_turn,
+        turn = agent_workspace.start_turn(
             workspace_id,
             request.message,
             user_id=request.user_id,
         )
+    except agent_workspace.AgentWorkspaceConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except agent_workspace.AgentWorkspaceError as exc:
         status_code = 404 if "does not exist" in str(exc) else 400
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    background_tasks.add_task(agent_workspace.run_persisted_turn, workspace_id, turn["id"])
+    return {"status": "running", "workspace_id": workspace_id, "turn": turn}

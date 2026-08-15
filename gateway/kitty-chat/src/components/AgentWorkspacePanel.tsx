@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   createAgentWorkspace,
   fetchAgentWorkspace,
@@ -17,6 +17,7 @@ export function AgentWorkspacePanel() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const loadInFlight = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
     const storedId = window.localStorage.getItem(STORAGE_KEY)
@@ -28,16 +29,37 @@ export function AgentWorkspacePanel() {
     void loadWorkspace(storedId)
   }, [])
 
-  async function loadWorkspace(id: string) {
-    setLoading(true)
-    setError(null)
+  const hasRunningTurn = workspace?.turns.some((turn) => turn.status === 'running') ?? false
+
+  useEffect(() => {
+    if (!workspaceId || !hasRunningTurn) return
+    const intervalId = window.setInterval(() => void loadWorkspace(workspaceId, false), 1_000)
+    return () => window.clearInterval(intervalId)
+  }, [workspaceId, hasRunningTurn])
+
+  async function loadWorkspace(id: string, showLoading = true) {
+    if (loadInFlight.current) {
+      await loadInFlight.current
+      return
+    }
+    const request = (async () => {
+      if (showLoading) setLoading(true)
+      try {
+        const loaded = await fetchAgentWorkspace(id)
+        setWorkspace(loaded)
+        setError(null)
+      } catch (err) {
+        // A poll failure must not erase the last durable transcript or stop retries.
+        setError(err instanceof Error ? err.message : 'Could not load the shared workspace')
+      } finally {
+        if (showLoading) setLoading(false)
+      }
+    })()
+    loadInFlight.current = request
     try {
-      setWorkspace(await fetchAgentWorkspace(id))
-    } catch (err) {
-      setWorkspace(null)
-      setError(err instanceof Error ? err.message : 'Could not load the shared workspace')
+      await request
     } finally {
-      setLoading(false)
+      if (loadInFlight.current === request) loadInFlight.current = null
     }
   }
 
@@ -59,18 +81,18 @@ export function AgentWorkspacePanel() {
 
   async function handleSend() {
     const message = draft.trim()
-    if (!message || !workspaceId || busy) return
+    if (!message || !workspaceId || busy || hasRunningTurn) return
     setBusy(true)
     setError(null)
     try {
       const result = await runAgentWorkspaceTurn(workspaceId, message)
       setWorkspace((current) => current ? {
         ...current,
-        messages: result.messages,
-        events: result.events,
+        turns: [result.turn, ...current.turns.filter((turn) => turn.id !== result.turn.id)],
         updated_at: Date.now() / 1000,
       } : current)
       setDraft('')
+      await loadWorkspace(workspaceId, false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The agent handoff failed')
     } finally {
@@ -91,7 +113,7 @@ export function AgentWorkspacePanel() {
 
       {loading && <p style={mutedStyle}>loading room…</p>}
 
-      {!loading && !workspace && (
+      {!loading && !workspace && !workspaceId && (
         <section style={cardStyle}>
           <h2 style={sectionTitleStyle}>Create your first room</h2>
           <p style={bodyStyle}>
@@ -99,6 +121,18 @@ export function AgentWorkspacePanel() {
           </p>
           <button type="button" onClick={() => void handleCreate()} disabled={busy} style={buttonStyle}>
             {busy ? 'creating…' : 'create shared room'}
+          </button>
+        </section>
+      )}
+
+      {!loading && !workspace && workspaceId && (
+        <section style={cardStyle}>
+          <h2 style={sectionTitleStyle}>Reopen your shared room</h2>
+          <p style={bodyStyle}>
+            The saved room could not be reached. Retry before creating another room.
+          </p>
+          <button type="button" onClick={() => void loadWorkspace(workspaceId)} disabled={busy} style={buttonStyle}>
+            retry room
           </button>
         </section>
       )}
@@ -116,21 +150,41 @@ export function AgentWorkspacePanel() {
             <div style={rosterStyle}>
               {workspace.agents.map((agent) => (
                 <span key={agent.id} style={agentChipStyle}>
-                  <span style={dotStyle} />{agent.display_name}
+                  <span style={dotStyle(agent.id === workspace.turns.find((turn) => turn.status === 'running')?.active_agent_id)} />
+                  {agent.display_name}
                 </span>
               ))}
             </div>
           </section>
+
+          {workspace.turns[0] && (
+            <section style={turnStyle(workspace.turns[0].status)}>
+              <div style={messageMetaStyle}>
+                <strong>turn</strong>
+                <span>{workspace.turns[0].status}</span>
+              </div>
+              {workspace.turns[0].status === 'running' && (
+                <p style={messageBodyStyle}>
+                  {workspace.turns[0].active_agent_id ?? 'room'} is working. Partial messages are saved as they arrive.
+                </p>
+              )}
+              {workspace.turns[0].status !== 'running' && workspace.turns[0].error_message && (
+                <p style={messageBodyStyle}>
+                  Incomplete: {workspace.turns[0].error_type ?? 'agent failure'} — {workspace.turns[0].error_message}
+                </p>
+              )}
+            </section>
+          )}
 
           <section style={cardStyle}>
             <h2 style={sectionTitleStyle}>Room transcript</h2>
             <div style={transcriptStyle}>
               {workspace.messages.length === 0 && <p style={mutedStyle}>No messages yet.</p>}
               {workspace.messages.map((message) => (
-                <article key={message.id} style={messageStyle}>
+                <article key={message.id} style={messageStyle(message)}>
                   <div style={messageMetaStyle}>
                     <strong>{message.sender_id}</strong>
-                    <span>{message.message_kind}</span>
+                    <span>{messageLabel(message)}</span>
                     {message.recipient_id && <span>→ {message.recipient_id}</span>}
                   </div>
                   <p style={messageBodyStyle}>{message.content}</p>
@@ -151,8 +205,8 @@ export function AgentWorkspacePanel() {
                 rows={3}
                 style={textareaStyle}
               />
-              <button type="button" onClick={() => void handleSend()} disabled={busy || !draft.trim()} style={buttonStyle}>
-                {busy ? 'working…' : 'send to room'}
+              <button type="button" onClick={() => void handleSend()} disabled={busy || hasRunningTurn || !draft.trim()} style={buttonStyle}>
+                {busy || hasRunningTurn ? 'working…' : 'send to room'}
               </button>
             </div>
           </section>
@@ -175,9 +229,18 @@ const bodyStyle = { margin: '4px 0 0', color: 'var(--ink-2)', lineHeight: 1.5 }
 const statusStyle = { fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--c-blue)', textTransform: 'lowercase' as const }
 const rosterStyle = { display: 'flex', flexWrap: 'wrap' as const, gap: 6 }
 const agentChipStyle = { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 999, background: 'var(--surface-2)', border: '1px solid var(--line)', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }
-const dotStyle = { width: 6, height: 6, borderRadius: '50%', background: 'var(--c-blue)' }
+const dotStyle = (active: boolean) => ({ width: 6, height: 6, borderRadius: '50%', background: active ? 'var(--c-purple)' : 'var(--c-blue)' })
 const transcriptStyle = { display: 'grid', gap: 8, maxHeight: 460, overflowY: 'auto' as const }
-const messageStyle = { padding: '9px 10px', background: 'var(--surface-2)', borderRadius: 8, border: '1px solid var(--line)' }
+const messageStyle = (message: AgentWorkspace['messages'][number]) => ({
+  padding: '9px 10px',
+  background: message.sender_kind === 'user' ? 'rgba(102,119,204,0.08)' : 'var(--surface-2)',
+  borderRadius: 8,
+  border: `1px solid ${message.sender_kind === 'system' ? 'rgba(204,102,88,0.55)' : 'var(--line)'}`,
+})
+const turnStyle = (status: AgentWorkspace['turns'][number]['status']) => ({
+  ...cardStyle,
+  borderColor: status === 'failed' || status === 'interrupted' ? 'rgba(204,102,88,0.65)' : 'var(--line)',
+})
 const messageMetaStyle = { display: 'flex', gap: 8, alignItems: 'center', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }
 const messageBodyStyle = { margin: '5px 0 0', whiteSpace: 'pre-wrap' as const, color: 'var(--ink)', lineHeight: 1.5 }
 const composerStyle = { display: 'grid', gap: 8 }
@@ -185,3 +248,9 @@ const textareaStyle = { width: '100%', resize: 'vertical' as const, boxSizing: '
 const buttonStyle = { justifySelf: 'start', padding: '8px 12px', borderRadius: 7, border: '1px solid rgba(102,119,204,0.4)', background: 'rgba(102,119,204,0.14)', color: 'var(--c-purple)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer' }
 const mutedStyle = { margin: 0, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)', fontSize: 11 }
 const errorStyle = { margin: 0, color: 'var(--cat-ginger)', fontFamily: 'var(--font-mono)', fontSize: 11 }
+
+function messageLabel(message: AgentWorkspace['messages'][number]): string {
+  if (message.sender_id === 'builder' && message.message_kind === 'handoff') return 'builder proposal'
+  if (message.sender_kind === 'system' && message.message_kind === 'status') return 'failure status'
+  return message.message_kind
+}

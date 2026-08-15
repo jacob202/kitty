@@ -42,20 +42,22 @@ def test_workspace_routes_create_read_and_run_turn(client, monkeypatch):
         f"/agent-workspaces/{workspace_id}/turns",
         json={"message": "Create a verified plan."},
     )
-    assert turn.status_code == 200
+    assert turn.status_code == 202
     body = turn.json()
-    assert body["status"] == "completed"
-    assert [message["sender_id"] for message in body["messages"]] == [
-        "jacob",
-        "planner",
-        "researcher",
-        "reviewer",
-    ]
+    assert body["status"] == "running"
+    assert body["turn"]["status"] == "running"
 
     read = client.get(f"/agent-workspaces/{workspace_id}")
     assert read.status_code == 200
     assert read.json()["agents"][0]["id"] == "planner"
-    assert len(read.json()["messages"]) == 4
+    assert read.json()["turns"][0]["status"] == "completed"
+    assert [message["sender_id"] for message in read.json()["messages"]] == [
+        "jacob",
+        "planner",
+        "researcher",
+        "builder",
+        "reviewer",
+    ]
 
 
 def test_workspace_routes_reject_missing_room(client):
