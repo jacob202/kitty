@@ -520,6 +520,35 @@ function BuilderControls({
 
 const STALE_THRESHOLD_MS = 10 * 60 * 1000
 
+/** Retry progress phases derivable from durable Builder packet/attempt facts. */
+type RetryPhase = 'attention' | 'queued' | 'running' | 'validation' | 'review' | 'complete'
+
+/**
+ * Derive the retry phase purely from the current durable packet snapshot.
+ * Local "accepted" state is never an input here, so durable failure can never
+ * masquerade as completion.
+ */
+function deriveRetryPhase(packet: BuilderPacketStatus): RetryPhase {
+  const state = packet.task_state
+  if (state === 'failed' || state === 'cancelled' || state === 'blocked') {
+    return 'attention'
+  }
+  if (state === 'done') return 'complete'
+  const latest = packet.attempt_history[0]
+  if (state === 'pr_opened' || state === 'awaiting_review' || latest?.review?.verdict) {
+    return 'review'
+  }
+  // Validation evidence on the in-flight attempt means the runner is
+  // validating; a fresh queue cycle (after retry) supersedes stale attempt
+  // evidence from a previous run.
+  if (latest?.validation?.status && state !== 'queued') {
+    return 'validation'
+  }
+  if (state === 'queued') return 'queued'
+  if (state === 'claimed' || state === 'running') return 'running'
+  return 'attention'
+}
+
 function isStalePacket(packet: BuilderPacketStatus): boolean {
   if (packet.task_state !== 'claimed' && packet.task_state !== 'running') return false
   if (!packet.updated_at) return false
@@ -725,6 +754,9 @@ function PacketDetail({
   const headingRef = useRef<HTMLHeadingElement>(null)
   const command = useOperatorCommand()
   const [busy, setBusy] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [retryAccepted, setRetryAccepted] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     headingRef.current?.focus()
@@ -733,17 +765,33 @@ function PacketDetail({
   const isDead = packet.task_state === 'cancelled' || packet.task_state === 'failed'
   const isPacketStale = isStalePacket(packet)
   const needsAction = isDead || isPacketStale || packet.budget?.exhausted === true
+  const phase = deriveRetryPhase(packet)
 
-  const runAction = (builderAction: string) => {
+  const confirmRetry = () => {
     setBusy(true)
+    setActionError(null)
     command.mutate(
       {
-        action: builderAction,
+        action: 'requeue',
         initiative_id: packet.initiative_id,
+        packet_id: packet.packet_id,
         task_id: packet.task_id,
-        reason: `Builder surface requested ${builderAction}`,
+        reason: 'Builder surface requested requeue',
       },
-      { onSettled: () => setBusy(false) },
+      {
+        onSuccess: () => {
+          // Acceptance only. The authoritative runtime-manifest refresh remains
+          // the source of durable confirmation; this is never completion.
+          setRetryAccepted(true)
+          setPreviewOpen(false)
+        },
+        onError: (error) => {
+          setActionError(
+            error instanceof Error ? error.message : 'Builder rejected the retry.',
+          )
+        },
+        onSettled: () => setBusy(false),
+      },
     )
   }
 
@@ -776,18 +824,72 @@ function PacketDetail({
         <DataQualityNotice detail={packet.data_quality.issues.join(' ')} />
       )}
       {needsAction && (
-        <div style={{ ...card, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderColor: 'var(--c-yellow)' }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', flex: 1 }}>
-            {isDead ? 'This packet is dead — requeue to retry.' : isPacketStale ? staleLabel(packet) : 'Budget exhausted — requeue to retry.'}
+        <div style={{ ...card, display: 'grid', gap: 8, borderColor: 'var(--c-yellow)' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', flex: 1, minWidth: 200 }}>
+              {isDead
+                ? 'This packet failed or was cancelled. Retry this work to requeue it.'
+                : isPacketStale
+                  ? `${staleLabel(packet)}. Retry this work to requeue it.`
+                  : 'Attempt budget exhausted. Retry this work to requeue it.'}
+            </span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setPreviewOpen((open) => !open)}
+              style={{ ...actionButton, color: 'var(--c-blue)', borderColor: 'var(--c-blue)' }}
+            >
+              {busy ? '…' : 'Retry this work'}
+            </button>
+          </div>
+          {retryAccepted && (
+            <p role="status" style={{ ...bodyText, margin: 0, fontSize: 12 }}>
+              Retry accepted — waiting for the next durable snapshot to confirm progress.
+            </p>
+          )}
+          {actionError && (
+            <p role="alert" style={{ ...bodyText, margin: 0, fontSize: 12, color: 'var(--c-red)' }}>
+              Retry was rejected: {actionError}
+            </p>
+          )}
+          {previewOpen && (
+            <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--line)', paddingTop: 8, minWidth: 0 }}>
+              <p style={{ ...bodyText, margin: 0, overflowWrap: 'anywhere' }}>
+                Retry {packet.title} ({packet.packet_id})? This requeues the existing Builder
+                packet — prior evidence stays visible, later execution remains under existing
+                Builder policy and attempt budget, and completion is reported only when
+                refreshed durable evidence shows it.
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={confirmRetry}
+                  style={{ ...actionButton, color: 'var(--c-blue)', borderColor: 'var(--c-blue)' }}
+                >
+                  {busy ? '…' : 'Confirm retry'}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setPreviewOpen(false)}
+                  style={actionButton}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {retryAccepted && !needsAction && phase !== 'attention' && (
+        <div style={{ ...card, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }} aria-label="Retry progress">
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
+            Retry progress
           </span>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => runAction('requeue')}
-            style={{ ...actionButton, color: 'var(--c-blue)', borderColor: 'var(--c-blue)' }}
-          >
-            {busy ? '…' : 'requeue'}
-          </button>
+          <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink)' }}>
+            {displayState(phase)}
+          </strong>
         </div>
       )}
       <div style={detailGrid}>
@@ -1495,14 +1597,14 @@ function BuilderBrain({ snapshot }: { snapshot: BuilderStatusSnapshot }) {
                 </div>
               ))}
               <p style={{ ...bodyText, fontSize: 11, margin: 0 }}>
-                Use the controls section above to requeue stale packets.
+                Open a stale packet to retry it from the packet detail view.
               </p>
             </BrainSection>
           )}
           {cancelled.length > 0 && (
             <p style={{ ...bodyText, margin: 0 }}>
               {cancelled.length} cancelled {cancelled.length === 1 ? 'packet' : 'packets'} —
-              review and requeue or clean up from the packet detail view.
+              review and retry from the packet detail view.
             </p>
           )}
         </div>

@@ -358,7 +358,7 @@ describe('BuilderSurface', () => {
     expect(screen.getByText(/This UI does not start Builder work/)).toBeInTheDocument()
   })
 
-  it('uses the canonical command payload when requeueing a dead packet', () => {
+  it('exposes Retry this work, not raw requeue, for failed selected work', () => {
     const deadSnapshot: BuilderStatusSnapshot = {
       ...SNAPSHOT,
       initiatives: [{
@@ -369,17 +369,232 @@ describe('BuilderSurface', () => {
 
     render(<BuilderSurface fact={builderFact(deadSnapshot)} isLoading={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'View packet Expose truthful Builder status' }))
-    fireEvent.click(screen.getByRole('button', { name: 'requeue' }))
 
+    expect(screen.getByRole('button', { name: 'Retry this work' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^requeue$/i })).toBeNull()
+    expect(screen.getByText(/This packet failed or was cancelled/)).toBeInTheDocument()
+  })
+
+  it.each([
+    ['failed', { task_state: 'failed' }],
+    ['cancelled', { task_state: 'cancelled' }],
+    ['stale', { task_state: 'claimed', updated_at: '2026-07-01T00:00:00Z' }],
+    ['exhausted', { budget: { used: 2, max: 2, exhausted: true } }],
+  ] as const)('exposes Retry this work for %s work', (_label, patch) => {
+    const snapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      initiatives: [{ ...SNAPSHOT.initiatives[0], packets: [{ ...PACKET, ...patch }] }],
+    }
+
+    render(<BuilderSurface fact={builderFact(snapshot)} isLoading={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View packet Expose truthful Builder status' }))
+
+    expect(screen.getByRole('button', { name: 'Retry this work' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^requeue$/i })).toBeNull()
+  })
+
+  it('first click opens an inline preview naming the packet and sends no mutation', () => {
+    const deadSnapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      initiatives: [{ ...SNAPSHOT.initiatives[0], packets: [{ ...PACKET, task_state: 'failed' }] }],
+    }
+
+    render(<BuilderSurface fact={builderFact(deadSnapshot)} isLoading={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View packet Expose truthful Builder status' }))
+
+    expect(operatorCommandMutate).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry this work' }))
+
+    expect(screen.getByText(/Retry Expose truthful Builder status \(BUILDER-UI-1\)/)).toBeInTheDocument()
+    expect(screen.getByText(/completion is reported only when refreshed durable evidence shows it/)).toBeInTheDocument()
+    expect(operatorCommandMutate).not.toHaveBeenCalled()
+  })
+
+  it('Cancel closes the preview without sending a mutation', () => {
+    const deadSnapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      initiatives: [{ ...SNAPSHOT.initiatives[0], packets: [{ ...PACKET, task_state: 'failed' }] }],
+    }
+
+    render(<BuilderSurface fact={builderFact(deadSnapshot)} isLoading={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View packet Expose truthful Builder status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry this work' }))
+    expect(screen.getByRole('button', { name: 'Confirm retry' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByRole('button', { name: 'Confirm retry' })).toBeNull()
+    expect(operatorCommandMutate).not.toHaveBeenCalled()
+  })
+
+  it('Confirm retry sends exactly one requeue action for the selected packet', () => {
+    operatorCommandMutate.mockImplementation((_payload, handlers) => {
+      handlers?.onSuccess?.()
+      handlers?.onSettled?.()
+    })
+    const deadSnapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      initiatives: [{ ...SNAPSHOT.initiatives[0], packets: [{ ...PACKET, task_state: 'failed' }] }],
+    }
+
+    render(<BuilderSurface fact={builderFact(deadSnapshot)} isLoading={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View packet Expose truthful Builder status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry this work' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm retry' }))
+
+    expect(operatorCommandMutate).toHaveBeenCalledTimes(1)
     expect(operatorCommandMutate).toHaveBeenCalledWith(
       {
         action: 'requeue',
         initiative_id: PACKET.initiative_id,
+        packet_id: PACKET.packet_id,
         task_id: PACKET.task_id,
         reason: 'Builder surface requested requeue',
       },
       expect.anything(),
     )
+  })
+
+  it('surfaces an {ok:false} Builder response as visible failure', () => {
+    operatorCommandMutate.mockImplementation((_payload, handlers) => {
+      handlers?.onError?.(new Error('task not found: BUILDER-UI-1'))
+      handlers?.onSettled?.()
+    })
+    const deadSnapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      initiatives: [{ ...SNAPSHOT.initiatives[0], packets: [{ ...PACKET, task_state: 'failed' }] }],
+    }
+
+    render(<BuilderSurface fact={builderFact(deadSnapshot)} isLoading={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View packet Expose truthful Builder status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry this work' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm retry' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Retry was rejected: task not found: BUILDER-UI-1',
+    )
+    // The durable fact is still dead, so the primary action stays available.
+    expect(screen.getByRole('button', { name: 'Retry this work' })).toBeInTheDocument()
+  })
+
+  it('accepted retry is waiting, never complete, until durable facts advance', () => {
+    operatorCommandMutate.mockImplementation((_payload, handlers) => {
+      handlers?.onSuccess?.()
+      handlers?.onSettled?.()
+    })
+    const deadSnapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      initiatives: [{ ...SNAPSHOT.initiatives[0], packets: [{ ...PACKET, task_state: 'failed' }] }],
+    }
+    const { rerender } = render(<BuilderSurface fact={builderFact(deadSnapshot)} isLoading={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View packet Expose truthful Builder status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry this work' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm retry' }))
+
+    // Acceptance is not completion and no progress phase is invented.
+    expect(screen.getByText(/Retry accepted — waiting for the next durable snapshot/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Retry progress')).toBeNull()
+    expect(screen.queryByText('complete')).toBeNull()
+
+    // The manifest refreshes but the durable packet is unchanged: still dead.
+    rerender(<BuilderSurface fact={builderFact(deadSnapshot)} isLoading={false} />)
+    expect(screen.getByText(/This packet failed or was cancelled/)).toBeInTheDocument()
+    expect(screen.getByText(/Retry accepted — waiting for the next durable snapshot/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Retry progress')).toBeNull()
+    expect(screen.queryByText('complete')).toBeNull()
+  })
+
+  it('derives retry progress phases only from durable packet facts', () => {
+    operatorCommandMutate.mockImplementation((_payload, handlers) => {
+      handlers?.onSuccess?.()
+      handlers?.onSettled?.()
+    })
+    const recent = new Date().toISOString()
+    const phasePacket = (taskState: string): BuilderPacketStatus => ({
+      ...PACKET,
+      task_state: taskState,
+      updated_at: recent,
+      failure_kind: null,
+      blocked_reason: null,
+      last_error: null,
+    })
+    const snapshotFor = (packet: BuilderPacketStatus): BuilderStatusSnapshot => ({
+      ...SNAPSHOT,
+      initiatives: [{ ...SNAPSHOT.initiatives[0], state: 'active', packets: [packet] }],
+    })
+    const deadSnapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      initiatives: [{ ...SNAPSHOT.initiatives[0], packets: [{ ...PACKET, task_state: 'failed' }] }],
+    }
+
+    const { rerender } = render(<BuilderSurface fact={builderFact(deadSnapshot)} isLoading={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View packet Expose truthful Builder status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry this work' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm retry' }))
+
+    rerender(<BuilderSurface fact={builderFact(snapshotFor(phasePacket('queued')))} isLoading={false} />)
+    expect(screen.getByLabelText('Retry progress')).toHaveTextContent('queued')
+
+    rerender(<BuilderSurface fact={builderFact(snapshotFor(phasePacket('running')))} isLoading={false} />)
+    expect(screen.getByLabelText('Retry progress')).toHaveTextContent('running')
+
+    const validationPacket: BuilderPacketStatus = {
+      ...phasePacket('running'),
+      attempt_history: [{
+        ...PACKET.attempt_history[0],
+        validation: {
+          status: 'passed',
+          command_count: 2,
+          failed_command_count: 0,
+          summary: '2 validation commands passed.',
+        },
+      }],
+    }
+    rerender(<BuilderSurface fact={builderFact(snapshotFor(validationPacket))} isLoading={false} />)
+    expect(screen.getByLabelText('Retry progress')).toHaveTextContent('validation')
+
+    const reviewPacket: BuilderPacketStatus = {
+      ...phasePacket('awaiting_review'),
+      attempt_history: [{
+        ...PACKET.attempt_history[0],
+        validation: {
+          status: 'passed',
+          command_count: 2,
+          failed_command_count: 0,
+          summary: '2 validation commands passed.',
+        },
+        review: { verdict: 'approve', summary: 'Review approved.', findings: [], findings_truncated: false },
+      }],
+    }
+    rerender(<BuilderSurface fact={builderFact(snapshotFor(reviewPacket))} isLoading={false} />)
+    expect(screen.getByLabelText('Retry progress')).toHaveTextContent('review')
+
+    rerender(<BuilderSurface fact={builderFact(snapshotFor(phasePacket('done')))} isLoading={false} />)
+    expect(screen.getByLabelText('Retry progress')).toHaveTextContent('complete')
+  })
+
+  it('a durable failed state after retry returns to attention and never shows complete', () => {
+    operatorCommandMutate.mockImplementation((_payload, handlers) => {
+      handlers?.onSuccess?.()
+      handlers?.onSettled?.()
+    })
+    const deadSnapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      initiatives: [{ ...SNAPSHOT.initiatives[0], packets: [{ ...PACKET, task_state: 'failed' }] }],
+    }
+    const { rerender } = render(<BuilderSurface fact={builderFact(deadSnapshot)} isLoading={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'View packet Expose truthful Builder status' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry this work' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm retry' }))
+
+    // The requeue was accepted, then the next snapshot shows the packet failed again.
+    rerender(<BuilderSurface fact={builderFact(deadSnapshot)} isLoading={false} />)
+
+    expect(screen.getByRole('button', { name: 'Retry this work' })).toBeInTheDocument()
+    expect(screen.getByText(/This packet failed or was cancelled/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Retry progress')).toBeNull()
+    expect(screen.queryByText('complete')).toBeNull()
   })
 
   it('prioritizes a paused initiative reason as the next decision', () => {
@@ -490,7 +705,7 @@ describe('BuilderSurface', () => {
     expect(screen.getByText('worker recovered after reconnect')).toBeInTheDocument()
   })
 
-  it('does not render unsupported mutation controls', () => {
+  it('keeps the overview read-only with no mutation controls', () => {
     render(<BuilderSurface fact={builderFact(SNAPSHOT)} isLoading={false} />)
 
     expect(

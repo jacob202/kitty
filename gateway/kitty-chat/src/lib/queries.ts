@@ -764,13 +764,22 @@ export function useExecuteRepair() {
 export function useOperatorCommand() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (payload: {
+    mutationFn: async (payload: {
       action: string
       task_id?: string
       initiative_id?: string
       packet_id?: string
       reason?: string
-    }) => executeOperatorCommand({ ...payload, actor: 'cockpit-operator' }),
+    }) => {
+      const result = await executeOperatorCommand({ ...payload, actor: 'cockpit-operator' })
+      // Fail loud (KPROOF retry contract): a rejected Builder response must
+      // surface as a visible error, never be treated as acceptance. HTTP 200
+      // alone is not authority — only {ok:true} is.
+      if (result?.ok !== true) {
+        throw new Error(result?.error || result?.detail || 'Builder rejected the command')
+      }
+      return result
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
     },
