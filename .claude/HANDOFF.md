@@ -45,3 +45,17 @@
 ## Next action
 
 Make the repo-wide pre-push gate green, then publish the Builder cleanup and resume KPROOF.
+
+## 2026-08-15 — HOME STRETCH Mac lane (#505 / #490)
+
+Step 1 runtime truth DONE. Receipt: `.claude/RUNTIME_RECEIPT_490.md`,
+posted to issue #490 (comment 5304168399).
+
+BLOCKER: this checkout (`feat/builder-action-retirement` @ 01bb5e2d) is 80
+commits behind origin/main and does NOT contain PR #498. The live Gateway
+(:8000) is serving this stale tree. Steps 2-4 cannot start until the runtime
+sits on `c01caddc` (origin/main).
+
+NEXT: decide branch strategy with Jacob — fast-forward the main checkout to
+origin/main, or stand up a worktree at c01caddc and repoint the services.
+6 local commits on this branch would need somewhere to go first.
