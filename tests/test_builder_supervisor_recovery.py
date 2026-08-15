@@ -135,3 +135,35 @@ def test_operator_pause_still_excludes_fenced_recovery_candidate(
     assert bi.next_packet(INITIATIVE, db_path=db_path) is not None
     selected, _skipped = bs._select_packets(db_path, max_runs=1)
     assert selected == []
+
+
+def test_supervisor_rechecks_task_state_after_candidate_is_claimed(
+    repo: Path, db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    task_id = _apply(repo, db_path)
+    real_next_packet = bi.next_packet
+
+    def next_packet_then_claim(
+        initiative_id: str, db_path: Path | None = None
+    ) -> dict[str, object] | None:
+        candidate = real_next_packet(initiative_id, db_path=db_path)
+        assert candidate is not None
+        bq.claim_task(task_id, "other-runner", db_path=db_path)
+        assert bq.get_task(task_id, db_path=db_path)["state"] == bq.CLAIMED
+        assert bq.list_runs(task_id, db_path=db_path) == []
+        return candidate
+
+    monkeypatch.setattr(bs.bi, "next_packet", next_packet_then_claim)
+
+    selected, skipped = bs._select_packets(db_path, max_runs=1)
+
+    assert selected == []
+    assert skipped == [
+        {
+            "initiative_id": INITIATIVE,
+            "packet_id": PACKET,
+            "task_id": task_id,
+            "reason": "task_state_not_dispatchable",
+            "task_state": bq.CLAIMED,
+        }
+    ]
