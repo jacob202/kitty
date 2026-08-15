@@ -322,3 +322,73 @@ def test_cli_launchd_plist(tmp_path: Path, capsys: Any) -> None:
     captured = capsys.readouterr()
     assert "<?xml" in captured.out
     assert "com.kitty.builder.supervisor" in captured.out
+
+
+def test_tick_reconciles_merges_before_scanning_active_work(db_path: Path) -> None:
+    order: list[str] = []
+
+    def reconcile(**_kwargs: Any) -> dict[str, Any]:
+        order.append("reconcile")
+        return {"promoted": [], "errors": [], "worktree_cleanup": []}
+
+    def active(_db_path: Path | None = None) -> list[dict[str, Any]]:
+        order.append("scan")
+        return []
+
+    with patch.object(bs, "_reconcile_merged_work", side_effect=reconcile):
+        with patch.object(bs, "active_initiatives", side_effect=active):
+            receipt = bs.tick(db_path=db_path)
+
+    assert order[0] == "reconcile"
+    assert order[1] == "scan"
+    assert receipt["merge_reconciliation"]["errors"] == []
+
+
+def test_tick_surfaces_merge_reconciliation_errors(db_path: Path) -> None:
+    reconciliation = {
+        "promoted": [],
+        "errors": [{"task_id": "task-1", "error": "gh unavailable"}],
+        "worktree_cleanup": [],
+    }
+    with patch.object(bs, "_reconcile_merged_work", return_value=reconciliation):
+        receipt = bs.tick(db_path=db_path)
+
+    assert receipt["status"] == "error"
+    assert receipt["merge_reconciliation"] == reconciliation
+
+
+def test_reconcile_merged_work_cleans_promoted_worktree(tmp_path: Path, db_path: Path) -> None:
+    removed = tmp_path / ".worktrees" / "kittybuilder" / "task-1"
+    with patch.object(
+        bq,
+        "detect_merged_prs",
+        return_value={"promoted": ["task-1"], "already_merged": [], "errors": []},
+    ):
+        with patch("gateway.builder_runner.remove_worktree", return_value=removed) as cleanup:
+            result = bs._reconcile_merged_work(db_path=db_path, repo_root=tmp_path)
+
+    cleanup.assert_called_once_with(
+        "task-1", repo_root=tmp_path, discard_done_marker=True
+    )
+    assert result["worktree_cleanup"] == [
+        {"task_id": "task-1", "status": "removed", "path": str(removed)}
+    ]
+
+
+def test_reconcile_merged_work_preserves_dirty_worktree(tmp_path: Path, db_path: Path) -> None:
+    from gateway.builder_runner import RunnerError
+
+    with patch.object(
+        bq,
+        "detect_merged_prs",
+        return_value={"promoted": ["task-1"], "already_merged": [], "errors": []},
+    ):
+        with patch(
+            "gateway.builder_runner.remove_worktree",
+            side_effect=RunnerError("worktree is dirty"),
+        ):
+            result = bs._reconcile_merged_work(db_path=db_path, repo_root=tmp_path)
+
+    assert result["worktree_cleanup"][0]["task_id"] == "task-1"
+    assert result["worktree_cleanup"][0]["status"] == "kept"
+    assert "dirty" in result["worktree_cleanup"][0]["error"]
