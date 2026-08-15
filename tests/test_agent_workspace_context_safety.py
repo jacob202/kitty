@@ -32,7 +32,12 @@ def test_room_objective_is_included_in_every_agent_context(workspace_db):
 
     agent_workspace.run_turn(room["id"], "What should we do next?", backend=backend)
 
-    assert [call[0] for call in backend.calls] == ["planner", "researcher", "builder", "reviewer"]
+    assert [call[0] for call in backend.calls] == [
+        "planner",
+        "researcher",
+        "builder",
+        "reviewer",
+    ]
     for _, _, context in backend.calls:
         assert any(
             item.get("sender_id") == "workspace"
