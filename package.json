@@ -1,0 +1,30 @@
+{
+  "name": "kitty",
+  "version": "1.0.0",
+  "description": "Kitty is Jacob's local-first personal AI system. It owns conversation behavior, context, memory, projects, tools, Tutor, model policy, and user-facing workflows while keeping models and clients replaceable.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "example": "examples",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jacob202/kitty.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/jacob202/kitty/issues"
+  },
+  "homepage": "https://github.com/jacob202/kitty#readme",
+  "dependencies": {
+    "discord.js": "^14.27.0",
+    "dotenv": "^17.4.2"
+  }
+}
