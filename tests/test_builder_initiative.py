@@ -642,22 +642,52 @@ class TestApply:
 
         assert bi.list_initiatives(db_path=db_path) == []
 
-    def test_mission_rejects_unrepresentable_routing_policy(self, db_path: Path):
+    def test_mission_persists_routing_policy(self, db_path: Path):
         mission = Mission(
             mission_id="mission-routing-v1",
-            objective="Do not drop routing policy",
+            objective="Preserve routing policy",
             approved_at=datetime.now(timezone.utc),
             state=MissionState.approved,
             execution=MissionExecution(
                 allowed_paths=["gateway/routes/builder.py"],
-                routing_policy={"provider": "required"},
+                routing_policy={"model": "model-x", "provider": "provider-y"},
             ),
             evidence_plan=MissionEvidencePlan(
                 acceptance_criteria=[EvidenceCriterion(description="routing survives")],
             ),
         )
 
-        with pytest.raises(bi.MissionSubmissionError, match="execution.routing_policy"):
+        result = bi.submit_mission(mission, db_path=db_path)
+        initiative = bi.get_initiative(result["initiative_id"], db_path=db_path)
+        assert initiative is not None
+        assert initiative["packets"][0]["policy"]["routing"] == {
+            "model": "model-x",
+            "provider": "provider-y",
+        }
+        assert bi.resolve_packet_routing(
+            result["initiative_id"],
+            "P1",
+            model=None,
+            provider=None,
+            db_path=db_path,
+        ) == ("model-x", "provider-y")
+
+    def test_mission_rejects_unknown_routing_policy_key(self, db_path: Path):
+        mission = Mission(
+            mission_id="mission-routing-unknown-v1",
+            objective="Reject unknown routing authority",
+            approved_at=datetime.now(timezone.utc),
+            state=MissionState.approved,
+            execution=MissionExecution(
+                allowed_paths=["gateway/routes/builder.py"],
+                routing_policy={"worker_command": "unsafe"},
+            ),
+            evidence_plan=MissionEvidencePlan(
+                acceptance_criteria=[EvidenceCriterion(description="unknown routing is rejected")],
+            ),
+        )
+
+        with pytest.raises(bi.MissionSubmissionError, match="routing_policy keys"):
             bi.submit_mission(mission, db_path=db_path)
 
     def test_first_apply_creates_everything(self, db_path: Path):
