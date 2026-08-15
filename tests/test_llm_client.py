@@ -651,18 +651,18 @@ def test_finalize_openai_shape_response_none_content():
     }
 
     with patch("gateway.llm_client.log_llm_usage") as mock_log:
-        result = _finalize_openai_shape_response(
-            data,
-            provider="openai",
-            model_logged="gpt-4o",
-            operation="llm.call",
-            route="openai_direct",
-            request_model=None,
-            metadata=None,
-        )
+        with pytest.raises(ValueError, match="assistant content is not text"):
+            _finalize_openai_shape_response(
+                data,
+                provider="openai",
+                model_logged="gpt-4o",
+                operation="llm.call",
+                route="openai_direct",
+                request_model=None,
+                metadata=None,
+            )
 
-    assert result == ""
-    mock_log.assert_called_once()
+    mock_log.assert_not_called()
 
 
 # ── chat wrapper + observability ──────────────────────────────────────────

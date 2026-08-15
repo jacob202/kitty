@@ -23,7 +23,9 @@ from gateway.builder_commands import (
 )
 from gateway.builder_events import builder_events
 from gateway.builder_initiative import (
+    BaseSHAResolutionError,
     InitiativeConflictError,
+    ManifestError,
     MissionSubmissionError,
     submit_mission,
 )
@@ -49,7 +51,7 @@ def submit_builder_mission(body: Mission):
             db_path=BUILDER_QUEUE_DB,
             repo_root=PROJECT_ROOT,
         )
-    except MissionSubmissionError as exc:
+    except (MissionSubmissionError, ManifestError, BaseSHAResolutionError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except InitiativeConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

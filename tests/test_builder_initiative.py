@@ -11,7 +11,7 @@ import json
 import os
 import sqlite3
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -23,6 +23,7 @@ from gateway.builder_cli import main
 from gateway.models.builder import (
     EvidenceCriterion,
     Mission,
+    MissionAuthority,
     MissionEvidencePlan,
     MissionExecution,
     MissionOrigin,
@@ -69,6 +70,20 @@ def _manifest(**overrides) -> dict:
     }
     base.update(overrides)
     return base
+
+
+def _git_repo(tmp_path: Path) -> tuple[Path, str]:
+    root = tmp_path / "mission-repo"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
+    (root / "README.md").write_text("one\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "one"], cwd=root, check=True)
+    subprocess.run(["git", "remote", "add", "origin", "git@github.com:jacob202/kitty.git"], cwd=root, check=True)
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
+    return root, sha
 
 
 def _packet(pid: str = "KB-X1", **overrides) -> dict:
@@ -609,21 +624,24 @@ class TestWarnings:
 
 
 class TestApply:
-    def test_approved_mission_projects_to_one_durable_initiative(self, db_path: Path):
+    def test_approved_mission_projects_to_one_durable_initiative(
+        self, db_path: Path, tmp_path: Path
+    ):
+        repo, base_sha = _git_repo(tmp_path)
         mission = Mission(
             mission_id="mission-submit-v1",
             objective="Implement the bounded Builder submission path",
             rationale="Kitty owns intent; Builder owns durable execution.",
             approved_at=datetime.now(timezone.utc),
             state=MissionState.approved,
-            origin=MissionOrigin(base_sha="a" * 40),
+            origin=MissionOrigin(base_sha=base_sha),
             execution=MissionExecution(allowed_paths=["gateway/routes/builder.py"]),
             evidence_plan=MissionEvidencePlan(
                 acceptance_criteria=[EvidenceCriterion(description="the route persists work")],
             ),
         )
 
-        result = bi.submit_mission(mission, db_path=db_path)
+        result = bi.submit_mission(mission, db_path=db_path, repo_root=repo)
 
         assert result["status"] == "created"
         assert result["initiative_id"] == "mission-submit-v1"
@@ -641,6 +659,91 @@ class TestApply:
             bi.submit_mission(mission, db_path=db_path)
 
         assert bi.list_initiatives(db_path=db_path) == []
+
+    def test_mission_rejects_nonexistent_supplied_base_sha(self, db_path: Path, tmp_path: Path):
+        repo, _sha = _git_repo(tmp_path)
+        mission = Mission(
+            mission_id="mission-missing-base-v1",
+            objective="Never persist an impossible base",
+            approved_at=datetime.now(timezone.utc),
+            state=MissionState.approved,
+            origin=MissionOrigin(base_sha="f" * 40),
+            execution=MissionExecution(allowed_paths=["gateway/routes/builder.py"]),
+            evidence_plan=MissionEvidencePlan(
+                acceptance_criteria=[EvidenceCriterion(description="base exists")],
+            ),
+        )
+
+        with pytest.raises(bi.BaseSHAResolutionError, match="does not exist"):
+            bi.submit_mission(mission, db_path=db_path, repo_root=repo)
+
+        assert bi.list_initiatives(db_path=db_path) == []
+
+    def test_mission_idempotency_conflicts_when_base_sha_changes(self, db_path: Path, tmp_path: Path):
+        repo, first_sha = _git_repo(tmp_path)
+        mission = Mission(
+            mission_id="mission-base-revision-v1",
+            objective="Bind idempotency to the approved base",
+            approved_at=datetime.now(timezone.utc),
+            state=MissionState.approved,
+            origin=MissionOrigin(base_sha=first_sha),
+            execution=MissionExecution(allowed_paths=["gateway/routes/builder.py"]),
+            evidence_plan=MissionEvidencePlan(
+                acceptance_criteria=[EvidenceCriterion(description="base remains immutable")],
+            ),
+        )
+        bi.submit_mission(mission, db_path=db_path, repo_root=repo)
+        (repo / "README.md").write_text("two\n", encoding="utf-8")
+        subprocess.run(["git", "commit", "-qam", "two"], cwd=repo, check=True)
+        second_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+        changed = mission.model_copy(update={"origin": MissionOrigin(base_sha=second_sha)})
+
+        with pytest.raises(bi.InitiativeConflictError, match="base SHA"):
+            bi.submit_mission(changed, db_path=db_path, repo_root=repo)
+
+    @pytest.mark.parametrize(
+        ("mission_update", "match"),
+        [
+            ({"schema_version": 2}, "schema_version"),
+            ({"authority": MissionAuthority(expires_at=datetime.now(timezone.utc) - timedelta(minutes=1))}, "expired"),
+        ],
+    )
+    def test_mission_rejects_unsupported_or_expired_authority(
+        self, db_path: Path, tmp_path: Path, mission_update: dict, match: str
+    ):
+        repo, sha = _git_repo(tmp_path)
+        mission = Mission(
+            mission_id=f"mission-invalid-{match}",
+            objective="Reject invalid authority",
+            approved_at=datetime.now(timezone.utc),
+            state=MissionState.approved,
+            origin=MissionOrigin(base_sha=sha),
+            execution=MissionExecution(allowed_paths=["gateway/routes/builder.py"]),
+            evidence_plan=MissionEvidencePlan(
+                acceptance_criteria=[EvidenceCriterion(description="invalid mission is rejected")],
+            ),
+            **mission_update,
+        )
+
+        with pytest.raises(bi.MissionSubmissionError, match=match):
+            bi.submit_mission(mission, db_path=db_path, repo_root=repo)
+
+    def test_mission_rejects_repository_mismatch(self, db_path: Path, tmp_path: Path):
+        repo, sha = _git_repo(tmp_path)
+        mission = Mission(
+            mission_id="mission-wrong-repo-v1",
+            objective="Do not run against the wrong checkout",
+            approved_at=datetime.now(timezone.utc),
+            state=MissionState.approved,
+            origin=MissionOrigin(repository="someone/other-repo", base_sha=sha),
+            execution=MissionExecution(allowed_paths=["gateway/routes/builder.py"]),
+            evidence_plan=MissionEvidencePlan(
+                acceptance_criteria=[EvidenceCriterion(description="repository matches")],
+            ),
+        )
+
+        with pytest.raises(bi.MissionSubmissionError, match="repository"):
+            bi.submit_mission(mission, db_path=db_path, repo_root=repo)
 
     def test_mission_rejects_unrepresentable_routing_policy(self, db_path: Path):
         mission = Mission(

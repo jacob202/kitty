@@ -131,9 +131,9 @@ def schedule(
     with kitty_db.connect(KITTY_DB_FILE) as conn:
         existing = conn.execute(
             f"SELECT id FROM {TABLE} "
-            "WHERE action = ? AND schedule_type = ? AND schedule_value = ? AND metadata = ? "
-            "LIMIT 1",
-            (action, schedule_type, schedule_value, json.dumps(metadata or {})),
+            "WHERE name = ? AND action = ? AND schedule_type = ? "
+            "AND schedule_value = ? AND metadata = ? LIMIT 1",
+            (name, action, schedule_type, schedule_value, json.dumps(metadata or {})),
         ).fetchone()
         if existing:
             logger.warning(

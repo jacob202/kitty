@@ -28,9 +28,11 @@ import json
 import re
 import sqlite3
 import subprocess
+from datetime import datetime, timezone
 from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from gateway import builder_attempt as ba
 from gateway import builder_queue as bq
@@ -209,6 +211,68 @@ def resolve_base_sha(repo_root: Path | None = None) -> str:
         f"cannot resolve durable packet base SHA in {root}; "
         + "; ".join(failures)
     )
+
+
+def _validate_base_sha_format(base_sha: str) -> str:
+    if (
+        len(base_sha) != 40
+        or any(character not in "0123456789abcdef" for character in base_sha)
+    ):
+        raise BaseSHAResolutionError(
+            f"provided base SHA must be a 40-character lowercase hex SHA, got {base_sha!r}"
+        )
+    return base_sha
+
+
+def _verify_base_sha_exists(base_sha: str, repo_root: Path | None = None) -> str:
+    """Require ``base_sha`` to resolve to a commit in the target repository."""
+    sha = _validate_base_sha_format(base_sha)
+    root = Path(repo_root) if repo_root else Path.cwd()
+    result = subprocess.run(
+        ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "commit not found"
+        raise BaseSHAResolutionError(
+            f"provided base SHA {sha} does not exist as a commit in {root}: {detail}"
+        )
+    return sha
+
+
+def _normalize_repository_identifier(value: str) -> str:
+    raw = value.strip()
+    if raw.startswith("git@") and ":" in raw:
+        raw = raw.split(":", 1)[1]
+    elif "://" in raw:
+        raw = urlparse(raw).path
+    raw = raw.strip("/")
+    if raw.endswith(".git"):
+        raw = raw[:-4]
+    parts = [part for part in raw.split("/") if part]
+    if len(parts) < 2:
+        return raw.lower()
+    return "/".join(parts[-2:]).lower()
+
+
+def _repository_slug(repo_root: Path | None = None) -> str:
+    root = Path(repo_root) if repo_root else Path.cwd()
+    result = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        detail = result.stderr.strip() or "origin remote is unavailable"
+        raise MissionSubmissionError(
+            f"cannot verify Mission repository against {root}: {detail}"
+        )
+    return _normalize_repository_identifier(result.stdout.strip())
 
 
 # ---------------------------------------------------------------------------
@@ -691,7 +755,9 @@ def warn_manifest(
 # ---------------------------------------------------------------------------
 
 
-def mission_to_manifest(mission: Mission) -> dict[str, Any]:
+def mission_to_manifest(
+    mission: Mission, *, repo_root: Path | None = None
+) -> dict[str, Any]:
     """Project one approved, bounded Mission into the canonical manifest.
 
     The current Mission schema describes one executable packet at this
@@ -699,6 +765,27 @@ def mission_to_manifest(mission: Mission) -> dict[str, Any]:
     are rejected instead of being silently discarded; Kitty can add a richer
     packet authoring contract later without making this adapter ambiguous.
     """
+    if mission.schema_version != 1:
+        raise MissionSubmissionError(
+            f"unsupported Mission schema_version {mission.schema_version}; expected 1"
+        )
+    if mission.origin.repository:
+        requested_repo = _normalize_repository_identifier(mission.origin.repository)
+        actual_repo = _repository_slug(repo_root)
+        if requested_repo != actual_repo:
+            raise MissionSubmissionError(
+                f"Mission repository {mission.origin.repository!r} does not match "
+                f"the target repository {actual_repo!r}"
+            )
+    if mission.authority.expires_at is not None:
+        expires_at = mission.authority.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
+            raise MissionSubmissionError(
+                f"Mission authority expired at {expires_at.isoformat()}"
+            )
+
     if mission.state not in (MissionState.approved, MissionState.accepted):
         raise MissionSubmissionError(
             f"mission {mission.mission_id!r} must be approved before submission; "
@@ -741,14 +828,31 @@ def mission_to_manifest(mission: Mission) -> dict[str, Any]:
             f"contract: {', '.join(unsupported)}"
         )
 
-    acceptance_criteria = [
-        criterion.description.strip() for criterion in evidence.acceptance_criteria
-    ]
+    objective = mission.objective.strip()
+    if not objective:
+        raise MissionSubmissionError("Mission objective must not be blank")
+
+    acceptance_criteria: list[str] = []
+    for criterion in evidence.acceptance_criteria:
+        description = criterion.description.strip()
+        if not description:
+            raise MissionSubmissionError(
+                "evidence_plan.acceptance_criteria must not contain blank criteria"
+            )
+        acceptance_criteria.append(description)
     if not acceptance_criteria:
         raise MissionSubmissionError(
             "evidence_plan.acceptance_criteria must contain at least one criterion"
         )
-    allowed_paths = [path.strip() for path in execution.allowed_paths]
+
+    allowed_paths: list[str] = []
+    for path in execution.allowed_paths:
+        normalized = path.strip()
+        if not normalized:
+            raise MissionSubmissionError(
+                "execution.allowed_paths must not contain blank paths"
+            )
+        allowed_paths.append(normalized)
     if not allowed_paths:
         raise MissionSubmissionError(
             "execution.allowed_paths must contain at least one repo-relative path"
@@ -762,13 +866,13 @@ def mission_to_manifest(mission: Mission) -> dict[str, Any]:
     return {
         "manifest_version": MANIFEST_VERSION,
         "initiative_id": mission.mission_id,
-        "title": mission.objective,
-        "description": mission.rationale or mission.objective,
+        "title": objective,
+        "description": (mission.rationale or objective).strip(),
         "packets": [
             {
                 "id": "P1",
-                "title": mission.objective,
-                "objective": mission.objective,
+                "title": objective,
+                "objective": objective,
                 "depends_on": [],
                 "acceptance_criteria": acceptance_criteria,
                 "allowed_paths": allowed_paths,
@@ -787,13 +891,18 @@ def submit_mission(
     repo_root: Path | None = None,
 ) -> dict[str, Any]:
     """Validate and durably submit one approved Mission as an initiative."""
-    manifest = mission_to_manifest(mission)
+    manifest = mission_to_manifest(mission, repo_root=repo_root)
+    durable_base_sha = (
+        resolve_base_sha(repo_root)
+        if mission.origin.base_sha is None
+        else _verify_base_sha_exists(mission.origin.base_sha, repo_root)
+    )
     return apply_manifest(
         manifest,
         dry_run=dry_run,
         db_path=db_path,
         repo_root=repo_root,
-        base_sha=mission.origin.base_sha,
+        base_sha=durable_base_sha,
     )
 
 
@@ -828,6 +937,8 @@ def apply_manifest(
     digest = manifest_sha256(manifest)
     canonical = canonicalize_manifest(manifest)
     packets = manifest["packets"]
+    if base_sha is not None:
+        _validate_base_sha_format(base_sha)
 
     init_db(db_path)
     conn = bq.connect(db_path)
@@ -846,6 +957,20 @@ def apply_manifest(
                     "Initiative manifests are immutable; use a new "
                     "initiative_id for changed work."
                 )
+            if base_sha is not None:
+                stored_bases = {
+                    str(r["base_sha"])
+                    for r in conn.execute(
+                        "SELECT base_sha FROM initiative_packets WHERE initiative_id = ?",
+                        (initiative_id,),
+                    ).fetchall()
+                }
+                if stored_bases != {base_sha}:
+                    raise InitiativeConflictError(
+                        f"initiative {initiative_id!r} already exists with a different "
+                        f"base SHA ({sorted(stored_bases)!r} != {base_sha!r}); "
+                        "a material base change requires a new Mission revision/id"
+                    )
             mappings = [
                 {"packet_id": r["packet_id"], "task_id": r["task_id"]}
                 for r in conn.execute(
@@ -879,15 +1004,10 @@ def apply_manifest(
         # do not depend on live refs; newly created packets must never persist
         # an unbound base.
         durable_base_sha = (
-            resolve_base_sha(repo_root) if base_sha is None else base_sha
+            resolve_base_sha(repo_root)
+            if base_sha is None
+            else _verify_base_sha_exists(base_sha, repo_root)
         )
-        if (
-            len(durable_base_sha) != 40
-            or any(character not in "0123456789abcdef" for character in durable_base_sha)
-        ):
-            raise BaseSHAResolutionError(
-                f"provided base SHA must be a 40-character lowercase hex SHA, got {durable_base_sha!r}"
-            )
 
         conn.execute(
             """

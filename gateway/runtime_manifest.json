@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "services": [
+    { "id": "gateway", "url": "http://127.0.0.1:8000/health", "required": false },
+    { "id": "litellm", "url": "http://127.0.0.1:8001/health", "required": false },
+    { "id": "kitty-chat", "url": "http://127.0.0.1:3000", "required": false },
+    { "id": "jupyter", "url": "http://127.0.0.1:8888/api", "required": false },
+    { "id": "openterminal", "url": "http://127.0.0.1:9614/health", "required": false },
+    { "id": "kitty-docker-terminal", "url": "http://127.0.0.1:9615/health", "required": false },
+    { "id": "tool-filesystem", "url": "http://127.0.0.1:9721/openapi.json", "required": false },
+    { "id": "tool-memory", "url": "http://127.0.0.1:9722/openapi.json", "required": false },
+    { "id": "tool-time", "url": "http://127.0.0.1:9723/openapi.json", "required": false },
+    { "id": "tool-weather", "url": "http://127.0.0.1:9724/openapi.json", "required": false }
+  ],
+  "required_files": [
+    "gateway/start_all.sh",
+    "gateway/start_gateway.sh",
+    "gateway/start_litellm.sh"
+  ]
+}

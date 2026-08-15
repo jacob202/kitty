@@ -41,6 +41,23 @@ class TestProviderChainExhausted:
         with pytest.raises(ProviderChainExhausted):
             call_llm([{"role": "user", "content": "test"}])
 
+    def test_null_litellm_content_falls_back(self, monkeypatch):
+        """HTTP 200 with null assistant content is malformed and must fall back."""
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "choices": [{"message": {"content": None}}],
+            "model": "test-model",
+        }
+        mock_resp.raise_for_status = MagicMock()
+        monkeypatch.setattr("gateway.llm_client._post", lambda *a, **kw: mock_resp)
+        monkeypatch.setattr("gateway.llm_client.effective_provider_order", lambda: ("local",))
+        monkeypatch.setattr("gateway.llm_client.provider_is_configured", lambda provider: True)
+        monkeypatch.setattr("gateway.llm_client._call_provider", lambda *a, **kw: "fallback-ok")
+
+        result = call_llm([{"role": "user", "content": "test"}])
+
+        assert result == "fallback-ok"
+
     def test_call_llm_succeeds_on_first_try(self, monkeypatch):
         """When LiteLLM succeeds, no fallback is tried."""
         mock_resp = MagicMock()

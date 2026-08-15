@@ -8,6 +8,7 @@ the Builder unit/integration suites.
 from __future__ import annotations
 
 import inspect
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,7 +28,7 @@ from gateway.models.builder import (
 
 def test_production_mount_exposes_one_canonical_builder_command_boundary():
     """The shipped app must not reintroduce the retired action route."""
-    paths = {route.path for route in app.routes}
+    paths = set(app.openapi().get("paths", {}))
 
     assert "/builder/initiative" in paths
     assert "/builder/command" in paths
@@ -37,12 +38,23 @@ def test_production_mount_exposes_one_canonical_builder_command_boundary():
 def test_approved_mission_is_the_durable_idempotent_handoff(tmp_path: Path):
     """Mission submission materializes Builder state without duplicate tasks."""
     db_path = tmp_path / "builder_queue.db"
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    (repo / "README.md").write_text("test\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "test"], cwd=repo, check=True)
+    base_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
     mission = Mission(
         mission_id="architecture-fitness-v1",
         objective="Preserve the Kitty Builder boundary",
         approved_at=datetime(2026, 8, 9, tzinfo=timezone.utc),
         state=MissionState.approved,
-        origin=MissionOrigin(base_sha="a" * 40),
+        origin=MissionOrigin(base_sha=base_sha),
         execution=MissionExecution(allowed_paths=["gateway/routes/builder.py"]),
         evidence_plan=MissionEvidencePlan(
             acceptance_criteria=[
@@ -51,8 +63,8 @@ def test_approved_mission_is_the_durable_idempotent_handoff(tmp_path: Path):
         ),
     )
 
-    first = bi.submit_mission(mission, db_path=db_path, repo_root=tmp_path)
-    second = bi.submit_mission(mission, db_path=db_path, repo_root=tmp_path)
+    first = bi.submit_mission(mission, db_path=db_path, repo_root=repo)
+    second = bi.submit_mission(mission, db_path=db_path, repo_root=repo)
 
     assert first["status"] == "created"
     assert second["status"] == "unchanged"

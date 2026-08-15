@@ -1,5 +1,7 @@
 """Tests for the /builder routes — operator command endpoint (KB-BRAIN-05)."""
 
+import subprocess
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -12,7 +14,22 @@ from gateway.routes import builder as builder_route
 def client():
     app = FastAPI()
     app.include_router(builder_route.router)
-    return TestClient(app)
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def _git_repo(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    (repo / "README.md").write_text("test\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "test"], cwd=repo, check=True)
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    return repo, sha
 
 
 class TestOperatorCommandEndpoint:
@@ -61,8 +78,9 @@ class TestOperatorCommandEndpoint:
         from gateway import builder_initiative
 
         db_path = tmp_path / "builder_queue.db"
+        repo, base_sha = _git_repo(tmp_path)
         monkeypatch.setattr(builder_route, "BUILDER_QUEUE_DB", db_path)
-        monkeypatch.setattr(builder_route, "PROJECT_ROOT", tmp_path)
+        monkeypatch.setattr(builder_route, "PROJECT_ROOT", repo)
         response = client.post(
             "/builder/initiative",
             json={
@@ -70,7 +88,7 @@ class TestOperatorCommandEndpoint:
                 "objective": "Persist this approved mission",
                 "approved_at": "2026-08-08T00:00:00Z",
                 "state": "approved",
-                "origin": {"base_sha": "a" * 40},
+                "origin": {"base_sha": base_sha},
                 "execution": {"allowed_paths": ["gateway/routes/builder.py"]},
                 "evidence_plan": {
                     "acceptance_criteria": [{"description": "a task is durable"}]
@@ -85,6 +103,53 @@ class TestOperatorCommandEndpoint:
         assert builder_initiative.get_initiative(
             "route-mission-v1", db_path=db_path
         )["manifest"]["packets"][0]["id"] == "P1"
+
+    @pytest.mark.parametrize(
+        "patch",
+        [
+            {"objective": "   "},
+            {"evidence_plan": {"acceptance_criteria": [{"description": "   "}]}},
+            {"execution": {"allowed_paths": ["   "]}},
+        ],
+    )
+    def test_invalid_mission_text_returns_422(self, client, monkeypatch, tmp_path, patch):
+        repo, base_sha = _git_repo(tmp_path)
+        monkeypatch.setattr(builder_route, "BUILDER_QUEUE_DB", tmp_path / "builder_queue.db")
+        monkeypatch.setattr(builder_route, "PROJECT_ROOT", repo)
+        body = {
+            "mission_id": "invalid-text-v1",
+            "objective": "Valid objective",
+            "approved_at": "2026-08-08T00:00:00Z",
+            "state": "approved",
+            "origin": {"base_sha": base_sha},
+            "execution": {"allowed_paths": ["gateway/routes/builder.py"]},
+            "evidence_plan": {"acceptance_criteria": [{"description": "valid"}]},
+        }
+        body.update(patch)
+
+        response = client.post("/builder/initiative", json=body)
+
+        assert response.status_code == 422
+
+    def test_nonexistent_mission_base_returns_422(self, client, monkeypatch, tmp_path):
+        repo, _base_sha = _git_repo(tmp_path)
+        monkeypatch.setattr(builder_route, "BUILDER_QUEUE_DB", tmp_path / "builder_queue.db")
+        monkeypatch.setattr(builder_route, "PROJECT_ROOT", repo)
+        response = client.post(
+            "/builder/initiative",
+            json={
+                "mission_id": "missing-base-v1",
+                "objective": "Reject impossible base",
+                "approved_at": "2026-08-08T00:00:00Z",
+                "state": "approved",
+                "origin": {"base_sha": "f" * 40},
+                "execution": {"allowed_paths": ["gateway/routes/builder.py"]},
+                "evidence_plan": {"acceptance_criteria": [{"description": "valid"}]},
+            },
+        )
+
+        assert response.status_code == 422
+        assert "does not exist" in response.json()["detail"]
 
     def test_requeue_missing_task_id_raises(self, client):
         response = client.post("/builder/command", json={"action": "requeue"})

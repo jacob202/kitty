@@ -112,7 +112,7 @@ class TestSchedule:
         from gateway.cron import list_schedules, schedule
 
         sid1 = schedule("sched-1", "brief.refresh", "interval", "60")
-        sid2 = schedule("sched-2", "brief.refresh", "interval", "60")
+        sid2 = schedule("sched-1", "brief.refresh", "interval", "60")
 
         assert sid2 == sid1
         rows = list_schedules()
@@ -121,6 +121,15 @@ class TestSchedule:
         assert rows[0]["action"] == "brief.refresh"
         assert rows[0]["schedule_type"] == "interval"
         assert rows[0]["schedule_value"] == "60"
+
+    def test_schedule_same_action_same_time_different_name_not_collapsed(self, tmp_kitty_db):
+        from gateway.cron import list_schedules, schedule
+
+        sid_a = schedule("morning-a", "brief.refresh", "daily", "08:00")
+        sid_b = schedule("morning-b", "brief.refresh", "daily", "08:00")
+
+        assert sid_a != sid_b
+        assert {row["name"] for row in list_schedules()} == {"morning-a", "morning-b"}
 
     def test_schedule_same_action_different_value_not_collapsed(self, tmp_kitty_db):
         from gateway.cron import list_schedules, schedule

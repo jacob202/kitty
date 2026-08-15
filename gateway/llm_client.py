@@ -210,10 +210,13 @@ def _finalize_openai_shape_response(
     """Extract assistant text, normalize usage, append JSONL row, return text."""
     try:
         content = data["choices"][0]["message"]["content"]
-        text = content.strip() if isinstance(content, str) else ""
     except (KeyError, IndexError, TypeError):
         logger.error("Malformed response from %s: %s", provider, data)
         return ""
+    if not isinstance(content, str):
+        logger.error("Malformed response from %s: non-string assistant content", provider)
+        raise ValueError(f"malformed response from {provider}: assistant content is not text")
+    text = content.strip()
 
     usage = normalize_usage_payload(
         data.get("usage") if isinstance(data.get("usage"), dict) else None
