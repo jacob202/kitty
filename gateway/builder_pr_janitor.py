@@ -11,6 +11,8 @@ import sys
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
+from gateway import builder_scope as bs
+
 RunCmd = Callable[..., subprocess.CompletedProcess[str]]
 
 JANITOR_MAX_PASSES = 3
@@ -43,7 +45,11 @@ def _default_run(
 
 
 def _status_paths(
-    worktree: Path, run_cmd: RunCmd, *, ignore_done_marker: bool = False
+    worktree: Path,
+    run_cmd: RunCmd,
+    *,
+    ignore_done_marker: bool = False,
+    ignore_expected_residue: bool = False,
 ) -> list[str]:
     result = run_cmd(
         ["git", "status", "--porcelain=v1", "--untracked-files=all"],
@@ -62,6 +68,8 @@ def _status_paths(
         path = line[3:]
         if " -> " in path:
             path = path.rsplit(" -> ", 1)[1]
+        if ignore_expected_residue and bs.is_expected_residue(path):
+            continue
         paths.append(path)
     return sorted(set(paths))
 
@@ -88,9 +96,11 @@ def _outside_packet_scope(path: str, allowed_paths: list[str] | None) -> bool:
     )
 
 
-def _restore_all(worktree: Path, run_cmd: RunCmd) -> None:
+def _restore_paths(worktree: Path, run_cmd: RunCmd, paths: list[str]) -> None:
+    if not paths:
+        return
     result = run_cmd(
-        ["git", "restore", "--staged", "--worktree", "--", "."],
+        ["git", "restore", "--staged", "--worktree", "--", *paths],
         cwd=worktree,
         check=False,
     )
@@ -109,7 +119,12 @@ def apply_safe_repairs(
     """Apply and commit only safe Ruff fixes in a clean Builder worktree."""
     runner = run_cmd or _default_run
     worktree = Path(worktree)
-    dirty = _status_paths(worktree, runner, ignore_done_marker=True)
+    dirty = _status_paths(
+        worktree,
+        runner,
+        ignore_done_marker=True,
+        ignore_expected_residue=True,
+    )
     if dirty:
         raise SafeRepairError(
             "PR janitor refuses dirty worktree before repair: " + ", ".join(dirty)
@@ -120,10 +135,15 @@ def apply_safe_repairs(
         cwd=worktree,
         check=False,
     )
-    changed = _status_paths(worktree, runner, ignore_done_marker=True)
+    changed = _status_paths(
+        worktree,
+        runner,
+        ignore_done_marker=True,
+        ignore_expected_residue=True,
+    )
     forbidden = [path for path in changed if not _safe_path(path)]
     if forbidden:
-        _restore_all(worktree, runner)
+        _restore_paths(worktree, runner, changed)
         raise SafeRepairError(
             "PR janitor changed forbidden path(s): " + ", ".join(forbidden)
         )
@@ -132,7 +152,7 @@ def apply_safe_repairs(
         path for path in changed if _outside_packet_scope(path, allowed_paths)
     ]
     if out_of_scope:
-        _restore_all(worktree, runner)
+        _restore_paths(worktree, runner, changed)
         raise SafeRepairError(
             "PR janitor changed path(s) outside packet scope: "
             + ", ".join(out_of_scope)
@@ -148,13 +168,13 @@ def apply_safe_repairs(
 
     add = runner(["git", "add", "--", *changed], cwd=worktree, check=False)
     if add.returncode != 0:
-        _restore_all(worktree, runner)
+        _restore_paths(worktree, runner, changed)
         detail = (add.stderr or add.stdout or "").strip()
         raise SafeRepairError(f"PR janitor could not stage repairs: {detail}")
 
     marker = (commit_marker or "").strip()
     if "\n" in marker or "\r" in marker:
-        _restore_all(worktree, runner)
+        _restore_paths(worktree, runner, changed)
         raise SafeRepairError("PR janitor commit marker must be one line")
     subject = "fix: apply PR janitor repairs" + (f" {marker}" if marker else "")
     commit = runner(
@@ -163,7 +183,7 @@ def apply_safe_repairs(
         check=False,
     )
     if commit.returncode != 0:
-        _restore_all(worktree, runner)
+        _restore_paths(worktree, runner, changed)
         detail = (commit.stderr or commit.stdout or "").strip()
         raise SafeRepairError(f"PR janitor could not commit repairs: {detail}")
 
@@ -171,7 +191,12 @@ def apply_safe_repairs(
     if head.returncode != 0:
         detail = (head.stderr or head.stdout or "").strip()
         raise SafeRepairError(f"PR janitor cannot resolve repaired HEAD: {detail}")
-    leftover = _status_paths(worktree, runner, ignore_done_marker=True)
+    leftover = _status_paths(
+        worktree,
+        runner,
+        ignore_done_marker=True,
+        ignore_expected_residue=True,
+    )
     if leftover:
         raise SafeRepairError(
             "PR janitor left worktree dirty after commit: " + ", ".join(leftover)

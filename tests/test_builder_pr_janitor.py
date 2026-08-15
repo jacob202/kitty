@@ -26,6 +26,7 @@ def _repo(tmp_path: Path) -> Path:
     (root / ".claude").mkdir()
     (root / "gateway" / "sample.py").write_text("value = 1\n", encoding="utf-8")
     (root / ".claude" / "STATE.md").write_text("stable\n", encoding="utf-8")
+    (root / "config.txt").write_text("stable config\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=root, check=True)
     subprocess.run(["git", "commit", "-qm", "init"], cwd=root, check=True)
     return root
@@ -84,6 +85,92 @@ def test_ephemeral_done_marker_does_not_block_safe_repairs(tmp_path: Path):
     assert result["changed"] is False
     assert result["changed_paths"] == []
     assert (root / "done.txt").exists()
+
+
+def test_expected_builder_residue_does_not_block_and_is_preserved(tmp_path: Path):
+    bj = _janitor()
+    root = _repo(tmp_path)
+    state = root / ".claude" / "STATE.md"
+    state.write_text("session update\n", encoding="utf-8")
+
+    result = bj.apply_safe_repairs(
+        root, run_cmd=_runner_with_ruff_action(lambda _: None)
+    )
+
+    assert result["changed"] is False
+    assert result["changed_paths"] == []
+    assert state.read_text(encoding="utf-8") == "session update\n"
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert ".claude/STATE.md" in status
+
+
+def test_safe_repair_preserves_uncommitted_builder_residue(tmp_path: Path):
+    bj = _janitor()
+    root = _repo(tmp_path)
+    state = root / ".claude" / "STATE.md"
+    state.write_text("session update\n", encoding="utf-8")
+
+    def fix(worktree: Path) -> None:
+        (worktree / "gateway" / "sample.py").write_text("value = 8\n", encoding="utf-8")
+
+    result = bj.apply_safe_repairs(
+        root,
+        allowed_paths=["gateway/"],
+        run_cmd=_runner_with_ruff_action(fix),
+    )
+
+    assert result["changed_paths"] == ["gateway/sample.py"]
+    committed = subprocess.run(
+        ["git", "show", "--pretty=", "--name-only", "HEAD"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    assert committed == ["gateway/sample.py"]
+    assert state.read_text(encoding="utf-8") == "session update\n"
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert ".claude/STATE.md" in status
+
+
+def test_rejected_repair_preserves_preexisting_builder_residue(tmp_path: Path):
+    bj = _janitor()
+    root = _repo(tmp_path)
+    state = root / ".claude" / "STATE.md"
+    state.write_text("session update\n", encoding="utf-8")
+
+    def out_of_scope_fix(worktree: Path) -> None:
+        (worktree / "gateway" / "sample.py").write_text("value = 9\n", encoding="utf-8")
+
+    with pytest.raises(bj.SafeRepairError, match="packet scope"):
+        bj.apply_safe_repairs(
+            root,
+            allowed_paths=["tests/"],
+            run_cmd=_runner_with_ruff_action(out_of_scope_fix),
+        )
+
+    assert (root / "gateway" / "sample.py").read_text(encoding="utf-8") == "value = 1\n"
+    assert state.read_text(encoding="utf-8") == "session update\n"
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert ".claude/STATE.md" in status
 
 
 def test_repair_commit_can_carry_packet_identity_marker(tmp_path: Path):
@@ -147,9 +234,9 @@ def test_forbidden_path_change_is_rolled_back_and_refused(tmp_path: Path):
     root = _repo(tmp_path)
 
     def bad_fix(worktree: Path) -> None:
-        (worktree / ".claude" / "STATE.md").write_text("tampered\n", encoding="utf-8")
+        (worktree / "config.txt").write_text("tampered\n", encoding="utf-8")
 
     with pytest.raises(bj.SafeRepairError, match="forbidden path"):
         bj.apply_safe_repairs(root, run_cmd=_runner_with_ruff_action(bad_fix))
-    assert (root / ".claude" / "STATE.md").read_text(encoding="utf-8") == "stable\n"
+    assert (root / "config.txt").read_text(encoding="utf-8") == "stable config\n"
     assert subprocess.run(["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True).stdout == ""
