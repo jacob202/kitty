@@ -20,7 +20,10 @@ Ruff fixes, runs `scripts/hooks/pre-push`, and feeds any remaining failure back
 into the existing bounded repair loop. Each pass is recorded as a
 `pr_janitor_pass` event; the janitor stops after 3 passes and leaves a durable
 blocker instead of looping indefinitely. Non-publishing/shadow runs are
-unchanged.
+unchanged. Direct `queue publish` also runs the same safe deterministic fixer
+before `git push`; its existing Git pre-push hook remains the final gate.
+Semantic repair retries stay in the initiative run loop rather than creating a
+second worker loop inside the operator publish command.
 
 ## Quickstart
 

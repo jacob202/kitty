@@ -16,10 +16,12 @@ import logging
 import os
 import re
 import signal
+import sqlite3
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
+from gateway import builder_pr_janitor as bj
 from gateway import builder_queue as bq
 from gateway.builder_brief import default_branch_name
 from gateway.builder_runner import worktree_path
@@ -112,6 +114,29 @@ def _require_task(task_id: str, db_path: Path | None) -> dict[str, Any]:
     if task is None:
         raise bq.TaskNotFoundError(f"task not found: {task_id}")
     return task
+
+
+def _packet_marker_for_task(task_id: str, db_path: Path | None) -> str | None:
+    """Return the initiative packet marker for a task when one exists."""
+    conn = bq.connect(db_path)
+    try:
+        try:
+            rows = conn.execute(
+                "SELECT packet_id FROM initiative_packets WHERE task_id = ? LIMIT 2",
+                (task_id,),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return None
+    finally:
+        conn.close()
+    if not rows:
+        return None
+    if len(rows) > 1:
+        raise PublishError(
+            f"task {task_id} maps to multiple initiative packets; refusing "
+            "to create an ambiguously attributed janitor commit"
+        )
+    return f"[{rows[0]['packet_id']}]"
 
 
 def _assert_publishable_state(task: dict[str, Any]) -> None:
@@ -455,6 +480,23 @@ def publish_task(
         return runner(args, cwd=cwd, check=check)
 
     path = _worktree_ready(task_id, branch, repo_root, _run)
+    janitor_info: dict[str, Any] | None = None
+    if not dry_run:
+        try:
+            janitor_info = bj.apply_safe_repairs(
+                path,
+                allowed_paths=task.get("allowed_paths"),
+                commit_marker=_packet_marker_for_task(task_id, db_path),
+                run_cmd=_run,
+            )
+        except bj.SafeRepairError as exc:
+            raise PublishError(f"PR janitor blocked publication: {exc}") from exc
+        bq.append_event(
+            task_id,
+            "pr_janitor_publish_preflight",
+            payload=janitor_info,
+            db_path=db_path,
+        )
     push_info = _push_branch(
         path, branch, remote=remote, dry_run=dry_run, run_cmd=_run
     )
@@ -507,6 +549,7 @@ def publish_task(
         "remote": remote,
         "base": base,
         "title": pr_title,
+        "janitor": janitor_info,
         "push": push_info,
         "pr": pr_info,
         "pr_link": link,

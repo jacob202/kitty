@@ -15,7 +15,8 @@ Two rejected alternatives:
 2. Run the same high-signal pre-push checks that currently block publication.
 3. If checks still fail, return structured failure evidence to Builder for a bounded repair attempt instead of immediately pausing the initiative.
 4. Retry publication after repair, with a hard cap of 3 janitor passes.
-5. After PR creation/update, record exact PR/head/check evidence and keep review SHA-bound.
+5. The direct `queue publish` escape hatch runs deterministic safe repair before push; semantic retries remain owned by the initiative loop.
+6. After PR creation/update, record exact PR/head/check evidence and keep review SHA-bound.
 6. At merge, keep the existing one-time stale-branch rebase/retry. Never auto-resolve semantic conflicts.
 7. Exhaustion produces one durable blocker with attempts, failures, and next action.
 

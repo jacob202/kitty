@@ -17,6 +17,21 @@ from gateway import builder_queue as bq
 from gateway.builder_brief import default_branch_name
 
 
+@pytest.fixture(autouse=True)
+def _stub_direct_publish_janitor(monkeypatch):
+    if hasattr(bp, "bj"):
+        monkeypatch.setattr(
+            bp.bj,
+            "apply_safe_repairs",
+            lambda worktree, **kwargs: {
+                "changed": False,
+                "changed_paths": [],
+                "commit_sha": None,
+                "ruff_exit_code": 0,
+            },
+        )
+
+
 @pytest.fixture
 def db_path(tmp_path: Path) -> Path:
     p = tmp_path / "builder_queue.db"
@@ -78,6 +93,55 @@ def _init_worktree(tmp_path: Path, task: dict[str, Any]) -> Path:
 
 
 class TestPublishTask:
+    def test_direct_publish_runs_janitor_before_push(
+        self, tmp_path: Path, db_path: Path, monkeypatch
+    ):
+        task = _make_blocked_task(db_path)
+        root = _init_worktree(tmp_path, task)
+        branch = default_branch_name(task)
+        order: list[str] = []
+        captured: dict[str, Any] = {}
+
+        def janitor(worktree: Path, **kwargs: Any) -> dict[str, Any]:
+            order.append("janitor")
+            captured.update(kwargs)
+            return {
+                "changed": False,
+                "changed_paths": [],
+                "commit_sha": None,
+                "ruff_exit_code": 0,
+            }
+
+        monkeypatch.setattr(bp.bj, "apply_safe_repairs", janitor)
+
+        def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            if args[:3] == ["git", "symbolic-ref", "--quiet"]:
+                return subprocess.CompletedProcess(
+                    args, 0, stdout=branch + "\n", stderr=""
+                )
+            if args[:2] == ["git", "status"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "push"]:
+                order.append("push")
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:3] == ["gh", "pr", "list"]:
+                return subprocess.CompletedProcess(args, 0, stdout="[]\n", stderr="")
+            if args[:3] == ["gh", "pr", "create"]:
+                return subprocess.CompletedProcess(
+                    args, 0, stdout="https://github.com/example/kitty/pull/123\n", stderr=""
+                )
+            if args[:2] == ["git", "rev-parse"]:
+                return subprocess.CompletedProcess(args, 0, stdout="abc\n", stderr="")
+            raise AssertionError(args)
+
+        result = bp.publish_task(
+            task["id"], repo_root=root, db_path=db_path, run_cmd=fake
+        )
+
+        assert order[:2] == ["janitor", "push"]
+        assert captured["allowed_paths"] == task["allowed_paths"]
+        assert result["janitor"]["changed"] is False
+
     def test_dry_run_does_not_mutate_or_call_side_effects(
         self, tmp_path: Path, db_path: Path
     ):
