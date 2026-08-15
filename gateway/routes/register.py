@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from gateway.openwebui_routing_guards import install_openwebui_routing_guards
 from gateway.routes import (
     actions,
+    agent_workspace,
     artifacts,
     ask,
     brief,
@@ -70,6 +71,7 @@ def register_routes(app: FastAPI) -> None:
         artifacts,
         experts,
         actions,
+        agent_workspace,
         ask,
         brief,
         builder,

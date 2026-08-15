@@ -47,7 +47,7 @@ export const REDIRECTS: Record<string, ViewId> = {
   projects: 'library',
   docs: 'library',
   providers: 'settings',
-  agents: 'settings',
+  agents: 'agents',
   images: 'studio',
   tutor: 'tutor',
   journal: 'journal',

@@ -16,6 +16,7 @@ const LibraryView = dynamic(() => import('./LibraryView'))
 const TutorShell = dynamic(() => import('./TutorShell'))
 const JournalPanel = dynamic(() => import('./JournalPanel'))
 const TerminalView = dynamic(() => import('./TerminalView'))
+const AgentWorkspacePanel = dynamic(() => import('./AgentWorkspacePanel').then((mod) => mod.AgentWorkspacePanel))
 
 // -- view renderer --------------------------------------------------------------
 
@@ -86,6 +87,8 @@ export function ViewRenderer({
         return <StudioView isMobile={isMobile} />
       case 'builder':
         return <div style={pad}><BuilderView {...builderProps} /></div>
+      case 'agents':
+        return <AgentWorkspacePanel />
       case 'library':
       case 'docs':
         return <LibraryView isMobile={isMobile} />
@@ -93,7 +96,6 @@ export function ViewRenderer({
         return <ProjectsView isMobile={isMobile} />
     case 'settings':
     case 'providers':
-    case 'agents':
     case 'tools':
       return <SettingsShell isMobile={isMobile} theme={(theme as 'cosmic' | 'day' | 'night') ?? 'cosmic'} onToggleTheme={onToggleTheme} />
     case 'tutor':

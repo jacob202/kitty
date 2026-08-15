@@ -625,6 +625,49 @@ export interface AgentSession {
   output?: string
 }
 
+export interface AgentWorkspaceAgent {
+  id: string
+  display_name: string
+  role: string
+  model: string | null
+  status: 'available' | 'paused' | 'retired'
+}
+
+export interface AgentWorkspaceMessage {
+  id: string
+  workspace_id: string
+  parent_message_id: string | null
+  sender_kind: 'user' | 'agent' | 'system'
+  sender_id: string
+  recipient_id: string | null
+  message_kind: 'prompt' | 'plan' | 'handoff' | 'review' | 'result' | 'status'
+  content: string
+  created_at: number
+}
+
+export interface AgentWorkspaceEvent {
+  id: string
+  workspace_id: string
+  type: string
+  actor_kind: 'user' | 'agent' | 'system'
+  actor_id: string
+  message_id: string | null
+  metadata: Record<string, unknown>
+  created_at: number
+}
+
+export interface AgentWorkspace {
+  id: string
+  name: string
+  objective: string | null
+  status: 'active' | 'paused' | 'closed'
+  created_at: number
+  updated_at: number
+  agents: AgentWorkspaceAgent[]
+  messages: AgentWorkspaceMessage[]
+  events: AgentWorkspaceEvent[]
+}
+
 async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController()
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
@@ -767,6 +810,31 @@ export async function stopAgent(sessionId: number): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+// ── Shared agent workspace ──────────────────────────────────────────────────
+
+export async function createAgentWorkspace(name: string, objective?: string): Promise<AgentWorkspace> {
+  return gfetch<AgentWorkspace>('/agent-workspaces', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, objective: objective || null }),
+  })
+}
+
+export async function fetchAgentWorkspace(workspaceId: string): Promise<AgentWorkspace> {
+  return gfetch<AgentWorkspace>(`/agent-workspaces/${encodeURIComponent(workspaceId)}`)
+}
+
+export async function runAgentWorkspaceTurn(
+  workspaceId: string,
+  message: string,
+): Promise<{ status: string; workspace_id: string; messages: AgentWorkspaceMessage[]; events: AgentWorkspaceEvent[] }> {
+  return gfetch(`/agent-workspaces/${encodeURIComponent(workspaceId)}/turns`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, user_id: 'jacob' }),
+  })
 }
 
 // ── Todos ────────────────────────────────────────────────────────────────────
