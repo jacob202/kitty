@@ -1,0 +1,186 @@
+{
+  "artifact_dir": "/Users/jacobbrizinski/Projects/kitty/data/kittybuilder/attempts/kb_msru11zy_278f/139",
+  "attempt_id": 139,
+  "attempt_no": 3,
+  "bundle_sha256": "dada1cb5aae324990ca67f10700b423e160194fe888c68add06ed4a3ee3d50ba",
+  "command_sha256": "43a45e1c4005da7e991dc4976164b781fa90223ef5d0f021abd4fe17e1a4bec7",
+  "context": {
+    "context_files": [
+      {
+        "path": ".agents/skills/_archive/extract-wisdom/SKILL.md",
+        "sha256": "7d215b54a05477ddba9cabe178de2490105a7a559abfe4b0de83f7ebbb18f4f8",
+        "size_bytes": 15499
+      },
+      {
+        "path": ".agents/skills/_archive/first-principles/SKILL.md",
+        "sha256": "ebc639a8070b018c98dc9887c2b9f249fb1056a845fc3723df4706b9ab20fd0f",
+        "size_bytes": 9758
+      },
+      {
+        "path": ".agents/skills/_archive/iterative-depth/SKILL.md",
+        "sha256": "b97d9de0fb263b0e0b3a240fdf5d530b8aa14edd70f8532ab30e3b52e9520866",
+        "size_bytes": 5812
+      },
+      {
+        "path": ".agents/skills/_archive/iterative-self-review-meta-optimization/SKILL.md",
+        "sha256": "0cfc7f9792affae027f7b3b6b073c73b2c2c0c65c23f7abf389358d9e82b9c41",
+        "size_bytes": 5695
+      },
+      {
+        "path": ".agents/skills/_archive/red-team/SKILL.md",
+        "sha256": "97bb92549eb955f6484f3459fa5aaf28f854b1531c37a1a3eb855d4f162be733",
+        "size_bytes": 4033
+      },
+      {
+        "path": ".agents/skills/_archive/root-cause-analysis/SKILL.md",
+        "sha256": "808a57bb88b7e0abda4892aa80cf5ab1a6748850a1f2c8984cf15ef7c4644066",
+        "size_bytes": 11456
+      },
+      {
+        "path": ".agents/skills/_archive/science-method/SKILL.md",
+        "sha256": "890862e14a9cd4142e5d19d5b85ef71b9039118d91238339dd9425c07deef780",
+        "size_bytes": 6547
+      },
+      {
+        "path": ".agents/skills/_archive/systems-thinking/SKILL.md",
+        "sha256": "78f798db9dc55445790652e15a83bb5543404c831479f51108bba2488f0e53fc",
+        "size_bytes": 10164
+      },
+      {
+        "path": ".agents/skills/agent-council/SKILL.md",
+        "sha256": "db50e30c1884118bbad6587da65afbca3d9f35aec5a9cb79f24b21c2a5704635",
+        "size_bytes": 1009
+      },
+      {
+        "path": ".agents/skills/aim42-software-improvement/SKILL.md",
+        "sha256": "ee917646485a3bb17abe7c09cd1357b3176e4eaa240b98d31011c42b6b4a405a",
+        "size_bytes": 12851
+      },
+      {
+        "path": ".agents/skills/engineering/improve-codebase-architecture/SKILL.md",
+        "sha256": "8ec54b38bde76c33daf46314447bc69857f684ca02e0534bfda99c7d1c83b1aa",
+        "size_bytes": 6219
+      },
+      {
+        "path": ".agents/skills/expert-swarm/SKILL.md",
+        "sha256": "d93e612eb5be547bb8efd6c0a8be9b6d807a7fe03841c380b583f4d48251f219",
+        "size_bytes": 13025
+      },
+      {
+        "path": ".agents/skills/image-gen/SKILL.md",
+        "sha256": "53a0c1986b2a6eed622223ff9895ada15caad83a4cde913b164e392f192de38b",
+        "size_bytes": 913
+      },
+      {
+        "path": ".agents/skills/isa/SKILL.md",
+        "sha256": "9a9a3e2acd331700c485a8c8b55021a13713ca9988ff0162f19f600d197ba9c5",
+        "size_bytes": 15957
+      },
+      {
+        "path": ".agents/skills/journal-entry/SKILL.md",
+        "sha256": "8ed77732386ceb68f269b14a6cdb9af70ff6459d9de5c78f4ca6d55ab1ac287b",
+        "size_bytes": 889
+      },
+      {
+        "path": ".agents/skills/mcp-kitty-council/SKILL.md",
+        "sha256": "d052f4490ea398c6a4b6cccb7e763b48c6bd6f481340efa89d48a5fe42c0c767",
+        "size_bytes": 2005
+      },
+      {
+        "path": ".agents/skills/next/SKILL.md",
+        "sha256": "8fb055eee2077c242a3c3029e313eb5b593cca4c40a6d74d2c003090e627109e",
+        "size_bytes": 5424
+      },
+      {
+        "path": ".agents/skills/orca-orchestration/SKILL.md",
+        "sha256": "c909bfe00ee1b3cdb36898c8bb7da36871fdfaad63baac51f248f4e691da1e8a",
+        "size_bytes": 9290
+      },
+      {
+        "path": ".agents/skills/provider-credit-debugging/SKILL.md",
+        "sha256": "ff0cd9513a97e823251ede30eded19ca55f7b706819c637597a4d051a5d43a07",
+        "size_bytes": 1688
+      },
+      {
+        "path": ".agents/skills/session-end/SKILL.md",
+        "sha256": "7c3b7d85b03f61243990380d6cf343427f7d5467e569790fcf172118d6d205de",
+        "size_bytes": 12167
+      },
+      {
+        "path": ".agents/skills/verified-delivery/SKILL.md",
+        "sha256": "644efa2b4af5c4d3e4416196c152e15789996c900cc9f220e42d3c4ffc42a2b8",
+        "size_bytes": 3989
+      },
+      {
+        "path": ".claude/HANDOFF.md",
+        "sha256": "c005fdbf270148e5fca4244a530a9d647db95c12fa3c037b28ba8312289da1f6",
+        "size_bytes": 1479
+      },
+      {
+        "path": ".claude/STATE.md",
+        "sha256": "243714e17d77da5c5ca970dbb5afc7a09a27f1aabad0a80f695d3a0bd77b8348",
+        "size_bytes": 1366
+      },
+      {
+        "path": "AGENTS.md",
+        "sha256": "bd67bc4a5430e063fc373d4cf9152c04d84aecaf83ab288cc027872aa7aff4e9",
+        "size_bytes": 4096
+      },
+      {
+        "path": "docs/BLUEPRINT.md",
+        "sha256": "73ac3ea2596b64f00f489f3ca635cb65acab3f29ff5ab602d6b8268042471605",
+        "size_bytes": 10125
+      },
+      {
+        "path": "opencode.jsonc",
+        "sha256": "eff778495a484d906449d7e3ed4fa77e769e3ff59cd501a977126fff20cc6fcf",
+        "size_bytes": 3908
+      }
+    ],
+    "generated_at": 1786645345.984042,
+    "manifest_version": 1,
+    "task_bundle": {
+      "path": "bundle.json",
+      "sha256": "dada1cb5aae324990ca67f10700b423e160194fe888c68add06ed4a3ee3d50ba",
+      "size_bytes": 3293
+    }
+  },
+  "context_manifest": {
+    "attempt_id": 139,
+    "attempt_no": 3,
+    "sha256": "72c9cf8edd0da952c2418b2293a47f36461898538fcc5c8e12558b4b1c874e9f",
+    "task_id": "kb_msru11zy_278f"
+  },
+  "failure": null,
+  "governor": {
+    "action": "run",
+    "dispatch_hash": "bc517e298cc963dc811bde96356efde366ddf3978fd3f40dad116a9eb60f25b5",
+    "errors": [],
+    "projected_cost_cad": null,
+    "reasons": [
+      "no settled implement pass for kitty-campaign-work-projection-v1/WORK-01-gateway-projection-proto at 1172f98e49b4",
+      "routine risk class routes to deepseek/deepseek-v4-flash (projected CAD 0.0094)"
+    ],
+    "requested_route": null,
+    "risk_class": "routine",
+    "route": "cheap"
+  },
+  "initiative_id": "kitty-campaign-work-projection-v1",
+  "lease": {
+    "base_sha": "1172f98e49b46d0d13c69fbf0832875c8255777b",
+    "branch": "kittybuilder/kb_msru11zy_278f",
+    "lease_id": 108,
+    "worker_id": "codex-chatgpt",
+    "worktree_path": "/Users/jacobbrizinski/Projects/kitty/.worktrees/campaign-work-projection-v1/.worktrees/kittybuilder/kb_msru11zy_278f"
+  },
+  "manifest_version": 1,
+  "model": "gpt-5.4-mini",
+  "outcome": "running",
+  "packet_id": "WORK-01-gateway-projection-proto",
+  "provider": "chatgpt",
+  "review": null,
+  "task_id": "kb_msru11zy_278f",
+  "validation": null,
+  "worker": "codex-chatgpt",
+  "worker_run": null
+}
