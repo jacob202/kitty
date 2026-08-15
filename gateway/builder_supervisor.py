@@ -201,12 +201,9 @@ def _select_packets(
                 "task_id": str(packet["task_id"]), "reason": "task_missing",
             })
             continue
-        if task["state"] != bq.QUEUED:
-            skipped.append({
-                "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
-                "task_id": str(packet["task_id"]), "reason": "task_not_queued",
-            })
-            continue
+        # ``next_packet`` is the canonical eligibility oracle. It may return a
+        # fenced BLOCKED packet with a stale attempt specifically so run_packet
+        # can reconcile/recover it; do not re-derive eligibility from task state.
         active_runs = [
             run for run in bq.list_runs(str(packet["task_id"]), db_path=db_path)
             if run["state"] in RUN_ACTIVE_STATES
