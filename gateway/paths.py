@@ -13,10 +13,22 @@ ROOT = Path(__file__).parent.parent
 
 PROJECT_ROOT = ROOT  # Alias for backward compatibility
 
-DATA_DIR = ROOT / "data"
-LOGS_DIR = ROOT / "logs"
+
+def _runtime_root(env_name: str, default: Path) -> Path:
+    """Resolve a deploy-time runtime root without changing local defaults."""
+    raw = _os.environ.get(env_name, "").strip()
+    return Path(raw).expanduser().resolve() if raw else default
+
+
+# Release code remains under ROOT. Mutable runtime state can be mounted outside
+# the checkout so a production release stays clean across settings changes,
+# restarts, redeploys, and rollback. Local development keeps the historic
+# repo-relative paths when no override is present.
+DATA_DIR = _runtime_root("KITTY_DATA_DIR", ROOT / "data")
+LOGS_DIR = _runtime_root("KITTY_LOGS_DIR", ROOT / "logs")
+CONFIG_DIR = _runtime_root("KITTY_CONFIG_DIR", ROOT / "config")
+PERSONALITY_DIR = _runtime_root("KITTY_PERSONALITY_DIR", ROOT / "personality")
 PROMPTS_DIR = ROOT / "prompts"
-PERSONALITY_DIR = ROOT / "personality"
 KNOWLEDGE_DIR = DATA_DIR / "knowledge"
 KITTY_DATA_DIR = DATA_DIR / "kitty"
 KITTY_DB_FILE = KITTY_DATA_DIR / "kitty.db"
@@ -24,7 +36,6 @@ EXPERT_CURSORS_FILE = DATA_DIR / "expert_cursors.json"
 EXPERT_STATE_FILE = DATA_DIR / "expert_state.json"
 DEAD_LETTER_DIR = DATA_DIR / "dead_letter"
 DB_MIGRATIONS_DIR = ROOT / "gateway" / "migrations"
-CONFIG_DIR = ROOT / "config"
 USER_DIR = CONFIG_DIR / "USER"  # Jacob's TELOS identity files (mission/goals/etc.)
 ACTION_TIERS_FILE = CONFIG_DIR / "action_tiers.json"  # signed risk-tier sheet (P3)
 PACKET_DIR = ROOT / "docs" / "packets"
