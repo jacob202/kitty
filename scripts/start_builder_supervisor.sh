@@ -17,7 +17,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-PYTHON="${KITTYBUILDER_PYTHON:-python3.12}"
+PYTHON="${KITTYBUILDER_PYTHON:-${REPO_ROOT}/venv/bin/python}"
+
+if [[ "${PYTHON}" == */* ]]; then
+  [[ -x "${PYTHON}" ]] || { echo "error: supervisor Python is not executable: ${PYTHON}" >&2; exit 1; }
+elif ! command -v "${PYTHON}" >/dev/null 2>&1; then
+  echo "error: supervisor Python not found on PATH: ${PYTHON}" >&2
+  exit 1
+fi
+cd "${REPO_ROOT}"
 
 usage() {
   echo "usage: start_builder_supervisor.sh {tick|status|launchd}" >&2
