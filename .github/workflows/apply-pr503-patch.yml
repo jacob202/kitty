@@ -1,0 +1,164 @@
+name: Apply audited PR 503 patch
+
+on:
+  push:
+    branches:
+      - fix/publication-infra-budget
+    paths:
+      - .github/workflows/apply-pr503-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/publication-infra-budget
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Recover exact tested Codex patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          url = "https://api.github.com/repos/jacob202/kitty/issues/comments/5303002710"
+          request = urllib.request.Request(
+              url,
+              headers={
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request) as response:
+              body = json.load(response)["body"]
+          marker = "```diff\n"
+          start = body.index(marker) + len(marker)
+          end = body.index("\n```", start)
+          patch = body[start:end] + "\n"
+          Path("/tmp/pr503.patch").write_text(patch, encoding="utf-8")
+          print(f"recovered {len(patch)} bytes")
+          PY
+          git apply --check /tmp/pr503.patch
+          git apply /tmp/pr503.patch
+
+      - name: Apply source-level audit corrections
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one replacement, found {count}")
+              p.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          replace_once(
+              "gateway/builder_loop.py",
+              '''        if publication_preflight:\n            publication_probe = bj.publication_preflight(\n                Path(repo_root) if repo_root is not None else Path.cwd()\n            )\n            if publication_probe.returncode == PROVIDER_EXHAUSTED_EXIT_CODE:\n                detail = (\n                    publication_probe.stderr or publication_probe.stdout or ""\n                ).strip()\n''',
+              '''        if publication_preflight:\n            publication_worktree = worktree_path(task_id, repo_root=repo_root)\n            publication_probe = bj.publication_preflight(publication_worktree)\n            detail = (publication_probe.stderr or publication_probe.stdout or "").strip()\n            if (\n                publication_probe.returncode != 0\n                and publication_probe.returncode != PROVIDER_EXHAUSTED_EXIT_CODE\n            ):\n                suffix = f": {detail}" if detail else ""\n                raise LoopError(\n                    "publication environment preflight failed unexpectedly "\n                    f"(exit {publication_probe.returncode}){suffix}"\n                )\n            if publication_probe.returncode == PROVIDER_EXHAUSTED_EXIT_CODE:\n''',
+          )
+
+          janitor = Path("gateway/builder_pr_janitor.py")
+          janitor_text = janitor.read_text(encoding="utf-8")
+          unused = 'PUBLICATION_PREFLIGHT_COMMAND = f"{PUBLICATION_GATE_COMMAND} --preflight"\n'
+          if janitor_text.count(unused) != 1:
+              raise SystemExit("expected one unused publication preflight constant")
+          janitor.write_text(janitor_text.replace(unused, "", 1), encoding="utf-8")
+
+          replace_once(
+              "gateway/builder_run.py",
+              '''        elif loop_result["outcome"] == bl.LOOP_INFRASTRUCTURE_BLOCKED:\n            processed.append(\n                {\n                    "packet_id": packet_id,\n                    "task_id": task_id,\n                    "outcome": loop_result["outcome"],\n                }\n            )\n            return {\n''',
+              '''        elif loop_result["outcome"] == bl.LOOP_INFRASTRUCTURE_BLOCKED:\n            processed.append(\n                {\n                    "packet_id": packet_id,\n                    "task_id": task_id,\n                    "outcome": loop_result["outcome"],\n                }\n            )\n            _decide(\n                task_id,\n                {\n                    "initiative_id": initiative_id,\n                    "packet_id": packet_id,\n                    "decision": "infrastructure_blocked",\n                    "reason": loop_result.get("reason"),\n                    "stop_class": STOP_ROUTINE,\n                },\n                db_path,\n            )\n            return {\n''',
+          )
+
+          replace_once(
+              "scripts/hooks/pre-push",
+              '''FAILED=()\nrun_gate() {\n  local label="$1"; shift\n  say "${DIM}→ ${label}${OFF}"\n  if "$@" >/tmp/kitty-pre-push.$$ 2>&1; then\n    say "  ${GREEN}ok${OFF}  ${label}"\n  else\n    say "  ${RED}FAILED${OFF}  ${label}"\n    tail -n 25 /tmp/kitty-pre-push.$$ >&2\n    FAILED+=("${label}")\n  fi\n  rm -f /tmp/kitty-pre-push.$$\n}\n''',
+              '''FAILED=()\nINFRA_FAILED=0\nrun_gate() {\n  local label="$1"; shift\n  local gate_rc=0\n  say "${DIM}→ ${label}${OFF}"\n  "$@" >/tmp/kitty-pre-push.$$ 2>&1 || gate_rc=$?\n  if [[ ${gate_rc} -eq 0 ]]; then\n    say "  ${GREEN}ok${OFF}  ${label}"\n  else\n    say "  ${RED}FAILED${OFF}  ${label}"\n    tail -n 25 /tmp/kitty-pre-push.$$ >&2\n    FAILED+=("${label}")\n    if [[ ${gate_rc} -eq 75 || ${gate_rc} -eq 126 || ${gate_rc} -eq 127 ]]; then\n      INFRA_FAILED=1\n    fi\n  fi\n  rm -f /tmp/kitty-pre-push.$$\n}\n''',
+          )
+
+          replace_once(
+              "scripts/hooks/pre-push",
+              '''say "${RED}Push blocked.${OFF} ${#FAILED[@]} of these failed: ${FAILED[*]}"\nsay ""\nsay "Nothing was sent. Fix the failure above, or run ${YELLOW}make ci${OFF} to see it in full."\n''',
+              '''if [[ "${INFRA_FAILED}" == "1" ]]; then\n  say "${RED}Push blocked by publication infrastructure.${OFF} ${#FAILED[@]} gate(s) could not run reliably: ${FAILED[*]}"\n  say ""\n  exit 75\nfi\n\nsay "${RED}Push blocked.${OFF} ${#FAILED[@]} of these failed: ${FAILED[*]}"\nsay ""\nsay "Nothing was sent. Fix the failure above, or run ${YELLOW}make ci${OFF} to see it in full."\n''',
+          )
+
+          # Strengthen the RED regressions so the audited corrections stay pinned.
+          test_path = Path("tests/test_builder_publication_infrastructure.py")
+          test_text = test_path.read_text(encoding="utf-8")
+          marker = "    _stub_janitor(monkeypatch)\n\n    result = bl.run_packet(\n"
+          replacement = '''    _stub_janitor(monkeypatch)\n    seen_preflight_paths: list[Path] = []\n    real_preflight = bl.bj.publication_preflight\n\n    def capture_preflight(worktree: Path, **kwargs):\n        seen_preflight_paths.append(Path(worktree))\n        return real_preflight(worktree, **kwargs)\n\n    monkeypatch.setattr(bl.bj, "publication_preflight", capture_preflight)\n\n    result = bl.run_packet(\n'''
+          if test_text.count(marker) != 2:
+              raise SystemExit(f"expected two janitor markers, found {test_text.count(marker)}")
+          test_text = test_text.replace(marker, replacement, 1)
+          needle = '    assert not marker.exists(), "worker must not run when publication environment is unavailable"\n'
+          if test_text.count(needle) != 1:
+              raise SystemExit("expected early preflight marker assertion")
+          test_text = test_text.replace(
+              needle,
+              needle
+              + '    assert seen_preflight_paths == [bl.worktree_path(task_id, repo_root=repo)]\n',
+              1,
+          )
+          test_text += '''\n\ndef test_unexpected_publication_preflight_exit_fails_before_attempt(\n    repo: Path, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch\n) -> None:\n    _install_gate(\n        repo,\n        'if [[ "${1:-}" == "--preflight" ]]; then echo "bad preflight contract" >&2; exit 1; fi\\nexit 0\\n',\n    )\n    task_id = _apply(db_path, repo)\n    marker = tmp_path / "worker-ran-unexpected"\n    _stub_janitor(monkeypatch)\n\n    with pytest.raises(bl.LoopError, match="publication environment preflight failed unexpectedly"):\n        bl.run_packet(\n            INITIATIVE,\n            PACKET,\n            worker_command=_worker(tmp_path, marker),\n            repo_root=repo,\n            db_path=db_path,\n            publication_preflight=True,\n        )\n\n    assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path) == []\n    assert not marker.exists()\n    assert bq.get_task(task_id, db_path=db_path)["state"] == bq.QUEUED\n'''
+          test_path.write_text(test_text, encoding="utf-8")
+
+          replace_once(
+              "tests/test_builder_run.py",
+              '''        assert summary["outcome"] == br.bl.LOOP_INFRASTRUCTURE_BLOCKED\n        assert summary["exhausted"] == 0\n        assert bi.get_initiative_state(INITIATIVE, db_path=db_path) != bi.INITIATIVE_PAUSED\n''',
+              '''        assert summary["outcome"] == br.bl.LOOP_INFRASTRUCTURE_BLOCKED\n        assert summary["exhausted"] == 0\n        assert bi.get_initiative_state(INITIATIVE, db_path=db_path) != bi.INITIATIVE_PAUSED\n        decisions = [\n            event\n            for event in bq.list_events(summary["task_id"], db_path=db_path)\n            if event["type"] == br.EVENT_DECISION\n        ]\n        assert decisions[-1]["payload"]["decision"] == "infrastructure_blocked"\n''',
+          )
+
+          pre_push_test = Path("tests/test_pre_push_gate.py")
+          pre_push_text = pre_push_test.read_text(encoding="utf-8")
+          pre_push_text += '''\n\ndef test_full_gate_preserves_infrastructure_exit_class(hook_text):\n    assert "INFRA_FAILED=0" in hook_text\n    assert "gate_rc} -eq 75" in hook_text\n    assert "gate_rc} -eq 126" in hook_text\n    assert "gate_rc} -eq 127" in hook_text\n    assert 'if [[ "${INFRA_FAILED}" == "1" ]]' in hook_text\n    assert "exit 75" in hook_text\n'''
+          pre_push_test.write_text(pre_push_text, encoding="utf-8")
+          PY
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Verify audited patch
+        run: |
+          python -m pytest \
+            tests/test_builder_publication_infrastructure.py \
+            tests/test_builder_loop.py::TestRunPacket::test_publication_gate_failure_is_repair_input_for_next_worker \
+            tests/test_builder_run.py::TestRunInitiative::test_infrastructure_blocked_stops_without_pausing_or_exhausting \
+            tests/test_pre_push_gate.py::test_preflight_checks_environment_without_running_quality_gates \
+            tests/test_pre_push_gate.py::test_full_gate_preserves_infrastructure_exit_class \
+            -q --tb=short
+          python -m ruff check \
+            gateway/builder_loop.py gateway/builder_pr_janitor.py gateway/builder_run.py \
+            tests/test_builder_publication_infrastructure.py tests/test_builder_run.py tests/test_pre_push_gate.py
+          python -m mypy gateway/builder_loop.py gateway/builder_pr_janitor.py gateway/builder_run.py
+          bash -n scripts/hooks/pre-push
+          ./scripts/hooks/pre-push --preflight
+          git diff --check
+
+      - name: Publish audited implementation and remove temporary workflow
+        run: |
+          git rm .github/workflows/apply-pr503-patch.yml
+          git add gateway/builder_loop.py gateway/builder_pr_janitor.py gateway/builder_run.py \
+            scripts/hooks/pre-push tests/test_builder_publication_infrastructure.py \
+            tests/test_builder_run.py tests/test_pre_push_gate.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(builder): keep publication outages budget neutral"
+          git push origin HEAD:fix/publication-infra-budget
