@@ -186,6 +186,67 @@ def test_tick_duplicate_sequential_no_op(repo: Path, db_path: Path) -> None:
         assert receipt2["skipped"][0]["reason"] in {"active_run_exists", "task_not_queued", "no_eligible_packet"}
 
 
+
+def test_selects_only_one_next_packet_per_initiative(repo: Path, db_path: Path) -> None:
+    _apply(db_path, "test-init-1", [_packet("p1"), _packet("p2")], repo_root=repo)
+    selected, _skipped = bs._select_packets(db_path, max_runs=2)
+    assert [item["packet_id"] for item in selected] == ["p1"]
+
+
+def test_rejects_max_runs_above_hard_ceiling(db_path: Path) -> None:
+    with pytest.raises(ValueError, match="at most"):
+        bs.tick(db_path=db_path, max_runs=bs.MAX_RUNS_PER_TICK + 1)
+
+
+def test_tick_reports_launch_failure(repo: Path, db_path: Path) -> None:
+    _apply(db_path, "test-init-1", [_packet("p1")], repo_root=repo)
+    with patch.object(bs, "_launch_run", side_effect=RuntimeError("boom")):
+        receipt = bs.tick(db_path=db_path, repo_root=repo)
+    assert receipt["status"] == "error"
+    assert receipt["launched"][0]["error"] == "RuntimeError: boom"
+
+
+def test_lock_propagates_non_contention_oserror(db_path: Path) -> None:
+    import errno
+    with patch("fcntl.flock", side_effect=OSError(errno.EIO, "io failure")):
+        with pytest.raises(OSError, match="io failure"):
+            with bs.SupervisorLock(db_path):
+                pass
+
+
+def test_direct_module_tick_honors_queue_kill_switch(db_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KITTY_BUILDER_QUEUE_ENABLED", "0")
+    with patch.object(bs, "default_db_path", return_value=db_path):
+        with patch.object(bs, "tick") as tick_mock:
+            rc = bs.main(["tick"])
+    assert rc == 1
+    tick_mock.assert_not_called()
+
+
+def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) -> None:
+    kitty = repo / "kitty"
+    kitty.write_text("#!/bin/sh\n", encoding="utf-8")
+    kitty.chmod(0o755)
+    packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": "task-1"}
+
+    with patch("gateway.builder_supervisor.subprocess.Popen") as popen:
+        popen.return_value.pid = 4321
+        result = bs._launch_run(packet, repo_root=repo, db_path=db_path)
+
+    argv = popen.call_args.args[0]
+    assert argv == [str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1", "--free", "--json"]
+    assert popen.call_args.kwargs["start_new_session"] is True
+    assert popen.call_args.kwargs["shell"] is False
+    assert result["status"] == "dispatched"
+    assert result["launcher_pid"] == 4321
+    assert result["task_id"] == "task-1"
+
+
+
+def test_supervisor_launcher_defaults_to_repo_venv() -> None:
+    launcher = (Path(__file__).parents[1] / "scripts" / "start_builder_supervisor.sh").read_text()
+    assert 'PYTHON="${KITTYBUILDER_PYTHON:-${REPO_ROOT}/venv/bin/python}"' in launcher
+
 def test_status_projection(repo: Path, db_path: Path) -> None:
     """status() returns initiatives, eligible packets, active runs."""
     _apply(db_path, "test-init-1", [_packet("p1"), _packet("p2")], repo_root=repo)
