@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from gateway import agent_workspace
-from gateway import llm_client
+from gateway import agent_workspace, llm_client
 
 
 @pytest.fixture
