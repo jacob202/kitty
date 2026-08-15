@@ -201,9 +201,15 @@ def _select_packets(
                 "task_id": str(packet["task_id"]), "reason": "task_missing",
             })
             continue
-        # ``next_packet`` is the canonical eligibility oracle. It may return a
-        # fenced BLOCKED packet with a stale attempt specifically so run_packet
-        # can reconcile/recover it; do not re-derive eligibility from task state.
+        task_state = str(task["state"])
+        if task_state not in {bq.QUEUED, bq.BLOCKED}:
+            skipped.append({
+                "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
+                "task_id": str(packet["task_id"]),
+                "reason": "task_state_not_dispatchable",
+                "task_state": task_state,
+            })
+            continue
         active_runs = [
             run for run in bq.list_runs(str(packet["task_id"]), db_path=db_path)
             if run["state"] in RUN_ACTIVE_STATES
