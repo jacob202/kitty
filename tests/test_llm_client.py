@@ -890,3 +890,86 @@ def test_log_chat_trace_omits_tier_when_none(tmp_path):
         entry = json.loads(f.readline())
     assert "tier" not in entry
     assert "trigger" not in entry
+
+
+# ── plain-language chain exhaustion ──────────────────────────────────────────
+
+
+def test_dead_chain_names_the_unconfigured_providers_and_one_action():
+    """The #498 shape: proxy down, every fallback missing a key."""
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(
+        [
+            "litellm: HTTPConnectionPool(host='127.0.0.1', port=4000): Max retries exceeded",
+            "openrouter: no api key configured",
+            "local: no api key configured",
+            "openai: no api key configured",
+            "agentrouter: disabled",
+        ]
+    )
+
+    assert "openrouter, local and openai have no API key set" in message
+    assert "agentrouter is switched off" in message
+    assert "./kitty up" in message
+    assert "HTTPConnectionPool" not in message
+
+
+def test_single_unconfigured_provider_reads_as_singular():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(["litellm: boom", "openrouter: no api key configured"])
+
+    assert "openrouter has no API key set" in message
+
+
+def test_providers_that_answered_with_nothing_point_at_credit_not_setup():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(
+        ["litellm: boom", "openrouter: no response", "openai: no api key configured"]
+    )
+
+    assert "openrouter" in message
+    assert "out of credit" in message
+    assert "./kitty up" not in message
+
+
+def test_chain_deadline_reads_as_a_timeout():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(["litellm: boom", "chain: deadline 90.0s exceeded"])
+
+    assert "too long" in message
+    assert "deadline" not in message
+
+
+def test_selected_provider_failure_points_at_settings():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    assert "Settings" in describe_chain_exhaustion(["selected provider 'openai' is not configured"])
+    assert "switched off" in describe_chain_exhaustion(["selected provider 'agentrouter' is disabled"])
+
+
+def test_empty_diagnostics_still_gives_an_action():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    assert "./kitty doctor" in describe_chain_exhaustion([])
+
+
+def test_exception_exposes_its_own_user_message():
+    from gateway.llm_client import ProviderChainExhausted
+
+    exc = ProviderChainExhausted(["litellm: boom", "openrouter: no api key configured"])
+
+    assert "openrouter has no API key set" in exc.user_message
+    assert "openrouter: no api key configured" in str(exc)
+
+
+def test_selected_provider_that_answered_with_nothing_points_at_credit():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(["selected provider 'openai' returned no response"])
+
+    assert "out of credit" in message
+    assert "switched off" not in message

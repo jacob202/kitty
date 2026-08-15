@@ -426,3 +426,54 @@ def test_second_turn_reuses_the_first_turns_durable_room_context(workspace_db):
     second_planner_context = backend.calls[4][2]
     assert any(message["sender_id"] == "reviewer" for message in second_planner_context)
     assert any("reviewer response" in message["content"] for message in second_planner_context)
+
+
+class DeadProviderChainBackend(FakeWorkspaceBackend):
+    """The #498 shape: the room dies partway with the whole chain down."""
+
+    def complete(self, agent_id: str, prompt: str, context: list[dict]) -> str:
+        if agent_id == "builder":
+            from gateway.llm_client import ProviderChainExhausted
+
+            raise ProviderChainExhausted(
+                [
+                    "litellm: HTTPConnectionPool(host='127.0.0.1', port=4000): Max retries",
+                    "openrouter: no api key configured",
+                    "agentrouter: disabled",
+                ]
+            )
+        return super().complete(agent_id, prompt, context)
+
+
+def test_dead_provider_chain_reaches_the_room_as_plain_language(workspace_db):
+    room = agent_workspace.create_workspace(name="Kitty room", objective="Ship a proof")
+
+    result = agent_workspace.run_turn(
+        room["id"],
+        "Make a verified plan for the shared workspace.",
+        backend=DeadProviderChainBackend(),
+    )
+
+    assert result["status"] == "failed"
+    status_message = result["messages"][-1]["content"]
+    assert status_message.startswith("Incomplete: builder could not finish.")
+    assert "no model provider it can use" in status_message
+    assert "./kitty up" in status_message
+    # The provider jargon that used to land in Jacob's conversation stays out.
+    assert "HTTPConnectionPool" not in status_message
+    assert "ProviderChainExhausted" not in status_message
+    assert "no api key configured" not in status_message
+
+
+def test_dead_provider_chain_keeps_raw_diagnostics_in_the_event_log(workspace_db):
+    room = agent_workspace.create_workspace(name="Kitty room", objective="Ship a proof")
+
+    result = agent_workspace.run_turn(
+        room["id"],
+        "Make a verified plan for the shared workspace.",
+        backend=DeadProviderChainBackend(),
+    )
+
+    failed = [event for event in result["events"] if event["type"] == "agent_failed"][-1]
+    assert failed["metadata"]["error_type"] == "ProviderChainExhausted"
+    assert "openrouter: no api key configured" in failed["metadata"]["error_message"]

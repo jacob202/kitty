@@ -136,6 +136,8 @@ describe('AgentWorkspacePanel', () => {
 
     await waitFor(() => expect(screen.getByText('builder proposal')).toBeInTheDocument())
     expect(screen.getByText('Incomplete: reviewer could not finish.')).toBeInTheDocument()
+    expect(screen.getByText('Incomplete: provider rejected the request')).toBeInTheDocument()
+    expect(screen.queryByText(/RuntimeError/)).not.toBeInTheDocument()
     expect(screen.getByText('failed')).toBeInTheDocument()
   })
 

@@ -26,6 +26,19 @@ def _canonical_worktree() -> Path:
     return Path(first).resolve()
 
 
+def _section_body(document: str, heading: str) -> str:
+    """Prose under ``heading``, stopping at the next heading of any level."""
+    _, separator, rest = document.partition(f"{heading}\n")
+    if not separator:
+        return ""
+    body: list[str] = []
+    for line in rest.splitlines():
+        if line.startswith("#"):
+            break
+        body.append(line)
+    return "\n".join(body).strip()
+
+
 def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     """No chat or inherited model memory is used by this acceptance contract."""
     receipt = build_context_receipt(ROOT, expected_canonical=_canonical_worktree())
@@ -73,8 +86,10 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     # change. The cold-start question is "is a mission declared and readable",
     # so check the document's shape and let the receipt below prove liveness.
     assert documents["active_mission"].startswith("# Active Mission — ")
-    assert "## Objective" in documents["active_mission"]
-    assert "## Acceptance Contract" in documents["active_mission"]
+    # A heading alone is not an answer: both sections were once added empty to
+    # satisfy this check, which left a cold reader with no objective to read.
+    assert _section_body(documents["active_mission"], "## Objective")
+    assert _section_body(documents["active_mission"], "## Acceptance Contract")
     assert receipt["continuity"]["active_mission"]["status"] == "running"
     # 6. What is next?
     assert isinstance(receipt["next_action"], str) and receipt["next_action"]

@@ -32,6 +32,13 @@ from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 logger = logging.getLogger("kitty.llm_client")
 
 
+# Reason suffixes appended to a chain's error list. The classifier below reads
+# them back, so producers and reader must use these rather than loose literals.
+_REASON_NO_KEY = "no api key configured"
+_REASON_DISABLED = "disabled"
+_REASON_NO_RESPONSE = "no response"
+
+
 class ProviderChainExhausted(RuntimeError):
     """Raised when LiteLLM and every fallback provider fail to produce a completion.
 
@@ -45,6 +52,95 @@ class ProviderChainExhausted(RuntimeError):
         self.errors = list(errors)
         summary = "; ".join(errors) if errors else "no diagnostics"
         super().__init__(f"LLM provider chain exhausted: {summary}")
+
+    @property
+    def user_message(self) -> str:
+        """Plain-language cause and one next action, safe to show Jacob."""
+        return describe_chain_exhaustion(self.errors)
+
+
+def _join_names(names: list[str]) -> str:
+    if len(names) == 1:
+        return names[0]
+    return f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def describe_chain_exhaustion(errors: list[str]) -> str:
+    """Turn raw provider diagnostics into one sentence Jacob can act on.
+
+    ``errors`` is operator detail ("openrouter: no api key configured") and stays
+    in the logs. User-facing surfaces show this instead, so a failed turn names
+    the single thing to fix rather than six provider strings.
+    """
+    if not errors:
+        return (
+            "Kitty couldn't reach any model provider, and no diagnostics came back. "
+            "Run `./kitty doctor` to see which part of the stack is down."
+        )
+
+    if len(errors) == 1 and errors[0].startswith("selected provider"):
+        detail = errors[0]
+        if "returned no response" in detail:
+            return (
+                "The model provider you picked didn't send an answer back. "
+                "That normally means it's out of credit or has hit a rate limit. "
+                "Check its balance, or pick a different provider in Settings."
+            )
+        if "is not configured" in detail or "is unknown" in detail:
+            return (
+                "The model provider you picked isn't set up, so Kitty couldn't answer. "
+                "Pick a different provider in Settings, or add its API key to `.env`."
+            )
+        return (
+            "The model provider you picked is switched off, so Kitty couldn't answer. "
+            "Pick a different provider in Settings."
+        )
+
+    unconfigured: list[str] = []
+    switched_off: list[str] = []
+    silent: list[str] = []
+    timed_out = False
+    for entry in errors:
+        name, _, reason = entry.partition(": ")
+        if name == "chain":
+            timed_out = True
+        elif name == "litellm":
+            continue
+        elif reason == _REASON_NO_KEY:
+            unconfigured.append(name)
+        elif reason == _REASON_DISABLED:
+            switched_off.append(name)
+        elif reason == _REASON_NO_RESPONSE:
+            silent.append(name)
+
+    if timed_out:
+        return (
+            "The model providers took too long to answer, so Kitty stopped waiting. "
+            "Try again — if it keeps happening, check your internet connection."
+        )
+    if silent:
+        return (
+            f"Kitty reached {_join_names(silent)} but got no usable answer back. "
+            "That normally means the account is out of credit or has hit a rate limit. "
+            "Check that provider's balance, or pick a different model in Settings."
+        )
+    if unconfigured or switched_off:
+        if unconfigured:
+            has = "has" if len(unconfigured) == 1 else "have"
+            blocked = f"{_join_names(unconfigured)} {has} no API key set"
+            if switched_off:
+                blocked += f", and {_join_names(switched_off)} is switched off"
+        else:
+            blocked = f"{_join_names(switched_off)} is switched off"
+        return (
+            "Kitty has no model provider it can use, so this couldn't run. "
+            f"The local LiteLLM proxy didn't answer, and {blocked}. "
+            "Start the stack with `./kitty up`, or add one provider API key to `.env`."
+        )
+    return (
+        "Kitty's model providers all failed on this request. "
+        "Run `./kitty doctor` to see which part of the stack is down."
+    )
 
 
 # Cap how long a single provider may spend establishing a connection, and bound
@@ -665,10 +761,10 @@ def call_llm(
 
         for provider_name in effective_provider_order():
             if provider_name == "agentrouter" and _is_agentrouter_disabled():
-                errors.append(f"{provider_name}: disabled")
+                errors.append(f"{provider_name}: {_REASON_DISABLED}")
                 continue
             if not provider_is_configured(PROVIDERS[provider_name]):
-                errors.append(f"{provider_name}: no api key configured")
+                errors.append(f"{provider_name}: {_REASON_NO_KEY}")
                 continue
             _at = _budget_timeout()
             if _at is None:
@@ -691,7 +787,7 @@ def call_llm(
             )
             if out:
                 return out
-            errors.append(f"{provider_name}: no response")
+            errors.append(f"{provider_name}: {_REASON_NO_RESPONSE}")
 
         raise ProviderChainExhausted(errors)
 
