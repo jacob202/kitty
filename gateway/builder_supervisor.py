@@ -14,9 +14,8 @@ Walking-skeleton contract:
   to the queue DB) for the whole pass, deterministically selects eligible
   *active* initiatives (derived state ``active``, ordered by initiative id),
   picks each one's next eligible packet via ``builder_initiative.next_packet``
-  (deterministic ``seq`` order), and runs **no more than**
-  :data:`MAX_RUNS_PER_TICK` packets through the canonical bounded
-  ``builder_loop.run_packet`` lifecycle.
+  (deterministic ``seq`` order), and detaches **no more than**
+  :data:`MAX_RUNS_PER_TICK` canonical ``initiative run-packet`` loops.
 - Duplicate ticks do nothing: a concurrent tick cannot acquire the lock and
   returns a ``locked`` receipt with no launches; a sequential re-tick finds
   the already-claimed tasks no longer ``queued`` and launches nothing.
@@ -34,6 +33,7 @@ import errno
 import json
 import os
 import plistlib
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -230,24 +230,51 @@ def _launch_run(
     worker: str = SUPERVISOR_WORKER,
     model: str | None = None,
 ) -> dict[str, Any]:
-    """Run one packet through the canonical bounded attempt lifecycle."""
-    from gateway.builder_loop import run_packet
-    from gateway.compute_governor import default_db_path as governor_db_path
+    """Detach one packet through the canonical Builder run-packet CLI.
 
-    return run_packet(
-        str(packet["initiative_id"]),
-        str(packet["packet_id"]),
-        worker_command=canonical_worker_command(repo_root),
-        review_command=canonical_reviewer_command(repo_root),
-        adapter_env=canonical_adapter_env(model),
-        worker=worker,
-        model=model,
-        provider="opencode",
-        db_path=db_path,
-        repo_root=repo_root,
-        governor_db=governor_db_path(),
-        governor_requested_route="free",
-    )
+    The detached child owns ``builder_loop.run_packet`` and therefore creates
+    the attempt bundle, validation evidence, reviewer binding, and durable run
+    state. The supervisor owns only dispatch and returns promptly.
+    """
+    del worker, model  # the canonical free CLI owns worker/model routing
+    root = (repo_root or repo_root_default()).resolve()
+    kitty = root / "kitty"
+    if not kitty.is_file():
+        raise SupervisorError(f"Kitty launcher missing: {kitty}")
+
+    initiative_id = str(packet["initiative_id"])
+    packet_id = str(packet["packet_id"])
+    task_id = str(packet["task_id"])
+    command = [
+        str(kitty), "builder", "initiative", "run-packet",
+        initiative_id, packet_id, "--free", "--json",
+    ]
+    log_dir = root / "data" / "kittybuilder" / "supervisor-launch"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"{initiative_id}-{packet_id}.log"
+    child_env = os.environ.copy()
+    if db_path is not None:
+        child_env["KITTY_BUILDER_DATA_DIR"] = str(Path(db_path).resolve().parent)
+    with log_path.open("ab") as log_handle:
+        process = subprocess.Popen(
+            command,
+            cwd=str(root),
+            stdin=subprocess.DEVNULL,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            env=child_env,
+            shell=False,
+            start_new_session=True,
+            close_fds=True,
+        )
+    return {
+        "status": "dispatched",
+        "launcher_pid": process.pid,
+        "initiative_id": initiative_id,
+        "packet_id": packet_id,
+        "task_id": task_id,
+        "log_path": str(log_path),
+    }
 
 
 def tick(
