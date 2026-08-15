@@ -193,6 +193,18 @@ def test_selects_only_one_next_packet_per_initiative(repo: Path, db_path: Path) 
     assert [item["packet_id"] for item in selected] == ["p1"]
 
 
+
+def test_select_packets_accepts_blocked_recovery_candidate(db_path: Path) -> None:
+    packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": "task-1", "seq": 1}
+    initiative = {"id": "test-init-1", "health_summary": {"state": bi.INITIATIVE_ACTIVE}}
+    with patch.object(bs, "active_initiatives", return_value=[initiative]):
+        with patch.object(bi, "next_packet", return_value=packet):
+            with patch.object(bq, "get_task", return_value={"id": "task-1", "state": bq.BLOCKED}):
+                with patch.object(bq, "list_runs", return_value=[]):
+                    selected, skipped = bs._select_packets(db_path, max_runs=1)
+    assert selected == [packet]
+    assert skipped == []
+
 def test_rejects_max_runs_above_hard_ceiling(db_path: Path) -> None:
     with pytest.raises(ValueError, match="at most"):
         bs.tick(db_path=db_path, max_runs=bs.MAX_RUNS_PER_TICK + 1)
