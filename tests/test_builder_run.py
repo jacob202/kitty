@@ -103,6 +103,31 @@ def _run(
 
 
 class TestRunInitiative:
+    def test_infrastructure_blocked_stops_without_pausing_or_exhausting(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        _apply(db_path, [_packet("P1")], repo_root=repo)
+        monkeypatch.setattr(
+            br.bl,
+            "run_packet",
+            lambda *args, **kwargs: {
+                "outcome": br.bl.LOOP_INFRASTRUCTURE_BLOCKED,
+                "reason": "publication unavailable",
+                "attempts": [],
+            },
+        )
+
+        summary = _run(repo, db_path, tmp_path)
+
+        assert summary["outcome"] == br.bl.LOOP_INFRASTRUCTURE_BLOCKED
+        assert summary["exhausted"] == 0
+        assert bi.get_initiative_state(INITIATIVE, db_path=db_path) != bi.INITIATIVE_PAUSED
+        decisions = [
+            event for event in bq.list_events(summary["task_id"], db_path=db_path)
+            if event["type"] == br.EVENT_DECISION
+        ]
+        assert decisions[-1]["payload"]["decision"] == "infrastructure_blocked"
+
     @pytest.mark.parametrize(("publish", "expected"), [(False, False), (True, True)])
     def test_publish_mode_controls_publication_preflight(
         self,

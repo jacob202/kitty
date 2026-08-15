@@ -10,6 +10,16 @@
 # Bypass:  git push --no-verify   (deliberate, and it says so in the output)
 set -uo pipefail
 
+PREFLIGHT=0
+if [[ "${1:-}" == "--preflight" ]]; then
+  PREFLIGHT=1
+  shift
+fi
+if [[ $# -ne 0 ]]; then
+  printf 'usage: %s [--preflight]\n' "$0" >&2
+  exit 2
+fi
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}" || exit 1
 
@@ -48,12 +58,26 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
     say "${RED}Push blocked — no Python to test with.${OFF}"
     say "Looked for the worktree/canonical Kitty venv and python3.12, found none."
     say "Fix: python3.12 -m venv venv && ./venv/bin/pip install -r requirements.txt"
+    [[ "${PREFLIGHT}" == "1" ]] && exit 75
     exit 1
   fi
 fi
 
 RUFF="${ROOT_DIR}/venv/bin/ruff"
 [[ -x "${RUFF}" ]] || RUFF=""
+
+if ! git --version >/dev/null 2>&1; then
+  say "Publication blocked — Git is unavailable."
+  exit 75
+fi
+if ! "${PYTHON_BIN}" -c 'import mypy, pytest, ruff' >/dev/null 2>&1; then
+  say "Publication blocked — Ruff, mypy, or pytest is unavailable to the selected Python."
+  exit 75
+fi
+if [[ "${PREFLIGHT}" == "1" ]]; then
+  say "Publication environment preflight passed."
+  exit 0
+fi
 
 # Frontend gates cost several minutes and only matter when the frontend moved.
 # Everything else runs every time — the last two breakages on main were both
@@ -71,15 +95,21 @@ else
 fi
 
 FAILED=()
+INFRA_FAILED=0
 run_gate() {
   local label="$1"; shift
+  local gate_rc=0
   say "${DIM}→ ${label}${OFF}"
-  if "$@" >/tmp/kitty-pre-push.$$ 2>&1; then
+  "$@" >/tmp/kitty-pre-push.$$ 2>&1 || gate_rc=$?
+  if [[ ${gate_rc} -eq 0 ]]; then
     say "  ${GREEN}ok${OFF}  ${label}"
   else
     say "  ${RED}FAILED${OFF}  ${label}"
     tail -n 25 /tmp/kitty-pre-push.$$ >&2
     FAILED+=("${label}")
+    if [[ ${gate_rc} -eq 75 || ${gate_rc} -eq 126 || ${gate_rc} -eq 127 ]]; then
+      INFRA_FAILED=1
+    fi
   fi
   rm -f /tmp/kitty-pre-push.$$
 }
@@ -110,6 +140,12 @@ if [[ ${#FAILED[@]} -eq 0 ]]; then
   say "${GREEN}All clear.${OFF} Pushing."
   say ""
   exit 0
+fi
+
+if [[ "${INFRA_FAILED}" == "1" ]]; then
+  say "${RED}Push blocked by publication infrastructure.${OFF} ${#FAILED[@]} gate(s) could not run reliably: ${FAILED[*]}"
+  say ""
+  exit 75
 fi
 
 say "${RED}Push blocked.${OFF} ${#FAILED[@]} of these failed: ${FAILED[*]}"
