@@ -40,8 +40,8 @@ Jacob can create or reopen a local durable room, send a request, and watch Plann
 
 - Accepted requirements and decisions: four named agents participate; Builder is proposal-only; all room runtime state remains in Kitty's app database.
 - Current implementation state: room turns are durable, serialized, background-executed Planner-to-Researcher-to-Builder-to-Reviewer handoffs. Builder is explicitly proposal-only. Startup interruption recovery records only transitions it wins.
-- Changed paths and current SHA: begin from `92b154567f563c97153438404201c4acf0c9ffea`; local changes are pending the final commit.
-- Known failures/blockers: the configured live provider chain exhausted after two real model responses; AgentRouter's configured GPT-5.5 route has no credential. The current volume has 159 MiB free, so the full backend run exhausts space in unrelated large-file fixtures. Ports 8000 and 4000 remain occupied by processes from an unknown checkout.
+- Changed paths and current SHA: begin from `92b154567f563c97153438404201c4acf0c9ffea`; runtime work is committed as `854f4e9e` and published in PR #498.
+- Known failures/blockers: the configured live provider chain exhausted after two real model responses; AgentRouter's configured GPT-5.5 route has no credential. Ports 8000 and 4000 remain occupied by processes from an unknown checkout.
 - Exact next verification action: configure a usable GPT-5.5/GPT-5.4 provider route, then submit and retain evidence for a clean four-agent room turn.
 
 ## Verifier report
@@ -53,10 +53,10 @@ Jacob can create or reopen a local durable room, send a request, and watch Plann
 | AC-3 | PASS | Failure and timeout tests pass; live Builder/provider exhaustion persisted a failed turn and incomplete system message rather than completion. | None. |
 | AC-4 | PASS | Builder prompt and focused lifecycle test enforce a proposal-only handoff; no room code calls KittyBuilder queue or worker APIs. | None. |
 | AC-5 | PASS | 353 frontend tests and production build pass; live UI showed running progress, handoffs, failure status, and incomplete work. | None. |
-| AC-6 | UNVERIFIED | Focused backend suite, static checks, frontend suite, and build pass. Full backend rerun reached 4,128 passing but ended in `ENOSPC`; a successful configured-model four-agent run is unavailable. | Free temporary disk capacity and restore a usable provider route. |
+| AC-6 | UNVERIFIED | Full backend suite passes: 4,172 tests, 0 failures, 0 errors, 1 skipped. Static checks, frontend suite, and production build pass. A successful configured-model four-agent run is unavailable. | Restore a usable provider route. |
 
 ## Final state
 
-`blocked on external provider availability and temporary-disk capacity`
+`blocked on external provider availability`
 
-Evidence-bound summary: the runtime implementation is locally committed only after final independent review; it is not a verified live delivery until the provider and full-suite blockers are cleared.
+Evidence-bound summary: the runtime implementation is committed and has a passing full test suite; it is not a verified live delivery until the configured provider can complete a clean four-agent room turn.
