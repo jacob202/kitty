@@ -261,6 +261,28 @@ def _prior_attempt_summary(row: sqlite3.Row) -> dict[str, Any]:
             "status": impl.get("status"),
             "summary": _clip(impl.get("summary"), NOTE_CAP),
         }
+    if row["validation_json"]:
+        validation = json.loads(row["validation_json"])
+        failed = next(
+            (
+                command
+                for command in validation.get("commands", [])
+                if isinstance(command, dict) and not command.get("passed")
+            ),
+            None,
+        )
+        digest["validation"] = {
+            "status": validation.get("status"),
+            "failed_command": (
+                {
+                    "command": _clip(str(failed.get("command", "")), NOTE_CAP),
+                    "exit_code": failed.get("exit_code"),
+                    "output_tail": _clip(str(failed.get("output_tail", "")), NOTE_CAP),
+                }
+                if failed is not None
+                else None
+            ),
+        }
     if row["review_json"]:
         review = json.loads(row["review_json"])
         digest["review"] = {
@@ -948,6 +970,7 @@ def run_validation(
     cwd: Path | None = None,
     timeout_seconds: int = DEFAULT_VALIDATION_TIMEOUT,
     db_path: Path | None = None,
+    extra_commands: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run the packet's declared validation_commands and record the verdict.
 
@@ -975,6 +998,7 @@ def run_validation(
             if packet["validation_commands_json"]
             else []
         )
+        commands.extend(extra_commands or [])
         task_id = row["task_id"]
     finally:
         conn.close()
