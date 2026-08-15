@@ -348,6 +348,26 @@ class TestContextBundle:
         assert [f["severity"] for f in review["findings"]] == ["major", "minor"]
         assert any("off by one" in f["note"] for f in review["findings"])
 
+    def test_prior_validation_failure_feeds_the_repair_attempt(
+        self, db_path: Path, tmp_path: Path
+    ):
+        _apply_with_commands(
+            db_path,
+            ["python3 -c \"import sys; print('publish gate broke'); sys.exit(7)\""],
+        )
+        first = ba.start_attempt("val-test", PACKET, db_path=db_path)
+        ba.record_implementation_result(
+            first["id"], _impl(status="completed"), db_path=db_path
+        )
+        ba.run_validation(first["id"], cwd=tmp_path, db_path=db_path)
+        ba.close_attempt(first["id"], "failed", db_path=db_path)
+
+        second = ba.start_attempt("val-test", PACKET, db_path=db_path)
+        validation = second["bundle"]["prior_attempts"][0]["validation"]
+        assert validation["status"] == "failed"
+        assert validation["failed_command"]["exit_code"] == 7
+        assert "publish gate broke" in validation["failed_command"]["output_tail"]
+
     def test_prior_summaries_are_clipped(self, db_path: Path):
         first = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
         ba.record_implementation_result(
@@ -421,6 +441,24 @@ class TestRunValidation:
         updated = ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
         assert updated["validation"]["status"] == "failed"
         assert updated["validation"]["commands"][1]["exit_code"] == 1
+
+    def test_extra_commands_append_to_declared_commands(
+        self, db_path: Path, tmp_path: Path
+    ):
+        _apply_with_commands(db_path, ["printf declared"])
+        attempt = ba.start_attempt("val-test", PACKET, db_path=db_path)
+        updated = ba.run_validation(
+            attempt["id"],
+            cwd=tmp_path,
+            db_path=db_path,
+            extra_commands=["printf extra"],
+        )
+        commands = updated["validation"]["commands"]
+        assert [record["command"] for record in commands] == [
+            "printf declared",
+            "printf extra",
+        ]
+        assert all(record["passed"] for record in commands)
 
     def test_no_commands_is_skipped(self, db_path: Path, tmp_path: Path):
         attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
