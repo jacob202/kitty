@@ -302,6 +302,32 @@ class TestRunWorker:
         assert run["final_report"]["scope_violations"] == []
         assert ".kittybuilder-bundle-1.json" in run["final_report"]["changed_paths"]
 
+    def test_opencode_continuation_residue_is_not_a_scope_violation(
+        self, repo: Path, db_path: Path
+    ):
+        """OpenCode writes this run-continuation receipt outside packet scope."""
+        task = _queued_task(db_path, allowed_paths=["gateway/"])
+        command = [
+            "sh",
+            "-c",
+            "mkdir -p gateway .omo/run-continuation && "
+            "echo ok > gateway/ok.py && "
+            "echo continuation > .omo/run-continuation/session.json",
+        ]
+
+        run = br.run_worker(
+            task["id"],
+            command,
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_EXITED
+        assert ".omo/run-continuation/session.json" in run["final_report"]["changed_paths"]
+        assert run["final_report"]["scope_violations"] == []
+
     def test_worker_staging_residue_does_not_mask_a_real_violation(
         self, repo: Path, db_path: Path
     ):
