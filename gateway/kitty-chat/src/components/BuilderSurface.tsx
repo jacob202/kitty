@@ -724,7 +724,12 @@ function PacketDetail({
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const command = useOperatorCommand()
-  const [busy, setBusy] = useState(false)
+  const [retryPreviewOpen, setRetryPreviewOpen] = useState(false)
+  const [retryAccepted, setRetryAccepted] = useState(false)
+  // The durable packet object at acceptance time. 'accepted' is only shown
+  // until the next manifest refresh reports a new packet state, so a durable
+  // re-failure after retry returns to attention instead of staying 'accepted'.
+  const acceptedPacketUpdatedAtRef = useRef<string | null>(null)
 
   useEffect(() => {
     headingRef.current?.focus()
@@ -733,17 +738,26 @@ function PacketDetail({
   const isDead = packet.task_state === 'cancelled' || packet.task_state === 'failed'
   const isPacketStale = isStalePacket(packet)
   const needsAction = isDead || isPacketStale || packet.budget?.exhausted === true
+  const retryAcceptedForPacket =
+    retryAccepted && acceptedPacketUpdatedAtRef.current === packet.updated_at
 
-  const runAction = (builderAction: string) => {
-    setBusy(true)
+  const runRetry = () => {
+    setRetryAccepted(false)
     command.mutate(
       {
-        action: builderAction,
+        action: 'requeue',
         initiative_id: packet.initiative_id,
+        packet_id: packet.packet_id,
         task_id: packet.task_id,
-        reason: `Builder surface requested ${builderAction}`,
+        reason: 'Builder surface requested retry of selected packet',
       },
-      { onSettled: () => setBusy(false) },
+      {
+        onSuccess: () => {
+          setRetryAccepted(true)
+          acceptedPacketUpdatedAtRef.current = packet.updated_at
+        },
+        onSettled: () => setRetryPreviewOpen(false),
+      },
     )
   }
 
@@ -776,20 +790,80 @@ function PacketDetail({
         <DataQualityNotice detail={packet.data_quality.issues.join(' ')} />
       )}
       {needsAction && (
-        <div style={{ ...card, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderColor: 'var(--c-yellow)' }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', flex: 1 }}>
-            {isDead ? 'This packet is dead — requeue to retry.' : isPacketStale ? staleLabel(packet) : 'Budget exhausted — requeue to retry.'}
-          </span>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => runAction('requeue')}
-            style={{ ...actionButton, color: 'var(--c-blue)', borderColor: 'var(--c-blue)' }}
-          >
-            {busy ? '…' : 'requeue'}
-          </button>
+        <div style={{ ...card, display: 'grid', gap: 10, borderColor: 'var(--c-yellow)' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', flex: 1 }}>
+              {isDead
+                ? `This packet is ${displayState(packet.task_state ?? 'unavailable')}.`
+                : isPacketStale
+                  ? staleLabel(packet)
+                  : 'Attempt budget exhausted.'}
+            </span>
+            <button
+              type="button"
+              disabled={command.isPending}
+              onClick={() => setRetryPreviewOpen(true)}
+              style={{ ...actionButton, color: 'var(--c-blue)', borderColor: 'var(--c-blue)' }}
+              aria-label="Retry this work"
+            >
+              {command.isPending ? '…' : 'Retry this work'}
+            </button>
+          </div>
+
+          {retryPreviewOpen && (
+            <div
+              role="region"
+              aria-label="Retry this work preview"
+              style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--line)', paddingTop: 10 }}
+            >
+              <p style={{ ...bodyText, margin: 0 }}>
+                Retry <strong>{packet.title}</strong>? This sends exactly one requeue
+                action for exactly this packet:
+              </p>
+              <span style={{ ...cardMeta, overflowWrap: 'anywhere' }}>
+                initiative {packet.initiative_id} · packet {packet.packet_id}
+              </span>
+              <p style={{ ...bodyText, margin: 0, fontSize: 11 }}>
+                Progress after retry comes from the refreshed runtime manifest; the
+                mutation response alone is never treated as completion.
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  disabled={command.isPending}
+                  onClick={runRetry}
+                  style={{ ...actionButton, background: 'var(--c-blue)', color: '#fff', borderColor: 'var(--c-blue)' }}
+                  aria-label="Confirm retry"
+                >
+                  {command.isPending ? '…' : 'Confirm retry'}
+                </button>
+                <button
+                  type="button"
+                  disabled={command.isPending}
+                  onClick={() => setRetryPreviewOpen(false)}
+                  style={actionButton}
+                  aria-label="Cancel retry"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {command.isError && (
+            <p role="status" style={{ ...bodyText, margin: 0, color: 'var(--c-red)' }}>
+              Retry rejected: {command.error instanceof Error ? command.error.message : 'the Builder command failed'}
+            </p>
+          )}
+
+          {retryAcceptedForPacket && !command.isError && (
+            <p role="status" style={{ ...bodyText, margin: 0 }}>
+              Retry accepted — waiting for the runtime manifest to confirm.
+            </p>
+          )}
         </div>
       )}
+      <RetryProgress packet={packet} accepted={retryAcceptedForPacket} />
       <div style={detailGrid}>
         <Metric label="task state" value={displayState(packet.task_state ?? 'unavailable')} />
         <Metric label="attempt budget" value={budgetLabel(packet)} />
@@ -816,6 +890,97 @@ function PacketDetail({
         <PublicationCard packet={packet} />
       </div>
       <InvestigationCard packet={packet} />
+    </section>
+  )
+}
+
+type RetryPhase = 'accepted' | 'queued' | 'running' | 'validation' | 'review' | 'complete'
+
+const RETRY_PHASES: RetryPhase[] = ['accepted', 'queued', 'running', 'validation', 'review', 'complete']
+
+/** Durable-fact phase for the selected packet's retry. Each phase maps to real
+ *  Builder packet/attempt facts; nothing is invented. Dead states (failed,
+ *  cancelled, blocked, stale, exhausted) yield null so a packet that returns to
+ *  attention after a retry can never display complete. */
+function deriveRetryPhase(packet: BuilderPacketStatus, accepted: boolean): RetryPhase | null {
+  if (packet.task_state === 'done') return 'complete'
+  if (packet.task_state === 'awaiting_review' || packet.task_state === 'pr_opened') return 'review'
+  const runActive =
+    packet.task_state === 'running'
+    || packet.task_state === 'claimed'
+    || packet.run?.state === 'starting'
+    || packet.run?.state === 'running'
+    || packet.run?.state === 'cancel_requested'
+  if (runActive) {
+    const latest = packet.attempt_history[0]
+    if (latest?.outcome === null && latest?.implementation_status === 'completed' && latest?.validation_status === null) {
+      return 'validation'
+    }
+    if (latest?.outcome === null && latest?.validation_status === 'passed' && latest?.review_verdict === null) {
+      return 'review'
+    }
+    return 'running'
+  }
+  if (packet.task_state === 'queued') return 'queued'
+  if (accepted) return 'accepted'
+  return null
+}
+
+function retryPhaseDetail(packet: BuilderPacketStatus, phase: RetryPhase): string {
+  switch (phase) {
+    case 'accepted':
+      return 'The Builder accepted the retry request. Waiting for the runtime manifest to report the next durable state.'
+    case 'queued':
+      return 'The packet is queued for the next eligible run.'
+    case 'running':
+      return 'A Builder worker is running this packet.'
+    case 'validation':
+      return 'Implementation is recorded complete and validation is in progress.'
+    case 'review':
+      return packet.task_state === 'awaiting_review' || packet.task_state === 'pr_opened'
+        ? 'The work is recorded as awaiting review.'
+        : 'Validation is recorded passed and review is pending.'
+    case 'complete':
+      return 'The packet is recorded complete in durable Builder state.'
+  }
+}
+
+/** Phase strip shown after a retry (or for in-flight packets), sourced only
+ *  from refreshed durable Builder facts. Labeled "Retry progress" so the Work
+ *  UI journey can target it with getByLabel. */
+function RetryProgress({ packet, accepted }: { packet: BuilderPacketStatus; accepted: boolean }) {
+  const phase = deriveRetryPhase(packet, accepted)
+  if (!phase) return null
+  const currentIndex = RETRY_PHASES.indexOf(phase)
+  return (
+    <section style={{ ...card, display: 'grid', gap: 10, minWidth: 0 }} aria-label="Retry progress">
+      <div style={cardHeader}>
+        <span style={cardTitle}>Retry progress</span>
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} role="status">
+        {RETRY_PHASES.map((name) => {
+          const reached = RETRY_PHASES.indexOf(name) <= currentIndex
+          return (
+            <span
+              key={name}
+              aria-current={name === phase ? 'step' : undefined}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                fontWeight: name === phase ? 700 : 400,
+                padding: '3px 8px',
+                borderRadius: 999,
+                color: reached ? 'var(--ink)' : 'var(--ink-3)',
+                background: name === phase ? 'var(--c-blue)' : 'var(--surface-2)',
+                opacity: reached ? 1 : 0.55,
+              }}
+            >
+              {name}
+            </span>
+          )
+        })}
+      </div>
+      <p style={{ ...bodyText, margin: 0, fontSize: 11 }}>{retryPhaseDetail(packet, phase)}</p>
     </section>
   )
 }

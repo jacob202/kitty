@@ -764,13 +764,23 @@ export function useExecuteRepair() {
 export function useOperatorCommand() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (payload: {
+    // Fail loud: an HTTP-success {ok:false} Builder response becomes a mutation
+    // error so callers surface the rejection instead of treating the command as
+    // accepted. The authoritative runtime-manifest refresh (onSuccess) is the
+    // only durable confirmation path.
+    mutationFn: async (payload: {
       action: string
       task_id?: string
       initiative_id?: string
       packet_id?: string
       reason?: string
-    }) => executeOperatorCommand({ ...payload, actor: 'cockpit-operator' }),
+    }) => {
+      const result = await executeOperatorCommand({ ...payload, actor: 'cockpit-operator' })
+      if (result.ok === false) {
+        throw new Error(result.error || `Builder rejected the ${payload.action} action`)
+      }
+      return result
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
     },
