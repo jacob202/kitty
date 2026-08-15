@@ -21,6 +21,7 @@ beforeEach(() => {
     value: {
       getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
       clear: () => values.clear(),
     },
   })
@@ -217,5 +218,30 @@ describe('AgentWorkspacePanel', () => {
     })
     expect(fetchAgentWorkspace).toHaveBeenCalledTimes(3)
     expect(screen.getByText('completed')).toBeInTheDocument()
+  })
+
+  it('offers a reset path and recovers when the saved room id 404s', async () => {
+    window.localStorage.setItem('kitty.agent-workspace-id', 'workspace_missing')
+    fetchAgentWorkspace.mockRejectedValue(new Error('Gateway returned 404 Not Found'))
+    const created = workspace()
+    createAgentWorkspace.mockResolvedValue(created)
+
+    render(<AgentWorkspacePanel />)
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'This room no longer exists' })).toBeInTheDocument()
+    )
+    // A stale/missing id must not trap the user behind a "retry" that can never succeed.
+    expect(screen.queryByRole('button', { name: 'retry room' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'start a new room' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'create shared room' })).toBeInTheDocument()
+    )
+    expect(window.localStorage.getItem('kitty.agent-workspace-id')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'create shared room' }))
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Kitty Shared Room' })).toBeInTheDocument())
   })
 })

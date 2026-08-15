@@ -304,6 +304,112 @@ def test_concurrent_submitters_admit_exactly_one_running_turn(workspace_db, monk
     assert [turn["status"] for turn in agent_workspace.list_turns(room["id"])] == ["running"]
 
 
+def test_list_messages_returns_newest_window_in_chronological_order(workspace_db):
+    room = agent_workspace.create_workspace(name="Kitty room", objective=None)
+    for index in range(10):
+        agent_workspace.append_message(
+            room["id"],
+            sender_kind="user",
+            sender_id="jacob",
+            content=f"turn {index}",
+            message_kind="prompt",
+        )
+
+    windowed = agent_workspace.list_messages(room["id"], limit=3)
+
+    # Bounded callers must see the *newest* messages, not the oldest, and in
+    # chronological (not reverse-chronological) order.
+    assert [message["content"] for message in windowed] == ["turn 7", "turn 8", "turn 9"]
+
+
+def test_get_workspace_reads_messages_events_and_turns_from_one_snapshot(
+    workspace_db, monkeypatch
+):
+    room = agent_workspace.create_workspace(name="Kitty room", objective="Ship a proof")
+    running_turn = agent_workspace.start_turn(room["id"], "Plan the first step.")
+    real_connect = agent_workspace.kitty_db.connect
+
+    class InterleavedWriteConnection:
+        """Commits a competing write between get_workspace's reads."""
+
+        def __init__(self, db_file):
+            self._connection = real_connect(db_file)
+            self._interleaved = False
+
+        def __enter__(self):
+            self._connection.__enter__()
+            return self
+
+        def __exit__(self, *args):
+            return self._connection.__exit__(*args)
+
+        def __getattr__(self, name):
+            return getattr(self._connection, name)
+
+        def execute(self, sql, parameters=()):
+            result = self._connection.execute(sql, parameters)
+            if not self._interleaved and "FROM agent_workspace_agents" in sql:
+                self._interleaved = True
+                with real_connect(workspace_db) as writer:
+                    writer.execute(
+                        """
+                        INSERT INTO agent_workspace_messages
+                            (id, workspace_id, parent_message_id, sender_kind, sender_id,
+                             recipient_id, message_kind, content, created_at)
+                        VALUES ('message_interleaved', ?, NULL, 'agent', 'planner',
+                                NULL, 'plan', 'late write', 999999)
+                        """,
+                        (room["id"],),
+                    )
+                    writer.execute(
+                        """
+                        UPDATE agent_workspace_turns
+                        SET status = 'completed', active_agent_id = NULL, finished_at = 999999
+                        WHERE id = ?
+                        """,
+                        (running_turn["id"],),
+                    )
+                    writer.commit()
+            return result
+
+    monkeypatch.setattr(agent_workspace, "init_db", lambda: None)
+    monkeypatch.setattr(agent_workspace.kitty_db, "connect", InterleavedWriteConnection)
+
+    reopened = agent_workspace.get_workspace(room["id"])
+
+    # The snapshot must not mix pre-write turns with post-write messages (or
+    # vice versa): either the interleaved write is fully visible or not at all.
+    turn_saw_completion = reopened["turns"][0]["status"] == "completed"
+    message_saw_write = any(
+        message["id"] == "message_interleaved" for message in reopened["messages"]
+    )
+    assert turn_saw_completion == message_saw_write
+
+
+def test_run_persisted_turn_does_not_append_after_the_turn_is_interrupted(workspace_db):
+    room = agent_workspace.create_workspace(name="Kitty room", objective="Ship a proof")
+    turn = agent_workspace.start_turn(room["id"], "Plan the first step.")
+
+    class InterruptingBackend(FakeWorkspaceBackend):
+        def complete(self, agent_id: str, prompt: str, context: list[dict]) -> str:
+            # Simulate a Gateway restart recovering this turn while the model
+            # call for the *first* step is still in flight.
+            agent_workspace.interrupt_running_turns(reason="restarted mid-flight")
+            return super().complete(agent_id, prompt, context)
+
+    result = agent_workspace.run_persisted_turn(
+        room["id"], turn["id"], backend=InterruptingBackend()
+    )
+
+    assert result["turn"]["status"] == "interrupted"
+    assert result["turn"]["error_type"] == "InterruptedError"
+    # No late planner message should have landed on top of the interruption record.
+    assert not any(
+        message["sender_id"] == "planner" for message in result["messages"]
+    )
+    assert result["messages"][-1]["content"].startswith("Incomplete: planner was interrupted")
+
+
 def test_second_turn_reuses_the_first_turns_durable_room_context(workspace_db):
     room = agent_workspace.create_workspace(name="Kitty room", objective="Ship a proof")
     backend = FakeWorkspaceBackend()

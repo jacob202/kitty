@@ -126,27 +126,37 @@ def get_workspace(workspace_id: str) -> dict[str, Any]:
     workspace_id = _required_text(workspace_id, "workspace_id", 200)
     init_db()
     with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
-        workspace = conn.execute(
-            "SELECT * FROM agent_workspaces WHERE id = ?", (workspace_id,)
-        ).fetchone()
-        if workspace is None:
-            raise AgentWorkspaceError(f"workspace {workspace_id} does not exist")
-        agents = [
-            dict(row)
-            for row in conn.execute(
-                """
-                SELECT * FROM agent_workspace_agents
-                WHERE workspace_id = ?
-                ORDER BY rowid
-                """,
-                (workspace_id,),
-            ).fetchall()
-        ]
+        # Explicit BEGIN so every read below sees one snapshot; without it each
+        # SELECT is its own autocommit read and a concurrent writer (e.g. the
+        # turn executor committing its final message) can be interleaved.
+        conn.execute("BEGIN")
+        try:
+            workspace = conn.execute(
+                "SELECT * FROM agent_workspaces WHERE id = ?", (workspace_id,)
+            ).fetchone()
+            if workspace is None:
+                raise AgentWorkspaceError(f"workspace {workspace_id} does not exist")
+            agents = [
+                dict(row)
+                for row in conn.execute(
+                    """
+                    SELECT * FROM agent_workspace_agents
+                    WHERE workspace_id = ?
+                    ORDER BY rowid
+                    """,
+                    (workspace_id,),
+                ).fetchall()
+            ]
+            messages = _list_messages(conn, workspace_id, limit=200)
+            events = _list_events(conn, workspace_id, limit=500)
+            turns = _list_turns(conn, workspace_id, limit=100)
+        finally:
+            conn.commit()
     result = dict(workspace)
     result["agents"] = [{**agent, "id": agent.pop("agent_id")} for agent in agents]
-    result["messages"] = list_messages(workspace_id)
-    result["events"] = list_events(workspace_id)
-    result["turns"] = list_turns(workspace_id)
+    result["messages"] = messages
+    result["events"] = events
+    result["turns"] = turns
     return result
 
 
@@ -159,7 +169,15 @@ def append_message(
     message_kind: str,
     recipient_id: str | None = None,
     parent_message_id: str | None = None,
+    require_turn_running: str | None = None,
 ) -> dict[str, Any]:
+    """Append a message.
+
+    ``require_turn_running``, when set to a turn id, fences the write: the
+    insert only happens if that turn is still ``running`` at commit time, so
+    a turn marked ``interrupted`` mid-flight (e.g. by a Gateway restart) can't
+    have a late agent message land on top of it.
+    """
     workspace_id = _required_text(workspace_id, "workspace_id", 200)
     sender_kind = _required_text(sender_kind, "sender_kind", 20)
     if sender_kind not in _SENDER_KINDS:
@@ -178,7 +196,21 @@ def append_message(
     now = time.time()
     init_db()
     with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
+        if require_turn_running is not None:
+            # Take the write lock before checking, so a concurrent writer
+            # (e.g. interrupt_running_turns) can't flip the turn's status
+            # between our check and the insert below.
+            conn.execute("BEGIN IMMEDIATE")
         _require_workspace(conn, workspace_id)
+        if require_turn_running is not None:
+            turn = conn.execute(
+                "SELECT status FROM agent_workspace_turns WHERE id = ? AND workspace_id = ?",
+                (require_turn_running, workspace_id),
+            ).fetchone()
+            if turn is None or turn["status"] != "running":
+                raise AgentWorkspaceError(
+                    f"turn {require_turn_running} is no longer running"
+                )
         if parent_message_id is not None:
             parent = conn.execute(
                 """
@@ -242,16 +274,22 @@ def list_messages(workspace_id: str, *, limit: int = 200) -> list[dict[str, Any]
     init_db()
     with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
         _require_workspace(conn, workspace_id)
-        rows = conn.execute(
-            """
-            SELECT * FROM agent_workspace_messages
-            WHERE workspace_id = ?
-            ORDER BY created_at, id
-            LIMIT ?
-            """,
-            (workspace_id, limit),
-        ).fetchall()
-    return [dict(row) for row in rows]
+        return _list_messages(conn, workspace_id, limit=limit)
+
+
+def _list_messages(conn: Any, workspace_id: str, *, limit: int) -> list[dict[str, Any]]:
+    # Bounded callers (e.g. _model_context) need the newest window, not the
+    # oldest: select DESC, then restore chronological order before returning.
+    rows = conn.execute(
+        """
+        SELECT * FROM agent_workspace_messages
+        WHERE workspace_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?
+        """,
+        (workspace_id, limit),
+    ).fetchall()
+    return [dict(row) for row in reversed(rows)]
 
 
 def list_events(workspace_id: str, *, limit: int = 500) -> list[dict[str, Any]]:
@@ -261,17 +299,21 @@ def list_events(workspace_id: str, *, limit: int = 500) -> list[dict[str, Any]]:
     init_db()
     with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
         _require_workspace(conn, workspace_id)
-        rows = conn.execute(
-            """
-            SELECT rowid AS sequence, * FROM agent_workspace_events
-            WHERE workspace_id = ?
-            ORDER BY rowid
-            LIMIT ?
-            """,
-            (workspace_id, limit),
-        ).fetchall()
+        return _list_events(conn, workspace_id, limit=limit)
+
+
+def _list_events(conn: Any, workspace_id: str, *, limit: int) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT rowid AS sequence, * FROM agent_workspace_events
+        WHERE workspace_id = ?
+        ORDER BY rowid DESC
+        LIMIT ?
+        """,
+        (workspace_id, limit),
+    ).fetchall()
     events = []
-    for row in rows:
+    for row in reversed(rows):
         event = dict(row)
         event["metadata"] = json.loads(event.pop("metadata_json"))
         events.append(event)
@@ -285,15 +327,19 @@ def list_turns(workspace_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
     init_db()
     with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
         _require_workspace(conn, workspace_id)
-        rows = conn.execute(
-            """
-            SELECT * FROM agent_workspace_turns
-            WHERE workspace_id = ?
-            ORDER BY started_at DESC, id DESC
-            LIMIT ?
-            """,
-            (workspace_id, limit),
-        ).fetchall()
+        return _list_turns(conn, workspace_id, limit=limit)
+
+
+def _list_turns(conn: Any, workspace_id: str, *, limit: int) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT * FROM agent_workspace_turns
+        WHERE workspace_id = ?
+        ORDER BY started_at DESC, id DESC
+        LIMIT ?
+        """,
+        (workspace_id, limit),
+    ).fetchall()
     return [dict(row) for row in rows]
 
 
@@ -550,6 +596,7 @@ def run_persisted_turn(
                 content=output,
                 message_kind=message_kind,
                 parent_message_id=parent_message_id,
+                require_turn_running=turn_id,
             )
             outputs[agent_id] = output
             parent_message_id = message["id"]
@@ -715,7 +762,15 @@ def _record_turn_failure(
             (error_type, detail, now, turn_id, workspace_id),
         ).rowcount
         if updated != 1:
-            raise AgentWorkspaceError(f"turn {turn_id} is no longer running")
+            # Someone else (e.g. interrupt_running_turns after a Gateway
+            # restart) already moved this turn to a terminal state and wrote
+            # its own record — this failure is stale, not a new one to report.
+            conn.rollback()
+            logger.info(
+                "turn %s already left running before failure could be recorded; skipping",
+                turn_id,
+            )
+            return
         conn.execute(
             "UPDATE agent_workspaces SET updated_at = ? WHERE id = ?",
             (now, workspace_id),

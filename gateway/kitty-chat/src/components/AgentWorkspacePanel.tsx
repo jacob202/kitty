@@ -17,6 +17,7 @@ export function AgentWorkspacePanel() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [workspaceMissing, setWorkspaceMissing] = useState(false)
   const loadInFlight = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
@@ -47,10 +48,19 @@ export function AgentWorkspacePanel() {
       try {
         const loaded = await fetchAgentWorkspace(id)
         setWorkspace(loaded)
+        setWorkspaceMissing(false)
         setError(null)
       } catch (err) {
-        // A poll failure must not erase the last durable transcript or stop retries.
-        setError(err instanceof Error ? err.message : 'Could not load the shared workspace')
+        // A definitively-missing workspace (e.g. after a local DB reset) 404s
+        // forever; retrying the same id can't recover it, so surface a reset
+        // path instead of trapping the user in an unusable "retry" loop.
+        const message = err instanceof Error ? err.message : 'Could not load the shared workspace'
+        if (message.includes('404')) {
+          setWorkspaceMissing(true)
+        } else {
+          // A transient poll failure must not erase the last durable transcript.
+          setError(message)
+        }
       } finally {
         if (showLoading) setLoading(false)
       }
@@ -61,6 +71,14 @@ export function AgentWorkspacePanel() {
     } finally {
       if (loadInFlight.current === request) loadInFlight.current = null
     }
+  }
+
+  function resetWorkspace() {
+    window.localStorage.removeItem(STORAGE_KEY)
+    setWorkspaceId(null)
+    setWorkspace(null)
+    setWorkspaceMissing(false)
+    setError(null)
   }
 
   async function handleCreate() {
@@ -125,7 +143,7 @@ export function AgentWorkspacePanel() {
         </section>
       )}
 
-      {!loading && !workspace && workspaceId && (
+      {!loading && !workspace && workspaceId && !workspaceMissing && (
         <section style={cardStyle}>
           <h2 style={sectionTitleStyle}>Reopen your shared room</h2>
           <p style={bodyStyle}>
@@ -133,6 +151,21 @@ export function AgentWorkspacePanel() {
           </p>
           <button type="button" onClick={() => void loadWorkspace(workspaceId)} disabled={busy} style={buttonStyle}>
             retry room
+          </button>
+          <button type="button" onClick={resetWorkspace} disabled={busy} style={buttonStyle}>
+            start a new room
+          </button>
+        </section>
+      )}
+
+      {!loading && !workspace && workspaceId && workspaceMissing && (
+        <section style={cardStyle}>
+          <h2 style={sectionTitleStyle}>This room no longer exists</h2>
+          <p style={bodyStyle}>
+            The saved room was not found — it may have been cleared. Start a new one to continue.
+          </p>
+          <button type="button" onClick={resetWorkspace} disabled={busy} style={buttonStyle}>
+            start a new room
           </button>
         </section>
       )}
