@@ -98,6 +98,17 @@ def _git_root() -> Path:
     return Path(result.stdout.strip())
 
 
+def _require_external_review_note_path(raw_path: str) -> Path:
+    """Require reviewer notes to live outside the reviewed Git worktree."""
+    root = _git_root().resolve()
+    note_path = Path(raw_path).expanduser().resolve()
+    if note_path == root or root in note_path.parents:
+        raise AdapterError(
+            f"review note path must be outside the review worktree: {note_path}"
+        )
+    return note_path
+
+
 def _resolve_claude_bin() -> Path | None:
     pinned = os.environ.get("KITTYBUILDER_CLAUDE_BIN")
     if pinned:
@@ -208,8 +219,13 @@ def _probe_auth(bin_path: Path, model: str) -> tuple[str, str]:
     detail = (result.stderr or result.stdout or "").strip()
     lowered = detail.lower()
     auth_markers = ("auth", "login", "unauthorized", "api key", "credential", "not authenticated")
-    if not detail or any(marker in lowered for marker in auth_markers):
+    if any(marker in lowered for marker in auth_markers):
         return "unavailable", detail
+    if not detail:
+        return (
+            "error",
+            f"claude probe failed for model {model} (exit {result.returncode}) without output",
+        )
     return "error", f"claude probe failed for model {model} (exit {result.returncode}): {detail}"
 
 
@@ -431,6 +447,16 @@ def _run_review() -> int:
     if bin_path is None:
         return EXIT_UNAVAILABLE
 
+    note_path_raw = os.environ.get("KB_REVIEW_NOTE_PATH")
+    try:
+        note_path = (
+            _require_external_review_note_path(note_path_raw)
+            if note_path_raw
+            else None
+        )
+    except AdapterError as exc:
+        return _fail(str(exc))
+
     before = _fingerprint()
     if not before.startswith(review_sha + "\n"):
         return _fail(f"reviewer started on a different HEAD than {review_sha}")
@@ -485,9 +511,8 @@ def _run_review() -> int:
         if after != before:
             return _fail("read-only reviewer changed the worktree; no review published")
 
-        note_path = os.environ.get("KB_REVIEW_NOTE_PATH")
-        if note_path:
-            _write_review_note(review, Path(note_path), review_sha, model)
+        if note_path is not None:
+            _write_review_note(review, note_path, review_sha, model)
 
         import tempfile as _tempfile
 
