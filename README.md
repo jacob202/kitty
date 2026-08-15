@@ -1,1 +1,96 @@
-hello again
+# Kitty
+
+Kitty is Jacob's local-first personal AI system. It owns conversation behavior, context, memory, projects, tools, Tutor, model policy, and user-facing workflows while keeping models and clients replaceable.
+
+KittyBuilder is the separate engineering control plane. It owns accepted Missions, queues, workers, attempts, leases, retries, validation, reviews, budgets, evidence, and PR publication.
+
+## Current operating model
+
+| Surface | Role | Default |
+|---|---|---|
+| Open WebUI | Replaceable daily-driver shell authorized by ADR 0027 | `127.0.0.1:3000` |
+| Gateway | Product authority and API | `127.0.0.1:8000` |
+| LiteLLM | Model routing and fallback | `127.0.0.1:8001` |
+| KittyBuilder | Durable engineering execution control plane | supported DB/API/CLI |
+| `kitty-chat` | Retained custom client, fallback, and development surface | `127.0.0.1:4000` |
+
+The Gateway is the product. Open WebUI and other clients are thin, replaceable views. Kitty must remain useful when KittyBuilder is unavailable, and Builder execution truth must never be inferred from GitHub comments or handoff prose.
+
+```text
+Open WebUI / other clients
+  → Kitty Gateway
+    → context + memory + tools + projects + Tutor
+    → LiteLLM / provider chain
+    → approved Mission → KittyBuilder → Result/Evidence
+```
+
+## Start here
+
+1. [`START_HERE.md`](START_HERE.md) — cold-start reading order.
+2. [`docs/AUTHORITY_MAP.md`](docs/AUTHORITY_MAP.md) — where each kind of truth lives.
+3. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — current boundaries and state ownership.
+4. [`docs/ROADMAP.md`](docs/ROADMAP.md) — the short active delivery sequence.
+5. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — verified repository state and explicit unknowns.
+6. [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md) — the one approved current mission.
+7. [`docs/audit/GITHUB_OPERATING_PICTURE_2026-08-04.md`](docs/audit/GITHUB_OPERATING_PICTURE_2026-08-04.md) — dated evidence from the GitHub truth pass.
+
+## Quick start
+
+```bash
+python3.12 -m venv venv
+venv/bin/pip install -r requirements.txt
+cp .env.example .env
+
+./kitty up
+python3 scripts/openwebui_local.py bootstrap
+./kitty status
+./kitty doctor --json
+```
+
+Open WebUI should be available at `http://127.0.0.1:3000`. To run the retained custom client deliberately:
+
+```bash
+cd gateway/kitty-chat
+npm install
+npm run dev
+```
+
+## Verification
+
+```bash
+git status --short --branch
+./kitty context --agent
+./kitty status
+./kitty doctor --json
+python3.12 -m pytest tests/ -q --tb=short
+cd gateway/kitty-chat && npm test && npm run build
+```
+
+Repository CI does not prove local credentials, provider balances, launchd state, real paid routes, or Jacob's installed Open WebUI database. Runtime claims require supported local verification and explicit charge authorization where applicable.
+
+## Durable rules
+
+- Accepted ADRs define architecture and supersession.
+- `docs/ROADMAP.md` is the only active delivery order.
+- `docs/PROJECT_STATUS.md` is a dated evidence summary, not a live dashboard.
+- `docs/ACTIVE_MISSION.md` is the only approved current mission.
+- Plans, packets, issue comments, and archived documents are inputs or history unless promoted explicitly.
+- Builder execution truth lives in its supported database/API/CLI.
+- New context reads go through `memory_graph`; app-state writes use established storage boundaries.
+- Never commit secrets or treat generated files under `data/`, `logs/`, or `.next/` as documentation.
+- Open WebUI and `kitty-chat` remain loopback-only unless a separately reviewed authentication boundary is implemented.
+
+## Repository navigation
+
+| Need | Location |
+|---|---|
+| Code and data-flow map | [`docs/reference/CODEBASE_MAP.md`](docs/reference/CODEBASE_MAP.md) |
+| Product purpose | [`docs/NORTH_STAR.md`](docs/NORTH_STAR.md) |
+| Architecture decisions | [`docs/DECISIONS.md`](docs/DECISIONS.md) and [`docs/adr/`](docs/adr/) |
+| Builder operation | [`docs/KITTYBUILDER_QUICKSTART.md`](docs/KITTYBUILDER_QUICKSTART.md) |
+| Documentation index | [`docs/README.md`](docs/README.md) |
+| Historical material | [`docs/archive/`](docs/archive/) |
+
+## Image-history decision
+
+Previously removed personal images remain in Git history by explicit owner decision. This maintenance work does not rewrite, purge, enumerate, or otherwise alter that history.
