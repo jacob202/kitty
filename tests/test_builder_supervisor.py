@@ -223,20 +223,24 @@ def test_direct_module_tick_honors_queue_kill_switch(db_path: Path, monkeypatch:
     tick_mock.assert_not_called()
 
 
-def test_launch_run_uses_packet_loop(repo: Path, db_path: Path) -> None:
+def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) -> None:
+    kitty = repo / "kitty"
+    kitty.write_text("#!/bin/sh\n", encoding="utf-8")
+    kitty.chmod(0o755)
     packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": "task-1"}
-    expected = {"outcome": "succeeded", "initiative_id": "test-init-1", "packet_id": "p1", "attempts": []}
-    with patch.object(bs, "canonical_worker_command", return_value=["bash", "worker.sh"]):
-        with patch.object(bs, "canonical_reviewer_command", create=True, return_value=["bash", "reviewer.sh"]):
-            with patch("gateway.builder_loop.run_packet", return_value=expected) as run_packet:
-                with patch("gateway.builder_runner.run_worker_detached", side_effect=AssertionError("raw runner must not be used")):
-                    result = bs._launch_run(packet, repo_root=repo, db_path=db_path)
-    assert result == expected
-    kwargs = run_packet.call_args.kwargs
-    assert run_packet.call_args.args[:2] == ("test-init-1", "p1")
-    assert kwargs["worker"] == bs.SUPERVISOR_WORKER
-    assert kwargs["governor_requested_route"] == "free"
-    assert kwargs["review_command"] is not None
+
+    with patch("gateway.builder_supervisor.subprocess.Popen") as popen:
+        popen.return_value.pid = 4321
+        result = bs._launch_run(packet, repo_root=repo, db_path=db_path)
+
+    argv = popen.call_args.args[0]
+    assert argv == [str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1", "--free", "--json"]
+    assert popen.call_args.kwargs["start_new_session"] is True
+    assert popen.call_args.kwargs["shell"] is False
+    assert result["status"] == "dispatched"
+    assert result["launcher_pid"] == 4321
+    assert result["task_id"] == "task-1"
+
 
 
 def test_supervisor_launcher_defaults_to_repo_venv() -> None:
