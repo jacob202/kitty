@@ -286,6 +286,19 @@ async def health():
     }
 
 
+@app.get("/ready")
+async def ready():
+    """Production readiness: auth + canonical repo + chat route + Builder DB."""
+    from gateway.readiness import readiness_snapshot
+
+    snapshot = await readiness_snapshot()
+    return Response(
+        status_code=200 if snapshot["ready"] else 503,
+        media_type="application/json",
+        content=json.dumps(snapshot),
+    )
+
+
 @app.get("/mood")
 async def get_mood():
     """Return Kitty's current mood and session stats for the UI."""
