@@ -17,7 +17,6 @@ from pathlib import Path
 
 import pytest
 
-
 _ADAPTER = (Path(__file__).parents[1] / "scripts" / "kittybuilder_claude_adapter.py").resolve()
 _GOOD_WORKER_RESULT = json.dumps(
     {
