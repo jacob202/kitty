@@ -14,9 +14,8 @@ Walking-skeleton contract:
   to the queue DB) for the whole pass, deterministically selects eligible
   *active* initiatives (derived state ``active``, ordered by initiative id),
   picks each one's next eligible packet via ``builder_initiative.next_packet``
-  (deterministic ``seq`` order), and launches **no more than**
-  :data:`MAX_RUNS_PER_TICK` canonical runs via
-  ``builder_runner.run_worker_detached``.
+  (deterministic ``seq`` order), and detaches **no more than**
+  :data:`MAX_RUNS_PER_TICK` canonical ``initiative run-packet`` loops.
 - Duplicate ticks do nothing: a concurrent tick cannot acquire the lock and
   returns a ``locked`` receipt with no launches; a sequential re-tick finds
   the already-claimed tasks no longer ``queued`` and launches nothing.
@@ -30,9 +29,11 @@ not in the CLI, so the CLI surface stays fixed.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import plistlib
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -46,8 +47,7 @@ from gateway.paths import BUILDER_QUEUE_DB
 # duplicate or concurrent ticks never exceed it.
 MAX_RUNS_PER_TICK = 2
 
-# Canonical run identity on run rows: the supervisor is the dispatcher that
-# claims + spawns the worker; the run itself belongs to the runner machinery.
+# Canonical worker identity recorded by the packet attempt loop.
 SUPERVISOR_WORKER = "autonomous-supervisor"
 
 # launchd registration for the periodic supervisor tick.
@@ -59,6 +59,7 @@ LOGIN_SAFE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbi
 # executable the supervisor may dispatch. The env mirrors the free route's
 # adapter env (see builder_cli._free_adapter_env) without importing the CLI.
 _FREE_ADAPTER_SCRIPT = "scripts/kittybuilder_opencode_worker.sh"
+_FREE_REVIEWER_SCRIPT = "scripts/kittybuilder_opencode_reviewer.sh"
 
 
 class SupervisorError(RuntimeError):
@@ -100,9 +101,11 @@ class SupervisorLock:
         try:
             fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.acquired = True
-        except OSError:
+        except OSError as exc:
             self._fh.close()
             self._fh = None
+            if exc.errno not in {errno.EAGAIN, errno.EACCES}:
+                raise
         return self
 
     def __exit__(self, *_exc_info: Any) -> None:
@@ -125,12 +128,21 @@ def canonical_worker_command(repo_root: Path | None = None) -> list[str]:
     return ["bash", str(script)]
 
 
-def canonical_adapter_env() -> dict[str, str]:
+def canonical_reviewer_command(repo_root: Path | None = None) -> list[str]:
+    """The canonical free reviewer command used by the packet loop."""
+    root = (repo_root or repo_root_default()).resolve()
+    script = root / _FREE_REVIEWER_SCRIPT
+    if not script.is_file():
+        raise SupervisorError(f"canonical reviewer adapter missing: {script}")
+    return ["bash", str(script)]
+
+
+def canonical_adapter_env(model: str | None = None) -> dict[str, str]:
     """Child-only adapter env for the canonical free OpenCode worker."""
     return {
         "KITTYBUILDER_AGENT": "free-builder",
         "KITTYBUILDER_REVIEW_AGENT": "free-reviewer",
-        "KITTYBUILDER_MODEL": "",
+        "KITTYBUILDER_MODEL": model or "",
         "KITTYBUILDER_REVIEW_MODEL": "",
         "KITTYBUILDER_MODELS": "",
         "KITTYBUILDER_REVIEW_MODELS": "",
@@ -159,78 +171,54 @@ def active_initiatives(db_path: Path | None = None) -> list[dict[str, Any]]:
     return sorted(active, key=lambda i: str(i["id"]))
 
 
+def _validate_max_runs(max_runs: int) -> None:
+    if max_runs < 1 or max_runs > MAX_RUNS_PER_TICK:
+        raise ValueError(f"max_runs must be between 1 and at most {MAX_RUNS_PER_TICK}")
+
+
 def _select_packets(
     db_path: Path | None = None, *, max_runs: int = MAX_RUNS_PER_TICK
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Deterministically pick up to ``max_runs`` packets, plus a skip log.
-
-    Iterates active initiatives in id order and, within each, its eligible
-    packets in ``seq`` order (``eligible_packets`` is deterministic), stopping
-    once ``max_runs`` packets are selected. Initiatives with no eligible
-    packet, and packets whose task is no longer queued or already has an
-    active run (a duplicate tick after a prior dispatch), are recorded in the
-    skip log with a truthful reason.
-    """
-    if max_runs < 1:
-        raise ValueError("max_runs must be >= 1")
+    """Pick at most one next packet per active initiative, deterministically."""
+    _validate_max_runs(max_runs)
     selected: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     for initiative in active_initiatives(db_path):
         if len(selected) >= max_runs:
             break
         initiative_id = str(initiative["id"])
-        eligible = bi.eligible_packets(initiative_id, db_path=db_path)
-        if not eligible:
-            skipped.append(
-                {
-                    "initiative_id": initiative_id,
-                    "packet_id": None,
-                    "task_id": None,
-                    "reason": "no_eligible_packet",
-                }
-            )
+        packet = bi.next_packet(initiative_id, db_path=db_path)
+        if packet is None:
+            skipped.append({
+                "initiative_id": initiative_id, "packet_id": None,
+                "task_id": None, "reason": "no_eligible_packet",
+            })
             continue
-        for packet in eligible:
-            if len(selected) >= max_runs:
-                break
-            task = bq.get_task(str(packet["task_id"]), db_path=db_path)
-            if task is None:
-                skipped.append(
-                    {
-                        "initiative_id": initiative_id,
-                        "packet_id": str(packet["packet_id"]),
-                        "task_id": str(packet["task_id"]),
-                        "reason": "task_missing",
-                    }
-                )
-                continue
-            if task["state"] != bq.QUEUED:
-                skipped.append(
-                    {
-                        "initiative_id": initiative_id,
-                        "packet_id": str(packet["packet_id"]),
-                        "task_id": str(packet["task_id"]),
-                        "reason": "task_not_queued",
-                    }
-                )
-                continue
-            active_runs = [
-                run
-                for run in bq.list_runs(str(packet["task_id"]), db_path=db_path)
-                if run["state"] in RUN_ACTIVE_STATES
-            ]
-            if active_runs:
-                skipped.append(
-                    {
-                        "initiative_id": initiative_id,
-                        "packet_id": str(packet["packet_id"]),
-                        "task_id": str(packet["task_id"]),
-                        "reason": "active_run_exists",
-                        "run_id": str(active_runs[0]["id"]),
-                    }
-                )
-                continue
-            selected.append(packet)
+        task = bq.get_task(str(packet["task_id"]), db_path=db_path)
+        if task is None:
+            skipped.append({
+                "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
+                "task_id": str(packet["task_id"]), "reason": "task_missing",
+            })
+            continue
+        if task["state"] != bq.QUEUED:
+            skipped.append({
+                "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
+                "task_id": str(packet["task_id"]), "reason": "task_not_queued",
+            })
+            continue
+        active_runs = [
+            run for run in bq.list_runs(str(packet["task_id"]), db_path=db_path)
+            if run["state"] in RUN_ACTIVE_STATES
+        ]
+        if active_runs:
+            skipped.append({
+                "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
+                "task_id": str(packet["task_id"]), "reason": "active_run_exists",
+                "run_id": str(active_runs[0]["id"]),
+            })
+            continue
+        selected.append(packet)
     return selected, skipped
 
 
@@ -242,25 +230,51 @@ def _launch_run(
     worker: str = SUPERVISOR_WORKER,
     model: str | None = None,
 ) -> dict[str, Any]:
-    """Launch one canonical detached run for a packet.
+    """Detach one packet through the canonical Builder run-packet CLI.
 
-    Thin wrapper around ``builder_runner.run_worker_detached``: it claims the
-    task, creates the run row, and hands the full worker lifecycle to the
-    durable detached supervisor. Returns the dispatch record. Module-level so
-    tests may monkeypatch it without spawning real processes.
+    The detached child owns ``builder_loop.run_packet`` and therefore creates
+    the attempt bundle, validation evidence, reviewer binding, and durable run
+    state. The supervisor owns only dispatch and returns promptly.
     """
-    from gateway.builder_runner import run_worker_detached
+    del worker, model  # the canonical free CLI owns worker/model routing
+    root = (repo_root or repo_root_default()).resolve()
+    kitty = root / "kitty"
+    if not kitty.is_file():
+        raise SupervisorError(f"Kitty launcher missing: {kitty}")
 
-    return run_worker_detached(
-        str(packet["task_id"]),
-        canonical_worker_command(repo_root),
-        worker=worker,
-        model=model,
-        db_path=db_path,
-        repo_root=repo_root,
-        extra_env=canonical_adapter_env(),
-        inject_context=True,
-    )
+    initiative_id = str(packet["initiative_id"])
+    packet_id = str(packet["packet_id"])
+    task_id = str(packet["task_id"])
+    command = [
+        str(kitty), "builder", "initiative", "run-packet",
+        initiative_id, packet_id, "--free", "--json",
+    ]
+    log_dir = root / "data" / "kittybuilder" / "supervisor-launch"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"{initiative_id}-{packet_id}.log"
+    child_env = os.environ.copy()
+    if db_path is not None:
+        child_env["KITTY_BUILDER_DATA_DIR"] = str(Path(db_path).resolve().parent)
+    with log_path.open("ab") as log_handle:
+        process = subprocess.Popen(
+            command,
+            cwd=str(root),
+            stdin=subprocess.DEVNULL,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            env=child_env,
+            shell=False,
+            start_new_session=True,
+            close_fds=True,
+        )
+    return {
+        "status": "dispatched",
+        "launcher_pid": process.pid,
+        "initiative_id": initiative_id,
+        "packet_id": packet_id,
+        "task_id": task_id,
+        "log_path": str(log_path),
+    }
 
 
 def tick(
@@ -277,6 +291,7 @@ def tick(
     launched run, and every skipped candidate with its reason. A duplicate
     concurrent tick returns ``status: "locked"`` with no launches.
     """
+    _validate_max_runs(max_runs)
     with SupervisorLock(db_path) as lock:
         if not lock.acquired:
             return {
@@ -315,7 +330,7 @@ def tick(
                 entry["dispatch"] = dispatch
             launched.append(entry)
         return {
-            "status": "ok",
+            "status": "error" if any("error" in item for item in launched) else "ok",
             "lock": {"acquired": True, "path": str(lock.path)},
             "max_runs": max_runs,
             "scanned_initiatives": scanned,
@@ -420,6 +435,9 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.buffer.write(b"\n")
         return 0
     if args.command == "tick":
+        if os.environ.get("KITTY_BUILDER_QUEUE_ENABLED", "1") == "0":
+            print("error: KittyBuilder queue is disabled; refusing supervisor tick", file=sys.stderr)
+            return 1
         receipt = tick(max_runs=args.max_runs)
         print(json.dumps(receipt, indent=2, default=str, sort_keys=True))
         return 0 if receipt["status"] in {"ok", "locked"} else 1

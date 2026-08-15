@@ -190,26 +190,27 @@ def _fingerprint() -> str:
     return f"{head}\n{status}"
 
 
-def _probe_auth(bin_path: Path, model: str) -> bool:
-    """A tiny no-op request proves the executable and auth are usable.
-
-    Returns True when the probe completes with exit 0. Any failure (missing
-    auth, network, crash, timeout) is treated as provider-unavailable and the
-    caller exits 75 without producing output or changing the worktree.
-    """
+def _probe_auth(bin_path: Path, model: str) -> tuple[str, str]:
+    """Return (ok|unavailable|error, detail) for the no-op Claude probe."""
     timeout = float(os.environ.get("KITTYBUILDER_CLAUDE_PROBE_TIMEOUT", "30"))
     try:
         result = subprocess.run(
             [str(bin_path), "-p", "--model", model, PROBE_PROMPT],
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
+            stdin=subprocess.DEVNULL, capture_output=True, text=True,
+            timeout=timeout, check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return result.returncode == 0
+    except subprocess.TimeoutExpired as exc:
+        return "error", f"claude probe timed out for model {model}: {exc}"
+    except OSError as exc:
+        return "error", f"claude probe could not run model {model}: {exc}"
+    if result.returncode == 0:
+        return "ok", ""
+    detail = (result.stderr or result.stdout or "").strip()
+    lowered = detail.lower()
+    auth_markers = ("auth", "login", "unauthorized", "api key", "credential", "not authenticated")
+    if not detail or any(marker in lowered for marker in auth_markers):
+        return "unavailable", detail
+    return "error", f"claude probe failed for model {model} (exit {result.returncode}): {detail}"
 
 
 def _run_model(bin_path: Path, model: str, prompt: str, timeout: float) -> int:
@@ -321,25 +322,26 @@ def _write_review_note(review: dict, note_path: Path, sha: str, model: str) -> N
     note_path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _commit_completed_work(task_id: str, attempt_id: str, bundle_path: Path) -> None:
+def _commit_completed_work(task_id: str, attempt_id: str, packet_id: str) -> None:
     """Commit a real completed change on the model's behalf (adapter duty)."""
     status = subprocess.run(
         ["git", "status", "--porcelain=v1", "--untracked-files=all"],
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout
-    if not status.strip():
-        return
-    packet_id = json.loads(bundle_path.read_text(encoding="utf-8")).get("packet_id", "packet")
-    subprocess.run(["git", "add", "-A"], check=False)
-    subprocess.run(
-        [
-            "git", "commit", "--quiet",
-            "-m", f"[{packet_id}] kittybuilder: {task_id} attempt {attempt_id} (claude worker)",
-        ],
-        check=False,
+        capture_output=True, text=True, check=False,
     )
+    if status.returncode != 0:
+        raise AdapterError((status.stderr or status.stdout or "git status failed").strip())
+    if not status.stdout.strip():
+        return
+    add = subprocess.run(["git", "add", "-A"], capture_output=True, text=True, check=False)
+    if add.returncode != 0:
+        raise AdapterError(f"git add failed: {(add.stderr or add.stdout).strip()}")
+    commit = subprocess.run(
+        ["git", "commit", "--quiet", "-m", f"[{packet_id}] kittybuilder: {task_id} attempt {attempt_id} (claude worker)"],
+        capture_output=True, text=True, check=False,
+    )
+    if commit.returncode != 0:
+        raise AdapterError(f"git commit failed: {(commit.stderr or commit.stdout).strip()}")
+
 
 
 # ---------------------------------------------------------------------------
@@ -380,8 +382,11 @@ def _run_worker() -> int:
         model = os.environ.get(
             "KITTYBUILDER_CLAUDE_WORKER_MODEL", DEFAULT_WORKER_MODEL
         )
-        if not _probe_auth(bin_path, model):
+        probe_status, probe_detail = _probe_auth(bin_path, model)
+        if probe_status == "unavailable":
             return EXIT_UNAVAILABLE
+        if probe_status == "error":
+            return _fail(probe_detail)
 
         timeout = float(os.environ.get("KB_WORKER_TIMEOUT_SECONDS", "3600"))
         rc = _run_model(bin_path, model, _worker_prompt(staged), timeout)
@@ -395,8 +400,14 @@ def _run_worker() -> int:
             return _fail(str(exc))
 
         shutil.copyfile(staged["result"], _require_env("KB_RESULT_PATH"))
+        packet_id = str(json.loads(staged["bundle"].read_text(encoding="utf-8")).get("packet_id", "packet"))
+        for path in staged.values():
+            path.unlink(missing_ok=True)
         if result["status"] == "completed":
-            _commit_completed_work(task_id, attempt_id, staged["bundle"])
+            try:
+                _commit_completed_work(task_id, attempt_id, packet_id)
+            except AdapterError as exc:
+                return _fail(str(exc))
         print(f"Claude worker completed with {model}.")
         return 0
     finally:
@@ -452,8 +463,11 @@ def _run_review() -> int:
         model = os.environ.get(
             "KITTYBUILDER_CLAUDE_REVIEW_MODEL", DEFAULT_REVIEWER_MODEL
         )
-        if not _probe_auth(bin_path, model):
+        probe_status, probe_detail = _probe_auth(bin_path, model)
+        if probe_status == "unavailable":
             return EXIT_UNAVAILABLE
+        if probe_status == "error":
+            return _fail(probe_detail)
 
         timeout = float(os.environ.get("KB_REVIEW_TIMEOUT_SECONDS", "900"))
         rc = _run_model(bin_path, model, _reviewer_prompt(staged), timeout)
@@ -466,16 +480,14 @@ def _run_review() -> int:
         except (AdapterError, json.JSONDecodeError) as exc:
             return _fail(str(exc))
 
+        # Reviewer immutability: publish no review artifact unless untouched.
+        after = _fingerprint()
+        if after != before:
+            return _fail("read-only reviewer changed the worktree; no review published")
+
         note_path = os.environ.get("KB_REVIEW_NOTE_PATH")
         if note_path:
             _write_review_note(review, Path(note_path), review_sha, model)
-
-        # Reviewer immutability: publish only when the worktree is untouched.
-        after = _fingerprint()
-        if after != before:
-            return _fail(
-                "read-only reviewer changed the worktree; no review published"
-            )
 
         import tempfile as _tempfile
 
