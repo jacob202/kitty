@@ -267,6 +267,153 @@ def append_message(
     return dict(row)
 
 
+def _persist_agent_output(
+    workspace_id: str,
+    turn_id: str,
+    *,
+    agent_id: str,
+    recipient_id: str | None,
+    content: str,
+    message_kind: str,
+    parent_message_id: str,
+    final_step: bool,
+) -> dict[str, Any]:
+    """Commit an accepted agent output and its turn transition atomically."""
+    workspace_id = _required_text(workspace_id, "workspace_id", 200)
+    turn_id = _required_text(turn_id, "turn_id", 200)
+    agent_id = _required_text(agent_id, "agent_id", 200)
+    if agent_id not in _AGENT_SEQUENCE:
+        raise AgentWorkspaceError(f"unknown agent {agent_id}")
+    if recipient_id is not None:
+        recipient_id = _required_text(recipient_id, "recipient_id", 200)
+    content = _bounded_text(content, "content", MAX_MESSAGE_LENGTH)
+    message_kind = _required_text(message_kind, "message_kind", 20)
+    if message_kind not in _MESSAGE_KINDS:
+        raise AgentWorkspaceError(f"message_kind must be one of {sorted(_MESSAGE_KINDS)}")
+    parent_message_id = _required_text(parent_message_id, "parent_message_id", 200)
+
+    message_id = f"message_{uuid.uuid4().hex}"
+    now = time.time()
+    init_db()
+    with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
+        # Serialize the status check, durable output, completion event, and the
+        # active/terminal turn transition. Startup recovery can therefore see
+        # either the whole completed step or none of it, never a contradiction.
+        conn.execute("BEGIN IMMEDIATE")
+        _require_workspace(conn, workspace_id)
+        turn = conn.execute(
+            """
+            SELECT status, active_agent_id
+            FROM agent_workspace_turns
+            WHERE id = ? AND workspace_id = ?
+            """,
+            (turn_id, workspace_id),
+        ).fetchone()
+        if (
+            turn is None
+            or turn["status"] != "running"
+            or turn["active_agent_id"] != agent_id
+        ):
+            raise AgentWorkspaceError(
+                f"turn {turn_id} is no longer running for agent {agent_id}"
+            )
+        parent = conn.execute(
+            """
+            SELECT 1 FROM agent_workspace_messages
+            WHERE id = ? AND workspace_id = ?
+            """,
+            (parent_message_id, workspace_id),
+        ).fetchone()
+        if parent is None:
+            raise AgentWorkspaceError(
+                f"parent message {parent_message_id} does not belong to workspace {workspace_id}"
+            )
+
+        conn.execute(
+            """
+            INSERT INTO agent_workspace_messages
+                (id, workspace_id, parent_message_id, sender_kind, sender_id,
+                 recipient_id, message_kind, content, created_at)
+            VALUES (?, ?, ?, 'agent', ?, ?, ?, ?, ?)
+            """,
+            (
+                message_id,
+                workspace_id,
+                parent_message_id,
+                agent_id,
+                recipient_id,
+                message_kind,
+                content,
+                now,
+            ),
+        )
+        _append_event(
+            conn,
+            workspace_id=workspace_id,
+            event_type="message_created",
+            actor_kind="agent",
+            actor_id=agent_id,
+            message_id=message_id,
+            metadata={"message_kind": message_kind, "recipient_id": recipient_id},
+            now=now,
+        )
+        _append_event(
+            conn,
+            workspace_id=workspace_id,
+            event_type="agent_completed",
+            actor_kind="agent",
+            actor_id=agent_id,
+            message_id=message_id,
+            metadata={"turn_id": turn_id},
+            now=now,
+        )
+
+        if final_step:
+            updated = conn.execute(
+                """
+                UPDATE agent_workspace_turns
+                SET status = 'completed', active_agent_id = NULL, finished_at = ?
+                WHERE id = ? AND workspace_id = ? AND status = 'running'
+                  AND active_agent_id = ?
+                """,
+                (now, turn_id, workspace_id, agent_id),
+            ).rowcount
+            if updated != 1:
+                raise AgentWorkspaceError(f"turn {turn_id} is no longer running")
+            _append_event(
+                conn,
+                workspace_id=workspace_id,
+                event_type="turn_completed",
+                actor_kind="system",
+                actor_id="gateway",
+                metadata={"agent_sequence": list(_AGENT_SEQUENCE), "turn_id": turn_id},
+                now=now,
+            )
+        else:
+            updated = conn.execute(
+                """
+                UPDATE agent_workspace_turns
+                SET active_agent_id = NULL
+                WHERE id = ? AND workspace_id = ? AND status = 'running'
+                  AND active_agent_id = ?
+                """,
+                (turn_id, workspace_id, agent_id),
+            ).rowcount
+            if updated != 1:
+                raise AgentWorkspaceError(f"turn {turn_id} is no longer running")
+
+        conn.execute(
+            "UPDATE agent_workspaces SET updated_at = ? WHERE id = ?",
+            (now, workspace_id),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM agent_workspace_messages WHERE id = ?", (message_id,)
+        ).fetchone()
+    assert row is not None
+    return dict(row)
+
+
 def list_messages(workspace_id: str, *, limit: int = 200) -> list[dict[str, Any]]:
     workspace_id = _required_text(workspace_id, "workspace_id", 200)
     if isinstance(limit, bool) or limit <= 0 or limit > 500:
@@ -588,26 +735,18 @@ def run_persisted_turn(
                 metadata={"turn_id": turn_id},
             )
             output = _complete(backend, agent_id, prompt, _model_context(workspace_id))
-            message = append_message(
+            message = _persist_agent_output(
                 workspace_id,
-                sender_kind="agent",
-                sender_id=agent_id,
+                turn_id,
+                agent_id=agent_id,
                 recipient_id=recipient_id,
                 content=output,
                 message_kind=message_kind,
                 parent_message_id=parent_message_id,
-                require_turn_running=turn_id,
+                final_step=agent_id == _AGENT_SEQUENCE[-1],
             )
             outputs[agent_id] = output
             parent_message_id = message["id"]
-            _record_event(
-                workspace_id,
-                "agent_completed",
-                actor_kind="agent",
-                actor_id=agent_id,
-                message_id=message["id"],
-                metadata={"turn_id": turn_id},
-            )
     except Exception as exc:
         logger.exception("shared agent turn %s failed at %s", turn_id, active_agent_id)
         _record_turn_failure(
@@ -617,8 +756,6 @@ def run_persisted_turn(
             parent_message_id=parent_message_id,
             exc=exc,
         )
-    else:
-        _finish_turn(workspace_id, turn_id, status="completed")
     return _turn_result(workspace_id, turn_id)
 
 
