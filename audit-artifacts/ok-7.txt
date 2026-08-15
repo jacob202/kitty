@@ -1,0 +1,2 @@
+ok_worker attempt 7
+bundle_task=kb_msauh547_f065
