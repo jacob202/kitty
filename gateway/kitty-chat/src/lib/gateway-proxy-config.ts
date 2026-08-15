@@ -5,6 +5,9 @@ type ProxyEnv = {
   KITTY_GATEWAY_URL?: string
   KITTY_GATEWAY_SECRET?: string
   GATEWAY_SECRET?: string
+  KITTY_PUBLIC_ORIGIN?: string
+  KITTY_EDGE_SHARED_SECRET?: string
+  KITTY_ENV?: string
 }
 
 export function resolveGatewayUrl(configuredUrl: string | undefined): string {
@@ -39,8 +42,33 @@ export function isLoopbackHost(host: string | undefined): boolean {
 
 export function isTrustedProxyRequest(
   host: string | undefined,
-  origin: string | undefined
+  origin: string | undefined,
+  edgeProof?: string,
+  publicOrigin?: string,
+  expectedEdgeSecret?: string
 ): boolean {
+  const configuredPublicOrigin = publicOrigin?.trim() || ''
+  const configuredEdgeSecret = expectedEdgeSecret?.trim() || ''
+
+  if (configuredPublicOrigin || configuredEdgeSecret) {
+    if (!configuredPublicOrigin || !configuredEdgeSecret || edgeProof !== configuredEdgeSecret) {
+      return false
+    }
+
+    const parsedHost = parseHost(host)
+    if (!parsedHost) return false
+
+    try {
+      const trustedOrigin = new URL(configuredPublicOrigin)
+      if (trustedOrigin.protocol !== 'https:') return false
+      if (parsedHost.host.toLowerCase() !== trustedOrigin.host.toLowerCase()) return false
+      if (!origin) return true
+      return new URL(origin).origin === trustedOrigin.origin
+    } catch {
+      return false
+    }
+  }
+
   const parsedHost = parseHost(host)
   if (!parsedHost || !isLoopbackHost(host)) return false
   if (!origin) return true
@@ -116,12 +144,25 @@ function readRepoEnv(): Record<string, string> {
 export function resolveProxyConfig(
   env: ProxyEnv = process.env as ProxyEnv,
   repoEnv: ProxyEnv = readRepoEnv()
-): { gatewayUrl: string; gatewaySecret: string } {
+): {
+  gatewayUrl: string
+  gatewaySecret: string
+  publicOrigin: string
+  edgeSharedSecret: string
+} {
+  // Development may fall back to the repo-local .env for convenience. A
+  // production process must be configured only by its deployment environment:
+  // otherwise a stale developer .env can silently override the deployed
+  // gateway, auth secret, or public trust boundary.
+  const repoFallback = env.KITTY_ENV?.trim().toLowerCase() === 'production' ? {} : repoEnv
   return {
-    gatewayUrl: resolveGatewayUrl(repoEnv.KITTY_GATEWAY_URL ?? env.KITTY_GATEWAY_URL),
+    gatewayUrl: resolveGatewayUrl(env.KITTY_GATEWAY_URL ?? repoFallback.KITTY_GATEWAY_URL),
     gatewaySecret: resolveGatewaySecret(
-      repoEnv.KITTY_GATEWAY_SECRET ?? env.KITTY_GATEWAY_SECRET,
-      repoEnv.GATEWAY_SECRET ?? env.GATEWAY_SECRET
+      env.KITTY_GATEWAY_SECRET ?? repoFallback.KITTY_GATEWAY_SECRET,
+      env.GATEWAY_SECRET ?? repoFallback.GATEWAY_SECRET
     ),
+    publicOrigin: env.KITTY_PUBLIC_ORIGIN?.trim() || repoFallback.KITTY_PUBLIC_ORIGIN?.trim() || '',
+    edgeSharedSecret:
+      env.KITTY_EDGE_SHARED_SECRET?.trim() || repoFallback.KITTY_EDGE_SHARED_SECRET?.trim() || '',
   }
 }
