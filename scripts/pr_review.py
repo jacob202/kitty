@@ -18,6 +18,7 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 REVIEW_MODEL = os.environ.get("PR_REVIEW_MODEL", "openai/gpt-4o-mini")
 COMMENT_MARKER = "<!-- kitty-agent-pr-review -->"
 NO_FINDINGS = "NO_ACTIONABLE_FINDINGS"
+REVIEW_PENDING = "__REVIEW_PENDING__"
 
 SYSTEM_PROMPT = """You are a strict code reviewer. Review only the supplied PR diff.
 
@@ -126,6 +127,13 @@ def review_diff(diff: str) -> str | None:
 
 def render_review_body(review: str, head_sha: str) -> str:
     """Build the one comment body owned by this workflow."""
+    if review.strip() == REVIEW_PENDING:
+        target = f"`{head_sha[:12]}`" if head_sha else "the current PR head"
+        return (
+            f"{COMMENT_MARKER}\n## Agent PR Review\n\n"
+            f"Review pending for commit {target}. Previous review evidence is stale "
+            "until this current-head review completes."
+        )
     if review.strip() == NO_FINDINGS:
         review = "No actionable findings in this diff."
     reviewed = f"Reviewed commit `{head_sha[:12]}`." if head_sha else "Reviewed current PR head."
@@ -198,9 +206,13 @@ def main() -> None:
         print("Empty diff — nothing to review.")
         return
 
+    # Invalidate any older approval-looking comment before the model call.
+    # A synchronize event must never leave stale review evidence looking current.
+    upsert_review(REVIEW_PENDING, pr_number, owner, repo, head_sha)
     review = review_diff(diff)
     if not review:
-        return
+        print("Current-head agent review did not produce a verdict.", file=sys.stderr)
+        raise SystemExit(1)
 
     upsert_review(review, pr_number, owner, repo, head_sha)
 
