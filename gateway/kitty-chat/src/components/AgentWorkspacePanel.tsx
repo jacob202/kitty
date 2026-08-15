@@ -56,6 +56,7 @@ export function AgentWorkspacePanel() {
         // path instead of trapping the user in an unusable "retry" loop.
         const message = err instanceof Error ? err.message : 'Could not load the shared workspace'
         if (message.includes('404')) {
+          setWorkspace(null)
           setWorkspaceMissing(true)
         } else {
           // A transient poll failure must not erase the last durable transcript.
