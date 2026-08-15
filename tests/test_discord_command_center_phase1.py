@@ -19,11 +19,13 @@ def test_config_reads_positive_task_limits(monkeypatch) -> None:
     monkeypatch.setenv("COMMAND_CENTER_REPO", "/tmp/command-center")
     monkeypatch.setenv("COMMAND_CENTER_MAX_CONCURRENT_RUNS", "3")
     monkeypatch.setenv("COMMAND_CENTER_MAX_RUNS_PER_USER", "2")
+    monkeypatch.setenv("COMMAND_CENTER_MAX_REQUEST_CHARS", "4000")
 
     config = CommandCenterConfig.from_env()
 
     assert config.max_concurrent_runs == 3
     assert config.max_runs_per_user == 2
+    assert config.max_request_chars == 4000
 
 
 def test_bot_registers_request_cancel_and_status_commands() -> None:
@@ -43,13 +45,34 @@ def test_bot_registers_request_cancel_and_status_commands() -> None:
     }
 
 
-@pytest.mark.parametrize("name", ["COMMAND_CENTER_MAX_CONCURRENT_RUNS", "COMMAND_CENTER_MAX_RUNS_PER_USER"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "COMMAND_CENTER_MAX_CONCURRENT_RUNS",
+        "COMMAND_CENTER_MAX_RUNS_PER_USER",
+        "COMMAND_CENTER_MAX_REQUEST_CHARS",
+    ],
+)
 def test_config_rejects_non_positive_task_limits(monkeypatch, name: str) -> None:
     monkeypatch.setenv("COMMAND_CENTER_REPO", "/tmp/command-center")
     monkeypatch.setenv(name, "0")
 
     with pytest.raises(ValueError, match="positive"):
         CommandCenterConfig.from_env()
+
+
+def test_controller_rejects_oversized_request_before_admission() -> None:
+    log: list[str] = []
+    interaction = _Interaction(log)
+    interaction.user = SimpleNamespace(id=1, roles=[])
+    registry = TaskRegistry(max_concurrent_runs=1, max_runs_per_user=1)
+    controller = VibeController(_IdleService(), registry=registry, max_request_chars=4)
+
+    asyncio.run(controller.handle(interaction, "12345"))
+
+    assert "create_thread" not in log
+    assert registry.for_owner(1) == ()
+    assert any("too long" in message.lower() for message in interaction.followup.messages)
 
 
 def test_task_registry_enforces_global_and_per_user_limits() -> None:
