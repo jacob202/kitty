@@ -50,6 +50,8 @@ export COMMAND_CENTER_CODEX_MODEL='gpt-5.4-mini'
 # Safety limits; defaults are two total active runs and one per user.
 export COMMAND_CENTER_MAX_CONCURRENT_RUNS='2'
 export COMMAND_CENTER_MAX_RUNS_PER_USER='1'
+# Reject oversized prompts before creating a thread or consuming a run slot.
+export COMMAND_CENTER_MAX_REQUEST_CHARS='6000'
 ~/Projects/kitty/venv/bin/python -m integrations.discord_command_center.bot
 ```
 
@@ -71,6 +73,9 @@ Admission is bounded before a private thread is created. A full global limit or
 per-user limit returns an ephemeral rejection and starts no worker. The task
 registry is intentionally process-local: a bot restart does not claim that
 in-flight tasks survive, and no durable queue or retry authority is introduced.
+Requests longer than `COMMAND_CENTER_MAX_REQUEST_CHARS` are rejected before
+admission; the default is 6,000 characters, matching Discord's slash-option
+limit.
 
 ## Current boundary to KittyBuilder
 

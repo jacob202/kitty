@@ -65,9 +65,12 @@ class VibeController:
         scrubber: SecretScrubber | None = None,
         status_interval_seconds: float = 2.0,
         registry: TaskRegistry | None = None,
+        max_request_chars: int = 6000,
     ) -> None:
         if status_interval_seconds < 0:
             raise ValueError("status_interval_seconds must be non-negative")
+        if max_request_chars <= 0:
+            raise ValueError("max_request_chars must be positive")
         self.service = service
         self.war_room_channel_id = war_room_channel_id
         self.allowed_user_ids = frozenset(allowed_user_ids) if allowed_user_ids is not None else None
@@ -75,6 +78,7 @@ class VibeController:
         self.scrubber = scrubber or SecretScrubber.from_environment()
         self.status_interval_seconds = status_interval_seconds
         self.registry = registry or TaskRegistry()
+        self.max_request_chars = max_request_chars
 
     async def handle(self, interaction: Any, request: str) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -82,6 +86,12 @@ class VibeController:
         if not self._authorized(interaction):
             await interaction.followup.send(
                 "You are not authorized to start Command Center tasks.", ephemeral=True
+            )
+            return
+        if len(request) > self.max_request_chars:
+            await interaction.followup.send(
+                f"That request is too long; keep it to {self.max_request_chars} characters or fewer.",
+                ephemeral=True,
             )
             return
         channel = interaction.channel
@@ -279,6 +289,7 @@ def create_bot(config: CommandCenterConfig) -> commands.Bot:
         war_room_channel_id=config.war_room_channel_id,
         allowed_user_ids=config.allowed_user_ids,
         allowed_role_ids=config.allowed_role_ids,
+        max_request_chars=config.max_request_chars,
         registry=registry,
     )
     guild_id = config.guild_id

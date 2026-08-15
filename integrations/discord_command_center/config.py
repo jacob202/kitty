@@ -15,6 +15,7 @@ class CommandCenterConfig:
     run_timeout_seconds: int = 900
     max_concurrent_runs: int = 2
     max_runs_per_user: int = 1
+    max_request_chars: int = 6000
     discord_token: str | None = None
     guild_id: int | None = None
     war_room_channel_id: int | None = None
@@ -27,6 +28,7 @@ class CommandCenterConfig:
         timeout = _positive_int("COMMAND_CENTER_RUN_TIMEOUT_SECONDS", "900")
         max_concurrent_runs = _positive_int("COMMAND_CENTER_MAX_CONCURRENT_RUNS", "2")
         max_runs_per_user = _positive_int("COMMAND_CENTER_MAX_RUNS_PER_USER", "1")
+        max_request_chars = _positive_int("COMMAND_CENTER_MAX_REQUEST_CHARS", "6000")
         return cls(
             repo=repo,
             codex_executable=os.environ.get("COMMAND_CENTER_CODEX_PATH", DEFAULT_CODEX),
@@ -34,6 +36,7 @@ class CommandCenterConfig:
             run_timeout_seconds=timeout,
             max_concurrent_runs=max_concurrent_runs,
             max_runs_per_user=max_runs_per_user,
+            max_request_chars=max_request_chars,
             discord_token=os.environ.get("COMMAND_CENTER_DISCORD_TOKEN"),
             guild_id=_optional_int("COMMAND_CENTER_GUILD_ID"),
             war_room_channel_id=_optional_int("COMMAND_CENTER_WAR_ROOM_CHANNEL_ID"),
