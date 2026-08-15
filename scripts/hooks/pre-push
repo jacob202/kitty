@@ -10,6 +10,12 @@
 # Bypass:  git push --no-verify   (deliberate, and it says so in the output)
 set -uo pipefail
 
+PREFLIGHT_ONLY=0
+if [[ "${1:-}" == "--preflight" ]]; then
+  PREFLIGHT_ONLY=1
+  shift
+fi
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}" || exit 1
 
@@ -29,6 +35,11 @@ RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; OFF=$'\0
 
 say() { printf '%s\n' "$*" >&2; }
 
+publication_unavailable() {
+  say "${RED}Publication environment unavailable.${OFF} $*"
+  exit 75
+}
+
 # Fail loud rather than waving a push through on a half-built toolchain. A gate
 # that silently skips is worse than no gate: it reports success it never checked.
 COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
@@ -44,6 +55,8 @@ fi
 if [[ ! -x "${PYTHON_BIN}" ]]; then
   if command -v python3.12 >/dev/null 2>&1; then
     PYTHON_BIN="$(command -v python3.12)"
+  elif [[ "${PREFLIGHT_ONLY}" == "1" ]]; then
+    publication_unavailable "No Python was found for the publication gate."
   else
     say "${RED}Push blocked — no Python to test with.${OFF}"
     say "Looked for the worktree/canonical Kitty venv and python3.12, found none."
@@ -68,6 +81,23 @@ if [[ -z "${BASE_REF}" ]] || grep -q '^gateway/kitty-chat/' <<<"${CHANGED}"; the
   RUN_FRONTEND=1
 else
   RUN_FRONTEND=0
+fi
+
+# Builder calls this before it opens an implementation attempt. Keep it cheap:
+# prove the publication gate can run, but do not execute the expensive gates.
+# Exit 75 is the explicit transient-infrastructure signal consumed by Builder.
+if [[ "${PREFLIGHT_ONLY}" == "1" ]]; then
+  if ! "${PYTHON_BIN}" -c 'import mypy, pytest, ruff' >/dev/null 2>&1; then
+    publication_unavailable "Python gate dependencies are missing."
+  fi
+  if [[ "${RUN_FRONTEND}" == "1" ]]; then
+    command -v node >/dev/null 2>&1 || publication_unavailable "Node.js is missing."
+    [[ -x "${ROOT_DIR}/gateway/kitty-chat/node_modules/.bin/vitest" ]] || \
+      publication_unavailable "Frontend test dependencies are missing."
+    [[ -f "${ROOT_DIR}/gateway/kitty-chat/node_modules/next/dist/bin/next" ]] || \
+      publication_unavailable "Next.js build dependencies are missing."
+  fi
+  exit 0
 fi
 
 FAILED=()
