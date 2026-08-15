@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Run the Tests workflow's gates before anything leaves this machine.
 #
-# GitHub Actions is the usual gate. When it cannot run — no runner minutes, no
-# network, no budget — a push carries no verdict at all, and broken code reaches
-# main unnoticed. This hook is the standing local replacement: same commands,
-# same thresholds, no account required.
+# GitHub Actions is the usual gate. When it cannot run — for example no runner
+# minutes or budget — a push carries no verdict at all and broken code can reach
+# main unnoticed. This hook is the standing local predictor: same required
+# commands and thresholds. The link gate deliberately requires network and a
+# GitHub token, because CI checks github.com with an authenticated token too.
 #
 # Install: make hooks
 # Bypass:  git push --no-verify   (deliberate, and it says so in the output)
@@ -52,6 +53,38 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
   fi
 fi
 
+# CI checks docs links on every push via the hygiene job's lychee step. A push
+# must not leave the machine with a "no verdict" on a gate CI would have run,
+# so a missing lychee blocks with install instructions instead of silently
+# skipping the check.
+LYCHEE_BIN="$(command -v lychee 2>/dev/null || true)"
+if [[ -z "${LYCHEE_BIN}" ]]; then
+  say "${RED}Push blocked — lychee (link checker) is not installed.${OFF}"
+  say "CI runs lychee on every push; the hook cannot claim CI parity without it."
+  say "Fix: brew install lychee   (or: cargo install lychee)"
+  exit 1
+fi
+
+if ! "${PYTHON_BIN}" -m vulture --version >/dev/null 2>&1; then
+  say "${RED}Push blocked — vulture (dead-code checker) is not installed for ${PYTHON_BIN}.${OFF}"
+  say "CI runs vulture on every push; the hook cannot predict CI without it."
+  say "Fix: ${PYTHON_BIN} -m pip install vulture"
+  exit 1
+fi
+
+# GitHub CI supplies GITHUB_TOKEN to lychee. Reuse an explicit token or the
+# operator's gh credential so local publication sees the same authenticated
+# github.com behavior instead of occasionally false-blocking on rate limits.
+if [[ -z "${GITHUB_TOKEN:-}" ]] && command -v gh >/dev/null 2>&1; then
+  GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"
+fi
+if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+  say "${RED}Push blocked — no GitHub token is available for the lychee parity gate.${OFF}"
+  say "CI checks GitHub links authenticated; run 'gh auth login' or export GITHUB_TOKEN."
+  exit 1
+fi
+export GITHUB_TOKEN
+
 RUFF="${ROOT_DIR}/venv/bin/ruff"
 [[ -x "${RUFF}" ]] || RUFF=""
 
@@ -97,6 +130,13 @@ run_gate "types" "${PYTHON_BIN}" -m mypy gateway/ mcp/ workers/ scripts/runpod_w
 
 run_gate "tests" "${PYTHON_BIN}" -m pytest tests/ -q --tb=short \
   --cov=gateway --cov-report=term-missing --cov-fail-under=73
+
+# Hygiene gates from the Tests workflow's `hygiene` job. Same commands, same
+# thresholds: dead-code (vulture) and broken-links (lychee) checks that CI
+# would reject a push for. Both fail closed when the tool errors or is missing.
+run_gate "dead code" "${PYTHON_BIN}" -m vulture gateway/ --min-confidence 80 --exclude gateway/kitty-chat/
+
+run_gate "broken links" "${LYCHEE_BIN}" --root-dir docs --no-progress --accept 200,301,302,307,308 docs/
 
 if [[ "${RUN_FRONTEND}" == "1" ]]; then
   run_gate "web tests" bash -c 'cd gateway/kitty-chat && ./node_modules/.bin/vitest run'
