@@ -72,6 +72,20 @@ def test_ruff_fix_is_committed_and_worktree_left_clean(tmp_path: Path):
     assert subprocess.run(["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True).stdout == ""
 
 
+def test_ephemeral_done_marker_does_not_block_safe_repairs(tmp_path: Path):
+    bj = _janitor()
+    root = _repo(tmp_path)
+    (root / "done.txt").write_text("ok\n", encoding="utf-8")
+
+    result = bj.apply_safe_repairs(
+        root, run_cmd=_runner_with_ruff_action(lambda _: None)
+    )
+
+    assert result["changed"] is False
+    assert result["changed_paths"] == []
+    assert (root / "done.txt").exists()
+
+
 def test_dirty_worktree_is_refused_before_ruff_runs(tmp_path: Path):
     bj = _janitor()
     root = _repo(tmp_path)

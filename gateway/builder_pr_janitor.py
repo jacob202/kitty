@@ -42,7 +42,9 @@ def _default_run(
     )
 
 
-def _status_paths(worktree: Path, run_cmd: RunCmd) -> list[str]:
+def _status_paths(
+    worktree: Path, run_cmd: RunCmd, *, ignore_done_marker: bool = False
+) -> list[str]:
     result = run_cmd(
         ["git", "status", "--porcelain=v1", "--untracked-files=all"],
         cwd=worktree,
@@ -54,6 +56,8 @@ def _status_paths(worktree: Path, run_cmd: RunCmd) -> list[str]:
     paths: list[str] = []
     for line in (result.stdout or "").splitlines():
         if not line.strip():
+            continue
+        if ignore_done_marker and line == "?? done.txt":
             continue
         path = line[3:]
         if " -> " in path:
@@ -83,7 +87,7 @@ def apply_safe_repairs(
     """Apply and commit only safe Ruff fixes in a clean Builder worktree."""
     runner = run_cmd or _default_run
     worktree = Path(worktree)
-    dirty = _status_paths(worktree, runner)
+    dirty = _status_paths(worktree, runner, ignore_done_marker=True)
     if dirty:
         raise SafeRepairError(
             "PR janitor refuses dirty worktree before repair: " + ", ".join(dirty)
@@ -94,7 +98,7 @@ def apply_safe_repairs(
         cwd=worktree,
         check=False,
     )
-    changed = _status_paths(worktree, runner)
+    changed = _status_paths(worktree, runner, ignore_done_marker=True)
     forbidden = [path for path in changed if not _safe_path(path)]
     if forbidden:
         _restore_all(worktree, runner)
@@ -130,7 +134,7 @@ def apply_safe_repairs(
     if head.returncode != 0:
         detail = (head.stderr or head.stdout or "").strip()
         raise SafeRepairError(f"PR janitor cannot resolve repaired HEAD: {detail}")
-    leftover = _status_paths(worktree, runner)
+    leftover = _status_paths(worktree, runner, ignore_done_marker=True)
     if leftover:
         raise SafeRepairError(
             "PR janitor left worktree dirty after commit: " + ", ".join(leftover)
