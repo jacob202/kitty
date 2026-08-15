@@ -19,6 +19,7 @@ from .tasks import TaskRegistry
 from .workspace import GitWorktreeManager
 
 DISCORD_MESSAGE_LIMIT = 1900
+_NO_MENTIONS = discord.AllowedMentions.none()
 
 
 def _bounded_text(text: str, limit: int) -> str:
@@ -153,9 +154,10 @@ class VibeController:
                 "**Worker:** Codex\n**Mode:** read-only"
             )
             for chunk in split_discord_message(task_card):
-                await thread.send(chunk)
+                await thread.send(chunk, allowed_mentions=_NO_MENTIONS)
             status_message = await thread.send(
-                _status_card("🟡 **STARTING**", "Preparing isolated audited run…")
+                _status_card("🟡 **STARTING**", "Preparing isolated audited run…"),
+                allowed_mentions=_NO_MENTIONS,
             )
 
             last_progress_edit_at: float | None = None
@@ -171,7 +173,8 @@ class VibeController:
                             or now - last_progress_edit_at >= self.status_interval_seconds
                         ):
                             await status_message.edit(
-                                content=_status_card("🟢 **WORKING**", safe_message)
+                                content=_status_card("🟢 **WORKING**", safe_message),
+                                allowed_mentions=_NO_MENTIONS,
                             )
                             last_progress_edit_at = now
                         continue
@@ -181,11 +184,14 @@ class VibeController:
                         if event.kind == "done"
                         else "❌ **FAILED**"
                     )
-                    await status_message.edit(content=_status_card(terminal_state, safe_message))
+                    await status_message.edit(
+                        content=_status_card(terminal_state, safe_message),
+                        allowed_mentions=_NO_MENTIONS,
+                    )
                     for chunk in split_discord_message(
                         _result_card(event.kind, safe_message, safe_answer)
                     ):
-                        await thread.send(chunk)
+                        await thread.send(chunk, allowed_mentions=_NO_MENTIONS)
                     break
             except asyncio.CancelledError:
                 cancelled_message = (
@@ -194,10 +200,14 @@ class VibeController:
                 )
                 with suppress(Exception):
                     await status_message.edit(
-                        content=_status_card("⚪ **CANCELLED**", cancelled_message)
+                        content=_status_card("⚪ **CANCELLED**", cancelled_message),
+                        allowed_mentions=_NO_MENTIONS,
                     )
                 with suppress(Exception):
-                    await thread.send(_result_card("cancelled", cancelled_message))
+                    await thread.send(
+                        _result_card("cancelled", cancelled_message),
+                        allowed_mentions=_NO_MENTIONS,
+                    )
                 return
         finally:
             self.registry.release(reservation.task_id)
