@@ -1,0 +1,28 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-campaign-codex-staging-reuse-fix-v1",
+  "title": "Kitty campaign: Codex staging retry preflight repair",
+  "description": "Repair the verified retry seam where ensure_worktree rejects runner-owned Codex staging residue even after scope enforcement correctly classifies it as harmless.",
+  "packets": [
+    {
+      "id": "FIX-02-codex-staging-reuse-proto",
+      "title": "Allow safe retry across Codex staging residue",
+      "objective": "One mechanical Builder reliability fix only. In gateway/builder_runner.py ensure_worktree(), preserve every existing branch/status safety check but exclude repo-root paths beginning .kittybuilder-codex- from the git-status dirtiness decision, just as OpenCode continuation residue is already excluded. This must cover the exact failed attempt-139 names .kittybuilder-codex-139-bundle.json, .kittybuilder-codex-139-context.json, and .kittybuilder-codex-139-schema.json without deleting or modifying them. Do not broaden generic allowed-path matching and do not auto-clean any file. Add a self-contained tests/test_builder_worktree_residue.py proving: (1) a task worktree containing only those representative Codex staging files is safely reusable with reuse_dirty=False; (2) adding unrelated outside.txt still raises RunnerError for a dirty worktree. Change nothing else.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "ensure_worktree reuses a correct-branch task worktree whose only dirty paths are .kittybuilder-codex-* runner staging files, without deleting them.",
+        "A non-residue dirty file still causes ensure_worktree to fail closed.",
+        "Focused new tests, existing ensure_worktree tests, and Ruff pass."
+      ],
+      "allowed_paths": [
+        "gateway/builder_runner.py",
+        "tests/test_builder_worktree_residue.py"
+      ],
+      "policy": {"priority": 10},
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_builder_worktree_residue.py tests/test_builder_runner.py -q --tb=short -k 'ensure_worktree or codex_staging'",
+        "python3.12 -m ruff check gateway/builder_runner.py tests/test_builder_worktree_residue.py"
+      ]
+    }
+  ]
+}

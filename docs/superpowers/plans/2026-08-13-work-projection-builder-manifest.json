@@ -1,0 +1,33 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-campaign-work-projection-v1",
+  "title": "Kitty campaign: authoritative Work projection",
+  "description": "First vertical slice: expose Builder truth through one Gateway-owned read-only Work projection. No second queue, store, scheduler, approval system, or execution state.",
+  "packets": [
+    {
+      "id": "WORK-01-gateway-projection-proto",
+      "title": "Expose authoritative Gateway Work projection",
+      "objective": "Implement the first Kitty campaign vertical slice. Create gateway/work_projection.py as a pure dict-to-dict product-language mapper over gateway.builder_status.build_status_snapshot() output. Create gateway/routes/work.py with GET /work and register it in gateway/routes/register.py. The Work layer MUST NOT import sqlite3, gateway.builder_queue, gateway.builder_attempt, gateway.builder_initiative, or open Builder storage directly. It may only consume build_status_snapshot(). One Work item maps to one Builder initiative and carries source.kind=builder plus initiative identity. Product states must truthfully cover active (live run starting/running/cancel_requested), ready (eligible/queued), blocked, paused, failed, completed, and waiting. The current packet selection must prefer a live run, then initiative.next_packet, then a non-terminal packet, then the most recently updated packet. Expose blocker, next_action, current packet/run, validation/review/publication evidence from persisted snapshot facts only. Because no durable Gateway approval identity is bound to Builder initiatives yet, approval MUST be {state: unavailable, reason: ...binding...}; never reinterpret Builder awaiting_review as Jacob approval. A complete snapshot is source state available; partial integrity is degraded with an explicit reason. Include observed_at and valid_until with a 30-second freshness window. If build_status_snapshot() raises, GET /work MUST return HTTP 503 with a bounded concrete reason, never an empty-success list. Use TDD: write tests first, observe them fail for missing behavior, then implement minimally. Change nothing outside the allowed paths.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "GET /work returns schema-version-1 Work items derived only from build_status_snapshot() and the Work implementation contains no direct Builder DB/storage import.",
+        "Tests prove active, ready, blocked, paused, failed, completed, waiting, partial-integrity, unavailable-evidence, and approval-unavailable behavior.",
+        "A Builder snapshot exception produces HTTP 503 with the concrete bounded reason and never a successful empty Work payload.",
+        "Focused Work, Builder read-only, and architecture-fitness tests plus Ruff all exit 0."
+      ],      "allowed_paths": [
+        "gateway/work_projection.py",
+        "gateway/routes/work.py",
+        "gateway/routes/register.py",
+        "tests/test_work_projection.py",
+        "tests/test_work_routes.py"
+      ],
+      "policy": {
+        "priority": 10
+      },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_work_projection.py tests/test_work_routes.py tests/test_builder_status_readonly.py tests/test_architecture_fitness.py -q --tb=short",
+        "python3.12 -m ruff check gateway/work_projection.py gateway/routes/work.py gateway/routes/register.py tests/test_work_projection.py tests/test_work_routes.py"
+      ]
+    }
+  ]
+}

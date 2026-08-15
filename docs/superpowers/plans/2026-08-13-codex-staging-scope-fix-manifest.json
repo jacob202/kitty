@@ -1,0 +1,28 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-campaign-codex-staging-scope-fix-v1",
+  "title": "Kitty campaign: Codex Builder staging scope repair",
+  "description": "Repair the verified Builder scope-monitor mismatch that kills the existing Codex adapter for its own runner-owned staging files.",
+  "packets": [
+    {
+      "id": "FIX-01-codex-staging-scope-proto",
+      "title": "Recognize Codex adapter staging as runner residue",
+      "objective": "One mechanical Builder reliability fix only. In gateway/builder_scope.py, extend WORKER_STAGING_PREFIXES so every existing scripts/kittybuilder_codex_adapter.py staging file whose repo-relative name starts with .kittybuilder-codex- is treated as expected runner residue. Do not weaken allowed-path matching for any other file. In tests/test_builder_runner.py, add a regression test beside test_worker_staging_residue_is_not_a_scope_violation that runs a worker creating one allowed gateway file plus representative .kittybuilder-codex-* staging files and proves scope_violations is empty. Also prove an unrelated outside.txt remains a violation; reuse or minimally extend the nearby real-violation test rather than broad refactoring. Change nothing else.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Codex adapter .kittybuilder-codex-* staging files are ignored by Builder scope checks as runner-owned residue.",
+        "An unrelated out-of-scope file is still reported as a scope violation.",
+        "Focused Builder runner tests and Ruff pass."
+      ],
+      "allowed_paths": [
+        "gateway/builder_scope.py",
+        "tests/test_builder_runner.py"
+      ],
+      "policy": {"priority": 10},
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_builder_runner.py -q --tb=short -k 'staging_residue or scope_violation'",
+        "python3.12 -m ruff check gateway/builder_scope.py tests/test_builder_runner.py"
+      ]
+    }
+  ]
+}

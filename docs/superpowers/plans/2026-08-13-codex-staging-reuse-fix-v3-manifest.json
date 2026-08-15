@@ -1,0 +1,28 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-campaign-codex-staging-reuse-fix-v3",
+  "title": "Kitty campaign: port verified Codex retry preflight repair",
+  "description": "Mechanical port of independently verified artifact ed809f5b onto verified Fix-1 base f05ad022 after v2 was correctly stopped for scope drift. No redesign.",
+  "packets": [
+    {
+      "id": "FIX-02-port-verified-reuse-proto",
+      "title": "Port verified retry-preflight repair",
+      "objective": "Mechanical port only. The independently verified source artifact is commit ed809f5bdec6d926369b1e635f53aced22c4a010. Reproduce ONLY that artifact's changes to gateway/builder_runner.py and tests/test_builder_worktree_residue.py on this packet's current base. In ensure_worktree(), add only the repo-root git-status exclusion for .kittybuilder-codex-* runner staging residue. Add the same two regression tests using exact attempt-139 bundle/context/schema staging names and outside.txt fail-closed behavior. gateway/builder_scope.py already contains the separate verified Fix-1 on this base and MUST NOT be edited. Do not alter any other path, validation contract, cleanup behavior, or architecture.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The two-file diff is behaviorally equivalent to independently verified artifact ed809f5b and does not modify gateway/builder_scope.py.",
+        "Codex staging residue is reusable without deletion while outside.txt remains rejected as dirty.",
+        "13 focused worktree tests and Ruff pass."
+      ],
+      "allowed_paths": [
+        "gateway/builder_runner.py",
+        "tests/test_builder_worktree_residue.py"
+      ],
+      "policy": {"priority": 10},
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_builder_worktree_residue.py tests/test_builder_runner.py -q --tb=short -k 'TestEnsureWorktree or TestCodexStagingResidue'",
+        "python3.12 -m ruff check gateway/builder_runner.py tests/test_builder_worktree_residue.py"
+      ]
+    }
+  ]
+}
