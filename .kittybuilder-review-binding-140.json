@@ -1,0 +1,10 @@
+{
+  "attempt_id": 140,
+  "changed_paths": [
+    "gateway/builder_scope.py",
+    "tests/test_builder_runner.py"
+  ],
+  "diff_sha256": "d74a447897b4e3d00f6cfd52f6063fa13474a753f2632103915ce4ae08f1351b",
+  "review_sha": "984a54e7c32e176471de7dc7f1e0340569f7e13e",
+  "task_id": "kb_msrukojn_e66a"
+}

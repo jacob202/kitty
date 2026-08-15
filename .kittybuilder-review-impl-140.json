@@ -1,0 +1,15 @@
+{
+  "contract_version": 1,
+  "status": "completed",
+  "summary": "Extended WORKER_STAGING_PREFIXES with '.kittybuilder-codex-' to treat Codex adapter staging files (.kittybuilder-codex-{id}, .kittybuilder-codex-review-{id}) as runner-owned residue. Added regression test that creates allowed gateway file + codex staging files + outside.txt, proving staging files are ignored while outside.txt is still a scope violation.",
+  "diff_summary": "gateway/builder_scope.py: added '.kittybuilder-codex-' to WORKER_STAGING_PREFIXES tuple (3 lines of comment, 1 prefix entry). tests/test_builder_runner.py: added test_codex_adapter_staging_residue_is_not_a_scope_violation (30 lines) that covers both codex staging variants and proves an unrelated outside.txt remains a violation.",
+  "validation": {
+    "passed": true,
+    "output": "pytest: 7 passed, 50 deselected (2.80s). ruff: All checks passed!"
+  },
+  "claims": [
+    "Codex adapter .kittybuilder-codex-* staging files are ignored by Builder scope checks as runner-owned residue",
+    "An unrelated out-of-scope file (outside.txt) is still reported as a scope violation",
+    "Focused Builder runner tests and Ruff pass"
+  ]
+}
