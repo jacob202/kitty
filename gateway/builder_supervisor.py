@@ -105,7 +105,7 @@ class SupervisorLock:
             self._fh = None
         return self
 
-    def __exit__(self, *exc_info: Any) -> None:
+    def __exit__(self, *_exc_info: Any) -> None:
         if self._fh is not None:
             import fcntl
 
