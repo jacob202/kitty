@@ -37,7 +37,6 @@ import argparse
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -413,7 +412,7 @@ def _run_review() -> int:
     review_sha = _require_env("KB_REVIEW_SHA")
     diff_sha256 = _require_env("KB_REVIEW_DIFF_SHA256")
     try:
-        root = _git_root()
+        _git_root()
     except AdapterError as exc:
         return _fail(str(exc))
 

@@ -169,7 +169,7 @@ def test_tick_duplicate_sequential_no_op(repo: Path, db_path: Path) -> None:
         return {"run_id": "should-not-happen"}
 
     with patch.object(bs, "_launch_run", _fake_launch1):
-        receipt1 = bs.tick(db_path=db_path, repo_root=repo, max_runs=2)
+        bs.tick(db_path=db_path, repo_root=repo, max_runs=2)
 
     assert len(launched_first) == 1
 
