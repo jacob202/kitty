@@ -56,6 +56,7 @@ export COMMAND_CENTER_MAX_REQUEST_CHARS='6000'
 ```
 
 The Discord token is excluded from the Codex child environment. Outbound thread text is scrubbed for configured secret values and common OpenAI/GitHub/Discord token shapes.
+All Command Center-authored thread messages and status edits disable Discord mentions.
 The bot fails closed unless at least one allowed user ID or role ID is configured; authorization is checked before creating a task thread or starting Codex.
 
 ## Phase 1 controls

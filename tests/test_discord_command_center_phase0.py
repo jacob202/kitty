@@ -349,7 +349,7 @@ class _SentMessage:
         self.thread = thread
         self.index = index
 
-    async def edit(self, *, content: str) -> None:
+    async def edit(self, *, content: str, **kwargs: object) -> None:
         self.thread.log.append("message_edit")
         self.thread.edit_history.append(content)
         self.thread.messages[self.index] = content
@@ -366,7 +366,7 @@ class _Thread:
     async def add_user(self, user) -> None:
         self.log.append("add_user")
 
-    async def send(self, content: str) -> _SentMessage:
+    async def send(self, content: str, **kwargs: object) -> _SentMessage:
         self.log.append("thread_send")
         self.messages.append(content)
         return _SentMessage(self, len(self.messages) - 1)

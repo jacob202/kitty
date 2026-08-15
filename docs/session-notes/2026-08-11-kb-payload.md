@@ -1,15 +1,19 @@
 # KB payload — 2026-08-11
 
-`~/kb` did not exist in this container at session start. It was **created and
-populated before close**, so every entry below is already live under
-`~/kb/wiki/`, `~/kb/corrections/`, `~/kb/metrics/`, and `~/kb/workflow-signals/`.
+**Correction, 2026-08-14.** An earlier version of this header claimed these
+entries were "written to `~/kb`". They were not written to Jacob's knowledge
+base. `~/kb` does not exist in this GitHub-connected container; a previous pass
+created an empty one here and wrote only its own files into it, which is not the
+same thing and has since been removed.
 
-This file is the in-repo mirror, kept because the container is ephemeral. It is
-not a pending task.
+The real knowledge base is on Jacob's Mac and already has history. **This file is
+the entries themselves**, held in git where they survive. The `## Written to`
+headings below name the intended destination path on that machine — they are not
+a claim that anything was copied there.
 
 ---
 
-## Written to `~/kb/wiki/2026-08-11-ci-typecheck-installs-no-dependencies.md`
+## Destination `~/kb/wiki/2026-08-11-ci-typecheck-installs-no-dependencies.md`
 
 ```markdown
 # CI's typecheck job installs no project dependencies at all
@@ -40,7 +44,7 @@ a machine where the libraries exist — and there they blocked every push
 regardless of what the change touched, including a docs-only commit.
 ```
 
-Index line appended to `~/kb/INDEX.md`:
+Index line for `~/kb/INDEX.md`, if these are ever carried across:
 
 ```
 - 2026-08-11 — CI's typecheck job installs no project dependencies at all — wiki/2026-08-11-ci-typecheck-installs-no-dependencies.md
@@ -48,7 +52,7 @@ Index line appended to `~/kb/INDEX.md`:
 
 ---
 
-## Written to `~/kb/wiki/2026-08-11-reading-a-dead-actions-runner.md`
+## Destination `~/kb/wiki/2026-08-11-reading-a-dead-actions-runner.md`
 
 ```markdown
 # Telling a dead Actions runner from a real test failure
@@ -94,7 +98,7 @@ Index line for `~/kb/INDEX.md`:
 
 ---
 
-## Written to `~/kb/corrections/2026-08-11-fix-it-dont-flag-it.md`
+## Destination `~/kb/corrections/2026-08-11-fix-it-dont-flag-it.md`
 
 ```markdown
 # Correction: Jacob wants problems fixed, not listed
@@ -124,7 +128,7 @@ a changed-paths list.
 
 ---
 
-## Written to `~/kb/corrections/2026-08-11-dont-send-him-to-debug.md`
+## Destination `~/kb/corrections/2026-08-11-dont-send-him-to-debug.md`
 
 ```markdown
 # Correction: do not hand Jacob an environment to debug
@@ -155,14 +159,14 @@ the failure it targets.
 
 ## Effectiveness receipt
 
-Receipt `kbr_e24216337393bb50acbb`, written to
-`~/kb/metrics/kb-effectiveness.jsonl` and mirrored in-repo at
-`docs/session-notes/kb-effectiveness.jsonl` (force-added past the `*.jsonl`
-ignore rule so the evidence survives this container).
+Receipt `kbr_e24216337393bb50acbb` lives in
+`docs/session-notes/kb-effectiveness.jsonl`, force-added past the `*.jsonl`
+ignore rule so it survives this container. It was never written to
+`~/kb/metrics/`.
 
 ## Workflow signals
 
-Written to `~/kb/workflow-signals/` and mirrored in-repo:
+In `docs/session-notes/workflow-signals/`, not `~/kb`:
 `parallel-lanes-duplicate-same-fix` (duplicate_work, high) and
 `ci-cannot-typecheck-imagen-deps` (missing_automation, medium). Both are first
 occurrences at `observe`.
