@@ -6,7 +6,11 @@ Generated: 2026-07-11. Companion to the Codex whole-codebase audit.
 
 ## 1. Open Engine — GitHub link (confirmed)
 
-**https://github.com/svd-ai-lab/open-engineer**
+**https://github.com/svd-ai-lab**
+
+The specific `svd-ai-lab/open-engineer` repo returned 404 as of 2026-08-15
+(deleted or made private), so the link above points at the owning org. The
+historical description below is retained for context.
 
 Open-source engineering workbench built on OpenCode (`anomalyco/opencode`).
 Windows x64 preview; bundles engineering/science skills + solver workflows
