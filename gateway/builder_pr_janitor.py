@@ -32,6 +32,16 @@ class SafeRepairError(RuntimeError):
     """Raised when a deterministic repair cannot proceed safely."""
 
 
+def publication_preflight(
+    repo_root: Path, *, run_cmd: RunCmd | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Probe machine/toolchain prerequisites from an existing repository root."""
+    runner = run_cmd or _default_run
+    return runner(
+        [PUBLICATION_GATE_COMMAND, "--preflight"], cwd=Path(repo_root), check=False
+    )
+
+
 def _default_run(
     args: list[str], *, cwd: Path | None = None, check: bool = False
 ) -> subprocess.CompletedProcess[str]:

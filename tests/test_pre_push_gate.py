@@ -157,3 +157,29 @@ def test_hook_clears_builder_data_dir_before_gates(hook_text):
     clear_marker = "unset KITTY_BUILDER_DATA_DIR"
     assert clear_marker in hook_text, "pre-push leaks Builder's proof DB override into pytest"
     assert hook_text.index(clear_marker) < hook_text.index('run_gate "code style"')
+
+
+def test_preflight_checks_environment_without_running_quality_gates(tmp_path):
+    fake_python = tmp_path / "python"
+    fake_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_python.chmod(0o755)
+    result = subprocess.run(
+        [str(HOOK), "--preflight"],
+        cwd=ROOT,
+        env={**os.environ, "PYTHON_BIN": str(fake_python)},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "preflight passed" in result.stderr
+    assert "Checking before push" not in result.stderr
+
+
+def test_full_gate_preserves_infrastructure_exit_class(hook_text):
+    assert "INFRA_FAILED=0" in hook_text
+    assert "gate_rc} -eq 75" in hook_text
+    assert "gate_rc} -eq 126" in hook_text
+    assert "gate_rc} -eq 127" in hook_text
+    assert 'if [[ "${INFRA_FAILED}" == "1" ]]' in hook_text
+    assert "exit 75" in hook_text
