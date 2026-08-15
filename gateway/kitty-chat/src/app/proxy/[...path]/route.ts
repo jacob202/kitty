@@ -11,18 +11,23 @@ async function handler(
 ) {
   const requestHost = req.headers.get('host') ?? req.nextUrl.host
   const requestOrigin = req.headers.get('origin') ?? undefined
+  const edgeProof = req.headers.get('x-kitty-edge-verified') ?? undefined
+  const { gatewayUrl, gatewaySecret, publicOrigin, edgeSharedSecret } = resolveProxyConfig()
 
-  if (!isTrustedProxyRequest(requestHost, requestOrigin)) {
+  if (
+    !isTrustedProxyRequest(
+      requestHost,
+      requestOrigin,
+      edgeProof,
+      publicOrigin,
+      edgeSharedSecret
+    )
+  ) {
     return Response.json(
-      {
-        error:
-          'Kitty gateway proxy is loopback-only. Authenticated LAN or tailnet proxy access is not configured.',
-      },
+      { error: 'Kitty gateway proxy rejected an untrusted request.' },
       { status: 403 }
     )
   }
-
-  const { gatewayUrl, gatewaySecret } = resolveProxyConfig()
   const { path } = await params
   const target = `${gatewayUrl}/${path.join('/')}${req.nextUrl.search}`
 
