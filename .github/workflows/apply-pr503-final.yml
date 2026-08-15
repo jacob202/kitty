@@ -96,6 +96,13 @@ jobs:
               '''if [[ "${INFRA_FAILED}" == "1" ]]; then\n  say "${RED}Push blocked by publication infrastructure.${OFF} ${#FAILED[@]} gate(s) could not run reliably: ${FAILED[*]}"\n  say ""\n  exit 75\nfi\n\nsay "${RED}Push blocked.${OFF} ${#FAILED[@]} of these failed: ${FAILED[*]}"\nsay ""\nsay "Nothing was sent. Fix the failure above, or run ${YELLOW}make ci${OFF} to see it in full."\n''',
           )
 
+          # A valid fake publication hook must model the new fast preflight contract.
+          replace_once(
+              'tests/test_builder_loop.py',
+              '    hook.write_text("#!/bin/bash\\nset -e\\n" + body, encoding="utf-8")\n',
+              '    hook.write_text("#!/bin/bash\\nset -e\\nif [[ \\"${1:-}\\" == \\"--preflight\\" ]]; then exit 0; fi\\n" + body, encoding="utf-8")\n',
+          )
+
           p = Path('tests/test_builder_publication_infrastructure.py')
           text = p.read_text(encoding='utf-8')
           marker = '    _stub_janitor(monkeypatch)\n\n    result = bl.run_packet(\n'
@@ -135,7 +142,7 @@ jobs:
             tests/test_pre_push_gate.py::test_full_gate_preserves_infrastructure_exit_class \
             -q --tb=short
           python -m ruff check gateway/builder_loop.py gateway/builder_pr_janitor.py gateway/builder_run.py \
-            tests/test_builder_publication_infrastructure.py tests/test_builder_run.py tests/test_pre_push_gate.py
+            tests/test_builder_publication_infrastructure.py tests/test_builder_loop.py tests/test_builder_run.py tests/test_pre_push_gate.py
           python -m mypy gateway/builder_loop.py gateway/builder_pr_janitor.py gateway/builder_run.py
           bash -n scripts/hooks/pre-push
           ./scripts/hooks/pre-push --preflight
@@ -146,7 +153,7 @@ jobs:
           git rm .github/workflows/apply-pr503-patch.yml .github/workflows/apply-pr503-final.yml
           git add gateway/builder_loop.py gateway/builder_pr_janitor.py gateway/builder_run.py \
             scripts/hooks/pre-push tests/test_builder_publication_infrastructure.py \
-            tests/test_builder_run.py tests/test_pre_push_gate.py
+            tests/test_builder_loop.py tests/test_builder_run.py tests/test_pre_push_gate.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'fix(builder): keep publication outages budget neutral'
