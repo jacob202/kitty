@@ -157,3 +157,9 @@ def test_hook_clears_builder_data_dir_before_gates(hook_text):
     clear_marker = "unset KITTY_BUILDER_DATA_DIR"
     assert clear_marker in hook_text, "pre-push leaks Builder's proof DB override into pytest"
     assert hook_text.index(clear_marker) < hook_text.index('run_gate "code style"')
+
+
+def test_hook_blocks_direct_main_push_without_explicit_override(hook_text):
+    assert "refs/heads/main" in hook_text
+    assert "KITTY_ALLOW_DIRECT_MAIN_PUSH" in hook_text
+    assert hook_text.index("refs/heads/main") < hook_text.index("Checking before push")

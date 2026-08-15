@@ -29,6 +29,16 @@ RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; OFF=$'\0
 
 say() { printf '%s\n' "$*" >&2; }
 
+# Local safety belt: normal delivery reaches main through a reviewed PR.
+# Server-side rules are the real enforcement; this catches accidental direct pushes early.
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [[ "${remote_ref}" == "refs/heads/main" && "${KITTY_ALLOW_DIRECT_MAIN_PUSH:-0}" != "1" ]]; then
+    say "${RED}Push blocked — direct push to main.${OFF}"
+    say "Open/merge a PR instead. Emergency override: KITTY_ALLOW_DIRECT_MAIN_PUSH=1 git push ..."
+    exit 1
+  fi
+done
+
 # Fail loud rather than waving a push through on a half-built toolchain. A gate
 # that silently skips is worse than no gate: it reports success it never checked.
 COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"

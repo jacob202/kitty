@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Fast staged-safety gate. Heavy CI parity stays in pre-push.
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "${ROOT_DIR}" || exit 1
+
+block() {
+  printf 'Commit blocked — %s\n' "$1" >&2
+  exit 1
+}
+
+git diff --cached --check || block "staged diff contains whitespace errors or conflict markers"
+
+# Generic private keys are dangerous even when they are not a known provider secret.
+if git diff --cached --no-color --diff-filter=ACMR | grep -E '^\+.*-----BEGIN ([A-Z0-9 ]+ )?PRIVATE KEY-----' >/dev/null; then
+  block "staged content contains a private-key marker"
+fi
+
+bash scripts/check-no-macos-metadata.sh || block "macOS metadata is present"
+
+TRUFFLEHOG_BIN="${TRUFFLEHOG_BIN:-$(command -v trufflehog || true)}"
+[[ -n "${TRUFFLEHOG_BIN}" && -x "${TRUFFLEHOG_BIN}" ]] || \
+  block "trufflehog is required (brew install trufflehog)"
+"${TRUFFLEHOG_BIN}" filesystem . --no-verification --fail || \
+  block "TruffleHog found a potential secret"
