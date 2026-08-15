@@ -274,6 +274,35 @@ def _launch_run(
     }
 
 
+def _reconcile_merged_work(
+    *,
+    db_path: Path | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Reconcile merged PR truth and safely retire promoted task worktrees."""
+    from gateway.builder_runner import RunnerError, remove_worktree
+
+    reconciliation = dict(bq.detect_merged_prs(db_path=db_path))
+    cleanup: list[dict[str, Any]] = []
+    for task_id in reconciliation.get("promoted", []):
+        entry: dict[str, Any] = {"task_id": str(task_id)}
+        try:
+            removed = remove_worktree(
+                str(task_id),
+                repo_root=repo_root,
+                discard_done_marker=True,
+            )
+        except RunnerError as exc:
+            detail = str(exc)
+            entry["status"] = "absent" if "no worktree" in detail.lower() else "kept"
+            entry["error"] = detail
+        else:
+            entry.update({"status": "removed", "path": str(removed)})
+        cleanup.append(entry)
+    reconciliation["worktree_cleanup"] = cleanup
+    return reconciliation
+
+
 def tick(
     *,
     db_path: Path | None = None,
@@ -284,8 +313,10 @@ def tick(
 ) -> dict[str, Any]:
     """Run one supervisor tick under a single OS lock and return a receipt.
 
-    The receipt is truthful about the lock, every scanned initiative, every
-    launched run, and every skipped candidate with its reason. A duplicate
+    Merged PR truth is reconciled before eligibility is scanned so dependent
+    packets can become runnable in this same tick. The receipt is truthful about
+    reconciliation, the lock, every scanned initiative, every launched run, and
+    every skipped candidate with its reason. A duplicate
     concurrent tick returns ``status: "locked"`` with no launches.
     """
     _validate_max_runs(max_runs)
@@ -298,8 +329,29 @@ def tick(
                 "scanned_initiatives": [],
                 "launched": [],
                 "skipped": [],
+                "merge_reconciliation": None,
                 "duplicate_tick": True,
             }
+        try:
+            merge_reconciliation = _reconcile_merged_work(
+                db_path=db_path, repo_root=repo_root
+            )
+        except Exception as exc:
+            return {
+                "status": "error",
+                "lock": {"acquired": True, "path": str(lock.path)},
+                "max_runs": max_runs,
+                "scanned_initiatives": [],
+                "launched": [],
+                "skipped": [],
+                "merge_reconciliation": {
+                    "promoted": [],
+                    "errors": [{"error": f"{type(exc).__name__}: {exc}"}],
+                    "worktree_cleanup": [],
+                },
+                "duplicate_tick": False,
+            }
+
         scanned = [
             {"initiative_id": str(initiative["id"]), "state": bi.INITIATIVE_ACTIVE}
             for initiative in active_initiatives(db_path)
@@ -327,12 +379,18 @@ def tick(
                 entry["dispatch"] = dispatch
             launched.append(entry)
         return {
-            "status": "error" if any("error" in item for item in launched) else "ok",
+            "status": (
+                "error"
+                if any("error" in item for item in launched)
+                or bool(merge_reconciliation.get("errors"))
+                else "ok"
+            ),
             "lock": {"acquired": True, "path": str(lock.path)},
             "max_runs": max_runs,
             "scanned_initiatives": scanned,
             "launched": launched,
             "skipped": skipped,
+            "merge_reconciliation": merge_reconciliation,
             "duplicate_tick": False,
         }
 
