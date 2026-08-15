@@ -11,10 +11,10 @@ about what it did.
 Walking-skeleton contract:
 
 - A ``tick()`` holds exactly one OS lock (``fcntl.flock`` on a lockfile next
-  to the queue DB) for the whole pass, deterministically selects eligible
-  *active* initiatives (derived state ``active``, ordered by initiative id),
-  picks each one's next eligible packet via ``builder_initiative.next_packet``
-  (deterministic ``seq`` order), and detaches **no more than**
+  to the queue DB) for the whole pass, deterministically scans operator-active
+  initiatives (stored state ``active``, ordered by initiative id), then asks
+  ``builder_initiative.next_packet`` for each initiative's canonical runnable
+  or fenced recovery candidate and detaches **no more than**
   :data:`MAX_RUNS_PER_TICK` canonical ``initiative run-packet`` loops.
 - Duplicate ticks do nothing: a concurrent tick cannot acquire the lock and
   returns a ``locked`` receipt with no launches; a sequential re-tick finds
@@ -155,18 +155,18 @@ def repo_root_default() -> Path:
 
 
 def active_initiatives(db_path: Path | None = None) -> list[dict[str, Any]]:
-    """Deterministically ordered initiatives whose derived state is ``active``.
+    """Deterministically ordered initiatives whose operator state is ``active``.
 
-    Uses the read-only rollup from ``builder_initiative.list_initiatives``
-    (which derives state over durable task state) and sorts by initiative id
-    so selection is stable across ticks regardless of insertion order.
+    Stored initiative state is the operator-owned execution gate. Derived
+    health is intentionally not a dispatch gate: it can be ``paused`` when
+    ordinary eligibility is empty even though ``next_packet`` exposes a fenced
+    recovery candidate. Packet runnability stays owned by ``next_packet``.
     """
     initiatives = bi.list_initiatives(db_path)
     active = [
         initiative
         for initiative in initiatives
-        if (initiative.get("health_summary") or {}).get("state")
-        == bi.INITIATIVE_ACTIVE
+        if initiative.get("state") == bi.INITIATIVE_ACTIVE
     ]
     return sorted(active, key=lambda i: str(i["id"]))
 
@@ -201,10 +201,13 @@ def _select_packets(
                 "task_id": str(packet["task_id"]), "reason": "task_missing",
             })
             continue
-        if task["state"] != bq.QUEUED:
+        task_state = str(task["state"])
+        if task_state not in {bq.QUEUED, bq.BLOCKED}:
             skipped.append({
                 "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
-                "task_id": str(packet["task_id"]), "reason": "task_not_queued",
+                "task_id": str(packet["task_id"]),
+                "reason": "task_state_not_dispatchable",
+                "task_state": task_state,
             })
             continue
         active_runs = [

@@ -59,7 +59,7 @@ def _fake_claude(tmp_path: Path, *, probe_ok: bool = True, worker_ok: bool = Tru
         f"""#!/bin/sh
 # Fake claude for testing
 if echo "$*" | grep -q "Reply with exactly: ok"; then
-  {"exit 0" if probe_ok else "exit 1"}
+  {"exit 0" if probe_ok else "echo not authenticated >&2; exit 1"}
 fi
 if echo "$*" | grep -q "KittyBuilder implementation worker"; then
   if [ {"1" if worker_ok else "0"} -eq 1 ]; then
@@ -440,6 +440,82 @@ def test_non_auth_probe_failure_preserves_context(repo: Path, tmp_path: Path) ->
     assert result.returncode == 1
     assert "invalid model: bogus" in result.stderr
     assert "claude-sonnet-4-5" in result.stderr
+
+
+def test_silent_probe_failure_is_error_not_provider_unavailable(repo: Path, tmp_path: Path) -> None:
+    fake = tmp_path / "silent-probe-claude"
+    fake.write_text("#!/bin/sh\nexit 2\n", encoding="utf-8")
+    fake.chmod(0o755)
+    task_id, attempt_id = "task_abc", "123"
+    bundle_path, manifest_path, _ = _bundle(tmp_path, task_id, attempt_id)
+    result_path = tmp_path / "result.json"
+    env = os.environ.copy()
+    env.update({
+        "KITTYBUILDER_CLAUDE_BIN": str(fake),
+        "KITTYBUILDER_CLAUDE_PROBE_TIMEOUT": "5",
+        "KB_BUNDLE_PATH": str(bundle_path),
+        "KB_RESULT_PATH": str(result_path),
+        "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
+        "KB_ATTEMPT_ID": attempt_id,
+        "KB_TASK_ID": task_id,
+    })
+    result = subprocess.run(
+        [sys.executable, str(_ADAPTER), "worker"],
+        cwd=repo, env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 1
+    assert "exit 2" in result.stderr
+    assert "without output" in result.stderr
+
+
+def test_reviewer_rejects_note_path_inside_worktree(repo: Path, tmp_path: Path) -> None:
+    fake = _fake_claude(tmp_path)
+    task_id, attempt_id = "task_abc", "123"
+    bundle_path, manifest_path, _ = _bundle(tmp_path, task_id, attempt_id)
+    impl_result_path = tmp_path / "impl.json"
+    impl_result_path.write_text(_GOOD_WORKER_RESULT, encoding="utf-8")
+    review_result_path = tmp_path / "review.json"
+    note_path = repo / "review-note.md"
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo,
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    review_context = tmp_path / "review_context.json"
+    diff_sha = hashlib.sha256(b"").hexdigest()
+    review_context.write_text(json.dumps({
+        "task_id": task_id,
+        "attempt_id": int(attempt_id),
+        "review_sha": head,
+        "diff_sha256": diff_sha,
+    }), encoding="utf-8")
+    env = os.environ.copy()
+    env.update({
+        "KITTYBUILDER_CLAUDE_BIN": str(fake),
+        "KITTYBUILDER_CLAUDE_PROBE_TIMEOUT": "5",
+        "KB_BUNDLE_PATH": str(bundle_path),
+        "KB_IMPL_RESULT_PATH": str(impl_result_path),
+        "KB_REVIEW_RESULT_PATH": str(review_result_path),
+        "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
+        "KB_REVIEW_CONTEXT_PATH": str(review_context),
+        "KB_REVIEW_SHA": head,
+        "KB_REVIEW_DIFF_SHA256": diff_sha,
+        "KB_REVIEW_NOTE_PATH": str(note_path),
+        "KB_ATTEMPT_ID": attempt_id,
+        "KB_TASK_ID": task_id,
+    })
+    result = subprocess.run(
+        [sys.executable, str(_ADAPTER), "review"], cwd=repo,
+        env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 1
+    assert "review note path must be outside" in result.stderr.lower()
+    assert not review_result_path.exists()
+    assert not note_path.exists()
+    status = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=repo,
+        capture_output=True, text=True, check=True,
+    ).stdout
+    assert status == ""
 
 def test_reviewer_missing_claude_exits_75(repo: Path, tmp_path: Path) -> None:
     """Reviewer with unavailable claude exits 75."""
