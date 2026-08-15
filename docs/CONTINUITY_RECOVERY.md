@@ -158,6 +158,81 @@ Key still-valuable backlog (full list is 41 items in the ledger):
 
 ---
 
+## 7. Autonomous supervisor and recovery mechanisms
+
+**Status:** Walking skeleton implemented (2026-08-15)
+**Purpose:** Periodic autonomous execution of eligible Builder initiatives via a stateless supervisor running on launchd.
+
+### Supervisor
+
+The autonomous campaign supervisor (`gateway/builder_supervisor.py`) runs as a periodic launchd service that:
+
+- Acquires an exclusive OS lock per tick (prevents duplicate concurrent runs)
+- Deterministically selects eligible active initiatives (by ID order)
+- Picks each initiative's next eligible packet (by `seq` order)
+- Launches **at most 2 canonical free worker runs** per tick
+- Returns truthful receipts (locked/launched/skipped with reasons)
+
+Duplicate ticks are safe no-ops. The supervisor has no state machine of its own — all initiative/packet/task/lease/attempt/validation/review/publication truth remains in the existing durable Builder machinery.
+
+**Installation:**
+
+```bash
+scripts/start_builder_supervisor.sh launchd > ~/Library/LaunchAgents/com.kitty.builder.supervisor.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kitty.builder.supervisor.plist
+```
+
+**Manual control:**
+
+```bash
+./kitty builder supervisor tick      # run one tick now
+./kitty builder supervisor status    # read-only projection
+launchctl kickstart -k gui/$(id -u)/com.kitty.builder.supervisor  # force tick
+launchctl bootout gui/$(id -u)/com.kitty.builder.supervisor      # stop service
+```
+
+### Claude worker adapter
+
+A strict Claude Code worker/reviewer adapter (`scripts/kittybuilder_claude_adapter.py`) provides fixed-model packet execution:
+
+- Worker: Sonnet 4.5 (default, overridable via `KITTYBUILDER_CLAUDE_WORKER_MODEL`)
+- Reviewer: Opus 4.6 (default, overridable via `KITTYBUILDER_CLAUDE_REVIEW_MODEL`)
+- **No fallback** — a failed model run exits without retrying another model
+- **Exit 75** when `claude` binary is unavailable or auth fails (before any work/mutation)
+- **Reviewer immutability** — any worktree mutation aborts the review with no publication
+
+Tests use a fake `claude` executable, so no live API requests occur in CI.
+
+### Recovery from supervisor failures
+
+If the supervisor dies mid-tick or launchd crashes:
+
+1. The OS lock releases automatically (file descriptor closed)
+2. Next periodic tick (or manual `supervisor tick`) re-evaluates eligibility
+3. Already-claimed tasks appear as active runs and are skipped
+4. Unclaimed queued tasks are selected normally
+
+If a dispatched worker dies or hangs:
+
+1. Builder's existing run heartbeat/timeout machinery detects it
+2. The task becomes eligible for retry (governed by packet `max_attempts`)
+3. Next supervisor tick (or manual initiative run) can claim it
+
+**No manual cleanup required.** The supervisor is stateless; Builder's durable task/run state is the single authority.
+
+### Discord integration
+
+Discord Command Center provides a typed read-only projection of Builder state plus control commands. It translates user commands into MCP tool calls or Builder CLI invocations. Discord has:
+
+- **No shell access** or arbitrary command execution
+- **No approval/publication/merge** capabilities
+- **No file/worktree** manipulation
+- **No bypass** of Builder governance/tiering
+
+Discord is a projection and control surface only. Builder remains the single authority for execution truth, initiatives, attempts, leases, and recovery state.
+
+---
+
 ## 8. What should NOT be recovered (explicitly dead, with reason)
 
 - **B8 clean-checkout trivia as a runnable packet** — obsolete proof; only its trust lesson matters.

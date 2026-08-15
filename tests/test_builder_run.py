@@ -33,6 +33,10 @@ def repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "config", "user.email", "t@t"], cwd=root, check=True)
     subprocess.run(["git", "config", "user.name", "t"], cwd=root, check=True)
     (root / "README.md").write_text("hello\n")
+    hook = root / "scripts" / "hooks" / "pre-push"
+    hook.parent.mkdir(parents=True)
+    hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    hook.chmod(0o755)
     subprocess.run(["git", "add", "."], cwd=root, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=root, check=True)
     return root
@@ -99,6 +103,42 @@ def _run(
 
 
 class TestRunInitiative:
+    @pytest.mark.parametrize(("publish", "expected"), [(False, False), (True, True)])
+    def test_publish_mode_controls_publication_preflight(
+        self,
+        repo: Path,
+        db_path: Path,
+        tmp_path: Path,
+        monkeypatch,
+        publish: bool,
+        expected: bool,
+    ):
+        _apply(db_path, [_packet("P1")], repo_root=repo)
+        seen: list[bool | None] = []
+
+        def paused_loop(
+            initiative_id: str, packet_id: str, **kwargs: Any
+        ) -> dict[str, Any]:
+            seen.append(kwargs.get("publication_preflight"))
+            return {
+                "outcome": br.bl.LOOP_PAUSED,
+                "reason": "test stop",
+                "attempts": [],
+            }
+
+        monkeypatch.setattr(br.bl, "run_packet", paused_loop)
+        summary = br.run_initiative(
+            INITIATIVE,
+            worker_command=_worker(tmp_path),
+            publish=publish,
+            repo_root=repo,
+            db_path=db_path,
+            effectiveness_guard=False,
+        )
+
+        assert summary["outcome"] == "paused"
+        assert seen == [expected]
+
     def test_independent_packets_run_in_seq_order(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):

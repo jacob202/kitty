@@ -526,6 +526,7 @@ def run_initiative(
                 governor_risk_class=governor_risk_class,
                 governor_projected_cost_cad=governor_projected_cost_cad,
                 governor_requested_route=governor_requested_route,
+                publication_preflight=publish,
             )
         except bl.LoopError as exc:
             _decide(
