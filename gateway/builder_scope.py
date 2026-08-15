@@ -93,6 +93,13 @@ WORKER_STAGING_PREFIXES = (
 # executes. It is agent-runtime bookkeeping, not an implementation artifact.
 OPENCODE_CONTINUATION_RESIDUE_PREFIX = ".omo/run-continuation/"
 
+# The Codex adapter (scripts/kittybuilder_codex_adapter.py) stages
+# .kittybuilder-codex-{bundle,context,schema}-<attempt>.json at the worktree
+# root so the model can read them. A run that is killed or inspected
+# mid-attempt can still show these as changed paths.  They are runner-owned
+# staging files, not implementation artifacts.
+CODEX_STAGING_RESIDUE_PREFIX = ".kittybuilder-codex-"
+
 
 def is_expected_residue(path: str) -> bool:
     """True for paths every attempt may legitimately touch outside its
