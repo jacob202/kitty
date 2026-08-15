@@ -106,11 +106,19 @@ or don't?"* and *"I can't keep track of all the shit you offhandedly mention."*
 3. **If it truly cannot be reached from this environment**, say so in one
    sentence and give the exact command. Nothing else.
 4. **Never defer your own work.** "Deferred: copy X into the KB" is not a
-   recommendation, it is you declining to do your job. Create the directory and
-   write the file. In an ephemeral container, also mirror it into the repository
-   and commit — `~/kb` there is unversioned and dies with the container, so the
-   copy that survives is the one in git. `docs/session-notes/` is that mirror,
-   and `*.jsonl` needs `git add -f`.
+   recommendation, it is you declining to do your job. Write the file now, into
+   the store that actually applies.
+
+   **Never create `~/kb` yourself.** The real knowledge base is Jacob's, on his
+   Mac, and it already has history. `resolve_store()` in
+   `scripts/kb_effectiveness.py` and `scripts/session_learning.py` selects
+   `~/kb` the moment that path is a directory, so making an empty one in a
+   container silently redirects every receipt and signal into unversioned
+   storage that dies with the container — and leaves behind a convincing-looking
+   "knowledge base" holding nothing but your own session. When `~/kb` is absent
+   the recorders already fall back to `docs/session-notes/`, which is in git and
+   survives. Write there and commit; `*.jsonl` needs `git add -f`. An absent
+   `~/kb` is a fact to report, never a gap to paper over.
 5. **Never end a reply with an unowned problem.** If it is not worth fixing, it
    is not worth mentioning.
 
