@@ -9,7 +9,7 @@ queue is already the durable Builder task authority.
 - **OpenCode** is the default implementation, planning, packaging, and cheap review lane.
 - **Codex** is reserved for high-risk review or blocked escalation.
 - **KittyBuilder queue** remains the authoritative task state.
-- **GitHub issue #127** is only a temporary bridge inbox.
+- **GitHub issue #127** is historical bridge/audit metadata only; it is not an execution inbox.
 
 ## Setup Hook
 
