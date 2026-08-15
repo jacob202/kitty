@@ -14,6 +14,14 @@ To execute queued packets with zero-cost OpenCode models instead of paid
 tokens, see `docs/FREE_WORKERS.md` — the short version is
 `./kitty builder initiative run-packet <id> <packet> --free --watch`.
 
+When an initiative run is started with publication enabled, Builder also runs
+the **PR Janitor** before opening/updating the PR. It applies only packet-scoped
+Ruff fixes, runs `scripts/hooks/pre-push`, and feeds any remaining failure back
+into the existing bounded repair loop. Each pass is recorded as a
+`pr_janitor_pass` event; the janitor stops after 3 passes and leaves a durable
+blocker instead of looping indefinitely. Non-publishing/shadow runs are
+unchanged.
+
 ## Quickstart
 
 ```bash
