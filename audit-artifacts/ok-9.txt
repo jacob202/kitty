@@ -1,0 +1,2 @@
+ok_worker attempt 9
+bundle_task=kb_msauixxe_939f
