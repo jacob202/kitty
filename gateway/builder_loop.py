@@ -31,6 +31,7 @@ import hashlib
 import json
 import math
 import os
+import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -39,6 +40,7 @@ from typing import Any
 from gateway import builder_attempt as ba
 from gateway import builder_identity as bid
 from gateway import builder_initiative as bi
+from gateway import builder_pr_janitor as bj
 from gateway import builder_queue as bq
 from gateway import compute_governor as cg
 from gateway.builder_brief import default_branch_name
@@ -798,6 +800,7 @@ def run_packet(
     governor_risk_class: str = "routine",
     governor_projected_cost_cad: float | None = None,
     governor_requested_route: str | None = None,
+    publication_preflight: bool = False,
 ) -> dict[str, Any]:
     """Run the bounded repair loop for one packet.
 
@@ -995,6 +998,7 @@ def run_packet(
             )
 
     history: list[dict[str, Any]] = []
+    janitor_passes = 0
     while True:
         if bi.get_initiative_state(initiative_id, db_path=db_path) == bi.INITIATIVE_PAUSED:
             initiative = bi.get_initiative(initiative_id, db_path=db_path) or {}
@@ -1013,6 +1017,33 @@ def run_packet(
             bi.pause_initiative(initiative_id, reason, db_path=db_path)
             return {
                 "outcome": LOOP_PAUSED,
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "task_id": task_id,
+                "task_state": (bq.get_task(task_id, db_path=db_path) or {}).get("state"),
+                "reason": reason,
+                "attempts": history,
+            }
+
+        if publication_preflight and janitor_passes >= bj.JANITOR_MAX_PASSES:
+            reason = f"PR janitor exhausted after {bj.JANITOR_MAX_PASSES} passes"
+            _governor_settle(
+                initiative_id,
+                packet_id,
+                base_sha=base_sha,
+                governor_db=governor_db,
+                decision=governor_decision,
+                outcome=LOOP_EXHAUSTED,
+                attempts=history,
+                model=model,
+                provider=provider,
+                risk_class=governor_risk_class,
+                projected_cost_cad=governor_projected_cost_cad,
+                requested_route=governor_requested_route,
+                override_reason=governor_override,
+            )
+            return {
+                "outcome": LOOP_EXHAUSTED,
                 "initiative_id": initiative_id,
                 "packet_id": packet_id,
                 "task_id": task_id,
@@ -1474,7 +1505,41 @@ def run_packet(
         if failure is None and _runtime_budget_expired(deadline_monotonic):
             failure = "initiative runtime budget exceeded"
 
+        janitor_receipt: dict[str, Any] | None = None
+        janitor_error: str | None = None
+        janitor_head_before: str | None = None
+        janitor_head_after: str | None = None
+        janitor_pass_no: int | None = None
+        if failure is None and publication_preflight:
+            janitor_passes += 1
+            janitor_pass_no = janitor_passes
+            janitor_worktree = worktree_path(task_id, repo_root=repo_root)
+            janitor_head_before = worktree_head(janitor_worktree)
+            try:
+                janitor_receipt = bj.apply_safe_repairs(
+                    janitor_worktree,
+                    allowed_paths=bundle_preview.get("allowed_paths"),
+                    commit_marker=f"[{packet_id}]",
+                )
+            except bj.SafeRepairError as exc:
+                janitor_error = str(exc)
+                janitor_receipt = {
+                    "changed": False,
+                    "changed_paths": [],
+                    "commit_sha": None,
+                    "error": janitor_error,
+                }
+            janitor_head_after = worktree_head(janitor_worktree)
+
         if failure is None:
+            extra_commands: list[str] = []
+            if publication_preflight:
+                if janitor_error is not None:
+                    message = shlex.quote(
+                        f"PR janitor safe repair failed: {janitor_error}"
+                    )
+                    extra_commands.append(f"printf '%s\n' {message} >&2; exit 1")
+                extra_commands.append(bj.PUBLICATION_GATE_COMMAND)
             validated = ba.run_validation(
                 attempt_id,
                 cwd=worktree_path(task_id, repo_root=repo_root),
@@ -1482,9 +1547,43 @@ def run_packet(
                     validation_timeout_seconds, deadline_monotonic
                 ),
                 db_path=db_path,
+                extra_commands=extra_commands,
             )
             entry["validation_status"] = validated["validation"]["status"]
             manifest["validation"] = _validation_evidence(validated["validation"])
+            if publication_preflight and janitor_pass_no is not None:
+                gate = next(
+                    (
+                        command
+                        for command in validated["validation"]["commands"]
+                        if command.get("command") == bj.PUBLICATION_GATE_COMMAND
+                    ),
+                    None,
+                )
+                gate_status = (
+                    "passed" if gate is not None and gate.get("passed") else "failed"
+                )
+                janitor_event = {
+                    "pass_no": janitor_pass_no,
+                    "attempt_id": attempt_id,
+                    "head_before": janitor_head_before,
+                    "head_after": janitor_head_after,
+                    "repairs": janitor_receipt,
+                    "repair_error": janitor_error,
+                    "gate_status": gate_status,
+                    "gate_exit_code": gate.get("exit_code") if gate else None,
+                    "output_tail": str(gate.get("output_tail", ""))[-2000:]
+                    if gate
+                    else "",
+                }
+                entry["pr_janitor"] = janitor_event
+                manifest["pr_janitor"] = janitor_event
+                bq.append_event(
+                    task_id,
+                    "pr_janitor_pass",
+                    payload=janitor_event,
+                    db_path=db_path,
+                )
             write_run_manifest(manifest_path, manifest)
             if validated["validation"]["status"] == ba.VALIDATION_FAILED:
                 failure = "deterministic validation failed"

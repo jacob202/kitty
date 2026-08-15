@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
 RunCmd = Callable[..., subprocess.CompletedProcess[str]]
@@ -70,6 +70,24 @@ def _safe_path(path: str) -> bool:
     return path in _SAFE_EXACT or path.startswith(_SAFE_PREFIXES)
 
 
+def _outside_packet_scope(path: str, allowed_paths: list[str] | None) -> bool:
+    if not allowed_paths:
+        return False
+    normalized: list[str] = []
+    for raw in allowed_paths:
+        candidate = raw.strip().rstrip("/") or "."
+        parsed = PurePosixPath(candidate)
+        if parsed.is_absolute() or ".." in parsed.parts:
+            raise SafeRepairError(
+                f"invalid packet allowed path {raw!r}: use a repo-relative path without '..'"
+            )
+        normalized.append(parsed.as_posix())
+    return not any(
+        prefix == "." or path == prefix or path.startswith(f"{prefix}/")
+        for prefix in normalized
+    )
+
+
 def _restore_all(worktree: Path, run_cmd: RunCmd) -> None:
     result = run_cmd(
         ["git", "restore", "--staged", "--worktree", "--", "."],
@@ -82,7 +100,11 @@ def _restore_all(worktree: Path, run_cmd: RunCmd) -> None:
 
 
 def apply_safe_repairs(
-    worktree: Path, *, run_cmd: RunCmd | None = None
+    worktree: Path,
+    *,
+    allowed_paths: list[str] | None = None,
+    commit_marker: str | None = None,
+    run_cmd: RunCmd | None = None,
 ) -> dict[str, Any]:
     """Apply and commit only safe Ruff fixes in a clean Builder worktree."""
     runner = run_cmd or _default_run
@@ -106,6 +128,16 @@ def apply_safe_repairs(
             "PR janitor changed forbidden path(s): " + ", ".join(forbidden)
         )
 
+    out_of_scope = [
+        path for path in changed if _outside_packet_scope(path, allowed_paths)
+    ]
+    if out_of_scope:
+        _restore_all(worktree, runner)
+        raise SafeRepairError(
+            "PR janitor changed path(s) outside packet scope: "
+            + ", ".join(out_of_scope)
+        )
+
     if not changed:
         return {
             "changed": False,
@@ -120,8 +152,13 @@ def apply_safe_repairs(
         detail = (add.stderr or add.stdout or "").strip()
         raise SafeRepairError(f"PR janitor could not stage repairs: {detail}")
 
+    marker = (commit_marker or "").strip()
+    if "\n" in marker or "\r" in marker:
+        _restore_all(worktree, runner)
+        raise SafeRepairError("PR janitor commit marker must be one line")
+    subject = "fix: apply PR janitor repairs" + (f" {marker}" if marker else "")
     commit = runner(
-        ["git", "commit", "-m", "fix: apply PR janitor repairs"],
+        ["git", "commit", "-m", subject],
         cwd=worktree,
         check=False,
     )

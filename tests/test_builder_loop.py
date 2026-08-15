@@ -127,6 +127,19 @@ def _good_worker(tmp_path: Path) -> list[str]:
     )
 
 
+def _install_publication_gate(repo: Path, body: str) -> None:
+    hook = repo / "scripts" / "hooks" / "pre-push"
+    hook.parent.mkdir(parents=True, exist_ok=True)
+    hook.write_text("#!/bin/bash\nset -e\n" + body, encoding="utf-8")
+    hook.chmod(0o755)
+    subprocess.run(["git", "add", str(hook.relative_to(repo))], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "test publication gate"],
+        cwd=repo,
+        check=True,
+    )
+
+
 def _open_attempts(db_path: Path | None = None) -> list[dict]:
     """Return every open attempt, bypassing liveness certification.
 
@@ -695,6 +708,132 @@ class TestRunPacket:
                 extra_env={"GITHUB_TOKEN": "sneaky"},
                 db_path=db_path,
             )
+
+    def test_publication_preflight_runs_gate_and_records_event(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        _install_publication_gate(repo, "exit 0\n")
+        task_id = _apply(db_path, repo_root=repo)
+        monkeypatch.setattr(
+            bl.bj,
+            "apply_safe_repairs",
+            lambda worktree, allowed_paths=None, commit_marker=None: {
+                "changed": False,
+                "changed_paths": [],
+                "commit_sha": None,
+                "ruff_exit_code": 0,
+            },
+        )
+
+        result = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo,
+            db_path=db_path,
+            publication_preflight=True,
+        )
+
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+        events = [
+            event
+            for event in bq.list_events(task_id, db_path=db_path)
+            if event["type"] == "pr_janitor_pass"
+        ]
+        assert len(events) == 1
+        assert events[0]["payload"]["pass_no"] == 1
+        assert events[0]["payload"]["gate_status"] == "passed"
+
+    def test_publication_gate_failure_is_repair_input_for_next_worker(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        _install_publication_gate(repo, "test -f gate-fixed.txt\n")
+        task_id = _apply(
+            db_path,
+            max_attempts=3,
+            allowed_paths=["done.txt", "gate-fixed.txt"],
+            repo_root=repo,
+        )
+        monkeypatch.setattr(
+            bl.bj,
+            "apply_safe_repairs",
+            lambda worktree, allowed_paths=None, commit_marker=None: {
+                "changed": False,
+                "changed_paths": [],
+                "commit_sha": None,
+                "ruff_exit_code": 0,
+            },
+        )
+        worker = _script(
+            tmp_path,
+            "repair_publication_gate.sh",
+            (
+                "if grep -q './scripts/hooks/pre-push' \"$KB_BUNDLE_PATH\"; then\n"
+                "    echo fixed > gate-fixed.txt\n"
+                "    git add gate-fixed.txt\n"
+                "    git commit -q -m 'repair publication gate [LP-1]'\n"
+                "fi\n"
+                "echo ok > done.txt\n"
+                f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
+            ),
+        )
+
+        result = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=worker,
+            repo_root=repo,
+            db_path=db_path,
+            publication_preflight=True,
+        )
+
+        assert result["outcome"] == bl.LOOP_SUCCEEDED, result
+        assert [attempt["outcome"] for attempt in result["attempts"]] == [
+            "failed",
+            "succeeded",
+        ]
+        assert result["attempts"][0]["validation_failure"]["command"] == (
+            "./scripts/hooks/pre-push"
+        )
+        events = [
+            event
+            for event in bq.list_events(task_id, db_path=db_path)
+            if event["type"] == "pr_janitor_pass"
+        ]
+        assert [event["payload"]["gate_status"] for event in events] == [
+            "failed",
+            "passed",
+        ]
+
+    def test_publication_preflight_stops_after_three_passes(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        _install_publication_gate(repo, "echo still-broken >&2\nexit 9\n")
+        _apply(db_path, max_attempts=5, repo_root=repo)
+        monkeypatch.setattr(
+            bl.bj,
+            "apply_safe_repairs",
+            lambda worktree, allowed_paths=None, commit_marker=None: {
+                "changed": False,
+                "changed_paths": [],
+                "commit_sha": None,
+                "ruff_exit_code": 0,
+            },
+        )
+
+        result = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo,
+            db_path=db_path,
+            publication_preflight=True,
+        )
+
+        assert result["outcome"] == bl.LOOP_EXHAUSTED
+        assert result["reason"] == "PR janitor exhausted after 3 passes"
+        assert len(result["attempts"]) == 3
+
 
 
 # ---------------------------------------------------------------------------
