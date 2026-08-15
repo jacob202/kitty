@@ -1,0 +1,2 @@
+ok_worker attempt 12
+bundle_task=kb_msauoc94_8978
