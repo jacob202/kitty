@@ -458,11 +458,10 @@ def test_dead_provider_chain_reaches_the_room_as_plain_language(workspace_db):
     status_message = result["messages"][-1]["content"]
     assert status_message.startswith("Incomplete: builder could not finish.")
     assert "no model provider it can use" in status_message
-    assert "./kitty up" in status_message
-    # The provider jargon that used to land in Jacob's conversation stays out.
-    assert "HTTPConnectionPool" not in status_message
-    assert "ProviderChainExhausted" not in status_message
-    assert "no api key configured" not in status_message
+    assert "Setting up a provider is required" in status_message
+    # The operator mechanics that used to land in Jacob's conversation stay out.
+    for leak in ("HTTPConnectionPool", "ProviderChainExhausted", "api key", "./kitty", ".env"):
+        assert leak.lower() not in status_message.lower(), leak
 
 
 def test_dead_provider_chain_keeps_raw_diagnostics_in_the_event_log(workspace_db):

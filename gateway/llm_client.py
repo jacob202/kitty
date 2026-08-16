@@ -59,6 +59,14 @@ class ProviderChainExhausted(RuntimeError):
         return describe_chain_exhaustion(self.errors)
 
 
+# The one action every user-facing chain failure offers. Settings already lists
+# providers and marks which are usable, so this is a place Jacob can actually go.
+_PICK_ANOTHER = "Choose a different provider in Settings, under Providers."
+_PICK_ANOTHER_CLAUSE = "choose a different provider in Settings, under Providers."
+_PICK_READY = "Choose a provider marked ready in Settings, under Providers."
+_CHECK_PROVIDERS = "Open Settings, under Providers, to see which ones are ready."
+
+
 def _join_names(names: list[str]) -> str:
     if len(names) == 1:
         return names[0]
@@ -69,31 +77,35 @@ def describe_chain_exhaustion(errors: list[str]) -> str:
     """Turn raw provider diagnostics into one sentence Jacob can act on.
 
     ``errors`` is operator detail ("openrouter: no api key configured") and stays
-    in the logs. User-facing surfaces show this instead, so a failed turn names
-    the single thing to fix rather than six provider strings.
+    in the durable event. User-facing surfaces show this instead, so a failed turn
+    names one cause and one in-product action rather than six provider strings.
+
+    The action stays inside the product — Settings › Providers, which already
+    marks which providers are usable. Terminal commands, ``.env`` and proxy
+    internals belong to the operator record, not to Jacob's conversation. When
+    nothing is set up there is no in-product fix, so this says setup is required
+    instead of sending him to a screen with nothing to choose.
     """
     if not errors:
         return (
-            "Kitty couldn't reach any model provider, and no diagnostics came back. "
-            "Run `./kitty doctor` to see which part of the stack is down."
+            "Kitty couldn't reach any model provider and didn't report why. "
+            f"{_CHECK_PROVIDERS}"
         )
 
     if len(errors) == 1 and errors[0].startswith("selected provider"):
         detail = errors[0]
         if "returned no response" in detail:
             return (
-                "The model provider you picked didn't send an answer back. "
-                "That normally means it's out of credit or has hit a rate limit. "
-                "Check its balance, or pick a different provider in Settings."
+                "The provider you picked didn't send an answer back — usually an "
+                f"empty balance or a rate limit. {_PICK_ANOTHER}"
             )
         if "is not configured" in detail or "is unknown" in detail:
             return (
-                "The model provider you picked isn't set up, so Kitty couldn't answer. "
-                "Pick a different provider in Settings, or add its API key to `.env`."
+                "The provider you picked isn't set up, so Kitty couldn't answer. "
+                f"{_PICK_READY}"
             )
         return (
-            "The model provider you picked is switched off, so Kitty couldn't answer. "
-            "Pick a different provider in Settings."
+            f"The provider you picked is switched off, so Kitty couldn't answer. {_PICK_ANOTHER}"
         )
 
     unconfigured: list[str] = []
@@ -114,33 +126,22 @@ def describe_chain_exhaustion(errors: list[str]) -> str:
             silent.append(name)
 
     if timed_out:
+        # No claim about why it was slow: the chain records a deadline, not a cause.
         return (
             "The model providers took too long to answer, so Kitty stopped waiting. "
-            "Try again — if it keeps happening, check your internet connection."
+            f"Try again — if it keeps happening, {_PICK_ANOTHER_CLAUSE}"
         )
     if silent:
         return (
-            f"Kitty reached {_join_names(silent)} but got no usable answer back. "
-            "That normally means the account is out of credit or has hit a rate limit. "
-            "Check that provider's balance, or pick a different model in Settings."
+            f"Kitty reached {_join_names(silent)} but got no usable answer back — "
+            f"usually an empty balance or a rate limit. {_PICK_ANOTHER}"
         )
     if unconfigured or switched_off:
-        if unconfigured:
-            has = "has" if len(unconfigured) == 1 else "have"
-            blocked = f"{_join_names(unconfigured)} {has} no API key set"
-            if switched_off:
-                blocked += f", and {_join_names(switched_off)} is switched off"
-        else:
-            blocked = f"{_join_names(switched_off)} is switched off"
         return (
             "Kitty has no model provider it can use, so this couldn't run. "
-            f"The local LiteLLM proxy didn't answer, and {blocked}. "
-            "Start the stack with `./kitty up`, or add one provider API key to `.env`."
+            "Setting up a provider is required before the room can answer."
         )
-    return (
-        "Kitty's model providers all failed on this request. "
-        "Run `./kitty doctor` to see which part of the stack is down."
-    )
+    return f"Kitty's model providers all failed on this request. {_CHECK_PROVIDERS}"
 
 
 # Cap how long a single provider may spend establishing a connection, and bound
