@@ -172,3 +172,13 @@ def test_prompt_rejects_generic_speculative_review_noise() -> None:
     assert "may" in prompt and "could" in prompt
     assert "do not report" in prompt
     assert "exact input" in prompt or "exact state" in prompt
+
+
+def test_default_reviewer_uses_the_repo_independent_review_tier() -> None:
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).parents[1]
+    routes = json.loads((root / "config" / "builder_paid_routes.json").read_text(encoding="utf-8"))
+    configured = routes["routes"]["cheap"]["reviewer_model"].removeprefix("openrouter/")
+    assert pr_review.DEFAULT_REVIEW_MODEL == configured
