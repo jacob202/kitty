@@ -195,10 +195,21 @@ rm -f "${local_bundle}" "${local_context}" "${local_result}"
 # committed, and nothing runs (including the packet_id read below) when
 # there's nothing to commit.
 if [[ "${result_status}" == "completed" ]]; then
-  REPO_ROOT="$(git rev-parse --show-toplevel)"
-  SANITIZE_SCRIPT="${REPO_ROOT}/scripts/sanitize_builder_state.sh"
-  if [[ -x "${SANITIZE_SCRIPT}" ]]; then
-    bash "${SANITIZE_SCRIPT}"
+  # STATE/HANDOFF are repository metadata, not packet output. Sanitizing them
+  # is safe only when the packet explicitly owns those paths; otherwise the
+  # adapter would manufacture out-of-scope changes after a valid worker run.
+  owns_builder_state=$(python3 - "${KB_BUNDLE_PATH}" <<'PY2'
+import json, sys
+allowed = set(json.load(open(sys.argv[1])).get("allowed_paths") or [])
+print("yes" if {".claude/STATE.md", ".claude/HANDOFF.md"} & allowed else "no")
+PY2
+)
+  if [[ "${owns_builder_state}" == "yes" ]]; then
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    SANITIZE_SCRIPT="${REPO_ROOT}/scripts/sanitize_builder_state.sh"
+    if [[ -x "${SANITIZE_SCRIPT}" ]]; then
+      bash "${SANITIZE_SCRIPT}"
+    fi
   fi
 fi
 

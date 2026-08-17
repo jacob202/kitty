@@ -66,3 +66,10 @@ def test_sanitize_builder_state_leaves_clean_continuity_files_untouched(tmp_path
     assert result.returncode == 0, result.stderr
     assert (state_dir / "STATE.md").read_text(encoding="utf-8") == original
     assert _git(repo, "status", "--porcelain", "--", ".claude/STATE.md") == ""
+
+
+def test_worker_only_sanitizes_state_when_packet_owns_continuity_files() -> None:
+    worker = (Path(__file__).resolve().parents[1] / "scripts" / "kittybuilder_opencode_worker.sh").read_text(encoding="utf-8")
+
+    assert 'get("allowed_paths")' in worker
+    assert 'if [[ "${owns_builder_state}" == "yes" ]]' in worker
