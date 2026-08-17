@@ -20,31 +20,55 @@ def _login(comment: dict[str, Any]) -> str:
     return str(user.get("login") or "") if isinstance(user, dict) else ""
 
 
+def _agent_exact_head_body(comment: dict[str, Any], head_sha: str) -> str | None:
+    if _login(comment) != AGENT_ACTOR or len(head_sha) != 40:
+        return None
+    body = str(comment.get("body") or "")
+    if (
+        pr_review.COMMENT_MARKER not in body
+        or "Review pending" in body
+        or f"Reviewed commit `{head_sha}`." not in body
+    ):
+        return None
+    return body
+
+
 def agent_review_approved(comment: dict[str, Any], head_sha: str) -> bool:
     """Accept only the workflow-owned no-findings verdict for the exact full SHA."""
-    if _login(comment) != AGENT_ACTOR or len(head_sha) != 40:
-        return False
+    body = _agent_exact_head_body(comment, head_sha)
+    return bool(body and "No actionable findings in this diff." in body)
+
+
+def agent_review_blocked(comment: dict[str, Any], head_sha: str) -> bool:
+    """Treat any exact-head workflow verdict other than no-findings as blocking."""
+    body = _agent_exact_head_body(comment, head_sha)
+    return bool(body and "No actionable findings in this diff." not in body)
+
+
+def builder_review_verdict(
+    comment: dict[str, Any], head_sha: str, trusted_actors: set[str]
+) -> str | None:
+    """Return a trusted Builder verdict only when it is bound to the exact full SHA."""
+    if _login(comment) not in trusted_actors or len(head_sha) != 40:
+        return None
     body = str(comment.get("body") or "")
-    return (
-        pr_review.COMMENT_MARKER in body
-        and "Review pending" not in body
-        and "No actionable findings in this diff." in body
-        and f"Reviewed commit `{head_sha}`." in body
+    if BUILDER_REVIEW_MARKER not in body:
+        return None
+    reviewed = re.search(r"^-\s*Reviewed commit:\s*`([0-9a-fA-F]{40})`\s*$", body, re.M)
+    verdict = re.search(
+        r"^-\s*Verdict:\s*`?(approve|approved|request_changes|reject)`?\s*$",
+        body,
+        re.M | re.I,
     )
+    if not reviewed or reviewed.group(1).lower() != head_sha.lower() or not verdict:
+        return None
+    return verdict.group(1).lower()
 
 
 def builder_review_approved(
     comment: dict[str, Any], head_sha: str, trusted_actors: set[str]
 ) -> bool:
-    """Accept a Builder review note only from an explicitly trusted actor."""
-    if _login(comment) not in trusted_actors or len(head_sha) != 40:
-        return False
-    body = str(comment.get("body") or "")
-    if BUILDER_REVIEW_MARKER not in body:
-        return False
-    reviewed = re.search(r"^-\s*Reviewed commit:\s*`([0-9a-fA-F]{40})`\s*$", body, re.M)
-    verdict = re.search(r"^-\s*Verdict:\s*`?(approve|approved)`?\s*$", body, re.M | re.I)
-    return bool(reviewed and reviewed.group(1).lower() == head_sha.lower() and verdict)
+    return builder_review_verdict(comment, head_sha, trusted_actors) in {"approve", "approved"}
 
 
 def _trusted_builder_actors(repo_owner: str) -> set[str]:
@@ -74,10 +98,18 @@ def evaluate_review_gate(
     if override:
         return True, f"Exact-head review override approved for {head_sha}: {override}"
 
+    trusted = _trusted_builder_actors(repo_owner)
+    if any(agent_review_blocked(comment, head_sha) for comment in comments):
+        return False, f"Blocking GitHub agent review finding exists for exact head {head_sha}."
+    if any(
+        builder_review_verdict(comment, head_sha, trusted) in {"request_changes", "reject"}
+        for comment in comments
+    ):
+        return False, f"Blocking Builder review verdict exists for exact head {head_sha}."
+
     if any(agent_review_approved(comment, head_sha) for comment in comments):
         return True, f"GitHub agent review approved exact head {head_sha}."
 
-    trusted = _trusted_builder_actors(repo_owner)
     if any(builder_review_approved(comment, head_sha, trusted) for comment in comments):
         return True, f"Builder independent review approved exact head {head_sha}."
 

@@ -96,3 +96,47 @@ def test_main_reads_live_pr_and_comments(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
     monkeypatch.setattr(pr_review_gate, "_github_json", fake_json)
     pr_review_gate.main()
+
+
+def test_conflicting_exact_head_agent_finding_blocks_builder_approval() -> None:
+    finding = _comment(
+        pr_review.render_review_body("- gateway/x.py: exact broken outcome", SHA),
+        "github-actions[bot]",
+        user_type="Bot",
+    )
+    builder_body = "\n".join([
+        pr_review_gate.BUILDER_REVIEW_MARKER,
+        "# KittyBuilder review note",
+        f"- Reviewed commit: `{SHA}`",
+        "- Verdict: approve",
+    ])
+    builder = _comment(builder_body, "jacob202")
+    pr = {"head": {"sha": SHA}, "body": "", "labels": []}
+
+    ok, reason = pr_review_gate.evaluate_review_gate(
+        pr, [finding, builder], repo_owner="jacob202"
+    )
+    assert not ok
+    assert "blocking" in reason.lower() or "finding" in reason.lower()
+
+
+def test_conflicting_exact_head_builder_rejection_blocks_agent_approval() -> None:
+    agent = _comment(
+        pr_review.render_review_body(pr_review.NO_FINDINGS, SHA),
+        "github-actions[bot]",
+        user_type="Bot",
+    )
+    builder_body = "\n".join([
+        pr_review_gate.BUILDER_REVIEW_MARKER,
+        "# KittyBuilder review note",
+        f"- Reviewed commit: `{SHA}`",
+        "- Verdict: request_changes",
+    ])
+    builder = _comment(builder_body, "jacob202")
+    pr = {"head": {"sha": SHA}, "body": "", "labels": []}
+
+    ok, reason = pr_review_gate.evaluate_review_gate(
+        pr, [agent, builder], repo_owner="jacob202"
+    )
+    assert not ok
+    assert "blocking" in reason.lower() or "request" in reason.lower()
