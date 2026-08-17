@@ -609,6 +609,39 @@ def reserve_attempt(
     return require_session(session_id)
 
 
+def reconcile_reserved_attempt_cost(
+    session_id: str,
+    *,
+    reserved_cost_usd: float,
+    actual_cost_usd: float,
+) -> ImageSession:
+    """Replace one conservative paid reservation with provider-reported cost."""
+    if reserved_cost_usd < 0 or actual_cost_usd < 0:
+        raise ImageSessionError("reserved and actual cost must not be negative")
+
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT spend_usd FROM image_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if row is None:
+            raise SessionNotFoundError(f"no image session {session_id!r}")
+        spend = float(row["spend_usd"] or 0.0)
+        if spend + 1e-12 < reserved_cost_usd:
+            raise ImageSessionError(
+                f"session {session_id!r} spend ${spend:.3f} is below the "
+                f"${reserved_cost_usd:.3f} reservation being reconciled"
+            )
+        conn.execute(
+            "UPDATE image_sessions SET spend_usd = spend_usd - ? + ?, updated_at = ? "
+            "WHERE session_id = ?",
+            (reserved_cost_usd, actual_cost_usd, _now_iso(), session_id),
+        )
+    return require_session(session_id)
+
+
 def record_attempt(session_id: str, *, cost_usd: float = 0.0) -> ImageSession:
     """Count one completed render attempt and add its cost to the session total."""
     if cost_usd < 0:

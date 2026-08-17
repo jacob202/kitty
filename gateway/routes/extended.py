@@ -830,7 +830,12 @@ async def studio_agent_turn(req: AgentTurnRequest):
 @router.post("/studio/generate")
 async def studio_generate(req: StudioGenerateRequest):
     from gateway import image_recipes
-    from gateway.image_runner import ImageRunnerError, run
+    from gateway.image_runner import (
+        ImageRunnerError,
+        estimated_cost_usd,
+        paid_engine_available,
+        run,
+    )
 
     # Dispatch from the stored approved plan when plan_id is supplied. The
     # plan owns the render inputs; request form fields for prompt, character,
@@ -883,31 +888,42 @@ async def studio_generate(req: StudioGenerateRequest):
     recipe = decision.recipe
 
     engine = recipe.provider if recipe else "comfyui"
+    try:
+        estimated_cost = estimated_cost_usd(engine)
+    except ImageRunnerError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     paid_attempt_reserved = False
-    if req.session_id:
+    if estimated_cost > 0:
+        if not req.session_id:
+            raise HTTPException(
+                status_code=400,
+                detail="paid image generation requires a session so spend can be budgeted",
+            )
+        available, reason = paid_engine_available(engine)
+        if not available:
+            raise HTTPException(status_code=400, detail=reason)
+
         from gateway.image_agent import AgentBudget
-        from gateway.image_runner import estimated_cost_usd
         from gateway.image_sessions import (
             ImageSessionError,
             SessionBudgetExceededError,
             reserve_attempt,
         )
 
-        estimated_cost = estimated_cost_usd(engine)
-        if estimated_cost > 0:
-            budget = AgentBudget()
-            try:
-                reserve_attempt(
-                    req.session_id,
-                    cost_usd=estimated_cost,
-                    max_attempts=budget.max_attempts,
-                    max_spend_usd=budget.max_spend_usd,
-                )
-                paid_attempt_reserved = True
-            except SessionBudgetExceededError as exc:
-                raise HTTPException(status_code=429, detail=str(exc))
-            except ImageSessionError as exc:
-                raise HTTPException(status_code=400, detail=str(exc))
+        budget = AgentBudget()
+        try:
+            reserve_attempt(
+                req.session_id,
+                cost_usd=estimated_cost,
+                max_attempts=budget.max_attempts,
+                max_spend_usd=budget.max_spend_usd,
+            )
+            paid_attempt_reserved = True
+        except SessionBudgetExceededError as exc:
+            raise HTTPException(status_code=429, detail=str(exc))
+        except ImageSessionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     try:
         result = await run(
@@ -923,9 +939,20 @@ async def studio_generate(req: StudioGenerateRequest):
         # surfaced, not swallowed: a job the session cannot see is a job the
         # user cannot select.
         if req.session_id:
-            from gateway.image_sessions import ImageSessionError, attach_job, record_attempt
+            from gateway.image_sessions import (
+                ImageSessionError,
+                attach_job,
+                reconcile_reserved_attempt_cost,
+                record_attempt,
+            )
 
             try:
+                if paid_attempt_reserved and result.cost_usd is not None:
+                    reconcile_reserved_attempt_cost(
+                        req.session_id,
+                        reserved_cost_usd=estimated_cost,
+                        actual_cost_usd=result.cost_usd,
+                    )
                 attach_job(req.session_id, result.job_id)
                 if not paid_attempt_reserved:
                     record_attempt(req.session_id)
