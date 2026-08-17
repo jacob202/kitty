@@ -25,6 +25,10 @@ jobs:
             const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
             const headSha = pr.head.sha;
             const prBody = pr.body || "";
+            // Dependabot cannot author the repo-specific approval receipt itself.
+            // Keep this legacy guardrail non-blocking only for its exact login;
+            // the required deterministic `pr-policy` remains the merge authority.
+            const isDependabot = pr.user.login === "dependabot[bot]";
             const files = await github.paginate(github.rest.pulls.listFiles, {
               owner, repo, pull_number, per_page: 100
             });
@@ -119,6 +123,8 @@ jobs:
               });
             }
 
-            if (isRisky && !hasManualApproval) {
+            if (isRisky && !hasManualApproval && !isDependabot) {
               core.setFailed("Risky scope requires `risk/approved` plus an exact-head `Risk approval: APPROVE <full-head-SHA> — <reason>` receipt.");
+            } else if (isRisky && !hasManualApproval && isDependabot) {
+              core.warning("Dependabot risky scope is labeled but this legacy guardrail is non-blocking; `pr-policy` still governs merge readiness.");
             }

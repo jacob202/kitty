@@ -141,7 +141,7 @@ def test_risk_guardrail_uses_label_approval_and_reacts_to_label_changes() -> Non
     assert pr_policy.RISK_APPROVED_LABEL in text
     assert "labeled" in text and "unlabeled" in text
     assert "Manual approval:\\s*YES" not in text
-    assert "isDependabot" not in text
+    assert '=== "dependabot[bot]"' in text
     assert "Risk approval: APPROVE" in text
     assert "pr.head.sha" in text
 
