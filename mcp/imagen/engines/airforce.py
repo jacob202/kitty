@@ -9,9 +9,8 @@ silently generating an unconditioned image while a caller believes identity
 is locked, ``identity_images`` raises — the character-lock invariant must
 never be quietly weakened to make a provider easier to integrate.
 
-Schema note: written from public documentation/search results; the
-``api.airforce`` domain was unreachable from this environment's network
-egress policy at write time. Re-verify before the first live (paid) request.
+Paid submissions are intentionally at-most-once from Kitty. A failure after
+the provider accepts a request must not trigger a second paid generation.
 """
 
 from __future__ import annotations
@@ -25,7 +24,6 @@ import httpx
 
 from mcp.imagen.config import settings
 from mcp.imagen.engines.base import RefusalError
-from mcp.imagen.retry import retry_with_backoff
 
 AIRFORCE_API_URL = "https://api.airforce/v1/images/generations"
 
@@ -51,7 +49,6 @@ class AirforceEngine:
     def model_name(self) -> str:
         return settings.airforce_model
 
-    @retry_with_backoff(attempts=settings.retry_attempts)
     def generate(
         self,
         prompt: str,
@@ -63,11 +60,13 @@ class AirforceEngine:
         identity_images: list[Path | str] | None = None,
         **kwargs: object,
     ) -> bytes:
-        """Generate one image. Raises ``RefusalError`` on no image returned.
+        """Generate one image without automatically resubmitting paid work.
 
         Raises ``NotImplementedError`` if ``identity_images`` is given —
         this gateway cannot honor identity conditioning, so it refuses
-        rather than pretending to.
+        rather than pretending to. The provider submission is deliberately
+        not wrapped in the shared retry decorator because a timeout after
+        acknowledgement cannot prove that no paid generation occurred.
         """
         if identity_images:
             raise NotImplementedError(
