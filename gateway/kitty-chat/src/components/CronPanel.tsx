@@ -95,6 +95,16 @@ export function CronPanel() {
 
   const formOpen = adding || editingId !== null
 
+  if (schedulesQuery.isError) {
+    const message = schedulesQuery.error instanceof Error ? schedulesQuery.error.message : 'gateway error'
+    return (
+      <div style={{ display: 'grid', gap: 6 }}>
+        <p style={emptyStyle}>schedules unavailable — {message}</p>
+        <button onClick={() => void schedulesQuery.refetch()} style={addBtnStyle}>retry</button>
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       <p style={summaryStyle}>{activeCount}/{schedules.length} active</p>

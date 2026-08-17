@@ -119,6 +119,15 @@ describe('CronPanel', () => {
     })
   })
 
+  it('shows a gateway error instead of an honest-looking empty schedule list', async () => {
+    vi.mocked(gateway.fetchCronSchedules).mockRejectedValue(new Error('gateway returned 503'))
+    renderWithQueryClient(<CronPanel />)
+    await waitFor(() => {
+      expect(screen.getByText(/schedules unavailable/i)).toBeInTheDocument()
+    })
+    expect(screen.queryByText('no schedules yet')).not.toBeInTheDocument()
+  })
+
   it('shows empty state when no schedules', async () => {
     vi.mocked(gateway.fetchCronSchedules).mockResolvedValue([])
     renderWithQueryClient(<CronPanel />)

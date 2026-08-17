@@ -716,10 +716,19 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     if (errors.length) setAttachmentErrors(errors)
     else setAttachmentErrors([])
     const added: MessageAttachment[] = []
+    const uploadErrors: AttachmentError[] = []
     for (const file of valid) {
-      const result = await uploadCaptureFile(file, { conversationId: activeChat.id, projectId: activeProject?.id })
-      if (result?.artifact_id) added.push({ id: result.artifact_id, display_name: file.name, media_type: file.type || 'application/octet-stream', size: file.size })
+      try {
+        const result = await uploadCaptureFile(file, { conversationId: activeChat.id, projectId: activeProject?.id })
+        if (result.artifact_id) added.push({ id: result.artifact_id, display_name: file.name, media_type: file.type || 'application/octet-stream', size: file.size })
+      } catch (error) {
+        uploadErrors.push({
+          file: file.name,
+          reason: error instanceof Error ? error.message : 'gateway upload failed',
+        })
+      }
     }
+    if (uploadErrors.length) setAttachmentErrors((previous) => [...previous, ...uploadErrors])
     if (added.length) setAttachments((prev) => [...prev, ...added])
   }, [activeChat, activeProject?.id])
 

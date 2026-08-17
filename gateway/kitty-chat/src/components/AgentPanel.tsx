@@ -27,6 +27,7 @@ export function AgentPanel() {
   const [goal, setGoal] = useState('')
   const [agentType, setAgentType] = useState<AgentType>('explorer')
   const [expanded, setExpanded] = useState<number | null>(null)
+  const [detailError, setDetailError] = useState<string | null>(null)
 
   function handleSpawn() {
     const g = goal.trim()
@@ -42,15 +43,24 @@ export function AgentPanel() {
   }
 
   async function handleExpand(sid: number) {
-    if (expanded === sid) { setExpanded(null); return }
+    if (expanded === sid) {
+      setExpanded(null)
+      setDetailError(null)
+      return
+    }
     setExpanded(sid)
-    const status = await fetchAgentStatus(sid)
-    if (!status) return
-    // Merge the detailed status into the cached list so the next 4s poll
-    // doesn't blow it away and we don't grow a parallel state map forever.
-    qc.setQueryData<AgentSession[]>(['agents', AGENTS_LIMIT], (old) =>
-      old?.map((s) => (s.session_id === sid ? { ...s, ...status } : s)) ?? old
-    )
+    setDetailError(null)
+    try {
+      const status = await fetchAgentStatus(sid)
+      // Merge the detailed status into the cached list so the next 4s poll
+      // doesn't blow it away and we don't grow a parallel state map forever.
+      qc.setQueryData<AgentSession[]>(['agents', AGENTS_LIMIT], (old) =>
+        old?.map((s) => (s.session_id === sid ? { ...s, ...status } : s)) ?? old
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'gateway error'
+      setDetailError(`agent detail unavailable — ${message}`)
+    }
   }
 
   return (
@@ -93,7 +103,14 @@ export function AgentPanel() {
       </div>
 
       {/* Session list */}
-      {sessions.length > 0 ? (
+      {sessionsQuery.isError ? (
+        <div style={{ display: 'grid', gap: 5 }}>
+          <p style={emptyStyle}>
+            agents unavailable — {sessionsQuery.error instanceof Error ? sessionsQuery.error.message : 'gateway error'}
+          </p>
+          <button onClick={() => void sessionsQuery.refetch()} style={goalBtnStyle}>retry</button>
+        </div>
+      ) : sessions.length > 0 ? (
         <div style={{ display: 'grid', gap: 4 }}>
           {sessions.map(s => (
             <div key={s.session_id} style={sessionRowStyle}>
@@ -112,6 +129,10 @@ export function AgentPanel() {
 
               {expanded === s.session_id && (
                 <div style={outputBoxStyle}>
+                  {detailError ? (
+                    <p style={outputTextStyle}>{detailError}</p>
+                  ) : (
+                    <>
                   {s.iterations != null && (
                     <p style={metaLineStyle}>{s.iterations} iteration{s.iterations !== 1 ? 's' : ''} · {s.total_steps ?? 0} steps</p>
                   )}
@@ -121,6 +142,8 @@ export function AgentPanel() {
                     <p style={outputTextStyle}>{s.last_output_snippet}</p>
                   ) : (
                     <p style={outputTextStyle}>no output yet.</p>
+                  )}
+                    </>
                   )}
                 </div>
               )}

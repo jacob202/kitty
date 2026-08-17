@@ -10,11 +10,12 @@ export function CapturePanel() {
 
   const handleFile = useCallback(async (file: File) => {
     setStatus('Uploading...')
-    const result = await uploadCaptureFile(file)
-    if (result) {
+    try {
+      const result = await uploadCaptureFile(file)
       setStatus(`${result.status}: ${result.message}`)
-    } else {
-      setStatus('upload failed')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'gateway error'
+      setStatus(`upload failed — ${message}`)
     }
   }, [])
 
