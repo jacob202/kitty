@@ -289,13 +289,13 @@ class TestRunWorker:
             task["id"],
             ["sh", "-c", "echo nope > outside.txt; sleep 60"],
             timeout_seconds=120,
-            heartbeat_seconds=1,
+            heartbeat_seconds=0.1,
             repo_root=repo,
             db_path=db_path,
         )
 
         elapsed = time.monotonic() - start
-        assert elapsed < 15
+        assert elapsed < 5
         assert run["state"] == bq.RUN_SCOPE_VIOLATION
         assert run["final_report"]["scope_violations"] == ["outside.txt"]
         refreshed = bq.get_task(task["id"], db_path=db_path)
@@ -515,7 +515,7 @@ class TestRunWorker:
         with pytest.raises(br.RunnerError, match="monitoring failed"):
             br.run_worker(
                 task["id"], ["sleep", "2"],
-                timeout_seconds=30, lease_seconds=5, heartbeat_seconds=1,
+                timeout_seconds=30, lease_seconds=5, heartbeat_seconds=0.1,
                 repo_root=repo, db_path=db_path,
             )
 
@@ -559,7 +559,7 @@ class TestRunWorker:
         with pytest.raises(br.RunnerError, match="monitoring failed"):
             br.run_worker(
                 task["id"], ["sleep", "2"],
-                timeout_seconds=30, lease_seconds=10, heartbeat_seconds=1,
+                timeout_seconds=30, lease_seconds=10, heartbeat_seconds=0.1,
                 repo_root=repo, db_path=db_path,
             )
 
@@ -601,7 +601,7 @@ class TestRunWorker:
         with pytest.raises(br.RunnerError, match="monitoring failed"):
             br.run_worker(
                 task["id"], ["sleep", "2"],
-                timeout_seconds=30, lease_seconds=5, heartbeat_seconds=1,
+                timeout_seconds=30, lease_seconds=5, heartbeat_seconds=0.1,
                 repo_root=repo, db_path=db_path,
             )
 
@@ -824,7 +824,7 @@ class TestRunWorker:
                 ["sleep", "2"],
                 timeout_seconds=30,
                 lease_seconds=5,
-                heartbeat_seconds=1,
+                heartbeat_seconds=0.1,
                 repo_root=repo,
                 db_path=db_path,
             )

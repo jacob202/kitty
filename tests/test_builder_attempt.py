@@ -8,6 +8,8 @@ preserve prior-attempt digests, and the CLI surface.
 from __future__ import annotations
 
 import json
+import shlex
+import sys
 from pathlib import Path
 
 import pytest
@@ -23,6 +25,11 @@ from gateway.builder_cli import main
 
 INITIATIVE = "kitty-alpha-v1"
 PACKET = "KB-A1"
+
+
+def _python_c(code: str) -> str:
+    """Return a shell-safe invocation of the interpreter running pytest."""
+    return f"{shlex.quote(sys.executable)} -c {shlex.quote(code)}"
 
 
 def _manifest() -> dict:
@@ -353,7 +360,7 @@ class TestContextBundle:
     ):
         _apply_with_commands(
             db_path,
-            ["python3 -c \"import sys; print('publish gate broke'); sys.exit(7)\""],
+            [_python_c("import sys; print('publish gate broke'); sys.exit(7)")],
         )
         first = ba.start_attempt("val-test", PACKET, db_path=db_path)
         ba.record_implementation_result(
@@ -505,12 +512,15 @@ class TestRunValidation:
             ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
 
     def test_output_tail_is_capped(self, db_path: Path, tmp_path: Path):
-        _apply_with_commands(
-            db_path, ["python3 -c \"print('x' * 20000)\""]
-        )
+        _apply_with_commands(db_path, [_python_c("print('x' * 20000)")])
         attempt = ba.start_attempt("val-test", PACKET, db_path=db_path)
         updated = ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
-        assert len(updated["validation"]["commands"][0]["output_tail"]) <= ba.OUTPUT_CAP
+        record = updated["validation"]["commands"][0]
+        assert updated["validation"]["status"] == ba.VALIDATION_PASSED
+        assert record["exit_code"] == 0
+        assert record["passed"] is True
+        assert len(record["output_tail"]) == ba.OUTPUT_CAP
+        assert set(record["output_tail"].strip()) == {"x"}
 
     def test_event_appended(self, db_path: Path, tmp_path: Path):
         attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
