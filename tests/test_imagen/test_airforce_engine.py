@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from mcp.imagen.config import settings
@@ -79,6 +80,17 @@ def test_generate_url_response_fetches_bytes(engine):
 
     assert result == b"fetched-bytes"
     mock_get.assert_called_once_with("https://cdn.airforce/out.png", timeout=120)
+
+
+def test_download_failure_after_ack_does_not_resubmit_paid_generation(engine):
+    with (
+        patch("httpx.post", return_value=_url_response("https://cdn.airforce/out.png")) as mock_post,
+        patch("httpx.get", side_effect=httpx.ConnectError("download failed")),
+    ):
+        with pytest.raises(httpx.ConnectError, match="download failed"):
+            engine.generate("prompt")
+
+    mock_post.assert_called_once()
 
 
 def test_generate_no_data_is_refusal(engine):
