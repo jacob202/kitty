@@ -554,7 +554,8 @@ cmd_builder() {
     export KITTY_BUILDER_DATA_DIR="$canonical_root/data/kittybuilder"
   fi
 
-  "$python_bin" -m gateway.builder_cli "$@"
+  PYTHONPATH="$KITTY_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
+    "$python_bin" -m gateway.builder_cli "$@"
 }
 
 cmd_governor() {
