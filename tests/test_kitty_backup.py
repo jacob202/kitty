@@ -229,3 +229,28 @@ def test_owner_backup_roundtrip_covers_canonical_inventory_without_secrets(tmp_p
         assert conn.execute("SELECT value FROM owner_sentinel").fetchone() == ("kitty",)
     with sqlite3.connect(restored_root / "data" / "web_monitors.db") as conn:
         assert conn.execute("SELECT value FROM sentinel").fetchone() == ("monitor",)
+
+
+def test_cli_restore_auto_detects_owner_data_archive(tmp_path, capsys):
+    source_root = tmp_path / "source"
+    kitty_dir = source_root / "data" / "kitty"
+    kitty_dir.mkdir(parents=True)
+    (kitty_dir / "owner.txt").write_text("mine\n", encoding="utf-8")
+
+    backup = kitty_backup.create_owner_backup(
+        project_root=source_root,
+        backup_root=tmp_path / "backups",
+        timestamp="20260817T130000Z",
+    )
+    target_root = tmp_path / "fresh-install"
+
+    assert kitty_backup.main([
+        "restore",
+        str(backup),
+        "--target-dir",
+        str(target_root),
+    ]) == 0
+    capsys.readouterr()
+
+    assert (target_root / "data" / "kitty" / "owner.txt").read_text(encoding="utf-8") == "mine\n"
+    assert not (target_root / "owner-data").exists()

@@ -242,7 +242,7 @@ def restore_drill(backup_dir: Path, restore_dir: Path) -> Path:
 
 def restore(
     backup_dir: Path,
-    target_dir: Path = DEFAULT_SOURCE_DIR,
+    target_dir: Path | None = None,
     replace: bool = False,
 ) -> Path:
     """Restore a Kitty backup archive into ``target_dir`` in place.
@@ -260,14 +260,20 @@ def restore(
       open cleanly raises, so a corrupt restore cannot masquerade as success.
     """
     backup = Path(backup_dir)
-    target = Path(target_dir)
     if not backup.exists():
         raise RuntimeError(f"Kitty restore backup does not exist: {backup}")
     if not backup.is_dir():
         raise RuntimeError(f"Kitty restore backup is not a directory: {backup}")
-    if not (backup / "backup_manifest.json").is_file():
+    manifest_path = backup / "backup_manifest.json"
+    if not manifest_path.is_file():
         raise RuntimeError(f"Not a Kitty backup archive (no backup_manifest.json): {backup}")
 
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("mode") == "owner-data":
+        target_root = Path(target_dir) if target_dir is not None else PROJECT_ROOT
+        return restore_owner_backup(backup, target_root, replace=replace)
+
+    target = Path(target_dir) if target_dir is not None else DEFAULT_SOURCE_DIR
     if target.exists() and any(target.iterdir()):
         if not replace:
             raise RuntimeError(
@@ -365,8 +371,8 @@ def main(argv: list[str] | None = None) -> int:
     real_restore.add_argument(
         "--target-dir",
         type=Path,
-        default=DEFAULT_SOURCE_DIR,
-        help="directory to restore into (default: data/kitty)",
+        default=None,
+        help="restore root; defaults to project root for owner-data backups and data/kitty for legacy backups",
     )
     real_restore.add_argument(
         "--replace",
