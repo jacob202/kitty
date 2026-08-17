@@ -65,7 +65,7 @@
           },
           {
             "type": "command",
-            "command": "if [[ \"${CLAUDE_FILE_PATH:-}\" == *.py ]] && command -v ruff &>/dev/null; then ruff check --quiet \"$CLAUDE_FILE_PATH\" 2>&1 | head -20 || true; fi"
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath // empty' | { read -r f; case \"$f\" in *.py) RUFF=venv/bin/ruff; [ -x \"$RUFF\" ] || RUFF=$(command -v ruff); [ -n \"$RUFF\" ] && \"$RUFF\" check --quiet \"$f\" 2>&1 | head -20;; esac; } || true"
           }
         ]
       }
@@ -128,8 +128,5 @@
         "repo": "fabdelgado/fable-mode"
       }
     }
-  },
-  "sessionStart": "python3.11 -m pytest tests/ -q --tb=line 2>/dev/null | tail -1 || true",
-  "autoSave": true,
-  "terminalIntegration": true
+  }
 }
