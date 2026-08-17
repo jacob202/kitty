@@ -9,6 +9,7 @@ logic.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from pathlib import Path
@@ -87,5 +88,66 @@ def get_initiative_readonly(
         ).fetchall()
         result["packets"] = [initiative._row_to_packet(item) for item in packet_rows]
         return result
+    finally:
+        conn.close()
+
+
+
+def get_attempt_validation_index_readonly(
+    attempt_id: int, *, db_path: Path
+) -> dict[str, Any] | None:
+    """Return bounded deterministic validation evidence without raw commands/output."""
+    conn = _readonly_connection(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id, validation_json FROM packet_attempts WHERE id = ?",
+            (attempt_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        raw = row["validation_json"]
+        if raw is None:
+            return {
+                "attempt_id": int(row["id"]),
+                "validation_status": None,
+                "commands": [],
+            }
+        try:
+            validation = json.loads(raw)
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise RuntimeError(
+                f"corrupted validation_json for attempt {attempt_id}: {exc}"
+            ) from exc
+        if not isinstance(validation, dict):
+            raise RuntimeError(
+                f"corrupted validation_json for attempt {attempt_id}: expected object"
+            )
+        raw_commands = validation.get("commands") or []
+        if not isinstance(raw_commands, list):
+            raise RuntimeError(
+                f"corrupted validation_json for attempt {attempt_id}: commands must be a list"
+            )
+        commands: list[dict[str, Any]] = []
+        for index, item in enumerate(raw_commands):
+            if not isinstance(item, dict) or not isinstance(item.get("command"), str):
+                raise RuntimeError(
+                    f"corrupted validation_json for attempt {attempt_id}: command {index} is malformed"
+                )
+            commands.append(
+                {
+                    "index": index,
+                    "command_sha256": hashlib.sha256(
+                        item["command"].encode("utf-8")
+                    ).hexdigest(),
+                    "passed": bool(item.get("passed")),
+                    "exit_code": item.get("exit_code"),
+                    "duration_s": item.get("duration_s"),
+                }
+            )
+        return {
+            "attempt_id": int(row["id"]),
+            "validation_status": validation.get("status"),
+            "commands": commands,
+        }
     finally:
         conn.close()

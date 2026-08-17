@@ -114,6 +114,7 @@ def test_resume_context_reconstructs_work_without_conversation_history(
     assert resumed["repository"]["current_sha"] == "c" * 40
     assert resumed["execution_owner"] == "builder"
     assert resumed["current_work"]["task_id"] == "kb_1"
+    assert resumed["current_work"]["attempt_id"] == 4
     assert resumed["evidence"]["validation"]["status"] == "passed"
     assert resumed["evidence"]["review"]["verdict"] == "approved"
     assert resumed["pr"]["number"] == 451
