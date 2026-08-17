@@ -6,16 +6,61 @@ from pathlib import Path
 
 import pytest
 
-# Isolate every default runtime store before test modules import gateway.paths.
-# A pytest run must never write into the checkout's real data/ directory.
+ROOT = Path(__file__).resolve().parents[1]
 _TEST_DATA_ROOT = Path(tempfile.mkdtemp(prefix="kitty-pytest-data-"))
+os.environ["KITTY_ENV"] = "test"
+os.environ["KITTY_TEST_GUARD"] = "1"
 os.environ["KITTY_DATA_ROOT"] = str(_TEST_DATA_ROOT)
 os.environ.pop("KITTY_BUILDER_DATA_DIR", None)
+os.environ["GATEWAY_SECRET"] = ""
+os.environ["KITTY_IMAGE_PAID_ENABLED"] = "0"
+os.environ["PYTHON_DOTENV_DISABLED"] = "1"
+
+# Make the checkout's sitecustomize importable by every Python child process.
+_existing_pythonpath = os.environ.get("PYTHONPATH", "")
+_startup = ROOT / "tests" / "python_startup"
+os.environ["PYTHONPATH"] = os.pathsep.join(
+    part for part in (str(_startup), str(ROOT), _existing_pythonpath) if part
+)
+
+_PAID_PROVIDER_KEYS = (
+    "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY",
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "NVIDIA_API_KEY", "BFL_API_KEY",
+    "RUNWARE_API_KEY", "FAL_KEY", "AIRFORCE_API_KEY", "RUNPOD_API_KEY",
+    "REPLICATE_API_TOKEN", "MEM0_API_KEY", "LLAMA_CLOUD_API_KEY",
+    "TAVILY_API_KEY",
+)
+for _key in _PAID_PROVIDER_KEYS:
+    os.environ.pop(_key, None)
+
+import kitty_test_guard as _test_guard  # noqa: E402
+
+_test_guard.install_test_guards()
 atexit.register(shutil.rmtree, _TEST_DATA_ROOT, True)
 
-# Ensure gateway auth uses test bypass when GATEWAY_SECRET is unset during pytest runs.
-os.environ.setdefault("KITTY_ENV", "test")
-os.environ["GATEWAY_SECRET"] = ""
+
+@pytest.fixture(autouse=True)
+def enforce_controlled_live_contract(request, monkeypatch):
+    marker = request.node.get_closest_marker("controlled_live")
+    if marker is None:
+        monkeypatch.delenv("KITTY_TEST_CONTROLLED_LIVE_ACTIVE", raising=False)
+        for key in _PAID_PROVIDER_KEYS:
+            monkeypatch.delenv(key, raising=False)
+        monkeypatch.setenv("KITTY_IMAGE_PAID_ENABLED", "0")
+        return
+
+    if os.environ.get("KITTY_TEST_ALLOW_LIVE") != "1":
+        pytest.skip("controlled_live requires KITTY_TEST_ALLOW_LIVE=1")
+    if os.environ.get("KITTY_TEST_CHARGE_OK") != "1":
+        pytest.skip("controlled_live requires KITTY_TEST_CHARGE_OK=1")
+    max_requests = int(os.environ.get("KITTY_TEST_LIVE_MAX_REQUESTS", "0"))
+    max_cost = float(os.environ.get("KITTY_TEST_MAX_COST_USD", "0"))
+    if max_requests < 1 or max_requests > 1:
+        pytest.fail("controlled_live requires KITTY_TEST_LIVE_MAX_REQUESTS=1")
+    if max_cost <= 0 or max_cost > 0.10:
+        pytest.fail("controlled_live requires 0 < KITTY_TEST_MAX_COST_USD <= 0.10")
+    monkeypatch.setenv("KITTY_TEST_CONTROLLED_LIVE_ACTIVE", "1")
+    _test_guard.reset_live_counter()
 
 
 @pytest.fixture(autouse=True)
