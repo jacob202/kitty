@@ -179,3 +179,78 @@ def test_proof_drill_passes_on_clean_replica(tmp_path):
     exit_code = kitty_backup_proof.run_drill(seed_dir=tmp_path / "drill")
 
     assert exit_code == 0
+
+
+def test_owner_backup_roundtrip_covers_canonical_inventory_without_secrets(tmp_path):
+    source_root = tmp_path / "source"
+    for rel in kitty_backup.OWNER_DATA_RELATIVE_PATHS:
+        path = source_root / rel
+        if path.suffix:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.name == "web_monitors.db":
+                with sqlite3.connect(path) as conn:
+                    conn.execute("CREATE TABLE sentinel (value TEXT)")
+                    conn.execute("INSERT INTO sentinel VALUES ('monitor')")
+            else:
+                path.write_text(f"sentinel:{rel}\n", encoding="utf-8")
+        else:
+            path.mkdir(parents=True, exist_ok=True)
+            (path / "sentinel.txt").write_text(f"sentinel:{rel}\n", encoding="utf-8")
+
+    kitty_db = source_root / "data" / "kitty" / "kitty.db"
+    with sqlite3.connect(kitty_db) as conn:
+        conn.execute("CREATE TABLE owner_sentinel (value TEXT)")
+        conn.execute("INSERT INTO owner_sentinel VALUES ('kitty')")
+
+    (source_root / ".env").write_text("SECRET=do-not-copy\n", encoding="utf-8")
+    (source_root / "data" / "gmail_token.json").write_text(
+        '{"token":"do-not-copy"}', encoding="utf-8"
+    )
+
+    backup = kitty_backup.create_owner_backup(
+        project_root=source_root,
+        backup_root=tmp_path / "backups",
+        timestamp="20260817T120000Z",
+    )
+    restored_root = tmp_path / "fresh-install"
+    kitty_backup.restore_owner_backup(backup, restored_root)
+
+    manifest = json.loads((backup / "backup_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["mode"] == "owner-data"
+    assert manifest["missing"] == []
+    assert set(manifest["files"]) == set(kitty_backup.OWNER_DATA_RELATIVE_PATHS)
+    assert not (backup / "owner-data" / ".env").exists()
+    assert not (backup / "owner-data" / "data" / "gmail_token.json").exists()
+
+    for rel in kitty_backup.OWNER_DATA_RELATIVE_PATHS:
+        assert (restored_root / rel).exists(), rel
+
+    with sqlite3.connect(restored_root / "data" / "kitty" / "kitty.db") as conn:
+        assert conn.execute("SELECT value FROM owner_sentinel").fetchone() == ("kitty",)
+    with sqlite3.connect(restored_root / "data" / "web_monitors.db") as conn:
+        assert conn.execute("SELECT value FROM sentinel").fetchone() == ("monitor",)
+
+
+def test_cli_restore_auto_detects_owner_data_archive(tmp_path, capsys):
+    source_root = tmp_path / "source"
+    kitty_dir = source_root / "data" / "kitty"
+    kitty_dir.mkdir(parents=True)
+    (kitty_dir / "owner.txt").write_text("mine\n", encoding="utf-8")
+
+    backup = kitty_backup.create_owner_backup(
+        project_root=source_root,
+        backup_root=tmp_path / "backups",
+        timestamp="20260817T130000Z",
+    )
+    target_root = tmp_path / "fresh-install"
+
+    assert kitty_backup.main([
+        "restore",
+        str(backup),
+        "--target-dir",
+        str(target_root),
+    ]) == 0
+    capsys.readouterr()
+
+    assert (target_root / "data" / "kitty" / "owner.txt").read_text(encoding="utf-8") == "mine\n"
+    assert not (target_root / "owner-data").exists()
