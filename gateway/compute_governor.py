@@ -595,18 +595,13 @@ def estimate_cost_cad(
     return usd * USD_TO_CAD
 
 
-def estimate_pass_cost_cad(route: str, model: str | None = None) -> float:
-    """What one governed pass on this route is expected to cost, in CAD.
-
-    ``model`` prices the actual configured worker instead of the route's
-    default free-ladder model — callers pricing a paid route (whose worker
-    slug is data, not this module's ``ROUTE_MODELS`` default) pass it.
-    """
+def estimate_pass_cost_cad(route: str) -> float:
+    """What one governed pass on this route is expected to cost, in CAD."""
     if route not in ROUTE_MODELS:
         raise GovernorError(f"unknown route {route!r}; expected one of {sorted(ROUTE_MODELS)}")
     shape = TYPICAL_PASS_TOKENS[route]
     return estimate_cost_cad(
-        model if model is not None else ROUTE_MODELS[route],
+        ROUTE_MODELS[route],
         input_tokens=shape["input"],
         output_tokens=shape["output"],
     )

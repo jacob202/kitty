@@ -25,13 +25,12 @@ PRICE_REGISTRY_USD_PER_MTOKENS: dict[str, dict[str, float]] = {
     "qwen/qwen3.7-plus": {"input": 0.32, "cached_input": 0.064, "output": 1.28},
     "qwen/qwen3.7-max": {"input": 1.25, "output": 3.75},
     "qwen/qwen3-coder:free": {"input": 0.0, "output": 0.0},
-    # OpenRouter default (headline) route pricing, 2026-08-13 snapshot:
-    # https://openrouter.ai/xiaomi/mimo-v2.5 (Xiaomi first-party provider row)
-    # and https://openrouter.ai/minimax/minimax-m3 (CoreWeave provider row,
-    # OpenRouter's listed default). Cross-checked against pricepertoken.com
-    # and llmreference.com aggregator snapshots for the same models.
+    # OpenRouter standard-list snapshot, 2026-08-17. MiMo uses Xiaomi's
+    # first-party row rather than a transient discounted endpoint; MiniMax M3
+    # uses the standard provider list rate. Budgeting intentionally ignores
+    # temporary promotions/effective cache-weighted discounts.
     "xiaomi/mimo-v2.5": {"input": 0.14, "cached_input": 0.0028, "output": 0.28},
-    "minimax/minimax-m3": {"input": 0.23, "cached_input": 0.05, "output": 0.96},
+    "minimax/minimax-m3": {"input": 0.30, "cached_input": 0.06, "output": 1.20},
 }
 
 

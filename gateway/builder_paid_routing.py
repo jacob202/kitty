@@ -66,12 +66,28 @@ def _pricing_model(model: str) -> str:
 def _projected_attempt_cost_cad(
     governor_route: str, worker_model: str, reviewer_model: str
 ) -> float:
-    worker_cost = cg.estimate_pass_cost_cad(governor_route, _pricing_model(worker_model))
-    reviewer_cost = cg.estimate_cost_cad(
-        _pricing_model(reviewer_model),
-        input_tokens=_REVIEW_TOKEN_SHAPE["input"],
-        output_tokens=_REVIEW_TOKEN_SHAPE["output"],
-    )
+    """Project one paid attempt from the *configured* model slugs.
+
+    The worker pass keeps the governor's tier-sized token shape but is priced at
+    the configured ``worker_model`` — not at the governor's hard-coded route
+    model — so swapping the worker slug in the paid route config changes the
+    projection. An unpriced slug is an error rather than a free ride: a silent
+    zero would understate the spend-ceiling check below.
+    """
+    shape = cg.TYPICAL_PASS_TOKENS[governor_route]
+    try:
+        worker_cost = cg.estimate_cost_cad(
+            _pricing_model(worker_model),
+            input_tokens=shape["input"],
+            output_tokens=shape["output"],
+        )
+        reviewer_cost = cg.estimate_cost_cad(
+            _pricing_model(reviewer_model),
+            input_tokens=_REVIEW_TOKEN_SHAPE["input"],
+            output_tokens=_REVIEW_TOKEN_SHAPE["output"],
+        )
+    except cg.GovernorError as exc:
+        raise PaidRoutingError(f"cannot project paid route cost: {exc}") from exc
     return worker_cost + reviewer_cost
 
 

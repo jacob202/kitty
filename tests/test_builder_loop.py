@@ -2600,7 +2600,7 @@ def test_paid_frontier_downgrade_runs_the_authorized_cheap_route(
         tmp_path,
         "downgraded-worker.sh",
         ': "${KB_WORKER_TIMEOUT_SECONDS:?required}"\n'
-        'test "$KITTYBUILDER_MODEL" = "openrouter/deepseek/deepseek-v4-flash"\n'
+        'test "$KITTYBUILDER_MODEL" = "openrouter/xiaomi/mimo-v2.5"\n'
         'echo ok > done.txt\n'
         f'cat > "$KB_RESULT_PATH" <<\'EOF\'\n{_GOOD_IMPL}\nEOF\n',
     )
@@ -2623,7 +2623,7 @@ def test_paid_frontier_downgrade_runs_the_authorized_cheap_route(
     manifest = json.loads(
         Path(result["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
     )
-    assert manifest["model"] == "openrouter/deepseek/deepseek-v4-flash"
+    assert manifest["model"] == "openrouter/xiaomi/mimo-v2.5"
     assert manifest["governor"]["route"] == "cheap"
     assert manifest["governor"]["requested_route"] == "frontier"
 

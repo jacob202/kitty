@@ -1,5 +1,16 @@
 
 
+
+def test_refreshed_cheap_pair_uses_current_standard_price_snapshot():
+    from gateway.token_spend_report import PRICE_REGISTRY_USD_PER_MTOKENS
+
+    assert PRICE_REGISTRY_USD_PER_MTOKENS["xiaomi/mimo-v2.5"] == {
+        "input": 0.14, "cached_input": 0.0028, "output": 0.28
+    }
+    assert PRICE_REGISTRY_USD_PER_MTOKENS["minimax/minimax-m3"] == {
+        "input": 0.30, "cached_input": 0.06, "output": 1.20
+    }
+
 def test_summarize_usage_groups_paid_and_recent_activity():
     from gateway.token_spend_report import summarize_usage
 
