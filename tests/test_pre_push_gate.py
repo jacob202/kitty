@@ -78,6 +78,12 @@ def test_frontend_gates_are_present(hook_text):
     assert "gateway/kitty-chat/" in hook_text, "hook has no way to tell whether the frontend changed"
 
 
+def test_frontend_gates_run_before_memory_heavy_python_suite(hook_text):
+    """On the 8 GB Mac, coverage first can push Vitest into swap and fake timeouts."""
+    assert hook_text.index('run_gate "web tests"') < hook_text.index('run_gate "tests"')
+    assert hook_text.index('run_gate "web build"') < hook_text.index('run_gate "tests"')
+
+
 def test_python_gates_never_skip(hook_text):
     """Both breakages that reddened main on 2026-08-09 were docs-only changes."""
     guard = hook_text.split("RUN_FRONTEND=1", 1)[1]
