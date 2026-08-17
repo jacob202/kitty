@@ -1,4 +1,4 @@
-.PHONY: agent-wrap vibe-session test lint typecheck ci hooks ui-test ui-build ui-tailnet smoke-test codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr trust-eval
+.PHONY: agent-wrap vibe-session test lint typecheck vulture lychee ci hooks ui-test ui-build ui-tailnet smoke-test codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr trust-eval
 
 agent-wrap:
 	python3.12 scripts/agent_wrapup.py
@@ -24,7 +24,13 @@ lint:
 typecheck:
 	python3.12 -m mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
 
-ci: lint typecheck test-ci ui-test ui-build
+vulture:
+	python3.12 -m vulture gateway/ --min-confidence 80 --exclude gateway/kitty-chat/
+
+lychee:
+	lychee --root-dir docs --no-progress --accept 200,301,302,307,308 docs/
+
+ci: lint typecheck vulture lychee test-ci ui-test ui-build
 
 # Point git at scripts/hooks/ so the pre-push gate survives clone and reinstall.
 # core.hooksPath is per-clone config, so this is not automatic -- run it once.
