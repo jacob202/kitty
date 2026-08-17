@@ -169,7 +169,7 @@ def test_agent_review_workflow_rereviews_synchronize_events_and_exposes_required
     assert "review-gate:" in workflow
     assert "name: review-gate" in workflow
     assert "needs: agent-review" in workflow
-    assert "scripts/pr_review_gate.py" in workflow
+    assert "python -m scripts.pr_review_gate" in workflow
 
 
 def test_prompt_rejects_generic_speculative_review_noise() -> None:

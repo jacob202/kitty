@@ -50,4 +50,4 @@ jobs:
       - name: Verify trusted exact-head review evidence
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python scripts/pr_review_gate.py
+        run: python -m scripts.pr_review_gate
