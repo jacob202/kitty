@@ -7,6 +7,8 @@ from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 
+# TDD RED probe: this file intentionally lands before the production fix.
+
 
 def test_interrupted_run_projects_recovery_needed_not_in_progress(tmp_path: Path) -> None:
     db_path = tmp_path / "kittybuilder" / "builder_queue.db"
