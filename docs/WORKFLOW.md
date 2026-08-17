@@ -25,76 +25,75 @@ manual control for risky actions.
 4. **Risk guardrails**
    - `.github/workflows/pr-risk-guardrails.yml` detects sensitive scope (auth,
      secrets/env-like files, dependency roots, CI workflows).
-   - Risky PRs receive `risk/high` + `risk/manual-approval` labels and require
-     explicit manual approval in the PR body (`Manual approval: YES` or checked
-     manual-approval checkbox).
+   - Risky PRs receive `risk/high` + `risk/manual-approval` and require the
+     explicit `risk/approved` label on the final code head. Any later push
+     invalidates that approval so stale sign-off cannot carry forward.
 5. **Selective test hints**
    - `.github/workflows/pr-test-hints.yml` posts scoped validation command
      suggestions based on changed paths.
 6. **Release evidence comment**
    - `.github/workflows/pr-release-evidence.yml` posts a PR comment summary from
      completed `Tests` workflow runs (run URL, conclusion, per-job outcomes).
-7. **Stale hygiene**
-   - `.github/workflows/stale.yml` marks and closes inactive issues/PRs with
-     explicit timing and exemption labels.
+7. **Current-head agent review**
+   - `.github/workflows/pr-agent-review.yml` replaces stale review evidence on
+     every PR head change and reviews the entire diff for that exact SHA.
+   - Reviewer outage/no-verdict and actionable findings fail `review-gate`.
+     Only `NO_ACTIONABLE_FINDINGS` passes automatically.
+8. **Deterministic PR policy**
+   - `.github/workflows/pr-policy.yml` enforces `pr-policy`: user-facing changes
+     need completed product acceptance; risky scope needs `risk/approved` plus
+     an exact-head Risk approval receipt; unusually large PRs need
+     `risk/large-change-approved` plus an exact-head Large-change receipt.
+   - Exact full-SHA receipts make approval state-dependent rather than event-dependent,
+     so cancellation/reordering of synchronize/label events cannot revive stale approval.
+     Dependabot is exempt from prose/template requirements, not risky-scope approval.
 
 ### Guardrails (intentionally manual)
 
-- Approvals, merge decisions, and risky scope expansion remain manual.
-- Auth/secrets/env/destructive operations still require explicit human approval.
-- Automation must fail loud; unknown labels or script errors fail the workflow.
+- Merge decisions and risky scope expansion remain explicit human decisions.
+- Auth/secrets/env/CI/destructive scope still requires final-head approval.
+- Automated review is blocking but has one explicit false-positive/infrastructure
+  escape hatch: apply `review/override-approved` and add exactly
+  `Review override: APPROVE <full-head-SHA> — <reason>` to the PR body. The full
+  SHA binding makes the override stale after any push.
+- Automation must fail loud; missing tools, reviewer outages, unknown policy
+  state, or script errors are failures rather than skipped evidence.
 
 ### Phased rollout
 
 - **Phase 1 (shipped):** intake templates + PR area auto-labeling + logs.
 - **Phase 2 (shipped):** risk guardrails + selective test hints.
-- **Phase 3 (shipped baseline):** stale hygiene + PR CI evidence comments.
-- **Phase 4 (next):** measure cycle time, triage accuracy, stale false positives,
-  and reviewer-routing precision before enabling additional merge/release
-  automation.
+- **Phase 3 (shipped baseline):** PR CI evidence comments; age-based stale
+  auto-closure was retired because age is not evidence of completion.
+- **Phase 4 (current):** Builder-owned delivery/supervision with GitHub as
+  review, CI, and audit projection rather than a second task queue.
 
-## Bridge inbox — KittyBuilder Queue (issue #127)
+## Builder authority and historical issue #127
 
-GitHub issue **#127 — "KittyBuilder Queue"** is the current bridge inbox for
-KittyBuilder work while the local KittyBuilder orchestrator is not built yet.
-It is not the permanent source of truth. Phase 1 should move authoritative task
-state into a local KittyBuilder daemon/database; long term, GitHub stays useful
-for PRs, reviews, audit trail, and optional sync.
+The local KittyBuilder SQLite queue/database is the authoritative execution
+state. Missions, packet eligibility, claims, attempts, recovery, review
+bindings, publication evidence, and merge reconciliation live there. GitHub
+remains the PR/CI/review/audit surface; it is not a task scheduler.
 
-Until that local daemon exists, a worker task only counts once it appears as a
-comment on #127. Ideas, chat prompts, and stale handoffs in other channels are
-not executable tasks — they are coordination noise until a captain turns them
-into a scoped bridge task or the future local queue records them.
+GitHub issue **#127 — "KittyBuilder Queue"** is historical bridge metadata only.
+Comments there do not create, claim, resume, cancel, or complete Builder work.
+A task is executable only after Builder records it durably. Do not double-track
+new work in both #127 and the Builder queue.
 
-The handoff chain:
+The current handoff chain is:
 
-1. **Intake.** ChatGPT or Jacob posts a new task comment on #127. Each
-   comment must include `TASK:`, `BRANCH:`, `SCOPE:`, `DO NOT:`,
-   `VALIDATION:`, and `STOP:` (see the issue body for the exact format).
-2. **One captain, not self-selected workers.** Exactly one captain reads
-   the bridge queue and dispatches the next task. Workers do not self-select
-   broad work from the issue, the registry, or the packet README —
-   they take the specific task the captain assigns. If a task comment
-   does not clearly include scope, validation, and a stop point, the
-   worker asks for clarification on #127 instead of guessing.
-3. **Claim.** The worker replies `CLAIMED` with the branch name and
-   timestamp on the task comment before starting. If another worker
-   already claimed the same task, do not start. A stale claim (no update
-   for a long time) may be taken over with a `TAKING OVER` reply after
-   inspecting existing branches/PRs.
-4. **Implement.** Start from clean, up-to-date `main`. Create the
-   requested branch. Do only the stated scope.
-5. **Open PR.** The worker opens a PR for the implementation branch.
-   **PRs are for implementation branches; issue #127 is for task intake
-   and coordination — never the other way around.** Do not treat
-   issue #127 as a PR, and do not use an implementation branch as a
-   task queue.
-6. **Report on the PR.** Post the required final report comment on the
-   PR (see "Every PR gets a final report comment" below).
-7. **Close the loop on #127.** Comment back on issue #127 with the PR
-   number, then stop and wait.
-8. **Review/merge on the PR.** ChatGPT and Jacob review through PR
-   comments and merge there. The worker does not merge.
+1. **Intake.** Convert approved intent into a Builder Mission/initiative and
+   durable packets.
+2. **Dispatch.** Builder selects eligible work, owns claims/leases/worktrees,
+   and launches the bounded packet loop. Workers do not self-select broad work.
+3. **Implement/validate/review.** Evidence is bound to the durable attempt and
+   exact implementation SHA; a new HEAD invalidates stale review evidence.
+4. **Publish.** Builder records the PR link/head and GitHub supplies CI/review
+   projection. PR comments remain the human-visible review channel.
+5. **Merge/reconcile.** Merge remains approval-gated. Builder reconciles merged
+   PR truth back into task state, which unlocks dependent packets.
+6. **Continue.** The supervisor may dispatch newly eligible work; there is no
+   issue-comment captain queue.
 
 ### Read-only / stale agents
 
@@ -173,10 +172,25 @@ When a reviewer leaves a comment asking for a fix:
 
 ## Merge gate
 
-Do not merge a PR unless Jacob or ChatGPT explicitly approves the merge.
-A green CI check is not approval. A "looks good" in a different channel
-is not approval. The approval must appear as a PR comment or a direct
-instruction to merge.
+`main` is protected by strict required status checks. A PR is not merge-ready
+until the current head has all of these green: `pytest`, `lint`, `typecheck`,
+`hygiene`, `kitty-chat`, `browser-smoke`, `review-gate`, and `pr-policy`.
+
+`review-gate` is exact-head evidence: a new commit first marks the old review
+stale, then re-reviews the whole diff. Actionable findings block. If a finding
+is independently proven false or the external reviewer is unavailable, use the
+explicit full-SHA override described above; never silently treat an outage as
+approval.
+
+`pr-policy` turns the PR template into a contract. User-facing work cannot merge
+with unchecked product-acceptance claims. Risky and large-change approval requires
+both the matching label and a full-SHA approval receipt for the current head; stale
+labels or receipts cannot satisfy a later commit.
+
+Do not merge a PR unless Jacob or ChatGPT explicitly approves the merge. Green
+required checks are necessary evidence, not merge authorization. A "looks good"
+in another channel is not approval unless it is a direct instruction for that
+PR/head.
 
 Before any `gh` command or `git push`, run GitHub operations with the
 keyring-authenticated client:
@@ -197,7 +211,6 @@ auth (see `AGENTS.md` — this has bitten the repo before).
   registry.
 - It does not authorize autonomous merges or autonomous scope
   expansion.
-- It does not make the packet README, planning docs, or chat prompts
-  into a task queue. For now, only comments on issue #127 are bridge
-  tasks; after the local KittyBuilder daemon lands, the daemon/database
-  becomes the authoritative queue.
+- It does not make issue #127, the packet README, planning docs, chat prompts,
+  Discord, or PR comments into a task queue. Only durable KittyBuilder state
+  authorizes execution.
