@@ -279,3 +279,119 @@ def test_review_chunk_retries_transient_empty_content(monkeypatch: pytest.Monkey
 
     assert pr_review._review_chunk("diff") == pr_review.NO_FINDINGS
     assert len(calls) == 2
+
+
+
+def test_get_pr_diff_binds_diff_to_live_current_head(tmp_path, monkeypatch) -> None:
+    import json
+
+    event = {
+        "pull_request": {
+            "number": 12,
+            "url": "https://api.github.com/repos/jacob202/kitty/pulls/12",
+            "head": {"sha": "b" * 40},
+        },
+        "repository": {"owner": {"login": "jacob202"}, "name": "kitty"},
+    }
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(event), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+
+    live_sha = "a" * 40
+    responses = iter([
+        json.dumps({"head": {"sha": live_sha}}).encode(),
+        b"diff --git a/a b/a\n",
+        json.dumps({"head": {"sha": live_sha}}).encode(),
+    ])
+    accepts: list[str] = []
+
+    class FakeResponse:
+        def __init__(self, data: bytes) -> None:
+            self.data = data
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def read(self) -> bytes:
+            return self.data
+
+    def fake_urlopen(request, timeout=0):
+        accepts.append(request.get_header("Accept"))
+        return FakeResponse(next(responses))
+
+    monkeypatch.setattr(pr_review, "urlopen", fake_urlopen)
+    diff, number, owner, repo, head_sha = pr_review.get_pr_diff()
+    assert (number, owner, repo) == (12, "jacob202", "kitty")
+    assert head_sha == live_sha
+    assert diff.startswith("diff --git")
+    assert accepts == [
+        "application/vnd.github+json",
+        "application/vnd.github.v3.diff",
+        "application/vnd.github+json",
+    ]
+
+
+def test_get_pr_diff_fails_closed_if_head_changes_during_fetch(tmp_path, monkeypatch) -> None:
+    import json
+
+    event = {
+        "pull_request": {"number": 12, "url": "https://api.github.com/repos/jacob202/kitty/pulls/12"},
+        "repository": {"owner": {"login": "jacob202"}, "name": "kitty"},
+    }
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(event), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+
+    responses = iter([
+        json.dumps({"head": {"sha": "a" * 40}}).encode(),
+        b"diff --git a/a b/a\n",
+        json.dumps({"head": {"sha": "c" * 40}}).encode(),
+    ])
+
+    class FakeResponse:
+        def __init__(self, data: bytes) -> None:
+            self.data = data
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def read(self) -> bytes: return self.data
+
+    monkeypatch.setattr(pr_review, "urlopen", lambda _request, timeout=0: FakeResponse(next(responses)))
+    with pytest.raises(SystemExit) as exc:
+        pr_review.get_pr_diff()
+    assert exc.value.code == 1
+
+
+
+def test_exact_head_override_reads_live_pr_state_not_event_snapshot(tmp_path, monkeypatch) -> None:
+    import json
+
+    sha = "a" * 40
+    event = {
+        "pull_request": {
+            "number": 12,
+            "url": "https://api.github.com/repos/jacob202/kitty/pulls/12",
+            "body": "stale event body",
+            "labels": [],
+        },
+        "repository": {"owner": {"login": "jacob202"}, "name": "kitty"},
+    }
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(event), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+
+    current = {
+        "head": {"sha": sha},
+        "body": f"Review override: APPROVE {sha} — independently verified provider outage",
+        "labels": [{"name": pr_review.REVIEW_OVERRIDE_LABEL}],
+    }
+
+    class FakeResponse:
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def read(self) -> bytes: return json.dumps(current).encode()
+
+    monkeypatch.setattr(pr_review, "urlopen", lambda _request, timeout=0: FakeResponse())
+    assert pr_review.get_exact_head_override(sha) == "independently verified provider outage"

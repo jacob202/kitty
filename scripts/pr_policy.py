@@ -212,12 +212,17 @@ def main() -> None:
     try:
         with open(event_path, encoding="utf-8") as event_file:
             event = json.load(event_file)
-        pr = event["pull_request"]
+        event_pr = event["pull_request"]
         repo = event["repository"]
         owner = str(repo["owner"]["login"])
         name = str(repo["name"])
-        number = int(pr["number"])
-        files = _changed_files(owner, name, number, os.environ.get("GITHUB_TOKEN", ""))
+        number = int(event_pr["number"])
+        token = os.environ.get("GITHUB_TOKEN", "")
+        pr_url = f"https://api.github.com/repos/{owner}/{name}/pulls/{number}"
+        pr = _github_json(pr_url, token)
+        if not isinstance(pr, dict):
+            raise RuntimeError("GitHub current-PR response was not an object")
+        files = _changed_files(owner, name, number, token)
     except (KeyError, ValueError, TypeError, OSError, HTTPError, URLError, TimeoutError, json.JSONDecodeError, RuntimeError) as exc:
         print(f"PR policy could not inspect current PR state: {type(exc).__name__}: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc

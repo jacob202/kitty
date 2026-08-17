@@ -69,15 +69,37 @@ def parse_exact_head_override(body: str, labels: set[str], head_sha: str) -> str
 
 
 def get_exact_head_override(head_sha: str) -> str | None:
+    """Read override evidence from the live PR, never from a stale event snapshot."""
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
         return None
     try:
         with open(event_path, encoding="utf-8") as event_file:
             event = json.load(event_file)
-    except (OSError, json.JSONDecodeError):
+        event_pr = event.get("pull_request") or {}
+        repo = event.get("repository", {})
+        owner = str((repo.get("owner") or {}).get("login") or "")
+        name = str(repo.get("name") or "")
+        pr_number = int(event_pr.get("number", 0))
+        api_url = str(event_pr.get("url") or "")
+        if not api_url and owner and name and pr_number:
+            api_url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
+        if not api_url:
+            return None
+        pr = _fetch_current_pr(api_url, os.environ.get("GITHUB_TOKEN") or "")
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        HTTPError,
+        URLError,
+        TimeoutError,
+        json.JSONDecodeError,
+    ):
         return None
-    pr = event.get("pull_request") or {}
+    current_sha = str((pr.get("head") or {}).get("sha") or "")
+    if current_sha != head_sha:
+        return None
     labels = {
         str(label.get("name"))
         for label in (pr.get("labels") or [])
@@ -86,44 +108,72 @@ def get_exact_head_override(head_sha: str) -> str | None:
     return parse_exact_head_override(str(pr.get("body") or ""), labels, head_sha)
 
 
+def _fetch_current_pr(api_url: str, token: str) -> dict[str, Any]:
+    req = Request(api_url)
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Accept", "application/vnd.github+json")
+    req.add_header("X-GitHub-Api-Version", "2022-11-28")
+    with urlopen(req, timeout=30) as resp:
+        payload = json.loads(resp.read())
+    if not isinstance(payload, dict):
+        raise ValueError("GitHub current-PR response was not an object")
+    return payload
+
+
 def get_pr_diff() -> tuple[str, int, str, str, str]:
-    """Return (diff, PR number, owner, repo, head SHA) from the event payload."""
+    """Return the live PR diff bound to one stable current head SHA."""
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
         print("No GITHUB_EVENT_PATH — not running in GitHub Actions?", file=sys.stderr)
         raise SystemExit(1)
 
-    with open(event_path, encoding="utf-8") as event_file:
-        event = json.load(event_file)
-
-    pr = event.get("pull_request")
-    if not pr:
-        print("No pull_request in event — not a PR event.", file=sys.stderr)
-        raise SystemExit(1)
-
-    repo = event.get("repository", {})
-    owner = repo.get("owner", {}).get("login", "")
-    name = repo.get("name", "")
-    pr_number = int(pr.get("number", 0))
-    head_sha = str(pr.get("head", {}).get("sha", ""))
-    api_url = str(pr.get("url") or "")
-    if not api_url and owner and name and pr_number:
-        api_url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
-    if not api_url or not head_sha:
-        print("PR payload is missing API URL or head SHA.", file=sys.stderr)
-        raise SystemExit(1)
-
-    token = os.environ.get("GITHUB_TOKEN") or ""
-    req = Request(api_url)
-    if token:
-        req.add_header("Authorization", f"Bearer {token}")
-    req.add_header("Accept", "application/vnd.github.v3.diff")
-    req.add_header("X-GitHub-Api-Version", "2022-11-28")
     try:
-        with urlopen(req, timeout=30) as resp:
+        with open(event_path, encoding="utf-8") as event_file:
+            event = json.load(event_file)
+        event_pr = event.get("pull_request") or {}
+        repo = event.get("repository", {})
+        owner = str((repo.get("owner") or {}).get("login") or "")
+        name = str(repo.get("name") or "")
+        pr_number = int(event_pr.get("number", 0))
+        api_url = str(event_pr.get("url") or "")
+        if not api_url and owner and name and pr_number:
+            api_url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
+        if not api_url:
+            raise ValueError("PR payload is missing API URL")
+
+        token = os.environ.get("GITHUB_TOKEN") or ""
+        current_before = _fetch_current_pr(api_url, token)
+        head_sha = str((current_before.get("head") or {}).get("sha") or "")
+        if len(head_sha) != 40:
+            raise ValueError("current PR is missing a full head SHA")
+
+        diff_req = Request(api_url)
+        if token:
+            diff_req.add_header("Authorization", f"Bearer {token}")
+        diff_req.add_header("Accept", "application/vnd.github.v3.diff")
+        diff_req.add_header("X-GitHub-Api-Version", "2022-11-28")
+        with urlopen(diff_req, timeout=30) as resp:
             diff = resp.read().decode("utf-8")
-    except (HTTPError, URLError, TimeoutError, OSError) as exc:
-        print(f"Could not fetch PR diff: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+        current_after = _fetch_current_pr(api_url, token)
+        after_sha = str((current_after.get("head") or {}).get("sha") or "")
+        if after_sha != head_sha:
+            raise RuntimeError(
+                f"PR head changed while review diff was fetched: {head_sha[:12]} -> {after_sha[:12]}"
+            )
+    except (
+        KeyError,
+        ValueError,
+        TypeError,
+        OSError,
+        HTTPError,
+        URLError,
+        TimeoutError,
+        json.JSONDecodeError,
+        RuntimeError,
+    ) as exc:
+        print(f"Could not bind review to current PR head: {type(exc).__name__}: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
     return diff, pr_number, owner, name, head_sha

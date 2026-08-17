@@ -155,3 +155,34 @@ def test_pr_template_documents_exact_head_approval_receipts() -> None:
     assert "Risk approval: APPROVE <full-head-SHA>" in text
     assert "Large-change approval: APPROVE <full-head-SHA>" in text
     assert "Review override: APPROVE <full-head-SHA>" in text
+
+
+
+def test_main_evaluates_current_pr_from_api_not_event_snapshot(tmp_path, monkeypatch) -> None:
+    import json
+
+    sha = "a" * 40
+    stale = _pr(_body(not_user_facing=True), head_sha=sha)
+    stale["number"] = 12
+    current_body = _body(not_user_facing=True) + f"\nRisk approval: APPROVE {sha} — current approval\n"
+    current = _pr(current_body, labels=(pr_policy.RISK_APPROVED_LABEL,), head_sha=sha)
+    current["number"] = 12
+    event = {
+        "action": "edited",
+        "pull_request": stale,
+        "repository": {"owner": {"login": "jacob202"}, "name": "kitty"},
+    }
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(event), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+
+    def fake_github_json(url: str, _token: str):
+        if url.endswith("/pulls/12"):
+            return current
+        if "/pulls/12/files?" in url:
+            return [{"filename": ".github/workflows/tests.yml"}]
+        raise AssertionError(url)
+
+    monkeypatch.setattr(pr_policy, "_github_json", fake_github_json)
+    pr_policy.main()
