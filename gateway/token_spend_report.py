@@ -111,39 +111,137 @@ def _estimate_entry_cost_usd(entry: dict[str, Any]) -> float:
     prompt = int(usage.get("prompt_tokens", 0) or 0)
     completion = int(usage.get("completion_tokens", 0) or 0)
     cached = int(usage.get("cached_tokens", 0) or 0)
-    uncached_prompt = max(0, prompt - cached)
-    input_cost = uncached_prompt * pricing["input"] / 1_000_000
-    cached_cost = cached * pricing.get("cached_input", pricing["input"]) / 1_000_000
-    output_cost = completion * pricing["output"] / 1_000_000
-    return input_cost + cached_cost + output_cost
+    cached = max(0, min(cached, prompt))
+    uncached_prompt = prompt - cached
+    cached_price = pricing.get("cached_input", pricing["input"])
+    return (
+        uncached_prompt * pricing["input"]
+        + cached * cached_price
+        + completion * pricing["output"]
+    ) / 1_000_000
 
 
-def summarize_entries(entries: list[dict[str, Any]]) -> dict[str, Any]:
-    by_provider: dict[str, dict[str, int]] = defaultdict(lambda: {"calls": 0, "tokens": 0})
-    by_model: dict[str, dict[str, int]] = defaultdict(lambda: {"calls": 0, "tokens": 0})
-    paid_calls = 0
-    tokens = 0
-    estimated_usd = 0.0
+def summarize_usage(
+    entries: list[dict[str, Any]],
+    *,
+    credit_balance: float | None = None,
+) -> dict[str, Any]:
+    totals = {"calls": 0, "tokens": 0}
+    paid = {"calls": 0, "tokens": 0}
+    estimated_cost = {"usd": 0.0, "cad": 0.0}
+
+    providers: dict[str, dict[str, int]] = defaultdict(lambda: {"calls": 0, "tokens": 0})
+    models: dict[str, dict[str, int]] = defaultdict(lambda: {"calls": 0, "tokens": 0})
+    operations: dict[str, dict[str, int]] = defaultdict(lambda: {"calls": 0, "tokens": 0})
+    routes: dict[str, dict[str, int]] = defaultdict(lambda: {"calls": 0, "tokens": 0})
+    recent_dates: dict[str, dict[str, int]] = defaultdict(lambda: {"calls": 0, "tokens": 0})
 
     for entry in entries:
-        provider = str(entry.get("provider") or "unknown")
-        model = str(entry.get("model") or "unknown")
-        entry_tokens = _total_tokens(entry)
-        by_provider[provider]["calls"] += 1
-        by_provider[provider]["tokens"] += entry_tokens
-        by_model[model]["calls"] += 1
-        by_model[model]["tokens"] += entry_tokens
-        tokens += entry_tokens
-        if _is_paid(entry):
-            paid_calls += 1
-        estimated_usd += _estimate_entry_cost_usd(entry)
+        totals["calls"] += 1
+        tokens = _total_tokens(entry)
+        totals["tokens"] += tokens
+        estimated_cost["usd"] += _estimate_entry_cost_usd(entry)
 
+        if _is_paid(entry):
+            paid["calls"] += 1
+            paid["tokens"] += tokens
+
+        model = str(entry.get("model") or "unknown")
+        provider = str(entry.get("provider") or "unknown")
+        operation = str(entry.get("operation") or "unknown")
+        date = str(entry.get("date") or "unknown")
+        _metadata = entry.get("metadata")
+        metadata = _metadata if isinstance(_metadata, dict) else {}
+        route = str(metadata.get("route") or "unknown")
+
+        for bucket, key in (
+            (providers, provider),
+            (models, model),
+            (operations, operation),
+            (routes, route),
+            (recent_dates, date),
+        ):
+            bucket[key]["calls"] += 1
+            bucket[key]["tokens"] += tokens
+
+    estimated_cost["usd"] = round(estimated_cost["usd"], 4)
+    estimated_cost["cad"] = round(estimated_cost["usd"] * USD_TO_CAD, 4)
     return {
-        "calls": len(entries),
-        "paid_calls": paid_calls,
-        "tokens": tokens,
-        "estimated_usd": round(estimated_usd, 6),
-        "estimated_cad": round(estimated_usd * USD_TO_CAD, 6),
-        "by_provider": _sorted_rows(by_provider, "provider"),
-        "by_model": _sorted_rows(by_model, "model"),
+        "totals": totals,
+        "paid": paid,
+        "estimated_cost": estimated_cost,
+        "estimated_credits": {
+            "spent": estimated_cost["usd"],
+            "balance": credit_balance,
+            "remaining": round(credit_balance - estimated_cost["usd"], 4)
+            if credit_balance is not None
+            else None,
+        },
+        "fx": {"usd_to_cad": USD_TO_CAD, "snapshot_date": FX_SNAPSHOT_DATE},
+        "providers": _sorted_rows(providers, "provider"),
+        "models": _sorted_rows(models, "model"),
+        "operations": _sorted_rows(operations, "operation"),
+        "routes": _sorted_rows(routes, "route"),
+        "recent_dates": sorted(
+            _sorted_rows(recent_dates, "date"),
+            key=lambda row: str(row["date"]),
+            reverse=True,
+        )[:7],
     }
+
+
+def format_report(summary: dict[str, Any]) -> str:
+    totals = summary["totals"]
+    paid = summary["paid"]
+    estimated_cost = summary["estimated_cost"]
+    estimated_credits = summary.get("estimated_credits") or {}
+    fx = summary["fx"]
+    lines = [
+        "Kitty spend report",
+        f"Total ledger rows: {totals['calls']}",
+        f"Total logged tokens: {totals['tokens']}",
+        f"Paid traffic: {paid['calls']} calls / {paid['tokens']} tokens",
+        f"Estimated spend: ${estimated_cost['usd']:.4f} USD / ${estimated_cost['cad']:.4f} CAD",
+        f"FX used: 1 USD = {fx['usd_to_cad']:.4f} CAD (Bank of Canada {fx['snapshot_date']})",
+    ]
+
+    if estimated_credits.get("balance") is not None:
+        lines.append(
+            "Estimated credits: "
+            f"{estimated_credits['spent']:.4f} spent / "
+            f"{estimated_credits['remaining']:.4f} remaining from "
+            f"{estimated_credits['balance']:.4f}"
+        )
+
+    lines.extend([
+        "",
+        "Providers:",
+    ])
+
+    for row in summary.get("providers", [])[:5]:
+        lines.append(f"- {row['provider']}: {row['calls']} calls / {row['tokens']} tokens")
+
+    lines.extend([
+        "",
+        "Top operations:",
+    ])
+
+    for row in summary["operations"][:5]:
+        lines.append(f"- {row['operation']}: {row['calls']} calls / {row['tokens']} tokens")
+
+    lines.append("")
+    lines.append("Top models:")
+    for row in summary["models"][:5]:
+        lines.append(f"- {row['model']}: {row['calls']} calls / {row['tokens']} tokens")
+
+    lines.append("")
+    lines.append("Routes:")
+    for row in summary["routes"][:5]:
+        lines.append(f"- {row['route']}: {row['calls']} calls / {row['tokens']} tokens")
+
+    lines.append("")
+    lines.append("Recent days:")
+    for row in summary["recent_dates"]:
+        lines.append(f"- {row['date']}: {row['calls']} calls / {row['tokens']} tokens")
+
+    return "\n".join(lines)
