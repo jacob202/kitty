@@ -16,7 +16,7 @@ def _load(name: str) -> dict:
 def test_cheap_hardening_manifest_validates_against_builder_contract() -> None:
     payload = _load("builder-cheap-hardening-20260816.json")
 
-    assert payload["initiative_id"] == "builder-cheap-hardening-20260816-v4"
+    assert payload["initiative_id"] == "builder-cheap-hardening-20260816-v5"
     assert len(payload["packets"]) == 40
     assert bi.validate_manifest(payload) == []
 
@@ -64,7 +64,7 @@ def test_authored_packet_ids_are_namespaced_for_global_builder_identity() -> Non
     hardening = _load("builder-cheap-hardening-20260816.json")
     home_stretch = _load("home-stretch-cheap-execution-20260816.json")
 
-    assert all(packet["id"].startswith("b4-") for packet in hardening["packets"])
+    assert all(packet["id"].startswith("b5-") for packet in hardening["packets"])
     assert all(packet["id"].startswith("hs1-") for packet in home_stretch["packets"])
 
 def test_authored_validation_commands_use_python312_on_mac() -> None:
