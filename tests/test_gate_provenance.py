@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 
 def _git(root: Path, *args: str) -> str:

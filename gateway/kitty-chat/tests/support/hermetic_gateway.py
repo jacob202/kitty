@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+import gateway.context_assembler as context_assembler
+import gateway.routes.completions as completions
 from gateway.auth import BearerAuthMiddleware
 from gateway.context_assembler import ContextBundle
 from gateway.routes.chats import router as chats_router
-import gateway.context_assembler as context_assembler
-import gateway.routes.completions as completions
 
 
 async def _hermetic_context(*args, **kwargs) -> ContextBundle:
