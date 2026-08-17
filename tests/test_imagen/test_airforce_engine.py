@@ -67,6 +67,16 @@ def test_generate_b64_response(engine):
     payload = kwargs["json"]
     assert payload["prompt"].startswith("a test prompt")
     assert payload["model"] == settings.airforce_model
+    assert payload["size"] == "1024x1024"
+
+
+def test_non_square_generation_uses_aspect_ratio(engine):
+    with patch("httpx.post", return_value=_b64_response(b"wide")) as mock_post:
+        engine.generate("prompt", aspect_ratio="16:9")
+
+    payload = mock_post.call_args.kwargs["json"]
+    assert payload["aspect_ratio"] == "16:9"
+    assert "size" not in payload
 
 
 def test_generate_url_response_fetches_bytes(engine):
