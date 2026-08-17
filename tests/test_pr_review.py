@@ -182,3 +182,45 @@ def test_default_reviewer_uses_the_repo_independent_review_tier() -> None:
     routes = json.loads((root / "config" / "builder_paid_routes.json").read_text(encoding="utf-8"))
     configured = routes["routes"]["cheap"]["reviewer_model"].removeprefix("openrouter/")
     assert pr_review.DEFAULT_REVIEW_MODEL == configured
+
+
+def test_exact_head_override_requires_label_full_sha_and_reason() -> None:
+    sha = "a" * 40
+    body = f"Review override: APPROVE {sha} — independently checked false positive"
+    assert pr_review.parse_exact_head_override(body, {pr_review.REVIEW_OVERRIDE_LABEL}, sha)
+    assert pr_review.parse_exact_head_override(body, set(), sha) is None
+    assert pr_review.parse_exact_head_override(body.replace(sha, "b" * 40), {pr_review.REVIEW_OVERRIDE_LABEL}, sha) is None
+    assert pr_review.parse_exact_head_override(f"Review override: APPROVE {sha}", {pr_review.REVIEW_OVERRIDE_LABEL}, sha) is None
+
+
+def test_main_allows_explicit_exact_head_override_without_model_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[str] = []
+    monkeypatch.setattr(
+        pr_review,
+        "get_pr_diff",
+        lambda: ("diff", 12, "owner", "repo", "abcdef1234567890"),
+    )
+    monkeypatch.setattr(pr_review, "get_exact_head_override", lambda _sha: "verified false positive")
+    monkeypatch.setattr(
+        pr_review,
+        "review_diff",
+        lambda _diff: (_ for _ in ()).throw(AssertionError("model should not run")),
+    )
+    monkeypatch.setattr(pr_review, "upsert_review", lambda review, *_args: seen.append(review))
+
+    pr_review.main()
+
+    assert seen[0] == pr_review.REVIEW_PENDING
+    assert "verified false positive" in seen[1]
+    assert "override" in seen[1].lower()
+
+
+def test_agent_review_workflow_rechecks_override_metadata_changes() -> None:
+    from pathlib import Path
+
+    workflow = (Path(__file__).parents[1] / ".github" / "workflows" / "pr-agent-review.yml").read_text(encoding="utf-8")
+    assert "edited" in workflow
+    assert "labeled" in workflow
+    assert "unlabeled" in workflow
