@@ -108,10 +108,6 @@ def test_add_memory_surfaces_write_failure() -> None:
     assert str(raised.value.__cause__) == "vector store is read-only"
 
 
-@pytest.mark.xfail(
-    reason="production defect: explicit namespace can be overridden by caller metadata",
-    strict=True,
-)
 def test_add_memory_namespace_argument_cannot_be_overridden_by_metadata() -> None:
     backend = MagicMock()
     backend.add.return_value = {"results": [{"id": "memory-1", "event": "ADD"}]}

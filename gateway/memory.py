@@ -298,7 +298,7 @@ def add_memory(text: str, namespace: str = "facts", metadata: Optional[dict] = N
     """Persist a memory entry and report whether Mem0 changed stored state."""
     mem = _get_memory()
     try:
-        meta = {"namespace": namespace, **(metadata or {})}
+        meta = {**(metadata or {}), "namespace": namespace}
         result = mem.add(text, user_id=USER_ID, metadata=meta)
     except Exception as exc:
         raise _memory_failure("memory add", exc, namespace=namespace) from exc
