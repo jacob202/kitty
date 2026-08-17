@@ -1,6 +1,7 @@
 import atexit
 import os
 import shutil
+import site
 import tempfile
 from pathlib import Path
 
@@ -19,9 +20,16 @@ os.environ["PYTHON_DOTENV_DISABLED"] = "1"
 # Make the checkout's sitecustomize importable by every Python child process.
 _existing_pythonpath = os.environ.get("PYTHONPATH", "")
 _startup = ROOT / "tests" / "python_startup"
-os.environ["PYTHONPATH"] = os.pathsep.join(
-    part for part in (str(_startup), str(ROOT), _existing_pythonpath) if part
-)
+_existing_pythonpath_parts = [
+    part for part in _existing_pythonpath.split(os.pathsep) if part
+]
+_child_pythonpath = [
+    str(_startup),
+    str(ROOT),
+    *site.getsitepackages(),
+    *_existing_pythonpath_parts,
+]
+os.environ["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(_child_pythonpath))
 
 _PAID_PROVIDER_KEYS = (
     "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY",

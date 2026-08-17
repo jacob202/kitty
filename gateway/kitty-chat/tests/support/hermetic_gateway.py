@@ -1,0 +1,41 @@
+"""Minimal real Kitty Gateway surface for the browser continuity seam.
+
+Production chat/completion and chat persistence routers stay real. Only ambient
+context/runtime discovery is deterministic so the test cannot consult personal
+state, local Ollama, or unrelated dashboard integrations.
+"""
+from __future__ import annotations
+
+from fastapi import FastAPI
+
+import gateway.context_assembler as context_assembler
+import gateway.routes.completions as completions
+from gateway.auth import BearerAuthMiddleware
+from gateway.context_assembler import ContextBundle
+from gateway.routes.chats import router as chats_router
+
+
+async def _hermetic_context(*args, **kwargs) -> ContextBundle:
+    return ContextBundle(system="Hermetic Kitty browser continuity test context.")
+
+
+async def _hermetic_manifest(*, project_id=None) -> dict:
+    return {
+        "revision": "hermetic-runtime",
+        "context": {"active_project": {"state": "available", "value": None}},
+    }
+
+
+context_assembler.assemble_context = _hermetic_context
+completions.compose_manifest = _hermetic_manifest
+completions.compact_runtime_context = lambda manifest: "<kitty_runtime_truth>hermetic</kitty_runtime_truth>"
+
+app = FastAPI(title="Kitty Hermetic Chat Gateway")
+app.add_middleware(BearerAuthMiddleware)
+app.include_router(chats_router)
+app.include_router(completions.router)
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}

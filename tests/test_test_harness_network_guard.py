@@ -61,6 +61,19 @@ def test_python_subprocess_inherits_runtime_and_network_guard(tmp_path: Path) ->
     assert not canonical.exists()
 
 
+def test_python_subprocess_keeps_parent_dependencies(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [os.sys.executable, "-c", "import pydantic; print(pydantic.__version__)"],
+        cwd=tmp_path,
+        env=os.environ.copy(),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip()
+
+
 def test_scratch_runtime_root_remains_writable(tmp_path: Path) -> None:
     target = tmp_path / "data" / "ok.txt"
     target.parent.mkdir(parents=True)

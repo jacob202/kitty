@@ -108,6 +108,20 @@ def test_add_memory_surfaces_write_failure() -> None:
     assert str(raised.value.__cause__) == "vector store is read-only"
 
 
+def test_add_memory_namespace_argument_cannot_be_overridden_by_metadata() -> None:
+    backend = MagicMock()
+    backend.add.return_value = {"results": [{"id": "memory-1", "event": "ADD"}]}
+
+    with patch.object(memory, "_get_memory", return_value=backend):
+        assert memory.add_memory(
+            "session summary",
+            namespace="sessions",
+            metadata={"namespace": "facts", "session_id": "session-1"},
+        ) is True
+
+    assert backend.add.call_args.kwargs["metadata"]["namespace"] == "sessions"
+
+
 def test_add_memory_rejects_unconfirmed_success_response() -> None:
     backend = MagicMock()
     backend.add.return_value = None
@@ -153,6 +167,17 @@ def test_search_memory_rejects_malformed_success_response() -> None:
             memory.MemoryError,
             match="missing 'results'",
         ),
+    ):
+        memory.search_memory("important query")
+
+
+def test_search_memory_rejects_non_mapping_result() -> None:
+    backend = MagicMock()
+    backend.search.return_value = {"results": ["not-a-memory-row"]}
+
+    with (
+        patch.object(memory, "_get_memory", return_value=backend),
+        pytest.raises(memory.MemoryError, match="result 0 is str, expected dict"),
     ):
         memory.search_memory("important query")
 

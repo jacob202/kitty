@@ -11,6 +11,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from gateway.auth import BearerAuthMiddleware
+from gateway.config import is_test_env
 from gateway.constants import MAX_BODY_BYTES
 from gateway.errors import KittyError
 from gateway.paths import validate_dirs, validate_env
@@ -72,126 +73,133 @@ async def lifespan(app: FastAPI):
     from gateway.image_recipes import seed_default_recipes
 
     seed_default_recipes()
-    try:
-        from gateway.telegram_bot import is_configured as tg_configured
-        from gateway.telegram_bot import start_polling
+    brief_task: asyncio.Task | None = None
+    brief_scheduler_task: asyncio.Task | None = None
+    inbox_task: asyncio.Task | None = None
+    background_services_enabled = not is_test_env()
+    if background_services_enabled:
+        try:
+            from gateway.telegram_bot import is_configured as tg_configured
+            from gateway.telegram_bot import start_polling
 
-        if tg_configured():
-            start_polling()
-    except Exception:
-        logger.exception("telegram bot startup failed — integration disabled")
-    brief_task = asyncio.create_task(_brief_bg_loop())
-    from gateway.brief_scheduler import start_brief_scheduler
+            if tg_configured():
+                start_polling()
+        except Exception:
+            logger.exception("telegram bot startup failed — integration disabled")
+        brief_task = asyncio.create_task(_brief_bg_loop())
+        from gateway.brief_scheduler import start_brief_scheduler
 
-    brief_scheduler_task = start_brief_scheduler()
-    from gateway.inbox_watcher import watch_loop as _inbox_watch
+        brief_scheduler_task = start_brief_scheduler()
+        from gateway.inbox_watcher import watch_loop as _inbox_watch
 
-    inbox_task = asyncio.create_task(_inbox_watch())
-    try:
-        import gateway.cron as cron
-        from gateway.cron import register_action
-        from gateway.cron import start as cron_start
+        inbox_task = asyncio.create_task(_inbox_watch())
+        try:
+            import gateway.cron as cron
+            from gateway.cron import register_action
+            from gateway.cron import start as cron_start
 
-        async def _action_refresh_brief():
-            from gateway.brief import generate_brief
+            async def _action_refresh_brief():
+                from gateway.brief import generate_brief
 
-            await asyncio.to_thread(generate_brief)
+                await asyncio.to_thread(generate_brief)
 
-        async def _action_check_nudges():
-            from gateway.nudge import check
+            async def _action_check_nudges():
+                from gateway.nudge import check
 
-            check()
+                check()
 
-        async def _action_check_monitors():
-            from gateway.web_monitor import check_now, list_watches
+            async def _action_check_monitors():
+                from gateway.web_monitor import check_now, list_watches
 
-            for w in list_watches():
-                try:
-                    await check_now(w["watch_id"])
-                except Exception:
-                    logger.warning("Monitor check failed for watch %s", w.get("watch_id"))
+                for w in list_watches():
+                    try:
+                        await check_now(w["watch_id"])
+                    except Exception:
+                        logger.warning("Monitor check failed for watch %s", w.get("watch_id"))
 
-        async def _action_memory_consolidate():
-            from gateway.memory_consolidation import nightly_dream
+            async def _action_memory_consolidate():
+                from gateway.memory_consolidation import nightly_dream
 
-            await asyncio.to_thread(nightly_dream)
+                await asyncio.to_thread(nightly_dream)
 
-        async def _action_triage_inbox():
-            from gateway import triage
+            async def _action_triage_inbox():
+                from gateway import triage
 
-            await asyncio.to_thread(triage.run_pass)
+                await asyncio.to_thread(triage.run_pass)
 
-        async def _action_poll_mail():
-            from gateway.connectors.mail import poll_now
+            async def _action_poll_mail():
+                from gateway.connectors.mail import poll_now
 
-            await asyncio.to_thread(poll_now)
+                await asyncio.to_thread(poll_now)
 
-        async def _action_warm_prefetch():
-            from gateway.prefetcher import warm
+            async def _action_warm_prefetch():
+                from gateway.prefetcher import warm
 
-            await warm()
+                await warm()
 
-        register_action("brief.refresh", _action_refresh_brief)
-        register_action("nudges.check", _action_check_nudges)
-        register_action("monitors.check", _action_check_monitors)
-        register_action("memory.consolidate", _action_memory_consolidate)
-        register_action("inbox.triage", _action_triage_inbox)
+            register_action("brief.refresh", _action_refresh_brief)
+            register_action("nudges.check", _action_check_nudges)
+            register_action("monitors.check", _action_check_monitors)
+            register_action("memory.consolidate", _action_memory_consolidate)
+            register_action("inbox.triage", _action_triage_inbox)
 
-        def _action_poll_github():
-            from gateway.connectors import github
+            def _action_poll_github():
+                from gateway.connectors import github
 
-            return github.poll_now()
+                return github.poll_now()
 
-        async def _action_poll_experts():
-            from gateway.expert_proactive import poll_experts
+            async def _action_poll_experts():
+                from gateway.expert_proactive import poll_experts
 
-            await asyncio.to_thread(poll_experts)
+                await asyncio.to_thread(poll_experts)
 
-        register_action("mail.poll", _action_poll_mail)
-        register_action("github.poll", _action_poll_github)
-        register_action("experts.poll", _action_poll_experts)
-        register_action("prefetch.warm", _action_warm_prefetch)
+            register_action("mail.poll", _action_poll_mail)
+            register_action("github.poll", _action_poll_github)
+            register_action("experts.poll", _action_poll_experts)
+            register_action("prefetch.warm", _action_warm_prefetch)
 
-        async def _action_life_evening_reflection():
-            from gateway.life_awareness import evening_reflection
+            async def _action_life_evening_reflection():
+                from gateway.life_awareness import evening_reflection
 
-            result = evening_reflection()
-            from gateway.push import push_to_jacob
-
-            push_to_jacob(
-                result.get("reflection", "")[:300],
-                kind="info",
-                title="Kitty Evening Reflection",
-            )
-
-        async def _action_life_morning_proactive():
-            from gateway.life_awareness import morning_proactive
-
-            result = morning_proactive()
-            suggestions = result.get("proactive_suggestions", [])
-            if suggestions:
+                result = evening_reflection()
                 from gateway.push import push_to_jacob
 
-                text = suggestions[0].get("text", "")
-                push_to_jacob(text, kind="info", title="Life Suggestion")
+                push_to_jacob(
+                    result.get("reflection", "")[:300],
+                    kind="info",
+                    title="Kitty Evening Reflection",
+                )
 
-        async def _action_insights_return_due():
-            from gateway.insight_loop import return_due
+            async def _action_life_morning_proactive():
+                from gateway.life_awareness import morning_proactive
 
-            await return_due()
+                result = morning_proactive()
+                suggestions = result.get("proactive_suggestions", [])
+                if suggestions:
+                    from gateway.push import push_to_jacob
 
-        register_action("life.evening_reflection", _action_life_evening_reflection)
-        register_action("life.morning_proactive", _action_life_morning_proactive)
-        register_action("insights.return_due", _action_insights_return_due)
-        cron.schedule("insights return due", "insights.return_due", "interval", "15")
-        cron_start()
-    except Exception:
-        logger.exception("cron system registration failed — all background jobs disabled")
+                    text = suggestions[0].get("text", "")
+                    push_to_jacob(text, kind="info", title="Life Suggestion")
+
+            async def _action_insights_return_due():
+                from gateway.insight_loop import return_due
+
+                await return_due()
+
+            register_action("life.evening_reflection", _action_life_evening_reflection)
+            register_action("life.morning_proactive", _action_life_morning_proactive)
+            register_action("insights.return_due", _action_insights_return_due)
+            cron.schedule("insights return due", "insights.return_due", "interval", "15")
+            cron_start()
+        except Exception:
+            logger.exception("cron system registration failed — all background jobs disabled")
     yield
-    brief_task.cancel()
+    if brief_task is not None:
+        brief_task.cancel()
     if brief_scheduler_task is not None:
         brief_scheduler_task.cancel()
-    inbox_task.cancel()
+    if inbox_task is not None:
+        inbox_task.cancel()
     try:
         from gateway.http_client import _http_client
 
@@ -199,12 +207,13 @@ async def lifespan(app: FastAPI):
             await _http_client.aclose()
     except Exception:
         logger.warning("Failed to close HTTP client during shutdown")
-    try:
-        from gateway.telegram_bot import stop as tg_stop
+    if background_services_enabled:
+        try:
+            from gateway.telegram_bot import stop as tg_stop
 
-        await tg_stop()
-    except Exception:
-        logger.warning("Failed to stop Telegram bot during shutdown")
+            await tg_stop()
+        except Exception:
+            logger.warning("Failed to stop Telegram bot during shutdown")
 
 
 app = FastAPI(title="Kitty Gateway", lifespan=lifespan)

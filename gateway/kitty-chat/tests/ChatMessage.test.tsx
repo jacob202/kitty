@@ -188,6 +188,7 @@ describe('ChatMessage memory block (CR-05)', () => {
     const toggle = screen.getByRole('button', { name: /kitty remembered/ })
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
     expect(screen.getByText('decided on FastAPI')).toBeInTheDocument()
     expect(screen.getByText('prefers dark mode')).toBeInTheDocument()
     fireEvent.click(toggle)

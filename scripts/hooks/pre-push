@@ -148,15 +148,21 @@ fi
 
 run_gate "types" "${PYTHON_BIN}" -m mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
 
-run_gate "tests" "${PYTHON_BIN}" -m pytest tests/ -q --tb=short \
-  --cov=gateway --cov-report=term-missing --cov-fail-under=73
-
+# CI gives the frontend and Python suites separate runners. On the 8 GB local
+# Mac, running coverage first can leave the host deeply swapped and create
+# unrelated 5-second Vitest timeouts. Run the same frontend commands first so
+# the local parity gate preserves CI's resource isolation instead of faking red.
 if [[ "${RUN_FRONTEND}" == "1" ]]; then
   run_gate "web tests" bash -c 'cd gateway/kitty-chat && ./node_modules/.bin/vitest run'
   run_gate "web build" bash -c 'cd gateway/kitty-chat && node node_modules/next/dist/bin/next build'
 else
   say "  ${DIM}skipped${OFF}  web tests and build — nothing under gateway/kitty-chat/ changed"
 fi
+
+export KITTY_EXPECTED_TEST_CHECKOUT="${ROOT_DIR}"
+export KITTY_EXPECTED_TEST_HEAD="$(git rev-parse HEAD)"
+run_gate "tests" "${PYTHON_BIN}" -m pytest tests/ -q --tb=short \
+  --cov=gateway --cov-report=term-missing --cov-fail-under=73
 
 say ""
 if [[ ${#FAILED[@]} -eq 0 ]]; then
