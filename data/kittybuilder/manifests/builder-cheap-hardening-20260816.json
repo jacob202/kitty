@@ -1,0 +1,515 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "builder-cheap-hardening-20260816",
+  "title": "Cheap-model Builder hardening backlog",
+  "description": "A bounded, evidence-first backlog for KittyBuilder after the separate builder-cycle-proof lane. Packets are deliberately small, deterministic, and routed to DeepSeek V4 Flash unless a packet itself refreshes the independent paid reviewer. Do not execute the Claude-owned builder-cycle-proof/launcher-cwd-fix packet from this initiative.",
+  "packets": [
+    {
+      "id": "paid-reviewer-value-refresh",
+      "title": "Refresh the cheap paid reviewer model",
+      "objective": "Replace the cheap paid reviewer selection with MiniMax M2.5 through OpenRouter, keeping DeepSeek V4 Flash as the worker. Update every governed config, pricing entry, and focused test that must agree. Do not change the frontier tier.",
+      "acceptance_criteria": [
+        "Cheap worker remains openrouter/deepseek/deepseek-v4-flash.",
+        "Cheap reviewer is openrouter/minimax/minimax-m2.5 and remains read-only and independent from the worker.",
+        "The pricing registry contains the exact OpenRouter model slug used for cost projection.",
+        "Frontier worker and reviewer remain unchanged.",
+        "Projected cheap-route cost remains below its configured CAD ceiling.",
+        "Focused routing and spend-report tests pass."
+      ],
+      "allowed_paths": [
+        "config/builder_paid_routes.json",
+        "opencode.jsonc",
+        "gateway/token_spend_report.py",
+        "tests/test_builder_paid_routing.py",
+        "tests/test_token_spend_report.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 1,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_paid_routing.py tests/test_token_spend_report.py -q"
+      ]
+    },
+    {
+      "id": "paid-route-single-source-consistency",
+      "title": "Guard paid-route configuration against drift",
+      "objective": "Add a deterministic regression check that the governed paid route config, OpenCode paid agents, and cost registry cannot silently disagree about the cheap worker/reviewer model IDs. Reuse existing config readers; do not add a new source of truth.",
+      "acceptance_criteria": [
+        "A focused test fails if the cheap paid worker or reviewer model drifts between builder_paid_routes.json and opencode.jsonc.",
+        "A focused test fails if either configured paid model lacks cost-registry coverage where cost projection requires it.",
+        "No production routing behavior is duplicated into a new config layer.",
+        "Focused tests pass."
+      ],
+      "allowed_paths": [
+        "tests/test_builder_paid_routing.py",
+        "gateway/builder_paid_routing.py",
+        "gateway/token_spend_report.py",
+        "opencode.jsonc",
+        "config/builder_paid_routes.json"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_paid_routing.py -q"
+      ],
+      "depends_on": [
+        "paid-reviewer-value-refresh"
+      ]
+    },
+    {
+      "id": "paid-route-cost-receipt",
+      "title": "Make paid-route cost projection inspectable",
+      "objective": "Expose enough structured information from paid-route resolution to prove which worker/reviewer models were costed and the projected CAD total, without leaking secrets or provider credentials. Keep existing fail-closed ceilings.",
+      "acceptance_criteria": [
+        "Resolved paid-route evidence identifies worker model, reviewer model, tier, and projected CAD cost.",
+        "Cost projection still fails closed above the configured per-attempt ceiling.",
+        "No credentials, API keys, or raw environment values are exposed.",
+        "Focused tests pass."
+      ],
+      "allowed_paths": [
+        "gateway/builder_paid_routing.py",
+        "tests/test_builder_paid_routing.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_paid_routing.py -q"
+      ],
+      "depends_on": [
+        "paid-reviewer-value-refresh"
+      ]
+    },
+    {
+      "id": "packet-routing-persistence",
+      "title": "Persist the packet's selected route in durable attempt evidence",
+      "objective": "Ensure an initiative packet with policy.routing records the selected provider/model in durable attempt or run-manifest evidence so later reports can say what actually executed. Do not make routing policy a second task state machine.",
+      "acceptance_criteria": [
+        "A packet carrying policy.routing can be traced to the provider/model selected for its attempt.",
+        "Persisted evidence is tied to the exact attempt, not inferred later from current config.",
+        "Packets without explicit routing retain current default behavior.",
+        "No secret values are persisted.",
+        "Focused tests pass aside from any separately documented environment-only baseline failure."
+      ],
+      "allowed_paths": [
+        "gateway/builder_initiative.py",
+        "gateway/builder_loop.py",
+        "gateway/builder_attempt.py",
+        "tests/test_builder_initiative.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_initiative.py -q"
+      ]
+    },
+    {
+      "id": "packet-routing-validation",
+      "title": "Fail loud on unsupported packet routing",
+      "objective": "Strengthen initiative manifest and execution validation so malformed or unsupported policy.routing values fail before worker execution with one precise error. Preserve the current manifest schema and allowed routing keys.",
+      "acceptance_criteria": [
+        "Empty routing provider/model strings are rejected.",
+        "Unknown routing keys are rejected.",
+        "An unsupported provider/model combination fails before a worker mutates a worktree.",
+        "Valid existing manifests remain valid.",
+        "Focused tests pass aside from any separately documented environment-only baseline failure."
+      ],
+      "allowed_paths": [
+        "gateway/builder_initiative.py",
+        "gateway/builder_loop.py",
+        "tests/test_builder_initiative.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_initiative.py -q"
+      ]
+    },
+    {
+      "id": "provider-exhaustion-does-not-burn-attempt",
+      "title": "Lock provider exhaustion out of the implementation budget",
+      "objective": "Add or tighten regression coverage proving provider exhaustion closes cleanly as infrastructure/provider failure, leaves the packet resumable, and does not consume the bounded implementation-attempt budget. If production behavior already satisfies this, change tests only.",
+      "acceptance_criteria": [
+        "Provider exhaustion is distinguishable from implementation failure.",
+        "The task is left in a resumable state when policy permits.",
+        "The failed provider attempt does not reduce the implementation retry budget.",
+        "Evidence names the failure phase without storing raw secret material.",
+        "Focused tests pass aside from the known environment-only baseline test."
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "gateway/builder_attempt.py",
+        "gateway/builder_queue.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_loop.py -q"
+      ]
+    },
+    {
+      "id": "infrastructure-crash-budget-regression",
+      "title": "Lock infrastructure crashes out of the implementation budget",
+      "objective": "Add focused evidence that identical infrastructure crashes are bounded by the recovery limit but are not charged as code attempts. Preserve the existing stop-after-repeated-identical-crashes behavior.",
+      "acceptance_criteria": [
+        "Infrastructure crashes are recorded with counts_toward_budget false.",
+        "Repeated identical crashes stop at the configured recovery bound rather than looping forever.",
+        "Distinct infrastructure failures do not get falsely collapsed into one code failure.",
+        "Focused tests pass aside from the known environment-only baseline test."
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "gateway/builder_attempt.py",
+        "gateway/builder_queue.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_loop.py -q"
+      ]
+    },
+    {
+      "id": "review-head-binding-regression",
+      "title": "Prove reviews are bound to the exact code revision",
+      "objective": "Strengthen regression coverage that a reviewer decision is valid only for the exact reviewed HEAD/diff and cannot approve a later mutation. If the invariant is already implemented, add the smallest missing test and do not redesign review.",
+      "acceptance_criteria": [
+        "Review evidence identifies the exact review SHA and diff hash.",
+        "A worktree mutation after review invalidates approval.",
+        "A stale review cannot be reused to satisfy a later attempt.",
+        "Focused tests pass aside from the known environment-only baseline test."
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_loop.py -q"
+      ]
+    },
+    {
+      "id": "allowed-paths-prevalidation",
+      "title": "Prove changed paths are checked before acceptance",
+      "objective": "Ensure Builder compares actual worktree changes with packet allowed_paths before an attempt can be accepted. Add focused regression coverage for an out-of-scope file and a valid in-scope file; avoid broad path-policy refactors.",
+      "acceptance_criteria": [
+        "An out-of-scope changed path prevents attempt success even if validation commands pass.",
+        "In-scope changes are not falsely rejected.",
+        "The evidence names offending repo-relative paths.",
+        "Focused tests pass aside from the known environment-only baseline test."
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "gateway/builder_runner.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_loop.py -q"
+      ]
+    },
+    {
+      "id": "validation-command-contract",
+      "title": "Fail early on unusable validation commands",
+      "objective": "Add a narrow preflight for packet validation_commands so an empty, malformed, or obviously unexecutable command contract fails with a clear packet-level error instead of being mistaken for implementation failure. Do not ban legitimate shell commands.",
+      "acceptance_criteria": [
+        "Manifest validation continues to reject empty command strings.",
+        "Execution distinguishes an invalid validation contract from a test that ran and failed.",
+        "Normal shell-based validation commands continue to work.",
+        "Focused tests pass."
+      ],
+      "allowed_paths": [
+        "gateway/builder_initiative.py",
+        "gateway/builder_loop.py",
+        "tests/test_builder_initiative.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_initiative.py -q"
+      ]
+    },
+    {
+      "id": "implementation-result-contract-errors",
+      "title": "Make worker contract failures precise and durable",
+      "objective": "Improve the failure classification and tests for missing, unreadable, or schema-invalid implementation-result contracts. Builder must fail loud without inventing implementation success or raw worker output.",
+      "acceptance_criteria": [
+        "Missing result file, invalid JSON, and invalid schema are distinguishable failures.",
+        "None can produce a completed attempt.",
+        "Durable evidence records the failure class without copying unbounded raw output.",
+        "Focused tests pass aside from the known environment-only baseline test."
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_loop.py -q"
+      ]
+    },
+    {
+      "id": "review-result-contract-errors",
+      "title": "Make reviewer contract failures precise and durable",
+      "objective": "Improve the failure classification and tests for missing, unreadable, or schema-invalid review-result contracts. A broken reviewer must never be interpreted as approval.",
+      "acceptance_criteria": [
+        "Missing review result, invalid JSON, and invalid schema are distinguishable failures.",
+        "No malformed reviewer output can become an approve verdict.",
+        "Durable evidence stays bounded and inspectable.",
+        "Focused tests pass aside from the known environment-only baseline test."
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_loop.py -q"
+      ]
+    },
+    {
+      "id": "retry-feedback-bounded",
+      "title": "Give repair attempts only the evidence they need",
+      "objective": "Ensure a retry context carries the failed acceptance/validation/review facts needed for repair without dumping unbounded prior logs or unrelated packet history. Preserve deterministic context hashing.",
+      "acceptance_criteria": [
+        "A retry can identify which validation or review condition failed.",
+        "Retry context excludes unrelated task history and unbounded command output.",
+        "Context remains deterministic/hashable for the same evidence.",
+        "Focused tests pass aside from the known environment-only baseline test."
+      ],
+      "allowed_paths": [
+        "gateway/builder_context.py",
+        "gateway/builder_loop.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_loop.py -q"
+      ]
+    },
+    {
+      "id": "stale-attempt-artifact-isolation",
+      "title": "Keep recovered attempt artifacts isolated",
+      "objective": "Add regression coverage that stale-attempt recovery archives evidence under the task and attempt identity and cannot overwrite another task that happens to reuse the same numeric attempt ID.",
+      "acceptance_criteria": [
+        "Attempt artifacts are scoped by task and attempt identity.",
+        "Recovering one task cannot overwrite another task's bundle or review evidence.",
+        "The next retry starts from a clean worktree while preserving prior evidence.",
+        "Focused tests pass aside from the known environment-only baseline test."
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "gateway/builder_runner.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_loop.py -q"
+      ]
+    },
+    {
+      "id": "initiative-report-route-evidence",
+      "title": "Show route and cost evidence in initiative reports",
+      "objective": "Extend the supported initiative report/attempts output with the already-persisted model/provider and projected/estimated cost evidence when available. Keep user-facing output concise and machine-readable JSON stable.",
+      "acceptance_criteria": [
+        "Initiative report JSON can show the model/provider used for an attempt when recorded.",
+        "Missing historical routing evidence is represented as unknown/null rather than guessed from current config.",
+        "Existing report fields remain backward-compatible.",
+        "Focused tests pass."
+      ],
+      "allowed_paths": [
+        "gateway/builder_cli.py",
+        "gateway/builder_initiative.py",
+        "gateway/builder_attempt.py",
+        "tests/test_builder_initiative.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_initiative.py -q"
+      ],
+      "depends_on": [
+        "packet-routing-persistence",
+        "paid-route-cost-receipt"
+      ]
+    },
+    {
+      "id": "queue-apply-idempotency-regression",
+      "title": "Re-prove manifest apply is exactly-once",
+      "objective": "Add a focused regression proving applying the identical initiative manifest repeatedly materializes exactly one task per packet, while applying different contents under the same initiative ID fails without partial mutation. If already covered, add only the missing atomicity assertion.",
+      "acceptance_criteria": [
+        "Identical re-apply does not duplicate tasks or packet mappings.",
+        "Conflicting re-apply fails before partial new work is committed.",
+        "Bridge external IDs remain unique.",
+        "Focused tests pass."
+      ],
+      "allowed_paths": [
+        "gateway/builder_initiative.py",
+        "gateway/builder_queue.py",
+        "tests/test_builder_initiative.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_initiative.py -q"
+      ]
+    },
+    {
+      "id": "dependency-blocking-regression",
+      "title": "Prove failed dependencies cannot leak executable work",
+      "objective": "Add a focused regression that a packet whose dependency is failed or cancelled never becomes runnable, while unrelated eligible packets can continue. Do not widen the task-state machine.",
+      "acceptance_criteria": [
+        "Failed or cancelled dependencies make the dependent packet ineligible.",
+        "Unrelated eligible packets remain runnable.",
+        "No new queue/task state is introduced.",
+        "Focused tests pass."
+      ],
+      "allowed_paths": [
+        "gateway/builder_initiative.py",
+        "gateway/builder_queue.py",
+        "tests/test_builder_initiative.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_initiative.py -q"
+      ]
+    },
+    {
+      "id": "shadow-mode-no-github-mutation-regression",
+      "title": "Prove run-packet shadow mode cannot publish",
+      "objective": "Add a regression proving initiative run-packet shadow execution cannot push, open a PR, or mutate GitHub even when implementation and validation succeed. Reuse existing publication seams/mocks.",
+      "acceptance_criteria": [
+        "Shadow run-packet success performs no push.",
+        "Shadow run-packet success opens no PR.",
+        "Publication remains a separate explicit boundary.",
+        "Focused tests pass aside from the known environment-only baseline test."
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "gateway/builder_runner.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 2,
+        "routing": {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-flash"
+        }
+      },
+      "validation_commands": [
+        "python -m pytest tests/test_builder_loop.py -q"
+      ]
+    }
+  ]
+}
