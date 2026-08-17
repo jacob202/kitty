@@ -25,9 +25,9 @@ manual control for risky actions.
 4. **Risk guardrails**
    - `.github/workflows/pr-risk-guardrails.yml` detects sensitive scope (auth,
      secrets/env-like files, dependency roots, CI workflows).
-   - Risky PRs receive `risk/high` + `risk/manual-approval` labels and require
-     explicit manual approval in the PR body (`Manual approval: YES` or checked
-     manual-approval checkbox).
+   - Risky PRs receive `risk/high` + `risk/manual-approval` and require the
+     explicit `risk/approved` label on the final code head. Any later push
+     invalidates that approval so stale sign-off cannot carry forward.
 5. **Selective test hints**
    - `.github/workflows/pr-test-hints.yml` posts scoped validation command
      suggestions based on changed paths.
@@ -36,13 +36,26 @@ manual control for risky actions.
      completed `Tests` workflow runs (run URL, conclusion, per-job outcomes).
 7. **Current-head agent review**
    - `.github/workflows/pr-agent-review.yml` replaces stale review evidence on
-     every PR head change and re-runs the advisory reviewer for that exact SHA.
+     every PR head change and reviews the entire diff for that exact SHA.
+   - Reviewer outage/no-verdict and actionable findings fail `review-gate`.
+     Only `NO_ACTIONABLE_FINDINGS` passes automatically.
+8. **Deterministic PR policy**
+   - `.github/workflows/pr-policy.yml` enforces `pr-policy`: user-facing changes
+     need completed product acceptance, risky scope needs final-head approval,
+     and unusually large PRs need `risk/large-change-approved`.
+   - A push invalidates risky/large-change approvals. Dependabot is exempt from
+     prose/template requirements, not from risky-scope approval.
 
 ### Guardrails (intentionally manual)
 
-- Approvals, merge decisions, and risky scope expansion remain manual.
-- Auth/secrets/env/destructive operations still require explicit human approval.
-- Automation must fail loud; unknown labels or script errors fail the workflow.
+- Merge decisions and risky scope expansion remain explicit human decisions.
+- Auth/secrets/env/CI/destructive scope still requires final-head approval.
+- Automated review is blocking but has one explicit false-positive/infrastructure
+  escape hatch: apply `review/override-approved` and add exactly
+  `Review override: APPROVE <full-head-SHA> — <reason>` to the PR body. The full
+  SHA binding makes the override stale after any push.
+- Automation must fail loud; missing tools, reviewer outages, unknown policy
+  state, or script errors are failures rather than skipped evidence.
 
 ### Phased rollout
 
@@ -157,10 +170,24 @@ When a reviewer leaves a comment asking for a fix:
 
 ## Merge gate
 
-Do not merge a PR unless Jacob or ChatGPT explicitly approves the merge.
-A green CI check is not approval. A "looks good" in a different channel
-is not approval. The approval must appear as a PR comment or a direct
-instruction to merge.
+`main` is protected by strict required status checks. A PR is not merge-ready
+until the current head has all of these green: `pytest`, `lint`, `typecheck`,
+`hygiene`, `kitty-chat`, `browser-smoke`, `review-gate`, and `pr-policy`.
+
+`review-gate` is exact-head evidence: a new commit first marks the old review
+stale, then re-reviews the whole diff. Actionable findings block. If a finding
+is independently proven false or the external reviewer is unavailable, use the
+explicit full-SHA override described above; never silently treat an outage as
+approval.
+
+`pr-policy` turns the PR template into a contract. User-facing work cannot merge
+with unchecked product-acceptance claims. Risky and large-change labels are
+approval evidence for the final head only and must be re-applied after a push.
+
+Do not merge a PR unless Jacob or ChatGPT explicitly approves the merge. Green
+required checks are necessary evidence, not merge authorization. A "looks good"
+in another channel is not approval unless it is a direct instruction for that
+PR/head.
 
 Before any `gh` command or `git push`, run GitHub operations with the
 keyring-authenticated client:

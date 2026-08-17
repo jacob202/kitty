@@ -9,7 +9,7 @@
 - Area: <!-- backend / frontend / docs / ci / mixed -->
 - Risk: <!-- low / medium / high -->
 - User-facing impact:
-- Manual approval: <!-- NO / YES (required for auth/secrets/env/CI/destructive scope) -->
+- Manual approval: <!-- risky scope requires `risk/approved` on the final head; a later push invalidates it -->
 
 ## Product acceptance (required for user-facing changes)
 - User goal: <!-- what a person is trying to accomplish, in ordinary language -->
@@ -40,4 +40,7 @@ Use only when this PR is genuinely not user-facing. Checking this replaces the p
 - [ ] I did not touch secrets/auth/env paths without explicit approval.
 - [ ] I kept the diff scoped to the stated task.
 - [ ] I included observable evidence for behavior changes (logs, screenshots, or command output).
-- [ ] Manual approval received for risky scope (auth/secrets/env/CI/destructive changes).
+- [ ] Risky scope has `risk/approved` on this final head (auth/secrets/env/CI/dependency/destructive changes).
+- [ ] If this PR exceeds the large-change threshold, `risk/large-change-approved` is present on this final head.
+
+Automated review findings block `review-gate`. If a finding is independently proven false or the reviewer is unavailable, the explicit escape hatch is: apply `review/override-approved` and add `Review override: APPROVE <full-head-SHA> — <reason>` to this body. Never reuse an override after a push.
