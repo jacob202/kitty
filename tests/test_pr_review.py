@@ -68,6 +68,7 @@ def test_main_marks_current_head_pending_and_fails_if_model_has_no_verdict(
         lambda: ("diff", 12, "owner", "repo", "abcdef1234567890"),
     )
     monkeypatch.setattr(pr_review, "review_diff", lambda _diff: None)
+    monkeypatch.setattr(pr_review, "get_exact_head_override", lambda _sha: None)
     monkeypatch.setattr(
         pr_review,
         "upsert_review",
@@ -92,6 +93,7 @@ def test_main_blocks_actionable_findings_on_exact_head(
         lambda: ("diff", 12, "owner", "repo", "abcdef1234567890"),
     )
     monkeypatch.setattr(pr_review, "review_diff", lambda _diff: finding)
+    monkeypatch.setattr(pr_review, "get_exact_head_override", lambda _sha: None)
     monkeypatch.setattr(
         pr_review,
         "upsert_review",
@@ -113,6 +115,7 @@ def test_main_passes_only_no_findings_on_exact_head(monkeypatch: pytest.MonkeyPa
         lambda: ("diff", 12, "owner", "repo", "abcdef1234567890"),
     )
     monkeypatch.setattr(pr_review, "review_diff", lambda _diff: pr_review.NO_FINDINGS)
+    monkeypatch.setattr(pr_review, "get_exact_head_override", lambda _sha: None)
     monkeypatch.setattr(
         pr_review,
         "upsert_review",
