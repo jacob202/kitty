@@ -13,6 +13,7 @@ import json
 import os
 import re
 import sys
+import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -26,6 +27,7 @@ REVIEW_PENDING = "__REVIEW_PENDING__"
 REVIEW_OVERRIDE_LABEL = "review/override-approved"
 MAX_REVIEW_CHARS = int(os.environ.get("PR_REVIEW_CHUNK_CHARS", "60000"))
 MAX_REVIEW_CHUNKS = int(os.environ.get("PR_REVIEW_MAX_CHUNKS", "12"))
+REVIEW_REQUEST_ATTEMPTS = int(os.environ.get("PR_REVIEW_REQUEST_ATTEMPTS", "2"))
 
 SYSTEM_PROMPT = """You are a strict independent code reviewer. Review only the supplied PR diff chunk.
 
@@ -152,24 +154,36 @@ def _review_chunk(chunk: str) -> str | None:
     req.add_header("Authorization", f"Bearer {api_key}")
     req.add_header("Content-Type", "application/json")
 
-    try:
-        with urlopen(req, timeout=90) as resp:
-            result = json.loads(resp.read())
-    except HTTPError as exc:
-        detail = exc.read().decode(errors="replace")[:300]
-        print(f"OpenRouter API error: {exc.status} — {detail}", file=sys.stderr)
-        return None
-    except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-        print(f"Reviewer infrastructure error: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return None
+    for attempt in range(1, REVIEW_REQUEST_ATTEMPTS + 1):
+        retryable = False
+        try:
+            with urlopen(req, timeout=90) as resp:
+                result = json.loads(resp.read())
+        except HTTPError as exc:
+            detail = exc.read().decode(errors="replace")[:300]
+            print(f"OpenRouter API error: {exc.status} — {detail}", file=sys.stderr)
+            status = int(exc.code) if exc.code is not None else 0
+            retryable = status == 429 or status >= 500
+        except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+            print(f"Reviewer infrastructure error: {type(exc).__name__}: {exc}", file=sys.stderr)
+            retryable = True
+        else:
+            choices = result.get("choices", [])
+            if choices:
+                content = choices[0].get("message", {}).get("content")
+                if content:
+                    return str(content).strip()
+                print("OpenRouter returned a choice with no content.", file=sys.stderr)
+            else:
+                print("No choices in OpenRouter response.", file=sys.stderr)
+            retryable = True
 
-    choices = result.get("choices", [])
-    if not choices:
-        print("No choices in OpenRouter response.", file=sys.stderr)
-        return None
+        if not retryable or attempt == REVIEW_REQUEST_ATTEMPTS:
+            return None
+        print(f"Retrying reviewer request ({attempt + 1}/{REVIEW_REQUEST_ATTEMPTS}).", file=sys.stderr)
+        time.sleep(1)
 
-    content = choices[0].get("message", {}).get("content")
-    return str(content).strip() if content else None
+    return None
 
 
 def review_diff(diff: str) -> str | None:

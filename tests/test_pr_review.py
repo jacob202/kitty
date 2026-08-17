@@ -218,3 +218,39 @@ def test_agent_review_workflow_rechecks_override_metadata_changes() -> None:
     assert "edited" in workflow
     assert "labeled" in workflow
     assert "unlabeled" in workflow
+
+
+def test_review_chunk_retries_transient_empty_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    import json
+
+    class FakeResponse:
+        def __init__(self, payload: dict) -> None:
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps(self.payload).encode()
+
+    replies = iter(
+        [
+            {"choices": [{"message": {"content": ""}, "finish_reason": "stop"}]},
+            {"choices": [{"message": {"content": pr_review.NO_FINDINGS}, "finish_reason": "stop"}]},
+        ]
+    )
+    calls: list[int] = []
+
+    def fake_urlopen(_request, timeout=0):
+        calls.append(timeout)
+        return FakeResponse(next(replies))
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(pr_review, "urlopen", fake_urlopen)
+    monkeypatch.setattr(pr_review.time, "sleep", lambda _seconds: None)
+
+    assert pr_review._review_chunk("diff") == pr_review.NO_FINDINGS
+    assert len(calls) == 2
