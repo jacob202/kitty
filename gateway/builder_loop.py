@@ -408,6 +408,61 @@ def _reconcile_stale_attempts(
     return reconciled
 
 
+def reconcile_interrupted_packet(
+    initiative_id: str,
+    packet_id: str,
+    *,
+    db_path: Path | None = None,
+    repo_root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Close one liveness-certified stale attempt and safely requeue its task.
+
+    This is recovery housekeeping only: it never dispatches a worker. It
+    preserves the crashed attempt evidence, releases the bound branch lease,
+    and uses the queue's operator-release transition so a paused initiative
+    can remain paused while its packet becomes reclaimable on resume.
+    """
+    bundle = ba.build_context_bundle(initiative_id, packet_id, db_path=db_path)
+    task_id = str(bundle["task_id"])
+    task = bq.get_task(task_id, db_path=db_path)
+    if task is None:
+        raise LoopError(f"task {task_id} for {initiative_id}/{packet_id} is missing")
+    if task["state"] != bq.BLOCKED:
+        return []
+
+    stale = ba.list_stale_attempts(initiative_id, packet_id, db_path=db_path)
+    reconciled: list[dict[str, Any]] = []
+    recovery_attempt_id: int | None = stale[-1]["id"] if stale else None
+    if stale:
+        reconciled = _reconcile_stale_attempts(
+            initiative_id, packet_id, db_path=db_path, repo_root=repo_root
+        )
+    else:
+        status = bi.initiative_status(initiative_id, db_path=db_path)
+        if packet_id not in status.get("recovery_needed", []):
+            return []
+        attempts = ba.list_attempts(initiative_id, packet_id, db_path=db_path)
+        recovery_attempt_id = attempts[-1]["id"] if attempts else None
+    try:
+        bq.operator_release_task(
+            task_id,
+            reason="stale_attempt_reconciliation",
+            db_path=db_path,
+        )
+    except Exception as exc:
+        _record_infrastructure_failure(
+            task_id,
+            reason=f"stale task release failed: {exc}",
+            phase="stale_attempt_task_release",
+            attempt_id=recovery_attempt_id,
+            db_path=db_path,
+        )
+        raise LoopError(
+            f"stale attempts were reconciled but task {task_id} could not be released: {exc}"
+        ) from exc
+    return reconciled
+
+
 def _write_review_context(
     path: Path,
     *,
@@ -847,35 +902,19 @@ def run_packet(
         # A runner exception can durably block the task while the process dies
         # before closing its packet attempt. Only that exact paired condition
         # permits automatic recovery; claimed/running tasks remain fenced.
-        stale = ba.list_stale_attempts(
-            initiative_id, packet_id, db_path=db_path
-        )
-        if not stale:
+        if not ba.list_stale_attempts(initiative_id, packet_id, db_path=db_path):
             raise LoopError(
                 f"task {task_id} for {initiative_id}/{packet_id} is blocked "
                 "without a stale open attempt; operator release is required"
             )
-        _reconcile_stale_attempts(
+        reconcile_interrupted_packet(
             initiative_id, packet_id, db_path=db_path, repo_root=repo_root
         )
-        try:
-            task = bq.operator_release_task(
-                task_id,
-                reason="stale_attempt_reconciliation",
-                db_path=db_path,
-            )
-        except Exception as exc:
-            _record_infrastructure_failure(
-                task_id,
-                reason=f"stale task release failed: {exc}",
-                phase="stale_attempt_task_release",
-                attempt_id=stale[-1]["id"],
-                db_path=db_path,
-            )
+        task = bq.get_task(task_id, db_path=db_path)
+        if task is None or task["state"] != bq.QUEUED:
             raise LoopError(
-                f"stale attempts were reconciled but task {task_id} could "
-                f"not be released: {exc}"
-            ) from exc
+                f"task {task_id} did not become queued after stale-attempt reconciliation"
+            )
     else:
         raise LoopError(
             f"task {task_id} for {initiative_id}/{packet_id} is "
