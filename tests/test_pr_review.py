@@ -12,7 +12,7 @@ def test_render_review_body_replaces_no_findings_sentinel() -> None:
     assert body.startswith(pr_review.COMMENT_MARKER)
     assert "No actionable findings in this diff." in body
     assert "NO_ACTIONABLE_FINDINGS" not in body
-    assert "Reviewed commit `1234567890ab`." in body
+    assert "Reviewed commit `1234567890abcdef1234567890abcdef12345678`." in body
 
 
 def test_find_existing_review_comment_uses_only_owned_marker() -> None:
@@ -163,8 +163,13 @@ def test_agent_review_workflow_rereviews_synchronize_events_and_exposes_required
 
     assert "Skip automatic re-review after a push" not in workflow
     assert "github.event.action != 'synchronize'" not in workflow
+    assert "agent-review:" in workflow
+    assert "name: agent-review" in workflow
+    assert "continue-on-error: true" in workflow
     assert "review-gate:" in workflow
     assert "name: review-gate" in workflow
+    assert "needs: agent-review" in workflow
+    assert "scripts/pr_review_gate.py" in workflow
 
 
 def test_prompt_rejects_generic_speculative_review_noise() -> None:
@@ -174,8 +179,8 @@ def test_prompt_rejects_generic_speculative_review_noise() -> None:
     assert "exact input" in prompt or "exact state" in prompt
 
 
-def test_default_reviewer_uses_minimax_m3_candidate() -> None:
-    assert pr_review.DEFAULT_REVIEW_MODEL == "minimax/minimax-m3"
+def test_default_github_reviewer_uses_known_content_producer() -> None:
+    assert pr_review.DEFAULT_REVIEW_MODEL == "openai/gpt-4o-mini"
 
 
 def test_exact_head_override_requires_label_full_sha_and_reason() -> None:

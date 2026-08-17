@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Fail-closed exact-head PR review gate.
+"""Best-effort exact-head model-review evidence producer.
 
-The workflow owns one durable PR comment. Every PR-head change replaces any
-older approval-looking comment with a pending marker before reviewing the full
-diff. A missing reviewer verdict or any actionable finding fails the workflow;
-only an exact no-findings verdict exits successfully.
+The workflow owns one durable PR comment. Every PR-head change replaces stale
+review evidence with a pending marker before reviewing the full diff. The
+deterministic merge gate lives in ``scripts/pr_review_gate.py``.
 """
 
 from __future__ import annotations
@@ -19,7 +18,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_REVIEW_MODEL = "minimax/minimax-m3"
+DEFAULT_REVIEW_MODEL = "openai/gpt-4o-mini"
 REVIEW_MODEL = os.environ.get("PR_REVIEW_MODEL", DEFAULT_REVIEW_MODEL)
 COMMENT_MARKER = "<!-- kitty-agent-pr-review -->"
 NO_FINDINGS = "NO_ACTIONABLE_FINDINGS"
@@ -271,7 +270,7 @@ def review_diff(diff: str) -> str | None:
 def render_review_body(review: str, head_sha: str) -> str:
     """Build the one comment body owned by this workflow."""
     if review.strip() == REVIEW_PENDING:
-        target = f"`{head_sha[:12]}`" if head_sha else "the current PR head"
+        target = f"`{head_sha}`" if head_sha else "the current PR head"
         return (
             f"{COMMENT_MARKER}\n## Agent PR Review\n\n"
             f"Review pending for commit {target}. Previous review evidence is stale "
@@ -279,7 +278,7 @@ def render_review_body(review: str, head_sha: str) -> str:
         )
     if review.strip() == NO_FINDINGS:
         review = "No actionable findings in this diff."
-    reviewed = f"Reviewed commit `{head_sha[:12]}`." if head_sha else "Reviewed current PR head."
+    reviewed = f"Reviewed commit `{head_sha}`." if head_sha else "Reviewed current PR head."
     return f"{COMMENT_MARKER}\n## Agent PR Review\n\n{review}\n\n_{reviewed}_"
 
 
