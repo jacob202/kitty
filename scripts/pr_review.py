@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""PR agent review — review a PR diff and maintain one durable review comment.
+"""Fail-closed exact-head PR review gate.
 
-Requires GITHUB_TOKEN (provided by Actions) and OPENROUTER_API_KEY (repo secret).
-Skips silently if OPENROUTER_API_KEY is not set.
+The workflow owns one durable PR comment. Every PR-head change replaces any
+older approval-looking comment with a pending marker before reviewing the full
+diff. A missing reviewer verdict or any actionable finding fails the workflow;
+only an exact no-findings verdict exits successfully.
 """
 
 from __future__ import annotations
@@ -11,31 +13,41 @@ import json
 import os
 import sys
 from typing import Any
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-REVIEW_MODEL = os.environ.get("PR_REVIEW_MODEL", "openai/gpt-4o-mini")
+DEFAULT_REVIEW_MODEL = "qwen/qwen3.7-plus"
+REVIEW_MODEL = os.environ.get("PR_REVIEW_MODEL", DEFAULT_REVIEW_MODEL)
 COMMENT_MARKER = "<!-- kitty-agent-pr-review -->"
 NO_FINDINGS = "NO_ACTIONABLE_FINDINGS"
+REVIEW_PENDING = "__REVIEW_PENDING__"
+MAX_REVIEW_CHARS = int(os.environ.get("PR_REVIEW_CHUNK_CHARS", "60000"))
+MAX_REVIEW_CHUNKS = int(os.environ.get("PR_REVIEW_MAX_CHUNKS", "12"))
 
-SYSTEM_PROMPT = """You are a strict code reviewer. Review only the supplied PR diff.
+SYSTEM_PROMPT = """You are a strict independent code reviewer. Review only the supplied PR diff chunk.
 
-Report a finding only when the diff supports a concrete defect. Every finding must:
-- name the changed file
-- identify the changed behavior or hunk
-- explain the specific failure mode
-- state the smallest corrective action
+A reportable finding must be supported by the diff and must identify all four:
+- name the changed file and identify the changed behavior/hunk
+- the exact input, state, sequence, or concurrency condition that reaches the defect
+- the specific failure mode: the exact incorrect observable outcome (wrong state, false success, data loss, security boundary break, crash, or user-visible regression)
+- the smallest corrective action
 
-Do not write generic advice such as "ensure", "consider", "monitor", "could expose",
-or "add more tests" without naming the exact missing case. Do not repeat the PR
-summary. Do not speculate about code outside the diff unless the changed line directly
-breaks a visible contract.
+Do not report speculative or generic review noise. In particular, do not report a finding
+whose reasoning is merely that something *may*, *might*, *could*, or *potentially* fail,
+or whose action is only to "ensure", "consider", "verify", "monitor", add comments,
+add unspecified tests, or clarify documentation. Missing tests are not themselves a defect.
+Configuration is not a defect unless the supplied diff creates a concrete broken configuration.
+If you cannot name the exact input/state and exact wrong outcome, omit the finding.
+
+Prioritize correctness, authorization, false-success states, retry/recovery races, stale evidence,
+data loss, resource leaks with a concrete trigger, and user-visible failure/recovery behavior.
+Do not repeat the PR summary. Before answering, remove any finding that is not directly grounded
+in changed code shown in this chunk.
 
 Use concise bullets. If there are no actionable findings, respond with exactly:
 NO_ACTIONABLE_FINDINGS
-
-Never suggest adding comments."""
+"""
 
 
 def get_pr_diff() -> tuple[str, int, str, str, str]:
@@ -43,7 +55,7 @@ def get_pr_diff() -> tuple[str, int, str, str, str]:
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
         print("No GITHUB_EVENT_PATH — not running in GitHub Actions?", file=sys.stderr)
-        sys.exit(0)
+        raise SystemExit(1)
 
     with open(event_path, encoding="utf-8") as event_file:
         event = json.load(event_file)
@@ -51,7 +63,7 @@ def get_pr_diff() -> tuple[str, int, str, str, str]:
     pr = event.get("pull_request")
     if not pr:
         print("No pull_request in event — not a PR event.", file=sys.stderr)
-        sys.exit(0)
+        raise SystemExit(1)
 
     repo = event.get("repository", {})
     owner = repo.get("owner", {}).get("login", "")
@@ -61,29 +73,30 @@ def get_pr_diff() -> tuple[str, int, str, str, str]:
     api_url = str(pr.get("url") or "")
     if not api_url and owner and name and pr_number:
         api_url = f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}"
-    if not api_url:
-        print("No API URL in PR payload.", file=sys.stderr)
-        sys.exit(1)
+    if not api_url or not head_sha:
+        print("PR payload is missing API URL or head SHA.", file=sys.stderr)
+        raise SystemExit(1)
 
-    # GitHub's web .diff URL returns 404 for private repositories even when an
-    # Actions token is sent. Ask the authenticated REST PR endpoint for the diff
-    # representation instead.
     token = os.environ.get("GITHUB_TOKEN") or ""
     req = Request(api_url)
     if token:
         req.add_header("Authorization", f"Bearer {token}")
     req.add_header("Accept", "application/vnd.github.v3.diff")
     req.add_header("X-GitHub-Api-Version", "2022-11-28")
-    with urlopen(req, timeout=30) as resp:
-        diff = resp.read().decode("utf-8")
+    try:
+        with urlopen(req, timeout=30) as resp:
+            diff = resp.read().decode("utf-8")
+    except (HTTPError, URLError, TimeoutError, OSError) as exc:
+        print(f"Could not fetch PR diff: {type(exc).__name__}: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
 
     return diff, pr_number, owner, name, head_sha
 
 
-def review_diff(diff: str) -> str | None:
+def _review_chunk(chunk: str) -> str | None:
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        print("OPENROUTER_API_KEY not set — skipping LLM review.", file=sys.stderr)
+        print("OPENROUTER_API_KEY not set — current-head review cannot run.", file=sys.stderr)
         return None
 
     body = json.dumps(
@@ -93,11 +106,11 @@ def review_diff(diff: str) -> str | None:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {
                     "role": "user",
-                    "content": f"Review this PR diff:\n\n```diff\n{diff[:30000]}\n```",
+                    "content": f"Review this PR diff chunk:\n\n```diff\n{chunk}\n```",
                 },
             ],
             "temperature": 0.1,
-            "max_tokens": 2000,
+            "max_tokens": 3000,
         }
     ).encode()
 
@@ -106,13 +119,14 @@ def review_diff(diff: str) -> str | None:
     req.add_header("Content-Type", "application/json")
 
     try:
-        with urlopen(req, timeout=60) as resp:
+        with urlopen(req, timeout=90) as resp:
             result = json.loads(resp.read())
     except HTTPError as exc:
-        print(
-            f"OpenRouter API error: {exc.status} — {exc.read().decode()[:200]}",
-            file=sys.stderr,
-        )
+        detail = exc.read().decode(errors="replace")[:300]
+        print(f"OpenRouter API error: {exc.status} — {detail}", file=sys.stderr)
+        return None
+    except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        print(f"Reviewer infrastructure error: {type(exc).__name__}: {exc}", file=sys.stderr)
         return None
 
     choices = result.get("choices", [])
@@ -124,8 +138,43 @@ def review_diff(diff: str) -> str | None:
     return str(content).strip() if content else None
 
 
+def review_diff(diff: str) -> str | None:
+    """Review every byte of the diff in bounded chunks; never silently truncate."""
+    chunks = [
+        diff[start : start + MAX_REVIEW_CHARS]
+        for start in range(0, len(diff), MAX_REVIEW_CHARS)
+    ]
+    if not chunks:
+        return NO_FINDINGS
+    if len(chunks) > MAX_REVIEW_CHUNKS:
+        print(
+            f"PR diff needs {len(chunks)} review chunks; limit is {MAX_REVIEW_CHUNKS}. "
+            "Split the PR or explicitly raise the reviewed limit.",
+            file=sys.stderr,
+        )
+        return None
+
+    findings: list[str] = []
+    for index, chunk in enumerate(chunks, start=1):
+        print(f"Reviewing diff chunk {index}/{len(chunks)} ({len(chunk)} chars).")
+        verdict = _review_chunk(chunk)
+        if not verdict:
+            return None
+        if verdict.strip() != NO_FINDINGS:
+            findings.append(verdict.strip())
+
+    return NO_FINDINGS if not findings else "\n\n".join(findings)
+
+
 def render_review_body(review: str, head_sha: str) -> str:
     """Build the one comment body owned by this workflow."""
+    if review.strip() == REVIEW_PENDING:
+        target = f"`{head_sha[:12]}`" if head_sha else "the current PR head"
+        return (
+            f"{COMMENT_MARKER}\n## Agent PR Review\n\n"
+            f"Review pending for commit {target}. Previous review evidence is stale "
+            "until this current-head review completes."
+        )
     if review.strip() == NO_FINDINGS:
         review = "No actionable findings in this diff."
     reviewed = f"Reviewed commit `{head_sha[:12]}`." if head_sha else "Reviewed current PR head."
@@ -184,25 +233,26 @@ def upsert_review(review: str, pr_number: int, owner: str, repo: str, head_sha: 
             patch_url = f"https://api.github.com/repos/{owner}/{repo}/issues/comments/{existing_id}"
             github_json(patch_url, token, method="PATCH", payload={"body": body})
             print(f"PR review comment {existing_id} updated.")
-    except HTTPError as exc:
-        print(
-            f"GitHub API error updating review: {exc.status} — {exc.read().decode()[:200]}",
-            file=sys.stderr,
-        )
+    except (HTTPError, URLError, TimeoutError, OSError) as exc:
+        print(f"GitHub API error updating review: {type(exc).__name__}: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
 
 def main() -> None:
     diff, pr_number, owner, repo, head_sha = get_pr_diff()
-    if not diff.strip():
-        print("Empty diff — nothing to review.")
-        return
+
+    # Invalidate older approval-looking evidence before any external model call.
+    upsert_review(REVIEW_PENDING, pr_number, owner, repo, head_sha)
 
     review = review_diff(diff)
     if not review:
-        return
+        print("Current-head agent review did not produce a verdict.", file=sys.stderr)
+        raise SystemExit(1)
 
     upsert_review(review, pr_number, owner, repo, head_sha)
+    if review.strip() != NO_FINDINGS:
+        print("Actionable review findings block this exact PR head.", file=sys.stderr)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

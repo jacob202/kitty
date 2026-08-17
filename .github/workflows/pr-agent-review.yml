@@ -14,30 +14,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  review:
-    if: >-
-      ${{ github.event.pull_request.draft == false &&
-          github.event.pull_request.user.login != 'dependabot[bot]' }}
+  review-gate:
+    name: review-gate
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     steps:
-      - name: Skip automatic re-review after a push
-        if: ${{ github.event.action == 'synchronize' }}
-        run: echo "PR head changed; preserving the existing review without another model call."
-
       - name: Checkout
-        if: ${{ github.event.action != 'synchronize' }}
         uses: actions/checkout@v4
 
       - name: Setup Python
-        if: ${{ github.event.action != 'synchronize' }}
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: Run agent review
-        if: ${{ github.event.action != 'synchronize' }}
+      - name: Run exact-head agent review
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          PR_REVIEW_MODEL: ${{ vars.PR_REVIEW_MODEL || 'openai/gpt-4o-mini' }}
+          PR_REVIEW_MODEL: ${{ vars.PR_REVIEW_MODEL || 'qwen/qwen3.7-plus' }}
         run: python scripts/pr_review.py

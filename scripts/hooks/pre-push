@@ -11,13 +11,24 @@
 set -uo pipefail
 
 PREFLIGHT=0
+REMOTE_NAME=""
+REMOTE_URL=""
 if [[ "${1:-}" == "--preflight" ]]; then
   PREFLIGHT=1
   shift
-fi
-if [[ $# -ne 0 ]]; then
-  printf 'usage: %s [--preflight]\n' "$0" >&2
-  exit 2
+  if [[ $# -ne 0 ]]; then
+    printf 'usage: %s [--preflight]\n' "$0" >&2
+    exit 2
+  fi
+else
+  # Git invokes pre-push as: <hook> <remote-name> <remote-url>.
+  # A manual no-argument invocation is still supported for local parity runs.
+  if [[ $# -gt 2 ]]; then
+    printf 'usage: %s [--preflight] OR %s [remote-name remote-url]\n' "$0" "$0" >&2
+    exit 2
+  fi
+  REMOTE_NAME="${1:-}"
+  REMOTE_URL="${2:-}"
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -38,6 +49,18 @@ RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; OFF=$'\0
 [[ -t 2 ]] || { RED=""; GREEN=""; YELLOW=""; DIM=""; OFF=""; }
 
 say() { printf '%s\n' "$*" >&2; }
+
+# Local safety belt: normal delivery reaches main through a reviewed PR.
+# Server-side required checks are the authoritative enforcement.
+if [[ "${PREFLIGHT}" != "1" ]]; then
+  while read -r _local_ref _local_sha remote_ref _remote_sha; do
+    if [[ "${remote_ref}" == "refs/heads/main" && "${KITTY_ALLOW_DIRECT_MAIN_PUSH:-0}" != "1" ]]; then
+      say "${RED}Push blocked — direct push to main.${OFF}"
+      say "Open/merge a PR instead. Emergency local-hook override: KITTY_ALLOW_DIRECT_MAIN_PUSH=1 git push ..."
+      exit 1
+    fi
+  done
+fi
 
 # Fail loud rather than waving a push through on a half-built toolchain. A gate
 # that silently skips is worse than no gate: it reports success it never checked.
