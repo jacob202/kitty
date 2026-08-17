@@ -144,7 +144,7 @@ class RunwareEngine:
             raise RuntimeError(f"Runware task failed: {message}")
 
         b64 = result.get("imageBase64Data")
-        if not b64:
+        if not isinstance(b64, str) or not b64:
             raise RefusalError("Runware returned no image — the prompt may have been blocked.")
         return base64.b64decode(b64)
 
