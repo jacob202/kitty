@@ -66,8 +66,8 @@ def _fake_codex(root: Path) -> Path:
     fake_dir.mkdir()
     fake = fake_dir / "codex"
     fake.write_text(
-        r'''#!/usr/bin/env python3
-import json
+        f"#!{sys.executable}\n"
+        + r'''import json
 import os
 import sys
 import time

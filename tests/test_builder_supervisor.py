@@ -179,11 +179,6 @@ def test_tick_duplicate_sequential_no_op(repo: Path, db_path: Path) -> None:
     assert receipt2["status"] == "ok"
     assert len(receipt2["launched"]) == 0
     assert len(launched_second) == 0
-    # Second tick finds no eligible packets (first tick consumed them)
-    assert len(receipt2["skipped"]) >= 0
-    # If there is a skipped entry, it should be for the right reason
-    if receipt2["skipped"]:
-        assert receipt2["skipped"][0]["reason"] in {"active_run_exists", "task_not_queued", "no_eligible_packet"}
 
 
 

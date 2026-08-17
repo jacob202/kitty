@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from gateway import _id_helpers
 from gateway import builder_queue as bq
 
 
@@ -444,22 +445,18 @@ class TestTaskId:
         assert len(parts[2]) == 4  # hex4
         int(parts[2], 16)  # parses as hex
 
-    def test_ids_time_sorted_within_ms(self, db_path: Path):
-        # Two IDs generated in increasing time should preserve base36 ordering
-        # (monotonic on a single machine at ms resolution).
-        t1 = bq.create_task("a", db_path=db_path)
-        import time as _time
+    def test_ids_preserve_timestamp_order(self, db_path: Path, monkeypatch):
+        # Freeze two known millisecond timestamps so ordering is deterministic
+        # and independent of scheduler delays or wall-clock resolution.
+        stamps = iter((1_700_000_000.001, 1_700_000_000.002))
+        monkeypatch.setattr(_id_helpers.time, "time", lambda: next(stamps))
 
-        _time.sleep(0.005)
+        t1 = bq.create_task("a", db_path=db_path)
         t2 = bq.create_task("b", db_path=db_path)
         p1 = t1["id"].split("_")[1]
         p2 = t2["id"].split("_")[1]
-        # base36 strings compare lexicographically when same length, but
-        # length grows over time; compare as integers via base36 decode.
-        def b36(s: str) -> int:
-            return int(s, 36)
 
-        assert b36(p2) >= b36(p1)
+        assert int(p2, 36) > int(p1, 36)
 
 
 # ---------------------------------------------------------------------------
