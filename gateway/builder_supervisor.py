@@ -146,6 +146,7 @@ def canonical_adapter_env(model: str | None = None) -> dict[str, str]:
         "KITTYBUILDER_REVIEW_MODEL": "",
         "KITTYBUILDER_MODELS": "",
         "KITTYBUILDER_REVIEW_MODELS": "",
+        "KITTYBUILDER_PYTHON": sys.executable,
     }
 
 

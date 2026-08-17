@@ -13,6 +13,15 @@ budget_started=${SECONDS}
 : "${KB_ATTEMPT_ID:?KB_ATTEMPT_ID is required}"
 : "${KB_TASK_ID:?KB_TASK_ID is required}"
 
+PYTHON_BIN="${KITTYBUILDER_PYTHON:-}"
+if [[ -z "${PYTHON_BIN}" ]]; then
+  PYTHON_BIN="$(command -v python3.12 || command -v "${PYTHON_BIN}" || true)"
+fi
+if [[ -z "${PYTHON_BIN}" || ! -x "${PYTHON_BIN}" ]]; then
+  echo "ERROR: no usable Builder Python interpreter; set KITTYBUILDER_PYTHON" >&2
+  exit 1
+fi
+
 if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   echo "ERROR: the free worker must run inside the task's isolated git worktree" >&2
   exit 1
@@ -58,7 +67,7 @@ trap 'rm -f "${local_bundle}" "${local_context}" "${local_result}"' EXIT
 cp "${KB_BUNDLE_PATH}" "${local_bundle}"
 cp "${KB_CONTEXT_MANIFEST_PATH}" "${local_context}"
 
-python3 - "${local_bundle}" "${local_context}" "${KB_TASK_ID}" "${KB_ATTEMPT_ID}" <<'PY'
+"${PYTHON_BIN}" - "${local_bundle}" "${local_context}" "${KB_TASK_ID}" "${KB_ATTEMPT_ID}" <<'PY'
 import hashlib
 import json
 import sys
@@ -133,7 +142,7 @@ for model in "${models[@]}"; do
   slot_seconds=$(model_timeout "${remaining_models}")
   echo "=== ${lane_label} builder attempt: ${model} (${slot_seconds}s slot) ==="
   set +e
-  python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" \
+  "${PYTHON_BIN}" "${TIMEOUT_RUNNER}" "${slot_seconds}" \
     opencode run --auto --agent "${adapter_agent}" --model "${model}" \
     --title "KittyBuilder ${lane_label} packet worker" "${prompt}" </dev/null
   rc=$?
@@ -164,7 +173,7 @@ if [[ -z "${chosen_model}" ]]; then
 fi
 echo "${completion_label} builder completed with ${chosen_model}."
 
-result_status=$(python3 - "${local_result}" <<'PY'
+result_status=$("${PYTHON_BIN}" - "${local_result}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -211,7 +220,7 @@ if [[ "${result_status}" == "completed" ]] \
   # isn't in any env var; it's read from the bundle we already staged a
   # copy of above — reuse the KB_BUNDLE_PATH original since the local copy
   # was just removed.
-  packet_id=$(python3 -c "import json; print(json.load(open('${KB_BUNDLE_PATH}'))['packet_id'])")
+  packet_id=$("${PYTHON_BIN}" -c "import json; print(json.load(open('${KB_BUNDLE_PATH}'))['packet_id'])")
   git add -A
   git commit --quiet -m "[${packet_id}] kittybuilder: ${KB_TASK_ID} attempt ${KB_ATTEMPT_ID} (${chosen_model})"
 fi

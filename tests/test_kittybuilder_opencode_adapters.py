@@ -897,3 +897,67 @@ def test_reviewer_closes_stdin_before_launching_opencode(tmp_path: Path):
 
     assert proc.returncode == 0, stderr
     assert json.loads(review.read_text())["verdict"] == "approve"
+
+
+def _poison_python3(directory: Path) -> None:
+    poison = directory / "python3"
+    poison.write_text("#!/bin/sh\necho poisoned-python3 >&2\nexit 91\n", encoding="utf-8")
+    poison.chmod(0o755)
+
+
+def test_worker_uses_bound_builder_python_not_ambient_python3(tmp_path: Path):
+    repo = tmp_path / "python-worker"
+    repo.mkdir()
+    _init_git_repo(repo)
+    bundle = tmp_path / "python-worker-bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-python"}\n')
+    context = _manifest(bundle)
+    result = tmp_path / "python-worker-result.json"
+    fake = _fake_opencode(tmp_path)
+    _poison_python3(fake.parent)
+    env = _env(fake, bundle=bundle, context=context, result=result)
+    env["KITTYBUILDER_PYTHON"] = sys.executable
+
+    completed = subprocess.run(
+        [str(WORKER)], cwd=repo, env=env, capture_output=True, text=True, timeout=8
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "poisoned-python3" not in completed.stderr
+    assert json.loads(result.read_text())["status"] == "completed"
+
+
+def test_reviewer_uses_bound_builder_python_not_ambient_python3(tmp_path: Path):
+    repo = tmp_path / "python-reviewer"
+    repo.mkdir()
+    _init_git_repo(repo)
+    bundle = tmp_path / "python-review-bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-python"}\n')
+    context = _manifest(bundle)
+    implementation = tmp_path / "python-implementation.json"
+    implementation.write_text('{"contract_version":1}\n')
+    review = tmp_path / "python-review.json"
+    fake = _fake_opencode(tmp_path)
+    _poison_python3(fake.parent)
+    binding = _review_binding(repo)
+    env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
+    env.update({
+        "KITTYBUILDER_PYTHON": sys.executable,
+        "KB_IMPL_RESULT_PATH": str(implementation),
+        "KB_REVIEW_RESULT_PATH": str(review),
+        "FAKE_OPENCODE_REVIEW": "1",
+        "KB_REVIEW_CONTEXT_PATH": str(binding),
+        "KB_REVIEW_SHA": subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo, check=True,
+            capture_output=True, text=True,
+        ).stdout.strip(),
+        "KB_REVIEW_DIFF_SHA256": "0" * 64,
+    })
+
+    completed = subprocess.run(
+        [str(REVIEWER)], cwd=repo, env=env, capture_output=True, text=True, timeout=8
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "poisoned-python3" not in completed.stderr
+    assert json.loads(review.read_text())["verdict"] == "approve"

@@ -88,6 +88,7 @@ def _free_adapter_env(model: str | None = None) -> dict[str, str]:
         "KITTYBUILDER_REVIEW_MODEL": "",
         "KITTYBUILDER_MODELS": "",
         "KITTYBUILDER_REVIEW_MODELS": "",
+        "KITTYBUILDER_PYTHON": sys.executable,
     }
     return env
 
@@ -100,6 +101,7 @@ def _paid_adapter_env(route: Any) -> dict[str, str]:
         "KITTYBUILDER_REVIEW_MODEL": route.reviewer_model,
         "KITTYBUILDER_MODELS": "",
         "KITTYBUILDER_REVIEW_MODELS": "",
+        "KITTYBUILDER_PYTHON": sys.executable,
     }
 
 

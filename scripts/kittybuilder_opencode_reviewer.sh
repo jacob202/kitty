@@ -15,6 +15,15 @@ budget_started=${SECONDS}
 : "${KB_ATTEMPT_ID:?KB_ATTEMPT_ID is required}"
 : "${KB_TASK_ID:?KB_TASK_ID is required}"
 
+PYTHON_BIN="${KITTYBUILDER_PYTHON:-}"
+if [[ -z "${PYTHON_BIN}" ]]; then
+  PYTHON_BIN="$(command -v python3.12 || command -v "${PYTHON_BIN}" || true)"
+fi
+if [[ -z "${PYTHON_BIN}" || ! -x "${PYTHON_BIN}" ]]; then
+  echo "ERROR: no usable Builder Python interpreter; set KITTYBUILDER_PYTHON" >&2
+  exit 1
+fi
+
 adapter_agent="${KITTYBUILDER_REVIEW_AGENT:-free-reviewer}"
 if [[ "${adapter_agent}" == "paid-reviewer" ]]; then
   lane_label="paid"
@@ -56,7 +65,7 @@ cp "${KB_IMPL_RESULT_PATH}" "${local_impl}"
 cp "${KB_CONTEXT_MANIFEST_PATH}" "${local_context}"
 cp "${KB_REVIEW_CONTEXT_PATH}" "${local_review_context}"
 
-python3 - "${local_bundle}" "${local_context}" "${local_review_context}" "${KB_TASK_ID}" "${KB_ATTEMPT_ID}" "${KB_REVIEW_SHA}" "${KB_REVIEW_DIFF_SHA256}" <<'PY'
+"${PYTHON_BIN}" - "${local_bundle}" "${local_context}" "${local_review_context}" "${KB_TASK_ID}" "${KB_ATTEMPT_ID}" "${KB_REVIEW_SHA}" "${KB_REVIEW_DIFF_SHA256}" <<'PY'
 import hashlib
 import json
 import sys
@@ -145,7 +154,7 @@ for model in "${models[@]}"; do
   slot_seconds=$(model_timeout "${remaining_models}")
   echo "=== ${lane_label} reviewer attempt: ${model} (${slot_seconds}s slot) ==="
   set +e
-  python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" \
+  "${PYTHON_BIN}" "${TIMEOUT_RUNNER}" "${slot_seconds}" \
     opencode run --auto --agent "${adapter_agent}" --model "${model}" \
     --title "KittyBuilder ${lane_label} packet reviewer" "${prompt}" </dev/null
   rc=$?
@@ -176,7 +185,7 @@ if [[ -z "${chosen_model}" ]]; then
 fi
 echo "Review completed with ${chosen_model}."
 
-python3 - "${local_review}" <<'PY'
+"${PYTHON_BIN}" - "${local_review}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -192,7 +201,7 @@ PY
 # alongside the structured review contract. KB_REVIEW_NOTE_PATH is runner-owned
 # and optional; the note is derived deterministically from the validated review.
 if [[ -n "${KB_REVIEW_NOTE_PATH:-}" ]]; then
-  python3 - "${local_review}" "${KB_REVIEW_NOTE_PATH}" "${KB_REVIEW_SHA}" "${chosen_model}" <<'PY'
+  "${PYTHON_BIN}" - "${local_review}" "${KB_REVIEW_NOTE_PATH}" "${KB_REVIEW_SHA}" "${chosen_model}" <<'PY'
 import json
 import sys
 from pathlib import Path
