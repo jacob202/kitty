@@ -1379,8 +1379,18 @@ def _origin_main_relation(repo_root: Path, head: str) -> dict[str, Any]:
     }
 
 
+def _builder_db_path(canonical_checkout: Path) -> Path:
+    builder_root = os.environ.get("KITTY_BUILDER_DATA_DIR")
+    if builder_root:
+        return Path(builder_root).expanduser().resolve() / "builder_queue.db"
+    data_root = os.environ.get("KITTY_DATA_ROOT")
+    if data_root:
+        return Path(data_root).expanduser().resolve() / "kittybuilder" / "builder_queue.db"
+    return canonical_checkout / "data" / "kittybuilder" / "builder_queue.db"
+
+
 def _builder_summary(canonical_checkout: Path) -> dict[str, Any]:
-    db_path = canonical_checkout / "data" / "kittybuilder" / "builder_queue.db"
+    db_path = _builder_db_path(canonical_checkout)
     if not db_path.exists():
         return {
             "state": "unavailable",
@@ -1448,7 +1458,7 @@ def build_context_receipt(
         builder = {
             "state": "not_requested",
             "source": "gateway.builder_status.build_control_plane_summary",
-            "database": str(canonical_checkout / "data" / "kittybuilder" / "builder_queue.db"),
+            "database": str(_builder_db_path(canonical_checkout)),
             "reason": "Builder inspection was not requested for this task",
             "schema_version": None,
             "queue": None,
