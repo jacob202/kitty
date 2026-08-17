@@ -42,6 +42,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       style={{ height: '100%' }}
     >
       <body style={{ height: '100%' }}>
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
         <Providers>{children}</Providers>
       </body>
     </html>

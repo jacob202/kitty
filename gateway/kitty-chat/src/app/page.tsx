@@ -82,7 +82,7 @@ export default function KittyChat() {
         activeModel={k.activeModel} onSend={k.handleRuntimeSend}
         onCancel={k.handleStop} onReload={k.handleRetry}
       >
-        <main style={{
+        <main id="main-content" tabIndex={-1} style={{
           flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
           minHeight: 0, overflow: 'hidden', background: 'var(--bg)',
           ...(k.isMobile ? { paddingBottom: 'var(--bottom-nav-height)' } : {}),
