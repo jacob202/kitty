@@ -84,6 +84,54 @@ def test_paid_reviewer_must_be_independent_model(tmp_path: Path):
         bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, payload))
 
 
+def test_projected_cost_prices_the_configured_worker_slug(tmp_path: Path):
+    # The projection must price the configured worker slug at the tier's token
+    # shape, not the governor's hard-coded route model.
+    from gateway import compute_governor as cg
+
+    route = bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, _policy()))
+
+    shape = cg.TYPICAL_PASS_TOKENS["cheap"]
+    expected = cg.estimate_cost_cad(
+        "deepseek/deepseek-v4-flash",
+        input_tokens=shape["input"],
+        output_tokens=shape["output"],
+    ) + cg.estimate_cost_cad(
+        "qwen/qwen3.7-plus",
+        input_tokens=30_000,
+        output_tokens=3_000,
+    )
+
+    assert route.projected_cost_cad == pytest.approx(expected)
+
+
+def test_changing_the_worker_model_changes_projected_cost(tmp_path: Path):
+    base = _policy()
+    flash = bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, base))
+
+    swapped = dict(base)
+    swapped["routes"]["cheap"]["worker_model"] = "openrouter/deepseek/deepseek-v4-pro"
+    pro = bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, swapped))
+
+    assert pro.projected_cost_cad != pytest.approx(flash.projected_cost_cad)
+
+
+def test_unpriced_worker_model_fails_loud_instead_of_estimating_zero(tmp_path: Path):
+    payload = _policy()
+    payload["routes"]["cheap"]["worker_model"] = "openrouter/unpriced/brand-new-model"
+
+    with pytest.raises(bpr.PaidRoutingError, match="no snapshot price"):
+        bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, payload))
+
+
+def test_unpriced_reviewer_model_fails_loud_instead_of_estimating_zero(tmp_path: Path):
+    payload = _policy()
+    payload["routes"]["cheap"]["reviewer_model"] = "openrouter/unpriced/brand-new-model"
+
+    with pytest.raises(bpr.PaidRoutingError, match="no snapshot price"):
+        bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, payload))
+
+
 def test_opencode_config_has_separate_free_and_paid_agents():
     config = json.loads((Path(__file__).resolve().parents[1] / "opencode.jsonc").read_text())
     agents = config["agent"]
