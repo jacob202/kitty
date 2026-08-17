@@ -66,3 +66,15 @@ def test_authored_packet_ids_are_namespaced_for_global_builder_identity() -> Non
 
     assert all(packet["id"].startswith("b4-") for packet in hardening["packets"])
     assert all(packet["id"].startswith("hs1-") for packet in home_stretch["packets"])
+
+def test_authored_validation_commands_use_python312_on_mac() -> None:
+    manifests = [
+        _load("builder-cheap-hardening-20260816.json"),
+        _load("home-stretch-cheap-execution-20260816.json"),
+    ]
+
+    for manifest in manifests:
+        for packet in manifest["packets"]:
+            for command in packet.get("validation_commands", []):
+                if "pytest" in command and command.startswith("python"):
+                    assert command.startswith("python3.12 -m pytest"), command
