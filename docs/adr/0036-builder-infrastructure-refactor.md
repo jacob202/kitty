@@ -112,6 +112,22 @@ lower-risk if those projects mature.
 - Delete `builder_adapters.py`.
 - Update all imports. Run full Builder test suite.
 
+## Implementation note — 2026-08-17
+
+The first simplification pass deliberately converged architecture before moving
+files. `builder_adapters.py` and the unused `WorkerSession` backend abstraction
+were removed. The legacy `gateway/builder.py` runtime and `/build/*` surface were
+retired, Builder clients now submit the canonical initiative/packet manifest,
+and operator commands call canonical Python services directly rather than
+shelling back through the CLI. Validation now has one pre-publication authority
+in `builder_attempt.run_validation`; post-merge revalidation remains a distinct
+publication safety gate.
+
+The `gateway/builder/` package move is therefore deferred until after these
+conceptual duplicates are gone. A file move by itself is not considered
+architectural simplification and should not be undertaken merely to satisfy the
+older follow-up list below.
+
 ## Related ADRs
 
 - ADR 0017: Kitty → Mission → KittyBuilder control plane

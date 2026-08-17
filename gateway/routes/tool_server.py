@@ -16,8 +16,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, Field
 
-from gateway.models.builder import Mission
-from gateway.paths import BUILDER_QUEUE_DB, PROJECT_ROOT
+from gateway.paths import BUILDER_QUEUE_DB
 
 logger = logging.getLogger("kitty.tool_server")
 
@@ -216,35 +215,6 @@ def builder_status() -> dict:
         "needs_attention": attention[:_TOOL_RESULT_LIMIT],
         "needs_attention_total": len(attention),
     }
-
-
-@router.post(
-    "/builder/mission",
-    operation_id="submit_builder_mission",
-    summary="Submit an approved Mission to KittyBuilder",
-)
-def submit_builder_mission(body: Mission) -> dict:
-    """Materialize Kitty's approved Mission through Builder's durable boundary."""
-    from gateway.builder_initiative import (
-        BaseSHAResolutionError,
-        InitiativeConflictError,
-        ManifestError,
-        MissionSubmissionError,
-        submit_mission,
-    )
-
-    try:
-        return submit_mission(
-            body,
-            db_path=BUILDER_QUEUE_DB,
-            repo_root=PROJECT_ROOT,
-        )
-    except (MissionSubmissionError, ManifestError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except InitiativeConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except BaseSHAResolutionError as exc:
-        raise HTTPException(status_code=503, detail=f"Builder unavailable: {exc}") from exc
 
 
 @router.get(

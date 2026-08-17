@@ -1,13 +1,12 @@
 """Pydantic models for the KittyBuilder control plane.
 
-Models correspond to the Mission object defined in ADR 0017 and the
-execution-level contracts used by builder_runner and the companion
-preset wiring.
+Models define Builder operator, worker-result, and agent-dispatch contracts.
+The executable Mission contract is the canonical initiative manifest validated by
+``gateway.builder_initiative`` rather than a parallel Pydantic dialect.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -16,19 +15,6 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
-
-
-class MissionState(str, Enum):
-    proposed = "proposed"
-    awaiting_approval = "awaiting_approval"
-    approved = "approved"
-    accepted = "accepted"
-    running = "running"
-    blocked = "blocked"
-    succeeded = "succeeded"
-    failed = "failed"
-    cancelled = "cancelled"
-    superseded = "superseded"
 
 
 class AgentPreset(str, Enum):
@@ -43,96 +29,6 @@ class ContextTier(str, Enum):
     trivial = "trivial"
     standard = "standard"
     deep = "deep"
-
-
-class RiskTier(str, Enum):
-    t0 = "t0"
-    t1 = "t1"
-    t2 = "t2"
-
-
-# ---------------------------------------------------------------------------
-# Mission models (ADR 0017)
-# ---------------------------------------------------------------------------
-
-
-class MissionOrigin(BaseModel):
-    conversation_id: str | None = None
-    message_refs: list[str] = Field(default_factory=list)
-    project_id: str | None = None
-    repository: str | None = None
-    base_sha: str | None = None
-    context_receipt_ref: str | None = None
-
-
-class Assumption(BaseModel):
-    claim: str
-    evidence: str | None = None
-    disposition: str | None = None
-
-
-class MissionContext(BaseModel):
-    required_refs: list[str] = Field(default_factory=list)
-    selected_refs: list[str] = Field(default_factory=list)
-    missing: list[str] = Field(default_factory=list)
-    contradictions: list[str] = Field(default_factory=list)
-    assumptions: list[Assumption] = Field(default_factory=list)
-
-
-class MissionExecution(BaseModel):
-    strategy: str | None = None
-    packets: list[str] = Field(default_factory=list)
-    dependencies: list[str] = Field(default_factory=list)
-    allowed_paths: list[str] = Field(default_factory=list)
-    forbidden_operations: list[str] = Field(default_factory=list)
-    worker_constraints: dict[str, Any] = Field(default_factory=dict)
-    routing_policy: dict[str, Any] = Field(default_factory=dict)
-
-
-class MissionAuthority(BaseModel):
-    risk_tier: RiskTier = RiskTier.t2
-    policy_version: str | None = None
-    approvals: list[str] = Field(default_factory=list)
-    expires_at: datetime | None = None
-
-
-class MissionBudgets(BaseModel):
-    max_attempts: int = 3
-    max_time_seconds: int = 3600
-    max_tokens: int | None = None
-    max_cost: float | None = None
-
-
-class EvidenceCriterion(BaseModel):
-    description: str
-    validation_command: str | None = None
-
-
-class MissionEvidencePlan(BaseModel):
-    acceptance_criteria: list[EvidenceCriterion] = Field(default_factory=list)
-    validation_commands: list[str] = Field(default_factory=list)
-    required_artifacts: list[str] = Field(default_factory=list)
-    independent_review: bool = False
-
-
-class Mission(BaseModel):
-    """A versioned Mission object — the durable command boundary between
-    Kitty and KittyBuilder (ADR 0017)."""
-
-    schema_version: int = 1
-    mission_id: str = Field(min_length=1)
-    created_at: datetime = Field(default_factory=datetime.now)
-    approved_at: datetime | None = None
-    origin: MissionOrigin = Field(default_factory=MissionOrigin)
-    objective: str
-    rationale: str | None = None
-    non_goals: list[str] = Field(default_factory=list)
-    context: MissionContext = Field(default_factory=MissionContext)
-    execution: MissionExecution = Field(default_factory=MissionExecution)
-    authority: MissionAuthority = Field(default_factory=MissionAuthority)
-    budgets: MissionBudgets = Field(default_factory=MissionBudgets)
-    evidence_plan: MissionEvidencePlan = Field(default_factory=MissionEvidencePlan)
-    state: MissionState = MissionState.proposed
 
 
 class BuilderCommandRequest(BaseModel):
@@ -260,21 +156,10 @@ __all__ = [
     "AgentDispatchResult",
     "AgentPreset",
     "AgentPresetConfig",
-    "Assumption",
     "AttemptResult",
     "BuilderCommandRequest",
     "ContextTier",
-    "EvidenceCriterion",
-    "Mission",
-    "MissionAuthority",
-    "MissionBudgets",
-    "MissionContext",
-    "MissionEvidencePlan",
-    "MissionExecution",
-    "MissionOrigin",
-    "MissionState",
     "ReviewContract",
-    "RiskTier",
     "WorkerContextBundle",
     "WorkerContract",
 ]

@@ -1,6 +1,6 @@
 """Ideal State Criteria — derive, check, and format binary success criteria.
 
-Extracted from gateway.builder (the autonomous build pipeline) so the
+Canonical implementation-success-criteria helpers for the durable Builder. The
 KittyBuilder queue (builder_queue.py) and packet attempts (builder_attempt.py)
 can also use ISC derivation without coupling to the 6-stage pipeline.
 """

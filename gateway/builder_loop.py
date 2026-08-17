@@ -930,7 +930,7 @@ def run_packet(
             provider=provider,
             db_path=db_path,
         )
-    except (bi.InitiativeNotFoundError, bi.MissionSubmissionError) as exc:
+    except (bi.InitiativeNotFoundError, bi.RoutingPolicyError) as exc:
         raise LoopError(f"durable routing policy rejected execution: {exc}") from exc
 
     crash_count, crash_reason = _consecutive_identical_crashes(

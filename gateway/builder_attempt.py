@@ -26,7 +26,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 
 BUNDLE_VERSION = 1
@@ -127,7 +126,11 @@ def _ensure_attempt_columns(conn: sqlite3.Connection) -> None:
 
 def init_db(db_path: Path | None = None) -> None:
     """Ensure initiative schema plus the attempts table exist. Idempotent."""
-    bi.init_db(db_path)
+    # Local import avoids an import-time cycle: initiative projections consume
+    # attempt state, while attempt schema creation only needs initiative init.
+    from gateway import builder_initiative
+
+    builder_initiative.init_db(db_path)
     conn = bq.connect(db_path)
     try:
         _ensure_attempt_columns(conn)
@@ -1179,6 +1182,27 @@ def close_attempt(
     except Exception:
         conn.rollback()
         raise
+    finally:
+        conn.close()
+
+
+def get_open_attempt_for_task(
+    task_id: str, db_path: Path | None = None
+) -> dict[str, Any] | None:
+    """Return the current open packet attempt for a durable task, if any."""
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT * FROM packet_attempts
+            WHERE task_id = ? AND outcome IS NULL
+            ORDER BY attempt_no DESC, id DESC
+            LIMIT 1
+            """,
+            (task_id,),
+        ).fetchone()
+        return _row_to_attempt(row) if row else None
     finally:
         conn.close()
 

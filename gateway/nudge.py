@@ -158,11 +158,16 @@ def _check_milestones() -> list[dict]:
     """Detect celebration-worthy milestones."""
     nudges = []
 
-    # Check build count
+    # Check completed durable Builder initiatives.
     try:
-        from gateway.builder import list_builds
-        builds = list_builds(limit=50)
-        completed = [b for b in builds if b.get("status") == "completed"]
+        from gateway.builder_initiative import list_initiatives
+
+        initiatives = list_initiatives()
+        completed = [
+            item
+            for item in initiatives
+            if (item.get("health_summary") or {}).get("state") == "completed"
+        ]
         if len(completed) == 1:
             nudges.append({
                 "id": "milestone_first_build",

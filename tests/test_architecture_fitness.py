@@ -8,28 +8,19 @@ the Builder unit/integration suites.
 from __future__ import annotations
 
 import inspect
-from datetime import datetime, timezone
 from pathlib import Path
 
 from gateway import builder_initiative as bi
 from gateway import builder_loop as bl
 from gateway import builder_run as br
 from gateway.app import app
-from gateway.models.builder import (
-    EvidenceCriterion,
-    Mission,
-    MissionEvidencePlan,
-    MissionExecution,
-    MissionOrigin,
-    MissionState,
-)
 
 
 def test_production_mount_exposes_one_canonical_builder_command_boundary():
     """The shipped app must not reintroduce the retired action route."""
     paths = set(app.openapi()["paths"])
 
-    assert "/builder/initiative" in paths
+    assert "/builder/initiative" not in paths
     assert "/builder/command" in paths
     assert "/builder/action" not in paths
 
@@ -56,32 +47,53 @@ def test_legacy_builder_action_adapter_is_retired():
         assert kind not in tiers_source
 
 
-def test_approved_mission_is_the_durable_idempotent_handoff(tmp_path: Path):
-    """Mission submission materializes Builder state without duplicate tasks."""
+def test_canonical_manifest_is_the_durable_idempotent_handoff(tmp_path: Path):
+    """The executable manifest materializes its real packet graph exactly once."""
     db_path = tmp_path / "builder_queue.db"
-    mission = Mission(
-        mission_id="architecture-fitness-v1",
-        objective="Preserve the Kitty Builder boundary",
-        approved_at=datetime(2026, 8, 9, tzinfo=timezone.utc),
-        state=MissionState.approved,
-        origin=MissionOrigin(base_sha="a" * 40),
-        execution=MissionExecution(allowed_paths=["gateway/routes/builder.py"]),
-        evidence_plan=MissionEvidencePlan(
-            acceptance_criteria=[
-                EvidenceCriterion(description="the handoff is durable")
-            ]
-        ),
-    )
+    manifest = {
+        "manifest_version": 1,
+        "initiative_id": "architecture-fitness-v1",
+        "title": "Preserve the Kitty Builder boundary",
+        "packets": [
+            {
+                "id": "P1",
+                "title": "First bounded packet",
+                "objective": "Create the first bounded change",
+                "depends_on": [],
+                "acceptance_criteria": ["first packet is durable"],
+                "allowed_paths": ["gateway/routes/builder.py"],
+                "validation_commands": ["pytest -q tests/test_builder_routes.py"],
+            },
+            {
+                "id": "P2",
+                "title": "Dependent packet",
+                "objective": "Prove dependency preservation",
+                "depends_on": ["P1"],
+                "acceptance_criteria": ["dependency graph is durable"],
+                "allowed_paths": ["gateway/builder_initiative.py"],
+                "validation_commands": ["pytest -q tests/test_builder_initiative.py"],
+            },
+        ],
+    }
 
-    first = bi.submit_mission(mission, db_path=db_path, repo_root=tmp_path)
-    second = bi.submit_mission(mission, db_path=db_path, repo_root=tmp_path)
+    first = bi.apply_manifest(manifest, db_path=db_path, base_sha="a" * 40)
+    second = bi.apply_manifest(manifest, db_path=db_path, base_sha="a" * 40)
 
     assert first["status"] == "created"
     assert second["status"] == "unchanged"
-    initiative = bi.get_initiative(mission.mission_id, db_path=db_path)
+    initiative = bi.get_initiative(manifest["initiative_id"], db_path=db_path)
     assert initiative is not None
-    assert initiative["packets"]
-    assert len(bi.list_initiatives(db_path=db_path)) == 1
+    assert [p["packet_id"] for p in initiative["packets"]] == ["P1", "P2"]
+    assert initiative["packets"][1]["depends_on"] == ["P1"]
+
+
+def test_no_second_public_mission_model_survives():
+    """Builder exposes the executable manifest contract, not a parallel dialect."""
+    from gateway.models import builder as builder_models
+
+    assert not hasattr(builder_models, "Mission")
+    assert not hasattr(bi, "mission_to_manifest")
+    assert not hasattr(bi, "submit_mission")
 
 
 def test_builder_clients_use_projection_and_canonical_commands_only():

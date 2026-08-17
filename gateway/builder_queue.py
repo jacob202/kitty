@@ -8,9 +8,9 @@ commands, daemon/API, worker execution, worktrees, or PR automation yet.
 
 Important scope notes (see docs/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md):
 
-- This module must not modify gateway/builder.py (autonomous pipeline) or
-  gateway/task_runner.py (generic tasks). It is a separate store backed by
-  BUILDER_QUEUE_DB, not the legacy TASK_DB.
+- This durable Builder queue is independent of gateway/task_runner.py (generic
+  tasks). The legacy gateway/builder.py pipeline has been retired; this store,
+  backed by BUILDER_QUEUE_DB, is the single Builder execution authority.
 - GitHub bridge metadata is advisory after Phase 1A. The only bridge field
   that affects idempotency is bridge_external_id; re-adding the same
   (bridge_source, bridge_external_id) must fail. GitHub comments never
@@ -1613,6 +1613,9 @@ def recover_durable_issues(
 
     ``pr_merged`` is injectable for tests (defaults to ``_gh_pr_status``).
     """
+    # Recovery is a public Python authority, not merely a CLI implementation.
+    # Ensure the durable schema exists before lease/run scanners open it.
+    init_db(db_path)
     leases = recover_expired_leases(db_path=db_path)
     runs = recover_interrupted_runs(db_path=db_path)
     merges = detect_merged_prs(db_path=db_path, pr_merged=pr_merged)

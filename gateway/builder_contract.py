@@ -2,8 +2,8 @@
 
 A contract is a goal + a list of binary success criteria + optional
 validation commands. This module validates a contract's structure and
-optionally runs it against the existing ISA-lite machinery in
-:mod:`gateway.builder`.
+optionally runs it against the canonical ISC machinery in
+:mod:`gateway.builder_isc`.
 
 Layer 1A: contract validate is safe, read-only coordination.
 """
@@ -16,7 +16,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from gateway import builder as builder_core
+from gateway import builder_isc as builder_core
 
 logger = logging.getLogger("kitty.builder_contract")
 

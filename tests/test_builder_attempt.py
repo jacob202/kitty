@@ -848,3 +848,14 @@ class TestGrantAttemptCli:
              "--reason", "should be blocked"]
         ) == 1
         assert "disabled" in capsys.readouterr().err
+
+
+def test_get_open_attempt_for_task_tracks_attempt_lifecycle(db_path: Path):
+    attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+
+    found = ba.get_open_attempt_for_task(attempt["task_id"], db_path=db_path)
+    assert found is not None
+    assert found["id"] == attempt["id"]
+
+    ba.close_attempt(attempt["id"], ba.ATTEMPT_ABORTED, db_path=db_path)
+    assert ba.get_open_attempt_for_task(attempt["task_id"], db_path=db_path) is None

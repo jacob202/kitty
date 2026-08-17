@@ -9,7 +9,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from gateway.app import app
-from gateway.models.builder import Mission
 from gateway.routes import tool_server
 
 client = TestClient(app)
@@ -32,7 +31,6 @@ def test_the_spec_lists_only_kitty_tools():
         "/tools/v1/calendar/today",
         "/tools/v1/tutor/ask",
         "/tools/v1/builder/status",
-        "/tools/v1/builder/mission",
         "/tools/v1/builder/mission/{mission_id}",
     }
 
@@ -177,20 +175,8 @@ def test_the_model_gets_readable_tool_names():
         "calendar_today",
         "ask_tutor",
         "builder_status",
-        "submit_builder_mission",
         "builder_mission_result",
     }
-
-
-def test_submit_builder_mission_delegates_to_durable_builder_boundary(monkeypatch):
-    mission = Mission(mission_id="tool-mission", objective="Ship the bounded change")
-    expected = {"status": "created", "initiative_id": mission.mission_id}
-
-    from gateway import builder_initiative
-
-    monkeypatch.setattr(builder_initiative, "submit_mission", lambda *args, **kwargs: expected)
-
-    assert tool_server.submit_builder_mission(mission) == expected
 
 
 def test_builder_mission_result_uses_read_only_projection(monkeypatch):

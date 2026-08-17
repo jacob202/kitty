@@ -7,7 +7,6 @@ Phase 2 upgrade: Pydantic models, context injection, and agent preset dispatch.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -18,20 +17,9 @@ from gateway.models.builder import (
     AgentDispatchResult,
     AgentPreset,
     AgentPresetConfig,
-    Assumption,
     AttemptResult,
     ContextTier,
-    EvidenceCriterion,
-    Mission,
-    MissionAuthority,
-    MissionBudgets,
-    MissionContext,
-    MissionEvidencePlan,
-    MissionExecution,
-    MissionOrigin,
-    MissionState,
     ReviewContract,
-    RiskTier,
     WorkerContextBundle,
     WorkerContract,
 )
@@ -39,130 +27,6 @@ from gateway.models.builder import (
 # ===========================================================================
 # Model tests
 # ===========================================================================
-
-
-class TestMissionModel:
-    def test_mission_defaults(self):
-        m = Mission(mission_id="kb_mission_001", objective="Do the thing")
-        assert m.mission_id == "kb_mission_001"
-        assert m.objective == "Do the thing"
-        assert m.schema_version == 1
-        assert m.state == MissionState.proposed
-        assert m.budgets.max_attempts == 3
-        assert m.authority.risk_tier == RiskTier.t2
-
-    def test_mission_serialization(self):
-        m = Mission(
-            mission_id="kb_mission_002",
-            objective="Test serialization",
-            rationale="Because we need to test",
-            non_goals=["Skip this", "Skip that"],
-            authority=MissionAuthority(risk_tier=RiskTier.t0),
-            budgets=MissionBudgets(max_attempts=5, max_time_seconds=7200),
-        )
-        data = m.model_dump()
-        assert data["mission_id"] == "kb_mission_002"
-        assert data["objective"] == "Test serialization"
-        assert data["rationale"] == "Because we need to test"
-        assert data["non_goals"] == ["Skip this", "Skip that"]
-        assert data["authority"]["risk_tier"] == "t0"
-        assert data["budgets"]["max_attempts"] == 5
-
-    def test_mission_deserialization(self):
-        data = {
-            "mission_id": "kb_mission_003",
-            "objective": "Round-trip test",
-            "state": "approved",
-            "authority": {"risk_tier": "t1"},
-            "budgets": {"max_attempts": 10},
-        }
-        m = Mission(**data)
-        assert m.mission_id == "kb_mission_003"
-        assert m.state == MissionState.approved
-        assert m.authority.risk_tier == RiskTier.t1
-        assert m.budgets.max_attempts == 10
-
-    def test_mission_rejects_empty_mission_id(self):
-        with pytest.raises(ValidationError):
-            Mission(mission_id="", objective="test")
-
-    def test_mission_minimal_valid(self):
-        m = Mission(mission_id="kb_001", objective="test")
-        assert m.mission_id == "kb_001"
-
-    def test_mission_origin_defaults(self):
-        o = MissionOrigin()
-        assert o.conversation_id is None
-        assert o.message_refs == []
-        assert o.repository is None
-
-    def test_mission_origin_with_values(self):
-        o = MissionOrigin(
-            conversation_id="conv_123",
-            message_refs=["ref1", "ref2"],
-            repository="owner/repo",
-            base_sha="abc123def456",
-        )
-        assert o.conversation_id == "conv_123"
-        assert len(o.message_refs) == 2
-        assert o.base_sha == "abc123def456"
-
-    def test_assumption_model(self):
-        a = Assumption(claim="The sky is blue", evidence="Observed", disposition="confirmed")
-        assert a.claim == "The sky is blue"
-        assert a.evidence == "Observed"
-        assert a.disposition == "confirmed"
-
-    def test_mission_context_with_assumptions(self):
-        ctx = MissionContext(
-            required_refs=["ref_a"],
-            missing=["config file"],
-            assumptions=[
-                Assumption(claim="DB is available"),
-            ],
-        )
-        assert len(ctx.assumptions) == 1
-        assert ctx.assumptions[0].claim == "DB is available"
-
-    def test_mission_execution(self):
-        ex = MissionExecution(
-            strategy="parallel",
-            packets=["p1", "p2"],
-            allowed_paths=["gateway/"],
-            forbidden_operations=["push", "merge"],
-        )
-        assert ex.strategy == "parallel"
-        assert "gateway/" in ex.allowed_paths
-
-    def test_mission_evidence_plan(self):
-        ep = MissionEvidencePlan(
-            acceptance_criteria=[EvidenceCriterion(description="tests pass")],
-            validation_commands=["pytest tests/"],
-            independent_review=True,
-        )
-        assert len(ep.acceptance_criteria) == 1
-        assert ep.acceptance_criteria[0].description == "tests pass"
-        assert ep.independent_review is True
-
-    def test_mission_expiry(self):
-        future = datetime.now() + timedelta(hours=1)
-        auth = MissionAuthority(expires_at=future)
-        assert auth.expires_at is not None
-        assert auth.expires_at > datetime.now()
-
-
-class TestMissionState:
-    def test_states_have_correct_values(self):
-        assert MissionState.proposed.value == "proposed"
-        assert MissionState.approved.value == "approved"
-        assert MissionState.succeeded.value == "succeeded"
-        assert MissionState.failed.value == "failed"
-        assert MissionState.cancelled.value == "cancelled"
-        assert MissionState.superseded.value == "superseded"
-
-    def test_all_states_are_unique(self):
-        values = [s.value for s in MissionState]
-        assert len(values) == len(set(values))
 
 
 class TestAgentPreset:
@@ -176,13 +40,6 @@ class TestAgentPreset:
     def test_all_presets_are_unique(self):
         values = [p.value for p in AgentPreset]
         assert len(values) == len(set(values))
-
-
-class TestRiskTier:
-    def test_tiers_have_correct_values(self):
-        assert RiskTier.t0.value == "t0"
-        assert RiskTier.t1.value == "t1"
-        assert RiskTier.t2.value == "t2"
 
 
 class TestContextTier:

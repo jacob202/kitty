@@ -34,7 +34,6 @@ DRAFTS_DIR = DATA_DIR / "drafts"  # local-only artifacts from note.draft actions
 INBOX_FILE = DATA_DIR / "inbox.jsonl"
 KITTY_TOKEN_LOG_FILE = DATA_DIR / "kitty_token_log.jsonl"
 MODEL_DIGEST_DB = DATA_DIR / "model_digest.db"
-BUILDS_DB = DATA_DIR / "builds.db"
 TASK_DB = DATA_DIR / "task_queue.db"
 TASK_OUTPUT_DIR = DATA_DIR / "task_outputs"
 # KittyBuilder orchestrator queue — separate from the generic TASK_DB.
