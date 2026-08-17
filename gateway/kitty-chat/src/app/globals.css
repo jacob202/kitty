@@ -330,3 +330,19 @@ textarea::placeholder { color: var(--ink-2); opacity: .8; }
     animation: none;
   }
 }
+
+/* Keyboard users can bypass persistent navigation and jump directly to the app content. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 12px;
+  z-index: 10000;
+  transform: translateY(-160%);
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 650;
+  text-decoration: none;
+}
+.skip-link:focus-visible { transform: translateY(0); }

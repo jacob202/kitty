@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "highlight.js/styles/github-dark.css";
 import { Providers } from "./providers";
+import { SkipLink } from '@/components/SkipLink';
 
 export const metadata: Metadata = {
   title: "Kitty",
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       style={{ height: '100%' }}
     >
       <body style={{ height: '100%' }}>
+        <SkipLink />
         <Providers>{children}</Providers>
       </body>
     </html>
