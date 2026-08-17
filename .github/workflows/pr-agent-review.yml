@@ -2,7 +2,7 @@ name: PR Agent Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, edited, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -14,30 +14,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  review:
-    if: >-
-      ${{ github.event.pull_request.draft == false &&
-          github.event.pull_request.user.login != 'dependabot[bot]' }}
+  agent-review:
+    name: agent-review
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     steps:
-      - name: Skip automatic re-review after a push
-        if: ${{ github.event.action == 'synchronize' }}
-        run: echo "PR head changed; preserving the existing review without another model call."
-
       - name: Checkout
-        if: ${{ github.event.action != 'synchronize' }}
         uses: actions/checkout@v4
-
       - name: Setup Python
-        if: ${{ github.event.action != 'synchronize' }}
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-
-      - name: Run agent review
-        if: ${{ github.event.action != 'synchronize' }}
+      - name: Produce exact-head model review evidence
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           PR_REVIEW_MODEL: ${{ vars.PR_REVIEW_MODEL || 'openai/gpt-4o-mini' }}
+          PR_REVIEW_REQUEST_ATTEMPTS: "1"
         run: python scripts/pr_review.py
+
+  review-gate:
+    name: review-gate
+    if: ${{ always() && github.event.pull_request.draft == false }}
+    needs: agent-review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Verify trusted exact-head review evidence
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m scripts.pr_review_gate
