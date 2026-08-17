@@ -78,6 +78,12 @@ def test_frontend_gates_are_present(hook_text):
     assert "gateway/kitty-chat/" in hook_text, "hook has no way to tell whether the frontend changed"
 
 
+def test_local_frontend_gate_bounds_vitest_workers(hook_text):
+    """The 8 GB local host must not fan out enough JSDOM workers to fake timeouts."""
+    web_gate = next(line for line in hook_text.splitlines() if 'run_gate "web tests"' in line)
+    assert "--maxWorkers=2" in web_gate
+
+
 def test_frontend_gates_run_before_memory_heavy_python_suite(hook_text):
     """On the 8 GB Mac, coverage first can push Vitest into swap and fake timeouts."""
     assert hook_text.index('run_gate "web tests"') < hook_text.index('run_gate "tests"')
