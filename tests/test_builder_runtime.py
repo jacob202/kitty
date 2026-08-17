@@ -173,3 +173,21 @@ class TestSafeHelpers:
 
     def test_list_non_list(self) -> None:
         assert _safe_list("not a list") == []
+
+
+def test_default_connection_uses_canonical_builder_path(tmp_path, monkeypatch):
+    from gateway import builder_runtime as runtime
+    from gateway import paths
+
+    expected = tmp_path / "isolated" / "builder_queue.db"
+    expected.parent.mkdir(parents=True)
+    monkeypatch.setattr(paths, "BUILDER_QUEUE_DB", expected)
+    monkeypatch.chdir(tmp_path)
+
+    conn = runtime._connect(None)
+    try:
+        actual = Path(conn.execute("PRAGMA database_list").fetchone()[2]).resolve()
+    finally:
+        conn.close()
+
+    assert actual == expected.resolve()
