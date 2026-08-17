@@ -346,3 +346,9 @@ textarea::placeholder { color: var(--ink-2); opacity: .8; }
   text-decoration: none;
 }
 .skip-link:focus-visible { transform: translateY(0); }
+
+/* Keep keyboard focus obvious across custom controls. */
+*:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}

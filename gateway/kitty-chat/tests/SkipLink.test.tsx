@@ -19,4 +19,10 @@ describe('SkipLink', () => {
     const page = readFileSync(resolve(process.cwd(), 'src/app/page.tsx'), 'utf8')
     expect(page).toContain('<main id="main-content"')
   })
+  it('keeps keyboard focus visibly indicated across the shell', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/app/globals.css'), 'utf8')
+    expect(css).toContain('*:focus-visible')
+    expect(css).toContain('outline: 3px solid var(--primary)')
+  })
+
 })
