@@ -13,7 +13,7 @@ status to `verified`; `audit` will catch it.
 |---|-------|--------|----------------|--------|
 | 1 | launcher dispatch | verified | `venv/bin/python3.12 -m pytest tests/test_campaign_cli.py -q` | d9dc5b0f |
 | 2 | ledger tests still green | verified | `venv/bin/python3.12 -m pytest tests/test_campaign_ledger.py -q` | 465cc8c1 |
-| 3 | launcher suite gate | pending | `venv/bin/python3.12 -m pytest tests/test_kitty_launcher.py tests/test_campaign_cli.py tests/test_campaign_ledger.py -q` | — |
+| 3 | launcher suite gate | verified | `venv/bin/python3.12 -m pytest tests/test_kitty_launcher.py tests/test_campaign_cli.py tests/test_campaign_ledger.py -q` | 040926e9 |
 
 ## Handoff
 
