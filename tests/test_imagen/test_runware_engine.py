@@ -72,7 +72,56 @@ def test_generate_url_response_downloads_bytes(engine):
         result = engine.generate("prompt")
 
     assert result == b"downloaded-image"
-    mock_get.assert_called_once_with("https://im.runware.ai/x.jpg", timeout=120)
+    mock_get.assert_called_once_with("https://im.runware.ai/x.jpg", timeout=120, follow_redirects=True)
+
+
+def test_generate_url_404_fails_cleanly_without_regenerating(engine):
+    api_resp = MagicMock()
+    api_resp.json.return_value = {
+        "data": [{"taskType": "imageInference", "imageURL": "https://im.runware.ai/missing.jpg"}]
+    }
+    api_resp.raise_for_status.return_value = None
+    request = httpx.Request("GET", "https://im.runware.ai/missing.jpg")
+    response = httpx.Response(404, request=request)
+    image_resp = MagicMock()
+    image_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "404 Not Found", request=request, response=response
+    )
+
+    with patch("httpx.post", return_value=api_resp) as mock_post, patch(
+        "httpx.get", return_value=image_resp
+    ) as mock_get:
+        with pytest.raises(RuntimeError, match="image download failed with HTTP 404"):
+            engine.generate("prompt")
+
+    mock_post.assert_called_once()
+    mock_get.assert_called_once()
+
+
+def test_generate_url_503_retries_download_without_regenerating(engine):
+    api_resp = MagicMock()
+    api_resp.json.return_value = {
+        "data": [{"taskType": "imageInference", "imageURL": "https://im.runware.ai/retry.jpg"}]
+    }
+    api_resp.raise_for_status.return_value = None
+    request = httpx.Request("GET", "https://im.runware.ai/retry.jpg")
+    response = httpx.Response(503, request=request)
+    bad = MagicMock()
+    bad.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "503 Service Unavailable", request=request, response=response
+    )
+    good = MagicMock()
+    good.raise_for_status.return_value = None
+    good.content = b"download-recovered"
+
+    with patch("httpx.post", return_value=api_resp) as mock_post, patch(
+        "httpx.get", side_effect=[bad, good]
+    ) as mock_get:
+        result = engine.generate("prompt")
+
+    assert result == b"download-recovered"
+    mock_post.assert_called_once()
+    assert mock_get.call_count == 2
 
 def test_generate_no_api_key_raises(engine, monkeypatch):
     monkeypatch.delenv("RUNWARE_API_KEY", raising=False)

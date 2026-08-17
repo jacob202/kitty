@@ -147,11 +147,7 @@ class RunwareEngine:
 
         image_url = result.get("imageURL")
         if isinstance(image_url, str) and image_url:
-            image_resp = httpx.get(image_url, timeout=120)
-            image_resp.raise_for_status()
-            if not image_resp.content:
-                raise RuntimeError("Runware image URL returned an empty body.")
-            return image_resp.content
+            return _download_image(image_url)
 
         b64 = result.get("imageBase64Data")
         if isinstance(b64, str) and b64:
@@ -218,6 +214,36 @@ class RunwareEngine:
             raise RuntimeError(f"Runware returned an unexpected response shape: {payload!r}")
         return data
 
+
+
+def _download_image(url: str, attempts: int = 3) -> bytes:
+    """Fetch a Runware output URL without regenerating the paid image on download errors."""
+    last_error: Exception | None = None
+    for _ in range(attempts):
+        try:
+            resp = httpx.get(url, timeout=120, follow_redirects=True)
+            resp.raise_for_status()
+            if not resp.content:
+                raise RuntimeError("Runware image URL returned an empty body.")
+            return resp.content
+        except httpx.HTTPStatusError as e:
+            last_error = e
+            status = e.response.status_code
+            if status not in {429, 500, 502, 503, 504}:
+                raise RuntimeError(
+                    f"Runware image download failed with HTTP {status}."
+                ) from e
+        except httpx.TransportError as e:
+            last_error = e
+
+    if isinstance(last_error, httpx.HTTPStatusError):
+        raise RuntimeError(
+            f"Runware image download failed with HTTP {last_error.response.status_code} "
+            f"after {attempts} attempts."
+        ) from last_error
+    raise RuntimeError(
+        f"Runware image download failed after {attempts} attempts."
+    ) from last_error
 
 def _aspect_to_wh(aspect_ratio: str, width: int | None, height: int | None) -> tuple[int, int]:
     if width is not None and height is not None:
