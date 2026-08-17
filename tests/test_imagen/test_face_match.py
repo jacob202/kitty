@@ -86,15 +86,6 @@ def test_score_no_face_in_candidate_returns_zero(tmp_path, monkeypatch):
     _make_png(ref)
 
     matcher = FaceMatcher(ref)
-
-    class _FakeFace:
-        embedding = [1.0, 0.0, 0.0]
-
-    class _FakeApp:
-        def get(self, img):
-            return [_FakeFace()]
-
-    matcher._app = _FakeApp()
     matcher._reference_embedding = [1.0, 0.0, 0.0]
 
     class _EmptyApp:
@@ -103,7 +94,6 @@ def test_score_no_face_in_candidate_returns_zero(tmp_path, monkeypatch):
 
     matcher._app = _EmptyApp()
 
-    import numpy as np
     from PIL import Image
 
     candidate_png = tmp_path / "candidate.png"
