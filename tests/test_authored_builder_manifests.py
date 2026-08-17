@@ -16,7 +16,7 @@ def _load(name: str) -> dict:
 def test_cheap_hardening_manifest_validates_against_builder_contract() -> None:
     payload = _load("builder-cheap-hardening-20260816.json")
 
-    assert payload["initiative_id"] == "builder-cheap-hardening-20260816-v2"
+    assert payload["initiative_id"] == "builder-cheap-hardening-20260816-v3"
     assert len(payload["packets"]) == 40
     assert bi.validate_manifest(payload) == []
 
@@ -45,3 +45,16 @@ def test_home_stretch_is_explicitly_gated_behind_routing_bootstrap() -> None:
 
     assert "DO NOT APPLY" in payload["description"]
     assert "supervisor-route-aware-launch" in payload["description"]
+
+
+def test_authored_paid_packet_routes_use_canonical_openrouter_slugs() -> None:
+    manifests = [
+        _load("builder-cheap-hardening-20260816.json"),
+        _load("home-stretch-cheap-execution-20260816.json"),
+    ]
+
+    for manifest in manifests:
+        for packet in manifest["packets"]:
+            routing = packet["policy"]["routing"]
+            assert routing["provider"] == "openrouter"
+            assert routing["model"].startswith("openrouter/")
