@@ -7,9 +7,11 @@ restricted to exactly one reference image — the character-locked pipeline
 this engine feeds never has more than one approved reference, and silently
 accepting several would let unlocked photos leak into conditioning.
 
-The request shape is pinned to Runware's current FLUX.1 [dev] API reference:
-``inputs.seedImage`` for img2img, ``safety.checkContent`` for content safety,
-``lora: [{model, weight}]``, and ``puLID: {images, idWeight, ...}``.
+The request shape follows the live Runware REST validator. In particular,
+PuLID currently requires ``inputImages`` in live requests even though the
+public FLUX.1 [dev] model page still shows the older ``images`` spelling.
+Runtime validation wins here. URL output is used to avoid large inline base64
+responses; returned URLs are downloaded immediately and only bytes leave the engine.
 """
 
 from __future__ import annotations
@@ -109,8 +111,8 @@ class RunwareEngine:
             "width": w,
             "height": h,
             "numberResults": 1,
-            "outputType": "base64Data",
-            "outputFormat": "PNG",
+            "outputType": "URL",
+            "outputFormat": "JPG",
             "safety": {"checkContent": True},
         }
         if negative_prompt:
@@ -130,7 +132,7 @@ class RunwareEngine:
 
         if identity_images:
             task["puLID"] = {
-                "images": [_to_data_uri(identity_images[0])],
+                "inputImages": [_to_data_uri(identity_images[0])],
                 "idWeight": id_weight,
             }
 
@@ -143,10 +145,15 @@ class RunwareEngine:
                 raise RefusalError(message)
             raise RuntimeError(f"Runware task failed: {message}")
 
+        image_url = result.get("imageURL")
+        if isinstance(image_url, str) and image_url:
+            return _download_image(image_url)
+
         b64 = result.get("imageBase64Data")
-        if not isinstance(b64, str) or not b64:
-            raise RefusalError("Runware returned no image — the prompt may have been blocked.")
-        return base64.b64decode(b64)
+        if isinstance(b64, str) and b64:
+            return base64.b64decode(b64)
+
+        raise RefusalError("Runware returned no image — the prompt may have been blocked.")
 
     async def generate_async(
         self,
@@ -188,11 +195,16 @@ class RunwareEngine:
             resp.raise_for_status()
         except httpx.HTTPStatusError as e:
             status = e.response.status_code
+            if status in {401, 403}:
+                raise RuntimeError(
+                    "Runware authentication failed. Check RUNWARE_API_KEY and use a rotated key."
+                ) from e
+            if status == 400:
+                # Runware occasionally returns a transient 400 for an otherwise valid
+                # PuLID request; letting the outer retry policy see HTTPStatusError
+                # recovered the identical request in live verification.
+                raise
             if 400 <= status < 500 and status != 429:
-                if status in {401, 403}:
-                    raise RuntimeError(
-                        "Runware authentication failed. Check RUNWARE_API_KEY and use a rotated key."
-                    ) from e
                 raise RuntimeError(f"Runware request rejected with HTTP {status}") from e
             raise
 
@@ -202,6 +214,36 @@ class RunwareEngine:
             raise RuntimeError(f"Runware returned an unexpected response shape: {payload!r}")
         return data
 
+
+
+def _download_image(url: str, attempts: int = 3) -> bytes:
+    """Fetch a Runware output URL without regenerating the paid image on download errors."""
+    last_error: Exception | None = None
+    for _ in range(attempts):
+        try:
+            resp = httpx.get(url, timeout=120, follow_redirects=True)
+            resp.raise_for_status()
+            if not resp.content:
+                raise RuntimeError("Runware image URL returned an empty body.")
+            return resp.content
+        except httpx.HTTPStatusError as e:
+            last_error = e
+            status = e.response.status_code
+            if status not in {429, 500, 502, 503, 504}:
+                raise RuntimeError(
+                    f"Runware image download failed with HTTP {status}."
+                ) from e
+        except httpx.TransportError as e:
+            last_error = e
+
+    if isinstance(last_error, httpx.HTTPStatusError):
+        raise RuntimeError(
+            f"Runware image download failed with HTTP {last_error.response.status_code} "
+            f"after {attempts} attempts."
+        ) from last_error
+    raise RuntimeError(
+        f"Runware image download failed after {attempts} attempts."
+    ) from last_error
 
 def _aspect_to_wh(aspect_ratio: str, width: int | None, height: int | None) -> tuple[int, int]:
     if width is not None and height is not None:
