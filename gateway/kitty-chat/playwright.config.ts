@@ -14,6 +14,7 @@ export default defineConfig({
   testDir: './tests/smoke',
   timeout: 30_000,
   retries: 1,
+  failOnFlakyTests: true,
   use: {
     baseURL: smokeBaseUrl,
     trace: 'on-first-retry',

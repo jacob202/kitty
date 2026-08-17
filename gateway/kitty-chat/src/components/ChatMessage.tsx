@@ -364,15 +364,15 @@ function MemoryRow({ item }: { item: MemoryEvidence }) {
 
   if (state === 'forgotten') {
     return (
-      <li style={{ ...memoryItemStyle, opacity: 0.55 }}>
+      <span style={{ opacity: 0.55 }}>
         <s>{item.text}</s>
         <span style={forgetHintStyle}> · forgotten</span>
-      </li>
+      </span>
     )
   }
 
   return (
-    <li style={memoryItemStyle}>
+    <span>
       {state === 'pending' ? <s>{item.text}</s> : item.text}
       {item.memoryId && state === 'idle' && (
         <button onClick={arm} aria-label={`Forget memory: ${item.text}`} style={forgetBtnStyle}>
@@ -394,7 +394,7 @@ function MemoryRow({ item }: { item: MemoryEvidence }) {
           {' '}not forgotten — {error}
         </span>
       )}
-    </li>
+    </span>
   )
 }
 
