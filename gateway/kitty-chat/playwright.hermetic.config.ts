@@ -9,6 +9,8 @@ const llmPort = 48101
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kitty-hermetic-gateway-'))
 const python = process.env.KITTY_HERMETIC_PYTHON ?? 'python3.12'
 const secret = 'hermetic-gateway-secret'
+const repoRoot = path.resolve(process.cwd(), '../..')
+const guardPath = path.join(repoRoot, 'tests/python_startup')
 
 export default defineConfig({
   testDir: './tests/smoke',
@@ -37,6 +39,8 @@ export default defineConfig({
       env: {
         ...process.env,
         KITTY_ENV: 'test',
+        KITTY_TEST_GUARD: '1',
+        PYTHONPATH: [guardPath, repoRoot, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
         KITTY_DATA_ROOT: dataRoot,
         GATEWAY_SECRET: secret,
         LITELLM_BASE: `http://127.0.0.1:${llmPort}`,
