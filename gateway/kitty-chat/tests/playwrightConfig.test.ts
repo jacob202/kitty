@@ -31,6 +31,7 @@ describe('Playwright smoke server ownership', () => {
     expect(config.use?.baseURL).toBe('http://127.0.0.1:4100')
     expect(config.retries).toBe(1)
     expect(config.failOnFlakyTests).toBe(true)
+    expect(config.testIgnore).toBe('chat-real-gateway.spec.ts')
     expect(Array.isArray(webServer)).toBe(false)
     if (Array.isArray(webServer)) throw new Error('expected one smoke webServer')
     expect(webServer.port).toBe(4100)

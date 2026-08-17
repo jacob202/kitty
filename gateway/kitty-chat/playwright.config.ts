@@ -12,6 +12,7 @@ const smokeBaseUrl = `http://127.0.0.1:${smokePort}`;
 
 export default defineConfig({
   testDir: './tests/smoke',
+  testIgnore: 'chat-real-gateway.spec.ts',
   timeout: 30_000,
   retries: 1,
   failOnFlakyTests: true,
