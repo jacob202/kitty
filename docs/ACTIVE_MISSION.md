@@ -23,6 +23,10 @@
 
 ## Objective
 
+Take one real software request from conversation to a working, verified feature,
+with KittyBuilder carrying the execution and without Jacob manually coordinating
+agents. Everything below bounds that single objective: the proof runs to
+2026-08-18 under a $25 CAD ceiling, and Kitty continues only if it lands.
 
 ## Decision to prove
 
@@ -89,6 +93,9 @@ Jacob must be able to continue chatting with Kitty and ask what it is doing, why
 
 ## Acceptance Contract
 
+The pass and failure conditions below are the mission's contract: the pass
+condition decides whether Kitty continues, and the failure condition decides what
+happens to the work if it does not.
 
 ## Pass condition
 

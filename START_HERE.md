@@ -30,7 +30,7 @@ live evidence; it does not duplicate current state.
 ## Task routing
 
 - Informational: run the receipt and load the directly relevant authority.
-- Planning: add `docs/ROADMAP_V2.md`, `docs/ACTIVE_MISSION.md`, and the current
+- Planning: add `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, and the current
   checkpoint only when relevant.
 - Code change: load the full order, then the outcome contract and narrow code or
   test surface. Run focused verification after each coherent change.
@@ -46,7 +46,7 @@ live evidence; it does not duplicate current state.
 3. [`AGENTS.md`](AGENTS.md)
 4. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 5. [`docs/DECISIONS.md`](docs/DECISIONS.md)
-6. [`docs/ROADMAP_V2.md`](docs/ROADMAP_V2.md)
+6. [`docs/ROADMAP.md`](docs/ROADMAP.md)
 7. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
 8. [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md)
 9. [`.claude/STATE.md`](.claude/STATE.md)

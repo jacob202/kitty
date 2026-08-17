@@ -890,3 +890,114 @@ def test_log_chat_trace_omits_tier_when_none(tmp_path):
         entry = json.loads(f.readline())
     assert "tier" not in entry
     assert "trigger" not in entry
+
+
+# ── plain-language chain exhaustion ──────────────────────────────────────────
+
+# Jacob's conversation must never carry operator mechanics. Terminal commands,
+# .env, ports and proxy internals belong to the durable event instead.
+_OPERATOR_LEAKS = ("./kitty", ".env", "litellm", "HTTPConnectionPool", "api key", "127.0.0.1")
+
+
+def _assert_no_operator_mechanics(message: str) -> None:
+    for leak in _OPERATOR_LEAKS:
+        assert leak.lower() not in message.lower(), f"{leak!r} leaked into user copy: {message}"
+
+
+def test_dead_chain_states_setup_is_required_without_terminal_steps():
+    """The #498 shape: proxy down, every fallback missing a key."""
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(
+        [
+            "litellm: HTTPConnectionPool(host='127.0.0.1', port=4000): Max retries exceeded",
+            "openrouter: no api key configured",
+            "local: no api key configured",
+            "openai: no api key configured",
+            "agentrouter: disabled",
+        ]
+    )
+
+    assert "no model provider it can use" in message
+    assert "Setting up a provider is required" in message
+    _assert_no_operator_mechanics(message)
+
+
+def test_nothing_configured_does_not_send_him_to_an_empty_settings_screen():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(["litellm: boom", "openrouter: no api key configured"])
+
+    # Nothing is selectable, so pointing at Settings would be a dead end.
+    assert "Settings" not in message
+    _assert_no_operator_mechanics(message)
+
+
+def test_providers_that_answered_with_nothing_offer_one_settings_action():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(
+        ["litellm: boom", "openrouter: no response", "openai: no api key configured"]
+    )
+
+    assert "openrouter" in message
+    assert "empty balance or a rate limit" in message
+    assert message.count("Settings") == 1
+    _assert_no_operator_mechanics(message)
+
+
+def test_chain_deadline_reads_as_a_timeout_without_blaming_the_network():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(["litellm: boom", "chain: deadline 90.0s exceeded"])
+
+    assert "too long" in message
+    assert "deadline" not in message
+    # The chain records a deadline, not a cause — it must not invent one.
+    assert "internet" not in message.lower()
+    assert "connection" not in message.lower()
+    _assert_no_operator_mechanics(message)
+
+
+def test_selected_provider_failure_offers_exactly_one_action():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    unset = describe_chain_exhaustion(["selected provider 'openai' is not configured"])
+    assert "marked ready in Settings" in unset
+    assert unset.count("Settings") == 1
+    _assert_no_operator_mechanics(unset)
+
+    off = describe_chain_exhaustion(["selected provider 'agentrouter' is disabled"])
+    assert "switched off" in off
+    assert off.count("Settings") == 1
+    _assert_no_operator_mechanics(off)
+
+
+def test_empty_diagnostics_still_gives_an_in_product_action():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion([])
+
+    assert "Settings" in message
+    _assert_no_operator_mechanics(message)
+
+
+def test_exception_exposes_its_own_user_message():
+    from gateway.llm_client import ProviderChainExhausted
+
+    exc = ProviderChainExhausted(["litellm: boom", "openrouter: no api key configured"])
+
+    assert "Setting up a provider is required" in exc.user_message
+    _assert_no_operator_mechanics(exc.user_message)
+    # The operator record keeps the raw diagnostics.
+    assert "openrouter: no api key configured" in str(exc)
+
+
+def test_selected_provider_that_answered_with_nothing_points_at_credit():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(["selected provider 'openai' returned no response"])
+
+    assert "empty balance or a rate limit" in message
+    assert "switched off" not in message
+    _assert_no_operator_mechanics(message)

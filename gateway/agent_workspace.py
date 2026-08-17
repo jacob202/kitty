@@ -883,11 +883,10 @@ def _record_turn_failure(
 ) -> None:
     error_type = type(exc).__name__
     detail = _bounded_failure_detail(exc)
+    operator_detail = _bounded_failure_detail(exc, user_facing=False)
     now = time.time()
     failure_message_id = f"message_{uuid.uuid4().hex}"
-    failure_content = (
-        f"Incomplete: {active_agent_id or 'the room'} could not finish. {error_type}: {detail}"
-    )
+    failure_content = f"Incomplete: {active_agent_id or 'the room'} could not finish. {detail}"
     with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
         updated = conn.execute(
             """
@@ -918,7 +917,11 @@ def _record_turn_failure(
             event_type="agent_failed",
             actor_kind="agent" if active_agent_id is not None else "system",
             actor_id=active_agent_id or "gateway",
-            metadata={"turn_id": turn_id, "error_type": error_type, "error_message": detail},
+            metadata={
+                "turn_id": turn_id,
+                "error_type": error_type,
+                "error_message": operator_detail,
+            },
             now=now,
         )
         conn.execute(
@@ -947,14 +950,29 @@ def _record_turn_failure(
             actor_kind="system",
             actor_id="gateway",
             message_id=failure_message_id,
-            metadata={"turn_id": turn_id, "error_type": error_type, "error_message": detail},
+            metadata={
+                "turn_id": turn_id,
+                "error_type": error_type,
+                "error_message": operator_detail,
+            },
             now=now,
         )
         conn.commit()
 
 
-def _bounded_failure_detail(exc: Exception) -> str:
-    detail = str(exc).strip() or "no error detail was provided"
+def _bounded_failure_detail(exc: Exception, *, user_facing: bool = True) -> str:
+    """Bounded failure text; plain language for the room, raw for the event log.
+
+    A dead provider chain stringifies as six provider diagnostics. Jacob reads
+    the room message, so it gets the one-action version while the durable event
+    keeps the raw list for whoever debugs the stack.
+    """
+    from gateway.llm_client import ProviderChainExhausted
+
+    if user_facing and isinstance(exc, ProviderChainExhausted):
+        detail = exc.user_message
+    else:
+        detail = str(exc).strip() or "no error detail was provided"
     return detail[:1_000]
 
 

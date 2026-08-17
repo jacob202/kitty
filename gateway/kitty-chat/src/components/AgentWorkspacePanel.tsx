@@ -209,7 +209,7 @@ export function AgentWorkspacePanel() {
               )}
               {workspace.turns[0].status !== 'running' && workspace.turns[0].error_message && (
                 <p style={messageBodyStyle}>
-                  Incomplete: {workspace.turns[0].error_type ?? 'agent failure'} — {workspace.turns[0].error_message}
+                  Incomplete: {workspace.turns[0].error_message}
                 </p>
               )}
             </section>
