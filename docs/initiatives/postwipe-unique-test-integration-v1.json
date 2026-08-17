@@ -1,0 +1,38 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "postwipe-unique-test-integration-v1",
+  "title": "Post-wipe integration of preserved test-trust work",
+  "description": "Deferred integration of unique pre-wipe test-hardening code preserved as remote archive branches. Revalidate against then-current main; do not blindly cherry-pick stale commits. This initiative should remain paused until the recovery rehearsal/final freeze is complete and the clean install is restored.",
+  "packets": [
+    {
+      "id": "PWT-01-egress-runtime-isolation",
+      "title": "Reconcile preserved P0 test egress and runtime isolation",
+      "objective": "Fetch archive/prewipe-p0-test-egress-deny-20260817 and compare it against then-current origin/main. Preserve only still-needed behavior: default-deny test network egress, isolated runtime data, Builder child/context isolation, pre-push provenance, and offline-safe prefetch/SSRF tests. Do not blindly cherry-pick; drop commits whose behavior is already present or superseded. Produce the smallest coherent PR with deterministic validation and no runtime contamination.",
+      "depends_on": [],
+      "acceptance_criteria": ["Every preserved archive commit is dispositioned as ported, already-present, superseded, or rejected with evidence", "pytest cannot write canonical Kitty runtime data", "unexpected network access from tests fails closed", "Builder runtime-data semantics remain production-correct", "focused tests plus full required repo gates pass"],
+      "allowed_paths": ["gateway/builder_runtime.py","gateway/codebase_search.py","gateway/config.py","gateway/context_receipt.py","gateway/paths.py","gateway/prefetcher.py","gateway/routes/knowledge.py","gateway/web_tracker.py","kitty","kitty_test_guard.py","pytest.ini","tests/conftest.py","tests/python_startup/sitecustomize.py","tests/test_builder_attempt.py","tests/test_builder_loop.py","tests/test_builder_queue.py","tests/test_builder_run.py","tests/test_builder_runner.py","tests/test_builder_runtime.py","tests/test_builder_supervisor.py","tests/test_context_receipt.py","tests/test_kittybuilder_codex_adapters.py","tests/test_kittybuilder_opencode_adapters.py","tests/test_knowledge_routes.py","tests/test_mcp_builder_context.py","tests/test_paths_builder_canonical.py","tests/test_paths_builder_override.py","tests/test_paths_data_root.py","tests/test_pr_review.py","tests/test_pre_push_gate.py","tests/test_test_harness_network_guard.py"],
+      "policy": {"max_attempts": 2, "priority": 10},
+      "validation_commands": ["python -m pytest tests/test_test_harness_network_guard.py tests/test_paths_data_root.py tests/test_builder_runtime.py tests/test_pre_push_gate.py -q --tb=short", "python -m ruff check gateway tests kitty_test_guard.py"]
+    },
+    {
+      "id": "PWT-02-frontend-trust",
+      "title": "Reconcile preserved frontend false-green hardening",
+      "objective": "Fetch archive/prewipe-test-frontend-trust-20260817 and compare against then-current origin/main. Preserve only still-needed behavior: unexpected console.error fails Vitest, the nested-list hydration defect remains fixed, and Playwright configuration tests prove trustworthy behavior. Rework conflicts narrowly; no unrelated UI redesign.",
+      "depends_on": [],
+      "acceptance_criteria": ["Archive diff is fully dispositioned", "Unexpected React console errors fail tests", "No nested <li> hydration defect remains in the affected memory/chat path", "Focused Vitest and Playwright-config tests pass"],
+      "allowed_paths": ["gateway/kitty-chat/playwright.config.ts","gateway/kitty-chat/src/components/ChatMessage.tsx","gateway/kitty-chat/tests/ChatMessage.test.tsx","gateway/kitty-chat/tests/playwrightConfig.test.ts","gateway/kitty-chat/tests/setup.ts"],
+      "policy": {"max_attempts": 2, "priority": 9},
+      "validation_commands": ["cd gateway/kitty-chat && npm test -- --run", "cd gateway/kitty-chat && npm run build"]
+    },
+    {
+      "id": "PWT-03-knowledge-memory-trust",
+      "title": "Reconcile preserved knowledge and memory contract tests",
+      "objective": "Fetch archive/prewipe-test-knowledge-memory-20260817 and compare against then-current origin/main. Preserve the deterministic async knowledge roundtrip, network-independent memory roundtrip, fail-loud memory coverage, and knowledge-expert contract coverage only where still applicable. Do not add new memory architecture or live-provider dependencies.",
+      "depends_on": [],
+      "acceptance_criteria": ["Archive diff is fully dispositioned", "Knowledge ingest/search roundtrip matches current async production APIs", "Memory tests do not require real Ollama/provider access", "Fail-loud behavior remains tested", "Focused tests pass without network or canonical-state writes"],
+      "allowed_paths": ["tests/test_knowledge.py","tests/test_knowledge_experts.py","tests/test_memory.py","tests/test_memory_fail_loud.py"],
+      "policy": {"max_attempts": 2, "priority": 8},
+      "validation_commands": ["python -m pytest tests/test_knowledge.py tests/test_knowledge_experts.py tests/test_memory.py tests/test_memory_fail_loud.py -q --tb=short", "python -m ruff check tests/test_knowledge.py tests/test_knowledge_experts.py tests/test_memory.py tests/test_memory_fail_loud.py"]
+    }
+  ]
+}

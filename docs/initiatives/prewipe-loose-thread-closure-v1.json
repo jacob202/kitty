@@ -1,0 +1,54 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "prewipe-loose-thread-closure-v1",
+  "title": "Pre-wipe loose-thread closure and salvage accounting",
+  "description": "Read-only accounting of local Git/worktree/stash state and interrupted test lanes before final freeze. No cleanup, deletion, merge, push, provider calls, or canonical runtime mutation. Produce evidence reports only.",
+  "packets": [
+    {
+      "id": "LTC-01-local-state-salvage-ledger",
+      "title": "Inventory and classify all local-only Git state",
+      "objective": "Read-only inspect /Users/jacobbrizinski/Projects/kitty plus every registered Kitty worktree, local branch, and stash. Compare commits and diffs against current origin/main. Produce docs/audit/PREWIPE_LOCAL_STATE_SALVAGE_2026-08-17.md classifying each relevant item as MERGED/SUPERSEDED, PRESERVED_REMOTE, UNIQUE_KEEP, SAFE_DISCARD_CANDIDATE, or UNKNOWN. For every UNIQUE_KEEP/UNKNOWN item record exact worktree/branch/stash, commit SHA or stash ref, dirty files, and why it may matter. Do not modify, pop, drop, prune, delete, merge, rebase, commit, push, stop processes, or touch runtime data.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Every registered Kitty worktree is accounted for or explicitly grouped with evidence",
+        "All 20 current stashes are individually classified",
+        "Dirty canonical checkout state is recorded without modification",
+        "Every UNIQUE_KEEP or UNKNOWN item has an exact recovery reference",
+        "No Git state other than the report file is mutated"
+      ],
+      "allowed_paths": ["docs/audit/PREWIPE_LOCAL_STATE_SALVAGE_2026-08-17.md"],
+      "policy": {"max_attempts": 1, "priority": 10},
+      "validation_commands": ["test -s docs/audit/PREWIPE_LOCAL_STATE_SALVAGE_2026-08-17.md", "git diff --check"]
+    },
+    {
+      "id": "LTC-02-test-lane-reconciliation",
+      "title": "Reconcile interrupted test-hardening lanes",
+      "objective": "Read-only inspect the existing worktrees audit/test-harness-isolation-20260817, audit/test-frontend-trust-20260817, audit/test-builder-reliability-20260817, audit/test-knowledge-memory-20260817, audit/test-gap-map-20260817 and any directly related P0 test worktrees. Compare each lane with current origin/main and current open/merged GitHub state available locally. Produce docs/audit/PREWIPE_TEST_LANE_RECONCILIATION_2026-08-17.md. For each lane classify MERGED, SUPERSEDED, UNIQUE_KEEP, or INCOMPLETE; list exact unique commits/diffs and the smallest post-wipe follow-up if needed. Do not implement fixes or rerun broad suites; focused read-only comparison only.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Each named test lane has a disposition",
+        "Unique code is identified by SHA and changed paths",
+        "Already-merged work is not recommended for reimplementation",
+        "No source/test file is modified"
+      ],
+      "allowed_paths": ["docs/audit/PREWIPE_TEST_LANE_RECONCILIATION_2026-08-17.md"],
+      "policy": {"max_attempts": 1, "priority": 9},
+      "validation_commands": ["test -s docs/audit/PREWIPE_TEST_LANE_RECONCILIATION_2026-08-17.md", "git diff --check"]
+    },
+    {
+      "id": "LTC-03-closure-freeze-gate",
+      "title": "Synthesize closure ledger and exact freeze gate",
+      "objective": "After LTC-01 and LTC-02, synthesize their evidence plus the current canonical recovery-package status into docs/audit/PREWIPE_LOOSE_THREAD_CLOSURE_2026-08-17.md. Separate CLOSED, DELEGATED, BLOCKED, PARKED. Identify only remaining pre-wipe blockers and state exactly what evidence would clear each. Include the existing recovery rehearsal as an external active dependency rather than duplicating it. Include GitHub issue disposition recommendations for #490, #505, #399, #346, #349, #336, #352, #353, #354, #389, #390, and #270, but do not mutate GitHub. Do not start final freeze, stop services, build deltas, or erase anything.",
+      "depends_on": ["LTC-01-local-state-salvage-ledger", "LTC-02-test-lane-reconciliation"],
+      "acceptance_criteria": [
+        "Every loose thread is placed in CLOSED/DELEGATED/BLOCKED/PARKED",
+        "The wipe gate contains only evidence-backed blockers",
+        "The recovery rehearsal is referenced, not duplicated",
+        "GitHub issue recommendations distinguish close/update/keep-open/park"
+      ],
+      "allowed_paths": ["docs/audit/PREWIPE_LOOSE_THREAD_CLOSURE_2026-08-17.md"],
+      "policy": {"max_attempts": 1, "priority": 7},
+      "validation_commands": ["test -s docs/audit/PREWIPE_LOOSE_THREAD_CLOSURE_2026-08-17.md", "git diff --check"]
+    }
+  ]
+}
