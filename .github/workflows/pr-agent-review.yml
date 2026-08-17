@@ -31,5 +31,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          PR_REVIEW_MODEL: ${{ vars.PR_REVIEW_MODEL || 'qwen/qwen3.7-plus' }}
+          PR_REVIEW_MODEL: ${{ vars.PR_REVIEW_MODEL || 'minimax/minimax-m3' }}
         run: python scripts/pr_review.py
