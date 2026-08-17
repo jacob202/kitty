@@ -179,7 +179,9 @@ def _levels(repo: Path, **kwargs) -> dict[str, str]:
     return {check.name: check.level for check in checks}
 
 
-def test_receipt_is_deterministic_and_reports_explicit_unknowns(tmp_path: Path):
+def test_receipt_is_deterministic_and_reports_explicit_unknowns(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("KITTY_DATA_ROOT", raising=False)
+    monkeypatch.delenv("KITTY_BUILDER_DATA_DIR", raising=False)
     repo, head = _repo(tmp_path)
 
     first = build_context_receipt(repo, expected_canonical=repo, now=NOW)
@@ -197,7 +199,9 @@ def test_receipt_is_deterministic_and_reports_explicit_unknowns(tmp_path: Path):
     }
 
 
-def test_receipt_reads_builder_through_read_only_summary(tmp_path: Path):
+def test_receipt_reads_builder_through_read_only_summary(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("KITTY_DATA_ROOT", raising=False)
+    monkeypatch.delenv("KITTY_BUILDER_DATA_DIR", raising=False)
     repo, _head = _repo(tmp_path)
     db_path = repo / "data/kittybuilder/builder_queue.db"
     bq.init_db(db_path)
@@ -208,6 +212,23 @@ def test_receipt_reads_builder_through_read_only_summary(tmp_path: Path):
     assert receipt["builder"]["state"] == "available", receipt["builder"]
     assert receipt["builder"]["queue"]["total"] == 0
     assert receipt["builder"]["initiatives"] == []
+
+
+def test_receipt_honors_configured_builder_data_root(tmp_path: Path, monkeypatch) -> None:
+    repo_parent = tmp_path / "repo"
+    repo_parent.mkdir()
+    repo, _head = _repo(repo_parent)
+    data_root = tmp_path / "isolated-data"
+    db_path = data_root / "kittybuilder" / "builder_queue.db"
+    bq.init_db(db_path)
+    bi.init_db(db_path)
+    monkeypatch.setenv("KITTY_DATA_ROOT", str(data_root))
+    monkeypatch.delenv("KITTY_BUILDER_DATA_DIR", raising=False)
+
+    receipt = build_context_receipt(repo, expected_canonical=repo, now=NOW)
+
+    assert receipt["builder"]["state"] == "available", receipt["builder"]
+    assert receipt["builder"]["database"] == str(db_path)
 
 
 def test_compact_receipt_preserves_freshness_and_omits_bulky_detail(tmp_path: Path):

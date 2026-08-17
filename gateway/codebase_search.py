@@ -62,25 +62,43 @@ class CodebaseSearch:
         self.chroma_dir = KITTY_DIR / "codebase_index"
         self.indexed_files: Dict[str, str] = {}  # path → hash
 
-        if CHROMA_AVAILABLE:
-            # Any: chromadb is optional and absent on CI, so mypy sees
-            # different types per environment unless these stay untyped.
-            self.client: Any = chromadb.Client(
-                ChromaSettings(persist_directory=str(self.chroma_dir), anonymized_telemetry=False)
-            )
-            self.collection: Any = self.client.get_or_create_collection("codebase")
-            self.encoder: Any = SentenceTransformer("all-MiniLM-L6-v2")
-        else:
-            self.client = None
-            self.collection = None
-            self.encoder = None
+        # Runtime dependencies are deliberately lazy. Constructing a
+        # SentenceTransformer can download model files, and creating Chroma at
+        # module import can write state. Importing this module must be inert.
+        self.client: Any = None
+        self.collection: Any = None
+        self.encoder: Any = None
+        self._runtime_error: Exception | None = None
+        if not CHROMA_AVAILABLE:
             logger.warning(
                 "ChromaDB not available - codebase search disabled: %s", CHROMA_IMPORT_ERROR
             )
 
+    def _ensure_runtime(self) -> bool:
+        if not CHROMA_AVAILABLE:
+            return False
+        if self.encoder is not None and self.collection is not None:
+            return True
+        if self._runtime_error is not None:
+            return False
+        try:
+            self.client = chromadb.Client(
+                ChromaSettings(
+                    persist_directory=str(self.chroma_dir),
+                    anonymized_telemetry=False,
+                )
+            )
+            self.collection = self.client.get_or_create_collection("codebase")
+            self.encoder = SentenceTransformer("all-MiniLM-L6-v2")
+        except Exception as exc:
+            self._runtime_error = exc
+            logger.warning("Codebase search runtime unavailable: %s", exc)
+            return False
+        return True
+
     def index_file(self, filepath: str) -> bool:
         """Index a single file for semantic search."""
-        if not CHROMA_AVAILABLE:
+        if not self._ensure_runtime():
             return False
 
         full_path = self.project_root / filepath
@@ -123,8 +141,8 @@ class CodebaseSearch:
 
     def index_project(self, max_files: int = 200) -> int:
         """Index the entire project (up to max_files)."""
-        if not CHROMA_AVAILABLE:
-            logger.warning("Cannot index - ChromaDB not available")
+        if not self._ensure_runtime():
+            logger.warning("Cannot index - semantic search runtime unavailable")
             return 0
 
         files = list(self.project_root.rglob("*"))
@@ -145,7 +163,7 @@ class CodebaseSearch:
 
     def search(self, query: str, top_k: int = 5) -> List[dict]:
         """Semantic search across indexed code."""
-        if not CHROMA_AVAILABLE:
+        if not self._ensure_runtime():
             return []
 
         try:

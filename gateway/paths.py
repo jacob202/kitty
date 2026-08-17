@@ -13,7 +13,7 @@ ROOT = Path(__file__).parent.parent
 
 PROJECT_ROOT = ROOT  # Alias for backward compatibility
 
-DATA_DIR = ROOT / "data"
+DATA_DIR = Path(_os.environ.get("KITTY_DATA_ROOT", str(ROOT / "data"))).expanduser()
 LOGS_DIR = ROOT / "logs"
 PROMPTS_DIR = ROOT / "prompts"
 PERSONALITY_DIR = ROOT / "personality"

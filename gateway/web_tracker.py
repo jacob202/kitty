@@ -35,17 +35,33 @@ class WebChangeTracker:
 
     def __init__(self):
         self.tracker_dir = KITTY_DIR / "web_tracker"
-        self.tracker_dir.mkdir(exist_ok=True)
-        self.encoder = SentenceTransformer("all-MiniLM-L6-v2") if TRACKER_AVAILABLE else None
+        self.encoder = None
+        self._runtime_error: Exception | None = None
         if not TRACKER_AVAILABLE:
             logger.warning("Web tracker disabled: %s", TRACKER_IMPORT_ERROR)
 
+    def _ensure_encoder(self) -> bool:
+        if not TRACKER_AVAILABLE:
+            return False
+        if self.encoder is not None:
+            return True
+        if self._runtime_error is not None:
+            return False
+        try:
+            self.encoder = SentenceTransformer("all-MiniLM-L6-v2")
+        except Exception as exc:
+            self._runtime_error = exc
+            logger.warning("Web tracker embedding runtime unavailable: %s", exc)
+            return False
+        return True
+
     def capture(self, url: str, content: str) -> str:
         """Capture a snapshot of a web page."""
-        if not TRACKER_AVAILABLE:
+        if not self._ensure_encoder():
             logger.warning("Tracker not available - using mock capture")
             return str(self.tracker_dir / "mock_snapshot.json")
 
+        self.tracker_dir.mkdir(parents=True, exist_ok=True)
         url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
         snapshot_file = (
             self.tracker_dir / f"{url_hash}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"

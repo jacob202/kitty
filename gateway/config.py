@@ -31,7 +31,11 @@ from gateway.errors import ConfigError
 from gateway.settings import get_settings
 
 PROJECT_ROOT = Path(__file__).parent.parent
-load_dotenv(PROJECT_ROOT / ".env")
+# Pytest owns an isolated environment and must never reload real provider
+# credentials from the checkout. KITTY_ENV=test is inherited by Python child
+# processes, closing the subprocess escape hatch in the test harness.
+if os.environ.get("KITTY_ENV") != "test":
+    load_dotenv(PROJECT_ROOT / ".env")
 
 T = TypeVar("T")
 

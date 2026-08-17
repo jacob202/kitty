@@ -8,7 +8,9 @@ write a valid implementation contract (no LLMs, no network). Always pass
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,14 @@ INITIATIVE = "run-test"
 _GOOD_IMPL = json.dumps(
     {"contract_version": 1, "status": "completed", "summary": "did it"}
 )
+
+
+def _bundle_field_command(field: str) -> str:
+    code = f"import json, sys; print(json.load(open(sys.argv[1]))[{field!r}])"
+    return (
+        f"{shlex.quote(sys.executable)} -c {shlex.quote(code)} "
+        '"$KB_BUNDLE_PATH"'
+    )
 
 
 @pytest.fixture
@@ -510,8 +520,7 @@ class TestStopClassIntegration:
         worker = tmp_path / "differing.sh"
         worker.write_text(
             "#!/bin/sh\nset -e\n"
-            "attempt_no=$(python3 -c "
-            "\"import json; print(json.load(open('$KB_BUNDLE_PATH'))['attempt_no'])\")\n"
+            f"attempt_no=$({_bundle_field_command('attempt_no')})\n"
             "echo \"$attempt_no\" > marker.txt\n"
             "echo ok > done.txt\n"
             "git add marker.txt done.txt\n"
@@ -592,8 +601,7 @@ class TestStopClassIntegration:
         worker = tmp_path / "selective.sh"
         worker.write_text(
             "#!/bin/sh\nset -e\n"
-            "packet_id=$(python3 -c "
-            "\"import json; print(json.load(open('$KB_BUNDLE_PATH'))['packet_id'])\")\n"
+            f"packet_id=$({_bundle_field_command('packet_id')})\n"
             "if [ \"$packet_id\" = \"P2\" ]; then echo ok > done.txt; fi\n"
             f"printf '%s\\n' '{_GOOD_IMPL}' > \"$KB_RESULT_PATH\"\n",
             encoding="utf-8",
@@ -993,8 +1001,7 @@ class TestNeedsDecisionPause:
         worker = tmp_path / "selective.sh"
         worker.write_text(
             "#!/bin/sh\nset -e\n"
-            "packet_id=$(python3 -c "
-            "\"import json; print(json.load(open('$KB_BUNDLE_PATH'))['packet_id'])\")\n"
+            f"packet_id=$({_bundle_field_command('packet_id')})\n"
             "if [ \"$packet_id\" = \"P2\" ]; then echo ok > done.txt; fi\n"
             f"printf '%s\\n' '{_GOOD_IMPL}' > \"$KB_RESULT_PATH\"\n",
             encoding="utf-8",

@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import sqlite3
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -470,7 +472,8 @@ class TestRunPacket:
             tmp_path,
             "pause_then_fail_validation.sh",
             (
-                f"python3.12 {pause_helper} {db_path}\n"
+                f"{shlex.quote(sys.executable)} {shlex.quote(str(pause_helper))} "
+                f"{shlex.quote(str(db_path))}\n"
                 f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
             ),
         )
@@ -1350,8 +1353,8 @@ class TestRecoveryExercise:
             # gap tests the separate fresh-STARTING grace path instead of the
             # live-run recovery contract this exercise is meant to cover.
             wt = repo / ".worktrees" / "kittybuilder" / task_id
-            deadline = time.time() + 60
-            while time.time() < deadline:
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline:
                 runs = bq.list_runs(task_id=task_id, db_path=db_path)
                 latest = runs[-1] if runs else None
                 if (
@@ -1388,8 +1391,8 @@ class TestRecoveryExercise:
             # be COMPLETE before recovery is asserted. On slow CI runners the
             # group kill alone sometimes leaves the worker briefly alive —
             # wait for the pid to actually vanish instead of racing it.
-            deadline = time.time() + 10
-            while time.time() < deadline:
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
                 try:
                     os.kill(int(pid), 0)
                 except ProcessLookupError:

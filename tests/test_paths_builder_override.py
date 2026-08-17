@@ -44,7 +44,11 @@ def test_kittybuilder_dir_uses_override_when_set(monkeypatch):
 def test_kittybuilder_dir_defaults_without_override():
     import os
 
-    env = {k: v for k, v in os.environ.items() if k != "KITTY_BUILDER_DATA_DIR"}
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in {"KITTY_DATA_ROOT", "KITTY_BUILDER_DATA_DIR"}
+    }
     lines = _run_with_env(env)
     expected_dir = str(ROOT / "data" / "kittybuilder")
     assert lines[0] == expected_dir

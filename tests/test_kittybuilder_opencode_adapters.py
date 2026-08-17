@@ -37,8 +37,8 @@ def _manifest(bundle: Path, *, task_id: str = "task-1", attempt_id: str = "7") -
 def _fake_opencode(tmp_path: Path) -> Path:
     fake = tmp_path / "opencode"
     fake.write_text(
-        """#!/usr/bin/env python3
-import json
+        f"#!{sys.executable}\n"
+        + """import json
 import os
 import re
 import sys
@@ -439,15 +439,15 @@ def test_worker_times_out_silent_model_and_falls_through(tmp_path: Path):
     env.update(
         {
             "KITTYBUILDER_MODELS": "free-a free-b",
-            "KB_WORKER_TIMEOUT_SECONDS": "8",
+            "KB_WORKER_TIMEOUT_SECONDS": "2",
             "FAKE_OPENCODE_HANG_MODELS": "free-a",
-            "FAKE_OPENCODE_HANG_SECONDS": "6",
+            "FAKE_OPENCODE_HANG_SECONDS": "3",
             "FAKE_OPENCODE_MODEL_LOG": str(model_log),
         }
     )
 
     completed = subprocess.run(
-        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15
+        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=8
     )
 
     assert completed.returncode == 0, completed.stderr
@@ -674,9 +674,9 @@ def test_reviewer_times_out_silent_model_and_falls_through(tmp_path: Path):
             "KB_REVIEW_RESULT_PATH": str(review),
             "FAKE_OPENCODE_REVIEW": "1",
             "KITTYBUILDER_REVIEW_MODELS": "rev-a rev-b",
-            "KB_REVIEW_TIMEOUT_SECONDS": "8",
+            "KB_REVIEW_TIMEOUT_SECONDS": "2",
             "FAKE_OPENCODE_HANG_MODELS": "rev-a",
-            "FAKE_OPENCODE_HANG_SECONDS": "6",
+            "FAKE_OPENCODE_HANG_SECONDS": "3",
             "FAKE_OPENCODE_MODEL_LOG": str(model_log),
             "KB_REVIEW_CONTEXT_PATH": str(binding),
             "KB_REVIEW_SHA": subprocess.run(
@@ -688,7 +688,7 @@ def test_reviewer_times_out_silent_model_and_falls_through(tmp_path: Path):
     )
 
     completed = subprocess.run(
-        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15
+        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=8
     )
 
     assert completed.returncode == 0, completed.stderr
