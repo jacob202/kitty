@@ -115,6 +115,15 @@ pid_owned_by_kitty() {
     fi
   fi
 
+  # Services installed outside the checkout (LiteLLM lives in
+  # ~/kitty-services/venv-litellm) still run against this repo's config, so
+  # their command line names KITTY_ROOT even though their cwd does not.
+  # Without this, `kitty status` reported LiteLLM "not running" while its own
+  # health check and listener table showed it up.
+  if [[ "$(pid_command "$pid")" == *"$KITTY_ROOT"* ]]; then
+    return 0
+  fi
+
   return 1
 }
 

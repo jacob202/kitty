@@ -287,6 +287,57 @@ class RunLifecycleTest(unittest.TestCase):
                 self.assertIsInstance(result[key], int)
         self.assertEqual(result["runs_interrupted"], 0)
 
+    def test_finalize_after_reaper_marked_run_interrupted(self) -> None:
+        """A reaped run must not crash its own runner's finalize.
+
+        recover_interrupted_runs can classify a run as durably ``interrupted``
+        while the owning runner is still finishing. finalize_run must accept
+        that terminal state and record the runner's report, not raise
+        RunStateConflictError (which used to fail the whole attempt as
+        infrastructure_failed).
+        """
+        task_id, lease_token, claim_version = self._create_and_claim_task()
+        run = bq.create_run(
+            task_id,
+            ["python3", "-c", "print('reaped')"],
+            lease_token=lease_token,
+            claim_version=claim_version,
+            worker="worker-test",
+            db_path=self._tmp_path,
+        )
+        run_id = str(run["id"])
+        bq.worker_transition_task(
+            task_id,
+            bq.RUNNING,
+            lease_token=lease_token,
+            claim_version=claim_version,
+            payload={"run_id": run_id},
+            db_path=self._tmp_path,
+        )
+        bq.update_run(
+            run_id,
+            state=bq.RUN_INTERRUPTED,
+            db_path=self._tmp_path,
+        )
+
+        final = bq.finalize_run(
+            run_id,
+            bq.RUN_CANCELLED,
+            exit_code=-15,
+            report={"outcome": bq.RUN_CANCELLED, "smoke": "reaped"},
+            lease_token=lease_token,
+            claim_version=claim_version,
+            block_reason="run_cancelled",
+            db_path=self._tmp_path,
+        )
+        self.assertEqual(final["state"], bq.RUN_INTERRUPTED)
+
+        types = [
+            event["type"]
+            for event in bq.list_events(task_id, db_path=self._tmp_path)
+        ]
+        self.assertIn("run_finalize_after_terminal", types)
+
 
 class BranchLeaseFacadeIdentityTest(unittest.TestCase):
     """The 4 branch-lease symbols must reach the same object via bq.* and bqbl.*."""

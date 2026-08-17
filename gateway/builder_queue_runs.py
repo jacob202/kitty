@@ -384,6 +384,32 @@ def finalize_run(
             raise RunNotFoundError(f"run not found: {run_id}")
 
         task_id = str(run_row["task_id"])
+        if str(run_row["state"]) in RUN_TERMINAL_STATES:
+            # The reaper (recover_interrupted_runs) classified this run before
+            # its own runner finished monitoring it. The durable terminal state
+            # wins — re-transitioning it is illegal and used to crash the whole
+            # attempt as infrastructure_failed. Record the runner's report as
+            # evidence instead and let the interrupted-attempt recovery path
+            # own the task.
+            _bq.append_event(
+                task_id,
+                "run_finalize_after_terminal",
+                payload={
+                    "run_id": run_id,
+                    "durable_state": str(run_row["state"]),
+                    "runner_outcome": outcome,
+                    "report": report,
+                },
+                run_id=run_id,
+                conn=conn,
+            )
+            conn.commit()
+            return _row_to_run(
+                conn.execute(
+                    "SELECT * FROM runs WHERE id = ?", (run_id,)
+                ).fetchone()
+            )
+
         task_row = conn.execute(
             """
             SELECT state, blocked_reason, claim_version,
