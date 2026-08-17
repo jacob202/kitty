@@ -4,7 +4,7 @@ const port = Number.parseInt(process.env.KITTY_FAKE_LITELLM_PORT ?? '48101', 10)
 const reply = 'Hermetic Kitty reply persisted through the real Gateway.'
 
 const server = http.createServer((req, res) => {
-  if (req.method === 'GET' && req.url === '/health') {
+  if (req.method === 'GET' && (req.url === '/health' || req.url === '/health/readiness')) {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ ok: true }))
     return
