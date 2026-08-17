@@ -5,15 +5,14 @@ regenerated whenever the backend routes change. Don't edit it by hand.
 
 ## Regenerate
 
-```bash
-# In one terminal: start the gateway on its usual port
-cd ~/Projects/kitty
-GATEWAY_PORT=8000 ./gateway/start_gateway.sh
+No running Gateway is required. The schema is dumped from the current FastAPI app, then converted to TypeScript.
 
-# In another: regenerate the types
+```bash
 cd gateway/kitty-chat
 npm run gen:api-types
 ```
+
+The command writes `src/lib/gen/openapi.json` first, so backend contract changes are reviewable even when no local server is running.
 
 Then import the generated types like:
 
