@@ -86,6 +86,20 @@ def _not_user_facing_override(body: str) -> tuple[bool, str]:
     return checked, reason
 
 
+def _exact_head_approval(body: str, field: str, head_sha: str) -> str | None:
+    """Return an approval reason only when it is bound to the full current head SHA."""
+    if len(head_sha) != 40 or not re.fullmatch(r"[0-9a-fA-F]{40}", head_sha):
+        return None
+    pattern = re.compile(
+        rf"^{re.escape(field)}:\s*APPROVE\s+([0-9a-fA-F]{{40}})\s+[—-]\s+(.+)$",
+        re.M,
+    )
+    for match in pattern.finditer(body or ""):
+        if match.group(1).lower() == head_sha.lower() and _has_content(match.group(2)):
+            return match.group(2).strip()
+    return None
+
+
 def _risky_files(changed_files: list[str]) -> list[str]:
     return [path for path in changed_files if any(p.search(path) for p in RISK_PATTERNS)]
 
@@ -104,6 +118,7 @@ def evaluate_policy(
         if isinstance(label, dict) and label.get("name")
     }
     violations: list[str] = []
+    head_sha = str((pr.get("head") or {}).get("sha") or "")
 
     if author != "dependabot[bot]":
         summary = _section(body, "Summary")
@@ -142,24 +157,25 @@ def evaluate_policy(
 
     risky = _risky_files(changed_files)
     if risky:
-        if event_action == "synchronize":
-            violations.append(
-                f"risky scope changed on a new head; re-approve with label `{RISK_APPROVED_LABEL}`"
-            )
-        elif RISK_APPROVED_LABEL not in labels:
+        if RISK_APPROVED_LABEL not in labels:
             violations.append(f"risky scope requires label `{RISK_APPROVED_LABEL}`")
+        if _exact_head_approval(body, "Risk approval", head_sha) is None:
+            violations.append(
+                "risky scope requires exact-head risk approval: "
+                "`Risk approval: APPROVE <full-head-SHA> — <reason>`"
+            )
 
     changed_lines = int(pr.get("additions") or 0) + int(pr.get("deletions") or 0)
     changed_count = int(pr.get("changed_files") or len(changed_files))
     is_large = changed_lines > LARGE_CHANGE_LINES or changed_count > LARGE_CHANGE_FILES
     if is_large:
-        if event_action == "synchronize":
-            violations.append(
-                "large change changed on a new head; re-approve with label "
-                f"`{LARGE_CHANGE_APPROVED_LABEL}`"
-            )
-        elif LARGE_CHANGE_APPROVED_LABEL not in labels:
+        if LARGE_CHANGE_APPROVED_LABEL not in labels:
             violations.append(f"large change requires label `{LARGE_CHANGE_APPROVED_LABEL}`")
+        if _exact_head_approval(body, "Large-change approval", head_sha) is None:
+            violations.append(
+                "large change requires exact-head large-change approval: "
+                "`Large-change approval: APPROVE <full-head-SHA> — <reason>`"
+            )
 
     return violations
 

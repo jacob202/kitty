@@ -147,6 +147,10 @@ def _review_chunk(chunk: str) -> str | None:
             ],
             "temperature": 0.1,
             "max_tokens": 3000,
+            # Both current cheap-review candidates expose optional reasoning.
+            # Disable it here so the output budget is reserved for the verdict
+            # rather than being consumed by hidden/internal reasoning tokens.
+            "reasoning": {"effort": "none"},
         }
     ).encode()
 

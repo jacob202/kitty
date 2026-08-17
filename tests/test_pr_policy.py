@@ -47,7 +47,7 @@ def _body(*, accepted: bool = False, not_user_facing: bool = False) -> str:
 """
 
 
-def _pr(body: str, *, labels: tuple[str, ...] = (), additions: int = 20, deletions: int = 5, author: str = "jacob202") -> dict:
+def _pr(body: str, *, labels: tuple[str, ...] = (), additions: int = 20, deletions: int = 5, author: str = "jacob202", head_sha: str = "a" * 40) -> dict:
     return {
         "body": body,
         "user": {"login": author},
@@ -55,6 +55,7 @@ def _pr(body: str, *, labels: tuple[str, ...] = (), additions: int = 20, deletio
         "additions": additions,
         "deletions": deletions,
         "changed_files": 2,
+        "head": {"sha": head_sha},
     }
 
 
@@ -73,30 +74,51 @@ def test_not_user_facing_override_passes_with_reason() -> None:
     assert violations == []
 
 
-def test_risky_scope_requires_explicit_approval_label_not_body_text() -> None:
-    body = _body(not_user_facing=True).replace("Manual approval: NO", "Manual approval: YES")
-    violations = pr_policy.evaluate_policy(_pr(body), [".github/workflows/tests.yml"])
-    assert any("risk/approved" in item for item in violations)
+def test_risky_scope_requires_label_and_exact_head_approval_receipt() -> None:
+    sha = "a" * 40
+    base = _body(not_user_facing=True)
+    missing = pr_policy.evaluate_policy(
+        _pr(base, labels=(pr_policy.RISK_APPROVED_LABEL,), head_sha=sha),
+        [".github/workflows/tests.yml"],
+    )
+    assert any("exact-head risk approval" in item.lower() for item in missing)
 
+    approved_body = base + f"\nRisk approval: APPROVE {sha} — workflow hardening approved\n"
     approved = pr_policy.evaluate_policy(
-        _pr(body, labels=(pr_policy.RISK_APPROVED_LABEL,)),
+        _pr(approved_body, labels=(pr_policy.RISK_APPROVED_LABEL,), head_sha=sha),
         [".github/workflows/tests.yml"],
     )
     assert approved == []
 
+    stale = pr_policy.evaluate_policy(
+        _pr(approved_body, labels=(pr_policy.RISK_APPROVED_LABEL,), head_sha="b" * 40),
+        [".github/workflows/tests.yml"],
+        event_action="labeled",
+    )
+    assert any("exact-head risk approval" in item.lower() for item in stale)
 
-def test_large_change_requires_large_change_approval() -> None:
-    violations = pr_policy.evaluate_policy(
-        _pr(_body(not_user_facing=True), additions=1600, deletions=20),
+
+def test_large_change_requires_label_and_exact_head_approval_receipt() -> None:
+    sha = "a" * 40
+    base = _body(not_user_facing=True)
+    missing = pr_policy.evaluate_policy(
+        _pr(base, labels=(pr_policy.LARGE_CHANGE_APPROVED_LABEL,), additions=1600, deletions=20, head_sha=sha),
         ["gateway/builder_supervisor.py"],
     )
-    assert any(pr_policy.LARGE_CHANGE_APPROVED_LABEL in item for item in violations)
+    assert any("exact-head large-change approval" in item.lower() for item in missing)
+
+    approved_body = base + f"\nLarge-change approval: APPROVE {sha} — scope reviewed\n"
+    approved = pr_policy.evaluate_policy(
+        _pr(approved_body, labels=(pr_policy.LARGE_CHANGE_APPROVED_LABEL,), additions=1600, deletions=20, head_sha=sha),
+        ["gateway/builder_supervisor.py"],
+    )
+    assert approved == []
 
 
-def test_dependabot_waives_template_but_not_risky_approval() -> None:
+def test_dependabot_waives_template_but_not_exact_head_risk_approval() -> None:
     pr = _pr("dependency update", author="dependabot[bot]")
     violations = pr_policy.evaluate_policy(pr, ["requirements.txt"])
-    assert violations == [f"risky scope requires label `{pr_policy.RISK_APPROVED_LABEL}`"]
+    assert any("risk/approved" in item for item in violations)
 
 
 def test_pr_policy_workflow_has_stable_required_check_name() -> None:
@@ -120,28 +142,16 @@ def test_risk_guardrail_uses_label_approval_and_reacts_to_label_changes() -> Non
     assert "labeled" in text and "unlabeled" in text
     assert "Manual approval:\\s*YES" not in text
     assert "isDependabot" not in text
+    assert "Risk approval: APPROVE" in text
+    assert "pr.head.sha" in text
 
 
-def test_new_head_invalidates_existing_risk_approval() -> None:
-    pr = _pr(_body(not_user_facing=True), labels=(pr_policy.RISK_APPROVED_LABEL,))
-    violations = pr_policy.evaluate_policy(
-        pr,
-        [".github/workflows/tests.yml"],
-        event_action="synchronize",
-    )
-    assert any("re-approve" in item.lower() for item in violations)
 
 
-def test_new_head_invalidates_existing_large_change_approval() -> None:
-    pr = _pr(
-        _body(not_user_facing=True),
-        labels=(pr_policy.LARGE_CHANGE_APPROVED_LABEL,),
-        additions=1600,
-        deletions=20,
-    )
-    violations = pr_policy.evaluate_policy(
-        pr,
-        ["gateway/builder_supervisor.py"],
-        event_action="synchronize",
-    )
-    assert any("re-approve" in item.lower() for item in violations)
+def test_pr_template_documents_exact_head_approval_receipts() -> None:
+    from pathlib import Path
+
+    text = (Path(__file__).parents[1] / ".github" / "pull_request_template.md").read_text(encoding="utf-8")
+    assert "Risk approval: APPROVE <full-head-SHA>" in text
+    assert "Large-change approval: APPROVE <full-head-SHA>" in text
+    assert "Review override: APPROVE <full-head-SHA>" in text

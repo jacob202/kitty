@@ -220,6 +220,31 @@ def test_agent_review_workflow_rechecks_override_metadata_changes() -> None:
     assert "unlabeled" in workflow
 
 
+def test_review_request_disables_optional_reasoning_to_preserve_verdict_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import json
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+        def __exit__(self, *_args):
+            return False
+        def read(self) -> bytes:
+            return json.dumps({"choices": [{"message": {"content": pr_review.NO_FINDINGS}}]}).encode()
+
+    payloads: list[dict] = []
+    def fake_urlopen(request, timeout=0):
+        payloads.append(json.loads(request.data.decode()))
+        return FakeResponse()
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(pr_review, "urlopen", fake_urlopen)
+
+    assert pr_review._review_chunk("diff") == pr_review.NO_FINDINGS
+    assert payloads[0]["reasoning"]["effort"] == "none"
+
+
 def test_review_chunk_retries_transient_empty_content(monkeypatch: pytest.MonkeyPatch) -> None:
     import json
 

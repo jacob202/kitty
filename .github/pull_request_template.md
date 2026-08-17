@@ -43,4 +43,11 @@ Use only when this PR is genuinely not user-facing. Checking this replaces the p
 - [ ] Risky scope has `risk/approved` on this final head (auth/secrets/env/CI/dependency/destructive changes).
 - [ ] If this PR exceeds the large-change threshold, `risk/large-change-approved` is present on this final head.
 
+Exact-head approval formats (replace the placeholder SHA with the full current 40-character head SHA):
+<!-- Risk approval format: Risk approval: APPROVE <full-head-SHA> — <reason> -->
+<!-- Large-change approval format: Large-change approval: APPROVE <full-head-SHA> — <reason> -->
+<!-- Review override format: Review override: APPROVE <full-head-SHA> — <reason> -->
+
+Risky scope needs both `risk/approved` and the matching Risk approval receipt. Large changes need both `risk/large-change-approved` and the matching Large-change approval receipt. Any push makes the old receipt stale automatically.
+
 Automated review findings block `review-gate`. If a finding is independently proven false or the reviewer is unavailable, the explicit escape hatch is: apply `review/override-approved` and add `Review override: APPROVE <full-head-SHA> — <reason>` to this body. Never reuse an override after a push.

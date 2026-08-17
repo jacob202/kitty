@@ -41,10 +41,12 @@ manual control for risky actions.
      Only `NO_ACTIONABLE_FINDINGS` passes automatically.
 8. **Deterministic PR policy**
    - `.github/workflows/pr-policy.yml` enforces `pr-policy`: user-facing changes
-     need completed product acceptance, risky scope needs final-head approval,
-     and unusually large PRs need `risk/large-change-approved`.
-   - A push invalidates risky/large-change approvals. Dependabot is exempt from
-     prose/template requirements, not from risky-scope approval.
+     need completed product acceptance; risky scope needs `risk/approved` plus
+     an exact-head Risk approval receipt; unusually large PRs need
+     `risk/large-change-approved` plus an exact-head Large-change receipt.
+   - Exact full-SHA receipts make approval state-dependent rather than event-dependent,
+     so cancellation/reordering of synchronize/label events cannot revive stale approval.
+     Dependabot is exempt from prose/template requirements, not risky-scope approval.
 
 ### Guardrails (intentionally manual)
 
@@ -181,8 +183,9 @@ explicit full-SHA override described above; never silently treat an outage as
 approval.
 
 `pr-policy` turns the PR template into a contract. User-facing work cannot merge
-with unchecked product-acceptance claims. Risky and large-change labels are
-approval evidence for the final head only and must be re-applied after a push.
+with unchecked product-acceptance claims. Risky and large-change approval requires
+both the matching label and a full-SHA approval receipt for the current head; stale
+labels or receipts cannot satisfy a later commit.
 
 Do not merge a PR unless Jacob or ChatGPT explicitly approves the merge. Green
 required checks are necessary evidence, not merge authorization. A "looks good"
