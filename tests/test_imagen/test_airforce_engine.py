@@ -70,6 +70,14 @@ def test_generate_b64_response(engine):
     assert payload["size"] == "1024x1024"
 
 
+def test_default_model_rejects_unsupported_aspect_ratio_before_paid_dispatch(engine):
+    with patch("httpx.post") as mock_post:
+        with pytest.raises(ValueError, match="aspect ratio"):
+            engine.generate("prompt", aspect_ratio="4:3")
+
+    mock_post.assert_not_called()
+
+
 def test_non_square_generation_uses_aspect_ratio(engine):
     with patch("httpx.post", return_value=_b64_response(b"wide")) as mock_post:
         engine.generate("prompt", aspect_ratio="16:9")
