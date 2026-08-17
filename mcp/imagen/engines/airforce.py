@@ -19,6 +19,7 @@ import asyncio
 import base64
 import os
 from pathlib import Path
+from typing import cast
 
 import httpx
 
@@ -56,8 +57,6 @@ class AirforceEngine:
         aspect_ratio: str = "1:1",
         photorealistic: bool = True,
         seed: int | None = None,
-        size: str = "1024x1024",
-        identity_images: list[Path | str] | None = None,
         **kwargs: object,
     ) -> bytes:
         """Generate one image without automatically resubmitting paid work.
@@ -68,6 +67,8 @@ class AirforceEngine:
         not wrapped in the shared retry decorator because a timeout after
         acknowledgement cannot prove that no paid generation occurred.
         """
+        size = cast(str, kwargs.get("size", "1024x1024"))
+        identity_images = cast(list[Path | str] | None, kwargs.get("identity_images"))
         if identity_images:
             raise NotImplementedError(
                 "Airforce does not support identity conditioning. Passing "
@@ -120,12 +121,13 @@ class AirforceEngine:
         **kwargs: object,
     ) -> bytes:
         return await asyncio.to_thread(
-            self.generate,
-            prompt,
-            aspect_ratio=aspect_ratio,
-            photorealistic=photorealistic,
-            seed=seed,
-            **kwargs,
+            lambda: self.generate(
+                prompt,
+                aspect_ratio=aspect_ratio,
+                photorealistic=photorealistic,
+                seed=seed,
+                **kwargs,
+            )
         )
 
     def edit(self, image_path: Path, edit_prompt: str) -> bytes:
