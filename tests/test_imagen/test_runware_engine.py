@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from mcp.imagen.config import settings
@@ -50,6 +51,8 @@ def test_generate_returns_bytes(engine):
     assert task["positivePrompt"].startswith("a test prompt")
     assert task["seed"] == 42
     assert task["model"] == settings.runware_model
+    assert task["safety"] == {"checkContent": True}
+    assert "checkNSFW" not in task
     assert kwargs["headers"]["Authorization"] == "Bearer test-key-not-real"
 
 
@@ -124,7 +127,7 @@ def test_zero_identity_images_omits_pulid(engine):
     assert "puLID" not in task
 
 
-def test_init_image_uses_seed_image(engine, tmp_path):
+def test_init_image_uses_nested_seed_image(engine, tmp_path):
     src = tmp_path / "seed.png"
     src.write_bytes(b"seed-bytes")
     b64 = base64.b64encode(b"out").decode()
@@ -133,7 +136,8 @@ def test_init_image_uses_seed_image(engine, tmp_path):
         engine.generate("prompt", init_image=src, strength=0.4)
 
     task = mock_post.call_args.kwargs["json"][0]
-    assert task["seedImage"].startswith("data:")
+    assert task["inputs"]["seedImage"].startswith("data:")
+    assert "seedImage" not in task
     assert task["strength"] == 0.4
 
 
@@ -168,3 +172,19 @@ def test_unexpected_response_shape_raises(engine):
     with patch("httpx.post", return_value=resp):
         with pytest.raises(RuntimeError, match="unexpected response shape"):
             engine.generate("prompt")
+
+
+def test_non_retryable_auth_error_is_not_retried(engine):
+    request = httpx.Request("POST", "https://api.runware.ai/v1")
+    response = httpx.Response(401, request=request)
+    status_error = httpx.HTTPStatusError(
+        "401 Unauthorized", request=request, response=response
+    )
+    resp = MagicMock()
+    resp.raise_for_status.side_effect = status_error
+
+    with patch("httpx.post", return_value=resp) as mock_post:
+        with pytest.raises(RuntimeError, match="authentication failed"):
+            engine.generate("prompt")
+
+    mock_post.assert_called_once()
