@@ -102,7 +102,21 @@ def test_generate_happy_path(engine, identity_image):
     assert payload["prompt"].startswith("a test prompt")
     assert payload["seed"] == 42
     assert payload["reference_image_url"].startswith("data:")
+    assert payload["image_size"] == "square_hd"
     assert mock_get.call_count == 3
+
+
+def test_generate_honors_non_square_aspect_ratio(engine, identity_image):
+    with (
+        patch("httpx.post", return_value=_submit_resp()) as mock_post,
+        patch(
+            "httpx.get",
+            side_effect=[_status_resp(), _result_resp(), _image_bytes_resp()],
+        ),
+    ):
+        engine.generate("prompt", aspect_ratio="16:9", identity_images=[identity_image])
+
+    assert mock_post.call_args.kwargs["json"]["image_size"] == "landscape_16_9"
 
 
 def test_generate_polls_until_completed(engine, identity_image):
