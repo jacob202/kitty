@@ -4,9 +4,9 @@ const originalPort = process.env.PLAYWRIGHT_PORT
 const originalReuse = process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER
 
 // Importing Playwright's config through Vitest/Vite is normally sub-second, but
-// module-transform contention in the full suite has crossed Vitest's 5s default.
-// Keep the extra headroom scoped to these two dynamic-import tests only.
-const CONFIG_LOAD_TIMEOUT_MS = 10_000
+// module-transform contention in a cold full suite has reached ~13s on the M1 CI-parity host.
+// Keep generous headroom scoped to these two dynamic-import tests only; the isolated import remains sub-second.
+const CONFIG_LOAD_TIMEOUT_MS = 30_000
 
 async function loadConfig() {
   vi.resetModules()
