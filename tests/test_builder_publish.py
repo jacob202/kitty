@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from gateway import builder_attempt as ba
 from gateway import builder_publish as bp
 from gateway import builder_queue as bq
 from gateway.builder_brief import default_branch_name
@@ -141,6 +142,69 @@ class TestPublishTask:
         assert order[:2] == ["janitor", "push"]
         assert captured["allowed_paths"] == task["allowed_paths"]
         assert result["janitor"]["changed"] is False
+
+    def test_janitor_commit_after_approved_review_refuses_push_until_rereview(
+        self, tmp_path: Path, db_path: Path, monkeypatch
+    ):
+        task = _make_blocked_task(db_path)
+        root = _init_worktree(tmp_path, task)
+        branch = default_branch_name(task)
+        reviewed_sha = "a" * 40
+        mutated_sha = "b" * 40
+        bq.append_event(
+            task["id"],
+            "review_evidence_bound",
+            payload={
+                "attempt_id": 77,
+                "review_sha": reviewed_sha,
+                "diff_sha256": "d" * 64,
+                "changed_paths": ["README"],
+            },
+            db_path=db_path,
+        )
+        monkeypatch.setattr(
+            ba,
+            "get_attempt",
+            lambda attempt_id, db_path=None: {
+                "id": attempt_id,
+                "review": {"verdict": "approve"},
+            },
+        )
+
+        head = reviewed_sha
+
+        def janitor(worktree: Path, **kwargs: Any) -> dict[str, Any]:
+            nonlocal head
+            head = mutated_sha
+            return {
+                "changed": True,
+                "changed_paths": ["README"],
+                "commit_sha": mutated_sha,
+                "ruff_exit_code": 0,
+            }
+
+        monkeypatch.setattr(bp.bj, "apply_safe_repairs", janitor)
+
+        def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            if args[:3] == ["git", "symbolic-ref", "--quiet"]:
+                return subprocess.CompletedProcess(args, 0, stdout=branch + "\n", stderr="")
+            if args[:2] == ["git", "status"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "rev-parse"]:
+                return subprocess.CompletedProcess(args, 0, stdout=head + "\n", stderr="")
+            if args[:2] == ["git", "push"]:
+                pytest.fail("a post-review Janitor mutation must not be pushed")
+            raise AssertionError(args)
+
+        with pytest.raises(bp.PublishError, match="re-review"):
+            bp.publish_task(task["id"], repo_root=root, db_path=db_path, run_cmd=fake)
+
+        invalidations = [
+            event for event in bq.list_events(task["id"], db_path=db_path)
+            if event["type"] == "review_invalidated_before_publish"
+        ]
+        assert invalidations[-1]["payload"]["review_sha"] == reviewed_sha
+        assert invalidations[-1]["payload"]["current_sha"] == mutated_sha
 
     def test_dry_run_does_not_mutate_or_call_side_effects(
         self, tmp_path: Path, db_path: Path

@@ -21,6 +21,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
+from gateway import builder_attempt as ba
 from gateway import builder_pr_janitor as bj
 from gateway import builder_queue as bq
 from gateway.builder_brief import default_branch_name
@@ -443,6 +444,63 @@ def _advance_task_for_pr(
     return transitions
 
 
+def _latest_approved_review_binding(
+    task_id: str, db_path: Path | None
+) -> dict[str, Any] | None:
+    """Return the latest exact-head review binding only when it approved."""
+    events = bq.list_events(task_id, db_path=db_path)
+    latest = next(
+        (event for event in reversed(events) if event["type"] == "review_evidence_bound"),
+        None,
+    )
+    if latest is None:
+        return None
+    payload = latest.get("payload") or {}
+    attempt_id = payload.get("attempt_id")
+    review_sha = payload.get("review_sha")
+    if not isinstance(attempt_id, int) or not isinstance(review_sha, str) or not review_sha:
+        raise PublishError("latest review evidence binding is malformed; re-review required")
+    attempt = ba.get_attempt(attempt_id, db_path=db_path)
+    if attempt is None:
+        raise PublishError("latest review evidence attempt is missing; re-review required")
+    review = attempt.get("review") or {}
+    if review.get("verdict") != "approve":
+        return None
+    return {"attempt_id": attempt_id, "review_sha": review_sha}
+
+
+def _publish_head_sha(path: Path, run_cmd: RunCmd) -> str:
+    result = run_cmd(["git", "rev-parse", "HEAD"], cwd=path, check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        raise PublishError(
+            "could not resolve publish worktree HEAD while checking review evidence"
+        )
+    return result.stdout.strip()
+
+
+def _invalidate_review_before_publish(
+    task_id: str,
+    *,
+    binding: dict[str, Any],
+    current_sha: str,
+    db_path: Path | None,
+    reason: str,
+    janitor: dict[str, Any] | None = None,
+) -> None:
+    bq.append_event(
+        task_id,
+        "review_invalidated_before_publish",
+        payload={
+            "attempt_id": binding["attempt_id"],
+            "review_sha": binding["review_sha"],
+            "current_sha": current_sha,
+            "reason": reason,
+            "janitor_commit_sha": (janitor or {}).get("commit_sha"),
+        },
+        db_path=db_path,
+    )
+
+
 def publish_task(
     task_id: str,
     *,
@@ -480,6 +538,23 @@ def publish_task(
         return runner(args, cwd=cwd, check=check)
 
     path = _worktree_ready(task_id, branch, repo_root, _run)
+    review_binding = (
+        _latest_approved_review_binding(task_id, db_path) if not dry_run else None
+    )
+    if review_binding is not None:
+        current_sha = _publish_head_sha(path, _run)
+        if current_sha != review_binding["review_sha"]:
+            _invalidate_review_before_publish(
+                task_id,
+                binding=review_binding,
+                current_sha=current_sha,
+                db_path=db_path,
+                reason="worktree HEAD no longer matches approved review",
+            )
+            raise PublishError(
+                "approved review does not match current publish HEAD; re-review required"
+            )
+
     janitor_info: dict[str, Any] | None = None
     if not dry_run:
         try:
@@ -497,6 +572,20 @@ def publish_task(
             payload=janitor_info,
             db_path=db_path,
         )
+        if review_binding is not None:
+            current_sha = _publish_head_sha(path, _run)
+            if current_sha != review_binding["review_sha"]:
+                _invalidate_review_before_publish(
+                    task_id,
+                    binding=review_binding,
+                    current_sha=current_sha,
+                    db_path=db_path,
+                    reason="PR Janitor changed HEAD after approved review",
+                    janitor=janitor_info,
+                )
+                raise PublishError(
+                    "PR Janitor changed the approved review SHA; re-review required before publish"
+                )
     push_info = _push_branch(
         path, branch, remote=remote, dry_run=dry_run, run_cmd=_run
     )
