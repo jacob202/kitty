@@ -5,13 +5,10 @@ submit a request, poll its status until ``COMPLETED``, then fetch the result
 (a list of image URLs) and download the bytes. Auth is ``Authorization: Key
 <FAL_KEY>`` (not ``Bearer``).
 
-Schema note: written from public fal documentation/search results
-(``prompt``, ``reference_image_url``, ``id_weight``, ``seed``,
-``guidance_scale``); ``fal.ai`` itself was unreachable from this
-environment's network egress policy at write time. Re-verify field names
-against https://fal.ai/models/fal-ai/flux-pulid/api before the first live
-(paid) request. Like Runware, identity conditioning is restricted to exactly
-one reference image — never more.
+The configured PuLID model requires exactly one reference image. Paid Fal
+submissions are intentionally at-most-once from Kitty: once the provider has
+accepted a request, polling/result/download failures must never cause a second
+paid generation to be submitted automatically.
 """
 
 from __future__ import annotations
@@ -27,7 +24,6 @@ import httpx
 
 from mcp.imagen.config import settings
 from mcp.imagen.engines.base import RefusalError
-from mcp.imagen.retry import retry_with_backoff
 
 FAL_QUEUE_URL = "https://queue.fal.run"
 
@@ -57,7 +53,7 @@ def _headers() -> dict[str, str]:
 
 
 class FalEngine:
-    """Fal REST backend — FLUX PuLID with optional single-image identity lock."""
+    """Fal REST backend — FLUX PuLID with one required identity reference."""
 
     @property
     def name(self) -> str:
@@ -67,7 +63,6 @@ class FalEngine:
     def model_name(self) -> str:
         return settings.fal_model
 
-    @retry_with_backoff(attempts=settings.retry_attempts)
     def generate(
         self,
         prompt: str,
@@ -82,19 +77,27 @@ class FalEngine:
         id_weight: float = 1.0,
         **kwargs: object,
     ) -> bytes:
-        """Generate one image. Raises ``RefusalError`` on a failed/blocked job.
+        """Generate one image without automatically resubmitting paid work.
 
-        ``identity_images``, when given, must contain exactly one path.
+        PuLID requires exactly one identity reference. Provider submission is
+        deliberately not wrapped in the shared retry decorator because a
+        timeout after provider acknowledgement cannot safely prove that no
+        paid generation occurred.
         """
-        if identity_images is not None and len(identity_images) != 1:
+        if identity_images is None or len(identity_images) != 1:
+            count = 0 if identity_images is None else len(identity_images)
             raise ValueError(
                 "Fal PuLID identity conditioning requires exactly one reference "
-                f"image, got {len(identity_images)}."
+                f"image, got {count}."
             )
 
         full_prompt = prompt + (settings.photoreal_suffix if photorealistic else "")
 
-        payload: dict[str, object] = {"prompt": full_prompt}
+        payload: dict[str, object] = {
+            "prompt": full_prompt,
+            "reference_image_url": _to_data_uri(identity_images[0]),
+            "id_weight": id_weight,
+        }
         if negative_prompt:
             payload["negative_prompt"] = negative_prompt
         if seed is not None:
@@ -103,9 +106,6 @@ class FalEngine:
             payload["guidance_scale"] = guidance_scale
         if num_inference_steps is not None:
             payload["num_inference_steps"] = num_inference_steps
-        if identity_images:
-            payload["reference_image_url"] = _to_data_uri(identity_images[0])
-            payload["id_weight"] = id_weight
 
         submit = httpx.post(
             f"{FAL_QUEUE_URL}/{settings.fal_model}",
