@@ -90,7 +90,12 @@ def _risky_files(changed_files: list[str]) -> list[str]:
     return [path for path in changed_files if any(p.search(path) for p in RISK_PATTERNS)]
 
 
-def evaluate_policy(pr: dict[str, Any], changed_files: list[str]) -> list[str]:
+def evaluate_policy(
+    pr: dict[str, Any],
+    changed_files: list[str],
+    *,
+    event_action: str | None = None,
+) -> list[str]:
     body = str(pr.get("body") or "")
     author = str((pr.get("user") or {}).get("login") or "")
     labels = {
@@ -136,13 +141,25 @@ def evaluate_policy(pr: dict[str, Any], changed_files: list[str]) -> list[str]:
                     violations.append("user-facing PR has incomplete product acceptance: " + "; ".join(detail))
 
     risky = _risky_files(changed_files)
-    if risky and RISK_APPROVED_LABEL not in labels:
-        violations.append(f"risky scope requires label `{RISK_APPROVED_LABEL}`")
+    if risky:
+        if event_action == "synchronize":
+            violations.append(
+                f"risky scope changed on a new head; re-approve with label `{RISK_APPROVED_LABEL}`"
+            )
+        elif RISK_APPROVED_LABEL not in labels:
+            violations.append(f"risky scope requires label `{RISK_APPROVED_LABEL}`")
 
     changed_lines = int(pr.get("additions") or 0) + int(pr.get("deletions") or 0)
     changed_count = int(pr.get("changed_files") or len(changed_files))
-    if (changed_lines > LARGE_CHANGE_LINES or changed_count > LARGE_CHANGE_FILES) and LARGE_CHANGE_APPROVED_LABEL not in labels:
-        violations.append(f"large change requires label `{LARGE_CHANGE_APPROVED_LABEL}`")
+    is_large = changed_lines > LARGE_CHANGE_LINES or changed_count > LARGE_CHANGE_FILES
+    if is_large:
+        if event_action == "synchronize":
+            violations.append(
+                "large change changed on a new head; re-approve with label "
+                f"`{LARGE_CHANGE_APPROVED_LABEL}`"
+            )
+        elif LARGE_CHANGE_APPROVED_LABEL not in labels:
+            violations.append(f"large change requires label `{LARGE_CHANGE_APPROVED_LABEL}`")
 
     return violations
 
@@ -189,7 +206,7 @@ def main() -> None:
         print(f"PR policy could not inspect current PR state: {type(exc).__name__}: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
-    violations = evaluate_policy(pr, files)
+    violations = evaluate_policy(pr, files, event_action=str(event.get("action") or ""))
     if violations:
         print("PR policy blocked this head:", file=sys.stderr)
         for violation in violations:

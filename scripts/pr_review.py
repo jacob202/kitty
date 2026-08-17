@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -22,6 +23,7 @@ REVIEW_MODEL = os.environ.get("PR_REVIEW_MODEL", DEFAULT_REVIEW_MODEL)
 COMMENT_MARKER = "<!-- kitty-agent-pr-review -->"
 NO_FINDINGS = "NO_ACTIONABLE_FINDINGS"
 REVIEW_PENDING = "__REVIEW_PENDING__"
+REVIEW_OVERRIDE_LABEL = "review/override-approved"
 MAX_REVIEW_CHARS = int(os.environ.get("PR_REVIEW_CHUNK_CHARS", "60000"))
 MAX_REVIEW_CHUNKS = int(os.environ.get("PR_REVIEW_MAX_CHUNKS", "12"))
 
@@ -48,6 +50,38 @@ in changed code shown in this chunk.
 Use concise bullets. If there are no actionable findings, respond with exactly:
 NO_ACTIONABLE_FINDINGS
 """
+
+
+def parse_exact_head_override(body: str, labels: set[str], head_sha: str) -> str | None:
+    """Return the override reason only for an explicitly labeled exact full SHA."""
+    if REVIEW_OVERRIDE_LABEL not in labels or len(head_sha) != 40:
+        return None
+    pattern = re.compile(
+        r"^Review override:\s*APPROVE\s+([0-9a-fA-F]{40})\s+[—-]\s+(.+)$",
+        re.M,
+    )
+    for match in pattern.finditer(body or ""):
+        if match.group(1).lower() == head_sha.lower() and match.group(2).strip():
+            return match.group(2).strip()
+    return None
+
+
+def get_exact_head_override(head_sha: str) -> str | None:
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if not event_path:
+        return None
+    try:
+        with open(event_path, encoding="utf-8") as event_file:
+            event = json.load(event_file)
+    except (OSError, json.JSONDecodeError):
+        return None
+    pr = event.get("pull_request") or {}
+    labels = {
+        str(label.get("name"))
+        for label in (pr.get("labels") or [])
+        if isinstance(label, dict) and label.get("name")
+    }
+    return parse_exact_head_override(str(pr.get("body") or ""), labels, head_sha)
 
 
 def get_pr_diff() -> tuple[str, int, str, str, str]:
@@ -243,6 +277,18 @@ def main() -> None:
 
     # Invalidate older approval-looking evidence before any external model call.
     upsert_review(REVIEW_PENDING, pr_number, owner, repo, head_sha)
+
+    override_reason = get_exact_head_override(head_sha)
+    if override_reason:
+        upsert_review(
+            "Exact-head review override approved for "
+            f"`{head_sha}`.\n\nReason: {override_reason}",
+            pr_number,
+            owner,
+            repo,
+            head_sha,
+        )
+        return
 
     review = review_diff(diff)
     if not review:

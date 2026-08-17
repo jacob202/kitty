@@ -2,7 +2,7 @@ name: PR Risk Guardrails
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -13,15 +13,16 @@ jobs:
   risk-guardrails:
     runs-on: ubuntu-latest
     steps:
-      - name: Detect risky scope and enforce manual sign-off
+      - name: Detect risky scope and enforce explicit approval
         uses: actions/github-script@v7
         with:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const pull_number = context.payload.pull_request.number;
-            const prBody = context.payload.pull_request.body || "";
+            const action = context.payload.action;
 
+            const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
             const files = await github.paginate(github.rest.pulls.listFiles, {
               owner, repo, pull_number, per_page: 100
             });
@@ -43,25 +44,30 @@ jobs:
 
             const requiredLabels = [
               { name: "risk/high", color: "b60205", description: "Touches sensitive or high-risk scope" },
-              { name: "risk/manual-approval", color: "d93f0b", description: "Requires explicit manual approval in PR body" },
+              { name: "risk/manual-approval", color: "d93f0b", description: "Requires explicit manual approval" },
+              { name: "risk/approved", color: "0e8a16", description: "Explicit approval for the current risky PR head" },
             ];
             const existing = await github.paginate(github.rest.issues.listLabelsForRepo, {
-              owner,
-              repo,
-              per_page: 100,
+              owner, repo, per_page: 100,
             });
             const existingNames = new Set(existing.map((label) => label.name));
             for (const label of requiredLabels) {
               if (!existingNames.has(label.name)) {
                 await github.rest.issues.createLabel({ owner, repo, ...label });
-                core.notice(`created label: ${label.name}`);
               }
             }
 
-            const marker = "<!-- risk-guardrails -->";
-            const hasManualApproval =
-              /Manual approval:\s*YES/i.test(prBody) ||
-              /- \[x\] Manual approval received for risky scope/i.test(prBody);
+            let currentLabels = new Set((pr.labels || []).map((label) => label.name));
+
+            // A risky approval belongs to one code head. A push invalidates it before
+            // the required PR policy can be satisfied again.
+            if (action === "synchronize" && currentLabels.has("risk/approved")) {
+              await github.rest.issues.removeLabel({
+                owner, repo, issue_number: pull_number, name: "risk/approved",
+              }).catch(() => {});
+              currentLabels.delete("risk/approved");
+            }
+            const hasManualApproval = currentLabels.has("risk/approved");
 
             if (isRisky) {
               await github.rest.issues.addLabels({
@@ -71,70 +77,39 @@ jobs:
                 labels: ["risk/high", "risk/manual-approval"],
               });
             } else {
-              await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number: pull_number,
-                name: "risk/high",
-              }).catch(() => {});
-              await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number: pull_number,
-                name: "risk/manual-approval",
-              }).catch(() => {});
+              for (const name of ["risk/high", "risk/manual-approval", "risk/approved"]) {
+                await github.rest.issues.removeLabel({
+                  owner, repo, issue_number: pull_number, name,
+                }).catch(() => {});
+              }
             }
 
+            const marker = "<!-- risk-guardrails -->";
             const guardrailBody = [
               marker,
               "### Risk guardrail status",
               `- risky files detected: ${isRisky ? "yes" : "no"}`,
               ...(isRisky ? riskyFiles.map((f) => `  - \`${f}\``) : []),
-              `- manual approval present in PR body: ${hasManualApproval ? "yes" : "no"}`,
+              `- current-head approval label present: ${hasManualApproval ? "yes" : "no"}`,
               isRisky && !hasManualApproval
-                ? "- action required: set `Manual approval: YES` or check the manual approval checkbox in the PR template."
+                ? "- action required: after the final push, apply `risk/approved`. A later push invalidates it."
                 : "- action required: none",
             ].join("\n");
 
             const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number: pull_number,
-              per_page: 100,
+              owner, repo, issue_number: pull_number, per_page: 100,
             });
             const existingComment = comments.find((c) => c.user?.type === "Bot" && c.body?.includes(marker));
             if (existingComment) {
               await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: existingComment.id,
-                body: guardrailBody,
+                owner, repo, comment_id: existingComment.id, body: guardrailBody,
               });
             } else {
               await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: pull_number,
-                body: guardrailBody,
+                owner, repo, issue_number: pull_number, body: guardrailBody,
               });
             }
 
-            // Dependabot cannot write `Manual approval: YES` into a PR body, so a
-            // hard failure here would pin every dependency PR red forever. The
-            // risk labels still apply — only the blocking failure is waived.
-            //
-            // Matched exactly, not by an `endsWith("[bot]")` test: Copilot and any
-            // future app would otherwise inherit the waiver, and those open PRs
-            // carrying real code and workflow changes.
-            const isDependabot = context.payload.pull_request.user.login === "dependabot[bot]";
-
-            if (isRisky && !hasManualApproval && !isDependabot) {
-              core.setFailed(
-                "Risky scope detected without manual approval. Update PR body with `Manual approval: YES` or check the risky-scope manual approval checkbox."
-              );
-            } else if (isRisky && !hasManualApproval && isDependabot) {
-              core.warning(
-                "Risky scope on a Dependabot PR — labeled, not blocked. Human review still required before merge."
-              );
+            if (isRisky && !hasManualApproval) {
+              core.setFailed("Risky scope requires `risk/approved` on the final PR head.");
             }
-
