@@ -81,8 +81,11 @@ class AirforceEngine:
             "model": settings.airforce_model,
             "prompt": full_prompt,
             "n": 1,
-            "size": size,
         }
+        if aspect_ratio != "1:1":
+            payload["aspect_ratio"] = aspect_ratio
+        else:
+            payload["size"] = size
         if seed is not None:
             payload["seed"] = seed
 
