@@ -69,6 +69,10 @@ class AnchorError(ImageSessionError):
     """Raised when a job cannot serve as an anchor."""
 
 
+class SessionBudgetExceededError(ImageSessionError):
+    """Raised before dispatch when a render would exceed a session ceiling."""
+
+
 @dataclass
 class ImageSession:
     session_id: str
@@ -555,8 +559,58 @@ def update_session(
     return require_session(session_id)
 
 
+def reserve_attempt(
+    session_id: str,
+    *,
+    cost_usd: float,
+    max_attempts: int,
+    max_spend_usd: float,
+) -> ImageSession:
+    """Atomically reserve one render attempt before a paid provider is called."""
+    if cost_usd < 0:
+        raise ImageSessionError(f"cost_usd must not be negative, got {cost_usd}")
+    if max_attempts <= 0:
+        raise ImageSessionError(f"max_attempts must be positive, got {max_attempts}")
+    if max_spend_usd < 0:
+        raise ImageSessionError(
+            f"max_spend_usd must not be negative, got {max_spend_usd}"
+        )
+
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT status, attempt_count, spend_usd FROM image_sessions "
+            "WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if row is None:
+            raise SessionNotFoundError(f"no image session {session_id!r}")
+        if ImageSessionStatus(row["status"]).is_terminal():
+            raise SessionEndedError(f"session {session_id!r} has ended")
+        attempts = int(row["attempt_count"] or 0)
+        spend = float(row["spend_usd"] or 0.0)
+        if attempts >= max_attempts:
+            raise SessionBudgetExceededError(
+                f"session {session_id!r} has used {attempts} of "
+                f"{max_attempts} allowed attempts; generate refused"
+            )
+        projected = spend + cost_usd
+        if projected > max_spend_usd + 1e-12:
+            raise SessionBudgetExceededError(
+                f"session {session_id!r} would spend ${projected:.3f}, above its "
+                f"${max_spend_usd:.2f} allowance; generate refused"
+            )
+        conn.execute(
+            "UPDATE image_sessions SET attempt_count = attempt_count + 1, "
+            "spend_usd = spend_usd + ?, updated_at = ? WHERE session_id = ?",
+            (cost_usd, _now_iso(), session_id),
+        )
+    return require_session(session_id)
+
+
 def record_attempt(session_id: str, *, cost_usd: float = 0.0) -> ImageSession:
-    """Count one render attempt and add its cost to the session total."""
+    """Count one completed render attempt and add its cost to the session total."""
     if cost_usd < 0:
         raise ImageSessionError(f"cost_usd must not be negative, got {cost_usd}")
     _require_active(session_id)

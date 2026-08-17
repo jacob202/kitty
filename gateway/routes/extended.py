@@ -882,9 +882,36 @@ async def studio_generate(req: StudioGenerateRequest):
 
     recipe = decision.recipe
 
+    engine = recipe.provider if recipe else "comfyui"
+    paid_attempt_reserved = False
+    if req.session_id:
+        from gateway.image_agent import AgentBudget
+        from gateway.image_runner import estimated_cost_usd
+        from gateway.image_sessions import (
+            ImageSessionError,
+            SessionBudgetExceededError,
+            reserve_attempt,
+        )
+
+        estimated_cost = estimated_cost_usd(engine)
+        if estimated_cost > 0:
+            budget = AgentBudget()
+            try:
+                reserve_attempt(
+                    req.session_id,
+                    cost_usd=estimated_cost,
+                    max_attempts=budget.max_attempts,
+                    max_spend_usd=budget.max_spend_usd,
+                )
+                paid_attempt_reserved = True
+            except SessionBudgetExceededError as exc:
+                raise HTTPException(status_code=429, detail=str(exc))
+            except ImageSessionError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+
     try:
         result = await run(
-            recipe.provider if recipe else "comfyui",
+            engine,
             prompt,
             recipe=recipe,
             character_id=character_id,
@@ -900,7 +927,8 @@ async def studio_generate(req: StudioGenerateRequest):
 
             try:
                 attach_job(req.session_id, result.job_id)
-                record_attempt(req.session_id)
+                if not paid_attempt_reserved:
+                    record_attempt(req.session_id)
             except ImageSessionError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
         return {

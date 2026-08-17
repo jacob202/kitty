@@ -380,9 +380,25 @@ def _mark_failed(job_id: str, message: str) -> None:
     image_jobs.transition(job_id, ImageJobStatus.FAILED)
 
 
-#: Engines ``run`` will dispatch to. comfyui and drawthings are local; openrouter
-#: is the hosted lane and the only one that spends money.
+#: Engines ``run`` will dispatch to. Hosted engines carry a conservative
+#: contracted per-render estimate so the session budget can be reserved before
+#: a provider call is allowed to spend money.
 ENGINES = frozenset({"comfyui", "drawthings", "flux", "openrouter"})
+_ESTIMATED_COST_USD = {
+    "comfyui": 0.0,
+    "drawthings": 0.0,
+    "flux": 0.025,
+    "openrouter": 0.07,
+}
+
+
+def estimated_cost_usd(engine: str) -> float:
+    """Return the conservative per-render cost used for pre-dispatch budgeting."""
+    normalized = engine.strip().lower()
+    try:
+        return _ESTIMATED_COST_USD[normalized]
+    except KeyError as exc:
+        raise ImageRunnerError(f"no cost contract for image engine {engine!r}") from exc
 
 #: Accepts image input as well as text, so the same route does img2img editing.
 OPENROUTER_IMAGE_MODEL = os.environ.get(
