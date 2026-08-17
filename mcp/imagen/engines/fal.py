@@ -19,6 +19,7 @@ import mimetypes
 import os
 import time
 from pathlib import Path
+from typing import cast
 
 import httpx
 
@@ -89,11 +90,6 @@ class FalEngine:
         aspect_ratio: str = "1:1",
         photorealistic: bool = True,
         seed: int | None = None,
-        negative_prompt: str | None = None,
-        guidance_scale: float | None = None,
-        num_inference_steps: int | None = None,
-        identity_images: list[Path | str] | None = None,
-        id_weight: float = 1.0,
         **kwargs: object,
     ) -> bytes:
         """Generate one image without automatically resubmitting paid work.
@@ -103,6 +99,12 @@ class FalEngine:
         timeout after provider acknowledgement cannot safely prove that no
         paid generation occurred.
         """
+        negative_prompt = cast(str | None, kwargs.get("negative_prompt"))
+        guidance_scale = cast(float | None, kwargs.get("guidance_scale"))
+        num_inference_steps = cast(int | None, kwargs.get("num_inference_steps"))
+        identity_images = cast(list[Path | str] | None, kwargs.get("identity_images"))
+        id_weight = cast(float, kwargs.get("id_weight", 1.0))
+
         if identity_images is None or len(identity_images) != 1:
             count = 0 if identity_images is None else len(identity_images)
             raise ValueError(
@@ -183,12 +185,13 @@ class FalEngine:
         **kwargs: object,
     ) -> bytes:
         return await asyncio.to_thread(
-            self.generate,
-            prompt,
-            aspect_ratio=aspect_ratio,
-            photorealistic=photorealistic,
-            seed=seed,
-            **kwargs,
+            lambda: self.generate(
+                prompt,
+                aspect_ratio=aspect_ratio,
+                photorealistic=photorealistic,
+                seed=seed,
+                **kwargs,
+            )
         )
 
     def edit(self, image_path: Path, edit_prompt: str) -> bytes:
