@@ -21,6 +21,8 @@ jobs:
       # checkout lives under $GITHUB_WORKSPACE. This override keeps the check
       # honest without hardcoding runner paths in the source.
       KITTY_EXPECTED_CANONICAL_CHECKOUT: ${{ github.workspace }}
+      KITTY_EXPECTED_TEST_CHECKOUT: ${{ github.workspace }}
+      KITTY_EXPECTED_TEST_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -175,11 +177,20 @@ jobs:
 
           http.server.HTTPServer(("127.0.0.1", 8000), Handler).serve_forever()
           PY
+          echo $! > /tmp/kitty-gateway-stub.pid
           sleep 1
+          kill -0 "$(cat /tmp/kitty-gateway-stub.pid)" || { echo "gateway stub failed to stay alive" >&2; exit 1; }
       - name: Start server
-        run: node node_modules/next/dist/bin/next start -p 4000 &
-      - name: Wait for server
-        run: npx wait-on http://localhost:4000 --timeout 30000
+        run: |
+          node node_modules/next/dist/bin/next start -p 4000 &
+          echo $! > /tmp/kitty-next.pid
+          sleep 1
+          kill -0 "$(cat /tmp/kitty-next.pid)" || { echo "Next server failed to stay alive" >&2; exit 1; }
+      - name: Wait for owned servers
+        run: |
+          kill -0 "$(cat /tmp/kitty-gateway-stub.pid)"
+          kill -0 "$(cat /tmp/kitty-next.pid)"
+          npx wait-on http://localhost:4000 --timeout 30000
       - name: Run smoke tests
         env:
           PLAYWRIGHT_PORT: "4000"
