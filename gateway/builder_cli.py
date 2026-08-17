@@ -1644,8 +1644,9 @@ def _cmd_initiative_resume(args: argparse.Namespace) -> int:
 
 def _cmd_initiative_doctor(args: argparse.Namespace) -> int:
     from gateway.builder_doctor import run_doctor
+    from gateway.paths import ROOT
 
-    result = run_doctor()
+    result = run_doctor(repo_root=ROOT)
 
     if args.json:
         print(json.dumps(result, indent=2, default=str))
