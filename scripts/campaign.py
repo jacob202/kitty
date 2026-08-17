@@ -226,7 +226,8 @@ def summary(camp: Campaign) -> str:
     last = camp.last_verified
     nxt = camp.next_phase
     dirty = git("status", "--porcelain")
-    worktrees = [line.split()[-1] for line in git("worktree", "list").splitlines() if line.strip()]
+    # `git worktree list` is "<path>  <sha> [<branch>]" — the path is field 0.
+    worktrees = [line.split()[0] for line in git("worktree", "list").splitlines() if line.strip()]
     lines = [
         f"CAMPAIGN  {camp.slug} — {camp.goal}",
         f"PROGRESS  {verified}/{len(camp.phases)} phases verified"
