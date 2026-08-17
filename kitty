@@ -548,7 +548,12 @@ cmd_resume() {
 }
 
 cmd_builder() {
-  local python_bin="$KITTY_ROOT/venv/bin/python"
+  # PYTHON_BIN (exported above, default $KITTY_ROOT/venv/bin/python) is the
+  # single source of truth for the interpreter. Recomputing it here meant the
+  # launcher ignored an explicit override, so tests that stub `python3.12` on
+  # PATH only exercised the real path on machines without a venv — green in CI,
+  # red on any developer machine.
+  local python_bin="${PYTHON_BIN:-$KITTY_ROOT/venv/bin/python}"
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12)"
   fi

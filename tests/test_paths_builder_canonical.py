@@ -29,6 +29,9 @@ def test_builder_launcher_exports_canonical_builder_data_dir(tmp_path: Path) -> 
     env.pop("KITTY_DATA_ROOT", None)
     env.pop("KITTY_BUILDER_DATA_DIR", None)
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    # The launcher prefers PYTHON_BIN over PATH lookup; without this the stub is
+    # bypassed on any machine that has a venv and the test proves nothing.
+    env["PYTHON_BIN"] = str(fake_bin / "python3.12")
 
     result = subprocess.run(
         [str(ROOT / "kitty"), "builder", "initiative", "doctor", "--json"],
@@ -60,6 +63,7 @@ def test_builder_launcher_honors_data_root_before_canonical_checkout(tmp_path: P
     env["KITTY_DATA_ROOT"] = str(data_root)
     env.pop("KITTY_BUILDER_DATA_DIR", None)
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["PYTHON_BIN"] = str(fake_bin / "python3.12")
 
     result = subprocess.run(
         [str(ROOT / "kitty"), "builder", "queue", "recover", "--json"],
