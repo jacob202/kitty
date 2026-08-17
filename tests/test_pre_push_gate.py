@@ -247,3 +247,46 @@ def test_real_disposable_git_push_accepts_standard_hook_arguments(tmp_path):
         check=True,
     ).stdout.strip()
     assert pushed
+
+
+def test_relative_hooks_path_uses_linked_worktree_hook(tmp_path):
+    """Linked worktrees must execute their own tracked hook, not a canonical checkout copy."""
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "worktree"
+    remote = tmp_path / "remote.git"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    subprocess.run(["git", "config", "user.name", "Kitty Test"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "kitty-test@example.invalid"], cwd=repo, check=True)
+    (repo / "README.md").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "seed"], cwd=repo, check=True)
+    subprocess.run(["git", "branch", "-M", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=repo, check=True)
+    subprocess.run(["git", "push", "--no-verify", "-u", "origin", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "worktree", "add", "-qb", "feature", str(worktree), "main"], cwd=repo, check=True)
+
+    canonical_hook = repo / "scripts" / "hooks" / "pre-push"
+    canonical_hook.parent.mkdir(parents=True)
+    canonical_hook.write_text("#!/bin/sh\necho CANONICAL >&2\nexit 13\n", encoding="utf-8")
+    canonical_hook.chmod(0o755)
+    worktree_hook = worktree / "scripts" / "hooks" / "pre-push"
+    worktree_hook.parent.mkdir(parents=True)
+    worktree_hook.write_text("#!/bin/sh\necho WORKTREE >&2\nexit 0\n", encoding="utf-8")
+    worktree_hook.chmod(0o755)
+    subprocess.run(["git", "config", "core.hooksPath", "scripts/hooks"], cwd=repo, check=True)
+
+    (worktree / "README.md").write_text("seed\nfeature\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=worktree, check=True)
+    subprocess.run(["git", "commit", "-qm", "feature"], cwd=worktree, check=True)
+    result = subprocess.run(
+        ["git", "push", "-u", "origin", "feature"],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "WORKTREE" in result.stderr
+    assert "CANONICAL" not in result.stderr
