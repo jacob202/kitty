@@ -195,3 +195,55 @@ def test_hook_blocks_direct_main_push_without_explicit_override(hook_text):
     assert "refs/heads/main" in hook_text
     assert "KITTY_ALLOW_DIRECT_MAIN_PUSH" in hook_text
     assert hook_text.index("refs/heads/main") < hook_text.index("Checking before push")
+
+
+def test_real_disposable_git_push_accepts_standard_hook_arguments(tmp_path):
+    """A normal `git push` must invoke the hook with Git's remote name/URL contract."""
+    repo = tmp_path / "repo"
+    remote = tmp_path / "remote.git"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "init", "--bare", "-q", str(remote)], check=True)
+    subprocess.run(["git", "config", "user.name", "Kitty Test"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "kitty-test@example.invalid"], cwd=repo, check=True)
+
+    (repo / "README.md").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "seed"], cwd=repo, check=True)
+    subprocess.run(["git", "branch", "-M", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=repo, check=True)
+    subprocess.run(["git", "push", "--no-verify", "-u", "origin", "main"], cwd=repo, check=True)
+
+    hook_source = Path(os.environ.get("KITTY_PRE_PUSH_HOOK_UNDER_TEST", HOOK))
+    hook = repo / "scripts" / "hooks" / "pre-push"
+    hook.parent.mkdir(parents=True)
+    shutil.copy2(hook_source, hook)
+    hook.chmod(hook.stat().st_mode | stat.S_IXUSR)
+    subprocess.run(["git", "config", "core.hooksPath", "scripts/hooks"], cwd=repo, check=True)
+
+    fake_python = tmp_path / "python"
+    fake_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_python.chmod(0o755)
+
+    subprocess.run(["git", "switch", "-qc", "feature"], cwd=repo, check=True)
+    (repo / "README.md").write_text("seed\nfeature\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "feature"], cwd=repo, check=True)
+
+    result = subprocess.run(
+        ["git", "push", "-u", "origin", "feature"],
+        cwd=repo,
+        env={**os.environ, "PYTHON_BIN": str(fake_python)},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "All clear" in result.stderr
+    pushed = subprocess.run(
+        ["git", "--git-dir", str(remote), "rev-parse", "refs/heads/feature"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert pushed
