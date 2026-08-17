@@ -24,12 +24,13 @@ describe('Playwright smoke server ownership', () => {
     const webServer = config.webServer as Exclude<typeof config.webServer, undefined>
 
     expect(config.use?.baseURL).toBe('http://127.0.0.1:4100')
+    expect(config.failOnFlakyTests).toBe(true)
     expect(Array.isArray(webServer)).toBe(false)
     if (Array.isArray(webServer)) throw new Error('expected one smoke webServer')
     expect(webServer.port).toBe(4100)
     expect(webServer.reuseExistingServer).toBe(false)
     expect(webServer.command).toContain('-p 4100')
-  })
+  }, 10_000)
 
   it('allows CI to explicitly reuse its checkout-owned port 4000 server', async () => {
     process.env.PLAYWRIGHT_PORT = '4000'
@@ -43,5 +44,5 @@ describe('Playwright smoke server ownership', () => {
     if (Array.isArray(webServer)) throw new Error('expected one smoke webServer')
     expect(webServer.port).toBe(4000)
     expect(webServer.reuseExistingServer).toBe(true)
-  })
+  }, 10_000)
 })

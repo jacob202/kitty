@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import sqlite3
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -470,7 +472,8 @@ class TestRunPacket:
             tmp_path,
             "pause_then_fail_validation.sh",
             (
-                f"python3.12 {pause_helper} {db_path}\n"
+                f"{shlex.quote(sys.executable)} {shlex.quote(str(pause_helper))} "
+                f"{shlex.quote(str(db_path))}\n"
                 f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
             ),
         )

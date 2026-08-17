@@ -227,18 +227,53 @@ def test_librarian_defaults_to_free_ingest_lane(monkeypatch):
     assert mock_call.call_args.kwargs["model"] == "kitty-default"
 
 
-@pytest.mark.integration
-def test_ingest_and_search_roundtrip(tmp_path):
-    """Write a text file, ingest it, search for it. Requires Ollama."""
-    from gateway.knowledge import _get_collection, ingest_file, search_knowledge
-    _get_collection.cache_clear()
+@pytest.mark.asyncio
+async def test_ingest_and_search_roundtrip_uses_ephemeral_store(tmp_path, monkeypatch):
+    """Exercise ingest -> real Chroma storage -> search without network or user data."""
+    import chromadb
+
+    from contracts.knowledge_pipeline import LibrarianReport
+    from gateway import knowledge
+
+    collection = chromadb.EphemeralClient().get_or_create_collection(
+        "kitty_test_knowledge", metadata={"hnsw:space": "cosine"}
+    )
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: collection)
+    monkeypatch.setattr(
+        knowledge.archivist,
+        "_embed",
+        lambda texts, timeout=120: [[1.0, 0.0, 0.0] for _ in texts],
+    )
+    monkeypatch.setattr(
+        knowledge.archivist, "_embed_cached", lambda text: (1.0, 0.0, 0.0)
+    )
+    monkeypatch.setattr(
+        knowledge.librarian,
+        "generate_source_summary",
+        lambda *args: LibrarianReport(
+            summary="A deterministic test source.",
+            authority_score=0.8,
+            relevance_period="persistent",
+            primary_topic="test",
+            needs_vision=False,
+        ),
+    )
 
     test_file = tmp_path / "test_roundtrip.txt"
-    test_file.write_text("Kitty integration test: Jacob has a purple mountain bicycle he uses on weekends.")
+    test_file.write_text(
+        "Kitty knowledge integration test stores a purple mountain bicycle fact "
+        "in a real ephemeral Chroma collection so retrieval crosses the storage boundary."
+    )
 
-    n = ingest_file(test_file, sensitivity="low", source_label="test_roundtrip.txt")
-    assert n > 0, "Expected at least one chunk to be ingested"
+    result = await knowledge.ingest_file(
+        test_file, sensitivity="low", source_label="test_roundtrip.txt"
+    )
+    assert result.status == "success"
+    assert result.chunks_count >= 2  # source brief + content chunk
 
-    results = search_knowledge("bicycle", limit=3)
-    texts = [r["text"] for r in results]
-    assert any("bicycle" in t.lower() for t in texts), f"Expected 'bicycle' in results: {texts}"
+    results = await knowledge.search_knowledge(
+        "bicycle", limit=3, stitch_context=False
+    )
+    texts = [row["text"] for row in results]
+    assert any("bicycle" in text.lower() for text in texts), texts
+    assert all(row["source"] == "test_roundtrip.txt" for row in results)

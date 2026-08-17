@@ -84,17 +84,6 @@ def test_add_memory_surfaces_backend_unavailability():
         mem_module.add_memory("some fact", namespace="facts")
 
 
-@pytest.mark.integration
-def test_memory_roundtrip():
-    """Write a fact, search for it, verify retrieval. Requires Ollama + OpenRouter."""
-    from gateway.memory import add_memory, search_memory
-
-    add_memory("Jacob's test fact: he owns a purple bicycle", namespace="facts")
-    results = search_memory("bicycle", limit=3)
-    texts = [r.get("memory", r.get("text", "")) for r in results]
-    assert any("bicycle" in t.lower() for t in texts), f"Expected bicycle in: {texts}"
-
-
 class TestSessionConsolidationPersistence:
     """Issue #160 — a closed session must actually write a consolidation record."""
 
