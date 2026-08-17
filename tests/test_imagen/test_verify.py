@@ -23,11 +23,16 @@ def test_score_mechanical_passes():
 
 
 def test_score_mechanical_with_dimensions():
+    import io
+    from PIL import Image
     from mcp.imagen.verify import score_mechanical
 
-    cfg = {"min_width": 1, "min_height": 1, "min_size_bytes": 0, "reject_blank": False}
-    score = score_mechanical(b"x" * 500, cfg)
-    assert score == 1.0
+    buf = io.BytesIO()
+    Image.new("RGB", (16, 8), "white").save(buf, format="PNG")
+    cfg = {"min_width": 16, "min_height": 8, "min_size_bytes": 0, "reject_blank": False}
+    assert score_mechanical(buf.getvalue(), cfg) == 1.0
+    cfg["min_width"] = 17
+    assert score_mechanical(buf.getvalue(), cfg) == 0.0
 
 
 def test_score_mechanical_no_cfg():
@@ -68,6 +73,27 @@ def test_face_match_no_ref_dir():
     assert score_face_match(b"test", cfg) == 1.0
 
 
+def test_face_match_strict_missing_refs_raises():
+    from mcp.imagen.verify import VerifierUnavailable, score_face_match
+
+    cfg = {"character": "missing-strict", "threshold": 0.6}
+    with pytest.raises(VerifierUnavailable, match="reference"):
+        score_face_match(b"test", cfg, strict=True)
+
+
+def test_face_match_strict_missing_dependency_raises(tmp_path, monkeypatch):
+    from mcp.imagen.verify import VerifierUnavailable, score_face_match
+
+    faces = tmp_path / "faces"
+    monkeypatch.setattr(settings, "faces_dir", faces)
+    monkeypatch.setenv("KITTY_FACES_DIR", str(faces))
+    ref = faces / "james"
+    ref.mkdir(parents=True)
+    (ref / "ref.png").write_bytes(b"fake")
+    with patch("importlib.util.find_spec", return_value=None), pytest.raises(VerifierUnavailable, match="insightface"):
+        score_face_match(b"test", {"character": "james"}, strict=True)
+
+
 def test_face_match_import_error_falls_back():
     from mcp.imagen.verify import score_face_match
 
@@ -106,6 +132,14 @@ def test_vision_rubric_unavailable_fallback():
         score, details = score_vision_rubric(b"test", entries, "prompt")
     assert score == 0.5
     assert "unavailable" in details[0]
+
+
+def test_vision_rubric_strict_unavailable_raises():
+    from mcp.imagen.verify import VerifierUnavailable, score_vision_rubric
+
+    entries = [{"text": "anatomy is correct", "hard": True}]
+    with patch("mcp.imagen.verify._ollama_vision", side_effect=Exception("no VLM")), pytest.raises(VerifierUnavailable, match="vision rubric"):
+        score_vision_rubric(b"test", entries, "prompt", strict=True)
 
 
 def test_parse_rubric_response_all_yes():
@@ -199,6 +233,8 @@ def test_private_guard_blocks_cloud():
         _check_private("imagen4")
     with pytest.raises(ValueError, match="private=True"):
         _check_private("dalle")
+    with pytest.raises(ValueError, match="private=True"):
+        _check_private("runware")
 
 
 def test_private_guard_allows_local():

@@ -18,6 +18,7 @@ from typing import Any, cast
 
 from mcp.imagen import engines
 from mcp.imagen.config import settings
+from mcp.imagen.characters import character_source_dir, reference_images
 from mcp.imagen.engines.base import RefusalError
 from mcp.imagen.logger import log
 from mcp.imagen.retry import retry_with_backoff
@@ -37,6 +38,10 @@ class Attempt:
     scores: dict[str, float] = field(default_factory=dict)
     passed: bool = False
     seed: int | None = None
+
+
+class VerifierUnavailable(RuntimeError):
+    """A required benchmark verifier cannot produce trustworthy evidence."""
 
 
 @dataclass
@@ -118,7 +123,14 @@ def score_mechanical(image_data: bytes, cfg: dict[str, Any] | None) -> float:
         return 0.0
 
     if min_width > 0 or min_height > 0:
-        w, h = _guess_dimensions(len(image_data))
+        try:
+            import io
+            from PIL import Image as PILImage
+
+            with PILImage.open(io.BytesIO(image_data)) as pil_img:
+                w, h = pil_img.size
+        except Exception:
+            return 0.0
         if w < min_width or h < min_height:
             return 0.0
 
@@ -165,6 +177,8 @@ def score_vision_rubric(
     image_data: bytes,
     rubric_entries: list[dict[str, Any]],
     prompt: str,
+    *,
+    strict: bool = False,
 ) -> tuple[float, list[str]]:
     """Score image against rubric lines via a local VLM (Ollama).
 
@@ -179,6 +193,8 @@ def score_vision_rubric(
         response = _ollama_vision(image_data, prompt_text)
     except Exception as e:
         log.warning("vision rubric call failed: %s", e)
+        if strict:
+            raise VerifierUnavailable("vision rubric verifier unavailable") from e
         return 0.5, ["vision_rubric unavailable"]
 
     return _parse_rubric_response(response, rubric_entries)
@@ -234,7 +250,9 @@ def _parse_rubric_response(
     return score, failed_lines
 
 
-def score_face_match(image_data: bytes, cfg: dict[str, Any] | None) -> float:
+def score_face_match(
+    image_data: bytes, cfg: dict[str, Any] | None, *, strict: bool = False
+) -> float:
     """Compare image face(s) against a reference set via InsightFace.
 
     1.0 = strong face match; 0.0 = no face or no reference set configured.
@@ -246,20 +264,20 @@ def score_face_match(image_data: bytes, cfg: dict[str, Any] | None) -> float:
         return 1.0
 
     character = cfg.get("character", "")
-    ref_dir = settings.faces_dir / character
-
-    if not ref_dir.exists():
-        log.warning("face_match: reference directory not found: %s", ref_dir)
-        return 1.0
-
-    ref_images = sorted(ref_dir.glob("*"))
+    ref_dir = character_source_dir(character)
+    ref_images = reference_images(character)
     if not ref_images:
+        log.warning("face_match: no usable references found under: %s", ref_dir)
+        if strict:
+            raise VerifierUnavailable(f"face reference set is unavailable or empty: {ref_dir}")
         return 1.0
 
     import importlib.util
 
     if importlib.util.find_spec("insightface") is None:
         log.warning("face_match: insightface not installed — skipping")
+        if strict:
+            raise VerifierUnavailable("insightface is not installed")
         return 1.0
 
     import numpy as np
@@ -305,6 +323,8 @@ def score_face_match(image_data: bytes, cfg: dict[str, Any] | None) -> float:
         return score
     except Exception as e:
         log.warning("face_match scoring error: %s", e)
+        if strict:
+            raise VerifierUnavailable("face_match scoring failed") from e
         return 0.5
 
 
@@ -432,7 +452,7 @@ def generate_until(
 
 def _check_private(engine: str) -> None:
     """Raise if engine is a cloud service and private flag is set."""
-    cloud_engines = {"nano_banana", "imagen4", "dalle"}
+    cloud_engines = {"nano_banana", "imagen4", "dalle", "runware"}
     if engine in cloud_engines:
         raise ValueError(
             f"Engine {engine!r} is a cloud service and private=True was set. "

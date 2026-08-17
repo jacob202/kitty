@@ -71,6 +71,14 @@ class Settings:
         default_factory=lambda: _env("IMAGEN_DEFAULT_ENGINE", "nano_banana")
     )
 
+    # Runware REST inference
+    runware_model: str = field(
+        default_factory=lambda: _env("RUNWARE_MODEL", "runware:101@1")
+    )
+    runware_timeout: int = field(
+        default_factory=lambda: _env_int("RUNWARE_TIMEOUT_SECONDS", 120)
+    )
+
     # ComfyUI
     comfy_url: str = field(default_factory=lambda: _env("COMFY_URL", "http://127.0.0.1:8188"))
 
