@@ -26,6 +26,7 @@ def test_builder_launcher_exports_canonical_builder_data_dir(tmp_path: Path) -> 
     )
 
     env = dict(os.environ)
+    env.pop("KITTY_DATA_ROOT", None)
     env.pop("KITTY_BUILDER_DATA_DIR", None)
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
 

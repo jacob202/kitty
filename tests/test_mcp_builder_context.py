@@ -113,6 +113,7 @@ def test_status_snapshot_uses_genuinely_read_only_builder_projection(
     snapshot: dict,
 ) -> None:
     seen: dict[str, Path] = {}
+    monkeypatch.delenv("KITTY_BUILDER_DATA_DIR", raising=False)
     monkeypatch.setattr(context, "repo_root", lambda: Path("/tmp/kitty"))
 
     def fake_readonly(*, db_path: Path) -> dict:
