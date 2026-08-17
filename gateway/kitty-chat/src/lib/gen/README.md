@@ -5,15 +5,18 @@ regenerated whenever the backend routes change. Don't edit it by hand.
 
 ## Regenerate
 
-```bash
-# In one terminal: start the gateway on its usual port
-cd ~/Projects/kitty
-GATEWAY_PORT=8000 ./gateway/start_gateway.sh
+No running gateway needed — the schema is dumped by importing the app.
 
-# In another: regenerate the types
+```bash
 cd gateway/kitty-chat
 npm run gen:api-types
 ```
+
+That runs `scripts/dump_openapi.py` (writes `openapi.json`) then
+`openapi-typescript` (writes `gateway-schema.d.ts`). Both files are committed:
+the JSON is the diffable contract snapshot, so a backend change that alters the
+API shows up as a reviewable diff. Generation is deterministic — regenerating
+without backend changes produces byte-identical output.
 
 Then import the generated types like:
 
