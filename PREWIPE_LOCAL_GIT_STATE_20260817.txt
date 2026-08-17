@@ -1,0 +1,134 @@
+KITTY PREWIPE LOCAL GIT STATE — 2026-08-17
+Archive-only preservation record. DO NOT MERGE THIS BRANCH INTO MAIN.
+
+LOCAL_ONLY_BRANCH_TIPS=108
+BRANCH	audit/kittybuilder-real-agent-smoke-2026-08-01	6b63bf03198f250dd7e0830f3a083d3c9c7d45f1	2026-08-15 07:24:23 -0600	docs: preserve paid agent smoke initiative
+BRANCH	backup/openwebui-local-20260802-123047	71c7072cfe95ef66220b0961674f315acc4423dd	2026-08-02 12:26:25 -0600	fix(builder): robust Python-based STATE/HANDOFF sanitizer, syncs all required fields
+BRANCH	campaign/ci-parity	6a5f85f5ed4b5949bcb27ac121328f87b8ae6f6d	2026-08-15 07:47:20 -0600	fix(ci): run vulture and lychee in local publication gates
+BRANCH	campaign/production-paths	e61d1f1efae05ac14476ada6a85c8fa3d1c3e517	2026-08-15 07:35:52 -0600	feat(runtime): separate mutable production roots
+BRANCH	campaign/production-runtime	ada3a5d1dec9cfeab8517ba06d800755ba2df006	2026-08-15 07:45:40 -0600	feat(runtime): add canonical production supervisor
+BRANCH	campaign/public-golden-path	d912aba391b4606e3a710f1c36f02d4e878fbcf6	2026-08-15 07:31:59 -0600	feat(chat): add production edge trust boundary
+BRANCH	campaign/readiness	9b9a5311d84b5491cfbbe3020a0597d062cdc99e	2026-08-15 07:31:59 -0600	feat(gateway): add production readiness gate
+BRANCH	chatgpt/builder-cheap-packets-20260816	6562e029b3d86f2f3241659416fd15ef5f87cb07	2026-08-17 00:55:24 -0600	fix(builder): advance executable packet identities to v5
+BRANCH	chatgpt/interrupted-reconcile-local	8a50a8abacb8a1aaeecca816b2b0ff9326bea454	2026-08-17 02:38:48 -0600	fix(builder): reconcile interrupted attempts before pause gate
+BRANCH	chatgpt/pr508-update-20260817	a9db6475503c4c56498b856c316349fb0ce2f043	2026-08-17 00:25:48 -0600	fix(builder): resolve gateway module and repo identity from any cwd
+BRANCH	ci/product-acceptance-gate	fe46c486c32c31cf243068316ce78ae584d75f16	2026-08-01 14:32:35 -0600	ci: deterministic product-acceptance gate (parked WIP — awaiting #349 slice go-ahead)
+BRANCH	design/gateway-work-spine-v1	4f013ceff8b4e66ebf289f65de9924d0d916d87d	2026-08-13 14:22:25 -0600	docs: plan Gateway Work Spine v1
+BRANCH	docs/architecture-ratification-governance	8c848e086c9af0fea9121e61db85b2b626cf0593	2026-08-10 18:09:33 -0600	feat: add read-only agent council relay
+BRANCH	docs/kittybuilder-core-runtime-audit-2026-08-01	bf81477a382843ab6483be60ef94d498b87c916d	2026-08-15 07:24:22 -0600	docs: preserve core runtime audit artifacts
+BRANCH	docs/ktf-001-resume-plan	92f20e2c29bea0a4a0385cb4417281d826ae8f72	2026-07-30 02:35:01 -0600	fix(state): reorder recommendations — life project before code (ADR 0016)
+BRANCH	draft/console-work-v2-deterministic	2984d9529a780fd1020cde76dbe13cb673f1f615	2026-08-13 16:10:20 -0600	feat(console): project authoritative Gateway work
+BRANCH	feat/builder-action-retirement	ed98e5ac9c340cf191be93668c3566dab1a0f4bc	2026-08-15 14:48:49 -0600	docs(campaign): runtime truth receipt for HOME STRETCH Mac lane (#490)
+BRANCH	feat/campaign-work-projection-v1	67c23e515ab7a5fae0cb62a2f1bb552891fd681c	2026-08-15 07:24:24 -0600	test: preserve work projection slice evidence
+BRANCH	feat/console-work-v1	f672ca8907e5d462d6d6a37cbc57f3a64253b9c0	2026-08-13 15:27:11 -0600	feat(console): render Gateway work projection
+BRANCH	feat/discord-command-center-phase0	5f402811bbc2d54391af98fa2bd91db4e6a684c1	2026-08-14 12:00:11 -0600	fix(discord): allow Codex sandbox runtime on macOS
+BRANCH	feat/discord-command-center-phase1	4b5dfccb85d268d90831ae1fe1434ac244306cc7	2026-08-14 12:52:46 -0600	feat(discord): bound command center tasks
+BRANCH	feat/discord-command-center-phase2	59ec87cc8426cfde74c675c647fce8d4bb021163	2026-08-14 22:35:24 -0600	feat(discord): bound command request size
+BRANCH	feat/discord-command-center-phase3	8966ce59b90c3a2200fcc96d970b5b086431adcc	2026-08-15 00:02:41 -0600	fix(discord): suppress command center mentions
+BRANCH	feat/kittybuilder-mcp-v2-dogfood	d94f77783e3bbd7dcdb7d4ec22f5702e987eaa17	2026-08-10 18:23:48 -0600	fix(builder): sanitize slash-containing branch names
+BRANCH	feat/work-spine-console-v1	01d79b1f403a8f41c40fca245901c86f826a6216	2026-08-13 15:43:37 -0600	test(work): verify registered Gateway route
+BRANCH	feat/workflow-hardening-20260815	43f2dcb2d9ae07f45c1ebbbe2f28e040a09e7d02	2026-08-15 07:25:04 -0600	feat(builder): reconcile merges before supervisor dispatch
+BRANCH	feat/workflow-hardening-final	7cd48c604f3982e7c4123722320985378a801d16	2026-08-15 07:47:06 -0600	feat(builder): reconcile merges before supervisor dispatch
+BRANCH	fix/b5-cheap-model-value-refresh-e6ddbaf	63990a7977af16d0fa58cb87e8dda2cee17757c3	2026-08-17 03:24:33 -0600	Merge remote-tracking branch 'origin/main' into fix/b5-cheap-model-value-refresh-e6ddbaf
+BRANCH	fix/builder-canonical-db	3280a3b3d41cfa135193cb0d33dc5c4823cb8453	2026-08-10 21:15:17 -0600	init
+BRANCH	fix/builder-ignore-omo-artifacts	ec54d9b6b1478c75dcbf71d1b4734e2003d97afd	2026-08-15 07:24:23 -0600	fix: preserve builder ignore omo artifact work
+BRANCH	fix/builder-publish-hook-env-isolation	807ca84ae2735f7a14e7b741b133dad1b34cdffa	2026-08-11 23:07:26 -0600	fix(builder): isolate publish hook environment
+BRANCH	fix/builder-publish-process-reap	e7302fb0deae4397438a67bac268c61e01c1c38f	2026-08-11 15:43:15 -0600	fix(builder): reap publish process groups on exit
+BRANCH	fix/builder-publish-ready-state	12a7256274cb68ab374b27bb50781ec471a6961d	2026-08-13 05:22:41 -0600	fix(builder): promote draft PRs before auto-merge
+BRANCH	fix/builder-sanitize-branch	43cb4a9c712eb7dd17a0e7a3fa75e4d5195064fa	2026-08-10 18:42:39 -0600	fix(builder): keep worker metadata outside packet diffs
+BRANCH	fix/builder-sanitize-branch-slash	ba679485a2c9afe99bf93ad6024d7fc0c3edc5ca	2026-08-15 07:30:56 -0600	feat: preserve builder control durability files
+BRANCH	fix/mission-routing-tool-server	c3dc577a47bc139f8e675b74962629b38c3a2764	2026-08-15 07:24:24 -0600	fix: preserve mission routing tool server work
+BRANCH	fix/opencode-worker-stdin	80db9e15f7a15e8a31ab188ca7fe308fbc343a22	2026-08-11 02:51:04 -0600	fix(builder): close worker stdin before OpenCode launch
+BRANCH	fix/pr450-review-fixes	89dc2966b6d700ed9d03a4a90a10aacaf48aafe7	2026-08-15 07:24:22 -0600	feat: preserve pr450 runtime hardening work
+BRANCH	fix/pr458-continuity	d21dadf29a169f1c13b23062c154f751a07de336	2026-08-15 07:30:56 -0600	feat: preserve builder control durability files
+BRANCH	fix/pr500-post-review-findings	aa32e946c597a196d7837dfafb3eba841374af2a	2026-08-15 07:31:20 -0600	fix(builder): address current supervisor review
+BRANCH	fix/repairs-dismiss-signal-truthful	897d5a1668ff178ef659f053a64a0303f3b0613e	2026-08-16 20:57:29 -0600	fix(ui): stop faking success when the gateway fails
+BRANCH	fix/supervisor-review-final	aa32e946c597a196d7837dfafb3eba841374af2a	2026-08-15 07:31:20 -0600	fix(builder): address current supervisor review
+BRANCH	fix/version-runtime-override	469323feac0353bf7bd9f7723ff7b5617d220e4d	2026-08-13 12:01:31 -0600	fix(gateway): honor runtime version override
+BRANCH	fix/work-hide-builder-machinery	e154790335e7329816c6435d810cad2df4dc5174	2026-08-01 18:26:49 -0600	fix(ui): null guard for k in WorkView show button
+BRANCH	heads/backup/gateway-packages-2026-07-25	116707f10e69a94c25f09279e5d27ffc488f5457	2026-07-25 10:40:28 -0600	docs(handoff): record builder collision repair and the unverified suite
+BRANCH	heads/threadmaster/pr474-fix	cb8198adc2e35c8950d5ff5414fbcb047d312640	2026-08-14 04:11:30 -0600	merge: reconcile Command Center with current main
+BRANCH	jacob202/builder-trust-repair	ba2b77d86c3167b91ad276b303d8051cbb7268d4	2026-08-06 18:35:07 -0600	fix(gateway): harden LLM response parsing and cron schedule idempotency
+BRANCH	jacob202/fix-description	a032953cb32c3477dd6e9530eb23bd4256b2f495	2026-07-30 00:50:26 -0600	chore(session): update handoff and state after phase 1 reconciliation
+BRANCH	kittybuilder/kb_clean	bc72990847f2a08c2fbf3129643c2e04319b8024	2026-08-10 21:15:17 -0600	continuity
+BRANCH	kittybuilder/kb_mry6m72e_9009	ed5876ee3ef227a398b158c45e3dfcca899e85c5	2026-07-24 19:52:17 -0600	[KX-06-01-signals-feed] kittybuilder: kb_mry6m72e_9009 attempt 42 (opencode/mimo-v2.5-free)
+BRANCH	kittybuilder/kb_mry6m73s_7050	44a11da2a5f81e3a1c19b08a1f5371add3291908	2026-07-25 02:52:29 -0600	[KX-06-02-deadline-cards] kittybuilder: kb_mry6m73s_7050 attempt 46 (opencode/deepseek-v4-flash-free)
+BRANCH	kittybuilder/kb_ms2eqymk_3e6c	61c456d0530def3f5b591d7e8b5dc3e3fdc5b872	2026-07-26 17:11:51 -0600	[KTF-FE-04-continue-unrelated-after-failure] kittybuilder: kb_ms2eqymk_3e6c attempt 50 (opencode/deepseek-v4-flash-free)
+BRANCH	kittybuilder/kb_ms3rbu41_d782	fa480c6ada94c697583348c5ac651ee213a58e77	2026-07-27 18:01:38 -0600	[UIFIX-D06-project-nav-labels] kittybuilder: kb_ms3rbu41_d782 attempt 66 (opencode/deepseek-v4-flash-free)
+BRANCH	kittybuilder/kb_ms7ps19u_1f33	817fbdef200f8bb96bc12938669c5b560ffc6060	2026-07-30 10:15:47 -0600	[KTF-DP-01-verify-prerequisites-proto] kittybuilder: kb_ms7ps19u_1f33 attempt 67 (opencode/deepseek-v4-flash-free)
+BRANCH	kittybuilder/kb_msau8lll_4e3d	630eb6518ce26e8a78e2ba35950794ed35d7c504	2026-08-01 14:57:20 -0600	audit S10: commit artifacts to enable worktree removal
+BRANCH	kittybuilder/kb_msauan2z_473e	1b5d51bcbae50b06bb5008fe6fb035a4710f1616	2026-08-15 07:24:22 -0600	docs: preserve audit artifacts
+BRANCH	kittybuilder/kb_msauc86k_6fc7	c99743d738bf247c46aa184dc32c2ffafd16db3c	2026-08-15 07:24:22 -0600	docs: preserve audit artifacts
+BRANCH	kittybuilder/kb_msauh547_f065	0b295be987325bdc0015a4b9cbe06c1ab2cc2e12	2026-08-15 07:24:23 -0600	docs: preserve audit artifacts
+BRANCH	kittybuilder/kb_msauixxe_939f	8239f06f65da52b4ed44c7950b839681bab66329	2026-08-15 07:24:23 -0600	docs: preserve audit artifacts
+BRANCH	kittybuilder/kb_msav3d1s_3e6a	0c288c732e675558f3bf0a5a781f67d610d78ddb	2026-08-15 07:24:23 -0600	docs: preserve audit crash artifacts
+BRANCH	kittybuilder/kb_msav48iz_c2bd	1367f777ef8ea3d4cf33e158ad61e1591feaaaa6	2026-08-15 07:24:23 -0600	docs: preserve audit artifacts
+BRANCH	kittybuilder/kb_msb4yx3l_caea	d6d29a2905b9d99969825ca56494e4cf4d1fdde8	2026-08-01 20:13:53 -0600	[B2-worker-session-seam] kittybuilder: kb_msb4yx3l_caea attempt 96 (openrouter/deepseek/deepseek-v4-flash-0731)
+BRANCH	kittybuilder/kb_msnx6fsm_6a42	287513f358580a0b29b260b0e59e13ebf474a08f	2026-08-10 18:26:05 -0600	init
+BRANCH	kittybuilder/kb_msny8g6i_1fbe	2dc12e49255d1ebfe9280fc25da52a0014173499	2026-08-10 18:55:38 -0600	init
+BRANCH	kittybuilder/kb_msnydsom_fb4f	dc13eff6daf389a4387c5b32bb762ee3a762375e	2026-08-15 07:24:22 -0600	test: preserve builder surface smoke work
+BRANCH	kittybuilder/kb_msnz6hfw_fdba	c7c5a12c4b6a6e0441351e84f47fd955110f4797	2026-08-15 07:24:22 -0600	test: preserve builder retry workspace work
+BRANCH	kittybuilder/kb_mso32b8k_3fec	3a007d4d3d2d2051a7c74878293f5b770a203989	2026-08-10 21:10:50 -0600	init
+BRANCH	kittybuilder/kb_msog05jp_812f	0286b4347bd3c0e6d3fe2f5537ba39518e82010c	2026-08-11 03:15:29 -0600	[KPING-005] kittybuilder: kb_msog05jp_812f attempt 131 (openrouter/deepseek/deepseek-v4-flash)
+BRANCH	kittybuilder/kb_msogtkej_0791	7fc76990933f2f5aa66234e2cd8f31c281a058d3	2026-08-11 03:39:19 -0600	[KPING-006] kittybuilder: kb_msogtkej_0791 attempt 132 (openrouter/deepseek/deepseek-v4-flash)
+BRANCH	kittybuilder/kb_msplzy3g_9078	eb56588bd97bbe725c87ea66816f0377648bb513	2026-08-11 22:55:17 -0600	[KPING-008-proto] kittybuilder: kb_msplzy3g_9078 attempt 1 (openrouter/deepseek/deepseek-v4-flash)
+BRANCH	kittybuilder/kb_msru11zy_278f	d00755c05eeeccb49a385bdb77bf82883d5e1f5e	2026-08-15 07:24:24 -0600	docs: preserve codex bundle 139
+BRANCH	kittybuilder/kb_msrukojn_e66a	ac1af295ed85ed511cc7ad9f040b88c659d37ceb	2026-08-15 07:24:24 -0600	docs: preserve review bundle 140
+BRANCH	kittybuilder/kb_msrvbwy7_6e63	ed809f5bdec6d926369b1e635f53aced22c4a010	2026-08-13 12:49:36 -0600	[FIX-02-codex-staging-reuse-proto] kittybuilder: kb_msrvbwy7_6e63 attempt 141 (opencode/mimo-v2.5-free)
+BRANCH	kittybuilder/kb_msrvynzs_2377	f3d636be42f102867375ff095e25df78506cc163	2026-08-15 07:24:24 -0600	fix: preserve builder scope work
+BRANCH	kittybuilder/kb_msrw1xqw_a229	85a43e156b36ea96f58bbc0b9e5597d0c3a4d604	2026-08-13 13:08:11 -0600	[FIX-02-port-verified-reuse-proto] kittybuilder: kb_msrw1xqw_a229 attempt 145 (gpt-5.4-mini)
+BRANCH	kittybuilder/kb_msrwbr54_4463	824667541e27f042fddd80a1b3c548ec60969da0	2026-08-15 07:24:24 -0600	test: preserve work route coverage
+BRANCH	kittybuilder/kb_msrwwzx6_9828	f41ab47cb641909db93b2761f756628eeeda2c5d	2026-08-13 13:31:14 -0600	[WORK-01-review-repair-v3-proto] kittybuilder: kb_msrwwzx6_9828 attempt 148 (opencode/mimo-v2.5-free)
+BRANCH	kittybuilder/kb_msrzrsbn_19a5	241145197bea0298bd0a8e39186a8997d23eaa57	2026-08-13 15:02:57 -0600	[WORK-SPINE-V1-CORRECT] kittybuilder: kb_msrzrsbn_19a5 attempt 153 (opencode/mimo-v2.5-free)
+BRANCH	kittybuilder/kb_mss0fbka_530c	df4c65460af9c06f665f547909656854c60d1d37	2026-08-13 15:13:12 -0600	[WORK-SPINE-FINAL-proto] kittybuilder: kb_mss0fbka_530c attempt 154 (opencode/mimo-v2.5-free)
+BRANCH	kittybuilder/kb_mss0qpz0_1208	6011c738dc73c72d3bc80ec042f881ede41eaba8	2026-08-13 15:22:48 -0600	[WORK-SPINE-FINAL-VERIFY-proto] kittybuilder: kb_mss0qpz0_1208 attempt 156 (opencode/mimo-v2.5-free)
+BRANCH	kittybuilder/kb_mss0ri22_96e9	df4c65460af9c06f665f547909656854c60d1d37	2026-08-13 15:13:12 -0600	[WORK-SPINE-FINAL-proto] kittybuilder: kb_mss0fbka_530c attempt 154 (opencode/mimo-v2.5-free)
+BRANCH	kittybuilder/kb_mss1aor3_9859	a64fb821a04ba5da7a6e337f3af9e88a11375a4c	2026-08-13 15:35:13 -0600	[WORK-SPINE-CLEAN-PORT-proto] kittybuilder: kb_mss1aor3_9859 attempt 160 (deterministic-clean-port)
+BRANCH	kittybuilder/kb_mss1npup_a28e	a64fb821a04ba5da7a6e337f3af9e88a11375a4c	2026-08-13 15:35:13 -0600	[WORK-SPINE-CLEAN-PORT-proto] kittybuilder: kb_mss1aor3_9859 attempt 160 (deterministic-clean-port)
+BRANCH	kittybuilder/kb_mss2ogml_5613	d5359f83d7c4b8eb922c3c3a9989898acfd8f954	2026-08-13 16:13:01 -0600	[CONSOLE-WORK-V2-proto] kittybuilder: kb_mss2ogml_5613 attempt 165 (deterministic-clean-port)
+BRANCH	kittybuilder/kb_mstyw34s_2249	be74368649310fdace473192e50a72497bff9aa1	2026-08-15 07:21:21 -0600	Merge remote-tracking branch 'origin/main' into kittybuilder/kb_mstyw34s_2249
+BRANCH	kittybuilder/kb_msudvnes_9eaa	ea599fa233f762a4723d2f21b4aa6c4c88d217f7	2026-08-15 07:25:23 -0600	chore: remove consumed review bundle 178
+BRANCH	kittybuilder/kb_mswr6l0k_9f3c	9a8caf13f2dacdf2e12b6e127132533d8a7c6089	2026-08-16 22:53:24 -0600	[paid-route-cost-source-fix] kittybuilder: kb_mswr6l0k_9f3c attempt 179 (openrouter/deepseek/deepseek-v4-flash)
+BRANCH	kittybuilder/kb_mswri4p6_3bd5	5fa050aa8930d3bf7dab179022cbc70d26d669f3	2026-08-16 23:04:10 -0600	[b4-paid-route-cost-source-fix] kittybuilder: kb_mswri4p6_3bd5 attempt 180 (openrouter/deepseek/deepseek-v4-flash)
+BRANCH	kittybuilder/kb_test	bc72990847f2a08c2fbf3129643c2e04319b8024	2026-08-10 21:15:17 -0600	continuity
+BRANCH	kproof/retry-fixed-base-0175488d	d43aeda61bde3787d0e4fd9a72635c451f2a64e7	2026-08-10 18:58:55 -0600	docs: save MCP plan kproof-retry-this-work
+BRANCH	mcp/planning/design-autonomous-campaign-supervisor-6e49a4e1-b94058be	77d1eb17a24e9f0ab349680b9db92860db4a99a8	2026-08-14 13:56:05 -0600	docs: save MCP design autonomous-campaign-supervisor
+BRANCH	mcp/planning/design-autonomous-campaign-supervisor-rebase-8bd732f3-da52b4d7	da0f210f0c2e32029eb978edcd99204b5552d27d	2026-08-14 23:21:04 -0600	docs: save MCP design autonomous-campaign-supervisor-rebase
+BRANCH	mcp/planning/design-autonomous-campaign-supervisor-v2-8bd732f3-87440292	a9a51d15fbebdc283969bb5c2a4bb18e595d0e99	2026-08-14 23:55:36 -0600	docs: save MCP design autonomous-campaign-supervisor-v2
+BRANCH	mcp/planning/design-autonomous-campaign-supervisor-v3-8bd732f3-cace5046	3bebe7417d623d7dc4493155dfa927b5a8f67a6c	2026-08-14 23:57:48 -0600	docs: save MCP design autonomous-campaign-supervisor-v3
+BRANCH	mcp/planning/design-kproof-retry-this-work-68687b50-cbfc0b01	203a5e29e198e65c37f28f91be9bf2c7c9f2ceb3	2026-08-10 17:34:37 -0600	docs: save MCP design kproof-retry-this-work
+BRANCH	mcp/planning/design-kproof-retry-this-work-6de35bde-2cc58b5a	d96e0181557e172f4daddb427ad017434494264f	2026-08-10 17:38:40 -0600	docs: save MCP design kproof-retry-this-work
+BRANCH	mcp/planning/plan-autonomous-campaign-supervisor-77d1eb17-dc9a398d	4c1fed72031ec6bf319f7bfbbe5df1abf11c4a8f	2026-08-14 13:56:06 -0600	docs: save MCP plan autonomous-campaign-supervisor
+BRANCH	mcp/planning/plan-autonomous-campaign-supervisor-rebase-da0f210f-6a9f8eb2	f6b15f7dd2f8ef0523abdae91d2be76b15dbba39	2026-08-14 23:21:05 -0600	docs: save MCP plan autonomous-campaign-supervisor-rebase
+BRANCH	mcp/planning/plan-autonomous-campaign-supervisor-v2-a9a51d15-450268a7	b50b1c703103117052b4478f9d63a3c94ddd47e0	2026-08-14 23:55:38 -0600	docs: save MCP plan autonomous-campaign-supervisor-v2
+BRANCH	mcp/planning/plan-autonomous-campaign-supervisor-v3-3bebe741-08bc9441	1073cd073207735da6564e9f4598fa24863155f6	2026-08-14 23:57:49 -0600	docs: save MCP plan autonomous-campaign-supervisor-v3
+BRANCH	mcp/planning/plan-kproof-retry-this-work-203a5e29-461b5547	59ca4c8af55cd5dce08ed9c3c38919835f5a8a6d	2026-08-10 17:35:16 -0600	docs: save MCP plan kproof-retry-this-work
+BRANCH	mcp/planning/plan-kproof-retry-this-work-d96e0181-04c31e5e	a382144fcffe91ff865d6bf0a58a7992f5356157	2026-08-10 17:39:07 -0600	docs: save MCP plan kproof-retry-this-work
+BRANCH	mcp/planning/plan-kproof-retry-this-work-d96e0181-111cb244	60014092c8af6746c4d1af5b8fcf97f0c80ead32	2026-08-10 17:41:28 -0600	docs: save MCP plan kproof-retry-this-work
+BRANCH	proof/kproof-final-control	29db013e09e1ec89f8d4616d65fb0bb26996e7ac	2026-08-10 18:59:19 -0600	docs(kproof): rebind approved plan to repaired design
+BRANCH	proof/live-current-20260804-212614	024de380728177275725d579bc8ff41f2825b16c	2026-08-15 07:24:21 -0600	docs: refresh proof session handoff
+BRANCH	research/architecture-migration-analysis-cec062f	4d3739ae5f4e81501fbcfdfb275d62d615cd7cbc	2026-08-05 15:10:22 -0600	research: architecture migration analysis — Kitty to Open Brain/Ringer/Open Engine
+BRANCH	research/chat-ux-harvest-2026-08-01	ca4acad2037546dd9c600eca44119fdf97d47436	2026-08-01 18:13:26 -0600	docs(research): chat UI harvest — 7 upstreams, 5 packets, license matrix
+BRANCH	research/mature-product-2026-07-25	bb23fc75f3adf8026d3ec273fba56a4a5c3f9dd2	2026-07-25 17:35:16 -0600	docs(plans): remove premature process-hardening plan from research branch
+
+STASHES=20
+STASH	stash@{0}	7b547a4aa0776ce33aa6f9c13ec6dd96c11a7091	On feat/builder-action-retirement: settings json local tweak
+STASH	stash@{1}	c128ce88c3f9864f72258e92962f05d6976fbb3c	WIP on docs/ratification-governance-replacement: 71b64e0b docs: ratify architecture governance (12 adjudicated decisions)
+STASH	stash@{2}	8257ee3e08f9f056369984cf638fdb6ab65a55da	WIP on fix/gateway-llm-cron: 7806252c fix(gateway): harden LLM response parsing and cron schedule idempotency
+STASH	stash@{3}	4d503ecd16018b4a4c1c1ac546690f37f0ce13c8	WIP on proof/live-current-20260804-212614: 98db9600 proof: carry two-week audit onto current main
+STASH	stash@{4}	f65578573c6ce4de35645f35717254edb296cd7e	On jacob202/builder-trust-repair: contamination-from-parallel-process-gateway-cron-llm
+STASH	stash@{5}	344f11c268cbff7cb7dc26778efa1082c3ba7acf	On main: pre-openwebui-local-continuity-2026-08-03
+STASH	stash@{6}	b89905d09b2b99650693da2d2ae8edb09074494a	pre-openwebui-bootstrap-20260802-123047 (restored)
+STASH	stash@{7}	85fbb5ab7d9015bbe9c63f4af90d9e530f61bf47	WIP on recovery/open-session-audit-2026-08-01: 88cf8735 docs: session audit, plus a rule for how agents write to Jacob
+STASH	stash@{8}	8d22ea2729f74326d087bfe4c484463742d1994e	On feat/image-agent-a2: slice1-pre-branch-config-providers
+STASH	stash@{9}	1ab93b0e50caf2eba80555837961043e4d288252	On feat/runpod-image-studio-smoke: stash handoff/state before recovery branch
+STASH	stash@{10}	64d3436399ec6fb2006a45dc5c8f147c26d14374	WIP on fix/life-first-home-truth: 7d203c08 docs(state): track PR 325 review
+STASH	stash@{11}	9b54d91c4d7488262172dfb4ed1f90021da2eef2	On main: dirty-handoff-state-main
+STASH	stash@{12}	eb9e44e8307953c5719d452191051f8b26995520	On feat/kittybuilder-brain-initiatives: opencode.jsonc permission relaxation on feat/kittybuilder-brain-initiatives
+STASH	stash@{13}	c15e022e201ef64cd925015c82299e8807178c9c	WIP on contract-first: 11f22de fix(hygiene): rename unused _parse_event_time param to suppress vulture
+STASH	stash@{14}	7e7c8316e758c27036706e09ef6ccc40ecff0315	On main: dirty-worktree-before-branch-merge
+STASH	stash@{15}	0d426a5da98e3760f2a02e1a183a3301f6975437	WIP on feat/frontend-consolidation-wave: f2f79dc Merge pull request #216 from jacob202/docs/kitty-frontend-experience-harvest-2026-07-20
+STASH	stash@{16}	69710640a28919a6b4a67594a648978e4e52592c	WIP on docs/kitty-frontend-experience-harvest-2026-07-20: 23ff786 docs(state): record PR #216 in handoff and state
+STASH	stash@{17}	dc2322b87a7f990c4e812e926dcdb24fad69bf23	On feat/campaign-alpha-phase-2-integration: phase-8-9-pre-isolation: tracked builder-runtime + state mods
+STASH	stash@{18}	cc36d1db13e4ff5f0ba6fca441e9e4a77d58a214	On feat/wip-campaign-and-runtime: wip-runtime-files-pre-isolation
+STASH	stash@{19}	757356e1b773f4391e0745d29a5abcebc49043dc	On feat/builder-runtime-scope-hardening: pre-isolation-wip-runtime-and-campaign
