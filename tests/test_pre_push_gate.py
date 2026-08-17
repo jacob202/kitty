@@ -183,3 +183,15 @@ def test_full_gate_preserves_infrastructure_exit_class(hook_text):
     assert "gate_rc} -eq 127" in hook_text
     assert 'if [[ "${INFRA_FAILED}" == "1" ]]' in hook_text
     assert "exit 75" in hook_text
+
+
+def test_hook_accepts_gits_remote_name_and_url_arguments(hook_text):
+    assert 'REMOTE_NAME="${1:-}"' in hook_text
+    assert 'REMOTE_URL="${2:-}"' in hook_text
+    assert "Git invokes pre-push as: <hook> <remote-name> <remote-url>" in hook_text
+
+
+def test_hook_blocks_direct_main_push_without_explicit_override(hook_text):
+    assert "refs/heads/main" in hook_text
+    assert "KITTY_ALLOW_DIRECT_MAIN_PUSH" in hook_text
+    assert hook_text.index("refs/heads/main") < hook_text.index("Checking before push")
