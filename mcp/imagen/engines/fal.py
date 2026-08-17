@@ -52,6 +52,25 @@ def _headers() -> dict[str, str]:
     return {"Authorization": f"Key {_api_key()}"}
 
 
+def _fal_image_size(aspect_ratio: str) -> str | dict[str, int]:
+    known: dict[str, str | dict[str, int]] = {
+        "1:1": "square_hd",
+        "3:2": {"width": 1216, "height": 832},
+        "2:3": {"width": 832, "height": 1216},
+        "3:4": "portrait_4_3",
+        "4:3": "landscape_4_3",
+        "4:5": {"width": 896, "height": 1088},
+        "5:4": {"width": 1088, "height": 896},
+        "9:16": "portrait_16_9",
+        "16:9": "landscape_16_9",
+        "21:9": {"width": 1536, "height": 640},
+    }
+    try:
+        return known[aspect_ratio]
+    except KeyError as exc:
+        raise ValueError(f"unsupported Fal aspect ratio: {aspect_ratio}") from exc
+
+
 class FalEngine:
     """Fal REST backend — FLUX PuLID with one required identity reference."""
 
@@ -97,6 +116,7 @@ class FalEngine:
             "prompt": full_prompt,
             "reference_image_url": _to_data_uri(identity_images[0]),
             "id_weight": id_weight,
+            "image_size": _fal_image_size(aspect_ratio),
         }
         if negative_prompt:
             payload["negative_prompt"] = negative_prompt
