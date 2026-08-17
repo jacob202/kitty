@@ -65,7 +65,7 @@
           },
           {
             "type": "command",
-            "command": "if [[ \"${CLAUDE_FILE_PATH:-}\" == *.py ]] && command -v ruff &>/dev/null; then ruff check --quiet \"$CLAUDE_FILE_PATH\" 2>&1 | head -20 || true; fi"
+            "command": "bash .claude/hooks/format-edited.sh"
           }
         ]
       }
