@@ -1407,6 +1407,35 @@ def blocked_packets(
     return blocked
 
 
+def _reconciled_interruption_pending_release(
+    initiative_id: str,
+    packet: dict[str, Any],
+    *,
+    db_path: Path | None,
+) -> bool:
+    """True when crash reconciliation finished but task release did not.
+
+    The durable ``infrastructure_failed`` event is written only after the
+    stale attempt is closed and its branch lease is released. If the process
+    dies before the subsequent task release, that event makes the remaining
+    blocked task safely reclaimable without pretending an open attempt exists.
+    """
+    attempts = ba.list_attempts(initiative_id, packet["packet_id"], db_path=db_path)
+    if not attempts:
+        return False
+    latest = attempts[-1]
+    if latest.get("outcome") != ba.ATTEMPT_CRASHED:
+        return False
+    attempt_id = latest.get("id")
+    return any(
+        event["type"] == "infrastructure_failed"
+        and isinstance(event.get("payload"), dict)
+        and event["payload"].get("phase") == "stale_attempt_reconciliation"
+        and event["payload"].get("attempt_id") == attempt_id
+        for event in bq.list_events(packet["task_id"], db_path=db_path)
+    )
+
+
 def _recovery_packets(
     initiative_id: str,
     packets: list[dict[str, Any]],
@@ -1439,6 +1468,8 @@ def _recovery_packets(
             continue
         if ba.list_stale_attempts(
             initiative_id, packet["packet_id"], db_path=db_path
+        ) or _reconciled_interruption_pending_release(
+            initiative_id, packet, db_path=db_path
         ):
             recovery.append(packet)
     return recovery
@@ -1494,6 +1525,14 @@ def initiative_status(
     unreachable = _compute_unreachable(packets, extra_blocking=exhausted)
     eligible = eligible_packets(initiative_id, db_path)
     blocked = blocked_packets(initiative_id, db_path)
+    recovery = _recovery_packets(
+        initiative_id,
+        packets,
+        exhausted=exhausted,
+        unreachable=unreachable,
+        db_path=db_path,
+    )
+    recovery_ids = {packet["packet_id"] for packet in recovery}
 
     done = [p["packet_id"] for p in packets if p["state"] == bq.DONE]
     failed = [
@@ -1504,7 +1543,8 @@ def initiative_status(
     in_progress = [
         p["packet_id"]
         for p in packets
-        if p["state"] not in (bq.DONE, bq.QUEUED, *list(_BLOCKING_STATES))
+        if p["packet_id"] not in recovery_ids
+        and p["state"] not in (bq.DONE, bq.QUEUED, *list(_BLOCKING_STATES))
     ]
     pending = [
         p["packet_id"]
@@ -1526,7 +1566,12 @@ def initiative_status(
         has_eligible=bool(eligible),
     )
 
-    next_p = eligible[0] if eligible else None
+    candidates = [*eligible, *recovery]
+    next_p = (
+        min(candidates, key=lambda packet: int(packet["seq"]))
+        if candidates
+        else None
+    )
     evidence = _initiative_evidence(packets, db_path)
     stop_decision = _latest_stop_class_decision(packets, db_path)
     return {
@@ -1548,6 +1593,7 @@ def initiative_status(
         ),
         "total_packets": len(packets),
         "eligible": [p["packet_id"] for p in eligible],
+        "recovery_needed": [p["packet_id"] for p in recovery],
         "blocked": [p["packet_id"] for p in blocked],
         "exhausted": sorted(exhausted),
         "done": done,
