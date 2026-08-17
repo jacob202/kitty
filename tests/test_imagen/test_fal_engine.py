@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from mcp.imagen.config import settings
@@ -18,6 +19,13 @@ def engine():
     from mcp.imagen.engines.fal import FalEngine
 
     return FalEngine()
+
+
+@pytest.fixture()
+def identity_image(tmp_path):
+    ref = tmp_path / "identity.png"
+    ref.write_bytes(b"reference-bytes")
+    return ref
 
 
 @pytest.fixture(autouse=True)
@@ -71,13 +79,13 @@ def test_model_name(engine):
     assert engine.model_name == settings.fal_model
 
 
-def test_generate_no_api_key_raises(engine, monkeypatch):
+def test_generate_no_api_key_raises(engine, identity_image, monkeypatch):
     monkeypatch.delenv("FAL_KEY", raising=False)
     with pytest.raises(RuntimeError, match="FAL_KEY"):
-        engine.generate("prompt")
+        engine.generate("prompt", identity_images=[identity_image])
 
 
-def test_generate_happy_path(engine):
+def test_generate_happy_path(engine, identity_image):
     with (
         patch("httpx.post", return_value=_submit_resp()) as mock_post,
         patch(
@@ -85,7 +93,7 @@ def test_generate_happy_path(engine):
             side_effect=[_status_resp(), _result_resp(), _image_bytes_resp()],
         ) as mock_get,
     ):
-        result = engine.generate("a test prompt", seed=42)
+        result = engine.generate("a test prompt", seed=42, identity_images=[identity_image])
 
     assert result == b"fake-image-bytes"
     _, kwargs = mock_post.call_args
@@ -93,10 +101,11 @@ def test_generate_happy_path(engine):
     payload = kwargs["json"]
     assert payload["prompt"].startswith("a test prompt")
     assert payload["seed"] == 42
+    assert payload["reference_image_url"].startswith("data:")
     assert mock_get.call_count == 3
 
 
-def test_generate_polls_until_completed(engine):
+def test_generate_polls_until_completed(engine, identity_image):
     with (
         patch("httpx.post", return_value=_submit_resp()),
         patch(
@@ -110,29 +119,40 @@ def test_generate_polls_until_completed(engine):
             ],
         ) as mock_get,
     ):
-        result = engine.generate("prompt")
+        result = engine.generate("prompt", identity_images=[identity_image])
 
     assert result == b"fake-image-bytes"
     assert mock_get.call_count == 5
 
 
-def test_generate_poll_timeout_raises(engine, monkeypatch):
+def test_generate_poll_timeout_raises(engine, identity_image, monkeypatch):
     monkeypatch.setattr(settings, "fal_poll_max_attempts", 2)
     with (
         patch("httpx.post", return_value=_submit_resp()),
         patch("httpx.get", return_value=_status_resp("IN_PROGRESS")),
     ):
         with pytest.raises(RuntimeError, match="timed out"):
-            engine.generate("prompt")
+            engine.generate("prompt", identity_images=[identity_image])
 
 
-def test_generate_failed_status_is_refusal(engine):
+def test_generate_failed_status_is_refusal(engine, identity_image):
     with (
         patch("httpx.post", return_value=_submit_resp()),
         patch("httpx.get", return_value=_status_resp("FAILED")),
     ):
         with pytest.raises(RefusalError):
-            engine.generate("prompt")
+            engine.generate("prompt", identity_images=[identity_image])
+
+
+def test_poll_failure_after_ack_does_not_resubmit_paid_generation(engine, identity_image):
+    with (
+        patch("httpx.post", return_value=_submit_resp()) as mock_post,
+        patch("httpx.get", side_effect=httpx.ConnectError("poll failed")),
+    ):
+        with pytest.raises(httpx.ConnectError, match="poll failed"):
+            engine.generate("prompt", identity_images=[identity_image])
+
+    mock_post.assert_called_once()
 
 
 def test_single_identity_image_required(engine, tmp_path):
@@ -163,18 +183,12 @@ def test_single_identity_image_sets_reference_url(engine, tmp_path):
     assert payload["id_weight"] == 0.75
 
 
-def test_zero_identity_images_omits_reference(engine):
-    with (
-        patch("httpx.post", return_value=_submit_resp()) as mock_post,
-        patch(
-            "httpx.get",
-            side_effect=[_status_resp(), _result_resp(), _image_bytes_resp()],
-        ),
-    ):
-        engine.generate("prompt")
+def test_zero_identity_images_fail_before_provider_call(engine):
+    with patch("httpx.post") as mock_post:
+        with pytest.raises(ValueError, match="exactly one"):
+            engine.generate("prompt")
 
-    payload = mock_post.call_args.kwargs["json"]
-    assert "reference_image_url" not in payload
+    mock_post.assert_not_called()
 
 
 def test_edit_not_supported(engine, tmp_path):
@@ -182,7 +196,7 @@ def test_edit_not_supported(engine, tmp_path):
         engine.edit(tmp_path / "x.png", "make it blue")
 
 
-def test_generate_async_delegates(engine):
+def test_generate_async_delegates(engine, identity_image):
     import asyncio
 
     with (
@@ -192,5 +206,7 @@ def test_generate_async_delegates(engine):
             side_effect=[_status_resp(), _result_resp(), _image_bytes_resp()],
         ),
     ):
-        result = asyncio.run(engine.generate_async("prompt", seed=7))
+        result = asyncio.run(
+            engine.generate_async("prompt", seed=7, identity_images=[identity_image])
+        )
     assert result == b"fake-image-bytes"
