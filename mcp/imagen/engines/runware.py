@@ -7,12 +7,9 @@ restricted to exactly one reference image — the character-locked pipeline
 this engine feeds never has more than one approved reference, and silently
 accepting several would let unlocked photos leak into conditioning.
 
-Schema note: this was written against public Runware documentation/SDK type
-definitions (``positivePrompt``, ``seedImage``, ``lora: [{model, weight}]``,
-``puLID: {images, idWeight, ...}``); the primary docs domain
-(``runware.ai``) was unreachable from this environment's network egress
-policy at write time. Re-verify the exact field names against
-https://runware.ai/docs before the first live (paid) request.
+The request shape is pinned to Runware's current FLUX.1 [dev] API reference:
+``inputs.seedImage`` for img2img, ``safety.checkContent`` for content safety,
+``lora: [{model, weight}]``, and ``puLID: {images, idWeight, ...}``.
 """
 
 from __future__ import annotations
@@ -114,7 +111,7 @@ class RunwareEngine:
             "numberResults": 1,
             "outputType": "base64Data",
             "outputFormat": "PNG",
-            "checkNSFW": True,
+            "safety": {"checkContent": True},
         }
         if negative_prompt:
             task["negativePrompt"] = negative_prompt
@@ -128,7 +125,7 @@ class RunwareEngine:
             task["lora"] = lora
 
         if init_image is not None:
-            task["seedImage"] = _to_data_uri(init_image)
+            task["inputs"] = {"seedImage": _to_data_uri(init_image)}
             task["strength"] = strength
 
         if identity_images:
@@ -187,7 +184,18 @@ class RunwareEngine:
             headers={"Authorization": f"Bearer {key}"},
             timeout=120,
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            if 400 <= status < 500 and status != 429:
+                if status in {401, 403}:
+                    raise RuntimeError(
+                        "Runware authentication failed. Check RUNWARE_API_KEY and use a rotated key."
+                    ) from e
+                raise RuntimeError(f"Runware request rejected with HTTP {status}") from e
+            raise
+
         payload = resp.json()
         data = payload.get("data") if isinstance(payload, dict) else payload
         if not isinstance(data, list) or not data:
