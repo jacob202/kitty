@@ -120,3 +120,13 @@ def test_risk_guardrail_uses_label_approval_and_reacts_to_label_changes() -> Non
     assert "labeled" in text and "unlabeled" in text
     assert "Manual approval:\\s*YES" not in text
     assert "isDependabot" not in text
+
+
+def test_new_head_invalidates_existing_risk_approval() -> None:
+    pr = _pr(_body(not_user_facing=True), labels=(pr_policy.RISK_APPROVED_LABEL,))
+    violations = pr_policy.evaluate_policy(
+        pr,
+        [".github/workflows/tests.yml"],
+        event_action="synchronize",
+    )
+    assert any("re-approve" in item.lower() for item in violations)
