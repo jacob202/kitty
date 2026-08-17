@@ -51,10 +51,77 @@ def test_generate_returns_bytes(engine):
     assert task["positivePrompt"].startswith("a test prompt")
     assert task["seed"] == 42
     assert task["model"] == settings.runware_model
+    assert task["outputType"] == "URL"
     assert task["safety"] == {"checkContent": True}
     assert "checkNSFW" not in task
     assert kwargs["headers"]["Authorization"] == "Bearer test-key-not-real"
 
+
+
+def test_generate_url_response_downloads_bytes(engine):
+    resp = MagicMock()
+    resp.json.return_value = {
+        "data": [{"taskType": "imageInference", "imageURL": "https://im.runware.ai/x.jpg"}]
+    }
+    resp.raise_for_status.return_value = None
+    image_resp = MagicMock()
+    image_resp.content = b"downloaded-image"
+    image_resp.raise_for_status.return_value = None
+
+    with patch("httpx.post", return_value=resp), patch("httpx.get", return_value=image_resp) as mock_get:
+        result = engine.generate("prompt")
+
+    assert result == b"downloaded-image"
+    mock_get.assert_called_once_with("https://im.runware.ai/x.jpg", timeout=120, follow_redirects=True)
+
+
+def test_generate_url_404_fails_cleanly_without_regenerating(engine):
+    api_resp = MagicMock()
+    api_resp.json.return_value = {
+        "data": [{"taskType": "imageInference", "imageURL": "https://im.runware.ai/missing.jpg"}]
+    }
+    api_resp.raise_for_status.return_value = None
+    request = httpx.Request("GET", "https://im.runware.ai/missing.jpg")
+    response = httpx.Response(404, request=request)
+    image_resp = MagicMock()
+    image_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "404 Not Found", request=request, response=response
+    )
+
+    with patch("httpx.post", return_value=api_resp) as mock_post, patch(
+        "httpx.get", return_value=image_resp
+    ) as mock_get:
+        with pytest.raises(RuntimeError, match="image download failed with HTTP 404"):
+            engine.generate("prompt")
+
+    mock_post.assert_called_once()
+    mock_get.assert_called_once()
+
+
+def test_generate_url_503_retries_download_without_regenerating(engine):
+    api_resp = MagicMock()
+    api_resp.json.return_value = {
+        "data": [{"taskType": "imageInference", "imageURL": "https://im.runware.ai/retry.jpg"}]
+    }
+    api_resp.raise_for_status.return_value = None
+    request = httpx.Request("GET", "https://im.runware.ai/retry.jpg")
+    response = httpx.Response(503, request=request)
+    bad = MagicMock()
+    bad.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "503 Service Unavailable", request=request, response=response
+    )
+    good = MagicMock()
+    good.raise_for_status.return_value = None
+    good.content = b"download-recovered"
+
+    with patch("httpx.post", return_value=api_resp) as mock_post, patch(
+        "httpx.get", side_effect=[bad, good]
+    ) as mock_get:
+        result = engine.generate("prompt")
+
+    assert result == b"download-recovered"
+    mock_post.assert_called_once()
+    assert mock_get.call_count == 2
 
 def test_generate_no_api_key_raises(engine, monkeypatch):
     monkeypatch.delenv("RUNWARE_API_KEY", raising=False)
@@ -113,9 +180,10 @@ def test_single_identity_image_accepted(engine, tmp_path):
 
     task = mock_post.call_args.kwargs["json"][0]
     assert "puLID" in task
-    assert len(task["puLID"]["images"]) == 1
+    assert len(task["puLID"]["inputImages"]) == 1
     assert task["puLID"]["idWeight"] == 0.9
-    assert task["puLID"]["images"][0].startswith("data:")
+    assert task["puLID"]["inputImages"][0].startswith("data:")
+    assert "images" not in task["puLID"]
 
 
 def test_zero_identity_images_omits_pulid(engine):
@@ -173,6 +241,21 @@ def test_unexpected_response_shape_raises(engine):
         with pytest.raises(RuntimeError, match="unexpected response shape"):
             engine.generate("prompt")
 
+
+
+def test_http_400_is_retried_and_can_recover(engine):
+    request = httpx.Request("POST", "https://api.runware.ai/v1")
+    response = httpx.Response(400, request=request)
+    status_error = httpx.HTTPStatusError("400 Bad Request", request=request, response=response)
+    bad = MagicMock()
+    bad.raise_for_status.side_effect = status_error
+    good = _ok_response(base64.b64encode(b"recovered").decode())
+
+    with patch("httpx.post", side_effect=[bad, good]) as mock_post:
+        result = engine.generate("prompt")
+
+    assert result == b"recovered"
+    assert mock_post.call_count == 2
 
 def test_non_retryable_auth_error_is_not_retried(engine):
     request = httpx.Request("POST", "https://api.runware.ai/v1")
