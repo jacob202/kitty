@@ -109,3 +109,14 @@ def test_pr_policy_workflow_has_stable_required_check_name() -> None:
     assert "synchronize" in text
     assert "labeled" in text
     assert "unlabeled" in text
+
+
+def test_risk_guardrail_uses_label_approval_and_reacts_to_label_changes() -> None:
+    from pathlib import Path
+
+    workflow = Path(__file__).parents[1] / ".github" / "workflows" / "pr-risk-guardrails.yml"
+    text = workflow.read_text(encoding="utf-8")
+    assert pr_policy.RISK_APPROVED_LABEL in text
+    assert "labeled" in text and "unlabeled" in text
+    assert "Manual approval:\\s*YES" not in text
+    assert "isDependabot" not in text
