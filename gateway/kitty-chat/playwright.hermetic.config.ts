@@ -32,7 +32,7 @@ export default defineConfig({
       env: { ...process.env, KITTY_FAKE_LITELLM_PORT: String(llmPort) },
     },
     {
-      command: `cd ../.. && ${python} -m uvicorn gateway.app:app --host 127.0.0.1 --port ${gatewayPort}`,
+      command: `cd ../.. && ${python} -m uvicorn --app-dir gateway/kitty-chat/tests/support hermetic_gateway:app --host 127.0.0.1 --port ${gatewayPort}`,
       url: `http://127.0.0.1:${gatewayPort}/health`,
       reuseExistingServer: false,
       timeout: 30_000,
