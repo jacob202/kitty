@@ -34,7 +34,6 @@ from typing import Any
 
 from gateway import builder_attempt as ba
 from gateway import builder_queue as bq
-from gateway.models.builder import Mission, MissionState
 
 MANIFEST_VERSION = 1
 
@@ -95,8 +94,8 @@ class InitiativeNotFoundError(ValueError):
     """Raised when an initiative ID does not exist."""
 
 
-class MissionSubmissionError(ValueError):
-    """Raised when a Mission cannot be represented by the initiative contract."""
+class RoutingPolicyError(ValueError):
+    """Raised when a caller attempts to override durable packet routing."""
 
 
 # ---------------------------------------------------------------------------
@@ -707,119 +706,6 @@ def warn_manifest(
 # ---------------------------------------------------------------------------
 
 
-def mission_to_manifest(mission: Mission) -> dict[str, Any]:
-    """Project one approved, bounded Mission into the canonical manifest.
-
-    The current Mission schema describes one executable packet at this
-    boundary. Unsupported fields are rejected instead of being silently
-    discarded; the supported model/provider routing policy is persisted with
-    the packet so Builder can enforce it at dispatch time.
-    """
-    if mission.state not in (MissionState.approved, MissionState.accepted):
-        raise MissionSubmissionError(
-            f"mission {mission.mission_id!r} must be approved before submission; "
-            f"got state {mission.state.value!r}"
-        )
-    if mission.approved_at is None:
-        raise MissionSubmissionError(
-            f"mission {mission.mission_id!r} is {mission.state.value!r} but has no approved_at"
-        )
-
-    execution = mission.execution
-    budgets = mission.budgets
-    evidence = mission.evidence_plan
-    unsupported: list[str] = []
-    if execution.strategy:
-        unsupported.append("execution.strategy")
-    if execution.packets:
-        unsupported.append("execution.packets (packet details are not authored here)")
-    if execution.dependencies:
-        unsupported.append("execution.dependencies")
-    if execution.forbidden_operations:
-        unsupported.append("execution.forbidden_operations")
-    if execution.worker_constraints:
-        unsupported.append("execution.worker_constraints")
-    routing_policy = dict(execution.routing_policy)
-    unknown_routing = set(routing_policy) - _ROUTING_POLICY_KEYS
-    if unknown_routing:
-        unsupported.append(
-            "execution.routing_policy keys: " + ", ".join(sorted(unknown_routing))
-        )
-    if budgets.max_time_seconds != 3600:
-        unsupported.append("budgets.max_time_seconds")
-    if budgets.max_tokens is not None:
-        unsupported.append("budgets.max_tokens")
-    if budgets.max_cost is not None:
-        unsupported.append("budgets.max_cost")
-    if evidence.required_artifacts:
-        unsupported.append("evidence_plan.required_artifacts")
-    if evidence.independent_review:
-        unsupported.append("evidence_plan.independent_review")
-    if unsupported:
-        raise MissionSubmissionError(
-            "Mission fields are not representable by the current initiative "
-            f"contract: {', '.join(unsupported)}"
-        )
-
-    acceptance_criteria = [
-        criterion.description.strip() for criterion in evidence.acceptance_criteria
-    ]
-    if not acceptance_criteria:
-        raise MissionSubmissionError(
-            "evidence_plan.acceptance_criteria must contain at least one criterion"
-        )
-    allowed_paths = [path.strip() for path in execution.allowed_paths]
-    if not allowed_paths:
-        raise MissionSubmissionError(
-            "execution.allowed_paths must contain at least one repo-relative path"
-        )
-
-    validation_commands = list(evidence.validation_commands)
-    for criterion in evidence.acceptance_criteria:
-        if criterion.validation_command and criterion.validation_command not in validation_commands:
-            validation_commands.append(criterion.validation_command)
-
-    policy: dict[str, Any] = {"max_attempts": budgets.max_attempts}
-    if routing_policy:
-        policy["routing"] = routing_policy
-
-    return {
-        "manifest_version": MANIFEST_VERSION,
-        "initiative_id": mission.mission_id,
-        "title": mission.objective,
-        "description": mission.rationale or mission.objective,
-        "packets": [
-            {
-                "id": "P1",
-                "title": mission.objective,
-                "objective": mission.objective,
-                "depends_on": [],
-                "acceptance_criteria": acceptance_criteria,
-                "allowed_paths": allowed_paths,
-                "policy": policy,
-                "validation_commands": validation_commands,
-            }
-        ],
-    }
-
-
-def submit_mission(
-    mission: Mission,
-    *,
-    dry_run: bool = False,
-    db_path: Path | None = None,
-    repo_root: Path | None = None,
-) -> dict[str, Any]:
-    """Validate and durably submit one approved Mission as an initiative."""
-    manifest = mission_to_manifest(mission)
-    return apply_manifest(
-        manifest,
-        dry_run=dry_run,
-        db_path=db_path,
-        repo_root=repo_root,
-        base_sha=mission.origin.base_sha,
-    )
-
 
 def resolve_packet_routing(
     initiative_id: str,
@@ -843,7 +729,7 @@ def resolve_packet_routing(
     for key, requested in (("model", model), ("provider", provider)):
         configured = routing.get(key)
         if configured is not None and requested is not None and configured != requested:
-            raise MissionSubmissionError(
+            raise RoutingPolicyError(
                 f"{initiative_id}/{packet_id} routing policy fixes {key}={configured!r}; "
                 f"requested override {requested!r} is not allowed"
             )

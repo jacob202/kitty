@@ -108,6 +108,20 @@ def test_milestone_nudges_no_crash():
     assert isinstance(result, list)
 
 
+
+def test_milestone_uses_completed_builder_initiatives():
+    from gateway.nudge import _check_milestones
+
+    initiatives = [
+        {"health_summary": {"state": "completed"}},
+        {"health_summary": {"state": "active"}},
+    ]
+    with patch("gateway.builder_initiative.list_initiatives", return_value=initiatives), \
+         patch("gateway.memory.list_memories", return_value=[]):
+        nudges = _check_milestones()
+
+    assert any(item["id"] == "milestone_first_build" for item in nudges)
+
 def test_nudge_id_is_deterministic():
     """Repeated research nudge ID is deterministic for the same topic."""
     topic = "test topic for id stability"

@@ -49,7 +49,7 @@ def build_runtime_snapshot(
     ``worker_session`` fields.
 
     Worker session state is inferred from the run table (PID, heartbeat,
-    exit_code) and the task's lease. It does not require a live WorkerSession
+    exit_code) and the task's lease. It does not require a live worker process
     instance — it is a read-only projection usable by the runtime manifest
     and cockpit.
     """

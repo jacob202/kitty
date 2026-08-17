@@ -1,7 +1,7 @@
 """Structured live event stream for the Builder cockpit.
 
 Extends the bare ``SSEBroadcaster`` with cursor-based replay, a bounded
-ring buffer, and gap detection for slow clients. Normalises WorkerSession
+ring buffer, and gap detection for slow clients. Normalises worker lifecycle
 events and Builder queue events into one versioned envelope.
 
 KB-BRAIN-03: exposes replayable events without polling combined.log.

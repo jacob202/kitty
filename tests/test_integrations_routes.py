@@ -61,24 +61,6 @@ def client(monkeypatch):
     # Weather
     monkeypatch.setattr("gateway.weather.get_weather", lambda: {"temp": 22, "condition": "clear"})
 
-    # Builder
-    monkeypatch.setattr(
-        "gateway.builder.start",
-        lambda goal, target_dir="", auto_approve=False: "build_001",
-    )
-    monkeypatch.setattr(
-        "gateway.builder.status",
-        lambda build_id: {"build_id": build_id, "status": "running"},
-    )
-    monkeypatch.setattr(
-        "gateway.builder.approve_stage",
-        lambda build_id, stage: True,
-    )
-    monkeypatch.setattr(
-        "gateway.builder.list_builds",
-        lambda limit=10: [],
-    )
-
     # Verifier — route awaits this, so it must be async.
     async def _mock_verify(target_dir, test_path=None):
         return {"passed": True}
@@ -221,48 +203,6 @@ class TestWeather:
         assert body["temp"] == 22
         assert body["condition"] == "clear"
 
-
-class TestBuild:
-    def test_start(self, client):
-        r = client.post("/build/start", json={"goal": "fix tests"})
-        assert r.status_code == 200
-        body = r.json()
-        assert body["build_id"] == "build_001"
-        assert body["status"] == "started"
-
-    def test_status(self, client):
-        r = client.get("/build/test-build")
-        assert r.status_code == 200
-        assert r.json()["status"] == "running"
-
-    def test_status_not_found(self, client, monkeypatch):
-        monkeypatch.setattr(
-            "gateway.builder.status",
-            lambda build_id: {"status": "not_found"},
-        )
-        r = client.get("/build/ghost")
-        assert r.status_code == 404
-        assert "not found" in r.json()["detail"].lower()
-
-    def test_approve(self, client):
-        r = client.post("/build/test-build/approve/review")
-        assert r.status_code == 200
-        body = r.json()
-        assert body["approved"] is True
-
-    def test_approve_fails(self, client, monkeypatch):
-        monkeypatch.setattr(
-            "gateway.builder.approve_stage",
-            lambda build_id, stage: False,
-        )
-        r = client.post("/build/test-build/approve/review")
-        assert r.status_code == 400
-        assert "not awaiting" in r.json()["detail"].lower()
-
-    def test_list(self, client):
-        r = client.get("/builds")
-        assert r.status_code == 200
-        assert "builds" in r.json()
 
 
 class TestVerify:

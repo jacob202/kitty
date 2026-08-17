@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 
 from gateway.builder_commands import (
@@ -22,13 +22,7 @@ from gateway.builder_commands import (
     dispatch_operator_command,
 )
 from gateway.builder_events import builder_events
-from gateway.builder_initiative import (
-    InitiativeConflictError,
-    MissionSubmissionError,
-    submit_mission,
-)
-from gateway.models.builder import BuilderCommandRequest, Mission
-from gateway.paths import BUILDER_QUEUE_DB, PROJECT_ROOT
+from gateway.models.builder import BuilderCommandRequest
 
 logger = logging.getLogger("kitty.builder_routes")
 router = APIRouter(tags=["builder"])
@@ -38,21 +32,6 @@ router = APIRouter(tags=["builder"])
 OperatorCommandRequest = BuilderCommandRequest
 # Kept for callers/tests that inspected the route's old registry alias.
 _COMMAND_HANDLERS = COMMAND_HANDLERS
-
-
-@router.post("/builder/initiative")
-def submit_builder_mission(body: Mission):
-    """Accept Kitty's approved Mission and materialize Builder work durably."""
-    try:
-        return submit_mission(
-            body,
-            db_path=BUILDER_QUEUE_DB,
-            repo_root=PROJECT_ROOT,
-        )
-    except MissionSubmissionError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except InitiativeConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/builder/events")
