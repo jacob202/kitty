@@ -151,6 +151,13 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: gateway/kitty-chat/package-lock.json
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Gateway dependencies for hermetic seam
+        run: pip install -r ../../requirements.txt
       - name: Install
         run: npm ci
       - name: Install Playwright browsers
@@ -196,6 +203,10 @@ jobs:
           PLAYWRIGHT_PORT: "4000"
           PLAYWRIGHT_REUSE_EXISTING_SERVER: "1"
         run: npx playwright test
+      - name: Run browser → real Gateway → temp DB seam
+        env:
+          KITTY_HERMETIC_PYTHON: python
+        run: npx playwright test --config playwright.hermetic.config.ts
       - name: Upload report
         if: failure()
         uses: actions/upload-artifact@v7
