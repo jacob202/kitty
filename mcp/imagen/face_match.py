@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib.util
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 class FaceScorerUnavailable(Exception):
@@ -33,8 +34,8 @@ class FaceMatcher:
 
     def __init__(self, reference_path: Path | str) -> None:
         self._reference_path = Path(reference_path)
-        self._app = None
-        self._reference_embedding = None
+        self._app: Any = None
+        self._reference_embedding: Any = None
 
     def ensure_ready(self) -> None:
         """Load the face model and embed the reference, once. Idempotent."""
