@@ -63,8 +63,13 @@ def _pricing_model(model: str) -> str:
     return model[len(prefix) :] if model.startswith(prefix) else model
 
 
-def _projected_attempt_cost_cad(governor_route: str, reviewer_model: str) -> float:
-    worker_cost = cg.estimate_pass_cost_cad(governor_route)
+def _projected_attempt_cost_cad(governor_route: str, worker_model: str, reviewer_model: str) -> float:
+    worker_shape = cg.TYPICAL_PASS_TOKENS.get(governor_route, {"input": 0, "output": 0})
+    worker_cost = cg.estimate_cost_cad(
+        _pricing_model(worker_model),
+        input_tokens=worker_shape["input"],
+        output_tokens=worker_shape["output"],
+    )
     reviewer_cost = cg.estimate_cost_cad(
         _pricing_model(reviewer_model),
         input_tokens=_REVIEW_TOKEN_SHAPE["input"],
@@ -118,7 +123,7 @@ def resolve_paid_route(
         route.get("max_projected_cad_per_attempt"),
         f"paid route {tier!r}.max_projected_cad_per_attempt",
     )
-    projected = _projected_attempt_cost_cad(governor_route, reviewer_model)
+    projected = _projected_attempt_cost_cad(governor_route, worker_model, reviewer_model)
     if projected > ceiling:
         raise PaidRoutingError(
             f"paid route {tier!r} projects CAD {projected:.4f} per attempt, "
