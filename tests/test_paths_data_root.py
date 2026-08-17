@@ -47,10 +47,11 @@ def test_data_root_can_be_overridden_for_isolated_runtimes(tmp_path: Path) -> No
             os.sys.executable,
             "-c",
             (
-                "from gateway import paths; "
+                "from gateway import paths, prefetcher; "
                 "print(paths.DATA_DIR); "
                 "print(paths.KITTY_DATA_DIR); "
-                "print(paths.KITTYBUILDER_DIR)"
+                "print(paths.KITTYBUILDER_DIR); "
+                "print(prefetcher._HISTORY)"
             ),
         ],
         cwd=ROOT,
@@ -64,6 +65,7 @@ def test_data_root_can_be_overridden_for_isolated_runtimes(tmp_path: Path) -> No
         str(data_root),
         str(data_root / "kitty"),
         str(data_root / "kittybuilder"),
+        str(data_root / "prefetch_history.jsonl"),
     ]
 
 

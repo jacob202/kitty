@@ -61,6 +61,18 @@ def _is_private_ip(ip: str) -> bool:
 def _resolve_and_validate_host(host: str) -> list[str]:
     """Resolve hostname to IPs and validate none are private/internal."""
     try:
+        literal_ip = ipaddress.ip_address(host)
+    except ValueError:
+        literal_ip = None
+    if literal_ip is not None:
+        if _is_private_ip(host):
+            raise HTTPException(
+                status_code=403,
+                detail=f"access to private/internal IP {host} is forbidden",
+            )
+        return [host]
+
+    try:
         infos = socket.getaddrinfo(host, None)
     except socket.gaierror as exc:
         raise HTTPException(status_code=400, detail=f"could not resolve host: {exc}")

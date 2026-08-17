@@ -26,10 +26,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from gateway import paths as _paths
+
 logger = logging.getLogger("kitty.prefetcher")
 
 _ROOT = Path(__file__).resolve().parent.parent
-_HISTORY = _ROOT / "data" / "prefetch_history.jsonl"
+_HISTORY = _paths.DATA_DIR / "prefetch_history.jsonl"
 
 # ponytail: naive in-process TTL cache + last-N history scan. Fine for a
 # single-user local gateway; swap for a real store if history outgrows memory.
