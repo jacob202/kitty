@@ -130,3 +130,18 @@ def test_new_head_invalidates_existing_risk_approval() -> None:
         event_action="synchronize",
     )
     assert any("re-approve" in item.lower() for item in violations)
+
+
+def test_new_head_invalidates_existing_large_change_approval() -> None:
+    pr = _pr(
+        _body(not_user_facing=True),
+        labels=(pr_policy.LARGE_CHANGE_APPROVED_LABEL,),
+        additions=1600,
+        deletions=20,
+    )
+    violations = pr_policy.evaluate_policy(
+        pr,
+        ["gateway/builder_supervisor.py"],
+        event_action="synchronize",
+    )
+    assert any("re-approve" in item.lower() for item in violations)
