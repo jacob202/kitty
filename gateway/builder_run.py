@@ -415,6 +415,17 @@ def run_initiative(
     bi.init_db(db_path)
     bq.recover_expired_leases(db_path=db_path)
     bq.recover_interrupted_runs(db_path=db_path)
+    # Recovery housekeeping is independent of execution permission. Close any
+    # liveness-certified stale attempt and requeue its packet before honoring
+    # an operator pause, so a paused campaign never preserves fake active work.
+    recovery_status = bi.initiative_status(initiative_id, db_path=db_path)
+    for recovery_packet_id in recovery_status.get("recovery_needed", []):
+        bl.reconcile_interrupted_packet(
+            initiative_id,
+            recovery_packet_id,
+            db_path=db_path,
+            repo_root=repo_root,
+        )
     started = time.monotonic()
     deadline_monotonic = (
         started + max_runtime_seconds if max_runtime_seconds is not None else None

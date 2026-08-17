@@ -83,6 +83,11 @@ def test_run_initiative_stops_when_effectiveness_guard_trips(monkeypatch):
     monkeypatch.setattr(br.bq, "recover_interrupted_runs", lambda db_path=None: [])
     monkeypatch.setattr(
         br.bi,
+        "initiative_status",
+        lambda initiative_id, db_path=None: {"recovery_needed": []},
+    )
+    monkeypatch.setattr(
+        br.bi,
         "get_initiative_state",
         lambda initiative_id, db_path=None: "running",
     )
