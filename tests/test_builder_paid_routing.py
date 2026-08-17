@@ -76,6 +76,30 @@ def test_projected_attempt_cost_must_fit_route_ceiling(tmp_path: Path):
         bpr.resolve_paid_route("cheap", config_path=path)
 
 
+def test_changing_worker_model_changes_projected_cost(tmp_path: Path):
+    # The projection must price the model actually configured to run, not a
+    # fixed governor default — otherwise swapping worker_model in config is a
+    # no-op for cost and the ceiling stops meaning anything.
+    cheap = _policy()
+    cheap_route = bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, cheap))
+
+    pricier = _policy()
+    pricier["routes"]["cheap"]["worker_model"] = "openrouter/deepseek/deepseek-v4-pro"
+    pricier_route = bpr.resolve_paid_route(
+        "cheap", config_path=_write(tmp_path, pricier)
+    )
+
+    assert pricier_route.projected_cost_cad > cheap_route.projected_cost_cad
+
+
+def test_unknown_worker_model_pricing_fails_loud(tmp_path: Path):
+    payload = _policy()
+    payload["routes"]["cheap"]["worker_model"] = "openrouter/some-vendor/unpriced-model"
+
+    with pytest.raises(Exception, match="no snapshot price"):
+        bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, payload))
+
+
 def test_paid_reviewer_must_be_independent_model(tmp_path: Path):
     payload = _policy()
     payload["routes"]["cheap"]["reviewer_model"] = payload["routes"]["cheap"]["worker_model"]
