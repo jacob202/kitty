@@ -12,6 +12,7 @@ from mcp.imagen.engines.dalle import DalleEngine
 from mcp.imagen.engines.drawthings import DrawThingsEngine
 from mcp.imagen.engines.imagen4 import Imagen4Engine
 from mcp.imagen.engines.nano_banana import NanoBananaEngine
+from mcp.imagen.engines.runware import RunwareEngine
 
 _REGISTRY: dict[str, Engine] = {}
 
@@ -27,6 +28,7 @@ imagen4 = _register(Imagen4Engine())
 dalle = _register(DalleEngine())
 comfyui = _register(ComfyuiEngine())
 drawthings = _register(DrawThingsEngine())
+runware = _register(RunwareEngine())
 
 
 def get(name: str) -> Engine:

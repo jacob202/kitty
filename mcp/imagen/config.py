@@ -85,5 +85,17 @@ class Settings:
     # Face-lock reference directory
     faces_dir: Path = field(default_factory=lambda: Path("config/imagen/faces"))
 
+    # Single-reference character locks (private, never committed to git)
+    character_locks_dir: Path = field(
+        default_factory=lambda: Path(
+            _env("CHARACTER_LOCKS_DIR", str(Path.home() / "kitty-services" / "faces"))
+        )
+    )
+
+    # Runware (REST, FLUX + PuLID identity conditioning)
+    runware_model: str = field(
+        default_factory=lambda: _env("RUNWARE_MODEL", "runware:101@1")
+    )
+
 
 settings = Settings()
