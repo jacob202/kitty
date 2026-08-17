@@ -66,3 +66,28 @@ def test_scratch_runtime_root_remains_writable(tmp_path: Path) -> None:
     target.parent.mkdir(parents=True)
     target.write_text("ok", encoding="utf-8")
     assert target.read_text(encoding="utf-8") == "ok"
+
+def test_scratch_relative_data_dir_fd_is_not_mistaken_for_canonical(tmp_path: Path) -> None:
+    data = tmp_path / "data"
+    data.mkdir()
+    target = data / "ok.txt"
+    target.write_text("ok", encoding="utf-8")
+    base_fd = os.open(tmp_path, os.O_RDONLY)
+    try:
+        data_fd = os.open("data", os.O_RDONLY, dir_fd=base_fd)
+        try:
+            os.unlink("ok.txt", dir_fd=data_fd)
+        finally:
+            os.close(data_fd)
+    finally:
+        os.close(base_fd)
+    assert not target.exists()
+
+
+def test_canonical_dir_fd_relative_mutation_is_blocked() -> None:
+    data_fd = os.open(ROOT / "data", os.O_RDONLY)
+    try:
+        with pytest.raises(RuntimeError, match="canonical Kitty runtime mutation blocked"):
+            os.unlink(".pytest-must-never-unlink", dir_fd=data_fd)
+    finally:
+        os.close(data_fd)

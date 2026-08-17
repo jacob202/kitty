@@ -22,6 +22,7 @@ CANONICAL_DATA = (ROOT / "data").resolve()
 
 _INSTALLED = False
 _EXTERNAL_CONNECTS = 0
+_CANONICAL_DIR_FDS: set[int] = set()
 
 
 def _enabled() -> bool:
@@ -74,8 +75,22 @@ def _canonical(value: Any) -> bool:
     return path is not None and (path == CANONICAL_DATA or CANONICAL_DATA in path.parents)
 
 
-def _deny_path(value: Any, operation: str) -> None:
-    if _enabled() and _canonical(value):
+def _deny_path(value: Any, operation: str, *, dir_fd: int | None = None) -> None:
+    if not _enabled():
+        return
+    raw = None
+    if not isinstance(value, int) and value is not None:
+        try:
+            raw = os.fspath(value)
+        except TypeError:
+            raw = None
+    if dir_fd is not None and raw is not None and not os.path.isabs(raw):
+        if dir_fd in _CANONICAL_DIR_FDS:
+            raise RuntimeError(
+                f"canonical Kitty runtime mutation blocked during tests: {operation} {value!r}"
+            )
+        return
+    if _canonical(value):
         raise RuntimeError(
             f"canonical Kitty runtime mutation blocked during tests: {operation} {value!r}"
         )
@@ -101,6 +116,7 @@ def reset_live_counter() -> None:
     _EXTERNAL_CONNECTS = 0
 
 
+
 def install_test_guards() -> None:
     global _INSTALLED
     if _INSTALLED:
@@ -110,6 +126,7 @@ def install_test_guards() -> None:
     real_open = builtins.open
     real_io_open = io.open
     real_os_open = os.open
+    real_os_close = os.close
     real_connect = socket.socket.connect
     real_connect_ex = socket.socket.connect_ex
     real_sendto = socket.socket.sendto
@@ -127,10 +144,30 @@ def install_test_guards() -> None:
         return real_io_open(file, mode, *args, **kwargs)
 
     def guarded_os_open(path, flags, *args, **kwargs):
+        dir_fd = kwargs.get("dir_fd")
         write_flags = os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT | os.O_TRUNC
         if flags & write_flags:
-            _deny_path(path, "os.open")
-        return real_os_open(path, flags, *args, **kwargs)
+            _deny_path(path, "os.open", dir_fd=dir_fd)
+        fd = real_os_open(path, flags, *args, **kwargs)
+        raw = os.fspath(path) if not isinstance(path, int) else None
+        inherited_canonical = (
+            dir_fd is not None
+            and raw is not None
+            and not os.path.isabs(raw)
+            and dir_fd in _CANONICAL_DIR_FDS
+        )
+        direct_canonical = (
+            raw is not None
+            and (dir_fd is None or os.path.isabs(raw))
+            and _canonical(path)
+        )
+        if direct_canonical or inherited_canonical:
+            _CANONICAL_DIR_FDS.add(fd)
+        return fd
+
+    def guarded_os_close(fd):
+        _CANONICAL_DIR_FDS.discard(fd)
+        return real_os_close(fd)
 
     def guarded_sqlite(database, *args, **kwargs):
         _deny_path(database, "sqlite3.connect")
@@ -163,6 +200,7 @@ def install_test_guards() -> None:
     builtins.open = guarded_open
     io.open = guarded_io_open
     os.open = guarded_os_open
+    os.close = guarded_os_close
     sqlite3.connect = guarded_sqlite
     socket.getaddrinfo = guarded_getaddrinfo
     socket.socket.connect = guarded_connect  # type: ignore[method-assign]
@@ -172,7 +210,7 @@ def install_test_guards() -> None:
     def wrap_one(name: str) -> None:
         real = getattr(os, name)
         def guarded(path, *args, **kwargs):
-            _deny_path(path, f"os.{name}")
+            _deny_path(path, f"os.{name}", dir_fd=kwargs.get("dir_fd"))
             return real(path, *args, **kwargs)
         setattr(os, name, guarded)
 
@@ -185,8 +223,12 @@ def install_test_guards() -> None:
             continue
         real = getattr(os, name)
         def guarded_pair(src, dst, *args, __real=real, __name=name, **kwargs):
-            _deny_path(src, f"os.{__name} source")
-            _deny_path(dst, f"os.{__name} destination")
+            _deny_path(src, f"os.{__name} source", dir_fd=kwargs.get("src_dir_fd"))
+            _deny_path(
+                dst,
+                f"os.{__name} destination",
+                dir_fd=kwargs.get("dst_dir_fd", kwargs.get("dir_fd")),
+            )
             return __real(src, dst, *args, **kwargs)
         setattr(os, name, guarded_pair)
 
