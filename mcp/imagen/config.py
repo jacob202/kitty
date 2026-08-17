@@ -97,5 +97,19 @@ class Settings:
         default_factory=lambda: _env("RUNWARE_MODEL", "runware:101@1")
     )
 
+    # Fal (REST, queue-based, FLUX PuLID identity conditioning)
+    fal_model: str = field(default_factory=lambda: _env("FAL_MODEL", "fal-ai/flux-pulid"))
+    fal_poll_interval_seconds: float = field(
+        default_factory=lambda: float(_env("FAL_POLL_INTERVAL_SECONDS", "2"))
+    )
+    fal_poll_max_attempts: int = field(
+        default_factory=lambda: _env_int("FAL_POLL_MAX_ATTEMPTS", 60)
+    )
+
+    # Airforce (OpenAI-compatible REST gateway, no identity conditioning)
+    airforce_model: str = field(
+        default_factory=lambda: _env("AIRFORCE_MODEL", "grok-imagine-image")
+    )
+
 
 settings = Settings()

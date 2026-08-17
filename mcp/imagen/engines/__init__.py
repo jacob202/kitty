@@ -6,10 +6,12 @@ The tool layer dispatches by name via ``registry.get(engine_name)``.
 
 from __future__ import annotations
 
+from mcp.imagen.engines.airforce import AirforceEngine
 from mcp.imagen.engines.base import Engine
 from mcp.imagen.engines.comfyui import ComfyuiEngine
 from mcp.imagen.engines.dalle import DalleEngine
 from mcp.imagen.engines.drawthings import DrawThingsEngine
+from mcp.imagen.engines.fal import FalEngine
 from mcp.imagen.engines.imagen4 import Imagen4Engine
 from mcp.imagen.engines.nano_banana import NanoBananaEngine
 from mcp.imagen.engines.runware import RunwareEngine
@@ -29,6 +31,8 @@ dalle = _register(DalleEngine())
 comfyui = _register(ComfyuiEngine())
 drawthings = _register(DrawThingsEngine())
 runware = _register(RunwareEngine())
+fal = _register(FalEngine())
+airforce = _register(AirforceEngine())
 
 
 def get(name: str) -> Engine:
