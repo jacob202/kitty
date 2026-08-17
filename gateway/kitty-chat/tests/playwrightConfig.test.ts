@@ -3,6 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 const originalPort = process.env.PLAYWRIGHT_PORT
 const originalReuse = process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER
 
+// Importing Playwright's config through Vitest/Vite is normally sub-second, but
+// module-transform contention in the full suite has crossed Vitest's 5s default.
+// Keep the extra headroom scoped to these two dynamic-import tests only.
+const CONFIG_LOAD_TIMEOUT_MS = 10_000
+
 async function loadConfig() {
   vi.resetModules()
   return (await import('../playwright.config')).default
@@ -24,12 +29,14 @@ describe('Playwright smoke server ownership', () => {
     const webServer = config.webServer as Exclude<typeof config.webServer, undefined>
 
     expect(config.use?.baseURL).toBe('http://127.0.0.1:4100')
+    expect(config.retries).toBe(1)
+    expect(config.failOnFlakyTests).toBe(true)
     expect(Array.isArray(webServer)).toBe(false)
     if (Array.isArray(webServer)) throw new Error('expected one smoke webServer')
     expect(webServer.port).toBe(4100)
     expect(webServer.reuseExistingServer).toBe(false)
     expect(webServer.command).toContain('-p 4100')
-  })
+  }, CONFIG_LOAD_TIMEOUT_MS)
 
   it('allows CI to explicitly reuse its checkout-owned port 4000 server', async () => {
     process.env.PLAYWRIGHT_PORT = '4000'
@@ -43,5 +50,5 @@ describe('Playwright smoke server ownership', () => {
     if (Array.isArray(webServer)) throw new Error('expected one smoke webServer')
     expect(webServer.port).toBe(4000)
     expect(webServer.reuseExistingServer).toBe(true)
-  })
+  }, CONFIG_LOAD_TIMEOUT_MS)
 })
