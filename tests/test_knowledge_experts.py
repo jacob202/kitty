@@ -52,6 +52,23 @@ async def test_search_raises_when_knowledge_store_is_unavailable():
 
 
 @pytest.mark.asyncio
+async def test_search_rejects_malformed_store_response():
+    store = MagicMock()
+    store.count.return_value = 1
+    store.query.return_value = {"metadatas": [[]], "distances": [[]]}
+
+    with (
+        patch("gateway.knowledge.archivist._get_collection", return_value=store),
+        patch(
+            "gateway.knowledge.archivist._embed_cached",
+            return_value=(0.1, 0.2, 0.3),
+        ),
+        pytest.raises(knowledge.KnowledgeSearchError, match="knowledge search failed"),
+    ):
+        await knowledge.search("state route")
+
+
+@pytest.mark.asyncio
 async def test_coding_expert_refuses_when_uploaded_sources_do_not_support_answer():
     answerer = MagicMock(side_effect=AssertionError("model must not be called"))
 
