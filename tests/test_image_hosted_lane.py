@@ -21,7 +21,7 @@ def test_paid_generation_is_off_until_it_is_switched_on():
     available, reason = image_runner.openrouter_images_available()
 
     assert available is False
-    assert "7 cents" in reason
+    assert "billed" in reason.lower()
     assert "KITTY_IMAGE_PAID_ENABLED" in reason
 
 
@@ -60,7 +60,7 @@ def test_flux_is_off_until_the_same_switch_is_thrown(monkeypatch):
     available, reason = image_runner.flux_images_available()
 
     assert available is False
-    assert "2.5 cents" in reason
+    assert "billed" in reason.lower()
 
 
 def test_flux_needs_its_own_key(monkeypatch):

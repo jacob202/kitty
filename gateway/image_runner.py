@@ -35,6 +35,7 @@ class JobResult:
     recipe: str | None = None
     routing_reason: str | None = None
     character_weight: float | None = None
+    cost_usd: float | None = None
 
 
 async def run(
@@ -380,9 +381,40 @@ def _mark_failed(job_id: str, message: str) -> None:
     image_jobs.transition(job_id, ImageJobStatus.FAILED)
 
 
-#: Engines ``run`` will dispatch to. comfyui and drawthings are local; openrouter
-#: is the hosted lane and the only one that spends money.
+#: Engines ``run`` will dispatch to. Hosted engines carry a conservative
+#: contracted per-render estimate so the session budget can be reserved before
+#: a provider call is allowed to spend money.
 ENGINES = frozenset({"comfyui", "drawthings", "flux", "openrouter"})
+_ESTIMATED_COST_USD = {
+    "comfyui": 0.0,
+    "drawthings": 0.0,
+    # Budget reservations are deliberately conservative ceilings, not price
+    # claims. Actual provider-reported cost is reconciled after success when
+    # available.
+    "flux": 0.08,
+    "openrouter": 0.15,
+}
+
+
+def estimated_cost_usd(engine: str) -> float:
+    """Return the conservative per-render cost used for pre-dispatch budgeting."""
+    normalized = engine.strip().lower()
+    try:
+        return _ESTIMATED_COST_USD[normalized]
+    except KeyError as exc:
+        raise ImageRunnerError(f"no cost contract for image engine {engine!r}") from exc
+
+
+def paid_engine_available(engine: str) -> tuple[bool, str]:
+    """Preflight a hosted lane before consuming any session budget."""
+    normalized = engine.strip().lower()
+    if normalized == "flux":
+        return flux_images_available()
+    if normalized == "openrouter":
+        return openrouter_images_available()
+    if normalized in {"comfyui", "drawthings"}:
+        return True, ""
+    raise ImageRunnerError(f"no availability contract for image engine {engine!r}")
 
 #: Accepts image input as well as text, so the same route does img2img editing.
 OPENROUTER_IMAGE_MODEL = os.environ.get(
@@ -406,7 +438,7 @@ def openrouter_images_available() -> tuple[bool, str]:
     """Whether the hosted lane will run, and why not when it will not."""
     if not paid_images_enabled():
         return False, (
-            "Paid image generation is off. Every image costs about 7 cents. "
+            "Paid image generation is off. OpenRouter image generation is billed usage. "
             "Set KITTY_IMAGE_PAID_ENABLED=1 in .env and restart Kitty to turn it on."
         )
     if not os.environ.get("OPENROUTER_API_KEY", "").strip():
@@ -472,6 +504,7 @@ async def _run_openrouter(
                     "model": OPENROUTER_IMAGE_MODEL,
                     "messages": [{"role": "user", "content": content}],
                     "modalities": ["image", "text"],
+                    "usage": {"include": True},
                 },
             )
         if response.status_code != 200:
@@ -479,6 +512,13 @@ async def _run_openrouter(
                 f"OpenRouter returned HTTP {response.status_code}: {response.text[:300]}"
             )
         payload = response.json()
+        usage = payload.get("usage") or {}
+        raw_cost = usage.get("cost") if isinstance(usage, dict) else None
+        cost_usd = (
+            float(raw_cost)
+            if isinstance(raw_cost, (int, float)) and raw_cost >= 0
+            else None
+        )
         message = payload["choices"][0]["message"]
         images = message.get("images") or []
         if not images:
@@ -502,6 +542,7 @@ async def _run_openrouter(
         filename=str(path),
         engine="openrouter",
         recipe=recipe.recipe_id if recipe else None,
+        cost_usd=cost_usd,
     )
 
 
@@ -517,7 +558,7 @@ def flux_images_available() -> tuple[bool, str]:
     """Whether the Flux lane will run, and why not when it will not."""
     if not paid_images_enabled():
         return False, (
-            "Paid image generation is off. Flux costs about 2.5 cents a picture. "
+            "Paid image generation is off. Flux image generation is billed per request. "
             "Set KITTY_IMAGE_PAID_ENABLED=1 in .env and restart Kitty to turn it on."
         )
     if not os.environ.get("BFL_API_KEY", "").strip():
@@ -575,7 +616,14 @@ async def _run_flux(
                 raise ImageRunnerError(
                     f"Flux returned HTTP {submit.status_code}: {submit.text[:300]}"
                 )
-            polling_url = submit.json()["polling_url"]
+            submit_payload = submit.json()
+            polling_url = submit_payload["polling_url"]
+            raw_cost_credits = submit_payload.get("cost")
+            cost_usd = (
+                float(raw_cost_credits) * 0.01
+                if isinstance(raw_cost_credits, (int, float)) and raw_cost_credits >= 0
+                else None
+            )
 
             image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
             for _ in range(150):
@@ -612,4 +660,5 @@ async def _run_flux(
         filename=str(path),
         engine="flux",
         recipe=recipe.recipe_id if recipe else None,
+        cost_usd=cost_usd,
     )
