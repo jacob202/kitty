@@ -1,6 +1,17 @@
+import atexit
 import os
+import shutil
+import tempfile
+from pathlib import Path
 
 import pytest
+
+# Isolate every default runtime store before test modules import gateway.paths.
+# A pytest run must never write into the checkout's real data/ directory.
+_TEST_DATA_ROOT = Path(tempfile.mkdtemp(prefix="kitty-pytest-data-"))
+os.environ["KITTY_DATA_ROOT"] = str(_TEST_DATA_ROOT)
+os.environ.pop("KITTY_BUILDER_DATA_DIR", None)
+atexit.register(shutil.rmtree, _TEST_DATA_ROOT, True)
 
 # Ensure gateway auth uses test bypass when GATEWAY_SECRET is unset during pytest runs.
 os.environ.setdefault("KITTY_ENV", "test")
