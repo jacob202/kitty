@@ -88,4 +88,22 @@ describe('curated model picker', () => {
     expect(screen.queryByText('Repository implementation and debugging.')).not.toBeInTheDocument()
     expect(screen.queryByText('vendor/coder')).not.toBeInTheDocument()
   })
+
+  it('fails closed instead of presenting a static fallback list as live availability', () => {
+    const models = buildPickerModels(payload)
+    render(
+      <ModelSelectorCmdk
+        activeModel={models[0]}
+        models={models}
+        onSelectModel={vi.fn()}
+        modelFromGateway={false}
+      />,
+    )
+
+    const trigger = screen.getByRole('button', { name: /Model: Daily Kitty/ })
+    expect(trigger).toBeDisabled()
+    expect(trigger).toHaveAttribute('title', 'model availability is unknown')
+    fireEvent.click(trigger)
+    expect(screen.queryByPlaceholderText('search the shortlist…')).not.toBeInTheDocument()
+  })
 })
