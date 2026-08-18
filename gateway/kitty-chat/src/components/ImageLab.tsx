@@ -98,7 +98,7 @@ async function jsonOrError(response: Response): Promise<any> {
   return await response.json()
 }
 
-export function ImageLab() {
+export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   const status = useImageStatus()
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [prompt, setPrompt] = useState('')
@@ -322,7 +322,10 @@ export function ImageLab() {
         </div>
       )}
 
-      <div style={workspaceStyle}>
+      <div
+        data-testid="image-lab-workspace"
+        style={{ ...workspaceStyle, ...(compact ? { gridTemplateColumns: '1fr' } : {}) }}
+      >
         <div style={conversationStyle}>
           {turns.length === 0 && (
             <div style={emptyStyle}>
