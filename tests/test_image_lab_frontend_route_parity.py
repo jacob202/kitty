@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from fastapi import FastAPI
 
+from gateway.paths import ROOT
 from gateway.routes.register import register_routes
 
 
-ROOT = Path(__file__).resolve().parents[1]
 IMAGE_LAB = ROOT / "gateway" / "kitty-chat" / "src" / "components" / "ImageLab.tsx"
 
 
