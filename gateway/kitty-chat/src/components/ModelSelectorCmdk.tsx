@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { Command } from 'cmdk'
 import type { Model } from '@/lib/types'
+import { buildPickerModels, fetchModelPicker } from '@/lib/model-picker'
 
 interface Props {
   activeModel: Model
@@ -18,7 +19,21 @@ interface Props {
 export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFromGateway = true, compact = false }: Props) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [curatedModels, setCuratedModels] = useState<Model[] | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void fetchModelPicker(controller.signal)
+      .then(payload => {
+        const curated = buildPickerModels(payload)
+        if (curated.length > 0) setCuratedModels(curated)
+      })
+      .catch(() => {
+        // The caller's runtime-backed model list remains the honest fallback.
+      })
+    return () => controller.abort()
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -32,6 +47,8 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
   useEffect(() => {
     if (!open) setSearch('')
   }, [open])
+
+  const visibleModels = curatedModels ?? models
 
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
@@ -62,16 +79,16 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
             <Command.Input
               value={search}
               onValueChange={setSearch}
-              placeholder="search models…"
+              placeholder="search the shortlist…"
               autoFocus
               style={inputStyle}
             />
             <Command.List style={listStyle}>
               <Command.Empty style={emptyStyle}>no matches</Command.Empty>
-              {models.map((m) => (
+              {visibleModels.map((m) => (
                 <Command.Item
                   key={m.id}
-                  value={m.name}
+                  value={`${m.name} ${m.upstreamModel ?? ''} ${m.provider ?? ''} ${m.purpose ?? ''}`}
                   onSelect={() => {
                     onSelectModel(m)
                     setOpen(false)
@@ -86,30 +103,58 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
                     aria-hidden="true"
                     style={{
                       width: 7, height: 7, borderRadius: 99,
-                      background: m.color, flexShrink: 0,
+                      background: m.color, flexShrink: 0, marginTop: 5,
                     }}
                   />
-                  <span style={{ flex: 1 }}>{m.name}</span>
-                  <span style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 9,
-                    letterSpacing: '0.05em',
-                    padding: '1px 5px',
-                    borderRadius: 999,
-                    border: '1px solid var(--line)',
-                    color: 'var(--ink-2)',
-                    flexShrink: 0,
-                  }}>
-                    {providerLabel(m.id)}
+                  <span style={{ display: 'grid', gap: 2, flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'flex', gap: 8, alignItems: 'baseline', minWidth: 0 }}>
+                      <span style={{ fontWeight: 650 }}>{m.name}</span>
+                      <span style={providerChipStyle}>{providerLabel(m)}</span>
+                    </span>
+                    {m.purpose && <span style={purposeStyle}>{m.purpose}</span>}
+                    <span style={decisionRowStyle}>
+                      <span>{m.upstreamModel ?? 'automatic route'}</span>
+                      {formatContext(m.contextLength) && <span>{formatContext(m.contextLength)}</span>}
+                      {formatPrice(m) && <span>{formatPrice(m)}</span>}
+                    </span>
                   </span>
                 </Command.Item>
               ))}
             </Command.List>
+            <div style={footerStyle}>
+              curated choices · exact provider facts only when known
+            </div>
           </Command>
         </div>
       )}
     </div>
   )
+}
+
+function formatContext(contextLength?: number | null): string | null {
+  if (!contextLength || contextLength <= 0) return null
+  if (contextLength >= 1_000_000) return `${(contextLength / 1_000_000).toFixed(contextLength % 1_000_000 === 0 ? 0 : 1)}m context`
+  if (contextLength >= 1_000) return `${Math.round(contextLength / 1_000)}k context`
+  return `${contextLength} context`
+}
+
+function formatPrice(model: Model): string | null {
+  const input = model.inputUsdPerMillion
+  const output = model.outputUsdPerMillion
+  if (input == null && output == null) return null
+  const money = (value: number | null | undefined) => value == null ? '?' : `$${value.toFixed(2)}`
+  return `${money(input)} in · ${money(output)} out / 1m`
+}
+
+function providerLabel(model: Model): string {
+  if (model.provider) return model.provider === 'openrouter' ? 'OpenRouter' : model.provider
+  if (!model.upstreamModel) return 'auto'
+  const prefix = model.upstreamModel.split('/')[0]?.toLowerCase() ?? ''
+  const labels: Record<string, string> = {
+    openrouter: 'OpenRouter', openai: 'OpenAI', google: 'Google', gemini: 'Gemini',
+    anthropic: 'Anthropic', deepseek: 'DeepSeek', nvidia: 'NVIDIA', local: 'local',
+  }
+  return labels[prefix] ?? prefix
 }
 
 const chipBtnStyle: CSSProperties = {
@@ -137,7 +182,8 @@ const popoverStyle: CSSProperties = {
   background: 'var(--surface)',
   border: '1.5px solid var(--line)',
   borderRadius: 12,
-  minWidth: 260,
+  minWidth: 360,
+  maxWidth: 'min(440px, calc(100vw - 24px))',
   zIndex: 100,
   boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
   overflow: 'hidden',
@@ -157,7 +203,7 @@ const inputStyle: CSSProperties = {
 
 const listStyle: CSSProperties = {
   padding: 6,
-  maxHeight: 280,
+  maxHeight: 360,
   overflowY: 'auto',
 }
 
@@ -171,36 +217,34 @@ const emptyStyle: CSSProperties = {
 
 const itemStyle: CSSProperties = {
   display: 'flex',
-  alignItems: 'center',
+  alignItems: 'flex-start',
   gap: 10,
   width: '100%',
-  padding: '8px 12px',
+  padding: '9px 12px',
   borderRadius: 8,
   border: 'none',
   cursor: 'pointer',
   fontFamily: 'var(--font-body)',
   fontSize: 13,
-  fontWeight: 500,
   color: 'var(--ink)',
 }
 
-const idStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 9,
-  color: 'var(--ink-2)',
-  opacity: 0.7,
+const providerChipStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.04em',
+  padding: '1px 5px', borderRadius: 999, border: '1px solid var(--line)',
+  color: 'var(--ink-2)', flexShrink: 0,
 }
 
-function providerLabel(modelId: string): string {
-  const prefix = modelId.split('/')[0]?.toLowerCase() ?? ''
-  const labels: Record<string, string> = {
-    openrouter: 'OpenRouter',
-    openai: 'OpenAI',
-    gemini: 'Gemini',
-    anthropic: 'Anthropic',
-    deepseek: 'DeepSeek',
-    nvidia: 'NVIDIA',
-    local: 'local',
-  }
-  return labels[prefix] ?? prefix
+const purposeStyle: CSSProperties = {
+  fontFamily: 'var(--font-body)', fontSize: 11, lineHeight: 1.35, color: 'var(--ink-2)',
+}
+
+const decisionRowStyle: CSSProperties = {
+  display: 'flex', flexWrap: 'wrap', gap: '3px 10px', fontFamily: 'var(--font-mono)',
+  fontSize: 9, color: 'var(--ink-2)', opacity: 0.8,
+}
+
+const footerStyle: CSSProperties = {
+  borderTop: '1px solid var(--line)', padding: '7px 12px', fontFamily: 'var(--font-mono)',
+  fontSize: 9, color: 'var(--ink-2)',
 }
