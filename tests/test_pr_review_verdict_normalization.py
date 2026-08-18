@@ -1,4 +1,5 @@
-from scripts import pr_review, pr_review_gate
+from scripts import pr_review
+from scripts import pr_review_gate
 
 
 HEAD = "a" * 40
