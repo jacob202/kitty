@@ -19,18 +19,18 @@ class ModelPresetError(RuntimeError):
     """The picker cannot safely represent the configured model policy."""
 
 
-def _positive_float(value: Any) -> float | None:
+def _nonnegative_float(value: Any) -> float | None:
     try:
         number = float(value)
     except (TypeError, ValueError):
         return None
-    if not math.isfinite(number) or number <= 0:
+    if not math.isfinite(number) or number < 0:
         return None
     return number
 
 
 def _per_million(value: Any) -> float | None:
-    number = _positive_float(value)
+    number = _nonnegative_float(value)
     return None if number is None else number * 1_000_000
 
 
@@ -114,7 +114,8 @@ def _cheaper_alternatives(
     incumbent_pricing = _pricing(incumbent)
     base_in = incumbent_pricing["input_usd_per_million"]
     base_out = incumbent_pricing["output_usd_per_million"]
-    if base_in is None or base_out is None:
+    # A free incumbent has no meaningful percentage-saving denominator.
+    if base_in is None or base_out is None or base_in <= 0 or base_out <= 0:
         return []
 
     candidates: list[tuple[float, Mapping[str, Any]]] = []
@@ -147,6 +148,18 @@ def _cheaper_alternatives(
     return result
 
 
+def _cost_threshold(model_policy: Mapping[str, Any]) -> float:
+    evaluation = model_policy.get("evaluation")
+    raw = evaluation.get("cost_reduction_required") if isinstance(evaluation, Mapping) else None
+    try:
+        threshold = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise ModelPresetError("model policy cost_reduction_required must be a number") from exc
+    if not math.isfinite(threshold) or threshold < 0 or threshold > 1:
+        raise ModelPresetError("model policy cost_reduction_required must be between 0 and 1")
+    return threshold
+
+
 def build_model_picker(
     *,
     snapshot_path: Path = OPENROUTER_SNAPSHOT,
@@ -159,7 +172,7 @@ def build_model_picker(
         raise ModelPresetError("model policy has no roles mapping")
 
     discovery, models = _discovery(snapshot_path)
-    threshold = float(model_policy.get("evaluation", {}).get("cost_reduction_required", 0.25))
+    threshold = _cost_threshold(model_policy)
     presets: list[dict[str, Any]] = []
 
     for role_name, role in roles.items():
