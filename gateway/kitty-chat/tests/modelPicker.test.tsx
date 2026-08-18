@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ModelSelectorCmdk } from '../src/components/ModelSelectorCmdk'
-import { buildPickerModels, type GatewayModelPickerPayload } from '../src/lib/gateway'
+import { buildPickerModels, type GatewayModelPickerPayload } from '../src/lib/model-picker'
 
 const payload: GatewayModelPickerPayload = {
   schema_version: 1,
