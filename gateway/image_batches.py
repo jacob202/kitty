@@ -46,11 +46,15 @@ def scale_estimate(per_image: dict[str, Any], count: int) -> dict[str, Any]:
     if count not in _VALID_COUNTS:
         raise ValueError("image batch count must be one of 1, 2, or 4")
     estimate = _copy_json(per_image)
-    cost = estimate.get("cost") if isinstance(estimate.get("cost"), dict) else {}
+    raw_cost = estimate.get("cost")
+    cost: dict[str, Any] = raw_cost if isinstance(raw_cost, dict) else {}
+    estimate["cost"] = cost
     if cost.get("state") == "known" and cost.get("usd") is not None:
         cost["usd"] = round(float(cost["usd"]) * count, 6)
         cost["basis"] = f"{count} × ({cost.get('basis') or 'per-image estimate'})"
-    duration = estimate.get("duration") if isinstance(estimate.get("duration"), dict) else {}
+    raw_duration = estimate.get("duration")
+    duration: dict[str, Any] = raw_duration if isinstance(raw_duration, dict) else {}
+    estimate["duration"] = duration
     if duration.get("state") == "known" and duration.get("seconds") is not None:
         duration["seconds"] = round(float(duration["seconds"]) * count, 3)
         duration["basis"] = f"{count} sequential jobs × ({duration.get('basis') or 'per-image estimate'})"
