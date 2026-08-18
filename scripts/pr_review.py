@@ -196,9 +196,8 @@ def _review_chunk(chunk: str) -> str | None:
             ],
             "temperature": 0.1,
             "max_tokens": 3000,
-            # Both current cheap-review candidates expose optional reasoning.
-            # Disable it here so the output budget is reserved for the verdict
-            # rather than being consumed by hidden/internal reasoning tokens.
+            # Review models expose optional reasoning. Disable it here so the
+            # output budget is reserved for the verdict rather than hidden tokens.
             "reasoning": {"effort": "none"},
         }
     ).encode()
@@ -239,12 +238,61 @@ def _review_chunk(chunk: str) -> str | None:
     return None
 
 
+def _split_diff_files(diff: str) -> list[str]:
+    """Split a unified PR diff into complete per-file sections without losing bytes."""
+    if not diff:
+        return []
+    starts = [match.start() for match in re.finditer(r"(?m)^diff --git ", diff)]
+    if not starts:
+        return [diff]
+
+    sections: list[str] = []
+    prefix = diff[: starts[0]]
+    boundaries = starts + [len(diff)]
+    for index, start in enumerate(starts):
+        section = diff[start : boundaries[index + 1]]
+        if index == 0 and prefix:
+            section = prefix + section
+        sections.append(section)
+    return sections
+
+
+def _review_chunks(diff: str) -> list[str]:
+    """Pack complete file diffs into bounded chunks; split only oversized files."""
+    if MAX_REVIEW_CHARS <= 0:
+        raise ValueError("PR_REVIEW_CHUNK_CHARS must be positive")
+
+    chunks: list[str] = []
+    current = ""
+    for section in _split_diff_files(diff):
+        if len(section) > MAX_REVIEW_CHARS:
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.extend(
+                section[start : start + MAX_REVIEW_CHARS]
+                for start in range(0, len(section), MAX_REVIEW_CHARS)
+            )
+            continue
+
+        if current and len(current) + len(section) > MAX_REVIEW_CHARS:
+            chunks.append(current)
+            current = section
+        else:
+            current += section
+
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 def review_diff(diff: str) -> str | None:
-    """Review every byte of the diff in bounded chunks; never silently truncate."""
-    chunks = [
-        diff[start : start + MAX_REVIEW_CHARS]
-        for start in range(0, len(diff), MAX_REVIEW_CHARS)
-    ]
+    """Review every byte of the diff in bounded, file-aware chunks."""
+    try:
+        chunks = _review_chunks(diff)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return None
     if not chunks:
         return NO_FINDINGS
     if len(chunks) > MAX_REVIEW_CHUNKS:
