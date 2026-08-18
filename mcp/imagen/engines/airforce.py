@@ -27,6 +27,7 @@ from mcp.imagen.config import settings
 from mcp.imagen.engines.base import RefusalError
 
 AIRFORCE_API_URL = "https://api.airforce/v1/images/generations"
+_GROK_IMAGINE_SUPPORTED_ASPECT_RATIOS = frozenset({"1:1", "16:9", "9:16"})
 
 
 def _api_key() -> str:
@@ -74,6 +75,16 @@ class AirforceEngine:
                 "Airforce does not support identity conditioning. Passing "
                 "identity_images would silently generate an unconditioned image "
                 "under a character lock — use engine='runware' or 'fal' instead."
+            )
+
+        if (
+            settings.airforce_model == "grok-imagine-image"
+            and aspect_ratio not in _GROK_IMAGINE_SUPPORTED_ASPECT_RATIOS
+        ):
+            supported = ", ".join(sorted(_GROK_IMAGINE_SUPPORTED_ASPECT_RATIOS))
+            raise ValueError(
+                f"Airforce grok-imagine-image does not support aspect ratio {aspect_ratio!r}; "
+                f"supported ratios: {supported}"
             )
 
         full_prompt = prompt + (settings.photoreal_suffix if photorealistic else "")
