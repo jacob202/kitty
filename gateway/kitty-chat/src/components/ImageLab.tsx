@@ -148,6 +148,11 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
     void (async () => {
       try {
         const sessionResponse = await fetch(`/proxy/studio/sessions/${encodeURIComponent(stored)}`)
+        if (sessionResponse.status === 404) {
+          window.localStorage.removeItem(SESSION_KEY)
+          if (!cancelled) setSessionId(null)
+          return
+        }
         const session = await jsonOrError(sessionResponse)
         if (cancelled) return
         setSessionId(session.session_id)
@@ -162,7 +167,6 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
         const batchPayload = await jsonOrError(batchesResponse)
         if (!cancelled && Array.isArray(batchPayload.batches)) setBatches(batchPayload.batches)
       } catch {
-        window.localStorage.removeItem(SESSION_KEY)
         if (!cancelled) setSessionId(null)
       }
     })()
