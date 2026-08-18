@@ -2,7 +2,8 @@
 
 A batch is one user request for 1, 2, or 4 outputs. Child items survive
 navigation and gateway restarts. Running provider work is never reported as
-canceled merely because queued siblings were canceled.
+canceled or failed when the local worker loses ownership but the provider
+outcome is not actually known.
 """
 
 from __future__ import annotations
@@ -147,6 +148,8 @@ def _refresh_batch(conn: Any, batch_id: str) -> None:
         status = "running"
     elif counts.get("queued"):
         status = "queued"
+    elif counts.get("unknown"):
+        status = "unknown"
     elif counts.get("succeeded") and not counts.get("failed") and not counts.get("canceled"):
         status = "succeeded"
     elif counts.get("succeeded"):
@@ -230,6 +233,26 @@ def fail_item(item_id: str, error: str, *, job_id: str | None = None) -> None:
         conn.commit()
 
 
+def mark_item_unknown(item_id: str, reason: str, *, job_id: str | None = None) -> None:
+    """Record loss of local ownership without inventing a provider outcome."""
+    now = _now_iso()
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        row = conn.execute(
+            "SELECT batch_id FROM image_batch_items WHERE item_id = ?", (item_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError(item_id)
+        conn.execute(
+            """UPDATE image_batch_items
+               SET status = 'unknown', job_id = COALESCE(?, job_id), error = ?, finished_at = ?
+               WHERE item_id = ?""",
+            (job_id, reason[:1000], now, item_id),
+        )
+        _refresh_batch(conn, row["batch_id"])
+        conn.commit()
+
+
 async def process_next(executor: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> bool:
     item = claim_next_item()
     if item is None:
@@ -237,7 +260,10 @@ async def process_next(executor: Callable[[dict[str, Any]], Awaitable[dict[str, 
     try:
         result = await executor(item["request"])
     except asyncio.CancelledError:
-        fail_item(item["item_id"], "gateway worker stopped while this image was running")
+        mark_item_unknown(
+            item["item_id"],
+            "gateway worker stopped while this image was running; provider outcome is unknown",
+        )
         raise
     except Exception as exc:
         fail_item(item["item_id"], f"{type(exc).__name__}: {exc}")
@@ -266,8 +292,8 @@ def reconcile_inflight() -> int:
         ]
         changed = conn.execute(
             """UPDATE image_batch_items
-               SET status = 'failed', error = ?, finished_at = ? WHERE status = 'running'""",
-            ("gateway restarted while this image was running; provider state may be unknown", now),
+               SET status = 'unknown', error = ?, finished_at = ? WHERE status = 'running'""",
+            ("gateway restarted while this image was running; provider outcome is unknown", now),
         ).rowcount
         for batch_id in batch_ids:
             _refresh_batch(conn, batch_id)
@@ -300,6 +326,7 @@ __all__ = [
     "fail_item",
     "get_batch",
     "list_batches",
+    "mark_item_unknown",
     "process_next",
     "reconcile_inflight",
     "scale_estimate",
