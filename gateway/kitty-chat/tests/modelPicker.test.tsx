@@ -3,6 +3,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ModelSelectorCmdk } from '../src/components/ModelSelectorCmdk'
 import { buildPickerModels, type GatewayModelPickerPayload } from '../src/lib/model-picker'
 
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+
 const payload: GatewayModelPickerPayload = {
   schema_version: 1,
   source: 'test',
