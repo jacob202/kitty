@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 from pathlib import Path
 
@@ -83,13 +84,29 @@ def test_cancel_only_stops_queued_children_not_running_provider_work() -> None:
     assert canceled["status"] == "running"
 
 
-def test_restart_fails_interrupted_child_but_preserves_queued_work() -> None:
+def test_restart_marks_interrupted_child_unknown_and_preserves_queued_work() -> None:
     batch = image_batches.create_batch({"prompt": "cats"}, count=4, per_image_estimate=_estimate())
     assert image_batches.claim_next_item() is not None
 
     assert image_batches.reconcile_inflight() == 1
     refreshed = image_batches.get_batch(batch["batch_id"])
     states = [item["status"] for item in refreshed["items"]]
-    assert states.count("failed") == 1
+    assert states.count("unknown") == 1
     assert states.count("queued") == 3
     assert refreshed["status"] == "queued"
+
+
+@pytest.mark.asyncio
+async def test_worker_cancellation_marks_inflight_provider_outcome_unknown() -> None:
+    batch = image_batches.create_batch({"prompt": "cats"}, count=1, per_image_estimate=_estimate())
+
+    async def execute(_request: dict) -> dict:
+        raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        await image_batches.process_next(execute)
+
+    refreshed = image_batches.get_batch(batch["batch_id"])
+    assert refreshed["items"][0]["status"] == "unknown"
+    assert "provider outcome is unknown" in refreshed["items"][0]["error"]
+    assert refreshed["status"] == "unknown"
