@@ -289,6 +289,18 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
     }
   }
 
+  async function clearAnchor() {
+    if (!sessionId) return
+    try {
+      const session = await jsonOrError(await fetch(`/proxy/studio/sessions/${encodeURIComponent(sessionId)}/anchor`, {
+        method: 'DELETE',
+      }))
+      setAnchorJobId(session.anchor_job_id ?? null)
+    } catch (err) {
+      setError(humanError(err))
+    }
+  }
+
   const estimateText = (() => {
     if (estimateLoading) return 'estimating…'
     if (!estimate) return `${count} image${count === 1 ? '' : 's'} · cost/time not known yet`
@@ -353,7 +365,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
             {anchorJobId && (
               <div data-testid="image-lab-anchor" style={anchorStyle}>
                 editing from {anchorJobId}
-                <button type="button" aria-label="clear selected image" onClick={() => setAnchorJobId(null)} style={iconButtonStyle}><X size={12} /></button>
+                <button type="button" aria-label="clear selected image" onClick={() => void clearAnchor()} style={iconButtonStyle}><X size={12} /></button>
               </div>
             )}
             <textarea
