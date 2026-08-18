@@ -47,7 +47,9 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0035 | [Browser-Verified Evidence Required for UI Claims](0035-browser-verified-evidence.md)          | Accepted                       | 2026-08-05 |
 | 0036 | [Builder Infrastructure Preserved — Refactored for Extraction Readiness](0036-builder-infrastructure-refactor.md) | Accepted | 2026-08-05 |
 | 0037 | [Adopt PAA as Kitty's Reference Architecture and Portability Profile](0037-paa-reference-profile.md) | Accepted | 2026-08-03 |
-| 0038 | [Builder Crash-Recovery Durability Contract](0038-builder-crash-recovery-durability.md) | Accepted | 2026-08-05 |
+| 0038 | [Builder Crash-Recovery Durability Contract](0038-builder-crash-recovery-durability.md)        | Accepted                       | 2026-08-05 |
+| 0039 | [Kitty Owns The Canonical Product Surface](0039-kitty-native-product-surface.md)               | Accepted                       | 2026-08-17 |
+| 0040 | [Image Lab Uses FLUX.2-First Intent Compilation And Native References](0040-image-lab-flux2-execution-architecture.md) | Accepted | 2026-08-18 |
 
 ## Cross-cutting decisions
 
