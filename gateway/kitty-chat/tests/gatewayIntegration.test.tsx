@@ -209,12 +209,17 @@ describe('TopBar', () => {
     render(<TopBar {...baseProps} modelFromGateway={false} />)
     const modelButton = screen.getByRole('button', { name: 'Model: default' })
     expect(modelButton).toBeDisabled()
-    expect(modelButton).toHaveAttribute('title', 'model availability is unknown')
+    expect(modelButton).toHaveAttribute(
+      'title',
+      'model availability is unknown — reconnect to Kitty before switching',
+    )
   })
 
   it('does not show an unknown-availability warning when modelFromGateway is true', () => {
     render(<TopBar {...baseProps} modelFromGateway={true} />)
-    expect(screen.queryByTitle('model availability is unknown')).not.toBeInTheDocument()
+    expect(
+      screen.queryByTitle('model availability is unknown — reconnect to Kitty before switching'),
+    ).not.toBeInTheDocument()
   })
 
   it('reserves the iOS status-bar safe area in mobile mode', () => {
