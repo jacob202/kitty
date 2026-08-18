@@ -39,7 +39,11 @@ def test_probe_failure_is_unknown_not_unavailable() -> None:
 
 def test_provider_configuration_does_not_claim_live_health(monkeypatch: pytest.MonkeyPatch) -> None:
     observed, valid = _times()
-    provider_id, config = next(iter(runtime_manifest.PROVIDERS.items()))
+    provider_id, config = next(
+        (provider_id, config)
+        for provider_id, config in runtime_manifest.PROVIDERS.items()
+        if config.api_key_env
+    )
     for key in config.api_key_env:
         monkeypatch.delenv(key, raising=False)
     facts = runtime_manifest._provider_facts(observed_at=observed, valid_until=valid)
