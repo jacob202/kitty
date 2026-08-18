@@ -102,8 +102,26 @@ describe('curated model picker', () => {
 
     const trigger = screen.getByRole('button', { name: /Model: Daily Kitty/ })
     expect(trigger).toBeDisabled()
-    expect(trigger).toHaveAttribute('title', 'model availability is unknown')
+    expect(trigger).toHaveAttribute(
+      'title',
+      'model availability is unknown — reconnect to Kitty before switching',
+    )
     fireEvent.click(trigger)
     expect(screen.queryByPlaceholderText('search the shortlist…')).not.toBeInTheDocument()
+  })
+
+  it('distinguishes an empty live model set from a search with no matches', () => {
+    const models = buildPickerModels(payload)
+    render(
+      <ModelSelectorCmdk
+        activeModel={models[0]}
+        models={[]}
+        onSelectModel={vi.fn()}
+        modelFromGateway
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Model: Daily Kitty/ }))
+    expect(screen.getByText('no live models available')).toBeInTheDocument()
   })
 })
