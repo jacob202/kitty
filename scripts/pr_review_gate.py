@@ -33,16 +33,36 @@ def _agent_exact_head_body(comment: dict[str, Any], head_sha: str) -> str | None
     return body
 
 
+def _agent_body_has_no_findings(body: str) -> bool:
+    """Accept a no-findings sentinel unless the same evidence contains a real finding block.
+
+    Review models occasionally explain why an observation was *not* promoted to a
+    finding before emitting the required sentinel. That prose is harmless. A
+    contradictory response that also contains the rubric's structured finding
+    fields remains blocking, so this does not turn the sentinel into an escape hatch.
+    """
+    if "No actionable findings in this diff." in body:
+        return True
+    if not re.search(rf"(?m)^\s*{re.escape(pr_review.NO_FINDINGS)}\s*$", body):
+        return False
+
+    finding_markers = (
+        r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Failure Mode(?:\*\*)?\s*:",
+        r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?Corrective Action(?:\*\*)?\s*:",
+    )
+    return not any(re.search(pattern, body) for pattern in finding_markers)
+
+
 def agent_review_approved(comment: dict[str, Any], head_sha: str) -> bool:
-    """Accept only the workflow-owned no-findings verdict for the exact full SHA."""
+    """Accept only workflow-owned no-findings evidence for the exact full SHA."""
     body = _agent_exact_head_body(comment, head_sha)
-    return bool(body and "No actionable findings in this diff." in body)
+    return bool(body and _agent_body_has_no_findings(body))
 
 
 def agent_review_blocked(comment: dict[str, Any], head_sha: str) -> bool:
     """Treat any exact-head workflow verdict other than no-findings as blocking."""
     body = _agent_exact_head_body(comment, head_sha)
-    return bool(body and "No actionable findings in this diff." not in body)
+    return bool(body and not _agent_body_has_no_findings(body))
 
 
 def builder_review_verdict(
