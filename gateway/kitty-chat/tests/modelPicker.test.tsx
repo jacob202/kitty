@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ModelSelectorCmdk } from '../src/components/ModelSelectorCmdk'
 import { buildPickerModels, type GatewayModelPickerPayload } from '../src/lib/model-picker'
@@ -39,7 +39,11 @@ const payload: GatewayModelPickerPayload = {
 }
 
 describe('curated model picker', () => {
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+  })
 
   it('maps role routes to selectable models while retaining exact upstream decision info', () => {
     const models = buildPickerModels(payload)
@@ -61,5 +65,27 @@ describe('curated model picker', () => {
     expect(screen.getByText('vendor/coder')).toBeInTheDocument()
     expect(screen.getByText(/200k context/i)).toBeInTheDocument()
     expect(screen.getByText(/\$0.50 in · \$2.00 out/i)).toBeInTheDocument()
+  })
+
+  it('uses curated data only to enrich runtime-backed choices, never to introduce another route', async () => {
+    const curated = buildPickerModels(payload)
+    const runtimeModels = [curated[0]]
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => payload,
+    })))
+
+    render(
+      <ModelSelectorCmdk
+        activeModel={runtimeModels[0]}
+        models={runtimeModels}
+        onSelectModel={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Model: Daily Kitty/ }))
+
+    await waitFor(() => expect(screen.getByText('Choose the right lane.')).toBeInTheDocument())
+    expect(screen.queryByText('Repository implementation and debugging.')).not.toBeInTheDocument()
+    expect(screen.queryByText('vendor/coder')).not.toBeInTheDocument()
   })
 })
