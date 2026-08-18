@@ -14,7 +14,7 @@ export default function StudioView({ isMobile }: { isMobile: boolean }) {
         padding: pad,
       }}
     >
-      <ImageLab />
+      <ImageLab compact={isMobile} />
     </div>
   )
 }
