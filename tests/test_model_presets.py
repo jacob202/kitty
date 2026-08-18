@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from gateway.model_presets import build_model_picker
+import pytest
+
+from gateway.model_presets import ModelPresetError, build_model_picker
 
 
 def _policy() -> dict:
@@ -57,9 +59,15 @@ def _snapshot(path: Path) -> None:
                         "suggested_roles": ["code"],
                     },
                     {
+                        "id": "vendor/free",
+                        "name": "Free candidate",
+                        "pricing": {"prompt": "0", "completion": "0"},
+                        "suggested_roles": ["code"],
+                    },
+                    {
                         "id": "vendor/bad-price",
                         "name": "Sentinel price",
-                        "pricing": {"prompt": "-1", "completion": "0"},
+                        "pricing": {"prompt": "-1", "completion": "-0.5"},
                         "suggested_roles": ["code"],
                     },
                 ],
@@ -97,11 +105,24 @@ def test_cheaper_candidate_requires_savings_on_both_input_and_output(tmp_path: P
     _snapshot(snapshot)
     payload = build_model_picker(snapshot_path=snapshot, policy=_policy())
     code = next(item for item in payload["presets"] if item["role"] == "code")
-    assert [item["model"] for item in code["alternatives"]] == ["vendor/cheaper"]
-    assert "quality and latency are unevaluated" in code["alternatives"][0]["reason"]
+    alternatives = {item["model"]: item for item in code["alternatives"]}
+    assert "vendor/cheaper" in alternatives
+    assert "quality and latency are unevaluated" in alternatives["vendor/cheaper"]["reason"]
 
 
-def test_negative_or_zero_provider_prices_never_create_savings_claims(tmp_path: Path) -> None:
+def test_free_candidate_is_known_free_and_can_be_a_cost_alternative(tmp_path: Path) -> None:
+    snapshot = tmp_path / "models.json"
+    _snapshot(snapshot)
+    payload = build_model_picker(snapshot_path=snapshot, policy=_policy())
+    code = next(item for item in payload["presets"] if item["role"] == "code")
+    free = next(item for item in code["alternatives"] if item["model"] == "vendor/free")
+    assert free["pricing"]["state"] == "known"
+    assert free["pricing"]["input_usd_per_million"] == 0.0
+    assert free["pricing"]["output_usd_per_million"] == 0.0
+    assert "100% cheaper" in free["reason"]
+
+
+def test_negative_provider_prices_never_create_savings_claims(tmp_path: Path) -> None:
     snapshot = tmp_path / "models.json"
     _snapshot(snapshot)
     payload = build_model_picker(snapshot_path=snapshot, policy=_policy())
@@ -116,3 +137,10 @@ def test_missing_discovery_keeps_configured_shortlist_with_explicit_unknown_stat
     assert code["model"] == "vendor/incumbent"
     assert code["catalogue_state"] == "not_observed"
     assert code["alternatives"] == []
+
+
+def test_malformed_cost_threshold_fails_closed(tmp_path: Path) -> None:
+    policy = _policy()
+    policy["evaluation"]["cost_reduction_required"] = "not-a-number"
+    with pytest.raises(ModelPresetError, match="cost_reduction_required"):
+        build_model_picker(snapshot_path=tmp_path / "missing.json", policy=policy)
