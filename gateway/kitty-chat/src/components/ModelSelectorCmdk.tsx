@@ -23,6 +23,11 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (!modelFromGateway) {
+      setCuratedModels(null)
+      setOpen(false)
+      return
+    }
     const controller = new AbortController()
     void fetchModelPicker(controller.signal)
       .then(payload => {
@@ -33,7 +38,7 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
         // The caller's runtime-backed model list remains the honest fallback.
       })
     return () => controller.abort()
-  }, [])
+  }, [modelFromGateway])
 
   useEffect(() => {
     if (!open) return
@@ -61,16 +66,19 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
     <div ref={containerRef} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen((o) => !o)}
+        disabled={!modelFromGateway}
+        title={modelFromGateway ? undefined : 'model availability is unknown'}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={`Model: ${activeModel.name}`}
         style={{
           ...chipBtnStyle,
           display: 'flex', alignItems: 'center', gap: 6,
+          opacity: modelFromGateway ? 1 : 0.65,
+          cursor: modelFromGateway ? 'pointer' : 'not-allowed',
         }}
       >
         <span
-          title={modelFromGateway ? undefined : 'using offline model list'}
           style={{
             width: 7, height: 7, borderRadius: 99,
             background: modelFromGateway ? activeModel.color : 'var(--c-red)',
@@ -80,7 +88,7 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
         <span style={compact ? compactLabelStyle : undefined}>{activeModel.name}</span>
       </button>
 
-      {open && (
+      {open && modelFromGateway && (
         <div style={popoverStyle}>
           <Command label="Select model" loop shouldFilter>
             <Command.Input
