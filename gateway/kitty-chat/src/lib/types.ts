@@ -97,18 +97,28 @@ export interface Chat {
 export type ChatColor = 'teal' | 'purple' | 'blue' | 'mint' | 'orange'
 
 export interface Model {
+  /** Selectable Kitty route (for example kitty-code), not necessarily an upstream provider model id. */
   id: string
   name: string
   color: string
   glow: string
+  purpose?: string
+  provider?: string | null
+  upstreamModel?: string | null
+  contextLength?: number | null
+  inputUsdPerMillion?: number | null
+  outputUsdPerMillion?: number | null
+  capabilities?: string[]
+  catalogueState?: string
 }
 
+/** Safe cold-start routes. Live curated picker data replaces their metadata when available. */
 export const MODELS: Model[] = [
-  { id: 'claude-sonnet-4-6', name: 'sonnet-4',  color: '#a884ff', glow: '#a884ff99' },
-  { id: 'claude-opus-4-7',   name: 'opus-4',    color: '#21bdd9', glow: '#21bdd999' },
-  { id: 'claude-haiku-4-5',  name: 'haiku-4',   color: '#9be86b', glow: '#9be86b99' },
-  { id: 'gpt-4o',            name: 'gpt-4o',    color: '#f4c542', glow: '#f4c54299' },
-  { id: 'deepseek-v3',       name: 'deepseek',  color: '#ff5577', glow: '#ff557799' },
+  { id: 'kitty-default', name: 'Daily Kitty', color: '#a884ff', glow: '#a884ff99', purpose: 'Choose the right lane for the turn.' },
+  { id: 'kitty-small', name: 'Quick', color: '#9be86b', glow: '#9be86b99', purpose: 'Routine bounded work where speed and cost matter.' },
+  { id: 'kitty-think', name: 'Think', color: '#21bdd9', glow: '#21bdd999', purpose: 'Planning, architecture, synthesis, and difficult debugging.' },
+  { id: 'kitty-code', name: 'Code', color: '#4d9fff', glow: '#4d9fff99', purpose: 'Repository implementation, debugging, and verified patches.' },
+  { id: 'kitty-vision', name: 'Vision', color: '#f4c542', glow: '#f4c54299', purpose: 'Screenshots, documents, photographs, and multimodal turns.' },
 ]
 
 export const CHAT_COLORS: Record<ChatColor, { border: string; glow: string; tab: string }> = {
