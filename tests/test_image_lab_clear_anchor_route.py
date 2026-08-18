@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from gateway import image_sessions
-from gateway.routes import extended
+from gateway.routes import extended, image_studio_jobs
 
 
 def test_delete_anchor_route_calls_durable_clear(monkeypatch):
@@ -22,6 +22,7 @@ def test_delete_anchor_route_calls_durable_clear(monkeypatch):
 
     app = FastAPI()
     app.include_router(extended.router)
+    app.include_router(image_studio_jobs.router)
     response = TestClient(app).delete("/studio/sessions/imgses_1/anchor")
 
     assert response.status_code == 200
