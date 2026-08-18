@@ -24,7 +24,7 @@ def main() -> int:
     timeout = float(sys.argv[1])
     if timeout <= 0:
         raise SystemExit("timeout must be positive")
-    proc = subprocess.Popen(sys.argv[2:], start_new_session=True)
+    proc = subprocess.Popen(sys.argv[2:], start_new_session=True, stdin=subprocess.DEVNULL)
 
     def forward(signum: int, _frame: object) -> None:
         _stop_group(proc, signal.Signals(signum))
