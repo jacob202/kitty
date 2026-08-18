@@ -205,14 +205,16 @@ describe('TopBar', () => {
     onKittyModeChange: () => undefined,
   }
 
-  it('shows offline indicator when modelFromGateway is false', () => {
+  it('disables model selection when live availability is unknown', () => {
     render(<TopBar {...baseProps} modelFromGateway={false} />)
-    expect(screen.getByTitle('using offline model list')).toBeInTheDocument()
+    const modelButton = screen.getByRole('button', { name: 'Model: default' })
+    expect(modelButton).toBeDisabled()
+    expect(modelButton).toHaveAttribute('title', 'model availability is unknown')
   })
 
-  it('does not show offline indicator when modelFromGateway is true', () => {
+  it('does not show an unknown-availability warning when modelFromGateway is true', () => {
     render(<TopBar {...baseProps} modelFromGateway={true} />)
-    expect(screen.queryByTitle('using offline model list')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('model availability is unknown')).not.toBeInTheDocument()
   })
 
   it('reserves the iOS status-bar safe area in mobile mode', () => {
