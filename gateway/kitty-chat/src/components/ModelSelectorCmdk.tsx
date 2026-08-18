@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { Command } from 'cmdk'
 import type { Model } from '@/lib/types'
@@ -48,7 +48,14 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
     if (!open) setSearch('')
   }, [open])
 
-  const visibleModels = curatedModels ?? models
+  const visibleModels = useMemo(() => {
+    if (!curatedModels) return models
+    const curatedByRoute = new Map(curatedModels.map(model => [model.id, model]))
+    // Runtime-backed choices are authoritative. Curated picker data may add
+    // decision metadata to those routes, but it cannot introduce a route the
+    // app does not currently consider available.
+    return models.map(model => curatedByRoute.get(model.id) ?? model)
+  }, [curatedModels, models])
 
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
