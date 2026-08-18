@@ -24,7 +24,7 @@ export default function KittyChat() {
   return (
     <div
       style={{
-        display: 'flex',         height: '100dvh', width: '100vw', overflow: 'hidden',
+        display: 'flex', height: '100dvh', width: '100vw', overflow: 'hidden',
         position: 'relative', background: 'var(--bg)', color: 'var(--ink)',
         fontFamily: 'var(--font-body)',
       }}
@@ -45,7 +45,7 @@ export default function KittyChat() {
       {!k.isMobile && <Rail activeView={k.activeView} onViewChange={k.setActiveView} theme={k.theme} onToggleTheme={k.handleToggleTheme} />}
       {k.isMobile && <BottomNav activeView={k.activeView} onViewChange={k.setActiveView} />}
 
-      {!k.isMobile && (k.activeView === 'chat' || k.activeView === 'home') && (
+      {!k.isMobile && k.activeView === 'chat' && (
         <SessionSidebar
           chats={k.chats} activeChatId={k.activeChatId}
           onSelectChat={k.handleSelectChat} onNewChat={() => { k.handleNewChat(); k.setActiveView('chat') }}
@@ -53,7 +53,7 @@ export default function KittyChat() {
         />
       )}
 
-      {k.isMobile && k.mobileSidebarOpen && (k.activeView === 'chat' || k.activeView === 'home') && (
+      {k.isMobile && k.mobileSidebarOpen && k.activeView === 'chat' && (
         <>
           <div onClick={() => k.setMobileSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.6)', zIndex: 40 }} />
           <div
@@ -61,9 +61,6 @@ export default function KittyChat() {
             style={{
               position: 'fixed', inset: '0 auto 0 0', width: 'min(320px, 84vw)',
               height: '100dvh', zIndex: 50, boxShadow: 'var(--shadow)',
-              // The sidebar's own --surface is translucent by design on desktop,
-              // where it sits in flow. Floating it over the page needs a solid
-              // backer or the whole app reads through it.
               background: 'var(--surface-solid)',
             }}
           >
@@ -155,7 +152,7 @@ export default function KittyChat() {
 
           {k.activeView === 'chat' && !k.isMobile && <ActiveTaskCards compact={k.isMobile} />}
 
-          {(k.activeView === 'chat' || k.activeView === 'home') && (
+          {k.activeView === 'chat' && (
             <InputBar
               value={k.input}
               onChange={(v: string) => { k.setInput(v); if (k.attachmentErrors.length) k.setAttachments([]) }}
@@ -181,7 +178,7 @@ export default function KittyChat() {
         </main>
       </KittyRuntimeProvider>
 
-      <CatCorner state={k.catState} />
+      {k.activeView !== 'home' && <CatCorner state={k.catState} />}
       <div aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
         {k.catState === 'working' ? 'Kitty is working' : k.catState === 'broke' ? 'Kitty needs attention' : k.catState === 'done' ? 'Kitty completed the task' : ''}
       </div>
