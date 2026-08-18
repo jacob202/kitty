@@ -134,6 +134,20 @@ async def studio_cancel_batch(batch_id: str) -> dict:
         raise HTTPException(status_code=404, detail=f"batch {batch_id} not found") from exc
 
 
+@router.delete("/studio/sessions/{session_id}/anchor")
+async def studio_clear_anchor(session_id: str) -> dict:
+    from gateway.image_sessions import ImageSessionError, SessionNotFoundError, clear_anchor
+    from gateway.routes.extended import _session_payload
+
+    try:
+        session = clear_anchor(session_id)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ImageSessionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _session_payload(session)
+
+
 async def execute_studio_batch_request(request: dict) -> dict:
     """Execute one queued child through the existing Studio generation path.
 
@@ -171,6 +185,7 @@ __all__ = [
     "StudioEstimateRequest",
     "execute_studio_batch_request",
     "router",
+    "studio_clear_anchor",
     "studio_create_batch",
     "studio_estimate",
 ]
