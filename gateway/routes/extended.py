@@ -835,11 +835,16 @@ async def studio_generate(req: StudioGenerateRequest):
         estimated_cost_usd,
         paid_engine_available,
         run,
+        run_edit,
     )
 
     # Dispatch from the stored approved plan when plan_id is supplied. The
-    # plan owns the render inputs; request form fields for prompt, character,
-    # and recipe are ignored so a post-approval edit cannot change a render.
+    # plan owns the render inputs *and* the operation — request form fields
+    # for prompt, character, recipe, and operation are ignored so a
+    # post-approval edit cannot change what renders, and an approved edit
+    # cannot be silently downgraded to a fresh generation.
+    stored = None
+    operation = "txt2img"
     if req.plan_id:
         from gateway.image_plans import (
             PlanNotApprovedError,
@@ -856,12 +861,49 @@ async def studio_generate(req: StudioGenerateRequest):
         except (PlanSessionMismatchError, PlanNotApprovedError, PlanStoreError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
+        operation = stored.operation
         prompt = stored.refined_prompt
         has_character = bool(stored.character_id)
         character_count = 1 if has_character else 0
         preferred_recipe = stored.recipe_id
         character_id = stored.character_id
         guidance_tags = stored.guidance_tags
+
+        if operation == "img2img":
+            # Fail loud before any spend or dispatch: a missing, unknown, or
+            # non-owned anchor means this session cannot honestly edit that
+            # image. Ownership reuses image_sessions' existing job-attachment
+            # record rather than inventing a second ownership model.
+            anchor_job_id = stored.anchor_job_id
+            if not anchor_job_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"plan {stored.plan_id!r} is operation='img2img' but has "
+                        "no anchor_job_id"
+                    ),
+                )
+            from gateway import image_jobs as _image_jobs
+            from gateway import image_sessions as _image_sessions
+
+            if _image_jobs.get_job(anchor_job_id) is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"anchor job {anchor_job_id!r} no longer exists",
+                )
+            owned_job_ids = {
+                j.job_id
+                for j in _image_sessions.list_session_jobs(stored.session_id)
+            }
+            if anchor_job_id not in owned_job_ids:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"anchor job {anchor_job_id!r} does not belong to "
+                        f"session {stored.session_id!r}; refusing to edit an "
+                        "image this session does not own"
+                    ),
+                )
     else:
         if not req.prompt or not req.prompt.strip():
             raise HTTPException(status_code=400, detail="prompt must not be empty")
@@ -879,13 +921,25 @@ async def studio_generate(req: StudioGenerateRequest):
             character_count=character_count,
             quality_tier=req.quality,
             identity_mode=req.identity,
-            operation="txt2img",
+            operation=operation,
             preferred_recipe=preferred_recipe,
         )
     except image_recipes.RecipeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
     recipe = decision.recipe
+
+    # auto_route does not filter on operation, so the img2img capability has
+    # to be asserted here or an approved edit would route to a text-only
+    # recipe (mirrors image_agent._route_recipe's same assertion).
+    if operation == "img2img" and (recipe is None or not recipe.supports_img2img):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"recipe {decision.recipe_id!r} does not support img2img; "
+                "no available recipe can perform a reference-conditioned edit"
+            ),
+        )
 
     engine = recipe.provider if recipe else "comfyui"
     try:
@@ -926,14 +980,22 @@ async def studio_generate(req: StudioGenerateRequest):
             raise HTTPException(status_code=400, detail=str(exc))
 
     try:
-        result = await run(
-            engine,
-            prompt,
-            recipe=recipe,
-            character_id=character_id,
-            negative_prompt=req.negative_prompt,
-            guidance_tags=guidance_tags,
-        )
+        if operation == "img2img":
+            result = await run_edit(
+                stored.refined_prompt,
+                anchor_job_id=stored.anchor_job_id,
+                recipe=recipe,
+                negative_prompt=req.negative_prompt,
+            )
+        else:
+            result = await run(
+                engine,
+                prompt,
+                recipe=recipe,
+                character_id=character_id,
+                negative_prompt=req.negative_prompt,
+                guidance_tags=guidance_tags,
+            )
         # Bind the render back to its conversation so a restart can replay it
         # and "use this" has something to anchor on. A failure to bind is
         # surfaced, not swallowed: a job the session cannot see is a job the
