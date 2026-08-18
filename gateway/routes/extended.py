@@ -961,6 +961,7 @@ async def studio_generate(req: StudioGenerateRequest):
         return {
             "job_id": result.job_id,
             "filename": result.filename,
+            "actual_cost_usd": result.cost_usd,
             "recipe": result.recipe,
             "routing_reason": decision.reason,
             "plan_id": req.plan_id,
