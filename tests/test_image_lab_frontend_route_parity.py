@@ -1,28 +1,32 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
-
 from gateway.paths import ROOT
-from gateway.routes.register import register_routes
+from gateway.routes import extended, image_studio_jobs
 
 
 IMAGE_LAB = ROOT / "gateway" / "kitty-chat" / "src" / "components" / "ImageLab.tsx"
+REGISTER = ROOT / "gateway" / "routes" / "register.py"
 
 
-def _registered_methods() -> set[tuple[str, str]]:
-    app = FastAPI()
-    register_routes(app)
+def _route_methods(*routers) -> set[tuple[str, str]]:
     methods: set[tuple[str, str]] = set()
-    for route in app.routes:
-        path = getattr(route, "path", None)
-        for method in getattr(route, "methods", set()) or set():
-            if isinstance(path, str):
-                methods.add((method, path))
+    for router in routers:
+        for route in router.routes:
+            path = getattr(route, "path", None)
+            for method in getattr(route, "methods", set()) or set():
+                if isinstance(path, str):
+                    methods.add((method, path))
     return methods
 
 
-def test_image_lab_mutating_and_truth_routes_are_registered_with_matching_methods() -> None:
-    registered = _registered_methods()
+def test_image_lab_owning_routers_are_mounted() -> None:
+    source = REGISTER.read_text(encoding="utf-8")
+    assert source.count("image_studio_jobs,") >= 2
+    assert source.count("extended,") >= 2
+
+
+def test_image_lab_mutating_and_truth_routes_have_matching_methods() -> None:
+    registered = _route_methods(extended.router, image_studio_jobs.router)
     required = {
         ("GET", "/image/status"),
         ("POST", "/studio/estimate"),
@@ -36,7 +40,7 @@ def test_image_lab_mutating_and_truth_routes_are_registered_with_matching_method
         ("POST", "/studio/batches/{batch_id}/cancel"),
     }
     missing = sorted(required - registered)
-    assert not missing, f"Image Lab frontend contract has unregistered Gateway routes: {missing}"
+    assert not missing, f"Image Lab frontend contract has missing Gateway routes: {missing}"
 
 
 def test_image_lab_frontend_still_uses_the_routes_guarded_above() -> None:
