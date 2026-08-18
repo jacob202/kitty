@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,6 +29,15 @@ def _reconcile_image_jobs_on_startup() -> None:
     reconciled = reconcile_stale()
     if reconciled:
         logger.warning("reconciled %d orphaned image job(s) at startup", reconciled)
+
+
+def _reconcile_image_batches_on_startup() -> None:
+    """Fail interrupted image renders while preserving queued batch work."""
+    from gateway.image_batches import reconcile_inflight
+
+    reconciled = reconcile_inflight()
+    if reconciled:
+        logger.warning("reconciled %d interrupted image batch item(s) at startup", reconciled)
 
 
 def _reconcile_tasks_on_startup() -> None:
@@ -68,6 +77,7 @@ async def lifespan(app: FastAPI):
     validate_dirs()
     validate_env()
     _reconcile_image_jobs_on_startup()
+    _reconcile_image_batches_on_startup()
     _reconcile_tasks_on_startup()
     _reconcile_agent_workspace_turns_on_startup()
     from gateway.image_recipes import seed_default_recipes
@@ -76,6 +86,7 @@ async def lifespan(app: FastAPI):
     brief_task: asyncio.Task | None = None
     brief_scheduler_task: asyncio.Task | None = None
     inbox_task: asyncio.Task | None = None
+    image_batch_task: asyncio.Task | None = None
     background_services_enabled = not is_test_env()
     if background_services_enabled:
         try:
@@ -86,6 +97,13 @@ async def lifespan(app: FastAPI):
                 start_polling()
         except Exception:
             logger.exception("telegram bot startup failed — integration disabled")
+
+        from gateway.image_batches import worker_loop as image_batch_worker_loop
+        from gateway.routes.image_studio_jobs import execute_studio_batch_request
+
+        image_batch_task = asyncio.create_task(
+            image_batch_worker_loop(execute_studio_batch_request)
+        )
         brief_task = asyncio.create_task(_brief_bg_loop())
         from gateway.brief_scheduler import start_brief_scheduler
 
@@ -200,6 +218,10 @@ async def lifespan(app: FastAPI):
         brief_scheduler_task.cancel()
     if inbox_task is not None:
         inbox_task.cancel()
+    if image_batch_task is not None:
+        image_batch_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await image_batch_task
     try:
         from gateway.http_client import _http_client
 
