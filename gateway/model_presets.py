@@ -151,6 +151,8 @@ def _cheaper_alternatives(
 def _cost_threshold(model_policy: Mapping[str, Any]) -> float:
     evaluation = model_policy.get("evaluation")
     raw = evaluation.get("cost_reduction_required") if isinstance(evaluation, Mapping) else None
+    if raw is None:
+        raise ModelPresetError("model policy cost_reduction_required must be a number")
     try:
         threshold = float(raw)
     except (TypeError, ValueError) as exc:
