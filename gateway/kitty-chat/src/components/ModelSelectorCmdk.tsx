@@ -67,7 +67,7 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
       <button
         onClick={() => setOpen((o) => !o)}
         disabled={!modelFromGateway}
-        title={modelFromGateway ? undefined : 'model availability is unknown'}
+        title={modelFromGateway ? undefined : 'model availability is unknown — reconnect to Kitty before switching'}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={`Model: ${activeModel.name}`}
@@ -99,7 +99,9 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
               style={inputStyle}
             />
             <Command.List style={listStyle}>
-              <Command.Empty style={emptyStyle}>no matches</Command.Empty>
+              <Command.Empty style={emptyStyle}>
+                {visibleModels.length === 0 ? 'no live models available' : 'no matches'}
+              </Command.Empty>
               {visibleModels.map((m) => (
                 <Command.Item
                   key={m.id}
