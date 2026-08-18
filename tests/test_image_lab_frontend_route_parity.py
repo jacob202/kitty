@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-
 IMAGE_LAB = "gateway/kitty-chat/src/components/ImageLab.tsx"
 EXTENDED = "gateway/routes/extended.py"
 IMAGE_JOBS = "gateway/routes/image_studio_jobs.py"
