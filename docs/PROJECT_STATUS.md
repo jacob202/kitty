@@ -2,6 +2,8 @@
 
 **Repository evidence verified:** through `main` `7badd7e1b08dfc49cf1c0dc3ae3a7f75eed42fa2`, plus product-surface branch `d8a8e8282e9650579561a7cadef4d861a6e396a7` and its 2026-08-19 restored-Mac live verification. Unmerged branch behavior is not described as shipped on `main`.
 
+The full commit references above are standard 40-character SHA-1 object names. They were re-verified with `git rev-parse` on 2026-08-19 after an automated review incorrectly described them as 41 characters.
+
 This file is a dated evidence summary, not a live runtime dashboard. Use Git/GitHub for repository state, supported probes for local services, and Builder's supported database/API/CLI for execution state.
 
 ## Current architecture
@@ -28,7 +30,7 @@ KPROOF-001 reached its 2026-08-18 deadline without a durable record satisfying t
 - #444 recorded the out-of-band gate verification while Actions was unavailable.
 - **The GitHub Actions outage ended on 2026-08-10 between 23:03Z and 23:20Z.** From 2026-08-06 until then, jobs were assigned no runner and failed within 3–13 seconds on every branch and event type — an account billing/spending state, not a code result, so red checks from that window carry no information. `Tests` runs now take 200–314 seconds and execute for real. Out-of-band verification is retired; CI is the gate again. Evidence: [`audit/MAIN_GATE_VERIFICATION_2026-08-10.md`](audit/MAIN_GATE_VERIFICATION_2026-08-10.md), which supersedes the 2026-08-09 receipt.
 - **`main` at `d54fd896` was red on `lint` and `typecheck`** — both in `mcp/builder/context.py`, added by the KittyBuilder MCP bridge as a direct-to-`main` squash with no green check. Independently confirmed out of band, and fixed in #453 along with a third failure in `gateway/image_quality.py`. #453 also added `scripts/hooks/pre-push`, a local gate for exactly this class of failure.
-- `main` currently ends at `6de35bde4da298ca7e1c51401397eda201bf6dcc`, and `Tests` passes on it (run 275s, real execution).
+- Historical status text below this line may name older `main` SHAs; current repository truth must always be read from Git rather than inferred from this evidence summary.
 
 ## Active work
 
