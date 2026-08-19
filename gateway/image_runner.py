@@ -48,14 +48,28 @@ async def run(
     parent_id: str | None = None,
     guidance_tags: list[str] | None = None,
     source_image: bytes | None = None,
+    content_lane: str = "safe",
+    consent_basis: str | None = None,
+    adult_confirmed: bool = False,
 ) -> JobResult:
     """Generate an image through the specified engine.
 
     A character ID is not merely a request to pick the first stored photo. It
     requires a valid character contract whose identity method, reference set,
     weights, prompt fragments, and recipe can all be honored by the engine.
+
+    *content_lane*/*consent_basis*/*adult_confirmed* carry the approved plan's
+    execution policy (ADR 0040 #8). They default to the safe lane, and are
+    validated against *engine* through the canonical policy seam before any
+    network or renderer call — so even a direct runner invocation cannot route
+    private work to a hosted provider.
     """
     engine = engine.strip().lower()
+    from gateway.image_policy import validate_image_execution_policy
+
+    validate_image_execution_policy(
+        content_lane, consent_basis, adult_confirmed, engine
+    )
     if engine not in ENGINES:
         raise ImageRunnerError(
             f"unknown engine {engine!r}; must be one of {', '.join(sorted(ENGINES))}"
@@ -109,8 +123,23 @@ async def run_edit(
     negative_prompt: str | None = None,
     checkpoint: str | None = None,
     seed: int | None = None,
+    content_lane: str = "safe",
+    consent_basis: str | None = None,
+    adult_confirmed: bool = False,
 ) -> JobResult:
-    """Edit the anchor job's artifact, rather than rerolling from its prompt."""
+    """Edit the anchor job's artifact, rather than rerolling from its prompt.
+
+    The edit lane is the only Kitty-controlled private executor in v1, and the
+    content-lane policy is validated before any worker configuration or network
+    call: a private plan may only land here, and a direct invocation of this
+    function cannot be coerced into a hosted fallback.
+    """
+    from gateway.image_policy import validate_image_execution_policy
+
+    validate_image_execution_policy(
+        content_lane, consent_basis, adult_confirmed, "kitty_worker"
+    )
+
     if not 0 < denoise <= 1:
         raise ImageRunnerError(
             f"denoise must be within (0, 1], got {denoise}; 0 would return the "
@@ -388,6 +417,8 @@ ENGINES = frozenset({"comfyui", "drawthings", "flux", "openrouter"})
 _ESTIMATED_COST_USD = {
     "comfyui": 0.0,
     "drawthings": 0.0,
+    # The worker edit lane is Kitty-owned and not billed per render.
+    "kitty_worker": 0.0,
     # Budget reservations are deliberately conservative ceilings, not price
     # claims. Actual provider-reported cost is reconciled after success when
     # available.
@@ -412,7 +443,7 @@ def paid_engine_available(engine: str) -> tuple[bool, str]:
         return flux_images_available()
     if normalized == "openrouter":
         return openrouter_images_available()
-    if normalized in {"comfyui", "drawthings"}:
+    if normalized in {"comfyui", "drawthings", "kitty_worker"}:
         return True, ""
     raise ImageRunnerError(f"no availability contract for image engine {engine!r}")
 

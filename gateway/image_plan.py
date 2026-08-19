@@ -15,6 +15,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from gateway.image_policy import ContentLane
+
 
 @dataclass
 class ReferenceProvenance:
@@ -33,6 +35,10 @@ class ImagePlan:
     Produced by the plan endpoint and submitted to the generate endpoint.
     The renderer receives the refined prompt + resolved references; the
     plan metadata is attached to the image job for provenance.
+
+    Content-lane fields (ADR 0040 #8) default to the safe lane so a caller
+    that does not opt in is never private; the plan builder deliberately does
+    not derive a lane or consent from prompt text.
     """
 
     original_prompt: str
@@ -42,6 +48,9 @@ class ImagePlan:
     recipe_id: str | None = None
     guidance_tags: list[str] = field(default_factory=list)
     references: list[ReferenceProvenance] = field(default_factory=list)
+    content_lane: str = ContentLane.SAFE.value
+    consent_basis: str | None = None
+    adult_confirmed: bool = False
     created_at: str = ""
 
     def __post_init__(self) -> None:
@@ -64,6 +73,9 @@ def build_image_plan(
     character_id: str | None = None,
     recipe_id: str | None = None,
     guidance_tags: list[str] | None = None,
+    content_lane: str | None = None,
+    consent_basis: str | None = None,
+    adult_confirmed: bool = False,
 ) -> ImagePlan:
     """Build a validated plan from user inputs.
 
@@ -71,10 +83,26 @@ def build_image_plan(
     *guidance_tags* against the guidance bank.  Returns an ``ImagePlan``
     ready for user preview.
 
+    *content_lane*/*consent_basis*/*adult_confirmed* are carried onto the plan
+    only as declared trusted metadata — never derived from *prompt* text.
+    *content_lane* defaults to ``safe``; anything outside {safe, private_adult}
+    is a hard ``ImagePlanError`` (fail closed rather than silently degraded).
+
     Raises ``ImagePlanError`` if a referenced resource cannot be resolved.
     """
     from gateway import image_characters as ic
     from gateway.image_guidance import available_guidance_tags
+    from gateway.image_policy import ContentLane
+
+    lane = ContentLane.SAFE.value
+    if content_lane is not None:
+        text = str(content_lane).strip().lower()
+        if text not in {l.value for l in ContentLane}:
+            raise ImagePlanError(
+                f"unknown content_lane {content_lane!r}; must be one of "
+                f"{sorted(l.value for l in ContentLane)}"
+            )
+        lane = text
 
     references: list[ReferenceProvenance] = []
     resolved_character_path: str | None = None
@@ -132,6 +160,9 @@ def build_image_plan(
         recipe_id=recipe_id,
         guidance_tags=resolved_tags,
         references=references,
+        content_lane=lane,
+        consent_basis=consent_basis,
+        adult_confirmed=bool(adult_confirmed),
     )
 
 

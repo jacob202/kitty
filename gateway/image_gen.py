@@ -58,6 +58,11 @@ COMFY_REQUIRED_NODES = frozenset(
 # verifies these explicitly before building the workflow.
 COMFY_IDENTITY_NODES = frozenset({"IPAdapter", "IPAdapterModelLoader"})
 
+#: Legacy workflow/model-conditioning keywords for the ComfyUI SDXL path.
+#: NON-AUTHORITATIVE (ADR 0040): these affect provider_params_json["explicit"]
+#: job metadata only. They grant NO routing, content lane, consent, or executor
+#: authority — the content lane comes exclusively from the approved plan's
+#: declared policy (gateway.image_policy), never from prompt text.
 EXPLICIT_KW = {"explicit", "erect", "hard cock", "erection", "boner", "cock", "nude explicit"}
 
 

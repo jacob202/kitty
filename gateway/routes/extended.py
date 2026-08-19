@@ -447,12 +447,20 @@ class StudioGenerateRequest(BaseModel):
 
 
 class PlanPreviewRequest(BaseModel):
-    """Preview a generation plan before committing to generation."""
+    """Preview a generation plan before committing to generation.
+
+    *content_lane*/*consent_basis*/*adult_confirmed* are the trusted policy
+    declaration (ADR 0040 #8) persisted with the approved plan. They default
+    to the safe lane, and private_adult cannot be inferred from prompt text.
+    """
     prompt: str
     character_id: Optional[str] = None
     recipe_id: Optional[str] = None
     guidance_tags: Optional[List[str]] = None
     session_id: Optional[str] = None
+    content_lane: Optional[str] = None
+    consent_basis: Optional[str] = None
+    adult_confirmed: bool = False
 
 
 @router.get("/studio/characters")
@@ -660,6 +668,9 @@ async def studio_plan(req: PlanPreviewRequest):
             character_id=req.character_id,
             recipe_id=req.recipe_id,
             guidance_tags=req.guidance_tags,
+            content_lane=req.content_lane,
+            consent_basis=req.consent_basis,
+            adult_confirmed=req.adult_confirmed,
         )
     except ImagePlanError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -906,6 +917,13 @@ async def studio_generate(req: StudioGenerateRequest):
                     ),
                 )
             approved_edit_anchor = anchor_job_id
+
+        # Content-lane contract (ADR 0040 #8): dispatch from the STORED plan's
+        # policy, never from a request body. The approved plan is the only
+        # trusted source of content_lane/consent_basis/adult_confirmed.
+        content_lane = stored.content_lane
+        consent_basis = stored.consent_basis
+        adult_confirmed = stored.adult_confirmed
     else:
         if not req.prompt or not req.prompt.strip():
             raise HTTPException(status_code=400, detail="prompt must not be empty")
@@ -916,6 +934,12 @@ async def studio_generate(req: StudioGenerateRequest):
         preferred_recipe = req.recipe_id
         character_id = req.character_id
         guidance_tags = None
+
+        # A plan-less /studio/generate call carries no trusted policy metadata:
+        # it is safe lane, and a prompt can never promote itself to private.
+        content_lane = "safe"
+        consent_basis = None
+        adult_confirmed = False
 
     try:
         decision = image_recipes.auto_route(
@@ -943,7 +967,42 @@ async def studio_generate(req: StudioGenerateRequest):
             ),
         )
 
-    engine = recipe.provider if recipe else "comfyui"
+    # Content-lane seam (ADR 0040 #8): select the execution target from the
+    # stored plan's policy BEFORE any cost estimate or availability preflight.
+    # Private work must pick a private executor first so a hosted availability
+    # gate or hosted spend reservation can never run for private work — even if
+    # the recipe metadata names a hosted provider.
+    from gateway.image_policy import (
+        ImagePolicyError,
+        validate_image_execution_policy,
+    )
+
+    if content_lane == "private_adult":
+        # v1's only Kitty-controlled private executor is the worker edit lane
+        # (run_edit → kitty_worker). A private text-to-image plan has no
+        # private executor yet, so it is refused here — never downgraded to a
+        # hosted engine.
+        if operation != "img2img":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "content_lane='private_adult' has no private text-to-image "
+                    "executor in v1; only the worker edit lane (img2img) is "
+                    "private, refusing to route private work to a hosted provider"
+                ),
+            )
+        execution_target = "kitty_worker"
+    else:
+        execution_target = recipe.provider if recipe else "comfyui"
+
+    try:
+        validate_image_execution_policy(
+            content_lane, consent_basis, adult_confirmed, execution_target
+        )
+    except ImagePolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    engine = execution_target
     try:
         estimated_cost = estimated_cost_usd(engine)
     except ImageRunnerError as exc:
@@ -993,6 +1052,9 @@ async def studio_generate(req: StudioGenerateRequest):
                 anchor_job_id=approved_edit_anchor,
                 recipe=recipe,
                 negative_prompt=req.negative_prompt,
+                content_lane=content_lane,
+                consent_basis=consent_basis,
+                adult_confirmed=adult_confirmed,
             )
         else:
             result = await run(
@@ -1002,6 +1064,9 @@ async def studio_generate(req: StudioGenerateRequest):
                 character_id=character_id,
                 negative_prompt=req.negative_prompt,
                 guidance_tags=guidance_tags,
+                content_lane=content_lane,
+                consent_basis=consent_basis,
+                adult_confirmed=adult_confirmed,
             )
         # Bind the render back to its conversation so a restart can replay it
         # and "use this" has something to anchor on. A failure to bind is
