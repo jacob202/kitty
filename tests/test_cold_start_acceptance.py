@@ -91,13 +91,15 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     assert _section_body(documents["active_mission"], "## Objective")
     assert _section_body(documents["active_mission"], "## Acceptance Contract")
     mission_status = receipt["continuity"]["active_mission"]["status"]
-    assert mission_status in {
-        "proposed", "awaiting_approval", "approved", "accepted", "running",
-        "blocked", "succeeded", "failed", "cancelled", "superseded",
+    active_statuses = {
+        "proposed", "awaiting_approval", "approved", "accepted", "running", "blocked",
     }
-    # 6. What is next? A terminal mission must not fabricate active work.
+    terminal_statuses = {"succeeded", "failed", "cancelled", "superseded"}
+    assert mission_status in active_statuses | terminal_statuses
+    # 6. What is next? Active/blocked missions may name the action that advances or
+    # unblocks them. A terminal mission must not fabricate resumable work.
     assert isinstance(receipt["next_action"], str) and receipt["next_action"]
-    if mission_status in {"succeeded", "failed", "cancelled", "superseded"}:
+    if mission_status in terminal_statuses:
         assert receipt["next_action"].casefold() in {"none", "n/a"}
     # 7. What is stale or uncertain?
     assert receipt["unknowns"]
