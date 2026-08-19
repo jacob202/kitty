@@ -105,6 +105,27 @@ describe('fetchGatewaySearch abort', () => {
     expect(result.snapshot).toBeNull()
   })
 
+  it('adapts the live flat /search contract into grouped context sections', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify({
+        query: 'mosfet',
+        results: [
+          { store: 'knowledge', content: 'MOSFET bias notes', score: 0.87 },
+          { store: 'memory', content: 'Jacob owns the manual', score: 0.8 },
+        ],
+        stores: ['knowledge', 'memory'],
+        errors: [],
+      }), { status: 200 }),
+    )
+
+    const result = await fetchGatewaySearch('mosfet', 3)
+
+    expect(result.fromLiveGateway).toBe(true)
+    expect(result.error).toBeNull()
+    expect(result.snapshot?.sections.knowledge[0]).toContain('MOSFET bias notes')
+    expect(result.snapshot?.sections.memories[0]).toContain('Jacob owns the manual')
+  })
+
   it('returns error payload when gateway returns 500', async () => {
     vi.mocked(global.fetch).mockResolvedValue(
       new Response(null, { status: 500, statusText: 'Internal Server Error' })

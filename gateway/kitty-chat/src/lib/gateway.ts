@@ -993,13 +993,31 @@ export async function fetchGatewaySearch(
       }
     }
     const json = await response.json()
+    const grouped: Record<string, GatewaySearchHit[]> = {
+      memory: [],
+      knowledge: [],
+      journal: [],
+      todos: [],
+      inbox: [],
+    }
+    for (const row of Array.isArray(json?.results) ? json.results : []) {
+      const store = typeof row?.store === 'string' ? row.store : ''
+      if (!(store in grouped) || typeof row?.content !== 'string') continue
+      grouped[store].push({
+        kind: store,
+        source: store,
+        title: store,
+        text: row.content,
+        score: typeof row.score === 'number' ? row.score : null,
+      })
+    }
     return {
       snapshot: summarizeGatewaySearch({
         query: q,
-        memories: json?.memories,
-        knowledge: json?.knowledge,
-        journal: json?.journal,
-        todos: json?.todos,
+        memories: grouped.memory,
+        knowledge: grouped.knowledge,
+        journal: grouped.journal,
+        todos: grouped.todos,
       }),
       fromLiveGateway: true,
       error: null,
