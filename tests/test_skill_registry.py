@@ -47,6 +47,11 @@ class TestDiscover:
         s2 = discover(force_refresh=True)
         assert len(s2) >= 1
 
+    def test_archived_skills_are_not_active(self):
+        names = {s["name"] for s in discover(force_refresh=True)}
+        assert "red-team" not in names
+        assert "root-cause-analysis" not in names
+
 
 class TestGet:
     def test_get_existing(self):

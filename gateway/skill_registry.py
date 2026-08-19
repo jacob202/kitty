@@ -93,6 +93,9 @@ def _scan_directories() -> list[dict]:
         if not root.exists():
             continue
         for skill_file in root.rglob("SKILL.md"):
+            relative_parts = skill_file.relative_to(root).parts
+            if "_archive" in relative_parts:
+                continue
             parsed = _parse_skill_file(skill_file)
             if parsed and parsed["name"] not in seen:
                 seen.add(parsed["name"])
