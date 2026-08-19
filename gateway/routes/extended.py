@@ -845,6 +845,7 @@ async def studio_generate(req: StudioGenerateRequest):
     # cannot be silently downgraded to a fresh generation.
     stored = None
     operation = "txt2img"
+    approved_edit_anchor: str | None = None
     if req.plan_id:
         from gateway.image_plans import (
             PlanNotApprovedError,
@@ -904,6 +905,7 @@ async def studio_generate(req: StudioGenerateRequest):
                         "image this session does not own"
                     ),
                 )
+            approved_edit_anchor = anchor_job_id
     else:
         if not req.prompt or not req.prompt.strip():
             raise HTTPException(status_code=400, detail="prompt must not be empty")
@@ -981,9 +983,14 @@ async def studio_generate(req: StudioGenerateRequest):
 
     try:
         if operation == "img2img":
+            if approved_edit_anchor is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="approved img2img plan lost its validated anchor before dispatch",
+                )
             result = await run_edit(
-                stored.refined_prompt,
-                anchor_job_id=stored.anchor_job_id,
+                prompt,
+                anchor_job_id=approved_edit_anchor,
                 recipe=recipe,
                 negative_prompt=req.negative_prompt,
             )
