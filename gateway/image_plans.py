@@ -30,7 +30,7 @@ from typing import Any
 
 from gateway import db as kitty_db
 from gateway import paths as _paths
-from gateway.image_policy import ContentLane, ConsentBasis
+from gateway.image_policy import ConsentBasis, ContentLane
 from gateway.paths import DB_MIGRATIONS_DIR
 
 _MIGRATION_FILE = DB_MIGRATIONS_DIR / "030_image_plans.sql"

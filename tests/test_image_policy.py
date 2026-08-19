@@ -10,7 +10,6 @@ that prompt keywords grant zero policy authority.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 
@@ -20,6 +19,7 @@ from fastapi import HTTPException
 from gateway import image_jobs, image_plans
 from gateway import image_sessions as sessions
 from gateway.image_plan import build_image_plan
+from gateway.image_plans import PlanStoreError, persist_plan, require_approved_plan
 from gateway.image_policy import (
     AdultConfirmationRequiredError,
     ConsentRequiredError,
@@ -27,7 +27,6 @@ from gateway.image_policy import (
     PrivateExecutionRequiredError,
     validate_image_execution_policy,
 )
-from gateway.image_plans import PlanStoreError, persist_plan, require_approved_plan
 from gateway.routes import extended
 
 #: Neutral sentinel prompt: no EXPLICIT_KW is ever a policy signal, so tests
@@ -137,7 +136,6 @@ def _capture_run_edit(monkeypatch, captured: dict):
         captured["anchor_job_id"] = anchor_job_id
         from gateway.image_runner import JobResult
 
-        anchor = image_jobs.get_job(anchor_job_id)
         job = image_jobs.create_job(
             provider="kitty_worker",
             operation="img2img",

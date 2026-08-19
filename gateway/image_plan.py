@@ -97,10 +97,10 @@ def build_image_plan(
     lane = ContentLane.SAFE.value
     if content_lane is not None:
         text = str(content_lane).strip().lower()
-        if text not in {l.value for l in ContentLane}:
+        if text not in {lane.value for lane in ContentLane}:
             raise ImagePlanError(
                 f"unknown content_lane {content_lane!r}; must be one of "
-                f"{sorted(l.value for l in ContentLane)}"
+                f"{sorted(lane.value for lane in ContentLane)}"
             )
         lane = text
 
