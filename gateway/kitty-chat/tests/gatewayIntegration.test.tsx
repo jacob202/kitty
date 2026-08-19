@@ -59,12 +59,22 @@ describe('gateway integration helpers', () => {
           score: null,
         },
       ],
+      inbox: [
+        {
+          kind: 'capture',
+          source: 'inbox',
+          title: 'Captured note',
+          text: 'remember this capture',
+          score: 0.7,
+        },
+      ],
     })
 
     expect(summary.query).toBe('honda')
     expect(summary.sections.memories[0]).toContain('remember this')
     expect(summary.sections.knowledge[0]).toContain('KB note')
     expect(summary.sections.todos[0]).toContain('Call shop')
+    expect(summary.sections.inbox[0]).toContain('Captured note')
   })
 })
 

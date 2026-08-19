@@ -41,12 +41,14 @@ export interface GatewaySearchSnapshot {
     knowledge: number
     journal: number
     todos: number
+    inbox: number
   }
   sections: {
     memories: string[]
     knowledge: string[]
     journal: string[]
     todos: string[]
+    inbox: string[]
   }
 }
 
@@ -418,6 +420,7 @@ export function summarizeGatewaySearch(raw: {
   knowledge?: GatewaySearchHit[]
   journal?: GatewaySearchHit[]
   todos?: GatewaySearchHit[]
+  inbox?: GatewaySearchHit[]
 }): GatewaySearchSnapshot {
   const pick = (items: GatewaySearchHit[] | undefined) =>
     (items ?? []).slice(0, 3).map(item => {
@@ -432,6 +435,7 @@ export function summarizeGatewaySearch(raw: {
   const knowledge = pick(raw.knowledge)
   const journal = pick(raw.journal)
   const todos = pick(raw.todos)
+  const inbox = pick(raw.inbox)
 
   return {
     query: (raw.query ?? '').trim(),
@@ -440,12 +444,14 @@ export function summarizeGatewaySearch(raw: {
       knowledge: knowledge.length,
       journal: journal.length,
       todos: todos.length,
+      inbox: inbox.length,
     },
     sections: {
       memories,
       knowledge,
       journal,
       todos,
+      inbox,
     },
   }
 }
@@ -1018,6 +1024,7 @@ export async function fetchGatewaySearch(
         knowledge: grouped.knowledge,
         journal: grouped.journal,
         todos: grouped.todos,
+        inbox: grouped.inbox,
       }),
       fromLiveGateway: true,
       error: null,
