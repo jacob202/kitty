@@ -26,9 +26,11 @@ Normal navigation must converge on Work. Existing deep Builder diagnostics may r
 
 Work presents durable Gateway projection truth in three primary groups:
 
-1. **Needs you** — blocked, failed, paused, or approval-dependent work where the user can materially unblock progress.
-2. **In progress** — active, ready, or waiting work that does not currently require user intervention.
-3. **Completed** — recently completed work and its result/evidence summary.
+1. **Needs you** — `blocked`, `failed`, or `paused` work where the durable projection exposes a blocker/recovery reason.
+2. **In progress** — `active`, `ready`, or `waiting` work that does not currently expose a durable user-intervention requirement.
+3. **Completed** — `completed` work included by the bounded Gateway projection.
+
+Grouping is a pure presentation mapping from the existing canonical `GatewayWorkState`; the frontend must not infer new execution states from prose or missing metadata. The current projection reports approval binding as `unavailable`, which is informational and must **not** be treated as an approval request. If a future backend contract exposes an explicit approval-required state, that contract must be defined and tested before Work uses it to place an item in Needs you.
 
 Within each item, the default visible hierarchy is:
 
@@ -88,11 +90,12 @@ Use test-first changes for each behavior:
 
 1. Home Builder glance navigates to Work.
 2. Ordinary `builder` navigation renders/resolves Work instead of the Builder cockpit.
-3. Work groups items into Needs you / In progress / Completed using existing durable states.
-4. Primary rows do not expose raw packet/run IDs by default.
-5. Evidence/details remain available through progressive disclosure where present.
-6. stale/degraded/unavailable states remain truthful.
-7. reload/refetch behavior continues to use `/work`; no local execution truth is introduced.
+3. Work groups `blocked`/`failed`/`paused` into Needs you, `active`/`ready`/`waiting` into In progress, and `completed` into Completed.
+4. `approval.state = unavailable` never creates a false Needs you item.
+5. Primary rows do not expose raw packet/run IDs by default.
+6. Evidence/details remain available through progressive disclosure where present.
+7. stale/degraded/unavailable states remain truthful.
+8. reload/refetch behavior continues to use `/work`; no local execution truth is introduced.
 
 Run the focused frontend Work/navigation tests first, then the full kitty-chat unit/build gate. Run focused Gateway projection tests if the projection contract changes.
 
