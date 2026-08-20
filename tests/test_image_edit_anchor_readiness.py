@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from gateway import image_jobs, image_plans
 from gateway import image_sessions as sessions
 from gateway.image_plan import build_image_plan
-from gateway.image_plans import PlanStoreError, persist_plan
+from gateway.image_plans import PlanMalformedError, PlanStoreError, persist_plan
 from gateway.routes import extended
 
 
@@ -46,6 +46,24 @@ def test_txt2img_plan_rejects_anchor_instead_of_persisting_inconsistent_state():
             operation="txt2img",
             anchor_job_id="imgjob_stale_anchor",
         )
+
+
+def test_txt2img_row_with_anchor_fails_loud_when_reloaded():
+    """An out-of-band stale anchor must not survive as valid txt2img state."""
+    session = sessions.create_session(title="generate")
+    stored = persist_plan(session.session_id, build_image_plan("a new portrait"))
+
+    import gateway.paths as gp
+
+    with sqlite3.connect(gp.KITTY_DB_FILE) as conn:
+        conn.execute(
+            "UPDATE image_plans SET anchor_job_id = ? WHERE plan_id = ?",
+            ("imgjob_stale_anchor", stored.plan_id),
+        )
+        conn.commit()
+
+    with pytest.raises(PlanMalformedError, match="txt2img.*anchor_job_id"):
+        image_plans.require_plan(stored.plan_id)
 
 
 @pytest.mark.asyncio
