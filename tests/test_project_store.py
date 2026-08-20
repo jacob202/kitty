@@ -104,59 +104,17 @@ def test_touch_bumps_last_touched():
     assert touched["last_touched"] is not None
 
 
-def test_delete_removes_derived_next_step_before_project():
-    project = project_store.create("disposable", "admin")
-    with project_store.kitty_db.connect(project_store.PROJECTS_DB_FILE) as conn:
-        conn.execute(
-            "INSERT INTO project_next_steps "
-            "(project_id, step, why, recent_win, delegable, generated_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (project["id"], "do it", "test", "", 0, 1.0),
-        )
-        conn.commit()
-
-    project_store.delete(project["id"])
-
-    assert project_store.get(project["id"]) is None
-    with project_store.kitty_db.connect(project_store.PROJECTS_DB_FILE) as conn:
-        assert conn.execute(
-            "SELECT COUNT(*) FROM project_next_steps WHERE project_id = ?", (project["id"],)
-        ).fetchone()[0] == 0
-
-
-def test_delete_refuses_to_orphan_linked_conversation():
+def test_delete_refuses_hard_deletion_and_preserves_project():
     project = project_store.create("keep history", "admin")
-    with project_store.kitty_db.connect(project_store.PROJECTS_DB_FILE) as conn:
-        conn.execute(
-            "INSERT INTO chat_conversations (id, project_id, title, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            ("conv_keep", project["id"], "history", 1.0, 1.0),
-        )
-        conn.commit()
 
-    with pytest.raises(project_store.ProjectInUseError, match="conversation"):
+    with pytest.raises(project_store.ProjectDeletionDisabledError, match="archive"):
         project_store.delete(project["id"])
 
-    assert project_store.get(project["id"]) is not None
-
-
-def test_delete_refuses_active_project_scope():
-    project = project_store.create("active scope", "admin")
-    with project_store.kitty_db.connect(project_store.PROJECTS_DB_FILE) as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO app_settings (key, value, updated_at) "
-            "VALUES ('active_project_id', ?, CURRENT_TIMESTAMP)",
-            (str(project["id"]),),
-        )
-        conn.commit()
-
-    with pytest.raises(project_store.ProjectInUseError, match="active project"):
-        project_store.delete(project["id"])
-
-    assert project_store.get(project["id"]) is not None
+    assert project_store.get(project["id"])["status"] == "active"
 
 
 def test_delete_on_fresh_database_migrates_then_returns_not_found():
-    # No create()/list()/init_db() call first: destructive entrypoints must never
-    # expose a raw missing-table sqlite error on a fresh Kitty database.
+    # The destructive entrypoint still distinguishes a missing project from a
+    # real project whose hard deletion is deliberately unavailable.
     with pytest.raises(project_store.ProjectNotFound):
         project_store.delete(999999)

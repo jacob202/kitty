@@ -196,17 +196,11 @@ def test_resume_missing_project_returns_404(client):
     assert r.status_code == 404
 
 
-def test_delete_in_use_project_returns_conflict(client):
-    created = client.post("/projects", json={"name": "has history", "kind": "admin"}).json()
-    with project_store.kitty_db.connect(project_store.PROJECTS_DB_FILE) as conn:
-        conn.execute(
-            "INSERT INTO chat_conversations (id, project_id, title, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            ("conv_route_keep", created["id"], "history", 1.0, 1.0),
-        )
-        conn.commit()
+def test_delete_project_refuses_hard_delete_and_points_to_archive(client):
+    created = client.post("/projects", json={"name": "keep me", "kind": "admin"}).json()
 
     r = client.delete(f"/projects/{created['id']}")
 
     assert r.status_code == 409
-    assert "linked durable state" in r.json()["detail"]
+    assert "archive" in r.json()["detail"]
+    assert project_store.get(created["id"])["status"] == "active"

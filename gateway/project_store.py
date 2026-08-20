@@ -60,8 +60,8 @@ class ProjectNotFound(ProjectError):
     """No project row with that id (404-shaped)."""
 
 
-class ProjectInUseError(ProjectError):
-    """Project cannot be removed without orphaning or invalidating durable state."""
+class ProjectDeletionDisabledError(ProjectError):
+    """Hard deletion is unavailable until project relationship integrity is complete."""
 
 
 def init_db() -> None:
@@ -136,49 +136,19 @@ def touch(project_id: int) -> None:
 
 
 def delete(project_id: int) -> None:
-    """Delete only an unreferenced, non-active project.
+    """Refuse hard deletion; projects with history must be archived instead.
 
-    ``project_next_steps`` is derived state and may be removed with the project.
-    Durable conversations, artifacts, deadlines, and the persisted active-project
-    pointer are not silently orphaned or cascaded.  A future archive/detach flow can
-    make those semantics explicit; until then destructive deletion fails closed.
+    Several durable owners already link by ``project_id`` without database-level
+    foreign keys (notably chat lifecycle and Artifacts). A pre-delete reference
+    scan cannot close the race with a concurrent writer. Until those relationships
+    have transactional/FK integrity, destructive deletion is not a truthful product
+    operation. ``status='archived'`` is the existing reversible lifecycle.
     """
-    # Be explicit at this destructive boundary: the reference tables below are
-    # canonical Kitty migrations (deadlines 014, chat lifecycle 016, artifacts 017).
-    # Do not rely on `_require() -> get() -> init_db()` as an implicit migration side effect.
     init_db()
     _require(project_id)
-    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
-        active = conn.execute(
-            "SELECT value FROM app_settings WHERE key = 'active_project_id'"
-        ).fetchone()
-        if active is not None and active["value"] == str(project_id):
-            raise ProjectInUseError(f"cannot delete project {project_id}: it is the active project")
-
-        references = {
-            "conversation": conn.execute(
-                "SELECT COUNT(*) FROM chat_conversations WHERE project_id = ?", (project_id,)
-            ).fetchone()[0],
-            "chat turn": conn.execute(
-                "SELECT COUNT(*) FROM chat_turns WHERE project_id = ?", (project_id,)
-            ).fetchone()[0],
-            "artifact": conn.execute(
-                "SELECT COUNT(*) FROM artifacts WHERE project_id = ?", (project_id,)
-            ).fetchone()[0],
-            "deadline": conn.execute(
-                "SELECT COUNT(*) FROM deadlines WHERE project_id = ?", (project_id,)
-            ).fetchone()[0],
-        }
-        linked = [f"{count} {name}{'' if count == 1 else 's'}" for name, count in references.items() if count]
-        if linked:
-            raise ProjectInUseError(
-                f"cannot delete project {project_id}: linked durable state exists ({', '.join(linked)})"
-            )
-
-        # Derived next-step state has a foreign key to projects, so delete it first.
-        conn.execute("DELETE FROM project_next_steps WHERE project_id = ?", (project_id,))
-        conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
-        conn.commit()
+    raise ProjectDeletionDisabledError(
+        f"cannot hard-delete project {project_id}; archive it by setting status='archived'"
+    )
 
 
 def _require(project_id: int) -> dict[str, Any]:

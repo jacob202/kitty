@@ -41,7 +41,7 @@ def _handle(fn, *args, **kwargs):
         return fn(*args, **kwargs)
     except project_store.ProjectNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except project_store.ProjectInUseError as exc:
+    except project_store.ProjectDeletionDisabledError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except project_store.ProjectError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
