@@ -1,4 +1,4 @@
-"""Regression coverage for IL-01 anchor readiness validation."""
+"""Regression coverage for IL-01 anchor invariants."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from gateway import image_jobs, image_plans
 from gateway import image_sessions as sessions
 from gateway.image_plan import build_image_plan
-from gateway.image_plans import persist_plan
+from gateway.image_plans import PlanStoreError, persist_plan
 from gateway.routes import extended
 
 
@@ -33,6 +33,19 @@ def _fresh_db(tmp_path: Path):
     yield
 
     gp.KITTY_DB_FILE = original
+
+
+def test_txt2img_plan_rejects_anchor_instead_of_persisting_inconsistent_state():
+    """Only img2img plans may carry an anchor job id."""
+    session = sessions.create_session(title="generate")
+
+    with pytest.raises(PlanStoreError, match="txt2img.*anchor_job_id"):
+        persist_plan(
+            session.session_id,
+            build_image_plan("a new portrait"),
+            operation="txt2img",
+            anchor_job_id="imgjob_stale_anchor",
+        )
 
 
 @pytest.mark.asyncio
