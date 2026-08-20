@@ -102,3 +102,19 @@ def test_touch_bumps_last_touched():
     project_store.touch(project["id"])
     touched = project_store.get(project["id"])
     assert touched["last_touched"] is not None
+
+
+def test_delete_refuses_hard_deletion_and_preserves_project():
+    project = project_store.create("keep history", "admin")
+
+    with pytest.raises(project_store.ProjectDeletionDisabledError, match="archive"):
+        project_store.delete(project["id"])
+
+    assert project_store.get(project["id"])["status"] == "active"
+
+
+def test_delete_on_fresh_database_migrates_then_returns_not_found():
+    # The destructive entrypoint still distinguishes a missing project from a
+    # real project whose hard deletion is deliberately unavailable.
+    with pytest.raises(project_store.ProjectNotFound):
+        project_store.delete(999999)
