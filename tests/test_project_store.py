@@ -102,3 +102,54 @@ def test_touch_bumps_last_touched():
     project_store.touch(project["id"])
     touched = project_store.get(project["id"])
     assert touched["last_touched"] is not None
+
+
+def test_delete_removes_derived_next_step_before_project():
+    project = project_store.create("disposable", "admin")
+    with project_store.kitty_db.connect(project_store.PROJECTS_DB_FILE) as conn:
+        conn.execute(
+            "INSERT INTO project_next_steps "
+            "(project_id, step, why, recent_win, delegable, generated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (project["id"], "do it", "test", "", 0, 1.0),
+        )
+        conn.commit()
+
+    project_store.delete(project["id"])
+
+    assert project_store.get(project["id"]) is None
+    with project_store.kitty_db.connect(project_store.PROJECTS_DB_FILE) as conn:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM project_next_steps WHERE project_id = ?", (project["id"],)
+        ).fetchone()[0] == 0
+
+
+def test_delete_refuses_to_orphan_linked_conversation():
+    project = project_store.create("keep history", "admin")
+    with project_store.kitty_db.connect(project_store.PROJECTS_DB_FILE) as conn:
+        conn.execute(
+            "INSERT INTO chat_conversations (id, project_id, title, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("conv_keep", project["id"], "history", 1.0, 1.0),
+        )
+        conn.commit()
+
+    with pytest.raises(project_store.ProjectInUseError, match="conversation"):
+        project_store.delete(project["id"])
+
+    assert project_store.get(project["id"]) is not None
+
+
+def test_delete_refuses_active_project_scope():
+    project = project_store.create("active scope", "admin")
+    with project_store.kitty_db.connect(project_store.PROJECTS_DB_FILE) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value, updated_at) "
+            "VALUES ('active_project_id', ?, CURRENT_TIMESTAMP)",
+            (str(project["id"]),),
+        )
+        conn.commit()
+
+    with pytest.raises(project_store.ProjectInUseError, match="active project"):
+        project_store.delete(project["id"])
+
+    assert project_store.get(project["id"]) is not None

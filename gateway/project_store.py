@@ -60,6 +60,10 @@ class ProjectNotFound(ProjectError):
     """No project row with that id (404-shaped)."""
 
 
+class ProjectInUseError(ProjectError):
+    """Project cannot be removed without orphaning or invalidating durable state."""
+
+
 def init_db() -> None:
     kitty_db.migrate(db_file=PROJECTS_DB_FILE)
     _seed_kitty_project_once()
@@ -132,11 +136,44 @@ def touch(project_id: int) -> None:
 
 
 def delete(project_id: int) -> None:
-    """Delete a project and its associated data (like next_steps)."""
-    init_db()
+    """Delete only an unreferenced, non-active project.
+
+    ``project_next_steps`` is derived state and may be removed with the project.
+    Durable conversations, artifacts, deadlines, and the persisted active-project
+    pointer are not silently orphaned or cascaded.  A future archive/detach flow can
+    make those semantics explicit; until then destructive deletion fails closed.
+    """
+    _require(project_id)
     with kitty_db.connect(PROJECTS_DB_FILE) as conn:
-        conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        active = conn.execute(
+            "SELECT value FROM app_settings WHERE key = 'active_project_id'"
+        ).fetchone()
+        if active is not None and active["value"] == str(project_id):
+            raise ProjectInUseError(f"cannot delete project {project_id}: it is the active project")
+
+        references = {
+            "conversation": conn.execute(
+                "SELECT COUNT(*) FROM chat_conversations WHERE project_id = ?", (project_id,)
+            ).fetchone()[0],
+            "chat turn": conn.execute(
+                "SELECT COUNT(*) FROM chat_turns WHERE project_id = ?", (project_id,)
+            ).fetchone()[0],
+            "artifact": conn.execute(
+                "SELECT COUNT(*) FROM artifacts WHERE project_id = ?", (project_id,)
+            ).fetchone()[0],
+            "deadline": conn.execute(
+                "SELECT COUNT(*) FROM deadlines WHERE project_id = ?", (project_id,)
+            ).fetchone()[0],
+        }
+        linked = [f"{count} {name}{'' if count == 1 else 's'}" for name, count in references.items() if count]
+        if linked:
+            raise ProjectInUseError(
+                f"cannot delete project {project_id}: linked durable state exists ({', '.join(linked)})"
+            )
+
+        # Derived next-step state has a foreign key to projects, so delete it first.
         conn.execute("DELETE FROM project_next_steps WHERE project_id = ?", (project_id,))
+        conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
         conn.commit()
 
 
