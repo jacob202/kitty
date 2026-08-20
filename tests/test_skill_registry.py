@@ -1,5 +1,8 @@
 """Tests for skill_registry — discover, get, search, invoke."""
 
+from pathlib import Path
+
+import gateway.skill_registry as skill_registry
 from gateway.skill_registry import (
     _yaml_frontmatter,
     discover,
@@ -46,6 +49,29 @@ class TestDiscover:
         discover()
         s2 = discover(force_refresh=True)
         assert len(s2) >= 1
+
+    def test_archive_directory_is_not_live_capability(self, tmp_path: Path, monkeypatch):
+        root = tmp_path / "skills"
+        active = root / "engineering" / "active-skill"
+        archived = root / "_archive" / "retired-skill"
+        active.mkdir(parents=True)
+        archived.mkdir(parents=True)
+        active.joinpath("SKILL.md").write_text(
+            "---\nname: active-skill\ndescription: active capability\n---\n\n# Active"
+        )
+        archived.joinpath("SKILL.md").write_text(
+            "---\nname: retired-skill\ndescription: retired capability\n---\n\n# Retired"
+        )
+
+        monkeypatch.setattr(skill_registry, "SKILL_ROOTS", [root])
+        monkeypatch.setattr(skill_registry, "_registry", None)
+
+        names = {skill["name"] for skill in skill_registry.discover(force_refresh=True)}
+        assert "active-skill" in names
+        assert "retired-skill" not in names
+        assert skill_registry.get("retired-skill") is None
+        assert skill_registry.search("retired") == []
+        assert "error" in skill_registry.invoke("retired-skill")
 
 
 class TestGet:
