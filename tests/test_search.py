@@ -80,6 +80,24 @@ async def test_async_search_normalizes_grouped_store_hits() -> None:
     assert result["inbox"][0]["title"] == "Capture the Sansui bias setting"
 
 
+def test_search_route_exposes_structured_degraded_stores() -> None:
+    with patch(
+        "gateway.memory_graph.search_all",
+        new=AsyncMock(return_value=GraphResult(
+            results={Source.MEMORY.value: []},
+            errors=["memory: MemoryError: unavailable"],
+            degraded_stores=[Source.MEMORY.value],
+        )),
+    ):
+        client = TestClient(app)
+        response = client.get("/search", params={"q": "anything", "limit": 3})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["degraded_stores"] == [Source.MEMORY.value]
+    assert body["errors"] == ["memory: MemoryError: unavailable"]
+
+
 def test_search_route_uses_normalized_owner_and_preserves_hit_provenance() -> None:
     items = {
         Source.KNOWLEDGE.value: [

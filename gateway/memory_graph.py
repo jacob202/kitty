@@ -503,6 +503,7 @@ class GraphResult:
 
     results: dict[str, list[Item]] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    degraded_stores: list[str] = field(default_factory=list)
 
 
 class MemoryGraph:
@@ -546,6 +547,7 @@ class MemoryGraph:
         for i, adapter in enumerate(self._adapters):
             res = results[i]
             if isinstance(res, Exception):
+                result.degraded_stores.append(adapter.name)
                 if isinstance(res, TimeoutError):
                     logger.warning("%s fetch timed out", adapter.name)
                     result.errors.append(f"{adapter.name}: {type(res).__name__}: timed out")

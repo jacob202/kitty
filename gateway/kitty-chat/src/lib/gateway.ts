@@ -1011,12 +1011,9 @@ export async function fetchGatewaySearch(
       inbox: [],
     }
     const hits: GatewaySearchHit[] = []
-    const degradedStores: string[] = []
-    for (const entry of Array.isArray(json?.errors) ? json.errors : []) {
-      if (typeof entry !== 'string') continue
-      const store = entry.match(/^([a-z0-9_-]+):/i)?.[1]
-      if (store && !degradedStores.includes(store)) degradedStores.push(store)
-    }
+    const degradedStores = Array.isArray(json?.degraded_stores)
+      ? json.degraded_stores.filter((store: unknown): store is string => typeof store === 'string')
+      : []
     for (const row of Array.isArray(json?.results) ? json.results : []) {
       const store = typeof row?.store === 'string' ? row.store : ''
       if (!(store in grouped) || typeof row?.content !== 'string') continue

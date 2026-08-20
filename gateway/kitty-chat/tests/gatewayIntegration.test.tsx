@@ -124,7 +124,8 @@ describe('fetchGatewaySearch abort', () => {
           { store: 'memory', content: 'Jacob owns the manual', score: 0.8 },
         ],
         stores: ['knowledge', 'memory'],
-        errors: ['memory: unavailable', 'knowledge: unavailable'],
+        errors: ['generic search warning'],
+        degraded_stores: ['memory', 'knowledge'],
       }), { status: 200 }),
     )
 
