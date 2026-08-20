@@ -145,7 +145,8 @@ def generate_and_deliver_brief() -> str:
 
 
 async def _scheduler_loop() -> None:
-    """Background loop: sleep until brief_time, deliver, repeat daily."""
+    """Background loop: sleep until brief_time, deliver at most once per local date."""
+    last_attempted_local_date = None
     while True:
         brief_time = load_brief_time()
         brief_timezone = load_brief_timezone()
@@ -159,15 +160,22 @@ async def _scheduler_loop() -> None:
         )
         await asyncio.sleep(wait_seconds)
 
+        fired_at = datetime.now(brief_timezone)
+        local_date = fired_at.date()
+        if local_date == last_attempted_local_date:
+            logger.warning("Skipping duplicate scheduled brief attempt for %s", local_date)
+            await asyncio.sleep(1)
+            continue
+        last_attempted_local_date = local_date
+
         try:
             generate_and_deliver_brief()
         except Exception as e:
             logger.error("Scheduled brief delivery failed: %s", e)
 
-        # Give the clock time to move past the just-fired minute, then recompute
-        # from the user's local timezone. A fixed 24-hour sleep can skip a local
-        # morning across daylight-saving transitions.
-        await asyncio.sleep(60)
+        # Recompute the next local-clock occurrence on the next iteration. This
+        # avoids fixed-24-hour drift across daylight-saving transitions.
+        await asyncio.sleep(1)
 
 
 def start_brief_scheduler() -> asyncio.Task | None:

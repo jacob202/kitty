@@ -151,3 +151,33 @@ class TestBriefScheduler:
         assert len(delivered) >= 1
         assert f"Brief for {today}" in delivered[0]
         assert "- Intention: Ship the scheduler" in delivered[0]
+    @pytest.mark.asyncio
+    async def test_scheduler_never_delivers_twice_for_same_local_date(self, tmp_path, monkeypatch):
+        from gateway import brief_scheduler
+
+        profile = tmp_path / "user_profile.json"
+        profile.write_text('{"brief_time": "08:00", "timezone": "America/Regina"}')
+        monkeypatch.setattr(brief_scheduler, "USER_PROFILE_PATH", profile)
+        monkeypatch.setattr(brief_scheduler, "seconds_until", lambda _t, _n: 0)
+
+        delivered: list[str] = []
+        monkeypatch.setattr(
+            brief_scheduler,
+            "generate_and_deliver_brief",
+            lambda: delivered.append("delivered") or "delivered",
+        )
+
+        real_sleep = asyncio.sleep
+
+        async def fast_sleep(_seconds: float) -> None:
+            await real_sleep(0)
+
+        monkeypatch.setattr(brief_scheduler.asyncio, "sleep", fast_sleep)
+        task = asyncio.create_task(brief_scheduler._scheduler_loop())
+        for _ in range(5):
+            await real_sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        assert delivered == ["delivered"]
