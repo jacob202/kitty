@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-from gateway import image_jobs, image_plans
+from gateway import artifact_store, image_jobs, image_plans
 from gateway import image_sessions as sessions
 from gateway.image_plan import build_image_plan
 from gateway.image_plans import PlanStoreError, persist_plan, require_approved_plan
@@ -41,7 +41,9 @@ def _fresh_db(tmp_path: Path):
     import gateway.paths as gp
 
     original = gp.KITTY_DB_FILE
+    original_artifacts = artifact_store.ARTIFACTS_DB_FILE
     gp.KITTY_DB_FILE = test_db
+    artifact_store.ARTIFACTS_DB_FILE = test_db
 
     conn = sqlite3.connect(str(test_db))
     conn.row_factory = sqlite3.Row
@@ -53,6 +55,7 @@ def _fresh_db(tmp_path: Path):
     yield test_db
 
     gp.KITTY_DB_FILE = original
+    artifact_store.ARTIFACTS_DB_FILE = original_artifacts
 
 
 def _build_plan(

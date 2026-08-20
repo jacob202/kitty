@@ -224,6 +224,7 @@ async def run_edit(
             output_path=str(output_path),
             artifact_id=output.asset_id,
         )
+        image_jobs.register_canonical_artifact(job.job_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, f"{type(exc).__name__}: {exc}")
@@ -311,6 +312,7 @@ async def _run_drawthings(
         data = await drawthings.generate_async(prompt)
         path = await asyncio.to_thread(save_image, data, prefix="drawthings")
         image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.register_canonical_artifact(job.job_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, str(exc)[:500])
@@ -585,6 +587,7 @@ async def _run_openrouter(
         data = base64.b64decode(data_url.split(",", 1)[1])
         path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
         image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.register_canonical_artifact(job.job_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, str(exc)[:500])
@@ -715,6 +718,7 @@ async def _run_flux(
 
         path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
         image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.register_canonical_artifact(job.job_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, str(exc)[:500])
@@ -836,6 +840,7 @@ async def _run_flux2(
 
         path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
         image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.register_canonical_artifact(job.job_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, str(exc)[:500])

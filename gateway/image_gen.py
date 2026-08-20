@@ -15,6 +15,7 @@ from gateway.image_jobs import (
     create_job,
     get_job,
     list_recent,
+    register_canonical_artifact,
     transition,
     update_job,
 )
@@ -294,6 +295,7 @@ async def generate_with_character(
         raise
 
     update_job(job.job_id, output_path=str(local_path))
+    register_canonical_artifact(job.job_id)
     transition(job.job_id, ImageJobStatus.SUCCEEDED)
 
     return {
@@ -552,6 +554,7 @@ async def generate(
         raise ImageGenerationCancelled(f"Image generation canceled for job {job.job_id}")
 
     update_job(job.job_id, output_path=str(local_path))
+    register_canonical_artifact(job.job_id)
     transition(job.job_id, ImageJobStatus.SUCCEEDED)
 
     return {"prompt_id": prompt_id, "filename": str(local_path), "job_id": job.job_id}

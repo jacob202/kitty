@@ -182,6 +182,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "035_image_plans_operation.sql",
         "036_image_jobs_compiler_provenance.sql",
         "037_image_recipes_execution_target.sql",
+        "038_image_jobs_canonical_artifact.sql",
     ]
 
 

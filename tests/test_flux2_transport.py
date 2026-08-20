@@ -52,7 +52,9 @@ from gateway.routes import extended
 def _scratch_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     import gateway.paths as paths
 
-    monkeypatch.setattr(paths, "KITTY_DB_FILE", tmp_path / "kitty.db")
+    db_file = tmp_path / "kitty.db"
+    monkeypatch.setattr(paths, "KITTY_DB_FILE", db_file)
+    monkeypatch.setattr("gateway.artifact_store.ARTIFACTS_DB_FILE", db_file)
     monkeypatch.setenv("KITTY_IMAGE_PAID_ENABLED", "1")
     monkeypatch.setenv("BFL_API_KEY", "test-bfl-key")
 

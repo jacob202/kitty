@@ -43,6 +43,8 @@ def register_file(
     source_ref: str | None = None,
     conversation_id: str | None = None,
     metadata: dict[str, Any] | None = None,
+    artifact_id: str | None = None,
+    connection: Any | None = None,
 ) -> dict[str, Any]:
     """Register an existing local file without moving or deleting it."""
     if not kind.strip():
@@ -56,7 +58,11 @@ def register_file(
     if not path.is_file():
         raise ArtifactError(f"artifact source is not a file: {path}")
     content_hash, size_bytes = _hash_file(path)
-    artifact_id = f"artifact_{uuid.uuid4().hex}"
+    explicit_artifact_id = artifact_id is not None
+    if artifact_id is None:
+        artifact_id = f"artifact_{uuid.uuid4().hex}"
+    elif not artifact_id.strip():
+        raise ArtifactError("artifact_id must not be empty when supplied")
     now = time.time()
     artifact = {
         "id": artifact_id,
@@ -77,11 +83,11 @@ def register_file(
         "metadata": metadata or {},
         "error": None,
     }
-    init_db()
-    with kitty_db.connect(ARTIFACTS_DB_FILE) as conn:
+    def _insert(conn: Any) -> Any:
+        insert_verb = "INSERT OR IGNORE" if explicit_artifact_id else "INSERT"
         conn.execute(
-            """
-            INSERT INTO artifacts
+            f"""
+            {insert_verb} INTO artifacts
                 (id, project_id, kind, media_type, display_name, state, storage_uri,
                  content_hash, size_bytes, created_at, created_by, source_ref,
                  conversation_id, work_item_id, run_id, metadata_json, error)
@@ -96,8 +102,27 @@ def register_file(
                 json.dumps(artifact["metadata"], ensure_ascii=False), artifact["error"],
             ),
         )
-        conn.commit()
-    return artifact
+        return conn.execute(
+            "SELECT * FROM artifacts WHERE id = ?", (artifact_id,)
+        ).fetchone()
+
+    if connection is None:
+        init_db()
+        with kitty_db.connect(ARTIFACTS_DB_FILE) as conn:
+            row = _insert(conn)
+    else:
+        row = _insert(connection)
+    if row is None:
+        raise ArtifactError(f"artifact {artifact_id} disappeared during registration")
+    existing = _row_to_artifact(row)
+    immutable = ("kind", "media_type", "storage_uri", "content_hash", "size_bytes", "created_by", "source_ref")
+    mismatched = [name for name in immutable if existing[name] != artifact[name]]
+    if mismatched:
+        raise ArtifactError(
+            f"artifact id {artifact_id!r} already exists with different "
+            f"{', '.join(mismatched)}"
+        )
+    return existing
 
 
 def update_ingestion(artifact_id: str, *, status: str, error: str | None = None) -> dict[str, Any]:
