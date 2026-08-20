@@ -1010,11 +1010,12 @@ export async function fetchGatewaySearch(
       const store = typeof row?.store === 'string' ? row.store : ''
       if (!(store in grouped) || typeof row?.content !== 'string') continue
       grouped[store].push({
-        kind: store,
-        source: store,
-        title: store,
+        kind: typeof row.kind === 'string' ? row.kind : store,
+        source: typeof row.source === 'string' ? row.source : store,
+        title: typeof row.title === 'string' ? row.title : store,
         text: row.content,
         score: typeof row.score === 'number' ? row.score : null,
+        metadata: isRecord(row.metadata) ? row.metadata : undefined,
       })
     }
     return {

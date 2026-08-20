@@ -1,38 +1,51 @@
-"""Search endpoint for Kitty UI."""
+"""Search endpoint for Kitty UI.
+
+The normalized search semantics live in ``gateway.search``.  This route keeps
+the current flat HTTP response for compatibility while adapting that one
+canonical grouped result into transport rows.
+"""
 
 from __future__ import annotations
 
 from fastapi import APIRouter
 
-from gateway import memory_graph
+from gateway import search as unified_search
 
 router = APIRouter(tags=["search"])
+
+_SECTION_TO_STORE = {
+    "memories": "memory",
+    "knowledge": "knowledge",
+    "journal": "journal",
+    "todos": "todos",
+    "inbox": "inbox",
+}
 
 
 @router.get("/search")
 async def search(q: str = "", limit: int = 5):
-    """Search across memory, knowledge, and journal."""
+    """Search across Kitty stores through the canonical search normalizer."""
     if not q:
-        return {"query": "", "memories": [], "knowledge": [], "journal": [], "todos": [], "inbox": []}
+        return {"query": "", "results": [], "stores": [], "errors": {}}
 
-    # Resolved on the module, not imported by name, so the storage layer stays
-    # patchable and reads keep going through memory_graph (see CLAUDE.md).
-    results = await memory_graph.search_all(q)
-
-    all_items = []
-    for store_name, items in results.results.items():
-        for item in items[:limit]:
-            all_items.append({
-                "store": store_name,
-                "content": item.text,
-                "score": item.score or 0,
+    grouped = await unified_search.async_search(q, limit=limit)
+    rows = []
+    for section, store in _SECTION_TO_STORE.items():
+        for hit in grouped.get(section, []):
+            rows.append({
+                "store": store,
+                "kind": hit.get("kind"),
+                "source": hit.get("source"),
+                "title": hit.get("title"),
+                "content": hit.get("text", ""),
+                "score": hit.get("score") or 0,
+                "metadata": hit.get("metadata", {}),
             })
 
-    all_items.sort(key=lambda x: x["score"], reverse=True)
-
+    rows.sort(key=lambda row: row["score"], reverse=True)
     return {
         "query": q,
-        "results": all_items[:limit],
-        "stores": list(results.results.keys()),
-        "errors": results.errors,
+        "results": rows[:limit],
+        "stores": grouped.get("stores", []),
+        "errors": grouped.get("errors", {}),
     }
