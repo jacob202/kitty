@@ -25,6 +25,7 @@ targets fail loud (``Flux2TargetError``).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import ceil
 
 from gateway.flux2_compiler import OPERATION_IMG2IMG
 
@@ -73,9 +74,15 @@ class Flux2HostedTarget:
         at estimate time. The provider-reported actual cost reconciles the
         reservation afterward.
         """
-        output_mp = max(width * height / 1_000_000.0, 1.0)
-        cents = self.first_mp_cents + (output_mp - 1.0) * self.add_mp_cents
+        # BFL bills FLUX.2 by whole megapixels, rounding any fractional
+        # resolution UP (for example 1920x1080 = 2.07 MP -> 3 billed MP).
+        # Reserve against that billed unit rather than the raw fractional MP
+        # so Kitty cannot under-estimate spend before dispatch.
+        output_mp = max(ceil(width * height / 1_000_000.0), 1)
+        cents = self.first_mp_cents + (output_mp - 1) * self.add_mp_cents
         if operation == OPERATION_IMG2IMG:
+            # Anchor dimensions are not yet available to the route estimator;
+            # conservatively model the input at the requested output size.
             cents += output_mp * self.input_mp_cents
         return round(cents / CREDITS_PER_USD, 6)
 

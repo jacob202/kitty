@@ -368,6 +368,13 @@ class TestCostReconciliation:
         assert pro_t2i == pytest.approx(0.03)
         assert pro_i2i == pytest.approx(0.045)
 
+    def test_estimate_rounds_fractional_megapixels_up_like_bfl_billing(self):
+        # BFL explicitly bills 1920x1080 (2.07 MP) as 3 MP. Klein 4B is
+        # 1.4c first MP + 0.1c for each of the two additional billed MPs.
+        assert FLUX2_KLEIN_4B_H.estimate_cost_usd(1920, 1080, "txt2img") == pytest.approx(0.016)
+        # For edits the conservative input estimate uses the same 3 MP size.
+        assert FLUX2_KLEIN_4B_H.estimate_cost_usd(1920, 1080, "img2img") == pytest.approx(0.019)
+
     def test_provider_cost_parsed_from_polling_payload(self):
         from gateway import flux2_transport
 

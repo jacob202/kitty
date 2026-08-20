@@ -1094,6 +1094,9 @@ async def studio_generate(req: StudioGenerateRequest):
                 prompt,
                 references=refs,
                 operation=operation,
+                # StudioGenerateRequest intentionally has no user-authored seed.
+                # Seeds become approved batch/VariationStrategy state in IL-08;
+                # do not invent mutable request-side reproducibility here.
                 seed=None,
                 width=render_width,
                 height=render_height,
