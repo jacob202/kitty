@@ -213,6 +213,11 @@ def _row_to_plan(row: Any) -> StoredPlan:
         raise PlanMalformedError(
             f"plan {row['plan_id']!r} is operation='img2img' but has no anchor_job_id"
         )
+    if operation == "txt2img" and anchor_job_id:
+        raise PlanMalformedError(
+            f"plan {row['plan_id']!r} is operation='txt2img' but carries "
+            f"anchor_job_id {anchor_job_id!r}"
+        )
     return StoredPlan(
         plan_id=row["plan_id"],
         session_id=row["session_id"],
@@ -260,12 +265,13 @@ def persist_plan(
     *plan* itself (``plan.to_dict()``/``dict(plan)``); an explicit argument
     wins. *operation* defaults to ``"txt2img"`` for callers that predate the
     edit-vs-generate distinction. An ``img2img`` plan must carry a non-empty
-    ``anchor_job_id`` identifying the image being edited — this is the field
-    ``/studio/generate`` later trusts over any mutable request body.
+    ``anchor_job_id`` identifying the image being edited; a ``txt2img`` plan
+    must never carry an anchor. These are the fields ``/studio/generate`` later
+    trusts over any mutable request body.
 
     Raises ``PlanStoreError`` if the session does not exist, the operation is
-    not one of ``ALLOWED_OPERATIONS``, an img2img plan has no anchor, or the
-    plan cannot be serialised safely.
+    not one of ``ALLOWED_OPERATIONS``, operation/anchor state is inconsistent,
+    or the plan cannot be serialised safely.
     """
     from gateway import image_sessions
     from gateway.image_sessions import ImageSessionError
@@ -303,6 +309,10 @@ def persist_plan(
     if resolved_operation == "img2img" and not resolved_anchor:
         raise PlanStoreError(
             "an img2img plan requires anchor_job_id identifying the image being edited"
+        )
+    if resolved_operation == "txt2img" and resolved_anchor:
+        raise PlanStoreError(
+            "a txt2img plan must not carry anchor_job_id; anchors are only valid for img2img"
         )
 
     guidance_tags = _encode_list(
@@ -386,12 +396,14 @@ def require_approved_plan(
     *,
     db_path: Any = None,
 ) -> StoredPlan:
-    """Load the plan a session may dispatch: owned by it and approved.
+    """Load the plan a session may dispatch: owned, approved, and renderable.
 
     This is the single gate A2's dispatch path calls. It fails loud on every
     way a caller can misuse a plan id: unknown, malformed, owned by a different
-    session, or not approved. Rejecting here — not at render time — is what
-    stops a form mutation or a leaked plan id from silently changing a render.
+    session, not approved, or (for img2img) bound to an anchor job that has not
+    successfully produced an artifact yet. Rejecting here — before recipe
+    routing, spend reservation, or worker startup — prevents mutable request
+    state and transient renderer state from changing what an approved plan does.
     """
     if not session_id or not session_id.strip():
         raise PlanStoreError("session_id must not be empty")
@@ -405,4 +417,25 @@ def require_approved_plan(
         raise PlanNotApprovedError(
             f"plan {plan_id!r} is {plan.status.value}; only an approved plan can be dispatched"
         )
+    if plan.operation == "img2img":
+        from gateway import image_jobs
+
+        db = _paths.KITTY_DB_FILE if db_path is None else db_path
+        with kitty_db.connect(db) as conn:
+            image_jobs._ensure_db(conn)
+            anchor = conn.execute(
+                "SELECT status, output_path FROM image_jobs WHERE job_id = ?",
+                (plan.anchor_job_id,),
+            ).fetchone()
+        if anchor is None:
+            raise PlanStoreError(f"anchor job {plan.anchor_job_id!r} no longer exists")
+        if anchor["status"] != image_jobs.ImageJobStatus.SUCCEEDED.value:
+            raise PlanStoreError(
+                f"job {plan.anchor_job_id!r} is {anchor['status']}; "
+                "only a succeeded job can be edited"
+            )
+        if not anchor["output_path"]:
+            raise PlanStoreError(
+                f"job {plan.anchor_job_id!r} succeeded but has no artifact to edit from"
+            )
     return plan
