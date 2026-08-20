@@ -124,7 +124,7 @@ describe('fetchGatewaySearch abort', () => {
           { store: 'memory', content: 'Jacob owns the manual', score: 0.8 },
         ],
         stores: ['knowledge', 'memory'],
-        errors: [],
+        errors: ['memory: unavailable', 'knowledge: unavailable'],
       }), { status: 200 }),
     )
 
@@ -134,6 +134,7 @@ describe('fetchGatewaySearch abort', () => {
     expect(result.error).toBeNull()
     expect(result.snapshot?.sections.knowledge[0]).toContain('MOSFET bias notes')
     expect(result.snapshot?.sections.memories[0]).toContain('Jacob owns the manual')
+    expect(result.degradedStores).toEqual(['memory', 'knowledge'])
   })
 
   it('returns error payload when gateway returns 500', async () => {
