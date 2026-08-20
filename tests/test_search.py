@@ -57,7 +57,7 @@ async def test_async_search_normalizes_grouped_store_hits() -> None:
 
     assert result["query"] == "gateway search"
     assert set(result) >= {"memories", "knowledge", "journal", "todos", "inbox", "stores", "errors"}
-    assert result["errors"] == {}
+    assert result["errors"] == []
     for section, kind in (
         ("memories", "memory"),
         ("knowledge", "knowledge"),

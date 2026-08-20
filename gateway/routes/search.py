@@ -26,7 +26,7 @@ _SECTION_TO_STORE = {
 async def search(q: str = "", limit: int = 5):
     """Search across Kitty stores through the canonical search normalizer."""
     if not q:
-        return {"query": "", "results": [], "stores": [], "errors": {}}
+        return {"query": "", "results": [], "stores": [], "errors": []}
 
     grouped = await unified_search.async_search(q, limit=limit)
     rows = []
@@ -47,5 +47,5 @@ async def search(q: str = "", limit: int = 5):
         "query": q,
         "results": rows[:limit],
         "stores": grouped.get("stores", []),
-        "errors": grouped.get("errors", {}),
+        "errors": grouped.get("errors", []),
     }
