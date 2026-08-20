@@ -1413,11 +1413,36 @@ export interface GatewayNextStep {
   generated_at: number
 }
 
+export interface GatewayArtifact {
+  id: string
+  project_id: number | null
+  kind: string
+  media_type: string
+  display_name: string
+  state: string
+  storage_uri?: string
+  content_hash?: string
+  size_bytes: number
+  created_at: number
+  created_by: string
+  source_ref?: string | null
+  conversation_id?: string | null
+  work_item_id?: string | null
+  run_id?: string | null
+  metadata: Record<string, unknown>
+  error?: string | null
+}
+
 // Projects/knowledge/provider fetchers throw on failure — react-query's
 // isError is the honest signal, not a silently empty list.
 export async function fetchProjects(): Promise<GatewayProject[]> {
   const json = await gfetch<{ projects?: GatewayProject[] }>('/projects')
   return json.projects ?? []
+}
+
+export async function fetchArtifacts(limit = 100): Promise<GatewayArtifact[]> {
+  const json = await gfetch<{ artifacts?: GatewayArtifact[] }>(`/artifacts?limit=${limit}`)
+  return json.artifacts ?? []
 }
 
 export async function fetchActiveProject(): Promise<GatewayActiveProjectPayload> {

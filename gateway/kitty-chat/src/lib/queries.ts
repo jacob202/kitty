@@ -66,6 +66,7 @@ import {
   runInboxTriage,
   // projects
   fetchProjects,
+  fetchArtifacts,
   fetchActiveProject,
   setActiveProject,
   fetchProjectNext,
@@ -629,6 +630,15 @@ export function useRunInboxTriage() {
 
 export function useProjects() {
   return useQuery({ queryKey: ['projects'], queryFn: fetchProjects, refetchInterval: 60_000 })
+}
+
+export function useArtifacts(limit = 100) {
+  return useQuery({
+    queryKey: ['artifacts', limit],
+    queryFn: () => fetchArtifacts(limit),
+    staleTime: 30_000,
+    retry: false,
+  })
 }
 
 export function useActiveProject() {
