@@ -1568,7 +1568,7 @@ export function HomeState({
       {visibleTiles['health'] !== false && <HealthStrip />}
       {visibleTiles['health'] !== false && <RepairsCard />}
       {visibleTiles['health'] !== false && <SignalsCard />}
-      <BuilderGlance onOpen={() => onNavigate('builder')} />
+      <BuilderGlance onOpen={() => onNavigate('work')} />
       {visibleTiles['weather'] !== false && weather && !weather.error && (
         <section style={{ ...card, display: 'grid', gap: 8 }}>
           <div style={cardHeader}>

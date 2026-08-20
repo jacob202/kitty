@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { REDIRECTS } from '../src/lib/views'
 
 describe('view redirects', () => {
-  it('keeps the full Builder cockpit reachable', () => {
-    expect(REDIRECTS.builder).toBeUndefined()
+  it('redirects ordinary Builder navigation to Work', () => {
+    expect(REDIRECTS.builder).toBe('work')
   })
 })
