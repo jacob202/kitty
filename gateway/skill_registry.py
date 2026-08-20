@@ -85,7 +85,12 @@ def _parse_skill_file(path: Path) -> dict | None:
 
 
 def _scan_directories() -> list[dict]:
-    """Scan all skill roots for SKILL.md files and parse them."""
+    """Scan active skill roots for SKILL.md files and parse them.
+
+    ``_archive`` is a repository lifecycle boundary, not a category. Files under
+    it are retained for history but must never be advertised or invoked as live
+    capabilities.
+    """
     skills: list[dict] = []
     seen: set[str] = set()
 
@@ -93,6 +98,12 @@ def _scan_directories() -> list[dict]:
         if not root.exists():
             continue
         for skill_file in root.rglob("SKILL.md"):
+            try:
+                relative_parts = skill_file.relative_to(root).parts
+            except ValueError:
+                continue
+            if "_archive" in relative_parts:
+                continue
             parsed = _parse_skill_file(skill_file)
             if parsed and parsed["name"] not in seen:
                 seen.add(parsed["name"])
@@ -102,7 +113,7 @@ def _scan_directories() -> list[dict]:
 
 
 def discover(force_refresh: bool = False) -> list[dict]:
-    """Discover all skills from disk. Caches after first call."""
+    """Discover all active skills from disk. Caches after first call."""
     global _registry
     if _registry is not None and not force_refresh:
         return list(_registry.values())
