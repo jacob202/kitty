@@ -153,3 +153,10 @@ def test_delete_refuses_active_project_scope():
         project_store.delete(project["id"])
 
     assert project_store.get(project["id"]) is not None
+
+
+def test_delete_on_fresh_database_migrates_then_returns_not_found():
+    # No create()/list()/init_db() call first: destructive entrypoints must never
+    # expose a raw missing-table sqlite error on a fresh Kitty database.
+    with pytest.raises(project_store.ProjectNotFound):
+        project_store.delete(999999)

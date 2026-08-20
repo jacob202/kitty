@@ -143,6 +143,10 @@ def delete(project_id: int) -> None:
     pointer are not silently orphaned or cascaded.  A future archive/detach flow can
     make those semantics explicit; until then destructive deletion fails closed.
     """
+    # Be explicit at this destructive boundary: the reference tables below are
+    # canonical Kitty migrations (deadlines 014, chat lifecycle 016, artifacts 017).
+    # Do not rely on `_require() -> get() -> init_db()` as an implicit migration side effect.
+    init_db()
     _require(project_id)
     with kitty_db.connect(PROJECTS_DB_FILE) as conn:
         active = conn.execute(
