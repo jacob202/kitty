@@ -845,6 +845,7 @@ async def studio_generate(req: StudioGenerateRequest):
         ImageRunnerError,
         estimated_cost_usd,
         paid_engine_available,
+        read_anchor_artifact,
         run,
         run_edit,
     )
@@ -1003,10 +1004,117 @@ async def studio_generate(req: StudioGenerateRequest):
         raise HTTPException(status_code=400, detail=str(exc))
 
     engine = execution_target
-    try:
-        estimated_cost = estimated_cost_usd(engine)
-    except ImageRunnerError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Hosted FLUX.2 (BFL Direct) selection (IL-03/IL-04). For provider=="flux2"
+    # the recipe names an explicit flux2 execution target; the exact model,
+    # estimate, availability, and dispatch must all agree on that one target.
+    flux2_target = None
+    compiled_request = None
+    reference_bytes: tuple[bytes, ...] = ()
+    render_width = 1024
+    render_height = 1024
+
+    if engine == "flux2":
+        from gateway.flux2_compiler import (
+            CompiledReference,
+            Flux2CompilerError,
+            compile_flux2_request,
+        )
+        from gateway.flux2_targets import (
+            Flux2TargetError,
+            resolve_flux2_target,
+        )
+
+        if not recipe or not recipe.execution_target:
+            raise HTTPException(
+                status_code=400,
+                detail="recipe for the hosted FLUX.2 lane names no execution target",
+            )
+        try:
+            flux2_target = resolve_flux2_target(recipe.execution_target)
+        except Flux2TargetError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        if recipe.default_width and recipe.default_width > 0:
+            render_width = recipe.default_width
+        if recipe.default_height and recipe.default_height > 0:
+            render_height = recipe.default_height
+
+        refs: list[CompiledReference] = []
+        ref_blobs: list[bytes] = []
+        if operation == "img2img":
+            if approved_edit_anchor is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="approved img2img plan lost its validated anchor before dispatch",
+                )
+            try:
+                anchor_bytes, anchor_name = read_anchor_artifact(
+                    approved_edit_anchor
+                )
+            except ImageRunnerError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            refs.append(
+                CompiledReference(
+                    reference_id=approved_edit_anchor,
+                    role="anchor",
+                    order=1,
+                    name=anchor_name,
+                )
+            )
+            ref_blobs.append(anchor_bytes)
+        for prov in (stored.references if stored else []):
+            path = prov.get("path") if isinstance(prov, dict) else getattr(prov, "path", None)
+            if not path or not Path(path).is_file():
+                continue
+            order = len(refs) + 1
+            refs.append(
+                CompiledReference(
+                    reference_id=str(path),
+                    role="identity",
+                    order=order,
+                    name=(prov.get("name") if isinstance(prov, dict) else getattr(prov, "name", None)),
+                )
+            )
+            ref_blobs.append(Path(path).read_bytes())
+        reference_bytes = tuple(ref_blobs)
+
+        protected = []
+        requested = []
+        session_id = req.session_id or (stored.session_id if stored else None)
+        if session_id:
+            from gateway.image_sessions import get_session as _get_session
+
+            sess = _get_session(session_id)
+            if sess is not None:
+                protected = list(sess.protected_traits or [])
+                requested = list(sess.requested_changes or [])
+        try:
+            compiled_request = compile_flux2_request(
+                prompt,
+                references=refs,
+                operation=operation,
+                seed=None,
+                width=render_width,
+                height=render_height,
+                quality_tier=req.quality,
+                protected_traits=protected,
+                requested_changes=requested,
+                negative_prompt=req.negative_prompt,
+            )
+        except Flux2CompilerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        try:
+            estimated_cost = flux2_target.estimate_cost_usd(
+                render_width, render_height, operation
+            )
+        except (Flux2TargetError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        try:
+            estimated_cost = estimated_cost_usd(engine)
+        except ImageRunnerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     paid_attempt_reserved = False
     if estimated_cost > 0:
@@ -1041,7 +1149,22 @@ async def studio_generate(req: StudioGenerateRequest):
             raise HTTPException(status_code=400, detail=str(exc))
 
     try:
-        if operation == "img2img":
+        if engine == "flux2":
+            result = await run(
+                engine,
+                prompt,
+                recipe=recipe,
+                character_id=character_id,
+                negative_prompt=req.negative_prompt,
+                guidance_tags=guidance_tags,
+                content_lane=content_lane,
+                consent_basis=consent_basis,
+                adult_confirmed=adult_confirmed,
+                flux2_target=flux2_target,
+                compiled_request=compiled_request,
+                reference_bytes=reference_bytes,
+            )
+        elif operation == "img2img":
             if approved_edit_anchor is None:
                 raise HTTPException(
                     status_code=500,
