@@ -60,6 +60,10 @@ class ProjectNotFound(ProjectError):
     """No project row with that id (404-shaped)."""
 
 
+class ProjectDeletionDisabledError(ProjectError):
+    """Hard deletion is unavailable until project relationship integrity is complete."""
+
+
 def init_db() -> None:
     kitty_db.migrate(db_file=PROJECTS_DB_FILE)
     _seed_kitty_project_once()
@@ -132,12 +136,19 @@ def touch(project_id: int) -> None:
 
 
 def delete(project_id: int) -> None:
-    """Delete a project and its associated data (like next_steps)."""
+    """Refuse hard deletion; projects with history must be archived instead.
+
+    Several durable owners already link by ``project_id`` without database-level
+    foreign keys (notably chat lifecycle and Artifacts). A pre-delete reference
+    scan cannot close the race with a concurrent writer. Until those relationships
+    have transactional/FK integrity, destructive deletion is not a truthful product
+    operation. ``status='archived'`` is the existing reversible lifecycle.
+    """
     init_db()
-    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
-        conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
-        conn.execute("DELETE FROM project_next_steps WHERE project_id = ?", (project_id,))
-        conn.commit()
+    _require(project_id)
+    raise ProjectDeletionDisabledError(
+        f"cannot hard-delete project {project_id}; archive it by setting status='archived'"
+    )
 
 
 def _require(project_id: int) -> dict[str, Any]:
