@@ -81,6 +81,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'string'
+}
+
+function isBlocker(value: unknown): boolean {
+  return value === undefined || value === null || (isRecord(value) && isOptionalString(value.reason))
+}
+
 function isEvidence(value: unknown): value is Record<string, unknown> {
   if (!isRecord(value)) return false
   return ['approval', 'review', 'validation', 'publication'].every((field) => {
@@ -99,6 +107,8 @@ function isWorkItem(value: unknown): value is GatewayWorkItem {
     && isRecord(value.source)
     && value.source.kind === 'builder'
     && typeof value.source.initiative_id === 'string'
+    && isOptionalString(value.next_action)
+    && isBlocker(value.blocker)
     && isEvidence(value.evidence)
     && isRecord(value.data_quality)
     && typeof value.data_quality.state === 'string'

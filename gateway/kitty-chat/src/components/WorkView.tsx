@@ -205,6 +205,8 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
   const validationSummary = boundedEvidenceText(validation?.summary)
   const publicationPr = evidenceScalar(publication?.pr_number)
   const publicationChecks = evidenceScalar(publication?.checks_state)
+  const publicationMerged = typeof publication?.merged === 'boolean' ? publication.merged : null
+  const publicationMergedAt = boundedEvidenceText(publication?.merged_at)
 
   return (
     <>
@@ -214,6 +216,8 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
       {validationSummary && <div>{validationSummary}</div>}
       {publicationPr && <div>publication PR #{publicationPr}</div>}
       {publicationChecks && <div>publication checks {publicationChecks}</div>}
+      {publicationMerged !== null && <div>publication {publicationMerged ? 'merged' : 'not merged'}</div>}
+      {publicationMergedAt && <div>publication merged at {publicationMergedAt}</div>}
     </>
   )
 }

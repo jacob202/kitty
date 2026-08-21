@@ -148,7 +148,7 @@ describe('WorkView projection', () => {
           approval: { state: 'unavailable' },
           review: { verdict: 'approve', summary: 'Independent review passed.' },
           validation: { status: 'passed', summary: '4 validation commands passed.' },
-          publication: { pr_number: 564, checks_state: 'passed', merged: false },
+          publication: { pr_number: 564, checks_state: 'passed', merged: true, merged_at: '2026-08-21T15:30:00Z' },
         },
       }],
     })
@@ -164,6 +164,8 @@ describe('WorkView projection', () => {
     expect(screen.getByText('4 validation commands passed.')).toBeVisible()
     expect(screen.getByText('publication PR #564')).toBeVisible()
     expect(screen.getByText('publication checks passed')).toBeVisible()
+    expect(screen.getByText('publication merged')).toBeVisible()
+    expect(screen.getByText('publication merged at 2026-08-21T15:30:00Z')).toBeVisible()
   })
 
   it('surfaces review evidence only when review evidence is present', () => {
