@@ -123,13 +123,9 @@ async def lifespan(app: FastAPI):
                 check()
 
             async def _action_check_monitors():
-                from gateway.web_monitor import check_now, list_watches
+                from gateway.web_monitor import check_due
 
-                for w in list_watches():
-                    try:
-                        await check_now(w["watch_id"])
-                    except Exception:
-                        logger.warning("Monitor check failed for watch %s", w.get("watch_id"))
+                await check_due()
 
             async def _action_memory_consolidate():
                 from gateway.memory_consolidation import nightly_dream
@@ -210,6 +206,7 @@ async def lifespan(app: FastAPI):
             register_action("life.morning_proactive", _action_life_morning_proactive)
             register_action("insights.return_due", _action_insights_return_due)
             cron.schedule("insights return due", "insights.return_due", "interval", "15")
+            cron.schedule("web monitor due checks", "monitors.check", "interval", "5")
             cron.schedule("iCloud inbox scan", "inbox.scan", "interval", "0.5")
             cron_start()
         except Exception:

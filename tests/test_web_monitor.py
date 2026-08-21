@@ -93,3 +93,37 @@ class TestDB:
     def test_init_idempotent(self):
         init_db()
         init_db()
+
+
+@pytest.mark.asyncio
+async def test_check_due_preserves_per_watch_intervals(monkeypatch):
+    import gateway.web_monitor as wm
+
+    now = 1_000.0
+    watches = [
+        {"id": "due", "enabled": True, "interval_minutes": 5, "last_checked": 600.0},
+        {"id": "early", "enabled": True, "interval_minutes": 5, "last_checked": 900.0},
+        {"id": "off", "enabled": False, "interval_minutes": 1, "last_checked": 0.0},
+    ]
+    monkeypatch.setattr(wm, "list_watches", lambda: watches)
+    monkeypatch.setattr(wm.time, "time", lambda: now)
+
+    checked: list[str] = []
+    notified: list[str] = []
+
+    async def fake_check(watch):
+        checked.append(watch["id"])
+        return {"changed": True}
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(wm, "_check_watch", fake_check)
+    monkeypatch.setattr(wm, "_notify_match", lambda watch, _result: notified.append(watch["id"]))
+    monkeypatch.setattr(wm.asyncio, "sleep", no_sleep)
+
+    result = await wm.check_due()
+
+    assert checked == ["due"]
+    assert notified == ["due"]
+    assert result == {"checked": 1, "changed": 1, "failed": 0}

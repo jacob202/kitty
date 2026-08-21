@@ -100,6 +100,7 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
     async with app_module.lifespan(app_module.app):
         assert private_loop_started is False
         assert "inbox.scan" in actions
+        assert ("web monitor due checks", "monitors.check", "interval", "5") in schedules
         assert ("iCloud inbox scan", "inbox.scan", "interval", "0.5") in schedules
         await actions["inbox.scan"]()  # type: ignore[operator]
         assert scans == ["scan"]
