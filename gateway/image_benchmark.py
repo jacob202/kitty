@@ -49,3 +49,40 @@ def run_benchmark_case(
         passed=result.passed,
         evaluation=result.to_dict(),
     )
+
+
+@dataclass(frozen=True)
+class ImageBenchmarkSuite:
+    """Collection of Image Lab benchmark cases."""
+
+    name: str
+    cases: list[ImageBenchmarkCase]
+
+
+def default_image_benchmark_suite() -> ImageBenchmarkSuite:
+    """Initial regression suite for conversational image workflows."""
+    return ImageBenchmarkSuite(
+        name="image_lab_v1",
+        cases=[
+            ImageBenchmarkCase(
+                name="identity_preservation",
+                scorers=["identity"],
+                metadata={"goal": "Character identity remains stable across a new scene."},
+            ),
+            ImageBenchmarkCase(
+                name="anchor_edit",
+                scorers=["anchor_edit"],
+                metadata={"goal": "An anchored image edit preserves the source intent."},
+            ),
+            ImageBenchmarkCase(
+                name="protected_traits",
+                scorers=["protected_traits"],
+                metadata={"goal": "Protected character traits remain unchanged."},
+            ),
+            ImageBenchmarkCase(
+                name="requested_changes",
+                scorers=["requested_changes"],
+                metadata={"goal": "Requested changes are applied without unrelated drift."},
+            ),
+        ],
+    )
