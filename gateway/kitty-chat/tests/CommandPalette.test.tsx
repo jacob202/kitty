@@ -17,6 +17,23 @@ afterEach(() => {
 })
 
 describe('CommandPalette', () => {
+  it('does not expose Builder as a second normal-user destination', () => {
+    render(
+      <CommandPalette
+        chats={[]}
+        onNewChat={vi.fn()}
+        onSelectChat={vi.fn()}
+        onViewChange={vi.fn()}
+        onToggleSidebar={vi.fn()}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('work')).toBeVisible()
+    expect(screen.queryByText('builder')).not.toBeInTheDocument()
+  })
+
   it('opens the shared Agents room from the Go to commands', () => {
     const onViewChange = vi.fn()
 

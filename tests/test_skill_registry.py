@@ -47,6 +47,32 @@ class TestDiscover:
         s2 = discover(force_refresh=True)
         assert len(s2) >= 1
 
+    def test_archived_skills_are_not_active(self):
+        names = {s["name"] for s in discover(force_refresh=True)}
+        assert "red-team" not in names
+        assert "root-cause-analysis" not in names
+
+    def test_only_top_level_archive_namespace_is_excluded(self, tmp_path, monkeypatch):
+        import gateway.skill_registry as registry
+
+        root = tmp_path / "skills"
+        top_archive = root / "_archive" / "retired"
+        nested_archive = root / "engineering" / "_archive"
+        top_archive.mkdir(parents=True)
+        nested_archive.mkdir(parents=True)
+        top_archive.joinpath("SKILL.md").write_text(
+            "---\nname: retired\ndescription: retired skill\n---\n"
+        )
+        nested_archive.joinpath("SKILL.md").write_text(
+            "---\nname: nested-active\ndescription: active nested skill\n---\n"
+        )
+
+        monkeypatch.setattr(registry, "SKILL_ROOTS", [root])
+        monkeypatch.setattr(registry, "_registry", None)
+        names = {skill["name"] for skill in registry.discover(force_refresh=True)}
+        assert "retired" not in names
+        assert "nested-active" in names
+
 
 class TestGet:
     def test_get_existing(self):

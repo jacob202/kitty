@@ -1,5 +1,5 @@
 'use client'
-import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   // brief / models / search / weather (full payloads)
   fetchGatewayBrief,
@@ -830,17 +830,21 @@ export function useWhatsNextSteps() {
   })
 }
 
-/** One next-step query per project, sharing the ['projects', id, 'next']
- *  cache entries with useProjectNext so ProjectsPanel and Home never
- *  double-fetch. */
+/** Read all Home project next-steps in one request. Missing steps are normal
+ *  empty state, not per-project 404s that pollute the browser console. */
 export function useProjectNextSteps(projects: GatewayProject[]) {
-  return useQueries({
-    queries: projects.map(p => ({
-      queryKey: ['projects', p.id, 'next'],
-      queryFn: () => fetchProjectNext(p.id),
-      staleTime: 60_000,
-    })),
+  const query = useQuery({
+    queryKey: ['projects', 'next-steps', 'active', projects.map(project => project.id).join(',')],
+    queryFn: () => fetchProjectNextSteps(projects.length),
+    enabled: projects.length > 0,
+    staleTime: 60_000,
   })
+  const steps = query.data ?? []
+  return projects.map(project => ({
+    data: steps.find(step => step.project_id === project.id) ?? null,
+    isPending: query.isPending,
+    isError: query.isError,
+  }))
 }
 
 export function useUploadCapture() {
