@@ -21,6 +21,7 @@ export default function WorkView({ isMobile }: { isMobile: boolean; onNavigate?:
   const work = useWorkSnapshot()
   const snapshot = work.data
   const sourceLabel = snapshot && isExpired(snapshot.valid_until) ? 'stale' : snapshot?.source.state
+  const sourceReason = snapshot?.source.state === 'degraded' ? boundedSourceReason(snapshot.source.reason) : null
 
   return (
     <div style={{ flex: 1, padding: isMobile ? '16px 12px 124px' : '24px 32px 40px', display: 'grid', gap: 20, alignContent: 'start' }}>
@@ -30,6 +31,7 @@ export default function WorkView({ isMobile }: { isMobile: boolean; onNavigate?:
           {snapshot && sourceLabel && <SourceStatus state={sourceLabel} observedAt={snapshot.observed_at} />}
         </div>
         <p style={{ margin: 0, color: 'var(--ink-2)' }}>Live Gateway projection of Builder work. No separate task state lives here.</p>
+        {sourceReason && <div style={metaStyle}>reason: {sourceReason}</div>}
       </header>
 
       {work.isPending && <Notice>Loading work…</Notice>}
@@ -90,6 +92,13 @@ function workGroup(item: GatewayWorkItem): WorkGroup {
 function isExpired(validUntil: string): boolean {
   const expiry = Date.parse(validUntil)
   return !Number.isFinite(expiry) || expiry <= Date.now()
+}
+
+function boundedSourceReason(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const reason = value.trim()
+  if (!reason) return null
+  return reason.length <= 240 ? reason : `${reason.slice(0, 239).trimEnd()}…`
 }
 
 function Notice({ children }: { children: ReactNode }) {
@@ -223,7 +232,7 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
       {validationSummary && <div>{validationSummary}</div>}
       {publicationPr && <div>publication PR #{publicationPr}</div>}
       {publicationChecks && <div>publication checks {publicationChecks}</div>}
-      {publicationMerged !== null && <div>publication {publicationMerged ? 'merged' : 'open'}</div>}
+      {publicationMerged !== null && <div>publication {publicationMerged ? 'merged' : 'not merged'}</div>}
       {publicationMerged === true && publicationMergedAt && <div>merged {publicationMergedAt}</div>}
     </>
   )
