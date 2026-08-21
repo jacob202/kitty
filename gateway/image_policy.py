@@ -140,7 +140,7 @@ def validate_image_execution_policy(
     """
     lane = normalize_lane(content_lane)
     if lane is None:
-        if isinstance(content_lane, ContentLane):
+        if content_lane is not None and str(content_lane).strip() != "":
             raise ImagePolicyError(
                 f"invalid content lane {content_lane!r}; expected one of "
                 f"{sorted(_VALID_LANES)}"

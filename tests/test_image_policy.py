@@ -727,3 +727,9 @@ class TestKeywordsHaveZeroAuthority:
         assert resumed.content_lane == "private_adult"
         assert resumed.consent_basis == "synthetic"
         assert resumed.adult_confirmed is True
+
+    def test_invalid_string_lane_raises_image_policy_error(self):
+        for invalid_lane in ["private-adult", "nsfw", "private_explicit", "invalid"]:
+            with pytest.raises(ImagePolicyError, match="invalid content lane"):
+                validate_image_execution_policy(invalid_lane, "synthetic", True, "kitty_worker")
+
