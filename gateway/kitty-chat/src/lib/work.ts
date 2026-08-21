@@ -89,6 +89,23 @@ function isEvidence(value: unknown): value is Record<string, unknown> {
   })
 }
 
+function isNullableString(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'string'
+}
+
+function isCurrentPacket(value: unknown): boolean {
+  if (value === undefined || value === null) return true
+  if (!isRecord(value)) return false
+  return ['id', 'title', 'objective', 'task_id', 'task_state', 'failure_kind', 'next_action', 'updated_at']
+    .every(field => isNullableString(value[field]))
+}
+
+function isCurrentRun(value: unknown): boolean {
+  if (value === undefined || value === null) return true
+  if (!isRecord(value)) return false
+  return ['id', 'state', 'started_at', 'ended_at'].every(field => isNullableString(value[field]))
+}
+
 function isWorkItem(value: unknown): value is GatewayWorkItem {
   if (!isRecord(value)) return false
   const blocker = value.blocker
@@ -100,6 +117,8 @@ function isWorkItem(value: unknown): value is GatewayWorkItem {
     && isRecord(value.source)
     && value.source.kind === 'builder'
     && typeof value.source.initiative_id === 'string'
+    && isCurrentPacket(value.current_packet)
+    && isCurrentRun(value.current_run)
     && isEvidence(value.evidence)
     && (value.next_action === undefined || value.next_action === null || typeof value.next_action === 'string')
     && (
