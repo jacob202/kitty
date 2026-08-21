@@ -29,7 +29,6 @@ logger = logging.getLogger("kitty.web_monitor")
 MONITOR_DB = DATA_DIR / "web_monitors.db"
 CHECK_INTERVAL_SECONDS: int = 300  # 5 minutes between global poll cycles
 
-_polling_task: asyncio.Task | None = None
 
 
 def init_db() -> None:
@@ -73,8 +72,6 @@ def add_watch(
 
     logger.info("Web watch added: %s -> %s", watch_id, url[:80])
 
-    # Ensure polling is running
-    _ensure_polling()
     return watch_id
 
 
@@ -117,40 +114,38 @@ async def check_now(watch_id: str) -> dict:
     return result
 
 
-def _ensure_polling() -> None:
-    global _polling_task
-    if _polling_task is None or _polling_task.done():
-        _polling_task = asyncio.create_task(_poll_loop())
+async def check_due() -> dict:
+    """Check enabled watches whose per-watch interval is due once.
 
+    Timing ownership belongs to the canonical cron/Automation lifecycle; this
+    function retains web-monitor domain semantics and per-watch cadence.
+    """
+    checked = 0
+    changed = 0
+    failed = 0
+    now = time.time()
 
-async def _poll_loop() -> None:
-    """Background loop that checks all enabled watches."""
-    logger.info("Web monitor polling started")
-    while True:
+    for watch in [w for w in list_watches() if w.get("enabled")]:
+        interval = float(watch.get("interval_minutes", 30)) * 60
+        last_checked = float(watch.get("last_checked", 0) or 0)
+        if interval <= 0 or now - last_checked < interval:
+            continue
+
         try:
-            watches = list_watches()
-            enabled = [w for w in watches if w.get("enabled")]
-
-            for watch in enabled:
-                try:
-                    interval = watch.get("interval_minutes", 30) * 60
-                    last_checked = watch.get("last_checked", 0)
-                    if time.time() - last_checked >= interval:
-                        result = await _check_watch(watch)
-                        if result.get("changed"):
-                            _notify_match(watch, result)
-                except Exception:
-                    logger.exception("Watch check failed for %s", watch.get("id"))
-
-                await asyncio.sleep(2)  # small gap between checks
-
-        except asyncio.CancelledError:
-            logger.info("Web monitor polling stopped")
-            return
+            result = await _check_watch(watch)
+            checked += 1
+            if result.get("changed"):
+                changed += 1
+                _notify_match(watch, result)
+            if result.get("status") == "error":
+                failed += 1
         except Exception:
-            logger.exception("Web monitor poll cycle error")
+            failed += 1
+            logger.exception("Watch check failed for %s", watch.get("id"))
 
-        await asyncio.sleep(CHECK_INTERVAL_SECONDS)
+        await asyncio.sleep(2)
+
+    return {"checked": checked, "changed": changed, "failed": failed}
 
 
 async def _check_watch(watch: dict) -> dict:
