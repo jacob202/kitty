@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from gateway.paths import PROJECT_ROOT
 
@@ -18,19 +19,40 @@ logger = logging.getLogger("kitty.brief_scheduler")
 
 USER_PROFILE_PATH = PROJECT_ROOT / "config" / "user_profile.json"
 DEFAULT_BRIEF_TIME = "08:00"
-_ONE_DAY = 86400
+DEFAULT_TIMEZONE = "America/Regina"
+
+
+def _load_profile() -> dict:
+    try:
+        data = json.loads(USER_PROFILE_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        logger.warning("Could not read user profile for brief scheduling: %s", e)
+        return {}
 
 
 def load_brief_time() -> str:
     """Read the configured brief time (HH:MM) from user_profile.json."""
-    try:
-        data = json.loads(USER_PROFILE_PATH.read_text(encoding="utf-8"))
-        brief_time = data.get("brief_time", DEFAULT_BRIEF_TIME)
-        if isinstance(brief_time, str) and len(brief_time.split(":")) == 2:
-            return brief_time
-    except Exception as e:
-        logger.warning("Could not read brief_time from user profile: %s", e)
+    brief_time = _load_profile().get("brief_time", DEFAULT_BRIEF_TIME)
+    if isinstance(brief_time, str) and len(brief_time.split(":")) == 2:
+        return brief_time
     return DEFAULT_BRIEF_TIME
+
+
+def load_brief_timezone() -> ZoneInfo:
+    """Return the user's configured IANA timezone for local-clock scheduling."""
+    timezone_name = _load_profile().get("timezone", DEFAULT_TIMEZONE)
+    if not isinstance(timezone_name, str) or not timezone_name.strip():
+        timezone_name = DEFAULT_TIMEZONE
+    try:
+        return ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        logger.warning(
+            "Unknown brief timezone %r; falling back to %s",
+            timezone_name,
+            DEFAULT_TIMEZONE,
+        )
+        return ZoneInfo(DEFAULT_TIMEZONE)
 
 
 def seconds_until(hh_mm: str, now: datetime) -> float:
@@ -123,21 +145,37 @@ def generate_and_deliver_brief() -> str:
 
 
 async def _scheduler_loop() -> None:
-    """Background loop: sleep until brief_time, deliver, repeat daily."""
+    """Background loop: sleep until brief_time, deliver at most once per local date."""
+    last_attempted_local_date = None
     while True:
         brief_time = load_brief_time()
-        now = datetime.now(timezone.utc)
+        brief_timezone = load_brief_timezone()
+        now = datetime.now(brief_timezone)
         wait_seconds = seconds_until(brief_time, now)
-        logger.info("Next brief scheduled at %s (in %.0f seconds)", brief_time, wait_seconds)
+        logger.info(
+            "Next brief scheduled at %s %s (in %.0f seconds)",
+            brief_time,
+            brief_timezone.key,
+            wait_seconds,
+        )
         await asyncio.sleep(wait_seconds)
+
+        fired_at = datetime.now(brief_timezone)
+        local_date = fired_at.date()
+        if local_date == last_attempted_local_date:
+            logger.warning("Skipping duplicate scheduled brief attempt for %s", local_date)
+            await asyncio.sleep(1)
+            continue
+        last_attempted_local_date = local_date
 
         try:
             generate_and_deliver_brief()
         except Exception as e:
             logger.error("Scheduled brief delivery failed: %s", e)
 
-        # Sleep the remainder of the day so we don't re-fire immediately
-        await asyncio.sleep(_ONE_DAY)
+        # Recompute the next local-clock occurrence on the next iteration. This
+        # avoids fixed-24-hour drift across daylight-saving transitions.
+        await asyncio.sleep(1)
 
 
 def start_brief_scheduler() -> asyncio.Task | None:

@@ -1,18 +1,18 @@
 # Kitty Planning Index
 
-**Status:** Navigation and disposition index; not a roadmap  
-**Updated:** 2026-08-18  
-**Roadmap authority:** `docs/ROADMAP_V2.md` (active authority; `docs/ROADMAP.md` superseded 2026-08-08)  
-**Active mission:** `docs/ACTIVE_MISSION.md`
+**Status:** Navigation and disposition index; not a roadmap
+**Updated:** 2026-08-19
+**Roadmap authority:** `docs/ROADMAP.md` — the only roadmap
+**Mission record:** `docs/ACTIVE_MISSION.md` — KPROOF-001 is terminal/superseded; no running mission is implied
 
-`docs/ROADMAP_V2.md` is the only active roadmap (replaced `docs/ROADMAP.md` 2026-08-08). This file exists to point readers
+`docs/ROADMAP_V2.md` is a blocked milestone-detail appendix, not an active roadmap. This file exists to point readers
 to reviewed plans and to prevent older session plans from silently regaining
 authority.
 
 ## Operating rule
 
-- Use `docs/ROADMAP_V2.md` for priority and sequencing.
-- Use `docs/ACTIVE_MISSION.md` for the current bounded mission.
+- Use `docs/ROADMAP.md` for priority and sequencing.
+- Use `docs/ACTIVE_MISSION.md` for the canonical mission record; its current status is terminal, so it is not a running scope gate.
 - Treat every file under `docs/plans/` or `docs/planning/` as supporting
   evidence unless the canonical roadmap explicitly activates it.
 - A plan that describes an older repository state must be superseded or
@@ -43,7 +43,7 @@ or other identity/repair machinery only if native capability fails Kitty's
 acceptance bar.
 
 This index does not activate Image Lab implementation by itself. Priority and
-sequencing remain owned by the active roadmap and mission.
+sequencing remain owned by `docs/ROADMAP.md` plus explicit Jacob approval. KPROOF-001 no longer authorizes or blocks this work.
 
 Superseded Image Studio plans:
 
@@ -55,7 +55,7 @@ Superseded Image Studio plans:
 ### KittyBuilder
 
 - `docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md` — retained as supporting design
-  evidence; sequencing belongs to `docs/ROADMAP_V2.md`.
+  evidence; sequencing belongs to `docs/ROADMAP.md`.
 - `docs/plans/feat-kittybuilder-follow-on-roadmap.md` — retained backlog input,
   not an independent roadmap.
 
@@ -79,8 +79,8 @@ preserved in Git history but is no longer operational guidance.
 
 | Need | Authority or source |
 |---|---|
-| Current priority and sequencing | `docs/ROADMAP_V2.md` |
-| Current bounded mission | `docs/ACTIVE_MISSION.md` |
+| Current priority and sequencing | `docs/ROADMAP.md` |
+| Mission record / acceptance contract | `docs/ACTIVE_MISSION.md` |
 | Authority relationships | `docs/AUTHORITY_MAP.md` |
 | Product direction | `docs/NORTH_STAR.md` and `docs/KITTY_PRODUCT_ARCHITECTURE.md` |
 | Current project status | `docs/PROJECT_STATUS.md` and runtime evidence |
