@@ -39,3 +39,165 @@ it('preserves Gateway error detail and endpoint', async () => {
     'GET /proxy/work failed: 503 Service Unavailable: work source unavailable',
   )
 })
+
+
+it('fails closed when Gateway /work returns an invalid payload', async () => {
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify({ schema_version: 999 }), { status: 200 }))
+  vi.stubGlobal('fetch', fetchMock)
+  const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
+  await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
+})
+
+it('fails closed when a Work item omits render-required metadata', async () => {
+  const invalid = {
+    schema_version: 1,
+    observed_at: '2026-08-13T21:00:00Z',
+    valid_until: '2026-08-13T21:00:30Z',
+    source: { kind: 'builder', state: 'available' },
+    counts: { total: 1, active: 0, paused: 0, failed: 0, blocked: 1, completed: 0, ready: 0, waiting: 0 },
+    queue: null,
+    items: [{
+      id: 'WORK-1',
+      title: 'Malformed item',
+      state: 'blocked',
+      source: { kind: 'builder', initiative_id: 'WORK-1', packet_id: null },
+      evidence: {},
+      // data_quality intentionally omitted: WorkView dereferences it.
+    }],
+    item_limit: 50,
+    total_items: 1,
+  }
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(invalid), { status: 200 })))
+  const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
+  await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
+})
+
+it('fails closed when evidence has an array shape', async () => {
+  const invalid = {
+    schema_version: 1,
+    observed_at: '2026-08-13T21:00:00Z',
+    valid_until: '2026-08-13T21:00:30Z',
+    source: { kind: 'builder', state: 'available' },
+    counts: { total: 1, active: 1, paused: 0, failed: 0, blocked: 0, completed: 0, ready: 0, waiting: 0 },
+    queue: null,
+    items: [{
+      id: 'WORK-1', title: 'Bad evidence', state: 'active',
+      source: { kind: 'builder', initiative_id: 'WORK-1', packet_id: null },
+      evidence: [], data_quality: { state: 'complete', issues: [] },
+    }],
+    item_limit: 50,
+    total_items: 1,
+  }
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(invalid), { status: 200 })))
+  const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
+  await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
+})
+it('fails closed when a nested evidence field is not a record', async () => {
+  const invalid = {
+    schema_version: 1,
+    observed_at: '2026-08-13T21:00:00Z',
+    valid_until: '2026-08-13T21:00:30Z',
+    source: { kind: 'builder', state: 'available' },
+    counts: { total: 1, active: 1, paused: 0, failed: 0, blocked: 0, completed: 0, ready: 0, waiting: 0 },
+    queue: null,
+    items: [{
+      id: 'WORK-1', title: 'Bad review evidence', state: 'active',
+      source: { kind: 'builder', initiative_id: 'WORK-1', packet_id: null },
+      evidence: { review: [] }, data_quality: { state: 'complete', issues: [] },
+    }],
+    item_limit: 50,
+    total_items: 1,
+  }
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(invalid), { status: 200 })))
+  const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
+  await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
+})
+
+it.each([
+  ['review verdict', { review: { verdict: { code: 'approve' } } }],
+  ['review summary', { review: { summary: ['passed'] } }],
+  ['validation status', { validation: { status: { code: 'passed' } } }],
+  ['validation summary', { validation: { summary: ['passed'] } }],
+  ['publication checks state', { publication: { checks_state: { code: 'passed' } } }],
+  ['publication merged flag', { publication: { merged: 'true' } }],
+  ['publication merged timestamp', { publication: { merged_at: 123 } }],
+])('fails closed when a rendered evidence field is malformed: %s', async (_label, evidence) => {
+  const invalid = {
+    schema_version: 1,
+    observed_at: '2026-08-13T21:00:00Z',
+    valid_until: '2026-08-13T21:00:30Z',
+    source: { kind: 'builder', state: 'available' },
+    counts: { total: 1, active: 1, paused: 0, failed: 0, blocked: 0, completed: 0, ready: 0, waiting: 0 },
+    queue: null,
+    items: [{
+      id: 'WORK-1', title: 'Bad evidence field', state: 'active',
+      source: { kind: 'builder', initiative_id: 'WORK-1', packet_id: null },
+      evidence, data_quality: { state: 'complete', issues: [] },
+    }],
+    item_limit: 50,
+    total_items: 1,
+  }
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(invalid), { status: 200 })))
+  const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
+  await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
+})
+
+it.each([
+  ['next_action', { next_action: ['needs_review'], blocker: null }],
+  ['blocker reason', { next_action: null, blocker: { state: 'blocked', reason: { code: 'needs_review' } } }],
+])('fails closed when a Work item has a non-string %s', async (_label, malformedFields) => {
+  const invalid = {
+    schema_version: 1,
+    observed_at: '2026-08-13T21:00:00Z',
+    valid_until: '2026-08-13T21:00:30Z',
+    source: { kind: 'builder', state: 'available' },
+    counts: { total: 1, active: 0, paused: 0, failed: 0, blocked: 1, completed: 0, ready: 0, waiting: 0 },
+    queue: null,
+    items: [{
+      id: 'WORK-1', title: 'Bad work detail', state: 'blocked',
+      source: { kind: 'builder', initiative_id: 'WORK-1', packet_id: null },
+      evidence: {}, data_quality: { state: 'complete', issues: [] },
+      ...malformedFields,
+    }],
+    item_limit: 50,
+    total_items: 1,
+  }
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(invalid), { status: 200 })))
+  const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
+  await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
+})
+
+
+it.each([
+  ['current_packet.id', { id: { value: 'PACKET-1' } }],
+  ['current_packet.task_id', { task_id: { value: 'TASK-1' } }],
+  ['current_packet.task_state', { task_state: { value: 'running' } }],
+  ['current_run.id', { id: { value: 'RUN-1' } }],
+])('fails closed when a rendered Work metadata field is not a string: %s', async (label, malformedField) => {
+  const currentPacket = label.startsWith('current_packet')
+    ? { id: 'PACKET-1', title: 'Packet', task_id: 'TASK-1', task_state: 'running', ...malformedField }
+    : null
+  const currentRun = label.startsWith('current_run')
+    ? { id: 'RUN-1', state: 'running', ...malformedField }
+    : null
+  const invalid = {
+    schema_version: 1,
+    observed_at: '2026-08-13T21:00:00Z',
+    valid_until: '2026-08-13T21:00:30Z',
+    source: { kind: 'builder', state: 'available' },
+    counts: { total: 1, active: 1, paused: 0, failed: 0, blocked: 0, completed: 0, ready: 0, waiting: 0 },
+    queue: null,
+    items: [{
+      id: 'WORK-1', title: 'Bad metadata', state: 'active',
+      source: { kind: 'builder', initiative_id: 'WORK-1', packet_id: null },
+      current_packet: currentPacket,
+      current_run: currentRun,
+      evidence: {}, data_quality: { state: 'complete', issues: [] },
+    }],
+    item_limit: 50,
+    total_items: 1,
+  }
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(invalid), { status: 200 })))
+  const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
+  await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
+})
