@@ -34,7 +34,7 @@ import {
 import { validateAttachments, type AttachmentError } from '@/lib/attachment-validation'
 import { normalizeMemoryEvidence } from '@/lib/types'
 import { usePwaInstall } from '@/lib/pwa'
-import { REDIRECTS } from '@/lib/views'
+import { REDIRECTS, getView } from '@/lib/views'
 import {
   useGatewayBrief,
   useGatewayModels,
@@ -52,6 +52,13 @@ import {
 import type { CatState } from '@/components/CrayonCat'
 
 const MOBILE_BREAKPOINT = 900
+const ACTIVE_VIEW_STORAGE_KEY = 'kitty-active-view'
+
+function canonicalActiveView(view: string | null | undefined): string {
+  if (!view) return 'home'
+  const resolved = REDIRECTS[view] ?? view
+  return getView(resolved) ? resolved : 'home'
+}
 
 let chatCounter = 0
 function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
@@ -255,7 +262,15 @@ export function KittyProvider({ children }: { children: ReactNode }) {
 
   const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')])
   const [activeView, setRawView] = useState('home')
-  const setActiveView = useCallback((v: string) => setRawView(REDIRECTS[v] ?? v), [])
+  const setActiveView = useCallback((v: string) => {
+    const next = canonicalActiveView(v)
+    setRawView(next)
+    try {
+      window.localStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, next)
+    } catch {
+      // Navigation still works when browser storage is unavailable.
+    }
+  }, [])
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -341,6 +356,15 @@ export function KittyProvider({ children }: { children: ReactNode }) {
   })
 
   // ── effects ──────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    try {
+      const remembered = window.localStorage.getItem(ACTIVE_VIEW_STORAGE_KEY)
+      if (remembered) setRawView(canonicalActiveView(remembered))
+    } catch {
+      // Home remains the safe default when browser storage is unavailable.
+    }
+  }, [])
 
   useEffect(() => {
     fetch('/proxy/chats')

@@ -106,9 +106,41 @@ function approvalLabel(item: GatewayWorkItem): string | null {
 const metaStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }
 const retryStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid var(--line)', borderRadius: 8, padding: '5px 9px', background: 'transparent', color: 'var(--ink)', cursor: 'pointer' }
 
+const WORK_DETAIL_LABELS: Record<string, string> = {
+  shadow_run_complete: 'The previous Builder run completed; this item remains blocked.',
+  run_cancelled: 'The last Builder run was cancelled.',
+  scope_violation: 'The last Builder run stopped after changing files outside its allowed scope.',
+  stale_heartbeat: 'The last Builder run stopped reporting progress.',
+  run_timeout: 'The last Builder run timed out.',
+  worker_failed: 'The Builder worker failed.',
+  recover: 'Recovery is available.',
+  claim: 'Ready for Builder to claim.',
+  exhausted: 'Automatic attempts are exhausted.',
+  cancelled: 'Work was cancelled.',
+  done: 'Work is complete.',
+  await_review: 'Waiting for review.',
+}
+
+function rawWorkDetail(item: GatewayWorkItem): string | null {
+  return item.blocker?.reason || item.next_action || null
+}
+
+function workDetailLabel(item: GatewayWorkItem): string | null {
+  const raw = rawWorkDetail(item)
+  if (!raw) return null
+  const known = WORK_DETAIL_LABELS[raw]
+  if (known) return known
+  if (/^[a-z0-9]+(?:_[a-z0-9]+)+$/i.test(raw)) {
+    const words = raw.replaceAll('_', ' ')
+    return `${words.charAt(0).toUpperCase()}${words.slice(1)}.`
+  }
+  return raw
+}
+
 function WorkRow({ item }: { item: GatewayWorkItem }) {
   const approval = approvalLabel(item)
-  const detail = item.blocker?.reason || item.next_action
+  const rawDetail = rawWorkDetail(item)
+  const detail = workDetailLabel(item)
   const evidence = evidenceLabels(item)
   return (
     <article style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--surface)', padding: '14px 16px', display: 'grid', gap: 8 }}>
@@ -127,6 +159,7 @@ function WorkRow({ item }: { item: GatewayWorkItem }) {
           {item.current_packet?.task_id && <div>task <span>{item.current_packet.task_id}</span></div>}
           {item.current_run?.id && <div>run <span>{item.current_run.id}</span></div>}
           {item.current_packet?.task_state && <div>task state {item.current_packet.task_state}</div>}
+          {rawDetail && <div>raw reason <span>{rawDetail}</span></div>}
           {approval && <div>{approval}</div>}
           {item.data_quality.issues?.map(issue => <div key={issue}>quality: {issue}</div>)}
         </div>

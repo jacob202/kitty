@@ -129,3 +129,43 @@ def test_projection_preserves_observation_window_and_counts():
         "ready": 1,
         "waiting": 0,
     }
+
+def test_bounded_projection_keeps_each_present_product_group_represented():
+    initiatives = []
+    for index in range(54):
+        packet = _base_packet(
+            f"blocked-{index}",
+            eligibility_state="blocked",
+            blocked_by=["dependency"],
+            updated_at=f"2026-08-13T11:{index % 60:02d}:00Z",
+        )
+        item = _snapshot_for(packet)["initiatives"][0]
+        item["initiative_id"] = f"blocked-{index}"
+        initiatives.append(item)
+
+    waiting_packet = _base_packet("waiting-1", task_state="claimed")
+    waiting = _snapshot_for(waiting_packet)["initiatives"][0]
+    waiting["initiative_id"] = "waiting-1"
+    initiatives.append(waiting)
+
+    for index in range(10):
+        packet = _base_packet(f"done-{index}", task_state="done", next_action="done")
+        item = _snapshot_for(packet, initiative_state="completed")["initiatives"][0]
+        item["initiative_id"] = f"done-{index}"
+        initiatives.append(item)
+
+    source = {
+        "schema_version": 2,
+        "integrity": {"state": "complete", "partial_packets": 0, "total_packets": 65},
+        "initiatives": initiatives,
+    }
+
+    payload = project_work_snapshot(source, now=NOW)
+
+    assert payload["total_items"] == 65
+    assert len(payload["items"]) == 50
+    states = {item["state"] for item in payload["items"]}
+    assert "blocked" in states
+    assert "waiting" in states
+    assert "completed" in states
+    assert payload["counts"]["completed"] == 10

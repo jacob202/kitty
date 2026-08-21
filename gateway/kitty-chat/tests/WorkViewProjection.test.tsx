@@ -107,6 +107,25 @@ describe('WorkView projection', () => {
     expect(screen.getByText('approval unavailable')).toBeVisible()
   })
 
+  it('translates machine reasons in the primary row and keeps the raw value in Details', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      items: [{
+        ...base,
+        state: 'blocked',
+        blocker: { state: 'blocked', reason: 'shadow_run_complete', blocked_by: [] },
+        next_action: 'recover',
+      }],
+    })
+
+    expect(screen.queryByText('shadow_run_complete')).not.toBeVisible()
+    expect(screen.getByText('The previous Builder run completed; this item remains blocked.')).toBeVisible()
+
+    fireEvent.click(screen.getByText('Details'))
+    expect(screen.getByText('shadow_run_complete')).toBeVisible()
+  })
+
   it('surfaces review evidence only when review evidence is present', () => {
     const base = snapshot().items[0]
     renderSnapshot({
