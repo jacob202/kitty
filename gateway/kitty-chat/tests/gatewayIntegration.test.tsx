@@ -115,6 +115,36 @@ describe('fetchGatewaySearch abort', () => {
     expect(result.snapshot).toBeNull()
   })
 
+  it('waits longer than the backend store timeout before aborting search', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', {
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+    })
+    vi.mocked(global.fetch).mockImplementation((_url, init) => {
+      const signal = init?.signal as AbortSignal | undefined
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => {
+          const err = new Error('The operation was aborted')
+          err.name = 'AbortError'
+          reject(err)
+        }, { once: true })
+      })
+    })
+
+    let settled = false
+    const pending = fetchGatewaySearch('slow partial search').then((result) => {
+      settled = true
+      return result
+    })
+    await vi.advanceTimersByTimeAsync(5_100)
+    expect(settled).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect((await pending).error).toContain('timed out')
+    vi.useRealTimers()
+  })
+
   it('adapts the live flat /search contract into grouped context sections', async () => {
     vi.mocked(global.fetch).mockResolvedValue(
       new Response(JSON.stringify({
@@ -124,7 +154,8 @@ describe('fetchGatewaySearch abort', () => {
           { store: 'memory', content: 'Jacob owns the manual', score: 0.8 },
         ],
         stores: ['knowledge', 'memory'],
-        errors: [],
+        errors: ['generic search warning'],
+        degraded_stores: ['memory', 'knowledge'],
       }), { status: 200 }),
     )
 
@@ -134,6 +165,8 @@ describe('fetchGatewaySearch abort', () => {
     expect(result.error).toBeNull()
     expect(result.snapshot?.sections.knowledge[0]).toContain('MOSFET bias notes')
     expect(result.snapshot?.sections.memories[0]).toContain('Jacob owns the manual')
+    expect(result.degradedStores).toEqual(['memory', 'knowledge'])
+    expect(result.degradedErrors).toEqual(['generic search warning'])
   })
 
   it('returns error payload when gateway returns 500', async () => {

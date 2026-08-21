@@ -5,6 +5,7 @@ const GATEWAY_BASE = '/proxy'
 // store on the first request. 2.5s made healthy features look permanently
 // offline after a cold start; keep the timeout bounded but realistic.
 const DEFAULT_TIMEOUT_MS = 8000
+const SEARCH_TIMEOUT_MS = 7000
 
 export interface GatewayHeadline {
   title: string
@@ -317,6 +318,9 @@ export type GatewayBriefPayload = {
 
 export type GatewaySearchPayload = {
   snapshot: GatewaySearchSnapshot | null
+  hits: GatewaySearchHit[]
+  degradedStores: string[]
+  degradedErrors: string[]
   fromLiveGateway: boolean
   error: string | null
 }
@@ -982,18 +986,21 @@ export async function fetchGatewaySearch(
 ): Promise<GatewaySearchPayload> {
   const q = query.trim()
   if (!q) {
-    return { snapshot: null, fromLiveGateway: true, error: null }
+    return { snapshot: null, hits: [], degradedStores: [], degradedErrors: [], fromLiveGateway: true, error: null }
   }
 
   try {
     const response = await fetchWithTimeout(
       `${GATEWAY_BASE}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
-      4000,
+      SEARCH_TIMEOUT_MS,
       signal,
     )
     if (!response.ok) {
       return {
         snapshot: null,
+        hits: [],
+        degradedStores: [],
+        degradedErrors: [],
         fromLiveGateway: false,
         error: describeFetchError(null, response),
       }
@@ -1006,17 +1013,32 @@ export async function fetchGatewaySearch(
       todos: [],
       inbox: [],
     }
+    const hits: GatewaySearchHit[] = []
+    const degradedStores = Array.isArray(json?.degraded_stores)
+      ? json.degraded_stores
+        .filter((store: unknown): store is string => typeof store === 'string' && store.length > 0)
+        .slice(0, 10)
+        .map((store: string) => store.slice(0, 64))
+      : []
+    const degradedErrors = Array.isArray(json?.errors)
+      ? json.errors
+        .filter((error: unknown): error is string => typeof error === 'string')
+        .slice(0, 5)
+        .map((error: string) => error.slice(0, 240))
+      : []
     for (const row of Array.isArray(json?.results) ? json.results : []) {
       const store = typeof row?.store === 'string' ? row.store : ''
       if (!(store in grouped) || typeof row?.content !== 'string') continue
-      grouped[store].push({
+      const hit: GatewaySearchHit = {
         kind: typeof row.kind === 'string' ? row.kind : store,
         source: typeof row.source === 'string' ? row.source : store,
         title: typeof row.title === 'string' ? row.title : store,
         text: row.content,
         score: typeof row.score === 'number' ? row.score : null,
         metadata: isRecord(row.metadata) ? row.metadata : undefined,
-      })
+      }
+      grouped[store].push(hit)
+      hits.push(hit)
     }
     return {
       snapshot: summarizeGatewaySearch({
@@ -1027,22 +1049,31 @@ export async function fetchGatewaySearch(
         todos: grouped.todos,
         inbox: grouped.inbox,
       }),
+      hits,
+      degradedStores,
+      degradedErrors,
       fromLiveGateway: true,
       error: null,
     }
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       if (signal?.aborted) {
-        return { snapshot: null, fromLiveGateway: true, error: null }
+        return { snapshot: null, hits: [], degradedStores: [], degradedErrors: [], fromLiveGateway: true, error: null }
       }
       return {
         snapshot: null,
+        hits: [],
+        degradedStores: [],
+        degradedErrors: [],
         fromLiveGateway: false,
         error: 'Request timed out — is the Kitty gateway running?',
       }
     }
     return {
       snapshot: null,
+      hits: [],
+      degradedStores: [],
+      degradedErrors: [],
       fromLiveGateway: false,
       error: describeFetchError(err, null),
     }
