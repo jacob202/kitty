@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
 
 const { useWorkSnapshot } = vi.hoisted(() => ({ useWorkSnapshot: vi.fn() }))
@@ -38,6 +38,7 @@ function renderSnapshot(data = snapshot()) {
 
 describe('WorkView projection', () => {
   beforeEach(() => useWorkSnapshot.mockReset())
+  afterEach(cleanup)
 
   it('renders Gateway work truth', () => {
     renderSnapshot()
@@ -45,6 +46,45 @@ describe('WorkView projection', () => {
     expect(screen.getByText('Builder available')).toBeInTheDocument()
     expect(screen.getByText('1 active')).toBeInTheDocument()
     expect(screen.getByText('approval unavailable')).toBeInTheDocument()
+  })
+
+  it('groups durable work by what needs the user, what is moving, and what finished', () => {
+    const base = snapshot().items[0]
+    const states = [
+      ['blocked', 'Blocked item'],
+      ['failed', 'Failed item'],
+      ['paused', 'Paused item'],
+      ['active', 'Active item'],
+      ['ready', 'Ready item'],
+      ['waiting', 'Waiting item'],
+      ['completed', 'Completed item'],
+    ] as const
+    const items = states.map(([state, title], index) => ({
+      ...base,
+      id: `WORK-${index}`,
+      title,
+      state,
+      source: { ...base.source, initiative_id: `WORK-${index}` },
+    }))
+    renderSnapshot({
+      ...snapshot('2099-01-01T00:00:00Z', items.length),
+      counts: { total: 7, active: 1, paused: 1, failed: 1, blocked: 1, completed: 1, ready: 1, waiting: 1 },
+      items,
+    })
+
+    const needsYou = screen.getByRole('region', { name: 'Needs you' })
+    expect(within(needsYou).getByText('Blocked item')).toBeInTheDocument()
+    expect(within(needsYou).getByText('Failed item')).toBeInTheDocument()
+    expect(within(needsYou).getByText('Paused item')).toBeInTheDocument()
+    expect(within(needsYou).queryByText('Active item')).not.toBeInTheDocument()
+
+    const inProgress = screen.getByRole('region', { name: 'In progress' })
+    expect(within(inProgress).getByText('Active item')).toBeInTheDocument()
+    expect(within(inProgress).getByText('Ready item')).toBeInTheDocument()
+    expect(within(inProgress).getByText('Waiting item')).toBeInTheDocument()
+
+    const completed = screen.getByRole('region', { name: 'Completed' })
+    expect(within(completed).getByText('Completed item')).toBeInTheDocument()
   })
 
   it('marks expired cached work stale', () => {

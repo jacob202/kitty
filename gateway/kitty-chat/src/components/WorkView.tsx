@@ -4,6 +4,14 @@ import type { CSSProperties, ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { useWorkSnapshot, type GatewayWorkItem, type GatewayWorkState } from '@/lib/work'
 
+type WorkGroup = 'needs-you' | 'in-progress' | 'completed'
+
+const GROUP_LABELS: Record<WorkGroup, string> = {
+  'needs-you': 'Needs you',
+  'in-progress': 'In progress',
+  completed: 'Completed',
+}
+
 const STATE_COLORS: Record<GatewayWorkState, string> = {
   active: 'var(--c-yellow)', paused: 'var(--ink-2)', failed: 'var(--c-red)',
   blocked: 'var(--c-red)', completed: 'var(--c-green)', ready: 'var(--c-blue)', waiting: 'var(--ink-2)',
@@ -43,14 +51,30 @@ export default function WorkView({ isMobile }: { isMobile: boolean; onNavigate?:
             <div style={metaStyle}>Showing {snapshot.items.length} of {snapshot.total_items} most relevant items.</div>
           )}
           {snapshot.items.length === 0 ? <Notice>No Builder work is currently projected.</Notice> : (
-            <section aria-label="Gateway work items" style={{ display: 'grid', gap: 10 }}>
-              {snapshot.items.map(item => <WorkRow key={item.id} item={item} />)}
-            </section>
+            <div style={{ display: 'grid', gap: 18 }}>
+              {(['needs-you', 'in-progress', 'completed'] as WorkGroup[]).map(group => {
+                const items = snapshot.items.filter(item => workGroup(item.state) === group)
+                if (items.length === 0) return null
+                const label = GROUP_LABELS[group]
+                return (
+                  <section key={group} aria-label={label} style={{ display: 'grid', gap: 10 }}>
+                    <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--ink)' }}>{label}</h2>
+                    {items.map(item => <WorkRow key={item.id} item={item} />)}
+                  </section>
+                )
+              })}
+            </div>
           )}
         </>
       )}
     </div>
   )
+}
+
+function workGroup(state: GatewayWorkState): WorkGroup {
+  if (state === 'blocked' || state === 'failed' || state === 'paused') return 'needs-you'
+  if (state === 'completed') return 'completed'
+  return 'in-progress'
 }
 
 function isExpired(validUntil: string): boolean {
