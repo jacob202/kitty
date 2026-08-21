@@ -2,14 +2,14 @@
 from gateway import skill_registry
 
 
-def test_suggest_matches_red_team_triggers():
+def test_suggest_does_not_surface_archived_red_team():
     matches = skill_registry.suggest("help me find weaknesses and poke holes in this plan")
-    assert matches and matches[0]["name"] == "red-team"
+    assert all(match["name"] != "red-team" for match in matches)
 
 
-def test_suggest_matches_root_cause():
+def test_suggest_does_not_surface_archived_root_cause():
     matches = skill_registry.suggest("why does this keep failing every week")
-    assert matches and matches[0]["name"] == "root-cause-analysis"
+    assert all(match["name"] != "root-cause-analysis" for match in matches)
 
 
 def test_suggest_no_match_is_empty():

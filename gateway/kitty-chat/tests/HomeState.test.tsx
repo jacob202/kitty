@@ -38,6 +38,12 @@ vi.mock('../src/components/InsightReturnCard', () => ({
   InsightReturnCard: () => <div data-testid="insight-return-card" />,
 }));
 
+vi.mock('../src/components/BuilderSurface', () => ({
+  BuilderGlance: ({ onOpen }: { onOpen: () => void }) => (
+    <button type="button" onClick={onOpen}>Open Builder</button>
+  ),
+}));
+
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
@@ -776,6 +782,14 @@ describe('HomeState', () => {
     // The What's Next section heading should be visible (proving the section
     // rendered content, not a fallthrough loading … that would hide the heading)
     expect(screen.getByText("what's next")).toBeInTheDocument();
+  });
+
+  it('opens Work from the Builder glance', () => {
+    const onNavigate = vi.fn();
+    render(<HomeState onNavigate={onNavigate} />);
+    screen.getByRole('button', { name: /open builder/i }).click();
+    expect(onNavigate).toHaveBeenCalledWith('work');
+    expect(onNavigate).not.toHaveBeenCalledWith('builder');
   });
 
   it('does not claim health when zero checks ran', () => {
