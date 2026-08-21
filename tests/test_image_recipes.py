@@ -134,6 +134,34 @@ class TestAutoRouting:
         decision = auto_route(has_character=False, quality_tier="fast")
         assert decision.recipe.quality_tier == "fast"
 
+
+    def test_img2img_filters_out_unsupported_preferred_recipe(self, override_db):
+        seed_default_recipes()
+        with sqlite3.connect(override_db) as conn:
+            conn.execute(
+                "UPDATE image_recipes SET supports_img2img = 0 WHERE recipe_id = ?",
+                ("comfyui_sd15_standard",),
+            )
+            conn.commit()
+        decision = auto_route(
+            operation="img2img", preferred_recipe="comfyui_sd15_standard"
+        )
+        assert decision.recipe_id != "comfyui_sd15_standard"
+        assert decision.recipe.supports_img2img
+
+    def test_img2img_fails_when_no_recipe_supports_operation(self, override_db):
+        seed_default_recipes()
+        with sqlite3.connect(override_db) as conn:
+            conn.execute("UPDATE image_recipes SET supports_img2img = 0")
+            conn.commit()
+        with pytest.raises(RecipeError, match="supports img2img"):
+            auto_route(operation="img2img")
+
+    def test_unknown_operation_fails_loud(self, override_db):
+        seed_default_recipes()
+        with pytest.raises(RecipeError, match="unsupported image operation"):
+            auto_route(operation="video")
+
     def test_no_available_recipes_raises(self, override_db):
         seed_default_recipes()
         recipes = list_recipes()

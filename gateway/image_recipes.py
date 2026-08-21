@@ -322,11 +322,21 @@ def auto_route(
     if not recipes:
         raise RecipeError("no image recipes are available")
 
-    # If user prefers a specific recipe and it's available
+    if operation not in {"txt2img", "img2img"}:
+        raise RecipeError(
+            f"unsupported image operation {operation!r}; expected 'txt2img' or 'img2img'"
+        )
+    if operation == "img2img":
+        recipes = [recipe for recipe in recipes if recipe.supports_img2img]
+        if not recipes:
+            raise RecipeError("no available recipe supports img2img")
+
+    # If user prefers a specific recipe and it's available for this operation
     if preferred_recipe:
         try:
             r = get_recipe(preferred_recipe)
-            if r.is_available:
+            operation_ok = operation == "txt2img" or r.supports_img2img
+            if r.is_available and operation_ok:
                 return RoutingDecision(r.recipe_id, r, "Selected by user preference")
         except RecipeError:
             pass
