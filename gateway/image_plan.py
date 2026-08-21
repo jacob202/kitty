@@ -29,6 +29,39 @@ class ReferenceProvenance:
 
 
 @dataclass
+class ReferenceBinding:
+    """Typed reference assignment for character-bound generation."""
+
+    reference_id: str
+    role: str
+    cast_slot: str
+    weight: float | None = None
+
+
+@dataclass
+class CastSlot:
+    """Stable character slot in a scene."""
+
+    slot_id: str
+    character_id: str
+    display_name: str | None = None
+
+
+@dataclass
+class ImageIntent:
+    """Provider-neutral intent contract layered onto existing plans."""
+
+    intent_version: int = 1
+    operation: str = "generate"
+    cast: list[CastSlot] = field(default_factory=list)
+    references: list[ReferenceBinding] = field(default_factory=list)
+    scene: dict[str, Any] = field(default_factory=dict)
+    target: dict[str, Any] = field(default_factory=dict)
+    requested_changes: list[str] = field(default_factory=list)
+    protected_traits: list[str] = field(default_factory=list)
+
+
+@dataclass
 class ImagePlan:
     """A validated, user-approvable image-generation plan.
 

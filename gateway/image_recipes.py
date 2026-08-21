@@ -25,6 +25,7 @@ class Recipe:
     provider: str
     workflow_template_id: str | None
     model_family: str | None
+    execution_target: str | None = None
     operation: str = "txt2img"
     quality_tier: str = "quality"
     expected_speed: str | None = None
@@ -59,6 +60,7 @@ class Recipe:
             "display_name": self.display_name,
             "description": self.description,
             "provider": self.provider,
+            "execution_target": self.execution_target,
             "quality_tier": self.quality_tier,
             "operation": self.operation,
             "supports_characters": self.supports_characters,
@@ -168,6 +170,42 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "is_available": False,
         "priority": 5,
     },
+    {
+        "recipe_id": "bfl_flux2_draft",
+        "display_name": "FLUX.2 Klein 4B (hosted draft)",
+        "description": "Hosted FLUX.2 [klein] 4B on BFL Direct — fast 1MP draft tier.",
+        "provider": "flux2",
+        "model_family": "flux-2-klein-4b",
+        "execution_target": "flux2-klein-4b-h",
+        "quality_tier": "fast",
+        "expected_speed": "seconds",
+        "default_width": 1024,
+        "default_height": 1024,
+        "max_width": 1024,
+        "max_height": 1024,
+        "supported_aspects": ["1:1"],
+        "supports_img2img": True,
+        "license_notes": "FLUX.2 klein 4B: Apache-2.0. Hosted by Black Forest Labs; usage is paid.",
+        "priority": 4,
+    },
+    {
+        "recipe_id": "bfl_flux2_pro",
+        "display_name": "FLUX.2 Pro (hosted final)",
+        "description": "Hosted FLUX.2 Pro on BFL Direct — production 1MP final tier.",
+        "provider": "flux2",
+        "model_family": "flux-2-pro",
+        "execution_target": "flux2-pro-h",
+        "quality_tier": "quality",
+        "expected_speed": "seconds",
+        "default_width": 1024,
+        "default_height": 1024,
+        "max_width": 1024,
+        "max_height": 1024,
+        "supported_aspects": ["1:1"],
+        "supports_img2img": True,
+        "license_notes": "FLUX.2 Pro: BFL proprietary hosted model. Usage is paid.",
+        "priority": 3,
+    },
 ]
 
 
@@ -192,7 +230,7 @@ def seed_default_recipes() -> int:
             conn.execute(
                 """INSERT INTO image_recipes
                    (recipe_id, display_name, description, provider, workflow_template_id,
-                    model_family, operation, quality_tier, expected_speed,
+                    model_family, execution_target, operation, quality_tier, expected_speed,
                     default_width, default_height, max_width, max_height,
                     supported_aspects_json, supports_img2img, supports_characters,
                     max_characters, supports_pose_refs, supports_outfit_refs,
@@ -201,11 +239,12 @@ def seed_default_recipes() -> int:
                     identity_strength, required_models_json, required_nodes_json,
                     license_notes, is_available, priority, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     r["recipe_id"], r["display_name"], r.get("description"),
                     r["provider"], r.get("workflow_template_id"),
-                    r.get("model_family"), r.get("operation", "txt2img"),
+                    r.get("model_family"), r.get("execution_target"),
+                    r.get("operation", "txt2img"),
                     r["quality_tier"], r.get("expected_speed"),
                     r.get("default_width", 1024), r.get("default_height", 1024),
                     r.get("max_width", 2048), r.get("max_height", 2048),
@@ -353,6 +392,7 @@ def _row_to_recipe(row: Any) -> Recipe:
         provider=row["provider"],
         workflow_template_id=row["workflow_template_id"],
         model_family=row["model_family"],
+        execution_target=row["execution_target"],
         operation=row["operation"],
         quality_tier=row["quality_tier"],
         expected_speed=row["expected_speed"],

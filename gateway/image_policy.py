@@ -60,7 +60,9 @@ PRIVATE_EXECUTORS = frozenset({"kitty_worker"})
 #: External hosted providers that private-adult work must never reach. Kept
 #: additive and explicit so a new hosted integration is a deliberate review
 #: point, not an implicit backdoor.
-HOSTED_EXECUTORS = frozenset({"flux", "openrouter", "bfl", "runware", "google", "fal"})
+HOSTED_EXECUTORS = frozenset(
+    {"flux", "flux2", "openrouter", "bfl", "runware", "google", "fal"}
+)
 
 _VALID_LANES = frozenset(lane.value for lane in ContentLane)
 _VALID_CONSENT = frozenset(basis.value for basis in ConsentBasis)
