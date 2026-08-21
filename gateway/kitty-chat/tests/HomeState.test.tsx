@@ -38,6 +38,12 @@ vi.mock('../src/components/InsightReturnCard', () => ({
   InsightReturnCard: () => <div data-testid="insight-return-card" />,
 }));
 
+vi.mock('../src/components/BuilderSurface', () => ({
+  BuilderGlance: ({ onOpen }: { onOpen: () => void }) => (
+    <button type="button" onClick={onOpen}>Open Builder</button>
+  ),
+}));
+
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
@@ -261,6 +267,24 @@ describe('HomeState', () => {
     expect(screen.getByText('what changed')).toBeInTheDocument();
     expect(screen.getByText('today')).toBeInTheDocument();
     expect(screen.getByText('capture')).toBeInTheDocument();
+  });
+
+  it('never renders the gateway snapshot API instruction on Home', () => {
+    (useStateChanges as Mock).mockReturnValue({
+      data: {
+        baseline_ts: null,
+        current_ts: 0,
+        changes: [],
+        new_signals: [],
+        note: 'no snapshot yet — POST /state/snapshot to create a baseline',
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.queryByText(/POST \/state\/snapshot/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/no comparison point yet/i)).toBeInTheDocument();
   });
 
   it('shows honest empty states when gateway returns no data', () => {
@@ -747,6 +771,14 @@ describe('HomeState', () => {
     // The What's Next section heading should be visible (proving the section
     // rendered content, not a fallthrough loading … that would hide the heading)
     expect(screen.getByText("what's next")).toBeInTheDocument();
+  });
+
+  it('opens Work from the Builder glance', () => {
+    const onNavigate = vi.fn();
+    render(<HomeState onNavigate={onNavigate} />);
+    screen.getByRole('button', { name: /open builder/i }).click();
+    expect(onNavigate).toHaveBeenCalledWith('work');
+    expect(onNavigate).not.toHaveBeenCalledWith('builder');
   });
 
   it('does not claim health when zero checks ran', () => {

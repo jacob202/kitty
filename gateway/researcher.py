@@ -10,8 +10,13 @@ logger = logging.getLogger("kitty.researcher")
 
 class DeepResearcher:
     """
-    Advanced technical research wrapper.
-    Combines web search, scraping, and automatic ingestion.
+    Legacy technical research wrapper.
+    Combines web search, scraping, synthesis, and optional knowledge promotion.
+
+    General Research is being replaced by the engine-backed contract tracked in
+    issue #547. Until then this module must remain honest about persistence:
+    research results are not permanent knowledge unless promotion is explicitly
+    requested and actually succeeds.
     """
 
     def __init__(self):
@@ -24,10 +29,8 @@ class DeepResearcher:
             self._client = httpx.AsyncClient(timeout=20)
         return self._client
 
-    async def technical_deep_dive(self, topic: str, ingest: bool = True) -> str:
-        """
-        Conducts deep technical research and optionally ingests the findings.
-        """
+    async def technical_deep_dive(self, topic: str, ingest: bool = False) -> str:
+        """Conduct technical research and optionally promote it to knowledge."""
         logger.info("Starting deep technical dive: %s", topic)
 
         # 1. Search for high-authority sources
@@ -40,13 +43,16 @@ class DeepResearcher:
         if not findings:
             return "I found sources but couldn't extract any meaningful technical data."
 
-        # 3. Synthesize and Ingest
+        # 3. Synthesize. Persistence is a separate, explicit step.
         summary = self._synthesize_findings(topic, findings)
 
-        if ingest:
-            await self._ingest_findings(topic, findings, summary)
+        if not ingest:
+            return summary
 
-        return summary
+        ingested = await self._ingest_findings(topic, findings, summary)
+        if ingested:
+            return f"{summary}\n\nSaved to Kitty's knowledge base."
+        return f"{summary}\n\nResearch completed, but saving it to the knowledge base failed."
 
     async def _find_sources(self, topic: str) -> List[str]:
         """Uses Tavily to find technical documentation and forum threads."""
@@ -127,7 +133,7 @@ Synthesize this into a technical brief for Jacob.
 1. Highlight the specific technical values, part numbers, or adjustment steps found.
 2. If there are conflicting values, note them.
 3. Be direct and technical.
-4. End with 'I've added this to our permanent knowledge base.'
+4. Do not claim the research was saved, remembered, or added to a knowledge base; persistence is handled separately after synthesis.
 
 Rules: Short sentences. Use contractions. Speak Canadian."""
 
@@ -144,12 +150,13 @@ Rules: Short sentences. Use contractions. Speak Canadian."""
             logger.error("Synthesis failed: %s", e)
             return "I found the data, but couldn't synthesize it properly. Check the logs."
 
-    async def _ingest_findings(self, topic: str, findings: str, summary: str):
-        """Saves findings to a temp file and triggers the ingestion pipeline."""
+    async def _ingest_findings(self, topic: str, findings: str, summary: str) -> bool:
+        """Promote findings to knowledge. Returns True only after successful ingest."""
         import tempfile
 
         from gateway.knowledge import ingest_file
 
+        tmp_path: str | None = None
         try:
             with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
                 f.write(
@@ -162,13 +169,17 @@ Rules: Short sentences. Use contractions. Speak Canadian."""
                 source_label=f"research_{topic.replace(' ', '_')}",
                 doc_type="technical_research",
             )
-            Path(tmp_path).unlink(missing_ok=True)
             logger.info("Ingested research for: %s", topic)
+            return True
         except Exception as e:
             logger.error("Ingestion of research failed: %s", e)
+            return False
+        finally:
+            if tmp_path is not None:
+                Path(tmp_path).unlink(missing_ok=True)
 
 
-async def deep_dive(topic: str) -> str:
-    """Convenience function for Gateway calling."""
+async def deep_dive(topic: str, *, ingest: bool = False) -> str:
+    """Convenience function for Gateway calling; persistence is opt-in."""
     researcher = DeepResearcher()
-    return await researcher.technical_deep_dive(topic)
+    return await researcher.technical_deep_dive(topic, ingest=ingest)

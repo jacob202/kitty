@@ -59,12 +59,22 @@ describe('gateway integration helpers', () => {
           score: null,
         },
       ],
+      inbox: [
+        {
+          kind: 'capture',
+          source: 'inbox',
+          title: 'Captured note',
+          text: 'remember this capture',
+          score: 0.7,
+        },
+      ],
     })
 
     expect(summary.query).toBe('honda')
     expect(summary.sections.memories[0]).toContain('remember this')
     expect(summary.sections.knowledge[0]).toContain('KB note')
     expect(summary.sections.todos[0]).toContain('Call shop')
+    expect(summary.sections.inbox[0]).toContain('Captured note')
   })
 })
 
@@ -103,6 +113,27 @@ describe('fetchGatewaySearch abort', () => {
     expect(result.fromLiveGateway).toBe(true)
     expect(result.error).toBeNull()
     expect(result.snapshot).toBeNull()
+  })
+
+  it('adapts the live flat /search contract into grouped context sections', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify({
+        query: 'mosfet',
+        results: [
+          { store: 'knowledge', content: 'MOSFET bias notes', score: 0.87 },
+          { store: 'memory', content: 'Jacob owns the manual', score: 0.8 },
+        ],
+        stores: ['knowledge', 'memory'],
+        errors: [],
+      }), { status: 200 }),
+    )
+
+    const result = await fetchGatewaySearch('mosfet', 3)
+
+    expect(result.fromLiveGateway).toBe(true)
+    expect(result.error).toBeNull()
+    expect(result.snapshot?.sections.knowledge[0]).toContain('MOSFET bias notes')
+    expect(result.snapshot?.sections.memories[0]).toContain('Jacob owns the manual')
   })
 
   it('returns error payload when gateway returns 500', async () => {

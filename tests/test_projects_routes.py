@@ -194,3 +194,13 @@ def test_resume_missing_project_returns_404(client):
     r = client.get("/projects/999999/resume")
 
     assert r.status_code == 404
+
+
+def test_delete_project_refuses_hard_delete_and_points_to_archive(client):
+    created = client.post("/projects", json={"name": "keep me", "kind": "admin"}).json()
+
+    r = client.delete(f"/projects/{created['id']}")
+
+    assert r.status_code == 409
+    assert "archive" in r.json()["detail"]
+    assert project_store.get(created["id"])["status"] == "active"
