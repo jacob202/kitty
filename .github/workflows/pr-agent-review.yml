@@ -31,11 +31,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          # Final merge review is a judgment task. Use the rolling Sonnet family
-          # rather than the cheap exploration model that repeatedly emitted
-          # speculative findings while simultaneously declaring no findings.
-          PR_REVIEW_MODEL: "~anthropic/claude-sonnet-latest"
-          PR_REVIEW_REQUEST_ATTEMPTS: "1"
+          # Final merge review is a judgment task. Use a strong no-cost OpenRouter
+          # model so the gate keeps producing evidence while the account has no
+          # credits; restore a paid model (e.g. ~anthropic/claude-sonnet-latest)
+          # once budget returns.
+          PR_REVIEW_MODEL: "nvidia/nemotron-3-super-120b-a12b:free"
+          PR_REVIEW_REQUEST_ATTEMPTS: "2"
         run: python scripts/pr_review.py
 
   review-gate:

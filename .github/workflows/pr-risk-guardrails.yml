@@ -75,7 +75,7 @@ jobs:
             }
             const hasApprovalLabel = currentLabels.has("risk/approved");
             const riskApprovalPattern = new RegExp(
-              `^Risk approval:\s*APPROVE\s+${headSha}\s+[—-]\s+.+$`,
+              `^Risk approval:\\s*APPROVE\\s+${headSha}\\s+[—-]\\s+.+$`,
               "mi",
             );
             const hasApprovalReceipt = riskApprovalPattern.test(prBody);

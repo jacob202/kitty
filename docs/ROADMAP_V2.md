@@ -1,6 +1,6 @@
 # Version 2 Milestone Detail — appendix to ROADMAP.md
 
-**Status:** Ratified target plan — accepted architecture, not execution schedule. Ratified by the Constitution v1 ratification table (2026-08-05). ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 5 governs the relationship with `docs/ROADMAP.md` (active authority).
+**Status:** BLOCKED target detail — not an execution schedule. The Open WebUI M1/M2 assumptions conflict with accepted ADR 0039 while the higher-authority Constitution still names Open WebUI as primary shell. Do not execute shell-role packets until that conflict is explicitly adjudicated in `docs/ROADMAP.md` / Constitution authority.
 **Date:** 2026-08-05
 **Owner:** Jacob (authorization); Kitty (planning); KittyBuilder (execution)
 **Relation to current docs:** [`ROADMAP.md`](ROADMAP.md) is the only roadmap. It names milestones M1–M6; this file is the detail behind them — objectives, packet catalog, and Builder initiative mapping. It is an appendix, never an alternative order to choose between (ADR 0020).
@@ -36,9 +36,9 @@ then simplifies the storage spine:
 6. Evidence outranks theory — each packet lands artifacts under `docs/research/`,
    `docs/audit/`, or a proven runbook.
 
-### Governance (already decided, not re-litigated)
+### Historical governance assumptions (blocked pending shell-authority adjudication)
 
-- **Open WebUI as daily-driver shell is accepted** (ADR 0027).
+- The Constitution / ADR 0027 lineage names **Open WebUI as daily-driver shell**, while accepted ADR 0039 names the native Kitty frontend canonical. This conflict is unresolved; neither M1 nor M2 is executable until the higher-authority rule is explicitly amended/adjudicated.
 - **Gateway stays the authority** (ADR 0003, ADR 0017).
 - **LiteLLM stays the provider proxy.**
 - **Image Studio / RunPod** is a dedicated authorized lane (issue #306) — not in the
@@ -296,7 +296,8 @@ Rationale for the ten (dependency): prove the driver is live and trustworthy fir
 
 ## 5. How to advance from here
 
-1. Jacob reviews this roadmap (M numbering/M scope, esp. M3 write-bounds).
+0. **Do not start M1/M2 while the Constitution/ADR 0039 shell conflict is unresolved.** First adjudicate the shell authority and update `docs/ROADMAP.md`.
+1. Jacob reviews the surviving milestone scope after that adjudication (especially M3 write-bounds).
 2. A planner authors the first `docs/initiatives/v2-driver-baseline-v1.json` per
    `docs/FREE_MODEL_PACKET_STANDARD.md` and `docs/INITIATIVES_OPTIMIZED`.
 3. Builder runs packet M1-01, M1-09 first (autonomous, low risk), parallel to Jacob
