@@ -14,7 +14,7 @@ const guardPath = path.join(repoRoot, 'tests/python_startup')
 
 export default defineConfig({
   testDir: './tests/smoke',
-  testMatch: 'chat-real-gateway.spec.ts',
+  testMatch: ['chat-real-gateway.spec.ts', 'pr-528-acceptance.spec.ts'],
   timeout: 45_000,
   retries: 0,
   workers: 1,
