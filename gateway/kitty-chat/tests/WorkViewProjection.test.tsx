@@ -126,6 +126,46 @@ describe('WorkView projection', () => {
     expect(screen.getByText('shadow_run_complete')).toBeVisible()
   })
 
+  it('puts terminal cancelled failures with finished work instead of Needs you', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      counts: { total: 1, active: 0, paused: 0, failed: 1, blocked: 0, completed: 0, ready: 0, waiting: 0 },
+      items: [{ ...base, state: 'failed', blocker: null, next_action: 'cancelled' }],
+    })
+
+    expect(screen.queryByRole('region', { name: 'Needs you' })).not.toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Completed' })).getByText('Ship Gateway Work Spine')).toBeVisible()
+  })
+
+  it('exposes advertised review validation and publication proof inside Details', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      items: [{
+        ...base,
+        evidence: {
+          approval: { state: 'unavailable' },
+          review: { verdict: 'approve', summary: 'Independent review passed.' },
+          validation: { status: 'passed', summary: '4 validation commands passed.' },
+          publication: { pr_number: 564, checks_state: 'passed', merged: false },
+        },
+      }],
+    })
+
+    expect(screen.getByText('Review evidence available')).toBeVisible()
+    expect(screen.getByText('Validation evidence available')).toBeVisible()
+    expect(screen.getByText('Publication evidence available')).toBeVisible()
+
+    fireEvent.click(screen.getByText('Details'))
+    expect(screen.getByText('review approve')).toBeVisible()
+    expect(screen.getByText('Independent review passed.')).toBeVisible()
+    expect(screen.getByText('validation passed')).toBeVisible()
+    expect(screen.getByText('4 validation commands passed.')).toBeVisible()
+    expect(screen.getByText('publication PR #564')).toBeVisible()
+    expect(screen.getByText('publication checks passed')).toBeVisible()
+  })
+
   it('surfaces review evidence only when review evidence is present', () => {
     const base = snapshot().items[0]
     renderSnapshot({

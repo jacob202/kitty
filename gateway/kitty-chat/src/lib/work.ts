@@ -91,6 +91,13 @@ function isWorkItem(value: unknown): value is GatewayWorkItem {
     && isRecord(value.source)
     && value.source.kind === 'builder'
     && typeof value.source.initiative_id === 'string'
+    && isRecord(value.evidence)
+    && isRecord(value.data_quality)
+    && typeof value.data_quality.state === 'string'
+    && (
+      value.data_quality.issues === undefined
+      || (Array.isArray(value.data_quality.issues) && value.data_quality.issues.every(issue => typeof issue === 'string'))
+    )
   )
 }
 

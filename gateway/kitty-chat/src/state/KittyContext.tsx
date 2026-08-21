@@ -181,6 +181,7 @@ interface KittyContextValue {
   // view & shell
   activeView: string
   setActiveView: (v: string) => void
+  viewPersistenceWarning: string | null
   theme: 'cosmic' | 'day' | 'night'
   setTheme: React.Dispatch<React.SetStateAction<'cosmic' | 'day' | 'night'>>
   handleToggleTheme: () => void
@@ -262,13 +263,15 @@ export function KittyProvider({ children }: { children: ReactNode }) {
 
   const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')])
   const [activeView, setRawView] = useState('home')
+  const [viewPersistenceWarning, setViewPersistenceWarning] = useState<string | null>(null)
   const setActiveView = useCallback((v: string) => {
     const next = canonicalActiveView(v)
     setRawView(next)
     try {
       window.localStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, next)
+      setViewPersistenceWarning(null)
     } catch {
-      // Navigation still works when browser storage is unavailable.
+      setViewPersistenceWarning('This view cannot be remembered for reload because browser storage is unavailable.')
     }
   }, [])
   const [activeChatId, setActiveChatId] = useState<string | null>(null)
@@ -784,7 +787,7 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     attachmentErrors, isStreaming,
     activeModel, availableModels, overrideModel, setOverrideModel, handleSelectModel,
     persistChat,
-    activeView, setActiveView, theme, setTheme, handleToggleTheme, isMobile, sidebarCollapsed,
+    activeView, setActiveView, viewPersistenceWarning, theme, setTheme, handleToggleTheme, isMobile, sidebarCollapsed,
     mobileSidebarOpen, setMobileSidebarOpen, handleToggleSidebar,
     showOnboarding, setShowOnboarding, preferredName, setPreferredName,
     saveState, handleRetrySave, tokenCount, lastOutcome, catState,

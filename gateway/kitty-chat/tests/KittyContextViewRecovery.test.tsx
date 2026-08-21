@@ -41,6 +41,7 @@ function Harness() {
   return (
     <div>
       <span data-testid="active-view">{kitty.activeView}</span>
+      {kitty.viewPersistenceWarning && <span role="status">{kitty.viewPersistenceWarning}</span>}
       <button type="button" onClick={() => kitty.setActiveView('builder')}>open builder</button>
     </div>
   )
@@ -72,7 +73,23 @@ describe('Kitty active view recovery', () => {
 
   afterEach(() => {
     cleanup()
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('surfaces a warning when the selected view cannot be persisted for reload', async () => {
+    const originalSetItem = window.localStorage.setItem.bind(window.localStorage)
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation((key: string, value: string) => {
+      if (key === 'kitty-active-view') throw new DOMException('storage denied')
+      originalSetItem(key, value)
+    })
+    mountHarness()
+    await waitFor(() => expect(screen.getByTestId('active-view')).toHaveTextContent('home'))
+
+    act(() => screen.getByRole('button', { name: 'open builder' }).click())
+
+    expect(screen.getByTestId('active-view')).toHaveTextContent('work')
+    expect(screen.getByRole('status')).toHaveTextContent('This view cannot be remembered for reload because browser storage is unavailable.')
   })
 
   it('restores canonical Work after reload instead of falling back to Home', async () => {

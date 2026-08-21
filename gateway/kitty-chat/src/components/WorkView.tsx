@@ -53,7 +53,7 @@ export default function WorkView({ isMobile }: { isMobile: boolean; onNavigate?:
           {snapshot.items.length === 0 ? <Notice>No Builder work is currently projected.</Notice> : (
             <div style={{ display: 'grid', gap: 18 }}>
               {(['needs-you', 'in-progress', 'completed'] as WorkGroup[]).map(group => {
-                const items = snapshot.items.filter(item => workGroup(item.state) === group)
+                const items = snapshot.items.filter(item => workGroup(item) === group)
                 if (items.length === 0) return null
                 const label = GROUP_LABELS[group]
                 return (
@@ -71,9 +71,9 @@ export default function WorkView({ isMobile }: { isMobile: boolean; onNavigate?:
   )
 }
 
-function workGroup(state: GatewayWorkState): WorkGroup {
-  if (state === 'blocked' || state === 'failed' || state === 'paused') return 'needs-you'
-  if (state === 'completed') return 'completed'
+function workGroup(item: GatewayWorkItem): WorkGroup {
+  if (item.state === 'completed' || item.next_action === 'cancelled' || item.next_action === 'done') return 'completed'
+  if (item.state === 'blocked' || item.state === 'failed' || item.state === 'paused') return 'needs-you'
   return 'in-progress'
 }
 
@@ -161,10 +161,50 @@ function WorkRow({ item }: { item: GatewayWorkItem }) {
           {item.current_packet?.task_state && <div>task state {item.current_packet.task_state}</div>}
           {rawDetail && <div>raw reason <span>{rawDetail}</span></div>}
           {approval && <div>{approval}</div>}
+          <EvidenceDetails evidence={item.evidence} />
           {item.data_quality.issues?.map(issue => <div key={issue}>quality: {issue}</div>)}
         </div>
       </details>
     </article>
+  )
+}
+
+
+function evidenceRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function evidenceScalar(value: unknown): string | null {
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return null
+}
+
+function boundedEvidenceText(value: unknown): string | null {
+  const text = evidenceScalar(value)?.trim()
+  if (!text) return null
+  return text.length <= 240 ? text : `${text.slice(0, 239).trimEnd()}…`
+}
+
+function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
+  const review = evidenceRecord(evidence.review)
+  const validation = evidenceRecord(evidence.validation)
+  const publication = evidenceRecord(evidence.publication)
+  const reviewVerdict = evidenceScalar(review?.verdict)
+  const reviewSummary = boundedEvidenceText(review?.summary)
+  const validationStatus = evidenceScalar(validation?.status)
+  const validationSummary = boundedEvidenceText(validation?.summary)
+  const publicationPr = evidenceScalar(publication?.pr_number)
+  const publicationChecks = evidenceScalar(publication?.checks_state)
+
+  return (
+    <>
+      {review && <div>review {reviewVerdict ?? 'recorded'}</div>}
+      {reviewSummary && <div>{reviewSummary}</div>}
+      {validation && <div>validation {validationStatus ?? 'recorded'}</div>}
+      {validationSummary && <div>{validationSummary}</div>}
+      {publicationPr && <div>publication PR #{publicationPr}</div>}
+      {publicationChecks && <div>publication checks {publicationChecks}</div>}
+    </>
   )
 }
 

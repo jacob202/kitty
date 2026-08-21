@@ -47,3 +47,27 @@ it('fails closed when Gateway /work returns an invalid payload', async () => {
   const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
   await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
 })
+
+it('fails closed when a Work item omits render-required metadata', async () => {
+  const invalid = {
+    schema_version: 1,
+    observed_at: '2026-08-13T21:00:00Z',
+    valid_until: '2026-08-13T21:00:30Z',
+    source: { kind: 'builder', state: 'available' },
+    counts: { total: 1, active: 0, paused: 0, failed: 0, blocked: 1, completed: 0, ready: 0, waiting: 0 },
+    queue: null,
+    items: [{
+      id: 'WORK-1',
+      title: 'Malformed item',
+      state: 'blocked',
+      source: { kind: 'builder', initiative_id: 'WORK-1', packet_id: null },
+      evidence: {},
+      // data_quality intentionally omitted: WorkView dereferences it.
+    }],
+    item_limit: 50,
+    total_items: 1,
+  }
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(invalid), { status: 200 })))
+  const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
+  await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
+})
