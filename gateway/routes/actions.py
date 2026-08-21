@@ -11,7 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from gateway import action_queue
+from gateway import action_grants, action_queue
 
 router = APIRouter(tags=["actions"])
 
@@ -23,19 +23,50 @@ class ProposeRequest(BaseModel):
     preview: str = Field(min_length=1)
     source_id: str | None = None
     payload: dict = Field(default_factory=dict)
+    scope_type: str = "global"
+    scope_id: str = ""
+    session_id: str | None = None
+    estimated_cost_usd: float | None = None
+
+
+class GrantRequest(BaseModel):
+    """One standing user decision. Mirrors the four UI choices in issue #554.
+
+    "Allow once" is not a grant — it is the existing per-action approve call.
+    """
+
+    capability: str = Field(min_length=1)
+    decision: str = Field(min_length=1)
+    granted_tier: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+    scope_type: str = "global"
+    scope_id: str = ""
+    session_id: str | None = None
+    expires_at: float | None = None
+    budget_limit_usd: float | None = None
 
 
 def _handle(fn, *args, **kwargs):
     """Run a queue call, translating its typed errors to HTTP status codes."""
     try:
         return fn(*args, **kwargs)
-    except action_queue.TierViolation as exc:
+    except (action_queue.TierViolation, action_queue.GrantDenied) as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except action_queue.ActionNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except action_queue.ActionStateError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (action_queue.UnknownActionKind, action_queue.ActionPayloadError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _handle_grant(fn, *args, **kwargs):
+    """Same, for the grant store's typed errors."""
+    try:
+        return fn(*args, **kwargs)
+    except action_grants.GrantNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except action_grants.GrantValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -56,6 +87,10 @@ def post_propose(payload: ProposeRequest) -> dict:
         preview=payload.preview,
         source_id=payload.source_id,
         payload=payload.payload,
+        scope_type=payload.scope_type,
+        scope_id=payload.scope_id,
+        session_id=payload.session_id,
+        estimated_cost_usd=payload.estimated_cost_usd,
     )
 
 
@@ -72,3 +107,33 @@ def post_reject(action_id: int) -> dict:
 @router.post("/actions/{action_id}/execute")
 def post_execute(action_id: int) -> dict:
     return _handle(action_queue.execute, action_id)
+
+
+@router.get("/actions/grants")
+def get_grants(capability: str | None = None, include_inactive: bool = False) -> dict:
+    return {
+        "grants": action_grants.list_grants(
+            capability=capability, include_inactive=include_inactive
+        )
+    }
+
+
+@router.post("/actions/grants")
+def post_grant(payload: GrantRequest) -> dict:
+    return _handle_grant(
+        action_grants.create_grant,
+        capability=payload.capability,
+        decision=payload.decision,
+        granted_tier=payload.granted_tier,
+        reason=payload.reason,
+        scope_type=payload.scope_type,
+        scope_id=payload.scope_id,
+        session_id=payload.session_id,
+        expires_at=payload.expires_at,
+        budget_limit_usd=payload.budget_limit_usd,
+    )
+
+
+@router.delete("/actions/grants/{grant_id}")
+def delete_grant(grant_id: int) -> dict:
+    return _handle_grant(action_grants.revoke_grant, grant_id)
