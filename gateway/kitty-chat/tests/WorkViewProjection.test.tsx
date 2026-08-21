@@ -185,7 +185,7 @@ describe('WorkView projection', () => {
     expect(screen.getByText('Review evidence available')).toBeVisible()
   })
 
-  it('distinguishes an open publication without presenting a merged date', () => {
+  it('distinguishes an unmerged publication without presenting a merged date', () => {
     const base = snapshot().items[0]
     renderSnapshot({
       ...snapshot(),
@@ -196,7 +196,7 @@ describe('WorkView projection', () => {
     })
 
     fireEvent.click(screen.getByText('Details'))
-    expect(screen.getByText('publication open')).toBeVisible()
+    expect(screen.getByText('publication not merged')).toBeVisible()
     expect(screen.queryByText('merged Aug 21, 2026')).not.toBeInTheDocument()
   })
 
@@ -215,6 +215,7 @@ describe('WorkView projection', () => {
   it('shows degraded Builder truth without switching surfaces', () => {
     renderSnapshot({ ...snapshot(), source: { kind: 'builder', state: 'degraded', reason: 'partial Builder data' } })
     expect(screen.getByText('Builder degraded')).toBeVisible()
+    expect(screen.getByText(/partial Builder data/)).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Work' })).toBeVisible()
   })
 
