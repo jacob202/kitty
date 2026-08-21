@@ -137,3 +137,38 @@ it.each([
   const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
   await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
 })
+
+
+it.each([
+  ['current_packet.id', { id: { value: 'PACKET-1' } }],
+  ['current_packet.task_id', { task_id: { value: 'TASK-1' } }],
+  ['current_packet.task_state', { task_state: { value: 'running' } }],
+  ['current_run.id', { id: { value: 'RUN-1' } }],
+])('fails closed when a rendered Work metadata field is not a string: %s', async (label, malformedField) => {
+  const currentPacket = label.startsWith('current_packet')
+    ? { id: 'PACKET-1', title: 'Packet', task_id: 'TASK-1', task_state: 'running', ...malformedField }
+    : null
+  const currentRun = label.startsWith('current_run')
+    ? { id: 'RUN-1', state: 'running', ...malformedField }
+    : null
+  const invalid = {
+    schema_version: 1,
+    observed_at: '2026-08-13T21:00:00Z',
+    valid_until: '2026-08-13T21:00:30Z',
+    source: { kind: 'builder', state: 'available' },
+    counts: { total: 1, active: 1, paused: 0, failed: 0, blocked: 0, completed: 0, ready: 0, waiting: 0 },
+    queue: null,
+    items: [{
+      id: 'WORK-1', title: 'Bad metadata', state: 'active',
+      source: { kind: 'builder', initiative_id: 'WORK-1', packet_id: null },
+      current_packet: currentPacket,
+      current_run: currentRun,
+      evidence: {}, data_quality: { state: 'complete', issues: [] },
+    }],
+    item_limit: 50,
+    total_items: 1,
+  }
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(invalid), { status: 200 })))
+  const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
+  await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
+})
