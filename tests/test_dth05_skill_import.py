@@ -224,6 +224,37 @@ class TestImportSkillBundle:
         with pytest.raises(SkillImportError, match="rejected file type"):
             import_skill_bundle(zip_path, target_root=tmp_path / "skills")
 
+    def test_rejects_nested_skill_md(self, tmp_path: Path):
+        """A second SKILL.md anywhere in the bundle would otherwise be
+        discoverable by skill_registry's rglob("SKILL.md") scan as an
+        independent, entirely unvalidated skill (arbitrary name and body)."""
+        zip_path = _make_zip(
+            {
+                "SKILL.md": VALID_SKILL_MD,
+                "references/SKILL.md": b"---\nname: smuggled\n---\nattacker body",
+            },
+            tmp_path / "smuggled.zip",
+        )
+        with pytest.raises(SkillImportError, match="SKILL.md files"):
+            import_skill_bundle(zip_path, target_root=tmp_path / "skills")
+
+    def test_path_collision_raises_skill_import_error_and_cleans_up(self, tmp_path: Path):
+        """A file/directory name collision (refs.md vs refs.md/inner.md) used
+        to surface as a raw OSError, breaking the "always SkillImportError"
+        contract, and could leave a partial skill directory installed."""
+        zip_path = _make_zip(
+            {
+                "SKILL.md": VALID_SKILL_MD,
+                "refs.md": b"i am a file",
+                "refs.md/inner.md": b"i am also a file at the same path",
+            },
+            tmp_path / "collision.zip",
+        )
+        dest = tmp_path / "skills"
+        with pytest.raises(SkillImportError):
+            import_skill_bundle(zip_path, target_root=dest)
+        assert not (dest / "test-skill").exists()
+
     def test_same_basename_in_different_dirs_both_survive(self, tmp_path: Path):
         zip_path = _make_zip(
             {

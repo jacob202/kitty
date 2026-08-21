@@ -1,6 +1,7 @@
 """Tests for skill_registry — discover, get, search, invoke."""
 
 from gateway.skill_registry import (
+    _parse_skill_file,
     _yaml_frontmatter,
     discover,
     get,
@@ -60,6 +61,58 @@ class TestYamlFrontmatter:
         result = _yaml_frontmatter(text)
         assert result["license"] == "MIT"
         assert result["compatibility"] == "claude"
+
+
+class TestParseSkillFile:
+    """Real YAML can yield non-string values where Kitty's fields expect
+    text; _parse_skill_file must coerce or drop them, not crash or pass a
+    bomb-shaped value through to callers like the /api/skills route."""
+
+    def test_bare_description_coerces_to_empty_string(self, tmp_path):
+        path = tmp_path / "SKILL.md"
+        path.write_text("---\nname: test\ndescription:\n---\n\nBody")
+        result = _parse_skill_file(path)
+        assert result["description"] == ""
+
+    def test_boolean_description_coerces_to_empty_string(self, tmp_path):
+        path = tmp_path / "SKILL.md"
+        path.write_text("---\nname: test\ndescription: yes\n---\n\nBody")
+        result = _parse_skill_file(path)
+        assert result["description"] == ""
+
+    def test_non_string_name_is_rejected(self, tmp_path):
+        path = tmp_path / "SKILL.md"
+        path.write_text("---\nname: yes\n---\n\nBody")
+        assert _parse_skill_file(path) is None
+
+    def test_non_list_allowed_tools_coerces_to_empty_list(self, tmp_path):
+        path = tmp_path / "SKILL.md"
+        path.write_text("---\nname: test\nallowed_tools: not-a-list\n---\n\nBody")
+        result = _parse_skill_file(path)
+        assert result["allowed_tools"] == []
+
+    def test_metadata_is_not_propagated(self, tmp_path):
+        """metadata is spec-legal arbitrary YAML; passing it through let a
+        few anchors/aliases turn a few hundred bytes into tens of megabytes
+        on JSON serialization at /api/skills. Nothing consumes it today, so
+        it is dropped rather than bounded."""
+        path = tmp_path / "SKILL.md"
+        path.write_text("---\nname: test\nmetadata:\n  author: jacob\n---\n\nBody")
+        result = _parse_skill_file(path)
+        assert "metadata" not in result
+
+    def test_search_and_suggest_survive_non_string_description(self, tmp_path, monkeypatch):
+        import gateway.skill_registry as registry
+
+        root = tmp_path / "skills"
+        root.mkdir()
+        (root / "SKILL.md").write_text("---\nname: bare-desc\ndescription:\n---\n\nBody")
+
+        monkeypatch.setattr(registry, "SKILL_ROOTS", [root])
+        monkeypatch.setattr(registry, "_registry", None)
+        # Must not raise (old code called .lower() on the raw frontmatter value).
+        assert registry.search("anything") is not None
+        assert registry.suggest("anything") == []
 
 
 class TestDiscover:

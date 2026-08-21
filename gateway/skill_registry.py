@@ -89,6 +89,29 @@ def _yaml_frontmatter(text: str) -> dict:
     return result
 
 
+def _to_str(value: object) -> str:
+    """Coerce a frontmatter value to plain text; anything but a string is dropped.
+
+    Real YAML can produce None/bool/list/dict where Kitty's string fields
+    expect text (the old line parser always produced a string). Calling
+    str() on an unexpected nested structure would re-walk it and can
+    reproduce YAML alias/anchor amplification — a handful of anchors can
+    expand to megabytes on re-serialization — so an unexpected shape becomes
+    "" rather than being stringified.
+    """
+    return value if isinstance(value, str) else ""
+
+
+def _to_str_or_none(value: object) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def _to_str_list(value: object) -> list[str]:
+    if isinstance(value, list) and all(isinstance(v, str) for v in value):
+        return value
+    return []
+
+
 def _parse_skill_file(path: Path) -> dict | None:
     """Parse a SKILL.md file and return skill metadata dict."""
     try:
@@ -98,19 +121,19 @@ def _parse_skill_file(path: Path) -> dict | None:
         return None
 
     meta = _yaml_frontmatter(text)
-    if not meta.get("name"):
-        logger.warning("Skill file %s has no 'name' in frontmatter", path)
+    name = meta.get("name")
+    if not isinstance(name, str) or not name.strip():
+        logger.warning("Skill file %s has no valid 'name' string in frontmatter", path)
         return None
 
     return {
-        "name": meta.get("name", ""),
-        "description": meta.get("description", ""),
-        "when_to_use": meta.get("when_to_use", ""),
-        "model": meta.get("model"),
-        "allowed_tools": meta.get("allowed_tools", []),
-        "license": meta.get("license"),
-        "compatibility": meta.get("compatibility"),
-        "metadata": meta.get("metadata"),
+        "name": name,
+        "description": _to_str(meta.get("description")),
+        "when_to_use": _to_str(meta.get("when_to_use")),
+        "model": _to_str_or_none(meta.get("model")),
+        "allowed_tools": _to_str_list(meta.get("allowed_tools")),
+        "license": _to_str_or_none(meta.get("license")),
+        "compatibility": _to_str_or_none(meta.get("compatibility")),
         "path": str(path),
         "content": text,
     }

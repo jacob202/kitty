@@ -15,7 +15,10 @@ Importing an untrusted bundle is gated the same way as a document upload:
   executable helpers is rejected outright, not partially imported;
 * each member's leading bytes are sniffed so a renamed binary (``.exe`` -> ``.md``)
   is rejected;
-* ``__MACOSX`` resource forks, dotfiles, and directories are dropped.
+* ``__MACOSX`` resource forks, dotfiles, and directories are dropped;
+* a bundle may contain exactly one ``SKILL.md`` (the root) — a nested one
+  would otherwise be discoverable by :mod:`gateway.skill_registry`'s
+  filesystem scan as a second, entirely unvalidated skill.
 
 Failure is loud: any violation raises ``SkillImportError`` with a cause.
 
@@ -27,6 +30,7 @@ discoverable by :mod:`gateway.skill_registry`.
 from __future__ import annotations
 
 import logging
+import shutil
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -150,6 +154,7 @@ def import_skill_bundle(zip_path: str | Path, *, target_root: Path = SKILL_ROOT)
         # First pass: bounds + name + type checks (no extraction yet).
         total = 0
         skmd_text: str | None = None
+        skill_md_count = 0
         for info in infos:
             if info.is_dir():
                 continue
@@ -171,9 +176,19 @@ def import_skill_bundle(zip_path: str | Path, *, target_root: Path = SKILL_ROOT)
                 raise SkillImportError(f"bundle too large: {total} > {MAX_BUNDLE_BYTES}")
             data = zf.read(info)
             _reject_binary_payload(str(safe), data)
+            if safe.name == "SKILL.md":
+                # A SKILL.md anywhere but the root would still be picked up as
+                # an independent, unvalidated skill by skill_registry's
+                # rglob("SKILL.md") scan once extracted — refuse the whole
+                # bundle rather than silently install a second skill.
+                skill_md_count += 1
             if safe == Path("SKILL.md"):
                 skmd_text = data.decode("utf-8", errors="strict")
 
+        if skill_md_count > 1:
+            raise SkillImportError(
+                f"bundle contains {skill_md_count} SKILL.md files; only the bundle root is allowed"
+            )
         if skmd_text is None:
             raise SkillImportError("bundle has no SKILL.md")
         name = _skill_name_from(skmd_text)
@@ -183,26 +198,36 @@ def import_skill_bundle(zip_path: str | Path, *, target_root: Path = SKILL_ROOT)
             raise SkillImportError(f"skill already exists: {name!r}")
 
         # Second pass: extract preserving each member's validated relative path.
+        # Any failure here — including a path collision surfacing as a raw
+        # OSError — must not leave a half-written, still-discoverable skill
+        # directory behind.
         dest.mkdir(parents=True, exist_ok=True)
         dest_resolved = dest.resolve()
         written: list[str] = []
-        for info in infos:
-            if info.is_dir():
-                continue
-            safe = _safe_relative_path(info.filename)
-            if safe is None:
-                continue
-            ext = safe.suffix.lower()
-            if ext not in ALLOWED_SKILL_EXTENSIONS:
-                continue
-            target = (dest / safe).resolve()
-            if target != dest_resolved and dest_resolved not in target.parents:
-                raise SkillImportError(f"zip-slip attempt: {info.filename!r}")
-            data = zf.read(info)
-            _reject_binary_payload(str(safe), data)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(data)
-            written.append(safe.as_posix())
+        try:
+            for info in infos:
+                if info.is_dir():
+                    continue
+                safe = _safe_relative_path(info.filename)
+                if safe is None:
+                    continue
+                ext = safe.suffix.lower()
+                if ext not in ALLOWED_SKILL_EXTENSIONS:
+                    continue
+                target = (dest / safe).resolve()
+                if dest_resolved not in target.parents:
+                    raise SkillImportError(f"zip-slip attempt: {info.filename!r}")
+                data = zf.read(info)
+                _reject_binary_payload(str(safe), data)
+                try:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(data)
+                except OSError as exc:
+                    raise SkillImportError(f"failed to write {info.filename!r}: {exc}") from exc
+                written.append(safe.as_posix())
+        except Exception:
+            shutil.rmtree(dest, ignore_errors=True)
+            raise
 
     logger.info("Imported skill %r (%d files) from %s", name, len(written), zip_path)
     return SkillImportResult(name=name, path=dest, files=written)
