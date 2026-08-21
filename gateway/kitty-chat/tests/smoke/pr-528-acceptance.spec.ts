@@ -135,6 +135,9 @@ async function installHermeticStubs(
         ],
       })
     }
+    if (path === '/studio/characters') {
+      return json(route, { characters: [] })
+    }
     if (path === '/studio/estimate') {
       return json(route, {
         estimate: {
