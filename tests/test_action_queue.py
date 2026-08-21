@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from gateway import action_queue, calendar_integration, todo_store
+from gateway import action_grants, action_queue, calendar_integration, todo_store
 
 
 @pytest.fixture(autouse=True)
@@ -17,6 +17,11 @@ def isolate(monkeypatch, tmp_path):
     """Isolated DB, drafts dir, and todo store; registry from the real tier file."""
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(action_queue, "ACTIONS_DB_FILE", db_file, raising=False)
+    # execute() consults the grant store, which binds its own path at import.
+    # Without this the queue reads a temp DB while the policy layer reads the
+    # real one — the tests would still pass, because an empty grants table
+    # leaves baseline behaviour unchanged, and would silently touch real data.
+    monkeypatch.setattr(action_grants, "GRANTS_DB_FILE", db_file, raising=False)
     monkeypatch.setattr(action_queue, "DRAFTS_DIR", tmp_path / "drafts", raising=False)
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", db_file, raising=False)
     # Point the legacy todo import at a path that does not exist so init_db()
