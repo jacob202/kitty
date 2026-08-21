@@ -447,12 +447,20 @@ class StudioGenerateRequest(BaseModel):
 
 
 class PlanPreviewRequest(BaseModel):
-    """Preview a generation plan before committing to generation."""
+    """Preview a generation plan before committing to generation.
+
+    *content_lane*/*consent_basis*/*adult_confirmed* are the trusted policy
+    declaration (ADR 0040 #8) persisted with the approved plan. They default
+    to the safe lane, and private_adult cannot be inferred from prompt text.
+    """
     prompt: str
     character_id: Optional[str] = None
     recipe_id: Optional[str] = None
     guidance_tags: Optional[List[str]] = None
     session_id: Optional[str] = None
+    content_lane: Optional[str] = None
+    consent_basis: Optional[str] = None
+    adult_confirmed: bool = False
 
 
 @router.get("/studio/characters")
@@ -660,6 +668,9 @@ async def studio_plan(req: PlanPreviewRequest):
             character_id=req.character_id,
             recipe_id=req.recipe_id,
             guidance_tags=req.guidance_tags,
+            content_lane=req.content_lane,
+            consent_basis=req.consent_basis,
+            adult_confirmed=req.adult_confirmed,
         )
     except ImagePlanError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -686,6 +697,7 @@ async def studio_plan(req: PlanPreviewRequest):
 
 class SessionCreateRequest(BaseModel):
     title: Optional[str] = None
+    project_id: Optional[int] = None
     character_id: Optional[str] = None
     reference_ids: Optional[List[str]] = None
     protected_traits: Optional[List[str]] = None
@@ -721,6 +733,7 @@ async def studio_create_session(req: SessionCreateRequest):
     try:
         session = create_session(
             title=req.title,
+            project_id=req.project_id,
             character_id=req.character_id,
             reference_ids=req.reference_ids,
             protected_traits=req.protected_traits,
@@ -834,6 +847,7 @@ async def studio_generate(req: StudioGenerateRequest):
         ImageRunnerError,
         estimated_cost_usd,
         paid_engine_available,
+        read_anchor_artifact,
         run,
         run_edit,
     )
@@ -906,6 +920,13 @@ async def studio_generate(req: StudioGenerateRequest):
                     ),
                 )
             approved_edit_anchor = anchor_job_id
+
+        # Content-lane contract (ADR 0040 #8): dispatch from the STORED plan's
+        # policy, never from a request body. The approved plan is the only
+        # trusted source of content_lane/consent_basis/adult_confirmed.
+        content_lane = stored.content_lane
+        consent_basis = stored.consent_basis
+        adult_confirmed = stored.adult_confirmed
     else:
         if not req.prompt or not req.prompt.strip():
             raise HTTPException(status_code=400, detail="prompt must not be empty")
@@ -916,6 +937,27 @@ async def studio_generate(req: StudioGenerateRequest):
         preferred_recipe = req.recipe_id
         character_id = req.character_id
         guidance_tags = None
+
+        # A plan-less /studio/generate call carries no trusted policy metadata:
+        # it is safe lane, and a prompt can never promote itself to private.
+        content_lane = "safe"
+        consent_basis = None
+        adult_confirmed = False
+
+    # Resolve session context before routing, provider preflight, or spend. A
+    # supplied session is authoritative for Project scope; an unknown session
+    # must never be allowed to render first and fail only during attachment.
+    dispatch_session_id = req.session_id or (stored.session_id if stored else None)
+    session_context = None
+    project_id: int | None = None
+    if dispatch_session_id:
+        from gateway.image_sessions import SessionNotFoundError, require_session
+
+        try:
+            session_context = require_session(dispatch_session_id)
+        except SessionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        project_id = session_context.project_id
 
     try:
         decision = image_recipes.auto_route(
@@ -943,11 +985,151 @@ async def studio_generate(req: StudioGenerateRequest):
             ),
         )
 
-    engine = recipe.provider if recipe else "comfyui"
+    # Content-lane seam (ADR 0040 #8): select the execution target from the
+    # stored plan's policy BEFORE any cost estimate or availability preflight.
+    # Private work must pick a private executor first so a hosted availability
+    # gate or hosted spend reservation can never run for private work — even if
+    # the recipe metadata names a hosted provider.
+    from gateway.image_policy import (
+        ImagePolicyError,
+        validate_image_execution_policy,
+    )
+
+    if content_lane == "private_adult":
+        # v1's only Kitty-controlled private executor is the worker edit lane
+        # (run_edit → kitty_worker). A private text-to-image plan has no
+        # private executor yet, so it is refused here — never downgraded to a
+        # hosted engine.
+        if operation != "img2img":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "content_lane='private_adult' has no private text-to-image "
+                    "executor in v1; only the worker edit lane (img2img) is "
+                    "private, refusing to route private work to a hosted provider"
+                ),
+            )
+        execution_target = "kitty_worker"
+    else:
+        execution_target = recipe.provider if recipe else "comfyui"
+
     try:
-        estimated_cost = estimated_cost_usd(engine)
-    except ImageRunnerError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        validate_image_execution_policy(
+            content_lane, consent_basis, adult_confirmed, execution_target
+        )
+    except ImagePolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    engine = execution_target
+
+    # Hosted FLUX.2 (BFL Direct) selection (IL-03/IL-04). For provider=="flux2"
+    # the recipe names an explicit flux2 execution target; the exact model,
+    # estimate, availability, and dispatch must all agree on that one target.
+    flux2_target = None
+    compiled_request = None
+    reference_bytes: tuple[bytes, ...] = ()
+    render_width = 1024
+    render_height = 1024
+
+    if engine == "flux2":
+        from gateway.flux2_compiler import (
+            CompiledReference,
+            Flux2CompilerError,
+            compile_flux2_request,
+        )
+        from gateway.flux2_targets import (
+            Flux2TargetError,
+            resolve_flux2_target,
+        )
+
+        if not recipe or not recipe.execution_target:
+            raise HTTPException(
+                status_code=400,
+                detail="recipe for the hosted FLUX.2 lane names no execution target",
+            )
+        try:
+            flux2_target = resolve_flux2_target(recipe.execution_target)
+        except Flux2TargetError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        if recipe.default_width and recipe.default_width > 0:
+            render_width = recipe.default_width
+        if recipe.default_height and recipe.default_height > 0:
+            render_height = recipe.default_height
+
+        refs: list[CompiledReference] = []
+        ref_blobs: list[bytes] = []
+        if operation == "img2img":
+            if approved_edit_anchor is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="approved img2img plan lost its validated anchor before dispatch",
+                )
+            try:
+                anchor_bytes, anchor_name = read_anchor_artifact(
+                    approved_edit_anchor
+                )
+            except ImageRunnerError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            refs.append(
+                CompiledReference(
+                    reference_id=approved_edit_anchor,
+                    role="anchor",
+                    order=1,
+                    name=anchor_name,
+                )
+            )
+            ref_blobs.append(anchor_bytes)
+        for prov in (stored.references if stored else []):
+            path = prov.get("path") if isinstance(prov, dict) else getattr(prov, "path", None)
+            if not path or not Path(path).is_file():
+                continue
+            order = len(refs) + 1
+            refs.append(
+                CompiledReference(
+                    reference_id=str(path),
+                    role="identity",
+                    order=order,
+                    name=(prov.get("name") if isinstance(prov, dict) else getattr(prov, "name", None)),
+                )
+            )
+            ref_blobs.append(Path(path).read_bytes())
+        reference_bytes = tuple(ref_blobs)
+
+        protected = []
+        requested = []
+        if session_context is not None:
+            protected = list(session_context.protected_traits or [])
+            requested = list(session_context.requested_changes or [])
+        try:
+            compiled_request = compile_flux2_request(
+                prompt,
+                references=refs,
+                operation=operation,
+                # StudioGenerateRequest intentionally has no user-authored seed.
+                # Seeds become approved batch/VariationStrategy state in IL-08;
+                # do not invent mutable request-side reproducibility here.
+                seed=None,
+                width=render_width,
+                height=render_height,
+                quality_tier=req.quality,
+                protected_traits=protected,
+                requested_changes=requested,
+                negative_prompt=req.negative_prompt,
+            )
+        except Flux2CompilerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        try:
+            estimated_cost = flux2_target.estimate_cost_usd(
+                render_width, render_height, operation
+            )
+        except (Flux2TargetError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        try:
+            estimated_cost = estimated_cost_usd(engine)
+        except ImageRunnerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     paid_attempt_reserved = False
     if estimated_cost > 0:
@@ -982,7 +1164,23 @@ async def studio_generate(req: StudioGenerateRequest):
             raise HTTPException(status_code=400, detail=str(exc))
 
     try:
-        if operation == "img2img":
+        if engine == "flux2":
+            result = await run(
+                engine,
+                prompt,
+                recipe=recipe,
+                character_id=character_id,
+                negative_prompt=req.negative_prompt,
+                guidance_tags=guidance_tags,
+                content_lane=content_lane,
+                consent_basis=consent_basis,
+                adult_confirmed=adult_confirmed,
+                flux2_target=flux2_target,
+                compiled_request=compiled_request,
+                reference_bytes=reference_bytes,
+                project_id=project_id,
+            )
+        elif operation == "img2img":
             if approved_edit_anchor is None:
                 raise HTTPException(
                     status_code=500,
@@ -993,6 +1191,10 @@ async def studio_generate(req: StudioGenerateRequest):
                 anchor_job_id=approved_edit_anchor,
                 recipe=recipe,
                 negative_prompt=req.negative_prompt,
+                content_lane=content_lane,
+                consent_basis=consent_basis,
+                adult_confirmed=adult_confirmed,
+                project_id=project_id,
             )
         else:
             result = await run(
@@ -1002,6 +1204,10 @@ async def studio_generate(req: StudioGenerateRequest):
                 character_id=character_id,
                 negative_prompt=req.negative_prompt,
                 guidance_tags=guidance_tags,
+                content_lane=content_lane,
+                consent_basis=consent_basis,
+                adult_confirmed=adult_confirmed,
+                project_id=project_id,
             )
         # Bind the render back to its conversation so a restart can replay it
         # and "use this" has something to anchor on. A failure to bind is

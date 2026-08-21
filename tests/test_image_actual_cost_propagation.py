@@ -33,6 +33,13 @@ async def test_studio_generate_returns_provider_reported_actual_cost(monkeypatch
         )
 
     monkeypatch.setattr(image_runner, "run", fake_run)
+    monkeypatch.setattr(
+        image_sessions,
+        "require_session",
+        lambda _session_id: SimpleNamespace(
+            project_id=None, protected_traits=[], requested_changes=[]
+        ),
+    )
     monkeypatch.setattr(image_sessions, "reserve_attempt", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(image_sessions, "attach_job", lambda *_args, **_kwargs: None)
     reconciled: dict[str, float] = {}

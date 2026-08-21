@@ -32,6 +32,7 @@ def _fresh_db(tmp_path: Path, monkeypatch):
     import gateway.paths as gp
 
     monkeypatch.setattr(gp, "KITTY_DB_FILE", test_db)
+    monkeypatch.setattr("gateway.artifact_store.ARTIFACTS_DB_FILE", test_db)
     monkeypatch.setattr(gp, "DATA_DIR", tmp_path / "data")
 
     conn = sqlite3.connect(str(test_db))

@@ -92,7 +92,10 @@ def override_db(monkeypatch, tmp_path: Path):
         )
     """)
     conn.execute("INSERT INTO schema_migrations (name) VALUES ('024_image_characters.sql')")
-    for name in ["023_image_jobs.sql", "025_image_references.sql", "026_image_recipes.sql",
+    # Only mark migrations whose effects this hand-built fixture actually
+    # contains. 026 creates image_recipes; let the real migrator apply it so
+    # later additive recipe migrations are exercised against an honest schema.
+    for name in ["023_image_jobs.sql", "025_image_references.sql",
                   "027_image_characters_v2.sql"]:
         conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (name,))
     conn.commit()

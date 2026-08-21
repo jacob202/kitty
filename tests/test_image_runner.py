@@ -16,10 +16,19 @@ def _tmp_db(tmp_path, monkeypatch):
     db_file = tmp_path / "kitty.db"
     monkeypatch.setattr("gateway.paths.KITTY_DB_FILE", db_file)
     monkeypatch.setattr("gateway.image_jobs._paths.KITTY_DB_FILE", db_file)
+    monkeypatch.setattr("gateway.artifact_store.ARTIFACTS_DB_FILE", db_file)
     from gateway import db as kitty_db
 
     kitty_db.migrate(db_file=db_file)
     return db_file
+
+
+def _save_image_to(path):
+    def _save(data: bytes, **_kwargs):
+        path.write_bytes(data)
+        return path
+
+    return _save
 
 
 def _fake_drawthings_engine(available: bool = True, data: bytes = b"fakepng"):
@@ -94,7 +103,7 @@ class TestDrawThingsPath:
             patch("mcp.imagen.engines.get", return_value=fake_engine),
             patch(
                 "mcp.imagen.io.save_image",
-                return_value=tmp_path / "dt_out.png",
+                side_effect=_save_image_to(tmp_path / "dt_out.png"),
             ),
         ):
             result = await run("drawthings", "a bear")
@@ -141,7 +150,7 @@ class TestDrawThingsPath:
             patch("mcp.imagen.engines.get", return_value=fake_engine),
             patch(
                 "mcp.imagen.io.save_image",
-                return_value=tmp_path / "dt_out.png",
+                side_effect=_save_image_to(tmp_path / "dt_out.png"),
             ),
         ):
             await run("drawthings", "a bear", recipe=recipe)
@@ -270,6 +279,7 @@ class TestCharacterPath:
             steps=26,
             cfg=3.0,
             guidance_tags=None,
+            project_id=None,
         )
         assert result.character_weight == 0.7
         assert result.recipe == "jacob-sdxl-v1"
