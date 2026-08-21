@@ -167,7 +167,7 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry?: () => void
   );
 }
 
-const OFFLINE_FIX = 'gateway is not reachable — check if Kitty is running';
+const OFFLINE_FIX = 'Kitty is not connected — check if Kitty is running';
 
 // ── Repairs card ──────────────────────────────────────────────────────────────
 
@@ -209,7 +209,7 @@ function RepairsCard() {
     return (
       <SectionCard title="system">
         <div role="status" style={emptyState}>
-          nothing was checked — the gateway didn&apos;t run any health checks
+          nothing was checked — Kitty could not complete its health checks
         </div>
       </SectionCard>
     )
@@ -439,13 +439,13 @@ function HealthStrip() {
     >
       {loading ? (
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
-          checking gateway — status lands here in a sec…
+          checking Kitty connection — status lands here in a sec…
         </span>
       ) : (
         <>
           <HealthDot
             tone={gatewayOk ? 'ok' : 'bad'}
-            label={gatewayOk ? 'gateway live' : OFFLINE_FIX}
+            label={gatewayOk ? 'Kitty is connected' : OFFLINE_FIX}
           />
           <HealthDot
             tone={!gatewayOk ? 'bad' : litellmOk ? 'ok' : 'bad'}

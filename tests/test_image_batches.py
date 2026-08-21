@@ -110,3 +110,19 @@ async def test_worker_cancellation_marks_inflight_provider_outcome_unknown() -> 
     assert refreshed["items"][0]["status"] == "unknown"
     assert "provider outcome is unknown" in refreshed["items"][0]["error"]
     assert refreshed["status"] == "unknown"
+
+
+def test_succeeded_and_unknown_children_are_reported_as_partial() -> None:
+    batch = image_batches.create_batch({"prompt": "cats"}, count=2, per_image_estimate=_estimate())
+
+    first = image_batches.claim_next_item()
+    assert first is not None
+    image_batches.complete_item(first["item_id"], {"job_id": "job_1"})
+
+    second = image_batches.claim_next_item()
+    assert second is not None
+    image_batches.mark_item_unknown(second["item_id"], "provider outcome is unknown")
+
+    refreshed = image_batches.get_batch(batch["batch_id"])
+    assert [item["status"] for item in refreshed["items"]] == ["succeeded", "unknown"]
+    assert refreshed["status"] == "partial"

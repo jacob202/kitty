@@ -196,7 +196,7 @@ const popoverStyle: CSSProperties = {
   position: 'absolute',
   top: 'calc(100% + 6px)',
   right: 0,
-  background: 'var(--surface)',
+  background: 'var(--surface-solid)',
   border: '1.5px solid var(--line)',
   borderRadius: 12,
   minWidth: 360,
