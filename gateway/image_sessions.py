@@ -551,6 +551,7 @@ def update_session(
     protected_traits: list[str] | None = None,
     requested_changes: list[str] | None = None,
     last_plan: dict[str, Any] | None = None,
+    clear_character: bool | None = None,
 ) -> ImageSession:
     """Update session context. Only supplied fields change."""
     _require_active(session_id)
@@ -559,7 +560,9 @@ def update_session(
     if title is not None:
         _check_text_bounded(title, "title")
         updates["title"] = title
-    if character_id is not None:
+    if clear_character:
+        updates["character_id"] = None
+    elif character_id is not None:
         updates["character_id"] = character_id
     if reference_ids is not None:
         updates["reference_ids_json"] = _encode_list(reference_ids, "reference_ids")

@@ -1238,6 +1238,7 @@ export interface ImageEngineStatus {
   name: string
   label: string
   available: boolean
+  unavailable_reason?: string | null
 }
 
 export interface ImageStatus {
