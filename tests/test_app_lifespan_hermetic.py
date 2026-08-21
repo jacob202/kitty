@@ -26,10 +26,6 @@ async def test_test_env_skips_external_background_services(monkeypatch):
 
     started: list[str] = []
 
-    async def brief_loop() -> None:
-        started.append("brief-loop")
-        await asyncio.Event().wait()
-
     async def inbox_loop() -> None:
         started.append("inbox-watcher")
         await asyncio.Event().wait()
@@ -38,7 +34,6 @@ async def test_test_env_skips_external_background_services(monkeypatch):
         started.append("image-batch-worker")
         await asyncio.Event().wait()
 
-    monkeypatch.setattr(app_module, "_brief_bg_loop", brief_loop)
     monkeypatch.setattr(image_batches, "worker_loop", image_batch_loop)
     monkeypatch.setattr(inbox_watcher, "watch_loop", inbox_loop)
     monkeypatch.setattr(brief_scheduler, "start_brief_scheduler", lambda: started.append("brief-scheduler"))
@@ -78,7 +73,6 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
         await asyncio.Event().wait()
 
     monkeypatch.setattr(image_batches, "worker_loop", forever)
-    monkeypatch.setattr(app_module, "_brief_bg_loop", forever)
     monkeypatch.setattr(brief_scheduler, "start_brief_scheduler", lambda: None)
 
     private_loop_started = False
@@ -100,6 +94,7 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
     async with app_module.lifespan(app_module.app):
         assert private_loop_started is False
         assert "inbox.scan" in actions
+        assert ("brief cache refresh", "brief.refresh", "interval", "15") in schedules
         assert ("web monitor due checks", "monitors.check", "interval", "5") in schedules
         assert ("iCloud inbox scan", "inbox.scan", "interval", "0.5") in schedules
         await actions["inbox.scan"]()  # type: ignore[operator]
