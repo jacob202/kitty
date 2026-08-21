@@ -263,6 +263,24 @@ describe('HomeState', () => {
     expect(screen.getByText('capture')).toBeInTheDocument();
   });
 
+  it('never renders the gateway snapshot API instruction on Home', () => {
+    (useStateChanges as Mock).mockReturnValue({
+      data: {
+        baseline_ts: null,
+        current_ts: 0,
+        changes: [],
+        new_signals: [],
+        note: 'no snapshot yet — POST /state/snapshot to create a baseline',
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.queryByText(/POST \/state\/snapshot/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/no comparison point yet/i)).toBeInTheDocument();
+  });
+
   it('shows honest empty states when gateway returns no data', () => {
     (useSessionContext as Mock).mockReturnValue({
       data: { current_branch: 'main', last_session_topic: null, open_threads: [], next_actions: [] },
