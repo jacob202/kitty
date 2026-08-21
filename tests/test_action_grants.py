@@ -524,3 +524,157 @@ def test_list_grants_hides_revoked_and_expired_by_default():
 
     assert active_ids == {live["id"]}
     assert all_ids == {live["id"], revoked["id"]}
+
+
+# --- the user-confirmed issuance boundary (issue #554 finding 1) -------------
+#
+# `create_grant` refuses a standing allow unless the caller proves a
+# user-confirmed boundary. `grant_from_approved_action` is that boundary, and
+# these tests pin what it must never let a caller do: name its own capability,
+# widen its own scope, or mint an allow without a real approved proposal.
+
+
+def test_remembering_an_approved_action_authorizes_the_next_one(monkeypatch):
+    monkeypatch.setattr(
+        "gateway.calendar_integration.create", lambda *a, **k: True, raising=False
+    )
+    first = _propose(
+        "calendar.event.create", {"title": "standup"}, scope_type="project", scope_id="kitty"
+    )
+    approved = action_queue.approve(first["id"])
+    action_grants.grant_from_approved_action(approved)
+
+    # A brand-new proposal of the same kind and scope now executes without its
+    # own approval — that is the whole point of "always allow here".
+    second = _propose(
+        "calendar.event.create", {"title": "retro"}, scope_type="project", scope_id="kitty"
+    )
+    assert action_queue.execute(second["id"])["status"] == "executed"
+
+
+def test_the_remembered_grant_takes_its_capability_and_scope_from_the_action():
+    action = _propose(
+        "todo.create", {"content": "x"}, scope_type="project", scope_id="kitty"
+    )
+    approved = action_queue.approve(action["id"])
+
+    grant = action_grants.grant_from_approved_action(approved)
+
+    assert grant["capability"] == "todo.create"
+    assert grant["granted_tier"] == "T0"
+    assert grant["scope_type"] == "project"
+    assert grant["scope_id"] == "kitty"
+    assert grant["created_by"] == "user"
+    assert grant["reason"] == approved["preview"]
+
+
+def test_remembering_does_not_widen_beyond_the_action_scope():
+    scoped = _propose(
+        "todo.create", {"content": "x"}, scope_type="project", scope_id="kitty"
+    )
+    approved = action_queue.approve(scoped["id"])
+    action_grants.grant_from_approved_action(approved)
+
+    # Same capability, different project: the grant must not reach it.
+    elsewhere = _propose(
+        "todo.create", {"content": "y"}, scope_type="project", scope_id="other"
+    )
+    decision = action_grants.evaluate(
+        capability="todo.create",
+        tier="T2",
+        status=elsewhere["status"],
+        scope_type="project",
+        scope_id="other",
+    )
+    assert decision.outcome == "ask"
+
+
+def test_an_unapproved_action_cannot_mint_a_grant():
+    proposed = _propose("todo.create", {"content": "x"})
+
+    with pytest.raises(action_grants.GrantValidationError):
+        action_grants.grant_from_approved_action(proposed)
+
+
+def test_a_rejected_action_cannot_mint_a_grant():
+    action = _propose("todo.create", {"content": "x"})
+    rejected = action_queue.reject(action["id"])
+
+    with pytest.raises(action_grants.GrantValidationError):
+        action_grants.grant_from_approved_action(rejected)
+
+
+def test_session_only_needs_the_action_to_carry_a_session():
+    action = _propose("todo.create", {"content": "x"})
+    approved = action_queue.approve(action["id"])
+
+    with pytest.raises(action_grants.GrantValidationError):
+        action_grants.grant_from_approved_action(approved, session_only=True)
+
+
+def test_session_only_binds_the_grant_to_the_actions_own_session():
+    action = _propose("todo.create", {"content": "x"}, session_id="session-a")
+    approved = action_queue.approve(action["id"])
+
+    grant = action_grants.grant_from_approved_action(approved, session_only=True)
+
+    assert grant["session_id"] == "session-a"
+
+
+def test_a_direct_allow_without_the_boundary_is_still_refused():
+    # The hole the review found: a Gateway client minting its own permission.
+    with pytest.raises(action_grants.GrantValidationError):
+        action_grants.create_grant(
+            capability="todo.create",
+            decision="allow",
+            granted_tier="T0",
+            reason="I would like permission",
+            created_by="gateway_client",
+            user_confirmed=False,
+        )
+
+
+def test_a_caller_cannot_forge_confirmation_by_claiming_to_be_the_user():
+    with pytest.raises(action_grants.GrantValidationError):
+        action_grants.create_grant(
+            capability="todo.create",
+            decision="allow",
+            granted_tier="T0",
+            reason="pretending",
+            created_by="user",
+            user_confirmed=False,
+        )
+
+
+def test_a_tool_deny_still_beats_a_remembered_server_allow():
+    # The MCP acceptance journey from #554: "use this server but never call its
+    # delete tool". Only reachable now that a standing allow can exist at all.
+    server_action = _propose(
+        "todo.create", {"content": "x"}, scope_type="mcp_server", scope_id="files"
+    )
+    approved = action_queue.approve(server_action["id"])
+    action_grants.grant_from_approved_action(approved)
+    _grant(
+        "todo.create", "deny", granted_tier="T0", scope_type="tool", scope_id="files/delete"
+    )
+
+    denied = action_grants.evaluate(
+        capability="todo.create",
+        tier="T0",
+        status="proposed",
+        scope_type="tool",
+        scope_id="files/delete",
+    )
+    # Same tier the grant was made at. Evaluating at a higher tier would lapse
+    # the allow on its own, which is the escalation guard, not the hierarchy.
+    allowed = action_grants.evaluate(
+        capability="todo.create",
+        tier="T0",
+        status="proposed",
+        scope_type="tool",
+        scope_id="files/read",
+    )
+
+    assert denied.outcome == "deny"
+    assert allowed.outcome == "allow"
+    assert allowed.grant_id is not None
