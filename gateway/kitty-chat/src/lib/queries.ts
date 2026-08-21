@@ -66,6 +66,7 @@ import {
   runInboxTriage,
   // projects
   fetchProjects,
+  fetchArtifacts,
   fetchActiveProject,
   setActiveProject,
   fetchProjectNext,
@@ -631,6 +632,15 @@ export function useProjects() {
   return useQuery({ queryKey: ['projects'], queryFn: fetchProjects, refetchInterval: 60_000 })
 }
 
+export function useArtifacts(limit = 100) {
+  return useQuery({
+    queryKey: ['artifacts', limit],
+    queryFn: () => fetchArtifacts(limit),
+    staleTime: 30_000,
+    retry: false,
+  })
+}
+
 export function useActiveProject() {
   return useQuery({ queryKey: ['active-project'], queryFn: fetchActiveProject, staleTime: 30_000 })
 }
@@ -843,7 +853,10 @@ export function useUploadCapture() {
     mutationFn: (file: File) => uploadCaptureFile(file),
     // Indexing runs as a gateway background task; the invalidation gives the
     // fast path, the sources card's refresh button covers the slow one.
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] })
+      void qc.invalidateQueries({ queryKey: ['artifacts'] })
+    },
   })
 }
 

@@ -58,19 +58,6 @@ def _reconcile_agent_workspace_turns_on_startup() -> None:
         logger.warning("interrupted %d orphaned shared-agent room turn(s) at startup", reconciled)
 
 
-async def _brief_bg_loop():
-    """Warm the brief cache on startup, then refresh every 15 minutes."""
-    from gateway.brief import generate_brief
-
-    loop = asyncio.get_event_loop()
-    while True:
-        try:
-            await loop.run_in_executor(None, generate_brief)
-            logger.info("Brief cache refreshed.")
-        except Exception as e:
-            logger.warning("Brief refresh failed: %s", e)
-        await asyncio.sleep(900)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -83,9 +70,7 @@ async def lifespan(app: FastAPI):
     from gateway.image_recipes import seed_default_recipes
 
     seed_default_recipes()
-    brief_task: asyncio.Task | None = None
     brief_scheduler_task: asyncio.Task | None = None
-    inbox_task: asyncio.Task | None = None
     image_batch_task: asyncio.Task | None = None
     background_services_enabled = not is_test_env()
     if background_services_enabled:
@@ -104,13 +89,9 @@ async def lifespan(app: FastAPI):
         image_batch_task = asyncio.create_task(
             image_batch_worker_loop(execute_studio_batch_request)
         )
-        brief_task = asyncio.create_task(_brief_bg_loop())
         from gateway.brief_scheduler import start_brief_scheduler
 
         brief_scheduler_task = start_brief_scheduler()
-        from gateway.inbox_watcher import watch_loop as _inbox_watch
-
-        inbox_task = asyncio.create_task(_inbox_watch())
         try:
             import gateway.cron as cron
             from gateway.cron import register_action
@@ -127,13 +108,9 @@ async def lifespan(app: FastAPI):
                 check()
 
             async def _action_check_monitors():
-                from gateway.web_monitor import check_now, list_watches
+                from gateway.web_monitor import check_due
 
-                for w in list_watches():
-                    try:
-                        await check_now(w["watch_id"])
-                    except Exception:
-                        logger.warning("Monitor check failed for watch %s", w.get("watch_id"))
+                await check_due()
 
             async def _action_memory_consolidate():
                 from gateway.memory_consolidation import nightly_dream
@@ -144,6 +121,11 @@ async def lifespan(app: FastAPI):
                 from gateway import triage
 
                 await asyncio.to_thread(triage.run_pass)
+
+            async def _action_scan_icloud_inbox():
+                from gateway.inbox_watcher import scan_once
+
+                await asyncio.to_thread(scan_once)
 
             async def _action_poll_mail():
                 from gateway.connectors.mail import poll_now
@@ -160,6 +142,7 @@ async def lifespan(app: FastAPI):
             register_action("monitors.check", _action_check_monitors)
             register_action("memory.consolidate", _action_memory_consolidate)
             register_action("inbox.triage", _action_triage_inbox)
+            register_action("inbox.scan", _action_scan_icloud_inbox)
 
             def _action_poll_github():
                 from gateway.connectors import github
@@ -207,17 +190,16 @@ async def lifespan(app: FastAPI):
             register_action("life.evening_reflection", _action_life_evening_reflection)
             register_action("life.morning_proactive", _action_life_morning_proactive)
             register_action("insights.return_due", _action_insights_return_due)
+            cron.schedule("brief cache refresh", "brief.refresh", "interval", "15")
             cron.schedule("insights return due", "insights.return_due", "interval", "15")
+            cron.schedule("web monitor due checks", "monitors.check", "interval", "5")
+            cron.schedule("iCloud inbox scan", "inbox.scan", "interval", "0.5")
             cron_start()
         except Exception:
             logger.exception("cron system registration failed — all background jobs disabled")
     yield
-    if brief_task is not None:
-        brief_task.cancel()
     if brief_scheduler_task is not None:
         brief_scheduler_task.cancel()
-    if inbox_task is not None:
-        inbox_task.cancel()
     if image_batch_task is not None:
         image_batch_task.cancel()
         with suppress(asyncio.CancelledError):
