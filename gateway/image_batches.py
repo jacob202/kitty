@@ -152,6 +152,8 @@ def _refresh_batch(conn: Any, batch_id: str) -> None:
         status = "running"
     elif counts.get("queued"):
         status = "queued"
+    elif counts.get("succeeded") and counts.get("unknown"):
+        status = "partial"
     elif counts.get("unknown"):
         status = "unknown"
     elif counts.get("succeeded") and not counts.get("failed") and not counts.get("canceled"):

@@ -78,11 +78,63 @@ const WORK_STATES = new Set<GatewayWorkState>([
 ])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isNullableString(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'string'
+}
+
+function isNullableNumberOrString(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))
+}
+
+function isNullableBoolean(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'boolean'
+}
+
+function isEvidenceField(
+  evidence: Record<string, unknown>,
+  section: string,
+  field: string,
+  predicate: (value: unknown) => boolean,
+): boolean {
+  const nested = evidence[section]
+  return nested === undefined || nested === null || (isRecord(nested) && predicate(nested[field]))
+}
+
+function isEvidence(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false
+  return (
+    isEvidenceField(value, 'approval', 'state', isNullableString)
+    && isEvidenceField(value, 'review', 'verdict', isNullableString)
+    && isEvidenceField(value, 'review', 'summary', isNullableString)
+    && isEvidenceField(value, 'validation', 'status', isNullableString)
+    && isEvidenceField(value, 'validation', 'summary', isNullableString)
+    && isEvidenceField(value, 'publication', 'pr_number', isNullableNumberOrString)
+    && isEvidenceField(value, 'publication', 'checks_state', isNullableString)
+    && isEvidenceField(value, 'publication', 'merged', isNullableBoolean)
+    && isEvidenceField(value, 'publication', 'merged_at', isNullableString)
+  )
+}
+
+
+function isCurrentPacket(value: unknown): boolean {
+  if (value === undefined || value === null) return true
+  if (!isRecord(value)) return false
+  return ['id', 'title', 'objective', 'task_id', 'task_state', 'failure_kind', 'next_action', 'updated_at']
+    .every(field => isNullableString(value[field]))
+}
+
+function isCurrentRun(value: unknown): boolean {
+  if (value === undefined || value === null) return true
+  if (!isRecord(value)) return false
+  return ['id', 'state', 'started_at', 'ended_at'].every(field => isNullableString(value[field]))
 }
 
 function isWorkItem(value: unknown): value is GatewayWorkItem {
   if (!isRecord(value)) return false
+  const blocker = value.blocker
   return (
     typeof value.id === 'string'
     && (typeof value.title === 'string' || value.title === null)
@@ -91,6 +143,21 @@ function isWorkItem(value: unknown): value is GatewayWorkItem {
     && isRecord(value.source)
     && value.source.kind === 'builder'
     && typeof value.source.initiative_id === 'string'
+    && isCurrentPacket(value.current_packet)
+    && isCurrentRun(value.current_run)
+    && isEvidence(value.evidence)
+    && (value.next_action === undefined || value.next_action === null || typeof value.next_action === 'string')
+    && (
+      blocker === undefined
+      || blocker === null
+      || (isRecord(blocker) && (blocker.reason === undefined || blocker.reason === null || typeof blocker.reason === 'string'))
+    )
+    && isRecord(value.data_quality)
+    && typeof value.data_quality.state === 'string'
+    && (
+      value.data_quality.issues === undefined
+      || (Array.isArray(value.data_quality.issues) && value.data_quality.issues.every(issue => typeof issue === 'string'))
+    )
   )
 }
 

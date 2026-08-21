@@ -28,7 +28,7 @@ function HealthGate({ children }: { children: React.ReactNode }) {
     fetch('/proxy/health', { signal: ctrl.signal })
       .then(r => {
         if (cancelled) return
-        if (!r.ok) throw new Error(`Gateway returned ${r.status}`)
+        if (!r.ok) throw new Error('Kitty gateway is unavailable')
         setState('ok')
       })
       .catch((cause: unknown) => {
@@ -63,7 +63,7 @@ function HealthGate({ children }: { children: React.ReactNode }) {
       <div style={{ fontSize: '0.9rem', opacity: 0.5, textAlign: 'center', maxWidth: 320 }}>
         {state === 'checking'
           ? 'Connecting to Kitty...'
-          : `Gateway offline — run \`./kitty up\`${error ? `\n${error}` : ''}\nRetrying automatically...`}
+          : `Gateway offline — Kitty is trying to reconnect automatically.${error ? `\n${error}` : ''}\nIf this keeps happening, reopen Kitty.`}
       </div>
     </div>
   )

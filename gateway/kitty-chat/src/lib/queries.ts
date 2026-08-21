@@ -1,5 +1,5 @@
 'use client'
-import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   // brief / models / search / weather (full payloads)
   fetchGatewayBrief,
@@ -66,6 +66,7 @@ import {
   runInboxTriage,
   // projects
   fetchProjects,
+  fetchArtifacts,
   fetchActiveProject,
   setActiveProject,
   fetchProjectNext,
@@ -631,6 +632,15 @@ export function useProjects() {
   return useQuery({ queryKey: ['projects'], queryFn: fetchProjects, refetchInterval: 60_000 })
 }
 
+export function useArtifacts(limit = 100) {
+  return useQuery({
+    queryKey: ['artifacts', limit],
+    queryFn: () => fetchArtifacts(limit),
+    staleTime: 30_000,
+    retry: false,
+  })
+}
+
 export function useActiveProject() {
   return useQuery({ queryKey: ['active-project'], queryFn: fetchActiveProject, staleTime: 30_000 })
 }
@@ -820,17 +830,21 @@ export function useWhatsNextSteps() {
   })
 }
 
-/** One next-step query per project, sharing the ['projects', id, 'next']
- *  cache entries with useProjectNext so ProjectsPanel and Home never
- *  double-fetch. */
+/** Read all Home project next-steps in one request. Missing steps are normal
+ *  empty state, not per-project 404s that pollute the browser console. */
 export function useProjectNextSteps(projects: GatewayProject[]) {
-  return useQueries({
-    queries: projects.map(p => ({
-      queryKey: ['projects', p.id, 'next'],
-      queryFn: () => fetchProjectNext(p.id),
-      staleTime: 60_000,
-    })),
+  const query = useQuery({
+    queryKey: ['projects', 'next-steps', 'active', projects.map(project => project.id).join(',')],
+    queryFn: () => fetchProjectNextSteps(projects.length),
+    enabled: projects.length > 0,
+    staleTime: 60_000,
   })
+  const steps = query.data ?? []
+  return projects.map(project => ({
+    data: steps.find(step => step.project_id === project.id) ?? null,
+    isPending: query.isPending,
+    isError: query.isError,
+  }))
 }
 
 export function useUploadCapture() {
@@ -839,7 +853,10 @@ export function useUploadCapture() {
     mutationFn: (file: File) => uploadCaptureFile(file),
     // Indexing runs as a gateway background task; the invalidation gives the
     // fast path, the sources card's refresh button covers the slow one.
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] })
+      void qc.invalidateQueries({ queryKey: ['artifacts'] })
+    },
   })
 }
 

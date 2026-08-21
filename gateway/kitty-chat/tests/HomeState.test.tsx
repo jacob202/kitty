@@ -38,6 +38,12 @@ vi.mock('../src/components/InsightReturnCard', () => ({
   InsightReturnCard: () => <div data-testid="insight-return-card" />,
 }));
 
+vi.mock('../src/components/BuilderSurface', () => ({
+  BuilderGlance: ({ onOpen }: { onOpen: () => void }) => (
+    <button type="button" onClick={onOpen}>Open Builder</button>
+  ),
+}));
+
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
@@ -263,6 +269,24 @@ describe('HomeState', () => {
     expect(screen.getByText('capture')).toBeInTheDocument();
   });
 
+  it('never renders the gateway snapshot API instruction on Home', () => {
+    (useStateChanges as Mock).mockReturnValue({
+      data: {
+        baseline_ts: null,
+        current_ts: 0,
+        changes: [],
+        new_signals: [],
+        note: 'no snapshot yet — POST /state/snapshot to create a baseline',
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.queryByText(/POST \/state\/snapshot/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/no comparison point yet/i)).toBeInTheDocument();
+  });
+
   it('shows honest empty states when gateway returns no data', () => {
     (useSessionContext as Mock).mockReturnValue({
       data: { current_branch: 'main', last_session_topic: null, open_threads: [], next_actions: [] },
@@ -281,10 +305,11 @@ describe('HomeState', () => {
 
   it('shows all-green health strip when everything answers', () => {
     render(<HomeState />);
-    expect(screen.getByText('gateway live')).toBeInTheDocument();
+    expect(screen.getByText('Kitty is connected')).toBeInTheDocument();
     expect(screen.getByText('routing live · 2 models')).toBeInTheDocument();
     expect(screen.getByText('chat store ok · 3 saved')).toBeInTheDocument();
     expect(screen.getByText('retry')).toBeInTheDocument();
+    expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
   });
 
   it('shows the gateway down fix when the gateway is down', () => {
@@ -294,9 +319,19 @@ describe('HomeState', () => {
     });
     render(<HomeState />);
     expect(
-      screen.getAllByText(/gateway is not reachable — check if Kitty is running/).length,
+      screen.getAllByText(/Kitty is not connected — check if Kitty is running/).length,
     ).toBeGreaterThan(0);
     expect(screen.getByText('routing unknown')).toBeInTheDocument();
+    expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
+  });
+
+  it('uses product language while the health strip is still checking', () => {
+    (useGatewayHealth as Mock).mockReturnValue({ data: undefined, isPending: true });
+    (useGatewayModels as Mock).mockReturnValue({ data: undefined, isPending: true });
+    (useChatsPersistence as Mock).mockReturnValue({ data: undefined, isPending: true });
+    render(<HomeState />);
+    expect(screen.getByText('checking Kitty connection — status lands here in a sec…')).toBeInTheDocument();
+    expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
   });
 
   it('shows model routing unavailable from the /health probe, never a fake routing-live', () => {
@@ -749,6 +784,14 @@ describe('HomeState', () => {
     expect(screen.getByText("what's next")).toBeInTheDocument();
   });
 
+  it('opens Work from the Builder glance', () => {
+    const onNavigate = vi.fn();
+    render(<HomeState onNavigate={onNavigate} />);
+    screen.getByRole('button', { name: /open builder/i }).click();
+    expect(onNavigate).toHaveBeenCalledWith('work');
+    expect(onNavigate).not.toHaveBeenCalledWith('builder');
+  });
+
   it('does not claim health when zero checks ran', () => {
     (useRepairs as Mock).mockReturnValue({
       data: { ok: true, checks_run: 0, issues: 0, repairs: [] },
@@ -757,7 +800,9 @@ describe('HomeState', () => {
       isFetched: true,
     });
     render(<HomeState />);
-    expect(screen.getByText(/nothing was checked/)).toBeInTheDocument();
+    const systemCard = screen.getByText(/nothing was checked/).closest('div');
+    expect(systemCard).toHaveTextContent('nothing was checked — Kitty could not complete its health checks');
+    expect(systemCard).not.toHaveTextContent(/gateway/i);
     expect(screen.queryByText(/everything looks healthy/)).not.toBeInTheDocument();
   });
 

@@ -67,6 +67,17 @@ describe('curated model picker', () => {
     expect(screen.getByText(/\$0.50 in · \$2.00 out/i)).toBeInTheDocument()
   })
 
+  it('uses an opaque surface for the floating picker', () => {
+    const models = buildPickerModels(payload)
+    render(<ModelSelectorCmdk activeModel={models[0]} models={models} onSelectModel={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /Model: Daily Kitty/ }))
+
+    const input = screen.getByPlaceholderText('search the shortlist…')
+    const floatingSurface = input.parentElement?.parentElement
+    expect(floatingSurface).not.toBeNull()
+    expect(floatingSurface).toHaveStyle({ background: 'var(--surface-solid)' })
+  })
+
   it('uses curated data only to enrich runtime-backed choices, never to introduce another route', async () => {
     const curated = buildPickerModels(payload)
     const runtimeModels = [curated[0]]

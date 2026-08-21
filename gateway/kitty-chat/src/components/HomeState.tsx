@@ -167,7 +167,7 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry?: () => void
   );
 }
 
-const OFFLINE_FIX = 'gateway is not reachable — check if Kitty is running';
+const OFFLINE_FIX = 'Kitty is not connected — check if Kitty is running';
 
 // ── Repairs card ──────────────────────────────────────────────────────────────
 
@@ -209,7 +209,7 @@ function RepairsCard() {
     return (
       <SectionCard title="system">
         <div role="status" style={emptyState}>
-          nothing was checked — the gateway didn&apos;t run any health checks
+          nothing was checked — Kitty could not complete its health checks
         </div>
       </SectionCard>
     )
@@ -439,13 +439,13 @@ function HealthStrip() {
     >
       {loading ? (
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
-          checking gateway — status lands here in a sec…
+          checking Kitty connection — status lands here in a sec…
         </span>
       ) : (
         <>
           <HealthDot
             tone={gatewayOk ? 'ok' : 'bad'}
-            label={gatewayOk ? 'gateway live' : OFFLINE_FIX}
+            label={gatewayOk ? 'Kitty is connected' : OFFLINE_FIX}
           />
           <HealthDot
             tone={!gatewayOk ? 'bad' : litellmOk ? 'ok' : 'bad'}
@@ -1122,7 +1122,7 @@ function WhatChanged() {
     );
   }
 
-  const { changes, new_signals, note } = data;
+  const { baseline_ts, changes, new_signals } = data;
   const count = changes.length + new_signals.length;
 
   const inboxSection = stateNowQuery.data?.sections.inbox;
@@ -1133,7 +1133,9 @@ function WhatChanged() {
 
   return (
     <SectionCard title="what changed" count={count || undefined} action={markPoint}>
-      {note && !changes.length && !new_signals.length ? <div style={emptyState}>{note}</div> : null}
+      {baseline_ts === null && !changes.length && !new_signals.length ? (
+        <div style={emptyState}>no comparison point yet — mark one to start tracking changes</div>
+      ) : null}
       {changes.map((c: StateChange, i: number) => (
         <div key={i} style={itemCard}>
           <div
@@ -1186,7 +1188,7 @@ function WhatChanged() {
           </button>
         </div>
       )}
-      {!count && !note && !untriagedCount && (
+      {!count && baseline_ts !== null && !untriagedCount && (
         <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div>nothing new since last snapshot</div>
           <div style={{ fontSize: 10 }}>tap mark point anytime to set a fresh baseline</div>
@@ -1568,7 +1570,7 @@ export function HomeState({
       {visibleTiles['health'] !== false && <HealthStrip />}
       {visibleTiles['health'] !== false && <RepairsCard />}
       {visibleTiles['health'] !== false && <SignalsCard />}
-      <BuilderGlance onOpen={() => onNavigate('builder')} />
+      <BuilderGlance onOpen={() => onNavigate('work')} />
       {visibleTiles['weather'] !== false && weather && !weather.error && (
         <section style={{ ...card, display: 'grid', gap: 8 }}>
           <div style={cardHeader}>

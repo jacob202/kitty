@@ -122,3 +122,24 @@ async def test_batch_executor_records_propagated_actual_cost(monkeypatch) -> Non
     assert observed["model_id"] == "vendor/image"
     assert observed["operation"] == "txt2img"
     assert observed["duration_seconds"] > 0
+
+
+@pytest.mark.asyncio
+async def test_batch_executor_warns_when_returned_job_is_not_visible(monkeypatch, caplog) -> None:
+    from gateway import image_jobs
+    from gateway.routes import extended, image_studio_jobs
+
+    async def fake_studio_generate(_request):
+        return {
+            "job_id": "imgjob_missing",
+            "filename": "missing.png",
+            "actual_cost_usd": 0.041,
+        }
+
+    monkeypatch.setattr(extended, "studio_generate", fake_studio_generate)
+    monkeypatch.setattr(image_jobs, "get_job", lambda _job_id: None)
+
+    await image_studio_jobs.execute_studio_batch_request({"prompt": "cat"})
+
+    assert "imgjob_missing" in caplog.text
+    assert "observation" in caplog.text.lower()

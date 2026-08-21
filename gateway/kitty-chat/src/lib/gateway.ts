@@ -5,6 +5,7 @@ const GATEWAY_BASE = '/proxy'
 // store on the first request. 2.5s made healthy features look permanently
 // offline after a cold start; keep the timeout bounded but realistic.
 const DEFAULT_TIMEOUT_MS = 8000
+const SEARCH_TIMEOUT_MS = 7000
 
 export interface GatewayHeadline {
   title: string
@@ -41,12 +42,14 @@ export interface GatewaySearchSnapshot {
     knowledge: number
     journal: number
     todos: number
+    inbox: number
   }
   sections: {
     memories: string[]
     knowledge: string[]
     journal: string[]
     todos: string[]
+    inbox: string[]
   }
 }
 
@@ -315,6 +318,9 @@ export type GatewayBriefPayload = {
 
 export type GatewaySearchPayload = {
   snapshot: GatewaySearchSnapshot | null
+  hits: GatewaySearchHit[]
+  degradedStores: string[]
+  degradedErrors: string[]
   fromLiveGateway: boolean
   error: string | null
 }
@@ -418,6 +424,7 @@ export function summarizeGatewaySearch(raw: {
   knowledge?: GatewaySearchHit[]
   journal?: GatewaySearchHit[]
   todos?: GatewaySearchHit[]
+  inbox?: GatewaySearchHit[]
 }): GatewaySearchSnapshot {
   const pick = (items: GatewaySearchHit[] | undefined) =>
     (items ?? []).slice(0, 3).map(item => {
@@ -432,6 +439,7 @@ export function summarizeGatewaySearch(raw: {
   const knowledge = pick(raw.knowledge)
   const journal = pick(raw.journal)
   const todos = pick(raw.todos)
+  const inbox = pick(raw.inbox)
 
   return {
     query: (raw.query ?? '').trim(),
@@ -440,12 +448,14 @@ export function summarizeGatewaySearch(raw: {
       knowledge: knowledge.length,
       journal: journal.length,
       todos: todos.length,
+      inbox: inbox.length,
     },
     sections: {
       memories,
       knowledge,
       journal,
       todos,
+      inbox,
     },
   }
 }
@@ -976,47 +986,94 @@ export async function fetchGatewaySearch(
 ): Promise<GatewaySearchPayload> {
   const q = query.trim()
   if (!q) {
-    return { snapshot: null, fromLiveGateway: true, error: null }
+    return { snapshot: null, hits: [], degradedStores: [], degradedErrors: [], fromLiveGateway: true, error: null }
   }
 
   try {
     const response = await fetchWithTimeout(
       `${GATEWAY_BASE}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
-      4000,
+      SEARCH_TIMEOUT_MS,
       signal,
     )
     if (!response.ok) {
       return {
         snapshot: null,
+        hits: [],
+        degradedStores: [],
+        degradedErrors: [],
         fromLiveGateway: false,
         error: describeFetchError(null, response),
       }
     }
     const json = await response.json()
+    const grouped: Record<string, GatewaySearchHit[]> = {
+      memory: [],
+      knowledge: [],
+      journal: [],
+      todos: [],
+      inbox: [],
+    }
+    const hits: GatewaySearchHit[] = []
+    const degradedStores = Array.isArray(json?.degraded_stores)
+      ? json.degraded_stores
+        .filter((store: unknown): store is string => typeof store === 'string' && store.length > 0)
+        .slice(0, 10)
+        .map((store: string) => store.slice(0, 64))
+      : []
+    const degradedErrors = Array.isArray(json?.errors)
+      ? json.errors
+        .filter((error: unknown): error is string => typeof error === 'string')
+        .slice(0, 5)
+        .map((error: string) => error.slice(0, 240))
+      : []
+    for (const row of Array.isArray(json?.results) ? json.results : []) {
+      const store = typeof row?.store === 'string' ? row.store : ''
+      if (!(store in grouped) || typeof row?.content !== 'string') continue
+      const hit: GatewaySearchHit = {
+        kind: typeof row.kind === 'string' ? row.kind : store,
+        source: typeof row.source === 'string' ? row.source : store,
+        title: typeof row.title === 'string' ? row.title : store,
+        text: row.content,
+        score: typeof row.score === 'number' ? row.score : null,
+        metadata: isRecord(row.metadata) ? row.metadata : undefined,
+      }
+      grouped[store].push(hit)
+      hits.push(hit)
+    }
     return {
       snapshot: summarizeGatewaySearch({
         query: q,
-        memories: json?.memories,
-        knowledge: json?.knowledge,
-        journal: json?.journal,
-        todos: json?.todos,
+        memories: grouped.memory,
+        knowledge: grouped.knowledge,
+        journal: grouped.journal,
+        todos: grouped.todos,
+        inbox: grouped.inbox,
       }),
+      hits,
+      degradedStores,
+      degradedErrors,
       fromLiveGateway: true,
       error: null,
     }
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       if (signal?.aborted) {
-        return { snapshot: null, fromLiveGateway: true, error: null }
+        return { snapshot: null, hits: [], degradedStores: [], degradedErrors: [], fromLiveGateway: true, error: null }
       }
       return {
         snapshot: null,
+        hits: [],
+        degradedStores: [],
+        degradedErrors: [],
         fromLiveGateway: false,
         error: 'Request timed out — is the Kitty gateway running?',
       }
     }
     return {
       snapshot: null,
+      hits: [],
+      degradedStores: [],
+      degradedErrors: [],
       fromLiveGateway: false,
       error: describeFetchError(err, null),
     }
@@ -1387,11 +1444,59 @@ export interface GatewayNextStep {
   generated_at: number
 }
 
+export interface GatewayArtifact {
+  id: string
+  project_id: number | null
+  kind: string
+  media_type: string
+  display_name: string
+  state: string
+  storage_uri?: string
+  content_hash?: string
+  size_bytes: number
+  created_at: number
+  created_by: string
+  source_ref?: string | null
+  conversation_id?: string | null
+  work_item_id?: string | null
+  run_id?: string | null
+  metadata: Record<string, unknown>
+  error?: string | null
+}
+
 // Projects/knowledge/provider fetchers throw on failure — react-query's
 // isError is the honest signal, not a silently empty list.
 export async function fetchProjects(): Promise<GatewayProject[]> {
   const json = await gfetch<{ projects?: GatewayProject[] }>('/projects')
   return json.projects ?? []
+}
+
+export async function fetchArtifacts(limit = 100): Promise<GatewayArtifact[]> {
+  const json = await gfetch<unknown>(`/artifacts?limit=${limit}`)
+  if (!isRecord(json) || !Array.isArray(json.artifacts)) {
+    throw new Error('Saved files returned an invalid response')
+  }
+
+  return json.artifacts.map((item): GatewayArtifact => {
+    if (
+      !isRecord(item)
+      || typeof item.id !== 'string'
+      || (item.project_id !== null && typeof item.project_id !== 'number')
+      || typeof item.kind !== 'string'
+      || typeof item.media_type !== 'string'
+      || typeof item.display_name !== 'string'
+      || typeof item.state !== 'string'
+      || typeof item.size_bytes !== 'number'
+      || typeof item.created_at !== 'number'
+      || typeof item.created_by !== 'string'
+    ) {
+      throw new Error('Saved files returned an invalid response')
+    }
+    return {
+      ...item,
+      metadata: isRecord(item.metadata) ? item.metadata : {},
+    } as GatewayArtifact
+  })
 }
 
 export async function fetchActiveProject(): Promise<GatewayActiveProjectPayload> {
