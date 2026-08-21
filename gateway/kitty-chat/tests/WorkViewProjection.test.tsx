@@ -173,6 +173,20 @@ describe('WorkView projection', () => {
     expect(screen.getByText('merged Aug 21, 2026')).toBeVisible()
   })
 
+  it('interprets Builder timestamps without a timezone as UTC', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      items: [{
+        ...base,
+        evidence: { publication: { merged: true, merged_at: '2026-08-21 00:30:00.000' } },
+      }],
+    })
+
+    fireEvent.click(screen.getByText('Details'))
+    expect(screen.getByText('merged Aug 21, 2026')).toBeVisible()
+  })
+
   it('surfaces review evidence only when review evidence is present', () => {
     const base = snapshot().items[0]
     renderSnapshot({
