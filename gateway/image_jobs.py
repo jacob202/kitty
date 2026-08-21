@@ -544,7 +544,9 @@ def update_job(
     return updated
 
 
-def register_canonical_artifact(job_id: str) -> dict[str, Any]:
+def register_canonical_artifact(
+    job_id: str, *, project_id: int | None = None
+) -> dict[str, Any]:
     """Register a persisted image output in Kitty's canonical Artifact spine.
 
     The legacy ``artifact_id`` field may contain a provider/worker asset id and
@@ -584,7 +586,7 @@ def register_canonical_artifact(job_id: str) -> dict[str, Any]:
             artifact_id=f"artifact_image_{job.job_id}",
             kind="image",
             media_type=media_type,
-            project_id=None,
+            project_id=project_id,
             created_by=f"image:{job.provider}",
             source_ref=job.job_id,
             metadata={

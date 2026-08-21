@@ -697,6 +697,7 @@ async def studio_plan(req: PlanPreviewRequest):
 
 class SessionCreateRequest(BaseModel):
     title: Optional[str] = None
+    project_id: Optional[int] = None
     character_id: Optional[str] = None
     reference_ids: Optional[List[str]] = None
     protected_traits: Optional[List[str]] = None
@@ -732,6 +733,7 @@ async def studio_create_session(req: SessionCreateRequest):
     try:
         session = create_session(
             title=req.title,
+            project_id=req.project_id,
             character_id=req.character_id,
             reference_ids=req.reference_ids,
             protected_traits=req.protected_traits,
@@ -942,6 +944,21 @@ async def studio_generate(req: StudioGenerateRequest):
         consent_basis = None
         adult_confirmed = False
 
+    # Resolve session context before routing, provider preflight, or spend. A
+    # supplied session is authoritative for Project scope; an unknown session
+    # must never be allowed to render first and fail only during attachment.
+    dispatch_session_id = req.session_id or (stored.session_id if stored else None)
+    session_context = None
+    project_id: int | None = None
+    if dispatch_session_id:
+        from gateway.image_sessions import SessionNotFoundError, require_session
+
+        try:
+            session_context = require_session(dispatch_session_id)
+        except SessionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        project_id = session_context.project_id
+
     try:
         decision = image_recipes.auto_route(
             has_character=has_character,
@@ -1081,14 +1098,9 @@ async def studio_generate(req: StudioGenerateRequest):
 
         protected = []
         requested = []
-        session_id = req.session_id or (stored.session_id if stored else None)
-        if session_id:
-            from gateway.image_sessions import get_session as _get_session
-
-            sess = _get_session(session_id)
-            if sess is not None:
-                protected = list(sess.protected_traits or [])
-                requested = list(sess.requested_changes or [])
+        if session_context is not None:
+            protected = list(session_context.protected_traits or [])
+            requested = list(session_context.requested_changes or [])
         try:
             compiled_request = compile_flux2_request(
                 prompt,
@@ -1166,6 +1178,7 @@ async def studio_generate(req: StudioGenerateRequest):
                 flux2_target=flux2_target,
                 compiled_request=compiled_request,
                 reference_bytes=reference_bytes,
+                project_id=project_id,
             )
         elif operation == "img2img":
             if approved_edit_anchor is None:
@@ -1181,6 +1194,7 @@ async def studio_generate(req: StudioGenerateRequest):
                 content_lane=content_lane,
                 consent_basis=consent_basis,
                 adult_confirmed=adult_confirmed,
+                project_id=project_id,
             )
         else:
             result = await run(
@@ -1193,6 +1207,7 @@ async def studio_generate(req: StudioGenerateRequest):
                 content_lane=content_lane,
                 consent_basis=consent_basis,
                 adult_confirmed=adult_confirmed,
+                project_id=project_id,
             )
         # Bind the render back to its conversation so a restart can replay it
         # and "use this" has something to anchor on. A failure to bind is

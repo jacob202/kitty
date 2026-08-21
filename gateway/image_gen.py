@@ -233,6 +233,7 @@ async def generate_with_character(
     steps: int = 8, cfg: float = 4.5,
     seed: int | None = None,
     guidance_tags: list[str] | None = None,
+    project_id: int | None = None,
 ) -> dict:
     state_seed = seed or _seed()
     neg = negative_prompt or "worst quality, low quality, bad anatomy, deformed, ugly, watermark, blurry"
@@ -295,7 +296,7 @@ async def generate_with_character(
         _mark_failed(job.job_id, str(exc)[:500])
         raise
 
-    _finalize_persisted_job(job.job_id, local_path)
+    _finalize_persisted_job(job.job_id, local_path, project_id=project_id)
 
     return {
         "prompt_id": prompt_id, "filename": str(local_path),
@@ -303,7 +304,9 @@ async def generate_with_character(
     }
 
 
-def _finalize_persisted_job(job_id: str, local_path: Path) -> None:
+def _finalize_persisted_job(
+    job_id: str, local_path: Path, *, project_id: int | None = None
+) -> None:
     """Link a persisted output into canonical Artifact truth, then succeed.
 
     Persistence/registration failures are terminal failures, not zombie RUNNING
@@ -311,7 +314,7 @@ def _finalize_persisted_job(job_id: str, local_path: Path) -> None:
     """
     try:
         update_job(job_id, output_path=str(local_path))
-        register_canonical_artifact(job_id)
+        register_canonical_artifact(job_id, project_id=project_id)
         transition(job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job_id, str(exc)[:500])
@@ -483,6 +486,7 @@ async def generate(
     prompt: str,
     parent_id: str | None = None,
     guidance_tags: list[str] | None = None,
+    project_id: int | None = None,
 ) -> dict:
     """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}."""
     p = _parse(prompt)
@@ -567,6 +571,6 @@ async def generate(
     if current_job.status is ImageJobStatus.CANCELED:
         raise ImageGenerationCancelled(f"Image generation canceled for job {job.job_id}")
 
-    _finalize_persisted_job(job.job_id, local_path)
+    _finalize_persisted_job(job.job_id, local_path, project_id=project_id)
 
     return {"prompt_id": prompt_id, "filename": str(local_path), "job_id": job.job_id}

@@ -24,6 +24,7 @@ from types import SimpleNamespace
 import pytest
 
 from gateway import (
+    artifact_store,
     flux2_compiler,
     flux2_targets,
     image_jobs,
@@ -500,3 +501,124 @@ class TestLegacyPath:
     async def test_flux2_route_cannot_bypass_compiler_provenance(self):
         with pytest.raises(ImageRunnerError):
             await run("flux2", "ignored")
+
+
+@pytest.mark.asyncio
+async def test_studio_passes_session_project_scope_to_renderer(monkeypatch):
+    captured = {}
+
+    async def fake_run(*args, **kwargs):
+        captured["project_id"] = kwargs.get("project_id")
+        return JobResult(job_id="job_project", filename="project.png", engine="comfyui")
+
+    recipe = SimpleNamespace(
+        provider="comfyui",
+        recipe_id="project_test",
+        execution_target=None,
+        default_width=1024,
+        default_height=1024,
+        workflow_template_id=None,
+        supports_img2img=False,
+    )
+    monkeypatch.setattr("gateway.image_runner.run", fake_run)
+    monkeypatch.setattr(image_sessions, "attach_job", lambda *_: None)
+    monkeypatch.setattr(
+        image_recipes,
+        "auto_route",
+        lambda **_: image_recipes.RoutingDecision(
+            recipe_id="project_test", recipe=recipe, reason="project scope test"
+        ),
+    )
+
+    with image_jobs.kitty_db.connect(image_jobs._paths.KITTY_DB_FILE) as conn:
+        image_sessions._ensure_db(conn)
+        cur = conn.execute(
+            "INSERT INTO projects (name, kind) VALUES ('Image scope', 'creative')"
+        )
+        project_id = int(cur.lastrowid)
+    session = image_sessions.create_session(title="project-scoped", project_id=project_id)
+
+    await extended.studio_generate(
+        extended.StudioGenerateRequest(
+            prompt="project portrait", quality="fast", session_id=session.session_id
+        )
+    )
+
+    assert captured["project_id"] == project_id
+
+
+@pytest.mark.asyncio
+async def test_flux2_runner_registers_project_scoped_artifact(monkeypatch):
+    submit = {"polling_url": "https://api.bfl.ai/v1/poll/project", "cost": 1.4}
+    ready = {"status": "Ready", "result": {"sample": "https://cdn.bfl.ai/s/project"}}
+    client = _FakeClient(submit, ready, b"\x89PNGproject")
+    monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: client)
+
+    result = await run(
+        "flux2",
+        "ignored",
+        flux2_target=FLUX2_KLEIN_4B_H,
+        compiled_request=_klein_compiled(),
+        project_id=77,
+    )
+
+    job = image_jobs.get_job(result.job_id)
+    assert job is not None
+    artifact = artifact_store.get_artifact(job.canonical_artifact_id)
+    assert artifact is not None
+    assert artifact["project_id"] == 77
+
+
+@pytest.mark.asyncio
+async def test_studio_unknown_session_refuses_before_renderer(monkeypatch):
+    called = False
+
+    async def fake_run(*args, **kwargs):
+        nonlocal called
+        called = True
+        return JobResult(job_id="should_not_run", filename="no.png", engine="comfyui")
+
+    recipe = SimpleNamespace(
+        provider="comfyui",
+        recipe_id="unknown_session_test",
+        execution_target=None,
+        default_width=1024,
+        default_height=1024,
+        workflow_template_id=None,
+        supports_img2img=False,
+    )
+    monkeypatch.setattr("gateway.image_runner.run", fake_run)
+    monkeypatch.setattr(
+        image_recipes,
+        "auto_route",
+        lambda **_: image_recipes.RoutingDecision(
+            recipe_id="unknown_session_test", recipe=recipe, reason="test"
+        ),
+    )
+
+    with pytest.raises(Exception) as exc_info:
+        await extended.studio_generate(
+            extended.StudioGenerateRequest(
+                prompt="must not render", quality="fast", session_id="imgses_missing"
+            )
+        )
+
+    assert getattr(exc_info.value, "status_code", None) == 404
+    assert called is False
+
+
+@pytest.mark.asyncio
+async def test_studio_session_create_exposes_explicit_project_scope():
+    with image_jobs.kitty_db.connect(image_jobs._paths.KITTY_DB_FILE) as conn:
+        image_sessions._ensure_db(conn)
+        cur = conn.execute(
+            "INSERT INTO projects (name, kind) VALUES ('Session API scope', 'creative')"
+        )
+        project_id = int(cur.lastrowid)
+
+    payload = await extended.studio_create_session(
+        extended.SessionCreateRequest(title="scoped session", project_id=project_id)
+    )
+
+    assert payload["project_id"] == project_id
+    assert payload["title"] == "scoped session"

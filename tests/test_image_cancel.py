@@ -481,7 +481,7 @@ def test_finalize_persisted_job_marks_registration_failure_failed(tmp_path, monk
     output = tmp_path / "out.png"
     output.write_bytes(b"png")
 
-    def fail_registration(_job_id: str):
+    def fail_registration(_job_id: str, **_kwargs):
         raise RuntimeError("artifact registry unavailable")
 
     monkeypatch.setattr(image_gen, "register_canonical_artifact", fail_registration)

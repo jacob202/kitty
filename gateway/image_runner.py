@@ -54,6 +54,7 @@ async def run(
     flux2_target: Any | None = None,
     compiled_request: Any | None = None,
     reference_bytes: tuple[bytes, ...] = (),
+    project_id: int | None = None,
 ) -> JobResult:
     """Generate an image through the specified engine.
 
@@ -81,6 +82,7 @@ async def run(
     if engine == "flux":
         return await _run_flux(
             prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
+            project_id=project_id,
         )
 
     if engine == "flux2":
@@ -92,11 +94,13 @@ async def run(
             compiled=compiled_request,
             reference_bytes=reference_bytes,
             negative_prompt=negative_prompt,
+            project_id=project_id,
         )
 
     if engine == "openrouter":
         return await _run_openrouter(
             prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
+            project_id=project_id,
         )
 
     if engine == "drawthings":
@@ -104,6 +108,7 @@ async def run(
             prompt,
             recipe=recipe,
             parent_id=parent_id,
+            project_id=project_id,
         )
 
     if character_id:
@@ -113,6 +118,7 @@ async def run(
             recipe=recipe,
             negative_prompt=negative_prompt,
             guidance_tags=guidance_tags,
+            project_id=project_id,
         )
 
     return await _run_comfyui(
@@ -120,6 +126,7 @@ async def run(
         recipe=recipe,
         parent_id=parent_id,
         guidance_tags=guidance_tags,
+        project_id=project_id,
     )
 
 
@@ -140,6 +147,7 @@ async def run_edit(
     content_lane: str = "safe",
     consent_basis: str | None = None,
     adult_confirmed: bool = False,
+    project_id: int | None = None,
 ) -> JobResult:
     """Edit the anchor job's artifact, rather than rerolling from its prompt.
 
@@ -224,7 +232,7 @@ async def run_edit(
             output_path=str(output_path),
             artifact_id=output.asset_id,
         )
-        image_jobs.register_canonical_artifact(job.job_id)
+        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, f"{type(exc).__name__}: {exc}")
@@ -286,6 +294,7 @@ async def _run_drawthings(
     *,
     recipe: Any | None = None,
     parent_id: str | None = None,
+    project_id: int | None = None,
 ) -> JobResult:
     """Draw Things engine path — dispatches via mcp.imagen engine registry."""
     from mcp.imagen.engines import get
@@ -312,7 +321,7 @@ async def _run_drawthings(
         data = await drawthings.generate_async(prompt)
         path = await asyncio.to_thread(save_image, data, prefix="drawthings")
         image_jobs.update_job(job.job_id, output_path=str(path))
-        image_jobs.register_canonical_artifact(job.job_id)
+        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, str(exc)[:500])
@@ -332,6 +341,7 @@ async def _run_comfyui(
     recipe: Any | None = None,
     parent_id: str | None = None,
     guidance_tags: list[str] | None = None,
+    project_id: int | None = None,
 ) -> JobResult:
     """Standard ComfyUI generation path (no character)."""
     from gateway.image_gen import generate, is_available
@@ -343,6 +353,7 @@ async def _run_comfyui(
         prompt,
         parent_id=parent_id,
         guidance_tags=guidance_tags,
+        project_id=project_id,
     )
     return JobResult(
         job_id=result["job_id"],
@@ -360,6 +371,7 @@ async def _run_comfyui_character(
     recipe: Any | None = None,
     negative_prompt: str | None = None,
     guidance_tags: list[str] | None = None,
+    project_id: int | None = None,
 ) -> JobResult:
     """Generate through the exact stored character contract."""
     from gateway.image_character_contracts import (
@@ -405,6 +417,7 @@ async def _run_comfyui_character(
         steps=resolved["steps"],
         cfg=resolved["guidance"],
         guidance_tags=guidance_tags,
+        project_id=project_id,
     )
 
     return JobResult(
@@ -507,6 +520,7 @@ async def _run_openrouter(
     recipe: Any | None = None,
     parent_id: str | None = None,
     source_image: bytes | None = None,
+    project_id: int | None = None,
 ) -> JobResult:
     """Hosted lane. Same job lifecycle as the local engines — one queue, one
     history, one gallery, per the image-studio architecture."""
@@ -587,7 +601,7 @@ async def _run_openrouter(
         data = base64.b64decode(data_url.split(",", 1)[1])
         path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
         image_jobs.update_job(job.job_id, output_path=str(path))
-        image_jobs.register_canonical_artifact(job.job_id)
+        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, str(exc)[:500])
@@ -640,6 +654,7 @@ async def _run_flux(
     recipe: Any | None = None,
     parent_id: str | None = None,
     source_image: bytes | None = None,
+    project_id: int | None = None,
 ) -> JobResult:
     """Black Forest Labs lane, on the shared job lifecycle.
 
@@ -718,7 +733,7 @@ async def _run_flux(
 
         path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
         image_jobs.update_job(job.job_id, output_path=str(path))
-        image_jobs.register_canonical_artifact(job.job_id)
+        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, str(exc)[:500])
@@ -742,6 +757,7 @@ async def _run_flux2(
     compiled: Any | None = None,
     reference_bytes: tuple[bytes, ...] = (),
     negative_prompt: str | None = None,
+    project_id: int | None = None,
 ) -> JobResult:
     """Hosted FLUX.2 (BFL Direct) lane on the shared job lifecycle.
 
@@ -840,7 +856,7 @@ async def _run_flux2(
 
         path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
         image_jobs.update_job(job.job_id, output_path=str(path))
-        image_jobs.register_canonical_artifact(job.job_id)
+        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, str(exc)[:500])
