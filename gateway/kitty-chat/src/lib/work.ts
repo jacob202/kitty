@@ -81,17 +81,43 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function isEvidence(value: unknown): value is Record<string, unknown> {
-  if (!isRecord(value)) return false
-  return ['approval', 'review', 'validation', 'publication'].every((field) => {
-    const nested = value[field]
-    return nested === undefined || nested === null || isRecord(nested)
-  })
-}
-
 function isNullableString(value: unknown): boolean {
   return value === undefined || value === null || typeof value === 'string'
 }
+
+function isNullableNumberOrString(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))
+}
+
+function isNullableBoolean(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'boolean'
+}
+
+function isEvidenceField(
+  evidence: Record<string, unknown>,
+  section: string,
+  field: string,
+  predicate: (value: unknown) => boolean,
+): boolean {
+  const nested = evidence[section]
+  return nested === undefined || nested === null || (isRecord(nested) && predicate(nested[field]))
+}
+
+function isEvidence(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false
+  return (
+    isEvidenceField(value, 'approval', 'state', isNullableString)
+    && isEvidenceField(value, 'review', 'verdict', isNullableString)
+    && isEvidenceField(value, 'review', 'summary', isNullableString)
+    && isEvidenceField(value, 'validation', 'status', isNullableString)
+    && isEvidenceField(value, 'validation', 'summary', isNullableString)
+    && isEvidenceField(value, 'publication', 'pr_number', isNullableNumberOrString)
+    && isEvidenceField(value, 'publication', 'checks_state', isNullableString)
+    && isEvidenceField(value, 'publication', 'merged', isNullableBoolean)
+    && isEvidenceField(value, 'publication', 'merged_at', isNullableString)
+  )
+}
+
 
 function isCurrentPacket(value: unknown): boolean {
   if (value === undefined || value === null) return true
