@@ -204,3 +204,88 @@ def test_revoking_a_missing_grant_returns_404(client):
     r = client.delete("/actions/grants/999999")
 
     assert r.status_code == 404
+
+
+# --- "always allow here" over HTTP (issue #554 finding 1) -------------------
+
+
+def _propose_scoped(client, kind, payload, **scope):
+    body = {
+        "source_kind": "manual",
+        "kind": kind,
+        "title": f"{kind} action",
+        "preview": f"will run {kind}",
+        "payload": payload,
+    }
+    body.update(scope)
+    return client.post("/actions/propose", json=body).json()
+
+
+def test_approve_without_a_body_still_works(client):
+    # Backward compatibility: the body is optional, so existing callers that
+    # send none must keep behaving exactly as before.
+    proposed = _propose(client, "calendar.event.create", {"title": "x"}).json()
+
+    r = client.post(f"/actions/{proposed['id']}/approve")
+
+    assert r.status_code == 200
+    assert r.json()["status"] == "approved"
+    assert "grant" not in r.json()
+
+
+def test_approve_with_remember_records_the_standing_grant(client):
+    proposed = _propose_scoped(
+        client, "calendar.event.create", {"title": "standup"},
+        scope_type="project", scope_id="kitty",
+    )
+
+    r = client.post(f"/actions/{proposed['id']}/approve", json={"remember": {}})
+
+    assert r.status_code == 200
+    grant = r.json()["grant"]
+    assert grant["decision"] == "allow"
+    assert grant["capability"] == "calendar.event.create"
+    assert grant["scope_type"] == "project"
+    assert grant["scope_id"] == "kitty"
+    assert grant["created_by"] == "user"
+
+    # And the next one of the same kind no longer needs approving.
+    nxt = _propose_scoped(
+        client, "calendar.event.create", {"title": "retro"},
+        scope_type="project", scope_id="kitty",
+    )
+    assert client.post(f"/actions/{nxt['id']}/execute").json()["status"] == "executed"
+
+
+def test_the_grant_route_still_cannot_mint_an_allow(client):
+    # The reported hole: a Gateway client minting its own standing permission.
+    # Bearer auth proves possession of the shared secret, not the user's intent.
+    r = _grant(client, "calendar.event.create", "allow", scope_type="project", scope_id="kitty")
+
+    assert r.status_code == 400
+    assert "user-confirmed" in r.json()["detail"]
+
+
+def test_the_grant_route_can_still_record_a_restriction(client):
+    # deny/ask only ever narrow what is permitted, so they stay available.
+    r = _grant(client, "calendar.event.create", "deny", scope_type="project", scope_id="kitty")
+
+    assert r.status_code == 200
+    assert r.json()["decision"] == "deny"
+
+
+def test_remember_on_a_missing_action_is_a_404_and_grants_nothing(client):
+    r = client.post("/actions/999999/approve", json={"remember": {}})
+
+    assert r.status_code == 404
+    assert client.get("/actions/grants").json()["grants"] == []
+
+
+def test_remember_on_an_already_decided_action_grants_nothing(client):
+    proposed = _propose(client, "calendar.event.create", {"title": "x"}).json()
+    client.post(f"/actions/{proposed['id']}/reject")
+
+    r = client.post(f"/actions/{proposed['id']}/approve", json={"remember": {}})
+
+    assert r.status_code == 409
+    assert client.get("/actions/grants").json()["grants"] == []
