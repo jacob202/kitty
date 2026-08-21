@@ -37,6 +37,11 @@ _MIGRATION_FILE = DB_MIGRATIONS_DIR / "030_image_plans.sql"
 _MAX_JSON_BYTES = 65_536
 _MAX_TEXT_BYTES = 10_240
 
+#: Operations a persisted plan may dispatch through. An approved plan's
+#: operation is what /studio/generate routes on — img2img must reach
+#: image_runner.run_edit(), never image_runner.run().
+ALLOWED_OPERATIONS = {"txt2img", "img2img"}
+
 
 class PlanStatus(str, Enum):
     """Lifecycle of a persisted image plan."""
@@ -80,6 +85,8 @@ class StoredPlan:
     character_id: str | None
     character_ref_path: str | None
     recipe_id: str | None
+    operation: str
+    anchor_job_id: str | None = None
     guidance_tags: list[str] = field(default_factory=list)
     references: list[dict[str, Any]] = field(default_factory=list)
     created_at: str = ""
@@ -95,6 +102,8 @@ class StoredPlan:
             "character_id": self.character_id,
             "character_ref_path": self.character_ref_path,
             "recipe_id": self.recipe_id,
+            "operation": self.operation,
+            "anchor_job_id": self.anchor_job_id,
             "guidance_tags": list(self.guidance_tags),
             "references": [dict(r) for r in self.references],
             "created_at": self.created_at,
@@ -159,6 +168,23 @@ def _decode_list(raw: str | None, field_name: str) -> list[str]:
     return [str(item) for item in parsed]
 
 
+def _ensure_plan_operation_columns(conn: Any) -> None:
+    """Add image_plans.operation/anchor_job_id if absent (migration 035).
+
+    Deferred rather than folded into 030's script: ALTER TABLE has no
+    IF NOT EXISTS form in SQLite and this function must stay re-runnable, so
+    it mirrors image_jobs._ensure_queue_columns and
+    image_sessions._ensure_session_column.
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(image_plans)").fetchall()}
+    if "operation" not in cols:
+        conn.execute(
+            "ALTER TABLE image_plans ADD COLUMN operation TEXT NOT NULL DEFAULT 'txt2img'"
+        )
+    if "anchor_job_id" not in cols:
+        conn.execute("ALTER TABLE image_plans ADD COLUMN anchor_job_id TEXT")
+
+
 def _ensure_db(conn: Any = None) -> None:
     """Apply this module's migration, plus the session schema it references."""
     from gateway import image_sessions
@@ -166,6 +192,7 @@ def _ensure_db(conn: Any = None) -> None:
     def _apply(c: Any) -> None:
         image_sessions._ensure_db(c)
         c.executescript(_MIGRATION_FILE.read_text(encoding="utf-8"))
+        _ensure_plan_operation_columns(c)
 
     if conn is not None:
         _apply(conn)
@@ -175,6 +202,22 @@ def _ensure_db(conn: Any = None) -> None:
 
 
 def _row_to_plan(row: Any) -> StoredPlan:
+    operation = row["operation"]
+    if operation not in ALLOWED_OPERATIONS:
+        raise PlanMalformedError(
+            f"plan {row['plan_id']!r} has unknown operation {operation!r}; "
+            f"expected one of {sorted(ALLOWED_OPERATIONS)}"
+        )
+    anchor_job_id = row["anchor_job_id"]
+    if operation == "img2img" and not anchor_job_id:
+        raise PlanMalformedError(
+            f"plan {row['plan_id']!r} is operation='img2img' but has no anchor_job_id"
+        )
+    if operation == "txt2img" and anchor_job_id:
+        raise PlanMalformedError(
+            f"plan {row['plan_id']!r} is operation='txt2img' but carries "
+            f"anchor_job_id {anchor_job_id!r}"
+        )
     return StoredPlan(
         plan_id=row["plan_id"],
         session_id=row["session_id"],
@@ -184,6 +227,8 @@ def _row_to_plan(row: Any) -> StoredPlan:
         character_id=row["character_id"],
         character_ref_path=row["character_ref_path"],
         recipe_id=row["recipe_id"],
+        operation=operation,
+        anchor_job_id=anchor_job_id,
         guidance_tags=_decode_list(row["guidance_tags_json"], "guidance_tags"),
         references=_decode_refs(row["references_json"]),
         created_at=row["created_at"],
@@ -210,12 +255,23 @@ def persist_plan(
     plan: Any,
     *,
     status: PlanStatus = PlanStatus.APPROVED,
+    operation: str | None = None,
+    anchor_job_id: str | None = None,
     db_path: Any = None,
 ) -> StoredPlan:
     """Persist an approved ``ImagePlan`` under a stable, session-owned id.
 
-    Raises ``PlanStoreError`` if the session does not exist or the plan cannot
-    be serialised safely.
+    *operation* and *anchor_job_id* may be passed explicitly, or carried on
+    *plan* itself (``plan.to_dict()``/``dict(plan)``); an explicit argument
+    wins. *operation* defaults to ``"txt2img"`` for callers that predate the
+    edit-vs-generate distinction. An ``img2img`` plan must carry a non-empty
+    ``anchor_job_id`` identifying the image being edited; a ``txt2img`` plan
+    must never carry an anchor. These are the fields ``/studio/generate`` later
+    trusts over any mutable request body.
+
+    Raises ``PlanStoreError`` if the session does not exist, the operation is
+    not one of ``ALLOWED_OPERATIONS``, operation/anchor state is inconsistent,
+    or the plan cannot be serialised safely.
     """
     from gateway import image_sessions
     from gateway.image_sessions import ImageSessionError
@@ -236,6 +292,29 @@ def persist_plan(
     _check_text_bounded(original_prompt, "original_prompt")
     _check_text_bounded(refined_prompt, "refined_prompt")
 
+    resolved_operation = operation if operation is not None else plan_dict.get(
+        "operation", "txt2img"
+    )
+    if resolved_operation not in ALLOWED_OPERATIONS:
+        raise PlanStoreError(
+            f"unknown operation {resolved_operation!r}; must be one of "
+            f"{sorted(ALLOWED_OPERATIONS)}"
+        )
+
+    resolved_anchor = (
+        anchor_job_id if anchor_job_id is not None else plan_dict.get("anchor_job_id")
+    )
+    if resolved_anchor is not None:
+        resolved_anchor = str(resolved_anchor).strip() or None
+    if resolved_operation == "img2img" and not resolved_anchor:
+        raise PlanStoreError(
+            "an img2img plan requires anchor_job_id identifying the image being edited"
+        )
+    if resolved_operation == "txt2img" and resolved_anchor:
+        raise PlanStoreError(
+            "a txt2img plan must not carry anchor_job_id; anchors are only valid for img2img"
+        )
+
     guidance_tags = _encode_list(
         [str(t) for t in plan_dict.get("guidance_tags", [])], "guidance_tags"
     )
@@ -253,6 +332,8 @@ def persist_plan(
         character_id=plan_dict.get("character_id"),
         character_ref_path=plan_dict.get("character_ref_path"),
         recipe_id=plan_dict.get("recipe_id"),
+        operation=resolved_operation,
+        anchor_job_id=resolved_anchor,
         guidance_tags=json.loads(guidance_tags),
         references=json.loads(references_json),
         created_at=now,
@@ -265,9 +346,9 @@ def persist_plan(
         conn.execute(
             "INSERT INTO image_plans"
             " (plan_id, session_id, status, original_prompt, refined_prompt,"
-            "  character_id, character_ref_path, recipe_id, guidance_tags_json,"
-            "  references_json, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "  character_id, character_ref_path, recipe_id, operation, anchor_job_id,"
+            "  guidance_tags_json, references_json, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 stored.plan_id,
                 stored.session_id,
@@ -277,6 +358,8 @@ def persist_plan(
                 stored.character_id,
                 stored.character_ref_path,
                 stored.recipe_id,
+                stored.operation,
+                stored.anchor_job_id,
                 guidance_tags,
                 references_json,
                 stored.created_at,
@@ -313,12 +396,14 @@ def require_approved_plan(
     *,
     db_path: Any = None,
 ) -> StoredPlan:
-    """Load the plan a session may dispatch: owned by it and approved.
+    """Load the plan a session may dispatch: owned, approved, and renderable.
 
     This is the single gate A2's dispatch path calls. It fails loud on every
     way a caller can misuse a plan id: unknown, malformed, owned by a different
-    session, or not approved. Rejecting here — not at render time — is what
-    stops a form mutation or a leaked plan id from silently changing a render.
+    session, not approved, or (for img2img) bound to an anchor job that has not
+    successfully produced an artifact yet. Rejecting here — before recipe
+    routing, spend reservation, or worker startup — prevents mutable request
+    state and transient renderer state from changing what an approved plan does.
     """
     if not session_id or not session_id.strip():
         raise PlanStoreError("session_id must not be empty")
@@ -332,4 +417,25 @@ def require_approved_plan(
         raise PlanNotApprovedError(
             f"plan {plan_id!r} is {plan.status.value}; only an approved plan can be dispatched"
         )
+    if plan.operation == "img2img":
+        from gateway import image_jobs
+
+        db = _paths.KITTY_DB_FILE if db_path is None else db_path
+        with kitty_db.connect(db) as conn:
+            image_jobs._ensure_db(conn)
+            anchor = conn.execute(
+                "SELECT status, output_path FROM image_jobs WHERE job_id = ?",
+                (plan.anchor_job_id,),
+            ).fetchone()
+        if anchor is None:
+            raise PlanStoreError(f"anchor job {plan.anchor_job_id!r} no longer exists")
+        if anchor["status"] != image_jobs.ImageJobStatus.SUCCEEDED.value:
+            raise PlanStoreError(
+                f"job {plan.anchor_job_id!r} is {anchor['status']}; "
+                "only a succeeded job can be edited"
+            )
+        if not anchor["output_path"]:
+            raise PlanStoreError(
+                f"job {plan.anchor_job_id!r} succeeded but has no artifact to edit from"
+            )
     return plan

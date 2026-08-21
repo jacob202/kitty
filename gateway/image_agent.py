@@ -351,6 +351,8 @@ def _build_and_persist_plan(
     character_id: str | None,
     recipe_id: str | None,
     guidance_tags: list[str],
+    operation: str,
+    anchor_job_id: str | None,
 ) -> Any:
     from gateway.image_plan import ImagePlanError, build_image_plan
     from gateway.image_plans import PlanStoreError, persist_plan
@@ -366,7 +368,9 @@ def _build_and_persist_plan(
         raise UnsupportedOperationError(str(exc)) from exc
 
     try:
-        stored = persist_plan(session_id, plan)
+        stored = persist_plan(
+            session_id, plan, operation=operation, anchor_job_id=anchor_job_id
+        )
     except PlanStoreError as exc:
         raise UnsupportedOperationError(str(exc)) from exc
     return stored
@@ -459,6 +463,8 @@ def _decide_generate(
         character_id=character_id,
         recipe_id=decision.recipe_id,
         guidance_tags=guidance_tags,
+        operation="txt2img",
+        anchor_job_id=None,
     )
     return AgentDecision(
         action="generate",
@@ -519,6 +525,8 @@ def _decide_edit(
         character_id=session.character_id,
         recipe_id=decision.recipe_id,
         guidance_tags=guidance_tags,
+        operation="img2img",
+        anchor_job_id=session.anchor_job_id,
     )
     return AgentDecision(
         action="edit",
