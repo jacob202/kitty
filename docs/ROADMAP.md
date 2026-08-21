@@ -1,9 +1,10 @@
 # Kitty Roadmap
 
-**Current gate:** KPROOF-001 — Two-Week Builder Proof  
+**Current gate:** KPROOF-001 — **FAILED**, verdict rendered 2026-08-21  
+**Verdict:** [`proof/KPROOF-001-VERDICT.md`](proof/KPROOF-001-VERDICT.md)  
 **Active mission:** [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md)  
-**Proof deadline:** 2026-08-18  
-**Last reconciled:** 2026-08-08
+**Proof deadline:** 2026-08-18 (elapsed)  
+**Last reconciled:** 2026-08-21
 
 This is the sole active delivery order. Issues, plans, packets, branches, and research do not become current work unless this roadmap or the active mission explicitly places them next.
 
@@ -56,11 +57,13 @@ Execute in this order:
    - score functioning result, Jacob intervention, clarity, recovery, total spend, and whether Jacob would voluntarily choose Kitty for the next project task;
    - continue or pause exactly as `docs/ACTIVE_MISSION.md` requires.
 
-### KPROOF-001 exit gate
+### KPROOF-001 exit gate — not cleared
 
 The proof passes only when one real Builder feature loop works in the launched application, survives the required review/recovery checks, stays within the authorized budget, and the resulting experience is preferable to manually coordinating direct AI tools.
 
 If the proof fails by 2026-08-18, pause Kitty for several months and preserve the evidence rather than negotiating the standard downward.
+
+**Outcome:** the gate was not cleared. No Builder-merged change was validated in the launched application, no conversation-to-contract job was recorded, recovery was never proven, and spend against the $25 CAD ceiling is unverifiable from the repository. Scored evidence: [`proof/KPROOF-001-VERDICT.md`](proof/KPROOF-001-VERDICT.md). The prescribed pause is Jacob's to execute or override; M1–M6 below stay blocked until he decides.
 
 ## After the proof — Version 2, milestones M1 to M6
 

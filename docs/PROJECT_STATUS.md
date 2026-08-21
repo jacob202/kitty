@@ -32,7 +32,7 @@ The current authority is now explicit: KPROOF-001 gates broader roadmap work unt
 
 ## Active work
 
-The one approved mission is [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md): **KPROOF-001 — Two-Week Builder Proof**.
+**KPROOF-001 closed as FAILED on 2026-08-21.** Scored evidence: [`proof/KPROOF-001-VERDICT.md`](proof/KPROOF-001-VERDICT.md). The mission's prescribed pause awaits Jacob's decision, and no successor mission is approved. The order below is preserved as the record of what the proof asked for, not as current work.
 
 Current order:
 

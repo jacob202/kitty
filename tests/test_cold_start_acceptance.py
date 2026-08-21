@@ -5,7 +5,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from gateway.context_receipt import build_context_receipt
+from gateway.context_receipt import _MISSION_STATUSES, build_context_receipt
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -90,7 +90,10 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     # satisfy this check, which left a cold reader with no objective to read.
     assert _section_body(documents["active_mission"], "## Objective")
     assert _section_body(documents["active_mission"], "## Acceptance Contract")
-    assert receipt["continuity"]["active_mission"]["status"] == "running"
+    # Pinning "running" here repeated the mistake the comment above warns about:
+    # a mission that reaches its verdict is a legitimate mission change, and the
+    # cold-start question is whether the status is declared and readable at all.
+    assert receipt["continuity"]["active_mission"]["status"] in _MISSION_STATUSES
     # 6. What is next?
     assert isinstance(receipt["next_action"], str) and receipt["next_action"]
     # 7. What is stale or uncertain?

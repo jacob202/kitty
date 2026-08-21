@@ -1,25 +1,46 @@
 # Active Mission — Two-Week Builder Proof
 
 **Mission ID:** KPROOF-001  
-**Status:** Running  
+**Status:** Failed — verdict rendered 2026-08-21  
+**Verdict:** [`docs/proof/KPROOF-001-VERDICT.md`](proof/KPROOF-001-VERDICT.md)  
 **Approved by:** Jacob on 2026-08-04  
 **Proof window:** 2026-08-04 through 2026-08-18  
-**Budget ceiling:** $25 CAD  
+**Budget ceiling:** $25 CAD (spend unverified — Builder's ledger is local-only)  
 **Base SHA:** `b3f68aae84525f980d44db8d7b9e6d728457b0db`
 
 <!-- kitty-mission
 {
   "schema_version": 1,
   "mission_id": "KPROOF-001",
-  "status": "running",
+  "status": "failed",
   "approved_at": "2026-08-04T18:27:00-06:00",
   "approved_by": "Jacob",
   "base_sha": "b3f68aae84525f980d44db8d7b9e6d728457b0db",
   "authority": "docs/ACTIVE_MISSION.md",
   "deadline": "2026-08-18",
-  "budget_cad": 25
+  "budget_cad": 25,
+  "verdict": "failed",
+  "verdict_at": "2026-08-21",
+  "verdict_evidence": "docs/proof/KPROOF-001-VERDICT.md"
 }
 -->
+
+## Verdict — 2026-08-21
+
+KPROOF-001 **failed** its acceptance contract. The scored evidence is in
+[`docs/proof/KPROOF-001-VERDICT.md`](proof/KPROOF-001-VERDICT.md).
+
+In short: Builder did merge four real, tested, reviewed pull requests, so the
+execution plane works. But the loop this mission specified was never run —
+nothing went from a conversation, through an approved contract, into the
+launched application, past an independent review, through a recovery test. The
+one deliberate end-to-end attempt (2026-08-17) stopped five steps into twelve.
+Of 53 pull requests merged during the proof window, 4 were Builder's; every one
+of those was merged by hand.
+
+The failure condition below prescribes a pause. Executing or overriding that
+pause is Jacob's decision. Everything the mission requires preserved is
+preserved; nothing is to be deleted on the strength of this verdict.
 
 ## Objective
 
