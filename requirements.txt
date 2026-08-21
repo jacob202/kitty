@@ -5,6 +5,10 @@ pydantic==2.13.4
 pydantic-settings==2.14.2
 python-dotenv==1.2.2
 filelock==3.32.2
+# Already relied on directly by gateway/model_routing.py, gateway/routes/providers.py,
+# and gateway/skill_registry.py's Agent Skills frontmatter parsing — declare the pin
+# instead of leaving it an undeclared transitive dependency.
+PyYAML==6.0.1
 httpx==0.28.1
 requests==2.34.2
 aiohttp==3.14.3
