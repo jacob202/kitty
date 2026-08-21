@@ -85,7 +85,6 @@ async def lifespan(app: FastAPI):
     seed_default_recipes()
     brief_task: asyncio.Task | None = None
     brief_scheduler_task: asyncio.Task | None = None
-    inbox_task: asyncio.Task | None = None
     image_batch_task: asyncio.Task | None = None
     background_services_enabled = not is_test_env()
     if background_services_enabled:
@@ -108,9 +107,6 @@ async def lifespan(app: FastAPI):
         from gateway.brief_scheduler import start_brief_scheduler
 
         brief_scheduler_task = start_brief_scheduler()
-        from gateway.inbox_watcher import watch_loop as _inbox_watch
-
-        inbox_task = asyncio.create_task(_inbox_watch())
         try:
             import gateway.cron as cron
             from gateway.cron import register_action
@@ -145,6 +141,11 @@ async def lifespan(app: FastAPI):
 
                 await asyncio.to_thread(triage.run_pass)
 
+            async def _action_scan_icloud_inbox():
+                from gateway.inbox_watcher import scan_once
+
+                await asyncio.to_thread(scan_once)
+
             async def _action_poll_mail():
                 from gateway.connectors.mail import poll_now
 
@@ -160,6 +161,7 @@ async def lifespan(app: FastAPI):
             register_action("monitors.check", _action_check_monitors)
             register_action("memory.consolidate", _action_memory_consolidate)
             register_action("inbox.triage", _action_triage_inbox)
+            register_action("inbox.scan", _action_scan_icloud_inbox)
 
             def _action_poll_github():
                 from gateway.connectors import github
@@ -208,6 +210,7 @@ async def lifespan(app: FastAPI):
             register_action("life.morning_proactive", _action_life_morning_proactive)
             register_action("insights.return_due", _action_insights_return_due)
             cron.schedule("insights return due", "insights.return_due", "interval", "15")
+            cron.schedule("iCloud inbox scan", "inbox.scan", "interval", "0.5")
             cron_start()
         except Exception:
             logger.exception("cron system registration failed — all background jobs disabled")
@@ -216,8 +219,6 @@ async def lifespan(app: FastAPI):
         brief_task.cancel()
     if brief_scheduler_task is not None:
         brief_scheduler_task.cancel()
-    if inbox_task is not None:
-        inbox_task.cancel()
     if image_batch_task is not None:
         image_batch_task.cancel()
         with suppress(asyncio.CancelledError):

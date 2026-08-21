@@ -31,7 +31,7 @@ def _ingest(md_file: Path) -> None:
     logger.info("inbox: ingested %s (%d chars)", md_file.name, len(text))
 
 
-def _poll_once() -> None:
+def scan_once() -> None:
     """Scan the inbox once. Retries each file once, then raises loudly."""
     for md_file in sorted(ICLOUD_INBOX.glob("*.md")):
         try:
@@ -44,6 +44,10 @@ def _poll_once() -> None:
                 raise RuntimeError(
                     f"inbox: failed to ingest {md_file.name} after retry: {retry_exc}"
                 ) from retry_exc
+
+
+# Backward-compatible alias while callers migrate to the Automation/cron action.
+_poll_once = scan_once
 
 
 async def watch_loop() -> None:
@@ -62,5 +66,5 @@ async def watch_loop() -> None:
             continue
 
         warned_missing = False
-        _poll_once()
+        scan_once()
         await asyncio.sleep(POLL_INTERVAL)
