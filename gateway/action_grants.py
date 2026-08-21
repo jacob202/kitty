@@ -407,6 +407,66 @@ def create_grant(
     return _require(grant_id)
 
 
+def grant_from_approved_action(
+    action: dict[str, Any],
+    *,
+    expires_at: float | None = None,
+    session_only: bool = False,
+) -> dict[str, Any]:
+    """Mint the standing allow behind the UI's "always allow here" choice.
+
+    This is the user-confirmed boundary :func:`create_grant` demands, and the
+    only way a permission-widening grant can be created in production. It is
+    reachable solely from the approve route, after ``action_queue.approve()``
+    has moved a genuinely ``proposed`` row to ``approved`` — so a caller cannot
+    mint an allow without a real proposal the user acted on.
+
+    Every field that decides what is permitted is read off the action row, never
+    supplied by the caller: capability, risk tier and scope come from the
+    proposal, and the reason is the preview the user was actually shown. A
+    client approving a ``todo.create`` for one project therefore cannot walk
+    away holding a global ``email.send`` grant.
+
+    The caller chooses only how long it lasts. There is deliberately no way to
+    widen the scope past the action's own — "here" means where the approved
+    action was, and nowhere else.
+    """
+    capability = _require_text(action.get("kind"), "action kind")
+    granted_tier = _require_text(action.get("risk_tier"), "action risk_tier")
+    if action.get("status") != "approved":
+        raise GrantValidationError(
+            "a standing allow can only be remembered from an approved action, "
+            f"got status {action.get('status')!r}"
+        )
+
+    session_id = action.get("session_id")
+    if session_only and not session_id:
+        raise GrantValidationError(
+            "this action carries no session, so the grant cannot be limited to one"
+        )
+
+    return create_grant(
+        capability=capability,
+        decision="allow",
+        granted_tier=granted_tier,
+        reason=_remember_reason(action),
+        scope_type=str(action.get("scope_type") or "global"),
+        scope_id=str(action.get("scope_id") or ""),
+        session_id=session_id if session_only else None,
+        expires_at=expires_at,
+        created_by="user",
+        user_confirmed=True,
+    )
+
+
+def _remember_reason(action: dict[str, Any]) -> str:
+    """The preview the user saw, trimmed to the column's bound."""
+    preview = str(action.get("preview") or "").strip()
+    if not preview:
+        preview = f"approved {action.get('kind')} action {action.get('id')}"
+    return preview[:_MAX_TEXT]
+
+
 def revoke_grant(grant_id: int) -> dict[str, Any]:
     """Stop a grant authorizing anything from now on. Past receipts stay."""
     grant = _require(grant_id)

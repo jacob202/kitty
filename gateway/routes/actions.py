@@ -46,6 +46,21 @@ class GrantRequest(BaseModel):
     budget_limit_usd: float | None = None
 
 
+class RememberRequest(BaseModel):
+    """How long an "always allow here" choice should last.
+
+    Deliberately carries no capability, tier or scope: those are read off the
+    approved action so the caller cannot widen what it is being granted.
+    """
+
+    expires_at: float | None = None
+    session_only: bool = False
+
+
+class ApproveRequest(BaseModel):
+    remember: RememberRequest | None = None
+
+
 def _handle(fn, *args, **kwargs):
     """Run a queue call, translating its typed errors to HTTP status codes."""
     try:
@@ -54,7 +69,7 @@ def _handle(fn, *args, **kwargs):
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except action_queue.ActionNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except action_queue.ActionStateError as exc:
+    except (action_queue.ActionStateError, action_queue.ApprovalIdentityMismatch) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (action_queue.UnknownActionKind, action_queue.ActionPayloadError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -95,8 +110,26 @@ def post_propose(payload: ProposeRequest) -> dict:
 
 
 @router.post("/actions/{action_id}/approve")
-def post_approve(action_id: int) -> dict:
-    return _handle(action_queue.approve, action_id)
+def post_approve(action_id: int, payload: ApproveRequest | None = None) -> dict:
+    """Approve this action, and optionally stop asking for ones like it.
+
+    Body is optional, so existing callers that send none keep working. Sending
+    ``{"remember": {...}}`` is the UI's "always allow here": it approves this
+    proposal *and* records the standing grant, in that order. The grant is
+    minted from the approved row, never from the request body — see
+    :func:`action_grants.grant_from_approved_action`.
+    """
+    approved = _handle(action_queue.approve, action_id)
+    remember = payload.remember if payload else None
+    if remember is None:
+        return approved
+    grant = _handle_grant(
+        action_grants.grant_from_approved_action,
+        approved,
+        expires_at=remember.expires_at,
+        session_only=remember.session_only,
+    )
+    return {**approved, "grant": grant}
 
 
 @router.post("/actions/{action_id}/reject")
