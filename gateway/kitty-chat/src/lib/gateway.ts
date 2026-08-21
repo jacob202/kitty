@@ -1441,8 +1441,31 @@ export async function fetchProjects(): Promise<GatewayProject[]> {
 }
 
 export async function fetchArtifacts(limit = 100): Promise<GatewayArtifact[]> {
-  const json = await gfetch<{ artifacts?: GatewayArtifact[] }>(`/artifacts?limit=${limit}`)
-  return json.artifacts ?? []
+  const json = await gfetch<unknown>(`/artifacts?limit=${limit}`)
+  if (!isRecord(json) || !Array.isArray(json.artifacts)) {
+    throw new Error('Saved files returned an invalid response')
+  }
+
+  return json.artifacts.map((item): GatewayArtifact => {
+    if (
+      !isRecord(item)
+      || typeof item.id !== 'string'
+      || (item.project_id !== null && typeof item.project_id !== 'number')
+      || typeof item.kind !== 'string'
+      || typeof item.media_type !== 'string'
+      || typeof item.display_name !== 'string'
+      || typeof item.state !== 'string'
+      || typeof item.size_bytes !== 'number'
+      || typeof item.created_at !== 'number'
+      || typeof item.created_by !== 'string'
+    ) {
+      throw new Error('Saved files returned an invalid response')
+    }
+    return {
+      ...item,
+      metadata: isRecord(item.metadata) ? item.metadata : {},
+    } as GatewayArtifact
+  })
 }
 
 export async function fetchActiveProject(): Promise<GatewayActiveProjectPayload> {

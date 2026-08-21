@@ -33,7 +33,7 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
         {artifacts.isLoading && <p style={mutedStyle}>loading saved files…</p>}
         {artifacts.isError && (
           <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
-            couldn&apos;t read saved files — {artifacts.error instanceof Error ? artifacts.error.message : 'gateway error'}.
+            couldn&apos;t read saved files — {artifactErrorMessage(artifacts.error)}
           </p>
         )}
         {artifacts.data?.length === 0 && <p style={mutedStyle}>no saved files yet.</p>}
@@ -49,6 +49,14 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
       </section>
     </div>
   )
+}
+
+function artifactErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : ''
+  if (/\b401\b/.test(message)) return 'Sign in again to load saved files.'
+  if (/\b403\b/.test(message)) return 'You do not have access to saved files.'
+  if (message === 'Saved files returned an invalid response') return `${message}. Try again.`
+  return 'Saved files are unavailable right now. Try again.'
 }
 
 function ArtifactRow({ artifact }: { artifact: GatewayArtifact }) {

@@ -60,6 +60,26 @@ describe('LibraryView artifact truth', () => {
     expect(screen.getByText(/knowledge unavailable/i)).toBeInTheDocument()
   })
 
+
+  it('fails closed when the artifact endpoint returns malformed success data', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ artifacts: {} }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })))
+    renderLibrary()
+
+    expect(await screen.findByText(/saved files returned an invalid response/i)).toBeInTheDocument()
+    expect(screen.getByText(/knowledge unavailable/i)).toBeInTheDocument()
+  })
+
+  it('keeps raw gateway auth errors out of the primary recovery message', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('unauthorized', { status: 401, statusText: 'Unauthorized' })))
+    renderLibrary()
+
+    expect(await screen.findByText(/sign in again to load saved files/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Gateway returned 401/i)).not.toBeInTheDocument()
+  })
+
   it('keeps the knowledge index visible when artifact listing fails', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('offline', { status: 503 })))
     renderLibrary()

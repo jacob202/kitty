@@ -853,7 +853,10 @@ export function useUploadCapture() {
     mutationFn: (file: File) => uploadCaptureFile(file),
     // Indexing runs as a gateway background task; the invalidation gives the
     // fast path, the sources card's refresh button covers the slow one.
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] })
+      void qc.invalidateQueries({ queryKey: ['artifacts'] })
+    },
   })
 }
 
