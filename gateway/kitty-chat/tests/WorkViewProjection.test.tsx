@@ -148,7 +148,12 @@ describe('WorkView projection', () => {
           approval: { state: 'unavailable' },
           review: { verdict: 'approve', summary: 'Independent review passed.' },
           validation: { status: 'passed', summary: '4 validation commands passed.' },
-          publication: { pr_number: 564, checks_state: 'passed', merged: false },
+          publication: {
+            pr_number: 564,
+            checks_state: 'passed',
+            merged: true,
+            merged_at: '2026-08-21T15:30:00Z',
+          },
         },
       }],
     })
@@ -164,6 +169,8 @@ describe('WorkView projection', () => {
     expect(screen.getByText('4 validation commands passed.')).toBeVisible()
     expect(screen.getByText('publication PR #564')).toBeVisible()
     expect(screen.getByText('publication checks passed')).toBeVisible()
+    expect(screen.getByText('publication merged')).toBeVisible()
+    expect(screen.getByText('merged Aug 21, 2026')).toBeVisible()
   })
 
   it('surfaces review evidence only when review evidence is present', () => {
@@ -176,6 +183,21 @@ describe('WorkView projection', () => {
       }],
     })
     expect(screen.getByText('Review evidence available')).toBeVisible()
+  })
+
+  it('distinguishes an open publication without presenting a merged date', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      items: [{
+        ...base,
+        evidence: { publication: { pr_number: 564, merged: false, merged_at: '2026-08-21T15:30:00Z' } },
+      }],
+    })
+
+    fireEvent.click(screen.getByText('Details'))
+    expect(screen.getByText('publication open')).toBeVisible()
+    expect(screen.queryByText('merged Aug 21, 2026')).not.toBeInTheDocument()
   })
 
   it('does not treat inherited object keys as known Work detail labels', () => {

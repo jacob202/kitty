@@ -91,6 +91,7 @@ function isEvidence(value: unknown): value is Record<string, unknown> {
 
 function isWorkItem(value: unknown): value is GatewayWorkItem {
   if (!isRecord(value)) return false
+  const blocker = value.blocker
   return (
     typeof value.id === 'string'
     && (typeof value.title === 'string' || value.title === null)
@@ -100,6 +101,12 @@ function isWorkItem(value: unknown): value is GatewayWorkItem {
     && value.source.kind === 'builder'
     && typeof value.source.initiative_id === 'string'
     && isEvidence(value.evidence)
+    && (value.next_action === undefined || value.next_action === null || typeof value.next_action === 'string')
+    && (
+      blocker === undefined
+      || blocker === null
+      || (isRecord(blocker) && (blocker.reason === undefined || blocker.reason === null || typeof blocker.reason === 'string'))
+    )
     && isRecord(value.data_quality)
     && typeof value.data_quality.state === 'string'
     && (

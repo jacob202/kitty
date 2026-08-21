@@ -195,6 +195,13 @@ function boundedEvidenceText(value: unknown): string | null {
   return text.length <= 240 ? text : `${text.slice(0, 239).trimEnd()}…`
 }
 
+function evidenceDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+}
+
 function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
   const review = evidenceRecord(evidence.review)
   const validation = evidenceRecord(evidence.validation)
@@ -205,6 +212,8 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
   const validationSummary = boundedEvidenceText(validation?.summary)
   const publicationPr = evidenceScalar(publication?.pr_number)
   const publicationChecks = evidenceScalar(publication?.checks_state)
+  const publicationMerged = typeof publication?.merged === 'boolean' ? publication.merged : null
+  const publicationMergedAt = evidenceDate(publication?.merged_at)
 
   return (
     <>
@@ -214,6 +223,8 @@ function EvidenceDetails({ evidence }: { evidence: Record<string, unknown> }) {
       {validationSummary && <div>{validationSummary}</div>}
       {publicationPr && <div>publication PR #{publicationPr}</div>}
       {publicationChecks && <div>publication checks {publicationChecks}</div>}
+      {publicationMerged !== null && <div>publication {publicationMerged ? 'merged' : 'open'}</div>}
+      {publicationMerged === true && publicationMergedAt && <div>merged {publicationMergedAt}</div>}
     </>
   )
 }
