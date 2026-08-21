@@ -73,6 +73,26 @@ def test_t2_approve_then_execute_over_http(client):
     assert r.json()["status"] == "executed"
 
 
+def test_action_changed_after_approval_returns_409_not_500(client):
+    """A stale approval is a conflict the user can act on, not a server crash."""
+    import json
+
+    action_id = _propose(client, "calendar.event.create", {"title": "Dentist"}).json()["id"]
+    assert client.post(f"/actions/{action_id}/approve").status_code == 200
+
+    with action_queue.kitty_db.connect(action_queue.ACTIONS_DB_FILE) as conn:
+        conn.execute(
+            "UPDATE actions SET payload = ? WHERE id = ?",
+            (json.dumps({"title": "Wire $5000"}), action_id),
+        )
+        conn.commit()
+
+    r = client.post(f"/actions/{action_id}/execute")
+
+    assert r.status_code == 409
+    assert "fresh approval required" in r.json()["detail"]
+
+
 def test_disabled_kind_returns_400(client):
     r = _propose(client, "email.send", {"content": "hi"})
 

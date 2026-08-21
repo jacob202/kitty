@@ -488,7 +488,6 @@ def _require(action_id: int) -> dict[str, Any]:
     return action
 
 
-
 def _approval_fingerprint(action: dict[str, Any]) -> str:
     """Canonical identity for the exact side effect a one-shot approval covers."""
     identity = {
