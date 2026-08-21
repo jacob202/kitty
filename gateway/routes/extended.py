@@ -722,6 +722,12 @@ class SessionCreateRequest(BaseModel):
     protected_traits: Optional[List[str]] = None
 
 
+class SessionUpdateRequest(SessionCreateRequest):
+    """PATCH body for an active session. Only supplied fields change."""
+
+    clear_character: Optional[bool] = False
+
+
 class AgentTurnRequest(BaseModel):
     """One natural-language turn for the bounded image-specialist controller."""
 
@@ -778,6 +784,36 @@ async def studio_get_session(session_id: str):
         session = require_session(session_id)
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    return _session_payload(session)
+
+
+@router.patch("/studio/sessions/{session_id}")
+async def studio_update_session(session_id: str, req: SessionUpdateRequest):
+    """Bind or refresh a character/references on an active session.
+
+    Only supplied fields change; the agent's session registry reads these on
+    the next turn, so attaching a character here is how a reference image is
+    wired into an already-open conversation.
+    """
+    from gateway.image_sessions import (
+        ImageSessionError,
+        SessionNotFoundError,
+        update_session,
+    )
+
+    try:
+        session = update_session(
+            session_id,
+            title=req.title,
+            character_id=req.character_id,
+            reference_ids=req.reference_ids,
+            protected_traits=req.protected_traits,
+            clear_character=req.clear_character,
+        )
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ImageSessionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return _session_payload(session)
 
 

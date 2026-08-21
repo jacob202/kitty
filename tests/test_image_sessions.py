@@ -231,6 +231,13 @@ class TestContextUpdates:
         assert updated.character_id == "char_james"
         assert updated.protected_traits == ["face"]
 
+    def test_clear_character_detaches_without_touching_other_fields(self):
+        s = sessions.create_session(title="keep me", character_id="char_james")
+        updated = sessions.update_session(s.session_id, clear_character=True)
+        assert updated.character_id is None
+        assert updated.title == "keep me"
+        assert updated.protected_traits == []
+
     def test_last_plan_round_trips(self):
         s = sessions.create_session()
         plan = {"operation": "img2img", "refined_prompt": "broader build", "denoise": 0.4}
