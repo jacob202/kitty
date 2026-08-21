@@ -27,7 +27,7 @@ type ChatRequest   = paths['/chat']['post']['requestBody']['content']['applicati
 ## Why bother
 
 The hand-typed interfaces in `src/lib/gateway.ts` (e.g. `GatewayBrief`,
-`GatewayTask`) drift from the backend silently — when a field is added
+`GatewaySearchSnapshot`) drift from the backend silently — when a field is added
 or renamed in `contracts/brief_item.py`, the front end keeps using the
 old shape until something explodes at runtime. Pulling from OpenAPI
 keeps them in sync without manual edits.

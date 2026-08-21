@@ -32,12 +32,6 @@ import {
   fetchGatewayMonitors,
   addGatewayMonitor,
   removeGatewayMonitor,
-  // tasks
-  fetchGatewayTasks,
-  createGatewayTask,
-  cancelGatewayTask,
-  fetchGatewayTaskOutput,
-  type TaskType,
   // agents
   fetchAgentSessions,
   spawnAgent,
@@ -419,42 +413,6 @@ export function useRemoveMonitor() {
   return useMutation({
     mutationFn: (id: string) => removeGatewayMonitor(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['monitors'] }),
-  })
-}
-
-// ── Tasks ───────────────────────────────────────────────────────────────────
-
-export function useTasks(limit = 20) {
-  return useQuery({
-    queryKey: ['tasks', limit],
-    queryFn: () => fetchGatewayTasks(limit),
-    refetchInterval: 3_000,
-  })
-}
-
-export function useCreateTask() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ goal, taskType }: { goal: string; taskType: TaskType }) =>
-      createGatewayTask(goal, taskType),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
-  })
-}
-
-export function useCancelTask() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => cancelGatewayTask(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
-  })
-}
-
-/** Only fetched when a card is expanded — output files can be long. */
-export function useTaskOutput(taskId: string | null) {
-  return useQuery({
-    queryKey: ['task-output', taskId],
-    queryFn: () => fetchGatewayTaskOutput(taskId as string),
-    enabled: Boolean(taskId),
   })
 }
 

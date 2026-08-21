@@ -53,3 +53,10 @@ schemas by design, because:
   `KITTY_DB_FILE` and use `db.py` — not the other way around.
 - New app-state stores must use `db.py`. New subsystem stores may open their
   own connections but should document the DB path in `gateway/paths.py`.
+## 2026-08-19 amendment
+
+`gateway/task_runner.py` and `data/task_queue.db` were retired after the native Work
+surface converged on Builder's durable execution truth. This does not change the
+ADR's core rule: subsystem-owned databases remain valid when they enforce a real
+independent lifecycle. The removed task queue no longer met that test because its
+execution was in-process and every queued/running row became failed on Gateway restart.

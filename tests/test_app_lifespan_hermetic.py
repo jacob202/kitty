@@ -20,7 +20,6 @@ async def test_test_env_skips_external_background_services(monkeypatch):
     monkeypatch.setattr(app_module, "validate_env", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
-    monkeypatch.setattr(app_module, "_reconcile_tasks_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
     monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
 

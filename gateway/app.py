@@ -40,15 +40,6 @@ def _reconcile_image_batches_on_startup() -> None:
         logger.warning("reconciled %d interrupted image batch item(s) at startup", reconciled)
 
 
-def _reconcile_tasks_on_startup() -> None:
-    """Close background tasks whose executing gateway coroutine no longer exists."""
-    from gateway.task_runner import reconcile_stale
-
-    reconciled = reconcile_stale()
-    if reconciled:
-        logger.warning("reconciled %d orphaned background task(s) at startup", reconciled)
-
-
 def _reconcile_agent_workspace_turns_on_startup() -> None:
     """Make room work truthful after the in-process executor has restarted."""
     from gateway.agent_workspace import interrupt_running_turns
@@ -78,7 +69,6 @@ async def lifespan(app: FastAPI):
     validate_env()
     _reconcile_image_jobs_on_startup()
     _reconcile_image_batches_on_startup()
-    _reconcile_tasks_on_startup()
     _reconcile_agent_workspace_turns_on_startup()
     from gateway.image_recipes import seed_default_recipes
 

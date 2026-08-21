@@ -888,55 +888,6 @@ export async function fetchGatewayPrompts(): Promise<GatewayPromptTemplate[]> {
   return json.templates ?? []
 }
 
-// ── Tasks ────────────────────────────────────────────────────────────────────
-
-export type TaskType = 'research' | 'ingest' | 'build' | 'cleanup' | 'dream'
-
-export interface GatewayTask {
-  task_id: string
-  goal: string
-  task_type: string
-  status: string
-  created_at?: number
-  updated_at?: number
-  started_at?: number | null
-  completed_at?: number | null
-  /** Free-text step the runner is on, e.g. "Iteration 2...". */
-  progress?: string
-  error?: string | null
-}
-
-export async function fetchGatewayTasks(limit = 20): Promise<GatewayTask[]> {
-  const json = await gfetch<{ tasks?: GatewayTask[] }>(`/tasks?limit=${limit}`)
-  return json.tasks ?? []
-}
-
-/** Throws on failure. Swallowing the error here made a dead gateway look like a
- *  successful launch: React Query fired onSuccess and the UI stayed silent. */
-export async function createGatewayTask(
-  goal: string,
-  taskType: TaskType = 'research',
-): Promise<string> {
-  const json = await gfetch<{ task_id?: string }>('/task/create', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ goal, task_type: taskType }),
-  })
-  if (!json.task_id) throw new Error('gateway accepted the task but returned no task id')
-  return json.task_id
-}
-
-/** Throws on failure — see createGatewayTask. */
-export async function cancelGatewayTask(taskId: string): Promise<void> {
-  if (!taskId) throw new Error('cannot cancel a task with no id')
-  await gfetch(`/task/${taskId}/cancel`, { method: 'POST' })
-}
-
-export async function fetchGatewayTaskOutput(taskId: string): Promise<string> {
-  const json = await gfetch<{ output?: string }>(`/task/${taskId}/output`)
-  return json.output ?? ''
-}
-
 // ── Monitors ─────────────────────────────────────────────────────────────────
 
 export interface GatewayMonitor {

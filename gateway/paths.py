@@ -34,11 +34,8 @@ DRAFTS_DIR = DATA_DIR / "drafts"  # local-only artifacts from note.draft actions
 INBOX_FILE = DATA_DIR / "inbox.jsonl"
 KITTY_TOKEN_LOG_FILE = DATA_DIR / "kitty_token_log.jsonl"
 MODEL_DIGEST_DB = DATA_DIR / "model_digest.db"
-TASK_DB = DATA_DIR / "task_queue.db"
-TASK_OUTPUT_DIR = DATA_DIR / "task_outputs"
-# KittyBuilder orchestrator queue — separate from the generic TASK_DB.
-# Phase 1A stores the durable task/event store here; see
-# docs/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md. Do not reuse TASK_DB for this.
+# KittyBuilder owns durable engineering execution state.
+# See docs/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md.
 KITTYBUILDER_DIR = Path(
     _os.environ.get("KITTY_BUILDER_DATA_DIR", str(DATA_DIR / "kittybuilder"))
 )

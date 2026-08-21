@@ -2,7 +2,6 @@
 
 Called by:
   - cron action  "memory.consolidate"  (registered at gateway startup)
-  - dream task via task_runner._run_dream()
   - POST /session/end  (per-session lightweight consolidation)
 
 Main entry point: nightly_dream()

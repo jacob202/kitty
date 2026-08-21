@@ -8,8 +8,7 @@ commands, daemon/API, worker execution, worktrees, or PR automation yet.
 
 Important scope notes (see docs/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md):
 
-- This durable Builder queue is independent of gateway/task_runner.py (generic
-  tasks). The legacy gateway/builder.py pipeline has been retired; this store,
+- The legacy gateway task runner and gateway/builder.py pipeline are retired; this store,
   backed by BUILDER_QUEUE_DB, is the single Builder execution authority.
 - GitHub bridge metadata is advisory after Phase 1A. The only bridge field
   that affects idempotency is bridge_external_id; re-adding the same

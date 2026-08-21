@@ -1,14 +1,13 @@
 'use client'
 
 import { useState, type CSSProperties } from 'react'
-import { useTasks } from '@/lib/queries'
 import { useGatewayRuntimeManifest } from '@/lib/queries'
-import type { GatewayTask, BuilderPacketStatus } from '@/lib/gateway'
+import type { BuilderPacketStatus } from '@/lib/gateway'
 
 interface ActiveItem {
   id: string
   label: string
-  kind: 'task' | 'builder'
+  kind: 'builder'
   state: string
   detail?: string
 }
@@ -25,15 +24,6 @@ function isTestData(label: string): boolean {
   return TEST_DATA_PATTERNS.some((pattern) => pattern.test(label))
 }
 
-function gatewayTaskToItem(task: GatewayTask): ActiveItem {
-  return {
-    id: task.task_id,
-    label: task.goal,
-    kind: 'task',
-    state: task.status,
-  }
-}
-
 function builderPacketToItem(packet: BuilderPacketStatus): ActiveItem {
   const runState = packet.run?.state
   return {
@@ -45,10 +35,6 @@ function builderPacketToItem(packet: BuilderPacketStatus): ActiveItem {
   }
 }
 
-function isActiveTask(task: GatewayTask): boolean {
-  return task.status === 'queued' || task.status === 'running'
-}
-
 function isActivePacket(packet: BuilderPacketStatus): boolean {
   const runState = packet.run?.state
   return runState === 'starting' || runState === 'running' || runState === 'cancel_requested'
@@ -56,14 +42,8 @@ function isActivePacket(packet: BuilderPacketStatus): boolean {
 }
 
 export function ActiveTaskCards({ compact = false }: { compact?: boolean }) {
-  const tasksQuery = useTasks(10)
   const runtimeQuery = useGatewayRuntimeManifest()
   const [expanded, setExpanded] = useState(false)
-
-  const gatewayItems = (tasksQuery.data ?? [])
-    .filter(isActiveTask)
-    .filter((t) => !isTestData(t.goal))
-    .map(gatewayTaskToItem)
 
   const builderItems = (runtimeQuery.data?.execution.builder?.value?.initiatives ?? [])
     .flatMap((i) => i.packets)
@@ -71,7 +51,7 @@ export function ActiveTaskCards({ compact = false }: { compact?: boolean }) {
     .filter((p) => !isTestData(p.title))
     .map(builderPacketToItem)
 
-  const allItems = [...builderItems, ...gatewayItems]
+  const allItems = builderItems
   const visible = expanded ? allItems : allItems.slice(0, MAX_VISIBLE)
   const hidden = allItems.length - visible.length
 
@@ -82,7 +62,7 @@ export function ActiveTaskCards({ compact = false }: { compact?: boolean }) {
       {visible.map((item) => (
         <div key={item.id} style={compact ? compactCardStyle : cardStyle}>
           <span style={dotStyle(item.state)} />
-          <span style={kindStyle(item.kind)}>{item.kind === 'builder' ? 'build' : item.kind}</span>
+          <span style={kindStyle}>build</span>
           <span style={labelStyle}>{item.label}</span>
           <span style={stateStyle}>{item.state.replace(/_/g, ' ')}</span>
           {item.detail && <span style={detailStyle}>{item.detail}</span>}
@@ -170,15 +150,13 @@ const compactCardStyle: CSSProperties = {
   minWidth: 0,
 }
 
-function kindStyle(kind: 'task' | 'builder'): CSSProperties {
-  return {
-    fontFamily: 'var(--font-mono)',
-    fontSize: 9,
-    fontWeight: 700,
-    color: kind === 'builder' ? 'var(--cat-ginger)' : 'var(--c-purple)',
-    letterSpacing: '0.06em',
-    flexShrink: 0,
-  }
+const kindStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 9,
+  fontWeight: 700,
+  color: 'var(--cat-ginger)',
+  letterSpacing: '0.06em',
+  flexShrink: 0,
 }
 
 const labelStyle: CSSProperties = {
