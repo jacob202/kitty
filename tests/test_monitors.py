@@ -33,8 +33,7 @@ class TestListMonitors:
     def test_returns_watches_after_add(self, isolated_watch_db: Path) -> None:
         from gateway import web_monitor
 
-        with patch.object(web_monitor, "_ensure_polling"):
-            web_monitor.add_watch("https://example.com", label="example")
+        web_monitor.add_watch("https://example.com", label="example")
         rows = monitors.list_monitors()
         assert any(r["url"] == "https://example.com" for r in rows)
 
@@ -75,10 +74,8 @@ class TestListMonitors:
 
 class TestCreateMonitor:
     def test_returns_watch_dict(self, isolated_watch_db: Path) -> None:
-        from gateway import web_monitor
 
-        with patch.object(web_monitor, "_ensure_polling"):
-            watch = monitors.create_monitor("https://example.com/x", interval_minutes=120)
+        watch = monitors.create_monitor("https://example.com/x", interval_minutes=120)
         assert watch["url"] == "https://example.com/x"
         assert watch["interval"] == 120
         assert watch["enabled"] is True
@@ -130,8 +127,7 @@ class TestDeleteMonitor:
     def test_returns_true_for_existing(self, isolated_watch_db: Path) -> None:
         from gateway import web_monitor
 
-        with patch.object(web_monitor, "_ensure_polling"):
-            wid = web_monitor.add_watch("https://example.com/del")
+        wid = web_monitor.add_watch("https://example.com/del")
         assert monitors.delete_monitor(wid) is True
 
     def test_returns_false_for_unknown(self, isolated_watch_db: Path) -> None:
@@ -179,8 +175,7 @@ class TestCheckMonitor:
     async def test_returns_check_result(self, isolated_watch_db: Path) -> None:
         from gateway import web_monitor
 
-        with patch.object(web_monitor, "_ensure_polling"):
-            wid = web_monitor.add_watch("https://example.com/check")
+        wid = web_monitor.add_watch("https://example.com/check")
         with patch.object(
             web_monitor, "check_now", return_value={"watch_id": wid, "changed": False}
         ) as mock_check:
