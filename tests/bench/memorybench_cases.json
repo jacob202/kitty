@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "name": "MemoryBench",
+  "cases": [
+    {
+      "id": "correction_precedence_001",
+      "scope": "global",
+      "facts": [
+        {
+          "entity": "user",
+          "relation": "favorite_color",
+          "value": "blue",
+          "source": "old_conversation"
+        },
+        {
+          "entity": "user",
+          "relation": "favorite_color",
+          "value": "green",
+          "source": "user_correction"
+        }
+      ],
+      "query": "What is the user's favorite color?",
+      "expected_fact_values": ["green"],
+      "forbidden_fact_values": ["blue"],
+      "metrics": ["correction_precedence", "false_memory"]
+    },
+    {
+      "id": "temporal_update_001",
+      "scope": "global",
+      "facts": [
+        {
+          "entity": "project",
+          "relation": "status",
+          "value": "planning",
+          "source": "older_state"
+        },
+        {
+          "entity": "project",
+          "relation": "status",
+          "value": "implemented",
+          "source": "newer_state"
+        }
+      ],
+      "query": "What is the project status?",
+      "expected_fact_values": ["implemented"],
+      "metrics": ["temporal_accuracy"]
+    }
+  ]
+}
