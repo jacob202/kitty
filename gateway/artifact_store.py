@@ -45,6 +45,7 @@ def register_file(
     metadata: dict[str, Any] | None = None,
     artifact_id: str | None = None,
     connection: Any | None = None,
+    refresh_existing: bool = False,
 ) -> dict[str, Any]:
     """Register an existing local file without moving or deleting it."""
     if not kind.strip():
@@ -115,7 +116,52 @@ def register_file(
     if row is None:
         raise ArtifactError(f"artifact {artifact_id} disappeared during registration")
     existing = _row_to_artifact(row)
-    immutable = ("kind", "media_type", "storage_uri", "content_hash", "size_bytes", "created_by", "source_ref")
+    # Explicit deterministic IDs may be re-registered by a repair/restart path.
+    # Identity stays strict, while file-derived fields and provenance metadata
+    # may refresh for the same source object. Random-ID callers keep the old
+    # immutable collision behavior.
+    identity_fields = ("kind", "created_by", "source_ref")
+    mismatched_identity = [
+        name for name in identity_fields if existing[name] != artifact[name]
+    ]
+    if mismatched_identity:
+        raise ArtifactError(
+            f"artifact id {artifact_id!r} already exists with different "
+            f"{', '.join(mismatched_identity)}"
+        )
+    if explicit_artifact_id and refresh_existing:
+        refresh_conn = connection
+        owns_connection = refresh_conn is None
+        if refresh_conn is None:
+            refresh_conn = kitty_db.connect(ARTIFACTS_DB_FILE)
+        try:
+            refresh_conn.execute(
+                """UPDATE artifacts SET media_type = ?, display_name = ?,
+                   storage_uri = ?, content_hash = ?, size_bytes = ?,
+                   project_id = ?, conversation_id = ?, metadata_json = ?
+                   WHERE id = ?""",
+                (
+                    artifact["media_type"], artifact["display_name"],
+                    artifact["storage_uri"], artifact["content_hash"],
+                    artifact["size_bytes"], artifact["project_id"],
+                    artifact["conversation_id"],
+                    json.dumps(artifact["metadata"], ensure_ascii=False),
+                    artifact_id,
+                ),
+            )
+            refreshed_row = refresh_conn.execute(
+                "SELECT * FROM artifacts WHERE id = ?", (artifact_id,)
+            ).fetchone()
+            if owns_connection:
+                refresh_conn.commit()
+        finally:
+            if owns_connection:
+                refresh_conn.close()
+        if refreshed_row is None:
+            raise ArtifactError(f"artifact {artifact_id} disappeared during refresh")
+        return _row_to_artifact(refreshed_row)
+
+    immutable = ("media_type", "storage_uri", "content_hash", "size_bytes")
     mismatched = [name for name in immutable if existing[name] != artifact[name]]
     if mismatched:
         raise ArtifactError(

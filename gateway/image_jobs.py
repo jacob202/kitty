@@ -604,6 +604,7 @@ def register_canonical_artifact(job_id: str) -> dict[str, Any]:
                 "workflow_hash": job.workflow_hash,
             },
             connection=conn,
+            refresh_existing=True,
         )
         conn.execute(
             "UPDATE image_jobs SET canonical_artifact_id = ?, updated_at = ? "

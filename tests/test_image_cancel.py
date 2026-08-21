@@ -472,3 +472,23 @@ async def test_generate_marks_a_submitted_job_running_before_completion(monkeypa
 
     assert result["prompt_id"] == "prompt-123"
     assert jobs.get_job(result["job_id"]).status is ImageJobStatus.SUCCEEDED
+
+
+def test_finalize_persisted_job_marks_registration_failure_failed(tmp_path, monkeypatch):
+    job = jobs.create_job(provider="comfyui", operation="txt2img", prompt="a cat")
+    jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+    jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+    output = tmp_path / "out.png"
+    output.write_bytes(b"png")
+
+    def fail_registration(_job_id: str):
+        raise RuntimeError("artifact registry unavailable")
+
+    monkeypatch.setattr(image_gen, "register_canonical_artifact", fail_registration)
+    with pytest.raises(RuntimeError, match="artifact registry unavailable"):
+        image_gen._finalize_persisted_job(job.job_id, output)
+
+    failed = jobs.get_job(job.job_id)
+    assert failed is not None
+    assert failed.status is ImageJobStatus.FAILED
+    assert "artifact registry unavailable" in (failed.normalized_error or "")

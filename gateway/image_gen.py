@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import time
+from pathlib import Path
 from typing import Any, Optional
 
 import httpx
@@ -294,14 +295,27 @@ async def generate_with_character(
         _mark_failed(job.job_id, str(exc)[:500])
         raise
 
-    update_job(job.job_id, output_path=str(local_path))
-    register_canonical_artifact(job.job_id)
-    transition(job.job_id, ImageJobStatus.SUCCEEDED)
+    _finalize_persisted_job(job.job_id, local_path)
 
     return {
         "prompt_id": prompt_id, "filename": str(local_path),
         "job_id": job.job_id, "character_weight": identity_weight,
     }
+
+
+def _finalize_persisted_job(job_id: str, local_path: Path) -> None:
+    """Link a persisted output into canonical Artifact truth, then succeed.
+
+    Persistence/registration failures are terminal failures, not zombie RUNNING
+    jobs. Both ComfyUI generation paths use this one completion seam.
+    """
+    try:
+        update_job(job_id, output_path=str(local_path))
+        register_canonical_artifact(job_id)
+        transition(job_id, ImageJobStatus.SUCCEEDED)
+    except Exception as exc:
+        _mark_failed(job_id, str(exc)[:500])
+        raise
 
 
 # ── polling, cancellation, and generation ────────────────────────────────────
@@ -553,8 +567,6 @@ async def generate(
     if current_job.status is ImageJobStatus.CANCELED:
         raise ImageGenerationCancelled(f"Image generation canceled for job {job.job_id}")
 
-    update_job(job.job_id, output_path=str(local_path))
-    register_canonical_artifact(job.job_id)
-    transition(job.job_id, ImageJobStatus.SUCCEEDED)
+    _finalize_persisted_job(job.job_id, local_path)
 
     return {"prompt_id": prompt_id, "filename": str(local_path), "job_id": job.job_id}

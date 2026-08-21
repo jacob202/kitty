@@ -114,3 +114,27 @@ def test_artifact_and_job_link_roll_back_together_on_link_failure(tmp_path, isol
 
     assert artifact_store.list_artifacts(kind="image") == []
     assert image_jobs.get_job(job.job_id).canonical_artifact_id is None
+
+
+def test_reregistration_refreshes_file_derived_fields_and_parent_metadata(tmp_path):
+    parent = image_jobs.create_job("flux2", "txt2img")
+    child = image_jobs.create_job("flux2", "img2img", parent_id=parent.job_id)
+
+    first_path = _output(tmp_path, "child.unknownext")
+    image_jobs.update_job(child.job_id, output_path=str(first_path))
+    first = image_jobs.register_canonical_artifact(child.job_id)
+    assert first["metadata"]["parent_artifact_id"] is None
+
+    parent_path = _output(tmp_path, "parent.png")
+    image_jobs.update_job(parent.job_id, output_path=str(parent_path))
+    parent_artifact = image_jobs.register_canonical_artifact(parent.job_id)
+
+    replacement = _output(tmp_path, "child.png")
+    image_jobs.update_job(child.job_id, output_path=str(replacement))
+    refreshed = image_jobs.register_canonical_artifact(child.job_id)
+
+    assert refreshed["id"] == first["id"]
+    assert refreshed["media_type"] == "image/png"
+    assert refreshed["storage_uri"] == str(replacement.resolve())
+    assert refreshed["metadata"]["parent_artifact_id"] == parent_artifact["id"]
+    assert len(artifact_store.list_artifacts(kind="image")) == 2
