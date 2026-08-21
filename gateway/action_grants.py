@@ -222,39 +222,23 @@ def _allow_within_budget(
     where: str,
     estimated_cost_usd: float | None,
 ) -> Decision:
-    """Apply a standing allow, honouring any spend ceiling it carries."""
+    """Apply a standing allow, failing closed for spend-capped grants.
+
+    Proposal-supplied estimates are advisory data, not spending authority. Until
+    the executor/provider supplies a server-owned estimate and reconciles actual
+    cost, a budget-limited grant can never auto-authorize dispatch.
+    """
     grant_id = grant["id"]
     limit = grant["budget_limit_usd"]
     if limit is None:
         return Decision("allow", "standing_grant", f"{capability} allowed for {where}", grant_id)
 
-    if estimated_cost_usd is None:
-        # A ceiling that cannot be checked is not a ceiling. Ask rather than
-        # spend an unknown amount against it.
-        return Decision(
-            "ask",
-            "budget_unknown_cost",
-            f"{capability} is allowed for {where} up to ${limit:.2f}, "
-            "but this action does not declare its cost",
-            grant_id,
-        )
-
-    spent = grant["budget_spent_usd"]
-    if spent + estimated_cost_usd > limit:
-        return Decision(
-            "ask",
-            "budget_exhausted",
-            f"{capability} would spend ${estimated_cost_usd:.2f} against "
-            f"${limit:.2f} for {where}, already used ${spent:.2f}",
-            grant_id,
-        )
     return Decision(
-        "allow",
-        "standing_grant",
-        f"{capability} allowed for {where} within ${limit:.2f} "
-        f"(${spent:.2f} used)",
+        "ask",
+        "budget_requires_authoritative_cost",
+        f"{capability} is allowed for {where} up to ${limit:.2f}, but paid "
+        "execution requires server-owned cost authority and reconciliation",
         grant_id,
-        charges_budget=True,
     )
 
 
@@ -295,9 +279,7 @@ def _applies(
     session_id: str | None,
     tier: str,
 ) -> bool:
-    if grant["scope_type"] != "global" and (
-        grant["scope_type"] != scope_type or grant["scope_id"] != scope_id
-    ):
+    if not _scope_matches(grant, scope_type=scope_type, scope_id=scope_id):
         return False
     if grant["session_id"] is not None and grant["session_id"] != session_id:
         return False
@@ -315,10 +297,39 @@ def _applies(
     return True
 
 
+def _scope_matches(
+    grant: dict[str, Any], *, scope_type: str, scope_id: str
+) -> bool:
+    """Match the small hierarchy needed by MCP without becoming a generic ACL.
+
+    Tool targets use the canonical ``<server>/<tool>`` id. A server grant
+    therefore applies to all tools under that server, while an exact tool grant
+    is more specific and can override it (for example allow server, deny delete).
+    Other scope types remain exact-match only.
+    """
+    grant_type = grant["scope_type"]
+    grant_id = grant["scope_id"]
+    if grant_type == "global":
+        return True
+    if grant_type == scope_type and grant_id == scope_id:
+        return True
+    if grant_type == "mcp_server" and scope_type == "tool":
+        server, sep, _tool = scope_id.partition("/")
+        return bool(sep) and server == grant_id
+    return False
+
+
 def _specificity(grant: dict[str, Any]) -> int:
-    rank = 0 if grant["scope_type"] == "global" else 1
+    if grant["scope_type"] == "global":
+        rank = 0
+    elif grant["scope_type"] == "mcp_server":
+        rank = 1
+    elif grant["scope_type"] == "tool":
+        rank = 2
+    else:
+        rank = 1
     if grant["session_id"] is not None:
-        rank += 1
+        rank += 10
     return rank
 
 
@@ -340,9 +351,14 @@ def create_grant(
     session_id: str | None = None,
     expires_at: float | None = None,
     budget_limit_usd: float | None = None,
-    created_by: str = "user",
+    created_by: str,
+    user_confirmed: bool = False,
 ) -> dict[str, Any]:
-    """Record one standing user decision. Validates before it can authorize anything."""
+    """Record one standing decision with explicit provenance.
+
+    A permission-widening ``allow`` is accepted only from a user-confirmed
+    boundary. Gateway bearer authentication alone is intentionally insufficient.
+    """
     capability = _require_text(capability, "capability")
     reason = _require_text(reason, "reason")
     created_by = _require_text(created_by, "created_by")
@@ -350,6 +366,10 @@ def create_grant(
         raise GrantValidationError(f"decision must be one of {sorted(DECISIONS)}, got {decision!r}")
     if granted_tier not in _TIER_RANK:
         raise GrantValidationError(f"unknown granted_tier {granted_tier!r}")
+    if decision == "allow" and not (created_by == "user" and user_confirmed):
+        raise GrantValidationError(
+            "standing allow requires an explicit user-confirmed approval boundary"
+        )
     _validate_scope(scope_type, scope_id)
     if session_id is not None:
         session_id = _require_text(session_id, "session_id")

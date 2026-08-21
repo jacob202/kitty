@@ -131,6 +131,8 @@ def post_grant(payload: GrantRequest) -> dict:
         session_id=payload.session_id,
         expires_at=payload.expires_at,
         budget_limit_usd=payload.budget_limit_usd,
+        created_by="gateway_client",
+        user_confirmed=False,
     )
 
 

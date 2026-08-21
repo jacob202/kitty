@@ -47,6 +47,8 @@ def _grant(capability, decision, **kw):
         decision=decision,
         granted_tier=kw.pop("granted_tier", "T2"),
         reason=kw.pop("reason", "user chose this in the approval dialog"),
+        created_by=kw.pop("created_by", "user"),
+        user_confirmed=kw.pop("user_confirmed", True),
         **kw,
     )
 
@@ -160,6 +162,31 @@ def test_deny_and_allow_at_the_same_specificity_fail_closed():
 
     with pytest.raises(action_queue.GrantDenied):
         action_queue.execute(action["id"])
+
+
+def test_allow_requires_explicit_user_confirmation():
+    with pytest.raises(action_grants.GrantValidationError, match="user-confirmed"):
+        action_grants.create_grant(
+            capability="calendar.event.create", decision="allow", granted_tier="T2",
+            reason="client asked", created_by="gateway_client"
+        )
+
+
+def test_mcp_tool_deny_overrides_server_allow():
+    _grant("mcp.invoke", "allow", granted_tier="T2", scope_type="mcp_server", scope_id="github")
+    _grant("mcp.invoke", "deny", granted_tier="T2", scope_type="tool", scope_id="github/delete_repo")
+
+    delete_decision = action_grants.evaluate(
+        capability="mcp.invoke", tier="T2", status="proposed",
+        scope_type="tool", scope_id="github/delete_repo"
+    )
+    read_decision = action_grants.evaluate(
+        capability="mcp.invoke", tier="T2", status="proposed",
+        scope_type="tool", scope_id="github/list_issues"
+    )
+
+    assert delete_decision.outcome == "deny"
+    assert read_decision.outcome == "allow"
 
 
 # --- expiry, revocation, session binding -----------------------------------
@@ -292,7 +319,7 @@ def test_deny_grant_survives_a_tier_escalation():
 # --- spend ceilings ---------------------------------------------------------
 
 
-def test_budget_grant_allows_and_charges_within_its_ceiling():
+def test_budget_grant_never_auto_authorizes_from_proposal_estimate():
     grant = _grant(
         "calendar.event.create",
         "allow",
@@ -308,11 +335,10 @@ def test_budget_grant_allows_and_charges_within_its_ceiling():
         scope_id="kitty",
         estimated_cost_usd=2.0,
     )
-    assert decision.outcome == "allow"
-    assert decision.charges_budget is True
-
-    charged = action_grants.record_spend(grant["id"], 2.0)
-    assert charged["budget_spent_usd"] == pytest.approx(2.0)
+    assert decision.outcome == "ask"
+    assert decision.basis == "budget_requires_authoritative_cost"
+    assert decision.charges_budget is False
+    assert action_grants.get_grant(grant["id"])["budget_spent_usd"] == pytest.approx(0.0)
 
 
 def test_budget_grant_asks_rather_than_spending_an_undeclared_cost():
@@ -351,68 +377,32 @@ def test_budget_grant_asks_once_the_ceiling_would_be_exceeded():
     )
 
     assert decision.outcome == "ask"
-    assert decision.basis == "budget_exhausted"
+    assert decision.basis == "budget_requires_authoritative_cost"
 
 
-def test_budget_is_reserved_before_dispatch_not_after(monkeypatch):
-    # The executor observes the reservation already taken. Charging afterwards
-    # would let two actions that both cleared evaluate() run and overspend.
-    grant = _grant(
-        "calendar.event.create",
-        "allow",
-        scope_type="project",
-        scope_id="kitty",
-        budget_limit_usd=5.0,
-    )
-    seen: list[float] = []
+def test_budget_limited_grant_blocks_dispatch_even_with_caller_estimate(monkeypatch):
+    called = False
 
     def _spy(*args, **kwargs):
-        seen.append(action_grants.get_grant(grant["id"])["budget_spent_usd"])
+        nonlocal called
+        called = True
         return True
 
     monkeypatch.setattr("gateway.calendar_integration.create", _spy, raising=False)
+    grant = _grant(
+        "calendar.event.create", "allow", scope_type="project", scope_id="kitty",
+        budget_limit_usd=5.0,
+    )
     action = _propose(
-        "calendar.event.create",
-        {"title": "x"},
-        scope_type="project",
-        scope_id="kitty",
-        estimated_cost_usd=2.0,
+        "calendar.event.create", {"title": "x"}, scope_type="project",
+        scope_id="kitty", estimated_cost_usd=0.0,
     )
 
-    action_queue.execute(action["id"])
+    with pytest.raises(action_queue.TierViolation, match="server-owned cost authority"):
+        action_queue.execute(action["id"])
 
-    assert seen == [pytest.approx(2.0)]
-
-
-def test_a_second_action_cannot_run_once_the_reservation_exhausts_the_ceiling(monkeypatch):
-    monkeypatch.setattr(
-        "gateway.calendar_integration.create", lambda *a, **k: True, raising=False
-    )
-    _grant(
-        "calendar.event.create",
-        "allow",
-        scope_type="project",
-        scope_id="kitty",
-        budget_limit_usd=3.0,
-    )
-    first = _propose(
-        "calendar.event.create",
-        {"title": "one"},
-        scope_type="project",
-        scope_id="kitty",
-        estimated_cost_usd=2.0,
-    )
-    second = _propose(
-        "calendar.event.create",
-        {"title": "two"},
-        scope_type="project",
-        scope_id="kitty",
-        estimated_cost_usd=2.0,
-    )
-
-    assert action_queue.execute(first["id"])["status"] == "executed"
-    with pytest.raises(action_queue.TierViolation):
-        action_queue.execute(second["id"])
+    assert called is False
+    assert action_grants.get_grant(grant["id"])["budget_spent_usd"] == pytest.approx(0.0)
 
 
 def test_release_spend_cannot_manufacture_budget():
@@ -426,9 +416,6 @@ def test_release_spend_cannot_manufacture_budget():
 
 
 def test_record_spend_refuses_to_overshoot_the_ceiling():
-    # The pre-dispatch check and the charge are separate steps, so two actions
-    # can both pass the check. The conditioned UPDATE is what stops them from
-    # together spending past the ceiling.
     grant = _grant("todo.create", "allow", granted_tier="T0", budget_limit_usd=1.0)
     action_grants.record_spend(grant["id"], 0.8)
 
@@ -436,52 +423,6 @@ def test_record_spend_refuses_to_overshoot_the_ceiling():
         action_grants.record_spend(grant["id"], 0.5)
 
     assert action_grants.get_grant(grant["id"])["budget_spent_usd"] == pytest.approx(0.8)
-
-
-def test_failed_execution_does_not_consume_the_budget(monkeypatch):
-    monkeypatch.setattr(
-        "gateway.calendar_integration.create", lambda *a, **k: False, raising=False
-    )
-    grant = _grant(
-        "calendar.event.create",
-        "allow",
-        scope_type="project",
-        scope_id="kitty",
-        budget_limit_usd=5.0,
-    )
-    action = _propose(
-        "calendar.event.create",
-        {"title": "x"},
-        scope_type="project",
-        scope_id="kitty",
-        estimated_cost_usd=2.0,
-    )
-
-    assert action_queue.execute(action["id"])["status"] == "failed"
-    assert action_grants.get_grant(grant["id"])["budget_spent_usd"] == pytest.approx(0.0)
-
-
-def test_successful_execution_charges_the_authorizing_grant(monkeypatch):
-    monkeypatch.setattr(
-        "gateway.calendar_integration.create", lambda *a, **k: True, raising=False
-    )
-    grant = _grant(
-        "calendar.event.create",
-        "allow",
-        scope_type="project",
-        scope_id="kitty",
-        budget_limit_usd=5.0,
-    )
-    action = _propose(
-        "calendar.event.create",
-        {"title": "x"},
-        scope_type="project",
-        scope_id="kitty",
-        estimated_cost_usd=2.0,
-    )
-
-    assert action_queue.execute(action["id"])["status"] == "executed"
-    assert action_grants.get_grant(grant["id"])["budget_spent_usd"] == pytest.approx(2.0)
 
 
 # --- validation -------------------------------------------------------------
@@ -506,6 +447,8 @@ def test_invalid_grants_are_refused(kwargs):
         "decision": "allow",
         "granted_tier": "T0",
         "reason": "because",
+        "created_by": "user",
+        "user_confirmed": True,
     }
     payload.update(kwargs)
     with pytest.raises(action_grants.GrantValidationError):
@@ -520,6 +463,8 @@ def test_only_an_allow_grant_can_carry_a_budget():
             granted_tier="T0",
             reason="because",
             budget_limit_usd=5.0,
+            created_by="user",
+            user_confirmed=True,
         )
 
 

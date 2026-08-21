@@ -116,15 +116,22 @@ def _grant(client, capability, decision, **kw):
     return client.post("/actions/grants", json=body)
 
 
-def test_grant_route_creates_and_lists(client):
-    created = _grant(client, "calendar.event.create", "allow", scope_type="project", scope_id="kitty")
+def test_grant_route_records_restrictions_with_gateway_provenance(client):
+    created = _grant(client, "calendar.event.create", "deny", scope_type="project", scope_id="kitty")
 
     assert created.status_code == 200
-    assert created.json()["decision"] == "allow"
+    assert created.json()["decision"] == "deny"
+    assert created.json()["created_by"] == "gateway_client"
 
     listed = client.get("/actions/grants")
     assert listed.status_code == 200
     assert [g["id"] for g in listed.json()["grants"]] == [created.json()["id"]]
+
+
+def test_grant_route_cannot_mint_standing_allow(client):
+    created = _grant(client, "calendar.event.create", "allow", scope_type="project", scope_id="kitty")
+    assert created.status_code == 400
+    assert "user-confirmed" in created.json()["detail"]
 
 
 def test_grant_route_rejects_an_invalid_scope(client):
@@ -134,7 +141,11 @@ def test_grant_route_rejects_an_invalid_scope(client):
 
 
 def test_granted_action_executes_over_http_without_per_action_approval(client):
-    _grant(client, "calendar.event.create", "allow", scope_type="project", scope_id="kitty")
+    action_grants.create_grant(
+        capability="calendar.event.create", decision="allow", granted_tier="T2",
+        reason="confirmed by user", scope_type="project", scope_id="kitty",
+        created_by="user", user_confirmed=True,
+    )
     proposed = client.post(
         "/actions/propose",
         json={
@@ -164,9 +175,11 @@ def test_denied_action_returns_403_over_http(client):
 
 
 def test_revoking_a_grant_restores_the_approval_requirement(client):
-    grant = _grant(
-        client, "calendar.event.create", "allow", scope_type="project", scope_id="kitty"
-    ).json()
+    grant = action_grants.create_grant(
+        capability="calendar.event.create", decision="allow", granted_tier="T2",
+        reason="confirmed by user", scope_type="project", scope_id="kitty",
+        created_by="user", user_confirmed=True,
+    )
     client.delete(f"/actions/grants/{grant['id']}")
 
     proposed = client.post(
