@@ -8,8 +8,7 @@ from gateway.web_monitor import add_watch, init_db, list_watches, remove_watch
 
 class TestCRUD:
     def test_add_and_list(self):
-        with patch("gateway.web_monitor._ensure_polling"):
-            watch_id = add_watch("https://example.com", label="test")
+        watch_id = add_watch("https://example.com", label="test")
         assert isinstance(watch_id, str)
         assert len(watch_id) == 8
 
@@ -17,8 +16,7 @@ class TestCRUD:
         assert any(w["url"] == "https://example.com" for w in watches)
 
     def test_remove(self):
-        with patch("gateway.web_monitor._ensure_polling"):
-            wid = add_watch("https://example.com/remove-test")
+        wid = add_watch("https://example.com/remove-test")
         assert remove_watch(wid) is True
         assert remove_watch(wid) is False  # already removed
 
@@ -26,8 +24,7 @@ class TestCRUD:
         assert remove_watch("nonexistent") is False
 
     def test_keywords_stored(self):
-        with patch("gateway.web_monitor._ensure_polling"):
-            wid = add_watch("https://example.com", keywords=["sansui", "bias"])
+        wid = add_watch("https://example.com", keywords=["sansui", "bias"])
         watches = list_watches()
         match = [w for w in watches if w["id"] == wid]
         assert len(match) == 1
@@ -37,8 +34,7 @@ class TestCRUD:
 class TestCheck:
     @pytest.mark.asyncio
     async def test_check_no_change_first_time(self):
-        with patch("gateway.web_monitor._ensure_polling"):
-            wid = add_watch("https://example.com/test1")
+        wid = add_watch("https://example.com/test1")
 
         with patch("httpx.AsyncClient.get") as mock_get:
             mock_resp = AsyncMock()
@@ -52,8 +48,7 @@ class TestCheck:
 
     @pytest.mark.asyncio
     async def test_check_detects_change(self):
-        with patch("gateway.web_monitor._ensure_polling"):
-            wid = add_watch("https://example.com/test2")
+        wid = add_watch("https://example.com/test2")
 
         # First check — set initial hash
         with patch("httpx.AsyncClient.get") as mock_get:
@@ -75,8 +70,7 @@ class TestCheck:
 
     @pytest.mark.asyncio
     async def test_keyword_match_counts_as_change(self):
-        with patch("gateway.web_monitor._ensure_polling"):
-            wid = add_watch("https://example.com/test3", keywords=["sansui"])
+        wid = add_watch("https://example.com/test3", keywords=["sansui"])
 
         with patch("httpx.AsyncClient.get") as mock_get:
             mock_resp = AsyncMock()
@@ -93,3 +87,37 @@ class TestDB:
     def test_init_idempotent(self):
         init_db()
         init_db()
+
+
+@pytest.mark.asyncio
+async def test_check_due_preserves_per_watch_intervals(monkeypatch):
+    import gateway.web_monitor as wm
+
+    now = 1_000.0
+    watches = [
+        {"id": "due", "enabled": True, "interval_minutes": 5, "last_checked": 600.0},
+        {"id": "early", "enabled": True, "interval_minutes": 5, "last_checked": 900.0},
+        {"id": "off", "enabled": False, "interval_minutes": 1, "last_checked": 0.0},
+    ]
+    monkeypatch.setattr(wm, "list_watches", lambda: watches)
+    monkeypatch.setattr(wm.time, "time", lambda: now)
+
+    checked: list[str] = []
+    notified: list[str] = []
+
+    async def fake_check(watch):
+        checked.append(watch["id"])
+        return {"changed": True}
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(wm, "_check_watch", fake_check)
+    monkeypatch.setattr(wm, "_notify_match", lambda watch, _result: notified.append(watch["id"]))
+    monkeypatch.setattr(wm.asyncio, "sleep", no_sleep)
+
+    result = await wm.check_due()
+
+    assert checked == ["due"]
+    assert notified == ["due"]
+    assert result == {"checked": 1, "changed": 1, "failed": 0}

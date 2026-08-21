@@ -230,6 +230,16 @@ class TestShouldFire:
         s = {"schedule_type": "interval", "schedule_value": "60", "last_run": time.time()}
         assert _should_fire(s, time.time()) is False
 
+    def test_fractional_interval_supports_30_second_watchers(self):
+        from gateway.cron import _should_fire
+
+        now = time.time()
+        s = {"schedule_type": "interval", "schedule_value": "0.5", "last_run": now - 31}
+        assert _should_fire(s, now) is True
+
+        s["last_run"] = now - 29
+        assert _should_fire(s, now) is False
+
     def test_invalid_interval_returns_false(self):
         from gateway.cron import _should_fire
         s = {"schedule_type": "interval", "schedule_value": "not-a-number", "last_run": 0}

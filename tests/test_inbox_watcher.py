@@ -41,7 +41,7 @@ def test_ingest_skips_empty_file(tmp_path, monkeypatch):
     assert not inbox.exists()
 
 
-def test_poll_once_retries_once_then_raises(tmp_path, monkeypatch):
+def test_scan_once_retries_once_then_raises(tmp_path, monkeypatch):
     import gateway.inbox_watcher as iw
 
     failing = tmp_path / "bad.md"
@@ -57,23 +57,6 @@ def test_poll_once_retries_once_then_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(iw, "_ingest", fail)
 
     with pytest.raises(RuntimeError, match="failed to ingest bad.md after retry"):
-        iw._poll_once()
+        iw.scan_once()
 
     assert attempts["count"] == 2
-
-
-@pytest.mark.asyncio
-async def test_watch_loop_waits_for_missing_directory(tmp_path, monkeypatch):
-    import gateway.inbox_watcher as iw
-
-    missing = tmp_path / "missing"
-    monkeypatch.setattr(iw, "ICLOUD_INBOX", missing)
-    monkeypatch.setattr(iw, "POLL_INTERVAL", 0)
-
-    async def stop(_seconds):
-        raise RuntimeError("stop-loop")
-
-    monkeypatch.setattr(iw.asyncio, "sleep", stop)
-
-    with pytest.raises(RuntimeError, match="stop-loop"):
-        await iw.watch_loop()
