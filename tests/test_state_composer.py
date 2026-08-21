@@ -76,7 +76,7 @@ def test_changes_without_snapshot_says_so(stub_sources):
     assert result["baseline_ts"] is None
     assert result["changes"] == []
     assert result["new_signals"] == []
-    assert "no snapshot yet" in result["note"]
+    assert "mark point" in result["note"].lower()
 
 
 def test_snapshot_then_diff_reports_scalar_changes(monkeypatch):
@@ -192,3 +192,11 @@ def test_real_sources_compose_against_isolated_stores(monkeypatch, tmp_path):
     # Calendar: on a machine without osascript this reads as an empty day
     # (known limitation noted in the composer); it must still be ok-shaped.
     assert "today_count" in sections["calendar"] or sections["calendar"]["ok"] is False
+
+
+def test_changes_without_snapshot_uses_product_language_not_api_instructions(stub_sources):
+    note = state_composer.changes_since_snapshot()["note"]
+
+    assert "POST /" not in note
+    assert "/state/" not in note
+    assert "mark point" in note.lower()

@@ -1122,7 +1122,7 @@ function WhatChanged() {
     );
   }
 
-  const { changes, new_signals, note } = data;
+  const { baseline_ts, changes, new_signals } = data;
   const count = changes.length + new_signals.length;
 
   const inboxSection = stateNowQuery.data?.sections.inbox;
@@ -1133,7 +1133,9 @@ function WhatChanged() {
 
   return (
     <SectionCard title="what changed" count={count || undefined} action={markPoint}>
-      {note && !changes.length && !new_signals.length ? <div style={emptyState}>{note}</div> : null}
+      {baseline_ts === null && !changes.length && !new_signals.length ? (
+        <div style={emptyState}>no comparison point yet — mark one to start tracking changes</div>
+      ) : null}
       {changes.map((c: StateChange, i: number) => (
         <div key={i} style={itemCard}>
           <div
@@ -1186,7 +1188,7 @@ function WhatChanged() {
           </button>
         </div>
       )}
-      {!count && !note && !untriagedCount && (
+      {!count && baseline_ts !== null && !untriagedCount && (
         <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div>nothing new since last snapshot</div>
           <div style={{ fontSize: 10 }}>tap mark point anytime to set a fresh baseline</div>
