@@ -127,6 +127,35 @@ def test_search_route_uses_normalized_owner_and_preserves_hit_provenance() -> No
     assert hit["metadata"]["source"] == "sansui.pdf"
 
 
+def test_search_route_balances_the_global_limit_across_stores() -> None:
+    items = {
+        Source.MEMORY.value: [
+            Item(text=f"Memory {index}", source=Source.MEMORY, score=10 - index)
+            for index in range(5)
+        ],
+        Source.KNOWLEDGE.value: [
+            Item(text="Knowledge result", source=Source.KNOWLEDGE, score=0.2)
+        ],
+        Source.JOURNAL.value: [
+            Item(text="Journal result", source=Source.JOURNAL, score=None)
+        ],
+    }
+
+    with patch(
+        "gateway.memory_graph.search_all",
+        new=AsyncMock(return_value=GraphResult(results=items)),
+    ):
+        client = TestClient(app)
+        response = client.get("/search", params={"q": "balanced", "limit": 3})
+
+    assert response.status_code == 200
+    assert {row["store"] for row in response.json()["results"]} == {
+        Source.MEMORY.value,
+        Source.KNOWLEDGE.value,
+        Source.JOURNAL.value,
+    }
+
+
 def test_deep_research_route_uses_typed_payload() -> None:
     with patch("gateway.researcher.deep_dive", new=AsyncMock(return_value="done")):
         client = TestClient(app)

@@ -69,31 +69,87 @@ def list_repairs():
 
 
 _PLAIN_ENGLISH: dict[str, str] = {
-    "env:.env": "Environment file is missing",
-    "env:api-keys": "There are no API keys configured",
-    "env:single-key": "{detail}",
+    "env:.env": "Kitty setup needs attention",
+    "env:api-keys": "A model provider needs setup",
+    "env:single-key": "A model provider needs setup",
+    "env:llm_key": "A model provider needs setup",
+    "env:gateway_secret": "Gateway protection needs setup",
+    "env:telegram_token": "Telegram is not connected",
+    "env:parse": "Some environment settings need attention",
     "service:gateway": "The Kitty gateway is not responding",
-    "service:litellm": "The LLM router is not responding",
+    "service:litellm": "The model router is not responding",
     "services:chromadb": "The knowledge store is not reachable",
+    "store:chromadb": "The knowledge store needs attention",
+    "store:mem0": "Memory services need attention",
     "mem0:installed": "Mem0 is not installed",
     "mem0:broker": "Mem0 broker is not reachable",
-    "venv:python": "The Python virtual environment may not match",
-    "venv:requirements": "Python requirements are not installed",
+    "venv:python": "The Python environment needs attention",
+    "venv:requirements": "Python requirements need attention",
+    "runtime:venv": "The Python environment needs attention",
     "disk:free": "Disk space is running low",
-    "disk:data": "The data directory is missing",
+    "disk:data": "Kitty storage needs attention",
+    "disk:data_dir": "Kitty storage needs attention",
     "codegraph:index": "CodeGraph index is stale or missing",
     "codegraph:auto-sync": "CodeGraph auto-sync is disabled",
+    "codegraph:daemon": "CodeGraph needs attention",
+    "codegraph:index_freshness": "CodeGraph index needs attention",
     "gateway:freshness": "The gateway process is stale",
+    "runtime:gateway_freshness": "The gateway process is stale",
     "builder:silent-transitions": "Builder has incomplete transition history",
     "builder:zombie-tasks": "Builder has zombie tasks",
     "queue:backup-age": "The queue backup is getting old",
 }
 
+_INTERNAL_DETAIL_MARKERS = (
+    ".env",
+    "/Users/",
+    "/private/",
+    "http://",
+    "https://",
+    "127.0.0.1",
+    "API_KEY",
+    "TOKEN",
+    "SECRET",
+    "python3",
+    "pip install",
+    "kitty up",
+    "./kitty",
+    "POST /",
+    "GET /",
+    "PUT /",
+    "PATCH /",
+    "DELETE /",
+    "venv/bin",
+    "requirements.txt",
+)
+
+
+def _public_detail(check) -> str:
+    detail = str(check.detail or "")
+    if not any(marker.lower() in detail.lower() for marker in _INTERNAL_DETAIL_MARKERS):
+        return detail
+    name = str(check.name)
+    if name.startswith("env:"):
+        return "Kitty's configuration needs attention."
+    if name == "service:gateway":
+        return "Kitty could not reach its core service."
+    if name == "service:litellm":
+        return "Model routing is not responding right now."
+    if name.startswith(("store:", "services:", "mem0:")):
+        return "A local data service needs attention."
+    if name.startswith(("runtime:", "venv:")):
+        return "Kitty's local runtime needs attention."
+    if name.startswith("disk:"):
+        return "Kitty's local storage needs attention."
+    if name.startswith("codegraph:"):
+        return "The code index needs attention."
+    return "Technical details are available in diagnostics."
+
 
 def _to_repair(check) -> dict:
     level_map = {"PASS": "ok", "WARN": "warn", "FAIL": "error"}
     severity = level_map.get(check.level, "warn")
-    detail = check.detail
+    detail = _public_detail(check)
 
     title = _PLAIN_ENGLISH.get(check.name)
     if title is None:
@@ -136,7 +192,8 @@ def _pass_title(name: str, detail: str) -> str:
         "builder:zombie-tasks": "No zombie tasks found",
         "queue:backup-age": "The queue backup is recent",
     }
-    return passes.get(name, detail)
+    fallback = name.replace(":", " ").replace("-", " ")
+    return passes.get(name, f"{fallback} looks okay")
 
 
 def _fix_action(check) -> dict | None:

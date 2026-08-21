@@ -42,14 +42,31 @@ export function CommandPalette({
   const [query, setQuery] = useState('')
   const [searchHits, setSearchHits] = useState<GatewaySearchHit[]>([])
   const [degradedStores, setDegradedStores] = useState<string[]>([])
+  const [degradedErrors, setDegradedErrors] = useState<string[]>([])
+  const [searchError, setSearchError] = useState<string | null>(null)
   const open = externalOpen ?? internalOpen
   const setOpen = onOpenChange ?? setInternalOpen
+
+  const clearSearch = () => {
+    setSearchHits([])
+    setDegradedStores([])
+    setDegradedErrors([])
+    setSearchError(null)
+  }
+  const close = () => {
+    setQuery('')
+    clearSearch()
+    setOpen(false)
+  }
+  const changeQuery = (value: string) => {
+    clearSearch()
+    setQuery(value)
+  }
 
   useEffect(() => {
     const q = query.trim()
     if (!open || q.length < 2) {
-      setSearchHits([])
-      setDegradedStores([])
+      clearSearch()
       return
     }
     const controller = new AbortController()
@@ -58,6 +75,8 @@ export function CommandPalette({
       if (!controller.signal.aborted) {
         setSearchHits(payload.hits)
         setDegradedStores(payload.degradedStores ?? [])
+        setDegradedErrors(payload.degradedErrors ?? [])
+        setSearchError(payload.error)
       }
     }, 250)
     return () => {
@@ -76,16 +95,16 @@ export function CommandPalette({
         const inEditable = !!target?.closest('input, textarea, [contenteditable="true"]')
         if (inEditable && !open) return
         e.preventDefault()
-        setOpen(!open)
+        if (open) close()
+        else setOpen(true)
       } else if (e.key === 'Escape') {
-        setOpen(false)
+        close()
       }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [open])
 
-  const close = () => setOpen(false)
   const fire = (fn: () => void) => () => {
     fn()
     close()
@@ -130,7 +149,7 @@ export function CommandPalette({
           <Command.Input
             autoFocus
             value={query}
-            onValueChange={setQuery}
+            onValueChange={changeQuery}
             placeholder="type a command or search…"
             style={{
               width: '100%',
@@ -175,23 +194,28 @@ export function CommandPalette({
 
             {searchHits.length > 0 && (
               <Command.Group heading="Kitty search" style={groupStyle}>
-                {searchHits.map((hit, index) => (
-                  <Command.Item
-                    key={`${hit.kind ?? 'search'}-${hit.source}-${index}`}
-                    value={`${query} ${hit.title} ${hit.text} ${hit.source}`}
-                    onSelect={fire(() => onViewChange(searchViewForHit(hit)))}
-                    style={itemStyle}
-                    className="cmdk-item"
-                  >
-                    <BookOpen size={14} />
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ display: 'block' }}>{hit.title}</span>
-                      <span style={{ display: 'block', color: 'var(--ink-2)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {hit.text}
+                {searchHits.map((hit, index) => {
+                  const targetView = searchViewForHit(hit)
+                  return (
+                    <Command.Item
+                      key={`${hit.kind ?? 'search'}-${hit.source}-${index}`}
+                      value={`${query} ${hit.title} ${hit.text} ${hit.source}`}
+                      disabled={!targetView}
+                      onSelect={targetView ? fire(() => onViewChange(targetView)) : undefined}
+                      style={itemStyle}
+                      className="cmdk-item"
+                    >
+                      <BookOpen size={14} />
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block' }}>{hit.title}</span>
+                        <span style={{ display: 'block', color: 'var(--ink-2)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {hit.text}
+                        </span>
                       </span>
-                    </span>
-                  </Command.Item>
-                ))}
+                      {!targetView && <span style={{ fontSize: 10, color: 'var(--ink-2)' }}>preview only</span>}
+                    </Command.Item>
+                  )
+                })}
               </Command.Group>
             )}
 
@@ -208,12 +232,32 @@ export function CommandPalette({
               </Command.Group>
             )}
           </Command.List>
-          {degradedStores.length > 0 && (
+          {(degradedStores.length > 0 || degradedErrors.length > 0) && (
             <div
               role="status"
               style={{ padding: '8px 12px', borderTop: '1px solid var(--line)', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}
             >
-              some sources unavailable: {degradedStores.join(', ')}
+              {degradedStores.length > 0
+                ? `some sources unavailable: ${degradedStores.join(', ')}`
+                : 'some search sources are unavailable'}
+              {degradedErrors.length > 0 && (
+                <details>
+                  <summary>technical details</summary>
+                  {degradedErrors.map((error, index) => <div key={`${error}-${index}`}>{error}</div>)}
+                </details>
+              )}
+            </div>
+          )}
+          {searchError && (
+            <div
+              role="alert"
+              style={{ padding: '8px 12px', borderTop: '1px solid var(--line)', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}
+            >
+              search unavailable — check that Kitty is running, then try again.
+              <details>
+                <summary>technical details</summary>
+                <div>{searchError}</div>
+              </details>
             </div>
           )}
         </Command>
@@ -222,10 +266,10 @@ export function CommandPalette({
   )
 }
 
-function searchViewForHit(hit: GatewaySearchHit): string {
-  if (hit.kind === 'todo') return 'work'
+function searchViewForHit(hit: GatewaySearchHit): string | null {
+  if (hit.kind === 'knowledge') return 'library'
   if (hit.kind === 'journal') return 'journal'
-  return 'library'
+  return null
 }
 
 function Item({

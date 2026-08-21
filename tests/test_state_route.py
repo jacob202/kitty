@@ -39,7 +39,7 @@ def test_changes_before_any_snapshot_is_explicit(client):
 
     assert r.status_code == 200
     assert r.json()["baseline_ts"] is None
-    assert "no snapshot yet" in r.json()["note"]
+    assert "mark point" in r.json()["note"].lower()
 
 
 def test_snapshot_then_changes_round_trip(client):

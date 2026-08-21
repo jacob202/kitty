@@ -319,6 +319,7 @@ export type GatewaySearchPayload = {
   snapshot: GatewaySearchSnapshot | null
   hits: GatewaySearchHit[]
   degradedStores: string[]
+  degradedErrors: string[]
   fromLiveGateway: boolean
   error: string | null
 }
@@ -984,7 +985,7 @@ export async function fetchGatewaySearch(
 ): Promise<GatewaySearchPayload> {
   const q = query.trim()
   if (!q) {
-    return { snapshot: null, hits: [], degradedStores: [], fromLiveGateway: true, error: null }
+    return { snapshot: null, hits: [], degradedStores: [], degradedErrors: [], fromLiveGateway: true, error: null }
   }
 
   try {
@@ -998,6 +999,7 @@ export async function fetchGatewaySearch(
         snapshot: null,
         hits: [],
         degradedStores: [],
+        degradedErrors: [],
         fromLiveGateway: false,
         error: describeFetchError(null, response),
       }
@@ -1012,7 +1014,16 @@ export async function fetchGatewaySearch(
     }
     const hits: GatewaySearchHit[] = []
     const degradedStores = Array.isArray(json?.degraded_stores)
-      ? json.degraded_stores.filter((store: unknown): store is string => typeof store === 'string')
+      ? json.degraded_stores
+        .filter((store: unknown): store is string => typeof store === 'string' && store.length > 0)
+        .slice(0, 10)
+        .map((store: string) => store.slice(0, 64))
+      : []
+    const degradedErrors = Array.isArray(json?.errors)
+      ? json.errors
+        .filter((error: unknown): error is string => typeof error === 'string')
+        .slice(0, 5)
+        .map((error: string) => error.slice(0, 240))
       : []
     for (const row of Array.isArray(json?.results) ? json.results : []) {
       const store = typeof row?.store === 'string' ? row.store : ''
@@ -1039,18 +1050,20 @@ export async function fetchGatewaySearch(
       }),
       hits,
       degradedStores,
+      degradedErrors,
       fromLiveGateway: true,
       error: null,
     }
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       if (signal?.aborted) {
-        return { snapshot: null, hits: [], degradedStores: [], fromLiveGateway: true, error: null }
+        return { snapshot: null, hits: [], degradedStores: [], degradedErrors: [], fromLiveGateway: true, error: null }
       }
       return {
         snapshot: null,
         hits: [],
         degradedStores: [],
+        degradedErrors: [],
         fromLiveGateway: false,
         error: 'Request timed out — is the Kitty gateway running?',
       }
@@ -1059,6 +1072,7 @@ export async function fetchGatewaySearch(
       snapshot: null,
       hits: [],
       degradedStores: [],
+      degradedErrors: [],
       fromLiveGateway: false,
       error: describeFetchError(err, null),
     }

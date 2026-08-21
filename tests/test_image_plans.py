@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-from gateway import image_plans
+from gateway import image_jobs, image_plans
 from gateway import image_sessions as sessions
 from gateway.image_plans import (
     PlanMalformedError,
@@ -152,6 +152,74 @@ class TestDispatchGate:
         stored = persist_plan(s.session_id, _build_plan())
         with pytest.raises(PlanStoreError, match="session_id must not be empty"):
             require_approved_plan(stored.plan_id, "  ")
+
+
+def _succeeded_anchor(tmp_path: Path, *, prompt: str = "a portrait") -> str:
+    """A job in a state real dispatch code will accept as an edit source."""
+    job = image_jobs.create_job(provider="comfyui", operation="txt2img", prompt=prompt)
+    image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUBMITTED)
+    image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.RUNNING)
+    artifact = tmp_path / f"{job.job_id}.png"
+    artifact.write_bytes(b"\x89PNG\r\n\x1a\n-fake-source-bytes")
+    image_jobs.update_job(
+        job.job_id, output_path=str(artifact), artifact_id=f"art_{job.job_id}"
+    )
+    image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUCCEEDED)
+    return job.job_id
+
+
+class TestEditPlanRoundTrip:
+    """IL-01: operation and anchor_job_id are part of the approved plan
+    contract, not decision-only fields the store silently drops.
+    """
+
+    def test_img2img_plan_round_trips_operation_and_anchor(self, tmp_path: Path):
+        s = sessions.create_session()
+        anchor = _succeeded_anchor(tmp_path)
+        stored = persist_plan(
+            s.session_id, _build_plan(), operation="img2img", anchor_job_id=anchor
+        )
+
+        assert stored.operation == "img2img"
+        assert stored.anchor_job_id == anchor
+
+        resumed = image_plans.require_plan(stored.plan_id)
+        assert resumed.operation == "img2img"
+        assert resumed.anchor_job_id == anchor
+
+    def test_txt2img_plan_defaults_operation_and_leaves_anchor_null(self):
+        s = sessions.create_session()
+        stored = persist_plan(s.session_id, _build_plan())
+
+        assert stored.operation == "txt2img"
+        assert stored.anchor_job_id is None
+        assert image_plans.require_plan(stored.plan_id).operation == "txt2img"
+
+    def test_persist_rejects_unknown_operation(self):
+        s = sessions.create_session()
+        with pytest.raises(PlanStoreError, match="unknown operation"):
+            persist_plan(s.session_id, _build_plan(), operation="upscale")
+
+    def test_persist_rejects_img2img_without_anchor(self):
+        s = sessions.create_session()
+        with pytest.raises(PlanStoreError, match="anchor_job_id"):
+            persist_plan(s.session_id, _build_plan(), operation="img2img")
+
+    def test_unknown_operation_stored_in_row_fails_loud_not_txt2img(self):
+        """A row an out-of-band write corrupted must not silently read as txt2img."""
+        s = sessions.create_session()
+        stored = persist_plan(s.session_id, _build_plan())
+        import gateway.paths as gp
+
+        with sqlite3.connect(gp.KITTY_DB_FILE) as conn:
+            conn.execute(
+                "UPDATE image_plans SET operation = 'upscale' WHERE plan_id = ?",
+                (stored.plan_id,),
+            )
+            conn.commit()
+
+        with pytest.raises(PlanMalformedError, match="unknown operation"):
+            image_plans.require_plan(stored.plan_id)
 
 
 class TestRoutePlanPersistence:
@@ -308,6 +376,182 @@ class TestPlanDispatchRoute:
             )
         assert exc.value.status_code == 400
         assert "only an approved plan" in str(exc.value.detail)
+
+
+class TestEditPlanDispatchRoute:
+    """IL-01 acceptance: an approved edit must dispatch through run_edit(),
+    carrying the exact stored prompt and anchor, and refuse a non-owned or
+    missing anchor before any renderer is touched.
+    """
+
+    def _capture_run_edit(self, monkeypatch):
+        captured: dict = {}
+
+        async def fake_run_edit(prompt: str, *, anchor_job_id: str, **kwargs):
+            captured.update(
+                {"prompt": prompt, "anchor_job_id": anchor_job_id, **kwargs}
+            )
+            from gateway.image_runner import JobResult
+
+            job = image_jobs.create_job(
+                provider="kitty_worker",
+                operation="img2img",
+                prompt=prompt,
+                parent_id=anchor_job_id,
+            )
+            return JobResult(job_id=job.job_id, filename="/tmp/edit.png", engine="kitty_worker")
+
+        async def fail_run(*_args, **_kwargs):
+            raise AssertionError("an approved img2img plan must not use run()")
+
+        def fake_auto_route(**kwargs):
+            captured["route_operation"] = kwargs["operation"]
+            from gateway.image_recipes import Recipe, RoutingDecision
+
+            recipe = Recipe(
+                recipe_id="r_edit",
+                display_name="Edit",
+                description=None,
+                provider="comfyui",
+                workflow_template_id=None,
+                model_family=None,
+                supports_img2img=True,
+            )
+            return RoutingDecision(recipe.recipe_id, recipe, "test")
+
+        monkeypatch.setattr("gateway.image_runner.run_edit", fake_run_edit)
+        monkeypatch.setattr("gateway.image_runner.run", fail_run)
+        monkeypatch.setattr("gateway.image_recipes.auto_route", fake_auto_route)
+        return captured
+
+    @pytest.mark.asyncio
+    async def test_approved_edit_dispatches_through_run_edit_with_stored_values(
+        self, tmp_path: Path, monkeypatch
+    ):
+        s = sessions.create_session()
+        anchor = _succeeded_anchor(tmp_path)
+        sessions.attach_job(s.session_id, anchor)
+        sessions.set_anchor(s.session_id, anchor)
+
+        stored = persist_plan(
+            s.session_id, _build_plan(), operation="img2img", anchor_job_id=anchor
+        )
+        captured = self._capture_run_edit(monkeypatch)
+
+        await extended.studio_generate(
+            extended.StudioGenerateRequest(
+                prompt="mutable live text must be ignored",
+                plan_id=stored.plan_id,
+                session_id=s.session_id,
+            )
+        )
+
+        assert captured["route_operation"] == "img2img"
+        assert captured["prompt"] == stored.refined_prompt
+        assert captured["prompt"] != "mutable live text must be ignored"
+        assert captured["anchor_job_id"] == anchor
+
+    @pytest.mark.asyncio
+    async def test_edit_refuses_anchor_not_owned_by_session(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """A plan naming an anchor from a different session must be refused
+        before any routing or renderer call, even though the plan itself
+        belongs to the requesting session.
+        """
+        owner = sessions.create_session()
+        other = sessions.create_session()
+        anchor = _succeeded_anchor(tmp_path)
+        sessions.attach_job(owner.session_id, anchor)
+        sessions.set_anchor(owner.session_id, anchor)
+
+        stored = persist_plan(
+            other.session_id, _build_plan(), operation="img2img", anchor_job_id=anchor
+        )
+
+        def fail_route(**_kwargs):
+            raise AssertionError("must refuse ownership before routing")
+
+        async def fail_dispatch(*_args, **_kwargs):
+            raise AssertionError("must refuse ownership before dispatch")
+
+        monkeypatch.setattr("gateway.image_recipes.auto_route", fail_route)
+        monkeypatch.setattr("gateway.image_runner.run_edit", fail_dispatch)
+        monkeypatch.setattr("gateway.image_runner.run", fail_dispatch)
+
+        with pytest.raises(HTTPException) as exc:
+            await extended.studio_generate(
+                extended.StudioGenerateRequest(
+                    prompt="x", plan_id=stored.plan_id, session_id=other.session_id
+                )
+            )
+        assert exc.value.status_code == 400
+        assert "does not belong to session" in str(exc.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_edit_refuses_unknown_anchor(self, monkeypatch):
+        s = sessions.create_session()
+        stored = persist_plan(
+            s.session_id,
+            _build_plan(),
+            operation="img2img",
+            anchor_job_id="imgjob_never_existed",
+        )
+
+        async def fail_dispatch(*_args, **_kwargs):
+            raise AssertionError("must refuse before dispatch")
+
+        monkeypatch.setattr("gateway.image_runner.run_edit", fail_dispatch)
+        monkeypatch.setattr("gateway.image_runner.run", fail_dispatch)
+
+        with pytest.raises(HTTPException) as exc:
+            await extended.studio_generate(
+                extended.StudioGenerateRequest(
+                    prompt="x", plan_id=stored.plan_id, session_id=s.session_id
+                )
+            )
+        assert exc.value.status_code == 400
+        assert "no longer exists" in str(exc.value.detail)
+
+    @pytest.mark.asyncio
+    async def test_edit_refuses_dispatch_when_stored_row_has_no_anchor(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """Defense in depth: even if a row bypassed persist_plan's own
+        img2img-requires-anchor check, load must still fail loud rather than
+        let a missing anchor reach the renderer.
+        """
+        s = sessions.create_session()
+        anchor = _succeeded_anchor(tmp_path)
+        sessions.attach_job(s.session_id, anchor)
+        sessions.set_anchor(s.session_id, anchor)
+        stored = persist_plan(
+            s.session_id, _build_plan(), operation="img2img", anchor_job_id=anchor
+        )
+
+        import gateway.paths as gp
+
+        with sqlite3.connect(gp.KITTY_DB_FILE) as conn:
+            conn.execute(
+                "UPDATE image_plans SET anchor_job_id = NULL WHERE plan_id = ?",
+                (stored.plan_id,),
+            )
+            conn.commit()
+
+        async def fail_dispatch(*_args, **_kwargs):
+            raise AssertionError("must refuse before dispatch")
+
+        monkeypatch.setattr("gateway.image_runner.run_edit", fail_dispatch)
+        monkeypatch.setattr("gateway.image_runner.run", fail_dispatch)
+
+        with pytest.raises(HTTPException) as exc:
+            await extended.studio_generate(
+                extended.StudioGenerateRequest(
+                    prompt="x", plan_id=stored.plan_id, session_id=s.session_id
+                )
+            )
+        assert exc.value.status_code == 400
+        assert "anchor_job_id" in str(exc.value.detail)
 
 
 class TestGuidanceToRenderer:

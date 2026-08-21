@@ -136,6 +136,7 @@ describe('fetchGatewaySearch abort', () => {
     expect(result.snapshot?.sections.knowledge[0]).toContain('MOSFET bias notes')
     expect(result.snapshot?.sections.memories[0]).toContain('Jacob owns the manual')
     expect(result.degradedStores).toEqual(['memory', 'knowledge'])
+    expect(result.degradedErrors).toEqual(['generic search warning'])
   })
 
   it('returns error payload when gateway returns 500', async () => {
