@@ -178,3 +178,61 @@ class TestImportSkillBundle:
             import_skill_bundle(
                 tmp_path / "nonexistent.zip", target_root=tmp_path / "skills"
             )
+
+    def test_preserves_agent_skills_subdirectories(self, tmp_path: Path):
+        """references/ and assets/ must survive, not collide at a flat root."""
+        zip_path = _make_zip(
+            {
+                "SKILL.md": VALID_SKILL_MD,
+                "references/background.md": b"more detail",
+                "assets/template.json": b'{"a": 1}',
+            },
+            tmp_path / "bundle.zip",
+        )
+        dest = tmp_path / "skills"
+        result = import_skill_bundle(zip_path, target_root=dest)
+        assert set(result.files) == {
+            "SKILL.md",
+            "references/background.md",
+            "assets/template.json",
+        }
+        assert (result.path / "references" / "background.md").read_bytes() == b"more detail"
+        assert (result.path / "assets" / "template.json").read_bytes() == b'{"a": 1}'
+
+    def test_rejects_dot_dot_escape(self, tmp_path: Path):
+        zip_path = _make_zip(
+            {"SKILL.md": VALID_SKILL_MD, "../../etc/evil.md": b"escape attempt"},
+            tmp_path / "escape.zip",
+        )
+        with pytest.raises(SkillImportError, match="zip-slip attempt"):
+            import_skill_bundle(zip_path, target_root=tmp_path / "skills")
+
+    def test_rejects_absolute_path_member(self, tmp_path: Path):
+        zip_path = _make_zip(
+            {"SKILL.md": VALID_SKILL_MD, "/etc/evil.md": b"escape attempt"},
+            tmp_path / "abs.zip",
+        )
+        with pytest.raises(SkillImportError, match="zip-slip attempt"):
+            import_skill_bundle(zip_path, target_root=tmp_path / "skills")
+
+    def test_scripts_directory_still_rejected(self, tmp_path: Path):
+        """Executable helpers stay banned even under the Agent Skills scripts/ path."""
+        zip_path = _make_zip(
+            {"SKILL.md": VALID_SKILL_MD, "scripts/helper.py": b"print('hi')"},
+            tmp_path / "scripts.zip",
+        )
+        with pytest.raises(SkillImportError, match="rejected file type"):
+            import_skill_bundle(zip_path, target_root=tmp_path / "skills")
+
+    def test_same_basename_in_different_dirs_both_survive(self, tmp_path: Path):
+        zip_path = _make_zip(
+            {
+                "SKILL.md": VALID_SKILL_MD,
+                "references/notes.md": b"ref notes",
+                "assets/notes.md": b"asset notes",
+            },
+            tmp_path / "dupe-basename.zip",
+        )
+        result = import_skill_bundle(zip_path, target_root=tmp_path / "skills")
+        assert (result.path / "references" / "notes.md").read_bytes() == b"ref notes"
+        assert (result.path / "assets" / "notes.md").read_bytes() == b"asset notes"

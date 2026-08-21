@@ -9,6 +9,11 @@ Skills live in .agents/skills/<name>/SKILL.md or .agents/skills/<category>/<name
   allowed_tools: (optional) list of tool names
   ---
 
+Frontmatter is parsed as real YAML, so nested lists/dicts and multi-line
+values work. The Agent Skills spec spells the tools field `allowed-tools`
+(hyphen); Kitty's own skills use `allowed_tools` (underscore). Both are
+accepted on read so third-party skill bundles parse without edits.
+
 Public API:
   discover() -> list[dict]     Scan disk and return all skills
   get(name) -> dict | None     Get one skill by name
@@ -23,6 +28,8 @@ import re
 from pathlib import Path
 from typing import Optional
 
+import yaml
+
 from gateway.paths import PROJECT_ROOT
 
 logger = logging.getLogger("kitty.skill_registry")
@@ -35,13 +42,14 @@ SKILL_ROOTS: list[Path] = [
 _registry: dict[str, dict] | None = None
 
 
-def _yaml_frontmatter(text: str) -> dict:
-    """Extract YAML frontmatter from markdown text (between --- delimiters)."""
-    match = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
-    if not match:
-        return {}
+def _yaml_frontmatter_legacy(raw: str) -> dict:
+    """Line-based frontmatter fallback for values that aren't valid YAML.
 
-    raw = match.group(1)
+    Kitty's early skills sometimes carry an unquoted ``USE WHEN: ...`` clause
+    inside ``description``, which is a real YAML syntax error (an unquoted
+    colon-space mid-scalar). Rather than dropping those skills from discovery,
+    fall back to the original single-colon-per-line parse.
+    """
     result: dict = {}
     for line in raw.split("\n"):
         line = line.strip()
@@ -50,13 +58,34 @@ def _yaml_frontmatter(text: str) -> dict:
             key = key.strip()
             value = value.strip().strip('"').strip("'")
             if value.startswith("[") and value.endswith("]"):
-                # Simple list parsing: [a, b, c]
                 value = [
                     v.strip().strip('"').strip("'")
                     for v in value[1:-1].split(",")
                     if v.strip()
                 ]
             result[key] = value
+    return result
+
+
+def _yaml_frontmatter(text: str) -> dict:
+    """Extract and parse YAML frontmatter from markdown text (between --- delimiters)."""
+    match = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
+    if not match:
+        return {}
+
+    raw = match.group(1)
+    try:
+        result = yaml.safe_load(raw)
+        if not isinstance(result, dict):
+            result = _yaml_frontmatter_legacy(raw)
+    except yaml.YAMLError:
+        result = _yaml_frontmatter_legacy(raw)
+
+    # Agent Skills spec spells this `allowed-tools`; Kitty's own skills use
+    # `allowed_tools`. Normalize to the underscore form Kitty consumers read.
+    if "allowed-tools" in result and "allowed_tools" not in result:
+        result["allowed_tools"] = result.pop("allowed-tools")
+
     return result
 
 
@@ -79,6 +108,9 @@ def _parse_skill_file(path: Path) -> dict | None:
         "when_to_use": meta.get("when_to_use", ""),
         "model": meta.get("model"),
         "allowed_tools": meta.get("allowed_tools", []),
+        "license": meta.get("license"),
+        "compatibility": meta.get("compatibility"),
+        "metadata": meta.get("metadata"),
         "path": str(path),
         "content": text,
     }

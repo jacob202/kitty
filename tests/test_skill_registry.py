@@ -29,6 +29,38 @@ class TestYamlFrontmatter:
         result = _yaml_frontmatter(text)
         assert result["when_to_use"] == "for complex tasks"
 
+    def test_parses_block_list(self):
+        text = "---\nname: test\nallowed_tools:\n  - bash\n  - read\n---\n\nBody"
+        result = _yaml_frontmatter(text)
+        assert result["allowed_tools"] == ["bash", "read"]
+
+    def test_parses_nested_metadata(self):
+        text = (
+            "---\nname: test\nmetadata:\n  author: jacob\n  tags: [a, b]\n---\n\nBody"
+        )
+        result = _yaml_frontmatter(text)
+        assert result["metadata"] == {"author": "jacob", "tags": ["a", "b"]}
+
+    def test_accepts_spec_hyphenated_allowed_tools(self):
+        text = "---\nname: test\nallowed-tools: [bash, read]\n---\n\nBody"
+        result = _yaml_frontmatter(text)
+        assert result["allowed_tools"] == ["bash", "read"]
+        assert "allowed-tools" not in result
+
+    def test_falls_back_on_invalid_yaml(self):
+        """An unquoted colon mid-value is invalid YAML but was tolerated by
+        Kitty's original line parser — don't drop the skill over it."""
+        text = "---\nname: test\ndescription: USE WHEN: doing a thing\n---\n\nBody"
+        result = _yaml_frontmatter(text)
+        assert result["name"] == "test"
+        assert result["description"] == "USE WHEN: doing a thing"
+
+    def test_parses_license_and_compatibility(self):
+        text = "---\nname: test\nlicense: MIT\ncompatibility: claude\n---\n\nBody"
+        result = _yaml_frontmatter(text)
+        assert result["license"] == "MIT"
+        assert result["compatibility"] == "claude"
+
 
 class TestDiscover:
     def test_discovers_skills(self):
