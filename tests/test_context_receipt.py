@@ -429,6 +429,32 @@ def test_completed_mission_cannot_keep_active_session(tmp_path: Path):
     assert levels["mission:active_state"] == "FAIL"
 
 
+def test_squash_orphaned_mission_base_warns(tmp_path: Path):
+    # Squash-merging the PR a mission was approved on orphans the recorded base.
+    # That is the normal post-merge state, not a broken mission, so it must not
+    # red-gate CI forever.
+    repo, head = _repo(tmp_path)
+    # A parentless commit over HEAD's own tree: a real object off the ancestry
+    # line, without disturbing the working tree the fixture left in place.
+    orphaned = _git(repo, "commit-tree", f"{head}^{{tree}}", "-m", "squashed away")
+    _write(repo / "docs/ACTIVE_MISSION.md", _mission_metadata(orphaned))
+
+    levels = _levels(repo)
+
+    assert orphaned != head
+    assert levels["mission:base_sha"] == "WARN"
+
+
+def test_missing_mission_base_still_fails(tmp_path: Path):
+    # A base no one has is a broken approval record, not a squash.
+    repo, _head = _repo(tmp_path)
+    _write(repo / "docs/ACTIVE_MISSION.md", _mission_metadata("0" * 40))
+
+    levels = _levels(repo)
+
+    assert levels["mission:base_sha"] == "FAIL"
+
+
 def test_checkpoint_age_over_limit_warns(tmp_path: Path):
     # An aging committed checkpoint is advisory (WARN), not a hard gate: main's
     # checkpoint only gets older and must not re-red CI weekly.

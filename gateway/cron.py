@@ -278,8 +278,8 @@ def _should_fire(s: dict, now: float) -> bool:
 
     if s_type == "interval":
         try:
-            interval = int(s_value) * 60
-            return (now - last_run) >= interval
+            interval = float(s_value) * 60
+            return interval > 0 and (now - last_run) >= interval
         except ValueError:
             logger.warning("Cron interval schedule invalid: %s", s_value)
             return False
