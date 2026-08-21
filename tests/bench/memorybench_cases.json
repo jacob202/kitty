@@ -52,7 +52,7 @@
       "query": "mobile phone",
       "expected_fact_values": [],
       "forbidden_fact_values": ["automobile"],
-      "tags": ["lexical_precision", "known_baseline_weakness"]
+      "tags": ["lexical_precision", "retrieval_v2_regression"]
     }
   ]
 }

@@ -39,11 +39,11 @@ def test_memorybench_records_current_retrieval_quality(tmp_path):
     assert all(0.0 <= value <= 1.0 for value in metrics.values())
 
 
-def test_known_substring_false_positive_is_measurable(tmp_path):
+def test_substring_false_positive_is_eliminated(tmp_path):
     cases = {case["id"]: case for case in load_cases(FIXTURES)}
     result = run_case(
         cases["substring_false_positive_001"],
         tmp_path / "substring.db",
     )
-    assert result.forbidden_hit == 1.0
-    assert result.returned_values == ("automobile",)
+    assert result.forbidden_hit == 0.0
+    assert result.returned_values == ()
