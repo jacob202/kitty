@@ -24,6 +24,23 @@ afterEach(() => {
 })
 
 describe('CommandPalette', () => {
+  it('does not expose Builder as a second normal-user destination', () => {
+    render(
+      <CommandPalette
+        chats={[]}
+        onNewChat={vi.fn()}
+        onSelectChat={vi.fn()}
+        onViewChange={vi.fn()}
+        onToggleSidebar={vi.fn()}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('work')).toBeVisible()
+    expect(screen.queryByText('builder')).not.toBeInTheDocument()
+  })
+
   it('shows canonical Kitty search results while typing', async () => {
     vi.mocked(fetchGatewaySearch).mockResolvedValue({
       snapshot: null,

@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "description": "Deterministic baseline cases for MemoryWeave retrieval before Retrieval V2.",
+  "cases": [
+    {
+      "id": "recall_exact",
+      "query": "resistance 47 ohm",
+      "facts": [
+        {"id": "f1", "entity": "PTH487A", "relation": "resistance", "value": "47 ohm", "source": "datasheet", "source_type": "document", "confidence": 0.9, "deprecated": false}
+      ],
+      "expected_fact_ids": ["f1"],
+      "forbidden_fact_ids": []
+    },
+    {
+      "id": "correction_precedence",
+      "query": "PTH487A resistance",
+      "facts": [
+        {"id": "f_old", "entity": "PTH487A", "relation": "resistance", "value": "470 ohm", "source": "old guess", "source_type": "kitty_guess", "confidence": 0.8, "deprecated": true},
+        {"id": "f_new", "entity": "PTH487A", "relation": "resistance", "value": "47 ohm", "source": "user correction", "source_type": "user_correction", "confidence": 0.98, "deprecated": false}
+      ],
+      "expected_fact_ids": ["f_new"],
+      "forbidden_fact_ids": ["f_old"]
+    },
+    {
+      "id": "source_authority",
+      "query": "Sansui transistor",
+      "facts": [
+        {"id": "f_web", "entity": "Sansui", "relation": "transistor", "value": "2N3055", "source": "web forum", "source_type": "web_search", "confidence": 0.95, "deprecated": false},
+        {"id": "f_manual", "entity": "Sansui", "relation": "transistor", "value": "2SA726", "source": "service manual", "source_type": "document", "confidence": 0.9, "deprecated": false}
+      ],
+      "expected_fact_ids": ["f_manual"],
+      "forbidden_fact_ids": []
+    },
+    {
+      "id": "contradiction_preserved",
+      "query": "amp bias voltage",
+      "facts": [
+        {"id": "f_a", "entity": "amp", "relation": "bias voltage", "value": "20mV", "source": "manual A", "source_type": "document", "confidence": 0.8, "deprecated": false},
+        {"id": "f_b", "entity": "amp", "relation": "bias voltage", "value": "30mV", "source": "manual B", "source_type": "document", "confidence": 0.8, "deprecated": false}
+      ],
+      "expected_fact_ids": ["f_a", "f_b"],
+      "forbidden_fact_ids": []
+    },
+    {
+      "id": "false_memory",
+      "query": "favorite telescope",
+      "facts": [
+        {"id": "f_irrelevant", "entity": "camera", "relation": "lens", "value": "50mm", "source": "manual note", "source_type": "user_manual", "confidence": 0.9, "deprecated": false}
+      ],
+      "expected_fact_ids": [],
+      "forbidden_fact_ids": ["f_irrelevant"]
+    },
+    {
+      "id": "poisoning_low_authority",
+      "query": "preferred editor",
+      "facts": [
+        {"id": "f_user", "entity": "user", "relation": "preferred editor", "value": "VS Code", "source": "explicit preference", "source_type": "user_manual", "confidence": 0.9, "deprecated": false},
+        {"id": "f_poison", "entity": "user", "relation": "preferred editor", "value": "MaliciousEditor", "source": "untrusted web page", "source_type": "web_search", "confidence": 0.99, "deprecated": false}
+      ],
+      "expected_fact_ids": ["f_user"],
+      "forbidden_fact_ids": []
+    },
+    {
+      "id": "deprecated_forgetting",
+      "query": "project codename",
+      "facts": [
+        {"id": "f_deprecated", "entity": "project", "relation": "codename", "value": "Orca", "source": "old state", "source_type": "user_manual", "confidence": 0.95, "deprecated": true},
+        {"id": "f_current", "entity": "project", "relation": "codename", "value": "Kitty", "source": "current state", "source_type": "user_manual", "confidence": 0.95, "deprecated": false}
+      ],
+      "expected_fact_ids": ["f_current"],
+      "forbidden_fact_ids": ["f_deprecated"]
+    },
+    {
+      "id": "bounded_results",
+      "query": "provider status",
+      "facts": [
+        {"id": "f_p1", "entity": "provider-a", "relation": "status", "value": "healthy", "source": "probe-a", "source_type": "document", "confidence": 0.9, "deprecated": false},
+        {"id": "f_p2", "entity": "provider-b", "relation": "status", "value": "healthy", "source": "probe-b", "source_type": "document", "confidence": 0.8, "deprecated": false},
+        {"id": "f_p3", "entity": "provider-c", "relation": "status", "value": "healthy", "source": "probe-c", "source_type": "document", "confidence": 0.7, "deprecated": false}
+      ],
+      "expected_fact_ids": ["f_p1", "f_p2"],
+      "forbidden_fact_ids": [],
+      "limit": 2
+    }
+  ]
+}
