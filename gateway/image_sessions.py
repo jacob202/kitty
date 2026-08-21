@@ -551,7 +551,7 @@ def update_session(
     protected_traits: list[str] | None = None,
     requested_changes: list[str] | None = None,
     last_plan: dict[str, Any] | None = None,
-    clear_character: bool = False,
+    clear_character: bool | None = None,
 ) -> ImageSession:
     """Update session context. Only supplied fields change."""
     _require_active(session_id)
