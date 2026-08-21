@@ -86,3 +86,43 @@ def default_image_benchmark_suite() -> ImageBenchmarkSuite:
             ),
         ],
     )
+
+
+@dataclass
+class ImageBenchmarkSuiteResult:
+    suite: str
+    passed: bool
+    results: list[dict[str, Any]]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "suite": self.suite,
+            "passed": self.passed,
+            "results": list(self.results),
+        }
+
+
+def run_benchmark_suite(
+    suite: ImageBenchmarkSuite,
+    *,
+    image_path: str,
+    scorers: dict[str, Callable[[str], Any]],
+) -> ImageBenchmarkSuiteResult:
+    """Run all cases and return deterministic evidence."""
+    results: list[dict[str, Any]] = []
+    passed = True
+
+    for case in suite.cases:
+        result = run_benchmark_case(
+            case,
+            image_path=image_path,
+            scorers=scorers,
+        )
+        results.append(result.to_dict())
+        passed = passed and result.passed
+
+    return ImageBenchmarkSuiteResult(
+        suite=suite.name,
+        passed=passed,
+        results=results,
+    )
