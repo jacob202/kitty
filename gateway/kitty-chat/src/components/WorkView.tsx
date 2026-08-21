@@ -206,7 +206,8 @@ function boundedEvidenceText(value: unknown): string | null {
 
 function evidenceDate(value: unknown): string | null {
   if (typeof value !== 'string') return null
-  const date = new Date(value)
+  const normalized = /(?:Z|[+-]\\d{2}:?\\d{2})$/i.test(value) ? value : `${value.replace(' ', 'T')}Z`
+  const date = new Date(normalized)
   if (Number.isNaN(date.getTime())) return null
   return date.toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
