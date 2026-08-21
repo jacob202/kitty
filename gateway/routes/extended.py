@@ -260,6 +260,15 @@ class ImageGenRequest(BaseModel):
     parent_id: Optional[str] = None
 
 
+COMFYUI_OFFLINE_REASON = (
+    "ComfyUI is not running on this Mac. Start ComfyUI, then check again."
+)
+DRAWTHINGS_OFFLINE_REASON = (
+    "Draw Things is not answering. Open the Draw Things app, turn on its API "
+    "server, then check again."
+)
+
+
 @router.get("/image/status")
 async def image_status():
     import asyncio
@@ -283,8 +292,18 @@ async def image_status():
     flux_available, flux_reason = flux_images_available()
     hosted_available, hosted_reason = openrouter_images_available()
     engines = [
-        {"name": "comfyui", "label": "ComfyUI", "available": comfy_available},
-        {"name": "drawthings", "label": "Draw Things", "available": drawthings_available},
+        {
+            "name": "comfyui",
+            "label": "ComfyUI",
+            "available": comfy_available,
+            "unavailable_reason": None if comfy_available else COMFYUI_OFFLINE_REASON,
+        },
+        {
+            "name": "drawthings",
+            "label": "Draw Things",
+            "available": drawthings_available,
+            "unavailable_reason": None if drawthings_available else DRAWTHINGS_OFFLINE_REASON,
+        },
         {
             "name": "flux",
             "label": "Flux (Black Forest Labs)",

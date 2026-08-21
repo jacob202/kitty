@@ -24,6 +24,20 @@ function offlineStatus() {
   }
 }
 
+function offlineStatusWithReasons() {
+  return {
+    data: {
+      available: false,
+      engines: [
+        { name: 'comfyui', label: 'ComfyUI', available: false, unavailable_reason: 'ComfyUI is not running on this Mac. Start ComfyUI, then check again.' },
+        { name: 'drawthings', label: 'Draw Things', available: false, unavailable_reason: 'Draw Things is not answering. Open the Draw Things app, turn on its API server, then check again.' },
+      ],
+    },
+    isPending: false, isError: false, isFetching: false,
+    refetch: vi.fn().mockResolvedValue(undefined),
+  }
+}
+
 function estimate(count = 1) {
   return {
     provider: 'openrouter', model_id: 'vendor/image', recipe_id: 'hosted',
@@ -148,5 +162,15 @@ describe('ImageLab', () => {
     expect(await screen.findByText(/no image engine is online/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/tell kitty what you want to make/i)).toBeInTheDocument()
     expect(screen.getByTestId('image-lab-send')).toBeDisabled()
+  })
+
+  it('tells the user how to bring an offline engine back', async () => {
+    vi.mocked(queries.useImageStatus).mockReturnValue(offlineStatusWithReasons() as never)
+    stubFetch()
+    render(<ImageLab />)
+
+    expect(await screen.findByText(/no image engine is online/i)).toBeInTheDocument()
+    expect(screen.getByText(/Start ComfyUI, then check again/i)).toBeInTheDocument()
+    expect(screen.getByText(/Open the Draw Things app/i)).toBeInTheDocument()
   })
 })

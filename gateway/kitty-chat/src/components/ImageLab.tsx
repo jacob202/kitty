@@ -116,6 +116,15 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
 
   const enginesAvailable = status.data?.available === true
     || (status.data?.engines ?? []).some(engine => engine.available)
+  // "no engine is online" on its own leaves the user with nothing to do. The
+  // gateway already knows why each engine is down; carry that through instead
+  // of dropping it.
+  const offlineReasons = useMemo(
+    () => (status.data?.engines ?? [])
+      .filter(engine => !engine.available && engine.unavailable_reason)
+      .map(engine => ({ name: engine.name, label: engine.label, reason: engine.unavailable_reason as string })),
+    [status.data?.engines],
+  )
   const activeBatches = useMemo(
     () => batches.filter(batch => batch.status === 'queued' || batch.status === 'running'),
     [batches],
@@ -333,7 +342,18 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
       )}
       {!status.isError && !status.isPending && !enginesAvailable && (
         <div role="status" style={noticeStyle}>
-          <span>no image engine is online — generation stays disabled, but this workspace remains available</span>
+          <div style={noticeBodyStyle}>
+            <span>no image engine is online — generation stays disabled, but this workspace remains available</span>
+            {offlineReasons.length > 0 && (
+              <ul style={reasonListStyle}>
+                {offlineReasons.map(engine => (
+                  <li key={engine.name}>
+                    <strong>{engine.label}:</strong> {engine.reason}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <button type="button" onClick={() => void status.refetch()} style={smallButtonStyle}>check again</button>
         </div>
       )}
@@ -477,6 +497,8 @@ const subtitleStyle: CSSProperties = { margin: '4px 0 0', fontSize: 13, color: '
 const statusStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }
 const dotStyle: CSSProperties = { width: 7, height: 7, borderRadius: '50%' }
 const noticeStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 10, color: 'var(--ink-2)', fontSize: 12 }
+const noticeBodyStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }
+const reasonListStyle: CSSProperties = { margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 4 }
 const workspaceStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(280px, .8fr)', gap: 16, alignItems: 'start' }
 const conversationStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }
 const turnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, maxWidth: '86%', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 12, background: 'var(--surface)' }
