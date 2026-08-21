@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Literal
 
@@ -11,6 +12,7 @@ from pydantic import BaseModel, Field
 from gateway import image_batches, image_estimates, image_recipes
 from gateway.image_runner import FLUX_GENERATE_MODEL, OPENROUTER_IMAGE_MODEL
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["image-studio-jobs"])
 
 QualityTier = Literal["fast", "quality", "maximum"]
@@ -176,6 +178,11 @@ async def execute_studio_batch_request(request: dict) -> dict:
             operation=job.operation,
             actual_cost_usd=result.get("actual_cost_usd"),
             duration_seconds=duration,
+        )
+    elif isinstance(job_id, str) and job_id:
+        logger.warning(
+            "Image Lab observation skipped because returned job %s was not visible in image_jobs",
+            job_id,
         )
     return result
 

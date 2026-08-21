@@ -56,7 +56,8 @@ async def test_async_search_normalizes_grouped_store_hits() -> None:
         result = await async_search("gateway search", limit=3)
 
     assert result["query"] == "gateway search"
-    assert set(result) >= {"memories", "knowledge", "journal", "todos", "inbox"}
+    assert set(result) >= {"memories", "knowledge", "journal", "todos", "inbox", "stores", "errors"}
+    assert result["errors"] == []
     for section, kind in (
         ("memories", "memory"),
         ("knowledge", "knowledge"),
@@ -79,7 +80,7 @@ async def test_async_search_normalizes_grouped_store_hits() -> None:
     assert result["inbox"][0]["title"] == "Capture the Sansui bias setting"
 
 
-def test_search_route_flattens_all_stores_without_dropping_knowledge() -> None:
+def test_search_route_uses_normalized_owner_and_preserves_hit_provenance() -> None:
     items = {
         Source.KNOWLEDGE.value: [
             Item(
@@ -101,10 +102,11 @@ def test_search_route_flattens_all_stores_without_dropping_knowledge() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["query"] == "mosfet"
-    assert any(
-        r["store"] == Source.KNOWLEDGE.value and "MOSFET bias notes" in r["content"]
-        for r in body["results"]
-    )
+    hit = next(r for r in body["results"] if r["store"] == Source.KNOWLEDGE.value)
+    assert "MOSFET bias notes" in hit["content"]
+    assert hit["title"] == "sansui.pdf"
+    assert hit["source"] == Source.KNOWLEDGE.value
+    assert hit["metadata"]["source"] == "sansui.pdf"
 
 
 def test_deep_research_route_uses_typed_payload() -> None:
