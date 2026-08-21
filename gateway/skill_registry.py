@@ -54,13 +54,14 @@ def _yaml_frontmatter_legacy(raw: str) -> dict:
     for line in raw.split("\n"):
         line = line.strip()
         if ":" in line:
-            key, _, value = line.partition(":")
+            key, _, raw_value = line.partition(":")
             key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            if value.startswith("[") and value.endswith("]"):
+            text_value = raw_value.strip().strip('"').strip("'")
+            value: str | list[str] = text_value
+            if text_value.startswith("[") and text_value.endswith("]"):
                 value = [
                     v.strip().strip('"').strip("'")
-                    for v in value[1:-1].split(",")
+                    for v in text_value[1:-1].split(",")
                     if v.strip()
                 ]
             result[key] = value
