@@ -146,3 +146,20 @@ def test_public_infrastructure_repairs_use_product_language_only() -> None:
             assert repair["title"] == expected_titles[name]
         assert not any(term in visible for term in forbidden), visible
         assert all(term in visible for term in product_terms), visible
+
+
+def test_passing_checks_never_receive_failure_language() -> None:
+    cases = [
+        ("service:gateway", "reachable in 12ms", "Kitty's core service is responding."),
+        ("service:litellm", "reachable in 10ms", "Model routing is responding."),
+        ("store:mem0", "healthy", "Memory search is available."),
+        ("runtime:venv", "ready", "Background services are ready."),
+        ("codegraph:index", "fresh", "Search indexing is available."),
+    ]
+
+    for name, detail, expected_detail in cases:
+        repair = repairs._to_repair(SimpleNamespace(level="PASS", name=name, detail=detail))
+        assert repair["severity"] == "ok"
+        assert repair["detail"] == expected_detail
+        assert "unavailable" not in repair["detail"].lower()
+        assert "needs attention" not in repair["detail"].lower()

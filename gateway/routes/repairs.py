@@ -127,6 +127,19 @@ _INTERNAL_DETAIL_MARKERS = (
 def _public_detail(check) -> str:
     detail = str(check.detail or "")
     name = str(check.name)
+    if check.level == "PASS":
+        positive = {
+            "service:gateway": "Kitty's core service is responding.",
+            "service:litellm": "Model routing is responding.",
+            "store:mem0": "Memory search is available.",
+            "runtime:venv": "Background services are ready.",
+            "codegraph:index": "Search indexing is available.",
+        }
+        if name in positive:
+            return positive[name]
+        if not any(marker.lower() in detail.lower() for marker in _INTERNAL_DETAIL_MARKERS):
+            return detail
+        return "Check passed."
     if name.startswith("env:"):
         return "Kitty's configuration needs attention."
     if name == "service:gateway":

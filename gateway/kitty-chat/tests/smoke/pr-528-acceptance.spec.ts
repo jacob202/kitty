@@ -175,7 +175,7 @@ for (const viewport of VIEWPORTS) {
 
     await expect(main.getByText("Kitty's core service is unavailable")).toBeVisible()
     await expect(main.getByText('Memory search is temporarily unavailable')).toBeVisible()
-    await expect(main.getByText('A background service needs setup')).toBeVisible()
+    await expect(main.getByText('A background service needs setup', { exact: true })).toBeVisible()
     await expect(main.getByText('Search indexing needs attention').first()).toBeVisible()
     const homeText = (await main.innerText()).toLowerCase()
     for (const forbidden of [
