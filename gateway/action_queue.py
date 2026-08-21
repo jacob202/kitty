@@ -39,6 +39,7 @@ Public API:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -101,6 +102,10 @@ class GrantDenied(ActionError):
 
 class ActionNotFound(ActionError):
     """No action row with that id (404-shaped)."""
+
+
+class ApprovalIdentityMismatch(ActionError):
+    """An approved action changed after the user approved it."""
 
 
 class ActionStateError(ActionError):
@@ -275,8 +280,13 @@ def propose(
 
 
 def approve(action_id: int) -> dict[str, Any]:
-    """proposed → approved."""
-    return _decide(action_id, "approved")
+    """proposed → approved, bound to the exact proposed call identity."""
+    action = _require(action_id)
+    return _decide(
+        action_id,
+        "approved",
+        approval_fingerprint=_approval_fingerprint(action),
+    )
 
 
 def reject(action_id: int) -> dict[str, Any]:
@@ -323,6 +333,13 @@ def execute(action_id: int) -> dict[str, Any]:
         raise TierViolation(f"action {action_id} requires approval: {decision.reason}")
 
     _validate_payload(kind, action["payload"])
+    if status == "approved":
+        approved_fingerprint = action.get("approval_fingerprint")
+        current_fingerprint = _approval_fingerprint(action)
+        if not approved_fingerprint or approved_fingerprint != current_fingerprint:
+            raise ApprovalIdentityMismatch(
+                f"action {action_id} changed after approval; fresh approval required"
+            )
 
     # Reserve the spend before dispatching, not after it succeeds. Two actions
     # can both clear `evaluate` against the same ceiling; the conditioned
@@ -425,7 +442,12 @@ def list_actions(status: str | None = None, limit: int = 50) -> list[dict[str, A
 # --- Internals -------------------------------------------------------------
 
 
-def _decide(action_id: int, new_status: str) -> dict[str, Any]:
+def _decide(
+    action_id: int,
+    new_status: str,
+    *,
+    approval_fingerprint: str | None = None,
+) -> dict[str, Any]:
     action = _require(action_id)
     if action["status"] != "proposed":
         raise ActionStateError(
@@ -436,8 +458,9 @@ def _decide(action_id: int, new_status: str) -> dict[str, Any]:
         # Condition on proposed + check rowcount so a racing approve/reject
         # cannot overwrite an already-recorded decision.
         cursor = conn.execute(
-            "UPDATE actions SET status = ?, decided_at = ? WHERE id = ? AND status = 'proposed'",
-            (new_status, time.time(), action_id),
+            "UPDATE actions SET status = ?, decided_at = ?, approval_fingerprint = ? "
+            "WHERE id = ? AND status = 'proposed'",
+            (new_status, time.time(), approval_fingerprint, action_id),
         )
         conn.commit()
         if cursor.rowcount == 0:
@@ -465,6 +488,23 @@ def _require(action_id: int) -> dict[str, Any]:
     return action
 
 
+
+def _approval_fingerprint(action: dict[str, Any]) -> str:
+    """Canonical identity for the exact side effect a one-shot approval covers."""
+    identity = {
+        "kind": action["kind"],
+        "payload": action["payload"],
+        "scope_type": action["scope_type"],
+        "scope_id": action["scope_id"],
+        "session_id": action["session_id"],
+        "estimated_cost_usd": action["estimated_cost_usd"],
+        "source_kind": action["source_kind"],
+        "source_id": action["source_id"],
+    }
+    canonical = json.dumps(identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def _validate_payload(kind: str, payload: Any) -> None:
     if not isinstance(payload, dict):
         raise ActionPayloadError(f"{kind} payload must be an object")
@@ -487,7 +527,7 @@ def _slug(text: str) -> str:
 _COLUMNS = (
     "id, created_at, source_kind, source_id, kind, title, preview, payload, "
     "risk_tier, status, result, decided_at, executed_at, scope_type, scope_id, "
-    "session_id, estimated_cost_usd"
+    "session_id, estimated_cost_usd, approval_fingerprint"
 )
 
 
@@ -510,4 +550,5 @@ def _row_to_action(row: Any) -> dict[str, Any]:
         "scope_id": row["scope_id"],
         "session_id": row["session_id"],
         "estimated_cost_usd": row["estimated_cost_usd"],
+        "approval_fingerprint": row["approval_fingerprint"],
     }
