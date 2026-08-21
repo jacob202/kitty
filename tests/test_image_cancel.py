@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-from gateway import image_gen
+from gateway import artifact_store, image_gen
 from gateway import image_jobs as jobs
 from gateway.image_gen import (
     CancellationConflictError,
@@ -25,9 +25,13 @@ def _fresh_db(tmp_path: Path):
     import gateway.paths as paths
 
     original = paths.KITTY_DB_FILE
-    paths.KITTY_DB_FILE = tmp_path / "kitty.db"
+    original_artifacts = artifact_store.ARTIFACTS_DB_FILE
+    test_db = tmp_path / "kitty.db"
+    paths.KITTY_DB_FILE = test_db
+    artifact_store.ARTIFACTS_DB_FILE = test_db
     yield
     paths.KITTY_DB_FILE = original
+    artifact_store.ARTIFACTS_DB_FILE = original_artifacts
 
 
 def _comfy_job(*, submitted: bool = True, provider_job_id: str = "prompt-abc"):
@@ -455,9 +459,36 @@ async def test_generate_marks_a_submitted_job_running_before_completion(monkeypa
 
     monkeypatch.setattr(image_gen.httpx, "AsyncClient", lambda **_kwargs: _Client())
     monkeypatch.setattr(image_gen.asyncio, "sleep", no_wait)
-    monkeypatch.setattr(image_gen, "save_image", lambda data, prefix: Path("/tmp/kitty-test-image.png"))
+    output_path = Path("/tmp/kitty-test-image.png")
+
+    def _save_image(data: bytes, prefix: str) -> Path:
+        del prefix
+        output_path.write_bytes(data)
+        return output_path
+
+    monkeypatch.setattr(image_gen, "save_image", _save_image)
 
     result = await image_gen.generate("a cat")
 
     assert result["prompt_id"] == "prompt-123"
     assert jobs.get_job(result["job_id"]).status is ImageJobStatus.SUCCEEDED
+
+
+def test_finalize_persisted_job_marks_registration_failure_failed(tmp_path, monkeypatch):
+    job = jobs.create_job(provider="comfyui", operation="txt2img", prompt="a cat")
+    jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+    jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+    output = tmp_path / "out.png"
+    output.write_bytes(b"png")
+
+    def fail_registration(_job_id: str):
+        raise RuntimeError("artifact registry unavailable")
+
+    monkeypatch.setattr(image_gen, "register_canonical_artifact", fail_registration)
+    with pytest.raises(RuntimeError, match="artifact registry unavailable"):
+        image_gen._finalize_persisted_job(job.job_id, output)
+
+    failed = jobs.get_job(job.job_id)
+    assert failed is not None
+    assert failed.status is ImageJobStatus.FAILED
+    assert "artifact registry unavailable" in (failed.normalized_error or "")

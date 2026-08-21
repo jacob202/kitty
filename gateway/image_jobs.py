@@ -20,6 +20,7 @@ and bounded error/text fields.
 from __future__ import annotations
 
 import json
+import mimetypes
 import uuid
 from dataclasses import dataclass
 from dataclasses import fields as dc_fields
@@ -97,6 +98,7 @@ class ImageJob:
     workflow_template_id: str | None
     workflow_hash: str | None
     artifact_id: str | None
+    canonical_artifact_id: str | None
     output_path: str | None
     normalized_error: str | None
     provider_diagnostics_json: str | None
@@ -170,6 +172,16 @@ def _ensure_compiler_columns(conn: Any) -> None:
         conn.execute("ALTER TABLE image_jobs ADD COLUMN compiler_params_json TEXT")
 
 
+def _ensure_canonical_artifact_column(conn: Any) -> None:
+    """Add the canonical Kitty Artifact link without changing legacy asset ids."""
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(image_jobs)").fetchall()}
+    except Exception:
+        cols = set()
+    if "canonical_artifact_id" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN canonical_artifact_id TEXT")
+
+
 def _ensure_db(conn: Any = None) -> None:
     """Apply only our migration so the store works on a fresh DB.
 
@@ -191,11 +203,13 @@ def _ensure_db(conn: Any = None) -> None:
         _apply(conn)
         _ensure_queue_columns(conn)
         _ensure_compiler_columns(conn)
+        _ensure_canonical_artifact_column(conn)
     else:
         with kitty_db.connect(_paths.KITTY_DB_FILE) as c:
             _apply(c)
             _ensure_queue_columns(c)
             _ensure_compiler_columns(c)
+            _ensure_canonical_artifact_column(c)
 
 
 def _check_json_bounded(value: str | None, field_name: str) -> None:
@@ -259,6 +273,7 @@ def _row_to_job(row: Any) -> ImageJob:
         workflow_template_id=row["workflow_template_id"],
         workflow_hash=row["workflow_hash"],
         artifact_id=row["artifact_id"],
+        canonical_artifact_id=row["canonical_artifact_id"],
         output_path=row["output_path"],
         normalized_error=row["normalized_error"],
         provider_diagnostics_json=row["provider_diagnostics_json"],
@@ -340,6 +355,7 @@ def create_job(
         workflow_template_id=workflow_template_id,
         workflow_hash=workflow_hash,
         artifact_id=None,
+        canonical_artifact_id=None,
         output_path=None,
         normalized_error=None,
         provider_diagnostics_json=None,
@@ -480,6 +496,7 @@ def update_job(
     provider_job_id: str | None = None,
     output_path: str | None = None,
     artifact_id: str | None = None,
+    canonical_artifact_id: str | None = None,
     normalized_error: str | None = None,
     provider_diagnostics_json: str | None = None,
     started_at: str | None = None,
@@ -502,6 +519,8 @@ def update_job(
         cols["output_path"] = output_path
     if artifact_id is not None:
         cols["artifact_id"] = artifact_id
+    if canonical_artifact_id is not None:
+        cols["canonical_artifact_id"] = canonical_artifact_id
     if normalized_error is not None:
         cols["normalized_error"] = normalized_error
     if provider_diagnostics_json is not None:
@@ -523,6 +542,76 @@ def update_job(
     updated = get_job(job_id)
     assert updated is not None
     return updated
+
+
+def register_canonical_artifact(job_id: str) -> dict[str, Any]:
+    """Register a persisted image output in Kitty's canonical Artifact spine.
+
+    The legacy ``artifact_id`` field may contain a provider/worker asset id and
+    is intentionally left untouched. Registration is deterministic by job id so
+    restart/retry repair cannot create duplicate Library entries. Artifact row
+    creation and the image-job link share one SQLite transaction.
+    """
+    from pathlib import Path
+
+    from gateway import artifact_store
+
+    job = get_job(job_id)
+    if job is None:
+        raise JobNotFoundError(f"job {job_id} not found")
+    if not job.output_path:
+        raise ImageJobError(f"job {job_id} has no persisted output_path to register")
+    path = Path(job.output_path)
+    if not path.is_file():
+        raise ImageJobError(f"job {job_id} output is missing from disk: {path}")
+    if Path(artifact_store.ARTIFACTS_DB_FILE) != Path(_paths.KITTY_DB_FILE):
+        raise ImageJobError(
+            "image jobs and canonical Artifacts must share the same kitty.db"
+        )
+
+    parent_artifact_id = None
+    if job.parent_id:
+        parent = get_job(job.parent_id)
+        if parent is not None:
+            parent_artifact_id = parent.canonical_artifact_id
+
+    media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    artifact_store.init_db()
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        artifact = artifact_store.register_file(
+            path,
+            artifact_id=f"artifact_image_{job.job_id}",
+            kind="image",
+            media_type=media_type,
+            project_id=None,
+            created_by=f"image:{job.provider}",
+            source_ref=job.job_id,
+            metadata={
+                "image_job_id": job.job_id,
+                "provider": job.provider,
+                "provider_job_id": job.provider_job_id,
+                "provider_asset_id": job.artifact_id,
+                "operation": job.operation,
+                "model_id": job.model_id,
+                "seed": job.seed,
+                "width": job.width,
+                "height": job.height,
+                "compiler_version": job.compiler_version,
+                "parent_job_id": job.parent_id,
+                "parent_artifact_id": parent_artifact_id,
+                "workflow_template_id": job.workflow_template_id,
+                "workflow_hash": job.workflow_hash,
+            },
+            connection=conn,
+            refresh_existing=True,
+        )
+        conn.execute(
+            "UPDATE image_jobs SET canonical_artifact_id = ?, updated_at = ? "
+            "WHERE job_id = ?",
+            (artifact["id"], _now_iso(), job.job_id),
+        )
+    return artifact
 
 
 # ── Provider-request normalization ──────────────────────────────────────────
