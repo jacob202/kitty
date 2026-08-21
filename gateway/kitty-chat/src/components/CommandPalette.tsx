@@ -44,6 +44,7 @@ export function CommandPalette({
   const [degradedStores, setDegradedStores] = useState<string[]>([])
   const [degradedErrors, setDegradedErrors] = useState<string[]>([])
   const [searchError, setSearchError] = useState<string | null>(null)
+  const [searching, setSearching] = useState(false)
   const open = externalOpen ?? internalOpen
   const setOpen = onOpenChange ?? setInternalOpen
 
@@ -52,6 +53,7 @@ export function CommandPalette({
     setDegradedStores([])
     setDegradedErrors([])
     setSearchError(null)
+    setSearching(false)
   }
   const close = () => {
     setQuery('')
@@ -60,6 +62,7 @@ export function CommandPalette({
   }
   const changeQuery = (value: string) => {
     clearSearch()
+    setSearching(open && value.trim().length >= 2)
     setQuery(value)
   }
 
@@ -69,6 +72,7 @@ export function CommandPalette({
       clearSearch()
       return
     }
+    setSearching(true)
     const controller = new AbortController()
     const timeoutId = window.setTimeout(async () => {
       const payload = await fetchGatewaySearch(q, 5, controller.signal)
@@ -77,6 +81,7 @@ export function CommandPalette({
         setDegradedStores(payload.degradedStores ?? [])
         setDegradedErrors(payload.degradedErrors ?? [])
         setSearchError(payload.error)
+        setSearching(false)
       }
     }, 250)
     return () => {
@@ -164,7 +169,9 @@ export function CommandPalette({
             }}
           />
           <Command.List style={{ maxHeight: 320, overflowY: 'auto', padding: 6 }}>
-            <Command.Empty style={emptyStyle}>no results.</Command.Empty>
+            <Command.Empty style={emptyStyle}>
+              {searching ? 'searching Kitty…' : 'no results.'}
+            </Command.Empty>
 
             <Command.Group heading="Actions" style={groupStyle}>
               <Item
@@ -268,7 +275,6 @@ export function CommandPalette({
 
 function searchViewForHit(hit: GatewaySearchHit): string | null {
   if (hit.kind === 'knowledge') return 'library'
-  if (hit.kind === 'journal') return 'journal'
   return null
 }
 

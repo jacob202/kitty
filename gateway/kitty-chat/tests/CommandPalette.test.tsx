@@ -95,7 +95,6 @@ describe('CommandPalette', () => {
 
   it.each([
     ['knowledge', 'library'],
-    ['journal', 'journal'],
   ])('opens the owning surface for a %s search result', async (kind, expectedView) => {
     const onViewChange = vi.fn()
     vi.mocked(fetchGatewaySearch).mockResolvedValue({
@@ -131,7 +130,7 @@ describe('CommandPalette', () => {
     expect(onViewChange).toHaveBeenCalledWith(expectedView)
   })
 
-  it.each(['memory', 'capture', 'todo'])('keeps an unsupported %s hit visible instead of routing to the wrong surface', async (kind) => {
+  it.each(['memory', 'capture', 'todo', 'journal'])('keeps an unsupported %s hit visible instead of routing to the wrong surface', async (kind) => {
     const onViewChange = vi.fn()
     const onOpenChange = vi.fn()
     vi.mocked(fetchGatewaySearch).mockResolvedValue({
@@ -270,6 +269,29 @@ describe('CommandPalette', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('search unavailable')
     expect(screen.getByText('Gateway returned 503 Service Unavailable')).toBeInTheDocument()
+  })
+
+  it('shows that remote search is pending instead of reporting no results', async () => {
+    vi.mocked(fetchGatewaySearch).mockImplementation(() => new Promise(() => {}))
+
+    render(
+      <CommandPalette
+        chats={[]}
+        onNewChat={vi.fn()}
+        onSelectChat={vi.fn()}
+        onViewChange={vi.fn()}
+        onToggleSidebar={vi.fn()}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('type a command or search…'), {
+      target: { value: 'remote-only query' },
+    })
+
+    expect(screen.getByText('searching Kitty…')).toBeInTheDocument()
+    expect(screen.queryByText('no results.')).not.toBeInTheDocument()
   })
 
   it('resets the controlled query when the palette closes', () => {

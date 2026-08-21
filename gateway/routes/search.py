@@ -45,7 +45,7 @@ async def search(q: str = "", limit: int = 5):
         if store_rows:
             rows_by_store.append(store_rows)
 
-    rows = []
+    rows: list[dict[str, object]] = []
     depth = 0
     while len(rows) < limit and any(depth < len(store_rows) for store_rows in rows_by_store):
         for store_rows in rows_by_store:

@@ -5,6 +5,7 @@ const GATEWAY_BASE = '/proxy'
 // store on the first request. 2.5s made healthy features look permanently
 // offline after a cold start; keep the timeout bounded but realistic.
 const DEFAULT_TIMEOUT_MS = 8000
+const SEARCH_TIMEOUT_MS = 7000
 
 export interface GatewayHeadline {
   title: string
@@ -991,7 +992,7 @@ export async function fetchGatewaySearch(
   try {
     const response = await fetchWithTimeout(
       `${GATEWAY_BASE}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
-      4000,
+      SEARCH_TIMEOUT_MS,
       signal,
     )
     if (!response.ok) {

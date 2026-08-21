@@ -115,6 +115,36 @@ describe('fetchGatewaySearch abort', () => {
     expect(result.snapshot).toBeNull()
   })
 
+  it('waits longer than the backend store timeout before aborting search', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', {
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+    })
+    vi.mocked(global.fetch).mockImplementation((_url, init) => {
+      const signal = init?.signal as AbortSignal | undefined
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => {
+          const err = new Error('The operation was aborted')
+          err.name = 'AbortError'
+          reject(err)
+        }, { once: true })
+      })
+    })
+
+    let settled = false
+    const pending = fetchGatewaySearch('slow partial search').then((result) => {
+      settled = true
+      return result
+    })
+    await vi.advanceTimersByTimeAsync(5_100)
+    expect(settled).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect((await pending).error).toContain('timed out')
+    vi.useRealTimers()
+  })
+
   it('adapts the live flat /search contract into grouped context sections', async () => {
     vi.mocked(global.fetch).mockResolvedValue(
       new Response(JSON.stringify({
