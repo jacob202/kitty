@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "task_id": "current-facts",
+      "category": "current_facts",
+      "question": "Determine the current stable MCP protocol revision and Python SDK release, using primary upstream sources.",
+      "requirements": ["freshness", "primary_sources", "citations"]
+    },
+    {
+      "task_id": "technical-primary",
+      "category": "technical_primary_sources",
+      "question": "Explain SQLite FTS5 BM25 ranking behavior and relevant implementation constraints from primary documentation.",
+      "requirements": ["primary_sources", "technical_precision", "citations"]
+    },
+    {
+      "task_id": "conflicting-sources",
+      "category": "comparative_conflict",
+      "question": "Compare a fast-changing technical claim across independent sources and preserve meaningful disagreement instead of flattening it.",
+      "requirements": ["coverage", "contradiction_handling", "citations"]
+    },
+    {
+      "task_id": "local-plus-web",
+      "category": "local_documents_plus_web",
+      "question": "Reconcile a supplied local implementation note with current upstream documentation and identify what is verified, inferred, or stale.",
+      "requirements": ["local_context", "web_context", "provenance"]
+    },
+    {
+      "task_id": "obscure-niche",
+      "category": "obscure_niche",
+      "question": "Resolve an obscure implementation or licensing question that requires multiple search iterations and source triangulation.",
+      "requirements": ["iterative_search", "source_quality", "citations"]
+    }
+  ]
+}

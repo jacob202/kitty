@@ -25,7 +25,7 @@ report the contradiction rather than blending the claims.
 | `launcher_contract` | `docs/reference/LAUNCHER_CONTRACT.md` | The single launcher interface across production and development modes; required shared properties | Alternative server entry points or silently bootable paths |
 | `prevention_mechanisms` | `docs/reference/PREVENTION_MECHANISMS.md` | Enforceable prevention mechanisms for the repository: red-main freeze, lane limits, freshness, overlap detection, stale-draft policy, independent review, evidence requirements | Implementation details of CI workflows |
 | `live_status` | `docs/PROJECT_STATUS.md` | Verified shipped capabilities and known limitations at its stated SHA | Current priority or unverified present state |
-| `active_mission` | `docs/ACTIVE_MISSION.md` | The one approved current mission, authority, and acceptance contract | Builder task/run truth |
+| `active_mission` | `docs/ACTIVE_MISSION.md` | The canonical mission record and acceptance contract. Its status may be terminal; a terminal record means no running mission exists until Jacob explicitly approves a replacement. | Builder task/run truth |
 | `session_checkpoint` | `.claude/STATE.md` | Current branch checkpoint, blockers, and exact next action only while its identity and invalidation conditions remain valid | Historical checkpoints or product purpose |
 | `continuation` | `.claude/HANDOFF.md` | Current resumable handoff only when its metadata says `valid` | Append-only history or authority after invalidation |
 | `builder_state` | `data/kittybuilder/builder_queue.db` | Initiatives, packets, tasks, attempts, leases, runs, evidence, and publication state, read only through supported CLI/API projections | Product intent or personal data |
@@ -53,6 +53,17 @@ machine. Runtime files under `data/` are local and are never committed.
    Git identity, mission, path, or invalidation conditions no longer match.
 7. Missing or unverifiable facts are `unknown`; they are never filled from an
    old handoff, report, or plausible guess.
+
+### Known unresolved authority conflict — product shell (2026-08-19)
+
+`docs/CONSTITUTION.md` Article I.2 still names Open WebUI as the primary replaceable
+daily-driver shell. Accepted ADR 0039 names Kitty's native frontend as the canonical
+user-facing product surface. Under rule 2 and Constitution Article VII.5, ADR 0039
+does **not** silently amend the Constitution. Until Jacob explicitly ratifies a
+Constitution amendment or otherwise adjudicates that conflict, shell-role work that
+depends on choosing one of those statements is blocked. In particular, the Open
+WebUI M1/M2 sequence preserved in `ROADMAP_V2.md` must not be executed as current
+priority merely because KPROOF ended.
 
 ## Context receipts
 

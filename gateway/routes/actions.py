@@ -69,7 +69,7 @@ def _handle(fn, *args, **kwargs):
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except action_queue.ActionNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except action_queue.ActionStateError as exc:
+    except (action_queue.ActionStateError, action_queue.ApprovalIdentityMismatch) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (action_queue.UnknownActionKind, action_queue.ActionPayloadError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
