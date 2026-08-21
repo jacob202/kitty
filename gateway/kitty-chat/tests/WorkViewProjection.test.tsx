@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
 
@@ -45,7 +45,6 @@ describe('WorkView projection', () => {
     expect(screen.getByText('Ship Gateway Work Spine')).toBeInTheDocument()
     expect(screen.getByText('Builder available')).toBeInTheDocument()
     expect(screen.getByText('1 active')).toBeInTheDocument()
-    expect(screen.getByText('approval unavailable')).toBeInTheDocument()
   })
 
   it('groups durable work by what needs the user, what is moving, and what finished', () => {
@@ -85,6 +84,39 @@ describe('WorkView projection', () => {
 
     const completed = screen.getByRole('region', { name: 'Completed' })
     expect(within(completed).getByText('Completed item')).toBeInTheDocument()
+  })
+
+  it('keeps implementation identifiers and unavailable approval metadata behind Details', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      items: [{
+        ...base,
+        current_run: { id: 'RUN-123', state: 'running' },
+      }],
+    })
+
+    expect(screen.getByText('WORK-SPINE-003')).not.toBeVisible()
+    expect(screen.getByText('RUN-123')).not.toBeVisible()
+    expect(screen.getByText('approval unavailable')).not.toBeVisible()
+
+    fireEvent.click(screen.getByText('Details'))
+
+    expect(screen.getByText('WORK-SPINE-003')).toBeVisible()
+    expect(screen.getByText('RUN-123')).toBeVisible()
+    expect(screen.getByText('approval unavailable')).toBeVisible()
+  })
+
+  it('surfaces review evidence only when review evidence is present', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      items: [{
+        ...base,
+        evidence: { ...base.evidence, review: { verdict: 'pass' } },
+      }],
+    })
+    expect(screen.getByText('Review evidence available')).toBeVisible()
   })
 
   it('marks expired cached work stale', () => {

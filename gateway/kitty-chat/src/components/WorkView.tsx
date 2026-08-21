@@ -109,18 +109,36 @@ const retryStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center'
 function WorkRow({ item }: { item: GatewayWorkItem }) {
   const approval = approvalLabel(item)
   const detail = item.blocker?.reason || item.next_action
+  const evidence = evidenceLabels(item)
   return (
     <article style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--surface)', padding: '14px 16px', display: 'grid', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: STATE_COLORS[item.state] }} />
         <strong style={{ color: 'var(--ink)', fontSize: 14 }}>{item.title || item.id}</strong>
         <span style={{ ...metaStyle, color: STATE_COLORS[item.state] }}>{item.state}</span>
-        <span style={{ ...metaStyle, marginLeft: 'auto' }}>{item.id}</span>
       </div>
-      {item.current_packet && <div style={metaStyle}>{item.current_packet.title || item.current_packet.id || 'packet'}{item.current_packet.task_state ? ` · ${item.current_packet.task_state}` : ''}</div>}
-      {item.current_run && <div style={metaStyle}>run {item.current_run.state || 'unknown'} · {item.current_run.id}</div>}
       {detail && <div style={{ color: 'var(--ink-2)', fontSize: 13 }}>{detail}</div>}
-      {approval && <div style={{ ...metaStyle, color: 'var(--ink-2)' }}>{approval}</div>}
+      {evidence.map(label => <div key={label} style={metaStyle}>{label}</div>)}
+      <details style={metaStyle}>
+        <summary style={{ cursor: 'pointer', color: 'var(--ink)' }}>Details</summary>
+        <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+          <div>initiative <span>{item.id}</span></div>
+          {item.current_packet?.id && <div>packet <span>{item.current_packet.id}</span></div>}
+          {item.current_packet?.task_id && <div>task <span>{item.current_packet.task_id}</span></div>}
+          {item.current_run?.id && <div>run <span>{item.current_run.id}</span></div>}
+          {item.current_packet?.task_state && <div>task state {item.current_packet.task_state}</div>}
+          {approval && <div>{approval}</div>}
+          {item.data_quality.issues?.map(issue => <div key={issue}>quality: {issue}</div>)}
+        </div>
+      </details>
     </article>
   )
+}
+
+function evidenceLabels(item: GatewayWorkItem): string[] {
+  const labels: string[] = []
+  if (item.evidence.review) labels.push('Review evidence available')
+  if (item.evidence.publication) labels.push('Publication evidence available')
+  if (item.evidence.validation) labels.push('Validation evidence available')
+  return labels
 }
