@@ -662,3 +662,38 @@ class TestGuidanceToRenderer:
 
         params = json.loads(captured["provider_params_json"])
         assert params["guidance_tags"] == ["text_rendering"]
+
+class TestImageIntentPersistence:
+    def test_intent_v1_round_trips_with_plan(self):
+        s = sessions.create_session()
+        stored = persist_plan(s.session_id, _build_plan())
+
+        assert stored.intent_version == 1
+        assert stored.intent is not None
+        assert stored.intent["intent_version"] == 1
+        assert stored.intent["operation"] == "generate"
+
+        resumed = image_plans.require_plan(stored.plan_id)
+        assert resumed.intent == stored.intent
+        assert resumed.to_dict()["intent_version"] == 1
+
+    def test_explicit_edit_operation_projects_into_intent(self, tmp_path: Path):
+        s = sessions.create_session()
+        anchor = _succeeded_anchor(tmp_path)
+        stored = persist_plan(
+            s.session_id, _build_plan(), operation="img2img", anchor_job_id=anchor
+        )
+        assert stored.intent is not None
+        assert stored.intent["operation"] == "edit"
+
+    def test_missing_intent_payload_fails_closed(self):
+        s = sessions.create_session()
+        stored = persist_plan(s.session_id, _build_plan())
+        db = image_plans._paths.KITTY_DB_FILE
+        with sqlite3.connect(str(db)) as conn:
+            conn.execute(
+                "UPDATE image_plans SET intent_json = NULL, intent_version = 1 WHERE plan_id = ?",
+                (stored.plan_id,),
+            )
+        with pytest.raises(PlanMalformedError, match="intent_json is missing"):
+            image_plans.require_plan(stored.plan_id)

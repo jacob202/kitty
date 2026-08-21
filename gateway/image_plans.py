@@ -96,6 +96,8 @@ class StoredPlan:
     anchor_job_id: str | None = None
     guidance_tags: list[str] = field(default_factory=list)
     references: list[dict[str, Any]] = field(default_factory=list)
+    intent_version: int = 0
+    intent: dict[str, Any] | None = None
     # Content-lane contract (ADR 0040 #8). Defaults are the safe lane, so a
     # pre-IL-02 plan or a caller that does not opt in is never private_adult.
     content_lane: str = _DEFAULT_LANE
@@ -118,6 +120,8 @@ class StoredPlan:
             "anchor_job_id": self.anchor_job_id,
             "guidance_tags": list(self.guidance_tags),
             "references": [dict(r) for r in self.references],
+            "intent_version": self.intent_version,
+            "intent": dict(self.intent) if self.intent is not None else None,
             "content_lane": self.content_lane,
             "consent_basis": self.consent_basis,
             "adult_confirmed": self.adult_confirmed,
@@ -220,6 +224,15 @@ def _ensure_plan_policy_columns(conn: Any) -> None:
         )
 
 
+def _ensure_plan_intent_columns(conn: Any) -> None:
+    """Add provider-neutral ImageIntent storage without invalidating old plans."""
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(image_plans)").fetchall()}
+    if "intent_version" not in cols:
+        conn.execute("ALTER TABLE image_plans ADD COLUMN intent_version INTEGER NOT NULL DEFAULT 0")
+    if "intent_json" not in cols:
+        conn.execute("ALTER TABLE image_plans ADD COLUMN intent_json TEXT")
+
+
 def _ensure_db(conn: Any = None) -> None:
     """Apply this module's migration, plus the session schema it references."""
     from gateway import image_sessions
@@ -229,6 +242,7 @@ def _ensure_db(conn: Any = None) -> None:
         c.executescript(_MIGRATION_FILE.read_text(encoding="utf-8"))
         _ensure_plan_operation_columns(c)
         _ensure_plan_policy_columns(c)
+        _ensure_plan_intent_columns(c)
 
     if conn is not None:
         _apply(conn)
@@ -282,12 +296,33 @@ def _row_to_plan(row: Any) -> StoredPlan:
         anchor_job_id=anchor_job_id,
         guidance_tags=_decode_list(row["guidance_tags_json"], "guidance_tags"),
         references=_decode_refs(row["references_json"]),
+        intent_version=int(row["intent_version"] or 0),
+        intent=_decode_intent(row["intent_json"], int(row["intent_version"] or 0)),
         content_lane=content_lane,
         consent_basis=consent_basis,
         adult_confirmed=adult_confirmed,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
+
+
+def _decode_intent(raw: str | None, version: int) -> dict[str, Any] | None:
+    if not raw:
+        if version != 0:
+            raise PlanMalformedError("intent_version is set but intent_json is missing")
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise PlanMalformedError(f"intent is not valid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise PlanMalformedError("intent expected a JSON object")
+    embedded = parsed.get("intent_version")
+    if embedded != version or version < 1:
+        raise PlanMalformedError(
+            f"intent version mismatch: column={version!r}, payload={embedded!r}"
+        )
+    return dict(parsed)
 
 
 def _decode_refs(raw: str | None) -> list[dict[str, Any]]:
@@ -407,6 +442,34 @@ def persist_plan(
     references_json = json.dumps([dict(r) for r in references]) if references else "[]"
     _check_json_bounded(references_json, "references")
 
+    intent_value = plan_dict.get("intent")
+    intent_version = 0
+    intent: dict[str, Any] | None = None
+    intent_json: str | None = None
+    if intent_value is not None:
+        if not isinstance(intent_value, dict):
+            raise PlanStoreError("intent must serialize to a JSON object")
+        intent = dict(intent_value)
+        raw_version = intent.get("intent_version")
+        if not isinstance(raw_version, int) or raw_version < 1:
+            raise PlanStoreError("intent.intent_version must be a positive integer")
+        intent_version = raw_version
+        expected_operation = "edit" if resolved_operation == "img2img" else "generate"
+        allowed_intent_operations = {expected_operation}
+        if resolved_operation == "img2img":
+            allowed_intent_operations.add("variation")
+        if intent.get("operation") not in allowed_intent_operations:
+            if operation is not None:
+                # persist_plan's explicit operation has always been authoritative;
+                # keep the additive intent projection consistent with that contract.
+                intent["operation"] = expected_operation
+            else:
+                raise PlanStoreError(
+                    f"intent operation {intent.get('operation')!r} conflicts with persisted operation {resolved_operation!r}"
+                )
+        intent_json = json.dumps(intent, sort_keys=True, separators=(",", ":"))
+        _check_json_bounded(intent_json, "intent")
+
     now = _now_iso()
     stored = StoredPlan(
         plan_id=_new_plan_id(),
@@ -421,6 +484,8 @@ def persist_plan(
         anchor_job_id=resolved_anchor,
         guidance_tags=json.loads(guidance_tags),
         references=json.loads(references_json),
+        intent_version=intent_version,
+        intent=intent,
         content_lane=content_lane,
         consent_basis=consent_basis,
         adult_confirmed=adult_confirmed,
@@ -435,9 +500,9 @@ def persist_plan(
             "INSERT INTO image_plans"
             " (plan_id, session_id, status, original_prompt, refined_prompt,"
             "  character_id, character_ref_path, recipe_id, operation, anchor_job_id,"
-            "  guidance_tags_json, references_json, content_lane, consent_basis,"
-            "  adult_confirmed, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "  guidance_tags_json, references_json, intent_version, intent_json,"
+            "  content_lane, consent_basis, adult_confirmed, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 stored.plan_id,
                 stored.session_id,
@@ -451,6 +516,8 @@ def persist_plan(
                 stored.anchor_job_id,
                 guidance_tags,
                 references_json,
+                stored.intent_version,
+                intent_json,
                 stored.content_lane,
                 stored.consent_basis,
                 int(stored.adult_confirmed),

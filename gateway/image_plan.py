@@ -81,6 +81,7 @@ class ImagePlan:
     recipe_id: str | None = None
     guidance_tags: list[str] = field(default_factory=list)
     references: list[ReferenceProvenance] = field(default_factory=list)
+    intent: ImageIntent | None = None
     content_lane: str = ContentLane.SAFE.value
     consent_basis: str | None = None
     adult_confirmed: bool = False
@@ -185,6 +186,19 @@ def build_image_plan(
         guidance_tags=resolved_tags,
     )
 
+    cast = []
+    bindings = []
+    if char is not None and resolved_character_path is not None:
+        cast = [CastSlot(slot_id="subject", character_id=char.character_id, display_name=char.name)]
+        bindings = [
+            ReferenceBinding(
+                reference_id=resolved_character_path,
+                role="identity",
+                cast_slot="subject",
+            )
+        ]
+    intent = ImageIntent(cast=cast, references=bindings)
+
     return ImagePlan(
         original_prompt=prompt.strip(),
         refined_prompt=refined,
@@ -193,6 +207,7 @@ def build_image_plan(
         recipe_id=recipe_id,
         guidance_tags=resolved_tags,
         references=references,
+        intent=intent,
         content_lane=lane,
         consent_basis=consent_basis,
         adult_confirmed=bool(adult_confirmed),
