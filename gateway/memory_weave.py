@@ -19,18 +19,17 @@ Core operations:
   - ``weave.event(event_type, description)`` — log an event
   - ``weave.get_reliability(resource)`` — temporal reliability score
 
-Status (2026-07-05):
+Status (2026-08-21):
   - Schema landed as migration 013 (``gateway/migrations/013_memory_weave.sql``).
-  - Core operations ported: ``fact``, ``correct``, ``event``,
-    ``get_recent_events``, ``query`` (with its 4 private helpers).
-  - Remaining methods stubbed with ``NotImplementedError`` for next session:
-    ``get_reliability``, ``get_conflicts``, ``surface_conflict``,
-    ``log_conversation``, ``detect_corrections``, ``get_stale_facts``.
+  - Core operations and temporal/conflict/correction helpers are implemented.
+  - Retrieval remains the main improvement target: benchmark current search,
+    then add hybrid lexical/vector fusion without changing MemoryWeave authority.
 """
 from __future__ import annotations
 
 import json
 import math
+import re
 import sqlite3
 import threading
 import time
@@ -331,34 +330,52 @@ class MemoryWeave:
         )
 
     def search(self, query: str, limit: int = 10) -> list[WeaveQuery]:
-        """Search the graph for facts matching a text query."""
-        terms = [t for t in query.lower().split() if t]
+        """Search active graph facts using token-aware lexical matching.
+
+        Candidate retrieval is deliberately separate from MemoryWeave authority:
+        temporal decay, source weighting, corrections, and provenance still come
+        from ``query()`` after lexical candidates have been selected.
+        """
+        stopwords = {
+            "a", "an", "and", "for", "in", "is", "my", "of", "on", "or",
+            "the", "to", "user", "users", "what", "your",
+        }
+
+        def tokens(text: str) -> set[str]:
+            return {
+                token
+                for token in re.findall(r"[^\W_]+", text.casefold())
+                if token and token not in stopwords
+            }
+
+        terms = tokens(query)
         if not terms:
             return []
 
-        # Simple keyword match across entity, relation, value
         with _lock:
             with kitty_db.connect(KITTY_DB_FILE) as conn:
                 conn.row_factory = sqlite3.Row
-                # Get unique entity+relation pairs that match
                 all_edges = conn.execute(
                     "SELECT entity, relation, value FROM weave_edges WHERE deprecated = 0"
                 ).fetchall()
 
-        matched_pairs = set()
+        matched_pairs: dict[tuple[str, str], float] = {}
         for row in all_edges:
-            text = f"{row['entity']} {row['relation']} {row['value']}".lower()
-            if any(term in text for term in terms):
-                matched_pairs.add((row["entity"], row["relation"]))
+            haystack = tokens(f"{row['entity']} {row['relation']} {row['value']}")
+            overlap = len(terms & haystack)
+            coverage = overlap / len(terms)
+            if overlap and coverage >= 0.5:
+                pair = (row["entity"], row["relation"])
+                matched_pairs[pair] = max(coverage, matched_pairs.get(pair, 0.0))
 
-        results = []
-        for entity, relation in matched_pairs:
-            q = self.query(entity, relation)
-            if q:
-                results.append(q)
+        ranked: list[tuple[float, float, WeaveQuery]] = []
+        for (entity, relation), coverage in matched_pairs.items():
+            result = self.query(entity, relation)
+            if result:
+                ranked.append((coverage, result.confidence, result))
 
-        results.sort(key=lambda x: x.confidence, reverse=True)
-        return results[:limit]
+        ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        return [item[2] for item in ranked[:limit]]
 
     # ── PRIVATE HELPERS (ported for query()) ──────────────────────────
 
