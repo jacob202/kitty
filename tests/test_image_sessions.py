@@ -320,3 +320,12 @@ def test_session_project_scope_rejects_unknown_project(_fresh_db):
     _insert_project(_fresh_db)
     with pytest.raises(ImageSessionError, match="project"):
         sessions.create_session(project_id=999_999)
+
+def test_set_character_can_bind_and_clear_active_session():
+    from gateway import image_sessions
+
+    session = image_sessions.create_session(character_id=None)
+    bound = image_sessions.set_character(session.session_id, "char_example")
+    assert bound.character_id == "char_example"
+    cleared = image_sessions.set_character(session.session_id, None)
+    assert cleared.character_id is None

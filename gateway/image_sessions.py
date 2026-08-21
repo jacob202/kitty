@@ -529,6 +529,21 @@ def set_anchor(session_id: str, job_id: str) -> ImageSession:
     return require_session(session_id)
 
 
+def set_character(session_id: str, character_id: str | None) -> ImageSession:
+    """Set or clear the character bound to an active image conversation."""
+    _require_active(session_id)
+    value = str(character_id).strip() if character_id is not None else None
+    if value == "":
+        value = None
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute(
+            "UPDATE image_sessions SET character_id = ?, updated_at = ? WHERE session_id = ?",
+            (value, _now_iso(), session_id),
+        )
+    return require_session(session_id)
+
+
 def clear_anchor(session_id: str) -> ImageSession:
     """Drop the current anchor, returning the session to fresh generation."""
     _require_active(session_id)

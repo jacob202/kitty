@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Image as ImageIcon, RefreshCw, Square, X } from 'lucide-react'
 import { useImageStatus } from '@/lib/queries'
+import { ImageCharacterTray } from './ImageCharacterTray'
 
 type QualityTier = 'fast' | 'quality' | 'maximum'
 type IdentityMode = 'creative' | 'balanced' | 'identity_first'
@@ -110,6 +111,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   const [turns, setTurns] = useState<Turn[]>([])
   const [batches, setBatches] = useState<ImageBatch[]>([])
   const [anchorJobId, setAnchorJobId] = useState<string | null>(null)
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const estimateAbort = useRef<AbortController | null>(null)
@@ -157,6 +159,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
         if (cancelled) return
         setSessionId(session.session_id)
         setAnchorJobId(session.anchor_job_id ?? null)
+        setSelectedCharacterId(session.character_id ?? null)
         const restoredTurns = Array.isArray(session.turns)
           ? session.turns
               .filter((turn: any) => (turn.role === 'user' || turn.role === 'assistant') && typeof turn.content === 'string')
@@ -210,13 +213,30 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
     const response = await fetch('/proxy/studio/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify(selectedCharacterId ? { character_id: selectedCharacterId } : {}),
     })
     const session = await jsonOrError(response)
     const id = String(session.session_id)
     setSessionId(id)
     window.localStorage.setItem(SESSION_KEY, id)
     return id
+  }
+
+  async function selectCharacter(characterId: string | null) {
+    setError(null)
+    if (sessionId) {
+      try {
+        await jsonOrError(await fetch(`/proxy/studio/sessions/${encodeURIComponent(sessionId)}/character`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ character_id: characterId }),
+        }))
+      } catch (err) {
+        setError(humanError(err))
+        return
+      }
+    }
+    setSelectedCharacterId(characterId)
   }
 
   async function send() {
@@ -360,6 +380,8 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
               )}
             </div>
           ))}
+
+          <ImageCharacterTray selectedCharacterId={selectedCharacterId} onSelect={selectCharacter} />
 
           <div style={composerStyle}>
             {anchorJobId && (

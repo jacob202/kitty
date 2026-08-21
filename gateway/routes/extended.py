@@ -714,6 +714,10 @@ class AnchorRequest(BaseModel):
     job_id: str
 
 
+class SessionCharacterRequest(BaseModel):
+    character_id: Optional[str] = None
+
+
 def _session_payload(session) -> dict:
     """A session plus the turns and jobs a resumed conversation replays."""
     from gateway import image_sessions
@@ -759,6 +763,27 @@ async def studio_get_session(session_id: str):
         session = require_session(session_id)
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    return _session_payload(session)
+
+
+
+
+@router.patch("/studio/sessions/{session_id}/character")
+async def studio_set_session_character(session_id: str, req: SessionCharacterRequest):
+    from gateway.image_characters import CharacterError, get_character
+    from gateway.image_sessions import ImageSessionError, SessionNotFoundError, set_character
+
+    if req.character_id is not None:
+        try:
+            get_character(req.character_id)
+        except CharacterError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+    try:
+        session = set_character(session_id, req.character_id)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ImageSessionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return _session_payload(session)
 
 
