@@ -12,7 +12,9 @@ import gateway.context_assembler as context_assembler
 import gateway.routes.completions as completions
 from gateway.auth import BearerAuthMiddleware
 from gateway.context_assembler import ContextBundle
+from gateway.doctor import Check
 from gateway.routes.chats import router as chats_router
+from gateway.routes.repairs import _to_repair
 
 
 async def _hermetic_context(*args, **kwargs) -> ContextBundle:
@@ -39,3 +41,25 @@ app.include_router(completions.router)
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/repairs")
+async def repairs() -> dict[str, object]:
+    checks = [
+        Check("FAIL", "env:.env", "missing — copy .env.example to /Users/jacob/kitty/.env"),
+        Check("WARN", "env:llm_key", "none of ['OPENAI_API_KEY'] set — models will fail"),
+        Check(
+            "FAIL",
+            "runtime:venv",
+            "no venv at /Users/jacob/kitty/venv — run: python3.11 -m venv venv && venv/bin/pip install -r requirements.txt",
+        ),
+        Check("FAIL", "service:gateway", "unreachable: http://127.0.0.1:8000/health — run: kitty up"),
+        Check("WARN", "store:mem0", "memory client request failed with status code 503"),
+        Check("WARN", "codegraph:daemon", "daemon index handshake timed out after 30 seconds"),
+    ]
+    return {
+        "ok": False,
+        "checks_run": len(checks),
+        "issues": len(checks),
+        "repairs": [_to_repair(check) for check in checks],
+    }

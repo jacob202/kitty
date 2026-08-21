@@ -73,28 +73,28 @@ _PLAIN_ENGLISH: dict[str, str] = {
     "env:api-keys": "A model provider needs setup",
     "env:single-key": "A model provider needs setup",
     "env:llm_key": "A model provider needs setup",
-    "env:gateway_secret": "Gateway protection needs setup",
+    "env:gateway_secret": "Kitty protection needs setup",
     "env:telegram_token": "Telegram is not connected",
-    "env:parse": "Some environment settings need attention",
-    "service:gateway": "The Kitty gateway is not responding",
-    "service:litellm": "The model router is not responding",
+    "env:parse": "Some setup needs attention",
+    "service:gateway": "Kitty's core service is unavailable",
+    "service:litellm": "Model routing is temporarily unavailable",
     "services:chromadb": "The knowledge store is not reachable",
     "store:chromadb": "The knowledge store needs attention",
-    "store:mem0": "Memory services need attention",
-    "mem0:installed": "Mem0 is not installed",
-    "mem0:broker": "Mem0 broker is not reachable",
-    "venv:python": "The Python environment needs attention",
-    "venv:requirements": "Python requirements need attention",
-    "runtime:venv": "The Python environment needs attention",
+    "store:mem0": "Memory search is temporarily unavailable",
+    "mem0:installed": "Memory search needs setup",
+    "mem0:broker": "Memory search is temporarily unavailable",
+    "venv:python": "A background service needs setup",
+    "venv:requirements": "A background service needs setup",
+    "runtime:venv": "A background service needs setup",
     "disk:free": "Disk space is running low",
     "disk:data": "Kitty storage needs attention",
     "disk:data_dir": "Kitty storage needs attention",
-    "codegraph:index": "CodeGraph index is stale or missing",
-    "codegraph:auto-sync": "CodeGraph auto-sync is disabled",
-    "codegraph:daemon": "CodeGraph needs attention",
-    "codegraph:index_freshness": "CodeGraph index needs attention",
-    "gateway:freshness": "The gateway process is stale",
-    "runtime:gateway_freshness": "The gateway process is stale",
+    "codegraph:index": "Search indexing needs attention",
+    "codegraph:auto-sync": "Search indexing needs attention",
+    "codegraph:daemon": "Search indexing needs attention",
+    "codegraph:index_freshness": "Search indexing needs attention",
+    "gateway:freshness": "Kitty's core service needs attention",
+    "runtime:gateway_freshness": "Kitty's core service needs attention",
     "builder:silent-transitions": "Builder has incomplete transition history",
     "builder:zombie-tasks": "Builder has zombie tasks",
     "queue:backup-age": "The queue backup is getting old",
@@ -126,23 +126,27 @@ _INTERNAL_DETAIL_MARKERS = (
 
 def _public_detail(check) -> str:
     detail = str(check.detail or "")
-    if not any(marker.lower() in detail.lower() for marker in _INTERNAL_DETAIL_MARKERS):
-        return detail
     name = str(check.name)
     if name.startswith("env:"):
         return "Kitty's configuration needs attention."
     if name == "service:gateway":
-        return "Kitty could not reach its core service."
+        return "Kitty could not reach a core service."
     if name == "service:litellm":
         return "Model routing is not responding right now."
+    if name.startswith("service:"):
+        return "A Kitty service needs attention."
+    if name.startswith(("store:mem0", "mem0:")):
+        return "Memory search is unavailable right now."
     if name.startswith(("store:", "services:", "mem0:")):
         return "A local data service needs attention."
     if name.startswith(("runtime:", "venv:")):
-        return "Kitty's local runtime needs attention."
+        return "A background service needs setup."
     if name.startswith("disk:"):
         return "Kitty's local storage needs attention."
     if name.startswith("codegraph:"):
-        return "The code index needs attention."
+        return "Search indexing needs attention."
+    if not any(marker.lower() in detail.lower() for marker in _INTERNAL_DETAIL_MARKERS):
+        return detail
     return "Technical details are available in diagnostics."
 
 
@@ -199,7 +203,7 @@ def _pass_title(name: str, detail: str) -> str:
 def _fix_action(check) -> dict | None:
     name = check.name
 
-    if "env" in name:
+    if name.startswith("env:"):
         return {
             "label": "View setup guide",
             "action_kind": "repair.check",
@@ -208,14 +212,14 @@ def _fix_action(check) -> dict | None:
 
     if "service:gateway" in name:
         return {
-            "label": "Check gateway again",
+            "label": "Try again",
             "action_kind": "repair.check",
             "check_name": name,
         }
 
     if "service:litellm" in name:
         return {
-            "label": "Check routing again",
+            "label": "Try again",
             "action_kind": "repair.check",
             "check_name": name,
         }
@@ -236,28 +240,28 @@ def _fix_action(check) -> dict | None:
 
     if "mem0" in name:
         return {
-            "label": "Check memory again",
+            "label": "Try again",
             "action_kind": "repair.check",
             "check_name": name,
         }
 
     if "venv" in name:
         return {
-            "label": "Check environment again",
+            "label": "Try again",
             "action_kind": "repair.check",
             "check_name": name,
         }
 
     if "codegraph" in name:
         return {
-            "label": "Recheck index",
+            "label": "Try again",
             "action_kind": "repair.check",
             "check_name": name,
         }
 
     if "gateway:freshness" in name:
         return {
-            "label": "Recheck gateway",
+            "label": "Try again",
             "action_kind": "repair.check",
             "check_name": name,
         }

@@ -299,10 +299,11 @@ describe('HomeState', () => {
 
   it('shows all-green health strip when everything answers', () => {
     render(<HomeState />);
-    expect(screen.getByText('gateway live')).toBeInTheDocument();
+    expect(screen.getByText('Kitty is connected')).toBeInTheDocument();
     expect(screen.getByText('routing live · 2 models')).toBeInTheDocument();
     expect(screen.getByText('chat store ok · 3 saved')).toBeInTheDocument();
     expect(screen.getByText('retry')).toBeInTheDocument();
+    expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
   });
 
   it('shows the gateway down fix when the gateway is down', () => {
@@ -312,9 +313,19 @@ describe('HomeState', () => {
     });
     render(<HomeState />);
     expect(
-      screen.getAllByText(/gateway is not reachable — check if Kitty is running/).length,
+      screen.getAllByText(/Kitty is not connected — check if Kitty is running/).length,
     ).toBeGreaterThan(0);
     expect(screen.getByText('routing unknown')).toBeInTheDocument();
+    expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
+  });
+
+  it('uses product language while the health strip is still checking', () => {
+    (useGatewayHealth as Mock).mockReturnValue({ data: undefined, isPending: true });
+    (useGatewayModels as Mock).mockReturnValue({ data: undefined, isPending: true });
+    (useChatsPersistence as Mock).mockReturnValue({ data: undefined, isPending: true });
+    render(<HomeState />);
+    expect(screen.getByText('checking Kitty connection — status lands here in a sec…')).toBeInTheDocument();
+    expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
   });
 
   it('shows model routing unavailable from the /health probe, never a fake routing-live', () => {
@@ -775,7 +786,9 @@ describe('HomeState', () => {
       isFetched: true,
     });
     render(<HomeState />);
-    expect(screen.getByText(/nothing was checked/)).toBeInTheDocument();
+    const systemCard = screen.getByText(/nothing was checked/).closest('div');
+    expect(systemCard).toHaveTextContent('nothing was checked — Kitty could not complete its health checks');
+    expect(systemCard).not.toHaveTextContent(/gateway/i);
     expect(screen.queryByText(/everything looks healthy/)).not.toBeInTheDocument();
   });
 
