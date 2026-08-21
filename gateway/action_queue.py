@@ -19,8 +19,16 @@ A kind absent from the tier file cannot be registered. A kind listed under
 error. There is no runtime mutation API for tiers and no retry/scheduling of
 failed actions (both out of scope for v1).
 
+On top of that baseline, ``gateway.action_grants`` records what the *user* has
+standing-decided (allow/ask/deny for a scope, optionally expiring, session-bound
+or spend-capped) and ``execute`` consults it before dispatch. A grant can
+authorize an action the tier sheet would have asked about; it can never make a
+disabled kind or a missing executor valid, because those are refused first.
+
 Public API:
-  propose(*, source_kind, kind, title, preview, source_id=None, payload=None) -> dict
+  propose(*, source_kind, kind, title, preview, source_id=None, payload=None,
+          scope_type="global", scope_id="", session_id=None,
+          estimated_cost_usd=None) -> dict
   approve(action_id) -> dict
   reject(action_id) -> dict
   execute(action_id) -> dict
@@ -37,7 +45,7 @@ import time
 import uuid
 from typing import Any, Callable
 
-from gateway import calendar_integration, delegation, storage_router
+from gateway import action_grants, calendar_integration, delegation, storage_router
 from gateway import db as kitty_db
 from gateway.paths import ACTION_TIERS_FILE, DRAFTS_DIR, KITTY_DB_FILE
 
@@ -76,7 +84,19 @@ class ActionPayloadError(ActionError):
 
 
 class TierViolation(ActionError):
-    """A T2 action was asked to execute without approval (403-shaped)."""
+    """The action must be approved before it can execute (403-shaped).
+
+    Raised when the policy layer's answer is "ask" — either the signed tier
+    requires per-action approval, or a scoped grant says to ask every time.
+    """
+
+
+class GrantDenied(ActionError):
+    """A scoped user grant denies this action outright (403-shaped).
+
+    Distinct from :class:`TierViolation`: approving the individual proposal
+    does not clear it. The grant has to be revoked first.
+    """
 
 
 class ActionNotFound(ActionError):
@@ -202,21 +222,50 @@ def propose(
     preview: str,
     source_id: str | None = None,
     payload: dict[str, Any] | None = None,
+    scope_type: str = "global",
+    scope_id: str = "",
+    session_id: str | None = None,
+    estimated_cost_usd: float | None = None,
 ) -> dict[str, Any]:
-    """Record a proposed action. Rejects unknown/disabled kinds and bad payloads."""
+    """Record a proposed action. Rejects unknown/disabled kinds and bad payloads.
+
+    ``scope_type``/``scope_id`` say what this action is *for* — a project, a
+    site, an integration — so a scoped grant has something to match against.
+    ``estimated_cost_usd`` lets a budget-limited grant check its ceiling; left
+    unset, such a grant asks rather than spending an unknown amount.
+    """
     payload = payload or {}
     registry = _registry()
     if kind not in registry:
         raise UnknownActionKind(f"no executor registered for kind {kind!r}")
     tier, _ = registry[kind]
     _validate_payload(kind, payload)
+    try:
+        action_grants.validate_scope(scope_type, scope_id)
+    except action_grants.GrantValidationError as exc:
+        raise ActionPayloadError(str(exc)) from exc
+    if estimated_cost_usd is not None and estimated_cost_usd < 0:
+        raise ActionPayloadError("estimated_cost_usd must not be negative")
 
     init_db()
     with kitty_db.connect(ACTIONS_DB_FILE) as conn:
         cursor = conn.execute(
             "INSERT INTO actions (source_kind, source_id, kind, title, preview, "
-            "payload, risk_tier) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (source_kind, source_id, kind, title, preview, json.dumps(payload), tier),
+            "payload, risk_tier, scope_type, scope_id, session_id, estimated_cost_usd) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                source_kind,
+                source_id,
+                kind,
+                title,
+                preview,
+                json.dumps(payload),
+                tier,
+                scope_type,
+                scope_id,
+                session_id,
+                estimated_cost_usd,
+            ),
         )
         conn.commit()
         action_id = cursor.lastrowid
@@ -252,28 +301,91 @@ def execute(action_id: int) -> dict[str, Any]:
     if kind not in registry:
         # Kind was disabled or removed from the tier file after this row was
         # proposed — refuse rather than dispatch something no longer sanctioned.
+        # This is precedence rule 1 in issue #554: no grant can reach past it.
         raise UnknownActionKind(f"no executor registered for kind {kind!r}")
     # Enforce the tier the signed sheet carries *now*, not the tier stamped on
     # the row at propose time — an escalation (e.g. T0 → T2) must gate a queued
     # action, not be bypassed by its stale risk_tier.
     tier, fn = registry[kind]
-    if tier not in _AUTO_EXECUTE_TIERS and status != "approved":
-        raise TierViolation(f"{tier} action {action_id} requires approval before execution")
+    decision = action_grants.evaluate(
+        capability=kind,
+        tier=tier,
+        status=status,
+        scope_type=action["scope_type"],
+        scope_id=action["scope_id"],
+        session_id=action["session_id"],
+        estimated_cost_usd=action["estimated_cost_usd"],
+        auto_execute_tiers=_AUTO_EXECUTE_TIERS,
+    )
+    if decision.outcome == "deny":
+        raise GrantDenied(f"action {action_id} denied: {decision.reason}")
+    if decision.outcome != "allow":
+        raise TierViolation(f"action {action_id} requires approval: {decision.reason}")
 
     _validate_payload(kind, action["payload"])
+
+    # Reserve the spend before dispatching, not after it succeeds. Two actions
+    # can both clear `evaluate` against the same ceiling; the conditioned
+    # reservation is what stops the second one from running at all.
+    cost = action["estimated_cost_usd"]
+    reserved = _reserve_budget(decision, cost)
 
     # Claim the row atomically before any side effect: a concurrent /execute
     # (double-click, client retry) that already claimed it finds no matching
     # row here and is refused, so one action dispatches exactly once.
     if not _claim_for_execution(action_id, status):
+        _release_budget(action_id, decision, cost, reserved)
         raise ActionStateError(f"action {action_id} is no longer {status!r} — already claimed")
 
     try:
         result = fn(action["payload"])
     except Exception as exc:
         logger.warning("action %s (%s) failed: %s", action_id, kind, exc)
+        # No side effect happened, so the reservation must go back rather than
+        # quietly eating part of the user's ceiling.
+        _release_budget(action_id, decision, cost, reserved)
         return _finish(action_id, "failed", f"{type(exc).__name__}: {exc}")
     return _finish(action_id, "executed", result)
+
+
+def _reserve_budget(decision: action_grants.Decision, cost_usd: float | None) -> bool:
+    """Hold this action's cost against the grant that authorized it.
+
+    Returns whether a reservation was taken. Raises :class:`TierViolation` when
+    the ceiling can no longer absorb the cost — the user is asked rather than
+    the spend happening anyway.
+    """
+    if not decision.charges_budget or decision.grant_id is None or cost_usd is None:
+        return False
+    try:
+        action_grants.record_spend(decision.grant_id, cost_usd)
+    except action_grants.GrantValidationError as exc:
+        raise TierViolation(f"budget exhausted before execution: {exc}") from exc
+    return True
+
+
+def _release_budget(
+    action_id: int,
+    decision: action_grants.Decision,
+    cost_usd: float | None,
+    reserved: bool,
+) -> None:
+    """Return a reservation for a side effect that never happened."""
+    if not reserved or decision.grant_id is None or cost_usd is None:
+        return
+    try:
+        action_grants.release_spend(decision.grant_id, cost_usd)
+    except action_grants.GrantError as exc:
+        # Over-reserved is the safe direction: the ceiling stays conservative
+        # until the user inspects it. Loud, never silent.
+        logger.error(
+            "action %s did not run but its $%s reservation on grant %s could not "
+            "be released: %s",
+            action_id,
+            cost_usd,
+            decision.grant_id,
+            exc,
+        )
 
 
 def _claim_for_execution(action_id: int, expected_status: str) -> bool:
@@ -374,7 +486,8 @@ def _slug(text: str) -> str:
 
 _COLUMNS = (
     "id, created_at, source_kind, source_id, kind, title, preview, payload, "
-    "risk_tier, status, result, decided_at, executed_at"
+    "risk_tier, status, result, decided_at, executed_at, scope_type, scope_id, "
+    "session_id, estimated_cost_usd"
 )
 
 
@@ -393,4 +506,8 @@ def _row_to_action(row: Any) -> dict[str, Any]:
         "result": row["result"],
         "decided_at": row["decided_at"],
         "executed_at": row["executed_at"],
+        "scope_type": row["scope_type"],
+        "scope_id": row["scope_id"],
+        "session_id": row["session_id"],
+        "estimated_cost_usd": row["estimated_cost_usd"],
     }
