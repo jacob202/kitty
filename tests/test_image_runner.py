@@ -279,6 +279,7 @@ class TestCharacterPath:
             steps=26,
             cfg=3.0,
             guidance_tags=None,
+            project_id=None,
         )
         assert result.character_weight == 0.7
         assert result.recipe == "jacob-sdxl-v1"

@@ -138,3 +138,14 @@ def test_reregistration_refreshes_file_derived_fields_and_parent_metadata(tmp_pa
     assert refreshed["storage_uri"] == str(replacement.resolve())
     assert refreshed["metadata"]["parent_artifact_id"] == parent_artifact["id"]
     assert len(artifact_store.list_artifacts(kind="image")) == 2
+
+
+def test_image_artifact_accepts_explicit_project_scope(tmp_path):
+    job = image_jobs.create_job("flux2", "txt2img", model_id="flux-project")
+    path = _output(tmp_path, "project.png")
+    image_jobs.update_job(job.job_id, output_path=str(path))
+
+    artifact = image_jobs.register_canonical_artifact(job.job_id, project_id=42)
+
+    assert artifact["project_id"] == 42
+    assert artifact_store.get_artifact(artifact["id"])["project_id"] == 42
