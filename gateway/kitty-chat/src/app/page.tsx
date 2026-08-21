@@ -104,6 +104,12 @@ export default function KittyChat() {
           )}
           {k.activeView === 'chat' && !k.isMobile && <SignalFeed compact={k.isMobile} />}
 
+          {k.viewPersistenceWarning && (
+            <div role="status" style={{ padding: '8px 16px', borderBottom: '1px solid var(--line)', color: 'var(--c-yellow)', fontSize: 12 }}>
+              {k.viewPersistenceWarning}
+            </div>
+          )}
+
           <StatusBar
             showChatSignals={k.activeView === 'chat' || k.activeView === 'home'}
             attachmentErrors={k.attachmentErrors}

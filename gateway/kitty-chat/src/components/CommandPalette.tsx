@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Command } from 'cmdk'
-import { House, MessageSquare, CheckSquare, Wrench, Plus, PanelLeft, Settings, Image, BookOpen, Users, type LucideIcon } from 'lucide-react'
+import { House, MessageSquare, CheckSquare, Plus, PanelLeft, Settings, Image, BookOpen, Users, type LucideIcon } from 'lucide-react'
 import type { Chat } from '@/lib/types'
 
 interface Props {
@@ -20,7 +20,6 @@ const VIEW_COMMANDS: Array<{ id: string; label: string; icon: LucideIcon }> = [
   { id: 'work', label: 'work', icon: CheckSquare },
   { id: 'projects', label: 'projects', icon: BookOpen },
   { id: 'studio', label: 'studio', icon: Image },
-  { id: 'builder', label: 'builder', icon: Wrench },
   { id: 'agents', label: 'agents', icon: Users },
   { id: 'library', label: 'library', icon: BookOpen },
   { id: 'tutor', label: 'tutor', icon: BookOpen },
