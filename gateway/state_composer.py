@@ -99,7 +99,7 @@ def changes_since_snapshot() -> dict[str, Any]:
             "current_ts": current["ts"],
             "changes": [],
             "new_signals": [],
-            "note": "no snapshot yet — POST /state/snapshot to create a baseline",
+            "note": "No comparison point yet — use mark point to start tracking changes.",
         }
     baseline = json.loads(row["snapshot"])
     return {

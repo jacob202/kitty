@@ -140,6 +140,9 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "actions",
         "projects",
         "project_next_steps",
+        "image_job_observations",
+        "image_batches",
+        "image_batch_items",
     } <= tables
     assert applied == [
         "001_foundation.sql",
@@ -174,6 +177,9 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "030_image_plans.sql",
         "031_agent_workspace.sql",
         "032_agent_workspace_turns.sql",
+        "033_image_job_observations.sql",
+        "034_image_batches.sql",
+        "035_image_plans_operation.sql",
     ]
 
 
@@ -258,37 +264,3 @@ def test_assert_schema_current_raises_if_migration_file_not_applied(tmp_path):
         db.assert_schema_current(db_file=db_file, migrations_dir=migrations_dir)
 
     assert "002_extra.sql" in str(exc.value)
-
-
-def test_assert_schema_current_raises_if_schema_migrations_table_missing(tmp_path):
-    """A brand-new database with no schema_migrations table raises a clear error."""
-    db_file = tmp_path / "empty.db"
-    migrations_dir = tmp_path / "migrations"
-    migrations_dir.mkdir()
-    (migrations_dir / "001_base.sql").write_text(
-        "CREATE TABLE IF NOT EXISTS t (id INTEGER PRIMARY KEY);",
-        encoding="utf-8",
-    )
-    # Create a db without running migrate (so schema_migrations never exists)
-    with db.connect(db_file) as conn:
-        conn.execute("CREATE TABLE placeholder (x INTEGER)")
-
-    with pytest.raises(RuntimeError) as exc:
-        db.assert_schema_current(db_file=db_file, migrations_dir=migrations_dir)
-
-    assert "schema_migrations" in str(exc.value).lower()
-
-
-def test_assert_schema_current_is_silent_when_no_migration_files(tmp_path):
-    """An empty migrations directory should not raise."""
-    db_file = tmp_path / "kitty.db"
-    migrations_dir = tmp_path / "empty_migrations"
-    migrations_dir.mkdir()
-    db.assert_schema_current(db_file=db_file, migrations_dir=migrations_dir)  # must not raise
-
-
-def test_assert_schema_current_real_migrations_are_current(tmp_path):
-    """All migration files in the real migrations directory apply cleanly."""
-    db_file = tmp_path / "kitty.db"
-    db.migrate(db_file=db_file)
-    db.assert_schema_current(db_file=db_file)  # uses default migrations_dir

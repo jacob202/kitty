@@ -53,12 +53,13 @@ test.describe('phone layout', () => {
     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.width + 1);
   });
 
-  test('the tab bar does not cover the composer', async ({ page }) => {
+  test('the tab bar does not cover the chat composer', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
 
     const nav = page.getByRole('navigation', { name: 'Main navigation' });
     await expect(nav).toBeVisible();
+    await nav.getByRole('button', { name: 'Chat', exact: true }).click();
 
     const composer = page.locator('textarea').first();
     await expect(composer).toBeVisible();
@@ -98,6 +99,8 @@ test.describe('phone layout', () => {
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
 
+    const nav = page.getByRole('navigation', { name: 'Main navigation' });
+    await nav.getByRole('button', { name: 'Chat', exact: true }).click();
     await page.getByRole('button', { name: 'Open sidebar' }).click();
     const drawer = page.getByTestId('mobile-chat-drawer');
     await expect(drawer).toBeVisible();

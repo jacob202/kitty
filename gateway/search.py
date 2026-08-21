@@ -127,6 +127,8 @@ async def async_search(query: str, limit: int = 5) -> dict[str, Any]:
         "todos": [],
         "inbox": [],
         "query": query,
+        "stores": list(raw.results.keys()),
+        "errors": list(raw.errors),
     }
 
     for raw_key, items in raw.results.items():
