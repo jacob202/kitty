@@ -81,6 +81,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function isEvidence(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false
+  return ['approval', 'review', 'validation', 'publication'].every((field) => {
+    const nested = value[field]
+    return nested === undefined || nested === null || isRecord(nested)
+  })
+}
+
 function isWorkItem(value: unknown): value is GatewayWorkItem {
   if (!isRecord(value)) return false
   return (
@@ -91,7 +99,7 @@ function isWorkItem(value: unknown): value is GatewayWorkItem {
     && isRecord(value.source)
     && value.source.kind === 'builder'
     && typeof value.source.initiative_id === 'string'
-    && isRecord(value.evidence)
+    && isEvidence(value.evidence)
     && isRecord(value.data_quality)
     && typeof value.data_quality.state === 'string'
     && (

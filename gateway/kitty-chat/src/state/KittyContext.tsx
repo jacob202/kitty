@@ -365,7 +365,7 @@ export function KittyProvider({ children }: { children: ReactNode }) {
       const remembered = window.localStorage.getItem(ACTIVE_VIEW_STORAGE_KEY)
       if (remembered) setRawView(canonicalActiveView(remembered))
     } catch {
-      // Home remains the safe default when browser storage is unavailable.
+      setViewPersistenceWarning('This view cannot be remembered for reload because browser storage is unavailable.')
     }
   }, [])
 

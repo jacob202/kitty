@@ -178,6 +178,18 @@ describe('WorkView projection', () => {
     expect(screen.getByText('Review evidence available')).toBeVisible()
   })
 
+  it('does not treat inherited object keys as known Work detail labels', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      counts: { total: 1, active: 0, paused: 0, failed: 0, blocked: 1, completed: 0, ready: 0, waiting: 0 },
+      items: [{ ...base, state: 'blocked', blocker: { reason: '__proto__' }, next_action: null }],
+    })
+
+    expect(screen.getAllByText('__proto__').length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'Work' })).toBeVisible()
+  })
+
   it('shows degraded Builder truth without switching surfaces', () => {
     renderSnapshot({ ...snapshot(), source: { kind: 'builder', state: 'degraded', reason: 'partial Builder data' } })
     expect(screen.getByText('Builder degraded')).toBeVisible()

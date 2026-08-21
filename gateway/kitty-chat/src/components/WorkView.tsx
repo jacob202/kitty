@@ -138,7 +138,7 @@ function rawWorkDetail(item: GatewayWorkItem): string | null {
 function workDetailLabel(item: GatewayWorkItem): string | null {
   const raw = rawWorkDetail(item)
   if (!raw) return null
-  const known = WORK_DETAIL_LABELS[raw]
+  const known = Object.hasOwn(WORK_DETAIL_LABELS, raw) ? WORK_DETAIL_LABELS[raw] : undefined
   if (known) return known
   if (/^[a-z0-9]+(?:_[a-z0-9]+)+$/i.test(raw)) {
     const words = raw.replaceAll('_', ' ')

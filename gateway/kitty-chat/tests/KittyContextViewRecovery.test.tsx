@@ -92,6 +92,21 @@ describe('Kitty active view recovery', () => {
     expect(screen.getByRole('status')).toHaveTextContent('This view cannot be remembered for reload because browser storage is unavailable.')
   })
 
+  it('surfaces a warning when remembered-view storage cannot be read on reload', async () => {
+    const originalGetItem = window.localStorage.getItem.bind(window.localStorage)
+    vi.spyOn(window.localStorage, 'getItem').mockImplementation((key: string) => {
+      if (key === 'kitty-active-view') throw new DOMException('storage denied')
+      return originalGetItem(key)
+    })
+
+    mountHarness()
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(
+      'This view cannot be remembered for reload because browser storage is unavailable.',
+    ))
+    expect(screen.getByTestId('active-view')).toHaveTextContent('home')
+  })
+
   it('restores canonical Work after reload instead of falling back to Home', async () => {
     const first = mountHarness()
     await waitFor(() => expect(screen.getByTestId('active-view')).toHaveTextContent('home'))
