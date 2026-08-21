@@ -248,6 +248,25 @@ def _builder_fact(*, observed_at: str, valid_until: str) -> dict[str, Any]:
         )
 
 
+def _grant_posture() -> dict[str, Any]:
+    """Standing user grants, summarized for a model turn (issue #554).
+
+    An unreadable grant store reports itself as unknown. Returning "no grants"
+    instead would read to a turn as "nothing is restricted and nothing is
+    pre-authorized", which is the one wrong answer here.
+    """
+    try:
+        from gateway import action_grants
+    except ImportError as exc:  # pragma: no cover - import wiring fault
+        return {"state": "unknown", "reason": f"grant module unavailable: {exc}"}
+    try:
+        posture = action_grants.approval_posture()
+    except Exception as exc:
+        logger.warning("Grant posture unavailable: %s", exc)
+        return {"state": "unknown", "reason": f"grant store read failed: {exc}"}
+    return {"state": "available", **posture}
+
+
 def _approval_fact(*, observed_at: str, valid_until: str) -> dict[str, Any]:
     try:
         raw = json.loads(ACTION_TIERS_FILE.read_text())
@@ -264,6 +283,7 @@ def _approval_fact(*, observed_at: str, valid_until: str) -> dict[str, Any]:
                 "disabled": disabled,
                 "auto_execute_tiers": ["T0", "T1"],
                 "approval_required_tiers": ["T2"],
+                "grants": _grant_posture(),
             },
             source=str(ACTION_TIERS_FILE),
             observed_at=observed_at,

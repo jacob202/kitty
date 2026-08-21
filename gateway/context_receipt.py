@@ -1225,13 +1225,23 @@ def inspect_continuity(
             base_ancestor = _git(
                 repo_root, ["merge-base", "--is-ancestor", base_sha, head], required=False
             )
+            # A base that exists but is no longer an ancestor is WARN, not FAIL,
+            # for the same reason `_checkpoint_head_check` treats an orphaned
+            # head that way: squash-merging the PR a mission was approved on
+            # replaces that tip with a new commit, so the approved base leaves
+            # main's first-parent line as soon as the mission's own groundwork
+            # lands. A base missing from the object database entirely stays FAIL
+            # above — that is a broken approval record, not a squash.
             checks.append(
                 ContinuityCheck(
-                    "PASS" if base_ancestor.returncode == 0 else "FAIL",
+                    "PASS" if base_ancestor.returncode == 0 else "WARN",
                     "mission:base_sha",
                     base_sha
                     if base_ancestor.returncode == 0
-                    else f"mission base {base_sha} is not an ancestor of HEAD {head}",
+                    else (
+                        f"mission base {base_sha} is not an ancestor of HEAD {head} "
+                        "(squash-merged or superseded)"
+                    ),
                 )
             )
         mission_status = mission.get("status")
