@@ -119,6 +119,22 @@ describe('WorkView projection', () => {
     expect(screen.getByText('Review evidence available')).toBeVisible()
   })
 
+  it('shows degraded Builder truth without switching surfaces', () => {
+    renderSnapshot({ ...snapshot(), source: { kind: 'builder', state: 'degraded', reason: 'partial Builder data' } })
+    expect(screen.getByText('Builder degraded')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Work' })).toBeVisible()
+  })
+
+  it('keeps Work visible when the Gateway request fails and exposes retry', () => {
+    const refetch = vi.fn()
+    useWorkSnapshot.mockReturnValue({ data: undefined, isPending: false, isError: true, error: new Error('offline'), refetch })
+    render(<WorkView isMobile={false} />)
+    expect(screen.getByRole('heading', { name: 'Work' })).toBeVisible()
+    expect(screen.getByText(/Work unavailable: offline/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
   it('marks expired cached work stale', () => {
     renderSnapshot(snapshot('2000-01-01T00:00:00Z'))
     expect(screen.getByText('Builder stale')).toBeInTheDocument()

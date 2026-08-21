@@ -39,3 +39,11 @@ it('preserves Gateway error detail and endpoint', async () => {
     'GET /proxy/work failed: 503 Service Unavailable: work source unavailable',
   )
 })
+
+
+it('fails closed when Gateway /work returns an invalid payload', async () => {
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify({ schema_version: 999 }), { status: 200 }))
+  vi.stubGlobal('fetch', fetchMock)
+  const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
+  await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
+})
