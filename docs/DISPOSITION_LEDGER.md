@@ -5,7 +5,7 @@ disposition. Nothing may remain unassigned. This ledger is authoritative; a
 file not listed here is either not a planning document or was added after the
 ledger date and needs disposition.
 
-**Roadmap authority:** `docs/ROADMAP.md` — the only roadmap. It names the KPROOF-001 gate and milestones M1–M6 as one order.
+**Roadmap authority:** `docs/ROADMAP.md` — the only roadmap. KPROOF-001 is terminal; M1–M6 remain blocked pending shell-authority adjudication and explicit activation.
 **Milestone detail:** `docs/ROADMAP_V2.md` — appendix to the above, not a second authority and not a replacement for it.
 **Derived synthesis:** `docs/KITTY_MASTER_PROGRAM.md` — merges ROADMAP, ROADMAP_V2, and the extension backlog into a dependency-ordered program. Not an independent authority.
 **Governance:** `docs/decisions/ARCHITECTURE_RATIFICATION_2026-08-06.md` — 12 adjudicated decisions governing all of the above.
@@ -134,7 +134,7 @@ ledger date and needs disposition.
 | `process-hardening-v1.json` | process-hardening-v1 | ACTIVE | Phase 3.3 | Reproducible review, durable receipts. |
 | `reasoning-backend-v1.json` | reasoning-backend-v1 | BACKLOG | Phase 4.1 | Packet 028 backend slices. |
 | `trust-lane-v1.json` | trust-lane-v1 | BACKLOG | Phase 3.3 | Trust lane sweep. |
-| `v2-driver-baseline-v1.json` | v2-driver-baseline-v1 | BLOCKED | M1–M6, after the KPROOF-001 verdict | First V2 initiative: 10 packets for daily-driver baseline, console re-role, and Builder Work integration, on the M1–M6 scheme detailed in `docs/ROADMAP_V2.md`. **Not ACTIVE while KPROOF-001 runs** — applying it queues tasks, and `eligible_packets()` would then hand a worker any dependency-free packet (M1-09, M2-04, M2-06, M3-03, M3-06), widening the experiment before the proof returns a verdict. Matches the `docs/initiatives/` row below. Live-environment and operator-approval packets remain separately gated behind explicit operator consent. |
+| `v2-driver-baseline-v1.json` | v2-driver-baseline-v1 | BLOCKED | M1–M6, blocked pending shell-authority adjudication | First V2 initiative: 10 packets for daily-driver baseline, console re-role, and Builder Work integration, on the M1–M6 scheme detailed in `docs/ROADMAP_V2.md`. **Still not ACTIVE after KPROOF ended** — applying it queues dependency-free packets, while M1/M2 currently depend on an unresolved Constitution/ADR 0039 shell decision. Matches the `docs/initiatives/` row below. Live-environment and operator-approval packets remain separately gated behind explicit operator consent. |
 
 ### Initiative READMEs and evidence (.md/.sh)
 
@@ -218,7 +218,7 @@ Specific dispositions:
 | File | Disposition | Notes |
 |---|---|---|
 | `CONSTITUTION.md` | ACTIVE | Highest-level design artifact. Ratified 2026-08-05. Consolidates principles from ADRs 003, 017, 027, 028, 029, 032, 034, 036 plus KITTY_PRODUCT_ARCHITECTURE, BLUEPRINT, NORTH_STAR, FREE_MODEL_PACKET_STANDARD, and ROADMAP_V2. |
-| `ROADMAP_V2.md` | BLOCKED | Milestone detail behind `ROADMAP.md`'s M1–M6. Ratified by the Constitution v1 as accepted architecture, not an execution schedule. Blocked on the KPROOF-001 verdict. |
+| `ROADMAP_V2.md` | BLOCKED | Milestone detail behind `ROADMAP.md`'s M1–M6. Ratified by the Constitution v1 as accepted architecture, not an execution schedule. Blocked pending explicit shell-authority adjudication and ROADMAP.md activation. |
 | `KITTY_MASTER_PROGRAM.md` | ACTIVE (derived synthesis) | Derived synthesis of ROADMAP, ROADMAP_V2, and the extension backlog into a dependency-ordered program. Not an independent authority. |
 | `KNOWLEDGE_GRAPH.md` | ACTIVE | Repository knowledge archaeology. Maps ADR supersession chains, document dependencies, initiative-to-roadmap alignment, structural problems, and the minimum architectural-continuity graph for Builder. |
 | `CAPABILITY_MANIFEST.md` | ACTIVE (designed) | Capability Manifest v1 specification. DESIGNED per ADR 0029. Not yet built. |
@@ -275,24 +275,9 @@ Specific dispositions:
 
 ## Summary
 
-- **Total inventoried:** ~160 items (plans, planning, packets, initiatives,
-  research, audit, phases, recon, recommendations, PRs, governance, runbooks)
-- **ACTIVE:** 28 (roadmap, ledger, active missions, in-progress packets/
-  initiatives, review docs, context engineering, CONSTITUTION, ROADMAP_V2,
-  KITTY_MASTER_PROGRAM, KNOWLEDGE_GRAPH, CAPABILITY_MANIFEST,
-  CONTINUITY_RECOVERY, OPENWEBUI_OS_ARCHITECTURE, OPENWEBUI_PRODUCT_PLAN,
-  OPENWEBUI_EXTENSION_BACKLOG, OPENWEBUI_ECOSYSTEM_SURVEY, ARCHITECTURE_RATIFICATION,
-  CLOSEOUT_LEDGER, LOOSE_ENDS, OPENWEBUI_TOMORROW runbook, v2-driver-baseline)
-- **SCHEDULED:** 1 (Image Studio architecture → Phase 4.4)
-- **BLOCKED:** 5 (RunPod work, Image Studio, job search packet)
-- **BACKLOG:** 46 (preserved ideas across all phases, including BUILDER_ORGANIZATION,
-  BUILDER_V2, ktl-002, phase1-smoke-recovery)
-- **SUPERSEDED:** 24 (consumed into shipped work or newer docs)
-- **REJECTED:** 1 (ktf-005 as Builder manifest)
-- **ARCHIVED:** 53 (historical records, shipped packets)
-- **RETIRED:** 1 (ktl-001 in initiatives/retired/)
+The row-level dispositions above are the authority. The old aggregate counts were removed on 2026-08-19 because they had drifted from the rows themselves (for example, `ROADMAP_V2.md` was BLOCKED in its row while the summary counted it as ACTIVE). Do not use hand-maintained totals as execution evidence; derive counts from the canonical rows if a count is needed.
 
-**Unassigned: 0** — every retained file has exactly one disposition.
+**Unassigned:** no known retained planning file is intentionally left without a row, but new files added after the last complete inventory require disposition before they can become execution input.
 
 ---
 
@@ -308,7 +293,7 @@ detail and owners are in [`CLOSEOUT_LEDGER_2026-08-05.md`](CLOSEOUT_LEDGER_2026-
 | `docs/OPENWEBUI_OS_ARCHITECTURE.md` | BACKLOG | Phase 2 daily-driver | Proposal (would evolve ADR 0027 to permanent shell); awaits Jacob decision |
 | `docs/OPENWEBUI_PRODUCT_PLAN.md` | BACKLOG | Phase 2 (M1/M2) | Needs review |
 | `docs/OPENWEBUI_EXTENSION_BACKLOG.md` | BACKLOG | Phase 2 (M1/M2) | Needs review → Builder-managed backlog |
-| `docs/ROADMAP_V2.md` | BLOCKED | ROADMAP.md M1–M6 | Detail appendix to `ROADMAP.md`, which now names M1–M6 as the single post-proof order. The C-5 authority conflict is resolved: there is one roadmap and this is its detail, not a rival plan. **Blocked on the KPROOF-001 verdict** — not SCHEDULED, because a scheduled disposition is what would let `initiative apply` queue dependency-free V2 packets while the proof is still running. |
+| `docs/ROADMAP_V2.md` | BLOCKED | ROADMAP.md M1–M6 | Detail appendix to `ROADMAP.md`, which now names M1–M6 as the single post-proof order. The C-5 authority conflict is resolved: there is one roadmap and this is its detail, not a rival plan. **Still BLOCKED after KPROOF ended** — not SCHEDULED, because the preserved M1/M2 shell assumptions conflict with ADR 0039 and cannot be activated until the Constitution-level conflict is adjudicated. |
 | `docs/initiatives/v2-driver-baseline-v1.json` | BLOCKED | Phase 2 | NOT applied; blocked on needs_decision fix + Jacob approval (P0-7) |
 | `docs/BUILDER_ORGANIZATION.md` | BACKLOG | Phase 1/3 | Design, not implemented |
 | `docs/BUILDER_V2.md` | BACKLOG | Phase 1/3 | Replacement blueprint, not implemented |

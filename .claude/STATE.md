@@ -1,4 +1,4 @@
-# Session State — repo-wide pre-push gate repair
+# Session State — repo-wide pre-push gate repair (superseded)
 
 <!-- kitty-state
 {
@@ -7,13 +7,13 @@
   "head_sha": "18dc32f4f72d15f3594ebf1f0a0a50269e7cc908",
   "branch": "fix/repo-prepush-gate-repair",
   "worktree": ".",
-  "status": "in_progress",
+  "status": "superseded",
   "completed_items": [
     "Reproduced the repo-wide gate failures on current origin/main",
     "Isolated Imagen tests from the user's real face-model cache"
   ],
   "blockers": [],
-  "next_action": "Repair the repo-wide pre-push gate, then publish the reviewed Builder process cleanup",
+  "next_action": "none",
   "invalidation_conditions": [
     "origin/main advances before this gate repair is merged",
     "the repo-wide pre-push gate remains red after the repair"
@@ -38,6 +38,4 @@
 
 ## Current work
 
-- Repair the seven baseline gate failures on current main.
-- Keep the independently reviewed publication fix `e7302fb0` separate.
-- After the gate is healthy, publish/merge that fix and resume KPROOF publication.
+This checkpoint is superseded. Its recorded branch and mission are historical and must not be resumed from this file.

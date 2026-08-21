@@ -1,4 +1,4 @@
-# Handoff — repo-wide pre-push gate repair in progress
+# Handoff — repo-wide pre-push gate repair (superseded)
 
 <!-- kitty-handoff
 {
@@ -7,13 +7,13 @@
   "head_sha": "18dc32f4f72d15f3594ebf1f0a0a50269e7cc908",
   "branch": "fix/repo-prepush-gate-repair",
   "worktree": ".",
-  "status": "in_progress",
+  "status": "superseded",
   "completed_items": [
     "Reproduced the repo-wide gate failures on current origin/main",
     "Isolated Imagen tests from the user's real face-model cache"
   ],
   "blockers": [],
-  "next_action": "Repair the repo-wide pre-push gate, then publish the reviewed Builder process cleanup",
+  "next_action": "none",
   "invalidation_conditions": [
     "origin/main advances before this gate repair is merged",
     "the repo-wide pre-push gate remains red after the repair"
@@ -44,4 +44,4 @@
 
 ## Next action
 
-Make the repo-wide pre-push gate green, then publish the Builder cleanup and resume KPROOF.
+None. This handoff is superseded; use current Git/GitHub/runtime truth and the authority map.

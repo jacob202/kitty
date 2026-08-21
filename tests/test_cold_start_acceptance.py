@@ -90,9 +90,17 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     # satisfy this check, which left a cold reader with no objective to read.
     assert _section_body(documents["active_mission"], "## Objective")
     assert _section_body(documents["active_mission"], "## Acceptance Contract")
-    assert receipt["continuity"]["active_mission"]["status"] == "running"
-    # 6. What is next?
+    mission_status = receipt["continuity"]["active_mission"]["status"]
+    active_statuses = {
+        "proposed", "awaiting_approval", "approved", "accepted", "running", "blocked",
+    }
+    terminal_statuses = {"succeeded", "failed", "cancelled", "superseded"}
+    assert mission_status in active_statuses | terminal_statuses
+    # 6. What is next? Active/blocked missions may name the action that advances or
+    # unblocks them. A terminal mission must not fabricate resumable work.
     assert isinstance(receipt["next_action"], str) and receipt["next_action"]
+    if mission_status in terminal_statuses:
+        assert receipt["next_action"].casefold() in {"none", "n/a"}
     # 7. What is stale or uncertain?
     assert receipt["unknowns"]
     assert "git.origin_main.remote_freshness" in {
