@@ -114,11 +114,6 @@ async def check_now(watch_id: str) -> dict:
     return result
 
 
-def _ensure_polling() -> None:
-    """Compatibility no-op: polling lifecycle is now owned by cron/Automation."""
-    return None
-
-
 async def check_due() -> dict:
     """Check enabled watches whose per-watch interval is due once.
 

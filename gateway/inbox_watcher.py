@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from pathlib import Path
 
@@ -12,8 +11,6 @@ from gateway.paths import INBOX_FILE
 logger = logging.getLogger("kitty.inbox_watcher")
 
 ICLOUD_INBOX = Path.home() / "Library/Mobile Documents/com~apple~CloudDocs/inbox"
-POLL_INTERVAL = 30  # seconds
-
 
 def _ingest(md_file: Path) -> None:
     text = md_file.read_text(encoding="utf-8").strip()
@@ -44,27 +41,3 @@ def scan_once() -> None:
                 raise RuntimeError(
                     f"inbox: failed to ingest {md_file.name} after retry: {retry_exc}"
                 ) from retry_exc
-
-
-# Backward-compatible alias while callers migrate to the Automation/cron action.
-_poll_once = scan_once
-
-
-async def watch_loop() -> None:
-    """Poll iCloud inbox every POLL_INTERVAL seconds."""
-    warned_missing = False
-    logger.info("inbox_watcher: watching %s", ICLOUD_INBOX)
-    while True:
-        if not ICLOUD_INBOX.exists():
-            if not warned_missing:
-                logger.warning(
-                    "inbox_watcher: iCloud inbox not found at %s — waiting",
-                    ICLOUD_INBOX,
-                )
-                warned_missing = True
-            await asyncio.sleep(POLL_INTERVAL)
-            continue
-
-        warned_missing = False
-        scan_once()
-        await asyncio.sleep(POLL_INTERVAL)

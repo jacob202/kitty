@@ -12,7 +12,6 @@ async def test_test_env_skips_external_background_services(monkeypatch):
     import gateway.cron as cron
     import gateway.image_batches as image_batches
     import gateway.image_recipes as image_recipes
-    import gateway.inbox_watcher as inbox_watcher
     import gateway.telegram_bot as telegram_bot
 
     monkeypatch.setenv("KITTY_ENV", "test")
@@ -26,16 +25,11 @@ async def test_test_env_skips_external_background_services(monkeypatch):
 
     started: list[str] = []
 
-    async def inbox_loop() -> None:
-        started.append("inbox-watcher")
-        await asyncio.Event().wait()
-
     async def image_batch_loop(*_args, **_kwargs) -> None:
         started.append("image-batch-worker")
         await asyncio.Event().wait()
 
     monkeypatch.setattr(image_batches, "worker_loop", image_batch_loop)
-    monkeypatch.setattr(inbox_watcher, "watch_loop", inbox_loop)
     monkeypatch.setattr(brief_scheduler, "start_brief_scheduler", lambda: started.append("brief-scheduler"))
     monkeypatch.setattr(telegram_bot, "is_configured", lambda: True)
     monkeypatch.setattr(telegram_bot, "start_polling", lambda: started.append("telegram"))
@@ -75,13 +69,6 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
     monkeypatch.setattr(image_batches, "worker_loop", forever)
     monkeypatch.setattr(brief_scheduler, "start_brief_scheduler", lambda: None)
 
-    private_loop_started = False
-
-    async def forbidden_private_loop():
-        nonlocal private_loop_started
-        private_loop_started = True
-
-    monkeypatch.setattr(inbox_watcher, "watch_loop", forbidden_private_loop)
     scans: list[str] = []
     monkeypatch.setattr(inbox_watcher, "scan_once", lambda: scans.append("scan"))
 
@@ -92,7 +79,6 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
     monkeypatch.setattr(cron, "start", lambda: None)
 
     async with app_module.lifespan(app_module.app):
-        assert private_loop_started is False
         assert "inbox.scan" in actions
         assert ("brief cache refresh", "brief.refresh", "interval", "15") in schedules
         assert ("web monitor due checks", "monitors.check", "interval", "5") in schedules
