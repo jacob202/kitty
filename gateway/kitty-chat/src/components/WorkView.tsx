@@ -35,8 +35,18 @@ export default function WorkView({ isMobile }: { isMobile: boolean; onNavigate?:
       {work.isPending && <Notice>Loading work…</Notice>}
       {work.isError && (
         <Notice>
-          <span>Work unavailable: {work.error instanceof Error ? work.error.message : 'Gateway request failed'}</span>
-          <button type="button" onClick={() => void work.refetch()} style={retryStyle}><RefreshCw size={12} /> retry</button>
+          <div style={{ display: 'grid', gap: 8 }}>
+            <span>Work is unavailable right now. Retry to reconnect to Builder.</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => void work.refetch()} style={retryStyle}><RefreshCw size={12} /> retry</button>
+              <details style={metaStyle}>
+                <summary style={{ cursor: 'pointer', color: 'var(--ink)' }}>Technical details</summary>
+                <div style={{ marginTop: 4 }}>
+                  {work.error instanceof Error ? work.error.message : 'Gateway request failed'}
+                </div>
+              </details>
+            </div>
+          </div>
         </Notice>
       )}
 
