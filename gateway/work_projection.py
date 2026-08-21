@@ -5,6 +5,7 @@ from gateway._work_projection_support import (
     _count_states,
     _project_queue,
     _rank_work_items,
+    _select_bounded_work_items,
     _source_projection,
     _timestamp,
 )
@@ -18,6 +19,7 @@ def _build(source, now=None):
     observed = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     items = [_project_work_item(item) for item in source.get("initiatives", [])]
     ranked = _rank_work_items(items)
+    bounded = _select_bounded_work_items(ranked, WORK_ITEM_LIMIT)
     return {
         "schema_version": SCHEMA_VERSION,
         "observed_at": _timestamp(observed),
@@ -25,7 +27,7 @@ def _build(source, now=None):
         "source": _source_projection(source),
         "counts": _count_states(items),
         "queue": _project_queue(source.get("queue")),
-        "items": ranked[:WORK_ITEM_LIMIT],
+        "items": bounded,
         "item_limit": WORK_ITEM_LIMIT,
         "total_items": len(items),
     }

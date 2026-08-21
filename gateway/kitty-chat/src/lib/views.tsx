@@ -41,6 +41,7 @@ export const VIEWS: Record<ViewId, ViewEntry> = {
 export const RAIL_VIEWS: ViewId[] = ['home', 'chat', 'work', 'studio', 'library', 'settings']
 
 export const REDIRECTS: Record<string, ViewId> = {
+  builder: 'work',
   tasks: 'work',
   tools: 'settings',
   terminal: 'terminal',

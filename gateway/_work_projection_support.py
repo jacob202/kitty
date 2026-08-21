@@ -74,6 +74,50 @@ def _rank_work_items(items):
     )
 
 
+def _product_group(item):
+    state = item.get("state")
+    if state == "completed" or item.get("next_action") in {"cancelled", "done"}:
+        return "completed"
+    if state in {"blocked", "failed", "paused"}:
+        return "needs-you"
+    return "in-progress"
+
+
+def _select_bounded_work_items(ranked, limit):
+    if len(ranked) <= limit:
+        return ranked
+
+    selected = list(ranked[:limit])
+    group_counts = {}
+    for item in selected:
+        group = _product_group(item)
+        group_counts[group] = group_counts.get(group, 0) + 1
+
+    for group in ("needs-you", "in-progress", "completed"):
+        if group_counts.get(group, 0) > 0:
+            continue
+        candidate = next((item for item in ranked if _product_group(item) == group), None)
+        if candidate is None:
+            continue
+        replace_index = next(
+            (
+                index
+                for index in range(len(selected) - 1, -1, -1)
+                if group_counts.get(_product_group(selected[index]), 0) > 1
+            ),
+            None,
+        )
+        if replace_index is None:
+            continue
+        replaced_group = _product_group(selected[replace_index])
+        group_counts[replaced_group] -= 1
+        selected[replace_index] = candidate
+        group_counts[group] = 1
+
+    selected_ids = {id(item) for item in selected}
+    return [item for item in ranked if id(item) in selected_ids]
+
+
 def _count_states(items):
     counts = {
         "total": len(items),
