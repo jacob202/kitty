@@ -60,6 +60,22 @@ def _yaml_frontmatter(text: str) -> dict:
     return result
 
 
+def _validate_skill_metadata(meta: dict) -> list[str]:
+    """Minimal Agent Skills-compatible metadata validation.
+
+    Metadata validation does not grant capabilities; ActionQueue/policy remains authoritative.
+    """
+    errors: list[str] = []
+    name = str(meta.get("name", ""))
+    if not name:
+        errors.append("missing name")
+    elif name.lower() != name or "_" in name or " " in name:
+        errors.append("name must be lowercase")
+    if not str(meta.get("description", "")):
+        errors.append("missing description")
+    return errors
+
+
 def _parse_skill_file(path: Path) -> dict | None:
     """Parse a SKILL.md file and return skill metadata dict."""
     try:
@@ -69,8 +85,9 @@ def _parse_skill_file(path: Path) -> dict | None:
         return None
 
     meta = _yaml_frontmatter(text)
-    if not meta.get("name"):
-        logger.warning("Skill file %s has no 'name' in frontmatter", path)
+    errors = _validate_skill_metadata(meta)
+    if errors:
+        logger.warning("Skill file %s failed validation: %s", path, errors)
         return None
 
     return {

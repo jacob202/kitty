@@ -19,13 +19,11 @@ Core operations:
   - ``weave.event(event_type, description)`` — log an event
   - ``weave.get_reliability(resource)`` — temporal reliability score
 
-Status (2026-07-05):
+Status (2026-08-21):
   - Schema landed as migration 013 (``gateway/migrations/013_memory_weave.sql``).
-  - Core operations ported: ``fact``, ``correct``, ``event``,
-    ``get_recent_events``, ``query`` (with its 4 private helpers).
-  - Remaining methods stubbed with ``NotImplementedError`` for next session:
-    ``get_reliability``, ``get_conflicts``, ``surface_conflict``,
-    ``log_conversation``, ``detect_corrections``, ``get_stale_facts``.
+  - Core operations and temporal/conflict/correction helpers are implemented.
+  - Retrieval remains the main improvement target: benchmark current search,
+    then add hybrid lexical/vector fusion without changing MemoryWeave authority.
 """
 from __future__ import annotations
 
