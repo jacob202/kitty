@@ -9,6 +9,11 @@ Skills live in .agents/skills/<name>/SKILL.md or .agents/skills/<category>/<name
   allowed_tools: (optional) list of tool names
   ---
 
+Frontmatter is parsed as real YAML, so nested lists/dicts and multi-line
+values work. The Agent Skills spec spells the tools field `allowed-tools`
+(hyphen); Kitty's own skills use `allowed_tools` (underscore). Both are
+accepted on read so third-party skill bundles parse without edits.
+
 Public API:
   discover() -> list[dict]     Scan disk and return all skills
   get(name) -> dict | None     Get one skill by name
@@ -23,6 +28,8 @@ import re
 from pathlib import Path
 from typing import Optional
 
+import yaml
+
 from gateway.paths import PROJECT_ROOT
 
 logger = logging.getLogger("kitty.skill_registry")
@@ -35,29 +42,75 @@ SKILL_ROOTS: list[Path] = [
 _registry: dict[str, dict] | None = None
 
 
+def _yaml_frontmatter_legacy(raw: str) -> dict:
+    """Line-based frontmatter fallback for values that aren't valid YAML.
+
+    Kitty's early skills sometimes carry an unquoted ``USE WHEN: ...`` clause
+    inside ``description``, which is a real YAML syntax error (an unquoted
+    colon-space mid-scalar). Rather than dropping those skills from discovery,
+    fall back to the original single-colon-per-line parse.
+    """
+    result: dict = {}
+    for line in raw.split("\n"):
+        line = line.strip()
+        if ":" in line:
+            key, _, raw_value = line.partition(":")
+            key = key.strip()
+            text_value = raw_value.strip().strip('"').strip("'")
+            value: str | list[str] = text_value
+            if text_value.startswith("[") and text_value.endswith("]"):
+                value = [
+                    v.strip().strip('"').strip("'")
+                    for v in text_value[1:-1].split(",")
+                    if v.strip()
+                ]
+            result[key] = value
+    return result
+
+
 def _yaml_frontmatter(text: str) -> dict:
-    """Extract YAML frontmatter from markdown text (between --- delimiters)."""
+    """Extract and parse YAML frontmatter from markdown text (between --- delimiters)."""
     match = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
     if not match:
         return {}
 
     raw = match.group(1)
-    result: dict = {}
-    for line in raw.split("\n"):
-        line = line.strip()
-        if ":" in line:
-            key, _, value = line.partition(":")
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            if value.startswith("[") and value.endswith("]"):
-                # Simple list parsing: [a, b, c]
-                value = [
-                    v.strip().strip('"').strip("'")
-                    for v in value[1:-1].split(",")
-                    if v.strip()
-                ]
-            result[key] = value
+    try:
+        result = yaml.safe_load(raw)
+        if not isinstance(result, dict):
+            result = _yaml_frontmatter_legacy(raw)
+    except yaml.YAMLError:
+        result = _yaml_frontmatter_legacy(raw)
+
+    # Agent Skills spec spells this `allowed-tools`; Kitty's own skills use
+    # `allowed_tools`. Normalize to the underscore form Kitty consumers read.
+    if "allowed-tools" in result and "allowed_tools" not in result:
+        result["allowed_tools"] = result.pop("allowed-tools")
+
     return result
+
+
+def _to_str(value: object) -> str:
+    """Coerce a frontmatter value to plain text; anything but a string is dropped.
+
+    Real YAML can produce None/bool/list/dict where Kitty's string fields
+    expect text (the old line parser always produced a string). Calling
+    str() on an unexpected nested structure would re-walk it and can
+    reproduce YAML alias/anchor amplification — a handful of anchors can
+    expand to megabytes on re-serialization — so an unexpected shape becomes
+    "" rather than being stringified.
+    """
+    return value if isinstance(value, str) else ""
+
+
+def _to_str_or_none(value: object) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def _to_str_list(value: object) -> list[str]:
+    if isinstance(value, list) and all(isinstance(v, str) for v in value):
+        return value
+    return []
 
 
 def _parse_skill_file(path: Path) -> dict | None:
@@ -69,16 +122,19 @@ def _parse_skill_file(path: Path) -> dict | None:
         return None
 
     meta = _yaml_frontmatter(text)
-    if not meta.get("name"):
-        logger.warning("Skill file %s has no 'name' in frontmatter", path)
+    name = meta.get("name")
+    if not isinstance(name, str) or not name.strip():
+        logger.warning("Skill file %s has no valid 'name' string in frontmatter", path)
         return None
 
     return {
-        "name": meta.get("name", ""),
-        "description": meta.get("description", ""),
-        "when_to_use": meta.get("when_to_use", ""),
-        "model": meta.get("model"),
-        "allowed_tools": meta.get("allowed_tools", []),
+        "name": name,
+        "description": _to_str(meta.get("description")),
+        "when_to_use": _to_str(meta.get("when_to_use")),
+        "model": _to_str_or_none(meta.get("model")),
+        "allowed_tools": _to_str_list(meta.get("allowed_tools")),
+        "license": _to_str_or_none(meta.get("license")),
+        "compatibility": _to_str_or_none(meta.get("compatibility")),
         "path": str(path),
         "content": text,
     }

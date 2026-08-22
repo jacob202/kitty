@@ -12,8 +12,7 @@
 -- Result: saved characters were unusable, which makes identity-locked generation
 -- unreachable — you could never create the character it depends on.
 --
--- Numbered 040 deliberately: 036/037 are taken on main, and open Image Lab
--- branches already claim 036-039 for their own migrations.
+-- Numbered 044: 036-037 and the Image Lab lane's 040-043 are all on main now.
 
 ALTER TABLE image_characters ADD COLUMN face_embedding BLOB;
 ALTER TABLE image_characters ADD COLUMN face_embedding_model TEXT;

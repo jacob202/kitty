@@ -80,6 +80,24 @@ async def test_async_search_normalizes_grouped_store_hits() -> None:
     assert result["inbox"][0]["title"] == "Capture the Sansui bias setting"
 
 
+def test_search_route_exposes_structured_degraded_stores() -> None:
+    with patch(
+        "gateway.memory_graph.search_all",
+        new=AsyncMock(return_value=GraphResult(
+            results={Source.MEMORY.value: []},
+            errors=["memory: MemoryError: unavailable"],
+            degraded_stores=[Source.MEMORY.value],
+        )),
+    ):
+        client = TestClient(app)
+        response = client.get("/search", params={"q": "anything", "limit": 3})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["degraded_stores"] == [Source.MEMORY.value]
+    assert body["errors"] == ["memory: MemoryError: unavailable"]
+
+
 def test_search_route_uses_normalized_owner_and_preserves_hit_provenance() -> None:
     items = {
         Source.KNOWLEDGE.value: [
@@ -107,6 +125,35 @@ def test_search_route_uses_normalized_owner_and_preserves_hit_provenance() -> No
     assert hit["title"] == "sansui.pdf"
     assert hit["source"] == Source.KNOWLEDGE.value
     assert hit["metadata"]["source"] == "sansui.pdf"
+
+
+def test_search_route_balances_the_global_limit_across_stores() -> None:
+    items = {
+        Source.MEMORY.value: [
+            Item(text=f"Memory {index}", source=Source.MEMORY, score=10 - index)
+            for index in range(5)
+        ],
+        Source.KNOWLEDGE.value: [
+            Item(text="Knowledge result", source=Source.KNOWLEDGE, score=0.2)
+        ],
+        Source.JOURNAL.value: [
+            Item(text="Journal result", source=Source.JOURNAL, score=None)
+        ],
+    }
+
+    with patch(
+        "gateway.memory_graph.search_all",
+        new=AsyncMock(return_value=GraphResult(results=items)),
+    ):
+        client = TestClient(app)
+        response = client.get("/search", params={"q": "balanced", "limit": 3})
+
+    assert response.status_code == 200
+    assert {row["store"] for row in response.json()["results"]} == {
+        Source.MEMORY.value,
+        Source.KNOWLEDGE.value,
+        Source.JOURNAL.value,
+    }
 
 
 def test_deep_research_route_uses_typed_payload() -> None:

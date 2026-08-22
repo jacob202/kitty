@@ -21,6 +21,7 @@ Boundaries:
 from __future__ import annotations
 
 import json
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from dataclasses import fields as dc_fields
@@ -33,6 +34,7 @@ from gateway import paths as _paths
 from gateway.paths import DB_MIGRATIONS_DIR
 
 _MIGRATION_FILE = DB_MIGRATIONS_DIR / "029_image_sessions.sql"
+_PROJECTS_MIGRATION_FILE = DB_MIGRATIONS_DIR / "010_projects.sql"
 
 _MAX_JSON_BYTES = 65_536
 _MAX_TEXT_BYTES = 10_240
@@ -78,6 +80,7 @@ class ImageSession:
     session_id: str
     status: ImageSessionStatus
     title: str | None
+    project_id: int | None
     character_id: str | None
     reference_ids_json: str | None
     anchor_job_id: str | None
@@ -226,14 +229,34 @@ def _ensure_session_column(conn: Any) -> None:
     )
 
 
+def _ensure_project_column(conn: Any) -> None:
+    """Add optional Project scope to image sessions.
+
+    The projects table is an explicit dependency once a creative session can be
+    project-scoped. The FK makes nonexistent project IDs fail closed instead of
+    becoming dangling provenance.
+    """
+    conn.executescript(_PROJECTS_MIGRATION_FILE.read_text(encoding="utf-8"))
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(image_sessions)").fetchall()}
+    if "project_id" not in cols:
+        conn.execute(
+            "ALTER TABLE image_sessions ADD COLUMN project_id INTEGER REFERENCES projects(id)"
+        )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_image_sessions_project "
+        "ON image_sessions(project_id, updated_at DESC)"
+    )
+
+
 def _ensure_db(conn: Any = None) -> None:
-    """Apply this module's migration, plus the image_jobs schema it references."""
+    """Apply this module's migration, plus the schemas it references."""
     def _apply(c: Any) -> None:
         from gateway import image_jobs
 
         image_jobs._ensure_db(c)
         c.executescript(_MIGRATION_FILE.read_text(encoding="utf-8"))
         _ensure_session_column(c)
+        _ensure_project_column(c)
 
     if conn is not None:
         _apply(conn)
@@ -247,6 +270,7 @@ def _row_to_session(row: Any) -> ImageSession:
         session_id=row["session_id"],
         status=ImageSessionStatus(row["status"]),
         title=row["title"],
+        project_id=row["project_id"],
         character_id=row["character_id"],
         reference_ids_json=row["reference_ids_json"],
         anchor_job_id=row["anchor_job_id"],
@@ -277,16 +301,20 @@ def _row_to_turn(row: Any) -> SessionTurn:
 def create_session(
     *,
     title: str | None = None,
+    project_id: int | None = None,
     character_id: str | None = None,
     reference_ids: list[str] | None = None,
     protected_traits: list[str] | None = None,
 ) -> ImageSession:
     """Open a new conversational image session."""
     _check_text_bounded(title, "title")
+    if project_id is not None and (isinstance(project_id, bool) or project_id <= 0):
+        raise ImageSessionError(f"project_id must be a positive integer, got {project_id!r}")
     session = ImageSession(
         session_id=_new_session_id(),
         status=ImageSessionStatus.ACTIVE,
         title=title,
+        project_id=project_id,
         character_id=character_id,
         reference_ids_json=_encode_list(reference_ids, "reference_ids"),
         anchor_job_id=None,
@@ -309,10 +337,17 @@ def create_session(
     )
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
-        conn.execute(
-            f"INSERT INTO image_sessions ({columns_sql}) VALUES ({placeholders})",
-            values,
-        )
+        try:
+            conn.execute(
+                f"INSERT INTO image_sessions ({columns_sql}) VALUES ({placeholders})",
+                values,
+            )
+        except sqlite3.IntegrityError as exc:
+            if project_id is not None and "FOREIGN KEY" in str(exc).upper():
+                raise ImageSessionError(
+                    f"project {project_id} does not exist; refusing dangling image-session scope"
+                ) from exc
+            raise
     return session
 
 
@@ -516,6 +551,7 @@ def update_session(
     protected_traits: list[str] | None = None,
     requested_changes: list[str] | None = None,
     last_plan: dict[str, Any] | None = None,
+    clear_character: bool | None = None,
 ) -> ImageSession:
     """Update session context. Only supplied fields change."""
     _require_active(session_id)
@@ -524,7 +560,9 @@ def update_session(
     if title is not None:
         _check_text_bounded(title, "title")
         updates["title"] = title
-    if character_id is not None:
+    if clear_character:
+        updates["character_id"] = None
+    elif character_id is not None:
         updates["character_id"] = character_id
     if reference_ids is not None:
         updates["reference_ids_json"] = _encode_list(reference_ids, "reference_ids")

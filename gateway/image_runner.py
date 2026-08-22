@@ -48,14 +48,32 @@ async def run(
     parent_id: str | None = None,
     guidance_tags: list[str] | None = None,
     source_image: bytes | None = None,
+    content_lane: str = "safe",
+    consent_basis: str | None = None,
+    adult_confirmed: bool = False,
+    flux2_target: Any | None = None,
+    compiled_request: Any | None = None,
+    reference_bytes: tuple[bytes, ...] = (),
+    project_id: int | None = None,
 ) -> JobResult:
     """Generate an image through the specified engine.
 
     A character ID is not merely a request to pick the first stored photo. It
     requires a valid character contract whose identity method, reference set,
     weights, prompt fragments, and recipe can all be honored by the engine.
+
+    *content_lane*/*consent_basis*/*adult_confirmed* carry the approved plan's
+    execution policy (ADR 0040 #8). They default to the safe lane, and are
+    validated against *engine* through the canonical policy seam before any
+    network or renderer call — so even a direct runner invocation cannot route
+    private work to a hosted provider.
     """
     engine = engine.strip().lower()
+    from gateway.image_policy import validate_image_execution_policy
+
+    validate_image_execution_policy(
+        content_lane, consent_basis, adult_confirmed, engine
+    )
     if engine not in ENGINES:
         raise ImageRunnerError(
             f"unknown engine {engine!r}; must be one of {', '.join(sorted(ENGINES))}"
@@ -64,11 +82,25 @@ async def run(
     if engine == "flux":
         return await _run_flux(
             prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
+            project_id=project_id,
+        )
+
+    if engine == "flux2":
+        return await _run_flux2(
+            prompt,
+            recipe=recipe,
+            parent_id=parent_id,
+            target=flux2_target,
+            compiled=compiled_request,
+            reference_bytes=reference_bytes,
+            negative_prompt=negative_prompt,
+            project_id=project_id,
         )
 
     if engine == "openrouter":
         return await _run_openrouter(
             prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
+            project_id=project_id,
         )
 
     if engine == "drawthings":
@@ -76,6 +108,7 @@ async def run(
             prompt,
             recipe=recipe,
             parent_id=parent_id,
+            project_id=project_id,
         )
 
     if character_id:
@@ -85,6 +118,7 @@ async def run(
             recipe=recipe,
             negative_prompt=negative_prompt,
             guidance_tags=guidance_tags,
+            project_id=project_id,
         )
 
     return await _run_comfyui(
@@ -92,6 +126,7 @@ async def run(
         recipe=recipe,
         parent_id=parent_id,
         guidance_tags=guidance_tags,
+        project_id=project_id,
     )
 
 
@@ -109,8 +144,24 @@ async def run_edit(
     negative_prompt: str | None = None,
     checkpoint: str | None = None,
     seed: int | None = None,
+    content_lane: str = "safe",
+    consent_basis: str | None = None,
+    adult_confirmed: bool = False,
+    project_id: int | None = None,
 ) -> JobResult:
-    """Edit the anchor job's artifact, rather than rerolling from its prompt."""
+    """Edit the anchor job's artifact, rather than rerolling from its prompt.
+
+    The edit lane is the only Kitty-controlled private executor in v1, and the
+    content-lane policy is validated before any worker configuration or network
+    call: a private plan may only land here, and a direct invocation of this
+    function cannot be coerced into a hosted fallback.
+    """
+    from gateway.image_policy import validate_image_execution_policy
+
+    validate_image_execution_policy(
+        content_lane, consent_basis, adult_confirmed, "kitty_worker"
+    )
+
     if not 0 < denoise <= 1:
         raise ImageRunnerError(
             f"denoise must be within (0, 1], got {denoise}; 0 would return the "
@@ -181,6 +232,7 @@ async def run_edit(
             output_path=str(output_path),
             artifact_id=output.asset_id,
         )
+        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, f"{type(exc).__name__}: {exc}")
@@ -197,6 +249,12 @@ async def run_edit(
         recipe=recipe.recipe_id if recipe else None,
         routing_reason=f"edit of {source_name} at denoise {denoise}",
     )
+
+
+def read_anchor_artifact(anchor_job_id: str) -> tuple[bytes, str]:
+    """Public wrapper for transport wiring: bytes + filename of a succeeded
+    anchor job artifact, for hosted reference conditioned rendering."""
+    return _read_anchor_artifact(anchor_job_id)
 
 
 def _read_anchor_artifact(anchor_job_id: str) -> tuple[bytes, str]:
@@ -236,6 +294,7 @@ async def _run_drawthings(
     *,
     recipe: Any | None = None,
     parent_id: str | None = None,
+    project_id: int | None = None,
 ) -> JobResult:
     """Draw Things engine path — dispatches via mcp.imagen engine registry."""
     from mcp.imagen.engines import get
@@ -262,6 +321,7 @@ async def _run_drawthings(
         data = await drawthings.generate_async(prompt)
         path = await asyncio.to_thread(save_image, data, prefix="drawthings")
         image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, str(exc)[:500])
@@ -281,6 +341,7 @@ async def _run_comfyui(
     recipe: Any | None = None,
     parent_id: str | None = None,
     guidance_tags: list[str] | None = None,
+    project_id: int | None = None,
 ) -> JobResult:
     """Standard ComfyUI generation path (no character)."""
     from gateway.image_gen import generate, is_available
@@ -292,6 +353,7 @@ async def _run_comfyui(
         prompt,
         parent_id=parent_id,
         guidance_tags=guidance_tags,
+        project_id=project_id,
     )
     return JobResult(
         job_id=result["job_id"],
@@ -309,6 +371,7 @@ async def _run_comfyui_character(
     recipe: Any | None = None,
     negative_prompt: str | None = None,
     guidance_tags: list[str] | None = None,
+    project_id: int | None = None,
 ) -> JobResult:
     """Generate through the exact stored character contract."""
     from gateway.image_character_contracts import (
@@ -354,6 +417,7 @@ async def _run_comfyui_character(
         steps=resolved["steps"],
         cfg=resolved["guidance"],
         guidance_tags=guidance_tags,
+        project_id=project_id,
     )
 
     return JobResult(
@@ -384,10 +448,12 @@ def _mark_failed(job_id: str, message: str) -> None:
 #: Engines ``run`` will dispatch to. Hosted engines carry a conservative
 #: contracted per-render estimate so the session budget can be reserved before
 #: a provider call is allowed to spend money.
-ENGINES = frozenset({"comfyui", "drawthings", "flux", "openrouter"})
+ENGINES = frozenset({"comfyui", "drawthings", "flux", "flux2", "openrouter"})
 _ESTIMATED_COST_USD = {
     "comfyui": 0.0,
     "drawthings": 0.0,
+    # The worker edit lane is Kitty-owned and not billed per render.
+    "kitty_worker": 0.0,
     # Budget reservations are deliberately conservative ceilings, not price
     # claims. Actual provider-reported cost is reconciled after success when
     # available.
@@ -410,9 +476,11 @@ def paid_engine_available(engine: str) -> tuple[bool, str]:
     normalized = engine.strip().lower()
     if normalized == "flux":
         return flux_images_available()
+    if normalized == "flux2":
+        return flux2_images_available()
     if normalized == "openrouter":
         return openrouter_images_available()
-    if normalized in {"comfyui", "drawthings"}:
+    if normalized in {"comfyui", "drawthings", "kitty_worker"}:
         return True, ""
     raise ImageRunnerError(f"no availability contract for image engine {engine!r}")
 
@@ -452,6 +520,7 @@ async def _run_openrouter(
     recipe: Any | None = None,
     parent_id: str | None = None,
     source_image: bytes | None = None,
+    project_id: int | None = None,
 ) -> JobResult:
     """Hosted lane. Same job lifecycle as the local engines — one queue, one
     history, one gallery, per the image-studio architecture."""
@@ -532,6 +601,7 @@ async def _run_openrouter(
         data = base64.b64decode(data_url.split(",", 1)[1])
         path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
         image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, str(exc)[:500])
@@ -566,12 +636,25 @@ def flux_images_available() -> tuple[bool, str]:
     return True, ""
 
 
+def flux2_images_available() -> tuple[bool, str]:
+    """Whether the hosted FLUX.2 (BFL Direct) lane will run, and why not."""
+    if not paid_images_enabled():
+        return False, (
+            "Paid image generation is off. Hosted FLUX.2 generation is billed per request. "
+            "Set KITTY_IMAGE_PAID_ENABLED=1 in .env and restart Kitty to turn it on."
+        )
+    if not os.environ.get("BFL_API_KEY", "").strip():
+        return False, "BFL_API_KEY is not set to reach BFL Direct"
+    return True, ""
+
+
 async def _run_flux(
     prompt: str,
     *,
     recipe: Any | None = None,
     parent_id: str | None = None,
     source_image: bytes | None = None,
+    project_id: int | None = None,
 ) -> JobResult:
     """Black Forest Labs lane, on the shared job lifecycle.
 
@@ -650,6 +733,7 @@ async def _run_flux(
 
         path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
         image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
     except Exception as exc:
         _mark_failed(job.job_id, str(exc)[:500])
@@ -659,6 +743,129 @@ async def _run_flux(
         job_id=job.job_id,
         filename=str(path),
         engine="flux",
+        recipe=recipe.recipe_id if recipe else None,
+        cost_usd=cost_usd,
+    )
+
+
+async def _run_flux2(
+    prompt: str,
+    *,
+    recipe: Any | None = None,
+    parent_id: str | None = None,
+    target: Any | None = None,
+    compiled: Any | None = None,
+    reference_bytes: tuple[bytes, ...] = (),
+    negative_prompt: str | None = None,
+    project_id: int | None = None,
+) -> JobResult:
+    """Hosted FLUX.2 (BFL Direct) lane on the shared job lifecycle.
+
+    This replaced the FLUX.1-era assumptions of ``_run_flux`` for the modern
+    FLUX.2 family: a single semantic compiler output (``compiled``) targeted at
+    exactly one Flux2HostedTarget drives the exact model endpoint, the estimate
+    contract, and the reference serialization. IL-02 policy is enforced at the
+    ``run()`` boundary before this lane is reachable, so private_adult work can
+    never reach BFL Direct — even in a retry or reroute — and this lane never
+    silently falls back to another hosted engine.
+    """
+    import asyncio as _asyncio
+
+    import httpx
+
+    from gateway import flux2_transport
+
+    enabled, reason = flux2_images_available()
+    if not enabled:
+        raise ImageRunnerError(reason)
+
+    if target is None or compiled is None:
+        raise ImageRunnerError(
+            "engine 'flux2' requires an explicit flux2_target and compiled request"
+        )
+    compiled_request = compiled
+    operation = compiled_request.operation
+    payload = flux2_transport.serialize_payload(
+        target, compiled_request, list(reference_bytes), seed=compiled_request.seed
+    )
+
+    job = image_jobs.create_job(
+        provider="flux2",
+        operation=operation,
+        prompt=compiled_request.prompt,
+        parent_id=parent_id,
+        model_id=target.model_id,
+        seed=compiled_request.seed,
+        width=compiled_request.width,
+        height=compiled_request.height,
+        workflow_template_id=recipe.workflow_template_id if recipe else None,
+        compiler_version=compiled_request.compiler_id,
+        compiler_params_json=compiled_request.to_json(),
+    )
+
+    try:
+        image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        headers = flux2_transport.submit_headers()
+        async with httpx.AsyncClient(timeout=180) as client:
+            submit = await client.post(
+                flux2_transport.endpoint_for(target), headers=headers, json=payload
+            )
+            if submit.status_code != 200:
+                raise ImageRunnerError(
+                    f"BFL Direct returned HTTP {submit.status_code}: {submit.text[:300]}"
+                )
+            submit_payload = submit.json()
+            polling_url = submit_payload.get("polling_url")
+            if not polling_url:
+                raise ImageRunnerError(
+                    "BFL Direct submitted without a polling_url"
+                )
+            cost_usd = flux2_transport.parse_cost_usd(submit_payload)
+
+            image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+            for _ in range(150):
+                poll = await client.get(polling_url, headers={"x-key": headers["x-key"]})
+                state = poll.json()
+                status = state.get("status", "")
+                if not flux2_transport.is_running_status(status):
+                    break
+                await _asyncio.sleep(2)
+            else:
+                raise TimeoutError("BFL Direct did not finish within 5 minutes")
+
+        if status != "Ready":
+            # "Request Moderated" and "Content Moderated" arrive here. Say which.
+            raise ImageRunnerError(f"BFL Direct did not produce an image: {status}")
+        result = state.get("result") or {}
+        sample = flux2_transport.sample_url_from_result(result)
+        if not sample:
+            raise ImageRunnerError("BFL Direct reported Ready but returned no image")
+        seed = flux2_transport.seed_from_result(result)
+
+        if seed is not None and compiled_request.seed is None:
+            import json as _json
+
+            image_jobs.update_job(
+                job.job_id, provider_diagnostics_json=_json.dumps({"seed": seed})
+            )
+
+        async with httpx.AsyncClient(timeout=180) as client:
+            download = await client.get(sample)
+            download.raise_for_status()
+            data = download.content
+
+        path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
+        image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
+        image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
+    except Exception as exc:
+        _mark_failed(job.job_id, str(exc)[:500])
+        raise
+
+    return JobResult(
+        job_id=job.job_id,
+        filename=str(path),
+        engine="flux2",
         recipe=recipe.recipe_id if recipe else None,
         cost_usd=cost_usd,
     )

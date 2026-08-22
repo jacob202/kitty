@@ -30,6 +30,7 @@ from typing import Any
 
 from gateway import db as kitty_db
 from gateway import paths as _paths
+from gateway.image_policy import ConsentBasis, ContentLane
 from gateway.paths import DB_MIGRATIONS_DIR
 
 _MIGRATION_FILE = DB_MIGRATIONS_DIR / "030_image_plans.sql"
@@ -42,6 +43,11 @@ _MAX_TEXT_BYTES = 10_240
 #: image_runner.run_edit(), never image_runner.run().
 ALLOWED_OPERATIONS = {"txt2img", "img2img"}
 
+#: Accepted content lanes and consent bases, mirrored from image_policy so the
+#: store can fail loud on a corrupt row instead of round-tripping it silently.
+_VALID_LANES = frozenset(lane.value for lane in ContentLane)
+_VALID_CONSENT = frozenset(basis.value for basis in ConsentBasis)
+_DEFAULT_LANE = ContentLane.SAFE.value
 
 class PlanStatus(str, Enum):
     """Lifecycle of a persisted image plan."""
@@ -89,6 +95,11 @@ class StoredPlan:
     anchor_job_id: str | None = None
     guidance_tags: list[str] = field(default_factory=list)
     references: list[dict[str, Any]] = field(default_factory=list)
+    # Content-lane contract (ADR 0040 #8). Defaults are the safe lane, so a
+    # pre-IL-02 plan or a caller that does not opt in is never private_adult.
+    content_lane: str = _DEFAULT_LANE
+    consent_basis: str | None = None
+    adult_confirmed: bool = False
     created_at: str = ""
     updated_at: str = ""
 
@@ -106,6 +117,9 @@ class StoredPlan:
             "anchor_job_id": self.anchor_job_id,
             "guidance_tags": list(self.guidance_tags),
             "references": [dict(r) for r in self.references],
+            "content_lane": self.content_lane,
+            "consent_basis": self.consent_basis,
+            "adult_confirmed": self.adult_confirmed,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -185,6 +199,26 @@ def _ensure_plan_operation_columns(conn: Any) -> None:
         conn.execute("ALTER TABLE image_plans ADD COLUMN anchor_job_id TEXT")
 
 
+def _ensure_plan_policy_columns(conn: Any) -> None:
+    """Add image_plans content-lane columns if absent (IL-02 migration).
+
+    Additive-only per IL-02: pre-IL-02 plans backfill to the safe lane with
+    null consent and no adult confirmation — never to private_adult. Columns
+    are re-runnable identically to _ensure_plan_operation_columns.
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(image_plans)").fetchall()}
+    if "content_lane" not in cols:
+        conn.execute(
+            f"ALTER TABLE image_plans ADD COLUMN content_lane TEXT NOT NULL DEFAULT {_DEFAULT_LANE!r}"
+        )
+    if "consent_basis" not in cols:
+        conn.execute("ALTER TABLE image_plans ADD COLUMN consent_basis TEXT")
+    if "adult_confirmed" not in cols:
+        conn.execute(
+            "ALTER TABLE image_plans ADD COLUMN adult_confirmed INTEGER NOT NULL DEFAULT 0"
+        )
+
+
 def _ensure_db(conn: Any = None) -> None:
     """Apply this module's migration, plus the session schema it references."""
     from gateway import image_sessions
@@ -193,6 +227,7 @@ def _ensure_db(conn: Any = None) -> None:
         image_sessions._ensure_db(c)
         c.executescript(_MIGRATION_FILE.read_text(encoding="utf-8"))
         _ensure_plan_operation_columns(c)
+        _ensure_plan_policy_columns(c)
 
     if conn is not None:
         _apply(conn)
@@ -213,6 +248,26 @@ def _row_to_plan(row: Any) -> StoredPlan:
         raise PlanMalformedError(
             f"plan {row['plan_id']!r} is operation='img2img' but has no anchor_job_id"
         )
+    content_lane = row["content_lane"]
+    if content_lane not in _VALID_LANES:
+        raise PlanMalformedError(
+            f"plan {row['plan_id']!r} has unknown content_lane {content_lane!r}; "
+            f"expected one of {sorted(_VALID_LANES)}"
+        )
+    consent_basis = row["consent_basis"]
+    if consent_basis is not None and consent_basis not in _VALID_CONSENT:
+        raise PlanMalformedError(
+            f"plan {row['plan_id']!r} has invalid consent_basis {consent_basis!r}; "
+            f"expected one of {sorted(_VALID_CONSENT)}"
+        )
+    adult_confirmed = bool(row["adult_confirmed"])
+    if content_lane == ContentLane.PRIVATE_ADULT.value:
+        if not adult_confirmed or not consent_basis:
+            raise PlanMalformedError(
+                f"plan {row['plan_id']!r} is content_lane='private_adult' but lacks "
+                "adult_confirmed and a consent_basis; a stored plan cannot deviate "
+                "toward private_adult"
+            )
     if operation == "txt2img" and anchor_job_id:
         raise PlanMalformedError(
             f"plan {row['plan_id']!r} is operation='txt2img' but carries "
@@ -231,6 +286,9 @@ def _row_to_plan(row: Any) -> StoredPlan:
         anchor_job_id=anchor_job_id,
         guidance_tags=_decode_list(row["guidance_tags_json"], "guidance_tags"),
         references=_decode_refs(row["references_json"]),
+        content_lane=content_lane,
+        consent_basis=consent_basis,
+        adult_confirmed=adult_confirmed,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -310,6 +368,42 @@ def persist_plan(
         raise PlanStoreError(
             "an img2img plan requires anchor_job_id identifying the image being edited"
         )
+    content_lane_value = plan_dict.get("content_lane", _DEFAULT_LANE)
+    content_lane = str(content_lane_value).strip().lower()
+    if content_lane not in _VALID_LANES:
+        raise PlanStoreError(
+            f"unknown content_lane {content_lane_value!r}; must be one of "
+            f"{sorted(_VALID_LANES)}"
+        )
+
+    consent_basis_value = plan_dict.get("consent_basis")
+    consent_basis: str | None = None
+    if consent_basis_value is not None:
+        consent_basis = str(consent_basis_value).strip().lower()
+        if consent_basis not in _VALID_CONSENT:
+            raise PlanStoreError(
+                f"invalid consent_basis {consent_basis_value!r}; must be one of "
+                f"{sorted(_VALID_CONSENT)} or null"
+            )
+
+    adult_confirmed_value = plan_dict.get("adult_confirmed", False)
+    if isinstance(adult_confirmed_value, bool):
+        adult_confirmed = adult_confirmed_value
+    elif isinstance(adult_confirmed_value, int) and adult_confirmed_value in (0, 1):
+        adult_confirmed = bool(adult_confirmed_value)
+    else:
+        raise PlanStoreError(
+            f"adult_confirmed must be a boolean, got {adult_confirmed_value!r}"
+        )
+
+    if content_lane == ContentLane.PRIVATE_ADULT.value:
+        if not adult_confirmed or not consent_basis:
+            raise PlanStoreError(
+                "content_lane='private_adult' requires consent_basis in "
+                f"{sorted(_VALID_CONSENT)} and adult_confirmed=true at persist time; "
+                "these cannot be inferred from prompt text"
+            )
+
     if resolved_operation == "txt2img" and resolved_anchor:
         raise PlanStoreError(
             "a txt2img plan must not carry anchor_job_id; anchors are only valid for img2img"
@@ -336,6 +430,9 @@ def persist_plan(
         anchor_job_id=resolved_anchor,
         guidance_tags=json.loads(guidance_tags),
         references=json.loads(references_json),
+        content_lane=content_lane,
+        consent_basis=consent_basis,
+        adult_confirmed=adult_confirmed,
         created_at=now,
         updated_at=now,
     )
@@ -347,8 +444,9 @@ def persist_plan(
             "INSERT INTO image_plans"
             " (plan_id, session_id, status, original_prompt, refined_prompt,"
             "  character_id, character_ref_path, recipe_id, operation, anchor_job_id,"
-            "  guidance_tags_json, references_json, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "  guidance_tags_json, references_json, content_lane, consent_basis,"
+            "  adult_confirmed, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 stored.plan_id,
                 stored.session_id,
@@ -362,6 +460,9 @@ def persist_plan(
                 stored.anchor_job_id,
                 guidance_tags,
                 references_json,
+                stored.content_lane,
+                stored.consent_basis,
+                int(stored.adult_confirmed),
                 stored.created_at,
                 stored.updated_at,
             ),

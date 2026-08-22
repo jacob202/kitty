@@ -231,6 +231,13 @@ class TestContextUpdates:
         assert updated.character_id == "char_james"
         assert updated.protected_traits == ["face"]
 
+    def test_clear_character_detaches_without_touching_other_fields(self):
+        s = sessions.create_session(title="keep me", character_id="char_james")
+        updated = sessions.update_session(s.session_id, clear_character=True)
+        assert updated.character_id is None
+        assert updated.title == "keep me"
+        assert updated.protected_traits == []
+
     def test_last_plan_round_trips(self):
         s = sessions.create_session()
         plan = {"operation": "img2img", "refined_prompt": "broader build", "denoise": 0.4}
@@ -293,3 +300,30 @@ class TestSpendAndLifecycle:
         sessions.append_turn(s.session_id, TurnRole.USER, "hello")
         sessions.end_session(s.session_id)
         assert [t.content for t in sessions.list_turns(s.session_id)] == ["hello"]
+
+
+def _insert_project(db_file: Path, *, name: str = "Image project") -> int:
+    migration = Path("gateway/migrations/010_projects.sql").read_text(encoding="utf-8")
+    with sqlite3.connect(db_file) as conn:
+        conn.executescript(migration)
+        cur = conn.execute(
+            "INSERT INTO projects (name, kind) VALUES (?, ?)", (name, "creative")
+        )
+        conn.commit()
+        assert cur.lastrowid is not None
+        return int(cur.lastrowid)
+
+
+def test_session_project_scope_round_trips(_fresh_db):
+    project_id = _insert_project(_fresh_db)
+    created = sessions.create_session(title="project portraits", project_id=project_id)
+
+    assert created.project_id == project_id
+    assert sessions.require_session(created.session_id).project_id == project_id
+    assert created.to_dict()["project_id"] == project_id
+
+
+def test_session_project_scope_rejects_unknown_project(_fresh_db):
+    _insert_project(_fresh_db)
+    with pytest.raises(ImageSessionError, match="project"):
+        sessions.create_session(project_id=999_999)
