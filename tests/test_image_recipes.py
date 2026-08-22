@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from gateway import db
 from gateway.image_recipes import (
     DEFAULT_RECIPES,
     RecipeError,
@@ -30,43 +31,13 @@ def override_db(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr("gateway.db.connect", _test_connect)
 
-    conn = _test_connect()
-    conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT)")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS image_jobs (
-            job_id TEXT PRIMARY KEY, provider TEXT NOT NULL, provider_job_id TEXT,
-            operation TEXT NOT NULL, status TEXT NOT NULL, prompt TEXT, negative_prompt TEXT,
-            seed INTEGER, model_id TEXT, preset_id TEXT, width INTEGER, height INTEGER,
-            steps INTEGER, guidance REAL, sampler TEXT, scheduler TEXT,
-            provider_params_json TEXT, workflow_template_id TEXT, workflow_hash TEXT,
-            artifact_id TEXT, output_path TEXT, normalized_error TEXT,
-            provider_diagnostics_json TEXT, parent_id TEXT,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL, started_at TEXT, finished_at TEXT
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS image_recipes (
-            recipe_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, description TEXT,
-            provider TEXT NOT NULL, workflow_template_id TEXT, model_family TEXT,
-            operation TEXT NOT NULL DEFAULT 'txt2img', quality_tier TEXT NOT NULL,
-            expected_speed TEXT, default_width INTEGER DEFAULT 1024, default_height INTEGER DEFAULT 1024,
-            max_width INTEGER DEFAULT 2048, max_height INTEGER DEFAULT 2048,
-            supported_aspects_json TEXT, supports_img2img INTEGER NOT NULL DEFAULT 0,
-            supports_characters INTEGER NOT NULL DEFAULT 0, max_characters INTEGER NOT NULL DEFAULT 0,
-            supports_pose_refs INTEGER NOT NULL DEFAULT 0, supports_outfit_refs INTEGER NOT NULL DEFAULT 0,
-            supports_object_refs INTEGER NOT NULL DEFAULT 0, supports_location_refs INTEGER NOT NULL DEFAULT 0,
-            supports_style_refs INTEGER NOT NULL DEFAULT 0, supports_inpainting INTEGER NOT NULL DEFAULT 0,
-            supports_variation INTEGER NOT NULL DEFAULT 0, supports_upscaling INTEGER NOT NULL DEFAULT 0,
-            identity_strength INTEGER NOT NULL DEFAULT 0, required_models_json TEXT,
-            required_nodes_json TEXT, license_notes TEXT, is_available INTEGER NOT NULL DEFAULT 1,
-            priority INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        )
-    """)
-    # Mark all migrations as applied so _ensure_db is a no-op
-    for name in ["023_image_jobs.sql", "024_image_characters.sql", "025_image_references.sql", "026_image_recipes.sql"]:
-        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (name,))
-    conn.commit()
-    conn.close()
+    # Run the REAL migrations. This fixture used to hand-write image_jobs and
+    # image_recipes, then mark 023-026 applied so _ensure_db() was a no-op — which
+    # left image_characters absent while claiming 024 had run. Any later migration
+    # touching that table then failed against a database the fixture said was up
+    # to date. Same class of hole as issue #580: a fixture asserting a schema the
+    # migrations do not produce.
+    db.migrate(db_file=db_path)
     return db_path
 
 

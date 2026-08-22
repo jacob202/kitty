@@ -183,6 +183,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "035_image_plans_operation.sql",
         "036_action_grants.sql",
         "037_action_approval_identity.sql",
+        "040_image_characters_v2_columns.sql",
     ]
 
 

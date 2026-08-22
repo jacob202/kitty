@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from gateway import db
 from gateway.image_characters import (
     CharacterError,
     CharacterNotFoundError,
@@ -44,59 +45,15 @@ def override_db(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr("gateway.db.connect", _test_connect)
 
-    conn = _test_connect()
-    conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT)")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS image_jobs (
-            job_id TEXT PRIMARY KEY, provider TEXT NOT NULL, provider_job_id TEXT,
-            operation TEXT NOT NULL, status TEXT NOT NULL, prompt TEXT, negative_prompt TEXT,
-            seed INTEGER, model_id TEXT, preset_id TEXT, width INTEGER, height INTEGER,
-            steps INTEGER, guidance REAL, sampler TEXT, scheduler TEXT,
-            provider_params_json TEXT, workflow_template_id TEXT, workflow_hash TEXT,
-            artifact_id TEXT, output_path TEXT, normalized_error TEXT,
-            provider_diagnostics_json TEXT, parent_id TEXT,
-            priority INTEGER NOT NULL DEFAULT 0, retry_count INTEGER NOT NULL DEFAULT 0,
-            max_retries INTEGER NOT NULL DEFAULT 0, last_error TEXT, queued_at TEXT,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL, started_at TEXT, finished_at TEXT
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS image_characters (
-            character_id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT,
-            preferred_recipe TEXT, identity_preset TEXT DEFAULT 'balanced',
-            privacy_state TEXT NOT NULL DEFAULT 'private', soft_deleted INTEGER NOT NULL DEFAULT 0,
-            face_embedding BLOB, face_embedding_model TEXT,
-            version INTEGER NOT NULL DEFAULT 1, superseded_by TEXT,
-            tags TEXT,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS image_character_refs (
-            ref_id TEXT PRIMARY KEY, character_id TEXT NOT NULL REFERENCES image_characters(character_id),
-            sort_order INTEGER NOT NULL DEFAULT 0, is_primary INTEGER NOT NULL DEFAULT 0,
-            storage_path TEXT NOT NULL, original_name TEXT, media_type TEXT,
-            file_size INTEGER, width INTEGER, height INTEGER, quality_notes TEXT,
-            tags TEXT, face_embedding BLOB, face_embedding_model TEXT,
-            version INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS image_character_gallery (
-            item_id TEXT PRIMARY KEY, character_id TEXT NOT NULL REFERENCES image_characters(character_id),
-            job_id TEXT, output_path TEXT NOT NULL, prompt TEXT,
-            recipe_id TEXT, identity_mode TEXT, identity_strength REAL,
-            rating INTEGER, tags TEXT, sort_order INTEGER NOT NULL DEFAULT 0,
-            created_at TEXT NOT NULL
-        )
-    """)
-    conn.execute("INSERT INTO schema_migrations (name) VALUES ('024_image_characters.sql')")
-    for name in ["023_image_jobs.sql", "025_image_references.sql", "026_image_recipes.sql",
-                  "027_image_characters_v2.sql"]:
-        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (name,))
-    conn.commit()
-    conn.close()
+    # Run the REAL migrations. This fixture used to hand-write its own
+    # CREATE TABLE for image_characters/image_character_refs with the v2 columns
+    # baked in, then pre-insert schema_migrations rows for 023-027 so the actual
+    # .sql files never executed. That validated a schema the migrations do not
+    # produce, which is why issue #580 — five columns the code writes that no
+    # migration creates — passed 573 tests while POST /studio/characters 500'd
+    # on every real request. Migrating for real is the only way a schema/code
+    # divergence fails a test instead of hiding in one.
+    db.migrate(db_file=db_path)
     return db_path
 
 
@@ -330,3 +287,59 @@ class TestCharacterGallery:
     def test_delete_gallery_item_not_found(self, override_db):
         with pytest.raises(GalleryItemNotFoundError):
             delete_gallery_item("nonexistent")
+
+
+class TestSchemaMatchesCode:
+    """The real migrated schema must carry every column the code reads/writes.
+
+    Issue #580: `create_character()` wrote face_embedding, face_embedding_model,
+    version and tags into a table no migration ever gave them, so
+    POST /studio/characters returned 500 on every request from 2026-07-24 until
+    040_image_characters_v2_columns.sql. The old fixture hid it by hand-writing
+    its own schema with those columns present. These assert against the columns
+    the migrations actually produce, so a schema/code divergence fails here
+    instead of only in production.
+    """
+
+    def _columns(self, db_path: Path, table: str) -> set[str]:
+        conn = sqlite3.connect(str(db_path))
+        try:
+            return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+        finally:
+            conn.close()
+
+    def test_characters_table_has_every_column_the_code_uses(self, override_db):
+        assert {
+            "character_id", "name", "description", "preferred_recipe",
+            "identity_preset", "privacy_state", "soft_deleted",
+            "face_embedding", "face_embedding_model", "version",
+            "superseded_by", "tags", "created_at", "updated_at",
+        } <= self._columns(override_db, "image_characters")
+
+    def test_refs_table_has_every_column_the_code_uses(self, override_db):
+        assert {
+            "ref_id", "character_id", "sort_order", "is_primary", "storage_path",
+            "original_name", "media_type", "file_size", "quality_notes",
+            "tags", "face_embedding", "face_embedding_model", "version",
+            "created_at",
+        } <= self._columns(override_db, "image_character_refs")
+
+    def test_the_full_character_lifecycle_survives_a_real_migration(self, override_db):
+        # The exact path that used to 500: create, read back, attach a reference,
+        # then supersede. Each step touches a column 040 added.
+        char = create_character("Jacob", description="real", tags=["a"])
+        assert get_character(char.character_id).tags == ["a"]
+
+        ref = add_character_ref(
+            char.character_id,
+            b"\x89PNG\r\n\x1a\n" + b"0" * 32,
+            original_name="face.png",
+            tags=["front"],
+            face_embedding=b"\x01\x02",
+            face_embedding_model="insightface-v1",
+        )
+        assert list_character_refs(char.character_id)[0].ref_id == ref.ref_id
+
+        successor = create_character("Jacob v2")
+        supersede_character(char.character_id, successor.character_id)
+        assert get_character(char.character_id).superseded_by == successor.character_id

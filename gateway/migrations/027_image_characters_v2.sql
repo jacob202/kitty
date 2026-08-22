@@ -1,6 +1,11 @@
 -- Image Studio V2: character gallery table.
--- Face embedding, versioning, and tag columns on existing tables
--- are added at runtime by the Python code (image_characters._ensure_db).
+--
+-- An earlier version of this header claimed the face embedding, versioning and
+-- tag columns on image_characters/image_character_refs were "added at runtime by
+-- the Python code (image_characters._ensure_db)". That was never true —
+-- `_ensure_db()` only calls kitty_db.migrate(). The columns simply did not
+-- exist, and saved characters were broken from this migration until
+-- 040_image_characters_v2_columns.sql actually added them (issue #580).
 CREATE TABLE IF NOT EXISTS image_character_gallery (
     item_id         TEXT PRIMARY KEY,
     character_id    TEXT NOT NULL REFERENCES image_characters(character_id) ON DELETE CASCADE,
