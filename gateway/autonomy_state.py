@@ -17,6 +17,12 @@ from gateway.paths import DATA_DIR
 logger = logging.getLogger("kitty.autonomy_state")
 STATE_DB = DATA_DIR / "autonomy_state.db"
 
+ACTIVE_STATUS = "active"
+INTERRUPTED_STATUS = "interrupted"
+# `interrupted` is terminal: no executor is coming back for the session. It is
+# deliberately not `failed`, which would claim the work was attempted and lost.
+TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled", INTERRUPTED_STATUS})
+
 def init_db():
     """Initialize the autonomy state database."""
     with db_connect(STATE_DB) as conn:
@@ -24,7 +30,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS autonomy_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 goal TEXT,
-                status TEXT DEFAULT 'active', -- active, completed, failed
+                status TEXT DEFAULT 'active', -- active, completed, failed, cancelled, interrupted
                 created_at REAL,
                 updated_at REAL
             )
@@ -45,6 +51,45 @@ def init_db():
             )
         """)
         conn.commit()
+
+
+def get_session(session_id: int) -> Optional[Dict[str, Any]]:
+    """Return the durable session row, or None when no such session exists.
+
+    A session that has recorded no steps yet is still a real session. Callers
+    must distinguish "no row" from "no history" or they report a freshly
+    spawned agent as missing.
+    """
+    init_db()
+    with db_connect(STATE_DB) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT * FROM autonomy_sessions WHERE id = ?", (session_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def interrupt_active_sessions() -> int:
+    """Mark sessions interrupted when no executor survived a Gateway restart.
+
+    Live executor identity exists only in ``agent_runner._AGENT_TASKS``, which
+    dies with the process. Any row still `active` at startup is therefore
+    describing an executor that no longer exists.
+
+    The update is conditional on the row still being `active`, which makes it
+    idempotent and means it can never overwrite a terminal status that won a
+    race against it. Recorded steps and partial output are never touched.
+    """
+    init_db()
+    now = time.time()
+    with db_connect(STATE_DB) as conn:
+        cursor = conn.execute(
+            "UPDATE autonomy_sessions SET status = ?, updated_at = ? WHERE status = ?",
+            (INTERRUPTED_STATUS, now, ACTIVE_STATUS),
+        )
+        conn.commit()
+        return int(cursor.rowcount or 0)
+
 
 class AutonomyState:
     def __init__(self, session_id: Optional[int] = None):
