@@ -127,6 +127,103 @@ def test_identity_scorer_returns_similarity_and_version(tmp_path, monkeypatch) -
     assert result.version == "identity-insightface-buffalo_l@1"
 
 
+def test_assignment_scorer_fails_closed_when_matcher_construction_fails(
+    tmp_path,
+) -> None:
+    import gateway.image_scorers as scorers
+    from mcp.imagen.face_match import CharacterFaceReference, FaceScorerUnavailable
+
+    candidate = tmp_path / "candidate.png"
+    _gradient_png(candidate)
+
+    class UnavailableMultiFaceMatcher:
+        def __init__(self, _references):
+            raise FaceScorerUnavailable("multi-face assignment v1 supports at most two characters")
+
+    monkeypatch_target = scorers.MultiFaceMatcher
+    try:
+        scorers.MultiFaceMatcher = UnavailableMultiFaceMatcher
+        with pytest.raises(EvaluationUnavailable, match="assignment scorer unavailable"):
+            scorers.make_assignment_scorer(
+                [
+                    CharacterFaceReference(
+                        cast_slot="left_slot", character_id="a", path=candidate, position="left"
+                    )
+                ]
+            )
+    finally:
+        scorers.MultiFaceMatcher = monkeypatch_target
+
+
+def test_assignment_scorer_returns_versioned_evidence(tmp_path) -> None:
+    import gateway.image_scorers as scorers
+    from gateway.image_evaluation import ScorerResult as EvalScorerResult
+    from mcp.imagen.face_match import CharacterFaceReference, MultiFaceAssignmentEvidence
+
+    candidate = tmp_path / "candidate.png"
+    _gradient_png(candidate)
+
+    references = [
+        CharacterFaceReference(
+            cast_slot="left_slot", character_id="a", path=candidate, position="left"
+        ),
+        CharacterFaceReference(
+            cast_slot="right_slot", character_id="b", path=candidate, position="right"
+        ),
+    ]
+
+    inner_result = EvalScorerResult(
+        passed=True,
+        score={"expected_subjects": 2, "detected_subjects": 2, "matches": []},
+        version="identity-assignment@1",
+        labels=[],
+    )
+    evidence = MultiFaceAssignmentEvidence(
+        character_ids=("a", "b"),
+        detected=(),
+        detected_cast_slots=("left_slot", "right_slot"),
+        reference_similarity_matrix=((0.9, 0.1), (0.1, 0.9)),
+        character_similarity_matrix=((0.9, 0.1), (0.1, 0.9)),
+        assignment=inner_result,
+    )
+
+    class FakeMultiFaceMatcher:
+        def __init__(self, refs):
+            assert list(refs) == references
+
+        def score_assignment(self, _data, *, min_similarity, min_margin):
+            assert min_similarity == pytest.approx(0.5)
+            assert min_margin == pytest.approx(0.1)
+            return evidence
+
+    monkeypatch_target = scorers.MultiFaceMatcher
+    try:
+        scorers.MultiFaceMatcher = FakeMultiFaceMatcher
+        scorer = scorers.make_assignment_scorer(
+            references, min_similarity=0.5, min_margin=0.1
+        )
+        result = scorer(str(candidate))
+    finally:
+        scorers.MultiFaceMatcher = monkeypatch_target
+
+    assert result.passed is True
+    assert result.version == "assignment-insightface-buffalo_l@1"
+    assert result.labels == ["assignment_ok"]
+    assert result.score["detected_cast_slots"] == ["left_slot", "right_slot"]
+    assert result.score["reference_similarity_matrix"] == [[0.9, 0.1], [0.1, 0.9]]
+
+
+def test_build_imagebench_scorers_omits_assignment_without_references() -> None:
+    from gateway.image_scorers import build_imagebench_scorers
+
+    scorers_map = build_imagebench_scorers(
+        required_scorers=["mechanics", "assignment"], prompt="two men"
+    )
+
+    assert "mechanics" in scorers_map
+    assert "assignment" not in scorers_map
+
+
 def test_ollama_rubric_scorer_requires_pinned_model_revision() -> None:
     from gateway.image_scorers import make_ollama_rubric_scorer
 

@@ -608,6 +608,195 @@ def test_evaluate_cli_fails_closed_when_required_production_scorer_is_unavailabl
     assert not output.exists()
 
 
+def test_assignment_reference_flag_rejects_malformed_value(tmp_path) -> None:
+    from PIL import Image
+
+    image = tmp_path / "candidate.png"
+    Image.new("RGB", (512, 512), "white").save(image)
+    output = tmp_path / "evaluation.json"
+
+    with pytest.raises(SystemExit) as exc:
+        bench.main(
+            [
+                "evaluate",
+                "--scenario",
+                "D.side_by_side",
+                "--image",
+                str(image),
+                "--output",
+                str(output),
+                "--assignment-reference",
+                "not-enough-parts",
+            ]
+        )
+
+    assert exc.value.code == 2
+    assert not output.exists()
+
+
+def test_assignment_reference_flag_rejects_bad_position(tmp_path) -> None:
+    from PIL import Image
+
+    image = tmp_path / "candidate.png"
+    Image.new("RGB", (512, 512), "white").save(image)
+    ref = tmp_path / "ref.png"
+    Image.new("RGB", (512, 512), "white").save(ref)
+    output = tmp_path / "evaluation.json"
+
+    with pytest.raises(SystemExit) as exc:
+        bench.main(
+            [
+                "evaluate",
+                "--scenario",
+                "D.side_by_side",
+                "--image",
+                str(image),
+                "--output",
+                str(output),
+                "--assignment-reference",
+                f"james:left_slot:middle:{ref}",
+            ]
+        )
+
+    assert exc.value.code == 2
+    assert not output.exists()
+
+
+def test_assignment_reference_flag_rejects_missing_file(tmp_path) -> None:
+    from PIL import Image
+
+    image = tmp_path / "candidate.png"
+    Image.new("RGB", (512, 512), "white").save(image)
+    output = tmp_path / "evaluation.json"
+
+    with pytest.raises(SystemExit) as exc:
+        bench.main(
+            [
+                "evaluate",
+                "--scenario",
+                "D.side_by_side",
+                "--image",
+                str(image),
+                "--output",
+                str(output),
+                "--assignment-reference",
+                f"james:left_slot:left:{tmp_path / 'missing.png'}",
+            ]
+        )
+
+    assert exc.value.code == 2
+    assert not output.exists()
+
+
+def test_evaluate_cli_scores_stage_d_two_character_scenario(tmp_path, monkeypatch) -> None:
+    from PIL import Image
+
+    import gateway.image_scorers as production_scorers
+    from gateway.image_evaluation import ScorerResult as EvalScorerResult
+    from mcp.imagen.face_match import FaceScore, MultiFaceAssignmentEvidence
+
+    image = tmp_path / "candidate.png"
+    pixels = Image.new("RGB", (512, 512))
+    for y in range(512):
+        for x in range(512):
+            pixels.putpixel((x, y), (x % 256, y % 256, (x + y) % 256))
+    pixels.save(image)
+    identity_reference = tmp_path / "identity.png"
+    Image.new("RGB", (512, 512), "white").save(identity_reference)
+    left_ref = tmp_path / "left.png"
+    Image.new("RGB", (512, 512), "white").save(left_ref)
+    right_ref = tmp_path / "right.png"
+    Image.new("RGB", (512, 512), "white").save(right_ref)
+    output = tmp_path / "evaluation.json"
+
+    class FakeFaceMatcher:
+        def __init__(self, _path):
+            pass
+
+        def score(self, _data):
+            return FaceScore(similarity=0.9, reference_faces=1, candidate_faces=1)
+
+    assignment_result = EvalScorerResult(
+        passed=True,
+        score={"expected_subjects": 2, "detected_subjects": 2, "matches": []},
+        version="identity-assignment@1",
+        labels=[],
+    )
+    evidence = MultiFaceAssignmentEvidence(
+        character_ids=("james", "arlo"),
+        detected=(),
+        detected_cast_slots=("left_slot", "right_slot"),
+        reference_similarity_matrix=((0.9, 0.1), (0.1, 0.9)),
+        character_similarity_matrix=((0.9, 0.1), (0.1, 0.9)),
+        assignment=assignment_result,
+    )
+
+    class FakeMultiFaceMatcher:
+        def __init__(self, _references):
+            pass
+
+        def score_assignment(self, _data, *, min_similarity, min_margin):
+            return evidence
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"response": "YES"}
+
+    class TagsResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "models": [
+                    {
+                        "name": "qwen2.5-vl:7b",
+                        "model": "qwen2.5-vl:7b",
+                        "digest": "sha256:abc123",
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(production_scorers, "FaceMatcher", FakeFaceMatcher)
+    monkeypatch.setattr(production_scorers, "MultiFaceMatcher", FakeMultiFaceMatcher)
+    monkeypatch.setattr(production_scorers.httpx, "get", lambda *args, **kwargs: TagsResponse())
+    monkeypatch.setattr(production_scorers.httpx, "post", lambda *args, **kwargs: Response())
+
+    rc = bench.main(
+        [
+            "evaluate",
+            "--scenario",
+            "D.side_by_side",
+            "--image",
+            str(image),
+            "--output",
+            str(output),
+            "--identity-reference",
+            str(identity_reference),
+            "--assignment-reference",
+            f"james:left_slot:left:{left_ref}",
+            "--assignment-reference",
+            f"arlo:right_slot:right:{right_ref}",
+            "--vlm-model",
+            "qwen2.5-vl:7b",
+            "--vlm-model-revision",
+            "sha256:abc123",
+        ]
+    )
+
+    payload = __import__("json").loads(output.read_text(encoding="utf-8"))
+    assert rc == 0
+    assert payload["passed"] is True
+    assert payload["scorer_versions"]["assignment"] == "assignment-insightface-buffalo_l@1"
+    assert payload["dimensions"]["assignment"]["detected_cast_slots"] == [
+        "left_slot",
+        "right_slot",
+    ]
+
+
 def test_direct_script_evaluate_entrypoint_reaches_fail_closed_scorer_gate(tmp_path) -> None:
     import os
     import subprocess
