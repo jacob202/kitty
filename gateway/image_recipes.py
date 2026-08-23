@@ -171,6 +171,45 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "priority": 5,
     },
     {
+        "recipe_id": "airforce_grok_imagine_2",
+        "display_name": "Grok Imagine Image 2.0 (Airforce)",
+        "description": "Low-cost hosted general image generation through Api.Airforce.",
+        "provider": "airforce",
+        "model_family": "grok-imagine-image-2.0",
+        "quality_tier": "quality",
+        "expected_speed": "seconds",
+        "default_width": 1024,
+        "default_height": 1024,
+        "max_width": 1792,
+        "max_height": 1792,
+        "supported_aspects": ["1:1", "16:9", "9:16"],
+        "supports_variation": True,
+        "license_notes": "xAI Grok Imagine Image 2.0 served by Api.Airforce; hosted paid usage.",
+        "is_available": False,
+        "priority": 40,
+    },
+    {
+        "recipe_id": "fal_flux_pulid",
+        "display_name": "FLUX PuLID (fal)",
+        "description": "Hosted single-reference character generation using fal FLUX PuLID.",
+        "provider": "fal",
+        "model_family": "flux-pulid",
+        "quality_tier": "quality",
+        "expected_speed": "seconds",
+        "default_width": 1024,
+        "default_height": 1024,
+        "max_width": 1536,
+        "max_height": 1536,
+        "supported_aspects": ["1:1", "3:2", "2:3", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+        "supports_characters": True,
+        "max_characters": 1,
+        "supports_variation": True,
+        "identity_strength": 95,
+        "license_notes": "fal-ai/flux-pulid hosted inference; billed per megapixel.",
+        "is_available": False,
+        "priority": 35,
+    },
+    {
         "recipe_id": "bfl_flux2_draft",
         "display_name": "FLUX.2 Klein 4B (hosted draft)",
         "description": "Hosted FLUX.2 [klein] 4B on BFL Direct — fast 1MP draft tier.",
@@ -217,18 +256,35 @@ def _ensure_db() -> None:
     kitty_db.migrate(db_file=KITTY_DB_FILE)
 
 
+def _hosted_default_available(provider: str) -> bool | None:
+    """Runtime availability for built-in hosted recipes we can preflight cheaply."""
+    if provider not in {"airforce", "fal"}:
+        return None
+    from gateway.image_runner import paid_engine_available
+
+    available, _ = paid_engine_available(provider)
+    return available
+
+
 def seed_default_recipes() -> int:
-    """Insert default recipes if the table is empty. Returns count inserted."""
+    """Insert any missing built-in recipes and refresh hosted availability.
+
+    Older Kitty databases may already contain some defaults. Seeding therefore
+    reconciles by recipe_id instead of returning early when the table is non-empty.
+    """
     _ensure_db()
+    now = _now()
+    count = 0
     with kitty_db.connect(KITTY_DB_FILE) as conn:
-        row = conn.execute("SELECT COUNT(*) as cnt FROM image_recipes").fetchone()
-        if row and row["cnt"] > 0:
-            return 0
-        now = _now()
-        count = 0
         for r in DEFAULT_RECIPES:
-            conn.execute(
-                """INSERT INTO image_recipes
+            runtime_available = _hosted_default_available(r["provider"])
+            # Preserve the historical registry contract for local/built-in recipes:
+            # they are selectable after seeding and fail loudly at the transport
+            # preflight if their runtime is offline. Hosted Airforce/fal are the
+            # exception because their explicit spend opt-in can be checked here.
+            initial_available = runtime_available if runtime_available is not None else True
+            cur = conn.execute(
+                """INSERT OR IGNORE INTO image_recipes
                    (recipe_id, display_name, description, provider, workflow_template_id,
                     model_family, execution_target, operation, quality_tier, expected_speed,
                     default_width, default_height, max_width, max_height,
@@ -263,10 +319,17 @@ def seed_default_recipes() -> int:
                     r.get("identity_strength", 0),
                     json.dumps(r.get("required_models")),
                     json.dumps(r.get("required_nodes")),
-                    r.get("license_notes"), 1, r.get("priority", 0), now, now,
+                    r.get("license_notes"), int(initial_available),
+                    r.get("priority", 0), now, now,
                 ),
             )
-            count += 1
+            if cur.rowcount > 0:
+                count += 1
+            if runtime_available is not None:
+                conn.execute(
+                    "UPDATE image_recipes SET is_available = ?, updated_at = ? WHERE recipe_id = ?",
+                    (int(runtime_available), now, r["recipe_id"]),
+                )
         conn.commit()
     return count
 

@@ -287,9 +287,16 @@ async def image_status():
         raise RuntimeError("drawthings engine adapter does not expose is_available()")
     drawthings_available = bool(await asyncio.to_thread(probe))
 
-    from gateway.image_runner import flux_images_available, openrouter_images_available
+    from gateway.image_runner import (
+        airforce_images_available,
+        fal_images_available,
+        flux_images_available,
+        openrouter_images_available,
+    )
 
+    airforce_available, airforce_reason = airforce_images_available()
     flux_available, flux_reason = flux_images_available()
+    fal_available, fal_reason = fal_images_available()
     hosted_available, hosted_reason = openrouter_images_available()
     engines = [
         {
@@ -305,11 +312,25 @@ async def image_status():
             "unavailable_reason": None if drawthings_available else DRAWTHINGS_OFFLINE_REASON,
         },
         {
+            "name": "airforce",
+            "label": "Grok Imagine 2.0 via Airforce",
+            "available": airforce_available,
+            "unavailable_reason": airforce_reason or None,
+            "cost_per_image_usd": 0.01,
+        },
+        {
             "name": "flux",
             "label": "Flux (Black Forest Labs)",
             "available": flux_available,
             "unavailable_reason": flux_reason or None,
             "cost_per_image_usd": 0.025,
+        },
+        {
+            "name": "fal",
+            "label": "FLUX PuLID via fal",
+            "available": fal_available,
+            "unavailable_reason": fal_reason or None,
+            "cost_per_image_usd": 0.0333,
         },
         {
             "name": "openrouter",
@@ -319,14 +340,25 @@ async def image_status():
             "cost_per_image_usd": 0.067,
         },
     ]
-    available = comfy_available or drawthings_available or flux_available or hosted_available
+    available = (
+        comfy_available
+        or drawthings_available
+        or airforce_available
+        or flux_available
+        or fal_available
+        or hosted_available
+    )
     # Local first when it is up (free), then the cheapest hosted lane.
     if comfy_available:
         backend = "comfyui"
     elif drawthings_available:
         backend = "drawthings"
+    elif airforce_available:
+        backend = "airforce"
     elif flux_available:
         backend = "flux"
+    elif fal_available:
+        backend = "fal"
     elif hosted_available:
         backend = "openrouter"
     else:
@@ -915,6 +947,7 @@ async def studio_generate(req: StudioGenerateRequest):
     stored = None
     operation = "txt2img"
     approved_edit_anchor: str | None = None
+    character_ref_path: str | None = None
     if req.plan_id:
         from gateway.image_plans import (
             PlanNotApprovedError,
@@ -937,6 +970,7 @@ async def studio_generate(req: StudioGenerateRequest):
         character_count = 1 if has_character else 0
         preferred_recipe = stored.recipe_id
         character_id = stored.character_id
+        character_ref_path = getattr(stored, "character_ref_path", None)
         guidance_tags = stored.guidance_tags
 
         if operation == "img2img":
@@ -992,6 +1026,15 @@ async def studio_generate(req: StudioGenerateRequest):
         preferred_recipe = req.recipe_id
         character_id = req.character_id
         guidance_tags = None
+        if character_id:
+            from gateway.image_characters import list_character_refs
+
+            character_refs = list_character_refs(character_id)
+            primary = next(
+                (ref for ref in character_refs if ref.is_primary),
+                character_refs[0] if character_refs else None,
+            )
+            character_ref_path = primary.storage_path if primary is not None else None
 
         # A plan-less /studio/generate call carries no trusted policy metadata:
         # it is safe lane, and a prompt can never promote itself to private.
@@ -1225,6 +1268,7 @@ async def studio_generate(req: StudioGenerateRequest):
                 prompt,
                 recipe=recipe,
                 character_id=character_id,
+                character_ref_path=character_ref_path,
                 negative_prompt=req.negative_prompt,
                 guidance_tags=guidance_tags,
                 content_lane=content_lane,
@@ -1257,6 +1301,7 @@ async def studio_generate(req: StudioGenerateRequest):
                 prompt,
                 recipe=recipe,
                 character_id=character_id,
+                character_ref_path=character_ref_path,
                 negative_prompt=req.negative_prompt,
                 guidance_tags=guidance_tags,
                 content_lane=content_lane,
