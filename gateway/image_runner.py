@@ -58,6 +58,8 @@ async def run(
     compiled_request: Any | None = None,
     reference_bytes: tuple[bytes, ...] = (),
     project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> JobResult:
     """Generate an image through the specified engine.
 
@@ -85,7 +87,7 @@ async def run(
     if engine == "flux":
         return await _run_flux(
             prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
-            project_id=project_id,
+            project_id=project_id, plan_id=plan_id, intent_json=intent_json,
         )
 
     if engine == "flux2":
@@ -98,12 +100,14 @@ async def run(
             reference_bytes=reference_bytes,
             negative_prompt=negative_prompt,
             project_id=project_id,
+            plan_id=plan_id,
+            intent_json=intent_json,
         )
 
     if engine == "openrouter":
         return await _run_openrouter(
             prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
-            project_id=project_id,
+            project_id=project_id, plan_id=plan_id, intent_json=intent_json,
         )
 
     if engine == "drawthings":
@@ -112,6 +116,8 @@ async def run(
             recipe=recipe,
             parent_id=parent_id,
             project_id=project_id,
+            plan_id=plan_id,
+            intent_json=intent_json,
         )
 
     if engine in {"airforce", "fal"}:
@@ -124,6 +130,8 @@ async def run(
             negative_prompt=negative_prompt,
             parent_id=parent_id,
             project_id=project_id,
+            plan_id=plan_id,
+            intent_json=intent_json,
         )
 
     if character_id:
@@ -134,6 +142,8 @@ async def run(
             negative_prompt=negative_prompt,
             guidance_tags=guidance_tags,
             project_id=project_id,
+            plan_id=plan_id,
+            intent_json=intent_json,
         )
 
     return await _run_comfyui(
@@ -142,6 +152,8 @@ async def run(
         parent_id=parent_id,
         guidance_tags=guidance_tags,
         project_id=project_id,
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
 
 
@@ -163,6 +175,8 @@ async def run_edit(
     consent_basis: str | None = None,
     adult_confirmed: bool = False,
     project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> JobResult:
     """Edit the anchor job's artifact, rather than rerolling from its prompt.
 
@@ -202,6 +216,8 @@ async def run_edit(
         provider_params_json=json.dumps(
             {"denoise": denoise, "source_job_id": anchor_job_id}
         ),
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
 
     try:
@@ -314,6 +330,8 @@ async def _run_registry_hosted(
     negative_prompt: str | None = None,
     parent_id: str | None = None,
     project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> JobResult:
     """Dispatch an existing MCP hosted engine through Kitty's durable job spine."""
     from mcp.imagen.engines import get
@@ -348,6 +366,8 @@ async def _run_registry_hosted(
         parent_id=parent_id,
         model_id=getattr(provider, "model_name", None),
         workflow_template_id=recipe.workflow_template_id if recipe else None,
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
 
     kwargs: dict[str, Any] = {}
@@ -382,6 +402,8 @@ async def _run_drawthings(
     recipe: Any | None = None,
     parent_id: str | None = None,
     project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> JobResult:
     """Draw Things engine path — dispatches via mcp.imagen engine registry."""
     from mcp.imagen.engines import get
@@ -400,6 +422,8 @@ async def _run_drawthings(
         parent_id=parent_id,
         model_id=getattr(drawthings, "model_name", None),
         workflow_template_id=workflow_template_id,
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
 
     try:
@@ -429,6 +453,8 @@ async def _run_comfyui(
     parent_id: str | None = None,
     guidance_tags: list[str] | None = None,
     project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> JobResult:
     """Standard ComfyUI generation path (no character)."""
     from gateway.image_gen import generate, is_available
@@ -441,6 +467,8 @@ async def _run_comfyui(
         parent_id=parent_id,
         guidance_tags=guidance_tags,
         project_id=project_id,
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
     return JobResult(
         job_id=result["job_id"],
@@ -459,6 +487,8 @@ async def _run_comfyui_character(
     negative_prompt: str | None = None,
     guidance_tags: list[str] | None = None,
     project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> JobResult:
     """Generate through the exact stored character contract."""
     from gateway.image_character_contracts import (
@@ -505,6 +535,8 @@ async def _run_comfyui_character(
         cfg=resolved["guidance"],
         guidance_tags=guidance_tags,
         project_id=project_id,
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
 
     return JobResult(
@@ -801,6 +833,8 @@ async def _run_openrouter(
     parent_id: str | None = None,
     source_image: bytes | None = None,
     project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> JobResult:
     """Hosted lane. Same job lifecycle as the local engines — one queue, one
     history, one gallery, per the image-studio architecture."""
@@ -836,6 +870,8 @@ async def _run_openrouter(
         parent_id=parent_id,
         model_id=OPENROUTER_IMAGE_MODEL,
         workflow_template_id=recipe.workflow_template_id if recipe else None,
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
 
     try:
@@ -935,6 +971,8 @@ async def _run_flux(
     parent_id: str | None = None,
     source_image: bytes | None = None,
     project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> JobResult:
     """Black Forest Labs lane, on the shared job lifecycle.
 
@@ -968,6 +1006,8 @@ async def _run_flux(
         parent_id=parent_id,
         model_id=model,
         workflow_template_id=recipe.workflow_template_id if recipe else None,
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
 
     try:
@@ -1038,6 +1078,8 @@ async def _run_flux2(
     reference_bytes: tuple[bytes, ...] = (),
     negative_prompt: str | None = None,
     project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> JobResult:
     """Hosted FLUX.2 (BFL Direct) lane on the shared job lifecycle.
 
@@ -1081,6 +1123,8 @@ async def _run_flux2(
         workflow_template_id=recipe.workflow_template_id if recipe else None,
         compiler_version=compiled_request.compiler_id,
         compiler_params_json=compiled_request.to_json(),
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
 
     try:

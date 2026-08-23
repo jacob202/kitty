@@ -234,6 +234,8 @@ async def generate_with_character(
     seed: int | None = None,
     guidance_tags: list[str] | None = None,
     project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> dict:
     state_seed = seed or _seed()
     neg = negative_prompt or "worst quality, low quality, bad anatomy, deformed, ugly, watermark, blurry"
@@ -251,6 +253,8 @@ async def generate_with_character(
         model_id=SDXL_PHOTONIC, width=width, height=height,
         steps=steps, guidance=cfg, sampler="euler", scheduler="sgm_uniform",
         provider_params_json=json.dumps(provider_params) if provider_params else None,
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
 
     try:
@@ -487,6 +491,8 @@ async def generate(
     parent_id: str | None = None,
     guidance_tags: list[str] | None = None,
     project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> dict:
     """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}."""
     p = _parse(prompt)
@@ -518,6 +524,8 @@ async def generate(
         workflow_template_id=template,
         workflow_hash=workflow_hash,
         parent_id=parent_id,
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
 
     try:
