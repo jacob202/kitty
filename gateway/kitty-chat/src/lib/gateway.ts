@@ -1445,6 +1445,22 @@ export interface GatewayNextStep {
   generated_at: number
 }
 
+/** The bounded artifact slice project_resume.resume() projects — see gateway/project_resume.py. */
+export interface GatewayProjectArtifact {
+  id: string
+  kind: string
+  display_name: string
+  state: string
+  created_at: number
+  media_type: string
+  size_bytes: number
+}
+
+export interface GatewayProjectResume {
+  id: number
+  artifacts: GatewayProjectArtifact[]
+}
+
 export interface GatewayArtifact {
   id: string
   project_id: number | null
@@ -1524,6 +1540,10 @@ export async function fetchProjectNext(projectId: number): Promise<GatewayNextSt
 
 export async function fetchProjectNextSteps(limit = 3): Promise<GatewayNextStep[]> {
   return await gfetch<GatewayNextStep[]>(`/projects/next-steps?limit=${limit}`)
+}
+
+export async function fetchProjectResume(projectId: number): Promise<GatewayProjectResume> {
+  return await gfetch<GatewayProjectResume>(`/projects/${projectId}/resume`)
 }
 
 /** Blocks on git + LLM composition server-side — give it a long timeout. */

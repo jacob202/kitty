@@ -7,8 +7,12 @@ the whole refresh — same discipline as state_composer.compose_now(). No
 LLM summarization in v1 (mechanical only); a follow-on packet can add it
 with last-written-wins semantics per the original P6 design note.
 
-resume(id) is a pure read of the stored fields — no composition, no side
-effects.
+resume(id) is a pure read of the stored project fields, plus a live,
+bounded query of the Artifact store scoped to this project. Querying
+another store's owning API at read time is not composition in the
+refresh() sense (no write, no derived summary) — it is the same
+"query the owning store by project scope" discipline used everywhere
+else in Kitty rather than copying artifact rows into the project row.
 
 Public API:
   refresh(project_id) -> dict
@@ -26,7 +30,7 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from pathlib import Path
 from typing import Any
 
-from gateway import memory_graph, project_store, signal_store
+from gateway import artifact_store, memory_graph, project_store, signal_store
 from gateway.paths import PROJECT_ROOT
 
 logger = logging.getLogger("kitty.project_resume")
@@ -38,6 +42,7 @@ logger = logging.getLogger("kitty.project_resume")
 SOURCE_TIMEOUT_SECONDS = 10.0
 GIT_TIMEOUT_SECONDS = 4.0
 SIGNAL_SCAN_LIMIT = 200
+ARTIFACT_LIMIT = 20
 GIT_LOG_LINES = 5
 
 
@@ -91,7 +96,38 @@ def resume(project_id: int) -> dict[str, Any]:
         "next_actions": project["next_actions"],
         "delegable": project["delegable"],
         "links": project["links"],
+        "artifacts": _artifact_source(project_id),
     }
+
+
+def _artifact_source(project_id: int) -> list[dict[str, Any]]:
+    """Return bounded canonical artifacts for resume views.
+
+    ArtifactStore remains the source of truth; resume only projects a
+    read-only, UI-sized slice of it. A store failure here (e.g. a
+    corrupt row elsewhere in the table) must not fail the whole
+    resume() call — same "one bad source can't take the rest down"
+    discipline as refresh(), just without the executor machinery since
+    resume() has always been synchronous and has only ever had one
+    thing to fetch until now.
+    """
+    try:
+        artifacts = artifact_store.list_artifacts(project_id=project_id, limit=ARTIFACT_LIMIT)
+    except Exception as exc:  # noqa: BLE001 — a broken artifact store must not 500 resume()
+        logger.warning("project %s resume artifact source failed: %s", project_id, exc)
+        return []
+    return [
+        {
+            "id": artifact["id"],
+            "kind": artifact["kind"],
+            "display_name": artifact["display_name"],
+            "state": artifact["state"],
+            "created_at": artifact["created_at"],
+            "media_type": artifact["media_type"],
+            "size_bytes": artifact["size_bytes"],
+        }
+        for artifact in artifacts
+    ]
 
 
 def _git_source(project: dict[str, Any]) -> dict[str, Any]:

@@ -1,6 +1,6 @@
 'use client'
 import type { CSSProperties } from 'react'
-import { useProjects, useProjectNext, useRefreshProject } from '@/lib/queries'
+import { useProjects, useProjectNext, useProjectResume, useRefreshProject } from '@/lib/queries'
 import type { GatewayProject } from '@/lib/gateway'
 import { Button } from '@/components/ui/Button'
 import { RefreshCw } from 'lucide-react'
@@ -117,6 +117,45 @@ function ProjectCard({
           </ul>
         </div>
       )}
+
+      <ProjectArtifacts projectId={project.id} />
+    </div>
+  )
+}
+
+/** Bounded, secondary — a quiet supplement to "what's next", not a peer. */
+function ProjectArtifacts({ projectId }: { projectId: number }) {
+  const resumeQuery = useProjectResume(projectId)
+
+  if (resumeQuery.isLoading) {
+    return <p style={mutedStyle}>checking recent files…</p>
+  }
+
+  if (resumeQuery.isError) {
+    return (
+      <p style={mutedStyle}>
+        recent files unavailable (
+        {resumeQuery.error instanceof Error ? resumeQuery.error.message : 'gateway error'})
+      </p>
+    )
+  }
+
+  const artifacts = resumeQuery.data?.artifacts ?? []
+  if (artifacts.length === 0) return null
+
+  return (
+    <div>
+      <div style={nextLabelStyle}>recent files</div>
+      <ul style={{ margin: '4px 0 0 16px', display: 'grid', gap: 2 }}>
+        {artifacts.slice(0, 5).map(a => (
+          <li key={a.id} style={actionStyle}>
+            <span>{a.display_name}</span>{' '}
+            <span style={metaStyle}>
+              · {a.kind} · {a.state} · {new Date(a.created_at * 1000).toLocaleDateString('en-CA')}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
