@@ -224,6 +224,8 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "max_height": 1024,
         "supported_aspects": ["1:1"],
         "supports_img2img": True,
+        "supports_characters": True,
+        "max_characters": 2,
         "license_notes": "FLUX.2 klein 4B: Apache-2.0. Hosted by Black Forest Labs; usage is paid.",
         "priority": 4,
     },
@@ -242,6 +244,8 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "max_height": 1024,
         "supported_aspects": ["1:1"],
         "supports_img2img": True,
+        "supports_characters": True,
+        "max_characters": 2,
         "license_notes": "FLUX.2 Pro: BFL proprietary hosted model. Usage is paid.",
         "priority": 3,
     },
@@ -325,6 +329,21 @@ def seed_default_recipes() -> int:
             )
             if cur.rowcount > 0:
                 count += 1
+            if r["recipe_id"] in {"bfl_flux2_draft", "bfl_flux2_pro"}:
+                # These are built-in capability facts, not user preferences.
+                # Reconcile existing databases that seeded the recipes before
+                # multi-character support was represented in the registry.
+                conn.execute(
+                    """UPDATE image_recipes
+                       SET supports_characters = ?, max_characters = ?, updated_at = ?
+                       WHERE recipe_id = ?""",
+                    (
+                        int(r.get("supports_characters", False)),
+                        r.get("max_characters", 0),
+                        now,
+                        r["recipe_id"],
+                    ),
+                )
             if runtime_available is not None:
                 conn.execute(
                     "UPDATE image_recipes SET is_available = ?, updated_at = ? WHERE recipe_id = ?",
@@ -385,18 +404,32 @@ def auto_route(
     if not recipes:
         raise RecipeError("no image recipes are available")
 
-    # If user prefers a specific recipe and it's available
+    # If user prefers a specific recipe and it's available, capability
+    # requirements still win over preference. A preferred one-character recipe
+    # must never collapse a two-character intent into a single identity lane.
     if preferred_recipe:
         try:
             r = get_recipe(preferred_recipe)
-            if r.is_available:
-                return RoutingDecision(r.recipe_id, r, "Selected by user preference")
         except RecipeError:
-            pass
+            r = None
+        if r is not None and r.is_available:
+            if has_character and (
+                not r.supports_characters or r.max_characters < character_count
+            ):
+                raise RecipeError(
+                    f"recipe {r.recipe_id!r} supports {r.max_characters} "
+                    f"character(s); requested {character_count}"
+                )
+            return RoutingDecision(r.recipe_id, r, "Selected by user preference")
 
-    # Identity-first: choose the highest-identity-strength recipe that supports characters
+    # Identity-first: choose the strongest recipe that can truthfully carry the
+    # full cast, not merely any recipe with character support.
     if identity_mode == "identity_first" and has_character:
-        char_recipes = [r for r in recipes if r.supports_characters]
+        char_recipes = [
+            r
+            for r in recipes
+            if r.supports_characters and r.max_characters >= character_count
+        ]
         if char_recipes:
             best = max(char_recipes, key=lambda r: (r.identity_strength, r.priority))
             return RoutingDecision(best.recipe_id, best,

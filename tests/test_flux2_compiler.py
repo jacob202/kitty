@@ -245,3 +245,56 @@ class TestCompilerVersion:
         assert params["seed"] == 9
         assert params["references"][0]["order"] == 1
         assert params["prompt"].startswith("a cat")
+
+class TestMultiCharacterBindings:
+    def test_cast_assignment_and_placement_survive_compilation(self):
+        refs = [
+            CompiledReference(
+                reference_id="ref_alex",
+                role="identity",
+                order=1,
+                name="Alex",
+                cast_slot="subject_1",
+                character_id="char_alex",
+                position="left",
+                depth_order=1,
+            ),
+            CompiledReference(
+                reference_id="ref_ben",
+                role="identity",
+                order=2,
+                name="Ben",
+                cast_slot="subject_2",
+                character_id="char_ben",
+                position="right",
+                depth_order=2,
+            ),
+        ]
+        compiled = compile_flux2_request("Alex and Ben standing together", references=refs)
+
+        assert compiled.references == tuple(refs)
+        assert compiled.references[0].to_dict() == {
+            "reference_id": "ref_alex",
+            "role": "identity",
+            "order": 1,
+            "name": "Alex",
+            "cast_slot": "subject_1",
+            "character_id": "char_alex",
+            "position": "left",
+            "depth_order": 1,
+        }
+        assert "Alex" in compiled.prompt
+        assert "subject_1" in compiled.prompt
+        assert "left" in compiled.prompt
+        assert "Ben" in compiled.prompt
+        assert "subject_2" in compiled.prompt
+        assert "right" in compiled.prompt
+
+    def test_legacy_reference_dict_shape_stays_unchanged(self):
+        ref = CompiledReference("legacy", "identity", order=1, name="Mara")
+        assert ref.to_dict() == {
+            "reference_id": "legacy",
+            "role": "identity",
+            "order": 1,
+            "name": "Mara",
+        }
