@@ -319,6 +319,14 @@ async def image_generate(req: ImageGenRequest):
         raise HTTPException(
             status_code=422, detail=f"engine must be one of {', '.join(sorted(ENGINES))}"
         )
+    if engine not in {"comfyui", "drawthings"}:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Hosted image generation requires the Studio session/batch path "
+                "so spend authorization, reservation, and recovery stay durable"
+            ),
+        )
 
     try:
         result = await run(engine, req.prompt, parent_id=req.parent_id)
