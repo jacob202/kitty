@@ -103,6 +103,7 @@ pathlib.Path(os.environ['TEST_RESULT']).write_text(json.dumps({
     assert not outside.exists()
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
 def test_run_worker_enforces_real_child_boundary(tmp_path: Path, monkeypatch) -> None:
     from gateway import builder_queue as bq
     from gateway import builder_runner as br
@@ -177,6 +178,7 @@ pathlib.Path('boundary.json').write_text(json.dumps({
     assert not outside.exists()
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
 def test_review_command_is_read_only_secret_free_and_loopback_denied(
     tmp_path: Path, monkeypatch
 ) -> None:

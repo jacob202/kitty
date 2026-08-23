@@ -404,6 +404,7 @@ class TestRunWorker:
         assert run["state"] == bq.RUN_SCOPE_VIOLATION
         assert run["final_report"]["scope_violations"] == ["outside.txt"]
 
+    @pytest.mark.skipif(__import__("sys").platform != "darwin", reason="Seatbelt proof is macOS-specific")
     def test_worker_cannot_commit_shared_git_metadata(
         self, repo: Path, db_path: Path
     ):
