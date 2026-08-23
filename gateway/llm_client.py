@@ -294,6 +294,29 @@ def _openrouter_fallback_model(litellm_model: str) -> str:
     return _LITELLM_TO_OPENROUTER.get(litellm_model, litellm_model)
 
 
+AIRFORCE_BASE = "https://api.airforce/v1"
+_AIRFORCE_TEXT_ROLES = {
+    _LITELLM_DEFAULT,
+    _LITELLM_SONNET,
+    _LITELLM_SMALL,
+    "kitty-think",
+    "kitty-code",
+}
+
+
+def _airforce_model_for_request(request_model: str | None) -> str:
+    """Map Kitty text roles to a verified Airforce free-tier chat model.
+
+    ``glm-4.7-flash`` was live-verified on this account on 2026-08-22.
+    Unknown/vision models pass through so we fail loudly rather than silently
+    send an image turn to a text-only model.
+    """
+    requested = (request_model or "").strip()
+    if not requested or requested in _AIRFORCE_TEXT_ROLES:
+        return os.environ.get("KITTY_AIRFORCE_MODEL", "").strip() or "glm-4.7-flash"
+    return requested
+
+
 def _finalize_openai_shape_response(
     data: dict[str, Any],
     *,
@@ -328,7 +351,7 @@ def _finalize_openai_shape_response(
 
 # --- Provider dispatcher ------------------------------------------------------
 #
-# Each of the 5 LLM providers becomes one row in ``PROVIDERS``. The dispatcher
+# Each direct LLM provider becomes one row in ``PROVIDERS``. The dispatcher
 # is generic: API-key resolution, model resolution, header building, HTTP POST,
 # and response extraction are all driven by the table. Provider-specific
 # behavior (e.g. AgentRouter's alt-UA retry) is data on the row.
@@ -430,6 +453,16 @@ PROVIDERS: dict[str, ProviderConfig] = {
         kind="api_credit",
         free_tier=True,
     ),
+    "airforce": ProviderConfig(
+        name="airforce",
+        route="airforce_direct",
+        base_url=AIRFORCE_BASE,
+        api_key_env=("AIRFORCE_API_KEY",),
+        model_default="glm-4.7-flash",
+        kind="api_credit",
+        free_tier=True,
+        model_resolver=_airforce_model_for_request,
+    ),
     "agentrouter": ProviderConfig(
         name="agentrouter",
         route="agentrouter_direct",
@@ -472,14 +505,14 @@ PROVIDERS: dict[str, ProviderConfig] = {
     ),
 }
 
-# Default order when Jacob hasn't set one: local first (free, no credit, no
-# network), then OpenAI (known-good paid), NVIDIA, AgentRouter (opt-in),
-# OpenRouter (cheap/free), Gemini.
+# Preserve the established fallback order and add Airforce immediately before
+# OpenRouter. Unconfigured providers are skipped without making a network call.
 PROVIDER_FALLBACK_ORDER: tuple[str, ...] = (
     "local",
     "openai",
     "nvidia",
     "agentrouter",
+    "airforce",
     "openrouter",
     "gemini",
 )

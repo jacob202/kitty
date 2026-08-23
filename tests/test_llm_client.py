@@ -746,6 +746,31 @@ def test_agentrouter_model_for_request_default_reads_env():
     assert result == "env-model"
 
 
+# ── Airforce direct provider ───────────────────────────────────────────────
+
+
+def test_airforce_provider_maps_text_roles_to_verified_free_model():
+    from gateway.llm_client import PROVIDERS, _airforce_model_for_request
+
+    provider = PROVIDERS["airforce"]
+    assert provider.base_url == "https://api.airforce/v1"
+    assert provider.api_key_env == ("AIRFORCE_API_KEY",)
+    assert provider.kind == "api_credit"
+    assert provider.free_tier is True
+    for role in ("kitty-default", "kitty-small", "kitty-sonnet", "kitty-think", "kitty-code"):
+        assert _airforce_model_for_request(role) == "glm-4.7-flash"
+    # No free Airforce vision model has been verified for this account. Fail
+    # rather than silently route an image to a text-only model.
+    assert _airforce_model_for_request("kitty-vision") == "kitty-vision"
+    assert _airforce_model_for_request("custom-model") == "custom-model"
+
+
+def test_airforce_precedes_openrouter_in_default_fallback_order():
+    from gateway.llm_client import PROVIDER_FALLBACK_ORDER
+
+    assert PROVIDER_FALLBACK_ORDER.index("airforce") < PROVIDER_FALLBACK_ORDER.index("openrouter")
+
+
 # ── _openrouter_fallback_model ────────────────────────────────────────────
 
 
