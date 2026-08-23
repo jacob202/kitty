@@ -177,6 +177,7 @@ def test_agent_review_workflow_uses_trusted_code_and_avoids_model_reruns_on_meta
     assert "review-gate:" in workflow  # compatibility until the ruleset migrates
     assert "python -m scripts.pr_review_gate" in workflow
     assert "review/evidence-current" in workflow
+    assert "review-concurrency-class" in workflow
 
 def test_prompt_rejects_generic_speculative_review_noise() -> None:
     prompt = pr_review.SYSTEM_PROMPT.lower()

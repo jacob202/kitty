@@ -10,7 +10,9 @@ permissions:
   issues: write
 
 concurrency:
-  group: pr-agent-review-${{ github.event.pull_request.number }}
+  # review-concurrency-class: metadata events must not cancel a code-head review.
+  # Repeated events of the same type still cancel their own superseded run.
+  group: pr-agent-review-${{ github.event.pull_request.number }}-${{ github.event.action }}
   cancel-in-progress: true
 
 jobs:
