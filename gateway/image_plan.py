@@ -17,6 +17,26 @@ from typing import Any
 
 from gateway.image_policy import ContentLane
 
+ALLOWED_REFERENCE_ROLES = frozenset(
+    {
+        "subject",
+        "identity",
+        "person",
+        "face",
+        "body",
+        "outfit",
+        "clothing",
+        "location",
+        "environment",
+        "pose",
+        "expression",
+        "style",
+        "lighting",
+        "object",
+        "anchor",
+    }
+)
+
 
 @dataclass
 class ReferenceProvenance:
@@ -26,6 +46,7 @@ class ReferenceProvenance:
     name: str
     path: str  # validated local file path
     reason: str  # e.g. "primary character", "user selected"
+    reference_id: str | None = None
 
 
 @dataclass
@@ -52,13 +73,19 @@ class ImageIntent:
     """Provider-neutral intent contract layered onto existing plans."""
 
     intent_version: int = 1
-    operation: str = "generate"
+    operation: str = "txt2img"
     cast: list[CastSlot] = field(default_factory=list)
     references: list[ReferenceBinding] = field(default_factory=list)
     scene: dict[str, Any] = field(default_factory=dict)
     target: dict[str, Any] = field(default_factory=dict)
     requested_changes: list[str] = field(default_factory=list)
     protected_traits: list[str] = field(default_factory=list)
+    content_lane: str = ContentLane.SAFE.value
+    consent_basis: str | None = None
+    adult_confirmed: bool = False
+    privacy_required: bool = False
+    quality_request: dict[str, Any] = field(default_factory=dict)
+    budget_request: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -81,6 +108,7 @@ class ImagePlan:
     recipe_id: str | None = None
     guidance_tags: list[str] = field(default_factory=list)
     references: list[ReferenceProvenance] = field(default_factory=list)
+    intent: ImageIntent | None = None
     content_lane: str = ContentLane.SAFE.value
     consent_basis: str | None = None
     adult_confirmed: bool = False
@@ -93,6 +121,7 @@ class ImagePlan:
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["references"] = [asdict(r) for r in self.references]
+        d["intent"] = asdict(self.intent) if self.intent is not None else None
         return d
 
 
@@ -109,6 +138,14 @@ def build_image_plan(
     content_lane: str | None = None,
     consent_basis: str | None = None,
     adult_confirmed: bool = False,
+    operation: str = "txt2img",
+    scene: dict[str, Any] | None = None,
+    target: dict[str, Any] | None = None,
+    requested_changes: list[str] | None = None,
+    protected_traits: list[str] | None = None,
+    privacy_required: bool | None = None,
+    quality_request: dict[str, Any] | None = None,
+    budget_request: dict[str, Any] | None = None,
 ) -> ImagePlan:
     """Build a validated plan from user inputs.
 
@@ -126,6 +163,11 @@ def build_image_plan(
     from gateway import image_characters as ic
     from gateway.image_guidance import available_guidance_tags
     from gateway.image_policy import ContentLane
+
+    if operation not in {"txt2img", "img2img"}:
+        raise ImagePlanError(
+            f"unknown operation {operation!r}; must be 'txt2img' or 'img2img'"
+        )
 
     lane = ContentLane.SAFE.value
     if content_lane is not None:
@@ -149,18 +191,19 @@ def build_image_plan(
                 f"cannot resolve character {character_id!r}: {exc}"
             ) from exc
 
-        ref_path = _primary_character_ref_path(char)
-        if ref_path is None:
+        ref = _primary_character_ref(char)
+        if ref is None:
             raise ImagePlanError(
                 f"character {character_id!r} has no reference image"
             )
-        resolved_character_path = ref_path
+        resolved_character_path = ref.storage_path
         references.append(
             ReferenceProvenance(
                 character_id=char.character_id,
                 name=char.name,
-                path=ref_path,
+                path=ref.storage_path,
                 reason="primary character" if character_id else "user selected",
+                reference_id=ref.ref_id,
             )
         )
 
@@ -185,6 +228,46 @@ def build_image_plan(
         guidance_tags=resolved_tags,
     )
 
+    cast: list[CastSlot] = []
+    typed_references: list[ReferenceBinding] = []
+    if char is not None and references:
+        cast.append(
+            CastSlot(
+                slot_id="subject_1",
+                character_id=char.character_id,
+                display_name=char.name,
+            )
+        )
+        ref_id = references[0].reference_id
+        if ref_id is not None:
+            typed_references.append(
+                ReferenceBinding(
+                    reference_id=ref_id,
+                    role="identity",
+                    cast_slot="subject_1",
+                )
+            )
+
+    intent = ImageIntent(
+        operation=operation,
+        cast=cast,
+        references=typed_references,
+        scene=dict(scene or {}),
+        target=dict(target or {}),
+        requested_changes=list(requested_changes or []),
+        protected_traits=list(protected_traits or []),
+        content_lane=lane,
+        consent_basis=consent_basis,
+        adult_confirmed=bool(adult_confirmed),
+        privacy_required=(
+            lane == ContentLane.PRIVATE_ADULT.value
+            if privacy_required is None
+            else bool(privacy_required)
+        ),
+        quality_request=dict(quality_request or {}),
+        budget_request=dict(budget_request or {}),
+    )
+
     return ImagePlan(
         original_prompt=prompt.strip(),
         refined_prompt=refined,
@@ -193,14 +276,15 @@ def build_image_plan(
         recipe_id=recipe_id,
         guidance_tags=resolved_tags,
         references=references,
+        intent=intent,
         content_lane=lane,
         consent_basis=consent_basis,
         adult_confirmed=bool(adult_confirmed),
     )
 
 
-def _primary_character_ref_path(char: Any) -> str | None:
-    """Return the local path of the character's primary reference image."""
+def _primary_character_ref(char: Any) -> Any | None:
+    """Return the character's primary stored reference record."""
     from gateway import image_characters as ic
 
     try:
@@ -208,20 +292,21 @@ def _primary_character_ref_path(char: Any) -> str | None:
     except ic.CharacterError:
         return None
 
-    if not refs:
-        return None
-
-    # Prefer the primary reference, else the first non-soft-deleted reference.
     for ref in refs:
         if getattr(ref, "soft_deleted", False):
             continue
         if getattr(ref, "is_primary", False):
-            return ref.storage_path
+            return ref
     for ref in refs:
-        if getattr(ref, "soft_deleted", False):
-            continue
-        return ref.storage_path
+        if not getattr(ref, "soft_deleted", False):
+            return ref
     return None
+
+
+def _primary_character_ref_path(char: Any) -> str | None:
+    """Backward-compatible path projection of the primary reference."""
+    ref = _primary_character_ref(char)
+    return ref.storage_path if ref is not None else None
 
 
 def _refine_prompt(
