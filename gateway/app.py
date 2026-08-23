@@ -283,6 +283,18 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             supervisor.mark("cron", "degraded", reason=f"{type(exc).__name__}: {exc}")
             logger.exception("cron system registration failed — scheduled jobs disabled")
+
+        try:
+            from gateway.capability_report import (
+                probe_capabilities,
+                render_capability_report,
+            )
+
+            startup_report = await probe_capabilities()
+            app.state.startup_capability_report = startup_report
+            logger.info(render_capability_report(startup_report))
+        except Exception as exc:
+            logger.exception("startup capability report failed: %s", exc)
     yield
     if background_services_enabled:
         await supervisor.stop_all()
