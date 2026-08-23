@@ -960,6 +960,32 @@ def _load_observations(path: Path) -> list[dict[str, Any]]:
     return payload
 
 
+def _parse_assignment_reference(value: str) -> Any:
+    from mcp.imagen.face_match import CharacterFaceReference
+
+    parts = value.split(":", 3)
+    if len(parts) != 4:
+        raise BenchmarkContractError(
+            "--assignment-reference must be character_id:cast_slot:position:path, "
+            f"got {value!r}"
+        )
+    character_id, cast_slot, position, path_str = (part.strip() for part in parts)
+    if not character_id or not cast_slot:
+        raise BenchmarkContractError(
+            f"--assignment-reference character_id/cast_slot must be non-empty: {value!r}"
+        )
+    if position not in {"left", "right"}:
+        raise BenchmarkContractError(
+            f"--assignment-reference position must be 'left' or 'right', got {position!r}"
+        )
+    path = Path(path_str)
+    if not path.is_file():
+        raise BenchmarkContractError(f"--assignment-reference path does not exist: {path}")
+    return CharacterFaceReference(
+        cast_slot=cast_slot, character_id=character_id, path=path, position=position
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -972,6 +998,18 @@ def _build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--output", required=True, type=Path)
     evaluate.add_argument("--identity-reference", type=Path)
     evaluate.add_argument("--identity-threshold", type=float, default=0.45)
+    evaluate.add_argument(
+        "--assignment-reference",
+        action="append",
+        default=[],
+        metavar="CHARACTER_ID:CAST_SLOT:POSITION:PATH",
+        help=(
+            "two-character identity assignment reference, repeatable (max 2): "
+            "character_id:cast_slot:left|right:path. Required for stage-D scenarios."
+        ),
+    )
+    evaluate.add_argument("--assignment-min-similarity", type=float, default=0.45)
+    evaluate.add_argument("--assignment-min-margin", type=float, default=0.05)
     evaluate.add_argument("--auxiliary-image", action="append", type=Path, default=[])
     evaluate.add_argument("--vlm-model")
     evaluate.add_argument("--vlm-model-revision")
@@ -1016,6 +1054,15 @@ def main(argv: list[str] | None = None) -> int:
             if scenario is None:
                 raise BenchmarkContractError(f"unknown canonical scenario_id {args.scenario!r}")
             required = scenario["required_scorers"]
+            assignment_references = [
+                _parse_assignment_reference(value) for value in args.assignment_reference
+            ]
+            resolved_ref_paths = [Path(ref.path).resolve() for ref in assignment_references]
+            if len(set(resolved_ref_paths)) != len(resolved_ref_paths):
+                raise BenchmarkContractError(
+                    "--assignment-reference paths must be distinct files — scoring "
+                    "two characters against the same photo would silently prove nothing"
+                )
             scorers = build_imagebench_scorers(
                 required_scorers=required,
                 prompt=scenario["prompt"],
@@ -1023,6 +1070,9 @@ def main(argv: list[str] | None = None) -> int:
                     str(args.identity_reference) if args.identity_reference is not None else None
                 ),
                 identity_threshold=args.identity_threshold,
+                assignment_references=assignment_references,
+                assignment_min_similarity=args.assignment_min_similarity,
+                assignment_min_margin=args.assignment_min_margin,
                 auxiliary_image_paths=[str(path) for path in args.auxiliary_image],
                 vlm_model=args.vlm_model,
                 vlm_model_revision=args.vlm_model_revision,

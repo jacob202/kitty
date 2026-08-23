@@ -64,9 +64,22 @@ pid_alive() {
   [[ -f "$pidfile" ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null
 }
 
+launchd_plist_path() {
+  local svc="$1"
+  printf '%s\n' "$HOME/Library/LaunchAgents/com.kitty.desktop.$svc.plist"
+}
+
+launchd_configured() {
+  local svc
+  for svc in ui gateway litellm; do
+    [[ -f "$(launchd_plist_path "$svc")" ]] && return 0
+  done
+  return 1
+}
+
 launchd_pid() {
   local svc="$1"
-  launchctl print "gui/$(id -u)/com.kitty.$svc" 2>/dev/null \
+  launchctl print "gui/$(id -u)/com.kitty.desktop.$svc" 2>/dev/null \
     | awk -F'= ' '/^[[:space:]]*pid = / { print $2; exit }'
 }
 
@@ -86,6 +99,12 @@ pid_command() {
 
 pid_cwd() {
   lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1
+}
+
+pid_owned_by_current_checkout() {
+  local pid="$1" cwd
+  cwd="$(pid_cwd "$pid")"
+  [[ "$cwd" == "$KITTY_ROOT" || "$cwd" == "$KITTY_ROOT/"* ]]
 }
 
 pid_owned_by_kitty() {
@@ -118,15 +137,30 @@ pid_owned_by_kitty() {
   return 1
 }
 
+pid_role() {
+  local pid="$1"
+  if pid_owned_by_current_checkout "$pid"; then
+    echo "owned-current"
+  elif pid_owned_by_kitty "$pid"; then
+    echo "owned-other-worktree"
+  else
+    echo "external"
+  fi
+}
+
 stop_pidfile() {
   local svc="$1"
   local pidfile="$RUN_DIR/$svc.pid"
   if pid_alive "$pidfile"; then
     local pid
     pid="$(cat "$pidfile")"
-    pkill -TERM -P "$pid" 2>/dev/null || true
-    kill -TERM "$pid" 2>/dev/null || true
-    echo "  $svc  stopping (pid $pid)"
+    if pid_owned_by_current_checkout "$pid"; then
+      pkill -TERM -P "$pid" 2>/dev/null || true
+      kill -TERM "$pid" 2>/dev/null || true
+      echo "  $svc  stopping (pid $pid)"
+    else
+      echo "  $svc  pidfile points at $(pid_role "$pid") pid $pid; leaving process alone"
+    fi
   fi
   rm -f "$pidfile"
 }
@@ -233,7 +267,7 @@ ensure_gateway_secret() {
 startup_identity() {
   local label="$1" port="$2" pid="$3"
   local sha build_id
-  sha="$(git -C "$KITTY_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+  sha="$(git -C "$KITTY_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")"
   build_id=""
   if [[ -f "$KITTY_ROOT/gateway/kitty-chat/.next/BUILD_ID" ]]; then
     build_id="$(cat "$KITTY_ROOT/gateway/kitty-chat/.next/BUILD_ID")"
@@ -311,11 +345,12 @@ cmd_ui() {
   if ! http_ok "http://127.0.0.1:$UI_PORT/"; then
     assert_port_available "UI" "$UI_PORT"
     echo "Starting UI on http://127.0.0.1:$UI_PORT ..."
-    (cd "$KITTY_ROOT/gateway/kitty-chat" \
-      && nohup node node_modules/next/dist/bin/next dev -H 127.0.0.1 -p "$UI_PORT" \
-        >"$LOG_DIR/ui.log" 2>&1 & echo $! >"$RUN_DIR/ui.pid")
+    KITTY_UI_PORT="$UI_PORT" \
+      KITTY_GATEWAY_URL="http://127.0.0.1:$GATEWAY_PORT" \
+      nohup bash "$KITTY_ROOT/scripts/desktop/start_ui.sh" \
+        >"$LOG_DIR/ui.log" 2>&1 &
+    echo $! >"$RUN_DIR/ui.pid"
     startup_identity "UI" "$UI_PORT" "$(cat "$RUN_DIR/ui.pid")"
-    check_ui_freshness || true
     _i=0
     while [ $_i -lt 30 ]; do
       if http_ok "http://127.0.0.1:$UI_PORT/"; then break; fi
@@ -343,23 +378,32 @@ cmd_start() {
 
 cmd_down() {
   echo "Stopping Kitty..."
+  local svc launch_pid
 
-  # Disable launchd jobs first. Their KeepAlive=true setting otherwise restarts
-  # a process immediately after it is killed and leaves the old port occupied.
+  # Disable only launchd jobs whose live process is proven to belong to this
+  # checkout. A sibling worktree's canonical service is an active ownership
+  # domain, not something a different checkout may stop by label alone.
   for svc in ui gateway litellm; do
-    if launchctl print "gui/$(id -u)/com.kitty.$svc" >/dev/null 2>&1; then
-      launchctl bootout "gui/$(id -u)/com.kitty.$svc" 2>/dev/null || true
+    launch_pid="$(launchd_pid "$svc" || true)"
+    if [[ -n "$launch_pid" ]] && pid_owned_by_current_checkout "$launch_pid"; then
+      launchctl bootout "gui/$(id -u)/com.kitty.desktop.$svc" 2>/dev/null || true
       echo "  $svc  launchd job stopped"
+    elif [[ -n "$launch_pid" ]]; then
+      echo "  leaving launchd $svc pid $launch_pid role=$(pid_role "$launch_pid")"
     fi
   done
 
-  # Kill anything on Kitty ports regardless of ownership. The launchd
-  # KeepAlive cycle makes "leave unrelated" useless — if a process respawns
-  # before kitty start claims the port, the operator loops forever.
+  # Clean up only listeners that this checkout can prove it owns. Another Kitty
+  # worktree may be an active implementation/acceptance lane, and an unrelated
+  # process on the same port is never ours to terminate.
   for port in "$UI_PORT" "$GATEWAY_PORT" "$LITELLM_PORT"; do
     for pid in $(listener_pids "$port"); do
-      echo "  stopping listener pid $pid on :$port ($(pid_command "$pid" | cut -c1-80))"
-      kill -KILL "$pid" 2>/dev/null || true
+      if pid_owned_by_current_checkout "$pid"; then
+        echo "  stopping listener pid $pid on :$port ($(pid_command "$pid" | cut -c1-80))"
+        kill -KILL "$pid" 2>/dev/null || true
+      else
+        echo "  leaving unrelated listener pid $pid on :$port role=$(pid_role "$pid") cwd=$(pid_cwd "$pid")"
+      fi
     done
   done
   sleep 1
@@ -372,46 +416,76 @@ cmd_down() {
 }
 
 cmd_status() {
-  local sha build_id
-  sha="$(git -C "$KITTY_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
-  build_id=""
-  if [[ -f "$KITTY_ROOT/gateway/kitty-chat/.next/BUILD_ID" ]]; then
-    build_id="$(cat "$KITTY_ROOT/gateway/kitty-chat/.next/BUILD_ID")"
+  local sha authority_sha authority_relation dirty_state branch build_id build_source supervisor_mode svc_probe
+  sha="$(git -C "$KITTY_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")"
+  branch="$(git -C "$KITTY_ROOT" branch --show-current 2>/dev/null || true)"
+  authority_sha="$(git -C "$KITTY_ROOT" rev-parse refs/remotes/origin/main 2>/dev/null || echo "unknown")"
+  authority_relation="unknown"
+  if [[ "$sha" != "unknown" && "$authority_sha" != "unknown" ]]; then
+    if [[ "$sha" == "$authority_sha" ]]; then
+      authority_relation="current"
+    elif git -C "$KITTY_ROOT" merge-base --is-ancestor "$sha" "$authority_sha" 2>/dev/null; then
+      authority_relation="behind"
+    elif git -C "$KITTY_ROOT" merge-base --is-ancestor "$authority_sha" "$sha" 2>/dev/null; then
+      authority_relation="ahead"
+    else
+      authority_relation="diverged"
+    fi
   fi
+  dirty_state="clean"
+  [[ -n "$(git -C "$KITTY_ROOT" status --porcelain 2>/dev/null)" ]] && dirty_state="dirty"
+  build_id=""
+  build_source=""
+  [[ -f "$KITTY_ROOT/gateway/kitty-chat/.next/BUILD_ID" ]] && build_id="$(cat "$KITTY_ROOT/gateway/kitty-chat/.next/BUILD_ID")"
+  [[ -f "$KITTY_ROOT/gateway/kitty-chat/.next/KITTY_SOURCE_SHA" ]] && build_source="$(cat "$KITTY_ROOT/gateway/kitty-chat/.next/KITTY_SOURCE_SHA")"
+  supervisor_mode="manual"
+  if launchd_configured; then
+    supervisor_mode="launchd-configured-stopped"
+  fi
+  for svc_probe in ui gateway litellm; do
+    if [[ -n "$(launchd_pid "$svc_probe" || true)" ]]; then
+      supervisor_mode="launchd-active"
+      break
+    fi
+  done
 
   echo "Kitty status"
   echo "────────────"
   echo "  checkout     $KITTY_ROOT"
+  echo "  branch       ${branch:-detached}"
   echo "  source sha   $sha"
+  echo "  authority    origin/main $authority_sha ($authority_relation)"
+  echo "  working tree $dirty_state"
+  echo "  supervisor   $supervisor_mode (com.kitty.desktop.*)"
   echo "  build id     ${build_id:-none}"
-  check_ui_freshness 2>/dev/null && echo "  freshness    current" || echo "  freshness    stale"
+  echo "  build source ${build_source:-unknown}"
+  check_ui_freshness 2>/dev/null && echo "  build freshness checkout-current" || echo "  build freshness stale"
 
   echo
-  local svc pidfile pid launch_pid port listener_pid owned_pid cwd
+  local svc pidfile pid launch_pid port found_pid cwd role
   for svc in ui gateway litellm; do
     pidfile="$RUN_DIR/$svc.pid"
     if pid_alive "$pidfile"; then
       pid=$(cat "$pidfile")
-      printf "  %-10s running (pid %s)\n" "$svc" "$pid"
+      role="$(pid_role "$pid")"
+      cwd="$(pid_cwd "$pid")"
+      printf "  %-10s running (pid %s; role=%s; cwd=%s)\n" "$svc" "$pid" "$role" "${cwd:-unknown}"
     elif launch_pid="$(launchd_pid "$svc")" && [[ -n "$launch_pid" ]]; then
-      printf "  %-10s running via launchd (pid %s)\n" "$svc" "$launch_pid"
+      role="$(pid_role "$launch_pid")"
+      cwd="$(pid_cwd "$launch_pid")"
+      printf "  %-10s running via launchd (pid %s; role=%s; cwd=%s)\n" "$svc" "$launch_pid" "$role" "${cwd:-unknown}"
     else
       case "$svc" in
         ui) port="$UI_PORT" ;;
         gateway) port="$GATEWAY_PORT" ;;
         litellm) port="$LITELLM_PORT" ;;
       esac
-      owned_pid=""
-      for listener_pid in $(listener_pids "$port"); do
-        if pid_owned_by_kitty "$listener_pid"; then
-          owned_pid="$listener_pid"
-          break
-        fi
-      done
-      if [[ -n "$owned_pid" ]]; then
-        cwd="$(pid_cwd "$owned_pid")"
-        printf "  %-10s running (pid %s; discovered owned listener on :%s, cwd %s)\n" \
-          "$svc" "$owned_pid" "$port" "${cwd:-unknown}"
+      found_pid="$(listener_pids "$port" | head -1)"
+      if [[ -n "$found_pid" ]]; then
+        role="$(pid_role "$found_pid")"
+        cwd="$(pid_cwd "$found_pid")"
+        printf "  %-10s running (pid %s; discovered listener on :%s; role=%s; cwd=%s)\n" \
+          "$svc" "$found_pid" "$port" "$role" "${cwd:-unknown}"
       else
         printf "  %-10s not running\n" "$svc"
       fi
@@ -443,11 +517,11 @@ cmd_status() {
     port="${spec##*:}"
     pids="$(listener_pids "$port")"
     if [[ -n "$pids" ]]; then
-      printf "  %-10s :%s pid(s) %s
-" "$label" "$port" "$pids"
+      for pid in $pids; do
+        printf "  %-10s :%s pid=%s role=%s cwd=%s\n" "$label" "$port" "$pid" "$(pid_role "$pid")" "$(pid_cwd "$pid")"
+      done
     else
-      printf "  %-10s :%s free
-" "$label" "$port"
+      printf "  %-10s :%s free\n" "$label" "$port"
     fi
   done
 }
@@ -490,36 +564,21 @@ cmd_restore() {
 
 cmd_install() {
   ensure_gateway_secret
-  LAUNCH_AGENTS="$HOME/Library/LaunchAgents"
-  mkdir -p "$LAUNCH_AGENTS"
-
-  for svc in gateway litellm; do
-    src="$KITTY_ROOT/gateway/com.kitty.$svc.plist"
-    dst="$LAUNCH_AGENTS/com.kitty.$svc.plist"
-
-    # Stamp the actual KITTY_ROOT into the plist before installing
-    sed "s|__KITTY_ROOT__|$KITTY_ROOT|g" "$src" >"$dst"
-
-    # Unload first so a re-install is idempotent
-    launchctl unload "$dst" 2>/dev/null || true
-    launchctl load -w "$dst"
-    echo "  Installed com.kitty.$svc"
-  done
+  "$PYTHON_BIN" "$KITTY_ROOT/scripts/kitty_desktop_launchd.py" install
+  "$PYTHON_BIN" "$KITTY_ROOT/scripts/kitty_desktop_launchd.py" bootstrap all
 
   echo
-  echo "Stack will now start automatically on login and restart on crash."
-  echo "Run 'kitty status' to verify."
+  echo "Kitty's UI, Gateway, and LiteLLM will now start automatically at login."
+  echo "Run 'kitty status' to verify the com.kitty.desktop.* supervisor."
 }
 
 cmd_uninstall() {
-  LAUNCH_AGENTS="$HOME/Library/LaunchAgents"
-  for svc in gateway litellm; do
-    dst="$LAUNCH_AGENTS/com.kitty.$svc.plist"
-    if [[ -f "$dst" ]]; then
-      launchctl unload "$dst" 2>/dev/null || true
-      rm "$dst"
-      echo "  Removed com.kitty.$svc"
-    fi
+  "$PYTHON_BIN" "$KITTY_ROOT/scripts/kitty_desktop_launchd.py" bootout all 2>/dev/null || true
+  local launch_agents="$HOME/Library/LaunchAgents"
+  local svc
+  for svc in ui gateway litellm; do
+    rm -f "$launch_agents/com.kitty.desktop.$svc.plist"
+    echo "  Removed com.kitty.desktop.$svc"
   done
 }
 
@@ -786,16 +845,10 @@ cmd_verify_home() {
   fi
 
   if ! http_ok "http://127.0.0.1:$ui_port/"; then
-    echo "ui        not running — starting bound to loopback (logs: $LOG_DIR/ui.log)"
-    (cd "$KITTY_ROOT/gateway/kitty-chat" \
-      && nohup node node_modules/next/dist/bin/next dev -H 127.0.0.1 -p "$ui_port" \
-        >"$LOG_DIR/ui.log" 2>&1 &)
-    _i=0
-    while [ $_i -lt 30 ]; do
-      if http_ok "http://127.0.0.1:$ui_port/"; then break; fi
-      sleep 1
-      _i=$((_i + 1))
-    done
+    echo "ui        not running — starting via the canonical UI bootstrap"
+    if ! cmd_ui; then
+      fails=1
+    fi
   fi
   if http_ok "http://127.0.0.1:$ui_port/"; then
     echo "ui        ✓  http://127.0.0.1:$ui_port"

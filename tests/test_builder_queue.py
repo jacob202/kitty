@@ -15,6 +15,8 @@ from pathlib import Path
 import pytest
 
 from gateway import _id_helpers
+from gateway import builder_attempt as ba
+from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 
 
@@ -3072,6 +3074,83 @@ class TestRecoverDurableIssues:
         assert bq.get_task(merged["id"], db_path=db_path)["state"] == bq.DONE
         assert done_unmerged["id"] in result["done_with_unmerged_pr_flagged"]
         assert bq.get_task(done_unmerged["id"], db_path=db_path)["state"] == bq.DONE
+
+    def test_recovery_releases_branch_lease_bound_to_terminal_attempt(self, db_path: Path):
+        bi.apply_manifest(
+            {
+                "manifest_version": 1,
+                "initiative_id": "residue-init",
+                "title": "Residue",
+                "packets": [
+                    {
+                        "id": "residue-packet",
+                        "title": "Packet",
+                        "objective": "Test recovery residue",
+                        "acceptance_criteria": ["clean"],
+                        "allowed_paths": ["README"],
+                    }
+                ],
+            },
+            db_path=db_path,
+        )
+        attempt = ba.start_attempt("residue-init", "residue-packet", db_path=db_path)
+        lease = bq.claim_branch_lease(
+            "residue-init", "residue-packet", "worker-residue",
+            "branch/residue", "/tmp/kitty-residue", "a" * 40, db_path=db_path,
+        )
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE packet_attempts SET lease_id = ?, outcome = 'succeeded' WHERE id = ?",
+                (lease["lease_id"], attempt["id"]),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        result = bq.recover_durable_issues(db_path=db_path, pr_merged=lambda _n: {"merged": False})
+        assert lease["lease_id"] in result["released_branch_leases"]
+        assert bq.get_branch_lease(lease["lease_id"], db_path=db_path) is None
+
+    def test_recovery_clears_terminal_task_lease_fields(self, db_path: Path):
+        task = bq.create_task("terminal residue", db_path=db_path)
+        self._drive_to_done(task["id"], db_path)
+        _set_task_fields(
+            db_path, task["id"], lease_owner="dead-worker",
+            lease_token="dead-token", lease_expires_at="2000-01-01 00:00:00",
+        )
+
+        result = bq.recover_durable_issues(db_path=db_path, pr_merged=lambda _n: {"merged": False})
+        assert task["id"] in result["cleared_task_leases"]
+        current = bq.get_task(task["id"], db_path=db_path)
+        assert current["lease_owner"] is None
+        assert current["lease_token"] is None
+        assert current["lease_expires_at"] is None
+
+    def test_recovery_surfaces_ambiguous_open_attempt_without_closing_it(self, db_path: Path):
+        bi.apply_manifest(
+            {
+                "manifest_version": 1,
+                "initiative_id": "ambiguous-init",
+                "title": "Ambiguous",
+                "packets": [
+                    {
+                        "id": "ambiguous-packet",
+                        "title": "Packet",
+                        "objective": "Test ambiguous recovery",
+                        "acceptance_criteria": ["surface"],
+                        "allowed_paths": ["README"],
+                    }
+                ],
+            },
+            db_path=db_path,
+        )
+        attempt = ba.start_attempt("ambiguous-init", "ambiguous-packet", db_path=db_path)
+        result = bq.recover_durable_issues(db_path=db_path, pr_merged=lambda _n: {"merged": False})
+        assert attempt["id"] in result["ambiguous_open_attempts"]
+        current = ba.get_attempt(attempt["id"], db_path=db_path)
+        assert current["outcome"] is None
+        assert current["lease_id"] is None
 
     def test_reconcile_marks_stale_done_link_merged(self, db_path: Path):
         """A done task whose PR actually merged gets its link marked consistently."""

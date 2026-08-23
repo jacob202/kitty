@@ -33,6 +33,11 @@ def _fake_repo(tmp_path: Path, *, build_id: bool) -> Path:
     )
     (ui / "page.tsx").write_text("export default function Page() {}\n", encoding="utf-8")
     (root / "gateway" / "kitty-chat" / "package.json").write_text("{}\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "Kitty Test"], cwd=root, check=True)
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=root, check=True)
 
     if build_id:
         next_dir = root / "gateway" / "kitty-chat" / ".next"
@@ -153,3 +158,20 @@ def test_failed_build_stops_the_service_instead_of_serving_stale_code(tmp_path):
 
     assert result.returncode != 0
     assert not any("run start" in call for call in calls)
+
+
+def test_successful_rebuild_records_exact_source_sha(tmp_path):
+    root = _fake_repo(tmp_path, build_id=False)
+    expected_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    result, _ = _run(root, tmp_path)
+
+    assert result.returncode == 0
+    stamp = root / "gateway" / "kitty-chat" / ".next" / "KITTY_SOURCE_SHA"
+    assert stamp.read_text(encoding="utf-8").strip() == expected_sha

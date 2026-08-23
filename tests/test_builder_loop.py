@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import sqlite3
 import subprocess
 import sys
@@ -431,13 +430,11 @@ class TestRunPacket:
     ):
         """First attempt fails validation; the loop retries and succeeds."""
         _apply(db_path, repo_root=repo)
-        marker = tmp_path / "second_try_marker"
         worker = _script(
             tmp_path,
             "flaky.sh",
             (
-                f"if [ -f \"{marker}\" ]; then echo ok > done.txt; fi\n"
-                f"touch \"{marker}\"\n"
+                "case \"$KB_RESULT_PATH\" in */2/implementation.json) echo ok > done.txt ;; esac\n"
                 f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
             ),
         )
@@ -454,30 +451,30 @@ class TestRunPacket:
         assert second["bundle"]["prior_attempts"][0]["outcome"] == "failed"
 
     def test_operator_pause_between_attempts_stops_retry(
-        self, repo: Path, db_path: Path, tmp_path: Path
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
     ):
         _apply(db_path, max_attempts=2, repo_root=repo)
-        source_root = Path(__file__).resolve().parents[1]
-        pause_helper = tmp_path / "pause_initiative.py"
-        pause_helper.write_text(
-            "import sys\n"
-            f"sys.path.insert(0, {str(source_root)!r})\n"
-            "from pathlib import Path\n"
-            "from gateway import builder_initiative as bi\n"
-            f"bi.pause_initiative({INITIATIVE!r}, 'operator pause during attempt', "
-            "db_path=Path(sys.argv[1]))\n",
-            encoding="utf-8",
-        )
+        real_validation = ba.run_validation
+        calls = 0
+
+        def pause_after_first_validation(*args, **kwargs):
+            nonlocal calls
+            result = real_validation(*args, **kwargs)
+            calls += 1
+            if calls == 1:
+                bi.pause_initiative(
+                    INITIATIVE,
+                    "operator pause during attempt",
+                    db_path=db_path,
+                )
+            return result
+
+        monkeypatch.setattr(ba, "run_validation", pause_after_first_validation)
         worker = _script(
             tmp_path,
-            "pause_then_fail_validation.sh",
-            (
-                f"{shlex.quote(sys.executable)} {shlex.quote(str(pause_helper))} "
-                f"{shlex.quote(str(db_path))}\n"
-                f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
-            ),
+            "fail_validation.sh",
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
         )
-
         result = bl.run_packet(
             INITIATIVE, PACKET,
             worker_command=worker,
@@ -620,7 +617,8 @@ class TestRunPacket:
             db_path=db_path,
         )
         assert result["outcome"] == "exhausted"
-        assert "review evidence invalid" in result["attempts"][0]["failure"]
+        failure = result["attempts"][0]["failure"]
+        assert ("review command exited" in failure) or ("review evidence invalid" in failure)
 
     def test_refuses_non_queued_task(self, repo: Path, db_path: Path, tmp_path: Path):
         task_id = _apply(db_path, repo_root=repo)
@@ -773,8 +771,6 @@ class TestRunPacket:
             (
                 "if grep -q './scripts/hooks/pre-push' \"$KB_BUNDLE_PATH\"; then\n"
                 "    echo fixed > gate-fixed.txt\n"
-                "    git add gate-fixed.txt\n"
-                "    git commit -q -m 'repair publication gate [LP-1]'\n"
                 "fi\n"
                 "echo ok > done.txt\n"
                 f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
@@ -932,16 +928,15 @@ class TestNoStaleArtifactReuse:
         retry must archive it into the failed attempt's artifact dir and
         reset so the next attempt starts clean."""
         task_id = _apply(db_path, max_attempts=2, repo_root=repo)
-        marker = tmp_path / "crash_then_succeed"
         worker = _script(
             tmp_path,
             "selfcrash.sh",
             (
-                f"if [ ! -f \"{marker}\" ]; then\n"
+                "case \"$KB_RESULT_PATH\" in */1/implementation.json)\n"
                 "    echo partial > done.txt\n"
-                f"    touch \"{marker}\"\n"
                 "    kill -9 $$\n"
-                "fi\n"
+                "    ;;\n"
+                "esac\n"
                 "echo ok > done.txt\n"
                 f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
             ),
@@ -1177,15 +1172,11 @@ class TestNoStaleArtifactReuse:
             (
                 "if [ ! -f B.txt ]; then\n"
                 "    echo attempt1 > A.txt\n"
-                "    git add A.txt\n"
-                "    git commit -q -m 'attempt 1: add A [LP-1]'\n"
                 "    echo bad > B.txt\n"
                 f"    cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
                 "    exit 0\n"
                 "fi\n"
                 "echo fixed > B.txt\n"
-                "git add B.txt\n"
-                "git commit -q -m 'attempt 2: repair B [LP-1]'\n"
                 "echo ok > done.txt\n"
                 f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
             ),
@@ -1229,84 +1220,41 @@ class TestNoStaleArtifactReuse:
         assert "B.txt" in delta
         assert "A.txt" not in delta
 
-    def test_reviewer_mutation_is_not_passed_to_next_worker(
+    def test_reviewer_mutation_is_blocked_before_it_can_taint_worktree(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
-        """A reviewer that mutates an allowed path and exits nonzero must not
-        feed its mutation to the next worker.
-
-        Attempt 1's implementation passes validation; the reviewer then writes
-        into an allowed path and exits nonzero. That is not a repairable
-        outcome, so the loop archives the tainted tree (evidence) and the next
-        worker starts clean instead of inheriting the mutation."""
         task_id = _apply(
             db_path,
+            max_attempts=1,
             allowed_paths=["done.txt", "impl.txt"],
             repo_root=repo,
         )
-        worker_marker = tmp_path / "worker_ran_once"
-        review_fail_once = tmp_path / "review_failed_once"
         worker = _script(
             tmp_path,
-            "post_reviewer_repair.sh",
-            (
-                f"if [ ! -f \"{worker_marker}\" ]; then\n"
-                "    echo v1 > impl.txt\n"
-                "    echo ok > done.txt\n"
-                f"    touch \"{worker_marker}\"\n"
-                f"    cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
-                "    exit 0\n"
-                "fi\n"
-                "# Must not have inherited the reviewer's mutation.\n"
-                "if [ -f impl.txt ] && [ \"$(cat impl.txt)\" = \"poisoned\" ]; then\n"
-                "    exit 2\n"
-                "fi\n"
-                "rm -f impl.txt\n"
-                "echo ok > done.txt\n"
-                f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n"
-            ),
+            "review_boundary_worker.sh",
+            "echo v1 > impl.txt\n"
+            "echo ok > done.txt\n"
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
         )
         reviewer = _script(
             tmp_path,
             "mutating_reviewer.sh",
-            (
-                f"if [ ! -f \"{review_fail_once}\" ]; then\n"
-                "    echo poisoned > impl.txt\n"
-                f"    touch \"{review_fail_once}\"\n"
-                "    exit 5\n"
-                "fi\n"
-                "cat > \"$KB_REVIEW_RESULT_PATH\" <<'EOF'\n"
-                + json.dumps(
-                    {
-                        "contract_version": 1,
-                        "verdict": "approve",
-                        "summary": "approved after reset",
-                    }
-                )
-                + "\nEOF\n"
-            ),
+            "echo poisoned > impl.txt\n"
+            f"cat > \"$KB_REVIEW_RESULT_PATH\" <<'EOF'\n{_APPROVE}\nEOF\n",
         )
+
         result = bl.run_packet(
             INITIATIVE, PACKET,
             worker_command=worker,
             review_command=reviewer,
             repo_root=repo, db_path=db_path,
         )
-        assert result["outcome"] == bl.LOOP_SUCCEEDED
-        assert [e["outcome"] for e in result["attempts"]] == ["failed", "succeeded"]
-        assert "review command exited" in result["attempts"][0]["failure"]
 
-        # The tainted tree was archived as evidence, so the mutation could not
-        # leak into attempt 2's worker (whose guard would otherwise fail it).
-        first = result["attempts"][0]
-        first_dir = db_path.parent / "attempts" / task_id / str(first["attempt_id"])
-        patch_txt = (first_dir / "crashed-worktree.patch").read_text()
-        assert "poisoned" in patch_txt
-        events = bq.list_events(task_id, db_path=db_path)
-        assert any(
-            e["type"] == "worktree_archived_for_clean_retry"
-            for e in events
-        )
+        assert result["outcome"] == bl.LOOP_EXHAUSTED
+        failure = result["attempts"][0]["failure"]
+        assert ("review command exited" in failure) or ("review evidence invalid" in failure)
+        wt = repo / ".worktrees" / "kittybuilder" / task_id
+        assert (wt / "impl.txt").read_text() == "v1\n"
 
 
 # ---------------------------------------------------------------------------
@@ -1324,7 +1272,6 @@ class TestRecoveryExercise:
         attempt consumed budget, the retry would exhaust instead of succeed."""
         import os
         import signal
-        import sys
         import time
 
         task_id = _apply(db_path, max_attempts=1, repo_root=repo)
@@ -1599,6 +1546,7 @@ class TestCli:
 
         def patched(*args, **kwargs):
             kwargs["repo_root"] = repo
+            kwargs["db_path"] = db_path
             return real_run_packet(*args, **kwargs)
 
         monkeypatch.setattr(builder_loop, "run_packet", patched)
@@ -1632,6 +1580,7 @@ class TestCli:
 
         def patched(*args, **kwargs):
             kwargs["repo_root"] = repo
+            kwargs["db_path"] = db_path
             return real_run_packet(*args, **kwargs)
 
         monkeypatch.setattr(builder_loop, "run_packet", patched)
@@ -1700,20 +1649,17 @@ class TestLeaseIdentityIntegration:
         )
         assert result2["outcome"] == "succeeded"
 
-    def test_wrong_branch_execution_rejected_by_identity(
+    @pytest.mark.skipif(__import__("sys").platform != "darwin", reason="Seatbelt proof is macOS-specific")
+    def test_worker_cannot_create_unsigned_commit(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
-        """Worker that makes unsigned commits is caught by post-worker identity."""
-        _task_id = _apply(db_path, repo_root=repo)
-
+        _apply(db_path, repo_root=repo, max_attempts=1)
         unsigned_worker = _script(
             tmp_path,
             "unsigned.sh",
-            "git config user.email 'bot@test'\n"
-            "git config user.name 'bot'\n"
             "echo ok > done.txt\n"
             "git add done.txt\n"
-            "git commit -m 'unsigned commit'\n"
+            "git -c user.email=bot@test -c user.name=bot commit -m 'unsigned commit'\n"
             f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
         )
         result = bl.run_packet(
@@ -1722,30 +1668,29 @@ class TestLeaseIdentityIntegration:
             repo_root=repo, db_path=db_path,
         )
         assert result["outcome"] == "exhausted"
+        run = bq.list_runs(task_id=result["task_id"], db_path=db_path)[0]
+        log = Path(run["final_report"]["log_path"]).read_text()
+        assert "Operation not permitted" in log
         assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is None
-        assert result["attempts"][0]["identity_findings"][0]["field"] == "commits"
 
     def test_actual_branch_mismatch_rejected_by_identity(
-        self, repo: Path, db_path: Path, tmp_path: Path
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
     ):
-        """A worker detaching from the leased branch cannot be accepted."""
-        _task_id = _apply(db_path, repo_root=repo, max_attempts=1)
-        detached_worker = _script(
-            tmp_path,
-            "detached.sh",
-            "git checkout --detach\n"
-            "echo ok > done.txt\n"
-            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
-        )
+        _apply(db_path, repo_root=repo, max_attempts=1)
+        real_run_worker = bl.run_worker
 
+        def detach_after_worker(*args, **kwargs):
+            run = real_run_worker(*args, **kwargs)
+            wt = Path(run["final_report"]["worktree"])
+            subprocess.run(["git", "checkout", "--detach", "-q"], cwd=wt, check=True)
+            return run
+
+        monkeypatch.setattr(bl, "run_worker", detach_after_worker)
         result = bl.run_packet(
-            INITIATIVE,
-            PACKET,
-            worker_command=detached_worker,
-            repo_root=repo,
-            db_path=db_path,
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
         )
-
         assert result["outcome"] == "exhausted"
         assert any(
             finding["field"] == "branch"
@@ -1800,50 +1745,53 @@ class TestLeaseIdentityIntegration:
         assert result["escalation"]["findings"]
 
     def test_foreign_commits_rejected(
-        self, repo: Path, db_path: Path, tmp_path: Path
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
     ):
-        """Worker that commits without packet marker is rejected."""
-        _task_id = _apply(db_path, repo_root=repo)
+        _apply(db_path, repo_root=repo, max_attempts=1)
+        real_run_worker = bl.run_worker
 
-        foreign_commit_worker = _script(
-            tmp_path,
-            "foreign.sh",
-            "git config user.email 'evil@evil.com'\n"
-            "git config user.name 'Evil'\n"
-            "echo foreign > done.txt\n"
-            "git add done.txt\n"
-            "git commit -m 'no marker here'\n"
-            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
-        )
+        def commit_without_marker(*args, **kwargs):
+            run = real_run_worker(*args, **kwargs)
+            wt = Path(run["final_report"]["worktree"])
+            subprocess.run(["git", "add", "done.txt"], cwd=wt, check=True)
+            subprocess.run(
+                ["git", "-c", "user.email=evil@test", "-c", "user.name=Evil",
+                 "commit", "-q", "-m", "no marker here"],
+                cwd=wt, check=True,
+            )
+            return run
+
+        monkeypatch.setattr(bl, "run_worker", commit_without_marker)
         result = bl.run_packet(
             INITIATIVE, PACKET,
-            worker_command=foreign_commit_worker,
+            worker_command=_good_worker(tmp_path),
             repo_root=repo, db_path=db_path,
         )
         assert result["outcome"] == "exhausted"
+        assert result["attempts"][0]["identity_findings"][0]["field"] == "commits"
         assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is None
 
     def test_identity_violation_stops_before_budget_exhausted(
-        self, repo: Path, db_path: Path, tmp_path: Path
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
     ):
-        """CP-03: identity escalation (foreign, unmarked commit) halts the
-        packet immediately with structured findings — same fail-loud
-        direction as the scope-violation case above."""
         _apply(db_path, repo_root=repo, max_attempts=5)
+        real_run_worker = bl.run_worker
 
-        foreign_commit_worker = _script(
-            tmp_path,
-            "foreign2.sh",
-            "git config user.email 'evil@evil.com'\n"
-            "git config user.name 'Evil'\n"
-            "echo foreign > done.txt\n"
-            "git add done.txt\n"
-            "git commit -m 'no marker here'\n"
-            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
-        )
+        def commit_without_marker(*args, **kwargs):
+            run = real_run_worker(*args, **kwargs)
+            wt = Path(run["final_report"]["worktree"])
+            subprocess.run(["git", "add", "done.txt"], cwd=wt, check=True)
+            subprocess.run(
+                ["git", "-c", "user.email=evil@test", "-c", "user.name=Evil",
+                 "commit", "-q", "-m", "no marker here"],
+                cwd=wt, check=True,
+            )
+            return run
+
+        monkeypatch.setattr(bl, "run_worker", commit_without_marker)
         result = bl.run_packet(
             INITIATIVE, PACKET,
-            worker_command=foreign_commit_worker,
+            worker_command=_good_worker(tmp_path),
             repo_root=repo, db_path=db_path,
         )
         assert result["outcome"] == "exhausted"
@@ -2693,3 +2641,27 @@ def test_free_route_rejects_paid_adapter_env_before_attempt(
         )
 
     assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path) == []
+
+
+def test_completed_worker_change_is_parent_committed_before_review(
+    repo: Path, db_path: Path, tmp_path: Path
+) -> None:
+    _apply(db_path, repo_root=repo)
+    result = bl.run_packet(
+        INITIATIVE,
+        PACKET,
+        worker_command=_good_worker(tmp_path),
+        review_command=_approve_reviewer(tmp_path),
+        repo_root=repo,
+        db_path=db_path,
+    )
+    assert result["outcome"] == "succeeded"
+
+    subjects = subprocess.run(
+        ["git", "log", "--all", "--pretty=%s"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    assert any("[LP-1]" in subject and "trusted parent" in subject for subject in subjects)
