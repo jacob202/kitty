@@ -73,6 +73,7 @@ import {
   runDeadlineSweep,
   // cockpit health
   fetchGatewayHealth,
+  fetchHealthSurface,
   fetchChatsPersistence,
   fetchGatewayTailnet,
   // repairs
@@ -715,6 +716,15 @@ export function useGatewayHealth() {
     queryKey: ['health'],
     queryFn: fetchGatewayHealth,
     refetchInterval: 30_000,
+  })
+}
+
+export function useHealthSurface() {
+  return useQuery({
+    queryKey: ['health-surface'],
+    queryFn: fetchHealthSurface,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
   })
 }
 

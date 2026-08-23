@@ -20,6 +20,7 @@ import {
   useProjectNextSteps,
   useWhatsNextSteps,
   useGatewayHealth,
+  useHealthSurface,
   useGatewayModels,
   useChatsPersistence,
   useSessionContext,
@@ -472,6 +473,137 @@ function HealthStrip() {
         retry
       </button>
     </div>
+  );
+}
+
+// ── Health surface (full-stack projection) ───────────────────────────────────
+
+const HEALTH_TONES: Record<string, 'ok' | 'warn' | 'bad'> = {
+  available: 'ok',
+  degraded: 'warn',
+  stale: 'warn',
+  unavailable: 'bad',
+  unknown: 'warn',
+};
+
+const HEALTH_LABELS: Record<string, string> = {
+  gateway: 'gateway',
+  database: 'database',
+  memory: 'memory',
+  automation_supervisor: 'automation',
+  cron: 'cron',
+  telegram: 'telegram',
+  image_lab: 'image lab',
+  image_providers: 'image providers',
+  image_queue: 'image queue',
+  ollama: 'ollama',
+  pending_grants: 'pending approvals',
+};
+
+// One operator-facing surface for "is Kitty working, and if not exactly what
+// is wrong". Rows for every domain, a degraded section that expands the reason
+// on click, and a "still functional" section so a partial outage is honest.
+function HealthSurfaceCard() {
+  const surface = useHealthSurface();
+  const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  if (surface.isPending) {
+    return (
+      <SectionCard title="health" span>
+        <div role="status" style={emptyState}>
+          checking…
+        </div>
+      </SectionCard>
+    );
+  }
+
+  if (surface.isError || !surface.data || !surface.data.ok) {
+    return (
+      <SectionCard title="health" span>
+        <ErrorCard message={surface.data?.error ?? 'health surface unavailable'} />
+      </SectionCard>
+    );
+  }
+
+  const { overall, domains, degraded, still_functional: stillFunctional, pending_grants: pendingGrants } = surface.data;
+  const domainBy = new Map(domains.map((d) => [d.name, d]));
+
+  return (
+    <SectionCard
+      title="health"
+      count={overall ?? '—'}
+      span
+      action={
+        <button
+          type="button"
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['health-surface'] })}
+          style={actionButtonStyle}
+        >
+          refresh
+        </button>
+      }
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+        {domains.map((domain) => (
+          <div key={domain.name} style={{ ...itemCard, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <HealthDot tone={HEALTH_TONES[domain.status] ?? 'warn'} label={HEALTH_LABELS[domain.name] ?? domain.name} />
+          </div>
+        ))}
+      </div>
+
+      {degraded.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--c-red)' }}>
+            degraded
+          </div>
+          {degraded.map((name) => {
+            const domain = domainBy.get(name);
+            const open = expanded === name;
+            return (
+              <div key={name} style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setExpanded(open ? null : name)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                >
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', flex: 1 }}>
+                    {HEALTH_LABELS[name] ?? name}
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', opacity: 0.7 }}>
+                    {open ? 'collapse' : 'explain'}
+                  </span>
+                </button>
+                {open && (
+                  <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 0 }}>
+                    {domain?.reason || 'no reason recorded'}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {stillFunctional.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--c-green)' }}>
+            still functional
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {stillFunctional.map((name) => (
+              <HealthDot key={name} tone="ok" label={HEALTH_LABELS[name] ?? name} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {pendingGrants > 0 && (
+        <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)' }}>
+          {pendingGrants} pending approval{pendingGrants === 1 ? '' : 's'} waiting on you
+        </div>
+      )}
+    </SectionCard>
   );
 }
 
@@ -1568,6 +1700,7 @@ export function HomeState({
         </h1>
       </div>
       {visibleTiles['health'] !== false && <HealthStrip />}
+      {visibleTiles['health'] !== false && <HealthSurfaceCard />}
       {visibleTiles['health'] !== false && <RepairsCard />}
       {visibleTiles['health'] !== false && <SignalsCard />}
       <BuilderGlance onOpen={() => onNavigate('work')} />

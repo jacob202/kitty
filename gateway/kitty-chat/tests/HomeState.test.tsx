@@ -1,4 +1,4 @@
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { describe, expect, it, afterEach, vi, beforeEach } from 'vitest';
 import type { Mock } from 'vitest';
 import {
@@ -15,6 +15,7 @@ import {
   useProjectNextSteps,
   useWhatsNextSteps,
   useGatewayHealth,
+  useHealthSurface,
   useGatewayWeather,
   useGatewayModels,
   useChatsPersistence,
@@ -62,6 +63,7 @@ vi.mock('../src/lib/queries', () => ({
   useProjectNextSteps: vi.fn(),
   useWhatsNextSteps: vi.fn(),
   useGatewayHealth: vi.fn(),
+  useHealthSurface: vi.fn(),
   useGatewayWeather: vi.fn(),
   useGatewayModels: vi.fn(),
   useChatsPersistence: vi.fn(),
@@ -126,6 +128,32 @@ function setDefaultMocks() {
   (useWhatsNextSteps as Mock).mockReturnValue({ data: null, isPending: false, isError: false, isFetched: true });
   (useGatewayHealth as Mock).mockReturnValue({
     data: { ok: true, litellmReachable: true, error: null },
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
+  (useHealthSurface as Mock).mockReturnValue({
+    data: {
+      ok: true,
+      generated_at: '2026-08-23T00:00:00Z',
+      overall: 'healthy',
+      domains: [
+        { name: 'gateway', status: 'available', reason: '', detail: {} },
+        { name: 'database', status: 'available', reason: '', detail: {} },
+        { name: 'memory', status: 'available', reason: '', detail: {} },
+        { name: 'automation_supervisor', status: 'available', reason: '', detail: {} },
+        { name: 'cron', status: 'available', reason: '', detail: {} },
+        { name: 'telegram', status: 'available', reason: '', detail: {} },
+        { name: 'image_lab', status: 'available', reason: '', detail: {} },
+        { name: 'image_providers', status: 'available', reason: '', detail: {} },
+        { name: 'image_queue', status: 'available', reason: '', detail: {} },
+        { name: 'ollama', status: 'available', reason: '', detail: {} },
+        { name: 'pending_grants', status: 'available', reason: '', detail: { count: 0 } },
+      ],
+      degraded: [],
+      still_functional: ['gateway', 'database', 'memory', 'automation_supervisor', 'cron', 'telegram', 'image_lab', 'image_providers', 'image_queue', 'ollama', 'pending_grants'],
+      pending_grants: 0,
+    },
     isPending: false,
     isError: false,
     isFetched: true,
@@ -342,6 +370,77 @@ describe('HomeState', () => {
     render(<HomeState />);
     expect(screen.getByText(/model routing is unavailable/)).toBeInTheDocument();
     expect(screen.queryByText(/routing live/)).not.toBeInTheDocument();
+  });
+
+  // ── health surface (full-stack projection) ──
+
+  it('renders every domain row and the still-functional section when healthy', () => {
+    render(<HomeState />);
+    expect(screen.getByText('health')).toBeInTheDocument();
+    // each healthy domain appears in the rows grid and again in the
+    // "still functional" section — duplicate presence is intended
+    expect(screen.getAllByText('gateway').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('database').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('automation').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('image lab').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('image providers').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('image queue').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('pending approvals').length).toBeGreaterThan(0);
+    expect(screen.getByText('still functional')).toBeInTheDocument();
+    expect(screen.queryByText('degraded')).not.toBeInTheDocument();
+  });
+
+  it('lists degraded domains and expands the reason on click', async () => {
+    (useHealthSurface as Mock).mockReturnValue({
+      data: {
+        ok: true,
+        generated_at: '2026-08-23T00:00:00Z',
+        overall: 'degraded',
+        domains: [
+          { name: 'gateway', status: 'available', reason: '', detail: {} },
+          { name: 'image_lab', status: 'available', reason: '', detail: {} },
+          { name: 'ollama', status: 'unavailable', reason: 'OLLAMA_BASE is not reachable', detail: {} },
+          { name: 'pending_grants', status: 'available', reason: '', detail: { count: 0 } },
+        ],
+        degraded: ['ollama'],
+        still_functional: ['gateway', 'image_lab'],
+        pending_grants: 0,
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    // card-header count and section heading both read "degraded"
+    expect(screen.getAllByText('degraded').length).toBeGreaterThan(0);
+    expect(screen.getByText('still functional')).toBeInTheDocument();
+    // reason is hidden until the row is expanded
+    expect(screen.queryByText('OLLAMA_BASE is not reachable')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /ollama/ }));
+    expect(await screen.findByText('collapse')).toBeInTheDocument();
+    expect(screen.getByText('OLLAMA_BASE is not reachable')).toBeInTheDocument();
+  });
+
+  it('surfaces the pending approvals count when grants await', () => {
+    (useHealthSurface as Mock).mockReturnValue({
+      data: {
+        ok: true,
+        generated_at: '2026-08-23T00:00:00Z',
+        overall: 'healthy',
+        domains: [
+          { name: 'gateway', status: 'available', reason: '', detail: {} },
+          { name: 'pending_grants', status: 'available', reason: '', detail: { count: 2 } },
+        ],
+        degraded: [],
+        still_functional: ['gateway', 'pending_grants'],
+        pending_grants: 2,
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.getByText('2 pending approvals waiting on you')).toBeInTheDocument();
   });
 
   // ── what's next hero ──
