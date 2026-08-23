@@ -1,7 +1,7 @@
 name: PR Agent Review
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
@@ -16,37 +16,85 @@ concurrency:
 jobs:
   agent-review:
     name: agent-review
-    if: ${{ github.event.pull_request.draft == false }}
+    if: >-
+      ${{ github.event.pull_request.draft == false &&
+          (github.event.action == 'opened' ||
+           github.event.action == 'synchronize' ||
+           github.event.action == 'reopened' ||
+           github.event.action == 'ready_for_review') }}
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
-      - name: Checkout
+      - name: Invalidate review-trigger label for new head
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              name: "review/evidence-current",
+            }).catch((err) => {
+              if (err.status !== 404) throw err;
+            });
+
+      - name: Checkout trusted default-branch reviewer
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+
       - name: Produce exact-head model review evidence
+        id: produce
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          # Final merge review is a judgment task. Use a strong no-cost OpenRouter
-          # model so the gate keeps producing evidence while the account has no
-          # credits; restore a paid model (e.g. ~anthropic/claude-sonnet-latest)
-          # once budget returns.
           PR_REVIEW_MODEL: "nvidia/nemotron-3-super-120b-a12b:free"
           PR_REVIEW_REQUEST_ATTEMPTS: "2"
         run: python scripts/pr_review.py
 
+      - name: Trigger policy re-evaluation after usable review evidence
+        if: ${{ steps.produce.outcome == 'success' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const label = {
+              name: "review/evidence-current",
+              color: "bfdadc",
+              description: "Automation trigger: exact-head review evidence was refreshed",
+            };
+            try {
+              await github.rest.issues.getLabel({ owner: context.repo.owner, repo: context.repo.repo, name: label.name });
+            } catch (err) {
+              if (err.status !== 404) throw err;
+              await github.rest.issues.createLabel({ owner: context.repo.owner, repo: context.repo.repo, ...label });
+            }
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              labels: [label.name],
+            });
+
+  # Compatibility check for the existing ruleset. It is removed after the
+  # ruleset migrates to policy-gate + merge-gate.
   review-gate:
     name: review-gate
     if: ${{ always() && github.event.pull_request.draft == false }}
     needs: agent-review
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout trusted default-branch reviewer gate
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
