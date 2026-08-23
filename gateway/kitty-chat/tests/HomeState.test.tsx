@@ -379,7 +379,7 @@ describe('HomeState', () => {
     expect(screen.getByText('health')).toBeInTheDocument();
     // each healthy domain appears in the rows grid and again in the
     // "still functional" section — duplicate presence is intended
-    expect(screen.getAllByText('gateway').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('core service').length).toBeGreaterThan(0);
     expect(screen.getAllByText('database').length).toBeGreaterThan(0);
     expect(screen.getAllByText('automation').length).toBeGreaterThan(0);
     expect(screen.getAllByText('image lab').length).toBeGreaterThan(0);

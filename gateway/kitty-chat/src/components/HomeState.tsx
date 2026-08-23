@@ -487,7 +487,7 @@ const HEALTH_TONES: Record<string, 'ok' | 'warn' | 'bad'> = {
 };
 
 const HEALTH_LABELS: Record<string, string> = {
-  gateway: 'gateway',
+  gateway: 'core service',
   database: 'database',
   memory: 'memory',
   automation_supervisor: 'automation',
