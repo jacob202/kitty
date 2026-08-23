@@ -883,6 +883,7 @@ async def studio_agent_turn(req: AgentTurnRequest):
 async def studio_generate(req: StudioGenerateRequest):
     from gateway import image_recipes
     from gateway.image_runner import (
+        ImageDispatchNotSubmittedError,
         ImageRunnerError,
         estimated_cost_usd,
         paid_engine_available,
@@ -1413,6 +1414,21 @@ async def studio_generate(req: StudioGenerateRequest):
             "plan_id": req.plan_id,
             "session_id": req.session_id,
         }
+    except ImageDispatchNotSubmittedError as e:
+        if paid_attempt_reserved and req.session_id:
+            from gateway.image_sessions import (
+                ImageSessionError,
+                release_reserved_attempt_cost,
+            )
+
+            try:
+                release_reserved_attempt_cost(
+                    req.session_id, reserved_cost_usd=estimated_cost
+                )
+            except ImageSessionError as release_exc:
+                raise HTTPException(status_code=500, detail=str(release_exc)) from release_exc
+        status = 503 if "not running" in str(e).lower() else 400
+        raise HTTPException(status_code=status, detail=str(e))
     except ImageRunnerError as e:
         status = 503 if "not running" in str(e).lower() else 400
         raise HTTPException(status_code=status, detail=str(e))

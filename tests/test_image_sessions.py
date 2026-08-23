@@ -277,6 +277,44 @@ class TestContextUpdates:
 
 
 class TestSpendAndLifecycle:
+    def test_paid_reservation_is_exposure_not_settled_spend(self):
+        s = sessions.create_session()
+
+        reserved = sessions.reserve_attempt(
+            s.session_id, cost_usd=0.08, max_attempts=4, max_spend_usd=1.00
+        )
+
+        assert reserved.attempt_count == 1
+        assert reserved.spend_usd == 0.0
+        assert getattr(reserved, "reserved_spend_usd", None) == pytest.approx(0.08)
+
+    def test_reconcile_moves_reservation_into_settled_spend(self):
+        s = sessions.create_session()
+        sessions.reserve_attempt(
+            s.session_id, cost_usd=0.08, max_attempts=4, max_spend_usd=1.00
+        )
+
+        settled = sessions.reconcile_reserved_attempt_cost(
+            s.session_id, reserved_cost_usd=0.08, actual_cost_usd=0.04
+        )
+
+        assert settled.spend_usd == pytest.approx(0.04)
+        assert getattr(settled, "reserved_spend_usd", None) == 0.0
+
+    def test_release_drops_definite_no_submit_reservation_only(self):
+        s = sessions.create_session()
+        sessions.reserve_attempt(
+            s.session_id, cost_usd=0.08, max_attempts=4, max_spend_usd=1.00
+        )
+        release = getattr(sessions, "release_reserved_attempt_cost", None)
+        assert callable(release), "image sessions need a definite-no-submit release operation"
+
+        released = release(s.session_id, reserved_cost_usd=0.08)
+
+        assert released.spend_usd == 0.0
+        assert released.reserved_spend_usd == 0.0
+        assert released.attempt_count == 1
+
     def test_record_attempt_accumulates_count_and_cost(self):
         s = sessions.create_session()
         sessions.record_attempt(s.session_id, cost_usd=0.02)

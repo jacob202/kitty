@@ -26,6 +26,10 @@ class ImageRunnerError(RuntimeError):
     """Raised when the image runner cannot complete a generation request."""
 
 
+class ImageDispatchNotSubmittedError(ImageRunnerError):
+    """Raised only when Kitty can prove no provider submission occurred."""
+
+
 FAL_PULID_COST_PER_OUTPUT_MP_USD = 0.0333
 
 
@@ -368,23 +372,23 @@ async def _run_registry_hosted(
     identity_images: list[Path] | None = None
     if engine_name == "fal":
         if not character_id or not character_ref_path:
-            raise ImageRunnerError(
+            raise ImageDispatchNotSubmittedError(
                 "fal character generation requires a bound character reference"
             )
         ref_path = Path(character_ref_path)
         if not ref_path.is_file():
-            raise ImageRunnerError(
+            raise ImageDispatchNotSubmittedError(
                 f"bound character reference is missing from disk: {ref_path}"
             )
         identity_images = [ref_path]
     elif character_id:
-        raise ImageRunnerError(
+        raise ImageDispatchNotSubmittedError(
             f"{engine_name} cannot honor character identity conditioning; use fal instead"
         )
 
     available, reason = paid_engine_available(engine_name)
     if not available:
-        raise ImageRunnerError(reason)
+        raise ImageDispatchNotSubmittedError(reason)
 
     provider = get(engine_name)
     job = image_jobs.create_job(
@@ -880,7 +884,7 @@ async def _run_openrouter(
 
     enabled, reason = openrouter_images_available()
     if not enabled:
-        raise ImageRunnerError(reason)
+        raise ImageDispatchNotSubmittedError(reason)
 
     content: Any = prompt
     if source_image is not None:
@@ -1024,7 +1028,7 @@ async def _run_flux(
 
     enabled, reason = flux_images_available()
     if not enabled:
-        raise ImageRunnerError(reason)
+        raise ImageDispatchNotSubmittedError(reason)
 
     model = FLUX_EDIT_MODEL if source_image is not None else FLUX_GENERATE_MODEL
     payload: dict[str, Any] = {"prompt": prompt}
@@ -1137,10 +1141,10 @@ async def _run_flux2(
 
     enabled, reason = flux2_images_available()
     if not enabled:
-        raise ImageRunnerError(reason)
+        raise ImageDispatchNotSubmittedError(reason)
 
     if target is None or compiled is None:
-        raise ImageRunnerError(
+        raise ImageDispatchNotSubmittedError(
             "engine 'flux2' requires an explicit flux2_target and compiled request"
         )
     compiled_request = compiled

@@ -89,6 +89,7 @@ class ImageSession:
     requested_changes_json: str | None
     last_plan_json: str | None
     spend_usd: float
+    reserved_spend_usd: float
     attempt_count: int
     created_at: str
     updated_at: str
@@ -229,6 +230,21 @@ def _ensure_session_column(conn: Any) -> None:
     )
 
 
+def _ensure_spend_columns(conn: Any) -> None:
+    """Add the unsettled paid-exposure column to image sessions.
+
+    ``spend_usd`` is settled spend only. ``reserved_spend_usd`` is conservative
+    pre-dispatch exposure that still counts against the budget until it is
+    released or reconciled. SQLite cannot add this column idempotently in SQL,
+    so the versioned migration is a marker and this helper owns the ALTER.
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(image_sessions)").fetchall()}
+    if "reserved_spend_usd" not in cols:
+        conn.execute(
+            "ALTER TABLE image_sessions ADD COLUMN reserved_spend_usd REAL NOT NULL DEFAULT 0"
+        )
+
+
 def _ensure_project_column(conn: Any) -> None:
     """Add optional Project scope to image sessions.
 
@@ -256,6 +272,7 @@ def _ensure_db(conn: Any = None) -> None:
         image_jobs._ensure_db(c)
         c.executescript(_MIGRATION_FILE.read_text(encoding="utf-8"))
         _ensure_session_column(c)
+        _ensure_spend_columns(c)
         _ensure_project_column(c)
 
     if conn is not None:
@@ -279,6 +296,9 @@ def _row_to_session(row: Any) -> ImageSession:
         requested_changes_json=row["requested_changes_json"],
         last_plan_json=row["last_plan_json"],
         spend_usd=row["spend_usd"] if row["spend_usd"] is not None else 0.0,
+        reserved_spend_usd=(
+            row["reserved_spend_usd"] if row["reserved_spend_usd"] is not None else 0.0
+        ),
         attempt_count=row["attempt_count"] if row["attempt_count"] is not None else 0,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
@@ -323,6 +343,7 @@ def create_session(
         requested_changes_json=None,
         last_plan_json=None,
         spend_usd=0.0,
+        reserved_spend_usd=0.0,
         attempt_count=0,
         created_at=_now_iso(),
         updated_at=_now_iso(),
@@ -623,7 +644,7 @@ def reserve_attempt(
         _ensure_db(conn)
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
-            "SELECT status, attempt_count, spend_usd FROM image_sessions "
+            "SELECT status, attempt_count, spend_usd, reserved_spend_usd FROM image_sessions "
             "WHERE session_id = ?",
             (session_id,),
         ).fetchone()
@@ -633,12 +654,13 @@ def reserve_attempt(
             raise SessionEndedError(f"session {session_id!r} has ended")
         attempts = int(row["attempt_count"] or 0)
         spend = float(row["spend_usd"] or 0.0)
+        reserved = float(row["reserved_spend_usd"] or 0.0)
         if attempts >= max_attempts:
             raise SessionBudgetExceededError(
                 f"session {session_id!r} has used {attempts} of "
                 f"{max_attempts} allowed attempts; generate refused"
             )
-        projected = spend + cost_usd
+        projected = spend + reserved + cost_usd
         if projected > max_spend_usd + 1e-12:
             raise SessionBudgetExceededError(
                 f"session {session_id!r} would spend ${projected:.3f}, above its "
@@ -646,7 +668,7 @@ def reserve_attempt(
             )
         conn.execute(
             "UPDATE image_sessions SET attempt_count = attempt_count + 1, "
-            "spend_usd = spend_usd + ?, updated_at = ? WHERE session_id = ?",
+            "reserved_spend_usd = reserved_spend_usd + ?, updated_at = ? WHERE session_id = ?",
             (cost_usd, _now_iso(), session_id),
         )
     return require_session(session_id)
@@ -666,21 +688,51 @@ def reconcile_reserved_attempt_cost(
         _ensure_db(conn)
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
-            "SELECT spend_usd FROM image_sessions WHERE session_id = ?",
+            "SELECT spend_usd, reserved_spend_usd FROM image_sessions WHERE session_id = ?",
             (session_id,),
         ).fetchone()
         if row is None:
             raise SessionNotFoundError(f"no image session {session_id!r}")
-        spend = float(row["spend_usd"] or 0.0)
-        if spend + 1e-12 < reserved_cost_usd:
+        reserved = float(row["reserved_spend_usd"] or 0.0)
+        if reserved + 1e-12 < reserved_cost_usd:
             raise ImageSessionError(
-                f"session {session_id!r} spend ${spend:.3f} is below the "
+                f"session {session_id!r} reserved exposure ${reserved:.3f} is below the "
                 f"${reserved_cost_usd:.3f} reservation being reconciled"
             )
         conn.execute(
-            "UPDATE image_sessions SET spend_usd = spend_usd - ? + ?, updated_at = ? "
-            "WHERE session_id = ?",
+            "UPDATE image_sessions SET reserved_spend_usd = reserved_spend_usd - ?, "
+            "spend_usd = spend_usd + ?, updated_at = ? WHERE session_id = ?",
             (reserved_cost_usd, actual_cost_usd, _now_iso(), session_id),
+        )
+    return require_session(session_id)
+
+
+def release_reserved_attempt_cost(
+    session_id: str, *, reserved_cost_usd: float
+) -> ImageSession:
+    """Release one reservation only when dispatch is known not to have happened."""
+    if reserved_cost_usd < 0:
+        raise ImageSessionError("reserved cost must not be negative")
+
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT reserved_spend_usd FROM image_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if row is None:
+            raise SessionNotFoundError(f"no image session {session_id!r}")
+        reserved = float(row["reserved_spend_usd"] or 0.0)
+        if reserved + 1e-12 < reserved_cost_usd:
+            raise ImageSessionError(
+                f"session {session_id!r} reserved exposure ${reserved:.3f} is below the "
+                f"${reserved_cost_usd:.3f} reservation being released"
+            )
+        conn.execute(
+            "UPDATE image_sessions SET reserved_spend_usd = reserved_spend_usd - ?, "
+            "updated_at = ? WHERE session_id = ?",
+            (reserved_cost_usd, _now_iso(), session_id),
         )
     return require_session(session_id)
 
