@@ -868,6 +868,57 @@ def requeue(job_id: str) -> ImageJob:
     return get_job(job_id)  # type: ignore[return-value]
 
 
+def retry_job(job_id: str) -> ImageJob:
+    """Retry a failed job by minting a NEW child job with the same intent.
+
+    Unlike ``requeue`` (which reuses the same row), a retry preserves lineage:
+    the child records ``parent_id`` pointing at the original, and copies every
+    generation parameter, provider/model metadata, compiler provenance, and the
+    immutable plan + intent JSON verbatim. The new job gets a fresh job_id and
+    attempt lifecycle. Privacy/content lane and character are preserved through
+    the copied plan and intent, never re-derived from the request body.
+
+    Only a FAILED job can be retried. A terminal job in any other state has no
+    failed attempt to recover; duplicating a success is a separate operation.
+
+    Raises:
+        JobNotFoundError: job does not exist.
+        ImageJobError: job is not in terminal FAILED state.
+    """
+    job = get_job(job_id)
+    if job is None:
+        raise JobNotFoundError(f"job {job_id} not found")
+    if job.status != ImageJobStatus.FAILED:
+        raise ImageJobError(
+            f"job {job_id} is {job.status.value}; only terminal FAILED jobs can be retried"
+        )
+    return create_job(
+        job.provider,
+        job.operation,
+        prompt=job.prompt,
+        negative_prompt=job.negative_prompt,
+        seed=job.seed,
+        model_id=job.model_id,
+        preset_id=job.preset_id,
+        width=job.width,
+        height=job.height,
+        steps=job.steps,
+        guidance=job.guidance,
+        sampler=job.sampler,
+        scheduler=job.scheduler,
+        provider_params_json=job.provider_params_json,
+        workflow_template_id=job.workflow_template_id,
+        workflow_hash=job.workflow_hash,
+        parent_id=job.job_id,
+        priority=job.priority,
+        max_retries=job.max_retries,
+        compiler_version=job.compiler_version,
+        compiler_params_json=job.compiler_params_json,
+        plan_id=job.plan_id,
+        intent_json=job.intent_json,
+    )
+
+
 def cancel_queued(character_id: str | None = None, provider: str | None = None) -> int:
     """Cancel locally active jobs without erasing unknown provider outcomes."""
     conditions = ["status IN ('created', 'submitted', 'running')"]
@@ -908,6 +959,7 @@ __all__ = [
     "transition",
     "update_job",
     "requeue",
+    "retry_job",
     "cancel_queued",
     "normalize_drawthings_request",
     "normalize_comfyui_request",
