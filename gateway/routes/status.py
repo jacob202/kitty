@@ -8,6 +8,7 @@ import subprocess
 
 from fastapi import APIRouter
 
+from gateway.health_surface import build_health_surface
 from gateway.paths import DATA_DIR, ROOT
 
 logger = logging.getLogger("kitty.status")
@@ -48,3 +49,9 @@ async def status_glance():
         "uncommitted": uncommitted,
         "tests": _test_status(),
     }
+
+
+@router.get("/health/surface")
+async def health_surface():
+    """Glanceable health projection: is Kitty working, and if not, what's wrong?"""
+    return await build_health_surface()

@@ -1815,6 +1815,63 @@ export async function fetchGatewayHealth(): Promise<GatewayHealthPayload> {
   }
 }
 
+export type HealthDomainState = 'available' | 'degraded' | 'stale' | 'unavailable' | 'unknown'
+
+export interface HealthDomainStatus {
+  name: string
+  status: HealthDomainState
+  reason: string
+  detail: Record<string, unknown>
+}
+
+export type HealthSurfaceOverall = 'healthy' | 'degraded' | 'unavailable'
+
+export interface HealthSurfacePayload {
+  ok: boolean
+  generated_at: string | null
+  overall: HealthSurfaceOverall | null
+  domains: HealthDomainStatus[]
+  degraded: string[]
+  still_functional: string[]
+  pending_grants: number
+  error?: string
+}
+
+/** Full-stack health projection from /health/surface — the single surface
+ *  answering "is Kitty working, and if not, exactly what is wrong?". */
+export async function fetchHealthSurface(): Promise<HealthSurfacePayload> {
+  try {
+    const json = await gfetch<{
+      generated_at?: string
+      overall?: HealthSurfaceOverall
+      domains?: HealthDomainStatus[]
+      degraded?: string[]
+      still_functional?: string[]
+      pending_grants?: number
+    }>('/health/surface', undefined, 4000)
+    return {
+      ok: true,
+      generated_at: json.generated_at ?? null,
+      overall: json.overall ?? null,
+      domains: Array.isArray(json.domains) ? json.domains : [],
+      degraded: Array.isArray(json.degraded) ? json.degraded : [],
+      still_functional: Array.isArray(json.still_functional) ? json.still_functional : [],
+      pending_grants: typeof json.pending_grants === 'number' ? json.pending_grants : 0,
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      generated_at: null,
+      overall: null,
+      domains: [],
+      degraded: [],
+      still_functional: [],
+      pending_grants: 0,
+      error: describeFetchError(err, null),
+    }
+  }
+}
+
 export interface GatewayTailnetPayload {
   ok: boolean
   tailnetIp: string | null
