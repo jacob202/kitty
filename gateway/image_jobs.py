@@ -115,6 +115,9 @@ class ImageJob:
     #: FLUX.2 compiler provenance (IL-03/IL-04). NULL for legacy jobs.
     compiler_version: str | None = None
     compiler_params_json: str | None = None
+    #: Immutable approved-plan provenance. NULL only for legacy/plan-less jobs.
+    plan_id: str | None = None
+    intent_json: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
@@ -172,6 +175,18 @@ def _ensure_compiler_columns(conn: Any) -> None:
         conn.execute("ALTER TABLE image_jobs ADD COLUMN compiler_params_json TEXT")
 
 
+def _ensure_plan_provenance_columns(conn: Any) -> None:
+    """Add approved plan + ImageIntent provenance to image jobs."""
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(image_jobs)").fetchall()}
+    except Exception:
+        cols = set()
+    if "plan_id" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN plan_id TEXT")
+    if "intent_json" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN intent_json TEXT")
+
+
 def _ensure_canonical_artifact_column(conn: Any) -> None:
     """Add the canonical Kitty Artifact link without changing legacy asset ids."""
     try:
@@ -203,12 +218,14 @@ def _ensure_db(conn: Any = None) -> None:
         _apply(conn)
         _ensure_queue_columns(conn)
         _ensure_compiler_columns(conn)
+        _ensure_plan_provenance_columns(conn)
         _ensure_canonical_artifact_column(conn)
     else:
         with kitty_db.connect(_paths.KITTY_DB_FILE) as c:
             _apply(c)
             _ensure_queue_columns(c)
             _ensure_compiler_columns(c)
+            _ensure_plan_provenance_columns(c)
             _ensure_canonical_artifact_column(c)
 
 
@@ -285,6 +302,8 @@ def _row_to_job(row: Any) -> ImageJob:
         queued_at=row["queued_at"],
         compiler_version=row["compiler_version"],
         compiler_params_json=row["compiler_params_json"],
+        plan_id=row["plan_id"],
+        intent_json=row["intent_json"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         started_at=row["started_at"],
@@ -316,16 +335,25 @@ def create_job(
     max_retries: int = 0,
     compiler_version: str | None = None,
     compiler_params_json: str | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> ImageJob:
     """Create a new image-job record. Returns the job. Raises on validation failure."""
     _check_json_bounded(provider_params_json, "provider_params_json")
     _check_json_bounded(compiler_params_json, "compiler_params_json")
+    _check_json_bounded(intent_json, "intent_json")
     _check_text_bounded(prompt, "prompt")
     _check_text_bounded(negative_prompt, "negative_prompt")
     if not provider or not provider.strip():
         raise ImageJobError("provider must not be empty")
     if not operation or not operation.strip():
         raise ImageJobError("operation must not be empty")
+    if (plan_id is None) != (intent_json is None):
+        raise ImageJobError("plan_id and intent_json must be provided together")
+    if plan_id is not None:
+        if not plan_id.strip():
+            raise ImageJobError("plan_id must not be empty")
+        _check_text_bounded(plan_id, "plan_id")
     valid_ops = {"txt2img", "img2img", "variation", "upscale", "inpaint"}
     if operation not in valid_ops:
         raise ImageJobError(
@@ -367,6 +395,8 @@ def create_job(
         queued_at=now if max_retries > 0 else None,
         compiler_version=compiler_version,
         compiler_params_json=compiler_params_json,
+        plan_id=plan_id,
+        intent_json=intent_json,
         created_at=now,
         updated_at=now,
         started_at=None,

@@ -304,6 +304,11 @@ class TestEditCapability:
         assert decision.anchor_job_id == anchor
         assert decision.protected_traits == ["face", "clothing"]
 
+        stored = image_plans.require_approved_plan(decision.plan_id, s.session_id)
+        assert stored.intent["operation"] == "img2img"
+        assert stored.intent["protected_traits"] == ["face", "clothing"]
+        assert stored.intent["requested_changes"] == ["broader build"]
+
         refreshed = sessions.require_session(s.session_id)
         assert refreshed.protected_traits == ["face", "clothing"]
         assert refreshed.requested_changes == ["broader build"]

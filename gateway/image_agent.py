@@ -357,6 +357,8 @@ def _build_and_persist_plan(
     guidance_tags: list[str],
     operation: str,
     anchor_job_id: str | None,
+    requested_changes: list[str] | None = None,
+    protected_traits: list[str] | None = None,
 ) -> Any:
     from gateway.image_plan import ImagePlanError, build_image_plan
     from gateway.image_plans import PlanStoreError, persist_plan
@@ -367,6 +369,9 @@ def _build_and_persist_plan(
             character_id=character_id,
             recipe_id=recipe_id,
             guidance_tags=guidance_tags,
+            operation=operation,
+            requested_changes=requested_changes,
+            protected_traits=protected_traits,
         )
     except ImagePlanError as exc:
         raise UnsupportedOperationError(str(exc)) from exc
@@ -531,6 +536,8 @@ def _decide_edit(
         guidance_tags=guidance_tags,
         operation="img2img",
         anchor_job_id=session.anchor_job_id,
+        requested_changes=requested_changes,
+        protected_traits=protected_traits,
     )
     return AgentDecision(
         action="edit",

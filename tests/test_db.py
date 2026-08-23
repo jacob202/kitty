@@ -228,6 +228,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "042_image_jobs_canonical_artifact.sql",
         "043_image_sessions_project_scope.sql",
         "044_image_characters_v2_columns.sql",
+        "045_image_intent_provenance.sql",
     ]
 
 
