@@ -1160,18 +1160,33 @@ async def studio_generate(req: StudioGenerateRequest):
         stored_provenance = list(stored.references if stored else [])
         typed_bindings = list(stored_intent.get("references", []))
         if typed_bindings:
+            # Role-aware reference selection (ADR 0040): validate every bound
+            # reference against the selected recipe's declared capabilities and
+            # order identity references by cast depth before dispatch. A
+            # capability the provider cannot carry fails loudly rather than
+            # silently dropping or mis-using the reference.
+            from gateway.image_reference_selector import (
+                ReferenceCapabilityError,
+                UnknownReferenceRoleError,
+                select_references,
+            )
+
+            try:
+                selected = select_references(
+                    typed_bindings,
+                    list(stored_intent.get("cast", [])),
+                    recipe=recipe,
+                    operation=operation,
+                )
+            except (UnknownReferenceRoleError, ReferenceCapabilityError) as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
             provenance_by_id = {
                 str(prov.get("reference_id")): prov
                 for prov in stored_provenance
                 if isinstance(prov, dict) and prov.get("reference_id")
             }
-            cast_by_slot = {
-                str(slot.get("slot_id")): slot
-                for slot in stored_intent.get("cast", [])
-                if isinstance(slot, dict) and slot.get("slot_id")
-            }
-            for binding in typed_bindings:
-                reference_id = str(binding["reference_id"])
+            for binding in selected:
+                reference_id = binding.reference_id
                 prov = provenance_by_id.get(reference_id)
                 if prov is None:
                     raise HTTPException(
@@ -1190,29 +1205,16 @@ async def studio_generate(req: StudioGenerateRequest):
                             "from local storage"
                         ),
                     )
-                cast_slot = binding.get("cast_slot")
-                cast = cast_by_slot.get(str(cast_slot)) if cast_slot else None
-                depth_order = cast.get("depth_order") if cast else None
                 refs.append(
                     CompiledReference(
                         reference_id=reference_id,
-                        role=str(binding["role"]),
+                        role=binding.role,
                         order=len(refs) + 1,
                         name=prov.get("name"),
-                        cast_slot=str(cast_slot) if cast_slot else None,
-                        character_id=(
-                            str(cast.get("character_id"))
-                            if cast and cast.get("character_id")
-                            else None
-                        ),
-                        position=(
-                            str(cast.get("position"))
-                            if cast and cast.get("position") is not None
-                            else None
-                        ),
-                        depth_order=(
-                            int(depth_order) if depth_order is not None else None
-                        ),
+                        cast_slot=binding.cast_slot,
+                        character_id=binding.character_id,
+                        position=binding.position,
+                        depth_order=binding.depth_order,
                     )
                 )
                 ref_blobs.append(Path(path).read_bytes())
