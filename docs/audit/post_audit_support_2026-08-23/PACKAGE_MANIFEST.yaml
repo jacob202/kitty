@@ -1,0 +1,51 @@
+package: kitty-sequential-audit-companion
+created: 2026-08-23
+base_sha: d11febfb9974d41c00a836d0450a10916c72add1
+base_ref: origin/main
+status: non-authoritative-support
+
+mandatory_entrypoints:
+  - README.md
+  - AUDIT_CONSUMPTION_MATRIX.md
+
+artifacts:
+  - file: POST_AUDIT_COLLISION_AND_OWNERSHIP_PROTOCOL.md
+    use_chunks: [0, 3, 10, 11]
+    role: collision-and-ownership-checks
+  - file: POST_AUDIT_ACCEPTANCE_AND_FAILURE_INJECTION_SPEC.md
+    use_chunks: [1, 2, 3, 4, 5, 6, 7, 10, 11]
+    role: acceptance-and-failure-coverage
+  - file: POST_AUDIT_DELETION_AND_CONVERGENCE_CANDIDATES.md
+    use_chunks: [9, 10, 11]
+    role: provisional-candidate-disposition
+  - file: POST_AUDIT_EXECUTION_RUNBOOK.md
+    use_chunks: [8, 11]
+    role: verification-and-evidence
+  - file: UPSTREAM_REMEDIATION_REFERENCE_NOTES.md
+    use_chunks: [8, 9, 11]
+    role: conditional-upstream-reference
+  - file: POST_AUDIT_IMPLEMENTATION_PROMPT.md
+    use_chunks: [11]
+    role: post-audit-implementation-contract
+  - file: KITTY_AGENT_EXECUTION_OPERATING_PROCEDURE.md
+    use_chunks: [11]
+    role: agent-execution-discipline
+
+completion_requirements:
+  chunk_10:
+    - disposition_every_CAND_item
+    - recheck_current_collisions
+    - reconcile_duplicates_and_root_causes
+  chunk_11:
+    - map_applicable_ACC_and_FI_items_to_findings
+    - map_findings_to_remediation_chunks
+    - identify_existing_or_required_tests
+    - record_not_applicable_with_reason
+    - consult_upstream_notes_only_for_verified_findings
+
+forbidden_uses:
+  - treating_package_claims_as_repository_evidence
+  - implementing_from_candidates_before_reconciliation
+  - overriding_current_GitHub_or_runtime_truth
+  - touching_active_Image_Lab_work_from_this_package
+  - declaring_coverage_complete_without_crosswalks
