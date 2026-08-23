@@ -173,6 +173,13 @@ def put_cached(query: str, context: str) -> None:
     _cache[query] = (time.time() + _CACHE_TTL_S, context)
 
 
+def invalidate_all() -> None:
+    """Drop every cached context. Called by stores whose write path can make
+    a cached answer stale before its TTL — an explicit correction must never
+    lose to a blind 300s cache (C4-03)."""
+    _cache.clear()
+
+
 async def warm(k: int = 3) -> int:
     """Precompute context for the predicted next queries. Returns how many were
     freshly warmed (already-cached predictions are skipped)."""
