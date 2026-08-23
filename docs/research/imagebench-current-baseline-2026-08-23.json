@@ -1,0 +1,381 @@
+{
+  "candidates": [
+    {
+      "blockers": [
+        "live runtime is older than current main",
+        "registry-hosted JobResult does not return settled cost",
+        "no production ImageBench scorer registry",
+        "no blind keeper ratings"
+      ],
+      "candidate_id": "fal-flux-pulid-current",
+      "compiler": "kitty registry-hosted adapter@409c7332",
+      "content_lanes": [
+        "safe"
+      ],
+      "imagebench_ready": false,
+      "model": "fal-ai/flux-pulid",
+      "provider": "fal",
+      "quantization": "provider-managed",
+      "reference_strategy": "single identity reference as data URI",
+      "route": "fal_flux_pulid",
+      "settings": {
+        "default_aspect": "1:1",
+        "default_id_weight": 1.0,
+        "default_image_size": "square_hd",
+        "live_available": true,
+        "price_usd_per_output_mp": 0.0333
+      },
+      "upstream_revision_state": "provider endpoint is named but current adapter does not expose an immutable model revision",
+      "workflow": "fal async queue / FLUX PuLID"
+    },
+    {
+      "blockers": [
+        "Airforce balance is $0 in live readiness",
+        "effective AIRFORCE_MODEL differs from recipe/status label",
+        "live runtime is older than current main",
+        "registry-hosted JobResult does not return settled cost",
+        "no production ImageBench scorer registry"
+      ],
+      "candidate_id": "airforce-effective-current",
+      "compiler": "kitty registry-hosted adapter@409c7332",
+      "content_lanes": [
+        "safe"
+      ],
+      "imagebench_ready": false,
+      "model": "image-1-watermark",
+      "provider": "airforce",
+      "quantization": "provider-managed",
+      "reference_strategy": "none",
+      "route": "airforce_grok_imagine_2",
+      "settings": {
+        "effective_env_model": "image-1-watermark",
+        "live_available": false,
+        "recipe_model_family": "grok-imagine-image-2.0",
+        "status_label": "Grok Imagine 2.0 via Airforce"
+      },
+      "upstream_revision_state": "effective model is env-selected and current adapter does not expose immutable upstream revision",
+      "workflow": "OpenAI-compatible images/generations"
+    },
+    {
+      "blockers": [
+        "ComfyUI is offline",
+        "checkpoint SHA-256 cannot currently be pinned",
+        "no production ImageBench scorer registry"
+      ],
+      "candidate_id": "comfyui-realcorexl-current",
+      "compiler": "gateway.image_gen@409c7332",
+      "content_lanes": [
+        "safe"
+      ],
+      "imagebench_ready": false,
+      "model": "RealCoreXL.safetensors",
+      "provider": "comfyui",
+      "quantization": "local checkpoint",
+      "reference_strategy": "none or one IP-Adapter identity reference depending path",
+      "route": "comfyui_sdxl_standard",
+      "settings": {
+        "checkpoint": "RealCoreXL.safetensors",
+        "default_size": "1024x1024",
+        "live_available": false
+      },
+      "upstream_revision_state": "checkpoint filename known; checkpoint bytes/hash not currently discoverable on disk",
+      "workflow": "sdxl_photonic with per-request workflow hash"
+    },
+    {
+      "blockers": [
+        "Draw Things is offline",
+        "image_jobs.model_id does not persist the actual DT_MODEL",
+        "model asset/hash cannot currently be pinned",
+        "no production ImageBench scorer registry"
+      ],
+      "candidate_id": "drawthings-current",
+      "compiler": "mcp.imagen DrawThings adapter@409c7332",
+      "content_lanes": [
+        "safe"
+      ],
+      "imagebench_ready": false,
+      "model": "icatcher_realistic",
+      "provider": "drawthings",
+      "quantization": "local app model",
+      "reference_strategy": "none",
+      "route": "drawthings_standard",
+      "settings": {
+        "endpoint": "http://127.0.0.1:7860",
+        "live_available": false,
+        "requested_model": "icatcher_realistic"
+      },
+      "upstream_revision_state": "requested model name known; job provenance currently records endpoint rather than DT_MODEL/checkpoint hash",
+      "workflow": "A1111-compatible txt2img/img2img"
+    },
+    {
+      "blockers": [
+        "paid FLUX.2 route is disabled in live runtime",
+        "live runtime predates current-main ImageIntent/ImageBench integration",
+        "no benchmark outputs/scorer evidence/blind ratings"
+      ],
+      "candidate_id": "flux2-klein-4b-hosted",
+      "compiler": "flux2@1",
+      "content_lanes": [
+        "safe"
+      ],
+      "imagebench_ready": false,
+      "model": "flux-2-klein-4b",
+      "provider": "flux2",
+      "quantization": "provider-managed",
+      "reference_strategy": "ordered role-aware references, max 4",
+      "route": "bfl_flux2_draft",
+      "settings": {
+        "guidance_ref": "black-forest-labs/skills@a6f74cc70a85179ab74c578ed65dcf3d8dafca9e",
+        "one_mp_txt2img_usd": 0.015,
+        "reference_limit": 4,
+        "target_id": "flux2-klein-4b-h"
+      },
+      "upstream_revision_state": "exact BFL target/model ID pinned; provider-hosted weight revision is not separately exposed",
+      "workflow": "flux2-klein-4b-h"
+    },
+    {
+      "blockers": [
+        "paid FLUX.2 route is disabled in live runtime",
+        "live runtime predates current-main ImageIntent/ImageBench integration",
+        "no benchmark outputs/scorer evidence/blind ratings"
+      ],
+      "candidate_id": "flux2-pro-hosted",
+      "compiler": "flux2@1",
+      "content_lanes": [
+        "safe"
+      ],
+      "imagebench_ready": false,
+      "model": "flux-2-pro",
+      "provider": "flux2",
+      "quantization": "provider-managed",
+      "reference_strategy": "ordered role-aware references, max 8",
+      "route": "bfl_flux2_pro",
+      "settings": {
+        "guidance_ref": "black-forest-labs/skills@a6f74cc70a85179ab74c578ed65dcf3d8dafca9e",
+        "one_mp_txt2img_usd": 0.045,
+        "reference_limit": 8,
+        "target_id": "flux2-pro-h"
+      },
+      "upstream_revision_state": "exact BFL target/model ID pinned; provider-hosted weight revision is not separately exposed",
+      "workflow": "flux2-pro-h"
+    },
+    {
+      "blockers": [
+        "paid route is disabled",
+        "legacy route is not the FLUX.2 compiler path",
+        "no benchmark outputs/scorer evidence/blind ratings"
+      ],
+      "candidate_id": "legacy-bfl-flux-current",
+      "compiler": "legacy BFL prompt path@409c7332",
+      "content_lanes": [
+        "safe"
+      ],
+      "imagebench_ready": false,
+      "model": "flux-dev",
+      "provider": "flux",
+      "quantization": "provider-managed",
+      "reference_strategy": "anchor image only for edit path",
+      "route": "legacy BFL flux route",
+      "settings": {
+        "edit_model": "flux-kontext-pro",
+        "generate_model": "flux-dev",
+        "live_available": false
+      },
+      "upstream_revision_state": "provider-hosted model ID only; no immutable weight revision recorded",
+      "workflow": "BFL submit/poll"
+    },
+    {
+      "blockers": [
+        "paid route is disabled",
+        "historical success predates canonical artifact/provenance requirements",
+        "no production ImageBench scorer registry/blind ratings"
+      ],
+      "candidate_id": "openrouter-gemini-current",
+      "compiler": "openrouter multimodal path@409c7332",
+      "content_lanes": [
+        "safe"
+      ],
+      "imagebench_ready": false,
+      "model": "google/gemini-3.1-flash-image",
+      "provider": "openrouter",
+      "quantization": "provider-managed",
+      "reference_strategy": "optional source image for img2img",
+      "route": "openrouter image route",
+      "settings": {
+        "live_available": false
+      },
+      "upstream_revision_state": "provider model ID only; no immutable provider model revision recorded",
+      "workflow": "OpenRouter chat/completions image modality"
+    }
+  ],
+  "captured_at_utc": "2026-08-23T08:35:10.019155Z",
+  "current_main_sha": "409c73320e7a132d7c27ec3229316d404a62fa00",
+  "imagebench_state": {
+    "accepted_image_costs": null,
+    "complete_current_baseline": false,
+    "keep_rates": null,
+    "primary_blockers": [
+      "live runtime is not current main",
+      "no production ImageBench scorer registry exists",
+      "no blind keeper ratings exist",
+      "fal/Airforce registry-hosted paths do not propagate settled actual cost",
+      "local engines are offline and their exact model assets are not fully pinned",
+      "historical successful jobs predate current ImageIntent job provenance"
+    ],
+    "valid_comparison_runs": 0
+  },
+  "live_runtime": {
+    "build_commit": "cd1e4d692706c71cbbdfcf44d3ea70b63d20c0ae",
+    "environment": "prod",
+    "image_status": {
+      "available": true,
+      "backend": "fal",
+      "engines": [
+        {
+          "available": false,
+          "label": "ComfyUI",
+          "name": "comfyui",
+          "unavailable_reason": "ComfyUI is not running on this Mac. Start ComfyUI, then check again."
+        },
+        {
+          "available": false,
+          "label": "Draw Things",
+          "name": "drawthings",
+          "unavailable_reason": "Draw Things is not answering. Open the Draw Things app, turn on its API server, then check again."
+        },
+        {
+          "available": false,
+          "cost_per_image_usd": 0.01,
+          "label": "Grok Imagine 2.0 via Airforce",
+          "name": "airforce",
+          "unavailable_reason": "Airforce account balance is $0. Add pay-as-you-go credits before using hosted image generation."
+        },
+        {
+          "available": false,
+          "cost_per_image_usd": 0.025,
+          "label": "Flux (Black Forest Labs)",
+          "name": "flux",
+          "unavailable_reason": "Paid image generation is off. Flux image generation is billed per request. Set KITTY_IMAGE_PAID_ENABLED=1 in .env and restart Kitty to turn it on."
+        },
+        {
+          "available": true,
+          "cost_per_image_usd": 0.0666,
+          "cost_per_megapixel_usd": 0.0333,
+          "label": "FLUX PuLID via fal",
+          "name": "fal",
+          "unavailable_reason": null
+        },
+        {
+          "available": false,
+          "cost_per_image_usd": 0.067,
+          "label": "Gemini via OpenRouter",
+          "name": "openrouter",
+          "unavailable_reason": "Paid image generation is off. OpenRouter image generation is billed usage. Set KITTY_IMAGE_PAID_ENABLED=1 in .env and restart Kitty to turn it on."
+        }
+      ]
+    },
+    "manifest_revision": "d326be95037a1c1c"
+  },
+  "runtime_db": {
+    "counts": {
+      "gallery_items": 0,
+      "gallery_rated_items": 0,
+      "image_job_observations": 0,
+      "image_plans": 0
+    },
+    "image_jobs_columns": [
+      "job_id",
+      "provider",
+      "provider_job_id",
+      "operation",
+      "status",
+      "prompt",
+      "negative_prompt",
+      "seed",
+      "model_id",
+      "preset_id",
+      "width",
+      "height",
+      "steps",
+      "guidance",
+      "sampler",
+      "scheduler",
+      "provider_params_json",
+      "workflow_template_id",
+      "workflow_hash",
+      "artifact_id",
+      "output_path",
+      "normalized_error",
+      "provider_diagnostics_json",
+      "parent_id",
+      "created_at",
+      "updated_at",
+      "started_at",
+      "finished_at",
+      "character_id",
+      "character_ref_ids_json",
+      "reference_ids_json",
+      "quality_mode",
+      "identity_mode",
+      "recipe_id",
+      "recipe_version",
+      "output_count",
+      "routing_reason",
+      "priority",
+      "retry_count",
+      "max_retries",
+      "last_error",
+      "queued_at",
+      "compiler_version",
+      "compiler_params_json",
+      "canonical_artifact_id",
+      "session_id"
+    ],
+    "successful_jobs": [
+      {
+        "artifact": {
+          "content_hash": "f4aa28e934ba0ad60a6d3dac0a5f6a22c64b0f802e7c5430d6450ad2941917f4",
+          "created_by": "image:fal",
+          "id": "artifact_image_job_d6f3e1e517c94e3fafde8dab99d73e87",
+          "size_bytes": 1004406,
+          "source_ref": "job_d6f3e1e517c94e3fafde8dab99d73e87",
+          "state": "ready"
+        },
+        "canonical_artifact_id": "artifact_image_job_d6f3e1e517c94e3fafde8dab99d73e87",
+        "compiler_version": null,
+        "created_at": "2026-08-23T06:22:39.129262+00:00",
+        "finished_at": "2026-08-23T06:22:47.594673+00:00",
+        "job_id": "job_d6f3e1e517c94e3fafde8dab99d73e87",
+        "latency_seconds": 8.461448,
+        "model_id": "fal-ai/flux-pulid",
+        "operation": "txt2img",
+        "provider": "fal",
+        "session_attempt_count": 1,
+        "session_id": "imgses_bb90b530861843deb1b4613468e490b3",
+        "session_spend_usd": 0.07,
+        "session_status": "active",
+        "started_at": "2026-08-23T06:22:39.133225+00:00",
+        "status": "succeeded",
+        "workflow_template_id": null
+      },
+      {
+        "artifact": null,
+        "canonical_artifact_id": null,
+        "compiler_version": null,
+        "created_at": "2026-08-02T23:53:29.853558+00:00",
+        "finished_at": "2026-08-02T23:53:38.774826+00:00",
+        "job_id": "job_813a0f6dd4e842e2bf1ca0fbb8e70cc3",
+        "latency_seconds": 8.917244,
+        "model_id": "google/gemini-3.1-flash-image",
+        "operation": "txt2img",
+        "provider": "openrouter",
+        "session_id": null,
+        "session_spend_usd": null,
+        "started_at": "2026-08-02T23:53:29.857582+00:00",
+        "status": "succeeded",
+        "workflow_template_id": null
+      }
+    ]
+  },
+  "schema_version": 1
+}
