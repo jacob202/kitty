@@ -162,6 +162,50 @@ class TestAutoRouting:
         )
         assert decision.recipe_id == "fal_flux_pulid"
 
+
+
+    def test_flux2_defaults_advertise_bounded_two_character_capability(self, override_db):
+        seed_default_recipes()
+        draft = get_recipe("bfl_flux2_draft")
+        pro = get_recipe("bfl_flux2_pro")
+        for recipe in (draft, pro):
+            assert recipe.supports_characters is True
+            assert recipe.max_characters == 2
+
+    def test_flux2_capability_reconciles_existing_seeded_rows(self, override_db):
+        seed_default_recipes()
+        with db.connect(override_db) as conn:
+            conn.execute(
+                "UPDATE image_recipes SET supports_characters = 0, max_characters = 0 "
+                "WHERE recipe_id IN ('bfl_flux2_draft', 'bfl_flux2_pro')"
+            )
+            conn.commit()
+
+        assert seed_default_recipes() == 0
+        assert get_recipe("bfl_flux2_draft").max_characters == 2
+        assert get_recipe("bfl_flux2_pro").supports_characters is True
+
+    def test_preferred_single_character_recipe_rejected_for_two_characters(self, override_db):
+        seed_default_recipes()
+        with pytest.raises(RecipeError, match="supports 1 character.*requested 2"):
+            auto_route(
+                has_character=True,
+                character_count=2,
+                preferred_recipe="comfyui_sdxl_standard",
+            )
+
+    def test_identity_first_respects_max_characters(self, override_db):
+        seed_default_recipes()
+        decision = auto_route(
+            has_character=True,
+            character_count=2,
+            identity_mode="identity_first",
+        )
+        assert decision.recipe is not None
+        assert decision.recipe.supports_characters is True
+        assert decision.recipe.max_characters >= 2
+        assert decision.recipe.provider == "flux2"
+
     def test_no_available_recipes_raises(self, override_db):
         seed_default_recipes()
         recipes = list_recipes()

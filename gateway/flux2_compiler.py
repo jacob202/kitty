@@ -60,14 +60,26 @@ class CompiledReference:
     role: str
     order: int
     name: str | None = None
+    cast_slot: str | None = None
+    character_id: str | None = None
+    position: str | None = None
+    depth_order: int | None = None
 
     def to_dict(self) -> dict:
-        return {
+        payload = {
             "reference_id": self.reference_id,
             "role": self.role,
             "order": self.order,
             "name": self.name,
         }
+        optional = {
+            "cast_slot": self.cast_slot,
+            "character_id": self.character_id,
+            "position": self.position,
+            "depth_order": self.depth_order,
+        }
+        payload.update({key: value for key, value in optional.items() if value is not None})
+        return payload
 
 
 @dataclass(frozen=True)
@@ -232,6 +244,21 @@ def _reference_sentence(references: Sequence[CompiledReference]) -> str:
             fragment = f"the original image (image {ref.order})"
         else:
             fragment = f"{fragment} from image {ref.order}"
+            if any(
+                value is not None
+                for value in (ref.cast_slot, ref.character_id, ref.position, ref.depth_order)
+            ):
+                details: list[str] = []
+                if ref.name:
+                    details.append(ref.name)
+                if ref.cast_slot:
+                    details.append(ref.cast_slot)
+                if ref.position:
+                    details.append(f"position {ref.position}")
+                if ref.depth_order is not None:
+                    details.append(f"depth order {ref.depth_order}")
+                if details:
+                    fragment += " (" + ", ".join(details) + ")"
         fragments.append(fragment)
     return "Recompose using " + ", and ".join(fragments) + "."
 
