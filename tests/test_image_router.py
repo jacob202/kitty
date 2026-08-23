@@ -109,6 +109,20 @@ async def test_image_generate_rejects_unknown_engine():
 
 
 @pytest.mark.asyncio
+async def test_legacy_image_generate_rejects_hosted_engine_before_dispatch(monkeypatch):
+    async def should_not_run(*_args, **_kwargs):
+        raise AssertionError("hosted engine reached image_runner.run through legacy route")
+
+    monkeypatch.setattr("gateway.image_runner.run", should_not_run)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await extended.image_generate(extended.ImageGenRequest(prompt="cat", engine="fal"))
+
+    assert exc_info.value.status_code == 409
+    assert "Studio" in str(exc_info.value.detail)
+
+
+@pytest.mark.asyncio
 async def test_image_view_serves_persisted_local_artifact(monkeypatch, tmp_path: Path):
     from mcp.imagen.config import settings
 

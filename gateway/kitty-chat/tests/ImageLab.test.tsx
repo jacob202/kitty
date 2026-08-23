@@ -31,6 +31,7 @@ function offlineStatusWithReasons() {
       engines: [
         { name: 'comfyui', label: 'ComfyUI', available: false, unavailable_reason: 'ComfyUI is not running on this Mac. Start ComfyUI, then check again.' },
         { name: 'drawthings', label: 'Draw Things', available: false, unavailable_reason: 'Draw Things is not answering. Open the Draw Things app, turn on its API server, then check again.' },
+        { name: 'flux', label: 'Flux', available: false, unavailable_reason: 'Paid image generation is off. Set KITTY_IMAGE_PAID_ENABLED=1 in .env and restart Kitty to turn it on.' },
       ],
     },
     isPending: false, isError: false, isFetching: false,
@@ -172,6 +173,25 @@ describe('ImageLab', () => {
     expect(await screen.findByText(/no image engine is online/i)).toBeInTheDocument()
     expect(screen.getByText(/Start ComfyUI, then check again/i)).toBeInTheDocument()
     expect(screen.getByText(/Open the Draw Things app/i)).toBeInTheDocument()
+    expect(screen.queryByText(/KITTY_IMAGE_PAID_ENABLED|\.env/i)).not.toBeInTheDocument()
+  })
+
+  it('handles Studio character payloads that omit references', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const target = String(url)
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate(1) }
+      if (target === '/proxy/studio/characters') return { ok: true, status: 200, json: async () => ({
+        characters: [{ character_id: 'char_legacy', name: 'Legacy Mia', description: null, identity_preset: 'balanced' }],
+      }) }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ImageLab />)
+    fireEvent.click(await screen.findByTestId('image-lab-character-picker'))
+
+    expect(screen.getByText('Legacy Mia')).toBeInTheDocument()
+    expect(screen.getByText('no ref')).toBeInTheDocument()
   })
 
   it('carries a picked character into a freshly created session', async () => {
@@ -213,6 +233,15 @@ describe('ImageLab', () => {
     fireEvent.click(await screen.findByTestId('image-lab-character-picker'))
     fireEvent.click(screen.getByText('Mia'))
 
+    await waitFor(() => {
+      const characterEstimateCall = fetchMock.mock.calls.find(([url, init]) => {
+        if (String(url) !== '/proxy/studio/estimate') return false
+        const body = JSON.parse(String((init as RequestInit | undefined)?.body ?? '{}'))
+        return body.character_id === 'char_1'
+      })
+      expect(characterEstimateCall).toBeTruthy()
+    })
+
     const input = screen.getByPlaceholderText(/tell kitty what you want to make/i)
     fireEvent.change(input, { target: { value: 'portrait of Mia' } })
     fireEvent.click(screen.getByTestId('image-lab-send'))
@@ -223,6 +252,14 @@ describe('ImageLab', () => {
     )
     expect(sessionCall).toBeTruthy()
     expect(JSON.parse(String((sessionCall?.[1] as RequestInit).body))).toEqual({ character_id: 'char_1' })
+
+    const batchCall = fetchMock.mock.calls.find(([url, init]) =>
+      String(url) === '/proxy/studio/batches' && (init as RequestInit | undefined)?.method === 'POST'
+    )
+    expect(batchCall).toBeTruthy()
+    expect(JSON.parse(String((batchCall?.[1] as RequestInit).body))).toMatchObject({
+      character_id: 'char_1', plan_id: 'imgplan_1', session_id: 'imgses_1',
+    })
   })
 
   it('binds a character to the persisted session over PATCH', async () => {

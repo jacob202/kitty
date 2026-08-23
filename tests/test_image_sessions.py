@@ -152,6 +152,19 @@ class TestAnchor:
         with pytest.raises(AnchorError, match="job_nope"):
             sessions.set_anchor(s.session_id, "job_nope")
 
+    def test_cross_session_job_is_rejected_without_mutating_anchor(self):
+        owner = sessions.create_session()
+        other = sessions.create_session()
+        job = _succeeded_job(artifact_id="art_owner")
+        sessions.attach_job(owner.session_id, job.job_id)
+
+        with pytest.raises(AnchorError, match="does not belong to session"):
+            sessions.set_anchor(other.session_id, job.job_id)
+
+        unchanged = sessions.require_session(other.session_id)
+        assert unchanged.anchor_job_id is None
+        assert unchanged.anchor_artifact_id is None
+
     def test_unfinished_job_is_rejected(self):
         """An anchor that cannot be fed to a renderer must fail at selection."""
         s = sessions.create_session()

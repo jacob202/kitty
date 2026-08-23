@@ -506,12 +506,17 @@ def set_anchor(session_id: str, job_id: str) -> ImageSession:
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
         row = conn.execute(
-            "SELECT job_id, status, artifact_id, output_path FROM image_jobs"
+            "SELECT job_id, session_id, status, artifact_id, output_path FROM image_jobs"
             " WHERE job_id = ?",
             (job_id,),
         ).fetchone()
         if row is None:
             raise AnchorError(f"no image job {job_id!r}")
+        owner_session_id = row["session_id"]
+        if owner_session_id is not None and owner_session_id != session_id:
+            raise AnchorError(
+                f"job {job_id!r} does not belong to session {session_id!r}"
+            )
         status = ImageJobStatus(row["status"])
         if status is not ImageJobStatus.SUCCEEDED:
             raise AnchorError(
