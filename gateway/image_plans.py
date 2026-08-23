@@ -298,6 +298,7 @@ def _validate_intent_payload(
     content_lane: str,
     consent_basis: str | None,
     adult_confirmed: bool,
+    reference_provenance: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Validate ImageIntent v1 as durable executable intent, not advisory JSON."""
     version = intent.get("intent_version")
@@ -334,6 +335,7 @@ def _validate_intent_payload(
     if not isinstance(cast, list):
         raise PlanMalformedError("intent cast must be a list")
     slot_ids: set[str] = set()
+    cast_characters: dict[str, str] = {}
     for item in cast:
         if not isinstance(item, dict):
             raise PlanMalformedError("intent cast entries must be objects")
@@ -352,7 +354,46 @@ def _validate_intent_payload(
             raise PlanMalformedError(
                 f"intent cast slot {slot_id!r} has invalid display_name"
             )
+        position = item.get("position")
+        if position is not None and (
+            not isinstance(position, str) or not position.strip()
+        ):
+            raise PlanMalformedError(
+                f"intent cast slot {slot_id!r} position must be a non-empty string or null"
+            )
+        depth_order = item.get("depth_order")
+        if depth_order is not None and (
+            isinstance(depth_order, bool)
+            or not isinstance(depth_order, int)
+            or depth_order <= 0
+        ):
+            raise PlanMalformedError(
+                f"intent cast slot {slot_id!r} depth_order must be a positive integer or null"
+            )
         slot_ids.add(slot_id)
+        cast_characters[slot_id] = character_id
+
+    provenance_owner: dict[str, str] = {}
+    if reference_provenance is not None:
+        for item in reference_provenance:
+            if not isinstance(item, dict):
+                raise PlanMalformedError("reference provenance entries must be objects")
+            reference_id = item.get("reference_id")
+            character_id = item.get("character_id")
+            if reference_id is None:
+                continue
+            if not isinstance(reference_id, str) or not reference_id.strip():
+                raise PlanMalformedError("reference provenance reference_id must be non-empty")
+            if not isinstance(character_id, str) or not character_id.strip():
+                raise PlanMalformedError(
+                    f"reference provenance {reference_id!r} has no character_id"
+                )
+            existing = provenance_owner.get(reference_id)
+            if existing is not None and existing != character_id:
+                raise PlanMalformedError(
+                    f"reference provenance {reference_id!r} claims multiple characters"
+                )
+            provenance_owner[reference_id] = character_id
 
     references = intent.get("references")
     if not isinstance(references, list):
@@ -389,6 +430,18 @@ def _validate_intent_payload(
                 raise PlanMalformedError(
                     f"intent reference {reference_id!r} has invalid weight; "
                     "expected a finite value in (0, 1]"
+                )
+        if reference_provenance is not None:
+            owner = provenance_owner.get(reference_id)
+            expected_owner = cast_characters[cast_slot]
+            if owner is None:
+                raise PlanMalformedError(
+                    f"intent reference {reference_id!r} has no durable reference provenance"
+                )
+            if owner != expected_owner:
+                raise PlanMalformedError(
+                    f"intent reference {reference_id!r} belongs to character {owner!r}; "
+                    f"cannot bind it to {cast_slot!r} ({expected_owner!r})"
                 )
         binding = (reference_id, role, cast_slot)
         if binding in seen_bindings:
@@ -431,6 +484,7 @@ def _decode_intent(raw: str | None, row: Any) -> dict[str, Any]:
         content_lane=row["content_lane"],
         consent_basis=row["consent_basis"],
         adult_confirmed=bool(row["adult_confirmed"]),
+        reference_provenance=_decode_refs(row["references_json"]),
     )
 
 
@@ -650,6 +704,7 @@ def persist_plan(
             content_lane=content_lane,
             consent_basis=consent_basis,
             adult_confirmed=adult_confirmed,
+            reference_provenance=[dict(r) for r in references],
         )
     except PlanMalformedError as exc:
         raise PlanStoreError(str(exc)) from exc
