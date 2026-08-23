@@ -2,6 +2,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
+from gateway.context_assembler import ContextBundle
+
 
 def test_ask_returns_reply_and_applies_voice_gate():
     """
@@ -29,8 +31,8 @@ def test_ask_returns_reply_and_applies_voice_gate():
     mock_chat = AsyncMock(return_value=mock_payload)
 
     with patch(
-        "gateway.context_assembler.get_system_prompt",
-        new=AsyncMock(return_value="FULL_SYSTEM"),
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=ContextBundle(system="FULL_SYSTEM")),
     ), patch("gateway.llm_client.chat_completions_non_stream", new=mock_chat), patch(
         "gateway.routes.ask.chat_completions_non_stream", new=mock_chat
     ):
