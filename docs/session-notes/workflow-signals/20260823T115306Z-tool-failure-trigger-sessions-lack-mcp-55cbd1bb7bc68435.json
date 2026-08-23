@@ -1,0 +1,20 @@
+{
+  "category": "tool_failure",
+  "evidence": "create_trigger returned: \"this trigger stores no MCP connectors, so the sessions it fires will run without connector tools\". A forced run (session_01RoYfbWhyoNNLXjHKTux1wi, 11:30-11:35Z, $1.08, served claude-sonnet-5) completed without creating its target issue. In this session curl -H \"Authorization: Bearer $GITHUB_TOKEN\" https://api.github.com/repos/jacob202/kitty/pulls returned HTTP 403 with \"GitHub access is not enabled for this session\". The github and claude-code-remote MCP servers also disconnected and reconnected repeatedly inside this interactive session.",
+  "fingerprint": "acca5716f080be77",
+  "id": "wfs_20260823t115306z_acca5716f080be77_55cbd1bb7bc68435",
+  "impact": "A scheduled job that assumes GitHub access silently degrades to a partial result, and a first-miss capability check misreports a transient disconnect as a permanent absence.",
+  "occurrence_count": 1,
+  "promotion_reason": "single non-critical observation; collect another occurrence",
+  "promotion_status": "observe",
+  "recorded_at": "2026-08-23T11:53:06.787643Z",
+  "schema_version": 1,
+  "severity": "high",
+  "source_session": "session_01BBGNHiF82b1HDG849RkVT3",
+  "stable_key": "tool-failure-trigger-sessions-lack-mcp",
+  "store_scope": "repo-fallback",
+  "suggested_change": "Any scheduled prompt that needs an MCP tool must re-check availability through ToolSearch after a wait before declaring a fallback, and must state in its output which mode it ran in.",
+  "summary": "Sessions started by a scheduled Routine cannot rely on MCP tools being present, and there is no HTTP fallback to GitHub.",
+  "verified_by": "create_trigger warning text, get_session on the forced run, curl exit status against api.github.com, repeated ToolSearch misses",
+  "window_days": 30
+}

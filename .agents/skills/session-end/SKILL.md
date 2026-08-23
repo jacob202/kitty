@@ -335,7 +335,53 @@ Report uncommitted files and other workers' changes. Do not commit, push, delete
 clean, release leases, claim Builder work, or merge unless separately authorized
 or an approved Builder publication policy permits the bounded action.
 
-## 12. Confirm and stop
+## 12. Write the command-center digest
+
+`~/Projects/kitty-command-center` is Jacob's operator surface on his Mac, a
+sibling of the Kitty checkout and a separate store from `~/kb`. `HANDOFF.md` and
+`STATE.md` are written for the next agent; this file is written for Jacob.
+
+Append a new entry to the top of:
+
+```text
+~/Projects/kitty-command-center/SESSIONS.md
+```
+
+**Never create that directory yourself.** An empty one made inside a container
+becomes a convincing-looking command centre holding nothing but this session,
+and it dies with the container. When the path is absent, that is a fact to
+report, not a gap to paper over: write the identical entry to
+`docs/session-notes/<DATE>-command-center.md`, commit it, and say in the final
+report that the Mac path was unreachable.
+
+Entry format, newest first, one per session:
+
+```markdown
+## YYYY-MM-DD HH:MM <tz> — <one-line outcome>
+
+- **Landed:** <what is true now that was not before, or "nothing">
+- **In flight:** <branch / PR number and its state, or "nothing">
+- **Broke:** <what failed, and whether it is already fixed, or "nothing">
+- **Needs Jacob:** <the exact decision or action, or "nothing">
+- **Next move:** <the single next interactive action, or an explicit no-op>
+- **Evidence:** <receipt path, test counts, run IDs>
+```
+
+Rules:
+
+- Plain language throughout. Jacob does not code and this is the one artifact he
+  reads directly; name what a thing does, not the module that holds it.
+- Facts verified this session only. Reuse the evidence from steps 3, 5, and 8
+  rather than restating intent — a digest that disagrees with `STATE.md` is worse
+  than no digest.
+- **Needs Jacob** carries only genuine blockers: a required approval, a
+  credential, a real collision. Work you could have done yourself never appears
+  here.
+- Keep the last 10 entries and delete older ones in the same write. This file is
+  a rolling board, not an archive, and never a second backlog.
+- Never write secrets, tokens, or provider keys.
+
+## 13. Confirm and stop
 
 Report briefly:
 
@@ -345,6 +391,7 @@ Report briefly:
 4. deferred items and release conditions;
 5. effectiveness receipt ID/path and evidence gaps;
 6. workflow signals and status;
-7. every unavailable source.
+7. the command-center digest path actually written;
+8. every unavailable source.
 
 Then stop. Do not start another interactive assignment or Builder packet.

@@ -1,0 +1,20 @@
+{
+  "category": "paid_waste",
+  "evidence": "Routine trig_01AdDPqXMb4YZZ2mDM7c4ioT (Ralph, cron 23 */3 * * *, model claude-opus-4-6) last_fired_at 2026-08-23T06:23Z. Its outcome branch origin/claude/clever-mendel-u3uvgw last commit 2026-08-03T12:29Z and is not an ancestor of origin/main. search_pull_requests head:claude/kitty-stabilization-fbydi0 returns 3 PRs, newest merged 2026-08-01. docs/mission/execution.md lists A6/B8/B9/B10 NOT STARTED, all requiring a running Mac, browser, RunPod credentials and GPU spend that a container lacks.",
+  "fingerprint": "9c2050ca884e44ab",
+  "id": "wfs_20260823t115253z_9c2050ca884e44ab_55cbd1bb7bc68435",
+  "impact": "About 160 Opus wake-ups produced no merged work and no pushed commit. The Routine hit its own STOP CONDITION each run, which stops the work but not the schedule.",
+  "occurrence_count": 1,
+  "promotion_reason": "paid_waste is an immediate integrity/cost boundary",
+  "promotion_status": "promote",
+  "recorded_at": "2026-08-23T11:52:53.367735Z",
+  "schema_version": 1,
+  "severity": "high",
+  "source_session": "session_01BBGNHiF82b1HDG849RkVT3",
+  "stable_key": "paid-waste-unwatched-scheduled-agent",
+  "store_scope": "repo-fallback",
+  "suggested_change": "A scheduled agent whose queue is blocked on hardware it cannot have should disable its own Routine or be audited on a recurring schedule; a stop condition that does not stop the timer is not a stop condition.",
+  "summary": "A recurring Routine kept firing on an expensive model for 20 days after its work queue became unreachable, and nothing surfaced it.",
+  "verified_by": "list_triggers, git log/merge-base on origin/claude/clever-mendel-u3uvgw, search_pull_requests, docs/mission/execution.md",
+  "window_days": 30
+}
