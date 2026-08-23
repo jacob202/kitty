@@ -61,6 +61,29 @@ def test_python_subprocess_inherits_runtime_and_network_guard(tmp_path: Path) ->
     assert not canonical.exists()
 
 
+def test_python_subprocess_guard_survives_repo_path_sanitization(tmp_path: Path) -> None:
+    probe = tmp_path / "probe.py"
+    probe.write_text(
+        "import socket\n"
+        "print(getattr(socket.socket.connect, '__module__', ''))\n",
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT / "tests" / "python_startup")
+
+    result = subprocess.run(
+        [os.sys.executable, str(probe)],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "kitty_test_guard"
+
+
 def test_python_subprocess_keeps_parent_dependencies(tmp_path: Path) -> None:
     result = subprocess.run(
         [os.sys.executable, "-c", "import pydantic; print(pydantic.__version__)"],

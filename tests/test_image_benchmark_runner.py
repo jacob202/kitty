@@ -838,7 +838,13 @@ def test_direct_script_evaluate_entrypoint_reaches_fail_closed_scorer_gate(tmp_p
     Image.new("RGB", (512, 512), "white").save(image)
     output = tmp_path / "evaluation.json"
     env = os.environ.copy()
-    env.pop("PYTHONPATH", None)
+    # Keep the child-process safety bootstrap while excluding the repo root:
+    # the script must still add its own checkout to sys.path.
+    env["PYTHONPATH"] = str(
+        __import__("pathlib").Path(__file__).resolve().parents[1]
+        / "tests"
+        / "python_startup"
+    )
     result = subprocess.run(
         [
             sys.executable,
