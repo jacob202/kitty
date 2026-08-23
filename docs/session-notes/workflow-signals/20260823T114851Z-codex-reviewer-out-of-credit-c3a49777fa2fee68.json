@@ -1,0 +1,20 @@
+{
+  "category": "provider_failure",
+  "evidence": "chatgpt-codex-connector[bot] commented -You have reached your Codex usage limits for code reviews- on PR #606 (twice) and PR #609. No Codex review content was produced on either PR.",
+  "fingerprint": "3cc05497753dd120",
+  "id": "wfs_20260823t114851z_3cc05497753dd120_c3a49777fa2fee68",
+  "impact": "Every PR loses one independent review source and gains a noise comment. Kitty own reviewer is unaffected and returned real verdicts throughout.",
+  "occurrence_count": 1,
+  "promotion_reason": "single non-critical observation; collect another occurrence",
+  "promotion_status": "observe",
+  "recorded_at": "2026-08-23T11:48:51.006438Z",
+  "schema_version": 1,
+  "severity": "low",
+  "source_session": "claude-code-session_01VYVnAUxXuuqnvWnUg8bNFs",
+  "stable_key": "codex-reviewer-out-of-credit",
+  "store_scope": "repo-fallback",
+  "suggested_change": "Either add credits or remove the app from the repository at https://github.com/settings/installations. No CLI equivalent exists; it is an account-level setting only Jacob can change.",
+  "summary": "The ChatGPT Codex review connector is out of credit and posts a limits notice on every PR.",
+  "verified_by": "bot comments relayed on PR #606 at 08:28:09Z and 08:29:49Z and on PR #609 at 09:01:27Z.",
+  "window_days": 30
+}
