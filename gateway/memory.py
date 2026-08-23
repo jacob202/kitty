@@ -261,14 +261,26 @@ def _build_mem0_config() -> dict:
     }
 
 
-def _get_memory():
-    """Lazy-init Mem0, raising the cached cause while it is unavailable."""
-    global _MEMORY_INSTANCE, _MEMORY_INIT_ERROR, _MEMORY_INIT_FAILED
+def _probe_memory_backend():
+    """Instantiate Kitty's configured Mem0 path without mutating runtime cache state."""
     if not _MEM0_IMPORT_OK:
         raise MemoryError(
             "memory backend unavailable: mem0ai is not installed; install the project requirements",
             details={"operation": "memory initialization", "dependency": "mem0ai"},
         ) from _MEM0_IMPORT_ERROR
+    MEM0_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    config = _build_mem0_config()
+    instance = _Mem0Memory.from_config(config)
+    if instance is None:
+        raise RuntimeError("Mem0 factory returned None")
+    return instance
+
+
+def _get_memory():
+    """Lazy-init Mem0, raising the cached cause while it is unavailable."""
+    global _MEMORY_INSTANCE, _MEMORY_INIT_ERROR, _MEMORY_INIT_FAILED
+    if not _MEM0_IMPORT_OK:
+        return _probe_memory_backend()
     if _MEMORY_INIT_FAILED:
         cause = _MEMORY_INIT_ERROR or RuntimeError(
             "previous initialization failure cause was not recorded"
@@ -281,12 +293,7 @@ def _get_memory():
     if _MEMORY_INSTANCE is not None:
         return _MEMORY_INSTANCE
     try:
-        MEM0_DATA_DIR.mkdir(parents=True, exist_ok=True)
-        config = _build_mem0_config()
-        instance = _Mem0Memory.from_config(config)
-        if instance is None:
-            raise RuntimeError("Mem0 factory returned None")
-        _MEMORY_INSTANCE = instance
+        _MEMORY_INSTANCE = _probe_memory_backend()
         return _MEMORY_INSTANCE
     except Exception as exc:
         _MEMORY_INIT_FAILED = True
@@ -445,8 +452,28 @@ def delete_memory(memory_id: str) -> bool:
     return True
 
 
+def _session_lineage(session_id: str, messages: list[dict]) -> dict[str, object]:
+    """Preserve source conversation identity and any source message times."""
+    source_times: list[str] = []
+    for message in messages:
+        raw = message.get("timestamp") or message.get("created_at") or message.get("ts")
+        if isinstance(raw, (int, float)):
+            source_times.append(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(float(raw))))
+        elif isinstance(raw, str) and raw.strip():
+            source_times.append(raw.strip())
+    return {
+        "source_conversation_id": session_id or "anonymous",
+        "source_started_at": source_times[0] if source_times else None,
+        "source_ended_at": source_times[-1] if source_times else None,
+        "consolidated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
 def write_session_consolidation_record(
-    session_id: str, user_msgs: list[str], stored: bool
+    session_id: str,
+    user_msgs: list[str],
+    stored: bool,
+    lineage: dict[str, object] | None = None,
 ) -> None:
     """Append a durable consolidation record to the session log."""
     record = {
@@ -455,6 +482,7 @@ def write_session_consolidation_record(
         "user_message_count": len(user_msgs),
         "stored_to_memory": stored,
         "topics": [m[:120] for m in user_msgs[-20:]],
+        **(lineage or {}),
     }
     try:
         SESSION_CONSOLIDATION_LOG.parent.mkdir(parents=True, exist_ok=True)
@@ -471,12 +499,13 @@ def write_session_consolidation_record(
 
 def consolidate_session(session_id: str, messages: list[dict]) -> bool:
     """Extract key facts from a closed session and persist to long-term memory."""
+    lineage = _session_lineage(session_id, messages)
     if not messages:
         logger.info(
             "Session %s closed with no messages — nothing to consolidate",
             session_id or "<anonymous>",
         )
-        write_session_consolidation_record(session_id, [], False)
+        write_session_consolidation_record(session_id, [], False, lineage)
         return False
 
     user_msgs = [
@@ -487,7 +516,7 @@ def consolidate_session(session_id: str, messages: list[dict]) -> bool:
             "Session %s closed with no user messages — nothing to consolidate",
             session_id or "<anonymous>",
         )
-        write_session_consolidation_record(session_id, [], False)
+        write_session_consolidation_record(session_id, [], False, lineage)
         return False
 
     joined = "\n".join(f"- {msg[:120]}" for msg in user_msgs[-20:])
@@ -501,6 +530,7 @@ def consolidate_session(session_id: str, messages: list[dict]) -> bool:
                 "session_id": session_id or "anonymous",
                 "message_count": len(messages),
                 "user_message_count": len(user_msgs),
+                **lineage,
             },
         )
         if not stored:
@@ -508,14 +538,14 @@ def consolidate_session(session_id: str, messages: list[dict]) -> bool:
                 "Session %s produced no new long-term memory changes",
                 session_id or "<anonymous>",
             )
-            write_session_consolidation_record(session_id, user_msgs, False)
+            write_session_consolidation_record(session_id, user_msgs, False, lineage)
             return False
         logger.info(
             "Session %s consolidated: %d user messages stored",
             session_id or "<anonymous>",
             len(user_msgs),
         )
-        write_session_consolidation_record(session_id, user_msgs, True)
+        write_session_consolidation_record(session_id, user_msgs, True, lineage)
         return True
     except Exception as exc:
         raise _memory_failure(

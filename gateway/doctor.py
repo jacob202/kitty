@@ -172,17 +172,27 @@ def _check_chromadb() -> list[Check]:
 
 
 def _check_mem0(env: dict) -> list[Check]:
+    """Check Kitty's configured semantic-memory path, not Mem0 defaults."""
+    del env  # hosted MEM0_API_KEY is not used by gateway.memory's production path
     try:
-        if env.get("MEM0_API_KEY", "").strip():
-            return [Check("PASS", "store:mem0", "API key set")]
-        from mem0 import Memory
+        from gateway import memory
 
-        _ = Memory()
-        return [Check("PASS", "store:mem0", "local mode")]
-    except ImportError:
-        return [Check("FAIL", "store:mem0", "mem0 not installed")]
-    except Exception as exc:  # noqa: BLE001  # mem0 init errors are heterogeneous (config, network, API)
-        return [Check("WARN", "store:mem0", f"local init: {exc}")]
+        memory._probe_memory_backend()
+        return [
+            Check(
+                "PASS",
+                "store:mem0",
+                "semantic memory available via Kitty's configured Mem0/Ollama path",
+            )
+        ]
+    except Exception as exc:  # noqa: BLE001 - config/import/local service failures vary
+        return [
+            Check(
+                "WARN",
+                "store:mem0",
+                f"semantic memory unavailable: {exc}; explicit memory remains available independently",
+            )
+        ]
 
 
 def _check_disk() -> list[Check]:

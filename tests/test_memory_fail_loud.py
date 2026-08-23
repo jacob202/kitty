@@ -477,21 +477,24 @@ def test_consolidate_session_reports_no_persisted_change() -> None:
         assert memory.consolidate_session("test-no-change", messages) is False
 
 
-def test_memories_route_returns_structured_503_on_list_failure() -> None:
+def test_memories_route_reports_semantic_list_failure_without_hiding_explicit_memory() -> None:
     from gateway.app import app
 
     client = TestClient(app, raise_server_exceptions=False)
-    with patch.object(
-        memory,
-        "list_memories",
-        side_effect=memory.MemoryError("chroma unavailable"),
+    with (
+        patch("gateway.explicit_memory.list_memories", return_value=[]),
+        patch.object(
+            memory,
+            "list_memories",
+            side_effect=memory.MemoryError("chroma unavailable"),
+        ),
     ):
         response = client.get("/memories")
 
-    assert response.status_code == 503
+    assert response.status_code == 200
     assert response.json() == {
-        "error": "storage.unavailable",
-        "message": "chroma unavailable",
+        "memories": [],
+        "warnings": ["semantic_memory: chroma unavailable"],
     }
 
 
