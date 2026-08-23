@@ -20,6 +20,7 @@ this file. See `docs/phases/PHASE_C3_PLAN.md` for the full sequence.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 import sqlite3
@@ -27,7 +28,7 @@ import time
 import uuid
 from typing import Any, Awaitable, Callable, Optional
 
-from gateway import automation_runs
+from gateway import automation_actions, automation_runs
 from gateway import db as kitty_db
 from gateway.paths import DATA_DIR, KITTY_DB_FILE
 
@@ -38,7 +39,6 @@ LEGACY_CRON_DB = DATA_DIR / "cron_schedules.db"
 LEGACY_IMPORT_SETTING = "cron_legacy_imported"
 
 _runner_task: asyncio.Task | None = None
-_actions: dict[str, Callable[[], Awaitable[Any]]] = {}
 
 
 def _import_legacy_cron_once() -> None:
@@ -154,7 +154,6 @@ def schedule(
         conn.commit()
 
     logger.info("Cron scheduled: %s (%s %s)", name, schedule_type, schedule_value)
-    start()
     return sid
 
 
@@ -195,7 +194,6 @@ def ensure_schedule(
                 (sid, name, action, schedule_type, schedule_value, metadata_json, time.time()),
             )
         conn.commit()
-    start()
     return sid
 
 
@@ -258,32 +256,63 @@ def update(
 
 
 def get_actions() -> list[str]:
-    """Return names of all registered action functions."""
-    return sorted(_actions.keys())
+    """Return names from the canonical Automation action registry."""
+    return automation_actions.get_actions()
 
 
-def register_action(name: str, fn: Callable[[], Awaitable[Any]]) -> None:
-    """Register an action function that can be triggered by schedules."""
-    _actions[name] = fn
+def register_action(
+    name: str,
+    fn: Callable[[], Any | Awaitable[Any]],
+    *,
+    tier: str = "T0",
+    capability: str | None = None,
+) -> None:
+    """Compatibility wrapper for no-payload cron actions."""
+
+    async def _adapter(_payload: dict[str, Any]) -> Any:
+        result = fn()
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    automation_actions.register_action(
+        name,
+        _adapter,
+        policy=automation_actions.ActionPolicy(capability=capability or name, tier=tier),
+    )
 
 
-def start() -> None:
+def start() -> asyncio.Task | None:
     """Start the background cron runner with restart reconciliation."""
     global _runner_task
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         logger.warning("Cron start skipped: no running event loop")
-        return
+        return None
     if _runner_task is None or _runner_task.done():
         try:
             interrupted = automation_runs.reconcile_interrupted_runs()
         except Exception:
             logger.exception("Cron start blocked: automation run evidence unavailable")
-            return
+            return None
         if interrupted:
             logger.warning("Reconciled %d interrupted automation run(s)", interrupted)
         _runner_task = loop.create_task(_runner())
+    return _runner_task
+
+
+async def stop() -> None:
+    """Stop the cron runner and clear its in-process task handle."""
+    global _runner_task
+    task = _runner_task
+    if task is not None and not task.done():
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    _runner_task = None
 
 
 async def _run_due_once(*, now: float | None = None) -> None:
@@ -300,34 +329,26 @@ async def _run_due_once(*, now: float | None = None) -> None:
         if run is None:
             continue
         action_name = str(schedule_row.get("action") or "")
-        action = _actions.get(action_name)
-        if action is None:
-            automation_runs.finish_run(
-                run["id"],
-                status="action_unavailable",
-                error=f"registered action {action_name!r} is not registered",
-            )
-            logger.error("Cron action unavailable: %s", action_name)
-            continue
-        try:
-            await action()
-        except Exception as exc:
-            automation_runs.finish_run(
-                run["id"],
-                status="failed",
-                error=f"{type(exc).__name__}: {exc}",
-            )
-            logger.error("Cron action %s failed: %s", action_name, exc)
-        else:
-            automation_runs.finish_run(run["id"], status="completed")
-            logger.info("Cron action fired: %s", action_name)
+        await automation_actions.run_action(
+            action_name,
+            trigger_kind="time",
+            automation_id=str(schedule_row["id"]),
+            trigger_ref=str(schedule_row["id"]),
+            schedule_id=str(schedule_row["id"]),
+            run_id=str(run["id"]),
+            policy_scope_type="automation",
+            policy_scope_id=str(schedule_row["id"]),
+        )
 
 
 async def _runner() -> None:
     """Background loop that checks schedules and fires actions."""
     logger.info("Cron runner started")
+    from gateway.automation_supervisor import supervisor
+
     while True:
         try:
+            supervisor.heartbeat("cron")
             await _run_due_once()
         except asyncio.CancelledError:
             logger.info("Cron runner stopped")

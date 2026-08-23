@@ -84,6 +84,21 @@ def remove_watch(watch_id: str) -> bool:
         return cursor.rowcount > 0
 
 
+
+def set_watch_enabled(watch_id: str, enabled: bool) -> bool | None:
+    """Set one watch enabled state. Returns the new state, or None if missing."""
+    init_db()
+    with db_connect(MONITOR_DB) as conn:
+        row = conn.execute("SELECT 1 FROM watches WHERE id = ?", (watch_id,)).fetchone()
+        if row is None:
+            return None
+        conn.execute(
+            "UPDATE watches SET enabled = ? WHERE id = ?",
+            (1 if enabled else 0, watch_id),
+        )
+        conn.commit()
+    return enabled
+
 def list_watches() -> list[dict]:
     """List all watches."""
     init_db()
@@ -108,9 +123,7 @@ async def check_now(watch_id: str) -> dict:
     watch = _row_to_dict(row)
     result = await _check_watch(watch)
 
-    if result.get("changed"):
-        _notify_match(watch, result)
-
+    await _handle_watch_result(watch, result)
     return result
 
 
@@ -136,9 +149,9 @@ async def check_due() -> dict:
             checked += 1
             if result.get("changed"):
                 changed += 1
-                _notify_match(watch, result)
             if result.get("status") == "error":
                 failed += 1
+            await _handle_watch_result(watch, result)
         except Exception:
             failed += 1
             logger.exception("Watch check failed for %s", watch.get("id"))
@@ -174,12 +187,12 @@ async def _check_watch(watch: dict) -> dict:
                 )
                 conn.commit()
 
-            changed = new_hash != old_hash and old_hash != ""
+            content_changed = new_hash != old_hash and old_hash != ""
 
             result = {
                 "watch_id": watch["id"],
                 "url": url,
-                "changed": changed,
+                "changed": content_changed,
                 "hash": new_hash[:16],
                 "content_length": len(text),
             }
@@ -190,7 +203,7 @@ async def _check_watch(watch: dict) -> dict:
                 matches = [k for k in keywords if k.lower() in lower]
                 if matches:
                     result["keyword_matches"] = matches
-                    result["changed"] = True  # keyword match counts as change
+                    result["changed"] = bool(new_hash != old_hash)
 
             return result
 
@@ -199,38 +212,92 @@ async def _check_watch(watch: dict) -> dict:
         return {"status": "error", "error": str(e), "changed": False}
 
 
-def _notify_match(watch: dict, result: dict) -> None:
-    """Send notification and emit a signal when a watch finds a match."""
-    try:
-        from gateway.notify import send
-        label = watch.get("label", watch.get("url", ""))
-        keywords = result.get("keyword_matches", [])
-        kw_text = f" Keywords: {', '.join(keywords)}" if keywords else ""
-        send(
-            message=f"Watch '{label}' updated.{kw_text}",
-            title="Kitty Web Monitor",
-            url=watch.get("url"),
-            url_title="Open URL",
-        )
-    except Exception:
-        logger.exception("Failed to send watch notification")
+async def _handle_watch_result(watch: dict, result: dict) -> None:
+    """Record monitor truth, emitting a signal before any notification action."""
+    from gateway import automation_actions, automation_runs
 
-    try:
-        from gateway.signal_store import emit
-
-        emit(
-            source="web_monitor",
-            kind="watch_match",
-            payload={
-                "watch_id": watch.get("id"),
-                "label": watch.get("label"),
-                "url": watch.get("url"),
-                "keyword_matches": result.get("keyword_matches", []),
-                "changed": result.get("changed", False),
-            },
+    automation_id = f"web_monitor:{watch.get('id')}"
+    if result.get("status") == "error":
+        run = automation_runs.begin_run(
+            automation_id=automation_id,
+            action="web_monitor.notify",
+            trigger_kind="monitor",
+            trigger_ref=str(watch.get("id") or ""),
         )
-    except Exception:
-        logger.exception("Failed to emit web_monitor signal")
+        automation_runs.finish_run(
+            run["id"],
+            status="source_unavailable",
+            error=str(result.get("error") or result.get("code") or "monitor source unavailable"),
+        )
+        return
+
+    if not result.get("changed"):
+        run = automation_runs.begin_run(
+            automation_id=automation_id,
+            action="web_monitor.notify",
+            trigger_kind="monitor",
+            trigger_ref=str(watch.get("id") or ""),
+        )
+        automation_runs.finish_run(
+            run["id"],
+            status="condition_false",
+            error="watch condition did not match",
+        )
+        return
+
+    from gateway.signal_store import emit
+
+    signal = emit(
+        source="web_monitor",
+        kind="watch_match",
+        payload={
+            "watch_id": watch.get("id"),
+            "label": watch.get("label"),
+            "url": watch.get("url"),
+            "keyword_matches": result.get("keyword_matches", []),
+            "changed": True,
+        },
+        dedupe_key=f"web_monitor:{watch.get('id')}:{result.get('hash') or ''}",
+    )
+    if signal is None:
+        return
+    await automation_actions.run_action(
+        "web_monitor.notify",
+        trigger_kind="signal",
+        automation_id=automation_id,
+        trigger_ref=str(signal["id"]),
+        policy_scope_type="automation",
+        policy_scope_id=automation_id,
+        payload={
+            "signal_id": signal["id"],
+            "watch_id": watch.get("id"),
+            "label": watch.get("label"),
+            "url": watch.get("url"),
+            "keyword_matches": result.get("keyword_matches", []),
+        },
+    )
+
+
+async def deliver_notification(payload: dict) -> object:
+    """Send a web-monitor notification as one registered Automation action."""
+    from gateway.automation_actions import ActionResult, SourceUnavailable
+    from gateway.notify import is_configured, send
+
+    if not is_configured():
+        raise SourceUnavailable("Pushover is not configured")
+    label = str(payload.get("label") or payload.get("url") or "watch")
+    keywords = payload.get("keyword_matches") or []
+    kw_text = f" Keywords: {', '.join(map(str, keywords))}" if keywords else ""
+    delivered = await asyncio.to_thread(
+        send,
+        message=f"Watch '{label}' updated.{kw_text}",
+        title="Kitty Web Monitor",
+        url=payload.get("url"),
+        url_title="Open URL",
+    )
+    if not delivered:
+        raise RuntimeError("web monitor notification was not delivered")
+    return ActionResult(result_pointer=f"signal:{payload.get('signal_id')}")
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict:
@@ -239,4 +306,5 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
         d["keywords"] = json.loads(d.get("keywords", "[]"))
     except (json.JSONDecodeError, TypeError):
         d["keywords"] = []
+    d["enabled"] = bool(d.get("enabled", 0))
     return d

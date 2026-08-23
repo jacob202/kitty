@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -67,19 +67,24 @@ async def lifespan(app: FastAPI):
     _reconcile_image_batches_on_startup()
     _reconcile_agent_workspace_turns_on_startup()
     _reconcile_autonomy_sessions_on_startup()
+    from gateway.automation_supervisor import supervisor
     from gateway.image_recipes import seed_default_recipes
 
     seed_default_recipes()
-    image_batch_task: asyncio.Task | None = None
     background_services_enabled = not is_test_env()
     if background_services_enabled:
         try:
             from gateway.telegram_bot import is_configured as tg_configured
             from gateway.telegram_bot import start_polling
+            from gateway.telegram_bot import stop as tg_stop
 
             if tg_configured():
-                start_polling()
-        except Exception:
+                telegram_task = start_polling()
+                supervisor.track_task("telegram", telegram_task, stop=tg_stop)
+            else:
+                supervisor.mark("telegram", "unavailable", reason="integration not configured")
+        except Exception as exc:
+            supervisor.mark("telegram", "degraded", reason=f"{type(exc).__name__}: {exc}")
             logger.exception("telegram bot startup failed — integration disabled")
 
         from gateway.image_batches import worker_loop as image_batch_worker_loop
@@ -88,10 +93,19 @@ async def lifespan(app: FastAPI):
         image_batch_task = asyncio.create_task(
             image_batch_worker_loop(execute_studio_batch_request)
         )
+        supervisor.track_task("image-batch-worker", image_batch_task)
         try:
             import gateway.cron as cron
+            from gateway import automation_actions
             from gateway.cron import register_action
             from gateway.cron import start as cron_start
+            from gateway.web_monitor import deliver_notification
+
+            automation_actions.register_action(
+                "web_monitor.notify",
+                deliver_notification,
+                policy=automation_actions.ActionPolicy(capability="notify.send", tier="T1"),
+            )
 
             async def _action_deliver_brief():
                 from gateway.brief_scheduler import generate_and_deliver_brief
@@ -143,7 +157,7 @@ async def lifespan(app: FastAPI):
 
                 await warm()
 
-            register_action("brief.deliver", _action_deliver_brief)
+            register_action("brief.deliver", _action_deliver_brief, tier="T1")
             register_action("brief.refresh", _action_refresh_brief)
             register_action("nudges.check", _action_check_nudges)
             register_action("monitors.check", _action_check_monitors)
@@ -195,8 +209,8 @@ async def lifespan(app: FastAPI):
 
                 await return_due()
 
-            register_action("life.evening_reflection", _action_life_evening_reflection)
-            register_action("life.morning_proactive", _action_life_morning_proactive)
+            register_action("life.evening_reflection", _action_life_evening_reflection, tier="T1")
+            register_action("life.morning_proactive", _action_life_morning_proactive, tier="T1")
             register_action("insights.return_due", _action_insights_return_due)
             from gateway.brief_scheduler import load_brief_time, load_brief_timezone
 
@@ -212,14 +226,14 @@ async def lifespan(app: FastAPI):
             cron.schedule("web monitor due checks", "monitors.check", "interval", "5")
             cron.schedule("iCloud inbox scan", "inbox.scan", "interval", "0.5")
             cron.schedule("trace log compaction", "traces.compact", "daily", "03:30")
-            cron_start()
-        except Exception:
-            logger.exception("cron system registration failed — all background jobs disabled")
+            cron_task = cron_start()
+            supervisor.track_task("cron", cron_task, stop=cron.stop, stale_after=90.0)
+        except Exception as exc:
+            supervisor.mark("cron", "degraded", reason=f"{type(exc).__name__}: {exc}")
+            logger.exception("cron system registration failed — scheduled jobs disabled")
     yield
-    if image_batch_task is not None:
-        image_batch_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await image_batch_task
+    if background_services_enabled:
+        await supervisor.stop_all()
     try:
         from gateway.http_client import _http_client
 
@@ -227,13 +241,6 @@ async def lifespan(app: FastAPI):
             await _http_client.aclose()
     except Exception:
         logger.warning("Failed to close HTTP client during shutdown")
-    if background_services_enabled:
-        try:
-            from gateway.telegram_bot import stop as tg_stop
-
-            await tg_stop()
-        except Exception:
-            logger.warning("Failed to stop Telegram bot during shutdown")
 
 
 app = FastAPI(title="Kitty Gateway", lifespan=lifespan)
