@@ -2,14 +2,17 @@
 
 Use this as the only audit handoff after CHUNK 2. Do not ingest the full historical chat.
 
-## Required first reads
+## Consumption order
 
-1. `README.md`
-2. `AUDIT_CONSUMPTION_MATRIX.md`
-3. `LIVE_AUDIT_LEDGER_THROUGH_CHUNK_2.md`
-4. `CHUNK_2_SECURITY_TRUST_REPORT.md` only for SEC-001 and the Builder-relevant trust conclusions.
+Do **not** ingest the full companion package before investigating Builder.
 
-Then verify current repository/GitHub/runtime truth yourself. Current code wins over this handoff.
+1. Read `README.md` and `AUDIT_CONSUMPTION_MATRIX.md` only to understand package rules and chunk boundaries.
+2. Read `LIVE_AUDIT_LEDGER_THROUGH_CHUNK_2.md` for stable finding IDs/collisions already established.
+3. Read `CHUNK_2_SECURITY_TRUST_REPORT.md` only for SEC-001 and Builder-relevant carry-forward questions.
+4. Independently establish current Builder truth from repository, GitHub, runtime, tests, and durable state.
+5. **Only after** Builder findings are independently established, use `POST_AUDIT_COLLISION_AND_OWNERSHIP_PROTOCOL.md` for collision checks and the crash/retry/stale-worker portions of `POST_AUDIT_ACCEPTANCE_AND_FAILURE_INJECTION_SPEC.md` as coverage prompts.
+
+Do not read the deletion/convergence candidate ledger, implementation prompt, execution runbook, or upstream remediation notes during CHUNK 3 unless `AUDIT_CONSUMPTION_MATRIX.md` explicitly allows it. Current code/runtime/GitHub truth always wins.
 
 ## Mission
 
