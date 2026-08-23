@@ -1057,6 +1057,12 @@ def main(argv: list[str] | None = None) -> int:
             assignment_references = [
                 _parse_assignment_reference(value) for value in args.assignment_reference
             ]
+            resolved_ref_paths = [Path(ref.path).resolve() for ref in assignment_references]
+            if len(set(resolved_ref_paths)) != len(resolved_ref_paths):
+                raise BenchmarkContractError(
+                    "--assignment-reference paths must be distinct files — scoring "
+                    "two characters against the same photo would silently prove nothing"
+                )
             scorers = build_imagebench_scorers(
                 required_scorers=required,
                 prompt=scenario["prompt"],
