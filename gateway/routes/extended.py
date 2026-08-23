@@ -164,11 +164,12 @@ async def agent_spawn(payload: AgentSpawnRequest):
 @router.get("/agent/{session_id}")
 async def agent_status(session_id: int):
     from gateway.agent_runner import get_output, get_status
+    from gateway.autonomy_state import TERMINAL_STATUSES
 
     status = get_status(session_id)
     if status.get("status") == "not_found":
         raise HTTPException(status_code=404, detail="Agent not found")
-    if status.get("status") in ("completed", "failed", "cancelled"):
+    if status.get("status") in TERMINAL_STATUSES:
         status["output"] = get_output(session_id)
     return status
 
