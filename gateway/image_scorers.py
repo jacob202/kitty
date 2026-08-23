@@ -12,17 +12,24 @@ import base64
 import io
 import math
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Sequence
 from urllib.parse import urlparse
 
 import httpx
 from PIL import Image, UnidentifiedImageError
 
 from gateway.image_evaluation import EvaluationUnavailable, ScorerResult
-from mcp.imagen.face_match import FaceMatcher, FaceScorerUnavailable
+from gateway.image_identity_assignment import IdentityAssignmentUnavailable
+from mcp.imagen.face_match import (
+    CharacterFaceReference,
+    FaceMatcher,
+    FaceScorerUnavailable,
+    MultiFaceMatcher,
+)
 
 MECHANICS_SCORER_VERSION = "mechanics-pil@1"
 IDENTITY_SCORER_VERSION = "identity-insightface-buffalo_l@1"
+ASSIGNMENT_SCORER_VERSION = "assignment-insightface-buffalo_l@1"
 OLLAMA_RUBRIC_ADAPTER_VERSION = "ollama-rubric@1"
 _MIN_DIMENSION = 256
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -98,6 +105,51 @@ def make_identity_scorer(
             },
             version=IDENTITY_SCORER_VERSION,
             labels=["identity_ok" if passed else "identity_fail"],
+        )
+
+    return score
+
+
+def make_assignment_scorer(
+    references: Sequence[CharacterFaceReference],
+    *,
+    min_similarity: float = 0.45,
+    min_margin: float = 0.05,
+) -> Callable[[str], ScorerResult]:
+    """Create a two-character identity-assignment scorer that fails closed.
+
+    Wraps :class:`mcp.imagen.face_match.MultiFaceMatcher` — the same
+    fail-closed multi-reference detection/embedding/assignment pipeline
+    already covered by ``tests/test_image_identity_assignment.py`` — behind
+    the single-``image_path`` shape ``gateway.image_evaluation.evaluate_image``
+    requires, so ImageBench stage-D (two distinct identities) scenarios can
+    be scored through the same CLI path as every other dimension.
+    """
+    try:
+        matcher = MultiFaceMatcher(references)
+    except FaceScorerUnavailable as exc:
+        raise EvaluationUnavailable(f"assignment scorer unavailable: {exc}") from exc
+
+    def score(image_path: str) -> ScorerResult:
+        data = _read_image_bytes(image_path)
+        try:
+            evidence = matcher.score_assignment(
+                data, min_similarity=min_similarity, min_margin=min_margin
+            )
+        except (FaceScorerUnavailable, IdentityAssignmentUnavailable) as exc:
+            raise EvaluationUnavailable(f"assignment scorer unavailable: {exc}") from exc
+        assignment = evidence.assignment
+        return ScorerResult(
+            passed=assignment.passed,
+            score={
+                **assignment.score,
+                "detected_cast_slots": list(evidence.detected_cast_slots),
+                "reference_similarity_matrix": [
+                    list(row) for row in evidence.reference_similarity_matrix
+                ],
+            },
+            version=ASSIGNMENT_SCORER_VERSION,
+            labels=list(assignment.labels) or ["assignment_ok"],
         )
 
     return score
@@ -264,6 +316,9 @@ def build_imagebench_scorers(
     prompt: str,
     identity_reference_path: str | None = None,
     identity_threshold: float = 0.45,
+    assignment_references: Sequence[CharacterFaceReference] = (),
+    assignment_min_similarity: float = 0.45,
+    assignment_min_margin: float = 0.05,
     auxiliary_image_paths: Iterable[str] = (),
     vlm_model: str | None = None,
     vlm_model_revision: str | None = None,
@@ -273,16 +328,21 @@ def build_imagebench_scorers(
 
     Missing configuration deliberately leaves a scorer absent.  Passing the returned
     mapping to :func:`gateway.image_evaluation.evaluate_image` therefore turns a
-    missing identity reference, canonical structured assignment evidence, local VLM, pinned model revision, or comparison
-    reference into the evaluator's normal fail-closed infrastructure error.
+    missing identity reference, missing two-character assignment references, local
+    VLM, pinned model revision, or comparison reference into the evaluator's normal
+    fail-closed infrastructure error.
     """
     requested = [name.strip() for name in required_scorers if isinstance(name, str)]
     auxiliary = tuple(auxiliary_image_paths)
     scorers: dict[str, Callable[[str], ScorerResult]] = {}
     for name in requested:
-        # Assignment is intentionally not adapted here: gateway.image_identity_assignment
-        # owns that dimension and requires structured detections + similarity evidence.
         if name == "assignment":
+            if assignment_references:
+                scorers[name] = make_assignment_scorer(
+                    assignment_references,
+                    min_similarity=assignment_min_similarity,
+                    min_margin=assignment_min_margin,
+                )
             continue
         if name == "mechanics":
             scorers[name] = mechanics_scorer
@@ -311,10 +371,12 @@ def build_imagebench_scorers(
 
 
 __all__ = [
+    "ASSIGNMENT_SCORER_VERSION",
     "IDENTITY_SCORER_VERSION",
     "MECHANICS_SCORER_VERSION",
     "OLLAMA_RUBRIC_ADAPTER_VERSION",
     "build_imagebench_scorers",
+    "make_assignment_scorer",
     "make_identity_scorer",
     "make_ollama_rubric_scorer",
     "mechanics_scorer",
