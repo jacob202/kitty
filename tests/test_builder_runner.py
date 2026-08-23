@@ -493,7 +493,7 @@ class TestRunWorker:
         task = _queued_task(db_path)
         run = br.run_worker(
             task["id"], ["sleep", "60"],
-            timeout_seconds=2, heartbeat_seconds=1,
+            timeout_seconds=0.25, heartbeat_seconds=0.05,
             repo_root=repo, db_path=db_path,
         )
         assert run["state"] == bq.RUN_TIMEOUT
@@ -623,8 +623,8 @@ class TestRunWorker:
         run = br.run_worker(
             task["id"],
             ["sleep", "60"],
-            timeout_seconds=2,
-            heartbeat_seconds=1,
+            timeout_seconds=0.25,
+            heartbeat_seconds=0.05,
             repo_root=repo,
             db_path=db_path,
         )
@@ -792,10 +792,10 @@ class TestRunWorker:
         task = _queued_task(db_path)
         run = br.run_worker(
             task["id"],
-            ["sleep", "3"],
+            ["sleep", "0.8"],
             timeout_seconds=30,
-            lease_seconds=2,  # would expire mid-run without heartbeat
-            heartbeat_seconds=1,
+            lease_seconds=0.5,  # would expire mid-run without heartbeat
+            heartbeat_seconds=0.1,
             repo_root=repo,
             db_path=db_path,
         )
