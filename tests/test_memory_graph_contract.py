@@ -141,7 +141,7 @@ class TestSourceLabels:
 
     def test_source_enum_has_all_members(self):
         """Source enum includes all adapter-relevant members."""
-        expected = {"memory", "knowledge", "journal", "traces", "todos", "inbox",
-                    "memory_palace", "signals", "facts"}
+        expected = {"projects", "explicit_memory", "memory", "knowledge", "journal",
+                    "traces", "todos", "inbox", "memory_palace", "signals", "facts"}
         actual = {s.value for s in Source}
         assert expected == actual

@@ -10,7 +10,6 @@ import { BottomNav } from '@/components/BottomNav'
 import { SessionSidebar } from '@/components/SessionSidebar'
 import { OnboardingModal } from '@/components/OnboardingModal'
 import { CommandPalette } from '@/components/CommandPalette'
-import { ActiveTaskCards } from '@/components/ActiveTaskCards'
 import { KittyRuntimeProvider } from '@/components/KittyRuntimeProvider'
 import { ViewRenderer } from '@/components/ViewRenderer'
 import { StatusBar } from '@/components/StatusBar'
@@ -155,8 +154,6 @@ export default function KittyChat() {
               }}
             />
           </div>
-
-          {k.activeView === 'chat' && !k.isMobile && <ActiveTaskCards compact={k.isMobile} />}
 
           {k.activeView === 'chat' && (
             <InputBar

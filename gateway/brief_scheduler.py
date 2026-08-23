@@ -1,16 +1,14 @@
-"""Daily brief scheduler — generates and delivers Jacob's brief at config time.
+"""Morning Brief configuration and delivery.
 
-Public API:
-  start_brief_scheduler() -> asyncio.Task | None
-  generate_and_deliver_brief() -> str
+Calendar timing is owned by :mod:`gateway.cron`; this module only reads the
+user's local-clock preference and performs the Brief delivery action.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from gateway.paths import PROJECT_ROOT
@@ -53,15 +51,6 @@ def load_brief_timezone() -> ZoneInfo:
             DEFAULT_TIMEZONE,
         )
         return ZoneInfo(DEFAULT_TIMEZONE)
-
-
-def seconds_until(hh_mm: str, now: datetime) -> float:
-    """Return seconds from ``now`` until the next occurrence of ``hh:mm``."""
-    hour_str, minute_str = hh_mm.split(":")
-    target = now.replace(hour=int(hour_str), minute=int(minute_str), second=0, microsecond=0)
-    if target <= now:
-        target = target + timedelta(days=1)
-    return (target - now).total_seconds()
 
 
 def _format_brief_text(brief: dict) -> str:
@@ -142,46 +131,3 @@ def generate_and_deliver_brief() -> str:
         logger.warning("Brief push notification failed: %s", e)
 
     return text
-
-
-async def _scheduler_loop() -> None:
-    """Background loop: sleep until brief_time, deliver at most once per local date."""
-    last_attempted_local_date = None
-    while True:
-        brief_time = load_brief_time()
-        brief_timezone = load_brief_timezone()
-        now = datetime.now(brief_timezone)
-        wait_seconds = seconds_until(brief_time, now)
-        logger.info(
-            "Next brief scheduled at %s %s (in %.0f seconds)",
-            brief_time,
-            brief_timezone.key,
-            wait_seconds,
-        )
-        await asyncio.sleep(wait_seconds)
-
-        fired_at = datetime.now(brief_timezone)
-        local_date = fired_at.date()
-        if local_date == last_attempted_local_date:
-            logger.warning("Skipping duplicate scheduled brief attempt for %s", local_date)
-            await asyncio.sleep(1)
-            continue
-        last_attempted_local_date = local_date
-
-        try:
-            generate_and_deliver_brief()
-        except Exception as e:
-            logger.error("Scheduled brief delivery failed: %s", e)
-
-        # Recompute the next local-clock occurrence on the next iteration. This
-        # avoids fixed-24-hour drift across daylight-saving transitions.
-        await asyncio.sleep(1)
-
-
-def start_brief_scheduler() -> asyncio.Task | None:
-    """Start the daily brief scheduler as a background asyncio task."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return None
-    return loop.create_task(_scheduler_loop())

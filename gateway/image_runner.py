@@ -26,6 +26,33 @@ class ImageRunnerError(RuntimeError):
     """Raised when the image runner cannot complete a generation request."""
 
 
+FAL_PULID_COST_PER_OUTPUT_MP_USD = 0.0333
+
+
+def fal_pulid_contract_cost_usd_for_dimensions(width: int, height: int) -> float:
+    """Return fal PuLID's contractual output charge for exact image dimensions."""
+    import math
+
+    if isinstance(width, bool) or isinstance(height, bool) or width <= 0 or height <= 0:
+        raise ImageRunnerError("fal output dimensions must be positive integers")
+    billed_mp = max(math.ceil((width * height) / 1_000_000.0), 1)
+    return round(billed_mp * FAL_PULID_COST_PER_OUTPUT_MP_USD, 6)
+
+
+def _fal_pulid_contract_cost_and_dimensions(image_data: bytes) -> tuple[float, int, int]:
+    """Decode provider bytes and return billed amount plus auditable dimensions."""
+    import io
+
+    from PIL import Image, UnidentifiedImageError
+
+    try:
+        with Image.open(io.BytesIO(image_data)) as image:
+            width, height = image.size
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ImageRunnerError("fal returned an undecodable image; cost cannot be settled") from exc
+    return fal_pulid_contract_cost_usd_for_dimensions(width, height), width, height
+
+
 @dataclass
 class JobResult:
     """Result of a successful image generation."""
@@ -38,6 +65,7 @@ class JobResult:
     routing_reason: str | None = None
     character_weight: float | None = None
     cost_usd: float | None = None
+    cost_source: str | None = None
 
 
 async def run(
@@ -380,6 +408,12 @@ async def _run_registry_hosted(
         image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
         image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
         data = await provider.generate_async(prompt, **kwargs)
+        cost_usd = None
+        cost_source = None
+        if engine_name == "fal":
+            cost_usd, output_width, output_height = _fal_pulid_contract_cost_and_dimensions(data)
+            cost_source = "provider_contract"
+            image_jobs.update_job(job.job_id, width=output_width, height=output_height)
         path = await asyncio.to_thread(save_image, data, prefix=engine_name)
         image_jobs.update_job(job.job_id, output_path=str(path))
         image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
@@ -393,6 +427,8 @@ async def _run_registry_hosted(
         filename=str(path),
         engine=engine_name,
         recipe=recipe.recipe_id if recipe else None,
+        cost_usd=cost_usd,
+        cost_source=cost_source,
     )
 
 
@@ -929,6 +965,7 @@ async def _run_openrouter(
         engine="openrouter",
         recipe=recipe.recipe_id if recipe else None,
         cost_usd=cost_usd,
+        cost_source="provider_reported" if cost_usd is not None else None,
     )
 
 
@@ -1065,6 +1102,7 @@ async def _run_flux(
         engine="flux",
         recipe=recipe.recipe_id if recipe else None,
         cost_usd=cost_usd,
+        cost_source="provider_reported" if cost_usd is not None else None,
     )
 
 
@@ -1192,4 +1230,5 @@ async def _run_flux2(
         engine="flux2",
         recipe=recipe.recipe_id if recipe else None,
         cost_usd=cost_usd,
+        cost_source="provider_reported" if cost_usd is not None else None,
     )

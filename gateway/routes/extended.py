@@ -1,4 +1,4 @@
-"""Skills, agents, tasks, notifications, and image generation."""
+"""Skills, agents, notifications, and image generation."""
 
 from __future__ import annotations
 
@@ -164,11 +164,12 @@ async def agent_spawn(payload: AgentSpawnRequest):
 @router.get("/agent/{session_id}")
 async def agent_status(session_id: int):
     from gateway.agent_runner import get_output, get_status
+    from gateway.autonomy_state import TERMINAL_STATUSES
 
     status = get_status(session_id)
     if status.get("status") == "not_found":
         raise HTTPException(status_code=404, detail="Agent not found")
-    if status.get("status") in ("completed", "failed", "cancelled"):
+    if status.get("status") in TERMINAL_STATUSES:
         status["output"] = get_output(session_id)
     return status
 
@@ -188,68 +189,6 @@ async def agent_stop(session_id: int):
     if not stopped:
         raise HTTPException(status_code=404, detail="Agent not running")
     return {"session_id": session_id, "status": "cancelled"}
-
-
-# --- Task endpoints ---
-
-
-class TaskCreateRequest(BaseModel):
-    goal: str = Field(min_length=1, max_length=2000)
-    task_type: str = "research"
-    model: Optional[str] = None
-    metadata: Optional[dict] = None
-    run_immediately: bool = True
-
-
-@router.post("/task/create")
-async def task_create(payload: TaskCreateRequest):
-    from gateway.task_runner import create
-
-    task_id = create(
-        goal=payload.goal,
-        task_type=payload.task_type,
-        model=payload.model,
-        metadata=payload.metadata,
-        run_immediately=payload.run_immediately,
-    )
-    return {"task_id": task_id, "status": "queued"}
-
-
-@router.get("/tasks")
-async def task_list(status: Optional[str] = None, limit: int = 20):
-    from gateway.task_runner import list_tasks
-
-    return {"tasks": list_tasks(status=status, limit=limit)}
-
-
-@router.get("/task/{task_id}")
-async def task_get(task_id: str):
-    from gateway.task_runner import get
-
-    task = get(task_id)
-    if task.get("status") == "not_found":
-        raise HTTPException(status_code=404, detail="Task not found")
-    return task
-
-
-@router.get("/task/{task_id}/output")
-async def task_output(task_id: str):
-    from gateway.task_runner import get_output
-
-    output = get_output(task_id)
-    return {"task_id": task_id, "output": output}
-
-
-@router.post("/task/{task_id}/cancel")
-async def task_cancel(task_id: str):
-    from gateway.task_runner import cancel
-
-    cancelled = cancel(task_id)
-    if not cancelled:
-        raise HTTPException(
-            status_code=404, detail="Task not found or already finished"
-        )
-    return {"task_id": task_id, "status": "cancelled"}
 
 
 # --- Image generation ---
@@ -950,6 +889,7 @@ async def studio_generate(req: StudioGenerateRequest):
     # post-approval edit cannot change what renders, and an approved edit
     # cannot be silently downgraded to a fresh generation.
     stored = None
+    stored_intent: dict = {}
     operation = "txt2img"
     approved_edit_anchor: str | None = None
     character_ref_path: str | None = None
@@ -971,8 +911,14 @@ async def studio_generate(req: StudioGenerateRequest):
 
         operation = stored.operation
         prompt = stored.refined_prompt
-        has_character = bool(stored.character_id)
-        character_count = 1 if has_character else 0
+        stored_intent = getattr(stored, "intent", {}) or {}
+        typed_cast = list(stored_intent.get("cast", []))
+        if typed_cast:
+            character_count = len(typed_cast)
+            has_character = character_count > 0
+        else:
+            has_character = bool(stored.character_id)
+            character_count = 1 if has_character else 0
         preferred_recipe = stored.recipe_id
         character_id = stored.character_id
         character_ref_path = getattr(stored, "character_ref_path", None)
@@ -1075,6 +1021,25 @@ async def studio_generate(req: StudioGenerateRequest):
         raise HTTPException(status_code=503, detail=str(exc))
 
     recipe = decision.recipe
+
+    # Defense in depth for typed multi-character plans. Even if routing is
+    # forced or replaced by a test/operator hook, no renderer may receive a
+    # cast larger than the recipe explicitly supports.
+    if character_count > 1:
+        max_characters = int(getattr(recipe, "max_characters", 0) or 0) if recipe else 0
+        if (
+            recipe is None
+            or not getattr(recipe, "supports_characters", False)
+            or max_characters < character_count
+        ):
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"recipe {decision.recipe_id!r} supports at most "
+                    f"{max_characters} character(s), but the approved plan requires "
+                    f"{character_count}"
+                ),
+            )
 
     # auto_route does not filter on operation, so the img2img capability has
     # to be asserted here or an approved edit would route to a text-only
@@ -1184,13 +1149,17 @@ async def studio_generate(req: StudioGenerateRequest):
             )
             ref_blobs.append(anchor_bytes)
         stored_provenance = list(stored.references if stored else [])
-        stored_intent = getattr(stored, "intent", {}) if stored is not None else {}
         typed_bindings = list(stored_intent.get("references", []))
         if typed_bindings:
             provenance_by_id = {
                 str(prov.get("reference_id")): prov
                 for prov in stored_provenance
                 if isinstance(prov, dict) and prov.get("reference_id")
+            }
+            cast_by_slot = {
+                str(slot.get("slot_id")): slot
+                for slot in stored_intent.get("cast", [])
+                if isinstance(slot, dict) and slot.get("slot_id")
             }
             for binding in typed_bindings:
                 reference_id = str(binding["reference_id"])
@@ -1212,12 +1181,29 @@ async def studio_generate(req: StudioGenerateRequest):
                             "from local storage"
                         ),
                     )
+                cast_slot = binding.get("cast_slot")
+                cast = cast_by_slot.get(str(cast_slot)) if cast_slot else None
+                depth_order = cast.get("depth_order") if cast else None
                 refs.append(
                     CompiledReference(
                         reference_id=reference_id,
                         role=str(binding["role"]),
                         order=len(refs) + 1,
                         name=prov.get("name"),
+                        cast_slot=str(cast_slot) if cast_slot else None,
+                        character_id=(
+                            str(cast.get("character_id"))
+                            if cast and cast.get("character_id")
+                            else None
+                        ),
+                        position=(
+                            str(cast.get("position"))
+                            if cast and cast.get("position") is not None
+                            else None
+                        ),
+                        depth_order=(
+                            int(depth_order) if depth_order is not None else None
+                        ),
                     )
                 )
                 ref_blobs.append(Path(path).read_bytes())
@@ -1265,6 +1251,18 @@ async def studio_generate(req: StudioGenerateRequest):
             )
         except Flux2CompilerError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        reference_limit = getattr(flux2_target, "reference_limit", None)
+        if reference_limit is not None and len(refs) > int(reference_limit):
+            target_name = getattr(
+                flux2_target, "target_id", getattr(flux2_target, "model_id", "flux2")
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"FLUX.2 target {target_name!r} allows at most "
+                    f"{reference_limit} references; compiled {len(refs)}"
+                ),
+            )
         try:
             estimated_cost = flux2_target.estimate_cost_usd(
                 render_width, render_height, operation
@@ -1401,6 +1399,7 @@ async def studio_generate(req: StudioGenerateRequest):
             "job_id": result.job_id,
             "filename": result.filename,
             "actual_cost_usd": result.cost_usd,
+            "actual_cost_source": getattr(result, "cost_source", None),
             "recipe": result.recipe,
             "routing_reason": decision.reason,
             "plan_id": req.plan_id,

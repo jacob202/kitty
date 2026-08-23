@@ -219,42 +219,44 @@ def test_check_chromadb_passes_when_working(monkeypatch, tmp_path) -> None:
 # --- _check_mem0 ---
 
 
-def test_check_mem0_passes_when_api_key_set() -> None:
-    from gateway import doctor
+def test_check_mem0_api_key_does_not_override_kitty_backend() -> None:
+    from gateway import doctor, memory
 
-    checks = doctor._check_mem0({"MEM0_API_KEY": "m0-abc"})
-    assert checks[0].level == "PASS"
-    assert "API key" in checks[0].detail
+    with patch.object(
+        memory, "_probe_memory_backend", side_effect=memory.MemoryError("ollama unavailable")
+    ):
+        checks = doctor._check_mem0({"MEM0_API_KEY": "m0-abc"})
+    assert checks[0].level == "WARN"
+    assert "ollama unavailable" in checks[0].detail
 
 
-def test_check_mem0_fails_on_import_error() -> None:
-    from gateway import doctor
+def test_check_mem0_missing_dependency_is_degraded_not_fatal() -> None:
+    from gateway import doctor, memory
 
-    with patch.dict(sys.modules, {"mem0": None}):
+    with patch.object(
+        memory, "_probe_memory_backend", side_effect=memory.MemoryError("mem0ai is not installed")
+    ):
         checks = doctor._check_mem0({})
-    assert checks[0].level == "FAIL"
+    assert checks[0].level == "WARN"
+    assert "explicit memory" in checks[0].detail
 
 
-def test_check_mem0_warns_on_init_exception() -> None:
-    from gateway import doctor
+def test_check_mem0_warns_on_actual_kitty_init_exception() -> None:
+    from gateway import doctor, memory
 
-    fake_mem0 = types.SimpleNamespace(
-        Memory=MagicMock(side_effect=RuntimeError("config error"))
-    )
-    with patch.dict(sys.modules, {"mem0": fake_mem0}):
+    with patch.object(memory, "_probe_memory_backend", side_effect=RuntimeError("config error")):
         checks = doctor._check_mem0({})
     assert checks[0].level == "WARN"
     assert "config error" in checks[0].detail
 
 
-def test_check_mem0_passes_local_mode() -> None:
-    from gateway import doctor
+def test_check_mem0_passes_when_kitty_config_initializes() -> None:
+    from gateway import doctor, memory
 
-    fake_mem0 = types.SimpleNamespace(Memory=MagicMock(return_value=MagicMock()))
-    with patch.dict(sys.modules, {"mem0": fake_mem0}):
+    with patch.object(memory, "_probe_memory_backend", return_value=object()):
         checks = doctor._check_mem0({})
     assert checks[0].level == "PASS"
-    assert "local" in checks[0].detail
+    assert "semantic memory available" in checks[0].detail
 
 
 # --- _check_disk ---

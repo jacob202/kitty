@@ -47,6 +47,11 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # pull_request_target runs with a write-scoped token. The labeler reads
+          # its config from the base checkout and needs no git credentials, so
+          # none are left behind in .git/config.
+          persist-credentials: false
 
       - name: Apply path-based labels
         id: labeler

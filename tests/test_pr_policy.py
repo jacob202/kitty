@@ -118,25 +118,14 @@ def test_dependabot_waives_product_prose_but_not_sensitive_scope_approval() -> N
     assert any("independent review" in item.lower() for item in violations)
 
 
-def test_compat_policy_workflow_keeps_old_required_check_during_migration() -> None:
-    workflow = Path(__file__).parents[1] / ".github" / "workflows" / "pr-policy.yml"
-    text = workflow.read_text(encoding="utf-8")
-    assert "pull_request:\n" in text
-    assert "pull_request_target:" not in text
-    assert "pr-policy:" in text
-    assert "name: pr-policy" in text
-
-
-def test_trusted_policy_gate_runs_default_branch_code_on_pull_request_target() -> None:
-    workflow = Path(__file__).parents[1] / ".github" / "workflows" / "pr-policy-trusted.yml"
-    text = workflow.read_text(encoding="utf-8")
+def test_policy_gate_is_consolidated_into_trusted_review_workflow() -> None:
+    workflows = Path(__file__).parents[1] / ".github" / "workflows"
+    text = (workflows / "pr-agent-review.yml").read_text(encoding="utf-8")
     assert "pull_request_target:" in text
     assert "policy-gate:" in text
     assert "name: policy-gate" in text
+    assert "needs: [scope, agent-review]" in text
     assert "github.event.repository.default_branch" in text
-    assert "synchronize" in text
-    assert "labeled" in text
-    assert "unlabeled" in text
 
 
 def test_duplicate_pr_workflows_are_removed() -> None:
@@ -146,9 +135,10 @@ def test_duplicate_pr_workflows_are_removed() -> None:
         "pr-risk-guardrails.yml",
         "pr-test-hints.yml",
         "pr-release-evidence.yml",
+        "pr-policy.yml",
+        "pr-policy-trusted.yml",
     ]:
         assert not (workflows / filename).exists(), filename
-
 
 def test_pr_template_documents_only_live_exact_head_approval_receipts() -> None:
     text = (Path(__file__).parents[1] / ".github" / "pull_request_template.md").read_text(encoding="utf-8")

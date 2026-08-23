@@ -164,8 +164,8 @@ def test_agent_review_workflow_uses_trusted_code_and_avoids_model_reruns_on_meta
         Path(__file__).parents[1] / ".github" / "workflows" / "pr-agent-review.yml"
     ).read_text(encoding="utf-8")
 
-    assert "pull_request:\n" in workflow
-    assert "pull_request_target:" not in workflow
+    assert "pull_request_target:\n" in workflow
+    assert "\n  pull_request:\n" not in workflow
     assert "agent-review:" in workflow
     assert "name: agent-review" in workflow
     assert "continue-on-error: true" in workflow
@@ -174,9 +174,12 @@ def test_agent_review_workflow_uses_trusted_code_and_avoids_model_reruns_on_meta
     assert "github.event.action == 'edited'" not in workflow
     assert "github.event.action == 'labeled'" not in workflow
     assert "github.event.action == 'unlabeled'" not in workflow
-    assert "review-gate:" in workflow  # compatibility until the ruleset migrates
-    assert "python -m scripts.pr_review_gate" in workflow
-    assert "review/evidence-current" in workflow
+    assert "policy-gate:" in workflow
+    assert "name: policy-gate" in workflow
+    assert "needs: [scope, agent-review]" in workflow
+    assert "python -m scripts.pr_policy" in workflow
+    assert "review-gate:" not in workflow
+    assert "review/evidence-current" not in workflow
     assert "review-concurrency-class" in workflow
 
 def test_prompt_rejects_generic_speculative_review_noise() -> None:

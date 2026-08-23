@@ -15,9 +15,18 @@ immediately fixed.
 
 **Enforcement:** Required status checks on the `main` branch protection rule:
 `policy-gate` and `merge-gate`. The aggregate merge gate owns the applicable
-`pytest`, `lint`, `typecheck`, `kitty-chat`, and `browser-smoke` evidence; hygiene is advisory. All
-must be `success` before merge. GitHub branch protection rule enforces this
-at the platform level.
+`pytest`, `lint`, `typecheck`, `kitty-chat`, and `browser-smoke` evidence; docs/Markdown-only
+PRs may skip code/browser jobs. Every applicable required signal must succeed
+before `merge-gate` passes. GitHub ruleset enforcement applies this at the
+platform level.
+
+Post-merge validation on `main` is scope-aware for the same reason PRs are.
+Strict up-to-date checking plus zero bypass actors mean a merge commit carries
+exactly the tree its PR head validated, so re-running the code suite after a
+docs-only merge cannot detect a failure the PR gate did not. Red-main detection
+is preserved for every merge that touched code, and the nightly full suite in
+`.github/workflows/nightly-health.yml` is the time-based canary that catches
+drift no merge introduced.
 
 **Status:** ENFORCED. Branch protection is configured on GitHub.
 
@@ -114,10 +123,12 @@ roadmap and KLF-001 sits within it.
 | Auth/secrets/env change | Jacob's explicit approval + evidence of correct operation |
 
 **Enforcement:** `policy-gate` derives sensitive and native-UI scope from the
-actual changed paths. Sensitive scope requires `risk/approved`, an exact-head
+actual changed paths, through the one canonical classifier in
+`scripts/pr_scope.py` that also selects required CI jobs. Sensitive scope requires `risk/approved`, an exact-head
 Risk approval receipt, and trusted independent review. Native UI source/public
 changes require the product-acceptance evidence block. `merge-gate` requires
-browser smoke only when frontend paths change.
+code checks only for code-bearing PRs and browser smoke only for non-documentation
+frontend changes.
 
 **Status:** PARTIALLY ENFORCED. Sensitive-scope and native-UI evidence are
 enforced; restore/cost/cleanup evidence remains change-specific rather than a

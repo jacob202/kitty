@@ -31,7 +31,9 @@ from pathlib import Path
 from typing import Any
 
 from gateway import artifact_store, memory_graph, project_store, signal_store
+from gateway.builder_status import build_status_snapshot
 from gateway.paths import PROJECT_ROOT
+from gateway.work_projection import project_work_snapshot
 
 logger = logging.getLogger("kitty.project_resume")
 
@@ -97,6 +99,7 @@ def resume(project_id: int) -> dict[str, Any]:
         "delegable": project["delegable"],
         "links": project["links"],
         "artifacts": _artifact_source(project_id),
+        "work": _work_source(project_id),
     }
 
 
@@ -128,6 +131,29 @@ def _artifact_source(project_id: int) -> list[dict[str, Any]]:
         }
         for artifact in artifacts
     ]
+
+
+def _work_source(project_id: int) -> dict[str, Any]:
+    """Return the Work snapshot scoped to this project's Builder initiatives.
+
+    ``build_status_snapshot()`` is global (every initiative, every project);
+    the filter here is the "query the owning store by project scope"
+    discipline used everywhere else in resume() rather than teaching
+    ``work_projection`` about projects. Same "one bad source can't fail the
+    whole resume()" handling as ``_artifact_source``.
+    """
+    try:
+        snapshot = build_status_snapshot()
+    except Exception as exc:  # noqa: BLE001 — a broken Builder snapshot must not 500 resume()
+        logger.warning("project %s resume work source failed: %s", project_id, exc)
+        return project_work_snapshot({})
+    scoped = dict(snapshot)
+    scoped["initiatives"] = [
+        initiative
+        for initiative in snapshot.get("initiatives", [])
+        if initiative.get("project_id") == project_id
+    ]
+    return project_work_snapshot(scoped)
 
 
 def _git_source(project: dict[str, Any]) -> dict[str, Any]:

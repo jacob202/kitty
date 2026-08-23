@@ -146,9 +146,7 @@ class TestDrawThingsPath:
     @pytest.mark.asyncio
     async def test_engine_failure_marks_job_failed(self):
         fake_engine = _fake_drawthings_engine(available=True)
-        fake_engine.generate_async = AsyncMock(
-            side_effect=RuntimeError("comfyui exploded")
-        )
+        fake_engine.generate_async = AsyncMock(side_effect=RuntimeError("comfyui exploded"))
 
         with (
             patch("mcp.imagen.engines.get", return_value=fake_engine),
@@ -194,7 +192,9 @@ class TestHostedRegistryPaths:
         with (
             patch("gateway.image_runner.paid_engine_available", return_value=(True, "")),
             patch("mcp.imagen.engines.get", return_value=fake_engine),
-            patch("mcp.imagen.io.save_image", side_effect=_save_image_to(tmp_path / "airforce.png")),
+            patch(
+                "mcp.imagen.io.save_image", side_effect=_save_image_to(tmp_path / "airforce.png")
+            ),
         ):
             result = await run(
                 "airforce",
@@ -215,9 +215,15 @@ class TestHostedRegistryPaths:
     async def test_fal_character_uses_bound_reference(self, tmp_path, monkeypatch):
         ref = tmp_path / "identity.png"
         ref.write_bytes(b"reference")
+        import io
+
+        from PIL import Image
+
+        image_buf = io.BytesIO()
+        Image.new("RGB", (1024, 1024), "white").save(image_buf, format="PNG")
         fake_engine = MagicMock()
         fake_engine.model_name = "fal-ai/flux-pulid"
-        fake_engine.generate_async = AsyncMock(return_value=b"fal-png")
+        fake_engine.generate_async = AsyncMock(return_value=image_buf.getvalue())
         monkeypatch.setenv("KITTY_IMAGE_FAL_ENABLED", "1")
         monkeypatch.setenv("FAL_KEY", "test-key")
 
@@ -235,6 +241,10 @@ class TestHostedRegistryPaths:
             )
 
         assert result.engine == "fal"
+        assert result.cost_usd == pytest.approx(0.0666)
+        assert result.cost_source == "provider_contract"
+        job = image_jobs.list_recent(limit=1)[0]
+        assert (job.width, job.height) == (1024, 1024)
         fake_engine.generate_async.assert_awaited_once_with(
             "same fictional person outdoors",
             identity_images=[ref],
@@ -263,9 +273,7 @@ class TestCharacterPath:
             ),
             patch(
                 "gateway.image_character_contracts.resolve_comfyui_character",
-                side_effect=CharacterContractError(
-                    "character only has legacy metadata/photos"
-                ),
+                side_effect=CharacterContractError("character only has legacy metadata/photos"),
             ),
             patch(
                 "gateway.image_character_contracts.comfyui_character_runtime_status",
@@ -407,6 +415,7 @@ class TestValidation:
                 result = await run("  ComfyUI  ", "test")
                 assert result.engine == "comfyui"
 
+
 class TestDirectHostedProvenance:
     @pytest.mark.asyncio
     async def test_openrouter_job_keeps_approved_plan_provenance(self, monkeypatch):
@@ -419,7 +428,13 @@ class TestDirectHostedProvenance:
             def json(self):
                 image = base64.b64encode(b"png-bytes").decode()
                 return {
-                    "choices": [{"message": {"images": [{"image_url": {"url": f"data:image/png;base64,{image}"}}]}}],
+                    "choices": [
+                        {
+                            "message": {
+                                "images": [{"image_url": {"url": f"data:image/png;base64,{image}"}}]
+                            }
+                        }
+                    ],
                     "usage": {"cost": 0.0},
                 }
 
@@ -477,7 +492,9 @@ class TestDirectHostedProvenance:
 
             async def get(self, url, **_kwargs):
                 if url == "https://poll":
-                    return Response(payload={"status": "Ready", "result": {"sample": "https://sample"}})
+                    return Response(
+                        payload={"status": "Ready", "result": {"sample": "https://sample"}}
+                    )
                 return Response(content=b"flux-png")
 
         monkeypatch.setenv("BFL_API_KEY", "test-key")
