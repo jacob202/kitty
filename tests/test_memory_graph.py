@@ -95,20 +95,22 @@ async def test_failure_isolation():
 
 @pytest.mark.asyncio
 async def test_slow_optional_store_is_bounded(monkeypatch):
+    never_ready = asyncio.Event()
+
     class SlowAdapter(StoreAdapter):
         @property
         def name(self):
             return "slow"
 
         async def fetch(self, query):
-            await asyncio.sleep(0.2)
+            await never_ready.wait()
             return [Item(text=query, source=Source.MEMORY)]
 
     monkeypatch.setattr(memory_graph_module, "STORE_FETCH_TIMEOUT_SECONDS", 0.01)
-    started = time.monotonic()
-    result = await MemoryGraph([SlowAdapter()]).search_all("hello")
+    result = await asyncio.wait_for(
+        MemoryGraph([SlowAdapter()]).search_all("hello"), timeout=0.2
+    )
 
-    assert time.monotonic() - started < 0.15
     assert result.results["slow"] == []
     assert any("TimeoutError" in e and "timed out" in e for e in result.errors)
 
@@ -142,16 +144,18 @@ async def test_unified_context_race_with_invalidation_does_not_repopulate_cache(
 
 @pytest.mark.asyncio
 async def test_knowledge_adapter_does_not_block_event_loop(monkeypatch):
+    never_ready = asyncio.Event()
+
     async def blocking_search(query, limit):
-        await asyncio.sleep(0.2)
+        await never_ready.wait()
         return [{"text": query}]
 
     monkeypatch.setattr("gateway.knowledge.search", blocking_search)
     monkeypatch.setattr(memory_graph_module, "STORE_FETCH_TIMEOUT_SECONDS", 0.01)
-    started = time.monotonic()
-    result = await MemoryGraph([KnowledgeAdapter()]).search_all("hello")
+    result = await asyncio.wait_for(
+        MemoryGraph([KnowledgeAdapter()]).search_all("hello"), timeout=0.2
+    )
 
-    assert time.monotonic() - started < 0.15
     assert result.results["knowledge"] == []
 
 
