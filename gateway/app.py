@@ -40,15 +40,6 @@ def _reconcile_image_batches_on_startup() -> None:
         logger.warning("reconciled %d interrupted image batch item(s) at startup", reconciled)
 
 
-def _reconcile_tasks_on_startup() -> None:
-    """Close background tasks whose executing gateway coroutine no longer exists."""
-    from gateway.task_runner import reconcile_stale
-
-    reconciled = reconcile_stale()
-    if reconciled:
-        logger.warning("reconciled %d orphaned background task(s) at startup", reconciled)
-
-
 def _reconcile_agent_workspace_turns_on_startup() -> None:
     """Make room work truthful after the in-process executor has restarted."""
     from gateway.agent_workspace import interrupt_running_turns
@@ -65,7 +56,6 @@ async def lifespan(app: FastAPI):
     validate_env()
     _reconcile_image_jobs_on_startup()
     _reconcile_image_batches_on_startup()
-    _reconcile_tasks_on_startup()
     _reconcile_agent_workspace_turns_on_startup()
     from gateway.image_recipes import seed_default_recipes
 
@@ -117,6 +107,11 @@ async def lifespan(app: FastAPI):
 
                 await asyncio.to_thread(nightly_dream)
 
+            async def _action_compact_traces():
+                from gateway.memory_consolidation import prune_trace_log
+
+                await asyncio.to_thread(prune_trace_log)
+
             async def _action_triage_inbox():
                 from gateway import triage
 
@@ -141,6 +136,7 @@ async def lifespan(app: FastAPI):
             register_action("nudges.check", _action_check_nudges)
             register_action("monitors.check", _action_check_monitors)
             register_action("memory.consolidate", _action_memory_consolidate)
+            register_action("traces.compact", _action_compact_traces)
             register_action("inbox.triage", _action_triage_inbox)
             register_action("inbox.scan", _action_scan_icloud_inbox)
 
@@ -194,6 +190,7 @@ async def lifespan(app: FastAPI):
             cron.schedule("insights return due", "insights.return_due", "interval", "15")
             cron.schedule("web monitor due checks", "monitors.check", "interval", "5")
             cron.schedule("iCloud inbox scan", "inbox.scan", "interval", "0.5")
+            cron.schedule("trace log compaction", "traces.compact", "daily", "03:30")
             cron_start()
         except Exception:
             logger.exception("cron system registration failed — all background jobs disabled")

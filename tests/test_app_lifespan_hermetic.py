@@ -19,7 +19,6 @@ async def test_test_env_skips_external_background_services(monkeypatch):
     monkeypatch.setattr(app_module, "validate_env", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
-    monkeypatch.setattr(app_module, "_reconcile_tasks_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
     monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
 
@@ -58,7 +57,6 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
     monkeypatch.setattr(app_module, "validate_env", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
-    monkeypatch.setattr(app_module, "_reconcile_tasks_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
     monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
     monkeypatch.setattr(telegram_bot, "is_configured", lambda: False)
@@ -80,8 +78,10 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
 
     async with app_module.lifespan(app_module.app):
         assert "inbox.scan" in actions
+        assert "traces.compact" in actions
         assert ("brief cache refresh", "brief.refresh", "interval", "15") in schedules
         assert ("web monitor due checks", "monitors.check", "interval", "5") in schedules
         assert ("iCloud inbox scan", "inbox.scan", "interval", "0.5") in schedules
+        assert ("trace log compaction", "traces.compact", "daily", "03:30") in schedules
         await actions["inbox.scan"]()  # type: ignore[operator]
         assert scans == ["scan"]
