@@ -204,7 +204,13 @@ class TestBuilderEventBroadcaster:
         assert len(e2) >= 1
 
     @pytest.mark.asyncio
-    async def test_cancel_stops_generator(self) -> None:
+    async def test_close_unregisters_subscriber(self) -> None:
         bc = BuilderEventBroadcaster(retention=10)
         gen = bc.subscribe("client-c")
+
+        assert await anext(gen) == "event: connected\ndata: {}\n\n"
+        assert "client-c" in bc._queues
+
         await gen.aclose()
+
+        assert "client-c" not in bc._queues
