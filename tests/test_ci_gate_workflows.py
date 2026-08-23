@@ -43,3 +43,8 @@ def test_frontend_and_browser_jobs_are_path_scoped_without_workflow_path_filter(
     assert "paths:" not in text.split("jobs:", 1)[0]
     assert "if" in workflow["jobs"]["kitty-chat"]
     assert "if" in workflow["jobs"]["browser-smoke"]
+
+def test_auto_label_preserves_manual_approval_labels() -> None:
+    _, workflow = _workflow("pr-auto-label.yml")
+    step = next(step for step in workflow["jobs"]["auto-label"]["steps"] if step.get("uses") == "actions/labeler@v7")
+    assert step["with"]["sync-labels"] is False
