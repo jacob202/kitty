@@ -13,7 +13,7 @@ KPROOF-001's bounded proof window ended without a durable record satisfying its 
 
 Individually approved post-deadline work may proceed when its authority is explicit. Current examples are the product-surface convergence work and ADR 0040's Image Lab packets. They are not a second roadmap.
 
-The M1–M6 target below remains **BLOCKED** because its M1/M2 Open WebUI shell sequence conflicts with accepted ADR 0039 while the higher-authority Constitution still names Open WebUI as the primary shell. Resolve that Constitution/ADR conflict explicitly before executing shell-role packets from this roadmap or `ROADMAP_V2.md`.
+The historical M1–M6 target below is **SUPERSEDED AS AN EXECUTION SEQUENCE**. ADR 0039 plus the 2026-08-23 Constitution amendment resolve the product-surface decision in favor of native Kitty; the old M1/M2 plan to make Open WebUI primary must not be executed. No broad replacement roadmap is activated implicitly by that correction.
 
 Runtime behavior outranks documentation, tests, commits, and agent claims. Reliability, truthful status, bounded cost, recovery, and a completed user outcome outrank speculative architecture or more surfaces.
 
@@ -70,11 +70,11 @@ There is one roadmap: this file. [`ROADMAP_V2.md`](ROADMAP_V2.md) is its detail 
 for the milestones below — objectives, packet catalog, and Builder initiative mapping.
 It is not a second plan to choose between. KPROOF no longer runs, but this sequence still does **not** start automatically.
 
-Before starting M1, explicitly adjudicate the Constitution/ADR 0039 shell conflict and then activate the resulting sequence through this roadmap. Until then the M1–M6 table is preserved target history, not executable priority.
+The M1–M6 table is retained only as target history. Its Open WebUI-primary M1/M2 premise is superseded by ADR 0039 and the amended Constitution, so it is not an executable dependency chain.
 
 | # | Milestone | What is true when it is done |
 |---|---|---|
-| M1 | Daily-driver shell is real | Open WebUI is the primary daily driver, live, replacing the Next.js shell |
+| M1 | Historical shell target (superseded) | Open WebUI-primary premise superseded by ADR 0039; native Kitty is canonical |
 | M2 | Console becomes the operator surface | The Next.js app stops competing as a chat shell and is re-roled as the operator console |
 | M3 | Builder → Work integration | The shell and console show real Builder execution as product-level work, not internals |
 | M4 | Failure, interruption, and receipts | A turn and a Builder run survive any provider, network, or crash failure, with honest receipts |

@@ -1,6 +1,6 @@
 # Version 2 Milestone Detail — appendix to ROADMAP.md
 
-**Status:** BLOCKED target detail — not an execution schedule. The Open WebUI M1/M2 assumptions conflict with accepted ADR 0039 while the higher-authority Constitution still names Open WebUI as primary shell. Do not execute shell-role packets until that conflict is explicitly adjudicated in `docs/ROADMAP.md` / Constitution authority.
+**Status:** SUPERSEDED target detail — not an execution schedule. ADR 0039 plus the 2026-08-23 Constitution amendment establish native Kitty as canonical, so this appendix's Open WebUI-primary M1/M2 assumptions are historical and must not be executed.
 **Date:** 2026-08-05
 **Owner:** Jacob (authorization); Kitty (planning); KittyBuilder (execution)
 **Relation to current docs:** [`ROADMAP.md`](ROADMAP.md) is the only roadmap. It names milestones M1–M6; this file is the detail behind them — objectives, packet catalog, and Builder initiative mapping. It is an appendix, never an alternative order to choose between (ADR 0020).
@@ -20,10 +20,10 @@ then simplifies the storage spine:
 
 | Subsystem | Version 2 role |
 |---|---|
-| **Open WebUI** | Primary daily-driver shell (ADR 0027; replaceable). |
+| **Native Next.js Kitty frontend** | Canonical user-facing product surface (ADR 0039); this supersedes the original V2 shell-role assumption. |
 | **Kitty Gateway (FastAPI)** | Intelligence layer; owns truth, routing, memory, tools, approval. |
 | **LiteLLM** | Provider abstraction under the Gateway. |
-| **Next.js app** | The **Kitty Console** — operator/ops surface (Config, Builder, diagnostics, approvals), not the primary chat shell. |
+| **Open WebUI** | Optional compatibility/reference client under ADR 0027/0033 safety boundaries. |
 | **Storage layer** | Consolidated at the end of V2; simplification is a sequenced objective, not a first move. |
 
 ### Operating principles
@@ -36,7 +36,7 @@ then simplifies the storage spine:
 6. Evidence outranks theory — each packet lands artifacts under `docs/research/`,
    `docs/audit/`, or a proven runbook.
 
-### Historical governance assumptions (blocked pending shell-authority adjudication)
+### Historical governance assumptions (superseded by ADR 0039 + Constitution amendment)
 
 - The Constitution / ADR 0027 lineage names **Open WebUI as daily-driver shell**, while accepted ADR 0039 names the native Kitty frontend canonical. This conflict is unresolved; neither M1 nor M2 is executable until the higher-authority rule is explicitly amended/adjudicated.
 - **Gateway stays the authority** (ADR 0003, ADR 0017).
