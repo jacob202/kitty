@@ -147,6 +147,80 @@ def test_pr_template_documents_only_live_exact_head_approval_receipts() -> None:
     assert "Large-change approval: APPROVE <full-head-SHA>" not in text
 
 
+def test_pr_number_from_event_prefers_pull_request_payload() -> None:
+    event = {"pull_request": {"number": 7}, "merge_group": {"head_ref": "refs/heads/gh-readonly-queue/main/pr-99-aaaa"}}
+    assert pr_policy._pr_number_from_event(event) == 7
+
+
+def test_pr_number_from_event_parses_merge_group_head_ref() -> None:
+    event = {
+        "merge_group": {
+            "head_ref": f"refs/heads/gh-readonly-queue/main/pr-99-{SHA}"
+        }
+    }
+    assert pr_policy._pr_number_from_event(event) == 99
+
+
+def test_pr_number_from_event_rejects_unparseable_merge_group() -> None:
+    event = {"merge_group": {"head_ref": "refs/heads/something-without-a-pr-number"}}
+    try:
+        pr_policy._pr_number_from_event(event)
+    except RuntimeError as exc:
+        assert "merge_group head_ref" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError")
+
+
+def test_pr_number_from_event_requires_pr_or_merge_group() -> None:
+    try:
+        pr_policy._pr_number_from_event({"push": {"ref": "refs/heads/main"}})
+    except RuntimeError as exc:
+        assert "neither pull_request nor merge_group" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError")
+
+
+def test_main_resolves_merge_group_event_to_live_pr(tmp_path, monkeypatch) -> None:
+    current_body = f"Risk approval: APPROVE {SHA} — current approval"
+    current = _pr(
+        current_body,
+        labels=(pr_policy.RISK_APPROVED_LABEL,),
+        head_sha=SHA,
+    )
+    current["number"] = 42
+    event = {
+        "action": "checks_requested",
+        "merge_group": {
+            "head_ref": f"refs/heads/gh-readonly-queue/main/pr-42-{SHA}"
+        },
+        "repository": {"owner": {"login": "jacob202"}, "name": "kitty"},
+    }
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(event), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+
+    approved_comment = {
+        "body": (
+            f"{pr_review.COMMENT_MARKER}\n## Agent PR Review\n\n"
+            f"No actionable findings in this diff.\n\n_Reviewed commit `{SHA}`._"
+        ),
+        "user": {"login": "github-actions[bot]", "type": "Bot"},
+    }
+
+    def fake_github_json(url: str, _token: str):
+        if url.endswith("/pulls/42"):
+            return current
+        if "/pulls/42/files?" in url:
+            return [{"filename": ".github/workflows/tests.yml"}]
+        if url.endswith("/issues/42/comments?per_page=100"):
+            return [approved_comment]
+        raise AssertionError(url)
+
+    monkeypatch.setattr(pr_policy, "_github_json", fake_github_json)
+    pr_policy.main()
+
+
 def test_main_reads_current_pr_and_review_evidence_from_api(tmp_path, monkeypatch) -> None:
     current_body = f"Risk approval: APPROVE {SHA} — current approval"
     current = _pr(
