@@ -170,6 +170,7 @@ class TestHostedRegistryPaths:
         monkeypatch.setenv("AIRFORCE_API_KEY", "test-key")
 
         with (
+            patch("gateway.image_runner.paid_engine_available", return_value=(True, "")),
             patch("mcp.imagen.engines.get", return_value=fake_engine),
             patch("mcp.imagen.io.save_image", side_effect=_save_image_to(tmp_path / "airforce.png")),
         ):
@@ -191,6 +192,7 @@ class TestHostedRegistryPaths:
         monkeypatch.setenv("FAL_KEY", "test-key")
 
         with (
+            patch("gateway.image_runner.paid_engine_available", return_value=(True, "")),
             patch("mcp.imagen.engines.get", return_value=fake_engine),
             patch("mcp.imagen.io.save_image", side_effect=_save_image_to(tmp_path / "fal.png")),
         ):
