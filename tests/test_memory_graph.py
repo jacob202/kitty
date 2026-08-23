@@ -431,6 +431,7 @@ async def test_project_adapter_propagates_corrupt_scope_as_degraded_store(_proje
     healthy empty result — that's exactly the hidden-degradation pattern
     C4-06 exists to prevent."""
     project_store, project_context = _project_scope_db
+    project_store.init_db()
     project_context._write_active_project_id(999999)  # points at nothing
 
     result = await MemoryGraph([ProjectAdapter()]).search_all("hello")
