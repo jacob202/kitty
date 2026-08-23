@@ -1,4 +1,4 @@
-.PHONY: agent-wrap vibe-session test lint typecheck ci hooks ui-test ui-build ui-tailnet smoke-test smoke-test-hermetic codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr trust-eval
+.PHONY: agent-wrap vibe-session test test-integration test-all test-ci test-integration-ci lint typecheck ci hooks ui-test ui-build ui-tailnet smoke-test smoke-test-hermetic codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr trust-eval
 
 agent-wrap:
 	python3.12 scripts/agent_wrapup.py
@@ -7,14 +7,31 @@ vibe-session:
 	@if [ -z "$$OUTCOME" ]; then echo "usage: make vibe-session OUTCOME='... ' [MINUTES=60]"; exit 2; fi
 	python3.12 scripts/vibe_session.py "$$OUTCOME" --minutes $${MINUTES:-60}
 
+# Fast, hermetic developer feedback. Real process/git lifecycle tests are
+# marked integration and remain required separately in CI.
 test:
 	python3.12 -m pytest tests/ -q --tb=short
 
-# Mirrors the pytest job's coverage gate. `test` stays uncovered so the
-# narrow-test loop during development is not slowed by instrumentation.
+# Required hermetic process/git/lifecycle coverage. Override addopts so the
+# default "not integration" selector cannot suppress this explicit tier.
+test-integration:
+	python3.12 -m pytest tests/ -q --tb=short \
+		-o addopts="--strict-markers" -m integration
+
+# Full required Python coverage, excluding only explicit controlled-live probes.
+test-all:
+	python3.12 -m pytest tests/ -q --tb=short \
+		-o addopts="--strict-markers" -m "not controlled_live"
+
+# Mirrors the fast pytest CI job's coverage gate. `test` stays uncovered so the
+# normal development loop is not slowed by instrumentation.
 test-ci:
 	python3.12 -m pytest tests/ -q --tb=short \
 		--cov=gateway --cov-report=term-missing --cov-fail-under=73
+
+# Mirrors the separate required integration CI job.
+test-integration-ci:
+	$(MAKE) test-integration
 
 # Paths match the lint and typecheck jobs exactly. They were narrower than CI,
 # so `make ci` could pass on code the Tests workflow would reject.
@@ -24,7 +41,7 @@ lint:
 typecheck:
 	python3.12 -m mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
 
-ci: lint typecheck test-ci ui-test ui-build
+ci: lint typecheck test-ci test-integration-ci ui-test ui-build
 
 # Point git at scripts/hooks/ so the pre-push gate survives clone and reinstall.
 # core.hooksPath is per-clone config, so this is not automatic -- run it once.

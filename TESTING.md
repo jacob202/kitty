@@ -6,18 +6,19 @@ This file documents the test tiers that actually exist on `main`. Keep it aligne
 
 | Tier | Runner | Normal PR requirement? | External network / paid providers? |
 | --- | --- | --- | --- |
-| Python required suite | pytest | Yes for code scope | No |
+| Python fast required | pytest | Yes for code scope | No |
+| Python process integration | pytest `integration` | Yes for code scope, parallel job | No |
 | Frontend unit/component | Vitest | Yes for frontend scope | No |
 | Browser smoke | Playwright | Yes for frontend scope | No |
 | Controlled-live provider probes | pytest `controlled_live` | Never | Explicit opt-in only; currently empty |
 
-There is **no separate Python `integration` tier today**. Hermetic tests that use `tmp_path`, temporary SQLite databases, FastAPI `TestClient`, subprocesses, or multiple Kitty components remain in the normal Python suite when they are cheap and important.
+The Python suite has a deliberate latency split. Cheap hermetic behavior, API, persistence, and policy tests stay in the fast tier. Tests whose contract fundamentally requires real subprocess lifecycle, real throwaway git/worktree behavior, or multi-step process orchestration are marked `integration`. Both tiers are required for code changes; CI runs them independently so the developer loop does not pay process-boundary latency on every edit.
 
 `browser` and `merge_gate` are not pytest tiers. Browser tests live under `gateway/kitty-chat/tests/smoke/` and use Playwright. `merge-gate` is the GitHub Actions aggregation job for required deterministic evidence.
 
 Python commands assume the repository's Python 3.12 environment has `requirements.txt`, pytest, pytest-asyncio, and pytest-cov installed. Frontend commands assume `npm ci` has been run and Playwright Chromium is installed.
 
-## Python: default required suite
+## Python: fast required suite
 
 From the repository root:
 
@@ -25,13 +26,29 @@ From the repository root:
 make test
 ```
 
-For local parity with the Python PR coverage gate:
+The measured pre-split Python baseline median was 204.94s. The evidence-based fast selection measured 107.85s wall while retaining 4,437 passing tests before the final lane integration. Runtime is re-measured during final verification; the number is evidence, not a permanent threshold.
+
+For local parity with the fast Python PR coverage gate:
 
 ```bash
 make test-ci
 ```
 
-`pytest.ini` excludes only `controlled_live`. Normal tests run with Kitty's test harness, which forces test mode, uses a temporary runtime data root, removes paid-provider credentials, disables paid image generation, blocks canonical runtime mutation, and blocks non-loopback network access.
+`pytest.ini` excludes `integration` and `controlled_live` from the default selection. Normal tests run with Kitty's test harness, which forces test mode, uses a temporary runtime data root, removes paid-provider credentials, disables paid image generation, blocks canonical runtime mutation, and blocks non-loopback network access.
+
+Run the required process/git integration tier explicitly:
+
+```bash
+make test-integration
+```
+
+Run both required Python tiers sequentially when you want one local full-suite command:
+
+```bash
+make test-all
+```
+
+Integration is not optional coverage: it is separated for feedback latency and CI parallelism. Tests moved there must name a real boundary that cannot be tested honestly as a cheap unit/behavior test.
 
 Target one Python file:
 
@@ -121,15 +138,17 @@ Do not set those flags around the normal suite. Paid/live execution remains an e
 
 `.github/workflows/tests.yml` is scope-aware on pull requests and pushes to `main`:
 
-- `code=true`: pytest runs the normal hermetic suite with `gateway` coverage required at 73%, alongside Ruff and mypy.
+- `code=true`: `pytest` runs the fast hermetic suite with `gateway` coverage required at 73%, while `pytest-integration` runs the required real-process/git lifecycle tier in parallel; Ruff and mypy are also required.
 - `frontend=true`: the `kitty-chat` job runs Vitest and a production build; `browser-smoke` then runs both Playwright browser tiers.
 - Non-applicable scopes skip expensive jobs instead of manufacturing green runs.
-- `merge-gate` aggregates the deterministic jobs required for the detected scope. It is a workflow contract, not a pytest marker.
+- `merge-gate` requires both Python jobs for code scope, so the speed split cannot silently reduce required coverage. It is a workflow contract, not a pytest marker.
 
-`.github/workflows/nightly-health.yml` is later-stage evidence. Its suite-profile job reruns the same default Python selection with the 73% coverage floor and `--durations=50`; separate jobs perform repository hygiene and delivery-metric analysis. Nightly does not authorize controlled-live provider calls.
+`.github/workflows/nightly-health.yml` is later-stage evidence. Its suite-profile job recombines FAST + INTEGRATION and profiles the complete required Python suite with the 73% coverage floor. PR CI keeps the tiers separate for latency. Nightly does not authorize controlled-live provider calls.
 
 ## Tier rules
 
-Keep normal local and PR tests hermetic. Local loopback services, temporary databases, `tmp_path`, mocked transports, and real in-process application components do not by themselves justify a separate integration tier.
+Keep all normal PR tests hermetic. Local loopback services, temporary databases, `tmp_path`, mocked transports, and real in-process application components do not by themselves justify integration.
 
-Create or reintroduce a marker only when there is a durable execution boundary with a distinct cost, dependency, or safety contract. Update this file, the runner configuration, and CI together so every documented command remains executable on the same commit.
+Use `integration` only when the behavior being protected fundamentally depends on real subprocess lifecycle, git/worktree semantics, process-group termination, or similarly expensive orchestration. Do not move a slow test merely because it is slow; first ask whether the same product contract can be covered more cheaply.
+
+Critical product journeys are a separate question from Python tiering. Chat, Image Lab, Builder/Work and other user-visible flows need browser or live acceptance evidence where lower-level tests cannot prove the outcome. Never describe a lower-level mock test as closing a live acceptance gap.

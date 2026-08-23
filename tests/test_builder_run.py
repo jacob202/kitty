@@ -112,6 +112,7 @@ def _run(
     )
 
 
+@pytest.mark.integration
 class TestRunInitiative:
     def test_infrastructure_blocked_stops_without_pausing_or_exhausting(
         self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
@@ -445,6 +446,7 @@ class TestClassifyExhaustionUnit:
         assert result["stop_class"] == br.STOP_ROUTINE
 
 
+@pytest.mark.integration
 class TestStopClassIntegration:
     """End-to-end through run_initiative + bl.run_packet with real git repos
     and tiny shell workers — proves the CP-03 acceptance criteria, not just
@@ -702,6 +704,7 @@ class TestStopClassIntegration:
             )
 
 
+@pytest.mark.integration
 class TestCp06AutoMerge:
     """CP-06: run_initiative's gate="auto"/"manual" wiring around publish.
 
@@ -828,6 +831,7 @@ class TestCp06AutoMerge:
             _run(repo, db_path, tmp_path, publish=True, gate="bogus")
 
 
+@pytest.mark.integration
 class TestNeedsDecisionPause:
     """Regression: a packet whose exhaustion stop is needs_decision must
     durably pause the initiative instead of being re-selected and relaunched

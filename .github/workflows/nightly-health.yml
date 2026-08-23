@@ -71,9 +71,9 @@ jobs:
           bandit -c pyproject.toml -r gateway/ || bandit -r gateway/ --skip B101,B311
 
   suite-profile:
-    # The same suite and the same coverage floor the merge gate enforces, plus
-    # the per-test timings that say which tests are worth optimising. This is
-    # also the canary that main is still green when nothing merged that day.
+    # Nightly profiles the complete required Python suite (FAST + INTEGRATION)
+    # with the same coverage floor. PR CI splits those tiers for latency; this
+    # job recombines them for one broad timing/canary view of main.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -103,6 +103,7 @@ jobs:
         run: |
           set -o pipefail
           python -m pytest tests/ -q --tb=short --durations=50 \
+            -o addopts="--strict-markers" -m "not controlled_live" \
             --cov=gateway --cov-report=term-missing --cov-fail-under=73 \
             2>&1 | tee pytest-durations.txt
 

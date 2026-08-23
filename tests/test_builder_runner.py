@@ -18,6 +18,8 @@ import pytest
 from gateway import builder_queue as bq
 from gateway import builder_runner as br
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
