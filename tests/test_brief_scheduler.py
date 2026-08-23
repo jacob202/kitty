@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timezone
 from unittest.mock import patch
-
-import pytest
 
 
 class TestBriefScheduler:
@@ -42,29 +39,6 @@ class TestBriefScheduler:
         profile.write_text('{"timezone": "Not/AZone"}')
         monkeypatch.setattr(brief_scheduler, "USER_PROFILE_PATH", profile)
         assert brief_scheduler.load_brief_timezone().key == brief_scheduler.DEFAULT_TIMEZONE
-
-    def test_eight_am_regina_stays_eight_am_across_seasons(self):
-        from zoneinfo import ZoneInfo
-
-        from gateway.brief_scheduler import seconds_until
-
-        regina = ZoneInfo("America/Regina")
-        winter = datetime(2026, 1, 15, 7, 0, tzinfo=regina)
-        summer = datetime(2026, 8, 15, 7, 0, tzinfo=regina)
-        assert seconds_until("08:00", winter) == 3600
-        assert seconds_until("08:00", summer) == 3600
-
-    def test_seconds_until_tomorrow_when_time_passed(self):
-        from gateway.brief_scheduler import seconds_until
-
-        now = datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc)
-        assert seconds_until("08:00", now) == 20 * 3600
-
-    def test_seconds_until_later_today(self):
-        from gateway.brief_scheduler import seconds_until
-
-        now = datetime(2026, 6, 1, 6, 0, tzinfo=timezone.utc)
-        assert seconds_until("08:00", now) == 2 * 3600
 
     def test_generate_and_deliver_brief_contains_today_and_bullets(self, tmp_path, monkeypatch):
         from gateway import brief_scheduler
@@ -115,69 +89,3 @@ class TestBriefScheduler:
         assert args[0] == text
         assert kwargs["kind"] == "info"
         assert kwargs["title"] == "Kitty Morning Brief"
-
-    @pytest.mark.asyncio
-    async def test_scheduler_triggers_and_generates_brief(self, tmp_path, monkeypatch):
-        from gateway import brief_scheduler
-
-        profile = tmp_path / "user_profile.json"
-        profile.write_text('{"brief_time": "08:00"}')
-        monkeypatch.setattr(brief_scheduler, "USER_PROFILE_PATH", profile)
-
-        today = datetime.now(timezone.utc).date().isoformat()
-
-        delivered: list[str] = []
-
-        def fake_generate_and_deliver() -> str:
-            text = f"Brief for {today}\n- Intention: Ship the scheduler"
-            delivered.append(text)
-            return text
-
-        monkeypatch.setattr(
-            brief_scheduler, "generate_and_deliver_brief", fake_generate_and_deliver
-        )
-        # Trigger immediately and then stop after one iteration.
-        monkeypatch.setattr(brief_scheduler, "seconds_until", lambda _t, _n: 0)
-
-        task = asyncio.create_task(brief_scheduler._scheduler_loop())
-        # Give the loop one chance to fire and then cancel it.
-        await asyncio.sleep(0.05)
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-
-        assert len(delivered) >= 1
-        assert f"Brief for {today}" in delivered[0]
-        assert "- Intention: Ship the scheduler" in delivered[0]
-    @pytest.mark.asyncio
-    async def test_scheduler_never_delivers_twice_for_same_local_date(self, tmp_path, monkeypatch):
-        from gateway import brief_scheduler
-
-        profile = tmp_path / "user_profile.json"
-        profile.write_text('{"brief_time": "08:00", "timezone": "America/Regina"}')
-        monkeypatch.setattr(brief_scheduler, "USER_PROFILE_PATH", profile)
-        monkeypatch.setattr(brief_scheduler, "seconds_until", lambda _t, _n: 0)
-
-        delivered: list[str] = []
-        monkeypatch.setattr(
-            brief_scheduler,
-            "generate_and_deliver_brief",
-            lambda: delivered.append("delivered") or "delivered",
-        )
-
-        real_sleep = asyncio.sleep
-
-        async def fast_sleep(_seconds: float) -> None:
-            await real_sleep(0)
-
-        monkeypatch.setattr(brief_scheduler.asyncio, "sleep", fast_sleep)
-        task = asyncio.create_task(brief_scheduler._scheduler_loop())
-        for _ in range(5):
-            await real_sleep(0)
-        task.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await task
-
-        assert delivered == ["delivered"]

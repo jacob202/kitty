@@ -157,6 +157,47 @@ def schedule(
     return sid
 
 
+def ensure_schedule(
+    name: str,
+    action: str,
+    schedule_type: str = "daily",
+    schedule_value: str = "07:00",
+    metadata: Optional[dict] = None,
+) -> str:
+    """Create or update one stable schedule identity keyed by ``name``.
+
+    Reconfiguration preserves the existing row (including enabled/last_run) and
+    removes accidental duplicate rows with the same automation name.
+    """
+    init_db()
+    metadata_json = json.dumps(metadata or {})
+    with kitty_db.connect(KITTY_DB_FILE) as conn:
+        rows = conn.execute(
+            f"SELECT id FROM {TABLE} WHERE name = ? ORDER BY created_at, id",
+            (name,),
+        ).fetchall()
+        if rows:
+            sid = str(rows[0][0])
+            conn.execute(
+                f"UPDATE {TABLE} SET action = ?, schedule_type = ?, schedule_value = ?, metadata = ? "
+                "WHERE id = ?",
+                (action, schedule_type, schedule_value, metadata_json, sid),
+            )
+            for duplicate in rows[1:]:
+                conn.execute(f"DELETE FROM {TABLE} WHERE id = ?", (duplicate[0],))
+        else:
+            sid = str(uuid.uuid4())[:8]
+            conn.execute(
+                f"INSERT INTO {TABLE} "
+                "(id, name, action, schedule_type, schedule_value, metadata, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (sid, name, action, schedule_type, schedule_value, metadata_json, time.time()),
+            )
+        conn.commit()
+    start()
+    return sid
+
+
 def list_schedules() -> list[dict]:
     """List all schedules."""
     init_db()
@@ -286,14 +327,28 @@ def _should_fire(s: dict, now: float) -> bool:
 
     if s_type == "daily":
         try:
+            import datetime
+            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
             parts = s_value.split(":")
             target_h, target_m = int(parts[0]), int(parts[1])
-            import datetime
-            today_target = datetime.datetime.now().replace(
+            raw_metadata = s.get("metadata") or {}
+            metadata = json.loads(raw_metadata) if isinstance(raw_metadata, str) else raw_metadata
+            timezone_name = metadata.get("timezone") if isinstance(metadata, dict) else None
+            if timezone_name:
+                try:
+                    zone = ZoneInfo(str(timezone_name))
+                except ZoneInfoNotFoundError:
+                    logger.warning("Cron daily schedule has unknown timezone: %s", timezone_name)
+                    return False
+                local_now = datetime.datetime.fromtimestamp(now, zone)
+            else:
+                local_now = datetime.datetime.fromtimestamp(now)
+            today_target = local_now.replace(
                 hour=target_h, minute=target_m, second=0, microsecond=0
             ).timestamp()
             return now >= today_target and last_run < today_target
-        except (ValueError, IndexError):
+        except (ValueError, IndexError, json.JSONDecodeError):
             logger.warning("Cron daily schedule invalid: %s", s_value)
             return False
 
