@@ -1,0 +1,139 @@
+name: Nightly Delivery Health
+
+# Clock C. Broad, expensive, drift-oriented checks that earn nothing by running
+# on every pull request live here: repository-wide hygiene, slow-test profiling,
+# and delivery-pipeline efficiency evidence. Nothing in this workflow mutates
+# source, branches, or repository settings.
+on:
+  # 10:00 UTC — 04:00 in Edmonton on MDT, 03:00 on MST.
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: nightly-delivery-health
+  cancel-in-progress: false
+
+jobs:
+  hygiene:
+    # Advisory by design and never a merge gate. It ran on every PR and every
+    # push to main while gating nothing; nightly is where its findings can be
+    # read as a delta instead of scrolling past in a green PR.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Dead code (vulture)
+        run: |
+          python -m pip install --upgrade pip
+          pip install vulture
+          vulture gateway/ --min-confidence 80 \
+            --exclude gateway/kitty-chat/
+
+      - name: Broken links (lychee)
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --root-dir docs --no-progress --accept 200,301,302,307,308 docs/
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dependency analysis (deptry, advisory)
+        continue-on-error: true
+        run: |
+          pip install deptry
+          deptry .
+        # Advisory: 65 findings as of 2026-07-15, mostly optional deps not
+        # declared in requirements.txt (docx, fitz, pypdf) and transitive
+        # imports (starlette, google). Configure deptry.toml before gating.
+
+      - name: pip-audit (advisory)
+        continue-on-error: true
+        run: |
+          pip install pip-audit
+          pip-audit
+
+      - name: Bandit (advisory)
+        continue-on-error: true
+        run: |
+          pip install bandit
+          bandit -c pyproject.toml -r gateway/ || bandit -r gateway/ --skip B101,B311
+
+  suite-profile:
+    # The same suite and the same coverage floor the merge gate enforces, plus
+    # the per-test timings that say which tests are worth optimising. This is
+    # also the canary that main is still green when nothing merged that day.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      KITTY_EXPECTED_CANONICAL_CHECKOUT: ${{ github.workspace }}
+      KITTY_EXPECTED_TEST_CHECKOUT: ${{ github.workspace }}
+      KITTY_EXPECTED_TEST_HEAD: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Run suite with per-test timings
+        run: |
+          set -o pipefail
+          python -m pytest tests/ -q --tb=short --durations=50 \
+            --cov=gateway --cov-report=term-missing --cov-fail-under=73 \
+            2>&1 | tee pytest-durations.txt
+
+      - name: Upload timings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-durations
+          path: pytest-durations.txt
+          retention-days: 30
+
+  delivery-metrics:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Measure delivery pipeline efficiency
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/ci_metrics.py --window-days 14 --out artifacts/ci-metrics
+
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-metrics
+          path: artifacts/ci-metrics/
+          retention-days: 30

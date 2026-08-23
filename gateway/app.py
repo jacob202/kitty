@@ -50,6 +50,15 @@ def _reconcile_agent_workspace_turns_on_startup() -> None:
 
 
 
+def _reconcile_autonomy_sessions_on_startup() -> None:
+    """Make spawned-agent work truthful after the in-process executor has restarted."""
+    from gateway.autonomy_state import interrupt_active_sessions
+
+    reconciled = interrupt_active_sessions()
+    if reconciled:
+        logger.warning("interrupted %d orphaned autonomy session(s) at startup", reconciled)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_dirs()
@@ -57,6 +66,7 @@ async def lifespan(app: FastAPI):
     _reconcile_image_jobs_on_startup()
     _reconcile_image_batches_on_startup()
     _reconcile_agent_workspace_turns_on_startup()
+    _reconcile_autonomy_sessions_on_startup()
     from gateway.image_recipes import seed_default_recipes
 
     seed_default_recipes()
