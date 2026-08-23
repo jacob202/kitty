@@ -5,10 +5,9 @@ on:
   push:
     branches: [ main ]
 
-# Six jobs per run, including a full pytest suite and a Playwright browser
-# smoke. Without this, every push to a PR branch left the superseded run
-# burning metered minutes to completion on a result nobody would read.
-# Pushes to main are never cancelled: main's history needs a verdict per commit.
+# Required PR work is scope-aware: docs/Markdown-only changes skip code and
+# browser suites, while pushes to main always run the full deterministic set.
+# Superseded PR runs are cancelled so runner time follows the current head.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -18,6 +17,7 @@ jobs:
     name: changes
     runs-on: ubuntu-latest
     outputs:
+      code: ${{ steps.filter.outputs.code }}
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - name: Detect frontend scope
@@ -26,6 +26,7 @@ jobs:
         with:
           script: |
             if (context.eventName !== "pull_request") {
+              core.setOutput("code", "true");
               core.setOutput("frontend", "true");
               return;
             }
@@ -35,10 +36,18 @@ jobs:
               pull_number: context.payload.pull_request.number,
               per_page: 100,
             });
-            const frontend = files.some((file) => file.filename.startsWith("gateway/kitty-chat/"));
+            const isDocumentation = (path) =>
+              path.startsWith("docs/") || path.endsWith(".md") || path.endsWith(".mdx");
+            const code = files.some((file) => !isDocumentation(file.filename));
+            const frontend = files.some(
+              (file) => file.filename.startsWith("gateway/kitty-chat/") && !isDocumentation(file.filename),
+            );
+            core.setOutput("code", code ? "true" : "false");
             core.setOutput("frontend", frontend ? "true" : "false");
 
   pytest:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     env:
       # The continuity check defaults to ~/Projects/kitty; on CI runners the
@@ -89,6 +98,8 @@ jobs:
           retention-days: 7
 
   lint:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -105,6 +116,8 @@ jobs:
           ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
 
   typecheck:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -297,6 +310,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CHANGES_RESULT: ${{ needs.changes.result }}
+      CODE: ${{ needs.changes.outputs.code }}
       PYTEST_RESULT: ${{ needs.pytest.result }}
       LINT_RESULT: ${{ needs.lint.result }}
       TYPECHECK_RESULT: ${{ needs.typecheck.result }}
@@ -308,18 +322,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for pair in \
-            "changes:$CHANGES_RESULT" \
-            "pytest:$PYTEST_RESULT" \
-            "lint:$LINT_RESULT" \
-            "typecheck:$TYPECHECK_RESULT"; do
-            name="${pair%%:*}"
-            result="${pair#*:}"
-            if [[ "$result" != "success" ]]; then
-              echo "$name must succeed; got $result" >&2
-              exit 1
-            fi
-          done
+          [[ "$CHANGES_RESULT" == "success" ]] || { echo "changes must succeed; got $CHANGES_RESULT" >&2; exit 1; }
+
+          if [[ "$CODE" == "true" ]]; then
+            for pair in \
+              "pytest:$PYTEST_RESULT" \
+              "lint:$LINT_RESULT" \
+              "typecheck:$TYPECHECK_RESULT"; do
+              name="${pair%%:*}"
+              result="${pair#*:}"
+              [[ "$result" == "success" ]] || { echo "$name must succeed for code scope; got $result" >&2; exit 1; }
+            done
+          else
+            for pair in \
+              "pytest:$PYTEST_RESULT" \
+              "lint:$LINT_RESULT" \
+              "typecheck:$TYPECHECK_RESULT"; do
+              name="${pair%%:*}"
+              result="${pair#*:}"
+              [[ "$result" == "skipped" || "$result" == "success" ]] || { echo "unexpected $name result for docs-only scope: $result" >&2; exit 1; }
+            done
+            echo "Required code checks were not applicable to docs-only scope."
+          fi
 
           if [[ "$FRONTEND" == "true" ]]; then
             [[ "$KITTY_CHAT_RESULT" == "success" ]] || { echo "kitty-chat must succeed for frontend scope; got $KITTY_CHAT_RESULT" >&2; exit 1; }
