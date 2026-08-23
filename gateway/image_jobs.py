@@ -45,6 +45,7 @@ class ImageJobStatus(str, Enum):
     CREATED = "created"
     SUBMITTED = "submitted"
     RUNNING = "running"
+    UNKNOWN = "unknown"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELED = "canceled"
@@ -58,6 +59,7 @@ _ALLOWED_TRANSITIONS: dict[ImageJobStatus, set[ImageJobStatus]] = {
     ImageJobStatus.CREATED: {ImageJobStatus.SUBMITTED, ImageJobStatus.FAILED, ImageJobStatus.CANCELED},
     ImageJobStatus.SUBMITTED: {ImageJobStatus.RUNNING, ImageJobStatus.FAILED, ImageJobStatus.CANCELED},
     ImageJobStatus.RUNNING: {ImageJobStatus.SUCCEEDED, ImageJobStatus.FAILED, ImageJobStatus.CANCELED},
+    ImageJobStatus.UNKNOWN: {ImageJobStatus.SUCCEEDED, ImageJobStatus.FAILED},
     ImageJobStatus.SUCCEEDED: set(),
     ImageJobStatus.FAILED: set(),
     ImageJobStatus.CANCELED: set(),
@@ -745,47 +747,41 @@ def normalize_comfyui_request(
 
 
 def reconcile_stale() -> int:
-    """Reconcile jobs orphaned by a gateway restart.
+    """Reconcile image jobs orphaned by a gateway restart truthfully.
 
-    Jobs that were never submitted (no provider_job_id) are marked canceled
-    — their generating coroutine is gone and no provider work exists.
-
-    Jobs that were submitted (have a provider_job_id) are marked failed
-    with a diagnostic message, because the provider may have completed
-    the work while the gateway was down. Marking them canceled would be
-    dishonest when provider state is unknown.
+    A job that never left ``created`` is canceled because Kitty can prove no
+    provider dispatch began. Once a job reached ``submitted`` or ``running``,
+    the provider outcome is conservatively ``unknown`` regardless of whether
+    Kitty managed to persist a provider receipt before the restart. This keeps
+    accepted-but-response-lost submissions from being treated as safe retries.
 
     Returns the number of rows reconciled.
     """
-    non_terminal = [s.value for s in ImageJobStatus if not s.is_terminal()]
     now = _now_iso()
-    placeholders = ",".join("?" for _ in non_terminal)
     total = 0
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
         cur = conn.execute(
             "UPDATE image_jobs SET status = ?, normalized_error = ?, "
-            f"updated_at = ?, finished_at = ? WHERE status IN ({placeholders}) "
-            "AND (provider_job_id IS NULL OR provider_job_id = '')",
+            "updated_at = ?, finished_at = ? WHERE status = ?",
             (
                 ImageJobStatus.CANCELED.value,
                 "orphaned by gateway restart (never submitted to provider)",
                 now,
                 now,
-                *non_terminal,
+                ImageJobStatus.CREATED.value,
             ),
         )
         total += cur.rowcount
         cur2 = conn.execute(
             "UPDATE image_jobs SET status = ?, normalized_error = ?, "
-            f"updated_at = ?, finished_at = ? WHERE status IN ({placeholders}) "
-            "AND provider_job_id IS NOT NULL AND provider_job_id != ''",
+            "updated_at = ?, finished_at = NULL WHERE status IN (?, ?)",
             (
-                ImageJobStatus.FAILED.value,
-                "gateway restarted; provider state unknown — manual check needed",
+                ImageJobStatus.UNKNOWN.value,
+                "gateway restarted; provider outcome unknown — reconciliation required",
                 now,
-                now,
-                *non_terminal,
+                ImageJobStatus.SUBMITTED.value,
+                ImageJobStatus.RUNNING.value,
             ),
         )
         total += cur2.rowcount
@@ -793,18 +789,21 @@ def reconcile_stale() -> int:
 
 
 def list_queue(limit: int = 50) -> list[ImageJob]:
-    """Return queued jobs ordered by priority (highest first), then FIFO."""
-    non_terminal = [s.value for s in ImageJobStatus if not s.is_terminal()]
+    """Return active dispatch jobs, excluding unresolved provider outcomes."""
+    active = [
+        ImageJobStatus.CREATED.value,
+        ImageJobStatus.SUBMITTED.value,
+        ImageJobStatus.RUNNING.value,
+    ]
     if limit <= 0 or limit > 200:
         raise ImageJobError(f"limit must be between 1 and 200, got {limit}")
-    non_terminal = [s.value for s in ImageJobStatus if not s.is_terminal()]
-    placeholders = ",".join("?" for _ in non_terminal)
+    placeholders = ",".join("?" for _ in active)
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
         rows = conn.execute(
             f"SELECT * FROM image_jobs WHERE status IN ({placeholders}) "
             "ORDER BY priority DESC, created_at ASC LIMIT ?",
-            (*non_terminal, limit),
+            (*active, limit),
         ).fetchall()
     return [_row_to_job(r) for r in rows]
 
@@ -846,8 +845,8 @@ def requeue(job_id: str) -> ImageJob:
 
 
 def cancel_queued(character_id: str | None = None, provider: str | None = None) -> int:
-    """Cancel all non-terminal jobs matching optional filters. Returns count."""
-    conditions = ["status NOT IN ('succeeded', 'failed', 'canceled')"]
+    """Cancel locally active jobs without erasing unknown provider outcomes."""
+    conditions = ["status IN ('created', 'submitted', 'running')"]
     params: list[Any] = []
     if character_id:
         conditions.append("character_id = ?")

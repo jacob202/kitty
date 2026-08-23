@@ -372,7 +372,7 @@ async def test_cancel_route_maps_known_job_failures(monkeypatch):
 
 
 def test_reconcile_stale_distinguishes_submitted_from_unsubmitted():
-    """Unsubmitted jobs are canceled; submitted jobs are failed (state unknown)."""
+    """Unsubmitted jobs cancel; dispatched jobs preserve an unknown outcome."""
     never_submitted = jobs.create_job(provider="comfyui", operation="txt2img", prompt="a")
     submitted = _comfy_job(provider_job_id="prompt-sub")
     already_done = jobs.create_job(provider="comfyui", operation="txt2img", prompt="b")
@@ -386,8 +386,9 @@ def test_reconcile_stale_distinguishes_submitted_from_unsubmitted():
     assert "never submitted" in ns.normalized_error
 
     sub = jobs.get_job(submitted.job_id)
-    assert sub.status is ImageJobStatus.FAILED
-    assert "provider state unknown" in sub.normalized_error
+    assert sub.status is ImageJobStatus.UNKNOWN
+    assert sub.finished_at is None
+    assert "provider outcome unknown" in sub.normalized_error
 
     assert jobs.get_job(already_done.job_id).status is ImageJobStatus.CANCELED
 
