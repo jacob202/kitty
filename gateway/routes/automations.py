@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from gateway import automation_actions
@@ -52,3 +52,38 @@ async def automation_status():
         "actions": automation_actions.get_actions(),
         "services": supervisor.snapshot(),
     }
+
+
+@router.post("/automations/runs/{run_id}/retry")
+async def retry_automation_run(run_id: str):
+    """Re-run a completed run with the same intent but a fresh identity.
+
+    Authorization is re-evaluated against the current grant state; the original
+    decision is never reused blindly.
+    """
+    import time
+
+    from gateway import automation_runs
+
+    original = automation_runs.get_run(run_id)
+    if original is None:
+        raise HTTPException(status_code=404, detail=f"run {run_id!r} not found")
+    if original["status"] == "running":
+        raise HTTPException(
+            status_code=409,
+            detail=f"run {run_id!r} is still running and cannot be retried",
+        )
+    retried = automation_runs.retry_run(run_id, started_at=time.time())
+    evidence = original.get("policy") or {}
+    final_run = await automation_actions.run_action(
+        original["action"],
+        trigger_kind=original["trigger_kind"],
+        automation_id=original["automation_id"],
+        trigger_ref=original.get("trigger_ref"),
+        schedule_id=original.get("schedule_id"),
+        payload=original.get("payload") or {},
+        run_id=retried["id"],
+        policy_scope_type=evidence.get("scope_type"),
+        policy_scope_id=evidence.get("scope_id"),
+    )
+    return {"run": final_run, "retried_from": run_id}

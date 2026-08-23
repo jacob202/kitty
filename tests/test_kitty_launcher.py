@@ -21,8 +21,18 @@ def test_launcher_status_understands_launchd_services() -> None:
     launcher = (ROOT / "kitty").read_text(encoding="utf-8")
 
     assert "launchd_pid()" in launcher
-    assert "gui/$(id -u)/com.kitty.$svc" in launcher
+    assert "gui/$(id -u)/com.kitty.desktop.$svc" in launcher
     assert "running via launchd" in launcher
+
+
+def test_launcher_install_uses_the_three_service_desktop_supervisor() -> None:
+    launcher = (ROOT / "kitty").read_text(encoding="utf-8")
+    block = launcher.split("cmd_install() {", 1)[1].split("\n}\n\ncmd_uninstall", 1)[0]
+
+    assert 'scripts/kitty_desktop_launchd.py" install' in block
+    assert 'scripts/kitty_desktop_launchd.py" bootstrap all' in block
+    assert "gateway/com.kitty.$svc.plist" not in block
+    assert "com.kitty.desktop" in launcher
 
 
 def test_launcher_status_discovers_owned_listeners_without_pidfiles(
@@ -60,7 +70,8 @@ def test_launcher_status_discovers_owned_listeners_without_pidfiles(
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert result.stdout.count("discovered owned listener on") >= 2
+    assert result.stdout.count("discovered listener on") >= 2
+    assert result.stdout.count("role=owned-current") >= 2
     assert "UI         :4000" in result.stdout
     assert "Gateway    :8000" in result.stdout
     assert "LiteLLM    :8001" in result.stdout

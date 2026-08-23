@@ -42,6 +42,7 @@ import time
 from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn
 
+from gateway import builder_execution_boundary as beb
 from gateway import builder_queue as bq
 from gateway import builder_scope as bs
 from gateway.builder_brief import default_branch_name, render_worker_brief
@@ -1072,15 +1073,7 @@ def run_worker(
 
     assert run is not None
 
-    child_env = dict(os.environ)
-    # Shadow mode: no ambient GitHub credentials reach the worker.
-    child_env.pop("GITHUB_TOKEN", None)
-    child_env.pop("GH_TOKEN", None)
-    # Strip SSH agent access — workers must not push via the host SSH agent.
-    child_env.pop("SSH_AUTH_SOCK", None)
-    child_env.pop("SSH_AGENT_PID", None)
-    child_env.pop("GIT_SSH_COMMAND", None)
-    child_env.pop("GIT_SSH", None)
+    child_env = beb.build_child_environment(os.environ, run_dir=run_dir)
     child_env["GH_CONFIG_DIR"] = str(gh_config_dir)
     child_env["GIT_CONFIG_GLOBAL"] = os.devnull
     child_env["GIT_CONFIG_SYSTEM"] = os.devnull
@@ -1138,8 +1131,24 @@ def run_worker(
 
     with log_fh:
         try:
-            proc = subprocess.Popen(
+            boundary_read_paths = [
+                Path(child_env[key])
+                for key in ("KB_BUNDLE_PATH", "KB_CONTEXT_MANIFEST_PATH")
+                if child_env.get(key)
+            ]
+            boundary_write_paths = [
+                Path(child_env["KB_RESULT_PATH"])
+            ] if child_env.get("KB_RESULT_PATH") else []
+            sandboxed_command = beb.wrap_command(
                 command,
+                worktree=wt_path,
+                run_dir=run_dir,
+                environment=child_env,
+                read_paths=boundary_read_paths,
+                write_paths=boundary_write_paths,
+            )
+            proc = subprocess.Popen(
+                sandboxed_command,
                 cwd=wt_path,
                 stdout=log_fh,
                 stderr=subprocess.STDOUT,

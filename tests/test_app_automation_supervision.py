@@ -26,7 +26,6 @@ async def test_gateway_supervises_background_service_lifecycle(monkeypatch):
     async def forever(*_args, **_kwargs):
         await asyncio.Event().wait()
 
-    image_task: asyncio.Task | None = None
     telegram_task: asyncio.Task | None = None
     cron_task: asyncio.Task | None = None
 
@@ -58,11 +57,17 @@ async def test_gateway_supervises_background_service_lifecycle(monkeypatch):
     monkeypatch.setattr(cron, "ensure_schedule", lambda *args, **kwargs: "brief-id")
 
     tracked: list[tuple[str, object, object]] = []
+    recoverable: list[tuple[str, object, object]] = []
     stopped: list[str] = []
     monkeypatch.setattr(
         supervision.supervisor,
         "track_task",
         lambda name, task, **kwargs: tracked.append((name, task, kwargs.get("stop"))),
+    )
+    monkeypatch.setattr(
+        supervision.supervisor,
+        "track_recoverable",
+        lambda name, factory, **kwargs: recoverable.append((name, factory, kwargs.get("stop"))),
     )
 
     async def stop_all():
@@ -78,15 +83,19 @@ async def test_gateway_supervises_background_service_lifecycle(monkeypatch):
     monkeypatch.setattr(supervision.supervisor, "stop_all", stop_all)
 
     async with app_module.lifespan(app_module.app):
-        image_task = next(task for name, task, _stop in tracked if name == "image-batch-worker")
-        assert {name for name, _task, _stop in tracked} == {
+        supervised = set()
+        for name, _task, _stop in tracked:
+            supervised.add(name)
+        for name, _factory, _stop in recoverable:
+            supervised.add(name)
+        assert supervised == {
             "cron",
             "image-batch-worker",
             "image-recovery",
             "telegram",
         }
-        assert next(stop for name, _task, stop in tracked if name == "cron") is stop_cron
-        assert next(stop for name, _task, stop in tracked if name == "telegram") is stop_telegram
+        assert next(stop for name, _factory, stop in recoverable if name == "cron") is stop_cron
+        assert next(stop for name, _factory, stop in recoverable if name == "telegram") is stop_telegram
+        assert next(factory for name, factory, _stop in recoverable if name == "image-batch-worker") is not None
 
     assert stopped == ["all"]
-    assert image_task is not None

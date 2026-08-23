@@ -33,13 +33,14 @@ async def ask(payload: AskRequest):
         on_request_start,
         on_request_success,
     )
-    from gateway.context_assembler import assemble_context
+    from gateway.context_assembler import assemble_context, assert_not_total_failure
 
     on_request_start()
     try:
         domain = classify_domain(message)
         on_context_fetch()
         bundle = await assemble_context(message, parts_mode=payload.parts_mode, domain=domain)
+        assert_not_total_failure(bundle)
         system_prompt = bundle.system
 
         model = route_model(message)
