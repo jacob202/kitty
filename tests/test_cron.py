@@ -203,6 +203,57 @@ class TestUpdate:
         from gateway.cron import update
         assert update("missing", "Nope", "brief.refresh", "daily", "07:00") is False
 
+    def test_ensure_schedule_updates_one_stable_automation_identity(self, tmp_kitty_db):
+        from gateway.cron import ensure_schedule, list_schedules
+
+        first = ensure_schedule(
+            "morning brief",
+            "brief.deliver",
+            "daily",
+            "08:00",
+            {"timezone": "America/Regina"},
+        )
+        second = ensure_schedule(
+            "morning brief",
+            "brief.deliver",
+            "daily",
+            "07:30",
+            {"timezone": "America/Toronto"},
+        )
+
+        assert second == first
+        rows = [row for row in list_schedules() if row["name"] == "morning brief"]
+        assert len(rows) == 1
+        assert rows[0]["schedule_value"] == "07:30"
+        assert rows[0]["metadata"] == '{"timezone": "America/Toronto"}'
+
+    def test_ensure_schedule_preserves_disabled_state_and_last_run(self, tmp_kitty_db):
+        from gateway import db as kitty_db
+        from gateway.cron import ensure_schedule, list_schedules, toggle
+
+        sid = ensure_schedule(
+            "morning brief",
+            "brief.deliver",
+            "daily",
+            "08:00",
+            {"timezone": "America/Regina"},
+        )
+        with kitty_db.connect(tmp_kitty_db) as conn:
+            conn.execute("UPDATE cron_schedules SET last_run = ? WHERE id = ?", (12345.0, sid))
+            conn.commit()
+        assert toggle(sid) is False
+
+        assert ensure_schedule(
+            "morning brief",
+            "brief.deliver",
+            "daily",
+            "07:30",
+            {"timezone": "America/Toronto"},
+        ) == sid
+        row = next(item for item in list_schedules() if item["id"] == sid)
+        assert row["enabled"] == 0
+        assert row["last_run"] == 12345.0
+
 
 class TestGetActions:
     def test_get_actions_returns_list(self):
@@ -244,6 +295,43 @@ class TestShouldFire:
         from gateway.cron import _should_fire
         s = {"schedule_type": "interval", "schedule_value": "not-a-number", "last_run": 0}
         assert _should_fire(s, time.time()) is False
+
+    def test_daily_uses_configured_iana_timezone_and_local_date(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from gateway.cron import _should_fire
+
+        eastern = ZoneInfo("America/Toronto")
+        now = datetime(2026, 8, 23, 8, 1, tzinfo=eastern).timestamp()
+        schedule = {
+            "schedule_type": "daily",
+            "schedule_value": "08:00",
+            "last_run": datetime(2026, 8, 22, 8, 0, tzinfo=eastern).timestamp(),
+            "metadata": '{"timezone": "America/Toronto"}',
+        }
+        assert _should_fire(schedule, now) is True
+
+        schedule["last_run"] = datetime(2026, 8, 23, 8, 0, 30, tzinfo=eastern).timestamp()
+        assert _should_fire(schedule, now) is False
+
+    def test_daily_timezone_keeps_local_clock_across_dst(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from gateway.cron import _should_fire
+
+        eastern = ZoneInfo("America/Toronto")
+        schedule = {
+            "schedule_type": "daily",
+            "schedule_value": "08:00",
+            "last_run": 0,
+            "metadata": '{"timezone": "America/Toronto"}',
+        }
+        winter = datetime(2026, 1, 15, 8, 1, tzinfo=eastern).timestamp()
+        summer = datetime(2026, 8, 15, 8, 1, tzinfo=eastern).timestamp()
+        assert _should_fire(schedule, winter) is True
+        assert _should_fire(schedule, summer) is True
 
     def test_once_fires_when_past_and_never_run(self):
         from gateway.cron import _should_fire

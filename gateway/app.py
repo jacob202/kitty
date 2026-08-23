@@ -70,7 +70,6 @@ async def lifespan(app: FastAPI):
     from gateway.image_recipes import seed_default_recipes
 
     seed_default_recipes()
-    brief_scheduler_task: asyncio.Task | None = None
     image_batch_task: asyncio.Task | None = None
     background_services_enabled = not is_test_env()
     if background_services_enabled:
@@ -89,13 +88,15 @@ async def lifespan(app: FastAPI):
         image_batch_task = asyncio.create_task(
             image_batch_worker_loop(execute_studio_batch_request)
         )
-        from gateway.brief_scheduler import start_brief_scheduler
-
-        brief_scheduler_task = start_brief_scheduler()
         try:
             import gateway.cron as cron
             from gateway.cron import register_action
             from gateway.cron import start as cron_start
+
+            async def _action_deliver_brief():
+                from gateway.brief_scheduler import generate_and_deliver_brief
+
+                await asyncio.to_thread(generate_and_deliver_brief)
 
             async def _action_refresh_brief():
                 from gateway.brief import generate_brief
@@ -142,6 +143,7 @@ async def lifespan(app: FastAPI):
 
                 await warm()
 
+            register_action("brief.deliver", _action_deliver_brief)
             register_action("brief.refresh", _action_refresh_brief)
             register_action("nudges.check", _action_check_nudges)
             register_action("monitors.check", _action_check_monitors)
@@ -196,6 +198,15 @@ async def lifespan(app: FastAPI):
             register_action("life.evening_reflection", _action_life_evening_reflection)
             register_action("life.morning_proactive", _action_life_morning_proactive)
             register_action("insights.return_due", _action_insights_return_due)
+            from gateway.brief_scheduler import load_brief_time, load_brief_timezone
+
+            cron.ensure_schedule(
+                "morning brief",
+                "brief.deliver",
+                "daily",
+                load_brief_time(),
+                {"timezone": load_brief_timezone().key},
+            )
             cron.schedule("brief cache refresh", "brief.refresh", "interval", "15")
             cron.schedule("insights return due", "insights.return_due", "interval", "15")
             cron.schedule("web monitor due checks", "monitors.check", "interval", "5")
@@ -205,8 +216,6 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.exception("cron system registration failed — all background jobs disabled")
     yield
-    if brief_scheduler_task is not None:
-        brief_scheduler_task.cancel()
     if image_batch_task is not None:
         image_batch_task.cancel()
         with suppress(asyncio.CancelledError):
