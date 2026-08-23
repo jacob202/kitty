@@ -505,15 +505,14 @@ PROVIDERS: dict[str, ProviderConfig] = {
     ),
 }
 
-# Default order when no explicit preference is saved: local first, then the
-# free-tier cloud lanes, then paid/opt-in fallbacks. Unconfigured providers are
-# skipped without making a network call.
+# Preserve the established fallback order and add Airforce immediately before
+# OpenRouter. Unconfigured providers are skipped without making a network call.
 PROVIDER_FALLBACK_ORDER: tuple[str, ...] = (
     "local",
-    "nvidia",
-    "airforce",
     "openai",
+    "nvidia",
     "agentrouter",
+    "airforce",
     "openrouter",
     "gemini",
 )
