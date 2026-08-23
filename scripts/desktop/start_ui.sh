@@ -41,6 +41,15 @@ cd "${UI_DIR}"
 # stamp `next build` writes, and let a failed build stop the service rather than
 # fall back to serving stale code.
 BUILD_STAMP=".next/BUILD_ID"
+BUILD_SOURCE_STAMP=".next/KITTY_SOURCE_SHA"
+
+record_build_source() {
+  local source_sha
+  source_sha="$(git -C "${ROOT_DIR}" rev-parse HEAD 2>/dev/null || true)"
+  if [[ -n "${source_sha}" ]]; then
+    printf '%s\n' "${source_sha}" > "${BUILD_SOURCE_STAMP}"
+  fi
+}
 
 build_inputs=()
 for candidate in src public package.json package-lock.json tsconfig.json \
@@ -53,6 +62,7 @@ done
 if [[ ! -f "${BUILD_STAMP}" ]]; then
   echo "[start_ui] no usable build in ${UI_DIR}/.next — building"
   npm run build
+  record_build_source
 else
   # -newer over the whole input set is portable across BSD and GNU find; the
   # first hit is enough, the rest of the list does not need walking.
@@ -60,6 +70,7 @@ else
   if [[ -n "${stale_input}" ]]; then
     echo "[start_ui] ${stale_input} is newer than the last build — rebuilding"
     npm run build
+    record_build_source
   else
     echo "[start_ui] build is current — serving .next as-is"
   fi

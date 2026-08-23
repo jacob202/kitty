@@ -1,7 +1,7 @@
 # Launcher Contract
 
 **Status:** Active authority
-**Ratified:** 2026-07-31; amended 2026-07-31 (competing-launcher finding)
+**Ratified:** 2026-07-31; amended 2026-08-23 (runtime identity + ownership truth)
 **Owner:** Jacob
 
 This file defines the single launcher contract for Kitty. Production
@@ -9,36 +9,38 @@ This file defines the single launcher contract for Kitty. Production
 entry points, but both must delegate to shared bootstrap and health logic.
 No silent alternate path may serve an unknown build.
 
-## Verified current state (2026-07-31)
+## Verified current state (2026-08-23)
 
-- No `com.kitty.ui` launch agent is installed or loaded. `start_ui.sh`
-  is never invoked.
-- Two Next servers from different Kitty checkouts simultaneously occupy port
-  4000: canonical checkout (Next 16.2.6, IPv4 `127.0.0.1:4000`) and piddock
-  worktree (Next 16.2.11, IPv6 `*:4000`).
-- `kitty` probes `127.0.0.1:4000` but opens `http://localhost:4000` in the
-  browser. On macOS, `localhost` prefers IPv6, so the health check validates
-  the canonical checkout and the browser displays the piddock one.
-- `pid_owned_by_kitty()` (`kitty:90-95`) scopes "Kitty-owned" to the
-  `$KITTY_ROOT` of the currently-running script. `./kitty down` from the
-  canonical checkout leaves piddock worktree listeners running.
-- `kitty` starts `next dev` directly at line 680 — it never calls
-  `start_ui.sh`, so the #328 freshness fix is on an unused code path.
+- The canonical reboot/login supervisor is the three-service generator at
+  `scripts/kitty_desktop_launchd.py`, using `com.kitty.desktop.{ui,gateway,litellm}`.
+- At the E01 host check, none of those LaunchAgents were installed or loaded;
+  the canonical UI, Gateway, and LiteLLM were running manually. Source files
+  therefore do not imply machine-restart coverage.
+- `./kitty status` reports exact checkout/source authority, dirty state, UI
+  build source, process cwd/ownership role, and whether the launchd supervisor
+  is actually loaded.
+- Sibling Kitty worktrees are distinct active ownership domains. A launcher may
+  refuse to start while a sibling holds a required port, but `./kitty down`
+  must not terminate that sibling merely because it belongs to the same Git
+  repository.
 
 ## Modes
 
 ### Production mode — `launchd`
 
-Entry point: `scripts/desktop/start_ui.sh`
-Managed by: `~/Library/LaunchAgents/com.kitty.ui.plist`
-**Current status: NOT INSTALLED.** The launch agent does not exist, so
-production mode is not active.
+Entry point: `scripts/kitty_desktop_launchd.py`, whose UI service executes
+`scripts/desktop/start_ui.sh` and whose Gateway/LiteLLM services reuse their
+canonical start scripts.
+Managed by: `~/Library/LaunchAgents/com.kitty.desktop.{ui,gateway,litellm}.plist`
+**Current host status at the 2026-08-23 E01 check: NOT INSTALLED/LOADED.**
+Production mode is therefore defined but was not active on the Mac at that check.
 
 ### Development mode — `./kitty up`
 
-Entry point: `kitty` CLI script → `gateway/start_gateway.sh` + gateway process
-**Current status: ACTIVE** but suffers the probe/open mismatch and worktree
-collision documented above.
+Entry point: `kitty` CLI script → canonical Gateway/LiteLLM scripts plus the
+native UI startup path.
+**Current status at the E01 host check: ACTIVE.** Required-port conflicts are
+reported with process/worktree identity instead of being silently reused.
 
 ## Required shared properties
 
@@ -72,12 +74,12 @@ Every launch path MUST:
    the launcher must report which worktree holds the port and exit non-zero.
    `assert_port_available` must recognize sibling worktrees.
 
-7. **Shutdown must recognize all Kitty worktrees.** `./kitty down` must stop
-   listeners from any Kitty worktree, not only the one whose `kitty` script
-   was invoked. `pid_owned_by_kitty` must accept any path under a known Kitty
-   checkout root. As a minimal heuristic: a process is Kitty-owned if its
-   command line or cwd contains any path that looks like a Kitty worktree
-   (contains `kitty` as a Git repo and has a `gateway/kitty-chat` directory).
+7. **Shutdown must be ownership-safe.** `./kitty down` may terminate manual
+   listeners only when their cwd proves they belong to the checkout whose
+   launcher was invoked. A sibling Kitty worktree is reported as
+   `owned-other-worktree` and left running; an unrelated process is `external`
+   and is also left alone. Required-port conflicts are refused rather than
+   resolved by killing another lane.
 
 8. **Expose mode, checkout path, source SHA, build SHA, PID, and port**
    at startup. `./kitty status` reports all of these for every managed listener.
@@ -110,10 +112,12 @@ These MUST NOT exist in the repository:
 curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4000/health
 curl -s -o /dev/null -w '%{http_code}' http://[::1]:4000/health
 
-# `kitty down` from any worktree must clear all Kitty listeners
-lsof -iTCP:4000 -sTCP:LISTEN  # must be empty after `./kitty down`
+# `kitty down` clears only this checkout's owned listeners. A sibling worktree
+# or unrelated listener is reported and preserved.
+./kitty down
+./kitty status
 
-# Conflicting worktree must be detected
+# Conflicting worktree must be detected, not killed.
 # (run from a second worktree while the first has port 4000 occupied)
-./kitty up  # must refuse with "port 4000 occupied by Kitty worktree at /path/to/other"
+./kitty up  # must refuse and name the owning worktree
 ```
