@@ -430,8 +430,8 @@ def test_chat_completions_non_stream_health_uses_route_model_and_passes_domain()
     ), patch(
         "gateway.routes.completions.route_model", return_value="kitty-default"
     ), patch(
-        "gateway.context_assembler.get_system_prompt",
-        new=AsyncMock(return_value="FULL_SYSTEM"),
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=ContextBundle(system="FULL_SYSTEM")),
     ), patch(
         "gateway.llm_client.chat_completions_non_stream", new=mock_chat
     ), patch(
@@ -469,7 +469,8 @@ def test_chat_completions_non_stream_non_health_uses_route_model():
     ), patch(
         "gateway.routes.completions.route_model", return_value="openrouter/test-model"
     ), patch(
-        "gateway.context_assembler.get_system_prompt", new=AsyncMock(return_value="SYS")
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=ContextBundle(system="SYS")),
     ), patch(
         "gateway.llm_client.chat_completions_non_stream", new=mock_chat
     ), patch(
@@ -789,3 +790,31 @@ def test_a_caller_with_no_tools_still_gets_the_unavailable_notice():
 
     assert "tools" not in payload
     assert "tools are unavailable" in payload["messages"][0]["content"]
+
+
+def test_total_context_failure_does_not_serve_a_healthy_looking_empty_answer():
+    """C4-06: a memory-graph total infrastructure failure used to be silently
+    swallowed — no memory, no live blocks, real warnings on the bundle, and
+    the request proceeded anyway as if context assembly had succeeded."""
+    total_failure_bundle = ContextBundle(
+        system="SYS",
+        memory_items=[],
+        live_blocks=[],
+        warnings=["memory_graph:knowledge: TimeoutError: timed out"],
+    )
+
+    with patch(
+        "gateway.routes.completions.classify_domain", return_value="soul"
+    ), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=total_failure_bundle),
+    ):
+        from gateway.app import app
+
+        with pytest.raises(RuntimeError, match="total infrastructure failure"):
+            TestClient(app).post(
+                "/v1/chat/completions",
+                json={"messages": [{"role": "user", "content": "hi"}], "stream": False},
+            )

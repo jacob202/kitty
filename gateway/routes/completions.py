@@ -287,7 +287,7 @@ async def chat_completions(request: Request):
             on_request_error()
             raise
 
-    from gateway.context_assembler import assemble_context
+    from gateway.context_assembler import assemble_context, assert_not_total_failure
 
     try:
         on_context_fetch()
@@ -298,6 +298,7 @@ async def chat_completions(request: Request):
             objective=thread_objective,
             tier=tier,
         )
+        assert_not_total_failure(bundle)
         system_prompt = f"{bundle.system}\n\n{compact_runtime_context(runtime_manifest)}"
         if not caller_supplies_tools:
             system_prompt = f"{system_prompt}\n\n{_NO_TOOL_EXECUTOR_SYSTEM}"
