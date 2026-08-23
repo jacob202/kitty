@@ -9,7 +9,12 @@ import pytest
 
 from gateway import image_plans
 from gateway import image_sessions as sessions
-from gateway.image_plan import build_image_plan
+from gateway.image_plan import (
+    CastSlot,
+    ImagePlanError,
+    ReferenceBinding,
+    build_image_plan,
+)
 
 
 def test_build_plan_emits_versioned_character_intent(monkeypatch) -> None:
@@ -409,4 +414,130 @@ def test_persist_plan_rejects_invalid_reference_weight(isolated_plan_db, weight)
     ]
 
     with pytest.raises(image_plans.PlanStoreError, match="weight"):
+        image_plans.persist_plan(session.session_id, payload)
+
+def test_build_plan_emits_two_character_cast_with_independent_primary_refs(monkeypatch) -> None:
+    from gateway import image_characters as characters
+
+    chars = {
+        "char_a": SimpleNamespace(character_id="char_a", name="Alex", description="adult man A"),
+        "char_b": SimpleNamespace(character_id="char_b", name="Ben", description="adult man B"),
+    }
+    refs = {
+        "char_a": [SimpleNamespace(ref_id="ref_a", storage_path="/tmp/a.png", is_primary=True, soft_deleted=False)],
+        "char_b": [SimpleNamespace(ref_id="ref_b", storage_path="/tmp/b.png", is_primary=True, soft_deleted=False)],
+    }
+    monkeypatch.setattr(characters, "get_character", lambda cid: chars[cid])
+    monkeypatch.setattr(characters, "list_character_refs", lambda cid: refs[cid])
+
+    plan = build_image_plan(
+        "Alex and Ben standing together",
+        cast=[
+            CastSlot("subject_1", "char_a", "Alex", position="left", depth_order=1),
+            CastSlot("subject_2", "char_b", "Ben", position="right", depth_order=2),
+        ],
+    )
+    payload = plan.to_dict()
+
+    assert payload["character_id"] is None
+    assert payload["character_ref_path"] is None
+    assert payload["intent"]["cast"] == [
+        {
+            "slot_id": "subject_1",
+            "character_id": "char_a",
+            "display_name": "Alex",
+            "position": "left",
+            "depth_order": 1,
+        },
+        {
+            "slot_id": "subject_2",
+            "character_id": "char_b",
+            "display_name": "Ben",
+            "position": "right",
+            "depth_order": 2,
+        },
+    ]
+    assert payload["intent"]["references"] == [
+        {"reference_id": "ref_a", "role": "identity", "cast_slot": "subject_1", "weight": None},
+        {"reference_id": "ref_b", "role": "identity", "cast_slot": "subject_2", "weight": None},
+    ]
+    assert {(r["reference_id"], r["character_id"]) for r in payload["references"]} == {
+        ("ref_a", "char_a"),
+        ("ref_b", "char_b"),
+    }
+
+
+def test_build_plan_rejects_cross_character_reference_binding(monkeypatch) -> None:
+    from gateway import image_characters as characters
+
+    chars = {
+        "char_a": SimpleNamespace(character_id="char_a", name="Alex", description="adult man A"),
+        "char_b": SimpleNamespace(character_id="char_b", name="Ben", description="adult man B"),
+    }
+    refs = {
+        "char_a": [SimpleNamespace(ref_id="ref_a", storage_path="/tmp/a.png", is_primary=True, soft_deleted=False)],
+        "char_b": [SimpleNamespace(ref_id="ref_b", storage_path="/tmp/b.png", is_primary=True, soft_deleted=False)],
+    }
+    monkeypatch.setattr(characters, "get_character", lambda cid: chars[cid])
+    monkeypatch.setattr(characters, "list_character_refs", lambda cid: refs[cid])
+
+    with pytest.raises(ImagePlanError, match="belongs to character 'char_b'.*subject_1.*char_a"):
+        build_image_plan(
+            "Alex and Ben",
+            cast=[CastSlot("subject_1", "char_a"), CastSlot("subject_2", "char_b")],
+            reference_bindings=[
+                ReferenceBinding("ref_b", "identity", "subject_1"),
+                ReferenceBinding("ref_a", "identity", "subject_2"),
+            ],
+        )
+
+
+def test_persist_plan_rejects_cross_character_reference_binding(isolated_plan_db) -> None:
+    session = sessions.create_session(title="cross-bound references")
+    plan = build_image_plan("two people")
+    payload = plan.to_dict()
+    payload["references"] = [
+        {
+            "character_id": "char_a",
+            "name": "Alex",
+            "path": "/tmp/a.png",
+            "reason": "identity",
+            "reference_id": "ref_a",
+        },
+        {
+            "character_id": "char_b",
+            "name": "Ben",
+            "path": "/tmp/b.png",
+            "reason": "identity",
+            "reference_id": "ref_b",
+        },
+    ]
+    payload["intent"]["cast"] = [
+        {"slot_id": "subject_1", "character_id": "char_a", "display_name": "Alex", "position": "left", "depth_order": 1},
+        {"slot_id": "subject_2", "character_id": "char_b", "display_name": "Ben", "position": "right", "depth_order": 2},
+    ]
+    payload["intent"]["references"] = [
+        {"reference_id": "ref_b", "role": "identity", "cast_slot": "subject_1", "weight": None},
+        {"reference_id": "ref_a", "role": "identity", "cast_slot": "subject_2", "weight": None},
+    ]
+
+    with pytest.raises(image_plans.PlanStoreError, match="belongs to character 'char_b'.*subject_1.*char_a"):
+        image_plans.persist_plan(session.session_id, payload)
+
+
+def test_persist_plan_rejects_invalid_cast_placement(isolated_plan_db) -> None:
+    session = sessions.create_session(title="invalid placement")
+    plan = build_image_plan("portrait")
+    payload = plan.to_dict()
+    payload["intent"]["cast"] = [
+        {
+            "slot_id": "subject_1",
+            "character_id": "char_a",
+            "display_name": "Alex",
+            "position": "   ",
+            "depth_order": True,
+        }
+    ]
+
+    with pytest.raises(image_plans.PlanStoreError, match="position|depth_order"):
         image_plans.persist_plan(session.session_id, payload)
