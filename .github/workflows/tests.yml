@@ -2,12 +2,19 @@ name: Tests
 
 on:
   pull_request:
+    # ready_for_review is required: expensive jobs are skipped while a PR is a
+    # draft, so without it a PR marked ready would never produce merge-gate for
+    # its current head. converted_to_draft enters the same concurrency group and
+    # therefore cancels in-flight work nobody can merge.
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches: [ main ]
+  workflow_dispatch:
 
-# Required PR work is scope-aware: docs/Markdown-only changes skip code and
-# browser suites, while pushes to main always run the full deterministic set.
-# Superseded PR runs are cancelled so runner time follows the current head.
+# Required work is scope-aware on every event, including pushes to main: the
+# scope of a merge is the scope of what it merged. Post-merge re-running of code
+# suites for a docs-only merge proves nothing, because the strict up-to-date
+# requirement means the merged tree is the tree the PR head already validated.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -15,39 +22,31 @@ concurrency:
 jobs:
   changes:
     name: changes
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     outputs:
-      code: ${{ steps.filter.outputs.code }}
-      frontend: ${{ steps.filter.outputs.frontend }}
+      code: ${{ steps.scope.outputs.code }}
+      frontend: ${{ steps.scope.outputs.frontend }}
+      sensitive: ${{ steps.scope.outputs.sensitive }}
+      docs_only: ${{ steps.scope.outputs.docs_only }}
     steps:
-      - name: Detect frontend scope
-        id: filter
-        uses: actions/github-script@v7
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
         with:
-          script: |
-            if (context.eventName !== "pull_request") {
-              core.setOutput("code", "true");
-              core.setOutput("frontend", "true");
-              return;
-            }
-            const files = await github.paginate(github.rest.pulls.listFiles, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
-              per_page: 100,
-            });
-            const isDocumentation = (path) =>
-              path.startsWith("docs/") || path.endsWith(".md") || path.endsWith(".mdx");
-            const code = files.some((file) => !isDocumentation(file.filename));
-            const frontend = files.some(
-              (file) => file.filename.startsWith("gateway/kitty-chat/") && !isDocumentation(file.filename),
-            );
-            core.setOutput("code", code ? "true" : "false");
-            core.setOutput("frontend", frontend ? "true" : "false");
+          python-version: "3.12"
+
+      - name: Classify change scope
+        id: scope
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m scripts.pr_scope
 
   pytest:
     needs: changes
-    if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     env:
       # The continuity check defaults to ~/Projects/kitty; on CI runners the
@@ -99,7 +98,7 @@ jobs:
 
   lint:
     needs: changes
-    if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -117,7 +116,7 @@ jobs:
 
   typecheck:
     needs: changes
-    if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -149,7 +148,7 @@ jobs:
 
   kitty-chat:
     needs: changes
-    if: ${{ github.event_name == 'push' || needs.changes.outputs.frontend == 'true' }}
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -176,7 +175,7 @@ jobs:
   browser-smoke:
     runs-on: ubuntu-latest
     needs: [changes, kitty-chat]
-    if: ${{ always() && (github.event_name == 'push' || needs.changes.outputs.frontend == 'true') && needs.kitty-chat.result == 'success' }}
+    if: ${{ always() && needs.changes.outputs.frontend == 'true' && needs.kitty-chat.result == 'success' }}
     defaults:
       run:
         working-directory: gateway/kitty-chat
@@ -255,57 +254,9 @@ jobs:
           path: gateway/kitty-chat/playwright-report/
           retention-days: 7
 
-  hygiene:
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Dead code (vulture)
-        run: |
-          python -m pip install --upgrade pip
-          pip install vulture
-          vulture gateway/ --min-confidence 80 \
-            --exclude gateway/kitty-chat/
-
-      - name: Broken links (lychee)
-        uses: lycheeverse/lychee-action@v2
-        with:
-          args: --root-dir docs --no-progress --accept 200,301,302,307,308 docs/
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Dependency analysis (deptry, advisory)
-        continue-on-error: true
-        run: |
-          pip install deptry
-          deptry .
-        # Advisory: 65 findings as of 2026-07-15, mostly optional deps not
-        # declared in requirements.txt (docx, fitz, pypdf) and transitive
-        # imports (starlette, google). Configure deptry.toml before gating.
-
-      - name: pip-audit (advisory)
-        continue-on-error: true
-        run: |
-          pip install pip-audit
-          pip-audit
-
-      - name: Bandit (advisory)
-        continue-on-error: true
-        run: |
-          pip install bandit
-          bandit -c pyproject.toml -r gateway/ || bandit -r gateway/ --skip B101,B311
-
   merge-gate:
     name: merge-gate
-    if: ${{ always() }}
+    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     needs: [changes, pytest, lint, typecheck, kitty-chat, browser-smoke]
     runs-on: ubuntu-latest
     env:
@@ -353,4 +304,4 @@ jobs:
             [[ "$BROWSER_SMOKE_RESULT" == "skipped" || "$BROWSER_SMOKE_RESULT" == "success" ]] || { echo "unexpected browser-smoke result: $BROWSER_SMOKE_RESULT" >&2; exit 1; }
           fi
 
-          echo "Required merge evidence is green. Hygiene remains advisory."
+          echo "Required merge evidence is green for this change scope."

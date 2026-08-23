@@ -16,10 +16,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    name: scope
+    if: ${{ github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    outputs:
+      sensitive: ${{ steps.scope.outputs.sensitive }}
+    steps:
+      - name: Checkout trusted default-branch classifier
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Classify change scope
+        id: scope
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m scripts.pr_scope
+
   agent-review:
     name: agent-review
+    # Independent model review is evidence only sensitive scope consumes, so it
+    # is only produced for sensitive scope. Ordinary PRs carry no external model
+    # dependency at all, and a reviewer outage cannot block them.
+    #
+    # Metadata events (edited/labeled/unlabeled) deliberately do not recall the
+    # model: policy-gate re-evaluates live PR state on those events, but the code
+    # head under review has not changed.
+    needs: scope
     if: >-
       ${{ github.event.pull_request.draft == false &&
+          needs.scope.outputs.sensitive == 'true' &&
           (github.event.action == 'opened' ||
            github.event.action == 'synchronize' ||
            github.event.action == 'reopened' ||
@@ -50,8 +81,11 @@ jobs:
 
   policy-gate:
     name: policy-gate
+    # policy-gate classifies the live PR itself rather than trusting the scope
+    # job's answer, so a failed or skipped scope job can never downgrade a
+    # sensitive PR into one that needs no review evidence.
     if: ${{ always() && github.event.pull_request.draft == false }}
-    needs: agent-review
+    needs: [scope, agent-review]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout trusted default-branch policy
