@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -50,6 +51,8 @@ class Source(str, Enum):
     """Which store an :class:`Item` came from. Stable identifier; the string
     value is what callers see in :attr:`Item.source`."""
 
+    PROJECTS = "projects"
+    EXPLICIT_MEMORY = "explicit_memory"
     MEMORY = "memory"
     KNOWLEDGE = "knowledge"
     JOURNAL = "journal"
@@ -122,6 +125,95 @@ class StoreAdapter(ABC):
 
 
 # --- Store Adapters ---
+
+
+class ProjectAdapter(StoreAdapter):
+    """Read-only projection of canonical Project truth into request context."""
+
+    @property
+    def name(self) -> str:
+        return Source.PROJECTS.value
+
+    async def fetch(self, query: str) -> list[Item]:
+        from gateway.project_store import list_projects
+
+        projects = await asyncio.to_thread(list_projects)
+        terms = {term for term in re.findall(r"[^\W_]+", query.casefold()) if len(term) > 1}
+        items: list[Item] = []
+        for project in projects:
+            searchable = " ".join(
+                [str(project.get("name") or ""), str(project.get("summary") or ""),
+                 " ".join(map(str, project.get("next_actions") or [])),
+                 " ".join(map(str, project.get("open_questions") or []))]
+            ).casefold()
+            if terms and not any(term in searchable for term in terms):
+                continue
+            detail = [
+                f"Project {project.get('name')}: status={project.get('status', 'unknown')}",
+            ]
+            if project.get("summary"):
+                detail.append(f"summary={project['summary']}")
+            if project.get("next_actions"):
+                detail.append("next=" + "; ".join(map(str, project["next_actions"][:3])))
+            items.append(
+                Item(
+                    text=" | ".join(detail),
+                    source=Source.PROJECTS,
+                    score=None,
+                    metadata={
+                        "project_id": project.get("id"),
+                        "owner": "project_store",
+                        "kind": project.get("kind"),
+                        "status": project.get("status"),
+                    },
+                )
+            )
+            if len(items) >= 5:
+                break
+        return items
+
+
+class ExplicitMemoryAdapter(StoreAdapter):
+    """Governed user-confirmed memory that does not require Mem0/Ollama."""
+
+    @property
+    def name(self) -> str:
+        return Source.EXPLICIT_MEMORY.value
+
+    async def fetch(self, query: str) -> list[Item]:
+        from gateway.explicit_memory import search
+
+        rows = await asyncio.to_thread(search, query, limit=5)
+        items: list[Item] = []
+        for row in rows:
+            sensitivity = row.get("sensitivity") or "normal"
+            metadata = {
+                "id": row.get("id"),
+                "memory_key": row.get("memory_key"),
+                "namespace": row.get("namespace"),
+                "source_kind": row.get("source_kind"),
+                "source_ref": row.get("source_ref"),
+                "truth_confidence": row.get("truth_confidence", 1.0),
+                "pinned": bool(row.get("pinned")),
+                "sensitivity": "high" if sensitivity != "normal" else "normal",
+            }
+            updated = row.get("updated_at")
+            ts = None
+            if isinstance(updated, str) and updated:
+                try:
+                    ts = datetime.fromisoformat(updated)
+                except ValueError:
+                    ts = None
+            items.append(
+                Item(
+                    text=str(row.get("text") or ""),
+                    source=Source.EXPLICIT_MEMORY,
+                    score=None,
+                    ts=ts,
+                    metadata=metadata,
+                )
+            )
+        return [item for item in items if item.text]
 
 
 class MemoryAdapter(StoreAdapter):
@@ -470,6 +562,8 @@ class WeaveAdapter(StoreAdapter):
 def _default_adapters() -> list[StoreAdapter]:
     """The active store adapters. MemPalace is appended only when enabled."""
     adapters: list[StoreAdapter] = [
+        ProjectAdapter(),
+        ExplicitMemoryAdapter(),
         MemoryAdapter(),
         KnowledgeAdapter(),
         JournalAdapter(),
@@ -477,7 +571,6 @@ def _default_adapters() -> list[StoreAdapter]:
         TodosAdapter(),
         InboxAdapter(),
         SignalsAdapter(),
-        WeaveAdapter(),
     ]
     try:
         from gateway.mempalace_adapter import MemPalaceAdapter
@@ -678,7 +771,7 @@ def _select_unified_items(
 
             lines.append(f"- {text}")
             evidence: MemoryEvidence = {"text": text}
-            memory_id = item.metadata.get("id") if item.source is Source.MEMORY else None
+            memory_id = item.metadata.get("id") if item.source in {Source.MEMORY, Source.EXPLICIT_MEMORY} else None
             if isinstance(memory_id, str) and memory_id.strip():
                 evidence["memory_id"] = memory_id
             section_rendered.append(evidence)

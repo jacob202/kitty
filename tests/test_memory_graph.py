@@ -11,6 +11,7 @@ import gateway.memory_graph as memory_graph_module
 from gateway import prefetcher
 from gateway.memory_graph import (
     CONTEXT_TOKEN_CAP,
+    ExplicitMemoryAdapter,
     GraphResult,
     InboxAdapter,
     Item,
@@ -18,12 +19,12 @@ from gateway.memory_graph import (
     KnowledgeAdapter,
     MemoryAdapter,
     MemoryGraph,
+    ProjectAdapter,
     SignalsAdapter,
     Source,
     StoreAdapter,
     TodosAdapter,
     TracesAdapter,
-    WeaveAdapter,
     _fetch_traces,
     unified_context,
 )
@@ -46,6 +47,8 @@ async def test_search_all_returns_all_keys():
     """``MemoryGraph.search_all`` should always return the canonical store keys
     and each value should be a ``list[Item]``."""
     with (
+        patch.object(ProjectAdapter, "fetch", new=AsyncMock(return_value=[])),
+        patch.object(ExplicitMemoryAdapter, "fetch", new=AsyncMock(return_value=[])),
         patch.object(MemoryAdapter, "fetch", new=AsyncMock(return_value=[])),
         patch.object(KnowledgeAdapter, "fetch", new=AsyncMock(return_value=[])),
         patch.object(JournalAdapter, "fetch", new=AsyncMock(return_value=[])),
@@ -53,11 +56,12 @@ async def test_search_all_returns_all_keys():
         patch.object(TodosAdapter, "fetch", new=AsyncMock(return_value=[])),
         patch.object(InboxAdapter, "fetch", new=AsyncMock(return_value=[])),
         patch.object(SignalsAdapter, "fetch", new=AsyncMock(return_value=[])),
-        patch.object(WeaveAdapter, "fetch", new=AsyncMock(return_value=[])),
     ):
         graph = MemoryGraph()
         result = await graph.search_all("test query")
         assert set(result.results.keys()) == {
+            "projects",
+            "explicit_memory",
             "memory",
             "knowledge",
             "journal",
@@ -65,7 +69,6 @@ async def test_search_all_returns_all_keys():
             "todos",
             "inbox",
             "signals",
-            "facts",
         }
         assert all(isinstance(v, list) for v in result.results.values())
         assert all(isinstance(it, Item) for v in result.results.values() for it in v)
