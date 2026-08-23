@@ -57,8 +57,18 @@ class ImageJobStatus(str, Enum):
 # Allowed lifecycle transitions: {current: {next, ...}}
 _ALLOWED_TRANSITIONS: dict[ImageJobStatus, set[ImageJobStatus]] = {
     ImageJobStatus.CREATED: {ImageJobStatus.SUBMITTED, ImageJobStatus.FAILED, ImageJobStatus.CANCELED},
-    ImageJobStatus.SUBMITTED: {ImageJobStatus.RUNNING, ImageJobStatus.FAILED, ImageJobStatus.CANCELED},
-    ImageJobStatus.RUNNING: {ImageJobStatus.SUCCEEDED, ImageJobStatus.FAILED, ImageJobStatus.CANCELED},
+    ImageJobStatus.SUBMITTED: {
+        ImageJobStatus.RUNNING,
+        ImageJobStatus.UNKNOWN,
+        ImageJobStatus.FAILED,
+        ImageJobStatus.CANCELED,
+    },
+    ImageJobStatus.RUNNING: {
+        ImageJobStatus.UNKNOWN,
+        ImageJobStatus.SUCCEEDED,
+        ImageJobStatus.FAILED,
+        ImageJobStatus.CANCELED,
+    },
     ImageJobStatus.UNKNOWN: {ImageJobStatus.SUCCEEDED, ImageJobStatus.FAILED},
     ImageJobStatus.SUCCEEDED: set(),
     ImageJobStatus.FAILED: set(),
@@ -808,6 +818,20 @@ def list_queue(limit: int = 50) -> list[ImageJob]:
     return [_row_to_job(r) for r in rows]
 
 
+def list_unknown(limit: int = 50) -> list[ImageJob]:
+    """Return unresolved provider outcomes for recovery, oldest first."""
+    if limit <= 0 or limit > 200:
+        raise ImageJobError(f"limit must be between 1 and 200, got {limit}")
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        rows = conn.execute(
+            "SELECT * FROM image_jobs WHERE status = ? "
+            "ORDER BY updated_at ASC, job_id ASC LIMIT ?",
+            (ImageJobStatus.UNKNOWN.value, limit),
+        ).fetchall()
+    return [_row_to_job(row) for row in rows]
+
+
 def requeue(job_id: str) -> ImageJob:
     """Re-queue a failed job for retry. Increments retry_count and resets state.
 
@@ -880,6 +904,7 @@ __all__ = [
     "list_recent",
     "list_children",
     "list_queue",
+    "list_unknown",
     "transition",
     "update_job",
     "requeue",

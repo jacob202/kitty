@@ -737,6 +737,65 @@ def release_reserved_attempt_cost(
     return require_session(session_id)
 
 
+def finalize_recovered_paid_job(
+    session_id: str,
+    job_id: str,
+    *,
+    reserved_cost_usd: float,
+    actual_cost_usd: float,
+) -> ImageSession:
+    """Atomically settle one recovered paid attempt and mark its artifact successful."""
+    if reserved_cost_usd < 0 or actual_cost_usd < 0:
+        raise ImageSessionError("recovered paid costs must not be negative")
+
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        session = conn.execute(
+            "SELECT reserved_spend_usd FROM image_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if session is None:
+            raise SessionNotFoundError(f"no image session {session_id!r}")
+        job = conn.execute(
+            "SELECT session_id, status, output_path, canonical_artifact_id "
+            "FROM image_jobs WHERE job_id = ?",
+            (job_id,),
+        ).fetchone()
+        if job is None:
+            raise ImageSessionError(f"no image job {job_id!r} to finalize")
+        if job["session_id"] != session_id:
+            raise ImageSessionError(
+                f"job {job_id!r} does not belong to session {session_id!r}"
+            )
+        if job["status"] != "unknown":
+            raise ImageSessionError(
+                f"job {job_id!r} is {job['status']!r}; only unknown jobs can be recovered"
+            )
+        if not job["output_path"] or not job["canonical_artifact_id"]:
+            raise ImageSessionError(
+                f"job {job_id!r} cannot be finalized before canonical artifact commit"
+            )
+        reserved = float(session["reserved_spend_usd"] or 0.0)
+        if reserved + 1e-12 < reserved_cost_usd:
+            raise ImageSessionError(
+                f"session {session_id!r} reserved exposure ${reserved:.3f} is below the "
+                f"${reserved_cost_usd:.3f} recovered reservation"
+            )
+        now = _now_iso()
+        conn.execute(
+            "UPDATE image_sessions SET reserved_spend_usd = reserved_spend_usd - ?, "
+            "spend_usd = spend_usd + ?, updated_at = ? WHERE session_id = ?",
+            (reserved_cost_usd, actual_cost_usd, now, session_id),
+        )
+        conn.execute(
+            "UPDATE image_jobs SET status = 'succeeded', normalized_error = NULL, "
+            "updated_at = ?, finished_at = ? WHERE job_id = ?",
+            (now, now, job_id),
+        )
+    return require_session(session_id)
+
+
 def record_attempt(session_id: str, *, cost_usd: float = 0.0) -> ImageSession:
     """Count one completed render attempt and add its cost to the session total."""
     if cost_usd < 0:

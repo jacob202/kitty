@@ -4,7 +4,7 @@ Routes become thin handlers: request model → run() → status-code mapping.
 The runner owns job creation, engine dispatch, lifecycle transitions, artifact
 persistence, error normalization, and character-contract resolution.
 
-Invariant: if run() returns or raises, the job is in a terminal state.
+Invariant: if run() returns or raises, the job is terminal or explicitly quarantined UNKNOWN.
 """
 
 from __future__ import annotations
@@ -28,6 +28,10 @@ class ImageRunnerError(RuntimeError):
 
 class ImageDispatchNotSubmittedError(ImageRunnerError):
     """Raised only when Kitty can prove no provider submission occurred."""
+
+
+class ImageProviderOutcomeUnknownError(ImageRunnerError):
+    """Raised when a paid provider may have accepted work but outcome is unknown."""
 
 
 FAL_PULID_COST_PER_OUTPUT_MP_USD = 0.0333
@@ -92,6 +96,8 @@ async def run(
     project_id: int | None = None,
     plan_id: str | None = None,
     intent_json: str | None = None,
+    session_id: str | None = None,
+    reserved_cost_usd: float | None = None,
 ) -> JobResult:
     """Generate an image through the specified engine.
 
@@ -120,6 +126,7 @@ async def run(
         return await _run_flux(
             prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
             project_id=project_id, plan_id=plan_id, intent_json=intent_json,
+            session_id=session_id, reserved_cost_usd=reserved_cost_usd,
         )
 
     if engine == "flux2":
@@ -134,6 +141,8 @@ async def run(
             project_id=project_id,
             plan_id=plan_id,
             intent_json=intent_json,
+            session_id=session_id,
+            reserved_cost_usd=reserved_cost_usd,
         )
 
     if engine == "openrouter":
@@ -594,14 +603,216 @@ async def _run_comfyui_character(
 
 
 def _mark_failed(job_id: str, message: str) -> None:
-    """Record a failure unless the job already reached a terminal state."""
+    """Record a known failure without collapsing an unresolved provider outcome."""
     job = image_jobs.get_job(job_id)
     if job is None:
         return
-    if job.status.is_terminal():
+    if job.status.is_terminal() or job.status is ImageJobStatus.UNKNOWN:
         return
     image_jobs.update_job(job_id, normalized_error=message)
     image_jobs.transition(job_id, ImageJobStatus.FAILED)
+
+
+def _mark_unknown(job_id: str, message: str) -> None:
+    """Preserve an ambiguous post-submission outcome for later reconciliation."""
+    job = image_jobs.get_job(job_id)
+    if job is None or job.status.is_terminal():
+        return
+    image_jobs.update_job(job_id, normalized_error=message)
+    if job.status is not ImageJobStatus.UNKNOWN:
+        image_jobs.transition(job_id, ImageJobStatus.UNKNOWN)
+
+
+def _persist_bfl_receipt(
+    job_id: str,
+    submit_payload: dict[str, Any],
+    *,
+    project_id: int | None,
+    session_id: str | None = None,
+    reserved_cost_usd: float | None = None,
+) -> str:
+    """Persist the provider request identity and poll locator before waiting."""
+    polling_url = str(submit_payload.get("polling_url") or "").strip()
+    if not polling_url:
+        raise ImageProviderOutcomeUnknownError("BFL accepted a request without a polling_url")
+    request_id = str(submit_payload.get("id") or polling_url).strip()
+    diagnostics: dict[str, Any] = {
+        "receipt_version": 1,
+        "request_id": request_id,
+        "polling_url": polling_url,
+    }
+    if project_id is not None:
+        diagnostics["project_id"] = project_id
+    if session_id is not None:
+        diagnostics["session_id"] = session_id
+    if reserved_cost_usd is not None:
+        diagnostics["reserved_cost_usd"] = float(reserved_cost_usd)
+    raw_cost = submit_payload.get("cost")
+    if isinstance(raw_cost, (int, float)) and not isinstance(raw_cost, bool) and raw_cost >= 0:
+        diagnostics["provider_cost_credits"] = float(raw_cost)
+    image_jobs.update_job(
+        job_id,
+        provider_job_id=request_id,
+        provider_diagnostics_json=json.dumps(diagnostics, sort_keys=True),
+    )
+    return polling_url
+
+
+def _attach_job_to_session_before_dispatch(job_id: str, session_id: str | None) -> None:
+    """Persist Studio ownership before any provider call can become billable."""
+    if session_id is None:
+        return
+    from gateway.image_sessions import ImageSessionError, attach_job
+
+    try:
+        attach_job(session_id, job_id)
+    except ImageSessionError as exc:
+        raise ImageDispatchNotSubmittedError(str(exc)) from exc
+
+
+async def recover_bfl_job(job_id: str) -> JobResult:
+    """Recover one UNKNOWN BFL job from its durable receipt without resubmitting."""
+    import httpx
+
+    job = image_jobs.get_job(job_id)
+    if job is None:
+        raise ImageRunnerError(f"no image job {job_id!r} to recover")
+    if job.status is not ImageJobStatus.UNKNOWN:
+        raise ImageRunnerError(
+            f"job {job_id!r} is {job.status.value}; only unknown BFL jobs are recoverable"
+        )
+    if job.provider not in {"flux", "flux2"}:
+        raise ImageRunnerError(
+            f"job {job_id!r} uses provider {job.provider!r}; BFL recovery is unsupported"
+        )
+
+    try:
+        diagnostics = json.loads(job.provider_diagnostics_json or "{}")
+    except json.JSONDecodeError as exc:
+        raise ImageProviderOutcomeUnknownError(
+            f"job {job_id!r} has an unreadable BFL provider receipt"
+        ) from exc
+    if not isinstance(diagnostics, dict):
+        raise ImageProviderOutcomeUnknownError(
+            f"job {job_id!r} has an invalid BFL provider receipt"
+        )
+    polling_url = str(diagnostics.get("polling_url") or "").strip()
+    if not polling_url:
+        raise ImageProviderOutcomeUnknownError(
+            f"job {job_id!r} has no durable BFL polling URL; provider outcome remains unknown"
+        )
+    api_key = os.environ.get("BFL_API_KEY", "").strip()
+    if not api_key:
+        raise ImageProviderOutcomeUnknownError(
+            f"job {job_id!r} cannot reconcile until BFL_API_KEY is configured"
+        )
+
+    headers = {"x-key": api_key}
+    try:
+        async with httpx.AsyncClient(timeout=180) as client:
+            for _ in range(150):
+                poll = await client.get(polling_url, headers=headers)
+                poll.raise_for_status()
+                state = poll.json()
+                status = str(state.get("status") or "")
+                if status not in {"Pending", "Queued", "Processing"}:
+                    break
+                await asyncio.sleep(2)
+            else:
+                message = f"job {job_id!r} BFL reconciliation timed out; outcome remains unknown"
+                _mark_unknown(job_id, message)
+                raise ImageProviderOutcomeUnknownError(message)
+
+            if status != "Ready":
+                message = f"BFL reconciled job {job_id!r} as {status or 'failed'}"
+                image_jobs.update_job(job_id, normalized_error=message)
+                image_jobs.transition(job_id, ImageJobStatus.FAILED)
+                raise ImageRunnerError(message)
+
+            result = state.get("result") or {}
+            sample = result.get("sample") if isinstance(result, dict) else None
+            if not sample:
+                message = f"BFL reported job {job_id!r} Ready without a recoverable image URL"
+                _mark_unknown(job_id, message)
+                raise ImageProviderOutcomeUnknownError(message)
+
+            download = await client.get(str(sample))
+            download.raise_for_status()
+            data = download.content
+    except ImageRunnerError:
+        raise
+    except httpx.HTTPError as exc:
+        message = f"BFL reconciliation transport error for job {job_id!r}: {exc}"
+        _mark_unknown(job_id, message)
+        raise ImageProviderOutcomeUnknownError(message) from exc
+
+    seed = result.get("seed") if isinstance(result, dict) else None
+    if seed is not None:
+        diagnostics["seed"] = seed
+        image_jobs.update_job(
+            job_id, provider_diagnostics_json=json.dumps(diagnostics, sort_keys=True)
+        )
+
+    path = _persist_artifact(job_id, f"{job_id}.png", data)
+    image_jobs.update_job(job_id, output_path=str(path))
+    project_id = diagnostics.get("project_id")
+    image_jobs.register_canonical_artifact(
+        job_id, project_id=project_id if isinstance(project_id, int) else None
+    )
+
+    raw_cost = diagnostics.get("provider_cost_credits")
+    cost_usd = (
+        float(raw_cost) * 0.01
+        if isinstance(raw_cost, (int, float)) and not isinstance(raw_cost, bool) and raw_cost >= 0
+        else None
+    )
+    receipt_session_id = diagnostics.get("session_id")
+    reserved_cost = diagnostics.get("reserved_cost_usd")
+    if (
+        isinstance(receipt_session_id, str)
+        and isinstance(reserved_cost, (int, float))
+        and not isinstance(reserved_cost, bool)
+        and cost_usd is not None
+    ):
+        from gateway.image_sessions import (
+            ImageSessionError,
+            finalize_recovered_paid_job,
+        )
+
+        try:
+            finalize_recovered_paid_job(
+                receipt_session_id,
+                job_id,
+                reserved_cost_usd=float(reserved_cost),
+                actual_cost_usd=cost_usd,
+            )
+        except ImageSessionError as exc:
+            message = f"BFL artifact recovered but spend settlement remains unresolved: {exc}"
+            _mark_unknown(job_id, message)
+            raise ImageProviderOutcomeUnknownError(message) from exc
+    else:
+        image_jobs.transition(job_id, ImageJobStatus.SUCCEEDED)
+    return JobResult(
+        job_id=job_id,
+        filename=str(path),
+        engine=job.provider,
+        cost_usd=cost_usd,
+        cost_source="provider_reported" if cost_usd is not None else None,
+    )
+
+
+async def recover_unknown_bfl_jobs(limit: int = 50) -> int:
+    """Best-effort recovery pass for unresolved BFL jobs; never submits new work."""
+    recovered = 0
+    for job in image_jobs.list_unknown(limit=limit):
+        if job.provider not in {"flux", "flux2"}:
+            continue
+        try:
+            await recover_bfl_job(job.job_id)
+        except ImageRunnerError:
+            continue
+        recovered += 1
+    return recovered
 
 
 #: Engines ``run`` will dispatch to. Hosted engines carry a conservative
@@ -1014,6 +1225,8 @@ async def _run_flux(
     project_id: int | None = None,
     plan_id: str | None = None,
     intent_json: str | None = None,
+    session_id: str | None = None,
+    reserved_cost_usd: float | None = None,
 ) -> JobResult:
     """Black Forest Labs lane, on the shared job lifecycle.
 
@@ -1052,16 +1265,34 @@ async def _run_flux(
     )
 
     try:
+        _attach_job_to_session_before_dispatch(job.job_id, session_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
         headers = {"x-key": os.environ["BFL_API_KEY"], "Content-Type": "application/json"}
         async with httpx.AsyncClient(timeout=180) as client:
-            submit = await client.post(f"{FLUX_API}/{model}", headers=headers, json=payload)
+            try:
+                submit = await client.post(
+                    f"{FLUX_API}/{model}", headers=headers, json=payload
+                )
+            except httpx.HTTPError as exc:
+                message = f"Flux provider outcome unknown after submit transport error: {exc}"
+                _mark_unknown(job.job_id, message)
+                raise ImageProviderOutcomeUnknownError(message) from exc
             if submit.status_code != 200:
                 raise ImageRunnerError(
                     f"Flux returned HTTP {submit.status_code}: {submit.text[:300]}"
                 )
             submit_payload = submit.json()
-            polling_url = submit_payload["polling_url"]
+            try:
+                polling_url = _persist_bfl_receipt(
+                    job.job_id,
+                    submit_payload,
+                    project_id=project_id,
+                    session_id=session_id,
+                    reserved_cost_usd=reserved_cost_usd,
+                )
+            except ImageProviderOutcomeUnknownError as exc:
+                _mark_unknown(job.job_id, str(exc))
+                raise
             raw_cost_credits = submit_payload.get("cost")
             cost_usd = (
                 float(raw_cost_credits) * 0.01
@@ -1070,15 +1301,24 @@ async def _run_flux(
             )
 
             image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
-            for _ in range(150):
-                poll = await client.get(polling_url, headers={"x-key": headers["x-key"]})
-                state = poll.json()
-                status = state.get("status")
-                if status not in {"Pending", "Queued", "Processing"}:
-                    break
-                await _asyncio.sleep(2)
-            else:
-                raise TimeoutError("Flux did not finish within 5 minutes")
+            try:
+                for _ in range(150):
+                    poll = await client.get(
+                        polling_url, headers={"x-key": headers["x-key"]}
+                    )
+                    state = poll.json()
+                    status = state.get("status")
+                    if status not in {"Pending", "Queued", "Processing"}:
+                        break
+                    await _asyncio.sleep(2)
+                else:
+                    message = "Flux provider outcome unknown after polling timeout"
+                    _mark_unknown(job.job_id, message)
+                    raise ImageProviderOutcomeUnknownError(message)
+            except httpx.HTTPError as exc:
+                message = f"Flux provider outcome unknown after polling error: {exc}"
+                _mark_unknown(job.job_id, message)
+                raise ImageProviderOutcomeUnknownError(message) from exc
 
         if status != "Ready":
             # "Request Moderated" and "Content Moderated" arrive here. Say which.
@@ -1122,6 +1362,8 @@ async def _run_flux2(
     project_id: int | None = None,
     plan_id: str | None = None,
     intent_json: str | None = None,
+    session_id: str | None = None,
+    reserved_cost_usd: float | None = None,
 ) -> JobResult:
     """Hosted FLUX.2 (BFL Direct) lane on the shared job lifecycle.
 
@@ -1170,34 +1412,58 @@ async def _run_flux2(
     )
 
     try:
+        _attach_job_to_session_before_dispatch(job.job_id, session_id)
         image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
         headers = flux2_transport.submit_headers()
         async with httpx.AsyncClient(timeout=180) as client:
-            submit = await client.post(
-                flux2_transport.endpoint_for(target), headers=headers, json=payload
-            )
+            try:
+                submit = await client.post(
+                    flux2_transport.endpoint_for(target), headers=headers, json=payload
+                )
+            except httpx.HTTPError as exc:
+                message = (
+                    "BFL Direct provider outcome unknown after submit transport error: "
+                    f"{exc}"
+                )
+                _mark_unknown(job.job_id, message)
+                raise ImageProviderOutcomeUnknownError(message) from exc
             if submit.status_code != 200:
                 raise ImageRunnerError(
                     f"BFL Direct returned HTTP {submit.status_code}: {submit.text[:300]}"
                 )
             submit_payload = submit.json()
-            polling_url = submit_payload.get("polling_url")
-            if not polling_url:
-                raise ImageRunnerError(
-                    "BFL Direct submitted without a polling_url"
+            try:
+                polling_url = _persist_bfl_receipt(
+                    job.job_id,
+                    submit_payload,
+                    project_id=project_id,
+                    session_id=session_id,
+                    reserved_cost_usd=reserved_cost_usd,
                 )
+            except ImageProviderOutcomeUnknownError as exc:
+                _mark_unknown(job.job_id, str(exc))
+                raise
             cost_usd = flux2_transport.parse_cost_usd(submit_payload)
 
             image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
-            for _ in range(150):
-                poll = await client.get(polling_url, headers={"x-key": headers["x-key"]})
-                state = poll.json()
-                status = state.get("status", "")
-                if not flux2_transport.is_running_status(status):
-                    break
-                await _asyncio.sleep(2)
-            else:
-                raise TimeoutError("BFL Direct did not finish within 5 minutes")
+            try:
+                for _ in range(150):
+                    poll = await client.get(
+                        polling_url, headers={"x-key": headers["x-key"]}
+                    )
+                    state = poll.json()
+                    status = state.get("status", "")
+                    if not flux2_transport.is_running_status(status):
+                        break
+                    await _asyncio.sleep(2)
+                else:
+                    message = "BFL Direct provider outcome unknown after polling timeout"
+                    _mark_unknown(job.job_id, message)
+                    raise ImageProviderOutcomeUnknownError(message)
+            except httpx.HTTPError as exc:
+                message = f"BFL Direct provider outcome unknown after polling error: {exc}"
+                _mark_unknown(job.job_id, message)
+                raise ImageProviderOutcomeUnknownError(message) from exc
 
         if status != "Ready":
             # "Request Moderated" and "Content Moderated" arrive here. Say which.
@@ -1209,10 +1475,16 @@ async def _run_flux2(
         seed = flux2_transport.seed_from_result(result)
 
         if seed is not None and compiled_request.seed is None:
-            import json as _json
-
+            current = image_jobs.get_job(job.job_id)
+            diagnostics = json.loads(
+                current.provider_diagnostics_json or "{}"
+            ) if current is not None else {}
+            if not isinstance(diagnostics, dict):
+                diagnostics = {}
+            diagnostics["seed"] = seed
             image_jobs.update_job(
-                job.job_id, provider_diagnostics_json=_json.dumps({"seed": seed})
+                job.job_id,
+                provider_diagnostics_json=json.dumps(diagnostics, sort_keys=True),
             )
 
         async with httpx.AsyncClient(timeout=180) as client:

@@ -512,3 +512,88 @@ class TestDirectHostedProvenance:
         assert job is not None
         assert job.plan_id == "imgplan_flux_legacy"
         assert job.intent_json == '{"intent_version":1,"operation":"txt2img"}'
+    @pytest.mark.asyncio
+    async def test_legacy_flux_submit_response_loss_stays_unknown(self, monkeypatch):
+        import httpx
+
+        class Client:
+            def __init__(self):
+                self.post_calls = 0
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def post(self, *_args, **_kwargs):
+                self.post_calls += 1
+                raise httpx.ReadTimeout("submit response lost")
+
+            async def get(self, *_args, **_kwargs):
+                raise AssertionError("must not poll without a provider receipt")
+
+        client = Client()
+        monkeypatch.setenv("BFL_API_KEY", "test-key")
+        monkeypatch.setattr("gateway.image_runner.flux_images_available", lambda: (True, ""))
+        monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: client)
+
+        with pytest.raises(ImageRunnerError) as exc:
+            await run("flux", "a portrait")
+
+        assert type(exc.value).__name__ == "ImageProviderOutcomeUnknownError"
+        assert client.post_calls == 1
+        job = image_jobs.list_recent(limit=1)[0]
+        assert job.status is ImageJobStatus.UNKNOWN
+        assert job.provider_job_id is None
+        with pytest.raises(image_jobs.ImageJobError, match="only FAILED jobs can be requeued"):
+            image_jobs.requeue(job.job_id)
+
+    @pytest.mark.asyncio
+    async def test_legacy_flux_poll_loss_preserves_provider_receipt(self, monkeypatch):
+        import json
+
+        import httpx
+
+        submit_payload = {
+            "id": "legacy-bfl-123",
+            "polling_url": "https://poll/legacy-bfl-123",
+            "cost": 1.0,
+        }
+
+        class Response:
+            status_code = 200
+            text = ""
+
+            def json(self):
+                return submit_payload
+
+        class Client:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def post(self, *_args, **_kwargs):
+                return Response()
+
+            async def get(self, url, **_kwargs):
+                if url == submit_payload["polling_url"]:
+                    raise httpx.ReadTimeout("poll response lost")
+                raise AssertionError(f"unexpected download before recovery: {url}")
+
+        monkeypatch.setenv("BFL_API_KEY", "test-key")
+        monkeypatch.setattr("gateway.image_runner.flux_images_available", lambda: (True, ""))
+        monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: Client())
+
+        with pytest.raises(ImageRunnerError) as exc:
+            await run("flux", "a portrait")
+
+        assert type(exc.value).__name__ == "ImageProviderOutcomeUnknownError"
+        job = image_jobs.list_recent(limit=1)[0]
+        assert job.status is ImageJobStatus.UNKNOWN
+        assert job.provider_job_id == "legacy-bfl-123"
+        diagnostics = json.loads(job.provider_diagnostics_json)
+        assert diagnostics["request_id"] == "legacy-bfl-123"
+        assert diagnostics["polling_url"] == submit_payload["polling_url"]
