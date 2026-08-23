@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from gateway import automation_actions
@@ -52,3 +52,24 @@ async def automation_status():
         "actions": automation_actions.get_actions(),
         "services": supervisor.snapshot(),
     }
+
+
+@router.get("/automations/schedules/{schedule_id}/why")
+async def schedule_why(schedule_id: str):
+    from dataclasses import asdict
+
+    from gateway.why_not import WhyNotFound, explain_schedule
+
+    try:
+        return {"explanation": asdict(explain_schedule(schedule_id))}
+    except WhyNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/automations/{action}/why")
+async def automation_why(action: str):
+    from dataclasses import asdict
+
+    from gateway.why_not import explain_action
+
+    return {"explanation": asdict(explain_action(action))}
