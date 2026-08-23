@@ -366,6 +366,36 @@ async def test_inbox_adapter_matches_capture_text_and_tags(tmp_path, monkeypatch
     assert by_tag[0].metadata["id"] == "capture-1"
 
 
+@pytest.mark.asyncio
+async def test_knowledge_adapter_reads_actual_score_field(monkeypatch):
+    """C4-05: gateway.knowledge.search returns rows keyed 'score', but the
+    adapter was reading '_score' — every Knowledge Item.score was silently
+    None regardless of the store's real relevance ranking."""
+
+    async def fake_search(query, limit):
+        return [{"text": "a relevant chunk", "score": 0.87}]
+
+    monkeypatch.setattr("gateway.knowledge.search", fake_search)
+
+    items = await KnowledgeAdapter().fetch("hello")
+
+    assert items[0].score == 0.87
+
+
+def test_select_unified_items_budgets_by_score_not_adapter_order():
+    """C4-05: within a store's items, the highest-scored ones must win a
+    budget slot — not whichever the adapter happened to list first."""
+    low = Item(text="low relevance", source=Source.KNOWLEDGE, score=0.1)
+    high = Item(text="high relevance", source=Source.KNOWLEDGE, score=0.9)
+
+    sections, rendered = memory_graph_module._select_unified_items(
+        {"knowledge": [low, high]}, cap=1000, query=""
+    )
+
+    assert rendered[0]["text"] == "high relevance"
+    assert sections[0].index("high relevance") < sections[0].index("low relevance")
+
+
 @pytest.fixture
 def _project_scope_db(tmp_path, monkeypatch):
     """Isolated project store + matching active-project scope, both pointed
