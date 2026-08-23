@@ -71,6 +71,7 @@ import {
   setActiveProject,
   fetchProjectNext,
   fetchProjectNextSteps,
+  fetchProjectResume,
   refreshProject,
   type GatewayProject,
   // deadlines
@@ -660,6 +661,14 @@ export function useProjectNext(projectId: number) {
   return useQuery({
     queryKey: ['projects', projectId, 'next'],
     queryFn: () => fetchProjectNext(projectId),
+    staleTime: 60_000,
+  })
+}
+
+export function useProjectResume(projectId: number) {
+  return useQuery({
+    queryKey: ['projects', projectId, 'resume'],
+    queryFn: () => fetchProjectResume(projectId),
     staleTime: 60_000,
   })
 }

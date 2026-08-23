@@ -5,16 +5,23 @@ real commits), not a mocked subprocess — proves the actual git invocations
 work, not just that they were called.
 """
 import subprocess
+from typing import Any
 
 import pytest
 
-from gateway import project_resume, project_store
+from gateway import artifact_store, project_resume, project_store
 
 
 @pytest.fixture(autouse=True)
 def isolate_project_store(monkeypatch, tmp_path):
+    # Both project_store and artifact_store point at the same physical
+    # kitty.db in production (both derive from paths.KITTY_DB_FILE), so
+    # isolating tests means patching both module-level constants to the
+    # same tmp_path file — otherwise artifact_store would fall through
+    # to the real on-disk database.
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(artifact_store, "ARTIFACTS_DB_FILE", db_file, raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -166,6 +173,96 @@ class TestResume:
         resumed = project_resume.resume(project["id"])
         assert resumed["kind"] == "admin"
         assert "git" not in resumed
+
+
+def _register_artifact(tmp_path, *, project_id, name="file.txt", kind="text"):
+    """Create a real artifact row against the isolated test DB."""
+    src = tmp_path / name
+    src.write_text(f"content for {name}", encoding="utf-8")
+    return artifact_store.register_file(
+        src,
+        kind=kind,
+        media_type="text/plain",
+        project_id=project_id,
+        created_by="test",
+    )
+
+
+class TestArtifactSource:
+    def test_resume_returns_project_artifacts(self, tmp_path):
+        project = project_store.create("with-artifacts", "admin")
+        registered = _register_artifact(tmp_path, project_id=project["id"])
+
+        resumed = project_resume.resume(project["id"])
+
+        assert len(resumed["artifacts"]) == 1
+        entry = resumed["artifacts"][0]
+        assert entry["id"] == registered["id"]
+        assert entry["kind"] == "text"
+        assert entry["display_name"] == "file.txt"
+        assert entry["state"] == "ready"
+        assert entry["created_at"] == registered["created_at"]
+        assert entry["media_type"] == "text/plain"
+        assert entry["size_bytes"] == registered["size_bytes"]
+
+    def test_resume_bounds_artifacts_to_the_limit(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(project_resume, "ARTIFACT_LIMIT", 3)
+        project = project_store.create("many-artifacts", "admin")
+        for i in range(5):
+            _register_artifact(tmp_path, project_id=project["id"], name=f"file{i}.txt")
+
+        resumed = project_resume.resume(project["id"])
+
+        assert len(resumed["artifacts"]) == 3
+
+    def test_project_with_zero_artifacts_returns_empty_list(self):
+        project = project_store.create("no-artifacts", "admin")
+
+        resumed = project_resume.resume(project["id"])
+
+        assert resumed["artifacts"] == []
+
+    def test_artifacts_are_scoped_to_the_requesting_project(self, tmp_path):
+        project_a = project_store.create("project-a", "admin")
+        project_b = project_store.create("project-b", "admin")
+        _register_artifact(tmp_path, project_id=project_a["id"], name="a.txt")
+        _register_artifact(tmp_path, project_id=project_b["id"], name="b.txt")
+
+        resumed_a = project_resume.resume(project_a["id"])
+        resumed_b = project_resume.resume(project_b["id"])
+
+        assert [a["display_name"] for a in resumed_a["artifacts"]] == ["a.txt"]
+        assert [a["display_name"] for a in resumed_b["artifacts"]] == ["b.txt"]
+
+    def test_artifact_store_failure_does_not_crash_resume(self, tmp_path, monkeypatch):
+        project = project_store.create("flaky-artifacts", "admin")
+        _register_artifact(tmp_path, project_id=project["id"])
+
+        def boom(*, project_id=None, conversation_id=None, kind=None, limit=100):
+            raise RuntimeError("artifact store exploded")
+
+        monkeypatch.setattr(artifact_store, "list_artifacts", boom)
+
+        resumed = project_resume.resume(project["id"])
+
+        assert resumed["artifacts"] == []
+        assert resumed["id"] == project["id"]
+
+    def test_resume_with_artifacts_is_still_a_pure_read(self, tmp_path, monkeypatch):
+        project = project_store.create("pure-read-check", "admin")
+        _register_artifact(tmp_path, project_id=project["id"])
+
+        calls: list[Any] = []
+        monkeypatch.setattr(
+            project_store,
+            "update_fields",
+            lambda *a, **kw: calls.append((a, kw)) or pytest.fail("resume() must not mutate the project row"),
+        )
+
+        resumed = project_resume.resume(project["id"])
+
+        assert calls == []
+        assert len(resumed["artifacts"]) == 1
 
 
 def _empty_graph_result():
