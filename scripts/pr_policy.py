@@ -16,32 +16,16 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from scripts import pr_review_gate
+from scripts import pr_review_gate, pr_scope
 
 RISK_APPROVED_LABEL = "risk/approved"
 LARGE_CHANGE_LINES = 1500
 LARGE_CHANGE_FILES = 25
 
-RISK_PATTERNS = (
-    re.compile(r"^\.github/workflows/"),
-    re.compile(r"^\.github/dependabot\.yml$"),
-    re.compile(r"^scripts/pr_(?:policy|review|review_gate)\.py$"),
-    re.compile(r"^gateway/routes/auth", re.I),
-    re.compile(r"^gateway/auth", re.I),
-    re.compile(r"^gateway/security", re.I),
-    re.compile(r"^gateway/.*secret", re.I),
-    re.compile(r"^gateway/action_(?:queue|grants)\.py$"),
-    re.compile(r"^gateway/routes/actions\.py$"),
-    re.compile(r"^gateway/builder_(?:publish|pr_janitor)\.py$"),
-    re.compile(r"^scripts/purge_.*\.py$"),
-    re.compile(r"^.*\.env(?:\..*)?$"),
-    re.compile(r"^requirements.*\.txt$"),
-    re.compile(r"^pyproject\.toml$"),
-)
-
-USER_FACING_PATTERNS = (
-    re.compile(r"^gateway/kitty-chat/(?:src|public)/"),
-)
+# Sensitive and native-UI scope come from the one canonical classifier so the
+# gate that blocks and the CI that runs can never disagree about what a PR is.
+RISK_PATTERNS = pr_scope.RISK_PATTERNS
+USER_FACING_PATTERNS = pr_scope.USER_FACING_PATTERNS
 
 ACCEPTANCE_CHECKS = (
     "Every visible primary control either completes its task or is disabled with one clear recovery action.",
@@ -100,11 +84,11 @@ def _exact_head_approval(body: str, field: str, head_sha: str) -> str | None:
 
 
 def _risky_files(changed_files: list[str]) -> list[str]:
-    return [path for path in changed_files if any(pattern.search(path) for pattern in RISK_PATTERNS)]
+    return pr_scope.risky_files(changed_files)
 
 
 def _is_user_facing(changed_files: list[str]) -> bool:
-    return any(any(pattern.search(path) for pattern in USER_FACING_PATTERNS) for path in changed_files)
+    return pr_scope.is_user_facing(changed_files)
 
 
 def policy_warnings(pr: dict[str, Any]) -> list[str]:
@@ -182,17 +166,7 @@ def _github_json(url: str, token: str) -> Any:
 
 
 def _changed_files(owner: str, repo: str, pr_number: int, token: str) -> list[str]:
-    files: list[str] = []
-    page = 1
-    while True:
-        url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files?per_page=100&page={page}"
-        payload = _github_json(url, token)
-        if not isinstance(payload, list):
-            raise RuntimeError("GitHub list-files response was not a list")
-        files.extend(str(item["filename"]) for item in payload if isinstance(item, dict) and item.get("filename"))
-        if len(payload) < 100:
-            return files
-        page += 1
+    return pr_scope.pull_request_files(owner, repo, pr_number, token, fetch=_github_json)
 
 
 def main() -> None:

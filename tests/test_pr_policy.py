@@ -124,7 +124,7 @@ def test_policy_gate_is_consolidated_into_trusted_review_workflow() -> None:
     assert "pull_request_target:" in text
     assert "policy-gate:" in text
     assert "name: policy-gate" in text
-    assert "needs: agent-review" in text
+    assert "needs: [scope, agent-review]" in text
     assert "github.event.repository.default_branch" in text
 
 
