@@ -85,4 +85,12 @@ def set_active_project(project_id: int) -> dict[str, Any]:
     if project is None:
         raise ProjectContextError(f"cannot activate project {project_id}: project does not exist")
     _write_active_project_id(project_id)
+
+    # A cached unified-context answer can embed the previous active project's
+    # status/next-actions (ProjectAdapter now depends on this scope). Without
+    # invalidating, a generic query can keep serving the old project's
+    # context for up to the prefetch cache's 300s TTL after the switch.
+    from gateway import prefetcher
+
+    prefetcher.invalidate_all()
     return _project_result(project, "persisted")
