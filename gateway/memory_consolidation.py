@@ -1,8 +1,8 @@
 """Memory consolidation — periodic compression of traces into durable long-term memory.
 
 Called by:
-  - cron action  "memory.consolidate"  (registered at gateway startup)
-  - dream task via task_runner._run_dream()
+  - cron action  "memory.consolidate"  (registered at gateway startup, calls nightly_dream)
+  - cron action  "traces.compact"  (registered at gateway startup, calls prune_trace_log directly)
   - POST /session/end  (per-session lightweight consolidation)
 
 Main entry point: nightly_dream()
