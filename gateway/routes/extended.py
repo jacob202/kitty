@@ -970,7 +970,7 @@ async def studio_generate(req: StudioGenerateRequest):
         character_count = 1 if has_character else 0
         preferred_recipe = stored.recipe_id
         character_id = stored.character_id
-        character_ref_path = stored.character_ref_path
+        character_ref_path = getattr(stored, "character_ref_path", None)
         guidance_tags = stored.guidance_tags
 
         if operation == "img2img":
