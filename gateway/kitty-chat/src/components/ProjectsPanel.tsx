@@ -130,7 +130,7 @@ function ProjectWork({ projectId }: { projectId: number }) {
 
   if (resumeQuery.isLoading || resumeQuery.isError) return null
 
-  const items = resumeQuery.data?.work.items ?? []
+  const items = resumeQuery.data?.work?.items ?? []
   if (items.length === 0) return null
 
   return (
