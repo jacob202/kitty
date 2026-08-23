@@ -239,7 +239,133 @@ class TestTxt2ImgEndpoint:
         assert job.intent_json == '{"intent_version":1,"operation":"txt2img"}'
         params = _json.loads(job.compiler_params_json)
         assert params["compiler_id"] == "flux2@1"
+        diagnostics = _json.loads(job.provider_diagnostics_json)
+        assert diagnostics["polling_url"] == submit["polling_url"]
+        assert diagnostics["seed"] == 42
         assert job.status.value == "succeeded"
+
+
+    @pytest.mark.asyncio
+    async def test_submit_response_loss_becomes_unknown_without_retry(self, monkeypatch):
+        import httpx
+
+        class SubmitResponseLostClient:
+            def __init__(self):
+                self.post_calls = 0
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_exc):
+                return False
+
+            async def post(self, *_args, **_kwargs):
+                self.post_calls += 1
+                raise httpx.ReadTimeout("submit response lost")
+
+            async def get(self, *_args, **_kwargs):
+                raise AssertionError("must not poll without a provider receipt")
+
+        client = SubmitResponseLostClient()
+        monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: client)
+
+        with pytest.raises(ImageRunnerError) as exc:
+            await run(
+                "flux2",
+                "ignored",
+                flux2_target=FLUX2_KLEIN_4B_H,
+                compiled_request=_klein_compiled(),
+            )
+
+        assert type(exc.value).__name__ == "ImageProviderOutcomeUnknownError"
+        assert client.post_calls == 1
+        job = image_jobs.list_recent(limit=1)[0]
+        assert job.status is image_jobs.ImageJobStatus.UNKNOWN
+        assert job.provider_job_id is None
+        with pytest.raises(image_jobs.ImageJobError, match="only FAILED jobs can be requeued"):
+            image_jobs.requeue(job.job_id)
+
+    @pytest.mark.asyncio
+    async def test_bfl_receipt_links_job_to_session_before_polling(self, monkeypatch):
+        import httpx
+
+        session = image_sessions.create_session(title="durable BFL owner")
+        image_sessions.reserve_attempt(
+            session.session_id,
+            cost_usd=0.014,
+            max_attempts=4,
+            max_spend_usd=1.0,
+        )
+        submit = {
+            "id": "bfl-owned-123",
+            "polling_url": "https://api.bfl.ai/v1/poll/owned-123",
+            "cost": 1.4,
+        }
+
+        class PollFailsClient(_FakeClient):
+            async def get(self, url, *, headers=None):
+                if url == submit["polling_url"]:
+                    raise httpx.ReadTimeout("poll response lost")
+                return await super().get(url, headers=headers)
+
+        monkeypatch.setattr(
+            "httpx.AsyncClient",
+            lambda *a, **k: PollFailsClient(submit, {}),
+        )
+
+        with pytest.raises(ImageRunnerError):
+            await run(
+                "flux2",
+                "ignored",
+                flux2_target=FLUX2_KLEIN_4B_H,
+                compiled_request=_klein_compiled(),
+                session_id=session.session_id,
+                reserved_cost_usd=0.014,
+            )
+
+        owned = image_sessions.list_session_jobs(session.session_id)
+        assert len(owned) == 1
+        assert owned[0].status is image_jobs.ImageJobStatus.UNKNOWN
+        diagnostics = _json.loads(owned[0].provider_diagnostics_json)
+        assert diagnostics["session_id"] == session.session_id
+        assert diagnostics["reserved_cost_usd"] == pytest.approx(0.014)
+
+    @pytest.mark.asyncio
+    async def test_poll_transport_failure_preserves_receipt_as_unknown(self, monkeypatch):
+        import httpx
+
+        submit = {
+            "id": "bfl-request-abc",
+            "polling_url": "https://api.bfl.ai/v1/poll/abc",
+            "cost": 1.4,
+        }
+
+        class PollFailsClient(_FakeClient):
+            async def get(self, url, *, headers=None):
+                if url == submit["polling_url"]:
+                    raise httpx.ReadTimeout("poll response lost")
+                return await super().get(url, headers=headers)
+
+        client = PollFailsClient(submit, {})
+        monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: client)
+
+        with pytest.raises(ImageRunnerError) as exc:
+            await run(
+                "flux2",
+                "ignored",
+                flux2_target=FLUX2_KLEIN_4B_H,
+                compiled_request=_klein_compiled(),
+            )
+
+        assert type(exc.value).__name__ == "ImageProviderOutcomeUnknownError"
+        job = image_jobs.list_recent(limit=1)[0]
+        assert job.status is image_jobs.ImageJobStatus.UNKNOWN
+        assert job.provider_job_id == "bfl-request-abc"
+        diagnostics = _json.loads(job.provider_diagnostics_json)
+        assert diagnostics["polling_url"] == submit["polling_url"]
+        assert diagnostics["request_id"] == "bfl-request-abc"
+        with pytest.raises(image_jobs.ImageJobError, match="only FAILED jobs can be requeued"):
+            image_jobs.requeue(job.job_id)
 
 
 class TestEditSameFamily:
@@ -324,9 +450,12 @@ class TestFailureModes:
         assert "Request Moderated" in (failed.normalized_error or "")
 
     @pytest.mark.asyncio
-    async def test_polling_timeout_fails_job(self, monkeypatch):
+    async def test_polling_timeout_preserves_unknown_receipt(self, monkeypatch):
 
-        submit = {"polling_url": "https://api.bfl.ai/v1/poll/t"}
+        submit = {
+            "id": "bfl-timeout",
+            "polling_url": "https://api.bfl.ai/v1/poll/t",
+        }
         running = {"status": "Pending"}
         client = _FakeClient(submit, running)
         monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: client)
@@ -337,11 +466,19 @@ class TestFailureModes:
         monkeypatch.setattr("asyncio.sleep", _no_sleep)
 
         compiled = _klein_compiled()
-        with pytest.raises(TimeoutError):
-            await run("flux2", "ignored", flux2_target=FLUX2_KLEIN_4B_H,
-                      compiled_request=compiled)
+        with pytest.raises(ImageRunnerError) as exc:
+            await run(
+                "flux2",
+                "ignored",
+                flux2_target=FLUX2_KLEIN_4B_H,
+                compiled_request=compiled,
+            )
+        assert type(exc.value).__name__ == "ImageProviderOutcomeUnknownError"
         job = image_jobs.list_recent(limit=1)[0]
-        assert job.status.value == "failed"
+        assert job.status is image_jobs.ImageJobStatus.UNKNOWN
+        assert job.provider_job_id == "bfl-timeout"
+        diagnostics = _json.loads(job.provider_diagnostics_json)
+        assert diagnostics["polling_url"] == submit["polling_url"]
 
 
 class TestDownloadPersist:
@@ -839,3 +976,176 @@ class TestMultiCharacterFlux2Route:
                     session_id=session.session_id,
                 )
             )
+
+class TestBflRecovery:
+    @pytest.mark.asyncio
+    async def test_unknown_job_recovers_from_receipt_without_resubmit(self, monkeypatch, tmp_path):
+        from gateway import image_runner
+
+        polling_url = "https://api.bfl.ai/v1/poll/recover-123"
+        sample_url = "https://cdn.bfl.ai/recover-123.png"
+        job = image_jobs.create_job(
+            provider="flux2",
+            operation="txt2img",
+            prompt="recover me",
+            model_id="flux-2-klein-4b",
+        )
+        image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUBMITTED)
+        image_jobs.update_job(
+            job.job_id,
+            provider_job_id="recover-123",
+            provider_diagnostics_json=_json.dumps(
+                {
+                    "receipt_version": 1,
+                    "request_id": "recover-123",
+                    "polling_url": polling_url,
+                    "provider_cost_credits": 1.4,
+                }
+            ),
+        )
+        image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.RUNNING)
+        image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.UNKNOWN)
+        monkeypatch.setattr("gateway.paths.DATA_DIR", tmp_path)
+
+        class RecoveryClient:
+            post_calls = 0
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_exc):
+                return False
+
+            async def post(self, *_args, **_kwargs):
+                self.post_calls += 1
+                raise AssertionError("recovery must never submit a second paid request")
+
+            async def get(self, url, **_kwargs):
+                resp = SimpleNamespace(status_code=200, text="")
+                resp.raise_for_status = lambda: None
+                if url == polling_url:
+                    resp.json = lambda: {
+                        "status": "Ready",
+                        "result": {"sample": sample_url, "seed": 1234},
+                    }
+                    resp.content = b""
+                    return resp
+                if url == sample_url:
+                    resp.json = lambda: {}
+                    resp.content = b"recovered-png"
+                    return resp
+                raise AssertionError(f"unexpected recovery URL: {url}")
+
+        client = RecoveryClient()
+        monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: client)
+
+        recover = getattr(image_runner, "recover_bfl_job", None)
+        assert callable(recover), "BFL unknown jobs need receipt-based recovery"
+        result = await recover(job.job_id)
+
+        assert result.job_id == job.job_id
+        assert client.post_calls == 0
+        recovered = image_jobs.get_job(job.job_id)
+        assert recovered is not None
+        assert recovered.status is image_jobs.ImageJobStatus.SUCCEEDED
+        assert recovered.output_path is not None
+        assert recovered.canonical_artifact_id is not None
+        assert Path(recovered.output_path).read_bytes() == b"recovered-png"
+
+    @pytest.mark.asyncio
+    async def test_recover_unknown_bfl_jobs_never_dispatches_non_bfl(self, monkeypatch):
+        from gateway import image_runner
+
+        bfl = image_jobs.create_job(provider="flux2", operation="txt2img", prompt="bfl")
+        fal = image_jobs.create_job(provider="fal", operation="txt2img", prompt="fal")
+        for job in (bfl, fal):
+            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUBMITTED)
+            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.UNKNOWN)
+
+        recovered: list[str] = []
+
+        async def fake_recover(job_id: str):
+            recovered.append(job_id)
+            return SimpleNamespace(job_id=job_id)
+
+        monkeypatch.setattr(image_runner, "recover_bfl_job", fake_recover)
+        recover_all = getattr(image_runner, "recover_unknown_bfl_jobs", None)
+        assert callable(recover_all), "startup needs a bounded BFL recovery pass"
+
+        count = await recover_all()
+
+        assert count == 1
+        assert recovered == [bfl.job_id]
+
+    @pytest.mark.asyncio
+    async def test_recovered_bfl_job_settles_its_session_reservation(self, monkeypatch, tmp_path):
+        from gateway import image_runner
+
+        session = image_sessions.create_session(title="recover settlement")
+        image_sessions.reserve_attempt(
+            session.session_id,
+            cost_usd=0.02,
+            max_attempts=4,
+            max_spend_usd=1.0,
+        )
+        polling_url = "https://api.bfl.ai/v1/poll/settle-123"
+        sample_url = "https://cdn.bfl.ai/settle-123.png"
+        job = image_jobs.create_job(
+            provider="flux2",
+            operation="txt2img",
+            prompt="recover and settle",
+            model_id="flux-2-klein-4b",
+        )
+        image_sessions.attach_job(session.session_id, job.job_id)
+        image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUBMITTED)
+        image_jobs.update_job(
+            job.job_id,
+            provider_job_id="settle-123",
+            provider_diagnostics_json=_json.dumps(
+                {
+                    "receipt_version": 1,
+                    "request_id": "settle-123",
+                    "polling_url": polling_url,
+                    "session_id": session.session_id,
+                    "reserved_cost_usd": 0.02,
+                    "provider_cost_credits": 1.4,
+                }
+            ),
+        )
+        image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.RUNNING)
+        image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.UNKNOWN)
+        monkeypatch.setattr("gateway.paths.DATA_DIR", tmp_path)
+
+        class Client:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_exc):
+                return False
+
+            async def post(self, *_args, **_kwargs):
+                raise AssertionError("recovery must not submit")
+
+            async def get(self, url, **_kwargs):
+                resp = SimpleNamespace(status_code=200, text="")
+                resp.raise_for_status = lambda: None
+                if url == polling_url:
+                    resp.json = lambda: {
+                        "status": "Ready",
+                        "result": {"sample": sample_url},
+                    }
+                    resp.content = b""
+                    return resp
+                if url == sample_url:
+                    resp.json = lambda: {}
+                    resp.content = b"settled-png"
+                    return resp
+                raise AssertionError(url)
+
+        monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: Client())
+
+        await image_runner.recover_bfl_job(job.job_id)
+
+        settled = image_sessions.require_session(session.session_id)
+        assert settled.reserved_spend_usd == 0.0
+        assert settled.spend_usd == pytest.approx(0.014)

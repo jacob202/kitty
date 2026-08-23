@@ -1345,6 +1345,8 @@ async def studio_generate(req: StudioGenerateRequest):
                 project_id=project_id,
                 plan_id=job_plan_id,
                 intent_json=job_intent_json,
+                session_id=req.session_id if paid_attempt_reserved else None,
+                reserved_cost_usd=estimated_cost if paid_attempt_reserved else None,
             )
         elif operation == "img2img":
             if approved_edit_anchor is None:
@@ -1379,6 +1381,8 @@ async def studio_generate(req: StudioGenerateRequest):
                 project_id=project_id,
                 plan_id=job_plan_id,
                 intent_json=job_intent_json,
+                session_id=req.session_id if paid_attempt_reserved else None,
+                reserved_cost_usd=estimated_cost if paid_attempt_reserved else None,
             )
         # Bind the render back to its conversation so a restart can replay it
         # and "use this" has something to anchor on. A failure to bind is

@@ -153,6 +153,25 @@ class TestTransitions:
         assert job.status == ImageJobStatus.SUCCEEDED
         assert job.finished_at is not None
 
+    def test_submitted_job_can_become_unknown(self) -> None:
+        job = _make_job()
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+
+        unknown = jobs.transition(job.job_id, ImageJobStatus.UNKNOWN)
+
+        assert unknown.status == ImageJobStatus.UNKNOWN
+        assert unknown.finished_at is None
+
+    def test_running_job_can_become_unknown(self) -> None:
+        job = _make_job()
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+
+        unknown = jobs.transition(job.job_id, ImageJobStatus.UNKNOWN)
+
+        assert unknown.status == ImageJobStatus.UNKNOWN
+        assert unknown.finished_at is None
+
     def test_failed_path(self) -> None:
         job = _make_job()
         jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
@@ -351,6 +370,17 @@ class TestReconcile:
 
         assert resolved.status == ImageJobStatus.FAILED
         assert resolved.finished_at is not None
+
+    def test_list_unknown_returns_only_unresolved_provider_jobs(self) -> None:
+        unknown = _make_job(prompt="unknown")
+        active = _make_job(prompt="active")
+        jobs.transition(unknown.job_id, ImageJobStatus.SUBMITTED)
+        jobs.transition(unknown.job_id, ImageJobStatus.UNKNOWN)
+        jobs.transition(active.job_id, ImageJobStatus.SUBMITTED)
+
+        unresolved = jobs.list_unknown(limit=10)
+
+        assert [job.job_id for job in unresolved] == [unknown.job_id]
 
     def test_unknown_restart_state_is_idempotent_and_not_requeued(self) -> None:
         job = _make_job(max_retries=2)

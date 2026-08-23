@@ -31,6 +31,19 @@ def _reconcile_image_jobs_on_startup() -> None:
         logger.warning("reconciled %d orphaned image job(s) at startup", reconciled)
 
 
+async def _recover_unknown_bfl_jobs_on_startup() -> None:
+    """Reconcile durable BFL receipts without blocking Gateway startup."""
+    try:
+        from gateway.image_runner import recover_unknown_bfl_jobs
+
+        recovered = await recover_unknown_bfl_jobs()
+    except Exception:
+        logger.exception("BFL image recovery pass failed; unknown jobs remain recoverable")
+        return
+    if recovered:
+        logger.warning("recovered %d unknown BFL image job(s) at startup", recovered)
+
+
 def _reconcile_image_batches_on_startup() -> None:
     """Fail interrupted image renders while preserving queued batch work."""
     from gateway.image_batches import reconcile_inflight
@@ -71,6 +84,7 @@ async def lifespan(app: FastAPI):
 
     seed_default_recipes()
     image_batch_task: asyncio.Task | None = None
+    image_recovery_task: asyncio.Task | None = None
     background_services_enabled = not is_test_env()
     if background_services_enabled:
         try:
@@ -81,6 +95,10 @@ async def lifespan(app: FastAPI):
                 start_polling()
         except Exception:
             logger.exception("telegram bot startup failed — integration disabled")
+
+        image_recovery_task = asyncio.create_task(
+            _recover_unknown_bfl_jobs_on_startup()
+        )
 
         from gateway.image_batches import worker_loop as image_batch_worker_loop
         from gateway.routes.image_studio_jobs import execute_studio_batch_request
@@ -220,6 +238,10 @@ async def lifespan(app: FastAPI):
         image_batch_task.cancel()
         with suppress(asyncio.CancelledError):
             await image_batch_task
+    if image_recovery_task is not None:
+        image_recovery_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await image_recovery_task
     try:
         from gateway.http_client import _http_client
 

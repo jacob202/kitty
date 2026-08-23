@@ -183,3 +183,48 @@ async def test_lifespan_reconciles_autonomy_sessions_left_active_by_the_previous
 
     async with app_module.lifespan(app_module.app):
         assert calls == ["reconciled"]
+
+@pytest.mark.asyncio
+async def test_development_lifespan_starts_unknown_bfl_recovery(monkeypatch):
+    from zoneinfo import ZoneInfo
+
+    import gateway.app as app_module
+    import gateway.brief_scheduler as brief_scheduler
+    import gateway.cron as cron
+    import gateway.image_batches as image_batches
+    import gateway.image_recipes as image_recipes
+    import gateway.image_runner as image_runner
+    import gateway.telegram_bot as telegram_bot
+
+    monkeypatch.setenv("KITTY_ENV", "development")
+    monkeypatch.setattr(app_module, "validate_dirs", lambda: None)
+    monkeypatch.setattr(app_module, "validate_env", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_autonomy_sessions_on_startup", lambda: None)
+    monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
+    monkeypatch.setattr(telegram_bot, "is_configured", lambda: False)
+
+    async def forever(*_args, **_kwargs):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(image_batches, "worker_loop", forever)
+    monkeypatch.setattr(brief_scheduler, "load_brief_time", lambda: "08:00")
+    monkeypatch.setattr(brief_scheduler, "load_brief_timezone", lambda: ZoneInfo("America/Regina"))
+    monkeypatch.setattr(cron, "register_action", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cron, "ensure_schedule", lambda *args, **kwargs: "brief-id")
+    monkeypatch.setattr(cron, "schedule", lambda *args, **kwargs: "sid")
+    monkeypatch.setattr(cron, "start", lambda: None)
+
+    calls: list[str] = []
+
+    async def recover_unknown() -> int:
+        calls.append("recover")
+        return 1
+
+    monkeypatch.setattr(image_runner, "recover_unknown_bfl_jobs", recover_unknown)
+
+    async with app_module.lifespan(app_module.app):
+        await asyncio.sleep(0)
+        assert calls == ["recover"]
