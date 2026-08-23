@@ -24,7 +24,7 @@ lifecycle.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, Sequence
+from typing import Any, Sequence
 
 from gateway.image_plan import ALLOWED_REFERENCE_ROLES
 

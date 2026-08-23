@@ -558,9 +558,10 @@ async def test_dispatch_fails_closed_on_unsupported_reference_capability(
     a pose reference against a recipe without ``supports_pose_refs`` raises a
     400 instead of silently dropping the reference.
     """
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+
     from gateway import image_jobs
     from gateway.routes import extended
-    from starlette.exceptions import HTTPException as StarletteHTTPException
 
     session = sessions.create_session(title="fail-closed capability")
     pose_path = tmp_path / "pose.png"
