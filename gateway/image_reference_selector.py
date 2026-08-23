@@ -164,7 +164,7 @@ def select_references(
         for slot in cast
         if isinstance(slot, dict) and slot.get("slot_id")
     }
-    decorated: list[tuple[int, int, SelectedReference]] = []
+    decorated: list[tuple[int, int, int, SelectedReference]] = []
     for index, binding in enumerate(bindings):
         role = str(binding["role"])
         cast_slot = binding.get("cast_slot")
