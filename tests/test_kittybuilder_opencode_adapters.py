@@ -828,11 +828,9 @@ def test_reviewer_honours_explicit_paid_agent_and_model(tmp_path: Path):
 
 
 def _wait_without_closing_stdin(proc: subprocess.Popen[str]) -> tuple[str, str]:
-    for _ in range(40):
-        if proc.poll() is not None:
-            break
-        time.sleep(0.025)
-    if proc.poll() is None:
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
         proc.terminate()
         try:
             proc.wait(timeout=2)
