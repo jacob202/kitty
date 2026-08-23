@@ -49,6 +49,15 @@ model_list:
       api_key: os.environ/OPENROUTER_API_KEY
       max_tokens: 4096
 
+  # Zero-cost outage fallback. Keep this hidden from the curated picker; it is
+  # only used when a text role's primary upstream cannot answer. Verified live
+  # against the configured OpenRouter key on 2026-08-22.
+  - model_name: kitty-free
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 4096
+
   # Reasoning tier. Deliberately not deepseek-v4-pro — that is what kitty-default
   # already serves, so pointing "Think" at it made the menu entry a placebo.
   - model_name: kitty-think
@@ -90,7 +99,11 @@ litellm_settings:
   set_verbose: false
   num_retries: 1
   fallbacks:
-    - kitty-default: [kitty-small]
+    - kitty-default: [kitty-free]
+    - kitty-sonnet: [kitty-free]
+    - kitty-small: [kitty-free]
+    - kitty-think: [kitty-free]
+    - kitty-code: [kitty-free]
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY

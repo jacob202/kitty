@@ -44,3 +44,16 @@ def test_master_key_uses_env_var():
     cfg = _load()
     gs = cfg.get("general_settings", {})
     assert str(gs.get("master_key", "")).startswith("os.environ")
+
+
+def test_text_routes_have_verified_free_fallback():
+    cfg = _load()
+    models = {m["model_name"]: m for m in cfg["model_list"]}
+    assert models["kitty-free"]["litellm_params"]["model"] == "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
+    fallback_map = {
+        name: targets
+        for entry in cfg.get("litellm_settings", {}).get("fallbacks", [])
+        for name, targets in entry.items()
+    }
+    for route in ("kitty-default", "kitty-sonnet", "kitty-small", "kitty-think", "kitty-code"):
+        assert "kitty-free" in fallback_map.get(route, [])
