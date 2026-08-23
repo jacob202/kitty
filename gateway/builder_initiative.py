@@ -158,6 +158,16 @@ def _ensure_initiative_columns(conn: sqlite3.Connection) -> None:
     }
     if existing and "pause_reason" not in existing:
         conn.execute("ALTER TABLE initiatives ADD COLUMN pause_reason TEXT")
+    if existing and "project_id" not in existing:
+        conn.execute("ALTER TABLE initiatives ADD COLUMN project_id INTEGER")
+    if existing:
+        # Builder has no per-initiative repo selection: resolve_base_sha always
+        # resolves against Path.cwd(), and every packet's allowed_paths to date
+        # (checked across all 64 initiatives) is repo-relative. Every initiative
+        # Builder has ever created targets the kitty checkout — project id 1
+        # (see project_store._seed_kitty_project_once). Rows left NULL after the
+        # ALTER above are pre-migration history, not an unknown project.
+        conn.execute("UPDATE initiatives SET project_id = 1 WHERE project_id IS NULL")
 
 
 def init_db(db_path: Path | None = None) -> None:
@@ -743,8 +753,14 @@ def apply_manifest(
     db_path: Path | None = None,
     repo_root: Path | None = None,
     base_sha: str | None = None,
+    project_id: int = 1,
 ) -> dict[str, Any]:
     """Validate and apply a manifest. Atomic and idempotent.
+
+    ``project_id`` defaults to 1 (kitty) because Builder has no per-initiative
+    repo selection today — every packet's ``allowed_paths`` is resolved against
+    whatever repo Builder is running in, which is always the kitty checkout.
+    Pass an explicit ``project_id`` once Builder can target another project.
 
     - First apply: creates the initiative row, one queue task per packet, and
       the packet→task mapping rows, all in one transaction.
@@ -831,8 +847,8 @@ def apply_manifest(
         conn.execute(
             """
             INSERT INTO initiatives
-                (id, title, manifest_version, manifest_json, manifest_sha256, state)
-            VALUES (?, ?, ?, ?, ?, ?)
+                (id, title, manifest_version, manifest_json, manifest_sha256, state, project_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 initiative_id,
@@ -841,6 +857,7 @@ def apply_manifest(
                 canonical,
                 digest,
                 INITIATIVE_ACTIVE,
+                project_id,
             ),
         )
 
@@ -938,7 +955,7 @@ def list_initiatives(db_path: Path | None = None) -> list[dict[str, Any]]:
         rows = conn.execute(
             """
             SELECT i.id, i.title, i.manifest_version, i.manifest_sha256,
-                   i.state, i.created_at, i.updated_at,
+                   i.state, i.created_at, i.updated_at, i.project_id,
                    COUNT(p.packet_id) AS packet_count
             FROM initiatives i
             LEFT JOIN initiative_packets p ON p.initiative_id = i.id

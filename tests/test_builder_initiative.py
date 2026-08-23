@@ -658,6 +658,51 @@ class TestApply:
             bi.apply_manifest(changed, db_path=db_path)
         # No partial mutation: still 2 tasks, stored manifest unchanged.
         assert len(bq.list_tasks(db_path=db_path)) == 2
+
+    def test_project_id_defaults_to_kitty(self, db_path: Path):
+        bi.apply_manifest(_manifest(), db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT project_id FROM initiatives WHERE id = ?", ("kitty-alpha-v1",)
+            ).fetchone()
+        finally:
+            conn.close()
+        assert row["project_id"] == 1
+
+    def test_project_id_accepts_an_explicit_value(self, db_path: Path):
+        bi.apply_manifest(_manifest(), db_path=db_path, project_id=7)
+        conn = bq.connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT project_id FROM initiatives WHERE id = ?", ("kitty-alpha-v1",)
+            ).fetchone()
+        finally:
+            conn.close()
+        assert row["project_id"] == 7
+
+    def test_pre_migration_rows_backfill_to_kitty(self, db_path: Path):
+        """A row written before the project_id column existed reads as 1
+        (kitty) once the migration runs — Builder has never operated on any
+        other repo, so this is observed fact, not a guess."""
+        bi.apply_manifest(_manifest(), db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            conn.execute("UPDATE initiatives SET project_id = NULL")
+            conn.commit()
+        finally:
+            conn.close()
+
+        bi.init_db(db_path)
+
+        conn = bq.connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT project_id FROM initiatives WHERE id = ?", ("kitty-alpha-v1",)
+            ).fetchone()
+        finally:
+            conn.close()
+        assert row["project_id"] == 1
         initiative = bi.get_initiative("kitty-alpha-v1", db_path=db_path)
         assert initiative["manifest"]["title"] == "Kitty Alpha build"
 

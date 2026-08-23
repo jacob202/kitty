@@ -1407,9 +1407,25 @@ export interface GatewayProjectArtifact {
   size_bytes: number
 }
 
+/** One Builder initiative projected as a Work item — see gateway/_work_projection_item.py. */
+export interface GatewayProjectWorkItem {
+  id: string
+  title: string | null
+  state: 'active' | 'blocked' | 'failed' | 'ready' | 'waiting' | 'paused' | 'completed'
+  next_action: string | null
+  updated_at: string | null
+}
+
+/** The Work snapshot project_resume.resume() scopes to this project — see gateway/project_resume.py. */
+export interface GatewayProjectWork {
+  items: GatewayProjectWorkItem[]
+  total_items: number
+}
+
 export interface GatewayProjectResume {
   id: number
   artifacts: GatewayProjectArtifact[]
+  work: GatewayProjectWork
 }
 
 export interface GatewayArtifact {

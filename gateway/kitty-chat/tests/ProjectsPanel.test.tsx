@@ -77,7 +77,7 @@ describe('ProjectsPanel recent files (Project Resume: Artifacts, slice 1)', () =
 
   it('renders nothing for recent files when the project has zero artifacts', () => {
     vi.mocked(queries.useProjectResume).mockReturnValue({
-      data: { id: 1, artifacts: [] },
+      data: { id: 1, artifacts: [], work: { items: [], total_items: 0 } },
       isLoading: false, isError: false, error: null,
     } as never)
     renderPanel()
@@ -86,6 +86,28 @@ describe('ProjectsPanel recent files (Project Resume: Artifacts, slice 1)', () =
     // the rest of the card is unaffected by the empty artifacts list
     expect(screen.getByText('kitty')).toBeInTheDocument()
     expect(screen.getByText('ship the slice')).toBeInTheDocument()
+  })
+
+  it('renders project-scoped builder work when present', () => {
+    vi.mocked(queries.useProjectResume).mockReturnValue({
+      data: {
+        id: 1,
+        artifacts: [],
+        work: {
+          items: [{
+            id: 'init-1', title: 'Ship project linkage', state: 'active',
+            next_action: 'merge the PR', updated_at: '2026-08-23T12:00:00Z',
+          }],
+          total_items: 1,
+        },
+      },
+      isLoading: false, isError: false, error: null,
+    } as never)
+    renderPanel()
+
+    expect(screen.getByText('builder work')).toBeInTheDocument()
+    expect(screen.getByText('Ship project linkage')).toBeInTheDocument()
+    expect(screen.getByText(/active.*merge the PR/)).toBeInTheDocument()
   })
 
   it('does not break the rest of the card when the resume fetch errors', () => {

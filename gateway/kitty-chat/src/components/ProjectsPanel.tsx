@@ -118,7 +118,34 @@ function ProjectCard({
         </div>
       )}
 
+      <ProjectWork projectId={project.id} />
       <ProjectArtifacts projectId={project.id} />
+    </div>
+  )
+}
+
+/** Bounded, secondary — Builder initiatives scoped to this project. */
+function ProjectWork({ projectId }: { projectId: number }) {
+  const resumeQuery = useProjectResume(projectId)
+
+  if (resumeQuery.isLoading || resumeQuery.isError) return null
+
+  const items = resumeQuery.data?.work?.items ?? []
+  if (items.length === 0) return null
+
+  return (
+    <div>
+      <div style={nextLabelStyle}>builder work</div>
+      <ul style={{ margin: '4px 0 0 16px', display: 'grid', gap: 2 }}>
+        {items.slice(0, 5).map(item => (
+          <li key={item.id} style={actionStyle}>
+            <span>{item.title ?? item.id}</span>{' '}
+            <span style={metaStyle}>
+              · {item.state}{item.next_action ? ` · ${item.next_action}` : ''}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
