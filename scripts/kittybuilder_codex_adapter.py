@@ -268,21 +268,6 @@ Use status=failed if implementation or validation cannot honestly pass."""
         sanitize = cwd / "scripts" / "sanitize_builder_state.sh"
         if sanitize.exists() and os.access(sanitize, os.X_OK):
             subprocess.run(["bash", str(sanitize)], cwd=cwd, check=True)
-        if _git("status", "--porcelain=v1", "--untracked-files=all", cwd=cwd):
-            packet_id = json.loads(bundle_src.read_text(encoding="utf-8"))["packet_id"]
-            label = model or "codex-default"
-            subprocess.run(["git", "add", "-A"], cwd=cwd, check=True)
-            subprocess.run(
-                [
-                    "git",
-                    "commit",
-                    "--quiet",
-                    "-m",
-                    f"[{packet_id}] kittybuilder: {task_id} attempt {attempt_id} ({label})",
-                ],
-                cwd=cwd,
-                check=True,
-            )
     print(f"Codex worker completed with {model or 'default model'}.")
     return 0
 

@@ -8,16 +8,16 @@ KittyBuilder is the separate engineering control plane. It owns accepted Mission
 
 | Surface | Role | Default |
 |---|---|---|
-| Open WebUI | Replaceable daily-driver shell authorized by ADR 0027 | `127.0.0.1:3000` |
+| Native Kitty (`kitty-chat`) | Canonical user-facing product surface (ADR 0039) | `127.0.0.1:4000` |
 | Gateway | Product authority and API | `127.0.0.1:8000` |
 | LiteLLM | Model routing and fallback | `127.0.0.1:8001` |
 | KittyBuilder | Durable engineering execution control plane | supported DB/API/CLI |
-| `kitty-chat` | Retained custom client, fallback, and development surface | `127.0.0.1:4000` |
+| Open WebUI | Optional compatibility/reference client | `127.0.0.1:3000` |
 
-The Gateway is the product. Open WebUI and other clients are thin, replaceable views. Kitty must remain useful when KittyBuilder is unavailable, and Builder execution truth must never be inferred from GitHub comments or handoff prose.
+The Gateway owns product truth and the native Kitty frontend is its canonical user-facing surface. Open WebUI and other clients are optional, replaceable views. Kitty must remain useful when KittyBuilder is unavailable, and Builder execution truth must never be inferred from GitHub comments or handoff prose.
 
 ```text
-Open WebUI / other clients
+Native Kitty frontend
   → Kitty Gateway
     → context + memory + tools + projects + Tutor
     → LiteLLM / provider chain
@@ -42,18 +42,12 @@ venv/bin/pip install -r requirements.txt
 cp .env.example .env
 
 ./kitty up
-python3 scripts/openwebui_local.py bootstrap
+./kitty ui
 ./kitty status
 ./kitty doctor --json
 ```
 
-Open WebUI should be available at `http://127.0.0.1:3000`. To run the retained custom client deliberately:
-
-```bash
-cd gateway/kitty-chat
-npm install
-npm run dev
-```
+Native Kitty is the canonical product at `http://127.0.0.1:4000`. Open WebUI remains available only as an optional compatibility/reference client through `scripts/openwebui_local.py`; it is not required for the normal Kitty product path.
 
 ## Verification
 

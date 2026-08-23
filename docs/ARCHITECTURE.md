@@ -7,7 +7,7 @@
 ```text
 Jacob
   ↕
-Open WebUI / other replaceable clients
+Native Kitty frontend — canonical product surface
   ↕
 Kitty Gateway — product authority
   ├─ context assembly and memory reads
@@ -42,9 +42,9 @@ Models, coding harnesses, GitHub comments, handoff prose, and UIs are adapters o
 
 ### Clients
 
-ADR 0027 authorizes pinned stock Open WebUI as the current replaceable local daily-driver shell. Canonical Kitty state and business logic remain outside it.
+ADR 0039 makes the native Next.js client under `gateway/kitty-chat/` the canonical user-facing Kitty product surface. It remains a thin projection over Gateway-owned truth and binds to `127.0.0.1` by default.
 
-The custom Next.js client under `gateway/kitty-chat/` remains a retained fallback and development surface. Its supported commands bind to `127.0.0.1`; unauthenticated LAN/tailnet exposure is not supported.
+Open WebUI remains optional compatibility/reference software under the safety boundaries established by ADR 0027/0033. It does not own Kitty product state, product navigation, or product direction.
 
 ## Runtime processes
 
@@ -52,10 +52,10 @@ The custom Next.js client under `gateway/kitty-chat/` remains a retained fallbac
 |---|---|---|
 | Gateway | `127.0.0.1:8000` | Product APIs, chat boundary, memory, projects, tools, capture, Tutor, Builder projections |
 | LiteLLM | `127.0.0.1:8001` | Model proxy, routing, and fallback |
-| Open WebUI | `127.0.0.1:3000` | Replaceable daily-driver shell |
-| `kitty-chat` | `127.0.0.1:4000` | Retained alternate client and development surface |
+| `kitty-chat` | `127.0.0.1:4000` | Canonical native Kitty product surface |
+| Open WebUI | `127.0.0.1:3000` | Optional compatibility/reference client |
 
-`./kitty` is the preferred service entrypoint. `scripts/openwebui_local.py` owns supported Open WebUI bootstrap, verification, backup, restore, and rollback operations.
+`./kitty` is the supported native Kitty service/product entrypoint. `scripts/openwebui_local.py` remains the bounded operator path for optional Open WebUI compatibility, verification, backup, restore, and rollback operations.
 
 ## Request flow
 
