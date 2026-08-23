@@ -106,6 +106,23 @@ class StoredPlan:
     created_at: str = ""
     updated_at: str = ""
 
+    def validate_operation_consistency(self) -> None:
+        """Validate that operation and anchor_job_id are consistent."""
+        if self.operation == "img2img" and not self.anchor_job_id:
+            raise PlanMalformedError(
+                f"plan {self.plan_id!r} is operation='img2img' but has no anchor_job_id"
+            )
+        if self.operation == "txt2img" and self.anchor_job_id:
+            raise PlanMalformedError(
+                f"plan {self.plan_id!r} is operation='txt2img' but carries "
+                f"anchor_job_id {self.anchor_job_id!r}"
+            )
+        if self.operation not in ALLOWED_OPERATIONS:
+            raise PlanMalformedError(
+                f"plan {self.plan_id!r} has unknown operation {self.operation!r}; "
+                f"expected one of {sorted(ALLOWED_OPERATIONS)}"
+            )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "plan_id": self.plan_id,
@@ -525,7 +542,7 @@ def _row_to_plan(row: Any) -> StoredPlan:
             f"plan {row['plan_id']!r} is operation='txt2img' but carries "
             f"anchor_job_id {anchor_job_id!r}"
         )
-    return StoredPlan(
+    plan = StoredPlan(
         plan_id=row["plan_id"],
         session_id=row["session_id"],
         status=PlanStatus(row["status"]),
@@ -545,6 +562,8 @@ def _row_to_plan(row: Any) -> StoredPlan:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
+    plan.validate_operation_consistency()
+    return plan
 
 
 def _decode_refs(raw: str | None) -> list[dict[str, Any]]:
