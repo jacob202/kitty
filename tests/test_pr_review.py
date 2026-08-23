@@ -164,7 +164,8 @@ def test_agent_review_workflow_uses_trusted_code_and_avoids_model_reruns_on_meta
         Path(__file__).parents[1] / ".github" / "workflows" / "pr-agent-review.yml"
     ).read_text(encoding="utf-8")
 
-    assert "pull_request_target:" in workflow
+    assert "pull_request:\n" in workflow
+    assert "pull_request_target:" not in workflow
     assert "agent-review:" in workflow
     assert "name: agent-review" in workflow
     assert "continue-on-error: true" in workflow

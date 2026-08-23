@@ -121,7 +121,8 @@ def test_dependabot_waives_product_prose_but_not_sensitive_scope_approval() -> N
 def test_compat_policy_workflow_keeps_old_required_check_during_migration() -> None:
     workflow = Path(__file__).parents[1] / ".github" / "workflows" / "pr-policy.yml"
     text = workflow.read_text(encoding="utf-8")
-    assert "pull_request_target:" in text
+    assert "pull_request:\n" in text
+    assert "pull_request_target:" not in text
     assert "pr-policy:" in text
     assert "name: pr-policy" in text
 
