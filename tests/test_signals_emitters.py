@@ -4,8 +4,6 @@ readable by memory_graph's SignalsAdapter.
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 
 from gateway import signal_store
@@ -19,18 +17,27 @@ def isolate_signal_store(monkeypatch, tmp_path):
 
 
 class TestWebMonitorEmitsSignals:
-    def test_notify_match_emits_web_monitor_signal(self):
-        from gateway.web_monitor import _notify_match
+    @pytest.mark.asyncio
+    async def test_matching_watch_emits_web_monitor_signal(self, monkeypatch):
+        import gateway.automation_actions as automation_actions
+        from gateway.web_monitor import _handle_watch_result
 
         watch = {
             "id": "abc123",
             "label": "Example Watch",
             "url": "https://example.com",
         }
-        result = {"changed": True, "keyword_matches": ["launch", "kitty"]}
+        result = {
+            "changed": True,
+            "keyword_matches": ["launch", "kitty"],
+            "hash": "content-v1",
+        }
 
-        with patch("gateway.notify.send"):
-            _notify_match(watch, result)
+        async def fake_run_action(*_args, **_kwargs):
+            return {"status": "completed"}
+
+        monkeypatch.setattr(automation_actions, "run_action", fake_run_action)
+        await _handle_watch_result(watch, result)
 
         signals = signal_store.list_recent(source="web_monitor")
         assert len(signals) == 1

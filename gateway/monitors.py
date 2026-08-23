@@ -116,6 +116,26 @@ def create_monitor(url: str, *, label: str | None = None, interval_minutes: int 
     }
 
 
+
+def set_monitor_enabled(monitor_id: str, enabled: bool) -> bool:
+    """Enable or disable a monitor without deleting its domain or run history."""
+    if not isinstance(monitor_id, str) or not monitor_id.strip():
+        raise ValueError("monitor_id must be a non-empty string")
+    if not isinstance(enabled, bool):
+        raise ValueError("enabled must be a bool")
+    try:
+        from gateway.web_monitor import set_watch_enabled
+
+        result = set_watch_enabled(monitor_id, enabled)
+    except (sqlite3.Error, OSError) as exc:
+        raise _store_failure("set_enabled", exc, monitor_id=monitor_id) from exc
+    if result is None:
+        raise MonitorNotFoundError(
+            f"monitor {monitor_id!r} was not found",
+            details={"monitor_id": monitor_id},
+        )
+    return result
+
 def delete_monitor(monitor_id: str) -> bool:
     """Remove a monitor by id. Returns ``False`` if it was not present."""
     if not isinstance(monitor_id, str) or not monitor_id.strip():

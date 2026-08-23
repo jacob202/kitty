@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from gateway import monitors
 from gateway.errors import StorageNotFound, ValidationError
 
 router = APIRouter(tags=["monitors"])
+
+
+class MonitorEnabledRequest(BaseModel):
+    enabled: bool
 
 
 @router.get("/monitors")
@@ -35,6 +40,12 @@ async def create_monitor(payload: dict) -> dict:
             f"invalid monitor create request: {exc}",
             details={"operation": "create"},
         ) from exc
+
+
+@router.patch("/monitor/{monitor_id}/enabled")
+async def set_monitor_enabled(monitor_id: str, payload: MonitorEnabledRequest) -> dict:
+    enabled = monitors.set_monitor_enabled(monitor_id, payload.enabled)
+    return {"monitor_id": monitor_id, "enabled": enabled}
 
 
 @router.delete("/monitor/{monitor_id}")

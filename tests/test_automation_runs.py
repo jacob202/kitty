@@ -9,17 +9,18 @@ import pytest
 
 @pytest.fixture
 def automation_db(tmp_path, monkeypatch):
-    from gateway import automation_runs, cron
+    from gateway import action_grants, automation_actions, automation_runs, cron
     from gateway import db as kitty_db
 
     db_file = tmp_path / "kitty.db"
     kitty_db.migrate(db_file=db_file)
     monkeypatch.setattr(automation_runs, "DB_FILE", db_file)
+    monkeypatch.setattr(action_grants, "GRANTS_DB_FILE", db_file)
     monkeypatch.setattr(cron, "KITTY_DB_FILE", db_file)
-    cron._actions.clear()
+    automation_actions.clear_registry()
     cron._runner_task = None
     yield db_file
-    cron._actions.clear()
+    automation_actions.clear_registry()
     cron._runner_task = None
 
 

@@ -77,7 +77,7 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
 
     actions: dict[str, object] = {}
     schedules: list[tuple] = []
-    monkeypatch.setattr(cron, "register_action", lambda name, fn: actions.__setitem__(name, fn))
+    monkeypatch.setattr(cron, "register_action", lambda name, fn, **_kwargs: actions.__setitem__(name, fn))
     monkeypatch.setattr(cron, "ensure_schedule", lambda *args, **kwargs: "brief-id")
     monkeypatch.setattr(cron, "schedule", lambda *args, **kwargs: schedules.append(args) or "sid")
     monkeypatch.setattr(cron, "start", lambda: None)
@@ -127,7 +127,7 @@ async def test_gateway_uses_cron_as_the_only_morning_brief_timer(monkeypatch):
 
     actions: dict[str, object] = {}
     schedules: list[tuple[tuple, dict]] = []
-    monkeypatch.setattr(cron, "register_action", lambda name, fn: actions.__setitem__(name, fn))
+    monkeypatch.setattr(cron, "register_action", lambda name, fn, **_kwargs: actions.__setitem__(name, fn))
     monkeypatch.setattr(
         cron,
         "ensure_schedule",
