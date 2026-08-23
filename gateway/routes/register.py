@@ -10,6 +10,7 @@ from gateway.routes import (
     agent_workspace,
     artifacts,
     ask,
+    automations,
     brief,
     builder,
     calendar,
@@ -71,6 +72,7 @@ def register_routes(app: FastAPI) -> None:
     install_openwebui_routing_guards(app)
     for module in (
         artifacts,
+        automations,
         experts,
         actions,
         agent_workspace,
