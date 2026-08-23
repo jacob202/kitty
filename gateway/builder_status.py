@@ -318,7 +318,7 @@ def _build_initiative_projection(
 def _read_initiatives(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
         """
-        SELECT id, title, state, pause_reason, created_at, updated_at
+        SELECT id, title, state, pause_reason, created_at, updated_at, project_id
         FROM initiatives
         ORDER BY created_at ASC, id ASC
         """
@@ -564,6 +564,7 @@ def _initiative_projection(
     )
     return {
         "initiative_id": initiative_row["id"],
+        "project_id": initiative_row["project_id"],
         "title": initiative_row["title"],
         "state": state,
         "pause_reason": _safe_message(initiative_row["pause_reason"]),
