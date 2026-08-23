@@ -1,6 +1,7 @@
 # Kitty Constitution v1
 
 **Ratified:** 2026-08-05
+**Amended:** 2026-08-23 — ADR 0039 native product-surface authority incorporated explicitly
 **Authority:** Highest-level design artifact. Every future Builder packet, ADR,
 roadmap, feature, worker, reviewer, and planner must justify itself against this
 document before it is accepted. No other document may contradict it.
@@ -9,11 +10,12 @@ document before it is accepted. No other document may contradict it.
 
 ## Preamble
 
-Kitty is a local-first personal AI companion that operates through a replaceable
-daily-driver shell. It assembles personal context, maintains honest runtime
-awareness, delegates governed work to replaceable specialist agents, and demands
-evidence for every claim. It never fabricates success, never masks failure, and
-never confuses unavailable with unknown.
+Kitty is a local-first personal AI companion with one canonical native product
+surface and replaceable commodity clients/adapters around it. It assembles
+personal context, maintains honest runtime awareness, delegates governed work to
+replaceable specialist agents, and demands evidence for every claim. It never
+fabricates success, never masks failure, and never confuses unavailable with
+unknown.
 
 ---
 
@@ -38,17 +40,18 @@ The Gateway owns:
 The Gateway never owns:
 - Worker execution mechanics (leases, queues, worktree isolation).
 - Generic provider abstraction (LiteLLM).
-- Generic interaction infrastructure (the shell's UI, auth, file handling).
+- Frontend presentation/rendering mechanics.
 
-### I.2 — Open WebUI: The Replaceable Shell
+### I.2 — Native Kitty Frontend: The Canonical Product Surface
 
-Open WebUI is the primary daily-driver shell. It provides generic interaction
-infrastructure: chat, model selection, persistence, mobile, attachments. It is
-integrated through stable Gateway contracts and may be replaced without
-migrating Kitty's state or logic. It receives only a sanitized environment. It
-does not own routing, memory, policy, or Builder authority. Kitty's persistent
-configuration, not Open WebUI's database, is the shell's runtime source of
-truth.
+The native Kitty frontend under `gateway/kitty-chat/` is the canonical
+user-facing product surface. It renders Gateway-owned truth and provides the
+coherent Home/Chat, Projects, Image Lab, Work/evidence, and Settings experience.
+It does not own routing, memory, policy, provider truth, or Builder execution.
+
+Open WebUI remains optional commodity/reference software behind stable Gateway
+contracts. It may be used for compatibility or comparison, but it is not the
+product shell Kitty should design around and never becomes a second authority.
 
 ### I.3 — Builder: The Execution Coordinator
 
@@ -87,8 +90,8 @@ state machine, and no universal mega-table.
 | Approval policy | Gateway | Builder, shell, chat |
 | Memory policy | Gateway | Context assembly, shell |
 | Provider abstraction | LiteLLM | Gateway |
-| Interaction shell | Open WebUI | User |
-| Governed execution | Builder | Gateway, Console, Work |
+| Canonical product presentation | Native Kitty frontend (`gateway/kitty-chat`) | User |
+| Governed execution | Builder | Gateway, native Work/evidence surfaces |
 | Storage implementation | Gateway | All subsystems (through adapters) |
 
 ---
@@ -401,7 +404,8 @@ the following ratified authorities:
 |---|---|
 | ADR 0003 | Gateway is the product; clients are thin views |
 | ADR 0017 | Builder owns execution; Kitty owns intent |
-| ADR 0027, 0033 | Open WebUI is the replaceable shell |
+| ADR 0027, 0033 | Open WebUI compatibility and environment-isolation boundaries |
+| ADR 0039 | Native Kitty frontend is the canonical product surface |
 | ADR 0028 | Adopt before build |
 | ADR 0029 | Capability Manifest is single source of runtime truth |
 | ADR 0032 | Evidence-backed claims; no fabricated success |

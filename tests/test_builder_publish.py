@@ -33,6 +33,15 @@ def _stub_direct_publish_janitor(monkeypatch):
         )
 
 
+@pytest.fixture(autouse=True)
+def _approved_attempt_for_merge_tests(monkeypatch):
+    monkeypatch.setattr(
+        ba,
+        "get_attempt",
+        lambda attempt_id, db_path=None: {"id": attempt_id, "review": {"verdict": "approve"}},
+    )
+
+
 @pytest.fixture
 def db_path(tmp_path: Path) -> Path:
     p = tmp_path / "builder_queue.db"
@@ -397,6 +406,12 @@ def _make_pr_opened_task(db_path: Path, tmp_path: Path, *, pr_number: int = 42) 
     bq.transition_task(task["id"], bq.PR_OPENED, db_path=db_path)
     bq.transition_task(task["id"], bq.AWAITING_REVIEW, db_path=db_path)
     bq.attach_pr(task["id"], pr_number, pr_url=f"https://x/pull/{pr_number}", db_path=db_path)
+    bq.append_event(
+        task["id"],
+        "review_evidence_bound",
+        payload={"attempt_id": 77, "review_sha": "a" * 40},
+        db_path=db_path,
+    )
     return bq.get_task(task["id"], db_path=db_path)
 
 
@@ -545,7 +560,7 @@ class TestMergeAndVerify:
         assert not any(c[:2] == ["git", "push"] for c in calls)
         assert any(c == ["git", "rebase", "--abort"] for c in calls)
 
-    def test_rebase_and_retry_merges_on_clean_rebase(self, tmp_path: Path, db_path: Path):
+    def test_rebase_on_clean_rebase_requires_fresh_review(self, tmp_path: Path, db_path: Path):
         task = _make_pr_opened_task(db_path, tmp_path)
         merge_attempts = {"n": 0}
         calls: list[list[str]] = []
@@ -554,13 +569,7 @@ class TestMergeAndVerify:
             calls.append(list(args))
             if args[:3] == ["gh", "pr", "merge"]:
                 merge_attempts["n"] += 1
-                if merge_attempts["n"] == 1:
-                    return subprocess.CompletedProcess(args, 1, stdout="", stderr="stale")
-                return subprocess.CompletedProcess(args, 0, stdout="merged\n", stderr="")
-            if args[:3] == ["gh", "pr", "view"]:
-                return subprocess.CompletedProcess(
-                    args, 0, stdout=json.dumps({"mergeCommit": {"oid": "deadbeef00"}}), stderr="",
-                )
+                return subprocess.CompletedProcess(args, 1, stdout="", stderr="stale")
             if args[:2] == ["git", "fetch"]:
                 return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
             if args[:3] == ["git", "worktree", "add"]:
@@ -570,20 +579,34 @@ class TestMergeAndVerify:
                 return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
             if args[:2] == ["git", "push"] and "--force-with-lease" in args:
                 return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "rev-parse"]:
+                return subprocess.CompletedProcess(args, 0, stdout="rebasedsha01\n", stderr="")
             if args[:3] == ["git", "worktree", "remove"]:
-                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
-            if args[:2] == ["git", "reset"]:
-                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
-            if args[:2] == ["bash", "-lc"]:
                 return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
             raise AssertionError(f"unexpected call: {args}")
 
         result = bp.merge_and_verify(
             task["id"], validation_commands=["true"], repo_root=tmp_path, db_path=db_path, run_cmd=fake,
         )
-        assert result["outcome"] == "merged"
-        assert merge_attempts["n"] == 2
+        assert result["outcome"] == "awaiting_review"
+        assert result["rebased_head_sha"] == "rebasedsha01"
+        assert merge_attempts["n"] == 1
         assert any(c[:2] == ["git", "push"] and "--force-with-lease" in c for c in calls)
+        assert not any(c[:3] == ["gh", "pr", "merge"] for c in calls[1:])
+
+    def test_gh_merge_binds_to_expected_head_sha(self, tmp_path: Path):
+        calls: list[list[str]] = []
+        def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            calls.append(list(args))
+            if args[:3] == ["gh", "pr", "merge"]:
+                return subprocess.CompletedProcess(args, 0, stdout="merged\n", stderr="")
+            if args[:3] == ["gh", "pr", "view"]:
+                return subprocess.CompletedProcess(args, 0, stdout=json.dumps({"mergeCommit": {"oid": "merge01"}}), stderr="")
+            raise AssertionError(args)
+        result = bp._gh_pr_merge(123, cwd=tmp_path, run_cmd=fake, expected_head_sha="reviewed01")
+        assert result["merge_commit_sha"] == "merge01"
+        merge_call = calls[0]
+        assert merge_call[-2:] == ["--match-head-commit", "reviewed01"]
 
     def test_tripwire_skips_merge_after_two_reverts_in_window(self, tmp_path: Path, db_path: Path):
         # Two unrelated prior tasks whose auto-merge reverted.

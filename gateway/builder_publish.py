@@ -672,9 +672,11 @@ def _merge_check_worktree_path(repo_root: Path, task_id: str) -> Path:
 
 
 def _gh_pr_merge(
-    pr_number: int, *, cwd: Path, run_cmd: RunCmd
+    pr_number: int, *, cwd: Path, run_cmd: RunCmd, expected_head_sha: str | None = None
 ) -> dict[str, Any]:
     args = ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch=false"]
+    if expected_head_sha:
+        args.extend(["--match-head-commit", expected_head_sha])
     result = run_cmd(args, cwd=cwd, check=False)
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "").strip() or "no output"
@@ -948,16 +950,47 @@ def merge_and_verify(
             "pr_number": pr_number,
         }
 
+    review_binding = _latest_approved_review_binding(task_id, db_path)
+    if review_binding is None:
+        raise MergeError("no approved exact-head review binding; fresh review required before merge")
+
     try:
-        merge_info = _gh_pr_merge(pr_number, cwd=root, run_cmd=runner)
-    except MergeError:
-        rebased = _rebase_onto_main(
-            root, task_id, default_branch_name(task), remote=remote, run_cmd=runner
+        merge_info = _gh_pr_merge(
+            pr_number, cwd=root, run_cmd=runner, expected_head_sha=review_binding["review_sha"]
         )
-        _cleanup_rebase_worktree(root, task_id, run_cmd=runner)
-        if not rebased:
-            raise
-        merge_info = _gh_pr_merge(pr_number, cwd=root, run_cmd=runner)
+    except MergeError:
+        branch = default_branch_name(task)
+        rebased = _rebase_onto_main(
+            root, task_id, branch, remote=remote, run_cmd=runner
+        )
+        rebase_path = _rebase_check_worktree_path(root, task_id)
+        try:
+            if not rebased:
+                raise
+            head = runner(["git", "rev-parse", "HEAD"], cwd=rebase_path, check=False)
+            rebased_head_sha = (head.stdout or "").strip() if head.returncode == 0 else ""
+            if not rebased_head_sha:
+                raise MergeError("clean rebase completed but rebased head sha could not be resolved")
+            bq.append_event(
+                task_id,
+                "review_required_after_rebase",
+                payload={
+                    "pr_number": pr_number,
+                    "branch": branch,
+                    "rebased_head_sha": rebased_head_sha,
+                    "reason": "branch head changed after review; fresh review required before merge",
+                },
+                db_path=db_path,
+            )
+            return {
+                "outcome": "awaiting_review",
+                "task_id": task_id,
+                "pr_number": pr_number,
+                "rebased_head_sha": rebased_head_sha,
+                "reason": "rebased head requires fresh review before merge",
+            }
+        finally:
+            _cleanup_rebase_worktree(root, task_id, run_cmd=runner)
     merge_commit_sha = merge_info["merge_commit_sha"]
 
     try:

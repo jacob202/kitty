@@ -338,27 +338,6 @@ def _write_review_note(review: dict, note_path: Path, sha: str, model: str) -> N
     note_path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _commit_completed_work(task_id: str, attempt_id: str, packet_id: str) -> None:
-    """Commit a real completed change on the model's behalf (adapter duty)."""
-    status = subprocess.run(
-        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
-        capture_output=True, text=True, check=False,
-    )
-    if status.returncode != 0:
-        raise AdapterError((status.stderr or status.stdout or "git status failed").strip())
-    if not status.stdout.strip():
-        return
-    add = subprocess.run(["git", "add", "-A"], capture_output=True, text=True, check=False)
-    if add.returncode != 0:
-        raise AdapterError(f"git add failed: {(add.stderr or add.stdout).strip()}")
-    commit = subprocess.run(
-        ["git", "commit", "--quiet", "-m", f"[{packet_id}] kittybuilder: {task_id} attempt {attempt_id} (claude worker)"],
-        capture_output=True, text=True, check=False,
-    )
-    if commit.returncode != 0:
-        raise AdapterError(f"git commit failed: {(commit.stderr or commit.stdout).strip()}")
-
-
 
 # ---------------------------------------------------------------------------
 # Modes
@@ -416,14 +395,8 @@ def _run_worker() -> int:
             return _fail(str(exc))
 
         shutil.copyfile(staged["result"], _require_env("KB_RESULT_PATH"))
-        packet_id = str(json.loads(staged["bundle"].read_text(encoding="utf-8")).get("packet_id", "packet"))
         for path in staged.values():
             path.unlink(missing_ok=True)
-        if result["status"] == "completed":
-            try:
-                _commit_completed_work(task_id, attempt_id, packet_id)
-            except AdapterError as exc:
-                return _fail(str(exc))
         print(f"Claude worker completed with {model}.")
         return 0
     finally:
