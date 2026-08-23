@@ -10,8 +10,10 @@ Invariant: if run() returns or raises, the job is in a terminal state.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -317,10 +319,6 @@ async def _run_registry_hosted(
     from mcp.imagen.engines import get
     from mcp.imagen.io import save_image
 
-    available, reason = paid_engine_available(engine_name)
-    if not available:
-        raise ImageRunnerError(reason)
-
     identity_images: list[Path] | None = None
     if engine_name == "fal":
         if not character_id or not character_ref_path:
@@ -337,6 +335,10 @@ async def _run_registry_hosted(
         raise ImageRunnerError(
             f"{engine_name} cannot honor character identity conditioning; use fal instead"
         )
+
+    available, reason = paid_engine_available(engine_name)
+    if not available:
+        raise ImageRunnerError(reason)
 
     provider = get(engine_name)
     job = image_jobs.create_job(
@@ -603,26 +605,181 @@ def _hosted_engine_enabled(provider: str) -> bool:
     return paid_images_enabled()
 
 
-def airforce_images_available() -> tuple[bool, str]:
-    if not _hosted_engine_enabled("airforce"):
+def hosted_image_configured(provider: str) -> tuple[bool, str]:
+    normalized = provider.strip().lower()
+    if normalized not in {"airforce", "fal"}:
+        raise ImageRunnerError(f"no hosted image configuration contract for {provider!r}")
+    if not _hosted_engine_enabled(normalized):
+        env_name = f"KITTY_IMAGE_{normalized.upper()}_ENABLED"
+        label = "Airforce" if normalized == "airforce" else "fal"
         return False, (
-            "Airforce image generation is off. Set KITTY_IMAGE_AIRFORCE_ENABLED=1 "
-            "in .env and restart Kitty to use your Airforce credits."
+            f"{label} image generation is off. Set {env_name}=1 in .env and "
+            f"restart Kitty to use your {label} credits."
         )
-    if not os.environ.get("AIRFORCE_API_KEY", "").strip():
-        return False, "AIRFORCE_API_KEY is not set"
+    key_name = "AIRFORCE_API_KEY" if normalized == "airforce" else "FAL_KEY"
+    if not os.environ.get(key_name, "").strip():
+        return False, f"{key_name} is not set"
+    return True, ""
+
+
+_HOSTED_HEALTH_CACHE: dict[tuple[str, str, str], tuple[float, tuple[bool, str]]] = {}
+
+
+def _hosted_health_ttl_seconds() -> float:
+    raw = os.environ.get("KITTY_IMAGE_PROVIDER_HEALTH_TTL_SECONDS", "60").strip()
+    try:
+        return max(0.0, min(float(raw), 300.0))
+    except ValueError:
+        return 60.0
+
+
+def _cached_hosted_health(
+    provider: str, model: str, api_key: str, probe
+) -> tuple[bool, str]:
+    fingerprint = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12]
+    cache_key = (provider, model, fingerprint)
+    ttl = _hosted_health_ttl_seconds()
+    now = time.monotonic()
+    cached = _HOSTED_HEALTH_CACHE.get(cache_key)
+    if ttl > 0 and cached is not None and cached[0] > now:
+        return cached[1]
+    result = probe()
+    if ttl > 0:
+        _HOSTED_HEALTH_CACHE[cache_key] = (now + ttl, result)
+    return result
+
+
+def _probe_airforce_image_health(api_key: str, model: str) -> tuple[bool, str]:
+    import httpx
+
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "get_balance", "arguments": {}},
+    }
+    try:
+        response = httpx.post(
+            "https://api.airforce/mcp",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=5,
+        )
+    except httpx.HTTPError as exc:
+        return False, f"Airforce health check failed: {type(exc).__name__}"
+
+    if response.status_code in {401, 403}:
+        return False, "Airforce API key was rejected. Refresh AIRFORCE_API_KEY and retry."
+    if response.status_code == 429:
+        return False, "Airforce health check is rate-limited. Retry in about a minute."
+    if response.status_code >= 500:
+        return False, "Airforce is temporarily unavailable. Retry shortly."
+    if response.status_code != 200:
+        return False, f"Airforce health check returned HTTP {response.status_code}."
+
+    try:
+        result = response.json().get("result", {})
+        if result.get("isError"):
+            return False, "Airforce could not verify account readiness."
+        account = result.get("structuredContent") or {}
+        balance = float(account.get("balance_usd") or 0.0)
+        plan = str(account.get("plan") or "").strip().lower()
+    except (AttributeError, TypeError, ValueError):
+        return False, "Airforce returned an unreadable account-health response."
+
+    if plan == "free" and balance <= 0:
+        return False, (
+            "Airforce account balance is $0. Add pay-as-you-go credits before "
+            "using hosted image generation."
+        )
+
+    try:
+        models_response = httpx.get(
+            "https://api.airforce/v1/models?channels=1",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=5,
+        )
+    except httpx.HTTPError as exc:
+        return False, f"Airforce model-health check failed: {type(exc).__name__}"
+    if models_response.status_code == 429:
+        return False, "Airforce model-health check is rate-limited. Retry shortly."
+    if models_response.status_code >= 500:
+        return False, "Airforce model catalogue is temporarily unavailable."
+    if models_response.status_code != 200:
+        return False, f"Airforce model-health check returned HTTP {models_response.status_code}."
+    try:
+        models = models_response.json().get("data") or []
+        match = next((item for item in models if item.get("id") == model), None)
+    except (AttributeError, TypeError):
+        return False, "Airforce returned an unreadable model-health response."
+    if match is None:
+        return False, f"Airforce model {model!r} is not available to this account."
+    status = str(match.get("status") or "").strip().lower()
+    if status not in {"operational", "stable", "degraded"}:
+        return False, f"Airforce model {model!r} is currently {status or 'unhealthy'}."
+    return True, ""
+
+
+def airforce_images_available() -> tuple[bool, str]:
+    configured, reason = hosted_image_configured("airforce")
+    if not configured:
+        return False, reason
+    api_key = os.environ["AIRFORCE_API_KEY"].strip()
+    model = os.environ.get("AIRFORCE_MODEL", "grok-imagine-image-2.0").strip()
+    return _cached_hosted_health(
+        "airforce", model, api_key, lambda: _probe_airforce_image_health(api_key, model)
+    )
+
+
+def _probe_fal_image_health(api_key: str, model: str) -> tuple[bool, str]:
+    import httpx
+
+    try:
+        response = httpx.get(
+            "https://api.fal.ai/v1/models",
+            headers={"Authorization": f"Key {api_key}"},
+            params={"endpoint_id": model, "limit": 1},
+            timeout=5,
+        )
+    except httpx.HTTPError as exc:
+        return False, f"fal health check failed: {type(exc).__name__}"
+
+    if response.status_code == 401:
+        return False, "fal API key was rejected. Refresh FAL_KEY and retry."
+    if response.status_code == 403:
+        return False, "fal API key does not have API scope for model access."
+    if response.status_code == 429:
+        return False, "fal health check is rate-limited. Retry shortly."
+    if response.status_code >= 500:
+        return False, "fal is temporarily unavailable. Retry shortly."
+    if response.status_code != 200:
+        return False, f"fal health check returned HTTP {response.status_code}."
+
+    try:
+        models = response.json().get("models") or []
+        match = next((item for item in models if item.get("endpoint_id") == model), None)
+    except (AttributeError, TypeError):
+        return False, "fal returned an unreadable model-health response."
+    if match is None:
+        return False, f"fal model {model!r} is not available to this account."
+    status = str((match.get("metadata") or {}).get("status") or "").lower()
+    if status and status != "active":
+        return False, f"fal model {model!r} is currently {status}."
     return True, ""
 
 
 def fal_images_available() -> tuple[bool, str]:
-    if not _hosted_engine_enabled("fal"):
-        return False, (
-            "fal image generation is off. Set KITTY_IMAGE_FAL_ENABLED=1 in .env "
-            "and restart Kitty to use your fal credits."
-        )
-    if not os.environ.get("FAL_KEY", "").strip():
-        return False, "FAL_KEY is not set"
-    return True, ""
+    configured, reason = hosted_image_configured("fal")
+    if not configured:
+        return False, reason
+    api_key = os.environ["FAL_KEY"].strip()
+    model = os.environ.get("FAL_MODEL", "fal-ai/flux-pulid").strip()
+    return _cached_hosted_health(
+        "fal", model, api_key, lambda: _probe_fal_image_health(api_key, model)
+    )
 
 
 def openrouter_images_available() -> tuple[bool, str]:

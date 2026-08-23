@@ -260,9 +260,9 @@ def _hosted_default_available(provider: str) -> bool | None:
     """Runtime availability for built-in hosted recipes we can preflight cheaply."""
     if provider not in {"airforce", "fal"}:
         return None
-    from gateway.image_runner import paid_engine_available
+    from gateway.image_runner import hosted_image_configured
 
-    available, _ = paid_engine_available(provider)
+    available, _ = hosted_image_configured(provider)
     return available
 
 

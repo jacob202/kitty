@@ -120,6 +120,29 @@ class TestAutoRouting:
         decision = auto_route(has_character=False, quality_tier="fast")
         assert decision.recipe.quality_tier == "fast"
 
+    def test_hosted_recipe_seed_is_config_only_not_network_health(self, override_db, monkeypatch):
+        import httpx
+
+        monkeypatch.setenv("KITTY_IMAGE_AIRFORCE_ENABLED", "1")
+        monkeypatch.setenv("AIRFORCE_API_KEY", "test-key")
+        monkeypatch.setenv("KITTY_IMAGE_FAL_ENABLED", "1")
+        monkeypatch.setenv("FAL_KEY", "test-key-id:test-secret")
+        monkeypatch.setattr(
+            httpx,
+            "post",
+            lambda *a, **k: (_ for _ in ()).throw(AssertionError("startup must not probe Airforce")),
+        )
+        monkeypatch.setattr(
+            httpx,
+            "get",
+            lambda *a, **k: (_ for _ in ()).throw(AssertionError("startup must not probe fal")),
+        )
+
+        seed_default_recipes()
+
+        assert get_recipe("airforce_grok_imagine_2").is_available is True
+        assert get_recipe("fal_flux_pulid").is_available is True
+
     def test_enabled_airforce_wins_default_quality_route(self, override_db, monkeypatch):
         monkeypatch.setenv("KITTY_IMAGE_AIRFORCE_ENABLED", "1")
         monkeypatch.setenv("AIRFORCE_API_KEY", "test-key")
