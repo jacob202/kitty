@@ -172,6 +172,10 @@ def remember(
     result = get(memory_id)
     if result is None:  # defensive: the insert above must be visible
         raise ExplicitMemoryError(f"stored explicit memory {memory_id!r} could not be re-read")
+
+    from gateway import prefetcher
+
+    prefetcher.invalidate_all()
     return result
 
 
@@ -223,6 +227,10 @@ def forget(memory_id: str, *, now: datetime | None = None) -> bool:
             (stamp, stamp, memory_id),
         )
         conn.commit()
+    if cursor.rowcount == 1:
+        from gateway import prefetcher
+
+        prefetcher.invalidate_all()
     return cursor.rowcount == 1
 
 

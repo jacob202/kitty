@@ -114,6 +114,33 @@ async def test_slow_optional_store_is_bounded(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_unified_context_race_with_invalidation_does_not_repopulate_cache(monkeypatch):
+    """A unified_context() call already in flight when a correction
+    invalidates the cache must not overwrite that invalidation once it
+    finishes — otherwise a slow query racing remember()/forget() resurrects
+    the pre-correction answer for the rest of the TTL (found by review on
+    #629's original fix)."""
+    release = asyncio.Event()
+
+    class _SlowGraph:
+        async def unified_context(self, query):
+            await release.wait()
+            return "STALE-CONTEXT"
+
+    monkeypatch.setattr(memory_graph_module, "_get_graph", lambda: _SlowGraph())
+
+    task = asyncio.create_task(unified_context("q"))
+    await asyncio.sleep(0)  # let the task start and capture its generation
+
+    prefetcher.invalidate_all()  # a correction lands while the compute is in flight
+    release.set()
+    result = await task
+
+    assert result == "STALE-CONTEXT"  # the in-flight caller still gets its answer
+    assert prefetcher.get_cached("q") is None  # but it must not poison the cache
+
+
+@pytest.mark.asyncio
 async def test_knowledge_adapter_does_not_block_event_loop(monkeypatch):
     async def blocking_search(query, limit):
         await asyncio.sleep(0.2)
