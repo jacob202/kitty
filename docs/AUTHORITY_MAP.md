@@ -54,16 +54,13 @@ machine. Runtime files under `data/` are local and are never committed.
 7. Missing or unverifiable facts are `unknown`; they are never filled from an
    old handoff, report, or plausible guess.
 
-### Known unresolved authority conflict — product shell (2026-08-19)
+### Product-surface authority resolution (2026-08-23)
 
-`docs/CONSTITUTION.md` Article I.2 still names Open WebUI as the primary replaceable
-daily-driver shell. Accepted ADR 0039 names Kitty's native frontend as the canonical
-user-facing product surface. Under rule 2 and Constitution Article VII.5, ADR 0039
-does **not** silently amend the Constitution. Until Jacob explicitly ratifies a
-Constitution amendment or otherwise adjudicates that conflict, shell-role work that
-depends on choosing one of those statements is blocked. In particular, the Open
-WebUI M1/M2 sequence preserved in `ROADMAP_V2.md` must not be executed as current
-priority merely because KPROOF ended.
+The Constitution was explicitly amended to incorporate accepted ADR 0039: the native
+`gateway/kitty-chat` frontend is Kitty's canonical user-facing product surface. Open
+WebUI remains optional compatibility/reference software subject to ADR 0027/0033's
+isolation and replaceability boundaries. The historical Open WebUI-primary M1/M2
+sequence in `ROADMAP_V2.md` is therefore not executable current priority.
 
 ## Context receipts
 

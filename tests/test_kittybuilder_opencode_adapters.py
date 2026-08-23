@@ -262,15 +262,12 @@ def test_worker_stages_and_validates_local_context(tmp_path: Path):
     assert not list(tmp_path.glob(".kittybuilder-*"))
 
 
-def test_worker_commits_a_real_completed_change(tmp_path: Path):
-    """CP-08 dogfood finding: publish failed on a genuinely correct free
-    implementation because nothing ever committed it. The adapter must
-    commit on the model's behalf for a real "completed" result.
+def test_worker_leaves_completed_change_for_trusted_parent_commit(tmp_path: Path):
+    """The model adapter may edit the worktree but cannot mutate Git metadata.
 
-    Bundle/context/result live outside the worktree (as they do in
-    production — the runner passes attempt-dir paths, not in-worktree
-    ones) so the committed diff can be asserted to be exactly the model's
-    change, nothing else."""
+    Trusted Builder orchestration commits a validated completed result before
+    review, so the adapter must leave the model's real change uncommitted.
+    """
     repo = tmp_path / "repo"
     repo.mkdir()
     _init_git_repo(repo)
@@ -298,25 +295,12 @@ def test_worker_commits_a_real_completed_change(tmp_path: Path):
         ["git", "status", "--porcelain=v1", "--untracked-files=all"],
         cwd=repo, check=True, capture_output=True, text=True,
     ).stdout
-    assert status == ""
+    assert status.split() == ["??", "implemented.txt"]
     after_head = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo, check=True,
         capture_output=True, text=True,
     ).stdout.strip()
-    assert after_head != before_head
-    log = subprocess.run(
-        ["git", "log", "-1", "--pretty=%s"], cwd=repo, check=True,
-        capture_output=True, text=True,
-    ).stdout
-    assert "[pkt-1]" in log
-    assert "task-1" in log and "7" in log
-    show = subprocess.run(
-        ["git", "show", "--name-only", "--pretty=", "HEAD"], cwd=repo,
-        check=True, capture_output=True, text=True,
-    ).stdout
-    # The committed diff is exactly the model's real change — none of the
-    # runner's own staging residue got swept in.
-    assert show.split() == ["implemented.txt"]
+    assert after_head == before_head
 
 
 def test_worker_does_not_commit_a_failed_result(tmp_path: Path):

@@ -23,6 +23,11 @@ VENV_PYTHON = ROOT / "venv" / "bin" / "python"
 UI_DIR = ROOT / "gateway" / "kitty-chat"
 PID_DIR = ROOT / "data" / "desktop" / "run"
 LOG_FILE = ROOT / "logs" / "desktop.log"
+STOP_GRACE_SECONDS = 5.0
+STOP_KILL_SECONDS = 1.0
+STOP_POLL_SECONDS = 0.05
+HEALTH_WAIT_SECONDS = 5.0
+HEALTH_POLL_SECONDS = 0.1
 
 GATEWAY_HOST = os.environ.get("KITTY_DESKTOP_GATEWAY_HOST", "127.0.0.1")
 GATEWAY_PORT = int(os.environ.get("KITTY_DESKTOP_GATEWAY_PORT", "8000"))
@@ -68,6 +73,47 @@ def clear_pid(name: str) -> None:
     pid_file(name).unlink(missing_ok=True)
 
 
+def pid_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def process_cwd(pid: int) -> Path | None:
+    try:
+        proc = subprocess.run(
+            ["lsof", "-a", "-p", str(pid), "-d", "cwd", "-Fn"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    for line in proc.stdout.splitlines():
+        if line.startswith("n") and len(line) > 1:
+            return Path(line[1:]).resolve()
+    return None
+
+
+def pid_owned_by_runtime(name: str, pid: int) -> bool:
+    cwd = process_cwd(pid)
+    if cwd is None:
+        return False
+    root = ROOT.resolve()
+    return cwd == root or root in cwd.parents
+
+
+def wait_for_pid_exit(pid: int, timeout: float) -> bool:
+    attempts = max(1, int(timeout / STOP_POLL_SECONDS))
+    for _ in range(attempts):
+        if not pid_running(pid):
+            return True
+        time.sleep(STOP_POLL_SECONDS)
+    return not pid_running(pid)
+
+
 def port_open(host: str, port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(0.5)
@@ -80,6 +126,15 @@ def http_ok(url: str) -> bool:
             return 200 <= response.status < 300
     except (URLError, TimeoutError, ValueError):
         return False
+
+
+def wait_for_http(url: str) -> bool:
+    attempts = max(1, int(HEALTH_WAIT_SECONDS / HEALTH_POLL_SECONDS))
+    for _ in range(attempts):
+        if http_ok(url):
+            return True
+        time.sleep(HEALTH_POLL_SECONDS)
+    return http_ok(url)
 
 
 def spawn(
@@ -141,14 +196,33 @@ def ensure_ui() -> int | None:
 
 
 def ensure_all() -> dict[str, object]:
+    gateway_url = f"http://{GATEWAY_HOST}:{GATEWAY_PORT}/health"
+    ui_url = f"http://{UI_HOST}:{UI_PORT}"
+
     gateway_pid = ensure_gateway()
+    gateway_healthy = wait_for_http(gateway_url)
+    # A healthy listener that was already shutting down can disappear after the
+    # first point-in-time probe. Only retry discovery when we did not start or
+    # claim a PID ourselves; never double-spawn an owned process that is merely
+    # slow to become healthy.
+    if not gateway_healthy and gateway_pid is None:
+        gateway_pid = ensure_gateway()
+        gateway_healthy = wait_for_http(gateway_url)
+
     ui_pid = ensure_ui()
+    ui_healthy = wait_for_http(ui_url)
+    if not ui_healthy and ui_pid is None:
+        ui_pid = ensure_ui()
+        ui_healthy = wait_for_http(ui_url)
+
     return {
-        "ok": True,
+        "ok": gateway_healthy and ui_healthy,
         "gateway_pid": gateway_pid or read_pid("gateway"),
         "ui_pid": ui_pid or read_pid("ui"),
+        "gateway_healthy": gateway_healthy,
+        "ui_healthy": ui_healthy,
         "gateway_url": f"http://{GATEWAY_HOST}:{GATEWAY_PORT}",
-        "ui_url": f"http://{UI_HOST}:{UI_PORT}",
+        "ui_url": ui_url,
         "log_path": str(LOG_FILE),
     }
 
@@ -158,6 +232,10 @@ def stop_name(name: str) -> bool:
     if not pid:
         clear_pid(name)
         return False
+    if not pid_owned_by_runtime(name, pid):
+        clear_pid(name)
+        log(f"refused to stop unowned {name} pid={pid}; cleared stale pid file")
+        return False
     try:
         os.killpg(pid, signal.SIGTERM)
     except OSError:
@@ -165,6 +243,17 @@ def stop_name(name: str) -> bool:
             os.kill(pid, signal.SIGTERM)
         except OSError:
             pass
+    if not wait_for_pid_exit(pid, STOP_GRACE_SECONDS):
+        try:
+            os.killpg(pid, signal.SIGKILL)
+        except OSError:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+        if not wait_for_pid_exit(pid, STOP_KILL_SECONDS):
+            log(f"failed to stop {name} pid={pid}; pid file retained")
+            return False
     clear_pid(name)
     log(f"stopped {name} pid={pid}")
     return True
