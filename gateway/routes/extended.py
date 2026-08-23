@@ -1398,6 +1398,7 @@ async def studio_generate(req: StudioGenerateRequest):
             "job_id": result.job_id,
             "filename": result.filename,
             "actual_cost_usd": result.cost_usd,
+            "actual_cost_source": getattr(result, "cost_source", None),
             "recipe": result.recipe,
             "routing_reason": decision.reason,
             "plan_id": req.plan_id,
