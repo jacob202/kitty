@@ -364,3 +364,96 @@ async def test_inbox_adapter_matches_capture_text_and_tags(tmp_path, monkeypatch
 
     assert by_text[0].metadata["id"] == "capture-1"
     assert by_tag[0].metadata["id"] == "capture-1"
+
+
+@pytest.fixture
+def _project_scope_db(tmp_path, monkeypatch):
+    """Isolated project store + matching active-project scope, both pointed
+    at the same on-disk DB (project_store and project_context each bind their
+    own module-level DB_FILE name from gateway.paths, so both need patching)."""
+    from gateway import project_context, project_store
+
+    db_file = tmp_path / "kitty.db"
+    monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(project_context, "KITTY_DB_FILE", db_file, raising=False)
+    return project_store, project_context
+
+
+@pytest.mark.asyncio
+async def test_project_adapter_excludes_other_projects_on_generic_query(_project_scope_db):
+    """C4-02: a query with no matchable keywords used to return every
+    project unfiltered. Only the active project should surface."""
+    project_store, project_context = _project_scope_db
+    active = project_store.create("kitty", "code")
+    other = project_store.create("benefits paperwork", "admin")
+    project_context.set_active_project(active["id"])
+
+    items = await ProjectAdapter().fetch("?")  # no matchable terms
+
+    project_ids = {item.metadata["project_id"] for item in items}
+    assert project_ids == {active["id"]}
+    assert other["id"] not in project_ids
+
+
+@pytest.mark.asyncio
+async def test_project_adapter_still_matches_other_project_by_keyword(_project_scope_db):
+    """A non-active project must still surface when the query names it —
+    scoping must not become a blanket suppression."""
+    project_store, project_context = _project_scope_db
+    active = project_store.create("kitty", "code")
+    other = project_store.create("benefits paperwork", "admin")
+    project_context.set_active_project(active["id"])
+
+    items = await ProjectAdapter().fetch("benefits paperwork status")
+
+    project_ids = {item.metadata["project_id"] for item in items}
+    assert other["id"] in project_ids
+
+
+@pytest.mark.asyncio
+async def test_project_adapter_active_project_always_included(_project_scope_db):
+    """The active project is context even without a keyword match."""
+    project_store, project_context = _project_scope_db
+    active = project_store.create("kitty", "code")
+    project_context.set_active_project(active["id"])
+
+    items = await ProjectAdapter().fetch("completely unrelated query terms")
+
+    active_items = [item for item in items if item.metadata["project_id"] == active["id"]]
+    assert len(active_items) == 1
+    assert active_items[0].metadata["active"] is True
+
+
+@pytest.mark.asyncio
+async def test_project_adapter_propagates_corrupt_scope_as_degraded_store(_project_scope_db):
+    """P2 (review on #630): a corrupt/missing persisted active-project scope
+    must surface as a degraded store, not silently degrade to an apparently
+    healthy empty result — that's exactly the hidden-degradation pattern
+    C4-06 exists to prevent."""
+    project_store, project_context = _project_scope_db
+    project_store.init_db()
+    project_context._write_active_project_id(999999)  # points at nothing
+
+    result = await MemoryGraph([ProjectAdapter()]).search_all("hello")
+
+    assert result.results["projects"] == []
+    assert result.degraded_stores == ["projects"]
+    assert any("ProjectContextError" in e for e in result.errors)
+
+
+def test_set_active_project_invalidates_prefetch_cache(_project_scope_db):
+    """P1 (review on #630): switching the active project must not leave a
+    cached generic-query answer describing the previous project for the
+    rest of the TTL."""
+    project_store, project_context = _project_scope_db
+
+    first = project_store.create("kitty", "code")
+    second = project_store.create("benefits paperwork", "admin")
+    project_context.set_active_project(first["id"])
+
+    prefetcher.put_cached("status", f"CACHED::{first['id']}")
+    assert prefetcher.get_cached("status") is not None
+
+    project_context.set_active_project(second["id"])
+
+    assert prefetcher.get_cached("status") is None
