@@ -25,8 +25,9 @@ import logging
 import sqlite3
 import time
 import uuid
-from typing import Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional
 
+from gateway import automation_runs
 from gateway import db as kitty_db
 from gateway.paths import DATA_DIR, KITTY_DB_FILE
 
@@ -37,7 +38,7 @@ LEGACY_CRON_DB = DATA_DIR / "cron_schedules.db"
 LEGACY_IMPORT_SETTING = "cron_legacy_imported"
 
 _runner_task: asyncio.Task | None = None
-_actions: dict[str, Callable[[], Awaitable[None]]] = {}
+_actions: dict[str, Callable[[], Awaitable[Any]]] = {}
 
 
 def _import_legacy_cron_once() -> None:
@@ -261,58 +262,88 @@ def get_actions() -> list[str]:
     return sorted(_actions.keys())
 
 
-def register_action(name: str, fn: Callable[[], Awaitable[None]]) -> None:
+def register_action(name: str, fn: Callable[[], Awaitable[Any]]) -> None:
     """Register an action function that can be triggered by schedules."""
     _actions[name] = fn
 
 
 def start() -> None:
-    """Start the background cron runner."""
+    """Start the background cron runner with restart reconciliation."""
     global _runner_task
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         logger.warning("Cron start skipped: no running event loop")
-        return  # no event loop, skip in sync contexts
+        return
     if _runner_task is None or _runner_task.done():
+        try:
+            interrupted = automation_runs.reconcile_interrupted_runs()
+        except Exception:
+            logger.exception("Cron start blocked: automation run evidence unavailable")
+            return
+        if interrupted:
+            logger.warning("Reconciled %d interrupted automation run(s)", interrupted)
         _runner_task = loop.create_task(_runner())
+
+
+async def _run_due_once(*, now: float | None = None) -> None:
+    """Claim and execute each due schedule at most once for this pass."""
+    claim_at = time.time() if now is None else float(now)
+    for schedule_row in list_schedules():
+        due_at = _due_at(schedule_row, claim_at)
+        if due_at is None:
+            continue
+        cursor_at = claim_at if schedule_row.get("schedule_type") == "interval" else due_at
+        run = automation_runs.claim_scheduled_run(
+            schedule_row, due_at=due_at, claim_at=claim_at, cursor_at=cursor_at
+        )
+        if run is None:
+            continue
+        action_name = str(schedule_row.get("action") or "")
+        action = _actions.get(action_name)
+        if action is None:
+            automation_runs.finish_run(
+                run["id"],
+                status="action_unavailable",
+                error=f"registered action {action_name!r} is not registered",
+            )
+            logger.error("Cron action unavailable: %s", action_name)
+            continue
+        try:
+            await action()
+        except Exception as exc:
+            automation_runs.finish_run(
+                run["id"],
+                status="failed",
+                error=f"{type(exc).__name__}: {exc}",
+            )
+            logger.error("Cron action %s failed: %s", action_name, exc)
+        else:
+            automation_runs.finish_run(run["id"], status="completed")
+            logger.info("Cron action fired: %s", action_name)
 
 
 async def _runner() -> None:
     """Background loop that checks schedules and fires actions."""
     logger.info("Cron runner started")
-
     while True:
         try:
-            now = time.time()
-            schedules_list = list_schedules()
-
-            for s in schedules_list:
-                if not s.get("enabled"):
-                    continue
-
-                if _should_fire(s, now):
-                    action_name = s.get("action", "")
-                    if action_name in _actions:
-                        try:
-                            await _actions[action_name]()
-                            logger.info("Cron action fired: %s", action_name)
-                        except Exception as e:
-                            logger.error("Cron action %s failed: %s", action_name, e)
-
-                    _update_last_run(s["id"], now)
-
+            await _run_due_once()
         except asyncio.CancelledError:
             logger.info("Cron runner stopped")
             return
         except Exception:
             logger.exception("Cron runner error")
-
-        await asyncio.sleep(30)  # check every 30 seconds
+        await asyncio.sleep(30)
 
 
 def _should_fire(s: dict, now: float) -> bool:
     """Check if a schedule should fire now."""
+    return _due_at(s, now) is not None
+
+
+def _due_at(s: dict, now: float) -> float | None:
+    """Return the due occurrence timestamp, or ``None`` when not due."""
     last_run = s.get("last_run", 0)
     s_type = s.get("schedule_type", "")
     s_value = s.get("schedule_value", "")
@@ -320,10 +351,12 @@ def _should_fire(s: dict, now: float) -> bool:
     if s_type == "interval":
         try:
             interval = float(s_value) * 60
-            return interval > 0 and (now - last_run) >= interval
-        except ValueError:
+            if interval > 0 and (now - last_run) >= interval:
+                return now
+            return None
+        except (TypeError, ValueError):
             logger.warning("Cron interval schedule invalid: %s", s_value)
-            return False
+            return None
 
     if s_type == "daily":
         try:
@@ -340,31 +373,40 @@ def _should_fire(s: dict, now: float) -> bool:
                     zone = ZoneInfo(str(timezone_name))
                 except ZoneInfoNotFoundError:
                     logger.warning("Cron daily schedule has unknown timezone: %s", timezone_name)
-                    return False
+                    return None
                 local_now = datetime.datetime.fromtimestamp(now, zone)
             else:
                 local_now = datetime.datetime.fromtimestamp(now)
             today_target = local_now.replace(
                 hour=target_h, minute=target_m, second=0, microsecond=0
             ).timestamp()
-            return now >= today_target and last_run < today_target
-        except (ValueError, IndexError, json.JSONDecodeError):
+            if now >= today_target and last_run < today_target:
+                return today_target
+            return None
+        except (TypeError, ValueError, IndexError, json.JSONDecodeError):
             logger.warning("Cron daily schedule invalid: %s", s_value)
-            return False
+            return None
 
     if s_type == "once":
         try:
             import datetime
             target = datetime.datetime.fromisoformat(s_value).timestamp()
-            return now >= target and last_run == 0
+            if now >= target and last_run == 0:
+                return target
+            return None
         except (ValueError, TypeError):
             logger.warning("Cron once schedule invalid: %s", s_value)
-            return False
+            return None
 
-    return False
+    return None
 
 
-def _update_last_run(sid: str, ts: float) -> None:
-    with kitty_db.connect(KITTY_DB_FILE) as conn:
-        conn.execute(f"UPDATE {TABLE} SET last_run = ? WHERE id = ?", (ts, sid))
-        conn.commit()
+def explain_schedule(s: dict[str, Any], *, now: float | None = None) -> dict[str, Any]:
+    """Explain the schedule-level reason an automation has or has not run."""
+    current = time.time() if now is None else float(now)
+    if not s.get("enabled"):
+        return {"state": "disabled", "reason": "schedule is disabled"}
+    due_at = _due_at(s, current)
+    if due_at is None:
+        return {"state": "not_due", "reason": "next occurrence is not due yet"}
+    return {"state": "due", "reason": "scheduled occurrence is due", "due_at": due_at}

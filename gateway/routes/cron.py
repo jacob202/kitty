@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["cron"])
@@ -27,6 +27,33 @@ async def cron_list_actions():
     from gateway.cron import get_actions
 
     return {"actions": get_actions()}
+
+
+@router.get("/cron/runs")
+async def cron_list_runs(
+    automation_id: str | None = None,
+    action: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+):
+    from gateway.automation_runs import list_runs
+
+    return {"runs": list_runs(automation_id=automation_id, action=action, limit=limit)}
+
+
+@router.get("/cron/schedule/{sid}/status")
+async def cron_schedule_status(sid: str):
+    from gateway.automation_runs import list_runs
+    from gateway.cron import explain_schedule, list_schedules
+
+    schedule_row = next((row for row in list_schedules() if row["id"] == sid), None)
+    if schedule_row is None:
+        raise HTTPException(status_code=404, detail=f"Schedule not found: {sid}")
+    runs = list_runs(automation_id=sid, limit=1)
+    return {
+        "schedule": schedule_row,
+        "execution": explain_schedule(schedule_row),
+        "latest_run": runs[0] if runs else None,
+    }
 
 
 @router.post("/cron/schedule")

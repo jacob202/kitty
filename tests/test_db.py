@@ -184,6 +184,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "image_batches",
         "image_batch_items",
         "action_grants",
+        "automation_runs",
     } <= tables
     assert applied == [
         "001_foundation.sql",
@@ -230,6 +231,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "044_image_characters_v2_columns.sql",
         "045_image_intent_provenance.sql",
         "046_explicit_memories.sql",
+        "047_automation_runs.sql",
     ]
 
 
