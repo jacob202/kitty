@@ -15,9 +15,10 @@ immediately fixed.
 
 **Enforcement:** Required status checks on the `main` branch protection rule:
 `policy-gate` and `merge-gate`. The aggregate merge gate owns the applicable
-`pytest`, `lint`, `typecheck`, `kitty-chat`, and `browser-smoke` evidence; hygiene is advisory. All
-must be `success` before merge. GitHub branch protection rule enforces this
-at the platform level.
+`pytest`, `lint`, `typecheck`, `kitty-chat`, and `browser-smoke` evidence; docs/Markdown-only
+PRs may skip code/browser jobs, and hygiene is advisory. Every applicable required
+signal must succeed before `merge-gate` passes. GitHub ruleset enforcement applies
+this at the platform level.
 
 **Status:** ENFORCED. Branch protection is configured on GitHub.
 
@@ -117,7 +118,8 @@ roadmap and KLF-001 sits within it.
 actual changed paths. Sensitive scope requires `risk/approved`, an exact-head
 Risk approval receipt, and trusted independent review. Native UI source/public
 changes require the product-acceptance evidence block. `merge-gate` requires
-browser smoke only when frontend paths change.
+code checks only for code-bearing PRs and browser smoke only for non-documentation
+frontend changes.
 
 **Status:** PARTIALLY ENFORCED. Sensitive-scope and native-UI evidence are
 enforced; restore/cost/cleanup evidence remains change-specific rather than a

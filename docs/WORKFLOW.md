@@ -28,9 +28,11 @@ comments, or an external model verdict.
    - Large PR size is advisory rather than a second approval ceremony.
 3. **Deterministic merge evidence**
    - `.github/workflows/tests.yml` keeps Python `pytest`, Ruff, and mypy as hard
-     signals. `merge-gate` aggregates them into one stable required result.
-   - Kitty Chat and browser smoke remain hard evidence when the frontend changes;
-     unrelated PRs skip those expensive jobs.
+     signals for code-bearing PRs. Docs/Markdown-only PRs skip those code jobs.
+   - `merge-gate` always reports one stable required result and accepts skipped
+     code/browser jobs only when the changed-path classifier marks them inapplicable.
+   - Kitty Chat and browser smoke remain hard evidence for non-documentation
+     frontend changes; unrelated PRs skip those expensive jobs.
    - `hygiene` still runs, but is advisory because link/dead-code heuristics should
      not veto an otherwise valid repair.
 4. **Independent model review**
@@ -167,9 +169,11 @@ When a reviewer leaves a comment asking for a fix:
 
 The stable merge contract is two required outcomes:
 
-- `merge-gate` — deterministic code evidence. It requires `pytest`, `lint`, and
-  `typecheck`; when frontend paths change it additionally requires `kitty-chat`
-  and `browser-smoke`. Hygiene remains visible but advisory.
+- `merge-gate` — deterministic evidence matched to scope. Code-bearing PRs require
+  `pytest`, `lint`, and `typecheck`; non-documentation frontend changes additionally
+  require `kitty-chat` and `browser-smoke`. Docs/Markdown-only PRs skip those code
+  and browser jobs while `merge-gate` still reports a required result. Hygiene
+  remains visible but advisory.
 - `policy-gate` — trusted governance. Routine changes pass without model review.
   Sensitive scope requires explicit exact-head approval and trusted independent
   review; native UI source/public changes require product-acceptance evidence.

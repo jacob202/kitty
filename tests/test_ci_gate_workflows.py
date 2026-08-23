@@ -48,3 +48,25 @@ def test_auto_label_preserves_manual_approval_labels() -> None:
     _, workflow = _workflow("pr-auto-label.yml")
     step = next(step for step in workflow["jobs"]["auto-label"]["steps"] if step.get("uses") == "actions/labeler@v7")
     assert step["with"]["sync-labels"] is False
+
+
+def test_docs_only_pr_skips_code_and_frontend_required_jobs() -> None:
+    text, workflow = _workflow("tests.yml")
+    changes = workflow["jobs"]["changes"]
+    assert "code" in changes["outputs"]
+    assert "isDocumentation" in text
+    assert 'startsWith("docs/")' in text
+    assert 'endsWith(".md")' in text
+    for job_name in ("pytest", "lint", "typecheck"):
+        job = workflow["jobs"][job_name]
+        assert job["needs"] == "changes"
+        assert "needs.changes.outputs.code == 'true'" in job["if"]
+    merge_gate = workflow["jobs"]["merge-gate"]
+    assert merge_gate["env"]["CODE"] == "${{ needs.changes.outputs.code }}"
+    assert 'if [[ "$CODE" == "true" ]]' in text
+    assert "code checks were not applicable" in text
+
+
+def test_markdown_only_frontend_change_does_not_run_frontend_jobs() -> None:
+    text, _ = _workflow("tests.yml")
+    assert 'file.filename.startsWith("gateway/kitty-chat/") && !isDocumentation(file.filename)' in text
