@@ -21,7 +21,7 @@ Existing does not mean current. Use this index instead of inferring authority fr
 - `plans/` — candidate work and implementation inputs; not authority until absorbed.
 - `research/` — dated research and decision inputs (indexed in [`research/README.md`](research/README.md)); ADR inputs, not authority.
 - `packets/` — scoped execution contracts and historical packet material.
-- `audit/` — dated findings and evidence.
+- `audit/` — dated findings and evidence. Current sequential-audit companion: [`audit/post_audit_support_2026-08-23/README.md`](audit/post_audit_support_2026-08-23/README.md).
 - `reference/` — reusable technical guidance.
 - `phases/` and `planning/` — legacy organization; treat as historical unless current authority links to it.
 
