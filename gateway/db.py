@@ -18,6 +18,25 @@ _PRAGMAS = (
 )
 
 
+# PR #536 renumbered four already-shipped Image Lab migrations to avoid
+# filename collisions. Existing databases may legitimately record the legacy
+# names, so treat those exact files as aliases instead of replaying their SQL.
+_MIGRATION_RENAMES: dict[str, tuple[str, ...]] = {
+    "040_image_jobs_compiler_provenance.sql": (
+        "036_image_jobs_compiler_provenance.sql",
+    ),
+    "041_image_recipes_execution_target.sql": (
+        "037_image_recipes_execution_target.sql",
+    ),
+    "042_image_jobs_canonical_artifact.sql": (
+        "038_image_jobs_canonical_artifact.sql",
+    ),
+    "043_image_sessions_project_scope.sql": (
+        "039_image_sessions_project_scope.sql",
+    ),
+}
+
+
 def apply_pragmas(conn: sqlite3.Connection) -> None:
     """Apply standard WAL/busy/foreign_keys/sync pragmas to a connection.
 
@@ -57,7 +76,28 @@ def migrate(
         for path in sorted(migration_path.glob("*.sql")):
             if path.name in applied:
                 continue
+            legacy_name = next(
+                (
+                    name
+                    for name in _MIGRATION_RENAMES.get(path.name, ())
+                    if name in applied
+                ),
+                None,
+            )
+            if legacy_name is not None:
+                conn.execute(
+                    "INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)",
+                    (path.name,),
+                )
+                applied.add(path.name)
+                logger.info(
+                    "Reconciled renamed migration: %s (legacy name %s)",
+                    path.name,
+                    legacy_name,
+                )
+                continue
             _apply_migration(conn, path, db_path)
+            applied.add(path.name)
             applied_now.append(path.name)
             logger.info("Applied migration: %s", path.name)
     return applied_now
