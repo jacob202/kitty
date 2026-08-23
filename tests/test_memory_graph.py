@@ -395,3 +395,37 @@ async def test_project_adapter_active_project_always_included(_project_scope_db)
     active_items = [item for item in items if item.metadata["project_id"] == active["id"]]
     assert len(active_items) == 1
     assert active_items[0].metadata["active"] is True
+
+
+@pytest.mark.asyncio
+async def test_project_adapter_propagates_corrupt_scope_as_degraded_store(_project_scope_db):
+    """P2 (review on #630): a corrupt/missing persisted active-project scope
+    must surface as a degraded store, not silently degrade to an apparently
+    healthy empty result — that's exactly the hidden-degradation pattern
+    C4-06 exists to prevent."""
+    project_store, project_context = _project_scope_db
+    project_context._write_active_project_id(999999)  # points at nothing
+
+    result = await MemoryGraph([ProjectAdapter()]).search_all("hello")
+
+    assert result.results["projects"] == []
+    assert result.degraded_stores == ["projects"]
+    assert any("ProjectContextError" in e for e in result.errors)
+
+
+def test_set_active_project_invalidates_prefetch_cache(_project_scope_db):
+    """P1 (review on #630): switching the active project must not leave a
+    cached generic-query answer describing the previous project for the
+    rest of the TTL."""
+    project_store, project_context = _project_scope_db
+
+    first = project_store.create("kitty", "code")
+    second = project_store.create("benefits paperwork", "admin")
+    project_context.set_active_project(first["id"])
+
+    prefetcher.put_cached("status", f"CACHED::{first['id']}")
+    assert prefetcher.get_cached("status") is not None
+
+    project_context.set_active_project(second["id"])
+
+    assert prefetcher.get_cached("status") is None

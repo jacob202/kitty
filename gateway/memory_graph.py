@@ -135,16 +135,18 @@ class ProjectAdapter(StoreAdapter):
         return Source.PROJECTS.value
 
     async def fetch(self, query: str) -> list[Item]:
-        from gateway.project_context import ProjectContextError, get_active_project
+        from gateway.project_context import get_active_project
         from gateway.project_store import list_projects
 
         projects = await asyncio.to_thread(list_projects)
         terms = {term for term in re.findall(r"[^\W_]+", query.casefold()) if len(term) > 1}
 
-        try:
-            active_id = (await asyncio.to_thread(get_active_project))["project_id"]
-        except ProjectContextError:
-            active_id = None
+        # A corrupt/missing persisted scope (ProjectContextError) is left to
+        # propagate rather than degrading silently to "no active project" —
+        # per the StoreAdapter contract, an infrastructure failure here must
+        # surface as a warning/degraded store, not an apparently healthy
+        # empty result that hides a broken scope.
+        active_id = (await asyncio.to_thread(get_active_project))["project_id"]
 
         # The active project is always in scope, even for a generic query with
         # no matchable terms — it's the project the user is actually working
