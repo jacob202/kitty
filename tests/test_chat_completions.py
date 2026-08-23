@@ -341,8 +341,8 @@ def test_chat_completions_non_stream_health_uses_route_model_and_passes_domain()
     ), patch(
         "gateway.routes.completions.route_model", return_value="kitty-default"
     ), patch(
-        "gateway.context_assembler.get_system_prompt",
-        new=AsyncMock(return_value="FULL_SYSTEM"),
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=ContextBundle(system="FULL_SYSTEM")),
     ), patch(
         "gateway.llm_client.chat_completions_non_stream", new=mock_chat
     ), patch(
@@ -380,7 +380,8 @@ def test_chat_completions_non_stream_non_health_uses_route_model():
     ), patch(
         "gateway.routes.completions.route_model", return_value="openrouter/test-model"
     ), patch(
-        "gateway.context_assembler.get_system_prompt", new=AsyncMock(return_value="SYS")
+        "gateway.context_assembler.assemble_context",
+        new=AsyncMock(return_value=ContextBundle(system="SYS")),
     ), patch(
         "gateway.llm_client.chat_completions_non_stream", new=mock_chat
     ), patch(
