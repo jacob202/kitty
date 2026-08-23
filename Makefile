@@ -1,4 +1,4 @@
-.PHONY: agent-wrap vibe-session test lint typecheck ci hooks ui-test ui-build ui-tailnet smoke-test codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr trust-eval
+.PHONY: agent-wrap vibe-session test lint typecheck ci hooks ui-test ui-build ui-tailnet smoke-test smoke-test-hermetic codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr trust-eval
 
 agent-wrap:
 	python3.12 scripts/agent_wrapup.py
@@ -36,11 +36,14 @@ hooks:
 	@echo "pre-push gate installed. SSH keepalive configured when no custom core.sshCommand exists."
 	@echo "Bypass a single push with: git push --no-verify"
 
-smoke-test:
-	cd gateway/kitty-chat && npx playwright test
+smoke-test: ui-build
+	cd gateway/kitty-chat && npm run test:smoke
+
+smoke-test-hermetic: ui-build
+	cd gateway/kitty-chat && npm run test:smoke:hermetic
 
 ui-test:
-	cd gateway/kitty-chat && ./node_modules/.bin/vitest run
+	cd gateway/kitty-chat && npm test
 
 ui-build:
 	cd gateway/kitty-chat && node node_modules/next/dist/bin/next build

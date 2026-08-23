@@ -170,7 +170,7 @@ jobs:
       - name: Install
         run: npm ci
       - name: Test
-        run: ./node_modules/.bin/vitest run
+        run: npm test
       - name: npm audit (advisory)
         continue-on-error: true
         run: npm audit --audit-level=high
@@ -246,11 +246,11 @@ jobs:
         env:
           PLAYWRIGHT_PORT: "4000"
           PLAYWRIGHT_REUSE_EXISTING_SERVER: "1"
-        run: npx playwright test
+        run: npm run test:smoke
       - name: Run browser → real Gateway → temp DB seam
         env:
           KITTY_HERMETIC_PYTHON: python
-        run: npx playwright test --config playwright.hermetic.config.ts
+        run: npm run test:smoke:hermetic
       - name: Upload report
         if: failure()
         uses: actions/upload-artifact@v7
