@@ -228,6 +228,95 @@ class TestMemoryTrailer:
         assert finish_kwargs["memory_items"] is None
 
 
+class TestNonStreamMemoryEvidence:
+    """C4-07: the streaming path's memory_items trailer (CR-04) had no
+    non-stream equivalent — same bundle, same injected memories, but a
+    non-stream turn recorded and returned no evidence at all."""
+
+    def _post_non_stream(self, bundle, *, body=None, lifecycle_patches=False):
+        mock_chat = AsyncMock(
+            return_value={
+                "choices": [{"message": {"role": "assistant", "content": "hi back"}}],
+                "usage": {"total_tokens": 5},
+                "model": "kitty-default",
+            }
+        )
+        request_body = body or {
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": False,
+        }
+        mocks = {}
+        patches = [
+            patch("gateway.routes.completions.classify_domain", return_value="soul"),
+            patch("gateway.routes.completions.route_model", return_value="kitty-default"),
+            patch(
+                "gateway.context_assembler.assemble_context",
+                new=AsyncMock(return_value=bundle),
+            ),
+            patch("gateway.routes.completions.chat_completions_non_stream", new=mock_chat),
+        ]
+        if lifecycle_patches:
+            handle = MagicMock(turn_id="turn-1", attempt_id="attempt-1")
+            patches.extend(
+                [
+                    patch(
+                        "gateway.routes.completions.chat_lifecycle.start_turn",
+                        return_value=handle,
+                    ),
+                    patch("gateway.routes.completions.chat_lifecycle.finish_turn"),
+                    patch(
+                        "gateway.routes.completions.chats_store.get_chat",
+                        return_value={"id": "chat-1"},
+                    ),
+                ]
+            )
+
+        from gateway.app import app
+
+        with patches[0], patches[1], patches[2], patches[3]:
+            if lifecycle_patches:
+                with patches[4] as mock_start, patches[5] as mock_finish, patches[6]:
+                    mocks["start"] = mock_start
+                    mocks["finish"] = mock_finish
+                    response = TestClient(app).post("/v1/chat/completions", json=request_body)
+            else:
+                response = TestClient(app).post("/v1/chat/completions", json=request_body)
+        return response, mocks
+
+    def test_response_body_carries_memory_items(self):
+        bundle = ContextBundle(
+            system="SYS",
+            injected_memory_items=[{"text": "decided on FastAPI"}],
+        )
+        response, _ = self._post_non_stream(bundle)
+        assert response.status_code == 200
+        assert response.json()["memory_items"] == [{"text": "decided on FastAPI"}]
+
+    def test_no_memories_means_no_memory_items_key(self):
+        bundle = ContextBundle(system="SYS", injected_memory_items=[])
+        response, _ = self._post_non_stream(bundle)
+        assert response.status_code == 200
+        assert "memory_items" not in response.json()
+
+    def test_ledger_evidence_matches_response_body(self):
+        bundle = ContextBundle(
+            system="SYS",
+            injected_memory_items=[{"text": "prefers dark mode"}],
+        )
+        response, mocks = self._post_non_stream(
+            bundle,
+            body={
+                "conversation_id": "chat-1",
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": False,
+            },
+            lifecycle_patches=True,
+        )
+        assert response.json()["memory_items"] == [{"text": "prefers dark mode"}]
+        finish_kwargs = mocks["finish"].call_args.kwargs
+        assert finish_kwargs["memory_items"] == [{"text": "prefers dark mode"}]
+
+
 def test_failed_turn_persists_friendly_copy_into_ledger():
     """A provider rejection (ChatTurnError) records the failed turn with the
     user-facing copy, so restart/resume restores a truthful failed bubble with a
