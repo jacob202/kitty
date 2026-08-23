@@ -160,6 +160,64 @@ class TestDrawThingsPath:
         assert jobs[0].workflow_template_id == "dt_basic"
 
 
+class TestHostedRegistryPaths:
+    @pytest.mark.asyncio
+    async def test_airforce_success_uses_registered_engine(self, tmp_path, monkeypatch):
+        fake_engine = MagicMock()
+        fake_engine.model_name = "grok-imagine-image-2.0"
+        fake_engine.generate_async = AsyncMock(return_value=b"airforce-png")
+        monkeypatch.setenv("KITTY_IMAGE_AIRFORCE_ENABLED", "1")
+        monkeypatch.setenv("AIRFORCE_API_KEY", "test-key")
+
+        with (
+            patch("mcp.imagen.engines.get", return_value=fake_engine),
+            patch("mcp.imagen.io.save_image", side_effect=_save_image_to(tmp_path / "airforce.png")),
+        ):
+            result = await run("airforce", "a red panda coding")
+
+        assert result.engine == "airforce"
+        assert result.filename == str(tmp_path / "airforce.png")
+        fake_engine.generate_async.assert_awaited_once_with("a red panda coding")
+        assert image_jobs.list_recent(limit=1)[0].provider == "airforce"
+
+    @pytest.mark.asyncio
+    async def test_fal_character_uses_bound_reference(self, tmp_path, monkeypatch):
+        ref = tmp_path / "identity.png"
+        ref.write_bytes(b"reference")
+        fake_engine = MagicMock()
+        fake_engine.model_name = "fal-ai/flux-pulid"
+        fake_engine.generate_async = AsyncMock(return_value=b"fal-png")
+        monkeypatch.setenv("KITTY_IMAGE_FAL_ENABLED", "1")
+        monkeypatch.setenv("FAL_KEY", "test-key")
+
+        with (
+            patch("mcp.imagen.engines.get", return_value=fake_engine),
+            patch("mcp.imagen.io.save_image", side_effect=_save_image_to(tmp_path / "fal.png")),
+        ):
+            result = await run(
+                "fal",
+                "same fictional person outdoors",
+                character_id="char_test",
+                character_ref_path=str(ref),
+                negative_prompt="blurry",
+            )
+
+        assert result.engine == "fal"
+        fake_engine.generate_async.assert_awaited_once_with(
+            "same fictional person outdoors",
+            identity_images=[ref],
+            negative_prompt="blurry",
+        )
+        assert image_jobs.list_recent(limit=1)[0].provider == "fal"
+
+    @pytest.mark.asyncio
+    async def test_fal_requires_character_reference(self, monkeypatch):
+        monkeypatch.setenv("KITTY_IMAGE_FAL_ENABLED", "1")
+        monkeypatch.setenv("FAL_KEY", "test-key")
+        with pytest.raises(ImageRunnerError, match="character reference"):
+            await run("fal", "portrait")
+
+
 class TestCharacterPath:
     @pytest.mark.asyncio
     async def test_legacy_character_without_contract_raises(self):

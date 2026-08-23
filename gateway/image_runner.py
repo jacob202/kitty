@@ -44,6 +44,7 @@ async def run(
     *,
     recipe: Any | None = None,
     character_id: str | None = None,
+    character_ref_path: str | None = None,
     negative_prompt: str | None = None,
     parent_id: str | None = None,
     guidance_tags: list[str] | None = None,
@@ -107,6 +108,18 @@ async def run(
         return await _run_drawthings(
             prompt,
             recipe=recipe,
+            parent_id=parent_id,
+            project_id=project_id,
+        )
+
+    if engine in {"airforce", "fal"}:
+        return await _run_registry_hosted(
+            engine,
+            prompt,
+            recipe=recipe,
+            character_id=character_id,
+            character_ref_path=character_ref_path,
+            negative_prompt=negative_prompt,
             parent_id=parent_id,
             project_id=project_id,
         )
@@ -289,6 +302,78 @@ def _persist_artifact(job_id: str, filename: str, data: bytes) -> Path:
     return target
 
 
+async def _run_registry_hosted(
+    engine_name: str,
+    prompt: str,
+    *,
+    recipe: Any | None = None,
+    character_id: str | None = None,
+    character_ref_path: str | None = None,
+    negative_prompt: str | None = None,
+    parent_id: str | None = None,
+    project_id: int | None = None,
+) -> JobResult:
+    """Dispatch an existing MCP hosted engine through Kitty's durable job spine."""
+    from mcp.imagen.engines import get
+    from mcp.imagen.io import save_image
+
+    available, reason = paid_engine_available(engine_name)
+    if not available:
+        raise ImageRunnerError(reason)
+
+    identity_images: list[Path] | None = None
+    if engine_name == "fal":
+        if not character_id or not character_ref_path:
+            raise ImageRunnerError(
+                "fal character generation requires a bound character reference"
+            )
+        ref_path = Path(character_ref_path)
+        if not ref_path.is_file():
+            raise ImageRunnerError(
+                f"bound character reference is missing from disk: {ref_path}"
+            )
+        identity_images = [ref_path]
+    elif character_id:
+        raise ImageRunnerError(
+            f"{engine_name} cannot honor character identity conditioning; use fal instead"
+        )
+
+    provider = get(engine_name)
+    job = image_jobs.create_job(
+        provider=engine_name,
+        operation="variation" if parent_id else "txt2img",
+        prompt=prompt,
+        parent_id=parent_id,
+        model_id=getattr(provider, "model_name", None),
+        workflow_template_id=recipe.workflow_template_id if recipe else None,
+    )
+
+    kwargs: dict[str, Any] = {}
+    if identity_images is not None:
+        kwargs["identity_images"] = identity_images
+    if negative_prompt:
+        kwargs["negative_prompt"] = negative_prompt
+
+    try:
+        image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+        data = await provider.generate_async(prompt, **kwargs)
+        path = await asyncio.to_thread(save_image, data, prefix=engine_name)
+        image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
+        image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
+    except Exception as exc:
+        _mark_failed(job.job_id, str(exc)[:500])
+        raise
+
+    return JobResult(
+        job_id=job.job_id,
+        filename=str(path),
+        engine=engine_name,
+        recipe=recipe.recipe_id if recipe else None,
+    )
+
+
 async def _run_drawthings(
     prompt: str,
     *,
@@ -448,12 +533,16 @@ def _mark_failed(job_id: str, message: str) -> None:
 #: Engines ``run`` will dispatch to. Hosted engines carry a conservative
 #: contracted per-render estimate so the session budget can be reserved before
 #: a provider call is allowed to spend money.
-ENGINES = frozenset({"comfyui", "drawthings", "flux", "flux2", "openrouter"})
+ENGINES = frozenset({"comfyui", "drawthings", "airforce", "fal", "flux", "flux2", "openrouter"})
 _ESTIMATED_COST_USD = {
     "comfyui": 0.0,
     "drawthings": 0.0,
     # The worker edit lane is Kitty-owned and not billed per render.
     "kitty_worker": 0.0,
+    # Current list prices are lower; reserve conservatively to avoid spending
+    # beyond a session budget when provider-reported actual cost is unavailable.
+    "airforce": 0.02,
+    "fal": 0.07,
     # Budget reservations are deliberately conservative ceilings, not price
     # claims. Actual provider-reported cost is reconciled after success when
     # available.
@@ -480,6 +569,10 @@ def paid_engine_available(engine: str) -> tuple[bool, str]:
         return flux2_images_available()
     if normalized == "openrouter":
         return openrouter_images_available()
+    if normalized == "airforce":
+        return airforce_images_available()
+    if normalized == "fal":
+        return fal_images_available()
     if normalized in {"comfyui", "drawthings", "kitty_worker"}:
         return True, ""
     raise ImageRunnerError(f"no availability contract for image engine {engine!r}")
@@ -500,6 +593,36 @@ def paid_images_enabled() -> bool:
     import so the answer follows the environment.
     """
     return os.environ.get("KITTY_IMAGE_PAID_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def _hosted_engine_enabled(provider: str) -> bool:
+    """Provider-specific opt-in, falling back to the legacy global paid switch."""
+    raw = os.environ.get(f"KITTY_IMAGE_{provider.upper()}_ENABLED")
+    if raw is not None and raw.strip():
+        return raw.strip().lower() in _TRUTHY
+    return paid_images_enabled()
+
+
+def airforce_images_available() -> tuple[bool, str]:
+    if not _hosted_engine_enabled("airforce"):
+        return False, (
+            "Airforce image generation is off. Set KITTY_IMAGE_AIRFORCE_ENABLED=1 "
+            "in .env and restart Kitty to use your Airforce credits."
+        )
+    if not os.environ.get("AIRFORCE_API_KEY", "").strip():
+        return False, "AIRFORCE_API_KEY is not set"
+    return True, ""
+
+
+def fal_images_available() -> tuple[bool, str]:
+    if not _hosted_engine_enabled("fal"):
+        return False, (
+            "fal image generation is off. Set KITTY_IMAGE_FAL_ENABLED=1 in .env "
+            "and restart Kitty to use your fal credits."
+        )
+    if not os.environ.get("FAL_KEY", "").strip():
+        return False, "FAL_KEY is not set"
+    return True, ""
 
 
 def openrouter_images_available() -> tuple[bool, str]:

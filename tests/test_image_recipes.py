@@ -53,6 +53,21 @@ class TestRecipeRegistry:
         recipes = list_recipes()
         assert len(recipes) >= 2
 
+    def test_seed_reconciles_missing_defaults_in_existing_registry(self, override_db):
+        seed_default_recipes()
+        with db.connect(override_db) as conn:
+            conn.execute("DELETE FROM image_recipes WHERE recipe_id = ?", ("airforce_grok_imagine_2",))
+            conn.commit()
+        assert seed_default_recipes() == 1
+        assert get_recipe("airforce_grok_imagine_2").provider == "airforce"
+
+    def test_hosted_defaults_exist(self, override_db):
+        seed_default_recipes()
+        assert get_recipe("airforce_grok_imagine_2").provider == "airforce"
+        fal = get_recipe("fal_flux_pulid")
+        assert fal.provider == "fal"
+        assert fal.supports_characters is True
+
     def test_list_available_only(self, override_db):
         seed_default_recipes()
         recipes = list_recipes(available_only=True)
@@ -104,6 +119,25 @@ class TestAutoRouting:
         seed_default_recipes()
         decision = auto_route(has_character=False, quality_tier="fast")
         assert decision.recipe.quality_tier == "fast"
+
+    def test_enabled_airforce_wins_default_quality_route(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_IMAGE_AIRFORCE_ENABLED", "1")
+        monkeypatch.setenv("AIRFORCE_API_KEY", "test-key")
+        seed_default_recipes()
+        decision = auto_route(has_character=False, quality_tier="quality")
+        assert decision.recipe_id == "airforce_grok_imagine_2"
+
+    def test_enabled_fal_wins_character_route(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_IMAGE_FAL_ENABLED", "1")
+        monkeypatch.setenv("FAL_KEY", "test-key")
+        seed_default_recipes()
+        decision = auto_route(
+            has_character=True,
+            character_count=1,
+            quality_tier="quality",
+            identity_mode="identity_first",
+        )
+        assert decision.recipe_id == "fal_flux_pulid"
 
     def test_no_available_recipes_raises(self, override_db):
         seed_default_recipes()

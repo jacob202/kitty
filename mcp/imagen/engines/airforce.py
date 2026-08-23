@@ -78,7 +78,7 @@ class AirforceEngine:
             )
 
         if (
-            settings.airforce_model == "grok-imagine-image"
+            settings.airforce_model.startswith("grok-imagine-image")
             and aspect_ratio not in _GROK_IMAGINE_SUPPORTED_ASPECT_RATIOS
         ):
             supported = ", ".join(sorted(_GROK_IMAGINE_SUPPORTED_ASPECT_RATIOS))

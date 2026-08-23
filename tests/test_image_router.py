@@ -32,7 +32,9 @@ async def test_image_status_reports_each_engine(monkeypatch):
     assert [engine["name"] for engine in result["engines"]] == [
         "comfyui",
         "drawthings",
+        "airforce",
         "flux",
+        "fal",
         "openrouter",
     ]
     by_name = {engine["name"]: engine for engine in result["engines"]}
@@ -66,7 +68,7 @@ async def test_offline_local_engines_say_what_to_do_next(monkeypatch):
 
     assert result["available"] is False
     by_name = {engine["name"]: engine for engine in result["engines"]}
-    for name in ("comfyui", "drawthings", "flux", "openrouter"):
+    for name in ("comfyui", "drawthings", "airforce", "flux", "fal", "openrouter"):
         assert by_name[name]["available"] is False
         assert by_name[name]["unavailable_reason"], f"{name} is offline without a reason"
     assert "Start ComfyUI" in by_name["comfyui"]["unavailable_reason"]

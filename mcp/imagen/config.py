@@ -108,7 +108,7 @@ class Settings:
 
     # Airforce (OpenAI-compatible REST gateway, no identity conditioning)
     airforce_model: str = field(
-        default_factory=lambda: _env("AIRFORCE_MODEL", "grok-imagine-image")
+        default_factory=lambda: _env("AIRFORCE_MODEL", "grok-imagine-image-2.0")
     )
 
 
