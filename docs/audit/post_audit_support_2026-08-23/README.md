@@ -53,3 +53,13 @@ Coverage is complete only when the crosswalk required by `AUDIT_CONSUMPTION_MATR
 
 If this package conflicts with current repository truth, repository truth wins and the conflict itself may become audit evidence.
 If it conflicts with canonical product/architecture authority, canonical authority wins unless the audit demonstrates that authority is stale or contradictory.
+## Live sequential-audit checkpoint
+
+The active audit has completed Chunks 0–2. Use these files instead of historical chat context:
+
+- `LIVE_AUDIT_LEDGER_THROUGH_CHUNK_2.md` — compact cumulative finding/collision ledger.
+- `CHUNK_2_SECURITY_TRUST_REPORT.md` — completed Security / Trust Boundaries report.
+- `NEXT_CHUNK_3_HANDOFF.md` — minimal sequential handoff for the next Builder-only audit owner.
+
+These are audit evidence/checkpoints, not implementation authorization.
+
