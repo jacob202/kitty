@@ -330,7 +330,11 @@ async def image_status():
             "label": "FLUX PuLID via fal",
             "available": fal_available,
             "unavailable_reason": fal_reason or None,
-            "cost_per_image_usd": 0.0333,
+            # fal bills PuLID at $0.0333/output MP, rounding up. Kitty's
+            # default square_hd output is 1024x1024 (>1 MP), so its provider
+            # price is two billable MP = $0.0666 before the $0.07 budget guard.
+            "cost_per_image_usd": 0.0666,
+            "cost_per_megapixel_usd": 0.0333,
         },
         {
             "name": "openrouter",

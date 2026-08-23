@@ -44,6 +44,11 @@ async def test_image_status_reports_each_engine(monkeypatch):
     assert by_name["flux"]["available"] is False
     assert by_name["flux"]["unavailable_reason"]
     assert by_name["flux"]["cost_per_image_usd"] < by_name["openrouter"]["cost_per_image_usd"]
+    # PuLID is billed per output megapixel, rounded up. Kitty's default 1:1
+    # square_hd output is 1024x1024 (>1 MP), so it incurs two billable MP.
+    fal = by_name["fal"]
+    assert fal["cost_per_megapixel_usd"] == pytest.approx(0.0333)
+    assert fal["cost_per_image_usd"] == pytest.approx(0.0666)
 
 
 @pytest.mark.asyncio
