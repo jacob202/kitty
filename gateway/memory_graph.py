@@ -268,9 +268,9 @@ class KnowledgeAdapter(StoreAdapter):
                 Item(
                     text=text[:400],
                     source=Source.KNOWLEDGE,
-                    score=c.get("_score"),
+                    score=c.get("score"),
                     ts=None,
-                    metadata={k: v for k, v in c.items() if k not in {"text", "_score"}},
+                    metadata={k: v for k, v in c.items() if k not in {"text", "score"}},
                 )
             )
         return items
@@ -748,7 +748,11 @@ def _select_unified_items(
 
         added_any = False
         section_rendered: list[MemoryEvidence] = []
-        for item in items[:5]: # Allow up to 5 if budget permits
+        # Budget the highest-scored items first, not whatever order the
+        # adapter happened to return — an unscored (None) item sorts last
+        # rather than winning a budget slot ahead of a scored one (C4-05).
+        ranked_items = sorted(items, key=lambda i: i.score if i.score is not None else float("-inf"), reverse=True)
+        for item in ranked_items[:5]: # Allow up to 5 if budget permits
             if _is_sensitive(item, query_terms):
                 continue
 
