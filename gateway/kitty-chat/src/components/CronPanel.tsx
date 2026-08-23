@@ -1,10 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
 import type { CSSProperties } from 'react'
-import { type CronScheduleType } from '@/lib/gateway'
+import { type CronScheduleType, type WhyStatus } from '@/lib/gateway'
 import {
   useCronSchedules, useCronActions, useCreateCronSchedule,
   useUpdateCronSchedule, useDeleteCronSchedule, useToggleCronSchedule,
+  useScheduleWhy,
 } from '@/lib/queries'
 
 function fmtLastRun(ts: number): string {
@@ -43,10 +44,17 @@ export function CronPanel() {
 
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [whyId, setWhyId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [action, setAction] = useState('')
   const [schedType, setSchedType] = useState<CronScheduleType>('daily')
   const [schedVal, setSchedVal] = useState('07:00')
+
+  const whyQuery = useScheduleWhy(whyId)
+
+  function toggleWhy(id: string) {
+    setWhyId(whyId === id ? null : id)
+  }
 
   // Default the action picker to the first known action once they load.
   useEffect(() => {
@@ -116,6 +124,14 @@ export function CronPanel() {
                 </div>
                 <div style={{ display: 'flex', gap: 3, flexShrink: 0, alignItems: 'center' }}>
                   <button
+                    onClick={() => toggleWhy(s.id)}
+                    style={whyBtnStyle}
+                    title="why didn't this happen?"
+                    aria-label="why schedule"
+                  >
+                    ?
+                  </button>
+                  <button
                     onClick={() => toggleSchedule.mutate(s.id)}
                     style={{ ...toggleBtnStyle, color: s.enabled ? 'var(--c-blue)' : 'var(--ink-2)' }}
                     title={s.enabled ? 'disable' : 'enable'}
@@ -141,6 +157,26 @@ export function CronPanel() {
                   </button>
                 </div>
               </div>
+              {whyId === s.id && (
+                <div style={whyBoxStyle}>
+                  {whyQuery.isPending ? (
+                    <p style={metaStyle}>checking…</p>
+                  ) : whyQuery.isError ? (
+                    <p style={metaStyle}>couldn't explain: {String((whyQuery.error as Error).message ?? whyQuery.error)}</p>
+                  ) : whyQuery.data ? (
+                    <>
+                      <p style={whyStatusStyle(whyQuery.data.status)}>{whyQuery.data.status.replace(/_/g, ' ')}</p>
+                      <p style={metaStyle}>{whyQuery.data.reason}</p>
+                      {whyQuery.data.relevant_at ? (
+                        <p style={metaStyle}>at {fmtTimestamp(whyQuery.data.relevant_at)}</p>
+                      ) : null}
+                      {whyQuery.data.next_step ? (
+                        <p style={metaStyle}>next: {whyQuery.data.next_step}</p>
+                      ) : null}
+                    </>
+                  ) : null}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -210,6 +246,28 @@ export function CronPanel() {
   )
 }
 
+function fmtTimestamp(ts: number): string {
+  return new Date(ts * 1000).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+}
+
+function whyStatusStyle(status: WhyStatus): CSSProperties {
+  const color =
+    status === 'completed' || status === 'not_yet_due' || status === 'already_claimed' || status === 'claimed' || status === 'pending_claim' || status === 'not_triggered'
+      ? 'var(--c-green)'
+      : status === 'failed' || status === 'execution_gap' || status === 'action_unavailable' || status === 'policy_refused' || status === 'grant_revoked' || status === 'source_unavailable'
+        ? 'var(--c-red)'
+        : 'var(--c-yellow)'
+  return {
+    margin: 0,
+    fontFamily: 'var(--font-mono)',
+    fontSize: 10,
+    fontWeight: 600,
+    color,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+  }
+}
+
 function rowStyle(enabled: number): CSSProperties {
   return {
     padding: '5px 7px',
@@ -248,6 +306,27 @@ const toggleBtnStyle: CSSProperties = {
   fontSize: 11,
   padding: '1px 3px',
   lineHeight: 1,
+}
+
+const whyBtnStyle: CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  color: 'var(--c-purple)',
+  cursor: 'pointer',
+  fontSize: 11,
+  padding: '1px 3px',
+  lineHeight: 1,
+  fontFamily: 'var(--font-mono)',
+}
+
+const whyBoxStyle: CSSProperties = {
+  display: 'grid',
+  gap: 3,
+  marginTop: 5,
+  padding: '5px 7px',
+  background: 'rgba(102,119,204,0.08)',
+  border: '1px solid var(--line)',
+  borderRadius: 4,
 }
 
 const deleteBtnStyle: CSSProperties = {

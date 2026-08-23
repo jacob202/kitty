@@ -1138,6 +1138,53 @@ export async function toggleCronSchedule(id: string): Promise<void> {
   await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
 }
 
+// ── Why didn't this happen? ─────────────────────────────────────────────────
+
+export type WhyStatus =
+  | 'not_yet_due'
+  | 'disabled'
+  | 'already_claimed'
+  | 'claimed'
+  | 'source_unavailable'
+  | 'condition_false'
+  | 'policy_refused'
+  | 'approval_required'
+  | 'grant_expired'
+  | 'grant_revoked'
+  | 'action_unavailable'
+  | 'failed'
+  | 'interrupted'
+  | 'completed'
+  | 'execution_gap'
+  | 'pending_claim'
+  | 'not_triggered'
+
+export interface WhyExplanation {
+  status: WhyStatus
+  reason: string
+  relevant_at: number | null
+  action: string
+  automation: string
+  evidence: Record<string, unknown>
+  next_step: string
+}
+
+export async function fetchScheduleWhy(scheduleId: string): Promise<WhyExplanation> {
+  const json = await gfetch<{ explanation?: WhyExplanation }>(
+    `/automations/schedules/${scheduleId}/why`,
+  )
+  if (!json.explanation) throw new Error(`gateway returned no explanation for schedule ${scheduleId}`)
+  return json.explanation
+}
+
+export async function fetchActionWhy(action: string): Promise<WhyExplanation> {
+  const json = await gfetch<{ explanation?: WhyExplanation }>(
+    `/automations/${encodeURIComponent(action)}/why`,
+  )
+  if (!json.explanation) throw new Error(`gateway returned no explanation for action ${action}`)
+  return json.explanation
+}
+
 // ── Dream / Performance ─────────────────────────────────────────────────────
 
 export interface DreamStatusPayload {

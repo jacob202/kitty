@@ -44,6 +44,7 @@ import {
   updateCronSchedule,
   deleteCronSchedule,
   toggleCronSchedule,
+  fetchScheduleWhy,
   type CronScheduleType,
   // image
   fetchImageStatus,
@@ -487,6 +488,15 @@ export function useToggleCronSchedule() {
   return useMutation({
     mutationFn: (id: string) => toggleCronSchedule(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cron', 'schedules'] }),
+  })
+}
+
+export function useScheduleWhy(scheduleId: string | null) {
+  return useQuery({
+    queryKey: ['cron', 'why', scheduleId],
+    queryFn: () => fetchScheduleWhy(scheduleId as string),
+    enabled: scheduleId !== null,
+    retry: false,
   })
 }
 
