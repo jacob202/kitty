@@ -8,7 +8,7 @@ import pytest
 
 from gateway import image_jobs
 from gateway.image_jobs import ImageJobStatus
-from gateway.image_runner import ImageRunnerError, JobResult, run
+from gateway.image_runner import ImageDispatchNotSubmittedError, ImageRunnerError, JobResult, run
 
 
 @pytest.fixture(autouse=True)
@@ -256,7 +256,7 @@ class TestHostedRegistryPaths:
     async def test_fal_requires_character_reference(self, monkeypatch):
         monkeypatch.setenv("KITTY_IMAGE_FAL_ENABLED", "1")
         monkeypatch.setenv("FAL_KEY", "test-key")
-        with pytest.raises(ImageRunnerError, match="character reference"):
+        with pytest.raises(ImageDispatchNotSubmittedError, match="character reference"):
             await run("fal", "portrait")
 
 

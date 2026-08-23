@@ -232,6 +232,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "045_image_intent_provenance.sql",
         "046_explicit_memories.sql",
         "047_automation_runs.sql",
+        "048_image_session_reserved_spend.sql",
     ]
 
 

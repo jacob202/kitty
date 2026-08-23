@@ -55,7 +55,8 @@ async def test_paid_generate_debits_session_and_refuses_next_over_budget_before_
 
     after_first = image_sessions.require_session(session.session_id)
     assert calls == 1
-    assert after_first.spend_usd == pytest.approx(4.93)
+    assert after_first.spend_usd == pytest.approx(4.85)
+    assert after_first.reserved_spend_usd == pytest.approx(0.08)
 
     with pytest.raises(HTTPException) as exc:
         await extended.studio_generate(request)
@@ -152,3 +153,71 @@ async def test_paid_generate_reconciles_reservation_to_provider_reported_cost(
     after = image_sessions.require_session(session.session_id)
     assert after.attempt_count == 1
     assert after.spend_usd == pytest.approx(0.04)
+
+@pytest.mark.asyncio
+async def test_definite_no_submit_failure_releases_reserved_exposure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gateway import image_runner
+
+    no_submit_error = getattr(image_runner, "ImageDispatchNotSubmittedError", None)
+    assert no_submit_error is not None, "runner must distinguish definite no-submit failures"
+
+    session = image_sessions.create_session(title="definite no submit")
+    recipe = SimpleNamespace(provider="flux", recipe_id="paid_flux")
+    monkeypatch.setattr(
+        image_recipes,
+        "auto_route",
+        lambda **_: image_recipes.RoutingDecision(
+            recipe_id="paid_flux", recipe=recipe, reason="paid test lane"
+        ),
+    )
+    monkeypatch.setattr(image_runner, "paid_engine_available", lambda _engine: (True, ""))
+
+    async def fail_before_submit(*_args, **_kwargs):
+        raise no_submit_error("request rejected before provider submission")
+
+    monkeypatch.setattr(image_runner, "run", fail_before_submit)
+
+    with pytest.raises(HTTPException):
+        await extended.studio_generate(
+            extended.StudioGenerateRequest(prompt="portrait", session_id=session.session_id)
+        )
+
+    after = image_sessions.require_session(session.session_id)
+    assert after.spend_usd == 0.0
+    assert after.reserved_spend_usd == 0.0
+    assert after.attempt_count == 1
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_paid_failure_keeps_unknown_exposure_reserved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from gateway import image_runner
+
+    session = image_sessions.create_session(title="ambiguous paid outcome")
+    recipe = SimpleNamespace(provider="flux", recipe_id="paid_flux")
+    monkeypatch.setattr(
+        image_recipes,
+        "auto_route",
+        lambda **_: image_recipes.RoutingDecision(
+            recipe_id="paid_flux", recipe=recipe, reason="paid test lane"
+        ),
+    )
+    monkeypatch.setattr(image_runner, "paid_engine_available", lambda _engine: (True, ""))
+
+    async def ambiguous_failure(*_args, **_kwargs):
+        raise image_runner.ImageRunnerError("provider outcome unknown after transport failure")
+
+    monkeypatch.setattr(image_runner, "run", ambiguous_failure)
+
+    with pytest.raises(HTTPException):
+        await extended.studio_generate(
+            extended.StudioGenerateRequest(prompt="portrait", session_id=session.session_id)
+        )
+
+    after = image_sessions.require_session(session.session_id)
+    assert after.spend_usd == 0.0
+    assert after.reserved_spend_usd == pytest.approx(0.08)
+    assert after.attempt_count == 1
