@@ -70,6 +70,22 @@ function pickerPayload() {
   }
 }
 
+function healthSurfacePayload() {
+  const names = [
+    'gateway', 'database', 'memory', 'automation_supervisor', 'cron', 'telegram',
+    'image_lab', 'image_providers', 'image_queue', 'ollama', 'pending_grants',
+  ]
+  return {
+    ok: true,
+    generated_at: '2026-08-21T00:00:00Z',
+    overall: 'healthy',
+    domains: names.map(name => ({ name, status: 'available', reason: '', detail: {} })),
+    degraded: [],
+    still_functional: names,
+    pending_grants: 0,
+  }
+}
+
 async function installHermeticStubs(
   page: Page,
   providerDispatches: string[],
@@ -89,6 +105,7 @@ async function installHermeticStubs(
     }
     if (path === '/repairs') return route.continue()
     if (path === '/health') return json(route, { status: 'ok', litellm_reachable: true })
+    if (path === '/health/surface') return json(route, healthSurfacePayload())
     if (path === '/brief') {
       return json(route, {
         date: '2026-08-21', headlines: [], memory_snippet: '', intention: '',

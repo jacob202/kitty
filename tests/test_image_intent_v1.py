@@ -291,6 +291,8 @@ async def test_flux2_compiler_uses_typed_reference_roles_and_order(
         default_width=1024,
         default_height=1024,
         workflow_template_id=None,
+        supports_characters=True,
+        supports_pose_refs=True,
     )
     monkeypatch.setattr(
         "gateway.image_recipes.auto_route",
@@ -322,11 +324,14 @@ async def test_flux2_compiler_uses_typed_reference_roles_and_order(
     )
 
     compiled = captured["compiled_request"]
+    # Role-aware selection reorders identity references ahead of optional
+    # references (identity anchors the subject), so ref_identity now precedes
+    # ref_pose even though the plan stored pose first.
     assert [(ref.reference_id, ref.role, ref.order) for ref in compiled.references] == [
-        ("ref_pose", "pose", 1),
-        ("ref_identity", "identity", 2),
+        ("ref_identity", "identity", 1),
+        ("ref_pose", "pose", 2),
     ]
-    assert captured["reference_bytes"] == (b"pose", b"identity")
+    assert captured["reference_bytes"] == (b"identity", b"pose")
 
 
 def test_image_job_persists_plan_and_intent_provenance(isolated_plan_db) -> None:
@@ -541,3 +546,118 @@ def test_persist_plan_rejects_invalid_cast_placement(isolated_plan_db) -> None:
 
     with pytest.raises(image_plans.PlanStoreError, match="position|depth_order"):
         image_plans.persist_plan(session.session_id, payload)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_fails_closed_on_unsupported_reference_capability(
+    isolated_plan_db, tmp_path: Path, monkeypatch
+) -> None:
+    """A recipe that cannot carry a bound reference role must fail the dispatch.
+
+    This proves the role-aware ReferenceSelector is enforced at the route:
+    a pose reference against a recipe without ``supports_pose_refs`` raises a
+    400 instead of silently dropping the reference.
+    """
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+
+    from gateway import image_jobs
+    from gateway.routes import extended
+
+    session = sessions.create_session(title="fail-closed capability")
+    pose_path = tmp_path / "pose.png"
+    pose_path.write_bytes(b"pose")
+
+    plan = {
+        "original_prompt": "James in this pose",
+        "refined_prompt": "James in this pose",
+        "character_id": "char_james",
+        "character_ref_path": str(pose_path),
+        "recipe_id": "flux2_test",
+        "guidance_tags": [],
+        "references": [
+            {
+                "character_id": "char_james",
+                "name": "James pose",
+                "path": str(pose_path),
+                "reason": "pose",
+                "reference_id": "ref_pose",
+            },
+        ],
+        "content_lane": "safe",
+        "consent_basis": None,
+        "adult_confirmed": False,
+        "intent": {
+            "intent_version": 1,
+            "operation": "txt2img",
+            "cast": [
+                {
+                    "slot_id": "subject_1",
+                    "character_id": "char_james",
+                    "display_name": "James",
+                }
+            ],
+            "references": [
+                {
+                    "reference_id": "ref_pose",
+                    "role": "pose",
+                    "cast_slot": "subject_1",
+                    "weight": None,
+                },
+            ],
+            "scene": {},
+            "target": {},
+            "requested_changes": [],
+            "protected_traits": [],
+            "content_lane": "safe",
+            "consent_basis": None,
+            "adult_confirmed": False,
+            "privacy_required": False,
+            "quality_request": {},
+            "budget_request": {},
+        },
+    }
+    stored = image_plans.persist_plan(session.session_id, plan)
+
+    recipe = SimpleNamespace(
+        recipe_id="flux2_test",
+        provider="flux2",
+        execution_target="flux2_test_target",
+        default_width=1024,
+        default_height=1024,
+        workflow_template_id=None,
+        supports_characters=True,
+        supports_pose_refs=False,
+    )
+    monkeypatch.setattr(
+        "gateway.image_recipes.auto_route",
+        lambda **_: SimpleNamespace(recipe=recipe, recipe_id=recipe.recipe_id, reason="test"),
+    )
+    target = SimpleNamespace(
+        model_id="test-model",
+        estimate_cost_usd=lambda *_args: 0.0,
+    )
+    monkeypatch.setattr("gateway.flux2_targets.resolve_flux2_target", lambda _name: target)
+
+    captured = {}
+
+    async def fake_run(engine, prompt, **kwargs):
+        captured.update(kwargs)
+        job = image_jobs.create_job(provider=engine, operation="txt2img", prompt=prompt)
+        from gateway.image_runner import JobResult
+
+        return JobResult(job_id=job.job_id, filename="/tmp/test.png", engine=engine)
+
+    monkeypatch.setattr("gateway.image_runner.run", fake_run)
+
+    with pytest.raises(StarletteHTTPException) as exc_info:
+        await extended.studio_generate(
+            extended.StudioGenerateRequest(
+                prompt="ignored",
+                plan_id=stored.plan_id,
+                session_id=session.session_id,
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert "supports_pose_refs" in str(exc_info.value.detail)
+    assert captured == {}  # no spend, no run, no silent drop
