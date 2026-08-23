@@ -69,15 +69,16 @@ def test_record_chat_carries_operation_and_correlation_id(tmp_path):
     assert entries[0]["correlation_id"] == "corr-123"
 
 
-def test_record_chat_measures_latency(tmp_path):
-    import time
+def test_record_chat_measures_latency(tmp_path, monkeypatch):
+    monotonic = iter([100.0, 100.05])
+    monkeypatch.setattr(observability.time, "monotonic", lambda: next(monotonic))
 
     log = tmp_path / "llm_calls.jsonl"
     with observability.record_chat("kitty-sonnet", log_path=log):
-        time.sleep(0.05)
+        pass
 
     entries = _read_calls(log)
-    assert entries[0]["latency_ms"] >= 50.0
+    assert entries[0]["latency_ms"] == 50.0
 
 
 def test_record_chat_caller_can_set_token_counts(tmp_path):
