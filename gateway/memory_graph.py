@@ -135,19 +135,40 @@ class ProjectAdapter(StoreAdapter):
         return Source.PROJECTS.value
 
     async def fetch(self, query: str) -> list[Item]:
+        from gateway.project_context import get_active_project
         from gateway.project_store import list_projects
 
         projects = await asyncio.to_thread(list_projects)
         terms = {term for term in re.findall(r"[^\W_]+", query.casefold()) if len(term) > 1}
+
+        # A corrupt/missing persisted scope (ProjectContextError) is left to
+        # propagate rather than degrading silently to "no active project" —
+        # per the StoreAdapter contract, an infrastructure failure here must
+        # surface as a warning/degraded store, not an apparently healthy
+        # empty result that hides a broken scope.
+        active_id = (await asyncio.to_thread(get_active_project))["project_id"]
+
+        # The active project is always in scope, even for a generic query with
+        # no matchable terms — it's the project the user is actually working
+        # in. Every other project needs an explicit keyword match; without
+        # that gate, a term-less query returned every project unfiltered,
+        # leaking other projects' status/next-actions into unrelated context
+        # (C4-02).
+        ordered = sorted(projects, key=lambda p: p.get("id") != active_id)
+
         items: list[Item] = []
-        for project in projects:
-            searchable = " ".join(
-                [str(project.get("name") or ""), str(project.get("summary") or ""),
-                 " ".join(map(str, project.get("next_actions") or [])),
-                 " ".join(map(str, project.get("open_questions") or []))]
-            ).casefold()
-            if terms and not any(term in searchable for term in terms):
-                continue
+        for project in ordered:
+            is_active = project.get("id") == active_id
+            if not is_active:
+                if not terms:
+                    continue
+                searchable = " ".join(
+                    [str(project.get("name") or ""), str(project.get("summary") or ""),
+                     " ".join(map(str, project.get("next_actions") or [])),
+                     " ".join(map(str, project.get("open_questions") or []))]
+                ).casefold()
+                if not any(term in searchable for term in terms):
+                    continue
             detail = [
                 f"Project {project.get('name')}: status={project.get('status', 'unknown')}",
             ]
@@ -165,6 +186,7 @@ class ProjectAdapter(StoreAdapter):
                         "owner": "project_store",
                         "kind": project.get("kind"),
                         "status": project.get("status"),
+                        "active": is_active,
                     },
                 )
             )
@@ -268,9 +290,9 @@ class KnowledgeAdapter(StoreAdapter):
                 Item(
                     text=text[:400],
                     source=Source.KNOWLEDGE,
-                    score=c.get("_score"),
+                    score=c.get("score"),
                     ts=None,
-                    metadata={k: v for k, v in c.items() if k not in {"text", "_score"}},
+                    metadata={k: v for k, v in c.items() if k not in {"text", "score"}},
                 )
             )
         return items
@@ -685,8 +707,13 @@ async def unified_context(query: str, *, _record: bool = True) -> str:
     hit = prefetcher.get_cached(query)
     if hit is not None:
         return hit
+    # Captured before the (possibly slow) compute below so a correction that
+    # invalidates the cache while this call is in flight is detected on
+    # write, instead of this call silently resurrecting the pre-correction
+    # answer it started with (C4-03 follow-up).
+    generation = prefetcher.current_generation()
     result = await _get_graph().unified_context(query)
-    prefetcher.put_cached(query, result)
+    prefetcher.put_cached(query, result, generation=generation)
     if _record:
         prefetcher.record(query)
     return result
@@ -748,7 +775,11 @@ def _select_unified_items(
 
         added_any = False
         section_rendered: list[MemoryEvidence] = []
-        for item in items[:5]: # Allow up to 5 if budget permits
+        # Budget the highest-scored items first, not whatever order the
+        # adapter happened to return — an unscored (None) item sorts last
+        # rather than winning a budget slot ahead of a scored one (C4-05).
+        ranked_items = sorted(items, key=lambda i: i.score if i.score is not None else float("-inf"), reverse=True)
+        for item in ranked_items[:5]: # Allow up to 5 if budget permits
             if _is_sensitive(item, query_terms):
                 continue
 

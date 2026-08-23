@@ -137,6 +137,34 @@ def test_pull_request_event_classifies_from_the_live_file_list(monkeypatch) -> N
     assert (scope.code, scope.frontend) == (True, True)
 
 
+def test_merge_group_event_classifies_from_queued_diff(monkeypatch) -> None:
+    def fake_compare(url: str, _token: str):
+        assert url.endswith(f"/compare/{SHA}...{OTHER_SHA}")
+        return {"files": [{"filename": "docs/ROADMAP.md"}]}
+
+    monkeypatch.setattr(pr_scope, "_github_json", fake_compare)
+    event = {
+        "repository": {"owner": {"login": "jacob202"}, "name": "kitty"},
+        "merge_group": {"base_sha": SHA, "head_sha": OTHER_SHA},
+    }
+    scope = pr_scope.scope_for_event(event, "merge_group", "token")
+    assert scope.docs_only is True
+
+
+def test_merge_group_event_with_code_changes_keeps_full_evidence(monkeypatch) -> None:
+    monkeypatch.setattr(
+        pr_scope,
+        "_github_json",
+        lambda url, token: {"files": [{"filename": "gateway/app.py"}]},
+    )
+    event = {
+        "repository": {"owner": {"login": "jacob202"}, "name": "kitty"},
+        "merge_group": {"base_sha": SHA, "head_sha": OTHER_SHA},
+    }
+    scope = pr_scope.scope_for_event(event, "merge_group", "token")
+    assert (scope.code, scope.sensitive) == (True, False)
+
+
 def test_dispatch_and_schedule_events_validate_everything() -> None:
     event = {"repository": {"owner": {"login": "jacob202"}, "name": "kitty"}}
     assert pr_scope.scope_for_event(event, "workflow_dispatch", "") == pr_scope.FULL_SCOPE
