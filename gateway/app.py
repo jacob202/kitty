@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI):
     _reconcile_image_batches_on_startup()
     _reconcile_agent_workspace_turns_on_startup()
     _reconcile_autonomy_sessions_on_startup()
-    from gateway.automation_supervisor import supervisor
+    from gateway.automation_supervisor import RecoveryPolicy, supervisor
     from gateway.image_recipes import seed_default_recipes
 
     seed_default_recipes()
@@ -92,8 +92,18 @@ async def lifespan(app: FastAPI):
             from gateway.telegram_bot import stop as tg_stop
 
             if tg_configured():
-                telegram_task = start_polling()
-                supervisor.track_task("telegram", telegram_task, stop=tg_stop)
+                supervisor.track_recoverable(
+                    "telegram",
+                    start_polling,
+                    policy=RecoveryPolicy(
+                        max_attempts=3,
+                        backoff_seconds=2.0,
+                        backoff_factor=5.0,
+                        backoff_max=60.0,
+                        cooldown_seconds=300.0,
+                    ),
+                    stop=tg_stop,
+                )
             else:
                 supervisor.mark("telegram", "unavailable", reason="integration not configured")
         except Exception as exc:
@@ -108,10 +118,17 @@ async def lifespan(app: FastAPI):
         from gateway.image_batches import worker_loop as image_batch_worker_loop
         from gateway.routes.image_studio_jobs import execute_studio_batch_request
 
-        image_batch_task = asyncio.create_task(
-            image_batch_worker_loop(execute_studio_batch_request)
+        supervisor.track_recoverable(
+            "image-batch-worker",
+            lambda: image_batch_worker_loop(execute_studio_batch_request),
+            policy=RecoveryPolicy(
+                max_attempts=3,
+                backoff_seconds=2.0,
+                backoff_factor=5.0,
+                backoff_max=60.0,
+                cooldown_seconds=300.0,
+            ),
         )
-        supervisor.track_task("image-batch-worker", image_batch_task)
         try:
             import gateway.cron as cron
             from gateway import automation_actions
@@ -244,11 +261,40 @@ async def lifespan(app: FastAPI):
             cron.schedule("web monitor due checks", "monitors.check", "interval", "5")
             cron.schedule("iCloud inbox scan", "inbox.scan", "interval", "0.5")
             cron.schedule("trace log compaction", "traces.compact", "daily", "03:30")
-            cron_task = cron_start()
-            supervisor.track_task("cron", cron_task, stop=cron.stop, stale_after=90.0)
+            def _cron_factory():
+                task = cron_start()
+                if task is None:
+                    raise RuntimeError("cron runner failed to start (automation run evidence unavailable)")
+                return task
+
+            supervisor.track_recoverable(
+                "cron",
+                _cron_factory,
+                policy=RecoveryPolicy(
+                    max_attempts=3,
+                    backoff_seconds=2.0,
+                    backoff_factor=5.0,
+                    backoff_max=60.0,
+                    cooldown_seconds=300.0,
+                ),
+                stop=cron.stop,
+                stale_after=90.0,
+            )
         except Exception as exc:
             supervisor.mark("cron", "degraded", reason=f"{type(exc).__name__}: {exc}")
             logger.exception("cron system registration failed — scheduled jobs disabled")
+
+        try:
+            from gateway.capability_report import (
+                probe_capabilities,
+                render_capability_report,
+            )
+
+            startup_report = await probe_capabilities()
+            app.state.startup_capability_report = startup_report
+            logger.info(render_capability_report(startup_report))
+        except Exception as exc:
+            logger.exception("startup capability report failed: %s", exc)
     yield
     if background_services_enabled:
         await supervisor.stop_all()
