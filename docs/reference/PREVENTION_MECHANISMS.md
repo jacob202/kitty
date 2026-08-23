@@ -14,7 +14,8 @@ prose alone is insufficient.
 immediately fixed.
 
 **Enforcement:** Required status checks on the `main` branch protection rule:
-`pytest`, `lint`, `typecheck`, `hygiene`, `kitty-chat`, `browser-smoke`. All
+`policy-gate` and `merge-gate`. The aggregate merge gate owns the applicable
+`pytest`, `lint`, `typecheck`, `kitty-chat`, and `browser-smoke` evidence; hygiene is advisory. All
 must be `success` before merge. GitHub branch protection rule enforces this
 at the platform level.
 
@@ -112,12 +113,15 @@ roadmap and KLF-001 sits within it.
 | Cleanup/destructive change | confirmation that cleanup completed without side effects |
 | Auth/secrets/env change | Jacob's explicit approval + evidence of correct operation |
 
-**Enforcement:** CI check reads PR body for evidence markers. For risky scope
-(`risk/high`), the `pr-risk-guardrails.yml` workflow enforces `Manual approval: YES`
-in the body.
+**Enforcement:** `policy-gate` derives sensitive and native-UI scope from the
+actual changed paths. Sensitive scope requires `risk/approved`, an exact-head
+Risk approval receipt, and trusted independent review. Native UI source/public
+changes require the product-acceptance evidence block. `merge-gate` requires
+browser smoke only when frontend paths change.
 
-**Status:** PARTIALLY ENFORCED. Risk guardrails exist. Evidence check needs
-extension for non-risk evidence types (UI, restore, cost, cleanup).
+**Status:** PARTIALLY ENFORCED. Sensitive-scope and native-UI evidence are
+enforced; restore/cost/cleanup evidence remains change-specific rather than a
+generic PR-body parser.
 
 ## 10. Model origin tracking
 
@@ -126,9 +130,9 @@ extension for non-risk evidence types (UI, restore, cost, cleanup).
 approve its own work.
 
 **Enforcement:**
-- PR description check identifies the author model.
+- PR metadata/Builder evidence may identify the author model.
 - PR Agent Review identifies the reviewer model.
-- CI gate prevents merge if author == reviewer model for T1+ work.
+- `policy-gate` accepts only trusted exact-head independent review evidence for sensitive scope.
 
 **Status:** DEFINED. Needs `pr-model-origin-check.yml` workflow.
 

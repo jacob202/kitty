@@ -157,23 +157,27 @@ def test_review_diff_fails_closed_when_any_chunk_has_no_verdict(
     assert pr_review.review_diff("abcdefghij") is None
 
 
-def test_agent_review_workflow_rereviews_synchronize_events_and_exposes_required_gate() -> None:
+def test_agent_review_workflow_uses_trusted_code_and_avoids_model_reruns_on_metadata() -> None:
     from pathlib import Path
 
     workflow = (
         Path(__file__).parents[1] / ".github" / "workflows" / "pr-agent-review.yml"
     ).read_text(encoding="utf-8")
 
-    assert "Skip automatic re-review after a push" not in workflow
-    assert "github.event.action != 'synchronize'" not in workflow
+    assert "pull_request:\n" in workflow
+    assert "pull_request_target:" not in workflow
     assert "agent-review:" in workflow
     assert "name: agent-review" in workflow
     assert "continue-on-error: true" in workflow
-    assert "review-gate:" in workflow
-    assert "name: review-gate" in workflow
-    assert "needs: agent-review" in workflow
+    assert "github.event.repository.default_branch" in workflow
+    assert "github.event.action == 'synchronize'" in workflow
+    assert "github.event.action == 'edited'" not in workflow
+    assert "github.event.action == 'labeled'" not in workflow
+    assert "github.event.action == 'unlabeled'" not in workflow
+    assert "review-gate:" in workflow  # compatibility until the ruleset migrates
     assert "python -m scripts.pr_review_gate" in workflow
-
+    assert "review/evidence-current" in workflow
+    assert "review-concurrency-class" in workflow
 
 def test_prompt_rejects_generic_speculative_review_noise() -> None:
     prompt = pr_review.SYSTEM_PROMPT.lower()
@@ -219,14 +223,16 @@ def test_main_allows_explicit_exact_head_override_without_model_call(
     assert "override" in seen[1].lower()
 
 
-def test_agent_review_workflow_rechecks_override_metadata_changes() -> None:
+def test_agent_review_workflow_rechecks_override_metadata_without_recalling_model() -> None:
     from pathlib import Path
 
     workflow = (Path(__file__).parents[1] / ".github" / "workflows" / "pr-agent-review.yml").read_text(encoding="utf-8")
     assert "edited" in workflow
     assert "labeled" in workflow
     assert "unlabeled" in workflow
-
+    assert "github.event.action == 'edited'" not in workflow
+    assert "github.event.action == 'labeled'" not in workflow
+    assert "github.event.action == 'unlabeled'" not in workflow
 
 def test_review_request_disables_optional_reasoning_to_preserve_verdict_budget(
     monkeypatch: pytest.MonkeyPatch,

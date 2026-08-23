@@ -3,70 +3,63 @@
 How agents and reviewers coordinate on Kitty pull requests. This is the
 coordination contract — read it before opening a PR.
 
-## Workflow automation baseline (2026-07-30)
+## Workflow automation baseline (2026-08-23)
 
-This repository now automates low-risk GitHub workflow steps while preserving
-manual control for risky actions.
+GitHub automation is deliberately split into high-signal deterministic checks and
+risk-scoped governance. Routine PRs should not be blocked by duplicate prose, bot
+comments, or an external model verdict.
 
 ### Automated now
 
-1. **PR intake formatting**
-   - `.github/pull_request_template.md` pre-fills required sections.
-   - `pr-description-check.yml` still enforces `## Summary` and `## Test plan`.
-2. **Issue intake structure**
-   - `.github/ISSUE_TEMPLATE/bug_report.yml` standardizes bug triage evidence.
-   - `.github/ISSUE_TEMPLATE/workflow_automation.yml` captures automation
-     requests with scope, guardrails, and success metrics.
-3. **PR scope triage**
-   - `.github/workflows/pr-auto-label.yml` applies path-based area labels from
-     `.github/labeler.yml`.
-   - The workflow creates missing `area/*` labels and emits a summary of changed
-     file count + final labels for observable triage logs.
-4. **Risk guardrails**
-   - `.github/workflows/pr-risk-guardrails.yml` detects sensitive scope (auth,
-     secrets/env-like files, dependency roots, CI workflows).
-   - Risky PRs receive `risk/high` + `risk/manual-approval` and require the
-     explicit `risk/approved` label on the final code head. Any later push
-     invalidates that approval so stale sign-off cannot carry forward.
-5. **Selective test hints**
-   - `.github/workflows/pr-test-hints.yml` posts scoped validation command
-     suggestions based on changed paths.
-6. **Release evidence comment**
-   - `.github/workflows/pr-release-evidence.yml` posts a PR comment summary from
-     completed `Tests` workflow runs (run URL, conclusion, per-job outcomes).
-7. **Current-head agent review**
-   - `.github/workflows/pr-agent-review.yml` replaces stale review evidence on
-     every PR head change and reviews the entire diff for that exact SHA.
-   - Reviewer outage/no-verdict and actionable findings fail `review-gate`.
-     Only `NO_ACTIONABLE_FINDINGS` passes automatically.
-8. **Deterministic PR policy**
-   - `.github/workflows/pr-policy.yml` enforces `pr-policy`: user-facing changes
-     need completed product acceptance; risky scope needs `risk/approved` plus
-     an exact-head Risk approval receipt; unusually large PRs need
-     `risk/large-change-approved` plus an exact-head Large-change receipt.
-   - Exact full-SHA receipts make approval state-dependent rather than event-dependent,
-     so cancellation/reordering of synchronize/label events cannot revive stale approval.
-     Dependabot is exempt from prose/template requirements, not risky-scope approval.
+1. **PR intake and triage**
+   - `.github/pull_request_template.md` provides review context without making
+     `## Summary` / `## Test plan` formatting a merge condition.
+   - `.github/workflows/pr-auto-label.yml` applies path-based `area/*` labels.
+2. **Trusted policy**
+   - `.github/workflows/pr-policy-trusted.yml` runs `policy-gate` from the
+     repository default branch under `pull_request_target`; PR-authored policy
+     code is never executed with the policy token.
+   - Native UI source/public changes require completed product acceptance.
+   - Sensitive scope (auth/security, CI policy, approval/action boundaries,
+     publication/destructive paths, secrets/env, dependency roots) requires
+     `risk/approved`, an exact-head Risk approval receipt, and trusted
+     independent review for the exact current head.
+   - Large PR size is advisory rather than a second approval ceremony.
+3. **Deterministic merge evidence**
+   - `.github/workflows/tests.yml` keeps Python `pytest`, Ruff, and mypy as hard
+     signals. `merge-gate` aggregates them into one stable required result.
+   - Kitty Chat and browser smoke remain hard evidence when the frontend changes;
+     unrelated PRs skip those expensive jobs.
+   - `hygiene` still runs, but is advisory because link/dead-code heuristics should
+     not veto an otherwise valid repair.
+4. **Independent model review**
+   - `.github/workflows/pr-agent-review.yml` reviews each new code head using
+     trusted default-branch reviewer code. Editing prose or labels does not call
+     the model again.
+   - Review is advisory for ordinary PRs. `policy-gate` requires trusted exact-head
+     review evidence only for sensitive scope. An independently justified
+     `review/override-approved` exact-head receipt remains the explicit outage /
+     false-positive escape hatch.
+
+The old standalone description, risk-guardrail, test-hint, and release-evidence
+comment workflows were removed because they duplicated policy/CI state without
+adding an independent safety signal.
+
+### Ruleset migration
+
+The intended default-branch ruleset requires only `policy-gate` and `merge-gate`.
+During the one-PR migration that introduces those check names, legacy `pr-policy`
+and `review-gate` jobs remain compatibility checks so the existing ruleset cannot
+deadlock its own replacement. Remove those compatibility jobs immediately after
+the ruleset is switched.
 
 ### Guardrails (intentionally manual)
 
 - Merge decisions and risky scope expansion remain explicit human decisions.
-- Auth/secrets/env/CI/destructive scope still requires final-head approval.
-- Automated review is blocking but has one explicit false-positive/infrastructure
-  escape hatch: apply `review/override-approved` and add exactly
-  `Review override: APPROVE <full-head-SHA> — <reason>` to the PR body. The full
-  SHA binding makes the override stale after any push.
-- Automation must fail loud; missing tools, reviewer outages, unknown policy
-  state, or script errors are failures rather than skipped evidence.
-
-### Phased rollout
-
-- **Phase 1 (shipped):** intake templates + PR area auto-labeling + logs.
-- **Phase 2 (shipped):** risk guardrails + selective test hints.
-- **Phase 3 (shipped baseline):** PR CI evidence comments; age-based stale
-  auto-closure was retired because age is not evidence of completion.
-- **Phase 4 (current):** Builder-owned delivery/supervision with GitHub as
-  review, CI, and audit projection rather than a second task queue.
+- Sensitive scope still requires final-head approval plus independent review.
+- A new commit invalidates exact-head approval/review evidence.
+- Automation fails loud when required evidence is unavailable; ordinary PRs do
+  not depend on the availability of an external review model.
 
 ## Builder authority and historical issue #127
 
@@ -172,25 +165,22 @@ When a reviewer leaves a comment asking for a fix:
 
 ## Merge gate
 
-`main` is protected by strict required status checks. A PR is not merge-ready
-until the current head has all of these green: `pytest`, `lint`, `typecheck`,
-`hygiene`, `kitty-chat`, `browser-smoke`, `review-gate`, and `pr-policy`.
+The stable merge contract is two required outcomes:
 
-`review-gate` is exact-head evidence: a new commit first marks the old review
-stale, then re-reviews the whole diff. Actionable findings block. If a finding
-is independently proven false or the external reviewer is unavailable, use the
-explicit full-SHA override described above; never silently treat an outage as
-approval.
+- `merge-gate` — deterministic code evidence. It requires `pytest`, `lint`, and
+  `typecheck`; when frontend paths change it additionally requires `kitty-chat`
+  and `browser-smoke`. Hygiene remains visible but advisory.
+- `policy-gate` — trusted governance. Routine changes pass without model review.
+  Sensitive scope requires explicit exact-head approval and trusted independent
+  review; native UI source/public changes require product-acceptance evidence.
 
-`pr-policy` turns the PR template into a contract. User-facing work cannot merge
-with unchecked product-acceptance claims. Risky and large-change approval requires
-both the matching label and a full-SHA approval receipt for the current head; stale
-labels or receipts cannot satisfy a later commit.
+The default branch remains strict/up-to-date: passing evidence must describe the
+current integration base rather than a stale branch. Green checks are necessary
+evidence, not merge authorization.
 
-Do not merge a PR unless Jacob or ChatGPT explicitly approves the merge. Green
-required checks are necessary evidence, not merge authorization. A "looks good"
-in another channel is not approval unless it is a direct instruction for that
-PR/head.
+Do not merge a PR unless Jacob or ChatGPT explicitly approves the merge. A
+"looks good" in another channel is not approval unless it is a direct instruction
+for that PR/head.
 
 Before any `gh` command or `git push`, run GitHub operations with the
 keyring-authenticated client:

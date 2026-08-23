@@ -1,20 +1,21 @@
-name: PR Policy
+name: Trusted PR Policy
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
   contents: read
+  issues: read
   pull-requests: read
 
 concurrency:
-  group: pr-policy-${{ github.event.pull_request.number }}
+  group: trusted-pr-policy-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  pr-policy:
-    name: pr-policy
+  policy-gate:
+    name: policy-gate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout trusted default-branch policy
@@ -28,7 +29,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Enforce merge policy
+      - name: Enforce trusted merge policy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/pr_policy.py
