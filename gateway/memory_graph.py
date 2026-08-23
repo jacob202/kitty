@@ -707,8 +707,13 @@ async def unified_context(query: str, *, _record: bool = True) -> str:
     hit = prefetcher.get_cached(query)
     if hit is not None:
         return hit
+    # Captured before the (possibly slow) compute below so a correction that
+    # invalidates the cache while this call is in flight is detected on
+    # write, instead of this call silently resurrecting the pre-correction
+    # answer it started with (C4-03 follow-up).
+    generation = prefetcher.current_generation()
     result = await _get_graph().unified_context(query)
-    prefetcher.put_cached(query, result)
+    prefetcher.put_cached(query, result, generation=generation)
     if _record:
         prefetcher.record(query)
     return result

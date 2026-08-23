@@ -39,6 +39,11 @@ _HISTORY_SCAN = 500
 _CACHE_TTL_S = 300.0
 _RECENT_FILES = 5
 _cache: dict[str, tuple[float, str]] = {}
+# Bumped by invalidate_all(). A generation captured before a slow compute
+# started, then passed back to put_cached(), lets a write that raced an
+# invalidation recognize it lost and drop itself instead of resurrecting a
+# just-cleared cache with a pre-correction answer (C4-03 follow-up).
+_generation = 0
 
 
 @dataclass(frozen=True)
@@ -169,8 +174,35 @@ def get_cached(query: str) -> str | None:
     return value
 
 
-def put_cached(query: str, context: str) -> None:
+def current_generation() -> int:
+    """The cache's current generation. Capture this before starting a slow
+    compute so a later ``put_cached(..., generation=...)`` can detect a
+    concurrent invalidation and refuse to publish a stale result."""
+    return _generation
+
+
+def put_cached(query: str, context: str, *, generation: int | None = None) -> None:
+    """Cache ``context`` for ``query``.
+
+    ``generation``, when given, must match the generation captured before
+    the compute started (see :func:`current_generation`). A mismatch means
+    ``invalidate_all()`` ran while this result was being computed — the
+    result is stale and is dropped rather than written, so a slow query
+    racing a correction cannot resurrect the answer the correction just
+    cleared.
+    """
+    if generation is not None and generation != _generation:
+        return
     _cache[query] = (time.time() + _CACHE_TTL_S, context)
+
+
+def invalidate_all() -> None:
+    """Drop every cached context. Called by stores whose write path can make
+    a cached answer stale before its TTL — an explicit correction must never
+    lose to a blind 300s cache (C4-03)."""
+    global _generation
+    _cache.clear()
+    _generation += 1
 
 
 async def warm(k: int = 3) -> int:
