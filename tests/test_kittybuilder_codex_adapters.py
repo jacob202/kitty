@@ -119,7 +119,7 @@ def _base_env(root: Path, fake: Path, bundle: Path, manifest: Path) -> dict[str,
     return env
 
 
-def test_codex_worker_uses_workspace_sandbox_writes_contract_and_commits(tmp_path: Path):
+def test_codex_worker_writes_contract_and_leaves_change_for_parent_commit(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = _bundle(tmp_path)
     manifest = _manifest(bundle)
@@ -138,9 +138,10 @@ def test_codex_worker_uses_workspace_sandbox_writes_contract_and_commits(tmp_pat
     assert "--ephemeral" in args
     assert args[args.index("--sandbox") + 1] == "workspace-write"
     assert "--output-schema" in args and "-o" in args
+    status = subprocess.run(["git", "status", "--porcelain"], cwd=tmp_path, check=True, capture_output=True, text=True).stdout
+    assert "implemented.txt" in status
     subject = subprocess.run(["git", "log", "-1", "--format=%s"], cwd=tmp_path, check=True, capture_output=True, text=True).stdout.strip()
-    assert subject.startswith("[P1] kittybuilder:")
-    assert subprocess.run(["git", "status", "--porcelain"], cwd=tmp_path, check=True, capture_output=True, text=True).stdout == ""
+    assert subject == "init"
 
 
 def test_codex_worker_clean_timeout_is_provider_unavailable(tmp_path: Path):

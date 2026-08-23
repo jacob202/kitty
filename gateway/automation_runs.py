@@ -62,6 +62,8 @@ def _row_to_run(row: sqlite3.Row | None) -> dict[str, Any] | None:
     result = dict(row)
     raw_policy = result.pop("policy_json", None)
     result["policy"] = json.loads(raw_policy) if raw_policy else None
+    raw_payload = result.pop("payload_json", None)
+    result["payload"] = json.loads(raw_payload) if raw_payload else None
     return result
 
 
@@ -75,18 +77,20 @@ def begin_run(
     due_at: float | None = None,
     started_at: float | None = None,
     policy: dict[str, Any] | None = None,
+    payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create one durable running record before an action is dispatched."""
     init_db()
     started = time.time() if started_at is None else float(started_at)
     run_id = f"arun_{uuid.uuid4().hex}"
     policy_json = json.dumps(policy, sort_keys=True) if policy is not None else None
+    payload_json = json.dumps(payload, sort_keys=True) if payload is not None else None
     with kitty_db.connect(DB_FILE) as conn:
         conn.execute(
             "INSERT INTO automation_runs "
             "(id, automation_id, action, trigger_kind, trigger_ref, schedule_id, due_at, "
-            "started_at, status, policy_json, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)",
+            "started_at, status, policy_json, payload_json, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, ?)",
             (
                 run_id,
                 automation_id,
@@ -97,6 +101,7 @@ def begin_run(
                 due_at,
                 started,
                 policy_json,
+                payload_json,
                 started,
             ),
         )
@@ -205,6 +210,31 @@ def finish_run(
     if current is None:
         raise AutomationRunError("finished run disappeared")
     return current
+
+
+def retry_run(run_id: str, *, started_at: float | None = None) -> dict[str, Any]:
+    """Mint a new running record reusing the original execution intent.
+
+    The retried run receives a fresh identity and timestamps but preserves the
+    original automation identity, action, trigger context, schedule reference,
+    due-at, and parameters. Authorization is intentionally NOT copied; the
+    dispatcher must re-evaluate it before re-invoking the action.
+    """
+    original = get_run(run_id)
+    if original is None:
+        raise AutomationRunNotFound(run_id)
+    if original["status"] == "running":
+        raise AutomationRunStateError(f"run {run_id} is still running")
+    return begin_run(
+        automation_id=original["automation_id"],
+        action=original["action"],
+        trigger_kind=original["trigger_kind"],
+        trigger_ref=original.get("trigger_ref"),
+        schedule_id=original.get("schedule_id"),
+        due_at=original.get("due_at"),
+        started_at=started_at,
+        payload=original.get("payload"),
+    )
 
 
 def reconcile_interrupted_runs(*, now: float | None = None) -> int:

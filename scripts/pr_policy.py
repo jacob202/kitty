@@ -169,6 +169,30 @@ def _changed_files(owner: str, repo: str, pr_number: int, token: str) -> list[st
     return pr_scope.pull_request_files(owner, repo, pr_number, token, fetch=_github_json)
 
 
+def _pr_number_from_event(event: dict[str, Any]) -> int:
+    """Resolve the PR this event is about.
+
+    A merge_group event has no ``pull_request`` payload — it carries a
+    temporary queue merge commit instead. GitHub encodes the originating PR
+    number in ``merge_group.head_ref`` (``refs/heads/gh-readonly-queue/<base>/
+    pr-<number>-<sha>``); this is the standard, documented way to recover it.
+    Policy is then evaluated against that PR's own head SHA (fetched fresh
+    below), not the queue's synthetic commit — "exact-head" approval is about
+    the PR author's content, which the queue merge does not change.
+    """
+    pull_request = event.get("pull_request")
+    if isinstance(pull_request, dict):
+        return int(pull_request["number"])
+    merge_group = event.get("merge_group")
+    if isinstance(merge_group, dict):
+        head_ref = str(merge_group.get("head_ref") or "")
+        match = re.search(r"/pr-(\d+)-", head_ref)
+        if not match:
+            raise RuntimeError(f"could not recover PR number from merge_group head_ref {head_ref!r}")
+        return int(match.group(1))
+    raise RuntimeError("event has neither pull_request nor merge_group")
+
+
 def main() -> None:
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
@@ -177,11 +201,10 @@ def main() -> None:
     try:
         with open(event_path, encoding="utf-8") as event_file:
             event = json.load(event_file)
-        event_pr = event["pull_request"]
         repo = event["repository"]
         owner = str(repo["owner"]["login"])
         name = str(repo["name"])
-        number = int(event_pr["number"])
+        number = _pr_number_from_event(event)
         token = os.environ.get("GITHUB_TOKEN", "")
         pr_url = f"https://api.github.com/repos/{owner}/{name}/pulls/{number}"
         pr = _github_json(pr_url, token)

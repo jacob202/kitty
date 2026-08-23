@@ -2,7 +2,9 @@
 
 **Date:** 2026-08-05
 **Authority:** Derived synthesis of `docs/ROADMAP.md` (active authority), `docs/ROADMAP_V2.md` (V2 target plan), and the extension backlog into a single dependency-ordered program. Authority chain: ROADMAP.md (ADRs 0020, 0028–0036, Constitution) defines active priority; ROADMAP_V2.md defines V2 milestone targets; this document synthesizes both into one complete reference. It is not an independent authority. ARCHITECTURE_RATIFICATION_2026-08-06.md Decision 5 governs the relationship.
-**Question answered:** If Jacob disappeared for six months, exactly what order should Builder execute everything?
+**Question answered:** Historical synthesis of the 2026-08-05 roadmap state.
+
+> **2026-08-23 supersession note:** The Open WebUI-primary shell sequence in this derived document is no longer executable authority. ADR 0039 and the amended Constitution make native Kitty canonical. Current explicitly approved post-audit execution outranks this historical P1/Open-WebUI sequencing; retain the sections below only for traceability unless a current roadmap re-authorizes a specific item.
 
 This document is the merged, deduplicated, dependency-ordered program. Every piece of work from the roadmap (Gate 0 + Phases 1–4), the V2 milestones (M1–M6), the extension backlog (38 extensions ranked), the product architecture (Phases 0–6), the open issues, the active missions, the Builder initiatives, the disposition ledger's backlog, the knowledge graph's recommendations, and the continuity recovery's priorities — everything — is sequenced here exactly once.
 
@@ -64,7 +66,7 @@ These apply to every packet in every phase:
 5. **Evidence before claims.** Every claim of "done" requires a verified execution receipt.
 6. **Life-first ordering.** Job search, benefits, education outrank code projects in every surface.
 7. **No new queue, scheduler, state store, orchestrator, event system, or Builder cockpit** until P6 exits.
-8. **Builder owns execution state. Gateway owns product truth. Open WebUI owns the shell.**
+8. **Builder owns execution state. Gateway owns product truth. Native Kitty owns canonical product presentation; Open WebUI is optional compatibility/reference software.**
 
 ---
 
@@ -173,7 +175,7 @@ These apply to every packet in every phase:
 
 ## P1 — Trustworthy Shell
 
-**Objective:** Open WebUI is the primary daily-driver shell. Chat is real, streaming works, persistence works, identity is honest. Jacob can use it for a full normal day.
+**Historical objective (superseded as a shell-role plan):** Open WebUI was proposed as the primary daily-driver shell. ADR 0039 now makes native Kitty canonical; individual reliability checks below may be reused only when separately authorized and still relevant.
 
 **Dependencies:** P0 complete (repository foundation).
 
@@ -888,7 +890,7 @@ Kitty is complete when:
 7. **Evidence backs every claim** — no fabricated success, no silent fallbacks, no `$0` when cost is unknown.
 8. **Storage is consolidated** — one authoritative store + one derived index. No duplicate truth paths.
 9. **The Console is the operator surface** — configuration, Builder state, diagnostics, approvals. Not a competing chat shell.
-10. **The shell is replaceable** — Open WebUI is the daily driver. If it changes license or is abandoned, Gateway contracts survive. Replacement takes a weekend, not a rewrite.
+10. **The product surface is canonical but clients remain replaceable** — native Kitty is the supported user-facing surface; optional clients such as Open WebUI may come and go without moving Gateway-owned truth.
 
 ---
 
