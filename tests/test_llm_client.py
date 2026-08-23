@@ -14,7 +14,10 @@ def test_post_retries_server_errors():
     unavailable = MagicMock(status_code=503)
     recovered = MagicMock(status_code=200)
 
-    with patch("gateway.llm_client.httpx.post", side_effect=[unavailable, recovered]) as mock_post:
+    with (
+        patch.object(_post.retry, "sleep", lambda _seconds: None),
+        patch("gateway.llm_client.httpx.post", side_effect=[unavailable, recovered]) as mock_post,
+    ):
         result = _post("https://example.test/chat")
 
     assert result is recovered
