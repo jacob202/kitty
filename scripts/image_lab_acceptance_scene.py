@@ -57,6 +57,12 @@ def build_two_character_plan(
             raise FileNotFoundError(f"{label} does not exist: {path}")
     if character_a_id == character_b_id:
         raise ValueError("character_a_id and character_b_id must be distinct")
+    if character_a_ref.resolve() == character_b_ref.resolve():
+        raise ValueError(
+            "character_a_ref and character_b_ref point at the same file — a "
+            "two-character identity-assignment test against one photo would "
+            "silently prove nothing"
+        )
 
     plan_dict = {
         "original_prompt": prompt,

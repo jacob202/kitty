@@ -103,6 +103,24 @@ def test_build_two_character_plan_persists_left_right_cast(tmp_path) -> None:
     assert [slot["character_id"] for slot in cast] == ["char-a", "char-b"]
 
 
+def test_build_two_character_plan_rejects_same_reference_photo(tmp_path) -> None:
+    from gateway.image_sessions import create_session
+
+    ref = tmp_path / "same.png"
+    _png(ref)
+
+    session = create_session(title="acceptance scene test")
+    with pytest.raises(ValueError, match="same file"):
+        build_two_character_plan(
+            session.session_id,
+            prompt="two men",
+            character_a_id="char-a",
+            character_a_ref=ref,
+            character_b_id="char-b",
+            character_b_ref=ref,
+        )
+
+
 def test_build_two_character_plan_rejects_missing_reference(tmp_path) -> None:
     from gateway.image_sessions import create_session
 

@@ -688,6 +688,36 @@ def test_assignment_reference_flag_rejects_missing_file(tmp_path) -> None:
     assert not output.exists()
 
 
+def test_assignment_reference_flag_rejects_duplicate_photo(tmp_path) -> None:
+    from PIL import Image
+
+    image = tmp_path / "candidate.png"
+    Image.new("RGB", (512, 512), "white").save(image)
+    ref = tmp_path / "shared.png"
+    Image.new("RGB", (512, 512), "white").save(ref)
+    output = tmp_path / "evaluation.json"
+
+    with pytest.raises(SystemExit) as exc:
+        bench.main(
+            [
+                "evaluate",
+                "--scenario",
+                "D.side_by_side",
+                "--image",
+                str(image),
+                "--output",
+                str(output),
+                "--assignment-reference",
+                f"james:left_slot:left:{ref}",
+                "--assignment-reference",
+                f"arlo:right_slot:right:{ref}",
+            ]
+        )
+
+    assert exc.value.code == 2
+    assert not output.exists()
+
+
 def test_evaluate_cli_scores_stage_d_two_character_scenario(tmp_path, monkeypatch) -> None:
     from PIL import Image
 
