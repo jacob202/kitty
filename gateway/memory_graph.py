@@ -135,19 +135,40 @@ class ProjectAdapter(StoreAdapter):
         return Source.PROJECTS.value
 
     async def fetch(self, query: str) -> list[Item]:
+        from gateway.project_context import get_active_project
         from gateway.project_store import list_projects
 
         projects = await asyncio.to_thread(list_projects)
         terms = {term for term in re.findall(r"[^\W_]+", query.casefold()) if len(term) > 1}
+
+        # A corrupt/missing persisted scope (ProjectContextError) is left to
+        # propagate rather than degrading silently to "no active project" —
+        # per the StoreAdapter contract, an infrastructure failure here must
+        # surface as a warning/degraded store, not an apparently healthy
+        # empty result that hides a broken scope.
+        active_id = (await asyncio.to_thread(get_active_project))["project_id"]
+
+        # The active project is always in scope, even for a generic query with
+        # no matchable terms — it's the project the user is actually working
+        # in. Every other project needs an explicit keyword match; without
+        # that gate, a term-less query returned every project unfiltered,
+        # leaking other projects' status/next-actions into unrelated context
+        # (C4-02).
+        ordered = sorted(projects, key=lambda p: p.get("id") != active_id)
+
         items: list[Item] = []
-        for project in projects:
-            searchable = " ".join(
-                [str(project.get("name") or ""), str(project.get("summary") or ""),
-                 " ".join(map(str, project.get("next_actions") or [])),
-                 " ".join(map(str, project.get("open_questions") or []))]
-            ).casefold()
-            if terms and not any(term in searchable for term in terms):
-                continue
+        for project in ordered:
+            is_active = project.get("id") == active_id
+            if not is_active:
+                if not terms:
+                    continue
+                searchable = " ".join(
+                    [str(project.get("name") or ""), str(project.get("summary") or ""),
+                     " ".join(map(str, project.get("next_actions") or [])),
+                     " ".join(map(str, project.get("open_questions") or []))]
+                ).casefold()
+                if not any(term in searchable for term in terms):
+                    continue
             detail = [
                 f"Project {project.get('name')}: status={project.get('status', 'unknown')}",
             ]
@@ -165,6 +186,7 @@ class ProjectAdapter(StoreAdapter):
                         "owner": "project_store",
                         "kind": project.get("kind"),
                         "status": project.get("status"),
+                        "active": is_active,
                     },
                 )
             )
