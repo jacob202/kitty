@@ -204,6 +204,15 @@ def scope_for_event(event: dict[str, Any], event_name: str, token: str) -> Scope
             raise RuntimeError("pull_request payload is missing a number")
         return classify(pull_request_files(owner, name, number, token))
 
+    merge_group = event.get("merge_group")
+    if isinstance(merge_group, dict):
+        # The merge queue's temporary commit has no PR number of its own to
+        # fetch changed files for; base_sha/head_sha span exactly what this
+        # queue entry would add to main, same shape as a push comparison.
+        return push_scope(
+            owner, name, str(merge_group.get("base_sha") or ""), str(merge_group.get("head_sha") or ""), token
+        )
+
     if event_name == "push" or ("before" in event and "after" in event):
         return push_scope(
             owner, name, str(event.get("before") or ""), str(event.get("after") or ""), token
