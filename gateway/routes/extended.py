@@ -373,6 +373,20 @@ async def image_cancel(job_id: str):
         ) from exc
 
 
+@router.post("/image/jobs/{job_id}/retry")
+async def image_job_retry(job_id: str):
+    """Retry a terminal image job as a new lineaged child with the same intent."""
+    from gateway.image_jobs import ImageJobError, JobNotFoundError, retry_job
+
+    try:
+        job = retry_job(job_id)
+    except JobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ImageJobError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"job": job.to_dict(), "retried_from": job_id}
+
+
 @router.get("/image/view/{filename:path}")
 async def image_view(filename: str):
     """Proxy an output image from ComfyUI (works with both local and Colab tunnel URLs)."""
