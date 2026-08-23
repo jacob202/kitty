@@ -21,7 +21,13 @@ from typing import Any, Iterable
 
 BENCHMARK_SCHEMA_VERSION = 1
 SETTLED_COST_SOURCES = frozenset(
-    {"provider_reported", "provider_invoice", "metered_compute", "local_zero_marginal"}
+    {
+        "provider_reported",
+        "provider_invoice",
+        "provider_contract",
+        "metered_compute",
+        "local_zero_marginal",
+    }
 )
 RATING_FIELDS = (
     "would_keep",
@@ -537,6 +543,62 @@ def _observation_failures(
             )
         elif cost_source == "local_zero_marginal" and observation.get("settled_cost_usd") != 0:
             reproducibility.append("local_zero_marginal requires settled_cost_usd to be exactly 0")
+        elif cost_source == "provider_contract":
+            settings = candidate.get("settings")
+            contract = settings.get("cost_contract") if isinstance(settings, dict) else None
+            if not isinstance(contract, dict):
+                reproducibility.append(
+                    "provider_contract requires candidate settings.cost_contract"
+                )
+            else:
+                kind = contract.get("kind")
+                rate = contract.get("usd_per_megapixel")
+                as_of = contract.get("as_of")
+                width = observation.get("artifact_width")
+                height = observation.get("artifact_height")
+                if kind != "ceil_output_megapixels":
+                    reproducibility.append(
+                        "provider_contract kind must be 'ceil_output_megapixels'"
+                    )
+                rate_number = (
+                    float(rate)
+                    if isinstance(rate, (int, float)) and not isinstance(rate, bool)
+                    else None
+                )
+                if rate_number is None or not math.isfinite(rate_number) or rate_number <= 0:
+                    reproducibility.append(
+                        "provider_contract usd_per_megapixel must be finite and > 0"
+                    )
+                if not isinstance(as_of, str) or not as_of.strip():
+                    reproducibility.append("provider_contract as_of provenance is required")
+                if (
+                    isinstance(width, bool)
+                    or isinstance(height, bool)
+                    or not isinstance(width, int)
+                    or not isinstance(height, int)
+                    or width <= 0
+                    or height <= 0
+                ):
+                    reproducibility.append(
+                        "provider_contract requires positive artifact_width/artifact_height"
+                    )
+                elif rate_number is not None and math.isfinite(rate_number) and rate_number > 0:
+                    expected = math.ceil((width * height) / 1_000_000.0) * rate_number
+                    settled = observation.get("settled_cost_usd")
+                    settled_number = (
+                        float(settled)
+                        if isinstance(settled, (int, float)) and not isinstance(settled, bool)
+                        else None
+                    )
+                    if (
+                        settled_number is not None
+                        and math.isfinite(settled_number)
+                        and settled_number >= 0
+                        and not math.isclose(settled_number, expected, rel_tol=0.0, abs_tol=1e-9)
+                    ):
+                        reproducibility.append(
+                            "provider_contract settled_cost_usd does not match pinned contract and artifact dimensions"
+                        )
     for field in ("intent_sha256", "artifact_sha256", "candidate_sha256"):
         if not _is_sha256(observation.get(field)):
             reproducibility.append(f"{field} must be a 64-character SHA-256 hex digest")

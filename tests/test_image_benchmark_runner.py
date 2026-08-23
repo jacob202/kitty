@@ -398,6 +398,54 @@ def test_local_zero_marginal_cost_must_actually_be_zero() -> None:
     assert any("local_zero_marginal" in failure for failure in report["reproducibility_failures"])
 
 
+def test_provider_contract_cost_requires_pinned_contract_and_reproduces_amount() -> None:
+    candidate = _candidate("fal-contract")
+    candidate["provider"] = "fal"
+    candidate["model"] = "fal-ai/flux-pulid"
+    candidate["settings"] = {
+        "cost_contract": {
+            "kind": "ceil_output_megapixels",
+            "usd_per_megapixel": 0.0333,
+            "as_of": "2026-08-23",
+        }
+    }
+    manifest = bench.build_run_manifest([candidate], scenario_ids=["A.natural_daylight_portrait"])
+    observation = _observation(manifest, cost=0.0666)
+    observation.update(
+        cost_source="provider_contract",
+        artifact_width=1024,
+        artifact_height=1024,
+    )
+
+    report = bench.summarize_run(manifest, [observation])
+    assert report["complete_for_comparison"] is True
+    assert report["candidates"][0]["total_settled_cost_usd"] == pytest.approx(0.0666)
+
+
+def test_provider_contract_cost_fails_when_amount_does_not_match_dimensions() -> None:
+    candidate = _candidate("fal-contract")
+    candidate["provider"] = "fal"
+    candidate["model"] = "fal-ai/flux-pulid"
+    candidate["settings"] = {
+        "cost_contract": {
+            "kind": "ceil_output_megapixels",
+            "usd_per_megapixel": 0.0333,
+            "as_of": "2026-08-23",
+        }
+    }
+    manifest = bench.build_run_manifest([candidate], scenario_ids=["A.natural_daylight_portrait"])
+    observation = _observation(manifest, cost=0.07)
+    observation.update(
+        cost_source="provider_contract",
+        artifact_width=1024,
+        artifact_height=1024,
+    )
+
+    report = bench.summarize_run(manifest, [observation])
+    assert report["complete_for_comparison"] is False
+    assert any("provider_contract" in failure for failure in report["reproducibility_failures"])
+
+
 def test_tampered_canonical_scorer_requirements_are_rejected() -> None:
     manifest = bench.build_run_manifest(
         [_candidate()], scenario_ids=["A.natural_daylight_portrait"]
