@@ -218,7 +218,14 @@ class TestTxt2ImgEndpoint:
         monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: client)
 
         compiled = _klein_compiled()
-        result = await run("flux2", "ignored", flux2_target=FLUX2_KLEIN_4B_H, compiled_request=compiled)
+        result = await run(
+            "flux2",
+            "ignored",
+            flux2_target=FLUX2_KLEIN_4B_H,
+            compiled_request=compiled,
+            plan_id="imgplan_flux2",
+            intent_json='{"intent_version":1,"operation":"txt2img"}',
+        )
         assert client.posted_url == FLUX2_KLEIN_4B_H.endpoint
         assert client.posted_payload["prompt"] == compiled.prompt
         assert client.posted_payload["width"] == 1024
@@ -228,6 +235,8 @@ class TestTxt2ImgEndpoint:
         assert job.provider == "flux2"
         assert job.model_id == "flux-2-klein-4b"
         assert job.compiler_version == flux2_compiler.FLUX2_COMPILER_VERSION
+        assert job.plan_id == "imgplan_flux2"
+        assert job.intent_json == '{"intent_version":1,"operation":"txt2img"}'
         params = _json.loads(job.compiler_params_json)
         assert params["compiler_id"] == "flux2@1"
         assert job.status.value == "succeeded"

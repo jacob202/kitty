@@ -54,7 +54,8 @@ jobs:
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
           configuration-path: ".github/labeler.yml"
-          sync-labels: true
+          # Preserve manually applied governance labels such as risk/approved.
+          sync-labels: false
 
       - name: Emit triage summary
         uses: actions/github-script@v7

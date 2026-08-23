@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import List, Optional
 
@@ -268,7 +269,11 @@ async def image_status():
             "label": "FLUX PuLID via fal",
             "available": fal_available,
             "unavailable_reason": fal_reason or None,
-            "cost_per_image_usd": 0.0333,
+            # fal bills PuLID at $0.0333/output MP, rounding up. Kitty's
+            # default square_hd output is 1024x1024 (>1 MP), so its provider
+            # price is two billable MP = $0.0666 before the $0.07 budget guard.
+            "cost_per_image_usd": 0.0666,
+            "cost_per_megapixel_usd": 0.0333,
         },
         {
             "name": "openrouter",
@@ -1116,25 +1121,68 @@ async def studio_generate(req: StudioGenerateRequest):
                 )
             )
             ref_blobs.append(anchor_bytes)
-        for prov in (stored.references if stored else []):
-            path = prov.get("path") if isinstance(prov, dict) else getattr(prov, "path", None)
-            if not path or not Path(path).is_file():
-                continue
-            order = len(refs) + 1
-            refs.append(
-                CompiledReference(
-                    reference_id=str(path),
-                    role="identity",
-                    order=order,
-                    name=(prov.get("name") if isinstance(prov, dict) else getattr(prov, "name", None)),
+        stored_provenance = list(stored.references if stored else [])
+        stored_intent = getattr(stored, "intent", {}) if stored is not None else {}
+        typed_bindings = list(stored_intent.get("references", []))
+        if typed_bindings:
+            provenance_by_id = {
+                str(prov.get("reference_id")): prov
+                for prov in stored_provenance
+                if isinstance(prov, dict) and prov.get("reference_id")
+            }
+            for binding in typed_bindings:
+                reference_id = str(binding["reference_id"])
+                prov = provenance_by_id.get(reference_id)
+                if prov is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"approved plan reference {reference_id!r} has no durable "
+                            "reference provenance"
+                        ),
+                    )
+                path = prov.get("path")
+                if not path or not Path(path).is_file():
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"approved plan reference {reference_id!r} is missing "
+                            "from local storage"
+                        ),
+                    )
+                refs.append(
+                    CompiledReference(
+                        reference_id=reference_id,
+                        role=str(binding["role"]),
+                        order=len(refs) + 1,
+                        name=prov.get("name"),
+                    )
                 )
-            )
-            ref_blobs.append(Path(path).read_bytes())
+                ref_blobs.append(Path(path).read_bytes())
+        else:
+            # Legacy persisted plans predate typed reference bindings. Preserve
+            # their old projection so historical approved plans remain usable.
+            for prov in stored_provenance:
+                path = prov.get("path") if isinstance(prov, dict) else getattr(prov, "path", None)
+                if not path or not Path(path).is_file():
+                    continue
+                refs.append(
+                    CompiledReference(
+                        reference_id=str(path),
+                        role="identity",
+                        order=len(refs) + 1,
+                        name=(prov.get("name") if isinstance(prov, dict) else getattr(prov, "name", None)),
+                    )
+                )
+                ref_blobs.append(Path(path).read_bytes())
         reference_bytes = tuple(ref_blobs)
 
-        protected = []
-        requested = []
-        if session_context is not None:
+        protected: list[str] = []
+        requested: list[str] = []
+        if stored is not None:
+            protected = list(stored.intent.get("protected_traits", []))
+            requested = list(stored.intent.get("requested_changes", []))
+        elif session_context is not None:
             protected = list(session_context.protected_traits or [])
             requested = list(session_context.requested_changes or [])
         try:
@@ -1199,6 +1247,16 @@ async def studio_generate(req: StudioGenerateRequest):
         except ImageSessionError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
+    job_plan_id = stored.plan_id if stored is not None else None
+    stored_intent_for_job = (
+        getattr(stored, "intent", None) if stored is not None else None
+    )
+    job_intent_json = (
+        json.dumps(stored_intent_for_job, sort_keys=True, separators=(",", ":"))
+        if stored_intent_for_job
+        else None
+    )
+
     try:
         if engine == "flux2":
             result = await run(
@@ -1216,6 +1274,8 @@ async def studio_generate(req: StudioGenerateRequest):
                 compiled_request=compiled_request,
                 reference_bytes=reference_bytes,
                 project_id=project_id,
+                plan_id=job_plan_id,
+                intent_json=job_intent_json,
             )
         elif operation == "img2img":
             if approved_edit_anchor is None:
@@ -1232,6 +1292,8 @@ async def studio_generate(req: StudioGenerateRequest):
                 consent_basis=consent_basis,
                 adult_confirmed=adult_confirmed,
                 project_id=project_id,
+                plan_id=job_plan_id,
+                intent_json=job_intent_json,
             )
         else:
             result = await run(
@@ -1246,6 +1308,8 @@ async def studio_generate(req: StudioGenerateRequest):
                 consent_basis=consent_basis,
                 adult_confirmed=adult_confirmed,
                 project_id=project_id,
+                plan_id=job_plan_id,
+                intent_json=job_intent_json,
             )
         # Bind the render back to its conversation so a restart can replay it
         # and "use this" has something to anchor on. A failure to bind is

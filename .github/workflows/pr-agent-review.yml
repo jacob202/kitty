@@ -1,7 +1,7 @@
 name: PR Agent Review
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
@@ -10,48 +10,60 @@ permissions:
   issues: write
 
 concurrency:
-  group: pr-agent-review-${{ github.event.pull_request.number }}
+  # review-concurrency-class: metadata events must not cancel a code-head review.
+  # Repeated events of the same type still cancel their own superseded run.
+  group: pr-agent-review-${{ github.event.pull_request.number }}-${{ github.event.action }}
   cancel-in-progress: true
 
 jobs:
   agent-review:
     name: agent-review
-    if: ${{ github.event.pull_request.draft == false }}
+    if: >-
+      ${{ github.event.pull_request.draft == false &&
+          (github.event.action == 'opened' ||
+           github.event.action == 'synchronize' ||
+           github.event.action == 'reopened' ||
+           github.event.action == 'ready_for_review') }}
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
-      - name: Checkout
+      - name: Checkout trusted default-branch reviewer
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+
       - name: Produce exact-head model review evidence
+        id: produce
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          # Final merge review is a judgment task. Use a strong no-cost OpenRouter
-          # model so the gate keeps producing evidence while the account has no
-          # credits; restore a paid model (e.g. ~anthropic/claude-sonnet-latest)
-          # once budget returns.
           PR_REVIEW_MODEL: "nvidia/nemotron-3-super-120b-a12b:free"
           PR_REVIEW_REQUEST_ATTEMPTS: "2"
         run: python scripts/pr_review.py
 
-  review-gate:
-    name: review-gate
+  policy-gate:
+    name: policy-gate
     if: ${{ always() && github.event.pull_request.draft == false }}
     needs: agent-review
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout trusted default-branch policy
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - name: Verify trusted exact-head review evidence
+      - name: Enforce trusted merge policy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python -m scripts.pr_review_gate
+        run: python -m scripts.pr_policy

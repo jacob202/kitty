@@ -22,6 +22,7 @@ Boundaries:
 from __future__ import annotations
 
 import json
+import math
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -30,6 +31,7 @@ from typing import Any
 
 from gateway import db as kitty_db
 from gateway import paths as _paths
+from gateway.image_plan import ALLOWED_REFERENCE_ROLES
 from gateway.image_policy import ConsentBasis, ContentLane
 from gateway.paths import DB_MIGRATIONS_DIR
 
@@ -95,6 +97,7 @@ class StoredPlan:
     anchor_job_id: str | None = None
     guidance_tags: list[str] = field(default_factory=list)
     references: list[dict[str, Any]] = field(default_factory=list)
+    intent: dict[str, Any] = field(default_factory=dict)
     # Content-lane contract (ADR 0040 #8). Defaults are the safe lane, so a
     # pre-IL-02 plan or a caller that does not opt in is never private_adult.
     content_lane: str = _DEFAULT_LANE
@@ -117,6 +120,7 @@ class StoredPlan:
             "anchor_job_id": self.anchor_job_id,
             "guidance_tags": list(self.guidance_tags),
             "references": [dict(r) for r in self.references],
+            "intent": dict(self.intent),
             "content_lane": self.content_lane,
             "consent_basis": self.consent_basis,
             "adult_confirmed": self.adult_confirmed,
@@ -199,6 +203,13 @@ def _ensure_plan_operation_columns(conn: Any) -> None:
         conn.execute("ALTER TABLE image_plans ADD COLUMN anchor_job_id TEXT")
 
 
+def _ensure_plan_intent_column(conn: Any) -> None:
+    """Add the versioned provider-neutral intent payload to persisted plans."""
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(image_plans)").fetchall()}
+    if "intent_json" not in cols:
+        conn.execute("ALTER TABLE image_plans ADD COLUMN intent_json TEXT")
+
+
 def _ensure_plan_policy_columns(conn: Any) -> None:
     """Add image_plans content-lane columns if absent (IL-02 migration).
 
@@ -228,12 +239,253 @@ def _ensure_db(conn: Any = None) -> None:
         c.executescript(_MIGRATION_FILE.read_text(encoding="utf-8"))
         _ensure_plan_operation_columns(c)
         _ensure_plan_policy_columns(c)
+        _ensure_plan_intent_column(c)
 
     if conn is not None:
         _apply(conn)
     else:
         with kitty_db.connect(_paths.KITTY_DB_FILE) as c:
             _apply(c)
+
+
+def _legacy_intent_from_row(row: Any) -> dict[str, Any]:
+    """Project a pre-ImageIntent row into the v1 provider-neutral contract."""
+    cast: list[dict[str, Any]] = []
+    refs: list[dict[str, Any]] = []
+    character_id = row["character_id"]
+    if character_id:
+        cast.append(
+            {
+                "slot_id": "subject_1",
+                "character_id": character_id,
+                "display_name": None,
+            }
+        )
+        for item in _decode_refs(row["references_json"]):
+            reference_id = item.get("reference_id")
+            if reference_id:
+                refs.append(
+                    {
+                        "reference_id": str(reference_id),
+                        "role": "identity",
+                        "cast_slot": "subject_1",
+                        "weight": None,
+                    }
+                )
+    lane = row["content_lane"]
+    return {
+        "intent_version": 1,
+        "operation": row["operation"],
+        "cast": cast,
+        "references": refs,
+        "scene": {},
+        "target": {},
+        "requested_changes": [],
+        "protected_traits": [],
+        "content_lane": lane,
+        "consent_basis": row["consent_basis"],
+        "adult_confirmed": bool(row["adult_confirmed"]),
+        "privacy_required": lane == ContentLane.PRIVATE_ADULT.value,
+        "quality_request": {},
+        "budget_request": {},
+    }
+
+
+def _validate_intent_payload(
+    intent: dict[str, Any],
+    *,
+    operation: str,
+    content_lane: str,
+    consent_basis: str | None,
+    adult_confirmed: bool,
+    reference_provenance: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Validate ImageIntent v1 as durable executable intent, not advisory JSON."""
+    version = intent.get("intent_version")
+    if version != 1:
+        raise PlanMalformedError(
+            f"intent_version must be 1, got {version!r}"
+        )
+    intent_operation = intent.get("operation")
+    if intent_operation not in ALLOWED_OPERATIONS:
+        raise PlanMalformedError(
+            f"intent operation {intent_operation!r} is not one of {sorted(ALLOWED_OPERATIONS)}"
+        )
+    if intent_operation != operation:
+        raise PlanMalformedError(
+            f"intent operation {intent_operation!r} does not match stored operation {operation!r}"
+        )
+
+    for name in ("scene", "target", "quality_request", "budget_request"):
+        if not isinstance(intent.get(name), dict):
+            raise PlanMalformedError(f"intent {name} must be an object")
+
+    for name in ("requested_changes", "protected_traits"):
+        values = intent.get(name)
+        if not isinstance(values, list) or not all(
+            isinstance(value, str) and value.strip() for value in values
+        ):
+            raise PlanMalformedError(
+                f"intent {name} must be a list of non-empty strings"
+            )
+        if len(values) != len(set(values)):
+            raise PlanMalformedError(f"intent {name} contains duplicate entries")
+
+    cast = intent.get("cast")
+    if not isinstance(cast, list):
+        raise PlanMalformedError("intent cast must be a list")
+    slot_ids: set[str] = set()
+    cast_characters: dict[str, str] = {}
+    for item in cast:
+        if not isinstance(item, dict):
+            raise PlanMalformedError("intent cast entries must be objects")
+        slot_id = item.get("slot_id")
+        character_id = item.get("character_id")
+        if not isinstance(slot_id, str) or not slot_id.strip():
+            raise PlanMalformedError("intent cast slot_id must be a non-empty string")
+        if slot_id in slot_ids:
+            raise PlanMalformedError(f"intent cast repeats slot_id {slot_id!r}")
+        if not isinstance(character_id, str) or not character_id.strip():
+            raise PlanMalformedError(
+                f"intent cast slot {slot_id!r} has no character_id"
+            )
+        display_name = item.get("display_name")
+        if display_name is not None and not isinstance(display_name, str):
+            raise PlanMalformedError(
+                f"intent cast slot {slot_id!r} has invalid display_name"
+            )
+        position = item.get("position")
+        if position is not None and (
+            not isinstance(position, str) or not position.strip()
+        ):
+            raise PlanMalformedError(
+                f"intent cast slot {slot_id!r} position must be a non-empty string or null"
+            )
+        depth_order = item.get("depth_order")
+        if depth_order is not None and (
+            isinstance(depth_order, bool)
+            or not isinstance(depth_order, int)
+            or depth_order <= 0
+        ):
+            raise PlanMalformedError(
+                f"intent cast slot {slot_id!r} depth_order must be a positive integer or null"
+            )
+        slot_ids.add(slot_id)
+        cast_characters[slot_id] = character_id
+
+    provenance_owner: dict[str, str] = {}
+    if reference_provenance is not None:
+        for item in reference_provenance:
+            if not isinstance(item, dict):
+                raise PlanMalformedError("reference provenance entries must be objects")
+            reference_id = item.get("reference_id")
+            character_id = item.get("character_id")
+            if reference_id is None:
+                continue
+            if not isinstance(reference_id, str) or not reference_id.strip():
+                raise PlanMalformedError("reference provenance reference_id must be non-empty")
+            if not isinstance(character_id, str) or not character_id.strip():
+                raise PlanMalformedError(
+                    f"reference provenance {reference_id!r} has no character_id"
+                )
+            existing = provenance_owner.get(reference_id)
+            if existing is not None and existing != character_id:
+                raise PlanMalformedError(
+                    f"reference provenance {reference_id!r} claims multiple characters"
+                )
+            provenance_owner[reference_id] = character_id
+
+    references = intent.get("references")
+    if not isinstance(references, list):
+        raise PlanMalformedError("intent references must be a list")
+    seen_bindings: set[tuple[str, str, str]] = set()
+    for item in references:
+        if not isinstance(item, dict):
+            raise PlanMalformedError("intent reference entries must be objects")
+        reference_id = item.get("reference_id")
+        role = item.get("role")
+        cast_slot = item.get("cast_slot")
+        if not isinstance(reference_id, str) or not reference_id.strip():
+            raise PlanMalformedError("intent reference_id must be a non-empty string")
+        if not isinstance(role, str) or not role.strip():
+            raise PlanMalformedError(
+                f"intent reference {reference_id!r} has no role"
+            )
+        if role not in ALLOWED_REFERENCE_ROLES:
+            raise PlanMalformedError(
+                f"intent reference {reference_id!r} has unsupported role {role!r}"
+            )
+        if not isinstance(cast_slot, str) or cast_slot not in slot_ids:
+            raise PlanMalformedError(
+                f"intent reference {reference_id!r} targets unknown cast_slot {cast_slot!r}"
+            )
+        weight = item.get("weight")
+        if weight is not None:
+            if (
+                isinstance(weight, bool)
+                or not isinstance(weight, (int, float))
+                or not math.isfinite(float(weight))
+                or not 0.0 < float(weight) <= 1.0
+            ):
+                raise PlanMalformedError(
+                    f"intent reference {reference_id!r} has invalid weight; "
+                    "expected a finite value in (0, 1]"
+                )
+        if reference_provenance is not None:
+            owner = provenance_owner.get(reference_id)
+            expected_owner = cast_characters[cast_slot]
+            if owner is None:
+                raise PlanMalformedError(
+                    f"intent reference {reference_id!r} has no durable reference provenance"
+                )
+            if owner != expected_owner:
+                raise PlanMalformedError(
+                    f"intent reference {reference_id!r} belongs to character {owner!r}; "
+                    f"cannot bind it to {cast_slot!r} ({expected_owner!r})"
+                )
+        binding = (reference_id, role, cast_slot)
+        if binding in seen_bindings:
+            raise PlanMalformedError(f"intent repeats reference binding {binding!r}")
+        seen_bindings.add(binding)
+
+    lane = intent.get("content_lane")
+    if lane != content_lane:
+        raise PlanMalformedError(
+            f"intent content_lane {lane!r} does not match stored content_lane {content_lane!r}"
+        )
+    if intent.get("consent_basis") != consent_basis:
+        raise PlanMalformedError("intent consent_basis does not match stored policy")
+    if intent.get("adult_confirmed") is not adult_confirmed:
+        raise PlanMalformedError("intent adult_confirmed does not match stored policy")
+    privacy_required = intent.get("privacy_required")
+    if not isinstance(privacy_required, bool):
+        raise PlanMalformedError("intent privacy_required must be a boolean")
+    if content_lane == ContentLane.PRIVATE_ADULT.value and not privacy_required:
+        raise PlanMalformedError(
+            "private_adult intent must require private execution"
+        )
+    return dict(intent)
+
+
+def _decode_intent(raw: str | None, row: Any) -> dict[str, Any]:
+    if not raw:
+        return _legacy_intent_from_row(row)
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise PlanMalformedError(f"intent is not valid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise PlanMalformedError(
+            f"intent expected a JSON object, got {type(parsed).__name__}"
+        )
+    return _validate_intent_payload(
+        dict(parsed),
+        operation=row["operation"],
+        content_lane=row["content_lane"],
+        consent_basis=row["consent_basis"],
+        adult_confirmed=bool(row["adult_confirmed"]),
+        reference_provenance=_decode_refs(row["references_json"]),
+    )
 
 
 def _row_to_plan(row: Any) -> StoredPlan:
@@ -286,6 +538,7 @@ def _row_to_plan(row: Any) -> StoredPlan:
         anchor_job_id=anchor_job_id,
         guidance_tags=_decode_list(row["guidance_tags_json"], "guidance_tags"),
         references=_decode_refs(row["references_json"]),
+        intent=_decode_intent(row["intent_json"], row),
         content_lane=content_lane,
         consent_basis=consent_basis,
         adult_confirmed=adult_confirmed,
@@ -416,6 +669,48 @@ def persist_plan(
     references_json = json.dumps([dict(r) for r in references]) if references else "[]"
     _check_json_bounded(references_json, "references")
 
+    raw_intent = plan_dict.get("intent")
+    if raw_intent is None:
+        intent: dict[str, Any] = {
+            "intent_version": 1,
+            "operation": resolved_operation,
+            "cast": [],
+            "references": [],
+            "scene": {},
+            "target": {},
+            "requested_changes": [],
+            "protected_traits": [],
+            "content_lane": content_lane,
+            "consent_basis": consent_basis,
+            "adult_confirmed": adult_confirmed,
+            "privacy_required": content_lane == ContentLane.PRIVATE_ADULT.value,
+            "quality_request": {},
+            "budget_request": {},
+        }
+    else:
+        if not isinstance(raw_intent, dict):
+            raise PlanStoreError("intent must be an object")
+        intent = dict(raw_intent)
+        intent["operation"] = resolved_operation
+        intent["content_lane"] = content_lane
+        intent["consent_basis"] = consent_basis
+        intent["adult_confirmed"] = adult_confirmed
+        if content_lane == ContentLane.PRIVATE_ADULT.value:
+            intent["privacy_required"] = True
+    try:
+        intent = _validate_intent_payload(
+            intent,
+            operation=resolved_operation,
+            content_lane=content_lane,
+            consent_basis=consent_basis,
+            adult_confirmed=adult_confirmed,
+            reference_provenance=[dict(r) for r in references],
+        )
+    except PlanMalformedError as exc:
+        raise PlanStoreError(str(exc)) from exc
+    intent_json = json.dumps(intent, sort_keys=True, separators=(",", ":"))
+    _check_json_bounded(intent_json, "intent")
+
     now = _now_iso()
     stored = StoredPlan(
         plan_id=_new_plan_id(),
@@ -430,6 +725,7 @@ def persist_plan(
         anchor_job_id=resolved_anchor,
         guidance_tags=json.loads(guidance_tags),
         references=json.loads(references_json),
+        intent=json.loads(intent_json),
         content_lane=content_lane,
         consent_basis=consent_basis,
         adult_confirmed=adult_confirmed,
@@ -444,9 +740,9 @@ def persist_plan(
             "INSERT INTO image_plans"
             " (plan_id, session_id, status, original_prompt, refined_prompt,"
             "  character_id, character_ref_path, recipe_id, operation, anchor_job_id,"
-            "  guidance_tags_json, references_json, content_lane, consent_basis,"
+            "  guidance_tags_json, references_json, intent_json, content_lane, consent_basis,"
             "  adult_confirmed, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 stored.plan_id,
                 stored.session_id,
@@ -460,6 +756,7 @@ def persist_plan(
                 stored.anchor_job_id,
                 guidance_tags,
                 references_json,
+                intent_json,
                 stored.content_lane,
                 stored.consent_basis,
                 int(stored.adult_confirmed),

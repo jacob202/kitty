@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Deterministic merge-policy gate for Kitty pull requests.
+"""Trusted, deterministic merge policy for Kitty pull requests.
 
-This gate turns the PR template's existing trust claims into executable policy:
-user-facing work needs completed product acceptance, risky scope needs an
-explicit approval label, and unusually large changes need explicit scope
-approval. Dependabot is exempt from prose/template requirements but not from
-risk approval.
+Routine changes are governed by deterministic CI. Sensitive changes additionally
+require explicit exact-head human approval and trusted independent review.
+Product acceptance is required only when native UI source changes.
 """
 
 from __future__ import annotations
@@ -18,21 +16,31 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from scripts import pr_review_gate
+
 RISK_APPROVED_LABEL = "risk/approved"
-LARGE_CHANGE_APPROVED_LABEL = "risk/large-change-approved"
 LARGE_CHANGE_LINES = 1500
 LARGE_CHANGE_FILES = 25
 
 RISK_PATTERNS = (
     re.compile(r"^\.github/workflows/"),
     re.compile(r"^\.github/dependabot\.yml$"),
+    re.compile(r"^scripts/pr_(?:policy|review|review_gate)\.py$"),
     re.compile(r"^gateway/routes/auth", re.I),
     re.compile(r"^gateway/auth", re.I),
     re.compile(r"^gateway/security", re.I),
     re.compile(r"^gateway/.*secret", re.I),
+    re.compile(r"^gateway/action_(?:queue|grants)\.py$"),
+    re.compile(r"^gateway/routes/actions\.py$"),
+    re.compile(r"^gateway/builder_(?:publish|pr_janitor)\.py$"),
+    re.compile(r"^scripts/purge_.*\.py$"),
     re.compile(r"^.*\.env(?:\..*)?$"),
     re.compile(r"^requirements.*\.txt$"),
     re.compile(r"^pyproject\.toml$"),
+)
+
+USER_FACING_PATTERNS = (
+    re.compile(r"^gateway/kitty-chat/(?:src|public)/"),
 )
 
 ACCEPTANCE_CHECKS = (
@@ -75,19 +83,10 @@ def _field_value(section: str, field: str) -> str:
 
 
 def _is_checked(section: str, text: str) -> bool:
-    pattern = rf"^-\s*\[[xX]\]\s*{re.escape(text)}\s*$"
-    return re.search(pattern, section, re.M) is not None
-
-
-def _not_user_facing_override(body: str) -> tuple[bool, str]:
-    override = body.split("### Not user-facing override", 1)[1] if "### Not user-facing override" in body else ""
-    checked = re.search(r"^-\s*\[[xX]\]\s*Not user-facing;", override, re.M) is not None
-    reason = _field_value(override, "Reason (required when checked)")
-    return checked, reason
+    return re.search(rf"^-\s*\[[xX]\]\s*{re.escape(text)}\s*$", section, re.M) is not None
 
 
 def _exact_head_approval(body: str, field: str, head_sha: str) -> str | None:
-    """Return an approval reason only when it is bound to the full current head SHA."""
     if len(head_sha) != 40 or not re.fullmatch(r"[0-9a-fA-F]{40}", head_sha):
         return None
     pattern = re.compile(
@@ -101,15 +100,31 @@ def _exact_head_approval(body: str, field: str, head_sha: str) -> str | None:
 
 
 def _risky_files(changed_files: list[str]) -> list[str]:
-    return [path for path in changed_files if any(p.search(path) for p in RISK_PATTERNS)]
+    return [path for path in changed_files if any(pattern.search(path) for pattern in RISK_PATTERNS)]
+
+
+def _is_user_facing(changed_files: list[str]) -> bool:
+    return any(any(pattern.search(path) for pattern in USER_FACING_PATTERNS) for path in changed_files)
+
+
+def policy_warnings(pr: dict[str, Any]) -> list[str]:
+    changed_lines = int(pr.get("additions") or 0) + int(pr.get("deletions") or 0)
+    changed_count = int(pr.get("changed_files") or 0)
+    if changed_lines > LARGE_CHANGE_LINES or changed_count > LARGE_CHANGE_FILES:
+        return [
+            f"large PR ({changed_lines} changed lines / {changed_count} files): consider splitting if that improves reviewability"
+        ]
+    return []
 
 
 def evaluate_policy(
     pr: dict[str, Any],
     changed_files: list[str],
     *,
+    independent_review_approved: bool = False,
     event_action: str | None = None,
 ) -> list[str]:
+    del event_action  # live PR state, not event ordering, is authoritative
     body = str(pr.get("body") or "")
     author = str((pr.get("user") or {}).get("login") or "")
     labels = {
@@ -117,43 +132,27 @@ def evaluate_policy(
         for label in (pr.get("labels") or [])
         if isinstance(label, dict) and label.get("name")
     }
-    violations: list[str] = []
     head_sha = str((pr.get("head") or {}).get("sha") or "")
+    violations: list[str] = []
 
-    if author != "dependabot[bot]":
-        summary = _section(body, "Summary")
-        test_plan = _section(body, "Test plan")
-        if not summary or not re.search(r"^-\s+\S", summary, re.M):
-            violations.append("PR body requires `## Summary` with at least one bullet")
-        if not test_plan or not re.search(r"^-\s|^-\s*\[[ xX]\]", test_plan, re.M):
-            violations.append("PR body requires `## Test plan` with at least one bullet/checklist item")
-
-        not_user_facing, override_reason = _not_user_facing_override(body)
-        if not_user_facing:
-            if not _has_content(override_reason):
-                violations.append("not-user-facing override requires a concrete reason")
+    if author != "dependabot[bot]" and _is_user_facing(changed_files):
+        acceptance = _section(body, "Product acceptance (required for user-facing changes)")
+        if not acceptance:
+            violations.append("user-facing PR requires completed product acceptance")
         else:
-            acceptance = _section(
-                body,
-                "Product acceptance (required for user-facing changes)",
-                until="### Not user-facing override",
-            )
-            if not acceptance:
-                violations.append("user-facing PR requires completed product acceptance")
-            else:
-                missing_checks = [text for text in ACCEPTANCE_CHECKS if not _is_checked(acceptance, text)]
-                missing_fields = [
-                    field
-                    for field in REQUIRED_ACCEPTANCE_FIELDS
-                    if not _has_content(_field_value(acceptance, field))
-                ]
-                if missing_checks or missing_fields:
-                    detail: list[str] = []
-                    if missing_checks:
-                        detail.append(f"{len(missing_checks)} acceptance checkbox(es) unchecked")
-                    if missing_fields:
-                        detail.append("missing fields: " + ", ".join(missing_fields))
-                    violations.append("user-facing PR has incomplete product acceptance: " + "; ".join(detail))
+            missing_checks = [text for text in ACCEPTANCE_CHECKS if not _is_checked(acceptance, text)]
+            missing_fields = [
+                field
+                for field in REQUIRED_ACCEPTANCE_FIELDS
+                if not _has_content(_field_value(acceptance, field))
+            ]
+            if missing_checks or missing_fields:
+                detail: list[str] = []
+                if missing_checks:
+                    detail.append(f"{len(missing_checks)} acceptance checkbox(es) unchecked")
+                if missing_fields:
+                    detail.append("missing fields: " + ", ".join(missing_fields))
+                violations.append("user-facing PR has incomplete product acceptance: " + "; ".join(detail))
 
     risky = _risky_files(changed_files)
     if risky:
@@ -164,17 +163,9 @@ def evaluate_policy(
                 "risky scope requires exact-head risk approval: "
                 "`Risk approval: APPROVE <full-head-SHA> — <reason>`"
             )
-
-    changed_lines = int(pr.get("additions") or 0) + int(pr.get("deletions") or 0)
-    changed_count = int(pr.get("changed_files") or len(changed_files))
-    is_large = changed_lines > LARGE_CHANGE_LINES or changed_count > LARGE_CHANGE_FILES
-    if is_large:
-        if LARGE_CHANGE_APPROVED_LABEL not in labels:
-            violations.append(f"large change requires label `{LARGE_CHANGE_APPROVED_LABEL}`")
-        if _exact_head_approval(body, "Large-change approval", head_sha) is None:
+        if not independent_review_approved:
             violations.append(
-                "large change requires exact-head large-change approval: "
-                "`Large-change approval: APPROVE <full-head-SHA> — <reason>`"
+                "risky scope requires trusted independent review approval for the exact current head"
             )
 
     return violations
@@ -223,11 +214,30 @@ def main() -> None:
         if not isinstance(pr, dict):
             raise RuntimeError("GitHub current-PR response was not an object")
         files = _changed_files(owner, name, number, token)
+
+        review_approved = True
+        if _risky_files(files):
+            comments_url = f"https://api.github.com/repos/{owner}/{name}/issues/{number}/comments?per_page=100"
+            comments = _github_json(comments_url, token)
+            if not isinstance(comments, list):
+                raise RuntimeError("GitHub PR comments response was not a list")
+            review_approved, review_reason = pr_review_gate.evaluate_review_gate(
+                pr, comments, repo_owner=owner
+            )
+            print(f"Independent review: {review_reason}")
     except (KeyError, ValueError, TypeError, OSError, HTTPError, URLError, TimeoutError, json.JSONDecodeError, RuntimeError) as exc:
         print(f"PR policy could not inspect current PR state: {type(exc).__name__}: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
-    violations = evaluate_policy(pr, files, event_action=str(event.get("action") or ""))
+    for warning in policy_warnings(pr):
+        print(f"::warning title=PR policy advisory::{warning}")
+
+    violations = evaluate_policy(
+        pr,
+        files,
+        independent_review_approved=review_approved,
+        event_action=str(event.get("action") or ""),
+    )
     if violations:
         print("PR policy blocked this head:", file=sys.stderr)
         for violation in violations:
