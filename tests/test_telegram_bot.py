@@ -62,11 +62,27 @@ class TestCommands:
     async def test_help(self):
         import gateway.telegram_bot as tb
         tb.TOKEN = "fake"
-        with patch("gateway.telegram_bot.send_message", new=AsyncMock(return_value=True)):
+        send = AsyncMock(return_value=True)
+        with patch("gateway.telegram_bot.send_message", new=send):
             await _handle_command(123, "/help")
+
+        send.assert_awaited_once_with(
+            123,
+            "Kitty Telegram Commands:\n"
+            "/brief — Morning brief\n"
+            "/stuck — What to work on next\n"
+            "/help — This message\n\n"
+            "Or just chat — I'll respond like normal.",
+        )
 
     async def test_start(self):
         import gateway.telegram_bot as tb
         tb.TOKEN = "fake"
-        with patch("gateway.telegram_bot.send_message", new=AsyncMock(return_value=True)):
+        send = AsyncMock(return_value=True)
+        with patch("gateway.telegram_bot.send_message", new=send):
             await _handle_command(123, "/start")
+
+        send.assert_awaited_once_with(
+            123,
+            "Hey! I'm Kitty. Ask me anything — I'm connected to the same brain as the desktop app.",
+        )
