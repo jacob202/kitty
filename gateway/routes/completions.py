@@ -501,12 +501,19 @@ async def chat_completions(request: Request):
     try:
         result = await chat_completions_non_stream(payload)
         resolved_model = result.get("model") or model
+        # Memory-evidence parity with the streaming trailer (C4-07): the
+        # non-stream path used to record and return no memory evidence at
+        # all, even when the same bundle injected memories into the prompt.
+        non_stream_memory_items: list[MemoryEvidence] | None = (
+            list(bundle.injected_memory_items) if bundle.injected_memory_items else None
+        )
         if lifecycle_handle is not None:
             _finish_lifecycle_or_raise(
                 lifecycle_handle,
                 status="succeeded",
                 assistant_text=_assistant_text_from_result(result),
                 resolved_model=resolved_model,
+                memory_items=non_stream_memory_items,
             )
             lifecycle_done = True
         log_chat_trace(
@@ -522,13 +529,16 @@ async def chat_completions(request: Request):
             trigger=trigger,
         )
         on_request_success()
-        return {
+        response = {
             **result,
             "kitty_runtime": {
                 "manifest_revision": runtime_manifest["revision"],
                 "resolved_model": resolved_model,
             },
         }
+        if non_stream_memory_items:
+            response["memory_items"] = non_stream_memory_items
+        return response
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:
             _finish_lifecycle_or_raise(
