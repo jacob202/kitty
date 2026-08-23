@@ -53,6 +53,24 @@ def test_cache_ttl_expiry(monkeypatch):
     assert prefetcher.get_cached("q") is None
 
 
+def test_put_cached_with_current_generation_writes():
+    generation = prefetcher.current_generation()
+    prefetcher.put_cached("q", "V", generation=generation)
+    assert prefetcher.get_cached("q") == "V"
+
+
+def test_put_cached_with_stale_generation_is_dropped():
+    """A write computed before an invalidation must not publish after it —
+    otherwise a slow query racing a correction resurrects the pre-correction
+    answer for the rest of the TTL (found by review on #629)."""
+    generation = prefetcher.current_generation()
+    prefetcher.invalidate_all()  # a correction lands mid-compute
+
+    prefetcher.put_cached("q", "STALE", generation=generation)
+
+    assert prefetcher.get_cached("q") is None
+
+
 @pytest.mark.asyncio
 async def test_warm_populates_cache_and_does_not_record_predictions(monkeypatch):
     monkeypatch.setattr(prefetcher, "capture_fingerprint", lambda: FP)
@@ -72,6 +90,48 @@ async def test_warm_populates_cache_and_does_not_record_predictions(monkeypatch)
     assert warmed == 1
     assert calls == [("recall my meds", False)]  # a prediction must not feed itself back
     assert prefetcher.get_cached("recall my meds") == "CTX::recall my meds"
+
+
+def test_explicit_memory_correction_invalidates_prefetch_cache(tmp_path, monkeypatch):
+    """C4-03 / ACC-010 / FI-012: a stale cached context must not outlive an
+    explicit correction just because its 300s TTL hasn't expired yet."""
+    from gateway import explicit_memory
+
+    monkeypatch.setattr(explicit_memory, "DB_FILE", tmp_path / "kitty.db")
+
+    old = explicit_memory.remember("I prefer dark mode", memory_key="ui.theme")
+    prefetcher.put_cached("theme", f"CACHED::{old['text']}")
+    assert prefetcher.get_cached("theme") is not None
+
+    explicit_memory.remember("Use light mode now", memory_key="ui.theme")
+
+    assert prefetcher.get_cached("theme") is None
+
+
+def test_explicit_memory_forget_invalidates_prefetch_cache(tmp_path, monkeypatch):
+    from gateway import explicit_memory
+
+    monkeypatch.setattr(explicit_memory, "DB_FILE", tmp_path / "kitty.db")
+
+    row = explicit_memory.remember("My favorite editor is Zed", memory_key="editor")
+    prefetcher.put_cached("editor", "CACHED::Zed")
+    assert prefetcher.get_cached("editor") is not None
+
+    explicit_memory.forget(row["id"])
+
+    assert prefetcher.get_cached("editor") is None
+
+
+def test_forget_of_missing_memory_does_not_invalidate_cache(tmp_path, monkeypatch):
+    """A no-op forget (unknown/already-inactive id) must not pay for a cache
+    wipe it didn't cause — only an actual state change invalidates."""
+    from gateway import explicit_memory
+
+    monkeypatch.setattr(explicit_memory, "DB_FILE", tmp_path / "kitty.db")
+
+    prefetcher.put_cached("q", "V")
+    assert explicit_memory.forget("exp_does_not_exist") is False
+    assert prefetcher.get_cached("q") == "V"
 
 
 @pytest.mark.asyncio
