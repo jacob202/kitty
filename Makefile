@@ -36,7 +36,7 @@ test-integration-ci:
 # Paths match the lint and typecheck jobs exactly. They were narrower than CI,
 # so `make ci` could pass on code the Tests workflow would reject.
 lint:
-	./venv/bin/ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+	python3.12 -m ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
 
 typecheck:
 	python3.12 -m mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
