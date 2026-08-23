@@ -44,6 +44,46 @@ def test_migrate_applies_foundation_once(tmp_path):
     assert applied == [("001_foundation.sql",)]
 
 
+def test_migrate_reconciles_renamed_migrations_without_replaying_sql(tmp_path):
+    """Renumbered migrations must not replay against DBs that saw legacy names."""
+    db_file = tmp_path / "kitty.db"
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    db.migrate(db_file=db_file, migrations_dir=migrations_dir)
+
+    with db.connect(db_file) as conn:
+        conn.execute("CREATE TABLE image_recipes (recipe_id TEXT, execution_target TEXT)")
+        conn.executemany(
+            "INSERT INTO schema_migrations (name) VALUES (?)",
+            [
+                ("036_image_jobs_compiler_provenance.sql",),
+                ("037_image_recipes_execution_target.sql",),
+                ("038_image_jobs_canonical_artifact.sql",),
+                ("039_image_sessions_project_scope.sql",),
+            ],
+        )
+
+    (migrations_dir / "040_image_jobs_compiler_provenance.sql").write_text("-- no-op\n")
+    (migrations_dir / "041_image_recipes_execution_target.sql").write_text(
+        "ALTER TABLE image_recipes ADD COLUMN execution_target TEXT;\n"
+    )
+    (migrations_dir / "042_image_jobs_canonical_artifact.sql").write_text("-- no-op\n")
+    (migrations_dir / "043_image_sessions_project_scope.sql").write_text("-- no-op\n")
+
+    applied = db.migrate(db_file=db_file, migrations_dir=migrations_dir)
+
+    assert applied == []
+    db.assert_schema_current(db_file=db_file, migrations_dir=migrations_dir)
+    with sqlite3.connect(db_file) as conn:
+        recorded = {row[0] for row in conn.execute("SELECT name FROM schema_migrations")}
+    assert {
+        "040_image_jobs_compiler_provenance.sql",
+        "041_image_recipes_execution_target.sql",
+        "042_image_jobs_canonical_artifact.sql",
+        "043_image_sessions_project_scope.sql",
+    } <= recorded
+
+
 def test_connect_sets_row_factory_and_foreign_keys(tmp_path):
     db_file = tmp_path / "kitty.db"
 
