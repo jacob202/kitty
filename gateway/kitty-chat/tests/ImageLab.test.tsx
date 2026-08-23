@@ -213,6 +213,15 @@ describe('ImageLab', () => {
     fireEvent.click(await screen.findByTestId('image-lab-character-picker'))
     fireEvent.click(screen.getByText('Mia'))
 
+    await waitFor(() => {
+      const characterEstimateCall = fetchMock.mock.calls.find(([url, init]) => {
+        if (String(url) !== '/proxy/studio/estimate') return false
+        const body = JSON.parse(String((init as RequestInit | undefined)?.body ?? '{}'))
+        return body.character_id === 'char_1'
+      })
+      expect(characterEstimateCall).toBeTruthy()
+    })
+
     const input = screen.getByPlaceholderText(/tell kitty what you want to make/i)
     fireEvent.change(input, { target: { value: 'portrait of Mia' } })
     fireEvent.click(screen.getByTestId('image-lab-send'))
@@ -223,6 +232,14 @@ describe('ImageLab', () => {
     )
     expect(sessionCall).toBeTruthy()
     expect(JSON.parse(String((sessionCall?.[1] as RequestInit).body))).toEqual({ character_id: 'char_1' })
+
+    const batchCall = fetchMock.mock.calls.find(([url, init]) =>
+      String(url) === '/proxy/studio/batches' && (init as RequestInit | undefined)?.method === 'POST'
+    )
+    expect(batchCall).toBeTruthy()
+    expect(JSON.parse(String((batchCall?.[1] as RequestInit).body))).toMatchObject({
+      character_id: 'char_1', plan_id: 'imgplan_1', session_id: 'imgses_1',
+    })
   })
 
   it('binds a character to the persisted session over PATCH', async () => {
