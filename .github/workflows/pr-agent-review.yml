@@ -1,7 +1,7 @@
 name: PR Agent Review
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
@@ -27,19 +27,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
-      - name: Invalidate review-trigger label for new head
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.removeLabel({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              name: "review/evidence-current",
-            }).catch((err) => {
-              if (err.status !== 404) throw err;
-            });
-
       - name: Checkout trusted default-branch reviewer
         uses: actions/checkout@v4
         with:
@@ -61,38 +48,13 @@ jobs:
           PR_REVIEW_REQUEST_ATTEMPTS: "2"
         run: python scripts/pr_review.py
 
-      - name: Trigger policy re-evaluation after usable review evidence
-        if: ${{ steps.produce.outcome == 'success' }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const label = {
-              name: "review/evidence-current",
-              color: "bfdadc",
-              description: "Automation trigger: exact-head review evidence was refreshed",
-            };
-            try {
-              await github.rest.issues.getLabel({ owner: context.repo.owner, repo: context.repo.repo, name: label.name });
-            } catch (err) {
-              if (err.status !== 404) throw err;
-              await github.rest.issues.createLabel({ owner: context.repo.owner, repo: context.repo.repo, ...label });
-            }
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              labels: [label.name],
-            });
-
-  # Compatibility check for the existing ruleset. It is removed after the
-  # ruleset migrates to policy-gate + merge-gate.
-  review-gate:
-    name: review-gate
+  policy-gate:
+    name: policy-gate
     if: ${{ always() && github.event.pull_request.draft == false }}
     needs: agent-review
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout trusted default-branch reviewer gate
+      - name: Checkout trusted default-branch policy
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.repository.default_branch }}
@@ -101,7 +63,7 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - name: Verify trusted exact-head review evidence
+      - name: Enforce trusted merge policy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python -m scripts.pr_review_gate
+        run: python -m scripts.pr_policy

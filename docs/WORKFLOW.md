@@ -16,9 +16,10 @@ comments, or an external model verdict.
      `## Summary` / `## Test plan` formatting a merge condition.
    - `.github/workflows/pr-auto-label.yml` applies path-based `area/*` labels.
 2. **Trusted policy**
-   - `.github/workflows/pr-policy-trusted.yml` runs `policy-gate` from the
-     repository default branch under `pull_request_target`; PR-authored policy
-     code is never executed with the policy token.
+   - `.github/workflows/pr-agent-review.yml` is the trust workflow. It runs under
+     `pull_request_target`, executes reviewer/policy code from the repository
+     default branch, and emits the stable `policy-gate` result. PR-authored trust
+     code is never executed with repository tokens or review-model credentials.
    - Native UI source/public changes require completed product acceptance.
    - Sensitive scope (auth/security, CI policy, approval/action boundaries,
      publication/destructive paths, secrets/env, dependency roots) requires
@@ -45,13 +46,12 @@ The old standalone description, risk-guardrail, test-hint, and release-evidence
 comment workflows were removed because they duplicated policy/CI state without
 adding an independent safety signal.
 
-### Ruleset migration
+### Default-branch ruleset
 
-The intended default-branch ruleset requires only `policy-gate` and `merge-gate`.
-During the one-PR migration that introduces those check names, legacy `pr-policy`
-and `review-gate` jobs remain compatibility checks so the existing ruleset cannot
-deadlock its own replacement. Remove those compatibility jobs immediately after
-the ruleset is switched.
+The active default-branch ruleset requires only `policy-gate` and `merge-gate`.
+Strict up-to-date checking, pull-request protection, deletion protection, and
+non-fast-forward protection remain enabled. Legacy `pr-policy` and `review-gate`
+compatibility jobs were retired after the two stable gate names were activated.
 
 ### Guardrails (intentionally manual)
 
