@@ -631,3 +631,211 @@ async def test_studio_session_create_exposes_explicit_project_scope():
 
     assert payload["project_id"] == project_id
     assert payload["title"] == "scoped session"
+
+
+def _persist_two_character_flux2_plan(tmp_path: Path, *, refs_per_character: int = 1, recipe_id: str = "flux2_test"):
+    from gateway import image_plans
+
+    session = image_sessions.create_session(title="two-character flux2")
+    references = []
+    bindings = []
+    for character_id, slot_id, name, position, depth_order in (
+        ("char_alex", "subject_1", "Alex", "left", 1),
+        ("char_ben", "subject_2", "Ben", "right", 2),
+    ):
+        for index in range(refs_per_character):
+            reference_id = f"ref_{name.lower()}_{index + 1}"
+            path = tmp_path / f"{reference_id}.png"
+            path.write_bytes(f"{name}-{index + 1}".encode())
+            references.append(
+                {
+                    "character_id": character_id,
+                    "name": name,
+                    "path": str(path),
+                    "reason": "identity",
+                    "reference_id": reference_id,
+                }
+            )
+            bindings.append(
+                {
+                    "reference_id": reference_id,
+                    "role": "identity",
+                    "cast_slot": slot_id,
+                    "weight": None,
+                }
+            )
+
+    payload = {
+        "original_prompt": "Alex and Ben standing together",
+        "refined_prompt": "Alex and Ben standing together",
+        "character_id": None,
+        "character_ref_path": None,
+        "recipe_id": recipe_id,
+        "guidance_tags": [],
+        "references": references,
+        "content_lane": "safe",
+        "consent_basis": None,
+        "adult_confirmed": False,
+        "intent": {
+            "intent_version": 1,
+            "operation": "txt2img",
+            "cast": [
+                {
+                    "slot_id": "subject_1",
+                    "character_id": "char_alex",
+                    "display_name": "Alex",
+                    "position": "left",
+                    "depth_order": 1,
+                },
+                {
+                    "slot_id": "subject_2",
+                    "character_id": "char_ben",
+                    "display_name": "Ben",
+                    "position": "right",
+                    "depth_order": 2,
+                },
+            ],
+            "references": bindings,
+            "scene": {},
+            "target": {},
+            "requested_changes": [],
+            "protected_traits": ["Alex identity", "Ben identity"],
+            "content_lane": "safe",
+            "consent_basis": None,
+            "adult_confirmed": False,
+            "privacy_required": False,
+            "quality_request": {},
+            "budget_request": {},
+        },
+    }
+    return session, image_plans.persist_plan(session.session_id, payload)
+
+
+class TestMultiCharacterFlux2Route:
+    @pytest.mark.asyncio
+    async def test_typed_cast_count_and_assignments_reach_flux2_compiler(self, tmp_path, monkeypatch):
+        session, stored = _persist_two_character_flux2_plan(tmp_path)
+        captured = {}
+        recipe = SimpleNamespace(
+            provider="flux2",
+            recipe_id="flux2_test",
+            execution_target="flux2_test_target",
+            default_width=1024,
+            default_height=1024,
+            workflow_template_id=None,
+            supports_characters=True,
+            max_characters=2,
+        )
+
+        def fake_auto_route(**kwargs):
+            captured["route"] = kwargs
+            return image_recipes.RoutingDecision(recipe.recipe_id, recipe, "two-character test")
+
+        target = SimpleNamespace(
+            model_id="test-model",
+            reference_limit=8,
+            estimate_cost_usd=lambda *_args: 0.0,
+        )
+
+        async def fake_run(engine, prompt, **kwargs):
+            captured["engine"] = engine
+            captured["compiled"] = kwargs["compiled_request"]
+            captured["reference_bytes"] = kwargs["reference_bytes"]
+            return JobResult(job_id="job_multichar", filename="multi.png", engine=engine)
+
+        monkeypatch.setattr(image_recipes, "auto_route", fake_auto_route)
+        monkeypatch.setattr("gateway.flux2_targets.resolve_flux2_target", lambda _name: target)
+        monkeypatch.setattr("gateway.image_runner.run", fake_run)
+        monkeypatch.setattr(image_sessions, "attach_job", lambda *_: None)
+
+        await extended.studio_generate(
+            extended.StudioGenerateRequest(
+                prompt="ignored",
+                plan_id=stored.plan_id,
+                session_id=session.session_id,
+            )
+        )
+
+        assert captured["route"]["has_character"] is True
+        assert captured["route"]["character_count"] == 2
+        refs = captured["compiled"].references
+        assert [ref.cast_slot for ref in refs] == ["subject_1", "subject_2"]
+        assert [ref.character_id for ref in refs] == ["char_alex", "char_ben"]
+        assert [ref.position for ref in refs] == ["left", "right"]
+        assert [ref.depth_order for ref in refs] == [1, 2]
+        assert captured["reference_bytes"] == (b"Alex-1", b"Ben-1")
+
+    @pytest.mark.asyncio
+    async def test_forced_single_character_recipe_rejected_before_dispatch(self, tmp_path, monkeypatch):
+        session, stored = _persist_two_character_flux2_plan(tmp_path, recipe_id="single_only")
+        recipe = SimpleNamespace(
+            provider="comfyui",
+            recipe_id="single_only",
+            supports_characters=True,
+            max_characters=1,
+        )
+        monkeypatch.setattr(
+            image_recipes,
+            "auto_route",
+            lambda **_: image_recipes.RoutingDecision(recipe.recipe_id, recipe, "forced bad route"),
+        )
+
+        async def fail_run(*_args, **_kwargs):
+            raise AssertionError("two-character plan must be rejected before renderer dispatch")
+
+        monkeypatch.setattr("gateway.image_runner.run", fail_run)
+        with pytest.raises(Exception, match="supports at most 1 character.*requires 2"):
+            await extended.studio_generate(
+                extended.StudioGenerateRequest(
+                    prompt="ignored",
+                    plan_id=stored.plan_id,
+                    session_id=session.session_id,
+                )
+            )
+
+    @pytest.mark.asyncio
+    async def test_reference_limit_rejected_before_estimate_or_spend(self, tmp_path, monkeypatch):
+        session, stored = _persist_two_character_flux2_plan(
+            tmp_path,
+            refs_per_character=3,
+            recipe_id="bfl_flux2_draft",
+        )
+        recipe = SimpleNamespace(
+            provider="flux2",
+            recipe_id="bfl_flux2_draft",
+            execution_target="flux2-klein-4b-h",
+            default_width=1024,
+            default_height=1024,
+            workflow_template_id=None,
+            supports_characters=True,
+            max_characters=2,
+        )
+        monkeypatch.setattr(
+            image_recipes,
+            "auto_route",
+            lambda **_: image_recipes.RoutingDecision(recipe.recipe_id, recipe, "limit test"),
+        )
+
+        def fail_estimate(*_args):
+            raise AssertionError("reference overflow must fail before cost estimation")
+
+        target = SimpleNamespace(
+            model_id="flux-2-klein-4b",
+            reference_limit=4,
+            estimate_cost_usd=fail_estimate,
+        )
+        monkeypatch.setattr("gateway.flux2_targets.resolve_flux2_target", lambda _name: target)
+
+        async def fail_run(*_args, **_kwargs):
+            raise AssertionError("reference overflow must fail before provider dispatch")
+
+        monkeypatch.setattr("gateway.image_runner.run", fail_run)
+
+        with pytest.raises(Exception, match="allows at most 4 references.*compiled 6"):
+            await extended.studio_generate(
+                extended.StudioGenerateRequest(
+                    prompt="ignored",
+                    plan_id=stored.plan_id,
+                    session_id=session.session_id,
+                )
+            )
