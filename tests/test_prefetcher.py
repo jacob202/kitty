@@ -53,6 +53,24 @@ def test_cache_ttl_expiry(monkeypatch):
     assert prefetcher.get_cached("q") is None
 
 
+def test_put_cached_with_current_generation_writes():
+    generation = prefetcher.current_generation()
+    prefetcher.put_cached("q", "V", generation=generation)
+    assert prefetcher.get_cached("q") == "V"
+
+
+def test_put_cached_with_stale_generation_is_dropped():
+    """A write computed before an invalidation must not publish after it —
+    otherwise a slow query racing a correction resurrects the pre-correction
+    answer for the rest of the TTL (found by review on #629)."""
+    generation = prefetcher.current_generation()
+    prefetcher.invalidate_all()  # a correction lands mid-compute
+
+    prefetcher.put_cached("q", "STALE", generation=generation)
+
+    assert prefetcher.get_cached("q") is None
+
+
 @pytest.mark.asyncio
 async def test_warm_populates_cache_and_does_not_record_predictions(monkeypatch):
     monkeypatch.setattr(prefetcher, "capture_fingerprint", lambda: FP)
