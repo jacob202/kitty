@@ -395,7 +395,7 @@ exit 1
 
 
 
-def test_worker_commit_failure_is_reported(repo: Path, tmp_path: Path) -> None:
+def test_worker_does_not_invoke_git_commit_hook(repo: Path, tmp_path: Path) -> None:
     fake = _fake_claude(tmp_path)
     hook = repo / ".git" / "hooks" / "pre-commit"
     hook.write_text("#!/bin/sh\necho hook-rejected >&2\nexit 1\n", encoding="utf-8")
@@ -415,8 +415,11 @@ def test_worker_commit_failure_is_reported(repo: Path, tmp_path: Path) -> None:
         "KB_TASK_ID": task_id,
     })
     result = subprocess.run([sys.executable, str(_ADAPTER), "worker"], cwd=repo, env=env, capture_output=True, text=True)
-    assert result.returncode == 1
-    assert "hook-rejected" in result.stderr
+    assert result.returncode == 0, result.stderr
+    assert result_path.exists()
+    assert "hook-rejected" not in result.stderr
+    status = subprocess.run(["git", "status", "--porcelain"], cwd=repo, check=True, capture_output=True, text=True).stdout
+    assert "README.md" in status
 
 
 def test_non_auth_probe_failure_preserves_context(repo: Path, tmp_path: Path) -> None:

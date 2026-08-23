@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from gateway import builder_attempt as ba
+from gateway import builder_execution_boundary as beb
 from gateway import builder_identity as bid
 from gateway import builder_initiative as bi
 from gateway import builder_pr_janitor as bj
@@ -553,14 +554,36 @@ def _run_review_command(
     env_extra: dict[str, str],
     timeout_seconds: int,
 ) -> str | None:
-    """Run the reviewer subprocess. Returns an error string or None."""
-    env = dict(os.environ)
-    env.pop("GITHUB_TOKEN", None)
-    env.pop("GH_TOKEN", None)
+    """Run a reviewer inside the lower-trust read-only boundary."""
+    result_raw = env_extra.get("KB_REVIEW_RESULT_PATH")
+    if not result_raw:
+        return "review command missing KB_REVIEW_RESULT_PATH"
+    result_path = Path(result_raw).resolve()
+    runtime_dir = result_path.parent / ".review-runtime"
+    env = beb.build_child_environment(os.environ, run_dir=runtime_dir)
     env.update(env_extra)
+
+    read_keys = (
+        "KB_BUNDLE_PATH",
+        "KB_IMPL_RESULT_PATH",
+        "KB_CONTEXT_MANIFEST_PATH",
+        "KB_REVIEW_CONTEXT_PATH",
+    )
+    read_paths = [Path(env[key]) for key in read_keys if env.get(key)]
+    write_keys = ("KB_REVIEW_RESULT_PATH", "KB_REVIEW_NOTE_PATH")
+    write_paths = [Path(env[key]) for key in write_keys if env.get(key)]
     try:
-        proc = subprocess.run(
+        wrapped = beb.wrap_command(
             command,
+            worktree=cwd,
+            run_dir=runtime_dir,
+            environment=env,
+            read_paths=read_paths,
+            write_paths=write_paths,
+            worktree_writable=False,
+        )
+        proc = subprocess.run(
+            wrapped,
             cwd=str(cwd),
             env=env,
             capture_output=True,
@@ -1576,6 +1599,24 @@ def run_packet(
             else:
                 failure = error
 
+        if (
+            failure is None
+            and impl is not None
+            and impl.get("status") == "completed"
+        ):
+            try:
+                trusted_commit_sha = _commit_completed_worker_changes(
+                    expected_worktree,
+                    packet_id=packet_id,
+                    task_id=task_id,
+                    attempt_id=attempt_id,
+                )
+            except LoopError as exc:
+                failure = f"trusted parent commit failed: {exc}"
+            else:
+                if trusted_commit_sha is not None:
+                    entry["trusted_parent_commit_sha"] = trusted_commit_sha
+
         if failure is None and _runtime_budget_expired(deadline_monotonic):
             failure = "initiative runtime budget exceeded"
 
@@ -1967,3 +2008,45 @@ def run_packet(
                 "attempts": history,
                 "escalation": scope_escalation,
             }
+
+
+# NOTE: helper appended temporarily for E03; placement is normalized before commit.
+def _commit_completed_worker_changes(
+    worktree: Path,
+    *,
+    packet_id: str,
+    task_id: str,
+    attempt_id: int,
+) -> str | None:
+    status = subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if status.returncode != 0:
+        raise LoopError((status.stderr or status.stdout or "git status failed").strip())
+    if not status.stdout.strip():
+        return None
+    add = subprocess.run(["git", "add", "-A"], cwd=worktree, capture_output=True, text=True)
+    if add.returncode != 0:
+        raise LoopError((add.stderr or add.stdout or "git add failed").strip())
+    message = (
+        f"[{packet_id}] kittybuilder: {task_id} attempt {attempt_id} "
+        "(trusted parent)"
+    )
+    commit = subprocess.run(
+        [
+            "git", "-c", "user.name=KittyBuilder",
+            "-c", "user.email=kittybuilder@localhost",
+            "commit", "--quiet", "-m", message,
+        ],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if commit.returncode != 0:
+        raise LoopError((commit.stderr or commit.stdout or "git commit failed").strip())
+    return worktree_head(worktree)
