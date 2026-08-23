@@ -14,14 +14,24 @@ import hashlib
 import json
 import math
 import random
+import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 BENCHMARK_SCHEMA_VERSION = 1
 SETTLED_COST_SOURCES = frozenset(
-    {"provider_reported", "provider_invoice", "metered_compute", "local_zero_marginal"}
+    {
+        "provider_reported",
+        "provider_invoice",
+        "provider_contract",
+        "metered_compute",
+        "local_zero_marginal",
+    }
 )
 RATING_FIELDS = (
     "would_keep",
@@ -537,6 +547,62 @@ def _observation_failures(
             )
         elif cost_source == "local_zero_marginal" and observation.get("settled_cost_usd") != 0:
             reproducibility.append("local_zero_marginal requires settled_cost_usd to be exactly 0")
+        elif cost_source == "provider_contract":
+            settings = candidate.get("settings")
+            contract = settings.get("cost_contract") if isinstance(settings, dict) else None
+            if not isinstance(contract, dict):
+                reproducibility.append(
+                    "provider_contract requires candidate settings.cost_contract"
+                )
+            else:
+                kind = contract.get("kind")
+                rate = contract.get("usd_per_megapixel")
+                as_of = contract.get("as_of")
+                width = observation.get("artifact_width")
+                height = observation.get("artifact_height")
+                if kind != "ceil_output_megapixels":
+                    reproducibility.append(
+                        "provider_contract kind must be 'ceil_output_megapixels'"
+                    )
+                rate_number = (
+                    float(rate)
+                    if isinstance(rate, (int, float)) and not isinstance(rate, bool)
+                    else None
+                )
+                if rate_number is None or not math.isfinite(rate_number) or rate_number <= 0:
+                    reproducibility.append(
+                        "provider_contract usd_per_megapixel must be finite and > 0"
+                    )
+                if not isinstance(as_of, str) or not as_of.strip():
+                    reproducibility.append("provider_contract as_of provenance is required")
+                if (
+                    isinstance(width, bool)
+                    or isinstance(height, bool)
+                    or not isinstance(width, int)
+                    or not isinstance(height, int)
+                    or width <= 0
+                    or height <= 0
+                ):
+                    reproducibility.append(
+                        "provider_contract requires positive artifact_width/artifact_height"
+                    )
+                elif rate_number is not None and math.isfinite(rate_number) and rate_number > 0:
+                    expected = math.ceil((width * height) / 1_000_000.0) * rate_number
+                    settled = observation.get("settled_cost_usd")
+                    settled_number = (
+                        float(settled)
+                        if isinstance(settled, (int, float)) and not isinstance(settled, bool)
+                        else None
+                    )
+                    if (
+                        settled_number is not None
+                        and math.isfinite(settled_number)
+                        and settled_number >= 0
+                        and not math.isclose(settled_number, expected, rel_tol=0.0, abs_tol=1e-9)
+                    ):
+                        reproducibility.append(
+                            "provider_contract settled_cost_usd does not match pinned contract and artifact dimensions"
+                        )
     for field in ("intent_sha256", "artifact_sha256", "candidate_sha256"):
         if not _is_sha256(observation.get(field)):
             reproducibility.append(f"{field} must be a 64-character SHA-256 hex digest")
@@ -900,6 +966,17 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("catalog", help="print the canonical ImageBench scenario catalog")
 
+    evaluate = sub.add_parser("evaluate", help="evaluate one artifact with production scorers")
+    evaluate.add_argument("--scenario", required=True, help="exact canonical scenario_id")
+    evaluate.add_argument("--image", required=True, type=Path)
+    evaluate.add_argument("--output", required=True, type=Path)
+    evaluate.add_argument("--identity-reference", type=Path)
+    evaluate.add_argument("--identity-threshold", type=float, default=0.45)
+    evaluate.add_argument("--auxiliary-image", action="append", type=Path, default=[])
+    evaluate.add_argument("--vlm-model")
+    evaluate.add_argument("--vlm-model-revision")
+    evaluate.add_argument("--vlm-base-url", default="http://127.0.0.1:11434")
+
     manifest = sub.add_parser("manifest", help="create an offline benchmark run manifest")
     manifest.add_argument("--candidate-file", required=True, type=Path)
     manifest.add_argument("--output", required=True, type=Path)
@@ -927,6 +1004,35 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "catalog":
             print(json.dumps(scenario_catalog(), indent=2))
+            return 0
+        if args.command == "evaluate":
+            from gateway.image_evaluation import EvaluationUnavailable
+            from gateway.image_scorers import build_imagebench_scorers
+
+            scenario = next(
+                (item for item in scenario_catalog() if item["scenario_id"] == args.scenario),
+                None,
+            )
+            if scenario is None:
+                raise BenchmarkContractError(f"unknown canonical scenario_id {args.scenario!r}")
+            required = scenario["required_scorers"]
+            scorers = build_imagebench_scorers(
+                required_scorers=required,
+                prompt=scenario["prompt"],
+                identity_reference_path=(
+                    str(args.identity_reference) if args.identity_reference is not None else None
+                ),
+                identity_threshold=args.identity_threshold,
+                auxiliary_image_paths=[str(path) for path in args.auxiliary_image],
+                vlm_model=args.vlm_model,
+                vlm_model_revision=args.vlm_model_revision,
+                vlm_base_url=args.vlm_base_url,
+            )
+            try:
+                payload = evaluate_artifact_for_scenario(scenario, args.image, scorers=scorers)
+            except EvaluationUnavailable as exc:
+                raise BenchmarkContractError(str(exc)) from exc
+            _write_json(args.output, payload)
             return 0
         if args.command == "manifest":
             payload = build_run_manifest(

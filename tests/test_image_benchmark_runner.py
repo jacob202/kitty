@@ -398,6 +398,54 @@ def test_local_zero_marginal_cost_must_actually_be_zero() -> None:
     assert any("local_zero_marginal" in failure for failure in report["reproducibility_failures"])
 
 
+def test_provider_contract_cost_requires_pinned_contract_and_reproduces_amount() -> None:
+    candidate = _candidate("fal-contract")
+    candidate["provider"] = "fal"
+    candidate["model"] = "fal-ai/flux-pulid"
+    candidate["settings"] = {
+        "cost_contract": {
+            "kind": "ceil_output_megapixels",
+            "usd_per_megapixel": 0.0333,
+            "as_of": "2026-08-23",
+        }
+    }
+    manifest = bench.build_run_manifest([candidate], scenario_ids=["A.natural_daylight_portrait"])
+    observation = _observation(manifest, cost=0.0666)
+    observation.update(
+        cost_source="provider_contract",
+        artifact_width=1024,
+        artifact_height=1024,
+    )
+
+    report = bench.summarize_run(manifest, [observation])
+    assert report["complete_for_comparison"] is True
+    assert report["candidates"][0]["total_settled_cost_usd"] == pytest.approx(0.0666)
+
+
+def test_provider_contract_cost_fails_when_amount_does_not_match_dimensions() -> None:
+    candidate = _candidate("fal-contract")
+    candidate["provider"] = "fal"
+    candidate["model"] = "fal-ai/flux-pulid"
+    candidate["settings"] = {
+        "cost_contract": {
+            "kind": "ceil_output_megapixels",
+            "usd_per_megapixel": 0.0333,
+            "as_of": "2026-08-23",
+        }
+    }
+    manifest = bench.build_run_manifest([candidate], scenario_ids=["A.natural_daylight_portrait"])
+    observation = _observation(manifest, cost=0.07)
+    observation.update(
+        cost_source="provider_contract",
+        artifact_width=1024,
+        artifact_height=1024,
+    )
+
+    report = bench.summarize_run(manifest, [observation])
+    assert report["complete_for_comparison"] is False
+    assert any("provider_contract" in failure for failure in report["reproducibility_failures"])
+
+
 def test_tampered_canonical_scorer_requirements_are_rejected() -> None:
     manifest = bench.build_run_manifest(
         [_candidate()], scenario_ids=["A.natural_daylight_portrait"]
@@ -469,3 +517,129 @@ def test_attempt_number_cannot_be_reused_for_same_comparison_pair() -> None:
     report = bench.summarize_run(manifest, [first, second])
     assert report["complete_for_comparison"] is False
     assert any("duplicate attempt" in failure for failure in report["reproducibility_failures"])
+
+
+def test_evaluate_cli_uses_production_scorers_and_writes_versioned_evidence(
+    tmp_path, monkeypatch
+) -> None:
+    from PIL import Image
+
+    import gateway.image_scorers as production_scorers
+
+    image = tmp_path / "candidate.png"
+    pixels = Image.new("RGB", (512, 512))
+    for y in range(512):
+        for x in range(512):
+            pixels.putpixel((x, y), (x % 256, y % 256, (x + y) % 256))
+    pixels.save(image)
+    output = tmp_path / "evaluation.json"
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"response": "YES"}
+
+    class TagsResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "models": [
+                    {
+                        "name": "qwen2.5-vl:7b",
+                        "model": "qwen2.5-vl:7b",
+                        "digest": "sha256:abc123",
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(production_scorers.httpx, "get", lambda *args, **kwargs: TagsResponse())
+    monkeypatch.setattr(production_scorers.httpx, "post", lambda *args, **kwargs: Response())
+
+    rc = bench.main(
+        [
+            "evaluate",
+            "--scenario",
+            "A.natural_daylight_portrait",
+            "--image",
+            str(image),
+            "--output",
+            str(output),
+            "--vlm-model",
+            "qwen2.5-vl:7b",
+            "--vlm-model-revision",
+            "sha256:abc123",
+        ]
+    )
+
+    payload = __import__("json").loads(output.read_text(encoding="utf-8"))
+    assert rc == 0
+    assert payload["passed"] is True
+    assert payload["scorer_versions"]["mechanics"] == "mechanics-pil@1"
+    assert payload["scorer_versions"]["photorealism"].endswith("@sha256:abc123")
+
+
+def test_evaluate_cli_fails_closed_when_required_production_scorer_is_unavailable(
+    tmp_path,
+) -> None:
+    from PIL import Image
+
+    image = tmp_path / "candidate.png"
+    Image.new("RGB", (512, 512), "white").save(image)
+    output = tmp_path / "evaluation.json"
+
+    with pytest.raises(SystemExit) as exc:
+        bench.main(
+            [
+                "evaluate",
+                "--scenario",
+                "A.natural_daylight_portrait",
+                "--image",
+                str(image),
+                "--output",
+                str(output),
+            ]
+        )
+
+    assert exc.value.code == 2
+    assert not output.exists()
+
+
+def test_direct_script_evaluate_entrypoint_reaches_fail_closed_scorer_gate(tmp_path) -> None:
+    import os
+    import subprocess
+    import sys
+
+    from PIL import Image
+
+    image = tmp_path / "candidate.png"
+    Image.new("RGB", (512, 512), "white").save(image)
+    output = tmp_path / "evaluation.json"
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/image_lab_benchmark.py",
+            "evaluate",
+            "--scenario",
+            "A.natural_daylight_portrait",
+            "--image",
+            str(image),
+            "--output",
+            str(output),
+        ],
+        cwd=__import__("pathlib").Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+
+    assert result.returncode == 2
+    assert "required scorers unavailable: photorealism" in result.stderr
+    assert "ModuleNotFoundError" not in result.stderr
+    assert not output.exists()

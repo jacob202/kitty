@@ -176,7 +176,7 @@ def test_agent_review_workflow_uses_trusted_code_and_avoids_model_reruns_on_meta
     assert "github.event.action == 'unlabeled'" not in workflow
     assert "policy-gate:" in workflow
     assert "name: policy-gate" in workflow
-    assert "needs: agent-review" in workflow
+    assert "needs: [scope, agent-review]" in workflow
     assert "python -m scripts.pr_policy" in workflow
     assert "review-gate:" not in workflow
     assert "review/evidence-current" not in workflow

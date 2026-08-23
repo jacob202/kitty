@@ -229,7 +229,12 @@ class TestBuildProactiveSuggestions:
         assert "life_step" in kinds
 
     def test_upcoming_event_suggestion(self):
-        events = [{"title": "Standup", "start": "10:00", "end": "10:30"}]
+        now = time.time()
+        events = [{
+            "title": "Standup",
+            "start": datetime.fromtimestamp(now + 3600, tz=timezone.utc).isoformat(),
+            "end": datetime.fromtimestamp(now + 5400, tz=timezone.utc).isoformat(),
+        }]
         suggestions = life_awareness._build_proactive_suggestions(events, [], {"has_data": False, "signal_count": 0, "journal_count": 0})
         kinds = [s["kind"] for s in suggestions]
         assert "upcoming_event" in kinds

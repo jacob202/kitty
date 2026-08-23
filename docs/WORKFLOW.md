@@ -33,16 +33,28 @@ comments, or an external model verdict.
      code/browser jobs only when the changed-path classifier marks them inapplicable.
    - Kitty Chat and browser smoke remain hard evidence for non-documentation
      frontend changes; unrelated PRs skip those expensive jobs.
-   - `hygiene` still runs, but is advisory because link/dead-code heuristics should
-     not veto an otherwise valid repair.
+   - Scope is scope-aware on pushes to `main` too. Strict up-to-date checking
+     means a merge commit carries the tree the PR head already validated, so a
+     docs-only merge re-running the code suite proves nothing new.
+   - Draft PRs skip the expensive suite entirely. `ready_for_review` starts the
+     full applicable set without another push; `converted_to_draft` cancels
+     in-flight work nobody can merge.
 4. **Independent model review**
-   - `.github/workflows/pr-agent-review.yml` reviews each new code head using
-     trusted default-branch reviewer code. Editing prose or labels does not call
-     the model again.
-   - Review is advisory for ordinary PRs. `policy-gate` requires trusted exact-head
-     review evidence only for sensitive scope. An independently justified
-     `review/override-approved` exact-head receipt remains the explicit outage /
-     false-positive escape hatch.
+   - `.github/workflows/pr-agent-review.yml` reviews a new code head using trusted
+     default-branch reviewer code, **only when the change is sensitive scope** —
+     the only scope whose `policy-gate` result consumes review evidence. Ordinary
+     PRs carry no external model dependency and cannot be blocked by a reviewer
+     outage. Editing prose or labels does not call the model again.
+   - `policy-gate` requires trusted exact-head review evidence only for sensitive
+     scope, and classifies the live PR itself rather than trusting the scope job,
+     so a failed scope job can never downgrade a sensitive PR. An independently
+     justified `review/override-approved` exact-head receipt remains the explicit
+     outage / false-positive escape hatch.
+5. **Nightly delivery health (Clock C)**
+   - `.github/workflows/nightly-health.yml` owns repository-wide hygiene
+     (vulture, lychee, deptry, pip-audit, bandit), the full suite with per-test
+     timings, and `scripts/ci_metrics.py` efficiency evidence. It is read-only:
+     it never mutates source, branches, or repository settings.
 
 The old standalone description, risk-guardrail, test-hint, and release-evidence
 comment workflows were removed because they duplicated policy/CI state without
@@ -54,6 +66,23 @@ The active default-branch ruleset requires only `policy-gate` and `merge-gate`.
 Strict up-to-date checking, pull-request protection, deletion protection, and
 non-fast-forward protection remain enabled. Legacy `pr-policy` and `review-gate`
 compatibility jobs were retired after the two stable gate names were activated.
+
+### One classifier
+
+`scripts/pr_scope.py` is the single source of change scope — docs-only, code,
+frontend, and sensitive. `tests.yml` reads it to choose required jobs,
+`pr-agent-review.yml` reads it to decide whether independent model review is
+needed, and `scripts/pr_policy.py` imports its patterns for the trust gate. It is
+itself sensitive scope, so it cannot be edited without label, exact-head
+approval, and independent review.
+
+### The three validation clocks
+
+| Clock | Trigger | Purpose |
+| --- | --- | --- |
+| A — interactive | draft PR, local work | fast focused feedback; no merge suite |
+| B — ready to merge | non-draft PR, push to `main` | scope-appropriate deterministic evidence plus `policy-gate` and `merge-gate` |
+| C — nightly | schedule, manual dispatch | broad hygiene, full-suite profiling, drift and efficiency evidence |
 
 ### Guardrails (intentionally manual)
 
@@ -172,8 +201,8 @@ The stable merge contract is two required outcomes:
 - `merge-gate` — deterministic evidence matched to scope. Code-bearing PRs require
   `pytest`, `lint`, and `typecheck`; non-documentation frontend changes additionally
   require `kitty-chat` and `browser-smoke`. Docs/Markdown-only PRs skip those code
-  and browser jobs while `merge-gate` still reports a required result. Hygiene
-  remains visible but advisory.
+  and browser jobs while `merge-gate` still reports a required result. Broad
+  hygiene runs nightly, not per PR.
 - `policy-gate` — trusted governance. Routine changes pass without model review.
   Sensitive scope requires explicit exact-head approval and trusted independent
   review; native UI source/public changes require product-acceptance evidence.

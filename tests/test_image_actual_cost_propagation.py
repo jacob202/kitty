@@ -30,6 +30,7 @@ async def test_studio_generate_returns_provider_reported_actual_cost(monkeypatch
             filename="paid.png",
             recipe="hosted",
             cost_usd=0.041,
+            cost_source="provider_reported",
         )
 
     monkeypatch.setattr(image_runner, "run", fake_run)
@@ -49,11 +50,10 @@ async def test_studio_generate_returns_provider_reported_actual_cost(monkeypatch
 
     monkeypatch.setattr(image_sessions, "reconcile_reserved_attempt_cost", fake_reconcile)
 
-    result = await studio_generate(
-        StudioGenerateRequest(prompt="cat", session_id="imgses_test")
-    )
+    result = await studio_generate(StudioGenerateRequest(prompt="cat", session_id="imgses_test"))
 
     assert result["actual_cost_usd"] == pytest.approx(0.041)
+    assert result["actual_cost_source"] == "provider_reported"
     assert reconciled == {"reserved": pytest.approx(0.15), "actual": pytest.approx(0.041)}
 
 

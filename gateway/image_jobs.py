@@ -531,6 +531,8 @@ def update_job(
     provider_diagnostics_json: str | None = None,
     started_at: str | None = None,
     workflow_hash: str | None = None,
+    width: int | None = None,
+    height: int | None = None,
 ) -> ImageJob:
     """Update mutable fields on an existing job. Fails loud on bad input."""
     job = get_job(job_id)
@@ -541,6 +543,11 @@ def update_job(
 
     _check_error_bounded(normalized_error)
     _check_json_bounded(provider_diagnostics_json, "provider_diagnostics_json")
+    for value, field in ((width, "width"), (height, "height")):
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value <= 0
+        ):
+            raise ImageJobError(f"{field} must be a positive integer")
 
     cols: dict[str, Any] = {"updated_at": _now_iso()}
     if provider_job_id is not None:
@@ -559,6 +566,10 @@ def update_job(
         cols["started_at"] = started_at
     if workflow_hash is not None:
         cols["workflow_hash"] = workflow_hash
+    if width is not None:
+        cols["width"] = width
+    if height is not None:
+        cols["height"] = height
 
     set_clauses = ", ".join(f"{k} = ?" for k in cols)
     values = list(cols.values()) + [job_id]
