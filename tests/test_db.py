@@ -44,6 +44,36 @@ def test_migrate_applies_foundation_once(tmp_path):
     assert applied == [("001_foundation.sql",)]
 
 
+def test_migrate_applies_new_migration_dropped_after_first_run(tmp_path):
+    """A migration file added after migrate() has run must still be applied."""
+    db_file = tmp_path / "kitty.db"
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    (migrations_dir / "001_base.sql").write_text(
+        "CREATE TABLE IF NOT EXISTS t1 (id INTEGER PRIMARY KEY);",
+        encoding="utf-8",
+    )
+
+    first = db.migrate(db_file=db_file, migrations_dir=migrations_dir)
+    assert first == ["001_base.sql"]
+
+    (migrations_dir / "002_extra.sql").write_text(
+        "CREATE TABLE IF NOT EXISTS t2 (id INTEGER PRIMARY KEY);",
+        encoding="utf-8",
+    )
+    second = db.migrate(db_file=db_file, migrations_dir=migrations_dir)
+    assert second == ["002_extra.sql"]
+
+    with sqlite3.connect(db_file) as conn:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+    assert {"t1", "t2"} <= tables
+
+
 def test_migrate_reconciles_renamed_migrations_without_replaying_sql(tmp_path):
     """Renumbered migrations must not replay against DBs that saw legacy names."""
     db_file = tmp_path / "kitty.db"

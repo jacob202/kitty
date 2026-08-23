@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from dataclasses import fields as dc_fields
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from gateway import db as kitty_db
@@ -33,6 +34,14 @@ from gateway import paths as _paths
 from gateway.paths import DB_MIGRATIONS_DIR
 
 _MIGRATION_FILE = DB_MIGRATIONS_DIR / "023_image_jobs.sql"
+
+# Per-process memo of DB paths whose image_jobs schema has already been ensured.
+# _ensure_db runs the full migration DDL + several PRAGMA table_info probes on
+# every create/get/list/transition, which dominates per-operation latency; the
+# schema is immutable within a process lifetime once migrated, so re-probing on
+# every call is pure waste. The SQL body is also read from disk only once.
+_ENSURED_DBS: set[str] = set()
+_MIGRATION_SQL: str | None = None
 
 _MAX_PROVIDER_JSON_BYTES = 65_536
 _MAX_ERROR_BYTES = 2_048
@@ -216,6 +225,15 @@ def _ensure_db(conn: Any = None) -> None:
     provider_status), drop and recreate it. This only fires during the
     IMG-01 transition period.
     """
+    global _MIGRATION_SQL
+
+    db_key = str(Path(_paths.KITTY_DB_FILE).resolve())
+    if db_key in _ENSURED_DBS:
+        return
+
+    if _MIGRATION_SQL is None:
+        _MIGRATION_SQL = _MIGRATION_FILE.read_text(encoding="utf-8")
+
     def _apply(c: Any) -> None:
         try:
             cols = {row[1] for row in c.execute("PRAGMA table_info(image_jobs)").fetchall()}
@@ -224,7 +242,7 @@ def _ensure_db(conn: Any = None) -> None:
         if "engine" in cols:
             # Old schema from pre-port — drop and recreate with new schema.
             c.execute("DROP TABLE IF EXISTS image_jobs")
-        c.executescript(_MIGRATION_FILE.read_text(encoding="utf-8"))
+        c.executescript(_MIGRATION_SQL)
 
     if conn is not None:
         _apply(conn)
@@ -239,6 +257,8 @@ def _ensure_db(conn: Any = None) -> None:
             _ensure_compiler_columns(c)
             _ensure_plan_provenance_columns(c)
             _ensure_canonical_artifact_column(c)
+
+    _ENSURED_DBS.add(db_key)
 
 
 def _check_json_bounded(value: str | None, field_name: str) -> None:
@@ -607,8 +627,6 @@ def register_canonical_artifact(
     restart/retry repair cannot create duplicate Library entries. Artifact row
     creation and the image-job link share one SQLite transaction.
     """
-    from pathlib import Path
-
     from gateway import artifact_store
 
     job = get_job(job_id)
