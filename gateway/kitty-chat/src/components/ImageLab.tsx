@@ -132,7 +132,10 @@ function useStudioCharacters() {
       const response = await fetch('/proxy/studio/characters')
       if (response.ok) {
         const payload = await response.json()
-        setCharacters(payload.characters ?? [])
+        const normalized = (payload.characters ?? []).map((character: StudioCharacter) => ({
+          ...character, references: character.references ?? [],
+        }))
+        setCharacters(normalized)
       }
     } catch {
       // Character listing is optional; the workspace works without it.
@@ -150,7 +153,8 @@ function useStudioCharacters() {
       body: JSON.stringify({ name }),
     })
     if (!response.ok) throw new Error(await response.text())
-    const character = await response.json() as StudioCharacter
+    const raw = await response.json() as StudioCharacter
+    const character = { ...raw, references: raw.references ?? [] }
     setCharacters(previous => [character, ...previous])
     return character
   }, [])
@@ -202,6 +206,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   const offlineReasons = useMemo(
     () => (status.data?.engines ?? [])
       .filter(engine => !engine.available && engine.unavailable_reason)
+      .filter(engine => !/\bKITTY_[A-Z0-9_]+\b|\.env\b/i.test(engine.unavailable_reason as string))
       .map(engine => ({ name: engine.name, label: engine.label, reason: engine.unavailable_reason as string })),
     [status.data?.engines],
   )

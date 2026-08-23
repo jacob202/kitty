@@ -31,6 +31,7 @@ function offlineStatusWithReasons() {
       engines: [
         { name: 'comfyui', label: 'ComfyUI', available: false, unavailable_reason: 'ComfyUI is not running on this Mac. Start ComfyUI, then check again.' },
         { name: 'drawthings', label: 'Draw Things', available: false, unavailable_reason: 'Draw Things is not answering. Open the Draw Things app, turn on its API server, then check again.' },
+        { name: 'flux', label: 'Flux', available: false, unavailable_reason: 'Paid image generation is off. Set KITTY_IMAGE_PAID_ENABLED=1 in .env and restart Kitty to turn it on.' },
       ],
     },
     isPending: false, isError: false, isFetching: false,
@@ -172,6 +173,25 @@ describe('ImageLab', () => {
     expect(await screen.findByText(/no image engine is online/i)).toBeInTheDocument()
     expect(screen.getByText(/Start ComfyUI, then check again/i)).toBeInTheDocument()
     expect(screen.getByText(/Open the Draw Things app/i)).toBeInTheDocument()
+    expect(screen.queryByText(/KITTY_IMAGE_PAID_ENABLED|\.env/i)).not.toBeInTheDocument()
+  })
+
+  it('handles Studio character payloads that omit references', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const target = String(url)
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate(1) }
+      if (target === '/proxy/studio/characters') return { ok: true, status: 200, json: async () => ({
+        characters: [{ character_id: 'char_legacy', name: 'Legacy Mia', description: null, identity_preset: 'balanced' }],
+      }) }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ImageLab />)
+    fireEvent.click(await screen.findByTestId('image-lab-character-picker'))
+
+    expect(screen.getByText('Legacy Mia')).toBeInTheDocument()
+    expect(screen.getByText('no ref')).toBeInTheDocument()
   })
 
   it('carries a picked character into a freshly created session', async () => {
