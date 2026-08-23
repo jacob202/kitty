@@ -66,11 +66,6 @@ def _klein_compiled(operation: str = "txt2img", **kw) -> CompiledFlux2Request:
                                  operation=operation, **kw)
 
 
-def _pro_compiled(**kw) -> CompiledFlux2Request:
-    kw.setdefault("quality_tier", "quality")
-    return compile_flux2_request("a studio portrait of an astronaut", **kw)
-
-
 class _FakeClient:
     """In-memory stand-in for httpx.AsyncClient used by _run_flux2."""
 
