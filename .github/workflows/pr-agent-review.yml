@@ -66,4 +66,4 @@ jobs:
       - name: Enforce trusted merge policy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python scripts/pr_policy.py
+        run: python -m scripts.pr_policy

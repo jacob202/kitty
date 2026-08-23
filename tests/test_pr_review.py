@@ -177,7 +177,7 @@ def test_agent_review_workflow_uses_trusted_code_and_avoids_model_reruns_on_meta
     assert "policy-gate:" in workflow
     assert "name: policy-gate" in workflow
     assert "needs: agent-review" in workflow
-    assert "python scripts/pr_policy.py" in workflow
+    assert "python -m scripts.pr_policy" in workflow
     assert "review-gate:" not in workflow
     assert "review/evidence-current" not in workflow
     assert "review-concurrency-class" in workflow
