@@ -620,7 +620,7 @@ export async function fetchGatewayWeather(): Promise<GatewayWeatherPayload> {
 
 // ── Agents ───────────────────────────────────────────────────────────────────
 
-export type AgentStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type AgentStatus = 'active' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
 export type AgentType = 'explorer' | 'planner' | 'coder' | 'reviewer' | 'researcher'
 
 export interface AgentSession {

@@ -103,7 +103,7 @@ export function AgentPanel() {
                   <span style={goalTextStyle}>{s.goal.slice(0, 55)}{s.goal.length > 55 ? '…' : ''}</span>
                 </button>
                 <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-                  {(s.status === 'running' || s.status === 'queued') && (
+                  {s.status === 'active' && (
                     <button onClick={() => handleStop(s.session_id)} style={stopBtnStyle} title="stop">■</button>
                   )}
                   <span style={statusBadgeStyle(s.status)}>{s.status}</span>
@@ -135,18 +135,19 @@ export function AgentPanel() {
 }
 
 function statusDotStyle(status: string): CSSProperties {
-  const color = status === 'running' ? 'var(--c-blue)'
+  const color = status === 'active' ? 'var(--c-blue)'
     : status === 'completed' ? 'var(--ink-2)'
     : status === 'failed' ? 'var(--cat-ginger)'
-    : status === 'queued' ? 'var(--c-purple)'
+    : status === 'interrupted' ? 'var(--c-yellow)'
     : 'var(--ink-2)'
   return { width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }
 }
 
 function statusBadgeStyle(status: string): CSSProperties {
-  const color = status === 'running' ? 'var(--c-blue)'
+  const color = status === 'active' ? 'var(--c-blue)'
     : status === 'completed' ? 'var(--ink-2)'
     : status === 'failed' ? 'var(--cat-ginger)'
+    : status === 'interrupted' ? 'var(--c-yellow)'
     : 'var(--ink-2)'
   return { fontFamily: 'var(--font-mono)', fontSize: 9, color, textTransform: 'lowercase', letterSpacing: '0.06em' }
 }
