@@ -1,4 +1,7 @@
-# KB payload — 2026-08-23
+# KB payload — 2026-08-23 (scheduling session)
+
+PR #616 owns `docs/session-notes/2026-08-23-kb-payload.md` for the same date.
+This file is the scheduling session's separate payload.
 
 `~/kb` was absent in this container, so these entries are staged here per
 `.agents/skills/session-end/SKILL.md` step 4. Copy them into `~/kb/wiki/` and
