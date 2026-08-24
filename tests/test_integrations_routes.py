@@ -80,16 +80,17 @@ def client(monkeypatch):
 
 
 class TestIMessage:
-    def test_send_happy_path(self, client, monkeypatch):
+    def test_send_route_is_removed(self, client, monkeypatch):
+        """AUTH-003 (RC-02): POST /imessage/send called gateway.imessage.send()
+        directly, bypassing the action queue entirely — no tier check, no
+        grant evaluation, no audit trail, and nothing in the tier file (a
+        signed-off policy set) authorizes an "imessage.send" kind. Proved
+        unreachable before deleting: no frontend caller, no tool_server
+        registration, no other backend reference (gateway.push calls
+        gateway.imessage.send directly, not this HTTP route)."""
         monkeypatch.setattr("gateway.imessage.is_available", lambda: True)
         r = client.post("/imessage/send", json={"recipient": "me", "message": "hi"})
-        assert r.status_code == 200
-        assert r.json()["sent"] is True
-
-    def test_send_unavailable_returns_400(self, client):
-        r = client.post("/imessage/send", json={"recipient": "me", "message": "hi"})
-        assert r.status_code == 400
-        assert "not available" in r.json()["detail"].lower()
+        assert r.status_code == 404
 
     def test_recent_unavailable_returns_available_false(self, client):
         r = client.get("/imessage/recent")
