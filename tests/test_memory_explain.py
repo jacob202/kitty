@@ -208,7 +208,13 @@ class TestRoutes:
         assert "was not found" in r.json()["message"]
 
     def test_correct_route_creates_supersession(self, store, client):
-        old = store.remember("I prefer dark mode", memory_key="ui.theme")
+        old = store.remember(
+            "I prefer dark mode",
+            namespace="preferences",
+            memory_key="ui.theme",
+            sensitivity="sensitive",
+            source_ref="conversation:c1",
+        )
 
         r = client.post(
             f"/memories/{old['id']}/correct",
@@ -219,6 +225,9 @@ class TestRoutes:
         assert new["fact"] == "Use light mode now"
         assert new["source"]["kind"] == "user_correction"
         assert new["supersedes"]["id"] == old["id"]
+        assert new["namespace"] == "preferences"
+        assert new["sensitivity"] == "sensitive"
+        assert new["memory_key"] == "ui.theme"
 
         superseded = store.get(old["id"], include_inactive=True)
         assert superseded["status"] == "superseded"

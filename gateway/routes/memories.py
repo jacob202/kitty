@@ -106,15 +106,24 @@ async def explain_memory(memory_id: str) -> dict:
 @router.post("/memories/{memory_id}/correct")
 async def correct_memory(memory_id: str, body: CorrectMemoryRequest) -> dict:
     """Correct a remembered fact through the governed correction/supersession path."""
-    from gateway.explicit_memory import ExplicitMemoryNotFound, remember
+    from gateway.explicit_memory import ExplicitMemoryNotFound, get, remember
     from gateway.memory_explain import explain
 
+    original = get(memory_id, include_inactive=True)
+    if original is None:
+        raise StorageNotFound(
+            f"memory {memory_id!r} was not found",
+            details={"memory_id": memory_id},
+        )
     try:
         corrected = remember(
             body.text,
-            memory_key=body.memory_key,
+            namespace=original["namespace"],
+            memory_key=body.memory_key or original["memory_key"],
             supersedes_id=memory_id,
             source_kind="user_correction",
+            source_ref=original.get("source_ref"),
+            sensitivity=original["sensitivity"],
         )
     except ExplicitMemoryNotFound as exc:
         raise StorageNotFound(
