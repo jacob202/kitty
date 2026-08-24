@@ -44,6 +44,7 @@ import {
   updateCronSchedule,
   deleteCronSchedule,
   toggleCronSchedule,
+  fetchScheduleWhy,
   type CronScheduleType,
   // image
   fetchImageStatus,
@@ -73,6 +74,7 @@ import {
   runDeadlineSweep,
   // cockpit health
   fetchGatewayHealth,
+  fetchHealthSurface,
   fetchChatsPersistence,
   fetchGatewayTailnet,
   // repairs
@@ -489,6 +491,15 @@ export function useToggleCronSchedule() {
   })
 }
 
+export function useScheduleWhy(scheduleId: string | null) {
+  return useQuery({
+    queryKey: ['cron', 'why', scheduleId],
+    queryFn: () => fetchScheduleWhy(scheduleId as string),
+    enabled: scheduleId !== null,
+    retry: false,
+  })
+}
+
 // ── Image generation ────────────────────────────────────────────────────────
 
 export function useImageStatus() {
@@ -715,6 +726,15 @@ export function useGatewayHealth() {
     queryKey: ['health'],
     queryFn: fetchGatewayHealth,
     refetchInterval: 30_000,
+  })
+}
+
+export function useHealthSurface() {
+  return useQuery({
+    queryKey: ['health-surface'],
+    queryFn: fetchHealthSurface,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
   })
 }
 

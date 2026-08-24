@@ -114,6 +114,33 @@ async def test_slow_optional_store_is_bounded(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_unified_context_race_with_invalidation_does_not_repopulate_cache(monkeypatch):
+    """A unified_context() call already in flight when a correction
+    invalidates the cache must not overwrite that invalidation once it
+    finishes — otherwise a slow query racing remember()/forget() resurrects
+    the pre-correction answer for the rest of the TTL (found by review on
+    #629's original fix)."""
+    release = asyncio.Event()
+
+    class _SlowGraph:
+        async def unified_context(self, query):
+            await release.wait()
+            return "STALE-CONTEXT"
+
+    monkeypatch.setattr(memory_graph_module, "_get_graph", lambda: _SlowGraph())
+
+    task = asyncio.create_task(unified_context("q"))
+    await asyncio.sleep(0)  # let the task start and capture its generation
+
+    prefetcher.invalidate_all()  # a correction lands while the compute is in flight
+    release.set()
+    result = await task
+
+    assert result == "STALE-CONTEXT"  # the in-flight caller still gets its answer
+    assert prefetcher.get_cached("q") is None  # but it must not poison the cache
+
+
+@pytest.mark.asyncio
 async def test_knowledge_adapter_does_not_block_event_loop(monkeypatch):
     async def blocking_search(query, limit):
         await asyncio.sleep(0.2)
@@ -337,3 +364,126 @@ async def test_inbox_adapter_matches_capture_text_and_tags(tmp_path, monkeypatch
 
     assert by_text[0].metadata["id"] == "capture-1"
     assert by_tag[0].metadata["id"] == "capture-1"
+
+
+@pytest.mark.asyncio
+async def test_knowledge_adapter_reads_actual_score_field(monkeypatch):
+    """C4-05: gateway.knowledge.search returns rows keyed 'score', but the
+    adapter was reading '_score' — every Knowledge Item.score was silently
+    None regardless of the store's real relevance ranking."""
+
+    async def fake_search(query, limit):
+        return [{"text": "a relevant chunk", "score": 0.87}]
+
+    monkeypatch.setattr("gateway.knowledge.search", fake_search)
+
+    items = await KnowledgeAdapter().fetch("hello")
+
+    assert items[0].score == 0.87
+
+
+def test_select_unified_items_budgets_by_score_not_adapter_order():
+    """C4-05: within a store's items, the highest-scored ones must win a
+    budget slot — not whichever the adapter happened to list first."""
+    low = Item(text="low relevance", source=Source.KNOWLEDGE, score=0.1)
+    high = Item(text="high relevance", source=Source.KNOWLEDGE, score=0.9)
+
+    sections, rendered = memory_graph_module._select_unified_items(
+        {"knowledge": [low, high]}, cap=1000, query=""
+    )
+
+    assert rendered[0]["text"] == "high relevance"
+    assert sections[0].index("high relevance") < sections[0].index("low relevance")
+
+
+@pytest.fixture
+def _project_scope_db(tmp_path, monkeypatch):
+    """Isolated project store + matching active-project scope, both pointed
+    at the same on-disk DB (project_store and project_context each bind their
+    own module-level DB_FILE name from gateway.paths, so both need patching)."""
+    from gateway import project_context, project_store
+
+    db_file = tmp_path / "kitty.db"
+    monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(project_context, "KITTY_DB_FILE", db_file, raising=False)
+    return project_store, project_context
+
+
+@pytest.mark.asyncio
+async def test_project_adapter_excludes_other_projects_on_generic_query(_project_scope_db):
+    """C4-02: a query with no matchable keywords used to return every
+    project unfiltered. Only the active project should surface."""
+    project_store, project_context = _project_scope_db
+    active = project_store.create("kitty", "code")
+    other = project_store.create("benefits paperwork", "admin")
+    project_context.set_active_project(active["id"])
+
+    items = await ProjectAdapter().fetch("?")  # no matchable terms
+
+    project_ids = {item.metadata["project_id"] for item in items}
+    assert project_ids == {active["id"]}
+    assert other["id"] not in project_ids
+
+
+@pytest.mark.asyncio
+async def test_project_adapter_still_matches_other_project_by_keyword(_project_scope_db):
+    """A non-active project must still surface when the query names it —
+    scoping must not become a blanket suppression."""
+    project_store, project_context = _project_scope_db
+    active = project_store.create("kitty", "code")
+    other = project_store.create("benefits paperwork", "admin")
+    project_context.set_active_project(active["id"])
+
+    items = await ProjectAdapter().fetch("benefits paperwork status")
+
+    project_ids = {item.metadata["project_id"] for item in items}
+    assert other["id"] in project_ids
+
+
+@pytest.mark.asyncio
+async def test_project_adapter_active_project_always_included(_project_scope_db):
+    """The active project is context even without a keyword match."""
+    project_store, project_context = _project_scope_db
+    active = project_store.create("kitty", "code")
+    project_context.set_active_project(active["id"])
+
+    items = await ProjectAdapter().fetch("completely unrelated query terms")
+
+    active_items = [item for item in items if item.metadata["project_id"] == active["id"]]
+    assert len(active_items) == 1
+    assert active_items[0].metadata["active"] is True
+
+
+@pytest.mark.asyncio
+async def test_project_adapter_propagates_corrupt_scope_as_degraded_store(_project_scope_db):
+    """P2 (review on #630): a corrupt/missing persisted active-project scope
+    must surface as a degraded store, not silently degrade to an apparently
+    healthy empty result — that's exactly the hidden-degradation pattern
+    C4-06 exists to prevent."""
+    project_store, project_context = _project_scope_db
+    project_store.init_db()
+    project_context._write_active_project_id(999999)  # points at nothing
+
+    result = await MemoryGraph([ProjectAdapter()]).search_all("hello")
+
+    assert result.results["projects"] == []
+    assert result.degraded_stores == ["projects"]
+    assert any("ProjectContextError" in e for e in result.errors)
+
+
+def test_set_active_project_invalidates_prefetch_cache(_project_scope_db):
+    """P1 (review on #630): switching the active project must not leave a
+    cached generic-query answer describing the previous project for the
+    rest of the TTL."""
+    project_store, project_context = _project_scope_db
+
+    first = project_store.create("kitty", "code")
+    second = project_store.create("benefits paperwork", "admin")
+    project_context.set_active_project(first["id"])
+
+    prefetcher.put_cached("status", f"CACHED::{first['id']}")
+    assert prefetcher.get_cached("status") is not None
+
+    project_context.set_active_project(second["id"])
+
+    assert prefetcher.get_cached("status") is None

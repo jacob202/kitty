@@ -15,6 +15,7 @@ vi.mock('../src/lib/gateway', async () => {
     updateCronSchedule: vi.fn(),
     deleteCronSchedule: vi.fn(),
     toggleCronSchedule: vi.fn(),
+    fetchScheduleWhy: vi.fn(),
   }
 })
 
@@ -54,6 +55,15 @@ describe('CronPanel', () => {
     vi.mocked(gateway.deleteCronSchedule).mockResolvedValue(true)
     vi.mocked(gateway.updateCronSchedule).mockResolvedValue(true)
     vi.mocked(gateway.createCronSchedule).mockResolvedValue('new-id')
+    vi.mocked(gateway.fetchScheduleWhy).mockResolvedValue({
+      status: 'not_yet_due',
+      reason: 'next occurrence is not due yet',
+      relevant_at: 1700000061,
+      action: 'brief.refresh',
+      automation: 'abc123',
+      evidence: { next_due_at: 1700000061 },
+      next_step: 'nothing to do; it will run when the next occurrence is due',
+    })
   })
 
   afterEach(() => {
@@ -126,5 +136,52 @@ describe('CronPanel', () => {
       expect(screen.getByText('no schedules yet')).toBeInTheDocument()
     })
     expect(screen.getByText('0/0 active')).toBeInTheDocument()
+  })
+
+  it('explains why a schedule did not run when the why button is clicked', async () => {
+    renderWithQueryClient(<CronPanel />)
+    await waitFor(() => expect(screen.getByText('Morning brief')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'why schedule' })[0])
+    await waitFor(() => {
+      expect(gateway.fetchScheduleWhy).toHaveBeenCalledWith('abc123')
+      expect(screen.getByText('not yet due')).toBeInTheDocument()
+    })
+    expect(screen.getByText('next occurrence is not due yet')).toBeInTheDocument()
+    expect(screen.getByText(/next: nothing to do/)).toBeInTheDocument()
+  })
+
+  it('collapses the explanation when the why button is clicked again', async () => {
+    renderWithQueryClient(<CronPanel />)
+    await waitFor(() => expect(screen.getByText('Morning brief')).toBeInTheDocument())
+
+    const whyButtons = screen.getAllByRole('button', { name: 'why schedule' })
+    fireEvent.click(whyButtons[0])
+    await waitFor(() => expect(screen.getByText('not yet due')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'why schedule' })[0])
+    await waitFor(() => {
+      expect(screen.queryByText('not yet due')).not.toBeInTheDocument()
+    })
+  })
+
+  it('surfaces the failure reason for a schedule that failed', async () => {
+    vi.mocked(gateway.fetchScheduleWhy).mockResolvedValue({
+      status: 'failed',
+      reason: 'RuntimeError: boom',
+      relevant_at: 1700000061,
+      action: 'brief.refresh',
+      automation: 'abc123',
+      evidence: { run_id: 'arun_test' },
+      next_step: 'check the run ledger for the full trace',
+    })
+    renderWithQueryClient(<CronPanel />)
+    await waitFor(() => expect(screen.getByText('Morning brief')).toBeInTheDocument())
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'why schedule' })[0])
+    await waitFor(() => {
+      expect(screen.getByText('failed')).toBeInTheDocument()
+    })
+    expect(screen.getByText('RuntimeError: boom')).toBeInTheDocument()
   })
 })

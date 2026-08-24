@@ -9,8 +9,8 @@ This file is a dated evidence summary, not a live runtime dashboard. Use Git/Git
 ## Current architecture
 
 - Kitty Gateway is the product authority for conversation behavior, memory/context, projects, tools, Tutor, provider policy, and user-facing workflows.
-- **Shell authority is unresolved:** Constitution Article I.2 / ADR 0027 name Open WebUI as primary replaceable shell, while accepted ADR 0039 names the native Kitty frontend canonical. Constitution remains higher authority until explicitly amended; do not execute shell-role migrations from either assumption as if this conflict were settled.
-- The native `kitty-chat` surface is live and testable on the product-convergence branch, but that runtime evidence does not itself amend the Constitution.
+- **Product-surface authority is resolved:** accepted ADR 0039 and the 2026-08-23 Constitution amendment make the native `kitty-chat` frontend canonical. Open WebUI remains optional compatibility/reference software under ADR 0027/0033 safety boundaries.
+- The native `kitty-chat` surface is the supported product surface; live runtime state must still be verified rather than inferred from this dated status file.
 - KittyBuilder is the separate durable execution/control plane for accepted Missions, packets, workers, attempts, recovery, validation/review, budgets, and evidence.
 - Models and coding harnesses are replaceable workers; their narration is not execution truth.
 
@@ -38,7 +38,7 @@ There is currently **no running broad Mission** in `docs/ACTIVE_MISSION.md`; KPR
 
 Post-deadline work proceeds only where Jacob explicitly approved it and the durable decision/packet is named. The current product-surface convergence and ADR 0040 Image Lab packet chain meet that standard. Their execution does not activate ROADMAP_V2's Open WebUI M1/M2 sequence or any unrelated Builder initiative.
 
-The next broad roadmap activation must first resolve the Constitution/ADR 0039 shell conflict and then be written into `docs/ROADMAP.md`.
+The next broad roadmap activation must be written explicitly into `docs/ROADMAP.md`; resolving product-surface authority does not automatically activate the historical Open WebUI M1–M6 sequence.
 
 ## Known unknowns
 

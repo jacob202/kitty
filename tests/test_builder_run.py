@@ -523,8 +523,6 @@ class TestStopClassIntegration:
             f"attempt_no=$({_bundle_field_command('attempt_no')})\n"
             "echo \"$attempt_no\" > marker.txt\n"
             "echo ok > done.txt\n"
-            "git add marker.txt done.txt\n"
-            "git -c user.email=t@t -c user.name=t commit -q -m \"[P1] attempt $attempt_no\"\n"
             f"printf '%s\\n' '{_GOOD_IMPL}' > \"$KB_RESULT_PATH\"\n",
             encoding="utf-8",
         )
@@ -665,8 +663,6 @@ class TestStopClassIntegration:
         committing_worker.write_text(
             "#!/bin/sh\nset -e\n"
             "echo ok > done.txt\n"
-            "git add done.txt\n"
-            "git -c user.email=t@t -c user.name=t commit -q -m \"[P1] implementation\"\n"
             f"printf '%s\\n' '{_GOOD_IMPL}' > \"$KB_RESULT_PATH\"\n",
             encoding="utf-8",
         )
