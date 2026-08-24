@@ -118,17 +118,27 @@ def post_approve(action_id: int, payload: ApproveRequest | None = None) -> dict:
     proposal *and* records the standing grant, in that order. The grant is
     minted from the approved row, never from the request body — see
     :func:`action_grants.grant_from_approved_action`.
+
+    The approve step commits durably and cannot be undone, so a *subsequent*
+    failure to record the grant (e.g. a bad ``expires_at``) must never be
+    reported as if approval itself had failed (COR-002) — the caller would
+    see a top-level error, then retry ``/approve`` and get a confusing 409
+    for an action already decided. Instead the approved action is returned
+    with a ``grant_error`` field describing what the "remember" step could
+    not do.
     """
     approved = _handle(action_queue.approve, action_id)
     remember = payload.remember if payload else None
     if remember is None:
         return approved
-    grant = _handle_grant(
-        action_grants.grant_from_approved_action,
-        approved,
-        expires_at=remember.expires_at,
-        session_only=remember.session_only,
-    )
+    try:
+        grant = action_grants.grant_from_approved_action(
+            approved,
+            expires_at=remember.expires_at,
+            session_only=remember.session_only,
+        )
+    except action_grants.GrantValidationError as exc:
+        return {**approved, "grant_error": str(exc)}
     return {**approved, "grant": grant}
 
 

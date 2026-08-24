@@ -309,3 +309,51 @@ def test_remember_on_an_already_decided_action_grants_nothing(client):
 
     assert r.status_code == 409
     assert client.get("/actions/grants").json()["grants"] == []
+
+
+# --- COR-002: a bad "remember" must not hide a durably committed approval --
+
+
+def test_invalid_remember_still_reports_the_approval_that_already_committed(client):
+    """A bad remember request used to raise 400 and discard the approved body.
+
+    The action's proposed -> approved transition is committed the moment
+    action_queue.approve() returns; nothing about the later grant step can
+    undo it. The response must say so, not look like the whole request
+    failed.
+    """
+    proposed = _propose(client, "calendar.event.create", {"title": "x"}).json()
+    assert proposed["session_id"] is None
+
+    r = client.post(
+        f"/actions/{proposed['id']}/approve",
+        json={"remember": {"session_only": True}},
+    )
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "approved"
+    assert "grant" not in body
+    assert "no session" in body["grant_error"]
+    assert client.get("/actions/grants").json()["grants"] == []
+
+    # The approval really did commit — a bare re-approve now correctly 409s,
+    # never a silent duplicate.
+    again = client.post(f"/actions/{proposed['id']}/approve")
+    assert again.status_code == 409
+
+
+def test_invalid_remember_expiry_still_reports_the_approval_that_already_committed(client):
+    proposed = _propose(client, "calendar.event.create", {"title": "x"}).json()
+
+    r = client.post(
+        f"/actions/{proposed['id']}/approve",
+        json={"remember": {"expires_at": 1.0}},
+    )
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "approved"
+    assert "grant" not in body
+    assert "future" in body["grant_error"]
+    assert client.get("/actions/grants").json()["grants"] == []
