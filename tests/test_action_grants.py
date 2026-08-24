@@ -189,6 +189,29 @@ def test_mcp_tool_deny_overrides_server_allow():
     assert read_decision.outcome == "allow"
 
 
+def test_narrow_tool_deny_outranks_a_session_bound_global_allow():
+    """AUTH-002 (RC-02): _specificity() added +10 for any session-bound grant,
+    so a session-scoped global allow (rank 0+10=10) could outrank a narrower,
+    non-session tool-specific deny (rank 2) purely because it carried a
+    session_id. Scope specificity must win regardless of session binding —
+    session-bound-ness is only a tie-breaker within the same scope rank."""
+    _grant(
+        "mcp.invoke", "allow", granted_tier="T2",
+        scope_type="global", scope_id="", session_id="session-a",
+    )
+    _grant(
+        "mcp.invoke", "deny", granted_tier="T2",
+        scope_type="tool", scope_id="github/delete_repo",
+    )
+
+    decision = action_grants.evaluate(
+        capability="mcp.invoke", tier="T2", status="proposed",
+        scope_type="tool", scope_id="github/delete_repo", session_id="session-a",
+    )
+
+    assert decision.outcome == "deny"
+
+
 # --- expiry, revocation, session binding -----------------------------------
 
 
