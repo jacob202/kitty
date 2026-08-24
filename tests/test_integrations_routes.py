@@ -41,11 +41,6 @@ def client(monkeypatch):
         lambda body: {"memories": 0, "todos": 0},
     )
 
-    # Deploy — route awaits this, so it must be async.
-    async def _mock_deploy(target_dir, platform, config):
-        return {"status": "ok"}
-    monkeypatch.setattr("gateway.deploy.deploy", _mock_deploy)
-
     # Nudge
     monkeypatch.setattr("gateway.nudge.get_pending", lambda: [])
     monkeypatch.setattr("gateway.nudge.dismiss", lambda nudge_id: None)
@@ -160,10 +155,16 @@ class TestSync:
 
 
 class TestDeploy:
-    def test_happy_path(self, client):
+    def test_deploy_route_is_removed(self, client):
+        """AUTH-004 (RC-02): POST /deploy took an unvalidated target_dir path
+        straight from the request body and passed it to gateway.deploy.deploy(),
+        which writes a Dockerfile into that directory — an arbitrary-path
+        filesystem write with no tier check, grant evaluation, or audit trail.
+        Proved unreachable before deleting: no frontend caller, no tool_server
+        registration, no other backend reference to gateway.deploy or this
+        route."""
         r = client.post("/deploy", json={"target_dir": "/tmp/test", "platform": "docker"})
-        assert r.status_code == 200
-        assert r.json()["status"] == "ok"
+        assert r.status_code == 404
 
 
 class TestNudge:

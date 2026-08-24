@@ -115,22 +115,6 @@ async def sync_import(request: Request):
 # --- Search endpoint consolidated into routes/search.py ---
 
 
-# --- Deploy endpoint ---
-
-
-class DeployRequest(BaseModel):
-    target_dir: str = Field(min_length=1, max_length=1000)
-    platform: str = "docker"
-    config: Optional[dict] = None
-
-
-@router.post("/deploy")
-async def deploy_project(payload: DeployRequest):
-    from gateway.deploy import deploy
-
-    return await deploy(payload.target_dir, payload.platform, payload.config)
-
-
 # --- Nudge endpoints ---
 
 
