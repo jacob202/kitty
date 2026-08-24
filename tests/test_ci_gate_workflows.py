@@ -89,6 +89,29 @@ def test_required_jobs_are_scope_gated_on_every_event_including_main_pushes() ->
         assert "github.event_name == 'push'" not in condition, name
 
 
+def test_required_checks_run_in_the_merge_queue() -> None:
+    """policy-gate and merge-gate are required status checks; a queued PR
+    would block forever if either workflow never reports a status for the
+    merge_group's temporary commit."""
+    _, tests_workflow = _workflow("tests.yml")
+    assert "merge_group" in _triggers(tests_workflow)
+
+    _, review_workflow = _workflow("pr-agent-review.yml")
+    assert "merge_group" in _triggers(review_workflow)
+    for name in ("scope", "policy-gate"):
+        condition = str(review_workflow["jobs"][name]["if"])
+        assert "github.event_name == 'merge_group'" in condition, name
+
+
+def test_agent_review_does_not_rerun_for_a_merge_queue_requeue() -> None:
+    """Re-spending the model review budget every time a PR is requeued behind
+    another merge would be pure waste — the exact-head evidence it already
+    produced during the PR's own review still applies."""
+    _, workflow = _workflow("pr-agent-review.yml")
+    review_if = str(workflow["jobs"]["agent-review"]["if"])
+    assert "github.event.action == 'checks_requested'" not in review_if
+
+
 def test_change_scope_comes_from_the_canonical_classifier() -> None:
     text, workflow = _workflow("tests.yml")
     assert "python -m scripts.pr_scope" in text
