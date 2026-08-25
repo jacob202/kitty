@@ -9,6 +9,9 @@ import { deleteMemory } from '@/lib/gateway'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
 import { ToolCallList } from './ToolCallBlock'
+import { BuilderProposalCard, type BuilderProposalTask } from './builder/BuilderProposalCard'
+
+const BUILDER_PROPOSAL_LANG = 'kitty-builder-proposal'
 
 interface Props {
   message: Message
@@ -248,10 +251,39 @@ function CodeBlock({ children }: { children: ReactNode }) {
   const preRef = useRef<HTMLPreElement>(null)
 
   let lang = ''
-  if (isValidElement<{ className?: string }>(children)) {
+  let rawText = ''
+  if (isValidElement<{ className?: string; children?: ReactNode }>(children)) {
     const cls = children.props.className ?? ''
-    const m = cls.match(/language-(\w+)/)
+    const m = cls.match(/language-([\w-]+)/)
     if (m) lang = m[1]
+    const inner = children.props.children
+    if (typeof inner === 'string') {
+      rawText = inner
+    } else if (Array.isArray(inner)) {
+      rawText = inner.filter((part): part is string => typeof part === 'string').join('')
+    }
+  }
+
+  // A ```kitty-builder-proposal fence is a structured work proposal Kitty
+  // compiled from this conversation, not a code sample — render the
+  // approval card instead of a copyable code block. See
+  // gateway/conversation_handoff.py for what approving it actually does.
+  if (lang === BUILDER_PROPOSAL_LANG) {
+    try {
+      const task = JSON.parse(rawText) as BuilderProposalTask
+      return <BuilderProposalCard task={task} />
+    } catch {
+      return (
+        <div style={codeBoxStyle}>
+          <div style={codeBoxHeaderStyle}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
+              invalid builder proposal
+            </span>
+          </div>
+          <pre style={preStyle}>{children}</pre>
+        </div>
+      )
+    }
   }
 
   const copy = () => {
