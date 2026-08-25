@@ -110,6 +110,15 @@ def list_watches() -> list[dict]:
     return [_row_to_dict(r) for r in rows]
 
 
+def get_watch(watch_id: str) -> dict | None:
+    """Fetch one watch's current row, or None if it no longer exists."""
+    init_db()
+    with db_connect(MONITOR_DB) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM watches WHERE id = ?", (watch_id,)).fetchone()
+    return _row_to_dict(row) if row is not None else None
+
+
 async def check_now(watch_id: str) -> dict:
     """Force-check a single watch immediately."""
     init_db()
@@ -242,6 +251,26 @@ async def _handle_watch_result(watch: dict, result: dict) -> None:
             run["id"],
             status="condition_false",
             error="watch condition did not match",
+        )
+        return
+
+    # A sweep can take a while (per-watch HTTP round trips plus a fixed
+    # inter-watch delay), so `watch` may describe a state snapshotted well
+    # before this point. Re-check against the current row right before
+    # dispatching a notification: a watch disabled or deleted since being
+    # snapshotted must not still fire.
+    current = get_watch(str(watch.get("id") or ""))
+    if current is None or not current.get("enabled"):
+        run = automation_runs.begin_run(
+            automation_id=automation_id,
+            action="web_monitor.notify",
+            trigger_kind="monitor",
+            trigger_ref=str(watch.get("id") or ""),
+        )
+        automation_runs.finish_run(
+            run["id"],
+            status="watch_disabled",
+            error="watch was disabled or deleted before its notification could dispatch",
         )
         return
 

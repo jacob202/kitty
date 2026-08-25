@@ -68,12 +68,8 @@ async def test_match_emits_signal_then_uses_shared_signal_action(monitor_env, mo
         return {"status": "completed"}
 
     monkeypatch.setattr(actions, "run_action", fake_run_action)
-    watch = {
-        "id": "watch-2",
-        "label": "Sansui",
-        "url": "https://example.com/item",
-        "keywords": ["sansui"],
-    }
+    watch_id = wm.add_watch("https://example.com/item", label="Sansui", keywords=["sansui"])
+    watch = next(w for w in wm.list_watches() if w["id"] == watch_id)
     result = {"changed": True, "keyword_matches": ["sansui"], "hash": "abc123"}
 
     await wm._handle_watch_result(watch, result)
@@ -82,9 +78,60 @@ async def test_match_emits_signal_then_uses_shared_signal_action(monitor_env, mo
     call = calls[0]
     assert call["name"] == "web_monitor.notify"
     assert call["trigger_kind"] == "signal"
-    assert call["automation_id"] == "web_monitor:watch-2"
+    assert call["automation_id"] == f"web_monitor:{watch_id}"
     assert call["trigger_ref"].isdigit()
-    assert call["payload"]["watch_id"] == "watch-2"
+    assert call["payload"]["watch_id"] == watch_id
+
+
+@pytest.mark.asyncio
+async def test_watch_disabled_after_snapshot_does_not_notify(monitor_env, monkeypatch):
+    """RC-09: check_due() snapshots enabled watches once, then spends real time
+    (HTTP round trips, a fixed inter-watch delay) before each result reaches
+    _handle_watch_result. A watch disabled in that window used to still fire
+    its notification because nothing re-checked current state before dispatch."""
+    import gateway.automation_actions as actions
+    import gateway.web_monitor as wm
+    from gateway import automation_runs
+
+    calls: list[dict] = []
+    monkeypatch.setattr(actions, "run_action", lambda *a, **k: calls.append({"a": a, "k": k}))
+
+    watch_id = wm.add_watch("https://example.com/item", label="item", keywords=["sansui"])
+    stale_snapshot = next(w for w in wm.list_watches() if w["id"] == watch_id)
+
+    # Simulates the disable happening after the watch was snapshotted for
+    # this sweep but before its result is handled.
+    assert wm.set_watch_enabled(watch_id, False) is False
+
+    result = {"changed": True, "keyword_matches": ["sansui"], "hash": "abc123"}
+    await wm._handle_watch_result(stale_snapshot, result)
+
+    assert calls == []
+    runs = automation_runs.list_runs(automation_id=f"web_monitor:{watch_id}")
+    assert runs[0]["status"] == "watch_disabled"
+
+
+@pytest.mark.asyncio
+async def test_watch_deleted_after_snapshot_does_not_notify(monitor_env, monkeypatch):
+    """Same race as above, for delete instead of disable."""
+    import gateway.automation_actions as actions
+    import gateway.web_monitor as wm
+    from gateway import automation_runs
+
+    calls: list[dict] = []
+    monkeypatch.setattr(actions, "run_action", lambda *a, **k: calls.append({"a": a, "k": k}))
+
+    watch_id = wm.add_watch("https://example.com/item", label="item", keywords=["sansui"])
+    stale_snapshot = next(w for w in wm.list_watches() if w["id"] == watch_id)
+
+    assert wm.remove_watch(watch_id) is True
+
+    result = {"changed": True, "keyword_matches": ["sansui"], "hash": "abc123"}
+    await wm._handle_watch_result(stale_snapshot, result)
+
+    assert calls == []
+    runs = automation_runs.list_runs(automation_id=f"web_monitor:{watch_id}")
+    assert runs[0]["status"] == "watch_disabled"
 
 
 @pytest.mark.asyncio
