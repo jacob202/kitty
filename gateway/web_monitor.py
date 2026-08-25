@@ -29,6 +29,15 @@ logger = logging.getLogger("kitty.web_monitor")
 MONITOR_DB = DATA_DIR / "web_monitors.db"
 CHECK_INTERVAL_SECONDS: int = 300  # 5 minutes between global poll cycles
 
+# check_due() sweeps every watch sequentially, each with an HTTP round trip
+# plus a fixed inter-watch delay, so one pass can run well past the cron
+# interval that triggers it. Nothing stops that same sweep from being
+# reachable a second way — a manual POST /automations/actions/monitors.check/run
+# has no equivalent to cron's atomic per-schedule claim. A held lock means a
+# second, overlapping sweep attempt skips instead of racing the first one on
+# the same watches' last_hash/last_checked reads-then-writes.
+_sweep_lock = asyncio.Lock()
+
 
 
 def init_db() -> None:
@@ -135,33 +144,43 @@ async def check_due() -> dict:
 
     Timing ownership belongs to the canonical cron/Automation lifecycle; this
     function retains web-monitor domain semantics and per-watch cadence.
+
+    A sweep already in progress holds `_sweep_lock` for its full duration, so
+    an overlapping call skips rather than racing it over the same watches'
+    stored state. Any watch still due when the running sweep finishes gets
+    picked up on the next scheduled tick.
     """
-    checked = 0
-    changed = 0
-    failed = 0
-    now = time.time()
+    if _sweep_lock.locked():
+        logger.info("Web monitor sweep already in progress; skipping overlapping trigger")
+        return {"checked": 0, "changed": 0, "failed": 0, "skipped": True}
 
-    for watch in [w for w in list_watches() if w.get("enabled")]:
-        interval = float(watch.get("interval_minutes", 30)) * 60
-        last_checked = float(watch.get("last_checked", 0) or 0)
-        if interval <= 0 or now - last_checked < interval:
-            continue
+    async with _sweep_lock:
+        checked = 0
+        changed = 0
+        failed = 0
+        now = time.time()
 
-        try:
-            result = await _check_watch(watch)
-            checked += 1
-            if result.get("changed"):
-                changed += 1
-            if result.get("status") == "error":
+        for watch in [w for w in list_watches() if w.get("enabled")]:
+            interval = float(watch.get("interval_minutes", 30)) * 60
+            last_checked = float(watch.get("last_checked", 0) or 0)
+            if interval <= 0 or now - last_checked < interval:
+                continue
+
+            try:
+                result = await _check_watch(watch)
+                checked += 1
+                if result.get("changed"):
+                    changed += 1
+                if result.get("status") == "error":
+                    failed += 1
+                await _handle_watch_result(watch, result)
+            except Exception:
                 failed += 1
-            await _handle_watch_result(watch, result)
-        except Exception:
-            failed += 1
-            logger.exception("Watch check failed for %s", watch.get("id"))
+                logger.exception("Watch check failed for %s", watch.get("id"))
 
-        await asyncio.sleep(2)
+            await asyncio.sleep(2)
 
-    return {"checked": checked, "changed": changed, "failed": failed}
+        return {"checked": checked, "changed": changed, "failed": failed}
 
 
 async def _check_watch(watch: dict) -> dict:
