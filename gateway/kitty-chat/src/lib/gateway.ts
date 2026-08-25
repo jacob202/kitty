@@ -2054,6 +2054,85 @@ export async function executeOperatorCommand(payload: OperatorCommandPayload): P
   )
 }
 
+// ── Conversation -> Builder job handoff ───────────────────────────────────────
+// Mirrors the KittyBuilder MCP bridge's propose/approve contract (see
+// gateway/conversation_handoff.py) so a job proposed from a Kitty chat and one
+// proposed by an MCP client share one approval mechanism and one durable store.
+
+export interface ConversationProposeRequest {
+  objective: string
+  instructions: string
+  allowed_paths: string[]
+  initiative_id?: string
+  title?: string
+  acceptance_criteria?: string[]
+  validation_commands?: string[]
+}
+
+export interface ConversationProposal {
+  ok: boolean
+  state?: string | null
+  error_code?: string | null
+  error?: string | null
+  next_action?: string | null
+  mission_id?: string | null
+  manifest_sha256?: string
+  expected_base_sha?: string
+  approval_nonce?: string
+  warnings?: string[]
+  prepared_manifest?: Record<string, unknown>
+  objective?: string
+  design?: { path: string; sha: string }
+  plan?: { path: string; sha: string }
+}
+
+export async function proposeBuilderJob(
+  payload: ConversationProposeRequest,
+): Promise<ConversationProposal> {
+  return await gfetch<ConversationProposal>(
+    '/builder/conversation/propose',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    20000,
+  )
+}
+
+export interface ConversationApproveRequest {
+  prepared_manifest: Record<string, unknown>
+  expected_manifest_sha: string
+  expected_base_sha: string
+  approval_nonce: string
+  confirmed: boolean
+}
+
+export interface ConversationApproval {
+  ok: boolean
+  state?: string | null
+  error_code?: string | null
+  error?: string | null
+  next_action?: string | null
+  mission_id?: string | null
+  apply_status?: string
+  tasks?: Array<{ packet_id: string; task_id: string }>
+}
+
+export async function approveBuilderJob(
+  payload: ConversationApproveRequest,
+): Promise<ConversationApproval> {
+  return await gfetch<ConversationApproval>(
+    '/builder/conversation/approve',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    15000,
+  )
+}
+
 // ── Experts ────────────────────────────────────────────────────────────────────
 
 export interface ExpertProfile {
