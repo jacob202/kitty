@@ -41,4 +41,5 @@ omit = ["gateway/kitty-chat/*"]
 
 [tool.coverage.report]
 show_missing = true
-fail_under = 10
+# Keep local coverage semantics identical to the CI merge gate.
+fail_under = 73

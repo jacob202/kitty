@@ -116,6 +116,9 @@ def _recover_messages(conversation_id: str) -> list[dict]:
     Deduplication: when the same user message is retried (same
     source_message_id across turns), only the most recent turn's messages are
     retained so restarts never show duplicated user text.
+
+    Artifact metadata is collected first and loaded with one batched store
+    lookup instead of opening a database connection for every attachment.
     """
     try:
         state = chat_lifecycle.list_conversation(conversation_id)
@@ -124,6 +127,8 @@ def _recover_messages(conversation_id: str) -> list[dict]:
 
     messages: list[dict] = []
     seen_source_ids: set[str] = set()
+    artifact_ids_needed: set[str] = set()
+
     for turn in state.get("turns", []):
         if turn is None:
             continue
@@ -134,8 +139,6 @@ def _recover_messages(conversation_id: str) -> list[dict]:
                 break
         turn_status = turn.get("status")
         for msg in turn.get("messages", []):
-            # Deduplicate: earlier turns sharing a client-side user message id
-            # are superseded by the latest turn. Skip stale duplicates.
             source_id = msg.get("source_message_id")
             if source_id is not None and msg["role"] == "user":
                 if source_id in seen_source_ids:
@@ -144,23 +147,22 @@ def _recover_messages(conversation_id: str) -> list[dict]:
 
             raw_artifacts = msg.get("artifact_ids") or "[]"
             try:
-                artifact_ids = json.loads(raw_artifacts) if isinstance(raw_artifacts, str) else raw_artifacts
+                artifact_ids = (
+                    json.loads(raw_artifacts)
+                    if isinstance(raw_artifacts, str)
+                    else raw_artifacts
+                )
             except (TypeError, json.JSONDecodeError):
                 artifact_ids = []
-            attachments = []
-            for art_id in artifact_ids:
-                artifact = artifact_store.get_artifact(art_id)
-                if artifact is None:
-                    continue
-                attachments.append(
-                    {
-                        "id": artifact["id"],
-                        "display_name": artifact["display_name"],
-                        "media_type": artifact["media_type"],
-                        "size": artifact["size_bytes"],
-                    }
+            if isinstance(artifact_ids, list):
+                artifact_ids_needed.update(
+                    art_id
+                    for art_id in artifact_ids
+                    if isinstance(art_id, str) and art_id
                 )
-            memory_items = _recover_memory_items(msg.get("memory_items"))
+            else:
+                artifact_ids = []
+
             messages.append(
                 {
                     "id": msg["id"],
@@ -169,11 +171,32 @@ def _recover_messages(conversation_id: str) -> list[dict]:
                     "created_at": msg["created_at"],
                     "model": attempt_model if msg["role"] == "assistant" else None,
                     "status": turn_status,
-                    "attachments": attachments,
-                    "memory_items": memory_items,
+                    "artifact_ids": artifact_ids,
+                    "memory_items": _recover_memory_items(msg.get("memory_items")),
                 }
             )
-    return messages
+
+    artifacts_by_id = artifact_store.get_artifacts(list(artifact_ids_needed))
+
+    recovered: list[dict] = []
+    for message in messages:
+        attachments = []
+        for art_id in message.pop("artifact_ids", []):
+            artifact = artifacts_by_id.get(art_id)
+            if artifact is None:
+                continue
+            attachments.append(
+                {
+                    "id": artifact["id"],
+                    "display_name": artifact["display_name"],
+                    "media_type": artifact["media_type"],
+                    "size": artifact["size_bytes"],
+                }
+            )
+        message["attachments"] = attachments
+        recovered.append(message)
+
+    return recovered
 
 
 @router.get("/chats/{chat_id}/messages")
