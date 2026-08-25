@@ -69,7 +69,11 @@ class TestCheck:
             assert result.get("changed") is True
 
     @pytest.mark.asyncio
-    async def test_keyword_match_counts_as_change(self):
+    async def test_keyword_match_on_first_check_does_not_count_as_change(self):
+        """RC-09: the first-ever check has no baseline to transition from, so
+        it must not report a change — same guard non-keyword watches already
+        had via test_check_no_change_first_time. keyword_matches still
+        reports the match for visibility."""
         wid = add_watch("https://example.com/test3", keywords=["sansui"])
 
         with patch("httpx.AsyncClient.get") as mock_get:
@@ -78,6 +82,29 @@ class TestCheck:
             mock_resp.text = "found a Sansui AU-7900 for sale"
             mock_get.return_value = mock_resp
             from gateway.web_monitor import check_now
+            result = await check_now(wid)
+            assert result.get("changed") is False
+            assert "sansui" in result.get("keyword_matches", [])
+
+    @pytest.mark.asyncio
+    async def test_keyword_match_transition_counts_as_change(self):
+        """The false -> true match transition (only) counts as a change."""
+        wid = add_watch("https://example.com/test3b", keywords=["sansui"])
+        from gateway.web_monitor import check_now
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_resp = AsyncMock()
+            mock_resp.status_code = 200
+            mock_resp.text = "nothing interesting here"
+            mock_get.return_value = mock_resp
+            baseline = await check_now(wid)
+            assert baseline.get("changed") is False
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_resp = AsyncMock()
+            mock_resp.status_code = 200
+            mock_resp.text = "found a Sansui AU-7900 for sale"
+            mock_get.return_value = mock_resp
             result = await check_now(wid)
             assert result.get("changed") is True
             assert "sansui" in result.get("keyword_matches", [])
