@@ -24,6 +24,20 @@ export interface BuilderProposalTask {
   validation_commands?: string[]
 }
 
+// gateway.ts's describeFetchError already turns an HTTP error status into
+// "Gateway returned <status> <statusText>", but when the browser can't reach
+// the gateway at all (connection refused, DNS failure), fetch() itself
+// throws with the browser's own message — Chromium's is the literal string
+// "Failed to fetch", which is not something a non-technical user can act on.
+function friendlyMutationError(err: unknown, fallback: string): string {
+  if (!(err instanceof Error)) return fallback
+  const message = err.message
+  if (!message || /failed to fetch|networkerror|load failed/i.test(message)) {
+    return 'Could not reach the Kitty gateway — check that it is running, then try again.'
+  }
+  return message
+}
+
 export function BuilderProposalCard({ task }: { task: BuilderProposalTask }) {
   const propose = useProposeBuilderJob()
   const approve = useApproveBuilderJob()
@@ -90,7 +104,7 @@ export function BuilderProposalCard({ task }: { task: BuilderProposalTask }) {
       )}
 
       {propose.isError && (
-        <span style={errorText}>{propose.error instanceof Error ? propose.error.message : 'propose failed'}</span>
+        <span style={errorText}>{friendlyMutationError(propose.error, 'Could not compile the proposal.')}</span>
       )}
 
       {proposal && !proposal.ok && (
@@ -135,7 +149,7 @@ export function BuilderProposalCard({ task }: { task: BuilderProposalTask }) {
       )}
 
       {approve.isError && (
-        <span style={errorText}>{approve.error instanceof Error ? approve.error.message : 'approve failed'}</span>
+        <span style={errorText}>{friendlyMutationError(approve.error, 'Could not create the Builder job.')}</span>
       )}
       {approve.data && !approve.data.ok && (
         <span style={errorText}>{approve.data.error || 'approval was refused'}</span>

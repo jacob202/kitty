@@ -119,4 +119,14 @@ describe('BuilderProposalCard', () => {
     await screen.findByText(/Builder base moved/)
     expect(screen.queryByText(/Builder job created/)).not.toBeInTheDocument()
   })
+
+  it('translates an unreachable gateway into a plain-language message, not the raw browser error', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockRejectedValue(new TypeError('Failed to fetch'))
+
+    renderWithQueryClient(<BuilderProposalCard task={task} />)
+    fireEvent.click(screen.getByText('Compile as Builder Mission'))
+
+    await screen.findByText(/Could not reach the Kitty gateway/)
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
+  })
 })
