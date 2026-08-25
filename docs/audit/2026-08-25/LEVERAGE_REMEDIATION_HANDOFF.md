@@ -57,6 +57,20 @@ Regression coverage proves:
 
 This is expected to reduce latency and failure surface for the class of requests Kitty has already classified as trivial. Exact wall-clock improvement still needs runtime measurement.
 
+### 6. Health surface probes now run concurrently
+
+Targets:
+- `gateway/health_surface.py`
+- `tests/test_health_surface_parallel.py`
+
+Root cause: `/health/surface` composes 11 independent read-only health domains, including network probes, but `build_health_surface()` awaited them one at a time. The slowest probe therefore serialized the entire health projection.
+
+Change: the independent sources now run with `asyncio.gather()` while preserving source order in the returned payload and preserving the existing fail-loud exception behavior.
+
+Regression coverage uses a two-source barrier: the test can only complete if both sources are started concurrently, so a future sequential implementation will time out rather than silently passing.
+
+The exact wall-clock gain still needs runtime measurement, but the change removes the serial dependency chain from an endpoint intended specifically for quick status/glance use.
+
 ## Existing user-visible remediation already implemented in open PRs — do NOT duplicate
 
 These are separate active branches/PRs discovered during handoff review. They should be reviewed/merged or corrected rather than rebuilt on this branch.
@@ -104,10 +118,12 @@ Chains approve -> execute in the native action surface, renders material payload
 
 This agent can modify and inspect the GitHub repository but cannot execute the repository's Python/Node environment on the user's machine from this workflow.
 
+Attempted local verification by cloning the branch failed because this execution environment has no outbound DNS/network access to `github.com`. GitHub Actions also produced a `Tests` workflow run that was fully `skipped` for PR #659, so no test result was available from CI.
+
 Run from a clean checkout of the branch:
 
 ```bash
-python -m pytest tests/test_context_assembler_trivial_fast_path.py tests/test_context_assembler.py tests/test_chat_lifecycle.py -q
+python -m pytest tests/test_context_assembler_trivial_fast_path.py tests/test_context_assembler.py tests/test_chat_lifecycle.py tests/test_health_surface.py tests/test_health_surface_parallel.py -q
 python -m pytest tests/ -q --tb=short --cov=gateway --cov-report=term-missing --cov-fail-under=73
 ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
 mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
@@ -130,7 +146,7 @@ node node_modules/next/dist/bin/next build
 npx playwright test
 ```
 
-A draft verification PR for this branch is open as **#659**: `perf(context): skip memory retrieval for trivial chats`.
+A verification PR for this cumulative branch is **#659**: `perf(context): skip memory retrieval for trivial chats`.
 
 ## Outstanding high-leverage work
 
@@ -180,7 +196,7 @@ Required context:
 
 ### Health endpoint split/caching — NOT completed
 
-`/health` performs a live LiteLLM readiness request with a short timeout. Before changing it, measure polling frequency and determine whether callers need liveness, readiness, or dependency health semantics.
+The separate `/health/surface` projection is now faster because its independent sources run concurrently. The simpler `/health` endpoint still performs a live LiteLLM readiness request with a short timeout. Before changing it, measure polling frequency and determine whether callers need liveness, readiness, or dependency health semantics.
 
 Required context:
 - health endpoint call frequency;
