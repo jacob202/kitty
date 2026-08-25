@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, type CSSProperties } from 'react'
-import { useProposeBuilderJob, useApproveBuilderJob } from '@/lib/queries'
+import { useEffect, useState, type CSSProperties } from 'react'
+import { useProposeBuilderJob, useApproveBuilderJob, useResumeBuilderJob } from '@/lib/queries'
 import type { ConversationProposal } from '@/lib/gateway'
 
 /**
@@ -13,6 +13,14 @@ import type { ConversationProposal } from '@/lib/gateway'
  *
  * `task` is parsed from a ```kitty-builder-proposal fenced block in an
  * assistant message; see ChatMessage.tsx's CodeBlock renderer.
+ *
+ * The fenced block itself never changes once Kitty writes it, so once a job
+ * is approved this component persists the resulting mission id to
+ * localStorage under `chatId`+`messageIndex`. On a later mount (page
+ * reload, reopened chat) it finds that id and shows the job's current
+ * durable state via `resume` instead of resetting to a blank "Compile"
+ * button — chat history is never the source of truth for whether the job
+ * exists.
  */
 export interface BuilderProposalTask {
   objective: string
@@ -38,13 +46,28 @@ function friendlyMutationError(err: unknown, fallback: string): string {
   return message
 }
 
-export function BuilderProposalCard({ task }: { task: BuilderProposalTask }) {
+interface Props {
+  task: BuilderProposalTask
+  chatId: string
+  messageIndex: number
+}
+
+export function BuilderProposalCard({ task, chatId, messageIndex }: Props) {
+  const storageKey = `kitty.builder-proposal.${chatId}.${messageIndex}`
   const propose = useProposeBuilderJob()
   const approve = useApproveBuilderJob()
   const [proposal, setProposal] = useState<ConversationProposal | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [resumedMissionId, setResumedMissionId] = useState<string | null>(null)
+  const resume = useResumeBuilderJob(resumedMissionId)
 
-  const approved = approve.data?.ok === true
+  useEffect(() => {
+    setResumedMissionId(window.localStorage.getItem(storageKey))
+  }, [storageKey])
+
+  if (resumedMissionId) {
+    return <ResumedBuilderJob task={task} resume={resume} />
+  }
 
   if (!task.objective || !task.instructions || !task.allowed_paths?.length) {
     return (
@@ -77,13 +100,23 @@ export function BuilderProposalCard({ task }: { task: BuilderProposalTask }) {
       return
     }
     setConfirming(false)
-    approve.mutate({
-      prepared_manifest: proposal.prepared_manifest,
-      expected_manifest_sha: proposal.manifest_sha256,
-      expected_base_sha: proposal.expected_base_sha,
-      approval_nonce: proposal.approval_nonce,
-      confirmed: true,
-    })
+    approve.mutate(
+      {
+        prepared_manifest: proposal.prepared_manifest,
+        expected_manifest_sha: proposal.manifest_sha256,
+        expected_base_sha: proposal.expected_base_sha,
+        approval_nonce: proposal.approval_nonce,
+        confirmed: true,
+      },
+      {
+        onSuccess: (data) => {
+          if (data.ok && data.mission_id) {
+            window.localStorage.setItem(storageKey, data.mission_id)
+            setResumedMissionId(data.mission_id)
+          }
+        },
+      },
+    )
   }
 
   return (
@@ -97,7 +130,7 @@ export function BuilderProposalCard({ task }: { task: BuilderProposalTask }) {
       <p style={fieldStyle}><strong>Instructions:</strong> {task.instructions}</p>
       <p style={fieldStyle}><strong>Allowed paths:</strong> {task.allowed_paths.join(', ')}</p>
 
-      {!proposal && !approved && (
+      {!proposal && (
         <button type="button" onClick={doPropose} disabled={propose.isPending} style={btnPrimary}>
           {propose.isPending ? 'Compiling…' : 'Compile as Builder Mission'}
         </button>
@@ -111,7 +144,7 @@ export function BuilderProposalCard({ task }: { task: BuilderProposalTask }) {
         <span style={errorText}>{proposal.error || 'proposal was refused'}</span>
       )}
 
-      {proposal?.ok && !approved && (
+      {proposal?.ok && (
         <div style={preparedBox}>
           <p style={fieldStyle}><strong>Mission ID:</strong> {proposal.mission_id}</p>
           <p style={fieldStyle}><strong>Acceptance criteria:</strong></p>
@@ -154,11 +187,63 @@ export function BuilderProposalCard({ task }: { task: BuilderProposalTask }) {
       {approve.data && !approve.data.ok && (
         <span style={errorText}>{approve.data.error || 'approval was refused'}</span>
       )}
+    </div>
+  )
+}
 
-      {approved && (
+/** Rendered once a proposal has been approved — this mount or a previous
+ * one. `resume` is the live `useResumeBuilderJob` query for the persisted
+ * mission id; Builder's own durable state is the only source of truth here,
+ * never the chat message that triggered the proposal. */
+function ResumedBuilderJob({
+  task,
+  resume,
+}: {
+  task: BuilderProposalTask
+  resume: ReturnType<typeof useResumeBuilderJob>
+}) {
+  const data = resume.data
+
+  return (
+    <div style={cardStyle}>
+      <div style={headerRow}>
+        <span style={badgeStyle}>BUILDER JOB</span>
+        <span style={titleStyle}>{task.title || task.objective}</span>
+      </div>
+
+      {resume.isLoading && <span style={fieldStyle}>Checking current status…</span>}
+
+      {resume.isError && (
+        <span style={errorText}>
+          {friendlyMutationError(resume.error, 'Could not check the job’s current status.')}
+        </span>
+      )}
+
+      {data && !data.ok && (
+        <span style={errorText}>{data.error || 'Could not find this job in Builder.'}</span>
+      )}
+
+      {data?.ok && (
         <div style={successBox}>
-          Builder job created: <strong>{approve.data?.mission_id}</strong>.
-          Track it in the Work view — Kitty&apos;s chat does not run or report on it directly.
+          <p style={fieldStyle}>
+            <strong>Mission:</strong> {data.mission?.id}
+            {data.mission?.state ? ` — ${data.mission.state}` : ''}
+          </p>
+          {data.current_work?.state && (
+            <p style={fieldStyle}><strong>Current work:</strong> {data.current_work.state}</p>
+          )}
+          {data.blocker && (
+            <p style={fieldStyle}><strong>Blocked:</strong> {data.blocker}</p>
+          )}
+          {data.pr?.url && (
+            <p style={fieldStyle}>
+              <strong>PR:</strong> <a href={data.pr.url} target="_blank" rel="noreferrer">{data.pr.url}</a>
+              {data.pr.checks_state ? ` — checks: ${data.pr.checks_state}` : ''}
+            </p>
+          )}
+          <p style={fieldStyle}>
+            Track it in the Work view — Kitty&apos;s chat does not run or report on it directly.
+          </p>
         </div>
       )}
     </div>

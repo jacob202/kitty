@@ -113,7 +113,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               <TypingDots />
             ) : (
               <>
-                <MessageContent content={message.content} isUser={isUser} />
+                <MessageContent content={message.content} isUser={isUser} chatId={chatId} messageIndex={messageIndex} />
                 {message.toolCalls && message.toolCalls.length > 0 && (
                   <ToolCallList toolCalls={message.toolCalls} isStreaming={isStreaming} />
                 )}
@@ -203,7 +203,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
   )
 }
 
-function MessageContent({ content, isUser }: { content: string; isUser: boolean }) {
+function MessageContent({ content, isUser, chatId, messageIndex }: { content: string; isUser: boolean; chatId: string; messageIndex: number }) {
   return (
     <div style={{
       ...bodyStyle,
@@ -230,7 +230,7 @@ function MessageContent({ content, isUser }: { content: string; isUser: boolean 
           ),
           th: ({ children }) => <th style={thStyle}>{children}</th>,
           td: ({ children }) => <td style={tdStyle}>{children}</td>,
-          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
+          pre: ({ children }) => <CodeBlock chatId={chatId} messageIndex={messageIndex}>{children}</CodeBlock>,
           code: ({ className, children, ...props }) => {
             const isBlock = typeof className === 'string' && className.startsWith('language-')
             if (isBlock) {
@@ -246,7 +246,7 @@ function MessageContent({ content, isUser }: { content: string; isUser: boolean 
   )
 }
 
-function CodeBlock({ children }: { children: ReactNode }) {
+function CodeBlock({ children, chatId, messageIndex }: { children: ReactNode; chatId: string; messageIndex: number }) {
   const [copied, setCopied] = useState(false)
   const preRef = useRef<HTMLPreElement>(null)
 
@@ -271,7 +271,7 @@ function CodeBlock({ children }: { children: ReactNode }) {
   if (lang === BUILDER_PROPOSAL_LANG) {
     try {
       const task = JSON.parse(rawText) as BuilderProposalTask
-      return <BuilderProposalCard task={task} />
+      return <BuilderProposalCard task={task} chatId={chatId} messageIndex={messageIndex} />
     } catch {
       return (
         <div style={codeBoxStyle}>

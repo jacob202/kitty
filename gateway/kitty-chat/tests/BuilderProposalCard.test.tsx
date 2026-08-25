@@ -1,7 +1,7 @@
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { describe, expect, it, afterEach, vi } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { BuilderProposalCard } from '../src/components/builder/BuilderProposalCard'
 import * as gateway from '../src/lib/gateway'
 
@@ -11,6 +11,7 @@ vi.mock('../src/lib/gateway', async () => {
     ...actual,
     proposeBuilderJob: vi.fn(),
     approveBuilderJob: vi.fn(),
+    resumeBuilderJob: vi.fn(),
   }
 })
 
@@ -43,11 +44,30 @@ function renderWithQueryClient(children: ReactNode) {
   return render(<QueryClientProvider client={client}>{children}</QueryClientProvider>)
 }
 
-describe('BuilderProposalCard', () => {
-  afterEach(cleanup)
+beforeEach(() => {
+  const values = new Map<string, string>()
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+      clear: () => values.clear(),
+    },
+  })
+})
 
+afterEach(() => {
+  cleanup()
+  window.localStorage.clear()
+  vi.mocked(gateway.proposeBuilderJob).mockReset()
+  vi.mocked(gateway.approveBuilderJob).mockReset()
+  vi.mocked(gateway.resumeBuilderJob).mockReset()
+})
+
+describe('BuilderProposalCard', () => {
   it('does not create a job merely by rendering the proposal', () => {
-    renderWithQueryClient(<BuilderProposalCard task={task} />)
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
 
     expect(screen.getAllByText(/Fix the flaky retry loop/).length).toBeGreaterThan(0)
     expect(gateway.proposeBuilderJob).not.toHaveBeenCalled()
@@ -56,7 +76,11 @@ describe('BuilderProposalCard', () => {
 
   it('flags a malformed proposal without calling propose', () => {
     renderWithQueryClient(
-      <BuilderProposalCard task={{ objective: '', instructions: '', allowed_paths: [] }} />,
+      <BuilderProposalCard
+        task={{ objective: '', instructions: '', allowed_paths: [] }}
+        chatId="chat-1"
+        messageIndex={0}
+      />,
     )
 
     expect(screen.getByText(/Malformed Builder proposal/)).toBeInTheDocument()
@@ -70,8 +94,12 @@ describe('BuilderProposalCard', () => {
       state: 'accepted',
       mission_id: preparedProposal.mission_id,
     })
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: preparedProposal.mission_id, state: 'accepted' },
+    })
 
-    renderWithQueryClient(<BuilderProposalCard task={task} />)
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
 
     fireEvent.click(screen.getByText('Compile as Builder Mission'))
     await waitFor(() => expect(gateway.proposeBuilderJob).toHaveBeenCalledOnce())
@@ -100,7 +128,13 @@ describe('BuilderProposalCard', () => {
       }),
       expect.anything(),
     )
-    await screen.findByText(/Builder job created/)
+
+    // Once approved, the card switches straight to the durable job view — the
+    // mission id is persisted so a reload finds it too (see below).
+    await screen.findByText(/Track it in the Work view/)
+    expect(window.localStorage.getItem('kitty.builder-proposal.chat-1.0')).toBe(
+      preparedProposal.mission_id,
+    )
   })
 
   it('surfaces a refused approval instead of a false success', async () => {
@@ -111,22 +145,64 @@ describe('BuilderProposalCard', () => {
       error: 'Builder base moved; prepare a new Mission version.',
     })
 
-    renderWithQueryClient(<BuilderProposalCard task={task} />)
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
     fireEvent.click(screen.getByText('Compile as Builder Mission'))
     fireEvent.click(await screen.findByText('Approve'))
     fireEvent.click(screen.getByText('Confirm'))
 
     await screen.findByText(/Builder base moved/)
-    expect(screen.queryByText(/Builder job created/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Track it in the Work view/)).not.toBeInTheDocument()
+    // A refused approval created nothing durable — no id to resume later.
+    expect(window.localStorage.getItem('kitty.builder-proposal.chat-1.0')).toBeNull()
   })
 
   it('translates an unreachable gateway into a plain-language message, not the raw browser error', async () => {
     vi.mocked(gateway.proposeBuilderJob).mockRejectedValue(new TypeError('Failed to fetch'))
 
-    renderWithQueryClient(<BuilderProposalCard task={task} />)
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
     fireEvent.click(screen.getByText('Compile as Builder Mission'))
 
     await screen.findByText(/Could not reach the Kitty gateway/)
     expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument()
+  })
+
+  it('resumes a previously approved job instead of resetting to a blank Compile button', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-already-approved-1')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-already-approved-1', state: 'in_progress' },
+      current_work: { state: 'running' },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    await screen.findByText(/conv-already-approved-1/)
+    expect(screen.getByText(/running/)).toBeInTheDocument()
+    expect(screen.queryByText('Compile as Builder Mission')).not.toBeInTheDocument()
+    expect(gateway.proposeBuilderJob).not.toHaveBeenCalled()
+    expect(gateway.resumeBuilderJob).toHaveBeenCalledWith('conv-already-approved-1')
+  })
+
+  it('surfaces a resume lookup failure without silently reverting to Compile', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-gone-1')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: false,
+      error: 'mission not found',
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    await screen.findByText(/mission not found/)
+    expect(screen.queryByText('Compile as Builder Mission')).not.toBeInTheDocument()
+  })
+
+  it('keys resumed state per chat message, not globally', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-for-message-zero')
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={1} />)
+
+    // A different messageIndex must not pick up another message's stored id.
+    expect(await screen.findByText('Compile as Builder Mission')).toBeInTheDocument()
+    expect(gateway.resumeBuilderJob).not.toHaveBeenCalled()
   })
 })
