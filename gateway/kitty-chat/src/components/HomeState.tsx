@@ -10,6 +10,7 @@ import {
   useStateChanges,
   useActions,
   useApproveAction,
+  useExecuteAction,
   useRejectAction,
   useTodos,
   useNeedsJacob,
@@ -607,6 +608,35 @@ function HealthSurfaceCard() {
   );
 }
 
+// ── Action approval: approve -> execute -> terminal outcome (C7-F08) ────────
+// Approving a T2 action only moves it proposed -> approved; it never runs on
+// its own. Without this second call the action sits "approved" forever and
+// the person who approved it never learns whether it actually happened.
+
+type ActionOutcome = { title: string; ok: boolean; message: string };
+
+async function approveAndExecuteAction(
+  action: GatewayAction,
+  approve: { mutateAsync: (id: number) => Promise<GatewayAction> },
+  execute: { mutateAsync: (id: number) => Promise<GatewayAction> },
+): Promise<ActionOutcome> {
+  await approve.mutateAsync(action.id);
+  try {
+    const executed = await execute.mutateAsync(action.id);
+    return {
+      title: action.title,
+      ok: executed.status === 'executed',
+      message: executed.result || (executed.status === 'executed' ? 'done' : `status: ${executed.status}`),
+    };
+  } catch (err) {
+    return {
+      title: action.title,
+      ok: false,
+      message: err instanceof Error ? err.message : 'could not run this action',
+    };
+  }
+}
+
 // ── What's next (hero) ───────────────────────────────────────────────────────
 
 // Local time, not UTC — this only ever renders client-side (Home is behind
@@ -632,10 +662,12 @@ function WhatsNext({
   const stepQueries = useWhatsNextSteps();
   const todosQuery = useTodos();
   const approve = useApproveAction();
+  const execute = useExecuteAction();
   const reject = useRejectAction();
   const sessionContext = useSessionContext();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<ActionOutcome | null>(null);
 
   // ── Error checks first ──
   // These run before the loading guard so that a known failure (observed:
@@ -698,6 +730,17 @@ function WhatsNext({
     }
   };
 
+  const handleApprove = async (targetAction: GatewayAction) => {
+    setBusy(true);
+    try {
+      setOutcome(await approveAndExecuteAction(targetAction, approve, execute));
+    } catch {
+      // approve itself failed — button re-enables via finally, nothing ran
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const action: GatewayAction | undefined = (actionsQuery.data ?? [])[0];
   const entry: GatewayTriageEntry | undefined = [...(needsJacob.data?.entries ?? [])].sort(
     (a, b) => b.confidence - a.confidence,
@@ -712,6 +755,26 @@ function WhatsNext({
 
   return (
     <SectionCard title="what's next" span>
+      {outcome && (
+        <div
+          role="status"
+          style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}
+        >
+          <div style={heroMetaStyle}>
+            {outcome.ok ? 'done' : 'did not complete'} · {outcome.title}
+          </div>
+          <div style={{ ...bodyText, fontSize: 12 }}>{outcome.message}</div>
+          <div>
+            <button
+              type="button"
+              onClick={() => setOutcome(null)}
+              style={{ ...actionButtonStyle, color: 'var(--ink-2)', opacity: 0.7 }}
+            >
+              dismiss
+            </button>
+          </div>
+        </div>
+      )}
       {action ? (
         <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={heroTextStyle}>{action.title}</div>
@@ -723,7 +786,7 @@ function WhatsNext({
             <button
               type="button"
               disabled={busy}
-              onClick={() => void decide(() => approve.mutateAsync(action.id))}
+              onClick={() => void handleApprove(action)}
               style={{ ...primaryButtonStyle, opacity: busy ? 0.5 : 1 }}
             >
               {busy ? '…' : 'approve'}
@@ -1336,9 +1399,14 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
   const { data: actions = [], isError, isPending } = useActions('proposed');
   const needsJacob = useNeedsJacob();
   const approve = useApproveAction();
+  const execute = useExecuteAction();
   const reject = useRejectAction();
   // Track which action is in-flight to disable its buttons and prevent races.
   const [pendingId, setPendingId] = useState<number | null>(null);
+  // Approving moves an action out of `actions` (no longer 'proposed'), so its
+  // terminal outcome has to live here, not in the query result, or it would
+  // vanish the instant it's most useful to see.
+  const [outcomes, setOutcomes] = useState<Record<number, ActionOutcome>>({});
 
   if (isPending || needsJacob.isPending) {
     return (
@@ -1361,15 +1429,24 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
   const needsJacobEntries = needsJacob.data?.entries ?? [];
   const total = actions.length + needsJacobEntries.length;
 
-  const handleApprove = async (id: number) => {
-    setPendingId(id);
+  const handleApprove = async (action: GatewayAction) => {
+    setPendingId(action.id);
     try {
-      await approve.mutateAsync(id);
+      const result = await approveAndExecuteAction(action, approve, execute);
+      setOutcomes((current) => ({ ...current, [action.id]: result }));
     } catch {
-      // gateway error — button re-enables via finally
+      // approve itself failed — button re-enables via finally, nothing ran
     } finally {
       setPendingId(null);
     }
+  };
+
+  const dismissOutcome = (id: number) => {
+    setOutcomes((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
   };
 
   const handleReject = async (id: number) => {
@@ -1385,6 +1462,29 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
 
   return (
     <SectionCard title="needs you" count={total || undefined}>
+      {Object.entries(outcomes).map(([idStr, result]) => (
+        <div
+          key={idStr}
+          role="status"
+          style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}
+        >
+          <div
+            style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}
+          >
+            {result.ok ? 'done' : 'did not complete'} · {result.title}
+          </div>
+          <div style={{ ...bodyText, fontSize: 12 }}>{result.message}</div>
+          <div>
+            <button
+              type="button"
+              onClick={() => dismissOutcome(Number(idStr))}
+              style={{ ...actionButtonStyle, color: 'var(--ink-2)', opacity: 0.7 }}
+            >
+              dismiss
+            </button>
+          </div>
+        </div>
+      ))}
       {total === 0 ? (
         <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div>nothing waiting for you</div>
@@ -1432,7 +1532,7 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
                   <button
                     type="button"
                     disabled={isBusy}
-                    onClick={() => void handleApprove(action.id)}
+                    onClick={() => void handleApprove(action)}
                     aria-label={`Approve ${action.title}`}
                     style={{
                       ...primaryButtonStyle,
@@ -1465,6 +1565,24 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
                 </div>
               </div>
               {action.preview && <div style={{ ...bodyText, fontSize: 12 }}>{action.preview}</div>}
+              {action.payload && Object.keys(action.payload).length > 0 && (
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
+                    color: 'var(--ink-2)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                  }}
+                >
+                  {Object.entries(action.payload).map(([key, value]) => (
+                    <div key={key}>
+                      {key}: {typeof value === 'string' ? value : JSON.stringify(value)}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })

@@ -1321,12 +1321,19 @@ export async function fetchActions(status?: string): Promise<GatewayAction[]> {
   return json.actions ?? []
 }
 
-export async function approveAction(id: number): Promise<void> {
-  await gfetch(`/actions/${id}/approve`, { method: 'POST' })
+export async function approveAction(id: number): Promise<GatewayAction> {
+  return gfetch<GatewayAction>(`/actions/${id}/approve`, { method: 'POST' })
 }
 
 export async function rejectAction(id: number): Promise<void> {
   await gfetch(`/actions/${id}/reject`, { method: 'POST' })
+}
+
+/** Dispatch an approved (or auto-executable) action through its executor.
+ *  Approving a T2 action does not run it — this is the second, separate
+ *  call that actually produces the durable result. */
+export async function executeAction(id: number): Promise<GatewayAction> {
+  return gfetch<GatewayAction>(`/actions/${id}/execute`, { method: 'POST' })
 }
 
 export async function snapshotState(): Promise<void> {

@@ -5,6 +5,7 @@ import {
   useStateChanges,
   useActions,
   useApproveAction,
+  useExecuteAction,
   useRejectAction,
   useTodos,
   useNeedsJacob,
@@ -53,6 +54,7 @@ vi.mock('../src/lib/queries', () => ({
   useStateChanges: vi.fn(),
   useActions: vi.fn(),
   useApproveAction: vi.fn(),
+  useExecuteAction: vi.fn(),
   useRejectAction: vi.fn(),
   useTodos: vi.fn(),
   useNeedsJacob: vi.fn(),
@@ -97,6 +99,7 @@ function setDefaultMocks() {
     isFetched: true,
   });
   (useApproveAction as Mock).mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
+  (useExecuteAction as Mock).mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
   (useRejectAction as Mock).mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
   (useTodos as Mock).mockReturnValue({
     data: [],
@@ -618,6 +621,112 @@ describe('HomeState', () => {
     expect(screen.getAllByText('Deploy to prod').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /approve Deploy to prod/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /reject Deploy to prod/i })).toBeInTheDocument();
+  });
+
+  it('shows the material payload arguments before approval (C7-F07)', () => {
+    (useActions as Mock).mockReturnValue({
+      data: [
+        {
+          id: 1,
+          title: 'Create calendar event',
+          preview: 'will create: Dentist',
+          kind: 'calendar.event.create',
+          risk_tier: 'T2',
+          source_kind: 'agent',
+          status: 'proposed',
+          created_at: '',
+          source_id: null,
+          payload: { title: 'Dentist', start_time: '2026-08-25T14:00:00' },
+          result: null,
+          decided_at: null,
+          executed_at: null,
+        },
+      ],
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.getByText('title: Dentist')).toBeInTheDocument();
+    expect(screen.getByText('start_time: 2026-08-25T14:00:00')).toBeInTheDocument();
+  });
+
+  it('approving an action in needs you also executes it and shows the outcome (C7-F08)', async () => {
+    const action = {
+      id: 1,
+      title: 'Deploy to prod',
+      preview: 'runs deploy.sh',
+      kind: 'shell',
+      risk_tier: 'T2',
+      source_kind: 'agent',
+      status: 'proposed',
+      created_at: '',
+      source_id: null,
+      payload: {},
+      result: null,
+      decided_at: null,
+      executed_at: null,
+    };
+    const approveMutateAsync = vi.fn().mockResolvedValue({ ...action, status: 'approved' });
+    const executeMutateAsync = vi.fn().mockResolvedValue({
+      ...action,
+      status: 'executed',
+      result: 'deployed to prod',
+    });
+    (useApproveAction as Mock).mockReturnValue({ isPending: false, mutateAsync: approveMutateAsync });
+    (useExecuteAction as Mock).mockReturnValue({ isPending: false, mutateAsync: executeMutateAsync });
+    (useActions as Mock).mockReturnValue({
+      data: [action],
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+
+    fireEvent.click(screen.getByRole('button', { name: /approve Deploy to prod/i }));
+
+    expect(approveMutateAsync).toHaveBeenCalledWith(1);
+    await screen.findByText(/done · Deploy to prod/);
+    expect(executeMutateAsync).toHaveBeenCalledWith(1);
+    expect(screen.getByText('deployed to prod')).toBeInTheDocument();
+  });
+
+  it('shows a did-not-complete outcome when execute fails after a successful approval', async () => {
+    const action = {
+      id: 1,
+      title: 'Create calendar event',
+      preview: 'will create: Dentist',
+      kind: 'calendar.event.create',
+      risk_tier: 'T2',
+      source_kind: 'agent',
+      status: 'proposed',
+      created_at: '',
+      source_id: null,
+      payload: {},
+      result: null,
+      decided_at: null,
+      executed_at: null,
+    };
+    (useApproveAction as Mock).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn().mockResolvedValue({ ...action, status: 'approved' }),
+    });
+    (useExecuteAction as Mock).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn().mockRejectedValue(new Error('osascript unavailable')),
+    });
+    (useActions as Mock).mockReturnValue({
+      data: [action],
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+
+    fireEvent.click(screen.getByRole('button', { name: /approve Create calendar event/i }));
+
+    await screen.findByText(/did not complete · Create calendar event/);
+    expect(screen.getByText('osascript unavailable')).toBeInTheDocument();
   });
 
   it('shows what changed when state diff is available', () => {

@@ -55,6 +55,7 @@ import {
   fetchActions,
   approveAction,
   rejectAction,
+  executeAction,
   fetchNeedsJacob,
   snapshotState,
   fetchStateNow,
@@ -556,6 +557,14 @@ export function useRejectAction() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => rejectAction(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['actions'] }),
+  })
+}
+
+export function useExecuteAction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => executeAction(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['actions'] }),
   })
 }
