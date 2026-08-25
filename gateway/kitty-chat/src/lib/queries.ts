@@ -82,6 +82,9 @@ import {
   executeRepair,
   // builder control
   executeOperatorCommand,
+  // conversation -> builder job handoff
+  proposeBuilderJob,
+  approveBuilderJob,
   // experts
   fetchExpertList,
   // signals
@@ -770,6 +773,26 @@ export function useOperatorCommand() {
     }) => executeOperatorCommand({ ...payload, actor: 'cockpit-operator' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
+    },
+  })
+}
+
+// Conversation -> Builder job handoff: propose does not touch Builder queue
+// state, so nothing to invalidate. Approve creates a durable initiative —
+// invalidate the same live projections OperatorControls already refreshes.
+export function useProposeBuilderJob() {
+  return useMutation({ mutationFn: proposeBuilderJob })
+}
+
+export function useApproveBuilderJob() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: approveBuilderJob,
+    onSuccess: (data) => {
+      if (data.ok) {
+        queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
+        queryClient.invalidateQueries({ queryKey: ['work'] })
+      }
     },
   })
 }

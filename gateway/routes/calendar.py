@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter
 
 router = APIRouter(tags=["calendar"])
 
@@ -33,28 +31,3 @@ async def calendar_upcoming(days: int = 7):
     from gateway.calendar_integration import get_upcoming
 
     return await _calendar_events_response(lambda: get_upcoming(days))
-
-
-class CalendarCreateRequest(BaseModel):
-    title: str = Field(min_length=1, max_length=500)
-    start_time: Optional[str] = None
-    end_time: Optional[str] = None
-    notes: str = ""
-
-
-@router.post("/calendar/create")
-async def calendar_create(payload: CalendarCreateRequest):
-    from gateway.calendar_integration import create, is_available
-
-    if not is_available():
-        raise HTTPException(
-            status_code=400, detail="Calendar not available (macOS only)"
-        )
-    success = await asyncio.to_thread(
-        create,
-        payload.title,
-        payload.start_time,
-        payload.end_time,
-        payload.notes,
-    )
-    return {"created": success}
