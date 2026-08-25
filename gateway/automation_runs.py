@@ -29,6 +29,7 @@ TERMINAL_STATUSES = frozenset(
         "source_unavailable",
         "condition_false",
         "policy_refused",
+        "watch_disabled",
     }
 )
 
