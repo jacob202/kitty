@@ -48,6 +48,9 @@ def init_db() -> None:
                 created_at REAL
             )
         """)
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(watches)").fetchall()}
+        if "last_keyword_matched" not in cols:
+            conn.execute("ALTER TABLE watches ADD COLUMN last_keyword_matched INTEGER DEFAULT 0")
         conn.commit()
 
 
@@ -110,6 +113,15 @@ def list_watches() -> list[dict]:
     return [_row_to_dict(r) for r in rows]
 
 
+def get_watch(watch_id: str) -> dict | None:
+    """Fetch one watch's current row, or None if it no longer exists."""
+    init_db()
+    with db_connect(MONITOR_DB) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM watches WHERE id = ?", (watch_id,)).fetchone()
+    return _row_to_dict(row) if row is not None else None
+
+
 async def check_now(watch_id: str) -> dict:
     """Force-check a single watch immediately."""
     init_db()
@@ -166,6 +178,7 @@ async def _check_watch(watch: dict) -> dict:
     url = watch["url"]
     keywords = json.loads(watch.get("keywords", "[]")) if isinstance(watch.get("keywords"), str) else (watch.get("keywords") or [])
     old_hash = watch.get("last_hash", "")
+    was_keyword_matched = bool(watch.get("last_keyword_matched", False))
 
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
@@ -177,17 +190,30 @@ async def _check_watch(watch: dict) -> dict:
 
             text = resp.text
             new_hash = hashlib.sha256(text.encode()).hexdigest()
+            lower = text.lower()
+            matches = [k for k in keywords if k.lower() in lower] if keywords else []
+            now_matched = bool(matches)
 
-            # Update last checked time and hash
+            # Update last checked time, hash, and keyword-match state.
             now = time.time()
             with db_connect(MONITOR_DB) as conn:
                 conn.execute(
-                    "UPDATE watches SET last_hash = ?, last_checked = ?, last_result = ? WHERE id = ?",
-                    (new_hash, now, text[:5000], watch["id"]),
+                    "UPDATE watches SET last_hash = ?, last_checked = ?, last_result = ?, "
+                    "last_keyword_matched = ? WHERE id = ?",
+                    (new_hash, now, text[:5000], int(now_matched), watch["id"]),
                 )
                 conn.commit()
 
-            content_changed = new_hash != old_hash and old_hash != ""
+            if keywords:
+                # A keyword watch's condition is "this keyword is present". It
+                # must fire only on the false -> true transition: never on
+                # every poll while content keeps changing but the keyword
+                # stays matched (that was spamming a fresh notification per
+                # poll), and never on the very first check before any
+                # baseline exists (that was a false positive on creation).
+                content_changed = old_hash != "" and now_matched and not was_keyword_matched
+            else:
+                content_changed = new_hash != old_hash and old_hash != ""
 
             result = {
                 "watch_id": watch["id"],
@@ -196,14 +222,8 @@ async def _check_watch(watch: dict) -> dict:
                 "hash": new_hash[:16],
                 "content_length": len(text),
             }
-
-            # Check keyword matches
-            if keywords:
-                lower = text.lower()
-                matches = [k for k in keywords if k.lower() in lower]
-                if matches:
-                    result["keyword_matches"] = matches
-                    result["changed"] = bool(new_hash != old_hash)
+            if matches:
+                result["keyword_matches"] = matches
 
             return result
 
@@ -242,6 +262,26 @@ async def _handle_watch_result(watch: dict, result: dict) -> None:
             run["id"],
             status="condition_false",
             error="watch condition did not match",
+        )
+        return
+
+    # A sweep can take a while (per-watch HTTP round trips plus a fixed
+    # inter-watch delay), so `watch` may describe a state snapshotted well
+    # before this point. Re-check against the current row right before
+    # dispatching a notification: a watch disabled or deleted since being
+    # snapshotted must not still fire.
+    current = get_watch(str(watch.get("id") or ""))
+    if current is None or not current.get("enabled"):
+        run = automation_runs.begin_run(
+            automation_id=automation_id,
+            action="web_monitor.notify",
+            trigger_kind="monitor",
+            trigger_ref=str(watch.get("id") or ""),
+        )
+        automation_runs.finish_run(
+            run["id"],
+            status="watch_disabled",
+            error="watch was disabled or deleted before its notification could dispatch",
         )
         return
 
@@ -307,4 +347,5 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     except (json.JSONDecodeError, TypeError):
         d["keywords"] = []
     d["enabled"] = bool(d.get("enabled", 0))
+    d["last_keyword_matched"] = bool(d.get("last_keyword_matched", 0))
     return d

@@ -213,6 +213,34 @@ def list_memories(
     return [_row(row) for row in rows]
 
 
+def get_replaced(memory_id: str, *, include_inactive: bool = False) -> dict[str, Any] | None:
+    """Return the active memory this memory superseded (reverse of ``superseded_by``)."""
+    _init()
+    sql = "SELECT * FROM explicit_memories WHERE superseded_by = ?"
+    if not include_inactive:
+        sql += " AND status = 'active'"
+    with kitty_db.connect(DB_FILE) as conn:
+        row = conn.execute(sql, (memory_id,)).fetchone()
+    return _row(row) if row is not None else None
+
+
+def set_pinned(memory_id: str, *, pinned: bool, now: datetime | None = None) -> bool:
+    """Pin or unpin an active explicit memory; inactive rows are never touched."""
+    _init()
+    stamp = _utc_iso(now)
+    with kitty_db.connect(DB_FILE) as conn:
+        cursor = conn.execute(
+            """
+            UPDATE explicit_memories
+            SET pinned = ?, updated_at = ?
+            WHERE id = ? AND status = 'active'
+            """,
+            (int(pinned), stamp, memory_id),
+        )
+        conn.commit()
+    return cursor.rowcount == 1
+
+
 def forget(memory_id: str, *, now: datetime | None = None) -> bool:
     """Suppress an active explicit memory while retaining its audit row."""
     _init()

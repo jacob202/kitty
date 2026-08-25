@@ -28,7 +28,7 @@ async def notify_send(payload: NotifyRequest):
     return {"sent": success}
 
 
-@router.get("/notify/test")
+@router.post("/notify/test")
 async def notify_test():
     from gateway.notify import is_configured, send
 

@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+from fastapi.testclient import TestClient
+
 from gateway.calendar_integration import (
     _parse_event_lines,
     _run_applescript,
@@ -11,6 +13,21 @@ from gateway.calendar_integration import (
     get_upcoming_text,
     is_available,
 )
+
+
+def test_calendar_create_route_is_removed():
+    """AUTH-001 (RC-02): POST /calendar/create called Calendar mutation
+    directly, bypassing the tiered/gated calendar.event.create action kind
+    entirely — no approval, no grant evaluation, no audit trail. Nothing
+    called this route (no frontend, no test, no other backend reference), so
+    it's deleted rather than routed: the gated path already exists via
+    /actions (propose kind="calendar.event.create" -> approve -> execute)."""
+    from gateway.app import app
+
+    response = TestClient(app).post(
+        "/calendar/create", json={"title": "should not exist"}
+    )
+    assert response.status_code == 404
 
 
 class TestParseEvents:
