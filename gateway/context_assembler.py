@@ -193,6 +193,9 @@ def _domain_prompt(message: str, domain: str | None) -> str:
     if user_context.is_interview_trigger(message):
         prompt = user_context.build_interview_prompt(prompt)
 
+    if domain == "code":
+        prompt = _join_blocks(prompt, prompts.get_prompt("builder.proposal"))
+
     return prompt
 
 

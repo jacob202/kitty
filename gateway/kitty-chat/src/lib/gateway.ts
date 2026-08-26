@@ -2133,6 +2133,38 @@ export async function approveBuilderJob(
   )
 }
 
+export interface ConversationResume {
+  ok: boolean
+  state?: string | null
+  error_code?: string | null
+  error?: string | null
+  next_action?: string | null
+  objective?: string | null
+  mission?: { id?: string | null; manifest_sha256?: string | null; state?: string | null }
+  current_work?: {
+    packet_id?: string | null
+    task_id?: string | null
+    state?: string | null
+    attempt_count?: number | null
+  }
+  blocker?: string | null
+  pr?: {
+    number?: number | null
+    url?: string | null
+    checks_state?: string | null
+    review_state?: string | null
+    merged?: boolean | null
+  } | null
+}
+
+/** Recover durable Builder job state for a proposal a reloaded chat message
+ *  already approved — see gateway/conversation_handoff.py's `resume`. Chat
+ *  history is never the source of truth for this; only the mission id is. */
+export async function resumeBuilderJob(missionId: string): Promise<ConversationResume> {
+  const params = new URLSearchParams({ mission_id: missionId })
+  return await gfetch<ConversationResume>(`/builder/conversation/resume?${params.toString()}`, undefined, 15000)
+}
+
 // ── Experts ────────────────────────────────────────────────────────────────────
 
 export interface ExpertProfile {

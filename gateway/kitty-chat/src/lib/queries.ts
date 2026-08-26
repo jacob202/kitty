@@ -86,6 +86,7 @@ import {
   // conversation -> builder job handoff
   proposeBuilderJob,
   approveBuilderJob,
+  resumeBuilderJob,
   // experts
   fetchExpertList,
   // signals
@@ -803,6 +804,18 @@ export function useApproveBuilderJob() {
         queryClient.invalidateQueries({ queryKey: ['work'] })
       }
     },
+  })
+}
+
+/** Recover a Builder job's current state after a chat reload — `missionId`
+ *  is null until a proposal has actually been approved (see
+ *  BuilderProposalCard), so the query stays disabled until then. */
+export function useResumeBuilderJob(missionId: string | null) {
+  return useQuery({
+    queryKey: ['conversation-resume', missionId],
+    queryFn: () => resumeBuilderJob(missionId as string),
+    enabled: Boolean(missionId),
+    refetchInterval: 10_000,
   })
 }
 
