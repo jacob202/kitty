@@ -15,7 +15,7 @@ import pytest
 
 from gateway.context_assembler import _AssemblerDeps, assemble_context
 from gateway.domain_router import classify_domain
-from gateway.memory_graph import Item, Source, StoreAdapter
+from gateway.memory_graph import Item, StoreAdapter
 
 _MARKER = "kitty-builder-proposal"
 
