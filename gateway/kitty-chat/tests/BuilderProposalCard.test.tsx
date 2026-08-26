@@ -196,6 +196,27 @@ describe('BuilderProposalCard', () => {
     expect(screen.queryByText('Compile as Builder Mission')).not.toBeInTheDocument()
   })
 
+  it('still shows the durable job status when resume ok:false is an unrelated health check, not a missing job', async () => {
+    // resume_context()'s `ok` reflects Kitty's own cold-start health check,
+    // not whether the job was found. Builder facts (mission/current_work)
+    // are populated whenever the mission is found, even when `ok` is false —
+    // a cold-start hiccup must never hide real job status.
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-still-there-1')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: false,
+      error: 'Kitty cold-start receipt is not trusted; continuity needs attention.',
+      mission: { id: 'conv-still-there-1', state: 'active' },
+      current_work: { state: 'running' },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    await screen.findByText(/conv-still-there-1/)
+    expect(screen.getByText(/running/)).toBeInTheDocument()
+    expect(screen.getByText(/continuity needs attention/)).toBeInTheDocument()
+    expect(screen.queryByText('Could not find this job in Builder.')).not.toBeInTheDocument()
+  })
+
   it('keys resumed state per chat message, not globally', async () => {
     window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-for-message-zero')
 

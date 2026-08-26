@@ -203,6 +203,12 @@ function ResumedBuilderJob({
   resume: ReturnType<typeof useResumeBuilderJob>
 }) {
   const data = resume.data
+  // resume_context()'s `ok` reflects Kitty's own cold-start health check, not
+  // whether the job was found — durable Builder facts (mission/current_work/
+  // blocker/pr) are populated whenever the mission is found, even when `ok`
+  // is false for an unrelated reason. Gate on the mission id, not on `ok`, so
+  // a cold-start hiccup never hides real job status behind a raw error.
+  const found = Boolean(data?.mission?.id)
 
   return (
     <div style={cardStyle}>
@@ -219,31 +225,37 @@ function ResumedBuilderJob({
         </span>
       )}
 
-      {data && !data.ok && (
+      {data && !found && (
         <span style={errorText}>{data.error || 'Could not find this job in Builder.'}</span>
       )}
 
-      {data?.ok && (
+      {found && (
         <div style={successBox}>
           <p style={fieldStyle}>
-            <strong>Mission:</strong> {data.mission?.id}
-            {data.mission?.state ? ` — ${data.mission.state}` : ''}
+            <strong>Mission:</strong> {data!.mission?.id}
+            {data!.mission?.state ? ` — ${data!.mission.state}` : ''}
           </p>
-          {data.current_work?.state && (
-            <p style={fieldStyle}><strong>Current work:</strong> {data.current_work.state}</p>
+          {data!.current_work?.state && (
+            <p style={fieldStyle}><strong>Current work:</strong> {data!.current_work.state}</p>
           )}
-          {data.blocker && (
-            <p style={fieldStyle}><strong>Blocked:</strong> {data.blocker}</p>
+          {data!.blocker && (
+            <p style={fieldStyle}><strong>Blocked:</strong> {data!.blocker}</p>
           )}
-          {data.pr?.url && (
+          {data!.pr?.url && (
             <p style={fieldStyle}>
-              <strong>PR:</strong> <a href={data.pr.url} target="_blank" rel="noreferrer">{data.pr.url}</a>
-              {data.pr.checks_state ? ` — checks: ${data.pr.checks_state}` : ''}
+              <strong>PR:</strong> <a href={data!.pr.url} target="_blank" rel="noreferrer">{data!.pr.url}</a>
+              {data!.pr.checks_state ? ` — checks: ${data!.pr.checks_state}` : ''}
             </p>
           )}
           <p style={fieldStyle}>
             Track it in the Work view — Kitty&apos;s chat does not run or report on it directly.
           </p>
+        </div>
+      )}
+
+      {data && !data.ok && found && (
+        <div style={warningBox}>
+          Kitty&apos;s own status check needs attention, so this may be stale: {data.error || 'unknown issue'}
         </div>
       )}
     </div>
