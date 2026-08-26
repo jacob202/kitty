@@ -176,12 +176,12 @@ async def _image_providers_source() -> HealthDomain:
         "flux": image_runner.flux_images_available,
         "flux2": image_runner.flux2_images_available,
     }
-    results: dict[str, tuple[bool, str]] = {}
     outcomes = await asyncio.gather(
         *[asyncio.to_thread(probe) for probe in probes.values()]
     )
-    for name, (ok, reason) in zip(probes, outcomes):
-        results[name] = (ok, reason)
+    results: dict[str, tuple[bool, str]] = {
+        name: outcome for name, outcome in zip(probes, outcomes)
+    }
 
     available = [name for name, (ok, _) in results.items() if ok]
     if available:
@@ -313,15 +313,18 @@ async def build_health_surface(
 ) -> dict[str, Any]:
     """Build the KittyHealth snapshot from the given (or default) domain sources.
 
-    Sources are awaited in order; an exception from any source propagates —
-    the projection never silently reports green on a broken subsystem.
+    Domain probes are independent read-only checks, so they run concurrently.
+    Exceptions still propagate rather than silently collapsing a broken source
+    into a green result, preserving the existing fail-loud contract.
     """
     if sources is None:
         sources = default_sources()
 
+    source_items = list(sources.items())
+    results = await asyncio.gather(*(source() for _, source in source_items))
+
     domains: list[HealthDomain] = []
-    for name, source in sources.items():
-        domain = await source()
+    for (name, _), domain in zip(source_items, results):
         if domain.status not in {
             "available", "degraded", "stale", "unavailable", "unknown",
         }:

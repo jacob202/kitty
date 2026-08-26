@@ -278,22 +278,26 @@ async def assemble_context(
     if hint:
         base_prompt = _join_blocks(base_prompt, hint)
 
-    graph = deps.graph_cls(deps.adapters)
-    graph_result = await graph.search_all(message)
-    warnings.extend(f"memory_graph:{err}" for err in graph_result.errors)
+    # Trivial chats are deliberately context-light. The classifier has already
+    # established that historical memory cannot materially improve this turn,
+    # so querying every memory store here would only add latency and possible
+    # failure surface. Standard/deep retain the existing graph retrieval path.
+    memory_items: list[Item] = []
+    injected_memory_items: list[MemoryEvidence] = []
+    memory_block = ""
 
-    if tier == "trivial":
-        cap = 300
-    elif tier == "deep":
-        cap = 2400
-    else:
-        cap = CONTEXT_TOKEN_CAP  # 1200
+    if tier != "trivial":
+        graph = deps.graph_cls(deps.adapters)
+        graph_result = await graph.search_all(message)
+        warnings.extend(f"memory_graph:{err}" for err in graph_result.errors)
 
-    filtered_results = _filter_items_by_policy(graph_result.results, message)
-    memory_sections, injected_memory_items = _select_unified_items(
-        filtered_results, cap
-    )
-    memory_block = "\n\n".join(memory_sections)
+        cap = 2400 if tier == "deep" else CONTEXT_TOKEN_CAP
+        filtered_results = _filter_items_by_policy(graph_result.results, message)
+        memory_sections, injected_memory_items = _select_unified_items(
+            filtered_results, cap
+        )
+        memory_block = "\n\n".join(memory_sections)
+        memory_items = _flatten_items(graph_result.results)
 
     if tier == "trivial":
         enrichment_blocks: list[str] = []
@@ -310,7 +314,7 @@ async def assemble_context(
 
     return ContextBundle(
         system=system,
-        memory_items=_flatten_items(graph_result.results),
+        memory_items=memory_items,
         live_blocks=list(enrichment_blocks),
         warnings=warnings,
         injected_memory_items=injected_memory_items,
@@ -335,7 +339,7 @@ def assert_not_total_failure(bundle: ContextBundle) -> ContextBundle:
     """Raise :class:`RuntimeError` if the bundle is a total infrastructure failure.
 
     Callers that want the strict "no LLM AND no DB" raise semantics should
-    call this after :func:`assemble_context`. The base function never raises
+    call this after `assemble_context`. The base function never raises
     so a partial result is always available; the route layer decides when
     "total failure" is fatal.
     """
@@ -355,7 +359,7 @@ async def get_system_prompt(
 ) -> str:
     """Return the joined system prompt string.
 
-    Equivalent to ``(await assemble_context(..., objective=objective, tier=tier)).system``.
+    Equivalent to `(await assemble_context(..., objective=objective, tier=tier)).system`.
     Kept as a convenience wrapper for callers that only need the system string.
     """
     if objective is None:
