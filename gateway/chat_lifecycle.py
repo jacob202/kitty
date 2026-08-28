@@ -257,7 +257,14 @@ def get_turn(turn_id: str) -> dict[str, Any] | None:
 
 
 def list_conversation(conversation_id: str) -> dict[str, Any]:
-    """Return normalized conversation state and all ordered turns."""
+    """Return normalized conversation state and all ordered turns in bulk.
+
+    Recovery used to call ``get_turn`` once per turn, opening a new SQLite
+    connection and issuing additional queries for every turn. Fetch all turns,
+    attempts, and messages with the same connection instead. This keeps the
+    read cost bounded by the number of lifecycle tables rather than the number
+    of turns in the conversation.
+    """
     if not conversation_id.strip():
         raise ChatLifecycleError("conversation_id must not be empty")
     init_db()
@@ -267,11 +274,47 @@ def list_conversation(conversation_id: str) -> dict[str, Any]:
         ).fetchone()
         if conversation is None:
             raise ChatLifecycleError(f"conversation {conversation_id} does not exist")
-        turns = [
-            dict(row)
-            for row in conn.execute(
-                "SELECT * FROM chat_turns WHERE conversation_id = ? ORDER BY sequence",
-                (conversation_id,),
-            ).fetchall()
-        ]
-    return {"conversation": dict(conversation), "turns": [get_turn(turn["id"]) for turn in turns]}
+
+        turn_rows = conn.execute(
+            "SELECT * FROM chat_turns WHERE conversation_id = ? ORDER BY sequence",
+            (conversation_id,),
+        ).fetchall()
+        turn_ids = [row["id"] for row in turn_rows]
+
+        if not turn_ids:
+            return {"conversation": dict(conversation), "turns": []}
+
+        placeholders = ",".join("?" for _ in turn_ids)
+        attempt_rows = conn.execute(
+            f"""
+            SELECT * FROM chat_attempts
+            WHERE turn_id IN ({placeholders})
+            ORDER BY turn_id, attempt_number
+            """,
+            turn_ids,
+        ).fetchall()
+        message_rows = conn.execute(
+            f"""
+            SELECT * FROM chat_messages
+            WHERE turn_id IN ({placeholders})
+            ORDER BY turn_id, created_at, id
+            """,
+            turn_ids,
+        ).fetchall()
+
+    attempts_by_turn: dict[str, list[dict[str, Any]]] = {turn_id: [] for turn_id in turn_ids}
+    messages_by_turn: dict[str, list[dict[str, Any]]] = {turn_id: [] for turn_id in turn_ids}
+
+    for row in attempt_rows:
+        attempts_by_turn[row["turn_id"]].append(dict(row))
+    for row in message_rows:
+        messages_by_turn[row["turn_id"]].append(dict(row))
+
+    turns: list[dict[str, Any]] = []
+    for row in turn_rows:
+        turn = dict(row)
+        turn["attempts"] = attempts_by_turn[row["id"]]
+        turn["messages"] = messages_by_turn[row["id"]]
+        turns.append(turn)
+
+    return {"conversation": dict(conversation), "turns": turns}

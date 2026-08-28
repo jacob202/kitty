@@ -1,4 +1,5 @@
 """Tests for web_monitor — URL watching and keyword matching."""
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -151,3 +152,41 @@ async def test_check_due_preserves_per_watch_intervals(monkeypatch):
     assert checked == ["due"]
     assert handled == ["due"]
     assert result == {"checked": 1, "changed": 1, "failed": 0}
+
+
+@pytest.mark.asyncio
+async def test_check_due_skips_an_overlapping_sweep_instead_of_racing_it(monkeypatch):
+    """RC-09: check_due() has no per-schedule claim like cron's — a manual
+    trigger can overlap an in-progress sweep. An overlapping call must skip,
+    not race the running sweep over the same watches' stored state."""
+    import gateway.web_monitor as wm
+
+    watches = [{"id": "w1", "enabled": True, "interval_minutes": 5, "last_checked": 0.0}]
+    monkeypatch.setattr(wm, "list_watches", lambda: watches)
+
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    calls: list[str] = []
+
+    async def slow_check(watch):
+        calls.append(watch["id"])
+        entered.set()
+        await release.wait()
+        return {"changed": False}
+
+    async def fake_handle(watch, _result):
+        return None
+
+    monkeypatch.setattr(wm, "_check_watch", slow_check)
+    monkeypatch.setattr(wm, "_handle_watch_result", fake_handle)
+
+    first_task = asyncio.create_task(wm.check_due())
+    await entered.wait()
+
+    overlapping = await wm.check_due()
+    assert overlapping == {"checked": 0, "changed": 0, "failed": 0, "skipped": True}
+    assert calls == ["w1"]  # the overlapping call never reached _check_watch
+
+    release.set()
+    first_result = await first_task
+    assert first_result == {"checked": 1, "changed": 0, "failed": 0}

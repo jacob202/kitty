@@ -72,6 +72,18 @@ def _reconcile_autonomy_sessions_on_startup() -> None:
         logger.warning("interrupted %d orphaned autonomy session(s) at startup", reconciled)
 
 
+def _reconcile_actions_on_startup() -> None:
+    """Make ActionQueue rows truthful after a crash mid-execution (REL-002)."""
+    from gateway.action_queue import reconcile_stale_executing
+
+    reconciled = reconcile_stale_executing()
+    if reconciled:
+        logger.warning(
+            "marked %d ActionQueue row(s) unknown after a restart mid-execution",
+            reconciled,
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_dirs()
@@ -80,6 +92,7 @@ async def lifespan(app: FastAPI):
     _reconcile_image_batches_on_startup()
     _reconcile_agent_workspace_turns_on_startup()
     _reconcile_autonomy_sessions_on_startup()
+    _reconcile_actions_on_startup()
     from gateway.automation_supervisor import RecoveryPolicy, supervisor
     from gateway.image_recipes import seed_default_recipes
 

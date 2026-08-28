@@ -1321,12 +1321,19 @@ export async function fetchActions(status?: string): Promise<GatewayAction[]> {
   return json.actions ?? []
 }
 
-export async function approveAction(id: number): Promise<void> {
-  await gfetch(`/actions/${id}/approve`, { method: 'POST' })
+export async function approveAction(id: number): Promise<GatewayAction> {
+  return gfetch<GatewayAction>(`/actions/${id}/approve`, { method: 'POST' })
 }
 
 export async function rejectAction(id: number): Promise<void> {
   await gfetch(`/actions/${id}/reject`, { method: 'POST' })
+}
+
+/** Dispatch an approved (or auto-executable) action through its executor.
+ *  Approving a T2 action does not run it — this is the second, separate
+ *  call that actually produces the durable result. */
+export async function executeAction(id: number): Promise<GatewayAction> {
+  return gfetch<GatewayAction>(`/actions/${id}/execute`, { method: 'POST' })
 }
 
 export async function snapshotState(): Promise<void> {
@@ -2124,6 +2131,38 @@ export async function approveBuilderJob(
     },
     15000,
   )
+}
+
+export interface ConversationResume {
+  ok: boolean
+  state?: string | null
+  error_code?: string | null
+  error?: string | null
+  next_action?: string | null
+  objective?: string | null
+  mission?: { id?: string | null; manifest_sha256?: string | null; state?: string | null }
+  current_work?: {
+    packet_id?: string | null
+    task_id?: string | null
+    state?: string | null
+    attempt_count?: number | null
+  }
+  blocker?: string | null
+  pr?: {
+    number?: number | null
+    url?: string | null
+    checks_state?: string | null
+    review_state?: string | null
+    merged?: boolean | null
+  } | null
+}
+
+/** Recover durable Builder job state for a proposal a reloaded chat message
+ *  already approved — see gateway/conversation_handoff.py's `resume`. Chat
+ *  history is never the source of truth for this; only the mission id is. */
+export async function resumeBuilderJob(missionId: string): Promise<ConversationResume> {
+  const params = new URLSearchParams({ mission_id: missionId })
+  return await gfetch<ConversationResume>(`/builder/conversation/resume?${params.toString()}`, undefined, 15000)
 }
 
 // ── Experts ────────────────────────────────────────────────────────────────────

@@ -307,3 +307,44 @@ def test_approved_action_refuses_payload_changed_after_approval(monkeypatch):
 
     with pytest.raises(action_queue.ApprovalIdentityMismatch):
         action_queue.execute(action["id"])
+
+
+# --- REL-002: startup reconciliation of stale `executing` claims -----------
+
+
+def test_reconcile_stale_executing_marks_orphaned_claims_unknown():
+    """A row still `executing` after a restart has an unknowable outcome."""
+    action = _propose("todo.create", {"content": "x"})
+    assert action_queue._claim_for_execution(action["id"], "proposed") is True
+    assert action_queue.get(action["id"])["status"] == "executing"
+
+    reconciled = action_queue.reconcile_stale_executing()
+
+    assert reconciled == 1
+    row = action_queue.get(action["id"])
+    assert row["status"] == "unknown"
+    assert "unknown" in row["result"].lower()
+    assert row["executed_at"] is not None
+
+
+def test_reconcile_stale_executing_never_touches_other_statuses():
+    """Only `executing` rows are ambiguous; every other status stays put."""
+    proposed = _propose("todo.create", {"content": "a"})
+    executed = _propose("todo.create", {"content": "b"})
+    action_queue.execute(executed["id"])
+
+    reconciled = action_queue.reconcile_stale_executing()
+
+    assert reconciled == 0
+    assert action_queue.get(proposed["id"])["status"] == "proposed"
+    assert action_queue.get(executed["id"])["status"] == "executed"
+
+
+def test_unknown_actions_are_terminal_and_cannot_be_re_executed():
+    """Reconciled rows must never be blindly retried."""
+    action = _propose("todo.create", {"content": "x"})
+    assert action_queue._claim_for_execution(action["id"], "proposed") is True
+    action_queue.reconcile_stale_executing()
+
+    with pytest.raises(action_queue.ActionStateError):
+        action_queue.execute(action["id"])

@@ -116,10 +116,6 @@ def register_file(
     if row is None:
         raise ArtifactError(f"artifact {artifact_id} disappeared during registration")
     existing = _row_to_artifact(row)
-    # Explicit deterministic IDs may be re-registered by a repair/restart path.
-    # Identity stays strict, while file-derived fields and provenance metadata
-    # may refresh for the same source object. Random-ID callers keep the old
-    # immutable collision behavior.
     identity_fields = ("kind", "created_by", "source_ref")
     mismatched_identity = [
         name for name in identity_fields if existing[name] != artifact[name]
@@ -207,6 +203,31 @@ def get_artifact(artifact_id: str) -> dict[str, Any] | None:
     with kitty_db.connect(ARTIFACTS_DB_FILE) as conn:
         row = conn.execute("SELECT * FROM artifacts WHERE id = ?", (artifact_id,)).fetchone()
     return _row_to_artifact(row) if row is not None else None
+
+
+def get_artifacts(artifact_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """Return many artifacts with bounded SQLite round-trips for recovery paths."""
+    if not artifact_ids:
+        return {}
+
+    unique_ids = list(dict.fromkeys(artifact_ids))
+    init_db()
+    result: dict[str, dict[str, Any]] = {}
+
+    # SQLite has a finite host-parameter limit; chunk large recovery requests.
+    for start in range(0, len(unique_ids), 500):
+        chunk = unique_ids[start : start + 500]
+        placeholders = ",".join("?" for _ in chunk)
+        with kitty_db.connect(ARTIFACTS_DB_FILE) as conn:
+            rows = conn.execute(
+                f"SELECT * FROM artifacts WHERE id IN ({placeholders})",
+                chunk,
+            ).fetchall()
+        for row in rows:
+            artifact = _row_to_artifact(row)
+            result[artifact["id"]] = artifact
+
+    return result
 
 
 def list_artifacts(

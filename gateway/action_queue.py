@@ -34,6 +34,7 @@ Public API:
   execute(action_id) -> dict
   get(action_id) -> dict | None
   list_actions(status=None, limit=50) -> list[dict]
+  reconcile_stale_executing() -> int   # startup: orphaned `executing` -> `unknown`
   reload_registry() -> None   # test seam; rebuilds from ACTION_TIERS_FILE
 """
 
@@ -422,6 +423,36 @@ def get(action_id: int) -> dict[str, Any] | None:
     with kitty_db.connect(ACTIONS_DB_FILE) as conn:
         row = conn.execute(f"SELECT {_COLUMNS} FROM actions WHERE id = ?", (action_id,)).fetchone()
     return _row_to_action(row) if row else None
+
+
+def reconcile_stale_executing() -> int:
+    """Mark actions orphaned mid-execution by a gateway restart as outcome-unknown.
+
+    A row still ``executing`` at startup was claimed by a coroutine that no
+    longer exists — the executor may have completed the external effect,
+    partially completed it, or never run at all. There is no way to tell
+    which, so it is never blindly retried (that could duplicate a completed
+    effect) and never silently left ``executing`` forever (nothing could ever
+    query, retry, or resolve it). It is moved to a terminal ``unknown``
+    status with an explanatory result so it surfaces for manual review, the
+    same as an orphaned image job or autonomy session.
+
+    Returns the number of rows reconciled.
+    """
+    init_db()
+    now = time.time()
+    with kitty_db.connect(ACTIONS_DB_FILE) as conn:
+        cursor = conn.execute(
+            "UPDATE actions SET status = 'unknown', result = ?, executed_at = ? "
+            "WHERE status = 'executing'",
+            (
+                "gateway restarted mid-execution; outcome unknown — not "
+                "retried automatically, needs manual review",
+                now,
+            ),
+        )
+        conn.commit()
+        return int(cursor.rowcount or 0)
 
 
 def list_actions(status: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
