@@ -30,7 +30,7 @@ from typing import Any, Awaitable, Callable, Optional
 
 from gateway import automation_actions, automation_runs
 from gateway import db as kitty_db
-from gateway.paths import DATA_DIR, KITTY_DB_FILE
+from gateway.paths import CONFIG_DIR, DATA_DIR, KITTY_DB_FILE
 
 logger = logging.getLogger("kitty.cron")
 
@@ -38,7 +38,26 @@ TABLE = "cron_schedules"
 LEGACY_CRON_DB = DATA_DIR / "cron_schedules.db"
 LEGACY_IMPORT_SETTING = "cron_legacy_imported"
 
+# Same profile file and default `brief_scheduler.py` reads the user's
+# configured local-clock timezone from — reused here so a `daily` schedule
+# with no explicit `metadata.timezone` falls back to Jacob's actual
+# timezone instead of silently evaluating in whatever timezone the host
+# process happens to be running in.
+USER_PROFILE_PATH = CONFIG_DIR / "user_profile.json"
+DEFAULT_TIMEZONE = "America/Regina"
+
 _runner_task: asyncio.Task | None = None
+
+
+def _default_timezone_name() -> str:
+    try:
+        data = json.loads(USER_PROFILE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return DEFAULT_TIMEZONE
+    timezone_name = data.get("timezone") if isinstance(data, dict) else None
+    if not isinstance(timezone_name, str) or not timezone_name.strip():
+        return DEFAULT_TIMEZONE
+    return timezone_name
 
 
 def _import_legacy_cron_once() -> None:
@@ -389,15 +408,18 @@ def _due_at(s: dict, now: float) -> float | None:
             raw_metadata = s.get("metadata") or {}
             metadata = json.loads(raw_metadata) if isinstance(raw_metadata, str) else raw_metadata
             timezone_name = metadata.get("timezone") if isinstance(metadata, dict) else None
-            if timezone_name:
-                try:
-                    zone = ZoneInfo(str(timezone_name))
-                except ZoneInfoNotFoundError:
-                    logger.warning("Cron daily schedule has unknown timezone: %s", timezone_name)
-                    return None
-                local_now = datetime.datetime.fromtimestamp(now, zone)
-            else:
-                local_now = datetime.datetime.fromtimestamp(now)
+            # A schedule with no explicit timezone still needs one to
+            # evaluate "daily at HH:MM" against — fall back to Jacob's
+            # configured timezone rather than the host process's implicit
+            # local time, which is neither recorded nor guaranteed stable
+            # across where Kitty happens to run.
+            effective_timezone = str(timezone_name) if timezone_name else _default_timezone_name()
+            try:
+                zone = ZoneInfo(effective_timezone)
+            except ZoneInfoNotFoundError:
+                logger.warning("Cron daily schedule has unknown timezone: %s", effective_timezone)
+                return None
+            local_now = datetime.datetime.fromtimestamp(now, zone)
             today_target = local_now.replace(
                 hour=target_h, minute=target_m, second=0, microsecond=0
             ).timestamp()

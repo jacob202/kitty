@@ -57,3 +57,75 @@ async def test_schedule_status_keeps_history_when_schedule_is_disabled(automatio
     assert payload["execution"]["state"] == "disabled"
     assert payload["latest_run"]["id"] == run["id"]
     assert payload["latest_run"]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_with_no_timezone_stores_no_timezone_metadata(automation_db):
+    from gateway import cron
+    from gateway.routes import cron as cron_routes
+
+    payload = cron_routes.ScheduleRequest(
+        name="brief", action="brief.deliver", schedule_type="daily", schedule_value="08:00"
+    )
+    result = await cron_routes.cron_create_schedule(payload)
+
+    row = next(r for r in cron.list_schedules() if r["id"] == result["id"])
+    assert row["metadata"] == "{}"
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_with_explicit_timezone_stores_it(automation_db):
+    from gateway import cron
+    from gateway.routes import cron as cron_routes
+
+    payload = cron_routes.ScheduleRequest(
+        name="brief",
+        action="brief.deliver",
+        schedule_type="daily",
+        schedule_value="08:00",
+        timezone="America/Toronto",
+    )
+    result = await cron_routes.cron_create_schedule(payload)
+
+    row = next(r for r in cron.list_schedules() if r["id"] == result["id"])
+    assert row["metadata"] == '{"timezone": "America/Toronto"}'
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_rejects_unknown_timezone(automation_db):
+    from fastapi import HTTPException
+
+    from gateway.routes import cron as cron_routes
+
+    payload = cron_routes.ScheduleRequest(
+        name="brief",
+        action="brief.deliver",
+        schedule_type="daily",
+        schedule_value="08:00",
+        timezone="Not/AZone",
+    )
+    with pytest.raises(HTTPException) as excinfo:
+        await cron_routes.cron_create_schedule(payload)
+    assert excinfo.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_schedule_with_timezone_replaces_metadata(automation_db):
+    from gateway import cron
+    from gateway.routes import cron as cron_routes
+
+    sid = cron.schedule(
+        "brief", "brief.deliver", "daily", "08:00", {"timezone": "America/Regina"}
+    )
+    payload = cron_routes.ScheduleRequest(
+        name="brief",
+        action="brief.deliver",
+        schedule_type="daily",
+        schedule_value="08:00",
+        timezone="America/Toronto",
+    )
+    result = await cron_routes.cron_update_schedule(sid, payload)
+
+    assert result == {"ok": True}
+    row = next(r for r in cron.list_schedules() if r["id"] == sid)
+    assert row["metadata"] == '{"timezone": "America/Toronto"}'
