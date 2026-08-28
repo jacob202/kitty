@@ -1,13 +1,15 @@
 'use client'
-import type { CSSProperties } from 'react'
-import { useProjects, useProjectNext, useProjectResume, useRefreshProject } from '@/lib/queries'
-import type { GatewayProject } from '@/lib/gateway'
+import { useState, type CSSProperties } from 'react'
+import { useProjects, useProjectNextSteps, useProjectResume, useRefreshProject } from '@/lib/queries'
+import type { GatewayNextStep, GatewayProject } from '@/lib/gateway'
 import { Button } from '@/components/ui/Button'
 import { RefreshCw } from 'lucide-react'
 
 export function ProjectsPanel() {
   const projectsQuery = useProjects()
   const refresh = useRefreshProject()
+  const projects = projectsQuery.data ?? []
+  const nextSteps = useProjectNextSteps(projects)
 
   if (projectsQuery.isLoading) {
     return <p style={mutedStyle}>loading projects…</p>
@@ -23,31 +25,29 @@ export function ProjectsPanel() {
     )
   }
 
-  const projects = projectsQuery.data ?? []
-
   return (
     <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
-      <header>
-        <h2 style={titleStyle}>projects</h2>
-        <p style={subtitleStyle}>
-          every project carries a generated next step — the thing to reach for, not a repo task.
-        </p>
-      </header>
-
-      {projects.length === 0 && (
-        <p style={mutedStyle}>
-          no projects registered yet — add one using the form below.
-        </p>
+      {projects.length === 0 ? (
+        <div style={emptyStateStyle}>
+          <strong>No projects yet</strong>
+          <span>Projects will appear here when Kitty has durable project context to show.</span>
+        </div>
+      ) : (
+        <section aria-label="Project list" data-testid="project-list" style={projectListStyle}>
+          {projects.map((p, index) => (
+            <ProjectCard
+              key={p.id}
+              project={p}
+              onRefresh={() => refresh.mutate(p.id)}
+              refreshing={refresh.isPending && refresh.variables === p.id}
+              isLast={index === projects.length - 1}
+              nextStep={nextSteps[index]?.data ?? null}
+              nextPending={nextSteps[index]?.isPending ?? false}
+              nextError={nextSteps[index]?.isError ?? false}
+            />
+          ))}
+        </section>
       )}
-
-      {projects.map(p => (
-        <ProjectCard
-          key={p.id}
-          project={p}
-          onRefresh={() => refresh.mutate(p.id)}
-          refreshing={refresh.isPending && refresh.variables === p.id}
-        />
-      ))}
     </div>
   )
 }
@@ -56,49 +56,60 @@ function ProjectCard({
   project,
   onRefresh,
   refreshing,
+  isLast,
+  nextStep,
+  nextPending,
+  nextError,
 }: {
   project: GatewayProject
   onRefresh: () => void
   refreshing: boolean
+  isLast: boolean
+  nextStep: GatewayNextStep | null
+  nextPending: boolean
+  nextError: boolean
 }) {
-  const nextQuery = useProjectNext(project.id)
+  const [contextOpen, setContextOpen] = useState(false)
   const touched = project.last_touched
     ? new Date(project.last_touched * 1000).toLocaleDateString('en-CA')
     : null
 
   return (
-    <div style={cardStyle}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-        <span style={nameStyle}>{project.name}</span>
-        <span style={chipStyle}>{project.kind}</span>
-        <span style={{ ...chipStyle, color: project.status === 'active' ? 'var(--c-green)' : 'var(--ink-2)' }}>
-          {project.status}
-        </span>
-        {touched && <span style={metaStyle}>touched {touched}</span>}
-        <span style={{ flex: 1 }} />
-        <Button onClick={onRefresh} variant="ghost" size="sm" disabled={refreshing} icon={<RefreshCw size={12} />}>
+    <article
+      data-testid="project-row"
+      style={{ ...projectRowStyle, borderBottom: isLast ? 'none' : '1px solid var(--color-separator)' }}
+    >
+      <div style={projectHeaderStyle}>
+        <div style={projectIdentityStyle}>
+          <div style={projectIdentityLineStyle}>
+            <span style={nameStyle}>{project.name}</span>
+            <span style={chipStyle}>{project.kind}</span>
+            <span style={{ ...chipStyle, color: project.status === 'active' ? 'var(--color-success)' : 'var(--color-text-secondary)' }}>
+              {project.status}
+            </span>
+          </div>
+          {touched && <span style={metaStyle}>touched {touched}</span>}
+        </div>
+        <Button onClick={onRefresh} variant="ghost" size="md" disabled={refreshing} icon={<RefreshCw size={14} />}>
           {refreshing ? 'refreshing…' : 'refresh'}
         </Button>
       </div>
 
       {project.summary && <p style={summaryStyle}>{project.summary}</p>}
 
-      <div style={nextBoxStyle}>
+      <div data-testid="project-next-step" style={nextBoxStyle}>
         <div style={nextLabelStyle}>what&apos;s next</div>
-        {nextQuery.isLoading ? (
+        {nextPending ? (
           <p style={mutedStyle}>checking…</p>
-        ) : nextQuery.isError ? (
-          <p style={mutedStyle}>
-            couldn&apos;t read the next step (
-            {nextQuery.error instanceof Error ? nextQuery.error.message : 'gateway error'})
-          </p>
-        ) : nextQuery.data ? (
+        ) : nextError ? (
+          <p style={mutedStyle}>couldn&apos;t read the next step — refresh the project to try again.</p>
+        ) : nextStep ? (
           <>
-            <p style={stepStyle}>{nextQuery.data.step}</p>
-            {nextQuery.data.why && <p style={whyStyle}>why: {nextQuery.data.why}</p>}
-            {nextQuery.data.recent_win && (
-              <p style={{ ...whyStyle, color: 'var(--c-green)' }}>
-                recent win: {nextQuery.data.recent_win}
+            <p style={stepStyle}>{nextStep.step}</p>
+            {nextStep.why && <p style={whyStyle}>why: {nextStep.why}</p>}
+            {nextStep.recent_win && (
+              <p style={{ ...whyStyle, color: 'var(--color-success)' }}>
+                recent win: {nextStep.recent_win}
               </p>
             )}
           </>
@@ -107,189 +118,242 @@ function ProjectCard({
         )}
       </div>
 
-      {project.next_actions.length > 0 && (
-        <div>
-          <div style={nextLabelStyle}>open actions</div>
-          <ul style={{ margin: '4px 0 0 16px', display: 'grid', gap: 2 }}>
-            {project.next_actions.slice(0, 4).map((a, i) => (
-              <li key={i} style={actionStyle}>{a}</li>
-            ))}
-          </ul>
+      <button
+        type="button"
+        aria-expanded={contextOpen}
+        aria-label={`Project context for ${project.name}`}
+        onClick={() => setContextOpen((open) => !open)}
+        style={contextButtonStyle}
+      >
+        <span>Project context</span>
+        <span style={{ color: 'var(--color-text-muted)', fontWeight: 500 }}>
+          {contextOpen ? 'Hide' : 'Show'}
+        </span>
+      </button>
+
+      {contextOpen && (
+        <div style={contextPanelStyle}>
+          <ProjectContext project={project} />
         </div>
       )}
-
-      <ProjectWork projectId={project.id} />
-      <ProjectArtifacts projectId={project.id} />
-    </div>
+    </article>
   )
 }
 
-/** Bounded, secondary — Builder initiatives scoped to this project. */
-function ProjectWork({ projectId }: { projectId: number }) {
-  const resumeQuery = useProjectResume(projectId)
-
-  if (resumeQuery.isLoading || resumeQuery.isError) return null
-
-  const items = resumeQuery.data?.work?.items ?? []
-  if (items.length === 0) return null
-
-  return (
-    <div>
-      <div style={nextLabelStyle}>builder work</div>
-      <ul style={{ margin: '4px 0 0 16px', display: 'grid', gap: 2 }}>
-        {items.slice(0, 5).map(item => (
-          <li key={item.id} style={actionStyle}>
-            <span>{item.title ?? item.id}</span>{' '}
-            <span style={metaStyle}>
-              · {item.state}{item.next_action ? ` · ${item.next_action}` : ''}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-/** Bounded, secondary — a quiet supplement to "what's next", not a peer. */
-function ProjectArtifacts({ projectId }: { projectId: number }) {
-  const resumeQuery = useProjectResume(projectId)
+function ProjectContext({ project }: { project: GatewayProject }) {
+  const resumeQuery = useProjectResume(project.id)
 
   if (resumeQuery.isLoading) {
-    return <p style={mutedStyle}>checking recent files…</p>
+    return <p style={mutedStyle}>checking project context…</p>
   }
 
   if (resumeQuery.isError) {
     return (
       <p style={mutedStyle}>
-        recent files unavailable (
+        project context unavailable (
         {resumeQuery.error instanceof Error ? resumeQuery.error.message : 'gateway error'})
       </p>
     )
   }
 
+  const items = resumeQuery.data?.work?.items ?? []
   const artifacts = resumeQuery.data?.artifacts ?? []
-  if (artifacts.length === 0) return null
+  const actions = project.next_actions.slice(0, 4)
+
+  if (actions.length === 0 && items.length === 0 && artifacts.length === 0) {
+    return <p style={mutedStyle}>no related work or recent files yet.</p>
+  }
 
   return (
-    <div>
-      <div style={nextLabelStyle}>recent files</div>
-      <ul style={{ margin: '4px 0 0 16px', display: 'grid', gap: 2 }}>
-        {artifacts.slice(0, 5).map(a => (
-          <li key={a.id} style={actionStyle}>
-            <span>{a.display_name}</span>{' '}
-            <span style={metaStyle}>
-              · {a.kind} · {a.state} · {new Date(a.created_at * 1000).toLocaleDateString('en-CA')}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <>
+      {actions.length > 0 && (
+        <div>
+          <div style={nextLabelStyle}>open actions</div>
+          <ul style={{ margin: '6px 0 0 18px', display: 'grid', gap: 4 }}>
+            {actions.map((action, index) => (
+              <li key={index} style={actionStyle}>{action}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {items.length > 0 && (
+        <div>
+          <div style={nextLabelStyle}>builder work</div>
+          <ul style={{ margin: '6px 0 0 18px', display: 'grid', gap: 4 }}>
+            {items.slice(0, 5).map(item => (
+              <li key={item.id} style={actionStyle}>
+                <span>{item.title ?? item.id}</span>{' '}
+                <span style={metaStyle}>· {item.state}{item.next_action ? ` · ${item.next_action}` : ''}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {artifacts.length > 0 && (
+        <div>
+          <div style={nextLabelStyle}>recent files</div>
+          <ul style={{ margin: '6px 0 0 18px', display: 'grid', gap: 4 }}>
+            {artifacts.slice(0, 5).map(artifact => (
+              <li key={artifact.id} style={actionStyle}>
+                <span>{artifact.display_name}</span>{' '}
+                <span style={metaStyle}>
+                  · {artifact.kind} · {artifact.state} · {new Date(artifact.created_at * 1000).toLocaleDateString('en-CA')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
   )
 }
 
-const titleStyle: CSSProperties = {
-  fontFamily: 'var(--font-display)',
-  fontWeight: 800,
-  fontSize: 28,
-  letterSpacing: '-0.02em',
-  color: 'var(--ink)',
-}
-
-const subtitleStyle: CSSProperties = {
-  fontSize: 13,
-  color: 'var(--ink-2)',
-  marginTop: 2,
-}
-
-const cardStyle: CSSProperties = {
-  background: 'var(--surface)',
-  border: '1.5px solid var(--line)',
-  borderRadius: 14,
-  padding: 18,
-  display: 'grid',
+const projectHeaderStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  justifyContent: 'space-between',
   gap: 12,
+}
+
+const projectIdentityStyle: CSSProperties = {
+  display: 'grid',
+  gap: 6,
+  minWidth: 0,
+  flex: 1,
+}
+
+const projectIdentityLineStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  flexWrap: 'wrap',
+}
+
+const projectListStyle: CSSProperties = {
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 'var(--r-surface)',
+  overflow: 'hidden',
+}
+
+const projectRowStyle: CSSProperties = {
+  padding: '20px 22px',
+  display: 'grid',
+  gap: 14,
+}
+
+const emptyStateStyle: CSSProperties = {
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 'var(--r-surface)',
+  padding: 24,
+  display: 'grid',
+  gap: 6,
+  fontSize: 14,
+  color: 'var(--color-text-secondary)',
 }
 
 const nameStyle: CSSProperties = {
   fontFamily: 'var(--font-display)',
   fontWeight: 700,
   fontSize: 18,
-  color: 'var(--ink)',
+  color: 'var(--color-text-primary)',
 }
 
 const chipStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  letterSpacing: '0.06em',
-  textTransform: 'lowercase',
-  padding: '2px 8px',
-  border: '1px solid var(--line)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 11.5,
+  fontWeight: 600,
+  padding: '3px 8px',
+  border: '1px solid var(--color-separator)',
   borderRadius: 999,
-  color: 'var(--ink-2)',
+  color: 'var(--color-text-secondary)',
 }
 
 const metaStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--ink-2)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 11.5,
+  color: 'var(--color-text-muted)',
 }
 
 const summaryStyle: CSSProperties = {
   fontSize: 14,
   lineHeight: 1.55,
-  color: 'var(--ink)',
+  color: 'var(--color-text-secondary)',
 }
 
 const nextBoxStyle: CSSProperties = {
-  background: 'var(--ginger-fade)',
-  border: '1.5px solid var(--cat-ginger)',
-  borderRadius: 10,
-  padding: '10px 14px',
+  background: 'var(--color-surface-elevated)',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 'var(--r-control)',
+  padding: '12px 14px',
   display: 'grid',
-  gap: 4,
+  gap: 5,
 }
 
 const nextLabelStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
   fontWeight: 700,
-  letterSpacing: '0.12em',
-  textTransform: 'lowercase',
-  color: 'var(--cat-ginger)',
+  color: 'var(--color-text-secondary)',
 }
 
 const stepStyle: CSSProperties = {
   fontSize: 15,
   fontWeight: 600,
   lineHeight: 1.5,
-  color: 'var(--ink)',
+  color: 'var(--color-text-primary)',
 }
 
 const whyStyle: CSSProperties = {
-  fontSize: 12,
-  color: 'var(--ink-2)',
+  fontSize: 13,
+  color: 'var(--color-text-secondary)',
   lineHeight: 1.5,
 }
 
 const actionStyle: CSSProperties = {
   fontSize: 13,
-  color: 'var(--ink)',
+  color: 'var(--color-text-primary)',
   lineHeight: 1.5,
 }
 
+const contextButtonStyle: CSSProperties = {
+  minHeight: 44,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  padding: '8px 10px',
+  margin: '0 -10px -4px',
+  borderRadius: 'var(--r-control)',
+  color: 'var(--color-text-secondary)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 13,
+  fontWeight: 600,
+  background: 'transparent',
+}
+
+const contextPanelStyle: CSSProperties = {
+  display: 'grid',
+  gap: 14,
+  padding: '14px 0 2px',
+  borderTop: '1px solid var(--color-separator)',
+}
+
 const mutedStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
-  color: 'var(--ink-2)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 13,
+  color: 'var(--color-text-secondary)',
+  lineHeight: 1.5,
 }
 
 const errorBoxStyle: CSSProperties = {
-  border: '1.5px solid var(--c-red)',
-  background: 'var(--surface)',
-  borderRadius: 12,
+  border: '1px solid var(--color-destructive)',
+  background: 'var(--color-surface)',
+  borderRadius: 'var(--r-control)',
   padding: 16,
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
-  color: 'var(--c-red)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 13,
+  color: 'var(--color-destructive)',
   lineHeight: 1.6,
 }

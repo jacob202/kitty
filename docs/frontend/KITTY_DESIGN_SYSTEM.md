@@ -83,3 +83,11 @@ Home is a daily overview, not an operator console. Default reading order is: com
 Secondary context stays available without competing for first-screen attention. `More context` contains returned insights, state changes, and expert context. `System & setup` contains full-stack health, repairs, signals, Builder status, and phone-access setup. Both disclosures are closed by default; this hides visual noise, not backend truth.
 
 Home uses a bounded desktop canvas and a single-column phone composition. Empty and explanatory states use normal body typography; monospaced text is reserved for genuinely technical identifiers or evidence. Capture remains easy to reach after the daily priorities rather than displacing them.
+
+## Projects
+
+Projects is a context boundary, not a second execution dashboard. The default view is one bounded project list: identity/status, short context, and the generated next step. Related actions, Builder work, and recent files stay behind a per-project `Project context` disclosure.
+
+Missing generated next steps are normal empty state. Use the bulk next-step projection rather than issuing per-project reads that turn "not generated yet" into browser 404 noise. Refresh remains an explicit user action and must keep a 44px touch target.
+
+Project rows share one surface and separators instead of becoming a stack of equal-weight cards. Keep only one page heading, use body typography for metadata, and keep the next-step surface neutral rather than accent-outlined.
