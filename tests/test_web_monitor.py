@@ -1,4 +1,5 @@
 """Tests for web_monitor — URL watching and keyword matching."""
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -69,7 +70,11 @@ class TestCheck:
             assert result.get("changed") is True
 
     @pytest.mark.asyncio
-    async def test_keyword_match_counts_as_change(self):
+    async def test_keyword_match_on_first_check_does_not_count_as_change(self):
+        """RC-09: the first-ever check has no baseline to transition from, so
+        it must not report a change — same guard non-keyword watches already
+        had via test_check_no_change_first_time. keyword_matches still
+        reports the match for visibility."""
         wid = add_watch("https://example.com/test3", keywords=["sansui"])
 
         with patch("httpx.AsyncClient.get") as mock_get:
@@ -78,6 +83,29 @@ class TestCheck:
             mock_resp.text = "found a Sansui AU-7900 for sale"
             mock_get.return_value = mock_resp
             from gateway.web_monitor import check_now
+            result = await check_now(wid)
+            assert result.get("changed") is False
+            assert "sansui" in result.get("keyword_matches", [])
+
+    @pytest.mark.asyncio
+    async def test_keyword_match_transition_counts_as_change(self):
+        """The false -> true match transition (only) counts as a change."""
+        wid = add_watch("https://example.com/test3b", keywords=["sansui"])
+        from gateway.web_monitor import check_now
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_resp = AsyncMock()
+            mock_resp.status_code = 200
+            mock_resp.text = "nothing interesting here"
+            mock_get.return_value = mock_resp
+            baseline = await check_now(wid)
+            assert baseline.get("changed") is False
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_resp = AsyncMock()
+            mock_resp.status_code = 200
+            mock_resp.text = "found a Sansui AU-7900 for sale"
+            mock_get.return_value = mock_resp
             result = await check_now(wid)
             assert result.get("changed") is True
             assert "sansui" in result.get("keyword_matches", [])
@@ -124,3 +152,41 @@ async def test_check_due_preserves_per_watch_intervals(monkeypatch):
     assert checked == ["due"]
     assert handled == ["due"]
     assert result == {"checked": 1, "changed": 1, "failed": 0}
+
+
+@pytest.mark.asyncio
+async def test_check_due_skips_an_overlapping_sweep_instead_of_racing_it(monkeypatch):
+    """RC-09: check_due() has no per-schedule claim like cron's — a manual
+    trigger can overlap an in-progress sweep. An overlapping call must skip,
+    not race the running sweep over the same watches' stored state."""
+    import gateway.web_monitor as wm
+
+    watches = [{"id": "w1", "enabled": True, "interval_minutes": 5, "last_checked": 0.0}]
+    monkeypatch.setattr(wm, "list_watches", lambda: watches)
+
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    calls: list[str] = []
+
+    async def slow_check(watch):
+        calls.append(watch["id"])
+        entered.set()
+        await release.wait()
+        return {"changed": False}
+
+    async def fake_handle(watch, _result):
+        return None
+
+    monkeypatch.setattr(wm, "_check_watch", slow_check)
+    monkeypatch.setattr(wm, "_handle_watch_result", fake_handle)
+
+    first_task = asyncio.create_task(wm.check_due())
+    await entered.wait()
+
+    overlapping = await wm.check_due()
+    assert overlapping == {"checked": 0, "changed": 0, "failed": 0, "skipped": True}
+    assert calls == ["w1"]  # the overlapping call never reached _check_watch
+
+    release.set()
+    first_result = await first_task
+    assert first_result == {"checked": 1, "changed": 0, "failed": 0}

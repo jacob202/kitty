@@ -1321,12 +1321,19 @@ export async function fetchActions(status?: string): Promise<GatewayAction[]> {
   return json.actions ?? []
 }
 
-export async function approveAction(id: number): Promise<void> {
-  await gfetch(`/actions/${id}/approve`, { method: 'POST' })
+export async function approveAction(id: number): Promise<GatewayAction> {
+  return gfetch<GatewayAction>(`/actions/${id}/approve`, { method: 'POST' })
 }
 
 export async function rejectAction(id: number): Promise<void> {
   await gfetch(`/actions/${id}/reject`, { method: 'POST' })
+}
+
+/** Dispatch an approved (or auto-executable) action through its executor.
+ *  Approving a T2 action does not run it — this is the second, separate
+ *  call that actually produces the durable result. */
+export async function executeAction(id: number): Promise<GatewayAction> {
+  return gfetch<GatewayAction>(`/actions/${id}/execute`, { method: 'POST' })
 }
 
 export async function snapshotState(): Promise<void> {
@@ -2045,6 +2052,117 @@ export async function executeOperatorCommand(payload: OperatorCommandPayload): P
     },
     15000,
   )
+}
+
+// ── Conversation -> Builder job handoff ───────────────────────────────────────
+// Mirrors the KittyBuilder MCP bridge's propose/approve contract (see
+// gateway/conversation_handoff.py) so a job proposed from a Kitty chat and one
+// proposed by an MCP client share one approval mechanism and one durable store.
+
+export interface ConversationProposeRequest {
+  objective: string
+  instructions: string
+  allowed_paths: string[]
+  initiative_id?: string
+  title?: string
+  acceptance_criteria?: string[]
+  validation_commands?: string[]
+}
+
+export interface ConversationProposal {
+  ok: boolean
+  state?: string | null
+  error_code?: string | null
+  error?: string | null
+  next_action?: string | null
+  mission_id?: string | null
+  manifest_sha256?: string
+  expected_base_sha?: string
+  approval_nonce?: string
+  warnings?: string[]
+  prepared_manifest?: Record<string, unknown>
+  objective?: string
+  design?: { path: string; sha: string }
+  plan?: { path: string; sha: string }
+}
+
+export async function proposeBuilderJob(
+  payload: ConversationProposeRequest,
+): Promise<ConversationProposal> {
+  return await gfetch<ConversationProposal>(
+    '/builder/conversation/propose',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    20000,
+  )
+}
+
+export interface ConversationApproveRequest {
+  prepared_manifest: Record<string, unknown>
+  expected_manifest_sha: string
+  expected_base_sha: string
+  approval_nonce: string
+  confirmed: boolean
+}
+
+export interface ConversationApproval {
+  ok: boolean
+  state?: string | null
+  error_code?: string | null
+  error?: string | null
+  next_action?: string | null
+  mission_id?: string | null
+  apply_status?: string
+  tasks?: Array<{ packet_id: string; task_id: string }>
+}
+
+export async function approveBuilderJob(
+  payload: ConversationApproveRequest,
+): Promise<ConversationApproval> {
+  return await gfetch<ConversationApproval>(
+    '/builder/conversation/approve',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    15000,
+  )
+}
+
+export interface ConversationResume {
+  ok: boolean
+  state?: string | null
+  error_code?: string | null
+  error?: string | null
+  next_action?: string | null
+  objective?: string | null
+  mission?: { id?: string | null; manifest_sha256?: string | null; state?: string | null }
+  current_work?: {
+    packet_id?: string | null
+    task_id?: string | null
+    state?: string | null
+    attempt_count?: number | null
+  }
+  blocker?: string | null
+  pr?: {
+    number?: number | null
+    url?: string | null
+    checks_state?: string | null
+    review_state?: string | null
+    merged?: boolean | null
+  } | null
+}
+
+/** Recover durable Builder job state for a proposal a reloaded chat message
+ *  already approved — see gateway/conversation_handoff.py's `resume`. Chat
+ *  history is never the source of truth for this; only the mission id is. */
+export async function resumeBuilderJob(missionId: string): Promise<ConversationResume> {
+  const params = new URLSearchParams({ mission_id: missionId })
+  return await gfetch<ConversationResume>(`/builder/conversation/resume?${params.toString()}`, undefined, 15000)
 }
 
 // ── Experts ────────────────────────────────────────────────────────────────────

@@ -13,6 +13,20 @@ class ScheduleRequest(BaseModel):
     action: str = Field(min_length=1, max_length=200)
     schedule_type: str = Field(default="daily")
     schedule_value: str = Field(default="07:00")
+    timezone: str | None = Field(default=None, max_length=100)
+
+
+def _validate_timezone(timezone: str | None) -> dict:
+    """Return metadata for a schedule, rejecting an unknown IANA zone."""
+    if timezone is None:
+        return {}
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        ZoneInfo(timezone)
+    except ZoneInfoNotFoundError:
+        raise HTTPException(status_code=422, detail=f"Unknown timezone: {timezone}")
+    return {"timezone": timezone}
 
 
 @router.get("/cron/schedules")
@@ -65,6 +79,7 @@ async def cron_create_schedule(payload: ScheduleRequest):
         action=payload.action,
         schedule_type=payload.schedule_type,
         schedule_value=payload.schedule_value,
+        metadata=_validate_timezone(payload.timezone),
     )
     return {"id": sid}
 
@@ -87,6 +102,7 @@ async def cron_update_schedule(sid: str, payload: ScheduleRequest):
         payload.action,
         payload.schedule_type,
         payload.schedule_value,
+        metadata=_validate_timezone(payload.timezone),
     )
     if not ok:
         raise HTTPException(status_code=404, detail=f"Schedule not found: {sid}")

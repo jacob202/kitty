@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS actions (
     payload TEXT NOT NULL DEFAULT '{}',
     risk_tier TEXT NOT NULL,       -- T0|T1|T2 (disabled_v1 kinds cannot exist)
     status TEXT NOT NULL DEFAULT 'proposed',
-        -- proposed|approved|rejected|executed|failed
+        -- proposed|approved|rejected|executing|executed|failed|unknown
+        -- (unknown: reconciled from executing after a restart mid-execution)
     result TEXT,
     decided_at REAL,
     executed_at REAL

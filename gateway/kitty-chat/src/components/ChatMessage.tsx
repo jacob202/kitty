@@ -1,6 +1,6 @@
 'use client'
-import { isValidElement, useRef, useState, type ReactNode, type CSSProperties } from 'react'
-import ReactMarkdown from 'react-markdown'
+import { isValidElement, useMemo, useRef, useState, type ComponentProps, type ReactNode, type CSSProperties } from 'react'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Copy, Check, RotateCcw, Paperclip, ThumbsUp, ThumbsDown } from 'lucide-react'
@@ -9,6 +9,9 @@ import { deleteMemory } from '@/lib/gateway'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
 import { ToolCallList } from './ToolCallBlock'
+import { BuilderProposalCard, type BuilderProposalTask } from './builder/BuilderProposalCard'
+
+const BUILDER_PROPOSAL_LANG = 'kitty-builder-proposal'
 
 interface Props {
   message: Message
@@ -110,7 +113,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               <TypingDots />
             ) : (
               <>
-                <MessageContent content={message.content} isUser={isUser} />
+                <MessageContent content={message.content} isUser={isUser} chatId={chatId} messageIndex={messageIndex} />
                 {message.toolCalls && message.toolCalls.length > 0 && (
                   <ToolCallList toolCalls={message.toolCalls} isStreaming={isStreaming} />
                 )}
@@ -200,42 +203,55 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
   )
 }
 
-function MessageContent({ content, isUser }: { content: string; isUser: boolean }) {
+// Stable across renders — react-markdown treats a new remarkPlugins/rehypePlugins/
+// components reference as a reason to reprocess and remount its whole output tree.
+// ChatMessage's parent re-renders on every hover/focus change (see actionsVisible),
+// which — with inline literals here — was unmounting and remounting every button
+// inside markdown content (including BuilderProposalCard's Compile/Approve/Confirm)
+// between a real mousedown and mouseup, silently dropping the click.
+const MARKDOWN_REMARK_PLUGINS = [remarkGfm]
+const MARKDOWN_REHYPE_PLUGINS: NonNullable<ComponentProps<typeof ReactMarkdown>['rehypePlugins']> = [
+  [rehypeHighlight, { detect: true, ignoreMissing: true }],
+]
+
+function MessageContent({ content, isUser, chatId, messageIndex }: { content: string; isUser: boolean; chatId: string; messageIndex: number }) {
+  const components = useMemo<Components>(() => ({
+    p: ({ children }) => <p style={pStyle}>{children}</p>,
+    h1: ({ children }) => <h1 style={h1Style}>{children}</h1>,
+    h2: ({ children }) => <h2 style={h2Style}>{children}</h2>,
+    h3: ({ children }) => <h3 style={h3Style}>{children}</h3>,
+    ul: ({ children }) => <ul style={ulStyle}>{children}</ul>,
+    ol: ({ children }) => <ol style={olStyle}>{children}</ol>,
+    li: ({ children }) => <li style={liStyle}>{children}</li>,
+    a: ({ children, href }) => (
+      <a href={href} target="_blank" rel="noreferrer" style={linkStyle} aria-label={`external link: ${typeof children === 'string' ? children : href}`}>{children}</a>
+    ),
+    blockquote: ({ children }) => <blockquote style={quoteStyle}>{children}</blockquote>,
+    hr: () => <hr style={hrStyle} />,
+    table: ({ children }) => (
+      <div style={tableWrapStyle}><table style={tableStyle}>{children}</table></div>
+    ),
+    th: ({ children }) => <th style={thStyle}>{children}</th>,
+    td: ({ children }) => <td style={tdStyle}>{children}</td>,
+    pre: ({ children }) => <CodeBlock chatId={chatId} messageIndex={messageIndex}>{children}</CodeBlock>,
+    code: ({ className, children, ...props }) => {
+      const isBlock = typeof className === 'string' && className.startsWith('language-')
+      if (isBlock) {
+        return <code className={className} style={blockCodeStyle} {...props}>{children}</code>
+      }
+      return <code style={inlineCodeStyle} {...props}>{children}</code>
+    },
+  }), [chatId, messageIndex])
+
   return (
     <div style={{
       ...bodyStyle,
       color: isUser ? 'var(--on-primary)' : 'var(--ink)',
     }}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]}
-        components={{
-          p: ({ children }) => <p style={pStyle}>{children}</p>,
-          h1: ({ children }) => <h1 style={h1Style}>{children}</h1>,
-          h2: ({ children }) => <h2 style={h2Style}>{children}</h2>,
-          h3: ({ children }) => <h3 style={h3Style}>{children}</h3>,
-          ul: ({ children }) => <ul style={ulStyle}>{children}</ul>,
-          ol: ({ children }) => <ol style={olStyle}>{children}</ol>,
-          li: ({ children }) => <li style={liStyle}>{children}</li>,
-          a: ({ children, href }) => (
-            <a href={href} target="_blank" rel="noreferrer" style={linkStyle} aria-label={`external link: ${typeof children === 'string' ? children : href}`}>{children}</a>
-          ),
-          blockquote: ({ children }) => <blockquote style={quoteStyle}>{children}</blockquote>,
-          hr: () => <hr style={hrStyle} />,
-          table: ({ children }) => (
-            <div style={tableWrapStyle}><table style={tableStyle}>{children}</table></div>
-          ),
-          th: ({ children }) => <th style={thStyle}>{children}</th>,
-          td: ({ children }) => <td style={tdStyle}>{children}</td>,
-          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
-          code: ({ className, children, ...props }) => {
-            const isBlock = typeof className === 'string' && className.startsWith('language-')
-            if (isBlock) {
-              return <code className={className} style={blockCodeStyle} {...props}>{children}</code>
-            }
-            return <code style={inlineCodeStyle} {...props}>{children}</code>
-          },
-        }}
+        remarkPlugins={MARKDOWN_REMARK_PLUGINS}
+        rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
+        components={components}
       >
         {content}
       </ReactMarkdown>
@@ -243,15 +259,44 @@ function MessageContent({ content, isUser }: { content: string; isUser: boolean 
   )
 }
 
-function CodeBlock({ children }: { children: ReactNode }) {
+function CodeBlock({ children, chatId, messageIndex }: { children: ReactNode; chatId: string; messageIndex: number }) {
   const [copied, setCopied] = useState(false)
   const preRef = useRef<HTMLPreElement>(null)
 
   let lang = ''
-  if (isValidElement<{ className?: string }>(children)) {
+  let rawText = ''
+  if (isValidElement<{ className?: string; children?: ReactNode }>(children)) {
     const cls = children.props.className ?? ''
-    const m = cls.match(/language-(\w+)/)
+    const m = cls.match(/language-([\w-]+)/)
     if (m) lang = m[1]
+    const inner = children.props.children
+    if (typeof inner === 'string') {
+      rawText = inner
+    } else if (Array.isArray(inner)) {
+      rawText = inner.filter((part): part is string => typeof part === 'string').join('')
+    }
+  }
+
+  // A ```kitty-builder-proposal fence is a structured work proposal Kitty
+  // compiled from this conversation, not a code sample — render the
+  // approval card instead of a copyable code block. See
+  // gateway/conversation_handoff.py for what approving it actually does.
+  if (lang === BUILDER_PROPOSAL_LANG) {
+    try {
+      const task = JSON.parse(rawText) as BuilderProposalTask
+      return <BuilderProposalCard task={task} chatId={chatId} messageIndex={messageIndex} />
+    } catch {
+      return (
+        <div style={codeBoxStyle}>
+          <div style={codeBoxHeaderStyle}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
+              invalid builder proposal
+            </span>
+          </div>
+          <pre style={preStyle}>{children}</pre>
+        </div>
+      )
+    }
   }
 
   const copy = () => {

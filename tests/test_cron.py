@@ -333,6 +333,55 @@ class TestShouldFire:
         assert _should_fire(schedule, winter) is True
         assert _should_fire(schedule, summer) is True
 
+    def test_daily_falls_back_to_profile_timezone_when_metadata_missing(self, monkeypatch):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        import gateway.cron as cron_module
+        from gateway.cron import _should_fire
+
+        monkeypatch.setattr(cron_module, "_default_timezone_name", lambda: "America/Toronto")
+
+        eastern = ZoneInfo("America/Toronto")
+        now = datetime(2026, 8, 23, 8, 1, tzinfo=eastern).timestamp()
+        schedule = {
+            "schedule_type": "daily",
+            "schedule_value": "08:00",
+            "last_run": 0,
+            "metadata": "{}",
+        }
+        assert _should_fire(schedule, now) is True
+
+    def test_daily_explicit_timezone_overrides_profile_default(self, monkeypatch):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        import gateway.cron as cron_module
+        from gateway.cron import _should_fire
+
+        monkeypatch.setattr(cron_module, "_default_timezone_name", lambda: "America/Regina")
+
+        eastern = ZoneInfo("America/Toronto")
+        now = datetime(2026, 8, 23, 8, 1, tzinfo=eastern).timestamp()
+        schedule = {
+            "schedule_type": "daily",
+            "schedule_value": "08:00",
+            "last_run": 0,
+            "metadata": '{"timezone": "America/Toronto"}',
+        }
+        assert _should_fire(schedule, now) is True
+
+    def test_daily_unknown_timezone_does_not_fire(self):
+        from gateway.cron import _should_fire
+
+        schedule = {
+            "schedule_type": "daily",
+            "schedule_value": "08:00",
+            "last_run": 0,
+            "metadata": '{"timezone": "Not/AZone"}',
+        }
+        assert _should_fire(schedule, time.time()) is False
+
     def test_once_fires_when_past_and_never_run(self):
         from gateway.cron import _should_fire
         past = "2020-01-01T00:00:00"
@@ -344,6 +393,30 @@ class TestShouldFire:
         past = "2020-01-01T00:00:00"
         s = {"schedule_type": "once", "schedule_value": past, "last_run": time.time() - 10}
         assert _should_fire(s, time.time()) is False
+
+
+class TestDefaultTimezoneName:
+    def test_reads_configured_profile_timezone(self, tmp_path, monkeypatch):
+        import gateway.cron as cron_module
+
+        profile = tmp_path / "user_profile.json"
+        profile.write_text('{"timezone": "America/Toronto"}', encoding="utf-8")
+        monkeypatch.setattr(cron_module, "USER_PROFILE_PATH", profile)
+        assert cron_module._default_timezone_name() == "America/Toronto"
+
+    def test_falls_back_when_profile_missing(self, tmp_path, monkeypatch):
+        import gateway.cron as cron_module
+
+        monkeypatch.setattr(cron_module, "USER_PROFILE_PATH", tmp_path / "missing.json")
+        assert cron_module._default_timezone_name() == cron_module.DEFAULT_TIMEZONE
+
+    def test_falls_back_when_profile_has_no_timezone_key(self, tmp_path, monkeypatch):
+        import gateway.cron as cron_module
+
+        profile = tmp_path / "user_profile.json"
+        profile.write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(cron_module, "USER_PROFILE_PATH", profile)
+        assert cron_module._default_timezone_name() == cron_module.DEFAULT_TIMEZONE
 
 
 # ── C3 legacy import tests ──────────────────────────────────────────

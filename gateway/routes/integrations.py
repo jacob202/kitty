@@ -12,21 +12,6 @@ router = APIRouter(tags=["integrations"])
 # --- iMessage endpoints ---
 
 
-class iMessageSendRequest(BaseModel):
-    recipient: str = Field(min_length=1, max_length=100)
-    message: str = Field(min_length=1, max_length=2000)
-
-
-@router.post("/imessage/send")
-async def imessage_send(payload: iMessageSendRequest):
-    from gateway.imessage import is_available, send
-
-    if not is_available():
-        raise HTTPException(status_code=400, detail="iMessage not available (macOS only)")
-    success = send(payload.recipient, payload.message)
-    return {"sent": success}
-
-
 @router.get("/imessage/recent")
 async def imessage_recent(limit: int = 10):
     from gateway.imessage import is_available, read_recent
@@ -113,22 +98,6 @@ async def sync_import(request: Request):
 
 
 # --- Search endpoint consolidated into routes/search.py ---
-
-
-# --- Deploy endpoint ---
-
-
-class DeployRequest(BaseModel):
-    target_dir: str = Field(min_length=1, max_length=1000)
-    platform: str = "docker"
-    config: Optional[dict] = None
-
-
-@router.post("/deploy")
-async def deploy_project(payload: DeployRequest):
-    from gateway.deploy import deploy
-
-    return await deploy(payload.target_dir, payload.platform, payload.config)
 
 
 # --- Nudge endpoints ---

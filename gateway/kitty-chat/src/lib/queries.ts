@@ -55,6 +55,7 @@ import {
   fetchActions,
   approveAction,
   rejectAction,
+  executeAction,
   fetchNeedsJacob,
   snapshotState,
   fetchStateNow,
@@ -82,6 +83,10 @@ import {
   executeRepair,
   // builder control
   executeOperatorCommand,
+  // conversation -> builder job handoff
+  proposeBuilderJob,
+  approveBuilderJob,
+  resumeBuilderJob,
   // experts
   fetchExpertList,
   // signals
@@ -557,6 +562,14 @@ export function useRejectAction() {
   })
 }
 
+export function useExecuteAction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => executeAction(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['actions'] }),
+  })
+}
+
 // ── Inbox triage (needs_jacob) ────────────────────────────────────────────────
 
 export function useNeedsJacob() {
@@ -771,6 +784,38 @@ export function useOperatorCommand() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
     },
+  })
+}
+
+// Conversation -> Builder job handoff: propose does not touch Builder queue
+// state, so nothing to invalidate. Approve creates a durable initiative —
+// invalidate the same live projections OperatorControls already refreshes.
+export function useProposeBuilderJob() {
+  return useMutation({ mutationFn: proposeBuilderJob })
+}
+
+export function useApproveBuilderJob() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: approveBuilderJob,
+    onSuccess: (data) => {
+      if (data.ok) {
+        queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
+        queryClient.invalidateQueries({ queryKey: ['work'] })
+      }
+    },
+  })
+}
+
+/** Recover a Builder job's current state after a chat reload — `missionId`
+ *  is null until a proposal has actually been approved (see
+ *  BuilderProposalCard), so the query stays disabled until then. */
+export function useResumeBuilderJob(missionId: string | null) {
+  return useQuery({
+    queryKey: ['conversation-resume', missionId],
+    queryFn: () => resumeBuilderJob(missionId as string),
+    enabled: Boolean(missionId),
+    refetchInterval: 10_000,
   })
 }
 
