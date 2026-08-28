@@ -10,6 +10,7 @@ const SURFACE_LABELS: Record<string, string> = {
   chat: 'Chat',
   work: 'Work',
   builder: 'Work',
+  'builder-details': 'Builder details',
   projects: 'Projects',
   studio: 'Image Lab',
   images: 'Image Lab',

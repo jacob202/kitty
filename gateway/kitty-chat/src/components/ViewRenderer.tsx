@@ -85,8 +85,10 @@ export function ViewRenderer({
       case 'studio':
       case 'images':
         return <StudioView isMobile={isMobile} />
+      case 'builder-details':
+        return <div style={pad}><BuilderView {...builderProps} isMobile={isMobile} /></div>
       case 'builder':
-        return <div style={pad}><BuilderView {...builderProps} /></div>
+        return <WorkView isMobile={isMobile} onNavigate={homeProps?.onNavigate} />
       case 'agents':
         return <AgentWorkspacePanel />
       case 'library':

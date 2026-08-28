@@ -106,3 +106,15 @@ Library presents canonical artifacts first and derived knowledge second. Saved f
 Artifact rows share one bounded list surface with readable names, file facts, provenance, and dates. Search and refresh controls are persistent, touch-sized controls. Empty, error, and no-match states keep the artifact context visible instead of collapsing into generic failure chrome.
 
 The Knowledge section is explicitly subordinate because it is a derived index. Indexing failure must never make a saved artifact appear missing. Generic preview/open actions are not invented until the backend exposes a trustworthy artifact-content contract.
+
+## Work and Builder
+
+- Work is the canonical user-facing projection of durable Builder state; it does not own a parallel task model.
+- Group work by user meaning: `Needs you`, `In progress`, and `Completed`.
+- Each group is one shared list surface and initially shows at most five relevant rows; reveal the remainder on request.
+- Translate machine reasons into plain language in the primary row. Keep raw packet, run, approval, and evidence identifiers behind `Details`.
+- Degraded Builder truth stays visible but concise; the exact source-integrity reason belongs behind `Source details`.
+- Builder is a secondary evidence/operator surface reached from Work as `Builder details`, not a competing primary navigation destination.
+- Global Builder controls stay collapsed until requested. Packet-specific controls appear only after a packet is selected.
+- On phones, render a dedicated Builder workspace with `packets`, `worker`, and `inspector` tabs; never squeeze the desktop cockpit into the viewport.
+- Builder packet rows use body typography and 44px minimum touch targets. Monospace is reserved for implementation identifiers and deep technical evidence.

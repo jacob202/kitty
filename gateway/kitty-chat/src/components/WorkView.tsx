@@ -48,7 +48,7 @@ export default function WorkView({
                 <button
                   type="button"
                   aria-label="Open Builder details"
-                  onClick={() => onNavigate('builder')}
+                  onClick={() => onNavigate('builder-details')}
                   style={secondaryActionStyle}
                 >
                   Builder details

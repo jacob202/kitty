@@ -4,8 +4,8 @@ import type { CSSProperties } from 'react'
 import type { BuilderStatusSnapshot, BuilderInitiativeStatus, BuilderPacketStatus } from '@/lib/gateway'
 
 const treeRoot: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
+  fontFamily: 'var(--font-body)',
+  fontSize: 13,
   overflow: 'auto',
 }
 
@@ -13,15 +13,15 @@ const initiativeHeader: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 6,
+  minHeight: 40,
   padding: '8px 12px',
-  borderBottom: '1px solid var(--line)',
-  cursor: 'pointer',
+  borderBottom: '1px solid var(--color-separator)',
   userSelect: 'none',
 }
 
 const initiativeTitle: CSSProperties = {
   fontWeight: 700,
-  color: 'var(--ink)',
+  color: 'var(--color-text-primary)',
   flex: 1,
   minWidth: 0,
   overflow: 'hidden',
@@ -33,18 +33,19 @@ const packetRow: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  padding: '6px 12px 6px 28px',
-  borderBottom: '1px solid var(--line)',
+  minHeight: 44,
+  padding: '8px 12px 8px 20px',
+  borderBottom: '1px solid var(--color-separator)',
   cursor: 'pointer',
 }
 
 const packetRowSelected: CSSProperties = {
   ...packetRow,
-  background: 'var(--surface-2)',
+  background: 'var(--color-selected)',
 }
 
 const packetTitle: CSSProperties = {
-  color: 'var(--ink)',
+  color: 'var(--color-text-primary)',
   flex: 1,
   minWidth: 0,
   overflow: 'hidden',
@@ -61,23 +62,23 @@ const dot: CSSProperties = {
 
 const badge: CSSProperties = {
   padding: '1px 5px',
-  borderRadius: 3,
-  fontSize: 9,
+  borderRadius: 999,
+  fontSize: 11,
   fontWeight: 600,
   flexShrink: 0,
 }
 
 function stateLabel(packet: BuilderPacketStatus): { label: string; color: string } {
   const run = packet.run
-  if (run?.state === 'running') return { label: 'running', color: '#4CAF50' }
-  if (packet.task_state === 'blocked' || packet.blocked_reason) return { label: 'blocked', color: '#FF9800' }
-  if (packet.task_state === 'failed') return { label: 'failed', color: '#F44336' }
-  if (packet.task_state === 'done') return { label: 'done', color: '#2196F3' }
-  if (packet.task_state === 'review-ready' || packet.task_state === 'awaiting_review') return { label: 'review', color: '#9C27B0' }
-  if (packet.task_state === 'cancelled') return { label: 'cancelled', color: '#757575' }
-  if (packet.task_state === 'claimed') return { label: 'claimed', color: '#8BC34A' }
-  if (packet.run) return { label: 'queued', color: '#607D8B' }
-  return { label: 'not queued', color: 'var(--ink-3)' }
+  if (run?.state === 'running') return { label: 'running', color: 'var(--color-success)' }
+  if (packet.task_state === 'blocked' || packet.blocked_reason) return { label: 'blocked', color: 'var(--color-warning)' }
+  if (packet.task_state === 'failed') return { label: 'failed', color: 'var(--color-destructive)' }
+  if (packet.task_state === 'done') return { label: 'done', color: 'var(--color-accent)' }
+  if (packet.task_state === 'review-ready' || packet.task_state === 'awaiting_review') return { label: 'review', color: 'var(--color-accent)' }
+  if (packet.task_state === 'cancelled') return { label: 'cancelled', color: 'var(--color-text-muted)' }
+  if (packet.task_state === 'claimed') return { label: 'claimed', color: 'var(--color-success)' }
+  if (packet.run) return { label: 'queued', color: 'var(--color-text-secondary)' }
+  return { label: 'not queued', color: 'var(--color-text-muted)' }
 }
 
 function ellipsis(s: string, max: number): string {
@@ -125,10 +126,10 @@ function PacketsForInitiative({
   return (
     <div>
       <div style={initiativeHeader}>
-        <span style={{ fontSize: 10, color: 'var(--ink-2)' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
           {initiative.title.slice(0, 30)}
         </span>
-        <span style={{ color: 'var(--ink-3)', fontSize: 9 }}>
+        <span style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>
           {initiative.packets?.length ?? 0}
         </span>
       </div>

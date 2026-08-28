@@ -3,7 +3,7 @@
 import type { ComponentType } from 'react'
 
 export type ViewId =
-  | 'home' | 'chat' | 'builder' | 'settings'
+  | 'home' | 'chat' | 'builder' | 'builder-details' | 'settings'
   | 'work' | 'studio' | 'library'
   | 'tasks' | 'tools' | 'terminal' | 'projects' | 'docs' | 'providers' | 'agents' | 'images' | 'tutor' | 'journal'
 
@@ -24,6 +24,7 @@ export const VIEWS: Record<ViewId, ViewEntry> = {
   work:      { component: PlaceholderView, title: 'Work',     icon: 'work',     railSlot: true },
   studio:    { component: PlaceholderView, title: 'Studio',   icon: 'studio',   railSlot: true },
   builder:   { component: PlaceholderView, title: 'Builder',  icon: 'builder',  railSlot: true },
+  'builder-details': { component: PlaceholderView, title: 'Builder details', icon: 'builder', railSlot: false },
   library:   { component: PlaceholderView, title: 'Library',  icon: 'library',  railSlot: true },
   settings:  { component: PlaceholderView, title: 'Settings', icon: 'settings', railSlot: true },
   tasks:     { component: PlaceholderView, title: 'Tasks',    icon: 'work',     railSlot: false },

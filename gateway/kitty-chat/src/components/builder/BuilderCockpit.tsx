@@ -17,10 +17,10 @@ const cockpitRoot: CSSProperties = {
   maxWidth: 1400,
   margin: '0 auto',
   gap: 0,
-  border: '1px solid var(--line)',
-  borderRadius: 8,
+  border: '1px solid var(--color-separator)',
+  borderRadius: 'var(--r-surface)',
   overflow: 'hidden',
-  background: 'var(--surface)',
+  background: 'var(--color-surface)',
   boxSizing: 'border-box',
 }
 
@@ -35,14 +35,14 @@ const mobileRoot: CSSProperties = {
   height: '100%',
   maxWidth: 600,
   margin: '0 auto',
-  border: '1px solid var(--line)',
-  borderRadius: 8,
+  border: '1px solid var(--color-separator)',
+  borderRadius: 'var(--r-surface)',
   overflow: 'hidden',
-  background: 'var(--surface)',
+  background: 'var(--color-surface)',
 }
 
 const panelBase: CSSProperties = {
-  borderRight: '1px solid var(--line)',
+  borderRight: '1px solid var(--color-separator)',
   overflow: 'auto',
   minHeight: 0,
 }
@@ -55,18 +55,19 @@ const toolbarStyle: CSSProperties = {
   borderBottom: '1px solid var(--line)',
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--ink-2)',
+  color: 'var(--color-text-secondary)',
 }
 
 const toolbarButton: CSSProperties = {
   background: 'none',
-  border: '1px solid var(--line)',
-  borderRadius: 4,
-  padding: '3px 8px',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 'var(--r-control)',
+  minHeight: 36,
+  padding: '6px 10px',
   cursor: 'pointer',
-  color: 'var(--ink)',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
+  color: 'var(--color-text-primary)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
   display: 'flex',
   alignItems: 'center',
   gap: 4,
@@ -74,22 +75,61 @@ const toolbarButton: CSSProperties = {
 
 const activeTab: CSSProperties = {
   ...toolbarButton,
-  background: 'var(--surface-2)',
-  borderColor: 'var(--ink-2)',
+  background: 'var(--color-selected)',
+  borderColor: 'var(--color-accent)',
+}
+
+
+const mobileSurfaceHeader: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'auto 1fr',
+  alignItems: 'center',
+  gap: '4px 10px',
+  padding: '10px 12px',
+  borderBottom: '1px solid var(--color-separator)',
+  background: 'var(--color-surface)',
+}
+
+const mobileBackButton: CSSProperties = {
+  minHeight: 44,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '0 4px',
+  color: 'var(--color-text-secondary)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 13,
+  fontWeight: 600,
+  background: 'transparent',
 }
 
 const mobileTabBar: CSSProperties = {
   display: 'flex',
-  borderBottom: '1px solid var(--line)',
-  background: 'var(--surface)',
+  borderBottom: '1px solid var(--color-separator)',
+  background: 'var(--color-surface)',
+}
+
+const mobileTitleStyle: CSSProperties = {
+  margin: 0,
+  fontFamily: 'var(--font-display)',
+  fontSize: 18,
+  color: 'var(--color-text-primary)',
+}
+
+const mobileStatusStyle: CSSProperties = {
+  gridColumn: '1 / -1',
+  color: 'var(--color-text-muted)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
 }
 
 const mobileTab: CSSProperties = {
   flex: 1,
+  minHeight: 44,
   padding: '10px 8px',
   textAlign: 'center',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
+  fontFamily: 'var(--font-body)',
+  fontSize: 13,
   fontWeight: 600,
   border: 'none',
   background: 'none',
@@ -100,17 +140,19 @@ const mobileTab: CSSProperties = {
 
 const mobileTabActive: CSSProperties = {
   ...mobileTab,
-  color: 'var(--ink)',
-  borderBottomColor: 'var(--ink)',
+  color: 'var(--color-accent)',
+  background: 'var(--color-selected)',
+  borderBottomColor: 'var(--color-accent)',
 }
 
 interface CockpitProps {
   onBack?: () => void
+  isMobile?: boolean
 }
 
 type CockpitView = 'single' | 'inspector'
 
-export function BuilderCockpit({ onBack }: CockpitProps) {
+export function BuilderCockpit({ onBack, isMobile = false }: CockpitProps) {
   const query = useGatewayRuntimeManifest()
   const fact = query.data?.execution.builder
   const snapshot = fact?.value
@@ -174,6 +216,7 @@ export function BuilderCockpit({ onBack }: CockpitProps) {
   return (
     <>
       {/* Desktop */}
+      {!isMobile && (
       <div style={gridStyle} className="builder-desktop">
         {/* Left: Packet Tree */}
         <div style={panelBase}>
@@ -181,16 +224,17 @@ export function BuilderCockpit({ onBack }: CockpitProps) {
             <button
               onClick={onBack}
               style={{
+                minHeight: 44,
                 background: 'none',
                 border: 'none',
                 padding: '8px 12px',
                 cursor: 'pointer',
-                color: 'var(--ink-2)',
+                color: 'var(--color-text-secondary)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
+                fontFamily: 'var(--font-body)',
+                fontSize: 13,
               }}
             >
               <ArrowLeft size={12} /> back
@@ -236,15 +280,26 @@ export function BuilderCockpit({ onBack }: CockpitProps) {
 
         {/* Right: Inspector (when enabled) */}
         {view === 'inspector' && (
-          <div style={{ ...panelBase, borderRight: 'none', borderLeft: '1px solid var(--line)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ ...panelBase, borderRight: 'none', borderLeft: '1px solid var(--color-separator)', display: 'flex', flexDirection: 'column' }}>
             <OperatorControls snapshot={snapshot} selectedPacket={selectedPacket} />
             <WorkerInspector packet={selectedPacket} />
           </div>
         )}
       </div>
+      )}
 
       {/* Mobile */}
+      {isMobile && (
       <div style={mobileRoot} className="builder-mobile">
+        <div style={mobileSurfaceHeader}>
+          {onBack && (
+            <button type="button" onClick={onBack} style={mobileBackButton}>
+              <ArrowLeft size={16} /> Back to Work
+            </button>
+          )}
+          <h1 style={mobileTitleStyle}>Builder details</h1>
+          <span style={mobileStatusStyle}>{activeCount} active · {attentionCount} attention</span>
+        </div>
         <div style={mobileTabBar}>
           <button
             style={mobileView === 'tree' ? mobileTabActive : mobileTab}
@@ -288,14 +343,7 @@ export function BuilderCockpit({ onBack }: CockpitProps) {
           )}
         </div>
       </div>
-
-      <style jsx>{`
-        .builder-mobile { display: none; }
-        @media (max-width: 720px) {
-          .builder-desktop { display: none; }
-          .builder-mobile { display: flex; }
-        }
-      `}</style>
+      )}
     </>
   )
 }

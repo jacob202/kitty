@@ -299,7 +299,7 @@ describe('WorkView visual hierarchy', () => {
     useWorkSnapshot.mockReturnValue({ data: snapshot(), isPending: false, isError: false, error: null, refetch: vi.fn() })
     render(<WorkView isMobile={false} onNavigate={onNavigate} />)
     fireEvent.click(screen.getByRole('button', { name: /open builder details/i }))
-    expect(onNavigate).toHaveBeenCalledWith('builder')
+    expect(onNavigate).toHaveBeenCalledWith('builder-details')
   })
 
   it('keeps the exact degraded source reason behind disclosure', () => {
