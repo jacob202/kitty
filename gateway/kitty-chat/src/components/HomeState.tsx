@@ -111,13 +111,17 @@ function SectionCard({
     <div
       style={{
         ...card,
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-separator)',
+        borderRadius: 'var(--r-surface)',
+        boxShadow: 'none',
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
         ...(span ? { gridColumn: '1 / -1' } : {}),
       }}
     >
-      <div style={cardHeader}>
+      <div style={{ ...cardHeader, borderBottom: '1px solid var(--color-separator)', paddingBottom: 10 }}>
         <span style={cardTitle}>{title}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {count !== undefined && <span style={cardMeta}>{count}</span>}
@@ -130,27 +134,35 @@ function SectionCard({
 }
 
 const actionButtonStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  fontWeight: 700,
-  padding: '2px 8px',
-  borderRadius: 4,
-  border: '1px solid var(--line)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 11,
+  fontWeight: 650,
+  padding: '5px 9px',
+  borderRadius: 8,
+  border: '1px solid var(--color-separator)',
   cursor: 'pointer',
-  background: 'var(--surface)',
-  color: 'var(--ink-2)',
+  background: 'var(--color-surface)',
+  color: 'var(--color-text-secondary)',
 };
 
 const primaryButtonStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  fontWeight: 700,
-  padding: '4px 12px',
-  borderRadius: 4,
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  fontWeight: 650,
+  padding: '7px 12px',
+  borderRadius: 10,
   border: 'none',
   cursor: 'pointer',
-  background: 'var(--primary)',
-  color: 'var(--on-primary)',
+  background: 'var(--color-accent)',
+  color: 'var(--on-accent)',
+};
+
+const homeEmptyState: React.CSSProperties = {
+  ...emptyState,
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  lineHeight: 1.5,
+  color: 'var(--color-text-muted)',
 };
 
 function ErrorCard({ message, onRetry }: { message: string; onRetry?: () => void }) {
@@ -187,7 +199,7 @@ function RepairsCard() {
   if (repairs.isPending) {
     return (
       <SectionCard title="system">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           checking…
         </div>
       </SectionCard>
@@ -210,7 +222,7 @@ function RepairsCard() {
   if (issues.length === 0 && repairs.data.checks_run === 0) {
     return (
       <SectionCard title="system">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           nothing was checked — Kitty could not complete its health checks
         </div>
       </SectionCard>
@@ -220,7 +232,7 @@ function RepairsCard() {
   if (issues.length === 0) {
     return (
       <SectionCard title="system">
-        <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ ...homeEmptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div>everything looks healthy</div>
           <div style={{ fontSize: 10 }}>{repairs.data.checks_run} checks passed — all services are responding</div>
         </div>
@@ -386,9 +398,9 @@ function HealthDot({ tone, label }: { tone: 'ok' | 'warn' | 'bad'; label: string
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-        fontFamily: 'var(--font-mono)',
-        fontSize: 11,
-        color: 'var(--ink-2)',
+        fontFamily: 'var(--font-body)',
+        fontSize: 12,
+        color: 'var(--color-text-secondary)',
       }}
     >
       <span
@@ -431,8 +443,12 @@ function HealthStrip() {
       role="status"
       style={{
         ...card,
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-separator)',
+        borderRadius: 14,
+        boxShadow: 'none',
         gridColumn: '1 / -1',
-        padding: '10px 16px',
+        padding: '10px 14px',
         display: 'flex',
         alignItems: 'center',
         gap: 18,
@@ -512,7 +528,7 @@ function HealthSurfaceCard() {
   if (surface.isPending) {
     return (
       <SectionCard title="health" span>
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           checking…
         </div>
       </SectionCard>
@@ -712,7 +728,7 @@ function WhatsNext({
   if (isPending) {
     return (
       <SectionCard title="what's next" span>
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           loading…
         </div>
       </SectionCard>
@@ -851,7 +867,7 @@ function WhatsNext({
           <div style={heroMetaStyle}>{sessionContext.data.open_threads.join(' · ')}</div>
         </div>
       ) : (
-        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ ...homeEmptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', alignItems: 'center', gap: 14 }}>
           <span aria-hidden style={{ color: 'var(--cat-ginger)', flexShrink: 0, pointerEvents: 'none' }}>
             <KidCatDoodle size={40} opacity={0.7} />
           </span>
@@ -879,9 +895,10 @@ const heroTextStyle: React.CSSProperties = {
 };
 
 const heroMetaStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--ink-2)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  lineHeight: 1.45,
+  color: 'var(--color-text-muted)',
 };
 
 // ── Active projects ──────────────────────────────────────────────────────────
@@ -893,7 +910,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
   if (projectsQuery.isPending) {
     return (
       <SectionCard title="active projects">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           loading…
         </div>
       </SectionCard>
@@ -914,7 +931,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
   if (active.length === 0) {
     return (
       <SectionCard title="active projects">
-        <div style={emptyState}>
+        <div style={homeEmptyState}>
           {projects.length === 0
             ? 'no projects registered — add one from the projects view'
             : 'no active projects — everything is parked or done'}
@@ -1106,7 +1123,7 @@ function PhoneAccessCard() {
   if (tailnet.isPending) {
     return (
       <SectionCard title="phone access">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           loading…
         </div>
       </SectionCard>
@@ -1116,7 +1133,7 @@ function PhoneAccessCard() {
   if (!tailnet.data?.ok || !tailnet.data.uiUrl) {
     return (
       <SectionCard title="phone access">
-        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ ...homeEmptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div>phone access isn't set up yet — it needs Tailscale running on this Mac.</div>
           <div style={{ ...bodyText, fontSize: 11 }}>
             Open the Tailscale app to access Kitty from your phone.
@@ -1186,7 +1203,7 @@ function Deadlines() {
   if (deadlines.isPending) {
     return (
       <SectionCard title="deadlines">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           loading…
         </div>
       </SectionCard>
@@ -1208,7 +1225,7 @@ function Deadlines() {
   if (open.length === 0) {
     return (
       <SectionCard title="deadlines" action={sweepButton}>
-        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px' }}>
+        <div style={{ ...homeEmptyState, textAlign: 'left', padding: '12px 2px' }}>
           no deadlines tracked yet — sweep scans your documents and mail for due
           dates and obligations.
           {sweep.data && sweep.data.blind_spots.length > 0 && (
@@ -1302,7 +1319,7 @@ function WhatChanged() {
   if (isPending) {
     return (
       <SectionCard title="what changed">
-        <div role="status" style={{ ...emptyState }}>
+        <div role="status" style={{ ...homeEmptyState }}>
           loading…
         </div>
       </SectionCard>
@@ -1329,7 +1346,7 @@ function WhatChanged() {
   return (
     <SectionCard title="what changed" count={count || undefined} action={markPoint}>
       {baseline_ts === null && !changes.length && !new_signals.length ? (
-        <div style={emptyState}>no comparison point yet — mark one to start tracking changes</div>
+        <div style={homeEmptyState}>no comparison point yet — mark one to start tracking changes</div>
       ) : null}
       {changes.map((c: StateChange, i: number) => (
         <div key={i} style={itemCard}>
@@ -1384,7 +1401,7 @@ function WhatChanged() {
         </div>
       )}
       {!count && baseline_ts !== null && !untriagedCount && (
-        <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ ...homeEmptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div>nothing new since last snapshot</div>
           <div style={{ fontSize: 10 }}>tap mark point anytime to set a fresh baseline</div>
         </div>
@@ -1411,7 +1428,7 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
   if (isPending || needsJacob.isPending) {
     return (
       <SectionCard title="needs you">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           loading…
         </div>
       </SectionCard>
@@ -1486,7 +1503,7 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
         </div>
       ))}
       {total === 0 ? (
-        <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ ...homeEmptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div>nothing waiting for you</div>
           <div style={{ fontSize: 10 }}>proposed actions and decisions will land here when there are any</div>
         </div>
@@ -1651,7 +1668,7 @@ function TodayPanel({
   if (isPending) {
     return (
       <SectionCard title="today">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           loading…
         </div>
       </SectionCard>
@@ -1681,7 +1698,7 @@ function TodayPanel({
   return (
     <SectionCard title="today" count={open.length || undefined} action={openTasks}>
       {open.length === 0 ? (
-        <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ ...homeEmptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div>nothing on the list</div>
           <div style={{ fontSize: 10 }}>your day is wide open</div>
         </div>
@@ -1761,6 +1778,30 @@ function CaptureSection() {
   );
 }
 
+const homeDisclosureStyle: React.CSSProperties = {
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 14,
+  overflow: 'hidden',
+};
+
+const homeSummaryStyle: React.CSSProperties = {
+  cursor: 'pointer',
+  padding: '13px 15px',
+  fontFamily: 'var(--font-body)',
+  fontSize: 13,
+  fontWeight: 650,
+  color: 'var(--color-text-secondary)',
+  listStylePosition: 'inside',
+};
+
+const homeDisclosureGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 14,
+  padding: '0 14px 14px',
+  alignItems: 'start',
+};
+
 // ── Root ─────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -1778,96 +1819,107 @@ export function HomeState({
   onNavigate = () => {},
   onExpertClick,
 }: Props) {
-  const isCosmic =
-    typeof document !== 'undefined' &&
-    document.documentElement.getAttribute('data-theme') === 'cosmic';
   const { visibleTiles } = useDashboardConfig();
   const weatherQuery = useGatewayWeather();
   const weather = weatherQuery.data?.weather;
 
   return (
     <div
+      data-testid="home-daily-overview"
       style={{
         flex: 1,
         overflowY: 'auto',
-        padding: compact ? '16px 12px 40px' : isCosmic ? '28px 32px 48px' : '24px 32px 40px',
-        maxWidth: isCosmic ? 1320 : undefined,
-        margin: isCosmic ? '0 auto' : undefined,
-        display: 'grid',
-        gridTemplateColumns: compact
-          ? '1fr'
-          : isCosmic
-          ? 'repeat(3, minmax(0, 1fr))'
-          : 'repeat(auto-fit, minmax(340px, 1fr))',
-        gap: isCosmic ? 18 : 20,
-        alignContent: 'start',
+        padding: compact ? '16px 12px 40px' : '28px 28px 48px',
+        background: 'var(--color-canvas)',
       }}
     >
-      <div style={{ gridColumn: isCosmic ? '1 / -1' : undefined }}>
-        <h1
+      <div
+        data-testid="home-daily-overview-content"
+        style={{
+          width: '100%',
+          maxWidth: 1120,
+          margin: '0 auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: compact ? 14 : 18,
+        }}
+      >
+        <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20 }}>
+          <div style={{ minWidth: 0 }}>
+            <h1
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: compact ? 24 : 32,
+                lineHeight: 1.05,
+                fontWeight: 800,
+                letterSpacing: '-0.03em',
+                color: 'var(--color-text-primary)',
+                margin: 0,
+              }}
+            >
+              {greeting(new Date().getHours())}{preferredName ? `, ${preferredName}` : ''}
+            </h1>
+            <p style={{ margin: '7px 0 0', fontSize: 13, color: 'var(--color-text-muted)' }}>
+              what matters now, then what&apos;s waiting
+            </p>
+          </div>
+          {visibleTiles['weather'] !== false && weather && !weather.error && !compact && (
+            <div aria-label="Weather" style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                {weather.temp_c != null ? `${Math.round(weather.temp_c)}°C` : '—'}
+              </div>
+              {weather.description && (
+                <div style={{ marginTop: 2, fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'capitalize' }}>
+                  {weather.description}
+                </div>
+              )}
+            </div>
+          )}
+        </header>
+
+        {visibleTiles['health'] !== false && <HealthStrip />}
+
+        <section
+          data-testid="home-primary-overview"
+          aria-label="Daily priorities"
           style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: compact ? 20 : 28,
-            fontWeight: 800,
-            letterSpacing: '-0.02em',
-            color: 'var(--ink)',
-            margin: 0,
+            display: 'grid',
+            gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+            gap: compact ? 12 : 16,
+            alignItems: 'start',
           }}
         >
-          {greeting(new Date().getHours())}{preferredName ? `, ${preferredName}` : ''}
-        </h1>
-      </div>
-      {visibleTiles['health'] !== false && <HealthStrip />}
-      {visibleTiles['health'] !== false && <HealthSurfaceCard />}
-      {visibleTiles['health'] !== false && <RepairsCard />}
-      {visibleTiles['health'] !== false && <SignalsCard />}
-      <BuilderGlance onOpen={() => onNavigate('work')} />
-      {visibleTiles['weather'] !== false && weather && !weather.error && (
-        <section style={{ ...card, display: 'grid', gap: 8 }}>
-          <div style={cardHeader}>
-            <div style={cardTitle}>weather</div>
-            <span style={cardMeta}>
-              {weather.temp_c != null ? `${Math.round(weather.temp_c)}°C` : '—'}
-            </span>
-          </div>
-          {weather.description && (
-            <p style={{ ...bodyText, margin: 0, textTransform: 'capitalize' }}>
-              {weather.description}
-            </p>
+          {visibleTiles['whats-next'] !== false && (
+            <WhatsNext preferredName={preferredName} onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
           )}
-          <div style={{ display: 'flex', gap: 16 }}>
-            {weather.humidity != null && (
-              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
-                {weather.humidity}% humidity
-              </span>
-            )}
-            {weather.wind_kmph != null && (
-              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
-                {weather.wind_kmph} km/h wind
-              </span>
-            )}
-            {weather.max_c != null && weather.min_c != null && (
-              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
-                {Math.round(weather.max_c)}° / {Math.round(weather.min_c)}°
-              </span>
-            )}
-          </div>
+          {visibleTiles['needs-you'] !== false && <NeedsYou onDecideInChat={onDecideInChat} />}
+          {visibleTiles['today'] !== false && <TodayPanel onNavigate={onNavigate} />}
+          {visibleTiles['deadlines'] !== false && <Deadlines />}
+          {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}
         </section>
-      )}
-      {visibleTiles['whats-next'] !== false && (
-        <WhatsNext preferredName={preferredName} onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
-      )}
-      {visibleTiles['needs-you'] !== false && <NeedsYou onDecideInChat={onDecideInChat} />}
-      {visibleTiles['insight-loop'] !== false && <InsightReturnCard />}
-      {visibleTiles['deadlines'] !== false && <Deadlines />}
-      {visibleTiles['phone-access'] !== false && <PhoneAccessCard />}
-      {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}
-      {visibleTiles['active-projects'] !== false && <ExpertStrip onExpertClick={onExpertClick ?? (() => {})} />}
-      {visibleTiles['what-changed'] !== false && <WhatChanged />}
-      {visibleTiles['today'] !== false && (
-        <TodayPanel onNavigate={onNavigate} />
-      )}
-      {visibleTiles['capture'] !== false && <CaptureSection />}
+
+        {visibleTiles['capture'] !== false && <CaptureSection />}
+
+        <details data-testid="home-more-context" style={homeDisclosureStyle}>
+          <summary style={homeSummaryStyle}>More context</summary>
+          <div style={{ ...homeDisclosureGridStyle, gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
+            {visibleTiles['insight-loop'] !== false && <InsightReturnCard />}
+            {visibleTiles['what-changed'] !== false && <WhatChanged />}
+            {visibleTiles['active-projects'] !== false && <ExpertStrip onExpertClick={onExpertClick ?? (() => {})} />}
+          </div>
+        </details>
+
+        <details data-testid="home-system-details" style={homeDisclosureStyle}>
+          <summary style={homeSummaryStyle}>System &amp; setup</summary>
+          <div style={{ ...homeDisclosureGridStyle, gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
+            {visibleTiles['health'] !== false && <HealthSurfaceCard />}
+            {visibleTiles['health'] !== false && <RepairsCard />}
+            {visibleTiles['health'] !== false && <SignalsCard />}
+            <BuilderGlance onOpen={() => onNavigate('work')} />
+            {visibleTiles['phone-access'] !== false && <PhoneAccessCard />}
+          </div>
+        </details>
+      </div>
     </div>
   );
 }

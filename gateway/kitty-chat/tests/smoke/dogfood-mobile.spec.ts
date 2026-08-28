@@ -122,7 +122,8 @@ async function lowestInteractiveAboveNav(page: Page, navTop: number) {
       // Skip the fixed tab bar itself and anything inside it.
       const fixed = el.closest('nav[aria-label="Main navigation"]');
       const inNav = el.closest('[aria-label="Main navigation"]') !== null;
-      if (fixed || inNav) continue;
+      const inClosedDisclosure = el.closest('details:not([open])') !== null;
+      if (fixed || inNav || inClosedDisclosure) continue;
       const style = getComputedStyle(el);
       if (style.position === 'fixed' || style.display === 'none') continue;
       const r = el.getBoundingClientRect();

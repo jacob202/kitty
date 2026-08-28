@@ -75,3 +75,11 @@ Provider, requested-model, tools, routing, and memory evidence are subordinate d
 The composer is a neutral surface at rest and uses the accent/focus ring only while focused. Phone textarea text is at least 16px to avoid browser zoom, and persistent attachment/model/voice/send controls use touch-sized targets. The composer must remain fully above the fixed phone navigation and safe area.
 
 Desktop chat history is supportive navigation, not a competing call-to-action column. `New chat` and the active thread use the shared selected treatment; saturated accent is reserved for genuinely primary actions.
+
+## Home surface
+
+Home is a daily overview, not an operator console. Default reading order is: compact connection/status truth, the single best next action, decisions or approvals that need attention, today/deadlines, then active projects. Weather may sit in the greeting as ambient context rather than consuming a full card.
+
+Secondary context stays available without competing for first-screen attention. `More context` contains returned insights, state changes, and expert context. `System & setup` contains full-stack health, repairs, signals, Builder status, and phone-access setup. Both disclosures are closed by default; this hides visual noise, not backend truth.
+
+Home uses a bounded desktop canvas and a single-column phone composition. Empty and explanatory states use normal body typography; monospaced text is reserved for genuinely technical identifiers or evidence. Capture remains easy to reach after the daily priorities rather than displacing them.

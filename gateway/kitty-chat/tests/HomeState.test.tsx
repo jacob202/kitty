@@ -1024,4 +1024,37 @@ describe('HomeState', () => {
     render(<HomeState />);
     expect(screen.getByText(/everything looks healthy/)).toBeInTheDocument();
   });
+
+  it('prioritizes daily work and collapses lower-signal context', () => {
+    render(<HomeState />);
+
+    const overview = screen.getByTestId('home-primary-overview');
+    expect(overview).toHaveTextContent("what's next");
+    expect(overview).toHaveTextContent('needs you');
+    expect(overview).toHaveTextContent('today');
+    expect(overview).toHaveTextContent('deadlines');
+    expect(overview).toHaveTextContent('active projects');
+
+    const more = screen.getByTestId('home-more-context');
+    const system = screen.getByTestId('home-system-details');
+    expect(more).not.toHaveAttribute('open');
+    expect(system).not.toHaveAttribute('open');
+    expect(more).toHaveTextContent('what changed');
+    expect(system).toHaveTextContent('health');
+    expect(system).toHaveTextContent(/builder/i);
+
+    expect(overview.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(more.compareDocumentPosition(system) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('uses the same bounded daily-overview composition on phone', () => {
+    render(<HomeState compact />);
+    const root = screen.getByTestId('home-daily-overview');
+    expect(root).toBeInTheDocument();
+    const content = screen.getByTestId('home-daily-overview-content');
+    expect(content.getAttribute('style') ?? '').toContain('max-width: 1120px');
+    const primary = screen.getByTestId('home-primary-overview');
+    expect(primary.getAttribute('style') ?? '').toContain('grid-template-columns: 1fr');
+  });
+
 });
