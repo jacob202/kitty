@@ -301,6 +301,39 @@ def register_action(
     )
 
 
+def _reconcile_missed_time_occurrences() -> int:
+    """Re-arm `daily`/`once` schedules whose claimed occurrence never completed.
+
+    `claim_scheduled_run()` advances `last_run` at claim time, before the
+    action actually executes, so an at-most-once claim survives a crash
+    between claim and completion without letting a second runner double-fire
+    it. But for `daily`/`once` schedules that same early advance means a
+    crash right there silently drops the occurrence forever once
+    `reconcile_interrupted_runs()` marks the run interrupted: `daily` simply
+    waits for tomorrow, but `once` never fires again. Reset `last_run` back
+    to 0 so it fires again, but only when it still holds exactly the value
+    the claim set it to, so a legitimate later occurrence is never
+    clobbered.
+    """
+    init_db()
+    reset = 0
+    with kitty_db.connect(KITTY_DB_FILE) as conn:
+        rows = conn.execute(
+            "SELECT schedule_id, due_at FROM automation_runs "
+            "WHERE status = 'interrupted' AND trigger_kind = 'time' "
+            "AND schedule_id IS NOT NULL AND due_at IS NOT NULL"
+        ).fetchall()
+        for schedule_id, due_at in rows:
+            cursor = conn.execute(
+                f"UPDATE {TABLE} SET last_run = 0 "
+                "WHERE id = ? AND schedule_type IN ('daily', 'once') AND last_run = ?",
+                (schedule_id, due_at),
+            )
+            reset += cursor.rowcount
+        conn.commit()
+    return reset
+
+
 def start() -> asyncio.Task | None:
     """Start the background cron runner with restart reconciliation."""
     global _runner_task
@@ -317,6 +350,13 @@ def start() -> asyncio.Task | None:
             return None
         if interrupted:
             logger.warning("Reconciled %d interrupted automation run(s)", interrupted)
+        try:
+            rearmed = _reconcile_missed_time_occurrences()
+        except Exception:
+            logger.exception("Cron start: missed-occurrence reconciliation failed")
+        else:
+            if rearmed:
+                logger.warning("Re-armed %d missed daily/once cron occurrence(s)", rearmed)
         _runner_task = loop.create_task(_runner())
     return _runner_task
 

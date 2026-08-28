@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import time
 
 import pytest
 
@@ -189,3 +190,111 @@ def test_disabled_and_not_due_are_explainable_without_fake_run_rows(automation_d
     waiting_row = next(row for row in cron.list_schedules() if row["id"] == waiting)
     assert cron.explain_schedule(waiting_row, now=100.0)["state"] == "not_due"
     assert automation_runs.list_runs(automation_id=waiting) == []
+
+
+# ── RC-09: missed occurrence on crash mid-execution ─────────────────
+
+
+def test_missed_once_occurrence_is_rearmed_after_crash(automation_db, monkeypatch):
+    from gateway import automation_runs, cron
+
+    sid = cron.schedule("one-shot", "test.once", "once", "2020-01-01T00:00:00")
+    now = time.time()
+    snapshot = next(row for row in cron.list_schedules() if row["id"] == sid)
+    due_at = cron._due_at(snapshot, now)
+    assert due_at is not None
+
+    run = automation_runs.claim_scheduled_run(
+        snapshot, due_at=due_at, claim_at=now, cursor_at=due_at
+    )
+    assert run is not None
+    claimed = next(row for row in cron.list_schedules() if row["id"] == sid)
+    assert claimed["last_run"] == due_at
+    assert cron._due_at(claimed, now) is None  # claimed; would not fire again
+
+    # Simulate a crash: the run never reaches finish_run(), and the next
+    # process start's reconciliation discovers it as orphaned.
+    monkeypatch.setattr(automation_runs, "PROCESS_STARTED_AT", now + 100)
+    assert automation_runs.reconcile_interrupted_runs(now=now + 200) == 1
+
+    assert cron._reconcile_missed_time_occurrences() == 1
+    rearmed = next(row for row in cron.list_schedules() if row["id"] == sid)
+    assert rearmed["last_run"] == 0
+    assert cron._due_at(rearmed, now) == due_at  # fires again
+
+
+def test_missed_daily_occurrence_is_rearmed_after_crash(automation_db, monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from gateway import automation_runs, cron
+
+    eastern = ZoneInfo("America/Toronto")
+    now = datetime(2026, 8, 23, 8, 1, tzinfo=eastern).timestamp()
+    sid = cron.schedule(
+        "daily-brief", "test.daily", "daily", "08:00", {"timezone": "America/Toronto"}
+    )
+    snapshot = next(row for row in cron.list_schedules() if row["id"] == sid)
+    due_at = cron._due_at(snapshot, now)
+    assert due_at is not None
+
+    automation_runs.claim_scheduled_run(snapshot, due_at=due_at, claim_at=now, cursor_at=due_at)
+    monkeypatch.setattr(automation_runs, "PROCESS_STARTED_AT", now + 100)
+    assert automation_runs.reconcile_interrupted_runs(now=now + 200) == 1
+
+    assert cron._reconcile_missed_time_occurrences() == 1
+    rearmed = next(row for row in cron.list_schedules() if row["id"] == sid)
+    assert rearmed["last_run"] == 0
+    assert cron._due_at(rearmed, now) == due_at
+
+
+def test_reconcile_missed_occurrences_ignores_completed_runs(automation_db):
+    from gateway import automation_runs, cron
+
+    sid = cron.schedule("one-shot-ok", "test.once", "once", "2020-01-01T00:00:00")
+    now = time.time()
+    snapshot = next(row for row in cron.list_schedules() if row["id"] == sid)
+    due_at = cron._due_at(snapshot, now)
+
+    run = automation_runs.claim_scheduled_run(
+        snapshot, due_at=due_at, claim_at=now, cursor_at=due_at
+    )
+    automation_runs.finish_run(run["id"], status="completed", completed_at=now + 1)
+
+    assert cron._reconcile_missed_time_occurrences() == 0
+    unchanged = next(row for row in cron.list_schedules() if row["id"] == sid)
+    assert unchanged["last_run"] == due_at
+
+
+def test_reconcile_missed_occurrences_ignores_interval_schedules(automation_db):
+    from gateway import automation_runs, cron
+
+    sid = cron.schedule("interval-crash", "test.interval", "interval", "1")
+    now = 50_000.0
+    _set_last_run(automation_db, sid, now - 61)
+    snapshot = next(row for row in cron.list_schedules() if row["id"] == sid)
+    due_at = cron._due_at(snapshot, now)
+    assert due_at is not None
+
+    automation_runs.claim_scheduled_run(snapshot, due_at=due_at, claim_at=now, cursor_at=now)
+    assert automation_runs.reconcile_interrupted_runs(now=now + 10) == 1
+
+    assert cron._reconcile_missed_time_occurrences() == 0
+    unchanged = next(row for row in cron.list_schedules() if row["id"] == sid)
+    assert unchanged["last_run"] == now
+
+
+def test_reconcile_missed_occurrences_is_idempotent(automation_db, monkeypatch):
+    from gateway import automation_runs, cron
+
+    sid = cron.schedule("one-shot-twice", "test.once", "once", "2020-01-01T00:00:00")
+    now = time.time()
+    snapshot = next(row for row in cron.list_schedules() if row["id"] == sid)
+    due_at = cron._due_at(snapshot, now)
+
+    automation_runs.claim_scheduled_run(snapshot, due_at=due_at, claim_at=now, cursor_at=due_at)
+    monkeypatch.setattr(automation_runs, "PROCESS_STARTED_AT", now + 100)
+    automation_runs.reconcile_interrupted_runs(now=now + 200)
+
+    assert cron._reconcile_missed_time_occurrences() == 1
+    assert cron._reconcile_missed_time_occurrences() == 0
