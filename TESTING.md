@@ -26,7 +26,7 @@ From the repository root:
 make test
 ```
 
-The measured pre-split Python baseline median was 204.94s. The evidence-based fast selection measured 107.85s wall while retaining 4,437 passing tests before the final lane integration. Runtime is re-measured during final verification; the number is evidence, not a permanent threshold.
+The measured pre-split Python baseline median was 204.94s. Final five-run verification of the reconciled fast tier produced a 108.80s median while retaining 4,714 passing tests, 1 skip, and 29 passing subtests; 312 process-integration tests remain separately required. The timing is evidence, not a permanent threshold.
 
 For local parity with the fast Python PR coverage gate:
 
