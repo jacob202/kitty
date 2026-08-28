@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -38,18 +39,28 @@ def test_launcher_install_uses_the_three_service_desktop_supervisor() -> None:
 def test_launcher_status_discovers_owned_listeners_without_pidfiles(
     tmp_path: Path,
 ) -> None:
+    # Run the launcher from an isolated root so a developer's live Kitty
+    # pidfiles cannot make this listener-discovery test take the pidfile path.
+    launcher_root = tmp_path / "launcher-root"
+    (launcher_root / "gateway" / "lib").mkdir(parents=True)
+    shutil.copy2(ROOT / "kitty", launcher_root / "kitty")
+    shutil.copy2(
+        ROOT / "gateway" / "lib" / "load_env_safe.sh",
+        launcher_root / "gateway" / "lib" / "load_env_safe.sh",
+    )
+
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
 
     commands = {
         "launchctl": "#!/bin/sh\nexit 1\n",
         "curl": "#!/bin/sh\nexit 1\n",
-        "ps": f"#!/bin/sh\nprintf '%s\\n' 'python {ROOT}/gateway/app.py'\n",
+        "ps": f"#!/bin/sh\nprintf '%s\\n' 'python {launcher_root}/gateway/app.py'\n",
         "lsof": (
             "#!/bin/sh\n"
             "case \"$*\" in\n"
             "  *'-tiTCP:'*) printf '4242\\n' ;;\n"
-            f"  *'-d cwd'*) printf 'p4242\\nfcwd\\nn{ROOT}\\n' ;;\n"
+            f"  *'-d cwd'*) printf 'p4242\\nfcwd\\nn{launcher_root}\\n' ;;\n"
             "esac\n"
         ),
     }
@@ -58,11 +69,14 @@ def test_launcher_status_discovers_owned_listeners_without_pidfiles(
         path.write_text(content, encoding="utf-8")
         path.chmod(0o755)
 
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
     env = dict(os.environ)
+    env["HOME"] = str(fake_home)
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
     result = subprocess.run(
-        [str(ROOT / "kitty"), "status"],
-        cwd=ROOT,
+        [str(launcher_root / "kitty"), "status"],
+        cwd=launcher_root,
         env=env,
         capture_output=True,
         text=True,
