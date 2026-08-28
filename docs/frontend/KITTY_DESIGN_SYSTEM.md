@@ -91,3 +91,10 @@ Projects is a context boundary, not a second execution dashboard. The default vi
 Missing generated next steps are normal empty state. Use the bulk next-step projection rather than issuing per-project reads that turn "not generated yet" into browser 404 noise. Refresh remains an explicit user action and must keep a 44px touch target.
 
 Project rows share one surface and separators instead of becoming a stack of equal-weight cards. Keep only one page heading, use body typography for metadata, and keep the next-step surface neutral rather than accent-outlined.
+## Image Lab
+
+Image Lab is a creative workspace, not a provider configuration form. The conversation/prompt canvas is primary; durable results and queued work occupy a dedicated secondary pane. On compact layouts those regions stack without changing the underlying session or queue model.
+
+Persistent generation controls use body typography and touch-sized targets. Reference characters and anchored images are visible as selected context near the prompt, while exact provider, provenance, and recovery details remain subordinate unless they need attention. Cost and duration estimates stay visible before queueing without competing with the prompt itself.
+
+Completed images are treated as working material: the result action should make the next creative step explicit (for example, editing from a chosen result) rather than exposing internal job language. Offline/degraded renderer states keep the workspace usable and explain recovery without leaking secret or environment-variable names.

@@ -479,10 +479,10 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
       <header style={headerStyle}>
         <div>
           <h1 style={titleStyle}>Image Lab</h1>
-          <p style={subtitleStyle}>Talk through the image. Kitty handles the generation plan; your results and queue stay here.</p>
+          <p style={subtitleStyle}>Create, compare, and refine images with references and durable generation history in one place.</p>
         </div>
         <div style={statusStyle}>
-          <span style={{ ...dotStyle, background: enginesAvailable ? 'var(--c-green)' : 'var(--c-red)' }} />
+          <span style={{ ...dotStyle, background: enginesAvailable ? 'var(--color-success)' : 'var(--color-destructive)' }} />
           {status.isError ? 'image service unavailable' : enginesAvailable ? 'renderer ready' : 'renderer offline'}
         </div>
       </header>
@@ -534,7 +534,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
             </div>
           ))}
 
-          <div style={composerStyle}>
+          <div data-testid="image-lab-composer" aria-label="Image prompt and controls" style={composerStyle}>
             <div style={chipRowStyle}>
               {anchorJobId && (
                 <div data-testid="image-lab-anchor" style={anchorStyle}>
@@ -600,8 +600,8 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                       <div style={qualityBannerStyle(refQuality)}>
                         <div style={qualityBannerTitleStyle}>
                           {refQuality.is_perfect
-                            ? <CheckCircle2 size={13} style={{ color: 'var(--c-green)' }} />
-                            : <AlertTriangle size={13} style={{ color: refQuality.has_blockers ? 'var(--c-red)' : 'var(--c-yellow)' }} />}
+                            ? <CheckCircle2 size={13} style={{ color: 'var(--color-success)' }} />
+                            : <AlertTriangle size={13} style={{ color: refQuality.has_blockers ? 'var(--color-destructive)' : 'var(--color-warning)' }} />}
                           <span>{refQuality.summary}</span>
                         </div>
                         {refQuality.dimensions && <span style={metaStyle}>{refQuality.dimensions}</span>}
@@ -665,10 +665,13 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
           {error && <div role="alert" style={errorStyle}>{error}</div>}
         </div>
 
-        <aside style={queueStyle} aria-label="Image queue and results">
+        <aside data-testid="image-lab-results" style={{ ...queueStyle, ...(compact ? { position: 'static' } : {}) }} aria-label="Image results and queue">
           <div style={queueHeaderStyle}>
-            <strong>Queue & results</strong>
-            <span style={metaStyle}>{batches.length} batch{batches.length === 1 ? '' : 'es'}</span>
+            <div style={{ display: 'grid', gap: 3 }}>
+              <h2 style={queueTitleStyle}>Results</h2>
+              <span style={queueSubtitleStyle}>Completed images and durable queued work.</span>
+            </div>
+            <span style={batchCountStyle}>{batches.length} batch{batches.length === 1 ? '' : 'es'}</span>
           </div>
           {batches.length === 0 ? (
             <div style={emptyStyle}>Queued work and completed images will stay here.</div>
@@ -678,7 +681,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                 <span>{batch.count} image{batch.count === 1 ? '' : 's'} {batch.status}</span>
                 {(batch.status === 'queued' || batch.status === 'running') && (
                   <button type="button" onClick={() => void cancelBatch(batch.batch_id)} style={smallButtonStyle}>
-                    <Square size={10} /> cancel queued
+                    <Square size={12} /> cancel
                   </button>
                 )}
               </div>
@@ -696,7 +699,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                         />
                         {item.job_id && (
                           <button type="button" onClick={() => void useThis(item.job_id as string)} style={smallButtonStyle}>
-                            use this
+                            edit from this
                           </button>
                         )}
                       </>
@@ -716,60 +719,63 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   )
 }
 
-const shellStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 16, width: '100%', minHeight: '100%' }
-const headerStyle: CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }
-const titleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 30, color: 'var(--ink)' }
-const subtitleStyle: CSSProperties = { margin: '4px 0 0', fontSize: 13, color: 'var(--ink-2)', maxWidth: 680 }
-const statusStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }
-const dotStyle: CSSProperties = { width: 7, height: 7, borderRadius: '50%' }
-const noticeStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 10, color: 'var(--ink-2)', fontSize: 12 }
-const noticeBodyStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }
-const reasonListStyle: CSSProperties = { margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 4 }
-const workspaceStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(280px, .8fr)', gap: 16, alignItems: 'start' }
-const conversationStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }
-const turnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, maxWidth: '86%', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 12, background: 'var(--surface)' }
-const turnRoleStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--ink-2)' }
-const metaStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)' }
-const composerStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8, padding: 12, border: '1px solid var(--line)', borderRadius: 14, background: 'var(--surface)' }
-const textareaStyle: CSSProperties = { width: '100%', resize: 'vertical', border: 0, outline: 0, background: 'transparent', color: 'var(--ink)', fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.5 }
-const controlsStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }
-const segmentedStyle: CSSProperties = { display: 'flex', gap: 2, border: '1px solid var(--line)', borderRadius: 8, padding: 2 }
-const segmentButtonStyle: CSSProperties = { border: 0, borderRadius: 6, padding: '4px 8px', background: 'transparent', color: 'var(--ink-2)', fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer' }
-const selectedSegmentStyle: CSSProperties = { background: 'var(--ginger-fade)', color: 'var(--cat-ginger)' }
-const selectStyle: CSSProperties = { border: '1px solid var(--line)', borderRadius: 8, padding: '5px 7px', background: 'var(--bg)', color: 'var(--ink)', fontFamily: 'var(--font-mono)', fontSize: 10 }
-const estimateStyle: CSSProperties = { flex: 1, minWidth: 170, fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)' }
-const sendButtonStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, border: 0, borderRadius: 8, padding: '7px 10px', background: 'var(--primary)', color: 'var(--on-primary)', fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, cursor: 'pointer' }
-const queueStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }
-const queueHeaderStyle: CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }
-const batchStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid var(--line)', borderRadius: 12, padding: 10, background: 'var(--surface)' }
-const batchHeaderStyle: CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600 }
-const resultGridStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }
-const resultCardStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }
-const imageStyle: CSSProperties = { width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, background: 'var(--bg)' }
-const placeholderStyle: CSSProperties = { minHeight: 100, display: 'grid', placeItems: 'center', textAlign: 'center', border: '1px dashed var(--line)', borderRadius: 8, padding: 8, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)', fontSize: 9 }
-const emptyStyle: CSSProperties = { padding: 14, border: '1px dashed var(--line)', borderRadius: 10, color: 'var(--ink-2)', fontSize: 12 }
-const errorStyle: CSSProperties = { padding: '9px 11px', border: '1px solid var(--c-red)', borderRadius: 8, color: 'var(--c-red)', fontSize: 12 }
-const smallButtonStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, border: '1px solid var(--line)', borderRadius: 7, padding: '4px 7px', background: 'transparent', color: 'var(--ink-2)', fontFamily: 'var(--font-mono)', fontSize: 9, cursor: 'pointer' }
-const anchorStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', alignSelf: 'flex-start', gap: 5, padding: '4px 7px', borderRadius: 999, background: 'var(--ginger-fade)', color: 'var(--cat-ginger)', fontFamily: 'var(--font-mono)', fontSize: 9 }
-const iconButtonStyle: CSSProperties = { border: 0, background: 'transparent', color: 'inherit', padding: 0, cursor: 'pointer', display: 'inline-flex' }
-const chipRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }
+const shellStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 20, width: '100%', maxWidth: 1280, margin: '0 auto', minHeight: '100%' }
+const headerStyle: CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap' }
+const titleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 32, color: 'var(--color-text-primary)' }
+const subtitleStyle: CSSProperties = { margin: '5px 0 0', fontSize: 14, lineHeight: 1.5, color: 'var(--color-text-secondary)', maxWidth: 720 }
+const statusStyle: CSSProperties = { minHeight: 36, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 10px', border: '1px solid var(--color-separator)', borderRadius: 999, background: 'var(--color-surface)', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }
+const dotStyle: CSSProperties = { width: 7, height: 7, borderRadius: '50%', flexShrink: 0 }
+const noticeStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', background: 'var(--color-surface-elevated)', color: 'var(--color-text-secondary)', fontSize: 13, lineHeight: 1.45 }
+const noticeBodyStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 7, minWidth: 0 }
+const reasonListStyle: CSSProperties = { margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 5 }
+const workspaceStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(320px, .85fr)', gap: 20, alignItems: 'start' }
+const conversationStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }
+const turnStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5, maxWidth: '88%', padding: '11px 13px', border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', background: 'var(--color-surface)' }
+const turnRoleStyle: CSSProperties = { fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--color-text-muted)' }
+const metaStyle: CSSProperties = { fontFamily: 'var(--font-body)', fontSize: 11.5, color: 'var(--color-text-muted)' }
+const composerStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, padding: 14, border: '1px solid var(--color-separator)', borderRadius: 'var(--r-surface)', background: 'var(--color-surface-elevated)', boxShadow: '0 10px 28px rgba(24, 31, 52, 0.06)' }
+const textareaStyle: CSSProperties = { width: '100%', minHeight: 96, resize: 'vertical', border: 0, outline: 0, background: 'transparent', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 16, lineHeight: 1.55 }
+const controlsStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }
+const segmentedStyle: CSSProperties = { display: 'flex', gap: 2, border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', padding: 2, background: 'var(--color-surface)' }
+const segmentButtonStyle: CSSProperties = { minWidth: 44, minHeight: 44, border: 0, borderRadius: 'calc(var(--r-control) - 2px)', padding: '8px 10px', background: 'transparent', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }
+const selectedSegmentStyle: CSSProperties = { background: 'var(--color-selected)', color: 'var(--color-accent)' }
+const selectStyle: CSSProperties = { minHeight: 44, border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', padding: '8px 10px', background: 'var(--color-surface)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 13 }
+const estimateStyle: CSSProperties = { flex: 1, minWidth: 180, fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.4 }
+const sendButtonStyle: CSSProperties = { minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, border: 0, borderRadius: 'var(--r-control)', padding: '9px 14px', background: 'var(--color-accent)', color: '#fff', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }
+const queueStyle: CSSProperties = { position: 'sticky', top: 16, display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, padding: 14, border: '1px solid var(--color-separator)', borderRadius: 'var(--r-surface)', background: 'var(--color-surface-elevated)' }
+const queueHeaderStyle: CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }
+const queueTitleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 19, color: 'var(--color-text-primary)' }
+const queueSubtitleStyle: CSSProperties = { fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-muted)' }
+const batchCountStyle: CSSProperties = { flexShrink: 0, padding: '5px 8px', borderRadius: 999, background: 'var(--color-surface)', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', fontSize: 11.5, fontWeight: 600 }
+const batchStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 9, borderTop: '1px solid var(--color-separator)', paddingTop: 12 }
+const batchHeaderStyle: CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 650, color: 'var(--color-text-primary)' }
+const resultGridStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }
+const resultCardStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 7, minWidth: 0 }
+const imageStyle: CSSProperties = { width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 'var(--r-control)', background: 'var(--color-canvas)', border: '1px solid var(--color-separator)' }
+const placeholderStyle: CSSProperties = { minHeight: 112, display: 'grid', placeItems: 'center', textAlign: 'center', border: '1px dashed var(--color-separator)', borderRadius: 'var(--r-control)', padding: 10, background: 'var(--color-surface)', color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)', fontSize: 12 }
+const emptyStyle: CSSProperties = { padding: 16, border: '1px dashed var(--color-separator)', borderRadius: 'var(--r-control)', background: 'var(--color-surface)', color: 'var(--color-text-secondary)', fontSize: 13, lineHeight: 1.5 }
+const errorStyle: CSSProperties = { padding: '10px 12px', border: '1px solid var(--color-destructive)', borderRadius: 'var(--r-control)', background: 'var(--color-surface)', color: 'var(--color-destructive)', fontSize: 13 }
+const smallButtonStyle: CSSProperties = { minHeight: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', padding: '7px 10px', background: 'var(--color-surface)', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }
+const anchorStyle: CSSProperties = { minHeight: 36, display: 'inline-flex', alignItems: 'center', alignSelf: 'flex-start', gap: 6, padding: '6px 9px', borderRadius: 999, background: 'var(--color-selected)', color: 'var(--color-accent)', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600 }
+const iconButtonStyle: CSSProperties = { width: 28, height: 28, border: 0, borderRadius: 999, background: 'transparent', color: 'inherit', padding: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }
+const chipRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }
 const charControlStyle: CSSProperties = { position: 'relative' }
-const characterButtonStyle: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid var(--line)', borderRadius: 999, padding: '4px 8px', background: 'transparent', color: 'var(--ink-2)', fontFamily: 'var(--font-mono)', fontSize: 9, cursor: 'pointer' }
-const popupStyle: CSSProperties = { position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 12, minWidth: 240, maxWidth: 'min(320px, calc(100vw - 40px))', maxHeight: 'min(60dvh, 360px)', overflowY: 'auto', zIndex: 100, boxShadow: 'var(--shadow)', padding: 6 }
-const popupHeaderStyle: CSSProperties = { padding: '4px 8px 6px', fontFamily: 'var(--font-mono)', fontSize: 9, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--ink-2)' }
-const popupItemMutedStyle: CSSProperties = { padding: '6px 8px', fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)' }
-const pickerItemStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 8px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--ink)', fontFamily: 'var(--font-body)', fontSize: 13, textAlign: 'left', borderRadius: 8 }
-const popupDividerStyle: CSSProperties = { borderTop: '1px solid var(--line)', margin: '6px 0' }
-const popupFormStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, padding: '0 8px 6px' }
-const inputStyle: CSSProperties = { width: '100%', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 8px', background: 'var(--bg)', color: 'var(--ink)', fontFamily: 'var(--font-mono)', fontSize: 11, outline: 'none' }
-const fileLabelStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, border: '1px dashed var(--line)', borderRadius: 8, padding: '6px 8px', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', cursor: 'pointer', overflow: 'hidden' }
-const qualityBannerTitleStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }
-const qualityAdviceStyle: CSSProperties = { fontSize: 10, color: 'var(--ink-2)', marginTop: 3 }
+const characterButtonStyle: CSSProperties = { minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--color-separator)', borderRadius: 999, padding: '8px 11px', background: 'var(--color-surface)', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }
+const popupStyle: CSSProperties = { position: 'absolute', top: '100%', left: 0, marginTop: 6, background: 'var(--color-surface-elevated)', border: '1px solid var(--color-separator)', borderRadius: 'var(--r-surface)', minWidth: 260, maxWidth: 'min(340px, calc(100vw - 40px))', maxHeight: 'min(60dvh, 390px)', overflowY: 'auto', zIndex: 100, boxShadow: '0 16px 44px rgba(24, 31, 52, 0.14)', padding: 7 }
+const popupHeaderStyle: CSSProperties = { padding: '6px 9px 7px', fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--color-text-muted)' }
+const popupItemMutedStyle: CSSProperties = { padding: '7px 9px', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-muted)' }
+const pickerItemStyle: CSSProperties = { minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 9px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 13, textAlign: 'left', borderRadius: 'var(--r-control)' }
+const popupDividerStyle: CSSProperties = { borderTop: '1px solid var(--color-separator)', margin: '7px 0' }
+const popupFormStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 7, padding: '0 8px 7px' }
+const inputStyle: CSSProperties = { width: '100%', minHeight: 44, border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', padding: '8px 10px', background: 'var(--color-surface)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: 13, outline: 'none' }
+const fileLabelStyle: CSSProperties = { minHeight: 44, display: 'flex', alignItems: 'center', gap: 7, border: '1px dashed var(--color-separator)', borderRadius: 'var(--r-control)', padding: '8px 10px', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-secondary)', cursor: 'pointer', overflow: 'hidden' }
+const qualityBannerTitleStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, fontWeight: 650 }
+const qualityAdviceStyle: CSSProperties = { fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 3 }
 function qualityBannerStyle(quality: RefQuality): CSSProperties {
   return {
     marginTop: 6, padding: '8px 10px', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 2,
     background: quality.is_perfect ? 'rgba(127, 176, 105, 0.10)' : quality.has_blockers ? 'rgba(217, 122, 102, 0.12)' : 'rgba(232, 196, 106, 0.10)',
-    border: `1px solid ${quality.is_perfect ? 'var(--c-green)' : quality.has_blockers ? 'var(--c-red)' : 'var(--c-yellow)'}`,
+    border: `1px solid ${quality.is_perfect ? 'var(--color-success)' : quality.has_blockers ? 'var(--color-destructive)' : 'var(--color-warning)'}`,
     fontFamily: 'var(--font-body)', fontSize: 10,
   }
 }
