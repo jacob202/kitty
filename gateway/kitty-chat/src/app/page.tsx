@@ -144,7 +144,7 @@ export default function KittyChat() {
                 onNavigate: k.setActiveView,
                 onExpertClick: (expert: any) => { k.handleNewExpertChat(expert); k.setActiveView('chat') },
               }}
-              builderProps={{ onBack: () => k.setActiveView('home') }}
+              builderProps={{ onBack: () => k.setActiveView('work') }}
               toolsProps={{
                 loops: k.loops, insights: k.insights, promptTemplates: k.promptTemplates,
                 onLoopToggle: k.handleLoopToggle, onInsightDismiss: k.handleInsightDismiss,

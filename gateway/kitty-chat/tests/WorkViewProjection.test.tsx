@@ -229,7 +229,7 @@ describe('WorkView projection', () => {
   it('shows degraded Builder truth without switching surfaces', () => {
     renderSnapshot({ ...snapshot(), source: { kind: 'builder', state: 'degraded', reason: 'partial Builder data' } })
     expect(screen.getByText('Builder degraded')).toBeVisible()
-    expect(screen.getByText(/partial Builder data/)).toBeVisible()
+    expect(screen.getByText(/some work may be missing/i)).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Work' })).toBeVisible()
   })
 
@@ -253,6 +253,61 @@ describe('WorkView projection', () => {
 
   it('discloses bounded results', () => {
     renderSnapshot(snapshot('2099-01-01T00:00:00Z', 75))
-    expect(screen.getByText('Showing 1 of 75 most relevant items.')).toBeInTheDocument()
+    expect(screen.getByText('Showing 1 of 75 most relevant items from Builder.')).toBeInTheDocument()
+  })
+})
+
+
+describe('WorkView visual hierarchy', () => {
+  beforeEach(() => useWorkSnapshot.mockReset())
+  afterEach(cleanup)
+
+  it('bounds each status group to the five most relevant rows until expanded', () => {
+    const base = snapshot().items[0]
+    const items = Array.from({ length: 8 }, (_, index) => ({
+      ...base,
+      id: `BLOCKED-${index}`,
+      title: `Blocked item ${index + 1}`,
+      state: 'blocked' as const,
+      source: { ...base.source, initiative_id: `BLOCKED-${index}` },
+      blocker: { state: 'blocked', reason: 'shadow_run_complete', blocked_by: [] },
+      next_action: 'recover',
+    }))
+    renderSnapshot({
+      ...snapshot('2099-01-01T00:00:00Z', items.length),
+      counts: { total: 8, active: 0, paused: 0, failed: 0, blocked: 8, completed: 0, ready: 0, waiting: 0 },
+      items,
+    })
+
+    const region = screen.getByRole('region', { name: 'Needs you' })
+    expect(within(region).getAllByTestId('work-row')).toHaveLength(5)
+    expect(within(region).queryByText('Blocked item 6')).not.toBeInTheDocument()
+    fireEvent.click(within(region).getByRole('button', { name: /show 3 more/i }))
+    expect(within(region).getAllByTestId('work-row')).toHaveLength(8)
+    expect(within(region).getByText('Blocked item 8')).toBeVisible()
+  })
+
+  it('uses one shared list surface for rows in a status group', () => {
+    renderSnapshot()
+    const progress = screen.getByRole('region', { name: 'In progress' })
+    expect(within(progress).getByTestId('work-group-list')).toBeInTheDocument()
+    expect(within(progress).getAllByTestId('work-row')).toHaveLength(1)
+  })
+
+  it('opens the deeper Builder evidence surface without duplicating its state', () => {
+    const onNavigate = vi.fn()
+    useWorkSnapshot.mockReturnValue({ data: snapshot(), isPending: false, isError: false, error: null, refetch: vi.fn() })
+    render(<WorkView isMobile={false} onNavigate={onNavigate} />)
+    fireEvent.click(screen.getByRole('button', { name: /open builder details/i }))
+    expect(onNavigate).toHaveBeenCalledWith('builder')
+  })
+
+  it('keeps the exact degraded source reason behind disclosure', () => {
+    renderSnapshot({ ...snapshot(), source: { kind: 'builder', state: 'degraded', reason: 'partial Builder data' } })
+    expect(screen.getByText('Builder degraded')).toBeVisible()
+    expect(screen.getByText(/some work may be missing/i)).toBeVisible()
+    expect(screen.getByText('partial Builder data')).not.toBeVisible()
+    fireEvent.click(screen.getByText('Source details'))
+    expect(screen.getByText('partial Builder data')).toBeVisible()
   })
 })
