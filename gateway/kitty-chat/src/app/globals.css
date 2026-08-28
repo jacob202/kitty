@@ -7,137 +7,106 @@
   --bottom-nav-height: calc(56px + env(safe-area-inset-bottom, 0px));
 }
 
-/* ── COSMIC: dark navy starfield executive cockpit ─────────── */
+/* ── KITTY THEMES: semantic color contract ───────────────────── */
 [data-theme="cosmic"] {
-  --bg:         #0A0F1F;
-  --surface:    rgba(20, 28, 48, 0.55);
-  --surface-2:  rgba(28, 38, 64, 0.72);
-  /* Opaque twins of the two surfaces above. Anything that floats over page
-     content — drawers, the phone tab bar — must use these; the translucent
-     originals let the page read straight through and the UI becomes soup. */
-  --surface-solid:   #141C30;
-  --surface-2-solid: #1C2640;
-  --line:       rgba(196, 132, 76, 0.32);
-  --glass-blur: 14px;
-  --glass-border: rgba(196, 132, 76, 0.28);
-  --glass-glow: 0 0 0 1px rgba(196, 132, 76, 0.10), 0 8px 32px rgba(0, 0, 0, 0.45);
-
-  --ink:        #F2E8D5;
-  --ink-2:      #9AA0B4;
-
-  --primary:        #C4844C;
-  --primary-deep:   #8A5A30;
-  --primary-fade:   rgba(196, 132, 76, 0.18);
-  --on-primary:     #0A0F1F;
-
-  --cat-ginger:   #C4844C;
-  --cat-green:    #7FB069;
-  --cat-pink:     #D98AA0;
-  --cat-outline:  #F2E8D5;
-  --ginger-fade:  rgba(196, 132, 76, 0.20);
-
-  --c-red:    #D97A66;
-  --c-green:  #7FB069;
-  --c-yellow: #E8C46A;
-  --c-purple: #B089C7;
-  --c-blue:   #6FA0D9;
-
-  --shadow:      0 8px 32px rgba(0, 0, 0, 0.45);
-  --shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.30);
-  --btn-shadow:  0 2px 0 rgba(138, 90, 48, 0.6), 0 6px 18px rgba(0, 0, 0, 0.40);
-  --input-glow:  0 0 0 3px var(--ginger-fade);
-
-  --grain-opacity: 0;
-  --grain-blend:   screen;
-
-  /* Card glass treatment — only under cosmic. Day/night rely on the
-     fallbacks in ui.ts (var(--card-bg, var(--bg)) etc.), so they render
-     exactly as before with no cosmic glass bleeding in on theme toggle. */
-  --card-bg:        rgba(20, 28, 48, 0.55);
-  --card-border:    rgba(196, 132, 76, 0.28);
-  --card-shadow:    0 8px 32px rgba(0, 0, 0, 0.45);
-  --card-backdrop:  blur(14px);
-  --item-bg:        rgba(28, 38, 64, 0.72);
-  --item-border:    rgba(196, 132, 76, 0.20);
+  --color-canvas: #F7F8FC;
+  --color-surface: #FFFFFF;
+  --color-surface-elevated: #F1F3F9;
+  --color-separator: #DFE3EC;
+  --color-text-primary: #171923;
+  --color-text-secondary: #545B6B;
+  --color-text-muted: #7D8699;
+  --color-accent: #6557D9;
+  --color-success: #3F8B68;
+  --color-warning: #A66F1D;
+  --color-destructive: #C54C4C;
+  --color-interactive-hover: rgba(101, 87, 217, 0.08);
+  --color-selected: #ECE9FF;
+  --color-focus-ring: rgba(101, 87, 217, 0.34);
+  --color-disabled: #B6BDCC;
+  --accent-strong: #5144BA;
+  --on-accent: #FFFFFF;
+  --status-pink: #D66A95;
 }
 
-/* ── DAY: manila paper ─────────────────────────────────────── */
-/* Keep a day-mode default only when no explicit theme is selected. The app
-   always sets data-theme on <html>; an unconditional :root selector here
-   would override the cosmic/night variables above through cascade order. */
 :root:not([data-theme]), [data-theme="day"] {
-  --bg:         #F3EAD6;
-  --surface:    #FBF5E9;
-  --surface-2:  #EBE0C9;
-  --surface-solid:   #FBF5E9;
-  --surface-2-solid: #EBE0C9;
-  --line:       #DACBA9;
-
-  --ink:        #3E3527;
-  --ink-2:      #897C64;
-
-  --primary:        #5B7FBF;
-  --primary-deep:   #3E5E97;
-  --primary-fade:   rgba(91,127,191,.16);
-  --on-primary:     #FFFFFF;
-
-  --cat-ginger:   #E68A47;
-  --cat-green:    #7FA85F;
-  --cat-pink:     #E5869A;
-  --cat-outline:  #4A3D2C;
-  --ginger-fade:  rgba(230,138,71,.16);
-
-  --c-red:    #DC6657;
-  --c-green:  #6E9B52;
-  --c-yellow: #D6A93E;
-  --c-purple: #A988C2;
-  --c-blue:   #5B7FBF;
-
-  --shadow:      0 3px 0 var(--primary-deep), 0 6px 14px rgba(0,0,0,.10);
-  --shadow-soft: 0 2px 8px rgba(62,53,39,.06);
-  --btn-shadow:  0 3px 0 var(--primary-deep), 0 6px 14px rgba(0,0,0,.10);
-  --input-glow:  0 0 0 4px var(--ginger-fade);
-
-  --grain-opacity: 0.048;
-  --grain-blend:   multiply;
+  --color-canvas: #FAF8F4;
+  --color-surface: #FFFFFF;
+  --color-surface-elevated: #F2EFE9;
+  --color-separator: #E4DED4;
+  --color-text-primary: #1E1C19;
+  --color-text-secondary: #5F5A52;
+  --color-text-muted: #8C857A;
+  --color-accent: #586FD8;
+  --color-success: #478B67;
+  --color-warning: #9D6C20;
+  --color-destructive: #C65151;
+  --color-interactive-hover: rgba(88, 111, 216, 0.08);
+  --color-selected: #E9EDFF;
+  --color-focus-ring: rgba(88, 111, 216, 0.34);
+  --color-disabled: #BBB7AF;
+  --accent-strong: #4258BB;
+  --on-accent: #FFFFFF;
+  --status-pink: #D06D91;
 }
 
-/* ── NIGHT: chalkboard ─────────────────────────────────────── */
 [data-theme="night"] {
-  --bg:         #272D2B;
-  --surface:    #2F3633;
-  --surface-2:  #39423E;
-  --surface-solid:   #2F3633;
-  --surface-2-solid: #39423E;
-  --line:       #4A534D;
+  --color-canvas: #10121A;
+  --color-surface: #171A24;
+  --color-surface-elevated: #1D2230;
+  --color-separator: #2D3342;
+  --color-text-primary: #F4F5F8;
+  --color-text-secondary: #B7BECC;
+  --color-text-muted: #8791A5;
+  --color-accent: #9588FF;
+  --color-success: #6FC397;
+  --color-warning: #E0B45C;
+  --color-destructive: #E57979;
+  --color-interactive-hover: rgba(149, 136, 255, 0.10);
+  --color-selected: rgba(149, 136, 255, 0.16);
+  --color-focus-ring: rgba(149, 136, 255, 0.48);
+  --color-disabled: #5F687A;
+  --accent-strong: #B1A8FF;
+  --on-accent: #11131B;
+  --status-pink: #E28AA8;
+}
 
-  --ink:        #F1ECDD;
-  --ink-2:      #A6AEA4;
-
-  --primary:        #88ABDA;
-  --primary-deep:   #5E84B8;
-  --primary-fade:   rgba(136,171,218,.20);
-  --on-primary:     #23282E;
-
-  --cat-ginger:   #F0A463;
-  --cat-green:    #9DC07E;
-  --cat-pink:     #F0A0B4;
-  --cat-outline:  #F1ECDD;
-  --ginger-fade:  rgba(240,164,99,.18);
-
-  --c-red:    #EC8576;
-  --c-green:  #9DC07E;
-  --c-yellow: #F0D06A;
-  --c-purple: #C0A4DA;
-  --c-blue:   #88ABDA;
-
-  --shadow:      0 3px 0 var(--primary-deep), 0 6px 14px rgba(0,0,0,.30);
-  --shadow-soft: 0 2px 8px rgba(0,0,0,.18);
-  --btn-shadow:  0 3px 0 var(--primary-deep), 0 6px 14px rgba(0,0,0,.30);
-  --input-glow:  0 0 0 4px var(--ginger-fade);
-
-  --grain-opacity: 0.05;
-  --grain-blend:   screen;
+/* Compatibility aliases keep existing surfaces stable during progressive migration. */
+[data-theme="cosmic"], [data-theme="day"], [data-theme="night"], :root:not([data-theme]) {
+  --bg: var(--color-canvas);
+  --surface: var(--color-surface);
+  --surface-2: var(--color-surface-elevated);
+  --surface-solid: var(--color-surface);
+  --surface-2-solid: var(--color-surface-elevated);
+  --line: var(--color-separator);
+  --ink: var(--color-text-primary);
+  --ink-2: var(--color-text-secondary);
+  --primary: var(--color-accent);
+  --primary-deep: var(--accent-strong);
+  --primary-fade: var(--color-selected);
+  --on-primary: var(--on-accent);
+  --cat-ginger: var(--color-accent);
+  --cat-green: var(--color-success);
+  --cat-pink: var(--status-pink);
+  --cat-outline: var(--color-text-primary);
+  --ginger-fade: var(--color-selected);
+  --c-red: var(--color-destructive);
+  --c-green: var(--color-success);
+  --c-yellow: var(--color-warning);
+  --c-purple: var(--color-accent);
+  --c-blue: #6486D8;
+  --shadow: 0 12px 32px rgba(20, 25, 38, 0.10);
+  --shadow-soft: 0 4px 16px rgba(20, 25, 38, 0.07);
+  --btn-shadow: 0 1px 2px rgba(20, 25, 38, 0.10);
+  --input-glow: 0 0 0 3px var(--color-focus-ring);
+  --grain-opacity: 0;
+  --grain-blend: normal;
+  --card-bg: var(--color-surface);
+  --card-border: var(--color-separator);
+  --card-shadow: var(--shadow-soft);
+  --card-backdrop: none;
+  --item-bg: var(--color-surface-elevated);
+  --item-border: var(--color-separator);
 }
 
 /* ── Typography ────────────────────────────────────────────── */
@@ -172,9 +141,9 @@
   --r-tag:     6px;
 
   /* layout */
-  --rail-width:    94px;
+  --rail-width:    88px;
   --sidebar-width: 268px;
-  --topbar-height: 58px;
+  --topbar-height: 60px;
 }
 
 html, body {
@@ -188,25 +157,23 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── COSMIC: starfield + nebula body treatment ─────────────── */
-[data-theme="cosmic"] body,
-[data-theme="cosmic"] {
-  background-color: #0A0F1F;
-  background-image:
-    radial-gradient(1.4px 1.4px at 12% 18%, rgba(242, 232, 213, 0.85), transparent 60%),
-    radial-gradient(1.1px 1.1px at 84% 72%, rgba(242, 232, 213, 0.70), transparent 60%),
-    radial-gradient(1.2px 1.2px at 38% 88%, rgba(242, 232, 213, 0.60), transparent 60%),
-    radial-gradient(0.9px 0.9px at 62% 22%, rgba(242, 232, 213, 0.75), transparent 60%),
-    radial-gradient(1.0px 1.0px at 22% 58%, rgba(242, 232, 213, 0.55), transparent 60%),
-    radial-gradient(1.3px 1.3px at 78% 38%, rgba(242, 232, 213, 0.70), transparent 60%),
-    radial-gradient(circle at 70% 30%, rgba(90, 60, 130, 0.18), transparent 55%),
-    radial-gradient(circle at 25% 75%, rgba(196, 132, 76, 0.12), transparent 60%),
-    linear-gradient(180deg, #0A0F1F 0%, #0D1428 60%, #0A0F1F 100%);
-  background-attachment: fixed;
+html, body {
+  background: var(--color-canvas);
 }
 
 button { border: 0; cursor: pointer; color: inherit; background: transparent; }
-button, input, textarea { font: inherit; }
+button, input, textarea, select { font: inherit; }
+
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+:where(button, input, textarea, select):disabled {
+  color: var(--color-disabled);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
 
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -324,6 +291,13 @@ textarea::placeholder { color: var(--ink-2); opacity: .8; }
 .cat-animate { transition: opacity 0.3s ease; }
 
 @media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
   .cat-idle svg,
   .cat-working svg,
   .cat-done svg {

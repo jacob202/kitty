@@ -4,7 +4,7 @@ const NAV_ITEMS = [
   { id: 'home', label: 'Home', d: 'M3 11 L12 3 L21 11 M6 9 V20 H18 V9' },
   { id: 'chat', label: 'Chat', d: 'M4 5 H20 V15 H10 L5 19 V15 H4 Z' },
   { id: 'work', label: 'Work', d: 'M5 4 H19 V20 H5 Z M8 8 H10 M14 8 H16 M8 12 H16 M8 16 H12' },
-  { id: 'studio', label: 'Studio', d: 'M3 4 H21 V20 H3 Z M7 8 L10 4 L13 8 M7 14 L10 10 L13 14' },
+  { id: 'studio', label: 'Image Lab', d: 'M3 4 H21 V20 H3 Z M7 8 L10 4 L13 8 M7 14 L10 10 L13 14' },
   { id: 'library', label: 'Library', d: 'M4 5 H13 V19 H4 Z M17 7 H20 V17 H17 Z M17 5 L14 8' },
   { id: 'settings', label: 'More', d: 'M4 7 H20 M4 12 H20 M4 17 H20 M9 5 V9 M15 10 V14 M8 15 V19' },
 ]
@@ -24,8 +24,8 @@ export function BottomNav({ activeView = 'home', onViewChange }: Props) {
         left: 0,
         right: 0,
         height: 'var(--bottom-nav-height)',
-        background: 'var(--surface-2-solid)',
-        borderTop: '1.5px solid var(--line)',
+        background: 'var(--color-surface)',
+        borderTop: '1px solid var(--color-separator)',
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
@@ -46,24 +46,28 @@ export function BottomNav({ activeView = 'home', onViewChange }: Props) {
               flexDirection: 'column',
               alignItems: 'center',
               gap: 2,
-              padding: '4px 2px',
+              padding: '6px 2px',
               border: 'none',
-              background: 'transparent',
               cursor: 'pointer',
-              color: active ? 'var(--cat-ginger)' : 'var(--ink-2)',
-              // Seven tabs have to share a 320px phone without the last one
-              // sliding off the edge, so they flex instead of holding a floor.
+              color: active ? 'var(--color-accent)' : 'var(--color-text-muted)',
               flex: '1 1 0',
               minWidth: 0,
-              minHeight: 40,
+              minHeight: 44,
+              borderRadius: 10,
+              background: active ? 'var(--color-selected)' : 'transparent',
             }}
           >
             <svg viewBox="0 0 24 24" style={{ width: 22, height: 22, flexShrink: 0 }}>
               <path d={d} stroke="currentColor" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span style={{
-              fontSize: 9, fontWeight: 600, letterSpacing: '0.02em',
-              maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              fontSize: 10,
+              fontWeight: 650,
+              letterSpacing: '0.02em',
+              maxWidth: '100%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}>{label}</span>
           </button>
         )

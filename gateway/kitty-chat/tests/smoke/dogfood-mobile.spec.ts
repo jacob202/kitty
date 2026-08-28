@@ -6,7 +6,7 @@ import type { Page } from '@playwright/test';
  * substitute: it drives the real running app at an iPhone 14 Pro-class viewport
  * through every primary destination and fails on the exact defects Jacob hit on
  * his phone — horizontal overflow, clipped controls, actions hidden under the
- * fixed tab bar, missing bottom-nav items, a Studio that invites an impossible
+ * fixed tab bar, missing bottom-nav items, an Image Lab that invites an impossible
  * generation, and a Library that demands a Mac file path.
  *
  * Runs without a live gateway: the health stub mounts the app and every other
@@ -14,7 +14,7 @@ import type { Page } from '@playwright/test';
  * source basename are stubbed in because those are the values that overflowed.
  */
 
-const DESTINATIONS = ['Home', 'Chat', 'Work', 'Studio', 'Library', 'More'];
+const DESTINATIONS = ['Home', 'Chat', 'Work', 'Image Lab', 'Library', 'More'];
 
 const GATEWAY_STUBS = [
   ['**/proxy/projects', { projects: [{ id: 1, name: 'kitty-gateway-rebuild' }] }],
@@ -213,7 +213,7 @@ test.describe('phone dogfood — slice 1', () => {
     }
   });
 
-  test('Studio/More tab bar does not bury the last control behind the fixed nav', async ({ page }) => {
+  test('Image Lab/More tab bar does not bury the last control behind the fixed nav', async ({ page }) => {
     // Covered by the destination sweep, but pin the two destinations that had
     // real clipping (Settings' long rows) with an explicit assertion.
     await page.goto('/');
@@ -222,7 +222,7 @@ test.describe('phone dogfood — slice 1', () => {
     const navBox = await nav.boundingBox();
     expect(navBox).not.toBeNull();
 
-    for (const label of ['Studio', 'More']) {
+    for (const label of ['Image Lab', 'More']) {
       await nav.getByRole('button', { name: label, exact: true }).click();
       await page.waitForTimeout(900);
       await scrollMainToBottom(page);
@@ -239,7 +239,7 @@ test.describe('phone dogfood — slice 1', () => {
 
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Studio' }).click();
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Image Lab' }).click();
 
     const workspace = page.getByRole('region', { name: 'Image Lab' });
     await expect(workspace).toBeVisible();
@@ -263,7 +263,7 @@ test.describe('phone dogfood — slice 1', () => {
     await stubEnginesOnline(page);
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Studio' }).click();
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Image Lab' }).click();
 
     const lab = page.getByRole('region', { name: 'Image Lab' });
     const workspace = page.getByTestId('image-lab-workspace');

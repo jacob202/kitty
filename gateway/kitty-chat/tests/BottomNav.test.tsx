@@ -13,7 +13,7 @@ describe('BottomNav', () => {
     expect(screen.getByLabelText('Home')).toBeDefined()
     expect(screen.getByLabelText('Chat')).toBeDefined()
     expect(screen.getByLabelText('Work')).toBeDefined()
-    expect(screen.getByLabelText('Studio')).toBeDefined()
+    expect(screen.getByLabelText('Image Lab')).toBeDefined()
     expect(screen.getByLabelText('Library')).toBeDefined()
     expect(screen.getByLabelText('More')).toBeDefined()
   })
@@ -34,6 +34,11 @@ describe('BottomNav', () => {
     render(<BottomNav activeView="home" onViewChange={onViewChange} />)
     fireEvent.click(screen.getByLabelText('Chat'))
     expect(onViewChange).toHaveBeenCalledWith('chat')
+  })
+
+  it('uses phone-sized touch targets', () => {
+    render(<BottomNav activeView="home" onViewChange={onViewChange} />)
+    expect(screen.getByLabelText('Home')).toHaveStyle({ minHeight: '44px' })
   })
 
   it('renders as a navigation landmark', () => {
