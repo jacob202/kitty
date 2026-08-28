@@ -267,7 +267,12 @@ def _winning_grant(
         return None
     return max(
         candidates,
-        key=lambda g: (_specificity(g), _DECISION_RANK[g["decision"]], g["id"]),
+        key=lambda g: (
+            _specificity(g),
+            _DECISION_RANK[g["decision"]],
+            _is_session_bound(g),
+            g["id"],
+        ),
     )
 
 
@@ -320,17 +325,23 @@ def _scope_matches(
 
 
 def _specificity(grant: dict[str, Any]) -> int:
+    """Scope-type narrowness only. Session binding is a separate, strictly
+    lower-priority tie-break (see :func:`_is_session_bound`) — it must never
+    let a session-scoped grant at a broader scope outrank a narrower one that
+    isn't session-bound (AUTH-002)."""
     if grant["scope_type"] == "global":
-        rank = 0
+        return 0
     elif grant["scope_type"] == "mcp_server":
-        rank = 1
+        return 1
     elif grant["scope_type"] == "tool":
-        rank = 2
+        return 2
     else:
-        rank = 1
-    if grant["session_id"] is not None:
-        rank += 10
-    return rank
+        return 1
+
+
+def _is_session_bound(grant: dict[str, Any]) -> bool:
+    """Final tie-break after scope and fail-closed decision precedence."""
+    return grant["session_id"] is not None
 
 
 def _scope_label(scope_type: str, scope_id: str) -> str:
