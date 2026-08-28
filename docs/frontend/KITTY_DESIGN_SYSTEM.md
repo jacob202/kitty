@@ -98,3 +98,11 @@ Image Lab is a creative workspace, not a provider configuration form. The conver
 Persistent generation controls use body typography and touch-sized targets. Reference characters and anchored images are visible as selected context near the prompt, while exact provider, provenance, and recovery details remain subordinate unless they need attention. Cost and duration estimates stay visible before queueing without competing with the prompt itself.
 
 Completed images are treated as working material: the result action should make the next creative step explicit (for example, editing from a chosen result) rather than exposing internal job language. Offline/degraded renderer states keep the workspace usable and explain recovery without leaking secret or environment-variable names.
+
+## Library
+
+Library presents canonical artifacts first and derived knowledge second. Saved files remain visible and filterable even when indexing is degraded; local filtering only narrows the already-fetched ArtifactStore projection and does not create another source of truth.
+
+Artifact rows share one bounded list surface with readable names, file facts, provenance, and dates. Search and refresh controls are persistent, touch-sized controls. Empty, error, and no-match states keep the artifact context visible instead of collapsing into generic failure chrome.
+
+The Knowledge section is explicitly subordinate because it is a derived index. Indexing failure must never make a saved artifact appear missing. Generic preview/open actions are not invented until the backend exposes a trustworthy artifact-content contract.

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -78,6 +78,40 @@ describe('LibraryView artifact truth', () => {
 
     expect(await screen.findByText(/sign in again to load saved files/i)).toBeInTheDocument()
     expect(screen.queryByText(/Gateway returned 401/i)).not.toBeInTheDocument()
+  })
+
+  it('filters saved artifacts locally without hiding the knowledge surface', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      artifacts: [
+        {
+          id: 'artifact_1', project_id: 7, kind: 'capture', media_type: 'image/png',
+          display_name: 'camera-reference.png', state: 'ready', size_bytes: 2048,
+          created_at: 1787259000, created_by: 'capture', conversation_id: 'chat-1', metadata: {}, error: null,
+        },
+        {
+          id: 'artifact_2', project_id: null, kind: 'document', media_type: 'text/markdown',
+          display_name: 'meeting-notes.md', state: 'ready', size_bytes: 1024,
+          created_at: 1787259100, created_by: 'chat', conversation_id: null, metadata: {}, error: null,
+        },
+      ],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
+    renderLibrary()
+
+    const search = screen.getByRole('searchbox', { name: /search saved files/i })
+    expect(search).toHaveStyle({ minHeight: '44px' })
+    expect(await screen.findByText('camera-reference.png')).toBeVisible()
+    expect(screen.getByText('meeting-notes.md')).toBeVisible()
+
+    fireEvent.change(search, { target: { value: 'meeting' } })
+    expect(screen.queryByText('camera-reference.png')).not.toBeInTheDocument()
+    expect(screen.getByText('meeting-notes.md')).toBeVisible()
+    expect(screen.getByText(/knowledge unavailable/i)).toBeVisible()
+  })
+
+  it('uses touch-sized saved-file actions', async () => {
+    renderLibrary()
+    const refresh = await screen.findByRole('button', { name: /refresh saved files/i })
+    expect(refresh).toHaveStyle({ minHeight: '44px' })
   })
 
   it('keeps the knowledge index visible when artifact listing fails', async () => {
