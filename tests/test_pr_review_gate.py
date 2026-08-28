@@ -70,7 +70,11 @@ def test_evaluate_rejects_missing_or_stale_evidence() -> None:
     assert SHA in reason
 
 
-def test_main_reads_live_pr_and_comments(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_main_reads_live_pr_and_comments(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     event = {
         "pull_request": {"number": 510},
         "repository": {"owner": {"login": "jacob202"}, "name": "kitty"},
@@ -96,6 +100,10 @@ def test_main_reads_live_pr_and_comments(monkeypatch: pytest.MonkeyPatch, tmp_pa
 
     monkeypatch.setattr(pr_review_gate, "_github_json", fake_json)
     pr_review_gate.main()
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert captured.out == f"GitHub agent review approved exact head {SHA}.\n"
 
 
 def test_conflicting_exact_head_agent_finding_blocks_builder_approval() -> None:

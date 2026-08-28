@@ -17,6 +17,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 _ADAPTER = (Path(__file__).parents[1] / "scripts" / "kittybuilder_claude_adapter.py").resolve()
 _GOOD_WORKER_RESULT = json.dumps(
     {

@@ -22,6 +22,8 @@ from integrations.discord_command_center.runner import (
 from integrations.discord_command_center.service import VibeService
 from integrations.discord_command_center.workspace import GitWorktreeManager
 
+pytestmark = pytest.mark.integration
+
 PYTHON = "/Users/jacobbrizinski/Projects/kitty/venv/bin/python"
 
 

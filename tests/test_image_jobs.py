@@ -395,15 +395,7 @@ class TestReconcile:
             jobs.requeue(job.job_id)
 
 
-# ── 9. Integration with image_gen ──────────────────────────────────────────
-
-
-class TestImageGenIntegration:
-    def test_import_does_not_crash(self) -> None:
-        import gateway.image_gen  # noqa: F401
-
-
-# ── 10. Priority queue ────────────────────────────────────────────────────
+# ── 9. Priority queue ─────────────────────────────────────────────────────
 
 
 class TestPriorityQueue:
@@ -431,7 +423,7 @@ class TestPriorityQueue:
         assert queue[0].priority >= queue[1].priority
 
 
-# ── 11. Retry / requeue ───────────────────────────────────────────────────
+# ── 10. Retry / requeue ───────────────────────────────────────────────────
 
 
 class TestRetry:

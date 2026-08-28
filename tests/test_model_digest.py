@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from gateway import model_digest
 from gateway.model_digest import ModelDigestError
 
@@ -16,12 +18,11 @@ def test_load_recent_events_propagates_error() -> None:
     def boom(limit: int = 10) -> list[dict]:
         raise RuntimeError("db is gone")
 
-    with patch.object(model_digest, "_get_conn", side_effect=boom):
-        try:
-            model_digest._load_recent_events()
-        except ModelDigestError:
-            return
-        raise AssertionError("expected ModelDigestError to propagate")
+    with (
+        patch.object(model_digest, "_get_conn", side_effect=boom),
+        pytest.raises(ModelDigestError, match="could not load recent digest events: db is gone"),
+    ):
+        model_digest._load_recent_events()
 
 
 def test_section_reports_unavailable_on_store_error(monkeypatch) -> None:

@@ -7,6 +7,8 @@ auto-bump on recovery hints, and CLI dry-run.
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts.curation.extract_chat_goldmine import (
     Chunk,
     ExtractionParseError,
@@ -69,12 +71,8 @@ def test_parse_items_accepts_json_fence():
 
 
 def test_parse_items_raises_on_bad_json():
-    try:
+    with pytest.raises(ExtractionParseError, match="LLM did not return JSON"):
         _parse_items("not json at all")
-    except ExtractionParseError:
-        pass
-    else:
-        raise AssertionError("expected ExtractionParseError")
 
 
 def test_valid_drops_bad_object_type_and_non_unreviewed():

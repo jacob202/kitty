@@ -13,7 +13,9 @@ ROOT = Path(__file__).parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 DRAFT_GUARD = "github.event.pull_request.draft == false"
-SCOPE_GATED_JOBS = ("pytest", "lint", "typecheck", "kitty-chat", "browser-smoke")
+SCOPE_GATED_JOBS = (
+    "pytest", "pytest-integration", "lint", "typecheck", "kitty-chat", "browser-smoke"
+)
 
 
 def _workflow(name: str) -> tuple[str, dict]:
@@ -33,6 +35,8 @@ def test_tests_workflow_has_stable_merge_gate_and_scope_detection() -> None:
     assert "merge-gate" in jobs
     assert jobs["merge-gate"]["name"] == "merge-gate"
     assert "hygiene" not in jobs["merge-gate"]["needs"]
+    assert "pytest" in jobs["merge-gate"]["needs"]
+    assert "pytest-integration" in jobs["merge-gate"]["needs"]
     assert "needs.changes.outputs.frontend" in text
 
 
@@ -79,7 +83,7 @@ def test_converting_back_to_draft_cancels_superseded_pull_request_work() -> None
 def test_required_jobs_are_scope_gated_on_every_event_including_main_pushes() -> None:
     """A docs-only merge re-running the code suite proves nothing it can act on."""
     _, workflow = _workflow("tests.yml")
-    for name in ("pytest", "lint", "typecheck"):
+    for name in ("pytest", "pytest-integration", "lint", "typecheck"):
         condition = workflow["jobs"][name]["if"]
         assert "needs.changes.outputs.code == 'true'" in condition, name
         assert "github.event_name == 'push'" not in condition, name
@@ -110,6 +114,17 @@ def test_agent_review_does_not_rerun_for_a_merge_queue_requeue() -> None:
     _, workflow = _workflow("pr-agent-review.yml")
     review_if = str(workflow["jobs"]["agent-review"]["if"])
     assert "github.event.action == 'checks_requested'" not in review_if
+
+def test_python_latency_split_keeps_process_integration_required() -> None:
+    text, workflow = _workflow("tests.yml")
+    jobs = workflow["jobs"]
+    assert "pytest-integration" in jobs
+    command = "\n".join(
+        str(step.get("run", "")) for step in jobs["pytest-integration"]["steps"]
+    )
+    assert "-m integration" in command
+    assert "pytest-integration" in jobs["merge-gate"]["needs"]
+    assert "PYTEST_INTEGRATION_RESULT" in text
 
 
 def test_change_scope_comes_from_the_canonical_classifier() -> None:

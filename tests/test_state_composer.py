@@ -1,6 +1,6 @@
 """Tests for state_composer — composed now-state, snapshots, mechanical diff (P1)."""
 
-import time
+import threading
 
 import pytest
 
@@ -52,18 +52,23 @@ def test_failing_source_yields_error_section_not_whole_failure(monkeypatch):
 
 
 def test_slow_source_times_out_honestly(monkeypatch):
+    release_slow_source = threading.Event()
+
     def slow():
-        time.sleep(0.5)
+        release_slow_source.wait()
         return {"n": 1}
 
-    monkeypatch.setattr(state_composer, "SOURCE_TIMEOUT_SECONDS", 0.1)
+    monkeypatch.setattr(state_composer, "SOURCE_TIMEOUT_SECONDS", 0.02)
     monkeypatch.setattr(
         state_composer,
         "SOURCES",
         {"slow": slow, "fast": lambda: {"n": 2}},
     )
 
-    sections = state_composer.compose_now()["sections"]
+    try:
+        sections = state_composer.compose_now()["sections"]
+    finally:
+        release_slow_source.set()
 
     assert sections["fast"]["ok"] is True
     assert sections["slow"]["ok"] is False
@@ -131,9 +136,10 @@ def test_source_going_down_is_a_reported_change(monkeypatch):
 
 
 def test_new_signals_since_snapshot_are_included(stub_sources):
-    state_composer.snapshot_now()
-    time.sleep(0.01)
-    signal_store.emit(source="mail", kind="message.received")
+    snapshot = state_composer.snapshot_now()
+    signal_store.emit(
+        source="mail", kind="message.received", ts=snapshot["ts"] + 1.0
+    )
 
     result = state_composer.changes_since_snapshot()
 

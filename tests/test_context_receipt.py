@@ -7,6 +7,8 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 from gateway.context_receipt import (
@@ -14,6 +16,8 @@ from gateway.context_receipt import (
     compact_context_receipt,
     run_continuity_checks,
 )
+
+pytestmark = pytest.mark.integration
 
 NOW = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
 

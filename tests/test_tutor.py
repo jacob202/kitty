@@ -31,14 +31,16 @@ GOOD_LLM = (
 )
 
 
-def test_ask_returns_vocab_first_and_question():
+def test_ask_returns_exact_structured_answer():
     async def retr(_: str) -> list[str]:
         return ["Refactoring restructures code without changing behavior."]
 
     ans = _run(tutor.ask("refactoring", retriever=retr, llm=lambda _m: GOOD_LLM))
-    assert ans["vocab"], "expected vocab terms"
-    assert len(ans["vocab"]) == 3
-    assert ans["question"], "expected a check-in question"
+    assert ans == {
+        "vocab": ["refactor", "behavior", "structure"],
+        "explain": "It is like reorganizing a toolbox without losing any tools.",
+        "question": "Why avoid changing behavior during a refactor?",
+    }
 
 
 def test_ask_with_no_docs_refuses_and_points_to_learn():
@@ -57,12 +59,8 @@ def test_ask_non_json_llm_fails_loud():
     async def retr(_: str) -> list[str]:
         return ["some context"]
 
-    try:
+    with pytest.raises(tutor.TutorError, match="Tutor produced non-JSON output for 'x'"):
         _run(tutor.ask("x", retriever=retr, llm=lambda _m: "Sure! Here is the answer."))
-    except tutor.TutorError:
-        pass
-    else:
-        raise AssertionError("expected TutorError on non-JSON LLM output")
 
 
 def test_confidence_spacing():
@@ -75,21 +73,13 @@ def test_confidence_spacing():
 
 
 def test_log_confidence_rejects_bad_score():
-    try:
+    with pytest.raises(tutor.TutorError, match="confidence score must be 1, 2, or 3"):
         tutor.log_confidence("x", 9)
-    except tutor.TutorError:
-        pass
-    else:
-        raise AssertionError("expected TutorError on invalid score")
 
 
 def test_log_confidence_rejects_bad_knowledge_type():
-    try:
+    with pytest.raises(tutor.TutorError, match="knowledge_type must be a KnowledgeType"):
         tutor.log_confidence("x", 1, knowledge_type="bogus")
-    except tutor.TutorError:
-        pass
-    else:
-        raise AssertionError("expected TutorError on invalid knowledge_type")
 
 
 def test_type_specific_intervals():

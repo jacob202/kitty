@@ -83,7 +83,7 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-asyncio pytest-cov
 
-      - name: Run test suite
+      - name: Run fast test suite
         run: |
           # TH-03 ratchet: floor = measured 76% (2026-07-19, pristine
           # worktree at origin/main) minus 3. Council --ignore flags removed:
@@ -99,6 +99,48 @@ jobs:
         with:
           name: pytest-output
           path: pytest-output.txt
+          retention-days: 7
+
+  pytest-integration:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      KITTY_EXPECTED_CANONICAL_CHECKOUT: ${{ github.workspace }}
+      KITTY_EXPECTED_TEST_CHECKOUT: ${{ github.workspace }}
+      KITTY_EXPECTED_TEST_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Run required process integration suite
+        run: |
+          set -o pipefail
+          python -m pytest tests/ -q --tb=short \
+            -o addopts="--strict-markers" -m integration \
+            2>&1 | tee pytest-integration-output.txt
+
+      - name: Upload integration pytest output
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-integration-output
+          path: pytest-integration-output.txt
           retention-days: 7
 
   lint:
@@ -170,7 +212,7 @@ jobs:
       - name: Install
         run: npm ci
       - name: Test
-        run: ./node_modules/.bin/vitest run
+        run: npm test
       - name: npm audit (advisory)
         continue-on-error: true
         run: npm audit --audit-level=high
@@ -246,11 +288,11 @@ jobs:
         env:
           PLAYWRIGHT_PORT: "4000"
           PLAYWRIGHT_REUSE_EXISTING_SERVER: "1"
-        run: npx playwright test
+        run: npm run test:smoke
       - name: Run browser → real Gateway → temp DB seam
         env:
           KITTY_HERMETIC_PYTHON: python
-        run: npx playwright test --config playwright.hermetic.config.ts
+        run: npm run test:smoke:hermetic
       - name: Upload report
         if: failure()
         uses: actions/upload-artifact@v7
@@ -262,12 +304,13 @@ jobs:
   merge-gate:
     name: merge-gate
     if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
-    needs: [changes, pytest, lint, typecheck, kitty-chat, browser-smoke]
+    needs: [changes, pytest, pytest-integration, lint, typecheck, kitty-chat, browser-smoke]
     runs-on: ubuntu-latest
     env:
       CHANGES_RESULT: ${{ needs.changes.result }}
       CODE: ${{ needs.changes.outputs.code }}
       PYTEST_RESULT: ${{ needs.pytest.result }}
+      PYTEST_INTEGRATION_RESULT: ${{ needs.pytest-integration.result }}
       LINT_RESULT: ${{ needs.lint.result }}
       TYPECHECK_RESULT: ${{ needs.typecheck.result }}
       FRONTEND: ${{ needs.changes.outputs.frontend }}
@@ -283,6 +326,7 @@ jobs:
           if [[ "$CODE" == "true" ]]; then
             for pair in \
               "pytest:$PYTEST_RESULT" \
+              "pytest-integration:$PYTEST_INTEGRATION_RESULT" \
               "lint:$LINT_RESULT" \
               "typecheck:$TYPECHECK_RESULT"; do
               name="${pair%%:*}"
@@ -292,6 +336,7 @@ jobs:
           else
             for pair in \
               "pytest:$PYTEST_RESULT" \
+              "pytest-integration:$PYTEST_INTEGRATION_RESULT" \
               "lint:$LINT_RESULT" \
               "typecheck:$TYPECHECK_RESULT"; do
               name="${pair%%:*}"

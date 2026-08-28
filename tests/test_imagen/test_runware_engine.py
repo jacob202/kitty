@@ -251,7 +251,10 @@ def test_http_400_is_retried_and_can_recover(engine):
     bad.raise_for_status.side_effect = status_error
     good = _ok_response(base64.b64encode(b"recovered").decode())
 
-    with patch("httpx.post", side_effect=[bad, good]) as mock_post:
+    with (
+        patch.object(engine.generate.retry, "sleep", lambda _seconds: None),
+        patch("httpx.post", side_effect=[bad, good]) as mock_post,
+    ):
         result = engine.generate("prompt")
 
     assert result == b"recovered"

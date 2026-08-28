@@ -21,6 +21,8 @@ from gateway import builder_initiative as bi
 from gateway import builder_loop as bl
 from gateway import builder_queue as bq
 
+pytestmark = pytest.mark.integration
+
 INITIATIVE = "loop-test"
 PACKET = "LP-1"
 
