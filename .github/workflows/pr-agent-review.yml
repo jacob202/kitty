@@ -3,6 +3,8 @@ name: PR Agent Review
 on:
   pull_request_target:
     types: [opened, edited, synchronize, reopened, ready_for_review, labeled, unlabeled]
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
@@ -12,13 +14,18 @@ permissions:
 concurrency:
   # review-concurrency-class: metadata events must not cancel a code-head review.
   # Repeated events of the same type still cancel their own superseded run.
-  group: pr-agent-review-${{ github.event.pull_request.number }}-${{ github.event.action }}
+  # merge_group carries no pull_request.number; head_ref is unique per queue
+  # entry (gh-readonly-queue/<base>/pr-<N>-<sha>) so entries stay independent.
+  group: pr-agent-review-${{ github.event.pull_request.number || github.event.merge_group.head_ref }}-${{ github.event.action }}
   cancel-in-progress: true
 
 jobs:
   scope:
     name: scope
-    if: ${{ github.event.pull_request.draft == false }}
+    # policy-gate is a required check in the merge queue, so scope (and
+    # policy-gate below) must run for merge_group too, or the queue entry
+    # blocks forever waiting for a check nothing ever reports.
+    if: ${{ github.event_name == 'merge_group' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     outputs:
       sensitive: ${{ steps.scope.outputs.sensitive }}
@@ -83,8 +90,9 @@ jobs:
     name: policy-gate
     # policy-gate classifies the live PR itself rather than trusting the scope
     # job's answer, so a failed or skipped scope job can never downgrade a
-    # sensitive PR into one that needs no review evidence.
-    if: ${{ always() && github.event.pull_request.draft == false }}
+    # sensitive PR into one that needs no review evidence. Must also run for
+    # merge_group (see scope's if, above) — it is a required check.
+    if: ${{ always() && (github.event_name == 'merge_group' || github.event.pull_request.draft == false) }}
     needs: [scope, agent-review]
     runs-on: ubuntu-latest
     steps:

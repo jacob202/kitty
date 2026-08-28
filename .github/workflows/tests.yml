@@ -9,12 +9,17 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches: [ main ]
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
 # Required work is scope-aware on every event, including pushes to main: the
 # scope of a merge is the scope of what it merged. Post-merge re-running of code
 # suites for a docs-only merge proves nothing, because the strict up-to-date
 # requirement means the merged tree is the tree the PR head already validated.
+# merge_group carries this same requirement into the merge queue: every job
+# `merge-gate` needs must run there too, or the queue entry blocks forever
+# waiting for a check that never gets reported.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
