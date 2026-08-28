@@ -63,3 +63,15 @@ Keyboard focus uses the global semantic focus ring. Do not remove outlines witho
 Use optimistic UI only when the underlying operation is safely reversible and the UI can reconcile truthfully. Loading uses stable skeleton geometry where content shape is known. Errors preserve the failed context and expose a concrete retry/recovery action when one exists.
 
 Selected, hover, disabled, waiting, blocked, failed, and completed states must remain visually distinct in both light and dark themes. Do not invent success while durable backend state is still pending.
+
+## Chat surface
+
+Conversation content outranks routing and execution metadata. Assistant replies use the elevated neutral surface; user messages use the selected/accent-tint surface rather than a saturated accent fill. Both keep primary text color and a subtle separator so long-form copy remains comfortable in light and dark themes.
+
+Response actions are quiet but reachable. On touch layouts they remain visible with at least 44px targets; on pointer layouts they may reveal on hover/focus. Recovery actions for interrupted or failed turns stay visible without hover. Meaningless single-branch labels such as `1 response / showing 1` are omitted.
+
+Provider, requested-model, tools, routing, and memory evidence are subordinate details. Preserve their truth, but render them as muted disclosure/detail UI rather than competing with the answer. Technical metadata must never imply that a requested model actually produced a response when only the request is known.
+
+The composer is a neutral surface at rest and uses the accent/focus ring only while focused. Phone textarea text is at least 16px to avoid browser zoom, and persistent attachment/model/voice/send controls use touch-sized targets. The composer must remain fully above the fixed phone navigation and safe area.
+
+Desktop chat history is supportive navigation, not a competing call-to-action column. `New chat` and the active thread use the shared selected treatment; saturated accent is reserved for genuinely primary actions.

@@ -116,3 +116,24 @@ test.describe('phone layout', () => {
     expect(alpha, 'drawer background must be fully opaque over page content').toBe(1);
   });
 });
+
+test('phone chat composer uses readable text and touch-sized controls', async ({ page }, testInfo) => {
+  testInfo.skip(testInfo.project.name !== 'mobile', 'phone-only composer contract');
+
+  await page.goto('/');
+  await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
+  const nav = page.getByRole('navigation', { name: 'Main navigation' });
+  await nav.getByRole('button', { name: 'Chat', exact: true }).click();
+
+  const composer = page.locator('main textarea').first();
+  await expect(composer).toBeVisible();
+  expect(await composer.evaluate((el) => getComputedStyle(el).fontSize)).toBe('16px');
+
+  for (const label of ['attach a file', 'start voice input']) {
+    const control = page.getByRole('button', { name: label });
+    const box = await control.boundingBox();
+    expect(box, `${label} has no box`).not.toBeNull();
+    expect(box!.width, `${label} is too narrow`).toBeGreaterThanOrEqual(44);
+    expect(box!.height, `${label} is too short`).toBeGreaterThanOrEqual(44);
+  }
+});
