@@ -212,6 +212,25 @@ def test_narrow_tool_deny_outranks_a_session_bound_global_allow():
     assert decision.outcome == "deny"
 
 
+def test_same_scope_deny_outranks_session_bound_allow():
+    """Fail-closed decision precedence wins before session binding."""
+    _grant(
+        "mcp.invoke", "deny", granted_tier="T2",
+        scope_type="tool", scope_id="github/delete_repo",
+    )
+    _grant(
+        "mcp.invoke", "allow", granted_tier="T2",
+        scope_type="tool", scope_id="github/delete_repo", session_id="session-a",
+    )
+
+    decision = action_grants.evaluate(
+        capability="mcp.invoke", tier="T2", status="proposed",
+        scope_type="tool", scope_id="github/delete_repo", session_id="session-a",
+    )
+
+    assert decision.outcome == "deny"
+
+
 # --- expiry, revocation, session binding -----------------------------------
 
 

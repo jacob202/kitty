@@ -269,8 +269,8 @@ def _winning_grant(
         candidates,
         key=lambda g: (
             _specificity(g),
-            _is_session_bound(g),
             _DECISION_RANK[g["decision"]],
+            _is_session_bound(g),
             g["id"],
         ),
     )
@@ -340,8 +340,7 @@ def _specificity(grant: dict[str, Any]) -> int:
 
 
 def _is_session_bound(grant: dict[str, Any]) -> bool:
-    """Tie-break only within one scope-specificity rank: between two grants
-    at the same scope narrowness, prefer the one scoped to this session."""
+    """Final tie-break after scope and fail-closed decision precedence."""
     return grant["session_id"] is not None
 
 
