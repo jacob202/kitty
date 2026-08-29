@@ -15,6 +15,7 @@ const SURFACE_LABELS: Record<string, string> = {
   studio: 'Image Lab',
   images: 'Image Lab',
   library: 'Library',
+  automations: 'Automations',
   settings: 'Settings',
 }
 

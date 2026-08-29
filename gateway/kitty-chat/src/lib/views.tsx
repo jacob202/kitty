@@ -4,7 +4,7 @@ import type { ComponentType } from 'react'
 
 export type ViewId =
   | 'home' | 'chat' | 'builder' | 'builder-details' | 'settings'
-  | 'work' | 'studio' | 'library'
+  | 'work' | 'studio' | 'library' | 'automations'
   | 'tasks' | 'tools' | 'terminal' | 'projects' | 'docs' | 'providers' | 'agents' | 'images' | 'tutor' | 'journal'
 
 export interface ViewEntry {
@@ -26,6 +26,7 @@ export const VIEWS: Record<ViewId, ViewEntry> = {
   builder:   { component: PlaceholderView, title: 'Builder',  icon: 'builder',  railSlot: true },
   'builder-details': { component: PlaceholderView, title: 'Builder details', icon: 'builder', railSlot: false },
   library:   { component: PlaceholderView, title: 'Library',  icon: 'library',  railSlot: true },
+  automations:{ component: PlaceholderView, title: 'Automations', icon: 'work', railSlot: true },
   settings:  { component: PlaceholderView, title: 'Settings', icon: 'settings', railSlot: true },
   tasks:     { component: PlaceholderView, title: 'Tasks',    icon: 'work',     railSlot: false },
   tools:     { component: PlaceholderView, title: 'Tools',    icon: 'settings', railSlot: false },
@@ -39,7 +40,7 @@ export const VIEWS: Record<ViewId, ViewEntry> = {
   journal:   { component: PlaceholderView, title: 'Journal',  icon: 'settings', railSlot: false },
 }
 
-export const RAIL_VIEWS: ViewId[] = ['home', 'chat', 'work', 'studio', 'library', 'settings']
+export const RAIL_VIEWS: ViewId[] = ['home', 'chat', 'work', 'projects', 'studio', 'library', 'automations', 'settings']
 
 export const REDIRECTS: Record<string, ViewId> = {
   builder: 'work',

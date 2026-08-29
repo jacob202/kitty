@@ -149,7 +149,7 @@ export default function KittyChat() {
                 loops: k.loops, insights: k.insights, promptTemplates: k.promptTemplates,
                 onLoopToggle: k.handleLoopToggle, onInsightDismiss: k.handleInsightDismiss,
                 onInsightAction: k.handleInsightAction, onPromptSelect: k.handlePromptSelect,
-                loopsLoading: k.loopsQuery.isLoading, insightsLoading: k.insightsQuery.isLoading,
+                loopsLoading: k.loopsQuery.isLoading, loopsError: k.loopsQuery.isError ? (k.loopsQuery.error instanceof Error ? k.loopsQuery.error.message : 'Gateway request failed') : null, insightsLoading: k.insightsQuery.isLoading,
                 promptsLoading: k.promptsQuery.isLoading,
               }}
             />

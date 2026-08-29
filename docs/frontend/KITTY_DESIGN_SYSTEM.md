@@ -118,3 +118,13 @@ The Knowledge section is explicitly subordinate because it is a derived index. I
 - Global Builder controls stay collapsed until requested. Packet-specific controls appear only after a packet is selected.
 - On phones, render a dedicated Builder workspace with `packets`, `worker`, and `inspector` tabs; never squeeze the desktop cockpit into the viewport.
 - Builder packet rows use body typography and 44px minimum touch targets. Monospace is reserved for implementation identifiers and deep technical evidence.
+
+## Automations
+
+Automations is one first-class surface backed by existing authoritative state: scheduled actions from the cron/Gateway contract and background routines from loop state. Do not introduce a second scheduler model in the frontend.
+
+Schedules use one shared list surface with readable human schedule/action language. Loading, empty, and unavailable states are distinct; failed reads must never masquerade as an empty automation set. Schedule and routine controls are at least 44px high on touch layouts.
+
+Desktop may expose Automations directly in primary navigation. Phones keep six primary tabs; `More` owns secondary destinations such as Projects, Automations, and Settings and represents the selected secondary destination with `aria-current` instead of adding a squeezed seventh tab.
+
+Runtime/why evidence remains available on demand, while the default Automations view emphasizes what runs, whether it is active or paused, when it last ran, and what the user can do next.

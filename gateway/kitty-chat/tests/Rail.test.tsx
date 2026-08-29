@@ -15,6 +15,7 @@ describe('Rail', () => {
     expect(screen.getByRole('button', { name: 'Work' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Projects' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Automations' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument()
 
     const imageLab = screen.getByRole('button', { name: 'Image Lab' })

@@ -14,7 +14,9 @@ import type { Page } from '@playwright/test';
  * source basename are stubbed in because those are the values that overflowed.
  */
 
-const DESTINATIONS = ['Home', 'Chat', 'Work', 'Image Lab', 'Library', 'More'];
+const PRIMARY_DESTINATIONS = ['Home', 'Chat', 'Work', 'Image Lab', 'Library'] as const;
+const SECONDARY_DESTINATIONS = ['Projects', 'Automations', 'Settings'] as const;
+const DESTINATIONS = [...PRIMARY_DESTINATIONS, ...SECONDARY_DESTINATIONS] as const;
 
 const GATEWAY_STUBS = [
   ['**/proxy/projects', { projects: [{ id: 1, name: 'kitty-gateway-rebuild' }] }],
@@ -153,6 +155,19 @@ async function assertLastActionableClearsNav(page: Page, navTop: number, label: 
   expect(last!.ok, `[${label}] ${last!.detail}`).toBe(true);
 }
 
+async function openDestination(page: Page, label: typeof DESTINATIONS[number]) {
+  const nav = page.getByRole('navigation', { name: 'Main navigation' });
+  if ((PRIMARY_DESTINATIONS as readonly string[]).includes(label)) {
+    await nav.getByRole('button', { name: label, exact: true }).click();
+    return;
+  }
+
+  await nav.getByRole('button', { name: 'More', exact: true }).click();
+  const menu = page.getByRole('menu', { name: 'More destinations' });
+  await expect(menu).toBeVisible();
+  await menu.getByRole('menuitem', { name: label, exact: true }).click();
+}
+
 test.describe('phone dogfood — slice 1', () => {
   test.beforeEach(({}, testInfo) => {
     testInfo.skip(testInfo.project.name !== 'mobile', 'phone-only acceptance');
@@ -162,7 +177,7 @@ test.describe('phone dogfood — slice 1', () => {
     await stubGateway(page);
   });
 
-  test('all six destinations: no overflow, full nav, reachable actions above the tab bar', async ({ page }) => {
+  test('all product destinations: no overflow, full nav, reachable actions above the tab bar', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
 
@@ -171,7 +186,7 @@ test.describe('phone dogfood — slice 1', () => {
     expect(navBox, 'tab bar has a box').not.toBeNull();
 
     for (const label of DESTINATIONS) {
-      await nav.getByRole('button', { name: label, exact: true }).click();
+      await openDestination(page, label);
       await expect(page.locator('main')).toBeVisible();
       // Async content (sources list, model chips, usage) can land after the view
       // mounts; a single early measurement would miss overflow that appears once
@@ -214,8 +229,8 @@ test.describe('phone dogfood — slice 1', () => {
     }
   });
 
-  test('Image Lab/More tab bar does not bury the last control behind the fixed nav', async ({ page }) => {
-    // Covered by the destination sweep, but pin the two destinations that had
+  test('Image Lab/Settings controls stay clear of the fixed nav', async ({ page }) => {
+    // Covered by the destination sweep, but pin the two surfaces that had
     // real clipping (Settings' long rows) with an explicit assertion.
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
@@ -223,8 +238,8 @@ test.describe('phone dogfood — slice 1', () => {
     const navBox = await nav.boundingBox();
     expect(navBox).not.toBeNull();
 
-    for (const label of ['Image Lab', 'More']) {
-      await nav.getByRole('button', { name: label, exact: true }).click();
+    for (const label of ['Image Lab', 'Settings'] as const) {
+      await openDestination(page, label);
       await page.waitForTimeout(900);
       await scrollMainToBottom(page);
       await assertLastActionableClearsNav(page, navBox!.y, label);

@@ -11,6 +11,11 @@ describe('view redirects', () => {
     expect(REDIRECTS['builder-details']).toBeUndefined()
   })
 
+  it('keeps Automations as a first-class surface', () => {
+    expect(getView('automations')?.title).toBe('Automations')
+    expect(REDIRECTS.automations).toBeUndefined()
+  })
+
   it('does not redirect Projects away from itself', () => {
     // Rail's primary nav, Home's "open projects" actions, and Cmd-K's
     // "projects" command all navigate to this id expecting ProjectsView.
