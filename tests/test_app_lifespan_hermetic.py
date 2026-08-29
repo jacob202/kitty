@@ -19,6 +19,7 @@ async def test_test_env_skips_external_background_services(monkeypatch):
     monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_chat_turns_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_autonomy_sessions_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_actions_on_startup", lambda: None)
     monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
@@ -58,6 +59,7 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
     monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_chat_turns_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_autonomy_sessions_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_actions_on_startup", lambda: None)
     monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
@@ -112,6 +114,7 @@ async def test_gateway_uses_cron_as_the_only_morning_brief_timer(monkeypatch):
     monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_chat_turns_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_autonomy_sessions_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_actions_on_startup", lambda: None)
     monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
@@ -166,6 +169,7 @@ async def test_lifespan_reconciles_autonomy_sessions_left_active_by_the_previous
     monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_chat_turns_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_actions_on_startup", lambda: None)
     monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
     monkeypatch.setattr(telegram_bot, "is_configured", lambda: False)
@@ -207,6 +211,7 @@ async def test_lifespan_reconciles_stale_executing_actions_left_by_the_previous_
     monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_chat_turns_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_autonomy_sessions_on_startup", lambda: None)
     monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
     monkeypatch.setattr(telegram_bot, "is_configured", lambda: False)
@@ -248,6 +253,7 @@ async def test_development_lifespan_starts_unknown_bfl_recovery(monkeypatch):
     monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_chat_turns_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_autonomy_sessions_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_actions_on_startup", lambda: None)
     monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
@@ -275,3 +281,31 @@ async def test_development_lifespan_starts_unknown_bfl_recovery(monkeypatch):
     async with app_module.lifespan(app_module.app):
         await asyncio.sleep(0)
         assert calls == ["recover"]
+
+
+@pytest.mark.asyncio
+async def test_lifespan_reconciles_chat_turns_left_running_by_previous_gateway(monkeypatch):
+    import gateway.app as app_module
+    import gateway.chat_lifecycle as chat_lifecycle
+    import gateway.image_recipes as image_recipes
+
+    monkeypatch.setenv("KITTY_ENV", "test")
+    monkeypatch.setattr(app_module, "validate_dirs", lambda: None)
+    monkeypatch.setattr(app_module, "validate_env", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_autonomy_sessions_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_actions_on_startup", lambda: None)
+    monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
+
+    calls: list[str] = []
+    monkeypatch.setattr(chat_lifecycle, "list_running_conversations", lambda: [])
+    monkeypatch.setattr(
+        chat_lifecycle,
+        "reconcile_interrupted_turns",
+        lambda: calls.append("reconciled") or 1,
+    )
+
+    async with app_module.lifespan(app_module.app):
+        assert calls == ["reconciled"]
