@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { AlertCircle, ArrowDownToLine, Share2, X } from 'lucide-react'
 import type { AttachmentError } from '@/lib/attachment-validation'
 import type { PwaInstallState } from '@/lib/pwa'
@@ -24,7 +24,6 @@ interface Props {
   onPwaInstall?: () => void
 }
 
-const FAILS_REQUIRED = 3
 
 function modelStatusMessage(modelError?: string | null): string {
   if (modelError?.startsWith('Model details timed out')) return modelError
@@ -55,16 +54,9 @@ export function StatusBar({
   pwaInstalling = false,
   onPwaInstall,
 }: Props) {
-  const offlineStreakRef = useRef(0)
   const [pwaDismissed, setPwaDismissed] = useState(false)
 
-  if (modelUnavailable) {
-    offlineStreakRef.current++
-  } else {
-    offlineStreakRef.current = 0
-  }
-
-  const confirmedOffline = Boolean(modelError) || offlineStreakRef.current >= FAILS_REQUIRED
+  const confirmedOffline = modelUnavailable
 
   if (showChatSignals && attachmentErrors.length > 0) {
     return (

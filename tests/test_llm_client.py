@@ -1071,6 +1071,7 @@ def test_resolve_agentrouter_key_never_overwrites_gateway_runtime_env(monkeypatc
             os.environ["GATEWAY_SECRET"] = "dotenv-gateway-secret"
 
     monkeypatch.setattr(llm_client, "load_dotenv", dangerous_dotenv_reload)
+    monkeypatch.setattr(llm_client, "dotenv_values", lambda *_args, **_kwargs: {})
 
     assert llm_client.resolve_agentrouter_api_key() == "runtime-agentrouter-key"
     assert os.environ["GATEWAY_SECRET"] == "runtime-gateway-secret"
