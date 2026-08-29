@@ -24,7 +24,8 @@ describe('product surface shell ownership', () => {
     const conditionWindow = page.slice(Math.max(0, page.indexOf('<InputBar') - 180), page.indexOf('<InputBar'))
     expect(conditionWindow).toContain("k.activeView === 'chat'")
     expect(conditionWindow).not.toContain("k.activeView === 'chat' || k.activeView === 'home'")
-    expect(composer).toContain('onSend={k.handleSend}')
+    expect(composer).toContain('onSend={() => { if (!modelUnavailable) k.handleSend() }}')
+    expect(composer).toContain('disabled={k.isStreaming || modelUnavailable}')
   })
 
   it('keeps the fixed mascot off Home where the dashboard has an inline mascot', () => {

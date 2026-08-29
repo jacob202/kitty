@@ -187,15 +187,15 @@ describe('fetchGatewayModels', () => {
   })
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('keeps a live safe route when curated metadata is temporarily unavailable', async () => {
+  it('keeps a safe route but reports degraded state when curated metadata is unavailable', async () => {
     vi.mocked(global.fetch).mockResolvedValue(
       new Response(JSON.stringify({ data: [{ id: 'kitty-code' }] }), { status: 200 }),
     )
 
     const result = await fetchGatewayModels()
 
-    expect(result.fromLiveGateway).toBe(true)
-    expect(result.error).toBeNull()
+    expect(result.fromLiveGateway).toBe(false)
+    expect(result.error).toMatch(/model details unavailable/i)
     expect(result.models.map(model => [model.id, model.name])).toEqual([['kitty-code', 'Code']])
   })
 
