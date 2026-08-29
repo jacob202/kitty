@@ -101,3 +101,65 @@ def test_list_project_conversations_is_scoped_recent_and_bounded(monkeypatch, tm
     assert rows[0]["title"] == "Newest project chat"
     assert rows[0]["project_id"] == 7
     assert "turns" not in rows[0]
+
+
+def test_reconcile_running_turns_marks_restart_interrupted_and_is_idempotent(monkeypatch, tmp_path):
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file)
+
+    handle = chat_lifecycle.start_turn(
+        conversation_id="chat-restart",
+        project_id=None,
+        title="Restart recovery",
+        user_message_id="message-restart",
+        user_text="Are you still there?",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+
+    assert chat_lifecycle.reconcile_interrupted_turns() == 1
+    assert chat_lifecycle.reconcile_interrupted_turns() == 0
+
+    state = chat_lifecycle.list_conversation("chat-restart")
+    turn = state["turns"][0]
+    assert turn["id"] == handle.turn_id
+    assert turn["status"] == "interrupted"
+    assert turn["error"] == "Gateway restarted before the chat turn finished"
+    assert turn["attempts"][0]["status"] == "interrupted"
+    assert turn["attempts"][0]["error"] == "Gateway restarted before the chat turn finished"
+
+    assistant_messages = [message for message in turn["messages"] if message["role"] == "assistant"]
+    assert len(assistant_messages) == 1
+    assert assistant_messages[0]["status"] == "interrupted"
+    assert assistant_messages[0]["content"] == (
+        "Kitty restarted before this reply finished. Tap retry to try again."
+    )
+
+
+def test_reconcile_running_turns_does_not_touch_terminal_turns(monkeypatch, tmp_path):
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file)
+
+    handle = chat_lifecycle.start_turn(
+        conversation_id="chat-complete",
+        project_id=None,
+        title="Completed chat",
+        user_message_id="message-complete",
+        user_text="What is done?",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+    chat_lifecycle.finish_turn(
+        handle,
+        status="succeeded",
+        assistant_text="This turn is complete.",
+        resolved_model="kitty-default",
+    )
+
+    assert chat_lifecycle.reconcile_interrupted_turns() == 0
+    turn = chat_lifecycle.list_conversation("chat-complete")["turns"][0]
+    assert turn["status"] == "succeeded"
+    assert turn["attempts"][0]["status"] == "succeeded"
+    assert [m["content"] for m in turn["messages"] if m["role"] == "assistant"] == [
+        "This turn is complete."
+    ]

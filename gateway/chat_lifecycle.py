@@ -231,6 +231,69 @@ def finish_turn(
         conn.commit()
 
 
+RESTART_INTERRUPTED_ERROR = "Gateway restarted before the chat turn finished"
+RESTART_INTERRUPTED_MESSAGE = "Kitty restarted before this reply finished. Tap retry to try again."
+
+
+def reconcile_interrupted_turns() -> int:
+    """Mark chat work left running by a previous Gateway process interrupted.
+
+    A newly-started process cannot own an in-flight coroutine from the previous
+    process. Leaving those rows as ``running`` makes restart recovery lie, so
+    close them atomically and persist one plain-language assistant record that
+    the UI can restore with its normal retry affordance.
+    """
+    init_db()
+    now = time.time()
+    with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
+        rows = conn.execute(
+            "SELECT id, conversation_id FROM chat_turns WHERE status = 'running' ORDER BY created_at"
+        ).fetchall()
+        for row in rows:
+            turn_id = row["id"]
+            conversation_id = row["conversation_id"]
+            conn.execute(
+                """
+                UPDATE chat_attempts
+                SET status = 'interrupted', completed_at = ?, error = ?
+                WHERE turn_id = ? AND status = 'running'
+                """,
+                (now, RESTART_INTERRUPTED_ERROR, turn_id),
+            )
+            existing_assistant = conn.execute(
+                "SELECT id FROM chat_messages WHERE turn_id = ? AND role = 'assistant' LIMIT 1",
+                (turn_id,),
+            ).fetchone()
+            if existing_assistant is None:
+                conn.execute(
+                    """
+                    INSERT INTO chat_messages
+                        (id, turn_id, role, content, status, created_at)
+                    VALUES (?, ?, 'assistant', ?, 'interrupted', ?)
+                    """,
+                    (f"message_restart_{turn_id}", turn_id, RESTART_INTERRUPTED_MESSAGE, now),
+                )
+            else:
+                conn.execute(
+                    "UPDATE chat_messages SET status = 'interrupted' WHERE turn_id = ? AND role = 'assistant'",
+                    (turn_id,),
+                )
+            conn.execute(
+                """
+                UPDATE chat_turns
+                SET status = 'interrupted', completed_at = ?, error = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (now, RESTART_INTERRUPTED_ERROR, turn_id),
+            )
+            conn.execute(
+                "UPDATE chat_conversations SET updated_at = ? WHERE id = ?",
+                (now, conversation_id),
+            )
+        conn.commit()
+    return len(rows)
+
+
 def get_turn(turn_id: str) -> dict[str, Any] | None:
     """Return a turn with its attempts and messages for recovery/read paths."""
     init_db()
