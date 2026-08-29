@@ -52,6 +52,7 @@ def _succeeded_job(**kwargs) -> jobs.ImageJob:
         negative_prompt="blurry",
         seed=1234,
         model_id="sdxl_photonic",
+        preset_id="comfyui_sdxl_standard",
         width=512,
         height=512,
         steps=24,
@@ -238,21 +239,21 @@ async def test_retry_route_enqueues_a_lineage_linked_batch():
 
 
 @pytest.mark.asyncio
-async def test_modify_route_reports_changed_vs_unchanged():
+async def test_modify_route_fails_closed_until_modified_plan_dispatch_is_real():
+    from fastapi import HTTPException
+
     from gateway.routes import image_studio_jobs as routes
 
     session = image_sessions.create_session(character_id="char_1")
     src = _succeeded_job()
     image_sessions.attach_job(session.session_id, src.job_id)
 
-    result = await routes.studio_modify_job(
-        src.job_id, routes.JobModifyRequest(prompt="a taller wizard")
-    )
-
-    assert result["changed"] == {
-        "prompt": {"before": "a wizard in a red cloak", "after": "a taller wizard"}
-    }
-    assert result["batch"]["request"]["lineage_parent_id"] == src.job_id
+    with pytest.raises(HTTPException) as exc:
+        await routes.studio_modify_job(
+            src.job_id, routes.JobModifyRequest(prompt="a taller wizard")
+        )
+    assert exc.value.status_code == 409
+    assert "modified approved plan" in str(exc.value.detail).lower()
 
 
 @pytest.mark.asyncio
@@ -264,3 +265,28 @@ async def test_retry_route_returns_404_for_missing_job():
     with pytest.raises(HTTPException) as exc:
         await routes.studio_retry_job("job_does_not_exist")
     assert exc.value.status_code == 404
+
+
+def test_iteration_batch_carries_source_negative_prompt(monkeypatch):
+    from gateway import image_iteration, image_recipes
+
+    session = image_sessions.create_session(character_id="char_1")
+    src = _succeeded_job(preset_id="recipe_locked")
+    image_sessions.attach_job(session.session_id, src.job_id)
+    monkeypatch.setattr(image_recipes, "get_recipe", lambda _rid: type("R", (), {
+        "recipe_id": "recipe_locked", "provider": src.provider, "is_available": True
+    })())
+
+    batch = image_iteration.enqueue_duplicate(src.job_id)
+    assert batch["request"]["negative_prompt"] == "blurry"
+
+
+def test_iteration_refuses_source_without_exact_recipe_lock():
+    from gateway import image_iteration
+
+    session = image_sessions.create_session(character_id="char_1")
+    src = _succeeded_job(preset_id=None)
+    image_sessions.attach_job(session.session_id, src.job_id)
+
+    with pytest.raises(image_iteration.IterationError, match="exact source recipe"):
+        image_iteration.enqueue_duplicate(src.job_id)

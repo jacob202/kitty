@@ -3,12 +3,10 @@ import type { CSSProperties } from 'react'
 import { DocumentsPanel } from '@/components/DocumentsPanel'
 import { useArtifacts } from '@/lib/queries'
 import type { GatewayArtifact } from '@/lib/gateway'
-import { useKitty } from '@/state/KittyContext'
 
 export default function LibraryView({ isMobile }: { isMobile: boolean }) {
   const pad = isMobile ? '20px 16px 124px' : '32px 40px 48px'
   const artifacts = useArtifacts()
-  const { setAttachments, setActiveView } = useKitty()
   const recentArtifacts = [...(artifacts.data ?? [])].sort((a, b) => b.created_at - a.created_at)
 
   return (
@@ -45,21 +43,7 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
         {recentArtifacts.length > 0 && (
           <ul aria-label="Recent artifacts" style={artifactListStyle}>
             {recentArtifacts.map(artifact => (
-              <ArtifactRow
-                key={artifact.id}
-                artifact={artifact}
-                onUseInChat={() => {
-                  setAttachments(previous => previous.some(item => item.id === artifact.id)
-                    ? previous
-                    : [...previous, {
-                        id: artifact.id,
-                        display_name: artifact.display_name,
-                        media_type: artifact.media_type,
-                        size: artifact.size_bytes,
-                      }])
-                  setActiveView('chat')
-                }}
-              />
+              <ArtifactRow key={artifact.id} artifact={artifact} />
             ))}
           </ul>
         )}
@@ -84,7 +68,7 @@ function artifactErrorMessage(error: unknown): string {
   return 'Saved files are unavailable right now. Try again.'
 }
 
-function ArtifactRow({ artifact, onUseInChat }: { artifact: GatewayArtifact; onUseInChat: () => void }) {
+function ArtifactRow({ artifact }: { artifact: GatewayArtifact }) {
   const ingestion = typeof artifact.metadata?.ingestion_status === 'string' ? artifact.metadata.ingestion_status : null
   const created = new Date(artifact.created_at * 1000)
   const state = humanize(artifact.state)
@@ -109,14 +93,13 @@ function ArtifactRow({ artifact, onUseInChat }: { artifact: GatewayArtifact; onU
         <div style={artifactActionsStyle}>
           <button
             type="button"
-            aria-label={`Use ${artifact.display_name} in chat`}
-            onClick={onUseInChat}
-            disabled={artifact.state.toLowerCase() !== 'ready'}
-            style={useButtonStyle}
+            aria-label={`Use ${artifact.display_name} in chat unavailable`}
+            disabled
+            style={{ ...useButtonStyle, cursor: 'not-allowed', opacity: 0.6, color: 'var(--color-text-secondary)' }}
           >
-            {artifact.state.toLowerCase() === 'ready' ? 'Use in chat' : 'Not ready'}
+            Use in chat unavailable
           </button>
-          <span style={openUnavailableStyle}>Opening is unavailable until Kitty can serve artifact content safely.</span>
+          <span style={openUnavailableStyle}>Chat use is unavailable until Kitty can resolve artifact content safely.</span>
         </div>
 
         <details style={detailsStyle}>

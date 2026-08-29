@@ -159,12 +159,14 @@ async def studio_cancel_batch(batch_id: str) -> dict:
 
 @router.delete("/studio/sessions/{session_id}/anchor")
 async def studio_clear_anchor(session_id: str) -> dict:
-    from gateway.image_sessions import ImageSessionError, SessionNotFoundError, clear_anchor
+    from gateway import undo_journal
+    from gateway.image_sessions import ImageSessionError, SessionNotFoundError, require_session
     from gateway.routes.extended import _session_payload
 
     try:
-        session = clear_anchor(session_id)
-    except SessionNotFoundError as exc:
+        undo_journal.clear_anchor_with_undo(session_id)
+        session = require_session(session_id)
+    except (SessionNotFoundError, undo_journal.UndoNotFound) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ImageSessionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -210,18 +212,17 @@ async def studio_retry_job(job_id: str) -> dict:
 @router.post("/studio/jobs/{job_id}/modify")
 async def studio_modify_job(job_id: str, req: JobModifyRequest) -> dict:
     """Enqueue a re-run and report the changed-vs-unchanged diff."""
-    from gateway import image_iteration
-    from gateway.image_jobs import ImageJobError
-    from gateway.image_sessions import ImageSessionError
 
     changes = req.model_dump(exclude_unset=True)
     if not changes:
         raise HTTPException(status_code=400, detail="no parameters supplied to modify")
-    try:
-        batch, diff = image_iteration.enqueue_modify(job_id, **changes)
-    except (ImageJobError, ImageSessionError) as exc:
-        raise _iteration_error(exc) from exc
-    return {"batch": batch, "changed": diff}
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            "Image Lab cannot safely dispatch a modified approved plan yet; "
+            "use a new Create request so the changed prompt is approved before rendering"
+        ),
+    )
 
 
 async def execute_studio_batch_request(request: dict) -> dict:

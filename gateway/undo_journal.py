@@ -104,9 +104,20 @@ def get(journal_id: str) -> dict[str, Any] | None:
     return _entry_from_row(row) if row is not None else None
 
 
+def _public_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    """Redact sensitive memory snapshots from the user-visible history API."""
+    if entry["entity_type"] == "memory":
+        snapshots = (entry.get("before") or {}, entry.get("after") or {})
+        if any(snapshot.get("sensitivity") == "sensitive" for snapshot in snapshots):
+            return {**entry, "before": {"redacted": True}, "after": {"redacted": True}}
+    return entry
+
+
 def list_history(
     entity_type: str, entity_id: str, *, limit: int = 50
 ) -> list[dict[str, Any]]:
+    if entity_type not in ENTITY_TYPES:
+        raise UndoError(f"unknown entity type {entity_type!r}")
     _ensure_db()
     limit = max(1, min(int(limit), 200))
     with _connect() as conn:
@@ -119,7 +130,7 @@ def list_history(
             """,
             (entity_type, entity_id, limit),
         ).fetchall()
-    return [_entry_from_row(r) for r in rows]
+    return [_public_entry(_entry_from_row(r)) for r in rows]
 
 
 # --- snapshots ---------------------------------------------------------------
@@ -190,12 +201,12 @@ def _restore(entry: dict[str, Any]) -> dict[str, Any]:
     if entity_type == "character":
         from gateway import image_characters
 
-        image_characters.update_character(
+        image_characters.restore_character_profile(
             entity_id,
-            name=before.get("name"),
+            name=before.get("name") or "",
             description=before.get("description"),
             preferred_recipe=before.get("preferred_recipe"),
-            identity_preset=before.get("identity_preset"),
+            identity_preset=before.get("identity_preset") or "balanced",
             tags=before.get("tags"),
         )
         return {"entity_type": entity_type, "entity_id": entity_id, "restored": "character"}
@@ -304,10 +315,28 @@ def undo(journal_id: str) -> dict[str, Any]:
         )
 
     result = _restore(entry)
+    restoration_id = f"undo_{secrets.token_hex(8)}"
     with _connect() as conn:
         conn.execute("UPDATE undo_journal SET undone = 1 WHERE id = ?", (journal_id,))
+        conn.execute(
+            """
+            INSERT INTO undo_journal
+                (id, entity_type, entity_id, operation, before_json, after_json, undone, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+            """,
+            (
+                restoration_id,
+                entry["entity_type"],
+                entry["entity_id"],
+                f"undo:{entry['operation']}",
+                json.dumps(entry["after"], ensure_ascii=False),
+                json.dumps(entry["before"], ensure_ascii=False),
+                time.time(),
+            ),
+        )
         conn.commit()
     result["journal_id"] = journal_id
+    result["restoration_journal_id"] = restoration_id
     return result
 
 
@@ -323,20 +352,25 @@ def forget_memory_with_undo(memory_id: str) -> str:
     return record("memory", memory_id, "forget", before, {"id": memory_id, "status": "forgotten"})
 
 
-def correct_memory_with_undo(memory_id: str, text: str) -> str:
+def correct_memory_with_undo(
+    memory_id: str, text: str, *, memory_key: str | None = None
+) -> str:
     from gateway import explicit_memory
 
     before = snapshot_memory(memory_id)
-    corrected = explicit_memory.remember(
-        text,
-        namespace=before["namespace"],
-        memory_key=before["memory_key"],
-        supersedes_id=memory_id,
-        source_kind="user_correction",
-        source_ref=before.get("source_ref"),
-        sensitivity=before.get("sensitivity") or "normal",
-        pinned=bool(before.get("pinned")),
-    )
+    try:
+        corrected = explicit_memory.remember(
+            text,
+            namespace=before["namespace"],
+            memory_key=memory_key or before["memory_key"],
+            supersedes_id=memory_id,
+            source_kind="user_correction",
+            source_ref=before.get("source_ref"),
+            sensitivity=before.get("sensitivity") or "normal",
+            pinned=bool(before.get("pinned")),
+        )
+    except explicit_memory.ExplicitMemoryNotFound as exc:
+        raise UndoNotFound(f"active memory not found: {memory_id}") from exc
     after = {
         "id": corrected["id"],
         "text": corrected["text"],
@@ -354,11 +388,33 @@ def update_character_with_undo(character_id: str, **fields: Any) -> str:
     return record("character", character_id, "update", before, after)
 
 
+def update_automation_with_undo(
+    sid: str,
+    name: str,
+    action: str,
+    schedule_type: str,
+    schedule_value: str,
+    *,
+    metadata: dict[str, Any] | None = None,
+) -> str:
+    from gateway import cron
+
+    before = snapshot_automation(sid)
+    if not cron.update(
+        sid, name, action, schedule_type, schedule_value, metadata=metadata or {}
+    ):
+        raise UndoNotFound(f"automation schedule not found: {sid}")
+    after = snapshot_automation(sid)
+    return record("automation", sid, "update", before, after)
+
+
 def toggle_automation_with_undo(sid: str) -> str:
     from gateway import cron
 
     before = snapshot_automation(sid)
-    cron.toggle(sid)
+    result = cron.toggle(sid)
+    if result is None:
+        raise UndoNotFound(f"automation schedule not found: {sid}")
     after = snapshot_automation(sid)
     return record("automation", sid, "toggle", before, after)
 

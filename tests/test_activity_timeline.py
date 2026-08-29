@@ -122,3 +122,36 @@ def test_missing_optional_evidence_still_renders(_timeline_db):
 def test_invalid_filter_fails_loud(_timeline_db):
     with pytest.raises(ValueError):
         activity_timeline.build_timeline(filter="bogus")
+
+
+def test_malformed_required_timestamp_fails_loud(_timeline_db, monkeypatch):
+    monkeypatch.setattr(automation_runs, "list_runs", lambda **_kwargs: [{
+        "id": "bad-run", "automation_id": "a1", "action": "brief",
+        "status": "failed", "started_at": "not-a-timestamp", "completed_at": None,
+        "error": "bad timestamp",
+    }])
+    with pytest.raises(ValueError, match="invalid timeline timestamp"):
+        activity_timeline.build_timeline(filter="automations")
+
+
+def test_revoked_grant_uses_revocation_time(_timeline_db, monkeypatch):
+    grant = action_grants.create_grant(
+        capability="image_generation", decision="deny", granted_tier="T1",
+        reason="test", created_by="system",
+    )
+    monkeypatch.setattr(action_grants.time, "time", lambda: 999.0)
+    action_grants.revoke_grant(grant["id"])
+
+    entries = activity_timeline.build_timeline(filter="system", limit=50)
+    revoked = next(e for e in entries if e["source"] == "grant")
+    assert revoked["status"] == "revoked"
+    assert revoked["timestamp"] == 999.0
+
+
+def test_failures_filter_does_not_lose_older_failures_behind_success_limit(_timeline_db):
+    _run("old-failure", "monitor", 1, status="failed", error="timeout")
+    for i in range(60):
+        _run(f"ok-{i}", "brief", 100 + i, status="completed")
+
+    entries = activity_timeline.build_timeline(filter="failures", limit=10)
+    assert any(e["object"] == "old-failure" for e in entries)

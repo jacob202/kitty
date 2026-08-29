@@ -259,6 +259,10 @@ def _enqueue_plan_batch(ctx: GenerationContext, *, parent_id: str) -> dict:
         raise IterationError("cannot iterate a job with no approved plan")
     if not ctx.session_id:
         raise IterationError("cannot iterate a job with no attached session")
+    if not ctx.preset_id:
+        raise IterationError(
+            "cannot iterate safely because the exact source recipe was not recorded"
+        )
     per_image = image_estimates.estimate(
         ctx.provider, model_id=ctx.model_id, operation=ctx.operation
     )
@@ -266,9 +270,12 @@ def _enqueue_plan_batch(ctx: GenerationContext, *, parent_id: str) -> dict:
         "plan_id": ctx.plan_id,
         "session_id": ctx.session_id,
         "prompt": ctx.prompt or "",
+        "negative_prompt": ctx.negative_prompt,
         "character_id": ctx.character_id,
         "recipe_id": ctx.preset_id,
         "lineage_parent_id": parent_id,
+        "expected_provider": ctx.provider,
+        "expected_model_id": ctx.model_id,
     }
     return image_batches.create_batch(
         request, count=1, per_image_estimate=per_image
@@ -307,10 +314,9 @@ def enqueue_modify(
     _require_succeeded_job(job_id)
     if not changes:
         raise IterationError("enqueue_modify requires at least one parameter change")
-    ctx = build_generation_context(job_id)
-    after_ctx = apply_changes(ctx, **changes)
-    batch = _enqueue_plan_batch(after_ctx, parent_id=job_id)
-    return batch, diff_context(ctx, after_ctx)
+    raise IterationError(
+        "cannot dispatch a modified approved plan until the changed intent is re-approved"
+    )
 
 
 __all__ = [

@@ -68,6 +68,7 @@ import {
   setActiveProject,
   fetchProjectNext,
   fetchProjectNextSteps,
+  fetchProjectNextStepMap,
   fetchProjectResume,
   refreshProject,
   type GatewayProject,
@@ -879,7 +880,7 @@ export function useWhatsNextSteps() {
 export function useProjectNextSteps(projects: GatewayProject[]) {
   const query = useQuery({
     queryKey: ['projects', 'next-steps', 'active', projects.map(project => project.id).join(',')],
-    queryFn: () => fetchProjectNextSteps(projects.length),
+    queryFn: () => fetchProjectNextStepMap(projects.map(project => project.id)),
     enabled: projects.length > 0,
     staleTime: 60_000,
   })

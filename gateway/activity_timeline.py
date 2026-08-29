@@ -30,22 +30,24 @@ def _truncate(value: str | None, limit: int) -> str | None:
 
 
 def _to_ts(value: Any) -> float:
-    """Coerce an epoch float/int or ISO datetime string to a float timestamp."""
-    if value is None:
-        return 0.0
+    """Coerce a required evidence timestamp, failing loud when it is malformed."""
+    if isinstance(value, bool):
+        raise ValueError(f"invalid timeline timestamp {value!r}")
     if isinstance(value, (int, float)):
         return float(value)
-    if isinstance(value, str):
+    if isinstance(value, str) and value:
         try:
-            return datetime.fromisoformat(value).timestamp()
-        except ValueError:
-            return 0.0
-    return 0.0
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+        except ValueError as exc:
+            raise ValueError(f"invalid timeline timestamp {value!r}") from exc
+    raise ValueError(f"invalid timeline timestamp {value!r}")
 
 
-def _automation_entries(limit: int) -> list[dict[str, Any]]:
+def _automation_entries(limit: int, *, failures_only: bool = False) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
-    for run in automation_runs.list_runs(limit=limit):
+    for run in automation_runs.list_runs(
+        limit=limit, statuses=AUTOMATION_FAILURE_STATUSES if failures_only else None
+    ):
         status = run.get("status")
         ts = run.get("completed_at") or run.get("started_at")
         entries.append(
@@ -64,9 +66,12 @@ def _automation_entries(limit: int) -> list[dict[str, Any]]:
     return entries
 
 
-def _image_entries(limit: int) -> list[dict[str, Any]]:
+def _image_entries(limit: int, *, failures_only: bool = False) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
-    for job in image_jobs.list_recent(limit=limit):
+    statuses = (
+        frozenset({image_jobs.ImageJobStatus.FAILED}) if failures_only else None
+    )
+    for job in image_jobs.list_recent(limit=limit, statuses=statuses):
         status = getattr(job.status, "value", job.status)
         ts = job.finished_at or job.created_at
         entries.append(
@@ -134,7 +139,9 @@ def _grant_entries(limit: int) -> list[dict[str, Any]]:
         summary = f"Grant {grant.get('decision', '')} {grant.get('capability', '')}".strip()
         entries.append(
             {
-                "timestamp": _to_ts(grant.get("created_at")),
+                "timestamp": _to_ts(
+                    grant.get("revoked_at") if grant.get("revoked_at") else grant.get("created_at")
+                ),
                 "source": "grant",
                 "category": "system",
                 "summary": summary,
@@ -167,11 +174,15 @@ def build_timeline(*, filter: str = "all", limit: int = 50) -> list[dict[str, An
     bounded = max(1, min(int(limit), 200))
 
     merged: list[dict[str, Any]] = []
-    merged.extend(_automation_entries(bounded))
-    merged.extend(_image_entries(bounded))
-    merged.extend(_memory_entries(bounded))
-    merged.extend(_signal_entries(bounded))
-    merged.extend(_grant_entries(bounded))
+    if filter == "failures":
+        merged.extend(_automation_entries(bounded, failures_only=True))
+        merged.extend(_image_entries(bounded, failures_only=True))
+    else:
+        merged.extend(_automation_entries(bounded))
+        merged.extend(_image_entries(bounded))
+        merged.extend(_memory_entries(bounded))
+        merged.extend(_signal_entries(bounded))
+        merged.extend(_grant_entries(bounded))
 
     seen: set[tuple[str, str]] = set()
     deduped: list[dict[str, Any]] = []

@@ -155,6 +155,21 @@ def test_refresh_pushes_only_when_the_step_changes(client, monkeypatch):
     assert len(pushes) == 1  # same stubbed step both times — no repeat push
 
 
+
+def test_next_step_map_returns_every_requested_generated_step_without_home_ranking(client):
+    first = client.post("/projects", json={"name": "life", "kind": "life"}).json()
+    second = client.post("/projects", json={"name": "code", "kind": "code"}).json()
+    client.post(f"/projects/{first['id']}/refresh")
+    client.post(f"/projects/{second['id']}/refresh")
+
+    r = client.get(
+        "/projects/next-step-map",
+        params={"project_ids": f"{first['id']},{second['id']}"},
+    )
+
+    assert r.status_code == 200
+    assert {item["project_id"] for item in r.json()} == {first["id"], second["id"]}
+
 def test_get_next_returns_the_generated_step(client):
     created = client.post("/projects", json={"name": "x", "kind": "admin"}).json()
     client.post(f"/projects/{created['id']}/refresh")

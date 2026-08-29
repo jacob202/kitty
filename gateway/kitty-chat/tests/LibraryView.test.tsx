@@ -101,21 +101,15 @@ describe('LibraryView artifact truth', () => {
     expect(within(details as HTMLElement).getByText(/conversation chat-new/i)).toBeInTheDocument()
   })
 
-  it('uses an existing canonical artifact in chat without re-uploading it', async () => {
+  it('fails closed instead of claiming an artifact can be used in chat before content resolution exists', async () => {
     renderLibrary()
 
-    const action = await screen.findByRole('button', { name: /use camera-reference\.png in chat/i })
+    const action = await screen.findByRole('button', { name: /use camera-reference\.png in chat unavailable/i })
+    expect(action).toBeDisabled()
     expect(action).toHaveStyle({ minHeight: '44px' })
-    expect(screen.getByText(/opening is unavailable/i)).toBeInTheDocument()
-
-    fireEvent.click(action)
-
-    expect(setAttachments).toHaveBeenCalledTimes(1)
-    const updater = setAttachments.mock.calls[0][0]
-    expect(updater([])).toEqual([{
-      id: 'artifact_1', display_name: 'camera-reference.png', media_type: 'image/png', size: 2048,
-    }])
-    expect(setActiveView).toHaveBeenCalledWith('chat')
+    expect(screen.getByText(/chat use is unavailable until kitty can resolve artifact content safely/i)).toBeInTheDocument()
+    expect(setAttachments).not.toHaveBeenCalled()
+    expect(setActiveView).not.toHaveBeenCalled()
   })
 
   it('keeps important Library controls at least 44px tall on mobile', async () => {

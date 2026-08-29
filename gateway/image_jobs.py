@@ -471,16 +471,27 @@ def find_by_provider(provider: str, provider_job_id: str) -> ImageJob | None:
     return _row_to_job(row) if row else None
 
 
-def list_recent(limit: int = 50) -> list[ImageJob]:
-    """Return the most recent jobs, newest first."""
+def list_recent(
+    limit: int = 50, *, statuses: set[ImageJobStatus] | frozenset[ImageJobStatus] | None = None
+) -> list[ImageJob]:
+    """Return the most recent jobs, optionally prefiltered by status."""
     if limit <= 0 or limit > 200:
         raise ImageJobError(f"limit must be between 1 and 200, got {limit}")
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
-        rows = conn.execute(
-            "SELECT * FROM image_jobs ORDER BY created_at DESC, job_id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        if statuses:
+            values = sorted(status.value for status in statuses)
+            placeholders = ",".join("?" for _ in values)
+            rows = conn.execute(
+                f"SELECT * FROM image_jobs WHERE status IN ({placeholders}) "
+                "ORDER BY created_at DESC, job_id DESC LIMIT ?",
+                (*values, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM image_jobs ORDER BY created_at DESC, job_id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
     return [_row_to_job(r) for r in rows]
 
 
@@ -640,6 +651,14 @@ def set_parent(job_id: str, parent_id: str) -> ImageJob:
         )
     updated = get_job(job_id)
     assert updated is not None
+    if updated.canonical_artifact_id:
+        from gateway import artifact_store
+
+        existing_artifact = artifact_store.get_artifact(updated.canonical_artifact_id)
+        project_id = existing_artifact.get("project_id") if existing_artifact else None
+        register_canonical_artifact(job_id, project_id=project_id)
+        updated = get_job(job_id)
+        assert updated is not None
     return updated
 
 

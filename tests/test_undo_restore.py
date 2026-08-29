@@ -176,3 +176,85 @@ def test_image_anchor_undo_restores_and_lineage_intact(_db):
     persisted = image_jobs.get_job(job.job_id)
     assert persisted.status == ImageJobStatus.SUCCEEDED
     assert persisted.artifact_id == "art_1"
+
+
+def test_sensitive_memory_history_redacts_snapshots(_db):
+    from gateway import explicit_memory, undo_journal
+
+    memory = explicit_memory.remember(
+        "secret recovery phrase", namespace="facts", sensitivity="sensitive"
+    )
+    journal_id = undo_journal.forget_memory_with_undo(memory["id"])
+
+    history = undo_journal.list_history("memory", memory["id"])
+    entry = next(item for item in history if item["id"] == journal_id)
+    assert "secret recovery phrase" not in str(entry)
+    assert entry["before"] == {"redacted": True}
+    assert entry["after"] == {"redacted": True}
+
+
+def test_history_rejects_unknown_entity_type(_db):
+    from gateway import undo_journal
+
+    with pytest.raises(undo_journal.UndoError, match="unknown entity type"):
+        undo_journal.list_history("memroy", "exp_123")
+
+
+def test_character_undo_clears_fields_that_were_originally_null(_db):
+    from gateway import image_characters, undo_journal
+
+    char = image_characters.create_character("Aria")
+    journal_id = undo_journal.update_character_with_undo(
+        char.character_id,
+        description="temporary",
+        preferred_recipe="comfyui_sdxl_standard",
+        tags=["temporary"],
+    )
+
+    undo_journal.undo(journal_id)
+    restored = image_characters.get_character(char.character_id)
+    assert restored.description is None
+    assert restored.preferred_recipe is None
+    assert restored.tags is None
+
+
+def test_successful_undo_appends_restoration_event(_db):
+    from gateway import image_characters, undo_journal
+
+    char = image_characters.create_character("Aria")
+    journal_id = undo_journal.update_character_with_undo(char.character_id, name="Aria v2")
+    undo_journal.undo(journal_id)
+
+    history = undo_journal.list_history("character", char.character_id)
+    assert any(item["operation"] == "undo:update" for item in history)
+    source = next(item for item in history if item["id"] == journal_id)
+    assert source["undone"] is True
+
+
+def test_automation_update_undo_restores_previous_schedule(_db):
+    from gateway import cron, undo_journal
+
+    sid = cron.schedule(
+        name="Morning",
+        action="brief",
+        schedule_type="daily",
+        schedule_value="07:00",
+        metadata={"timezone": "America/Regina"},
+    )
+    journal_id = undo_journal.update_automation_with_undo(
+        sid,
+        "Evening",
+        "brief",
+        "daily",
+        "19:00",
+        metadata={"timezone": "America/Regina"},
+    )
+    changed = next(row for row in cron.list_schedules() if row["id"] == sid)
+    assert changed["name"] == "Evening"
+    assert changed["schedule_value"] == "19:00"
+
+    undo_journal.undo(journal_id)
+
+    restored = next(row for row in cron.list_schedules() if row["id"] == sid)
+    assert restored["name"] == "Morning"
+    assert restored["schedule_value"] == "07:00"
