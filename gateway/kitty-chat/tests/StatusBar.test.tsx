@@ -52,6 +52,21 @@ describe('StatusBar', () => {
     expect(onRetryModels).toHaveBeenCalledTimes(1)
   })
 
+  it('surfaces picker-specific model detail failures instead of calling the gateway offline', () => {
+    const props = {
+      ...baseProps,
+      modelUnavailable: true,
+      modelError: 'Model details unavailable — model picker returned 503. Retry to reconnect to Kitty.',
+    }
+    const { rerender } = render(<StatusBar {...props} />)
+    rerender(<StatusBar {...props} />)
+    rerender(<StatusBar {...props} />)
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('Model details unavailable')
+    expect(status).toHaveTextContent('Retry to reconnect to Kitty')
+    expect(status).not.toHaveTextContent(/gateway offline/i)
+  })
+
   it('shows a failed save with a working retry action', () => {
     const onRetrySave = vi.fn()
     render(<StatusBar {...baseProps} saveState="failed" onRetrySave={onRetrySave} />)
