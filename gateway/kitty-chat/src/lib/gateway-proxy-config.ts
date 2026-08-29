@@ -118,9 +118,9 @@ export function resolveProxyConfig(
   repoEnv: ProxyEnv = readRepoEnv()
 ): { gatewayUrl: string; gatewaySecret: string } {
   return {
-    gatewayUrl: resolveGatewayUrl(repoEnv.KITTY_GATEWAY_URL ?? env.KITTY_GATEWAY_URL),
+    gatewayUrl: resolveGatewayUrl(env.KITTY_GATEWAY_URL ?? repoEnv.KITTY_GATEWAY_URL),
     gatewaySecret: resolveGatewaySecret(
-      repoEnv.KITTY_GATEWAY_SECRET ?? env.KITTY_GATEWAY_SECRET,
+      env.KITTY_GATEWAY_SECRET ?? repoEnv.KITTY_GATEWAY_SECRET,
       repoEnv.GATEWAY_SECRET ?? env.GATEWAY_SECRET
     ),
   }
