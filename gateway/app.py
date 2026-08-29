@@ -55,11 +55,19 @@ def _reconcile_image_batches_on_startup() -> None:
 
 
 def _reconcile_chat_turns_on_startup() -> None:
-    """Make orphaned Chat turns truthful and discoverable after restart."""
+    """Make orphaned Chat turns truthful and discoverable after restart.
+
+    Shells are materialized for every still-running conversation *before*
+    ``reconcile_interrupted_turns`` marks those turns terminal. A crash
+    between the two steps would otherwise be unrecoverable: the next startup's
+    ``list_running_conversations`` only finds turns still marked ``running``,
+    so a shell skipped this pass could never be created on a later one.
+    Writing the shell first means a retried pass always finds the turn again
+    until reconciliation actually completes.
+    """
     from gateway import chat_lifecycle, chats_store
 
     running_conversations = chat_lifecycle.list_running_conversations()
-    reconciled = chat_lifecycle.reconcile_interrupted_turns()
     for conversation in running_conversations:
         if chats_store.get_chat(conversation["id"]) is not None:
             continue
@@ -69,7 +77,7 @@ def _reconcile_chat_turns_on_startup() -> None:
             "id": conversation["id"],
             "title": conversation["title"] or "recovered chat",
             "messages": [],
-            "model": "kitty-default",
+            "model": conversation.get("requested_model") or "kitty-default",
             "color": "purple",
             "createdAt": created,
             "updatedAt": updated,
@@ -77,6 +85,7 @@ def _reconcile_chat_turns_on_startup() -> None:
         if conversation.get("objective") is not None:
             shell["objective"] = conversation["objective"]
         chats_store.upsert_chat(shell)
+    reconciled = chat_lifecycle.reconcile_interrupted_turns()
     if reconciled:
         logger.warning("interrupted %d orphaned chat turn(s) at startup", reconciled)
 

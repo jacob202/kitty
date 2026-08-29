@@ -237,12 +237,25 @@ RESTART_INTERRUPTED_NO_RETRY_MESSAGE = "Kitty restarted before this reply finish
 
 
 def list_running_conversations() -> list[dict[str, Any]]:
-    """Return conversation shells that currently own at least one running turn."""
+    """Return conversation shells that currently own at least one running turn.
+
+    ``requested_model`` reports the actual model of the most recent running
+    turn so restart recovery can record what the user really asked for
+    instead of inventing a default.
+    """
     init_db()
     with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
         rows = conn.execute(
             """
-            SELECT DISTINCT c.id, c.project_id, c.title, c.objective, c.created_at, c.updated_at
+            SELECT DISTINCT c.id, c.project_id, c.title, c.objective, c.created_at, c.updated_at,
+                (
+                    SELECT a.requested_model
+                    FROM chat_turns AS lt
+                    JOIN chat_attempts AS a ON a.turn_id = lt.id
+                    WHERE lt.conversation_id = c.id AND lt.status = 'running'
+                    ORDER BY lt.sequence DESC
+                    LIMIT 1
+                ) AS requested_model
             FROM chat_conversations AS c
             JOIN chat_turns AS t ON t.conversation_id = c.id
             WHERE t.status = 'running'
@@ -266,11 +279,22 @@ def reconcile_interrupted_turns() -> int:
         rows = conn.execute(
             "SELECT id, conversation_id, sequence FROM chat_turns WHERE status = 'running' ORDER BY created_at"
         ).fetchall()
-        latest_sequence: dict[str, int] = {}
-        for row in rows:
-            latest_sequence[row["conversation_id"]] = max(
-                row["sequence"], latest_sequence.get(row["conversation_id"], row["sequence"])
-            )
+        if not rows:
+            return 0
+        conversation_ids = sorted({row["conversation_id"] for row in rows})
+        placeholders = ",".join("?" for _ in conversation_ids)
+        latest_sequence: dict[str, int] = {
+            row["conversation_id"]: row["max_sequence"]
+            for row in conn.execute(
+                f"""
+                SELECT conversation_id, MAX(sequence) AS max_sequence
+                FROM chat_turns
+                WHERE conversation_id IN ({placeholders})
+                GROUP BY conversation_id
+                """,
+                conversation_ids,
+            ).fetchall()
+        }
         for row in rows:
             turn_id = row["id"]
             conversation_id = row["conversation_id"]

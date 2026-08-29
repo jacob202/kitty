@@ -196,3 +196,62 @@ def test_reconcile_only_latest_orphan_in_conversation_promises_retry(monkeypatch
     ]
     assert assistant_texts[0] == "Kitty restarted before this reply finished."
     assert assistant_texts[1] == "Kitty restarted before this reply finished. Tap retry to try again."
+
+
+def test_reconcile_withholds_retry_when_a_later_turn_already_finished(monkeypatch, tmp_path):
+    """A finished later turn, not an earlier still-running one, is the real latest."""
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file)
+
+    earlier = chat_lifecycle.start_turn(
+        conversation_id="race",
+        project_id=None,
+        title="Race",
+        user_message_id="user-earlier",
+        user_text="First tab, slow to finish",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+    later = chat_lifecycle.start_turn(
+        conversation_id="race",
+        project_id=None,
+        title="Race",
+        user_message_id="user-later",
+        user_text="Second tab, fast to finish",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+    chat_lifecycle.finish_turn(
+        later,
+        status="succeeded",
+        assistant_text="Done before the crash.",
+        resolved_model="kitty-default",
+    )
+
+    assert chat_lifecycle.reconcile_interrupted_turns() == 1
+
+    turns = chat_lifecycle.list_conversation("race")["turns"]
+    earlier_turn = next(turn for turn in turns if turn["id"] == earlier.turn_id)
+    assistant_message = next(
+        message for message in earlier_turn["messages"] if message["role"] == "assistant"
+    )
+    assert assistant_message["content"] == "Kitty restarted before this reply finished."
+
+
+def test_list_running_conversations_reports_the_requested_model(monkeypatch, tmp_path):
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file)
+
+    chat_lifecycle.start_turn(
+        conversation_id="model-chat",
+        project_id=None,
+        title="Non-default model",
+        user_message_id="user-1",
+        user_text="Use the good model",
+        manifest_revision="test-revision",
+        requested_model="gpt-5-pro",
+    )
+
+    running = chat_lifecycle.list_running_conversations()
+    assert len(running) == 1
+    assert running[0]["requested_model"] == "gpt-5-pro"

@@ -188,3 +188,97 @@ def test_retry_recovery_suppresses_superseded_interruption_bubble(client):
         ("assistant", "Recovered answer"),
     ]
     assert all("restarted before this reply" not in message["content"] for message in recovered)
+
+
+def test_restart_shell_records_the_actual_requested_model(client):
+    chat_lifecycle.start_turn(
+        conversation_id="model-shell",
+        project_id=None,
+        title="Non-default model turn",
+        user_message_id="user-first",
+        user_text="Use the good model",
+        manifest_revision="test-revision",
+        requested_model="gpt-5-pro",
+    )
+
+    app_module._reconcile_chat_turns_on_startup()
+
+    listed = client.get("/chats").json()["chats"]
+    assert len(listed) == 1
+    assert listed[0]["model"] == "gpt-5-pro"
+
+
+def test_restart_shell_is_materialized_before_turns_are_terminalized(client, monkeypatch):
+    """A crash between shell creation and reconciliation must stay recoverable.
+
+    If ``reconcile_interrupted_turns`` blows up after the shell for a
+    still-running conversation was already written, the shell must not be
+    lost: the next startup pass has to find the conversation again via
+    ``list_running_conversations`` (the turn is still ``running``) and
+    re-materialize it, which only works if the shell write happens first.
+    """
+    chat_lifecycle.start_turn(
+        conversation_id="crash-window",
+        project_id=None,
+        title="Crash window",
+        user_message_id="user-first",
+        user_text="Will this survive a mid-pass crash?",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+
+    def _boom():
+        raise RuntimeError("simulated crash between shell write and reconciliation")
+
+    monkeypatch.setattr(chat_lifecycle, "reconcile_interrupted_turns", _boom)
+
+    with pytest.raises(RuntimeError):
+        app_module._reconcile_chat_turns_on_startup()
+
+    listed = client.get("/chats").json()["chats"]
+    assert len(listed) == 1
+    assert listed[0]["id"] == "crash-window"
+
+
+def test_retry_recovery_preserves_original_attachments(client, tmp_path):
+    attachment_path = tmp_path / "photo.png"
+    attachment_path.write_bytes(b"fake-image-bytes")
+    artifact = artifact_store.register_file(
+        attachment_path,
+        kind="image",
+        media_type="image/png",
+        project_id=None,
+        created_by="user",
+    )
+
+    chat_lifecycle.start_turn(
+        conversation_id="retry-with-attachment",
+        project_id=None,
+        title="Retry with attachment",
+        user_message_id="same-user-message",
+        user_text="Look at this",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+        attachment_ids=[artifact["id"]],
+    )
+    chat_lifecycle.reconcile_interrupted_turns()
+
+    retry = chat_lifecycle.start_turn(
+        conversation_id="retry-with-attachment",
+        project_id=None,
+        title="Retry with attachment",
+        user_message_id="same-user-message",
+        user_text="Look at this",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+    chat_lifecycle.finish_turn(
+        retry,
+        status="succeeded",
+        assistant_text="I see it.",
+        resolved_model="kitty-default",
+    )
+
+    recovered = client.get("/chats/retry-with-attachment/messages").json()["messages"]
+    user_message = next(message for message in recovered if message["role"] == "user")
+    assert [a["id"] for a in user_message["attachments"]] == [artifact["id"]]
