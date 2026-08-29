@@ -58,9 +58,7 @@ describe('StatusBar', () => {
       modelUnavailable: true,
       modelError: 'Model details unavailable — model picker returned 503. Retry to reconnect to Kitty.',
     }
-    const { rerender } = render(<StatusBar {...props} />)
-    rerender(<StatusBar {...props} />)
-    rerender(<StatusBar {...props} />)
+    render(<StatusBar {...props} />)
     const status = screen.getByRole('status')
     expect(status).toHaveTextContent('Model details unavailable')
     expect(status).toHaveTextContent('Retry to reconnect to Kitty')

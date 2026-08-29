@@ -70,7 +70,7 @@ export function StatusBar({
     offlineStreakRef.current = 0
   }
 
-  const confirmedOffline = offlineStreakRef.current >= FAILS_REQUIRED
+  const confirmedOffline = Boolean(modelError) || offlineStreakRef.current >= FAILS_REQUIRED
 
   if (showChatSignals && attachmentErrors.length > 0) {
     return (
