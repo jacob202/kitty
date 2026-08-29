@@ -58,9 +58,15 @@ jobs:
           printf '%s\n' "$changed"
           test "$(git status --short gateway/kitty-chat/src/lib/gateway.ts | wc -l | tr -d ' ')" = "1"
           test "$(git status --short gateway/kitty-chat/src/app/page.tsx | wc -l | tr -d ' ')" = "1"
-          test "$(git status --short | wc -l | tr -d ' ')" = "2"
+          test "$(git status --short gateway/kitty-chat/tests/gatewayIntegration.test.tsx | wc -l | tr -d ' ')" = "1"
+          test "$(git status --short gateway/kitty-chat/tests/PageSurfaceLayout.test.ts | wc -l | tr -d ' ')" = "1"
+          test "$(git status --short | wc -l | tr -d ' ')" = "4"
           git config user.name "kitty-closeout-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add gateway/kitty-chat/src/lib/gateway.ts gateway/kitty-chat/src/app/page.tsx
+          git add \
+            gateway/kitty-chat/src/lib/gateway.ts \
+            gateway/kitty-chat/src/app/page.tsx \
+            gateway/kitty-chat/tests/gatewayIntegration.test.tsx \
+            gateway/kitty-chat/tests/PageSurfaceLayout.test.ts
           git commit -m "[pr672-applied] fix(chat): fail closed when curated models are unavailable"
           git push origin HEAD:staging/pr672-fail-closed-20260829
