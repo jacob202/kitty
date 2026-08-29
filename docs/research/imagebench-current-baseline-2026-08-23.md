@@ -1,8 +1,8 @@
 # ImageBench Current Baseline Evidence — 2026-08-23
 
-**Evidence status:** research / current-state packet, not a promotion decision.  
-**Current main inspected:** `409c73320e7a132d7c27ec3229316d404a62fa00` (PR #605 merged).  
-**Live runtime build observed:** `cd1e4d692706c71cbbdfcf44d3ea70b63d20c0ae`.  
+**Evidence status:** research / current-state packet, not a promotion decision.
+**Current main inspected:** `409c73320e7a132d7c27ec3229316d404a62fa00` (PR #605 merged).
+**Live runtime build observed:** `cd1e4d692706c71cbbdfcf44d3ea70b63d20c0ae`.
 **Machine-readable companion:** `imagebench-current-baseline-2026-08-23.json`.
 
 ## Executive result
