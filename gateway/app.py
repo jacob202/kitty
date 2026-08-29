@@ -314,11 +314,11 @@ async def lifespan(app: FastAPI):
     yield
     if background_services_enabled:
         await supervisor.stop_all()
-        image_recovery_task = getattr(app.state, "image_recovery_task", None)
-        if image_recovery_task is not None and not image_recovery_task.done():
-            image_recovery_task.cancel()
+        pending_image_recovery = getattr(app.state, "image_recovery_task", None)
+        if pending_image_recovery is not None and not pending_image_recovery.done():
+            pending_image_recovery.cancel()
             try:
-                await image_recovery_task
+                await pending_image_recovery
             except asyncio.CancelledError:
                 pass
     try:
