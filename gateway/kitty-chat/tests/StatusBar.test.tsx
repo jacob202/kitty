@@ -1,6 +1,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StatusBar } from '../src/components/StatusBar'
+
+beforeEach(() => {
+  localStorage.clear()
+})
 
 afterEach(cleanup)
 
@@ -99,5 +103,33 @@ describe('StatusBar', () => {
   it('falls back to the transient save state when nothing else is active', () => {
     render(<StatusBar {...baseProps} saveState="saving" />)
     expect(screen.getByText('saving…')).toBeInTheDocument()
+  })
+
+  it('persists dismissal to localStorage when dismiss button is clicked', () => {
+    render(<StatusBar {...baseProps} pwaState="available" />)
+    expect(screen.getByText(/dock launch/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(localStorage.getItem('kitty-pwa-install-dismissed')).toBe('true')
+  })
+
+  it('does not render install banner when kitty-pwa-install-dismissed is true in localStorage', () => {
+    localStorage.setItem('kitty-pwa-install-dismissed', 'true')
+    const { container } = render(<StatusBar {...baseProps} pwaState="available" />)
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('still renders and dismisses banner when localStorage throws on read', () => {
+    const originalGetItem = localStorage.getItem
+    localStorage.getItem = vi.fn(() => {
+      throw new Error('quota exceeded')
+    })
+    try {
+      render(<StatusBar {...baseProps} pwaState="manual-ios" />)
+      expect(screen.getByText(/Add to Home Screen/i)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+      expect(screen.queryByText(/Add to Home Screen/i)).not.toBeInTheDocument()
+    } finally {
+      localStorage.getItem = originalGetItem
+    }
   })
 })

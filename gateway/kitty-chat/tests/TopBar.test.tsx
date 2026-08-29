@@ -3,7 +3,11 @@ import { describe, expect, it, afterEach } from 'vitest'
 import { TopBar } from '../src/components/TopBar'
 import { MODELS } from '../src/lib/types'
 
-function renderTopBar(isMobile: boolean, activeView = 'chat') {
+function renderTopBar(
+  isMobile: boolean,
+  activeView = 'chat',
+  runtimeState: 'available' | 'unavailable' | 'degraded' | 'stale' | 'unknown' = 'available',
+) {
   return render(
     <TopBar
       activeModel={MODELS[0]}
@@ -15,7 +19,7 @@ function renderTopBar(isMobile: boolean, activeView = 'chat') {
       kittyMode="default"
       onKittyModeChange={() => {}}
       isMobile={isMobile}
-      runtimeState="available"
+      runtimeState={runtimeState}
       onToggleSidebar={() => {}}
       onSelectProject={() => {}}
       activeProject={{ id: 1, name: 'kitty-gateway-rebuild' }}
@@ -47,13 +51,31 @@ describe('TopBar runtime badge', () => {
 
   it('desktop shows the runtime label text', () => {
     renderTopBar(false)
-    expect(screen.getByText('Kitty connected')).toBeInTheDocument()
+    expect(screen.getByText('connected')).toBeInTheDocument()
   })
 
   it('mobile collapses to a dot-only badge that keeps its accessible label', () => {
     renderTopBar(true)
-    expect(screen.queryByText('Kitty connected')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Kitty connected')).toBeInTheDocument()
+    expect(screen.queryByText('connected')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Gateway connection: connected')).toBeInTheDocument()
+  })
+
+  // The badge sits right next to the cat StateBadge, which reports Kitty's
+  // own state (e.g. "ready"). Wording that starts with "Kitty ___" here read
+  // as a second, contradictory claim about the same thing — the
+  // label must unambiguously describe the backend connection instead.
+  it('describes the backend connection, not Kitty itself, when unavailable', () => {
+    renderTopBar(false, 'chat', 'unavailable')
+    expect(screen.getByText('not connected')).toBeInTheDocument()
+    expect(screen.queryByText(/^Kitty /)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Gateway connection: not connected')).toBeInTheDocument()
+  })
+
+  it('describes the backend connection, not Kitty itself, when unknown', () => {
+    renderTopBar(false, 'chat', 'unknown')
+    expect(screen.getByText('connection unknown')).toBeInTheDocument()
+    expect(screen.queryByText(/^Kitty /)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Gateway connection status is unknown')).toBeInTheDocument()
   })
 })
 

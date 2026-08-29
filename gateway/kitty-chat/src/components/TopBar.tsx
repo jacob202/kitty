@@ -228,19 +228,28 @@ function RuntimeBadge({
 }) {
   const healthy = state === 'available'
   const color = healthy ? 'var(--color-success)' : state === 'degraded' || state === 'stale' || state === 'unknown' ? 'var(--color-warning)' : 'var(--color-destructive)'
+  // These describe the BACKEND CONNECTION only. The cat StateBadge sits right
+  // next to this and reports Kitty's own state (e.g. "ready"), so a label here
+  // starting with "Kitty ___" read as a second, contradictory claim about the
+  // same thing.
   const label = state === 'available'
-    ? 'Kitty connected'
+    ? 'connected'
     : state === 'degraded'
-      ? 'Kitty needs attention'
+      ? 'partly connected'
       : state === 'unavailable'
-        ? 'Kitty unavailable'
+        ? 'not connected'
         : state === 'stale'
-          ? 'Kitty status is stale'
-          : 'Kitty status unknown'
+          ? 'connection stale'
+          : 'connection unknown'
+  const accessibleLabel = state === 'stale'
+    ? 'Gateway connection status is stale'
+    : state === 'unknown'
+      ? 'Gateway connection status is unknown'
+      : `Gateway connection: ${label}`
   return (
     <span
-      title={detail ?? `Kitty status: ${state}`}
-      aria-label={label}
+      title={detail ?? accessibleLabel}
+      aria-label={accessibleLabel}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
         fontFamily: 'var(--font-body)', fontSize: 11, whiteSpace: 'nowrap',

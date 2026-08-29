@@ -6,6 +6,7 @@ import { CapturePanel } from '@/components/CapturePanel';
 import { BuilderGlance } from '@/components/BuilderSurface';
 import { InsightReturnCard } from '@/components/InsightReturnCard';
 import { useDashboardConfig } from '@/hooks/useDashboardConfig';
+import { describeFailure } from '@/lib/failure-copy';
 import {
   useStateChanges,
   useActions,
@@ -554,7 +555,10 @@ function HealthSurfaceCard() {
   if (surface.isError || !surface.data || !surface.data.ok) {
     return (
       <SectionCard title="health" span>
-        <ErrorCard message={surface.data?.error ?? 'health surface unavailable'} />
+        <ErrorCard
+          message={describeFailure(surface.error ?? surface.data?.error)}
+          onRetry={() => surface.refetch()}
+        />
       </SectionCard>
     );
   }
@@ -707,31 +711,30 @@ function WhatsNext({
   // control instead of staying stuck on "loading…" while other queries settle.
 
   if (sessionContext.isError) {
-    const message = sessionContext.error instanceof Error ? sessionContext.error.message : 'Could not reach the gateway';
     const retry = () => queryClient.invalidateQueries({ queryKey: ['session', 'context'] });
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
+        <ErrorCard message={describeFailure(sessionContext.error)} onRetry={retry} />
       </SectionCard>
     );
   }
 
   if (actionsQuery.isError || projectsQuery.isError) {
+    const failed = actionsQuery.isError ? actionsQuery : projectsQuery;
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={OFFLINE_FIX} />
+        <ErrorCard message={describeFailure(failed.error)} onRetry={() => failed.refetch()} />
       </SectionCard>
     );
   }
 
   if (todosQuery.isError || needsJacob.isError) {
     const failed = todosQuery.isError ? todosQuery : needsJacob;
-    const message = failed.error instanceof Error ? failed.error.message : 'Could not reach the gateway';
     const retryKey = todosQuery.isError ? ['todos'] : ['inbox', 'needs_jacob'];
     const retry = () => queryClient.invalidateQueries({ queryKey: retryKey });
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
+        <ErrorCard message={describeFailure(failed.error)} onRetry={retry} />
       </SectionCard>
     );
   }
@@ -936,7 +939,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
   if (projectsQuery.isError) {
     return (
       <SectionCard title="active projects">
-        <ErrorCard message="unavailable" />
+        <ErrorCard message={describeFailure(projectsQuery.error)} onRetry={() => projectsQuery.refetch()} />
       </SectionCard>
     );
   }
@@ -1231,7 +1234,7 @@ function Deadlines() {
   if (deadlines.data?.fromLiveGateway === false) {
     return (
       <SectionCard title="deadlines" action={sweepButton}>
-        <ErrorCard message="unavailable" />
+        <ErrorCard message={describeFailure(deadlines.data?.error)} onRetry={() => deadlines.refetch()} />
       </SectionCard>
     );
   }
@@ -1429,7 +1432,7 @@ function WhatChanged() {
 // ── Needs you (action queue) ─────────────────────────────────────────────────
 
 function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEntry) => void }) {
-  const { data: actions = [], isError, isPending } = useActions('proposed');
+  const { data: actions = [], isError, isPending, error, refetch } = useActions('proposed');
   const needsJacob = useNeedsJacob();
   const approve = useApproveAction();
   const execute = useExecuteAction();
@@ -1454,7 +1457,7 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
   if (isError) {
     return (
       <SectionCard title="needs you">
-        <ErrorCard message="unavailable" />
+        <ErrorCard message={describeFailure(error)} onRetry={() => refetch()} />
       </SectionCard>
     );
   }
@@ -1677,7 +1680,7 @@ function TodayPanel({
   // This card owns the /todos query. Do not borrow Brief's state: a healthy
   // todos response must remain truthful even when another dashboard card is
   // slow or unavailable.
-  const { data: todos = [], isPending, isError, error } = useTodos();
+  const { data: todos = [], isPending, isError, error, refetch } = useTodos();
 
   const open = todos.filter((t) => t.status === 'pending' || t.status === 'active');
 
@@ -1692,10 +1695,9 @@ function TodayPanel({
   }
 
   if (isError) {
-    const message = error instanceof Error ? error.message : 'Could not reach the gateway';
     return (
       <SectionCard title="today">
-        <ErrorCard message={message} />
+        <ErrorCard message={describeFailure(error)} onRetry={() => refetch()} />
       </SectionCard>
     );
   }

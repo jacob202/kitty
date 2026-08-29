@@ -47,7 +47,15 @@ export function StatusBar({
   onPwaInstall,
 }: Props) {
   const offlineStreakRef = useRef(0)
-  const [pwaDismissed, setPwaDismissed] = useState(false)
+  const [pwaDismissed, setPwaDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      const stored = localStorage.getItem('kitty-pwa-install-dismissed')
+      return stored === 'true'
+    } catch {
+      return false
+    }
+  })
 
   if (gatewayOffline) {
     offlineStreakRef.current++
@@ -134,7 +142,19 @@ export function StatusBar({
               {pwaInstalling ? 'installing...' : 'install as app'}
             </button>
           )}
-          <button type="button" onClick={() => setPwaDismissed(true)} aria-label="Dismiss" style={closeBtnStyle}>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                localStorage.setItem('kitty-pwa-install-dismissed', 'true')
+              } catch {
+                // storage failed, fall back to in-memory-only
+              }
+              setPwaDismissed(true)
+            }}
+            aria-label="Dismiss"
+            style={closeBtnStyle}
+          >
             <X size={12} />
           </button>
         </span>
