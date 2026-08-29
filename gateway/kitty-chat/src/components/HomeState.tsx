@@ -192,6 +192,19 @@ const SEVERITY_COLORS: Record<string, string> = {
   error: 'var(--c-red)',
 }
 
+function repairTitle(title: string, detail?: string | null): string {
+  const raw = `${title} ${detail ?? ''}`
+  if (/transition history/i.test(raw)) return 'Builder activity history needs attention'
+  if (/partial packet records?/i.test(raw)) return 'Some Builder work is incomplete'
+  return title
+}
+
+function repairDetail(title: string, detail?: string | null): string {
+  const raw = `${title} ${detail ?? ''}`
+  if (/transition history|partial packet records?/i.test(raw)) return ''
+  return detail ?? ''
+}
+
 function RepairsCard() {
   const repairs = useRepairs()
   const execRepair = useExecuteRepair()
@@ -264,12 +277,12 @@ function RepairsCard() {
                 flex: 1,
               }}
             >
-              {item.title}
+              {repairTitle(item.title, item.detail)}
             </span>
           </div>
-          {item.detail && (
+          {repairDetail(item.title, item.detail) && (
             <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 14 }}>
-              {item.detail}
+              {repairDetail(item.title, item.detail)}
             </div>
           )}
           {item.fix && (
@@ -497,7 +510,7 @@ function HealthStrip() {
             label={
               storeOk
                 ? `saved chats · ${persistence.data?.count ?? 0}`
-                : `saved chats unavailable${persistence.data?.error ? ` · ${persistence.data.error}` : ''}`
+                : `saved chats unavailable${persistence.data?.error ? ` · ${describeFailure(persistence.data.error)}` : ''}`
             }
           />
         </>

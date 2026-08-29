@@ -63,6 +63,7 @@ export function TopBar({
   projectLoading = false,
   projectBusy = false,
 }: Props) {
+  const displayCatState: CatState = runtimeState === 'available' ? catState : 'broke'
 
   if (isMobile) {
     // Two rows on the phone. Squeezing a cat state, runtime, the active project
@@ -91,7 +92,7 @@ export function TopBar({
             flexShrink: 0,
           }}>kitty</span>
           <span style={{ flex: 1 }} />
-          <StateBadge state={catState} />
+          <StateBadge state={displayCatState} />
           <RuntimeBadge state={runtimeState} detail={runtimeDetail} compact />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, maxWidth: '100%' }} data-testid="topbar-workspace-row">
@@ -133,7 +134,7 @@ export function TopBar({
           fontFamily: 'var(--font-body)', fontWeight: 650,
           fontSize: 18, letterSpacing: '-0.02em', color: 'var(--color-text-primary)',
         }}>{surfaceLabel}</span>
-        <StateBadge state={catState} />
+        <StateBadge state={displayCatState} />
         <RuntimeBadge state={runtimeState} detail={runtimeDetail} />
         {isStreaming && (
           <span style={{

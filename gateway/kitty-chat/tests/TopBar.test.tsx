@@ -64,6 +64,18 @@ describe('TopBar runtime badge', () => {
   // own state (e.g. "ready"). Wording that starts with "Kitty ___" here read
   // as a second, contradictory claim about the same thing — the
   // label must unambiguously describe the backend connection instead.
+  it('does not claim ready while the backend is unavailable', () => {
+    renderTopBar(true, 'chat', 'unavailable')
+    expect(screen.queryByText('ready')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Gateway connection: not connected')).toBeInTheDocument()
+  })
+
+  it('does not claim ready while the backend state is unknown', () => {
+    renderTopBar(false, 'chat', 'unknown')
+    expect(screen.queryByText('ready')).not.toBeInTheDocument()
+    expect(screen.getByText('connection unknown')).toBeInTheDocument()
+  })
+
   it('describes the backend connection, not Kitty itself, when unavailable', () => {
     renderTopBar(false, 'chat', 'unavailable')
     expect(screen.getByText('not connected')).toBeInTheDocument()

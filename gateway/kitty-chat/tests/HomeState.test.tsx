@@ -343,6 +343,40 @@ describe('HomeState', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
   });
 
+  it('translates saved-chat transport failures before they reach the health strip', () => {
+    (useChatsPersistence as Mock).mockReturnValue({
+      data: { ok: false, count: 0, error: 'Gateway returned 404 Not Found' },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+
+    render(<HomeState />);
+
+    const health = screen.getByRole('status');
+    expect(health).toHaveTextContent("Kitty is running but this part isn't answering yet")
+    expect(health).not.toHaveTextContent('Gateway returned 404 Not Found')
+  });
+
+  it('keeps internal Builder repair jargon out of ordinary Home copy', () => {
+    (useRepairs as Mock).mockReturnValue({
+      data: {
+        ok: false, checks_run: 2, issues: 2,
+        repairs: [
+          { id: 'history', severity: 'warn', title: 'Builder has incomplete transition history', detail: '14 task(s) changed state without transition history' },
+          { id: 'packets', severity: 'warn', title: 'Builder status includes 2 partial packet records', detail: '2 partial packet records found' },
+        ],
+      },
+      isPending: false, isError: false, isFetched: true,
+    });
+
+    render(<HomeState />);
+    expect(screen.queryByText(/transition history/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/packet records/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Builder activity history needs attention')).toBeVisible()
+    expect(screen.getByText('Some Builder work is incomplete')).toBeVisible()
+  });
+
   it('surfaces material health failures without making the user hunt for them', () => {
     (useRepairs as Mock).mockReturnValue({
       data: {
