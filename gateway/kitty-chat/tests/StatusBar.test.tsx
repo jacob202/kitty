@@ -61,6 +61,7 @@ describe('StatusBar', () => {
     render(<StatusBar {...props} />)
     const status = screen.getByRole('status')
     expect(status).toHaveTextContent('Model details unavailable')
+    expect(status).toHaveTextContent('model picker returned 503')
     expect(status).toHaveTextContent('Retry to reconnect to Kitty')
     expect(status).not.toHaveTextContent(/gateway offline/i)
   })

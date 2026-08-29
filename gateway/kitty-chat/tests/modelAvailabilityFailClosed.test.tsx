@@ -83,6 +83,25 @@ describe('fail-closed model availability', () => {
     expect(result.models.map(model => model.id)).toEqual(['kitty-code'])
   })
 
+  it('rejects a malformed picker preset even when its internal route appears live', async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: [{ id: 'provider-internal' }] }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          ...pickerPayload('provider-internal'),
+          presets: [{ ...pickerPayload('provider-internal').presets[0], route: 'provider-internal', label: 'Internal alias' }],
+        }), { status: 200 }),
+      )
+
+    const result = await fetchGatewayModels()
+
+    expect(result.fromLiveGateway).toBe(false)
+    expect(result.models).toEqual([])
+    expect(result.error).toMatch(/model details unavailable|invalid/i)
+  })
+
   it('fails model availability closed when no curated live route exists', async () => {
     vi.mocked(global.fetch)
       .mockResolvedValueOnce(
@@ -108,5 +127,6 @@ describe('fail-closed model availability', () => {
     expect(page).toContain("onRetry: () => { if (!modelUnavailable) k.handleRetry() },")
     expect(page).toContain("onSend={() => { if (!modelUnavailable) k.handleSend() }}")
     expect(page).toContain('disabled={k.isStreaming || modelUnavailable}')
+    expect(page).toContain('modelUnavailable={k.modelGateway.loaded && modelUnavailable}')
   })
 })

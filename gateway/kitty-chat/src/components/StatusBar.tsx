@@ -27,15 +27,9 @@ interface Props {
 const FAILS_REQUIRED = 3
 
 function modelStatusMessage(modelError?: string | null): string {
-  if (modelError?.startsWith('Model details timed out')) {
-    return 'Model details timed out — Retry to reconnect to Kitty.'
-  }
-  if (modelError?.startsWith('Model details unavailable')) {
-    return 'Model details unavailable — Retry to reconnect to Kitty.'
-  }
-  if (modelError?.startsWith('No live curated models')) {
-    return 'No live curated models are available — Retry to reconnect to Kitty.'
-  }
+  if (modelError?.startsWith('Model details timed out')) return modelError
+  if (modelError?.startsWith('Model details unavailable')) return modelError
+  if (modelError?.startsWith('No live curated models')) return modelError
   return 'models temporarily unavailable'
 }
 

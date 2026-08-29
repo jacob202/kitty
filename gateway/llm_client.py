@@ -22,10 +22,10 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import httpx
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 from gateway import model_routing
-from gateway.paths import LITELLM_BASE, LITELLM_KEY
+from gateway.paths import LITELLM_BASE, LITELLM_KEY, PROJECT_ROOT
 from gateway.settings import get_settings
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 
@@ -243,22 +243,38 @@ def normalize_agentrouter_api_base(raw: str | None) -> str:
     return f"{base}/v1"
 
 
+def _clean_agentrouter_key(raw: object, env_name: str) -> str:
+    if not isinstance(raw, str):
+        return ""
+    value = raw.strip().strip('"').strip("'")
+    if "\n" in value or "\r" in value:
+        logger.warning(
+            "AgentRouter env %s had multiple lines — using first line only. Fix your .env.",
+            env_name,
+        )
+        value = value.splitlines()[0].strip()
+    return value
+
+
 def resolve_agentrouter_api_key() -> str:
-    """Read API key from env; supports AgentRouter doc names. Strips quotes and first line only."""
-    load_dotenv(override=True)
-    for env_name in ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY"):
-        v = os.environ.get(env_name, "")
-        if not isinstance(v, str):
-            continue
-        v = v.strip().strip('"').strip("'")
-        if "\n" in v or "\r" in v:
-            logger.warning(
-                "AgentRouter env %s had multiple lines — using first line only. Fix your .env.",
-                env_name,
-            )
-            v = v.splitlines()[0].strip()
-        if v:
-            return v
+    """Resolve AgentRouter credentials without mutating the Gateway process environment.
+
+    Process environment is authoritative. If neither documented key is present,
+    read only those key names from the repo dotenv file. Never call
+    ``load_dotenv(override=True)`` here: provider inspection runs in-process and
+    must not rewrite security-critical settings such as ``GATEWAY_SECRET``.
+    """
+    env_names = ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY")
+    for env_name in env_names:
+        value = _clean_agentrouter_key(os.environ.get(env_name, ""), env_name)
+        if value:
+            return value
+
+    values = dotenv_values(PROJECT_ROOT / ".env")
+    for env_name in env_names:
+        value = _clean_agentrouter_key(values.get(env_name), env_name)
+        if value:
+            return value
     return ""
 
 

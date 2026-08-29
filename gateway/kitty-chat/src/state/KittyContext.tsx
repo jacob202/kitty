@@ -38,6 +38,7 @@ import { REDIRECTS, getView } from '@/lib/views'
 import {
   useGatewayBrief,
   useGatewayModels,
+  useProviders,
   useGatewayRuntimeManifest,
   useActiveProject,
   useProjects,
@@ -50,6 +51,7 @@ import {
   hasActiveBuilderRun,
 } from '@/lib/queries'
 import type { CatState } from '@/components/CrayonCat'
+import { isDirectProviderReady, reconcileOneShotOverride, resolveChatModels } from '@/lib/model-availability'
 
 const MOBILE_BREAKPOINT = 900
 const ACTIVE_VIEW_STORAGE_KEY = 'kitty-active-view'
@@ -304,6 +306,7 @@ export function KittyProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const modelsQuery = useGatewayModels()
   const runtimeQuery = useGatewayRuntimeManifest()
+  const providersQuery = useProviders()
   const projectsQuery = useProjects()
   const activeProjectQuery = useActiveProject()
   const setActiveProjectMut = useSetActiveProject()
@@ -320,19 +323,33 @@ export function KittyProvider({ children }: { children: ReactNode }) {
   const searchQuery = useMemo(() => latestSearchQuery(activeChat), [activeChatId, userMessageCount])
 
   const runtimeModelIds = runtimeQuery.data?.inference.available_models.value
-  const availableModels = useMemo(() => {
-    const gatewayModels = modelsQuery.data?.models ?? MODELS
-    if (!runtimeModelIds) return gatewayModels
-    const runtimeIds = new Set(runtimeModelIds)
-    return gatewayModels.filter(model => runtimeIds.has(model.id))
-  }, [runtimeModelIds, modelsQuery.data?.models])
+  const directProviderReady = isDirectProviderReady(providersQuery.data)
+  const modelResolution = useMemo(() => resolveChatModels({
+    gatewayModels: modelsQuery.data?.models ?? MODELS,
+    runtimeModelIds,
+    runtimeReady: runtimeQuery.isSuccess
+      && runtimeQuery.data?.inference.available_models.state === 'available',
+    curatedReady: modelsQuery.data?.fromLiveGateway === true,
+    directProviderReady,
+  }), [
+    directProviderReady, modelsQuery.data?.fromLiveGateway, modelsQuery.data?.models,
+    runtimeModelIds, runtimeQuery.data?.inference.available_models.state, runtimeQuery.isSuccess,
+  ])
+  const availableModels = modelResolution.models
+  const emptyVerifiedIntersection = !directProviderReady
+    && modelsQuery.data?.fromLiveGateway === true
+    && runtimeQuery.isSuccess
+    && runtimeQuery.data?.inference.available_models.state === 'available'
+    && availableModels.length === 0
 
   const modelGateway = {
-    loaded: modelsQuery.isFetched,
-    live: runtimeQuery.isSuccess
-      && runtimeQuery.data?.inference.available_models.state === 'available'
-      && modelsQuery.data?.fromLiveGateway === true,
-    error: modelsQuery.data?.error ?? null,
+    loaded: modelsQuery.isFetched || directProviderReady,
+    live: modelResolution.live,
+    error: directProviderReady
+      ? null
+      : emptyVerifiedIntersection
+        ? 'No live curated models are available — Retry to reconnect to Kitty.'
+        : (modelsQuery.data?.error ?? null),
   }
   const briefGateway = {
     loaded: briefQuery.isFetched,
@@ -463,6 +480,10 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
   useEffect(() => {
     if (!availableModels.length) return
     setActiveModel((current) => availableModels.find((m) => m.id === current.id) ?? availableModels[0] ?? current)
+  }, [availableModels])
+
+  useEffect(() => {
+    setOverrideModel(current => reconcileOneShotOverride(current, availableModels))
   }, [availableModels])
 
   useEffect(() => {
@@ -760,6 +781,8 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
 
   const retryGatewayBootstrap = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['models'] })
+    queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
+    queryClient.invalidateQueries({ queryKey: ['providers'] })
     queryClient.invalidateQueries({ queryKey: ['brief'] })
     queryClient.invalidateQueries({ queryKey: ['state'] })
     queryClient.invalidateQueries({ queryKey: ['actions'] })
