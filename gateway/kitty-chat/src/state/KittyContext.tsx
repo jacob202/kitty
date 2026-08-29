@@ -51,7 +51,7 @@ import {
   hasActiveBuilderRun,
 } from '@/lib/queries'
 import type { CatState } from '@/components/CrayonCat'
-import { isDirectProviderReady, reconcileOneShotOverride, resolveChatModels } from '@/lib/model-availability'
+import { isDirectProviderReady, isDirectProviderSelected, reconcileOneShotOverride, resolveChatModels } from '@/lib/model-availability'
 
 const MOBILE_BREAKPOINT = 900
 const ACTIVE_VIEW_STORAGE_KEY = 'kitty-active-view'
@@ -323,6 +323,7 @@ export function KittyProvider({ children }: { children: ReactNode }) {
   const searchQuery = useMemo(() => latestSearchQuery(activeChat), [activeChatId, userMessageCount])
 
   const runtimeModelIds = runtimeQuery.data?.inference.available_models.value
+  const directProviderSelected = isDirectProviderSelected(providersQuery.data)
   const directProviderReady = isDirectProviderReady(providersQuery.data)
   const modelResolution = useMemo(() => resolveChatModels({
     gatewayModels: modelsQuery.data?.models ?? MODELS,
@@ -331,25 +332,29 @@ export function KittyProvider({ children }: { children: ReactNode }) {
       && runtimeQuery.data?.inference.available_models.state === 'available',
     curatedReady: modelsQuery.data?.fromLiveGateway === true,
     directProviderReady,
+    directProviderSelected,
   }), [
-    directProviderReady, modelsQuery.data?.fromLiveGateway, modelsQuery.data?.models,
+    directProviderReady, directProviderSelected, modelsQuery.data?.fromLiveGateway, modelsQuery.data?.models,
     runtimeModelIds, runtimeQuery.data?.inference.available_models.state, runtimeQuery.isSuccess,
   ])
   const availableModels = modelResolution.models
-  const emptyVerifiedIntersection = !directProviderReady
+  const selectedProviderBlocked = directProviderSelected && !directProviderReady
+  const emptyVerifiedIntersection = !directProviderSelected
     && modelsQuery.data?.fromLiveGateway === true
     && runtimeQuery.isSuccess
     && runtimeQuery.data?.inference.available_models.state === 'available'
     && availableModels.length === 0
 
   const modelGateway = {
-    loaded: modelsQuery.isFetched || directProviderReady,
+    loaded: modelsQuery.isFetched || providersQuery.isFetched,
     live: modelResolution.live,
     error: directProviderReady
       ? null
-      : emptyVerifiedIntersection
-        ? 'No live curated models are available — Retry to reconnect to Kitty.'
-        : (modelsQuery.data?.error ?? null),
+      : selectedProviderBlocked
+        ? 'Selected model provider is unavailable — Retry to reconnect to Kitty.'
+        : emptyVerifiedIntersection
+          ? 'No live curated models are available — Retry to reconnect to Kitty.'
+          : (modelsQuery.data?.error ?? null),
   }
   const briefGateway = {
     loaded: briefQuery.isFetched,

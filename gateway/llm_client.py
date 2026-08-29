@@ -204,9 +204,25 @@ _LITELLM_DEFAULT = "kitty-default"
 _LITELLM_SONNET = "kitty-sonnet"
 _LITELLM_SMALL = "kitty-small"
 
+_AGENTROUTER_KEY_ENVS = ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY")
+
+
+def _load_dotenv_preserving_agentrouter_keys() -> bool:
+    """Reload generic dotenv values without caching AgentRouter credentials."""
+    present = {name for name in _AGENTROUTER_KEY_ENVS if name in os.environ}
+    preserved = {name: os.environ[name] for name in present}
+    try:
+        return bool(load_dotenv())
+    finally:
+        for name in _AGENTROUTER_KEY_ENVS:
+            if name in present:
+                os.environ[name] = preserved[name]
+            else:
+                os.environ.pop(name, None)
+
 
 def _env_slug(name: str, default: str) -> str:
-    load_dotenv()
+    _load_dotenv_preserving_agentrouter_keys()
     v = os.environ.get(name, "").strip()
     return v if v else default
 
@@ -264,7 +280,7 @@ def resolve_agentrouter_api_key() -> str:
     ``load_dotenv(override=True)`` here: provider inspection runs in-process and
     must not rewrite security-critical settings such as ``GATEWAY_SECRET``.
     """
-    env_names = ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY")
+    env_names = _AGENTROUTER_KEY_ENVS
 
     # Preserve the old override=True precedence without mutating os.environ:
     # a repo dotenv key may be rotated while Gateway stays up, so parse the
@@ -298,7 +314,7 @@ def _sanitize_agentrouter_model_id(raw: str) -> str:
 
 def agentrouter_model_for_request(request_model: str | None) -> str:
     """Pick the upstream AgentRouter model for Kitty's single route or an explicit id."""
-    load_dotenv()
+    _load_dotenv_preserving_agentrouter_keys()
     rm = (request_model or "").strip()
     if rm and rm not in model_routing.LEGACY_MODEL_ALIASES and rm != _LITELLM_DEFAULT:
         return _sanitize_agentrouter_model_id(rm)
@@ -617,7 +633,7 @@ def _call_provider(
     # matching the per-function ``load_dotenv()`` the old direct callers did.
     # ``load_dotenv()`` (no override) is right for the generic providers;
     # AgentRouter's ``key_resolver`` does its own ``load_dotenv(override=True)``.
-    load_dotenv()
+    _load_dotenv_preserving_agentrouter_keys()
 
     if provider.key_resolver is not None:
         api_key = provider.key_resolver()
