@@ -1,4 +1,5 @@
 import { MODELS, type Model } from './types'
+import { buildPickerModels, fetchModelPicker } from './model-picker'
 
 const GATEWAY_BASE = '/proxy'
 // The proxy has to cross the Next.js boundary and may wake a local gateway
@@ -480,8 +481,16 @@ export async function fetchGatewayModels(): Promise<GatewayModelsPayload> {
           return model?.id
         }).filter((id: unknown): id is string => typeof id === 'string')
       : []
+    const liveIds = new Set(ids)
+    let models: Model[]
+    try {
+      const picker = await fetchModelPicker()
+      models = buildPickerModels(picker).filter(model => liveIds.has(model.id))
+    } catch {
+      models = MODELS.filter(model => liveIds.has(model.id))
+    }
     return {
-      models: buildGatewayModels(ids, displayNames),
+      models,
       fromLiveGateway: true,
       error: null,
     }

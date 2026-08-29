@@ -187,16 +187,49 @@ describe('fetchGatewayModels', () => {
   })
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('keeps the live model list when the proxy is healthy', async () => {
+  it('keeps a live safe route when curated metadata is temporarily unavailable', async () => {
     vi.mocked(global.fetch).mockResolvedValue(
-      new Response(JSON.stringify({ data: [{ id: 'kitty-sonnet' }] }), { status: 200 }),
+      new Response(JSON.stringify({ data: [{ id: 'kitty-code' }] }), { status: 200 }),
     )
 
     const result = await fetchGatewayModels()
 
     expect(result.fromLiveGateway).toBe(true)
     expect(result.error).toBeNull()
-    expect(result.models.map(model => model.id)).toEqual(['kitty-sonnet'])
+    expect(result.models.map(model => [model.id, model.name])).toEqual([['kitty-code', 'Code']])
+  })
+
+  it('exposes only the configured human-facing shortlist when raw LiteLLM aliases include internal routes', async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          data: [
+            { id: 'kitty-default', display_name: 'deepseek-v4-pro' },
+            { id: 'kitty-sonnet', display_name: 'deepseek-v4-pro' },
+            { id: 'kitty-code', display_name: 'qwen3-coder' },
+            { id: 'kitty-local', display_name: 'Qwen3.5-4B-4bit' },
+          ],
+        }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          schema_version: 1, source: 'test',
+          discovery: { state: 'missing', reason: null, checked_at: null },
+          claims: { role_tags: 'heuristic', alternatives: 'cost-screened only' },
+          presets: [
+            { role: 'auto', label: 'Daily Kitty', route: 'kitty-default', purpose: 'Everyday use.', kind: 'router', provider: null, model: null, configured: true, catalogue: null, catalogue_state: 'not_applicable', alternatives: [] },
+            { role: 'code', label: 'Code', route: 'kitty-code', purpose: 'Repository work.', kind: 'model_role', provider: 'openrouter', model: 'qwen/qwen3-coder', configured: true, catalogue: null, catalogue_state: 'not_observed', alternatives: [] },
+          ],
+        }), { status: 200 }),
+      )
+
+    const result = await fetchGatewayModels()
+
+    expect(result.fromLiveGateway).toBe(true)
+    expect(result.models.map(model => [model.id, model.name])).toEqual([
+      ['kitty-default', 'Daily Kitty'],
+      ['kitty-code', 'Code'],
+    ])
   })
 
   it('marks the model list offline instead of hiding a proxy error', async () => {
