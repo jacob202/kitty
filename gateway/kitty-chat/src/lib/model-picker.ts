@@ -81,12 +81,39 @@ export function buildPickerModels(payload: GatewayModelPickerPayload): Model[] {
     })
 }
 
+const CURATED_ROLE_ROUTES: Record<string, string> = {
+  auto: 'kitty-default',
+  fast: 'kitty-small',
+  think: 'kitty-think',
+  code: 'kitty-code',
+  vision: 'kitty-vision',
+}
+
+function validPickerPreset(raw: unknown): raw is GatewayModelPickerPreset {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false
+  const preset = raw as Record<string, unknown>
+  const role = typeof preset.role === 'string' ? preset.role : ''
+  const expectedRoute = CURATED_ROLE_ROUTES[role]
+  if (!expectedRoute || preset.route !== expectedRoute) return false
+  if (typeof preset.label !== 'string' || !preset.label.trim()) return false
+  if (typeof preset.purpose !== 'string' || !preset.purpose.trim()) return false
+  if (preset.kind !== (role === 'auto' ? 'router' : 'model_role')) return false
+  if (typeof preset.configured !== 'boolean') return false
+  if (preset.provider !== null && typeof preset.provider !== 'string') return false
+  if (preset.model !== null && typeof preset.model !== 'string') return false
+  if (!Array.isArray(preset.alternatives)) return false
+  return true
+}
+
 export async function fetchModelPicker(signal?: AbortSignal): Promise<GatewayModelPickerPayload> {
   const response = await fetch(PICKER_URL, { signal })
   if (!response.ok) throw new Error(`model picker returned ${response.status}`)
   const payload = await response.json() as GatewayModelPickerPayload
   if (!payload || payload.schema_version !== 1 || !Array.isArray(payload.presets)) {
     throw new Error('model picker returned an invalid payload')
+  }
+  if (!payload.presets.every(validPickerPreset)) {
+    throw new Error('model picker returned an invalid preset')
   }
   return payload
 }

@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 import gateway.context_assembler as context_assembler
+import gateway.provider_prefs as provider_prefs
 import gateway.routes.completions as completions
 import gateway.provider_prefs as provider_prefs
 from gateway.auth import BearerAuthMiddleware
@@ -22,14 +23,25 @@ async def _hermetic_context(*args, **kwargs) -> ContextBundle:
     return ContextBundle(system="Hermetic Kitty browser continuity test context.")
 
 
+def _hermetic_provider_preferences() -> dict[str, object]:
+    return {"order": [], "disabled": [], "active": "auto"}
+
+
 async def _hermetic_manifest(*, project_id=None) -> dict:
     return {
         "revision": "hermetic-runtime",
+        "connections": {"gateway": {"state": "available", "reason": None}},
+        "inference": {
+            "available_models": {"state": "available", "value": ["kitty-default"]}
+        },
+        "tools": {"state": "available"},
         "context": {"active_project": {"state": "available", "value": None}},
+        "execution": {"builder": {"state": "available", "value": None}},
     }
 
 
 context_assembler.assemble_context = _hermetic_context
+provider_prefs.load_preferences = _hermetic_provider_preferences
 completions.compose_manifest = _hermetic_manifest
 completions.compact_runtime_context = lambda manifest: "<kitty_runtime_truth>hermetic</kitty_runtime_truth>"
 provider_prefs.active_provider = lambda: None
@@ -43,6 +55,36 @@ app.include_router(completions.router)
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/runtime/manifest")
+async def runtime_manifest() -> dict[str, object]:
+    return await _hermetic_manifest()
+
+
+@app.get("/models/picker")
+async def model_picker() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "source": "hermetic-test",
+        "discovery": {"state": "available", "reason": None, "checked_at": None},
+        "claims": {"role_tags": "heuristic", "alternatives": "cost-screened only"},
+        "presets": [
+            {
+                "role": "auto",
+                "label": "Daily Kitty",
+                "route": "kitty-default",
+                "purpose": "Hermetic browser continuity test.",
+                "kind": "router",
+                "provider": None,
+                "model": None,
+                "configured": True,
+                "catalogue": None,
+                "catalogue_state": "not_applicable",
+                "alternatives": [],
+            }
+        ],
+    }
 
 
 @app.get("/repairs")

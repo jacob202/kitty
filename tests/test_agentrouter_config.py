@@ -9,6 +9,7 @@ from gateway import llm_client as lc
 def _no_dotenv_reload(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prevent real ``.env`` from overriding monkeypatched values in these unit tests."""
     monkeypatch.setattr("gateway.llm_client.load_dotenv", lambda *a, **k: None)
+    monkeypatch.setattr("gateway.llm_client.dotenv_values", lambda *a, **k: {})
 
 
 def test_normalize_agentrouter_api_base_appends_v1() -> None:

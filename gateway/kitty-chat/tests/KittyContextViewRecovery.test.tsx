@@ -20,6 +20,7 @@ vi.mock('../src/lib/queries', () => ({
   useGatewayBrief: () => query({ fromLiveGateway: true }),
   useGatewayModels: () => query({ models: [], fromLiveGateway: false }),
   useGatewayRuntimeManifest: () => query(),
+  useProviders: () => query({ active: 'auto', order: [], providers: [], warnings: [], config_path: 'test' }),
   useActiveProject: () => query({ project: null }),
   useProjects: () => query([]),
   useSetActiveProject: () => ({ mutateAsync: vi.fn(), isPending: false }),

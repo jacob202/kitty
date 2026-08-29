@@ -11,7 +11,7 @@ afterEach(cleanup)
 const baseProps = {
   showChatSignals: true,
   attachmentErrors: [],
-  modelsUnavailable: false,
+  modelUnavailable: false,
   onRetryModels: vi.fn(),
   saveState: 'idle' as const,
   onRetrySave: vi.fn(),
@@ -26,32 +26,47 @@ describe('StatusBar', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('ranks attachment errors above the models-unavailable row', () => {
+  it('ranks attachment errors above model availability failure', () => {
     render(
       <StatusBar
         {...baseProps}
         attachmentErrors={[{ file: 'x.png', reason: 'too big' }]}
-        modelsUnavailable
+        modelUnavailable
       />,
     )
     expect(screen.getByRole('alert')).toHaveTextContent('x.png: too big')
-    expect(screen.queryByText(/can't reach any models/i)).toBeNull()
+    expect(screen.queryByText('model availability failure')).toBeNull()
   })
 
-  it('shows the models-unavailable row above save-state failures and retries on click', () => {
+  it('shows model availability failure immediately with a working retry action', () => {
     const onRetryModels = vi.fn()
-    const props = {
-      ...baseProps,
-      modelsUnavailable: true,
-      onRetryModels,
-      saveState: 'failed' as const,
-    }
-    const { rerender } = render(<StatusBar {...props} />)
-    rerender(<StatusBar {...props} />)
-    rerender(<StatusBar {...props} />)
-    expect(screen.getByText(/can't reach any models/i)).toBeInTheDocument()
+    render(
+      <StatusBar
+        {...baseProps}
+        modelUnavailable
+        onRetryModels={onRetryModels}
+        saveState="failed"
+      />,
+    )
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('models temporarily unavailable')
+    expect(status).not.toHaveTextContent(/gateway/i)
     fireEvent.click(screen.getByRole('button', { name: 'retry' }))
     expect(onRetryModels).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces picker-specific model detail failures instead of calling the gateway offline', () => {
+    const props = {
+      ...baseProps,
+      modelUnavailable: true,
+      modelError: 'Model details unavailable — model picker returned 503. Retry to reconnect to Kitty.',
+    }
+    render(<StatusBar {...props} />)
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('Model details unavailable')
+    expect(status).toHaveTextContent('model picker returned 503')
+    expect(status).toHaveTextContent('Retry to reconnect to Kitty')
+    expect(status).not.toHaveTextContent(/gateway offline/i)
   })
 
   it('shows a failed save with a working retry action', () => {
@@ -76,7 +91,8 @@ describe('StatusBar', () => {
 
   it('shows brief-unavailable when nothing higher-priority is active', () => {
     render(<StatusBar {...baseProps} briefUnavailable briefError="timeout" />)
-    expect(screen.getByText(/Brief unavailable \(timeout\)/)).toBeInTheDocument()
+    expect(screen.getByText(/took too long to answer/i)).toBeInTheDocument()
+    expect(screen.getByText(/chat still works/i)).toBeInTheDocument()
   })
 
   it('offers install when the browser can install the app', () => {
@@ -104,7 +120,9 @@ describe('StatusBar', () => {
     render(<StatusBar {...baseProps} saveState="saving" />)
     expect(screen.getByText('saving…')).toBeInTheDocument()
   })
-
+  // The install prompt held its dismissal in component state, so it returned on
+  // every reload. On a phone that banner occupies a permanent strip and re-nags
+  // on every app restart.
   it('persists dismissal to localStorage when dismiss button is clicked', () => {
     render(<StatusBar {...baseProps} pwaState="available" />)
     expect(screen.getByText(/dock launch/i)).toBeInTheDocument()
@@ -132,19 +150,28 @@ describe('StatusBar', () => {
       localStorage.getItem = originalGetItem
     }
   })
-  // Product acceptance, PR #675: this row claimed "gateway offline" while the
-  // Home panels correctly said "Kitty is running but this part isn't answering
-  // yet." The flag behind it is model-list availability, and HealthGate has
-  // already proven the gateway reachable before StatusBar renders at all — so
-  // the row must never claim the gateway is down, and must not use the word.
-  it('never claims the gateway is offline, and avoids internal vocabulary', () => {
-    const props = { ...baseProps, modelsUnavailable: true, showChatSignals: false }
-    const { container, rerender } = render(<StatusBar {...props} />)
-    rerender(<StatusBar {...props} />)
-    rerender(<StatusBar {...props} />)
-    const text = container.textContent ?? ''
-    expect(text).toMatch(/can't reach any models/i)
-    expect(text).not.toMatch(/gateway/i)
-    expect(text).not.toMatch(/offline/i)
+  // The brief row was unreachable while the model row always fired, so this
+  // leak stayed hidden: it rendered the gateway's raw text verbatim
+  // ("Brief unavailable (Gateway returned 404 Not Found)"). Kitty's owner does
+  // not code; no user-facing row may show an HTTP status or internal name.
+  it('translates a brief failure instead of printing the raw gateway text', () => {
+    render(
+      <StatusBar
+        {...baseProps}
+        briefUnavailable
+        briefError="Gateway returned 404 Not Found"
+      />,
+    )
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent(/chat still works/i)
+    expect(status).not.toHaveTextContent(/Gateway returned/i)
+    expect(status).not.toHaveTextContent(/404/)
+  })
+
+  it('keeps internal vocabulary out of the offline save row', () => {
+    render(<StatusBar {...baseProps} saveState="offline" />)
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent(/chat not saved/i)
+    expect(status).not.toHaveTextContent(/gateway/i)
   })
 })
