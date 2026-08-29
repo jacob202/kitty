@@ -12,6 +12,7 @@ interface Props {
   showChatSignals: boolean
   attachmentErrors: AttachmentError[]
   modelUnavailable: boolean
+  modelError?: string | null
   onRetryModels: () => void
   saveState: SaveState
   onRetrySave: () => void
@@ -25,6 +26,19 @@ interface Props {
 
 const FAILS_REQUIRED = 3
 
+function modelStatusMessage(modelError?: string | null): string {
+  if (modelError?.startsWith('Model details timed out')) {
+    return 'Model details timed out — retry to reconnect to Kitty.'
+  }
+  if (modelError?.startsWith('Model details unavailable')) {
+    return 'Model details unavailable — retry to reconnect to Kitty.'
+  }
+  if (modelError?.startsWith('No live curated models')) {
+    return 'No live curated models are available — retry to reconnect to Kitty.'
+  }
+  return 'models temporarily unavailable'
+}
+
 /**
  * One line, ranked by how much it matters to the user right now. The old
  * layout stacked up to five independent banners (pwa install, gateway
@@ -36,6 +50,7 @@ export function StatusBar({
   showChatSignals,
   attachmentErrors,
   modelUnavailable,
+  modelError,
   onRetryModels,
   saveState,
   onRetrySave,
@@ -75,7 +90,7 @@ export function StatusBar({
       <div role="status" style={{ ...rowStyle, justifyContent: 'space-between' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={dotStyle} />
-          models temporarily unavailable
+          {modelStatusMessage(modelError)}
         </span>
         <button type="button" onClick={onRetryModels} style={retryBtnStyle}>
           retry
