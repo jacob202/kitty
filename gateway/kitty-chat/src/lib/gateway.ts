@@ -1138,6 +1138,17 @@ export async function toggleCronSchedule(id: string): Promise<void> {
   await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
 }
 
+export interface AutomationRetryResult {
+  run: { id: string; status: string }
+  retried_from: string
+}
+
+export async function retryAutomationRun(runId: string): Promise<AutomationRetryResult> {
+  return gfetch<AutomationRetryResult>(`/automations/runs/${encodeURIComponent(runId)}/retry`, {
+    method: 'POST',
+  })
+}
+
 // ── Why didn't this happen? ─────────────────────────────────────────────────
 
 export type WhyStatus =

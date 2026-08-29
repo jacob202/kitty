@@ -5,7 +5,7 @@ import { type CronScheduleType, type WhyStatus } from '@/lib/gateway'
 import {
   useCronSchedules, useCronActions, useCreateCronSchedule,
   useUpdateCronSchedule, useDeleteCronSchedule, useToggleCronSchedule,
-  useScheduleWhy,
+  useScheduleWhy, useRetryAutomationRun,
 } from '@/lib/queries'
 
 function fmtLastRun(ts: number): string {
@@ -36,6 +36,7 @@ export function CronPanel({ variant = 'compact', isMobile = false }: { variant?:
   const updateSchedule = useUpdateCronSchedule()
   const deleteSchedule = useDeleteCronSchedule()
   const toggleSchedule = useToggleCronSchedule()
+  const retryRun = useRetryAutomationRun()
 
   const schedules = schedulesQuery.data ?? []
   const actions = actionsQuery.data ?? []
@@ -51,6 +52,19 @@ export function CronPanel({ variant = 'compact', isMobile = false }: { variant?:
   const [schedVal, setSchedVal] = useState('07:00')
 
   const whyQuery = useScheduleWhy(whyId)
+  const retryableRunId =
+    whyQuery.data && (whyQuery.data.status === 'failed' || whyQuery.data.status === 'interrupted')
+      && typeof whyQuery.data.evidence.run_id === 'string'
+      ? whyQuery.data.evidence.run_id
+      : null
+
+  function retryLatestRun() {
+    if (!retryableRunId || !whyQuery.data || retryRun.isPending) return
+    const confirmed = window.confirm(
+      'Retry this run as a fresh attempt? Only retry if you are comfortable repeating the action; an interrupted or failed run may already have produced an external effect.',
+    )
+    if (confirmed) retryRun.mutate(retryableRunId)
+  }
 
   function toggleWhy(id: string) {
     setWhyId(whyId === id ? null : id)
@@ -177,6 +191,21 @@ export function CronPanel({ variant = 'compact', isMobile = false }: { variant?:
                           <p style={fullMetaStyle}>{whyQuery.data.reason}</p>
                           {whyQuery.data.relevant_at ? <p style={fullMetaStyle}>Relevant time: {fmtTimestamp(whyQuery.data.relevant_at)}</p> : null}
                           {whyQuery.data.next_step ? <p style={fullMetaStyle}>Next: {whyQuery.data.next_step}</p> : null}
+                          {retryableRunId ? (
+                            <button
+                              type="button"
+                              onClick={retryLatestRun}
+                              disabled={retryRun.isPending}
+                              style={fullActionButtonStyle}
+                              aria-label={`Retry ${whyQuery.data.status} run`}
+                            >{retryRun.isPending ? 'Retrying…' : 'Retry run'}</button>
+                          ) : null}
+                          {retryRun.data?.retried_from === retryableRunId ? (
+                            <p role="status" style={fullMetaStyle}>Retry {retryRun.data.run.status} as {retryRun.data.run.id}.</p>
+                          ) : null}
+                          {retryRun.isError ? (
+                            <p role="status" style={fullMetaStyle}>Couldn&apos;t retry this run: {String((retryRun.error as Error).message ?? retryRun.error)}</p>
+                          ) : null}
                         </>
                       ) : null}
                     </div>
@@ -213,6 +242,21 @@ export function CronPanel({ variant = 'compact', isMobile = false }: { variant?:
                           <p style={metaStyle}>{whyQuery.data.reason}</p>
                           {whyQuery.data.relevant_at ? <p style={metaStyle}>at {fmtTimestamp(whyQuery.data.relevant_at)}</p> : null}
                           {whyQuery.data.next_step ? <p style={metaStyle}>next: {whyQuery.data.next_step}</p> : null}
+                          {retryableRunId ? (
+                            <button
+                              type="button"
+                              onClick={retryLatestRun}
+                              disabled={retryRun.isPending}
+                              style={whyBtnStyle}
+                              aria-label={`Retry ${whyQuery.data.status} run`}
+                            >{retryRun.isPending ? 'retrying…' : 'retry run'}</button>
+                          ) : null}
+                          {retryRun.data?.retried_from === retryableRunId ? (
+                            <p role="status" style={metaStyle}>retry {retryRun.data.run.status} as {retryRun.data.run.id}.</p>
+                          ) : null}
+                          {retryRun.isError ? (
+                            <p role="status" style={metaStyle}>couldn&apos;t retry: {String((retryRun.error as Error).message ?? retryRun.error)}</p>
+                          ) : null}
                         </>
                       ) : null}
                     </div>
