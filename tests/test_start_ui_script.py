@@ -43,6 +43,9 @@ def _fake_repo(tmp_path: Path, *, build_id: bool) -> Path:
         next_dir = root / "gateway" / "kitty-chat" / ".next"
         next_dir.mkdir()
         (next_dir / "BUILD_ID").write_text("test-build\n", encoding="utf-8")
+        standalone = next_dir / "standalone"
+        standalone.mkdir()
+        (standalone / "server.js").write_text("// fake standalone server\n", encoding="utf-8")
 
     return root
 
@@ -77,10 +80,18 @@ def _run(root: Path, tmp_path: Path, *, build_succeeds: bool = True) -> tuple[
 echo "npm $*" >> "{call_log}"
 if [[ "$1" == "run" && "$2" == "build" ]]; then
   if [[ {build_exit} -eq 0 ]]; then
-    mkdir -p .next && touch .next/BUILD_ID
+    mkdir -p .next/standalone && touch .next/BUILD_ID && printf '// fake\n' > .next/standalone/server.js
   fi
   exit {build_exit}
 fi
+exit 0
+""",
+    )
+
+    _write_executable(
+        fake_bin / "node",
+        f"""#!/bin/bash
+echo "node $* HOSTNAME=${{HOSTNAME:-}} PORT=${{PORT:-}}" >> "{call_log}"
 exit 0
 """,
     )
@@ -109,7 +120,7 @@ def test_current_build_starts_without_rebuilding(tmp_path):
     assert result.returncode == 0
     assert "build is current" in result.stdout
     assert not any("run build" in call for call in calls)
-    assert any("run start" in call for call in calls)
+    assert any("node .next/standalone/server.js" in call for call in calls)
 
 
 def test_source_newer_than_build_triggers_rebuild(tmp_path):
@@ -121,7 +132,7 @@ def test_source_newer_than_build_triggers_rebuild(tmp_path):
     assert result.returncode == 0
     assert "is newer than the last build" in result.stdout
     assert calls[0].startswith("npm run build")
-    assert any("run start" in call for call in calls)
+    assert any("node .next/standalone/server.js" in call for call in calls)
 
 
 def test_rebuild_clears_staleness_for_the_next_launch(tmp_path):
@@ -157,7 +168,7 @@ def test_failed_build_stops_the_service_instead_of_serving_stale_code(tmp_path):
     result, calls = _run(root, tmp_path, build_succeeds=False)
 
     assert result.returncode != 0
-    assert not any("run start" in call for call in calls)
+    assert not any("node .next/standalone/server.js" in call for call in calls)
 
 
 def test_successful_rebuild_records_exact_source_sha(tmp_path):
@@ -175,3 +186,16 @@ def test_successful_rebuild_records_exact_source_sha(tmp_path):
     assert result.returncode == 0
     stamp = root / "gateway" / "kitty-chat" / ".next" / "KITTY_SOURCE_SHA"
     assert stamp.read_text(encoding="utf-8").strip() == expected_sha
+
+
+def test_standalone_server_receives_requested_host_and_port(tmp_path):
+    root = _fake_repo(tmp_path, build_id=True)
+    _set_build_newer_than_source(root)
+
+    result, calls = _run(root, tmp_path)
+
+    assert result.returncode == 0
+    assert any(
+        "node .next/standalone/server.js HOSTNAME=127.0.0.1 PORT=4000" in call
+        for call in calls
+    )
