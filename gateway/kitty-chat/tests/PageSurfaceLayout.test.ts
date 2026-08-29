@@ -28,6 +28,10 @@ describe('product surface shell ownership', () => {
     expect(composer).toContain('disabled={k.isStreaming || modelUnavailable}')
   })
 
+  it('passes the model availability error to the visible recovery status', () => {
+    expect(page).toContain('modelError={k.modelGateway.error}')
+  })
+
   it('keeps the fixed mascot off Home where the dashboard has an inline mascot', () => {
     expect(page).toContain("k.activeView !== 'home' && <CatCorner")
   })
