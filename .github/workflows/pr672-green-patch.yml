@@ -1,0 +1,223 @@
+name: PR672 Green Patch
+
+on:
+  push:
+    branches: [fix/daily-driver-model-truth-20260829]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/daily-driver-model-truth-20260829
+          fetch-depth: 2
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: gateway/kitty-chat/package-lock.json
+      - name: Guard exact RED parent
+        run: test "$(git rev-parse HEAD^)" = "718e247346dd2a1886c38db4307f81a3604be0e5"
+      - name: Apply minimal GREEN patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace(path, old, new, expected=1):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              actual = text.count(old)
+              assert actual == expected, f'{path}: expected {expected} matches, got {actual}'
+              p.write_text(text.replace(old, new), encoding='utf-8')
+
+          replace(
+              'gateway/kitty-chat/src/lib/model-availability.ts',
+              '''export function isDirectProviderReady(chain: ProviderAvailability | null | undefined): boolean {
+            if (!chain || !chain.active || chain.active === 'auto') return false
+            const selected = chain.providers.find(provider => provider.name === chain.active)
+            return Boolean(selected?.configured && !selected.disabled)
+          }
+          ''',
+              '''export function isDirectProviderSelected(chain: ProviderAvailability | null | undefined): boolean {
+            return Boolean(chain?.active && chain.active !== 'auto')
+          }
+
+          export function isDirectProviderReady(chain: ProviderAvailability | null | undefined): boolean {
+            if (!isDirectProviderSelected(chain)) return false
+            const selected = chain!.providers.find(provider => provider.name === chain!.active)
+            return Boolean(selected?.configured && !selected.disabled)
+          }
+          ''',
+          )
+          replace(
+              'gateway/kitty-chat/src/lib/model-availability.ts',
+              '''  directProviderReady: boolean
+          }): { models: Model[]; live: boolean } {
+            if (input.directProviderReady) {
+          ''',
+              '''  directProviderReady: boolean
+            directProviderSelected: boolean
+          }): { models: Model[]; live: boolean } {
+            if (input.directProviderSelected && !input.directProviderReady) {
+              return { models: [], live: false }
+            }
+            if (input.directProviderReady) {
+          ''',
+          )
+
+          replace(
+              'gateway/kitty-chat/src/state/KittyContext.tsx',
+              "import { isDirectProviderReady, reconcileOneShotOverride, resolveChatModels } from '@/lib/model-availability'",
+              "import { isDirectProviderReady, isDirectProviderSelected, reconcileOneShotOverride, resolveChatModels } from '@/lib/model-availability'",
+          )
+          replace(
+              'gateway/kitty-chat/src/state/KittyContext.tsx',
+              '''  const runtimeModelIds = runtimeQuery.data?.inference.available_models.value
+            const directProviderReady = isDirectProviderReady(providersQuery.data)
+            const modelResolution = useMemo(() => resolveChatModels({
+              gatewayModels: modelsQuery.data?.models ?? MODELS,
+              runtimeModelIds,
+              runtimeReady: runtimeQuery.isSuccess
+                && runtimeQuery.data?.inference.available_models.state === 'available',
+              curatedReady: modelsQuery.data?.fromLiveGateway === true,
+              directProviderReady,
+            }), [
+              directProviderReady, modelsQuery.data?.fromLiveGateway, modelsQuery.data?.models,
+              runtimeModelIds, runtimeQuery.data?.inference.available_models.state, runtimeQuery.isSuccess,
+            ])
+            const availableModels = modelResolution.models
+            const emptyVerifiedIntersection = !directProviderReady
+              && modelsQuery.data?.fromLiveGateway === true
+              && runtimeQuery.isSuccess
+              && runtimeQuery.data?.inference.available_models.state === 'available'
+              && availableModels.length === 0
+
+            const modelGateway = {
+              loaded: modelsQuery.isFetched || directProviderReady,
+              live: modelResolution.live,
+              error: directProviderReady
+                ? null
+                : emptyVerifiedIntersection
+                  ? 'No live curated models are available — Retry to reconnect to Kitty.'
+                  : (modelsQuery.data?.error ?? null),
+            }
+          ''',
+              '''  const runtimeModelIds = runtimeQuery.data?.inference.available_models.value
+            const directProviderSelected = isDirectProviderSelected(providersQuery.data)
+            const directProviderReady = isDirectProviderReady(providersQuery.data)
+            const modelResolution = useMemo(() => resolveChatModels({
+              gatewayModels: modelsQuery.data?.models ?? MODELS,
+              runtimeModelIds,
+              runtimeReady: runtimeQuery.isSuccess
+                && runtimeQuery.data?.inference.available_models.state === 'available',
+              curatedReady: modelsQuery.data?.fromLiveGateway === true,
+              directProviderReady,
+              directProviderSelected,
+            }), [
+              directProviderReady, directProviderSelected, modelsQuery.data?.fromLiveGateway, modelsQuery.data?.models,
+              runtimeModelIds, runtimeQuery.data?.inference.available_models.state, runtimeQuery.isSuccess,
+            ])
+            const availableModels = modelResolution.models
+            const selectedProviderBlocked = directProviderSelected && !directProviderReady
+            const emptyVerifiedIntersection = !directProviderSelected
+              && modelsQuery.data?.fromLiveGateway === true
+              && runtimeQuery.isSuccess
+              && runtimeQuery.data?.inference.available_models.state === 'available'
+              && availableModels.length === 0
+
+            const modelGateway = {
+              loaded: modelsQuery.isFetched || providersQuery.isFetched,
+              live: modelResolution.live,
+              error: directProviderReady
+                ? null
+                : selectedProviderBlocked
+                  ? 'Selected model provider is unavailable — Retry to reconnect to Kitty.'
+                  : emptyVerifiedIntersection
+                    ? 'No live curated models are available — Retry to reconnect to Kitty.'
+                    : (modelsQuery.data?.error ?? null),
+            }
+          ''',
+          )
+
+          replace('gateway/kitty-chat/src/components/StatusBar.tsx', "import { useRef, useState, type CSSProperties } from 'react'", "import { useState, type CSSProperties } from 'react'")
+          replace('gateway/kitty-chat/src/components/StatusBar.tsx', "\nconst FAILS_REQUIRED = 3\n", "\n")
+          replace(
+              'gateway/kitty-chat/src/components/StatusBar.tsx',
+              '''  const offlineStreakRef = useRef(0)
+            const [pwaDismissed, setPwaDismissed] = useState(false)
+
+            if (modelUnavailable) {
+              offlineStreakRef.current++
+            } else {
+              offlineStreakRef.current = 0
+            }
+
+            const confirmedOffline = Boolean(modelError) || offlineStreakRef.current >= FAILS_REQUIRED
+          ''',
+              '''  const [pwaDismissed, setPwaDismissed] = useState(false)
+
+            const confirmedOffline = modelUnavailable
+          ''',
+          )
+
+          llm = Path('gateway/llm_client.py')
+          text = llm.read_text(encoding='utf-8')
+          marker = '''_LITELLM_SMALL = "kitty-small"\n\n\ndef _env_slug(name: str, default: str) -> str:\n'''
+          helper = '''_LITELLM_SMALL = "kitty-small"\n\n_AGENTROUTER_KEY_ENVS = ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY")\n\n\ndef _load_dotenv_preserving_agentrouter_keys() -> bool:\n    """Reload generic provider dotenv values without caching AgentRouter credentials."""\n    present = {name for name in _AGENTROUTER_KEY_ENVS if name in os.environ}\n    preserved = {name: os.environ[name] for name in present}\n    try:\n        return bool(load_dotenv())\n    finally:\n        for name in _AGENTROUTER_KEY_ENVS:\n            if name in present:\n                os.environ[name] = preserved[name]\n            else:\n                os.environ.pop(name, None)\n\n\ndef _env_slug(name: str, default: str) -> str:\n'''
+          assert text.count(marker) == 1
+          text = text.replace(marker, helper)
+          assert text.count('    load_dotenv()\n') == 3, text.count('    load_dotenv()\n')
+          text = text.replace('    load_dotenv()\n', '    _load_dotenv_preserving_agentrouter_keys()\n')
+          text = text.replace('    env_names = ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY")\n', '    env_names = _AGENTROUTER_KEY_ENVS\n', 1)
+          llm.write_text(text, encoding='utf-8')
+
+          replace(
+              'tests/test_llm_client.py',
+              '''    monkeypatch.setattr(llm_client, "load_dotenv", dangerous_dotenv_reload)
+
+            assert llm_client.resolve_agentrouter_api_key() == "runtime-agentrouter-key"
+          ''',
+              '''    monkeypatch.setattr(llm_client, "load_dotenv", dangerous_dotenv_reload)
+            monkeypatch.setattr(llm_client, "dotenv_values", lambda *_args, **_kwargs: {})
+
+            assert llm_client.resolve_agentrouter_api_key() == "runtime-agentrouter-key"
+          ''',
+          )
+
+          policy = Path('gateway/kitty-chat/tests/modelAvailabilityPolicy.test.ts')
+          ptext = policy.read_text(encoding='utf-8')
+          ptext = ptext.replace('  isDirectProviderReady,\n', '  isDirectProviderReady,\n  isDirectProviderSelected,\n', 1)
+          assert ptext.count('directProviderReady: false,') == 1
+          ptext = ptext.replace('directProviderReady: false,', 'directProviderReady: false,\n      directProviderSelected: false,')
+          assert ptext.count('directProviderReady: true,') == 1
+          ptext = ptext.replace('directProviderReady: true,', 'directProviderReady: true,\n      directProviderSelected: true,')
+          needle = "    expect(isDirectProviderReady({ ...base, active: 'openrouter' })).toBe(true)\n"
+          assert ptext.count(needle) == 1
+          ptext = ptext.replace(needle, "    expect(isDirectProviderSelected({ ...base, active: 'openrouter' })).toBe(true)\n    expect(isDirectProviderSelected({ ...base, active: 'auto' })).toBe(false)\n" + needle)
+          policy.write_text(ptext, encoding='utf-8')
+
+      - name: Focused GREEN verification
+        run: |
+          python -m pip install -r requirements.txt pytest pytest-asyncio >/dev/null
+          python -m pytest -q tests/test_agentrouter_dotenv_isolation.py tests/test_llm_client.py -k 'agentrouter or generic_provider_dotenv_reload'
+          cd gateway/kitty-chat
+          npm ci >/dev/null
+          npm test -- --run tests/KittyContextModelAvailability.test.tsx tests/StatusBar.test.tsx tests/modelAvailabilityPolicy.test.ts
+          npx tsc --noEmit
+      - name: Commit final tree without helper workflow
+        run: |
+          rm .github/workflows/pr672-green-patch.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add gateway/kitty-chat/src/lib/model-availability.ts gateway/kitty-chat/src/state/KittyContext.tsx gateway/kitty-chat/src/components/StatusBar.tsx gateway/kitty-chat/tests/modelAvailabilityPolicy.test.ts gateway/llm_client.py tests/test_llm_client.py .github/workflows/pr672-green-patch.yml
+          git commit -m 'fix(chat): fail closed for blocked provider state'
+          git push origin HEAD:fix/daily-driver-model-truth-20260829
