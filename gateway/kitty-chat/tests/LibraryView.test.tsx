@@ -134,7 +134,7 @@ describe('LibraryView artifact truth', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('unauthorized', { status: 401, statusText: 'Unauthorized' })))
     renderLibrary()
 
-    expect(await screen.findByText(/sign in again to load saved files/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Kitty refused the request — check the gateway secret in Settings/i)).toBeInTheDocument()
     expect(screen.queryByText(/Gateway returned 401/i)).not.toBeInTheDocument()
   })
 

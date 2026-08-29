@@ -64,6 +64,22 @@ describe('ProjectsPanel recent files (Project Resume: Artifacts, slice 1)', () =
 
   afterEach(cleanup)
 
+  it('translates project list failures and retries without leaking raw gateway text', () => {
+    const refetch = vi.fn()
+    vi.mocked(queries.useProjects).mockReturnValue({
+      data: undefined, isLoading: false, isError: true,
+      error: new Error('Gateway returned 404 Not Found'), refetch,
+    } as never)
+
+    renderPanel()
+
+    expect(screen.getByText(/Kitty is running but this part isn't answering yet/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Gateway returned 404/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/GET \/projects/i)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /retry projects/i }))
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
   it('renders up to 5 recent artifacts with name, kind, state, and date', () => {
     vi.mocked(queries.useProjectResume).mockReturnValue({
       data: {

@@ -4,6 +4,7 @@ import { useProjects, useProjectNextSteps, useProjectResume, useRefreshProject }
 import type { GatewayNextStep, GatewayProject } from '@/lib/gateway'
 import { Button } from '@/components/ui/Button'
 import { RefreshCw } from 'lucide-react'
+import { describeFailure } from '@/lib/failure-copy'
 
 export function ProjectsPanel() {
   const projectsQuery = useProjects()
@@ -18,9 +19,9 @@ export function ProjectsPanel() {
   if (projectsQuery.isError) {
     return (
       <div style={errorBoxStyle}>
-        <strong>projects unavailable</strong> —{' '}
-        {projectsQuery.error instanceof Error ? projectsQuery.error.message : 'gateway error'}.
-        GET /projects didn&apos;t answer; is the gateway up?
+        <strong>projects unavailable</strong> — {describeFailure(projectsQuery.error)}
+        <br />
+        <Button onClick={() => void projectsQuery.refetch()} variant="ghost" size="md">retry projects</Button>
       </div>
     )
   }
