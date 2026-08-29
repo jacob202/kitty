@@ -68,7 +68,6 @@ TOTAL_CONTEXT_TOKEN_CAPS: dict[str, int] = {
     "standard": 8_000,
     "deep": 16_000,
 }
-_CHARS_PER_TOKEN_ESTIMATE = 4
 _CONTEXT_BLOCK_SHARES: dict[str, float] = {
     "domain": 0.25,
     "objective": 0.05,
@@ -244,42 +243,54 @@ def _join_blocks(*blocks: str) -> str:
     return "\n\n".join(b for b in blocks if b)
 
 
+def _budget_units(text: str) -> int:
+    """Conservative token upper bound: one unit per UTF-8 byte."""
+    return len(text.encode("utf-8"))
+
+
+def _utf8_prefix(text: str, max_units: int) -> str:
+    if max_units <= 0:
+        return ""
+    return text.encode("utf-8")[:max_units].decode("utf-8", errors="ignore")
+
+
 def _truncate_context_block(text: str, limit: int) -> str:
-    if len(text) <= limit:
+    if _budget_units(text) <= limit:
         return text
     if limit <= 0:
         return ""
     marker = _CONTEXT_TRUNCATION_MARKER
-    if limit <= len(marker):
-        return text[:limit]
-    return text[: limit - len(marker)].rstrip() + marker
+    marker_units = _budget_units(marker)
+    if limit <= marker_units:
+        return _utf8_prefix(text, limit)
+    prefix = _utf8_prefix(text, limit - marker_units).rstrip()
+    while prefix and _budget_units(prefix + marker) > limit:
+        prefix = prefix[:-1]
+    return prefix + marker
 
 
 def _fit_context_blocks(
     blocks: list[tuple[str, str, float]], *, tier: str
 ) -> tuple[str, dict[str, object], list[str]]:
-    """Fit named prompt blocks into one deterministic whole-context budget."""
+    """Fit named prompt blocks into a conservative whole-context budget."""
     if tier not in TOTAL_CONTEXT_TOKEN_CAPS:
         raise ValueError(f"unknown context tier: {tier!r}")
 
     present = [(name, text, share) for name, text, share in blocks if text]
     token_cap = TOTAL_CONTEXT_TOKEN_CAPS[tier]
-    char_cap = token_cap * _CHARS_PER_TOKEN_ESTIMATE
-    separator_chars = max(0, len(present) - 1) * 2
-    payload_cap = max(0, char_cap - separator_chars)
+    separator_units = max(0, len(present) - 1) * _budget_units("\n\n")
+    payload_cap = max(0, token_cap - separator_units)
 
     allocations: list[int] = []
-    for _name, text, share in present:
+    for _name, block_text, share in present:
         soft_cap = max(1, int(payload_cap * share))
-        allocations.append(min(len(text), soft_cap))
+        allocations.append(min(_budget_units(block_text), soft_cap))
 
     leftover = max(0, payload_cap - sum(allocations))
-    # Deterministic spillover: preserve the established prompt order and give
-    # unused capacity to earlier truncated blocks before later ones.
-    for index, (_name, text, _share) in enumerate(present):
+    for index, (_name, block_text, _share) in enumerate(present):
         if leftover <= 0:
             break
-        missing = len(text) - allocations[index]
+        missing = _budget_units(block_text) - allocations[index]
         if missing <= 0:
             continue
         extra = min(missing, leftover)
@@ -289,33 +300,37 @@ def _fit_context_blocks(
     rendered: list[str] = []
     evidence_blocks: list[dict[str, object]] = []
     warnings: list[str] = []
-    for (name, text, _share), allocation in zip(present, allocations):
-        clipped = allocation < len(text)
-        rendered_text = _truncate_context_block(text, allocation)
+    for (name, block_text, _share), allocation in zip(present, allocations):
+        original_units = _budget_units(block_text)
+        clipped = allocation < original_units
+        rendered_text = _truncate_context_block(block_text, allocation)
+        included_units = _budget_units(rendered_text)
         rendered.append(rendered_text)
         evidence_blocks.append(
             {
                 "name": name,
-                "original_chars": len(text),
+                "original_chars": len(block_text),
                 "included_chars": len(rendered_text),
+                "original_token_upper_bound": original_units,
+                "included_token_upper_bound": included_units,
                 "truncated": clipped,
             }
         )
         if clipped:
             warnings.append(
-                f"context_budget:{name}: clipped {len(text)} -> {len(rendered_text)} chars"
+                f"context_budget:{name}: clipped {original_units} -> {included_units} utf8-byte token upper bound"
             )
 
     system = _join_blocks(*rendered)
     evidence: dict[str, object] = {
         "tier": tier,
         "total_token_cap": token_cap,
-        "approx_char_cap": char_cap,
+        "budget_unit": "utf8_bytes_upper_bound",
         "system_chars": len(system),
+        "system_token_upper_bound": _budget_units(system),
         "blocks": evidence_blocks,
     }
     return system, evidence, warnings
-
 
 async def assemble_context(
     message: str,
@@ -409,6 +424,7 @@ async def assemble_context(
         context_blocks, tier=tier
     )
     budget_evidence["truncations"] = list(_budget_warnings)
+    warnings.extend(_budget_warnings)
 
     return ContextBundle(
         system=system,

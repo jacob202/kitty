@@ -49,6 +49,20 @@ def _now_ts() -> float:
     return datetime.now(timezone.utc).timestamp()
 
 
+def _parse_instant(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _instant_is_due(return_at: str, now: str) -> bool:
+    try:
+        return _parse_instant(return_at) <= _parse_instant(now)
+    except (TypeError, ValueError):
+        return False
+
+
 def capture(
     text: str,
     source_ref: str | None = None,
@@ -114,13 +128,13 @@ def list_due(now: str | None = None) -> list[dict[str, Any]]:
         # returnable again exactly like a pending explicit-time insight.
         if status == "snoozed":
             ret_at = payload.get("return_at")
-            if ret_at and ret_at <= now:
+            if ret_at and _instant_is_due(ret_at, now):
                 due.append(item)
         elif policy == "next_brief":
             due.append(item)
         elif policy == "explicit_time":
             ret_at = payload.get("return_at")
-            if ret_at and ret_at <= now:
+            if ret_at and _instant_is_due(ret_at, now):
                 due.append(item)
 
     return due
@@ -142,7 +156,7 @@ def mark_returned(item_id: int, channel: str = "signal") -> bool:
         return False
     if current_status == "snoozed":
         return_at = payload.get("return_at")
-        if not return_at or return_at > _now_iso():
+        if not return_at or not _instant_is_due(return_at, _now_iso()):
             logger.warning("insight %s mark_returned skipped: snooze has not elapsed", item_id)
             return False
 

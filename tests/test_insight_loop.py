@@ -419,3 +419,13 @@ def test_elapsed_snooze_can_transition_back_to_returned(monkeypatch) -> None:
     assert item is not None
     assert item["payload"]["status"] == "returned"
     assert item["payload"]["returned_count"] == 2
+
+def test_snooze_offset_is_compared_as_an_instant(monkeypatch) -> None:
+    item_id = insight_loop.capture(text="offset snooze", category="task", explicit_consent=True)
+    insight_loop.mark_returned(item_id)
+    insight_loop.respond(item_id, "snooze", snooze_until="2026-01-02T08:00:00-08:00")
+
+    assert not any(item["id"] == item_id for item in insight_loop.list_due("2026-01-02T12:00:00+00:00"))
+    assert any(item["id"] == item_id for item in insight_loop.list_due("2026-01-02T16:00:00+00:00"))
+    monkeypatch.setattr(insight_loop, "_now_iso", lambda: "2026-01-02T12:00:00+00:00")
+    assert insight_loop.mark_returned(item_id) is False

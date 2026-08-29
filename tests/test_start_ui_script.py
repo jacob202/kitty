@@ -235,3 +235,24 @@ def test_standalone_refuses_symlinked_asset_destination(tmp_path):
     assert "refusing symlinked standalone destination" in result.stderr
     assert sentinel.read_text(encoding="utf-8") == "keep"
     assert not any("node .next/standalone/server.js" in call for call in calls)
+
+def test_standalone_refuses_symlinked_next_ancestor(tmp_path):
+    root = _fake_repo(tmp_path, build_id=False)
+    ui = root / "gateway" / "kitty-chat"
+    outside = tmp_path / "outside-next"
+    (outside / "standalone" / ".next" / "static").mkdir(parents=True)
+    (outside / "static").mkdir()
+    (outside / "BUILD_ID").write_text("external-build\n", encoding="utf-8")
+    (outside / "standalone" / "server.js").write_text("// external\n", encoding="utf-8")
+    sentinel = outside / "standalone" / ".next" / "static" / "sentinel.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    (outside / "static" / "app.css").write_text("body{}", encoding="utf-8")
+    (ui / ".next").symlink_to(outside, target_is_directory=True)
+    _set_build_newer_than_source(root)
+
+    result, calls = _run(root, tmp_path)
+
+    assert result.returncode != 0
+    assert "refusing symlinked standalone destination" in result.stderr
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+    assert not any("node .next/standalone/server.js" in call for call in calls)

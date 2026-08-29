@@ -459,3 +459,34 @@ async def test_ingest_add_failure_never_deletes_old_source(tmp_path, monkeypatch
         await knowledge.ingest(path, source_label="manual.txt", force_refresh=True)
 
     assert deleted == []
+
+@pytest.mark.asyncio
+async def test_ingest_same_second_refresh_uses_disjoint_replacement_ids(tmp_path, monkeypatch):
+    from contracts.knowledge_pipeline import LibrarianReport
+    from gateway import knowledge
+
+    path = tmp_path / "manual.txt"
+    path.write_text("replacement", encoding="utf-8")
+    old_ids = ["manual.txt__chunk_0_1234"]
+    added_ids = []
+    class Store:
+        def get(self, *, where):
+            return {"ids": []} if "content_hash" in where else {"ids": old_ids}
+        def add(self, *, documents, embeddings, ids, metadatas):
+            added_ids.extend(ids)
+        def delete(self, *, ids):
+            pass
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: Store())
+    monkeypatch.setattr(knowledge.clerk, "_extract_text", lambda _p: "replacement")
+    monkeypatch.setattr(knowledge.archivist, "_get_content_hash", lambda _text: "new-hash")
+    monkeypatch.setattr(knowledge.librarian, "detect_doc_type", lambda *_args: "general")
+    monkeypatch.setattr(knowledge.librarian, "generate_source_summary", lambda *_args: LibrarianReport(summary="summary", authority_score=0.8, relevance_period="persistent", primary_topic="test", needs_vision=False))
+    async def pipeline(*_args):
+        return ["replacement chunk"], [{"chunk_index": 0, "is_visual": False}]
+    monkeypatch.setattr(knowledge, "_run_pipeline", pipeline)
+    monkeypatch.setattr(knowledge.archivist, "_embed", lambda _chunks: [[0.1, 0.2]])
+    monkeypatch.setattr(knowledge.time, "time", lambda: 1234)
+    result = await knowledge.ingest(path, source_label="manual.txt", force_refresh=True)
+    assert result.status == "success"
+    assert added_ids
+    assert set(added_ids).isdisjoint(old_ids)

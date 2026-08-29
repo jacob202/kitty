@@ -546,11 +546,26 @@ async def test_whole_model_visible_context_is_bounded_with_clipping_receipt(monk
 
     bundle = await assemble_context("hello", deps=deps, tier=tier, objective=huge)
 
-    cap = assembler.TOTAL_CONTEXT_TOKEN_CAPS[tier] * assembler._CHARS_PER_TOKEN_ESTIMATE
-    assert len(bundle.system) <= cap
+    cap = assembler.TOTAL_CONTEXT_TOKEN_CAPS[tier]
+    assert len(bundle.system.encode("utf-8")) <= cap
     assert bundle.context_budget["system_chars"] == len(bundle.system)
+    assert bundle.context_budget["system_token_upper_bound"] <= cap
     assert bundle.context_budget["total_token_cap"] == assembler.TOTAL_CONTEXT_TOKEN_CAPS[tier]
     assert any(block["truncated"] for block in bundle.context_budget["blocks"])
     assert bundle.context_budget["truncations"]
-    # Source warnings retain their original meaning; budget clipping has its own receipt.
-    assert bundle.warnings == []
+    assert any(warning.startswith("context_budget:") for warning in bundle.warnings)
+
+@pytest.mark.asyncio
+async def test_context_budget_is_utf8_conservative_and_surfaces_clipping(monkeypatch):
+    import gateway.context_assembler as assembler
+
+    huge = "🧠" * 20_000
+    monkeypatch.setattr(assembler, "_domain_prompt", lambda *_args, **_kwargs: huge)
+    monkeypatch.setattr(assembler, "personality_block", lambda: huge)
+    monkeypatch.setattr(assembler.user_context, "load_user_context", lambda: huge)
+    deps = _AssemblerDeps(adapters=[FakeAdapter("memory", items=[])], enrichments=(), skill_hint_fn=lambda _m: huge)
+    bundle = await assemble_context("hello", deps=deps, tier="standard", objective=huge)
+    cap = assembler.TOTAL_CONTEXT_TOKEN_CAPS["standard"]
+    assert len(bundle.system.encode("utf-8")) <= cap
+    assert bundle.context_budget["system_token_upper_bound"] <= cap
+    assert any(warning.startswith("context_budget:") for warning in bundle.warnings)

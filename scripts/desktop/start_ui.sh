@@ -86,7 +86,7 @@ fi
 # into the standalone tree before launch so the server can serve the complete UI.
 # Refuse symlinked destinations: this launcher runs unattended under launchd and
 # must never follow a stale/malicious link outside the generated standalone tree.
-for destination in .next/standalone .next/standalone/.next .next/standalone/.next/static .next/standalone/public; do
+for destination in .next .next/standalone .next/standalone/.next .next/standalone/.next/static .next/standalone/public; do
   if [[ -L "${destination}" ]]; then
     echo "[start_ui] Error: refusing symlinked standalone destination ${destination}" >&2
     exit 1

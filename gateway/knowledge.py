@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -153,7 +154,8 @@ async def ingest(
 
     # 6. Storage (Archivist)
     embeddings = await asyncio.to_thread(archivist._embed, chunks)
-    ids = [f"{source}__chunk_{i}_{int(time.time())}" for i in range(len(chunks))]
+    generation = uuid.uuid4().hex
+    ids = [f"{source}__chunk_{i}_{generation}" for i in range(len(chunks))]
 
     final_metadatas = _prepare_metadatas(
         path,
