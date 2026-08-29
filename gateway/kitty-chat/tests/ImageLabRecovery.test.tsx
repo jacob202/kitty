@@ -1,4 +1,4 @@
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ImageLab } from '../src/components/ImageLab'
 import * as queries from '../src/lib/queries'
@@ -69,4 +69,31 @@ describe('ImageLab recovery', () => {
       expect(window.localStorage.getItem('kitty-image-lab-session')).toBe('imgses_1')
     })
   })
+
+  it('keeps the restored session authoritative after a transient restore error', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const target = String(url)
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => ({
+        provider: 'openrouter', model_id: 'vendor/image', recipe_id: 'hosted', routing_reason: 'best', count: 1,
+        per_image_estimate: { cost: { state: 'unknown' }, duration: { state: 'unknown' } },
+        estimate: { cost: { state: 'unknown' }, duration: { state: 'unknown' } },
+      }) }
+      if (target === '/proxy/studio/sessions/imgses_1') return { ok: false, status: 503, text: async () => 'temporarily unavailable' }
+      if (target === '/proxy/studio/characters') return { ok: true, status: 200, json: async () => ({ characters: [] }) }
+      if (target === '/proxy/studio/agent') return { ok: true, status: 200, json: async () => ({ action: 'clarify', session_id: 'imgses_1', summary: 'ok', plan_id: null, question: 'ok' }) }
+      if (target === '/proxy/studio/sessions' && (init?.method ?? 'GET') === 'POST') return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_NEW' }) }
+      return { ok: true, status: 200, json: async () => ({ batches: [] }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ImageLab />)
+    await screen.findByText(/could not restore the saved image lab session/i)
+    fireEvent.change(screen.getByPlaceholderText(/tell kitty what you want/i), { target: { value: 'continue' } })
+    fireEvent.click(screen.getByTestId('image-lab-send'))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/proxy/studio/agent', expect.anything()))
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url) === '/proxy/studio/sessions' && (init?.method ?? 'GET') === 'POST')).toBe(false)
+    expect(window.localStorage.getItem('kitty-image-lab-session')).toBe('imgses_1')
+  })
+
 })

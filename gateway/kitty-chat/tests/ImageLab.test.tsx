@@ -465,4 +465,64 @@ describe('ImageLab', () => {
       })
     })
   })
+
+  it('surfaces saved-character loading failures with a retry action', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const target = String(url)
+      if (target === '/proxy/studio/characters') return { ok: false, status: 503, text: async () => 'characters unavailable' }
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate(1) }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<ImageLab />)
+
+    fireEvent.click(screen.getByTestId('image-lab-character-picker'))
+    await screen.findByText(/saved characters are unavailable/i)
+    const retry = screen.getByRole('button', { name: /retry saved characters/i })
+    fireEvent.click(retry)
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => String(url) === '/proxy/studio/characters').length).toBeGreaterThan(1))
+  })
+
+  it('lets an active durable session be ended so a fresh session can start', async () => {
+    window.localStorage.setItem('kitty-image-lab-session', 'imgses_1')
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const target = String(url)
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate(1) }
+      if (target === '/proxy/studio/characters') return { ok: true, status: 200, json: async () => ({ characters: [] }) }
+      if (target === '/proxy/studio/sessions/imgses_1' && (init?.method ?? 'GET') === 'GET') return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', turns: [], jobs: [] }) }
+      if (target.startsWith('/proxy/studio/batches?')) return { ok: true, status: 200, json: async () => ({ batches: [] }) }
+      if (target === '/proxy/studio/sessions/imgses_1' && init?.method === 'DELETE') return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', status: 'ended' }) }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<ImageLab />)
+
+    const fresh = await screen.findByRole('button', { name: /start new image lab session/i })
+    fireEvent.click(fresh)
+    await waitFor(() => expect(window.localStorage.getItem('kitty-image-lab-session')).toBeNull())
+    expect(fetchMock).toHaveBeenCalledWith('/proxy/studio/sessions/imgses_1', { method: 'DELETE' })
+    expect(screen.getByText(/session: starts with your first generation request/i)).toBeInTheDocument()
+  })
+
+
+  it('surfaces persistent batch polling failures instead of showing stale progress as current', async () => {
+    window.localStorage.setItem('kitty-image-lab-session', 'imgses_1')
+    const fetchMock = vi.fn(async (url: string) => {
+      const target = String(url)
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate(1) }
+      if (target === '/proxy/studio/characters') return { ok: true, status: 200, json: async () => ({ characters: [] }) }
+      if (target === '/proxy/studio/sessions/imgses_1') return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', turns: [], jobs: [] }) }
+      if (target.startsWith('/proxy/studio/batches?')) return { ok: true, status: 200, json: async () => ({ batches: [queuedBatch(1)] }) }
+      if (target === '/proxy/studio/batches/imgbatch_1') return { ok: false, status: 503, text: async () => 'batch status unavailable' }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<ImageLab />)
+
+    await screen.findByText(/1 image queued/i)
+    await screen.findByText(/could not refresh this batch/i, {}, { timeout: 3500 })
+    expect(screen.getByText(/last saved status: queued/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /retry batch status/i })).toBeInTheDocument()
+  })
+
 })

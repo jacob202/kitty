@@ -45,11 +45,6 @@ type ImageBatch = {
   items: BatchItem[]
 }
 
-type IterationResult = {
-  batch: ImageBatch
-  changed?: Record<string, { before: unknown; after: unknown }>
-}
-
 type AgentDecision = {
   action: 'generate' | 'edit' | 'cancel' | 'clarify'
   session_id: string
@@ -130,20 +125,19 @@ async function jsonOrError(response: Response): Promise<any> {
 function useStudioCharacters() {
   const [characters, setCharacters] = useState<StudioCharacter[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchCharacters = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
-      const response = await fetch('/proxy/studio/characters')
-      if (response.ok) {
-        const payload = await response.json()
-        const normalized = (payload.characters ?? []).map((character: StudioCharacter) => ({
-          ...character, references: character.references ?? [],
-        }))
-        setCharacters(normalized)
-      }
-    } catch {
-      // Character listing is optional; the workspace works without it.
+      const payload = await jsonOrError(await fetch('/proxy/studio/characters'))
+      const normalized = (payload.characters ?? []).map((character: StudioCharacter) => ({
+        ...character, references: character.references ?? [],
+      }))
+      setCharacters(normalized)
+    } catch (error) {
+      setError(humanError(error))
     } finally {
       setLoading(false)
     }
@@ -185,7 +179,7 @@ function useStudioCharacters() {
     return { reference, quality: payload.quality }
   }, [])
 
-  return { characters, loading, fetchCharacters, createCharacter, uploadReference }
+  return { characters, loading, error, fetchCharacters, createCharacter, uploadReference }
 }
 
 function ResultActions({ jobId, onNewBatch, onError }: {
@@ -193,8 +187,6 @@ function ResultActions({ jobId, onNewBatch, onError }: {
   onNewBatch: (batch: ImageBatch) => void
   onError: (message: string) => void
 }) {
-  const [varyPrompt, setVaryPrompt] = useState('')
-  const [diff, setDiff] = useState<IterationResult['changed'] | null>(null)
   const [working, setWorking] = useState(false)
 
   async function iterate(kind: 'retry' | 'duplicate') {
@@ -210,26 +202,7 @@ function ResultActions({ jobId, onNewBatch, onError }: {
     }
   }
 
-  async function modify() {
-    const next = varyPrompt.trim()
-    if (!next || working) return
-    setWorking(true)
-    try {
-      const response = await fetch(`/proxy/studio/jobs/${encodeURIComponent(jobId)}/modify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: next }),
-      })
-      const payload = await jsonOrError(response) as IterationResult
-      onNewBatch(payload.batch)
-      setDiff(payload.changed ?? null)
-      setVaryPrompt('')
-    } catch (error) {
-      onError(humanError(error))
-    } finally {
-      setWorking(false)
-    }
-  }
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -241,27 +214,9 @@ function ResultActions({ jobId, onNewBatch, onError }: {
           <Plus size={9} /> duplicate
         </button>
       </div>
-      <div style={{ display: 'flex', gap: 4 }}>
-        <input
-          type="text"
-          value={varyPrompt}
-          onChange={event => setVaryPrompt(event.target.value)}
-          onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void modify() } }}
-          placeholder="change one thing…"
-          aria-label="vary prompt"
-          style={{ ...inputStyle, flex: 1, minWidth: 0 }}
-        />
-        <button type="button" onClick={() => void modify()} disabled={working || !varyPrompt.trim()} style={secondaryButtonStyle}>
-          vary
-        </button>
+      <div style={supportingTextStyle}>
+        To change the prompt, use Create so Kitty can approve the new plan before rendering.
       </div>
-      {diff && Object.keys(diff).length > 0 && (
-        <div style={supportingTextStyle}>
-          {Object.entries(diff).map(([field, value]) => (
-            <div key={field}>{field}: {String(value.before)} → {String(value.after)}</div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
@@ -280,9 +235,12 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   const [anchorJobId, setAnchorJobId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sessionRestoreError, setSessionRestoreError] = useState<string | null>(null)
+  const [restoreEpoch, setRestoreEpoch] = useState(0)
+  const [batchPollErrors, setBatchPollErrors] = useState<Record<string, string>>({})
   const estimateAbort = useRef<AbortController | null>(null)
 
-  const { characters, loading: charactersLoading, createCharacter, uploadReference } = useStudioCharacters()
+  const { characters, loading: charactersLoading, error: charactersError, fetchCharacters, createCharacter, uploadReference } = useStudioCharacters()
   const [selectedCharacter, setSelectedCharacter] = useState<StudioCharacter | null>(null)
   const [boundCharacterId, setBoundCharacterId] = useState<string | null>(null)
   const [showCharPicker, setShowCharPicker] = useState(false)
@@ -323,26 +281,40 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
         copy[index] = updated
         return copy
       })
-    } catch {
-      // A transient poll failure does not erase durable queue state.
+      setBatchPollErrors(previous => {
+        if (!(batchId in previous)) return previous
+        const copy = { ...previous }
+        delete copy[batchId]
+        return copy
+      })
+    } catch (error) {
+      // Keep the durable last-known queue state, but never present it as current.
+      setBatchPollErrors(previous => ({ ...previous, [batchId]: humanError(error) }))
     }
   }, [])
 
   useEffect(() => {
     const stored = window.localStorage.getItem(SESSION_KEY)
     if (!stored) return
+    // The durable pointer remains authoritative unless the Gateway proves 404.
+    setSessionId(stored)
+    setSessionRestoreError(null)
     let cancelled = false
     void (async () => {
       try {
         const sessionResponse = await fetch(`/proxy/studio/sessions/${encodeURIComponent(stored)}`)
         if (sessionResponse.status === 404) {
           window.localStorage.removeItem(SESSION_KEY)
-          if (!cancelled) setSessionId(null)
+          if (!cancelled) {
+            setSessionId(null)
+            setSessionRestoreError(null)
+          }
           return
         }
         const session = await jsonOrError(sessionResponse)
         if (cancelled) return
         setSessionId(session.session_id)
+        setSessionRestoreError(null)
         setAnchorJobId(session.anchor_job_id ?? null)
         setBoundCharacterId(typeof session.character_id === 'string' ? session.character_id : null)
         const restoredTurns = Array.isArray(session.turns)
@@ -354,12 +326,14 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
         const batchesResponse = await fetch(`/proxy/studio/batches?session_id=${encodeURIComponent(stored)}`)
         const batchPayload = await jsonOrError(batchesResponse)
         if (!cancelled && Array.isArray(batchPayload.batches)) setBatches(batchPayload.batches)
-      } catch {
-        if (!cancelled) setSessionId(null)
+      } catch (error) {
+        if (!cancelled) {
+          setSessionRestoreError(`Could not restore the saved Image Lab session. Kitty kept the saved session link. ${humanError(error)}`)
+        }
       }
     })()
     return () => { cancelled = true }
-  }, [])
+  }, [restoreEpoch])
 
   useEffect(() => {
     if (charactersLoading || !boundCharacterId) return
@@ -412,6 +386,27 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
     setBoundCharacterId(selectedCharacter?.character_id ?? null)
     window.localStorage.setItem(SESSION_KEY, id)
     return id
+  }
+
+  async function startNewSession() {
+    if (!sessionId || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await jsonOrError(await fetch(`/proxy/studio/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }))
+      window.localStorage.removeItem(SESSION_KEY)
+      setSessionId(null)
+      setSessionRestoreError(null)
+      setTurns([])
+      setBatches([])
+      setBatchPollErrors({})
+      setAnchorJobId(null)
+      setBoundCharacterId(null)
+    } catch (error) {
+      setError(humanError(error))
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function bindCharacter(character: StudioCharacter) {
@@ -622,6 +617,16 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
         </div>
       </header>
 
+      {sessionRestoreError && (
+        <div role="alert" style={noticeStyle}>
+          <div style={noticeBodyStyle}>
+            <strong style={noticeTitleStyle}>Saved session needs reconnection</strong>
+            <span>{sessionRestoreError}</span>
+          </div>
+          <button type="button" onClick={() => setRestoreEpoch(value => value + 1)} style={secondaryButtonStyle}>Retry saved session</button>
+        </div>
+      )}
+
       {status.isError && (
         <div role="alert" style={noticeStyle}>
           <div style={noticeBodyStyle}>
@@ -661,6 +666,11 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
             </span>
           )}
           <span>Session: {sessionId ? 'active and restorable' : 'starts with your first generation request'}</span>
+          {sessionId && (
+            <button type="button" aria-label="Start new Image Lab session" onClick={() => void startNewSession()} disabled={busy} style={{ ...secondaryButtonStyle, alignSelf: 'flex-start' }}>
+              Start new session
+            </button>
+          )}
           {anchorJobId && <span>Selected source job: {anchorJobId}</span>}
         </div>
       </details>
@@ -732,6 +742,11 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                     <div style={pickerSectionLabelStyle}>Saved characters</div>
                     {charactersLoading ? (
                       <div style={pickerEmptyStyle}>Loading saved characters…</div>
+                    ) : charactersError ? (
+                      <div role="alert" style={pickerEmptyStyle}>
+                        <div>Saved characters are unavailable. {charactersError}</div>
+                        <button type="button" aria-label="Retry saved characters" onClick={() => void fetchCharacters()} style={secondaryButtonStyle}>Retry</button>
+                      </div>
                     ) : characters.length === 0 ? (
                       <div style={pickerEmptyStyle}>No saved characters yet. Create the first one below.</div>
                     ) : (
@@ -939,6 +954,15 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                       </div>
                       <span style={statusBadgeStyle}>{batch.status}</span>
                     </div>
+                    {batchPollErrors[batch.batch_id] && (
+                      <div role="alert" style={noticeStyle}>
+                        <div style={noticeBodyStyle}>
+                          <strong style={noticeTitleStyle}>Could not refresh this batch</strong>
+                          <span>Last saved status: {batch.status}. {batchPollErrors[batch.batch_id]}</span>
+                        </div>
+                        <button type="button" aria-label="Retry batch status" onClick={() => void refreshBatch(batch.batch_id)} style={secondaryButtonStyle}>Retry status</button>
+                      </div>
+                    )}
                     <div style={{ ...resultGridStyle, ...(compact ? { gridTemplateColumns: '1fr' } : {}) }}>
                       {batch.items.map(item => (
                         <div key={item.item_id} style={resultCardStyle}>
