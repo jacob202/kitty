@@ -1,0 +1,75 @@
+name: PR673 bounded green closeout v3
+
+on:
+  push:
+    branches:
+      - closeout/finish-open-loops-20260829
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 4
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Guard exact helper lineage
+        run: |
+          test "$(git rev-parse HEAD^)" = "e6f0e0f052449836b8a2b18012bf718aaf7df076"
+          test "$(git rev-parse HEAD^^)" = "4f69c259853bb77ffcd9025e2411d98dc5a7cd18"
+          test "$(git rev-parse HEAD^^^)" = "78f880777ede4087e32d6be1c9149d3df05034d0"
+      - name: Install focused test tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pytest pytest-asyncio ruff
+      - name: Reuse bounded patch and clean regression lint
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          source = Path('.github/workflows/pr673-green-closeout.yml').read_text().splitlines()
+          start = next(i for i, line in enumerate(source) if line.strip() == "python - <<'PY'") + 1
+          end = next(i for i in range(start, len(source)) if source[i].strip() == 'PY')
+          Path('/tmp/pr673_apply.py').write_text(textwrap.dedent('\n'.join(source[start:end])) + '\n')
+          PY
+          python /tmp/pr673_apply.py
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tests/test_jsonl_tail.py')
+          text = p.read_text()
+          text = text.replace('from pathlib import Path\n\n', '', 1)
+          p.write_text(text)
+          PY
+      - name: Run focused green gate
+        run: |
+          python -m pytest -q \
+            tests/test_jsonl_tail.py::test_read_tail_lines_propagates_real_read_failure \
+            tests/test_start_ui_script.py::test_standalone_refuses_symlinked_next_ancestor \
+            tests/test_insight_loop.py::test_snooze_offset_is_compared_as_an_instant \
+            tests/test_context_assembler.py::test_context_budget_is_utf8_conservative_and_surfaces_clipping \
+            tests/test_knowledge.py::test_ingest_same_second_refresh_uses_disjoint_replacement_ids \
+            tests/test_pr673_completions_budget.py::test_final_model_visible_payload_is_bounded_and_preserves_current_user
+          python -m ruff check gateway/jsonl_tail.py gateway/insight_loop.py gateway/context_assembler.py gateway/knowledge.py gateway/routes/completions.py tests/test_jsonl_tail.py tests/test_start_ui_script.py tests/test_insight_loop.py tests/test_context_assembler.py tests/test_knowledge.py tests/test_pr673_completions_budget.py
+          bash -n scripts/desktop/start_ui.sh
+      - name: Commit verified fixes and self-remove
+        run: |
+          git config user.name "Jacob Brizinski"
+          git config user.email "jacobbrizinski@gmail.com"
+          rm .github/workflows/pr673-green-closeout.yml \
+             .github/workflows/pr673-green-closeout-v2.yml \
+             .github/workflows/pr673-green-closeout-v3.yml
+          git add -A
+          git restore --staged tests/test_pr673_completions_budget.py
+          test -f tests/test_pr673_completions_budget.py
+          git diff --cached --check
+          git commit -m "fix: close remaining runtime review gaps"
+          git push origin HEAD:closeout/finish-open-loops-20260829
