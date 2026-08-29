@@ -390,6 +390,18 @@ describe('HomeState', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
   });
 
+  it('does not call fallback models ready when the live model read failed', () => {
+    (useGatewayModels as Mock).mockReturnValue({
+      data: { models: LIVE_MODELS, fromLiveGateway: false, error: 'Could not read /api/models' },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.getByText('model list unavailable')).toBeInTheDocument();
+    expect(screen.queryByText(/models ready/)).not.toBeInTheDocument();
+  });
+
   it('shows model routing unavailable from the /health probe, never a fake routing-live', () => {
     (useGatewayHealth as Mock).mockReturnValue({
       data: { ok: true, litellmReachable: false, error: null },

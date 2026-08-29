@@ -37,7 +37,7 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
 
         {artifacts.isLoading && <p style={mutedStyle}>Loading artifacts…</p>}
         {artifacts.isError && (
-          <p role="status" style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+          <p role="status" style={{ ...mutedStyle, color: 'var(--color-destructive)' }}>
             Couldn&apos;t read saved files — {artifactErrorMessage(artifacts.error)}
           </p>
         )}
@@ -127,7 +127,7 @@ function ArtifactRow({ artifact, onUseInChat }: { artifact: GatewayArtifact; onU
             {ingestion ? <span>Index: {ingestion}</span> : null}
             {artifact.project_id != null ? <span>Project {artifact.project_id}</span> : null}
             {artifact.conversation_id ? <span>Conversation {artifact.conversation_id}</span> : null}
-            {artifact.error ? <span style={{ color: 'var(--c-red)' }}>Error: {artifact.error}</span> : null}
+            {artifact.error ? <span style={{ color: 'var(--color-destructive)' }}>Error: {artifact.error}</span> : null}
           </div>
         </details>
       </article>
@@ -151,10 +151,10 @@ function humanize(value: string): string {
 function statusStyle(state: string): CSSProperties {
   const normalized = state.toLowerCase()
   const color = normalized === 'ready' || normalized === 'success'
-    ? 'var(--c-green)'
+    ? 'var(--color-success)'
     : normalized === 'failed' || normalized === 'error' || normalized === 'unavailable'
-      ? 'var(--c-red)'
-      : 'var(--ink-2)'
+      ? 'var(--color-destructive)'
+      : 'var(--color-text-secondary)'
   return { color, fontWeight: 650 }
 }
 
@@ -165,24 +165,24 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const pageTitleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 34, lineHeight: 1.15, letterSpacing: '-0.025em', color: 'var(--ink)' }
-const pageSubtitleStyle: CSSProperties = { margin: '8px 0 0', color: 'var(--ink-2)', fontSize: 15, lineHeight: 1.55 }
+const pageTitleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 34, lineHeight: 1.15, letterSpacing: '-0.025em', color: 'var(--color-text-primary)' }
+const pageSubtitleStyle: CSSProperties = { margin: '8px 0 0', color: 'var(--color-text-secondary)', fontSize: 15, lineHeight: 1.55 }
 const sectionStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14, minWidth: 0, width: '100%', maxWidth: 960 }
 const sectionHeaderStyle: CSSProperties = { display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', minWidth: 0 }
-const sectionTitleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 21, fontWeight: 700, color: 'var(--ink)' }
-const subtitleStyle: CSSProperties = { margin: '4px 0 0', color: 'var(--ink-2)', fontSize: 13, lineHeight: 1.5, maxWidth: 680 }
-const mutedStyle: CSSProperties = { margin: 0, color: 'var(--ink-2)', fontSize: 13, lineHeight: 1.5 }
-const emptyStyle: CSSProperties = { ...mutedStyle, padding: '20px 0', borderTop: '1px solid var(--line)' }
-const refreshStyle: CSSProperties = { border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)', borderRadius: 'var(--r-control)', padding: '8px 14px', minHeight: 44, cursor: 'pointer', flexShrink: 0, fontWeight: 600 }
-const artifactListStyle: CSSProperties = { listStyle: 'none', margin: 0, padding: 0, borderTop: '1px solid var(--line)' }
-const artifactItemStyle: CSSProperties = { listStyle: 'none', padding: '16px 0', borderBottom: '1px solid var(--line)', minWidth: 0 }
+const sectionTitleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 21, fontWeight: 700, color: 'var(--color-text-primary)' }
+const subtitleStyle: CSSProperties = { margin: '4px 0 0', color: 'var(--color-text-secondary)', fontSize: 13, lineHeight: 1.5, maxWidth: 680 }
+const mutedStyle: CSSProperties = { margin: 0, color: 'var(--color-text-secondary)', fontSize: 13, lineHeight: 1.5 }
+const emptyStyle: CSSProperties = { ...mutedStyle, padding: '20px 0', borderTop: '1px solid var(--color-separator)' }
+const refreshStyle: CSSProperties = { border: '1px solid var(--color-separator)', background: 'var(--color-surface)', color: 'var(--color-text-primary)', borderRadius: 'var(--r-control)', padding: '8px 14px', minHeight: 44, cursor: 'pointer', flexShrink: 0, fontWeight: 600 }
+const artifactListStyle: CSSProperties = { listStyle: 'none', margin: 0, padding: 0, borderTop: '1px solid var(--color-separator)' }
+const artifactItemStyle: CSSProperties = { listStyle: 'none', padding: '16px 0', borderBottom: '1px solid var(--color-separator)', minWidth: 0 }
 const artifactTopStyle: CSSProperties = { display: 'flex', gap: 14, justifyContent: 'space-between', alignItems: 'flex-start', minWidth: 0 }
-const artifactNameStyle: CSSProperties = { fontSize: 15, fontWeight: 650, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
-const primaryMetaStyle: CSSProperties = { display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 5, color: 'var(--ink-2)', fontSize: 12, lineHeight: 1.4 }
-const timeStyle: CSSProperties = { color: 'var(--ink-2)', fontSize: 12, flexShrink: 0, paddingTop: 2 }
-const detailsStyle: CSSProperties = { marginTop: 8, color: 'var(--ink-2)', fontSize: 12 }
+const artifactNameStyle: CSSProperties = { fontSize: 15, fontWeight: 650, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+const primaryMetaStyle: CSSProperties = { display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 5, color: 'var(--color-text-secondary)', fontSize: 12, lineHeight: 1.4 }
+const timeStyle: CSSProperties = { color: 'var(--color-text-secondary)', fontSize: 12, flexShrink: 0, paddingTop: 2 }
+const detailsStyle: CSSProperties = { marginTop: 8, color: 'var(--color-text-secondary)', fontSize: 12 }
 const detailsSummaryStyle: CSSProperties = { cursor: 'pointer', minHeight: 32, display: 'inline-flex', alignItems: 'center', fontWeight: 600 }
 const artifactActionsStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px 12px', flexWrap: 'wrap', marginTop: 10 }
-const useButtonStyle: CSSProperties = { minHeight: 44, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--primary)', borderRadius: 'var(--r-control)', padding: '8px 12px', fontSize: 13, fontWeight: 650, cursor: 'pointer' }
-const openUnavailableStyle: CSSProperties = { color: 'var(--ink-2)', fontSize: 11, lineHeight: 1.4, maxWidth: 460 }
+const useButtonStyle: CSSProperties = { minHeight: 44, border: '1px solid var(--color-separator)', background: 'var(--color-surface)', color: 'var(--color-accent)', borderRadius: 'var(--r-control)', padding: '8px 12px', fontSize: 13, fontWeight: 650, cursor: 'pointer' }
+const openUnavailableStyle: CSSProperties = { color: 'var(--color-text-secondary)', fontSize: 11, lineHeight: 1.4, maxWidth: 460 }
 const technicalGridStyle: CSSProperties = { marginTop: 6, paddingLeft: 14, display: 'flex', gap: '4px 14px', flexWrap: 'wrap', fontFamily: 'var(--font-mono)', fontSize: 10, overflowWrap: 'anywhere' }

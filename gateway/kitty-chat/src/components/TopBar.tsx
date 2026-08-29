@@ -229,7 +229,7 @@ function RuntimeBadge({
   const healthy = state === 'available'
   const color = healthy ? 'var(--color-success)' : state === 'degraded' || state === 'stale' || state === 'unknown' ? 'var(--color-warning)' : 'var(--color-destructive)'
   const label = state === 'available'
-    ? 'Kitty ready'
+    ? 'Kitty connected'
     : state === 'degraded'
       ? 'Kitty needs attention'
       : state === 'unavailable'

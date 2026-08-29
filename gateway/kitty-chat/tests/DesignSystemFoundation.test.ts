@@ -50,3 +50,23 @@ describe('Kitty browser chrome', () => {
     expect(layout).toContain('themeColor: "#F7F8FC"')
   })
 })
+
+
+const migratedRedesignFiles = [
+  'src/components/LibraryView.tsx',
+  'src/components/DocumentsPanel.tsx',
+  'src/components/SettingsPanel.tsx',
+  'src/components/SettingsShell.tsx',
+  'src/components/ProviderCenter.tsx',
+  'src/components/ImageLab.tsx',
+]
+const legacySurfaceToken = /var\(--(?:ink(?:-2)?|line|surface(?:-2)?|primary(?:-fade)?|on-primary|c-(?:red|green|yellow|blue|purple))\)/
+
+describe('redesigned surface token migration', () => {
+  it('uses semantic tokens directly in Library, Settings, provider, and Image Lab UI', () => {
+    for (const file of migratedRedesignFiles) {
+      const source = readFileSync(resolve(process.cwd(), file), 'utf8')
+      expect(source, `${file} still uses a legacy visual alias`).not.toMatch(legacySurfaceToken)
+    }
+  })
+})

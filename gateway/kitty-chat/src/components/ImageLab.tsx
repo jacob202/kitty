@@ -167,7 +167,17 @@ function useStudioCharacters() {
       body: form,
     })
     if (!response.ok) throw new Error(await response.text())
-    return await response.json() as { quality?: RefQuality }
+    const payload = await response.json() as CharacterRef & { quality?: RefQuality }
+    const reference: CharacterRef = {
+      ref_id: payload.ref_id,
+      is_primary: payload.is_primary,
+      original_name: payload.original_name,
+      storage_path: payload.storage_path,
+    }
+    setCharacters(previous => previous.map(character => character.character_id === characterId
+      ? { ...character, references: [...character.references.filter(ref => ref.ref_id !== reference.ref_id), reference] }
+      : character))
+    return { reference, quality: payload.quality }
   }, [])
 
   return { characters, loading, fetchCharacters, createCharacter, uploadReference }
@@ -322,10 +332,11 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   }
 
   async function bindCharacter(character: StudioCharacter) {
-    setSelectedCharacter(character)
-    setShowCharPicker(false)
+    setError(null)
     if (!sessionId) {
+      setSelectedCharacter(character)
       setBoundCharacterId(character.character_id)
+      setShowCharPicker(false)
       return
     }
     try {
@@ -334,23 +345,29 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ character_id: character.character_id }),
       }))
+      setSelectedCharacter(character)
       setBoundCharacterId(character.character_id)
+      setShowCharPicker(false)
     } catch (err) {
       setError(humanError(err))
     }
   }
 
   async function clearCharacter() {
-    const clearId = selectedCharacter?.character_id ?? null
-    setSelectedCharacter(null)
-    setBoundCharacterId(null)
-    if (!sessionId || !clearId) return
+    setError(null)
+    if (!sessionId || !boundCharacterId) {
+      setSelectedCharacter(null)
+      setBoundCharacterId(null)
+      return
+    }
     try {
       await jsonOrError(await fetch(`/proxy/studio/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clear_character: true }),
       }))
+      setSelectedCharacter(null)
+      setBoundCharacterId(null)
     } catch (err) {
       setError(humanError(err))
     }
@@ -363,16 +380,17 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
     setError(null)
     try {
       const character = await createCharacter(name)
+      let characterToBind = character
       if (charRefFile) {
         const refResult = await uploadReference(character.character_id, charRefFile)
         setRefQuality(refResult.quality ?? null)
+        characterToBind = { ...character, references: [...character.references, refResult.reference] }
       } else {
         setRefQuality(null)
       }
       setNewCharName('')
       setCharRefFile(null)
-      setShowCharPicker(false)
-      await bindCharacter(character)
+      await bindCharacter(characterToBind)
     } catch (err) {
       setError(humanError(err))
     } finally {
@@ -1068,7 +1086,7 @@ const actionRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', j
 const estimateStyle: CSSProperties = { flex: '1 1 220px', minWidth: 0, fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.4 }
 const sendButtonStyle: CSSProperties = {
   minHeight: 48, display: 'inline-flex', alignItems: 'center', gap: 8, border: 0, borderRadius: 'var(--r-control)', padding: '11px 16px',
-  background: 'var(--color-accent)', color: 'var(--on-primary)', fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 720,
+  background: 'var(--color-accent)', color: 'var(--on-accent)', fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 720,
 }
 const secondaryButtonStyle: CSSProperties = {
   minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, flexShrink: 0,

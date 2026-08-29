@@ -333,6 +333,102 @@ describe('ImageLab', () => {
     })
   })
 
+
+  it('keeps the durable character visible when changing character PATCH fails', async () => {
+    window.localStorage.setItem('kitty-image-lab-session', 'imgses_1')
+    const charactersPayload = {
+      characters: [
+        { character_id: 'char_a', name: 'Character A', description: null, identity_preset: 'balanced', references: [] },
+        { character_id: 'char_b', name: 'Character B', description: null, identity_preset: 'balanced', references: [] },
+      ],
+    }
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const target = String(url)
+      const method = init?.method ?? 'GET'
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate(1) }
+      if (target === '/proxy/studio/characters' && method === 'GET') return { ok: true, status: 200, json: async () => charactersPayload }
+      if (target === '/proxy/studio/sessions/imgses_1' && method === 'GET') {
+        return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', character_id: 'char_a', anchor_job_id: null, turns: [], jobs: [] }) }
+      }
+      if (target.startsWith('/proxy/studio/batches?')) return { ok: true, status: 200, json: async () => ({ batches: [] }) }
+      if (target === '/proxy/studio/sessions/imgses_1' && method === 'PATCH') {
+        return { ok: false, status: 500, text: async () => 'character bind failed' }
+      }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ImageLab />)
+    expect(await screen.findByTestId('image-lab-character')).toHaveTextContent('Character A')
+    fireEvent.click(screen.getByTestId('image-lab-character-picker'))
+    fireEvent.click(screen.getByText('Character B'))
+
+    await waitFor(() => expect(screen.getByText(/character bind failed/i)).toBeInTheDocument())
+    expect(screen.getByTestId('image-lab-character')).toHaveTextContent('Character A')
+    expect(screen.getByTestId('image-lab-character')).not.toHaveTextContent('Character B')
+    expect(screen.getByTestId('image-lab-character-picker')).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('keeps the durable character visible when clear PATCH fails', async () => {
+    window.localStorage.setItem('kitty-image-lab-session', 'imgses_1')
+    const charactersPayload = {
+      characters: [{ character_id: 'char_a', name: 'Character A', description: null, identity_preset: 'balanced', references: [] }],
+    }
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const target = String(url)
+      const method = init?.method ?? 'GET'
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate(1) }
+      if (target === '/proxy/studio/characters' && method === 'GET') return { ok: true, status: 200, json: async () => charactersPayload }
+      if (target === '/proxy/studio/sessions/imgses_1' && method === 'GET') {
+        return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', character_id: 'char_a', anchor_job_id: null, turns: [], jobs: [] }) }
+      }
+      if (target.startsWith('/proxy/studio/batches?')) return { ok: true, status: 200, json: async () => ({ batches: [] }) }
+      if (target === '/proxy/studio/sessions/imgses_1' && method === 'PATCH') {
+        return { ok: false, status: 500, text: async () => 'character clear failed' }
+      }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ImageLab />)
+    expect(await screen.findByTestId('image-lab-character')).toHaveTextContent('Character A')
+    fireEvent.click(screen.getByRole('button', { name: 'clear reference character' }))
+
+    await waitFor(() => expect(screen.getByText(/character clear failed/i)).toBeInTheDocument())
+    expect(screen.getByTestId('image-lab-character')).toHaveTextContent('Character A')
+    expect(screen.queryByText('No character bound')).not.toBeInTheDocument()
+  })
+
+  it('shows an uploaded reference immediately after creating and binding a character', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const target = String(url)
+      const method = init?.method ?? 'GET'
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate(1) }
+      if (target === '/proxy/studio/characters' && method === 'GET') return { ok: true, status: 200, json: async () => ({ characters: [] }) }
+      if (target === '/proxy/studio/characters' && method === 'POST') {
+        return { ok: true, status: 200, json: async () => ({ character_id: 'char_new', name: 'New Person', description: null, identity_preset: 'balanced', references: [] }) }
+      }
+      if (target === '/proxy/studio/characters/char_new/references' && method === 'POST') {
+        return { ok: true, status: 200, json: async () => ({
+          ref_id: 'ref_new', is_primary: true, original_name: 'new.png', storage_path: 'imgrefs/new.png',
+          quality: { has_blockers: false, has_warnings: false, is_perfect: true, summary: 'reference looks good', advice: [], dimensions: '1024×1024' },
+        }) }
+      }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ImageLab />)
+    fireEvent.click(await screen.findByTestId('image-lab-character-picker'))
+    fireEvent.change(screen.getByLabelText('New character name'), { target: { value: 'New Person' } })
+    const fileInput = document.querySelector('input[type="file"][accept="image/*"]') as HTMLInputElement
+    fireEvent.change(fileInput, { target: { files: [new File(['image'], 'new.png', { type: 'image/png' })] } })
+    fireEvent.click(screen.getByTestId('image-lab-create-character'))
+
+    expect(await screen.findByTestId('image-lab-character')).toHaveTextContent('New Person')
+    expect(screen.getByTestId('image-lab-character')).toHaveTextContent('1 reference bound')
+  })
+
   it('binds a character to the persisted session over PATCH', async () => {
     window.localStorage.setItem('kitty-image-lab-session', 'imgses_1')
     const charactersPayload = {

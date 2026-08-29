@@ -429,6 +429,7 @@ function HealthStrip() {
   // Direct probe reported by /health — not inferred from /api/models, which
   // masks LiteLLM failures behind a fallback model list.
   const litellmOk = health.data?.litellmReachable === true;
+  const modelsLive = models.data?.fromLiveGateway === true;
   const storeOk = persistence.data?.ok === true;
   const repairIssues = repairs.data?.repairs.filter((repair) => repair.severity !== 'ok').length ?? 0;
   const repairChecksUnknown = !repairs.isPending && (repairs.isError || !repairs.data || repairs.data.checks_run === 0);
@@ -479,13 +480,15 @@ function HealthStrip() {
             }
           />
           <HealthDot
-            tone={!gatewayOk ? 'bad' : litellmOk ? 'ok' : 'bad'}
+            tone={!gatewayOk || !litellmOk ? 'bad' : modelsLive ? 'ok' : 'warn'}
             label={
               !gatewayOk
                 ? 'models unknown'
-                : litellmOk
-                  ? `models ready · ${models.data?.models.length ?? 0}`
-                  : 'models are unavailable'
+                : !litellmOk
+                  ? 'models are unavailable'
+                  : modelsLive
+                    ? `models ready · ${models.data?.models.length ?? 0}`
+                    : 'model list unavailable'
             }
           />
           <HealthDot

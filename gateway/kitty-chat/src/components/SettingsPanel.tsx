@@ -109,31 +109,31 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
   )
 }
 
-function statusPillStyle(ok: boolean): CSSProperties { return { borderRadius: 999, padding: '5px 10px', fontSize: 12, fontWeight: 650, color: ok ? 'var(--c-green)' : 'var(--c-red)', background: 'var(--surface-2)', flexShrink: 0 } }
+function statusPillStyle(ok: boolean): CSSProperties { return { borderRadius: 999, padding: '5px 10px', fontSize: 12, fontWeight: 650, color: ok ? 'var(--color-success)' : 'var(--color-destructive)', background: 'var(--color-surface-elevated)', flexShrink: 0 } }
 const panelStackStyle: CSSProperties = { display: 'grid', gap: 30, alignContent: 'start', minWidth: 0, maxWidth: 960 }
-const sectionStyle: CSSProperties = { display: 'grid', gap: 14, minWidth: 0, paddingTop: 20, borderTop: '1px solid var(--line)' }
+const sectionStyle: CSSProperties = { display: 'grid', gap: 14, minWidth: 0, paddingTop: 20, borderTop: '1px solid var(--color-separator)' }
 const sectionIntroStyle: CSSProperties = { maxWidth: 680 }
-const sectionTitleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 21, fontWeight: 700, color: 'var(--ink)' }
-const sectionDescriptionStyle: CSSProperties = { margin: '4px 0 0', fontSize: 13, lineHeight: 1.5, color: 'var(--ink-2)' }
+const sectionTitleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 21, fontWeight: 700, color: 'var(--color-text-primary)' }
+const sectionDescriptionStyle: CSSProperties = { margin: '4px 0 0', fontSize: 13, lineHeight: 1.5, color: 'var(--color-text-secondary)' }
 const preferenceRowStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, minWidth: 0, flexWrap: 'wrap' }
 const summaryRowStyle: CSSProperties = { ...preferenceRowStyle, padding: '2px 0' }
-const rowNameStyle: CSSProperties = { fontSize: 14, fontWeight: 650, color: 'var(--ink)' }
-const rowNoteStyle: CSSProperties = { margin: 0, marginTop: 2, fontSize: 12, lineHeight: 1.45, color: 'var(--ink-2)' }
+const rowNameStyle: CSSProperties = { fontSize: 14, fontWeight: 650, color: 'var(--color-text-primary)' }
+const rowNoteStyle: CSSProperties = { margin: 0, marginTop: 2, fontSize: 12, lineHeight: 1.45, color: 'var(--color-text-secondary)' }
 const fieldStyle: CSSProperties = { display: 'grid', gap: 6, minWidth: 0 }
-const fieldLabelStyle: CSSProperties = { fontSize: 13, fontWeight: 650, color: 'var(--ink)' }
-const textareaStyle: CSSProperties = { width: '100%', minWidth: 0, fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.5, padding: '11px 12px', borderRadius: 'var(--r-control)', border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)', resize: 'vertical' }
+const fieldLabelStyle: CSSProperties = { fontSize: 13, fontWeight: 650, color: 'var(--color-text-primary)' }
+const textareaStyle: CSSProperties = { width: '100%', minWidth: 0, fontFamily: 'var(--font-body)', fontSize: 14, lineHeight: 1.5, padding: '11px 12px', borderRadius: 'var(--r-control)', border: '1px solid var(--color-separator)', background: 'var(--color-surface)', color: 'var(--color-text-primary)', resize: 'vertical' }
 const tileGridStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0 24px', minWidth: 0 }
-const tileRowStyle: CSSProperties = { minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderBottom: '1px solid var(--line)', cursor: 'pointer' }
-const checkboxStyle: CSSProperties = { width: 20, height: 20, accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }
+const tileRowStyle: CSSProperties = { minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderBottom: '1px solid var(--color-separator)', cursor: 'pointer' }
+const checkboxStyle: CSSProperties = { width: 20, height: 20, accentColor: 'var(--color-accent)', cursor: 'pointer', flexShrink: 0 }
 const modelNamesStyle: CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap' }
-const modelChipStyle: CSSProperties = { padding: '6px 10px', borderRadius: 999, background: 'var(--surface-2)', color: 'var(--ink)', fontSize: 12, border: '1px solid var(--line)' }
+const modelChipStyle: CSSProperties = { padding: '6px 10px', borderRadius: 999, background: 'var(--color-surface-elevated)', color: 'var(--color-text-primary)', fontSize: 12, border: '1px solid var(--color-separator)' }
 const usageGridStyle: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, paddingTop: 4 }
-const metricStyle: CSSProperties = { display: 'block', fontSize: 20, fontFamily: 'var(--font-display)', color: 'var(--ink)' }
-const metricLabelStyle: CSSProperties = { display: 'block', marginTop: 2, fontSize: 11, color: 'var(--ink-2)' }
-const disclaimerStyle: CSSProperties = { margin: 0, fontSize: 11, lineHeight: 1.45, color: 'var(--ink-2)' }
-const detailsStyle: CSSProperties = { marginTop: 4, borderTop: '1px solid var(--line)', paddingTop: 8 }
-const detailsSummaryStyle: CSSProperties = { minHeight: 44, display: 'inline-flex', alignItems: 'center', cursor: 'pointer', color: 'var(--ink)', fontSize: 13, fontWeight: 650 }
-const technicalGridStyle: CSSProperties = { marginTop: 8, display: 'grid', gap: 10, padding: '12px 14px', background: 'var(--surface-2)', borderRadius: 'var(--r-control)', color: 'var(--ink-2)', fontSize: 12, lineHeight: 1.5, overflowWrap: 'anywhere' }
-const technicalLabelStyle: CSSProperties = { display: 'block', marginBottom: 2, color: 'var(--ink)', fontWeight: 650 }
-const codeStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', overflowWrap: 'anywhere' }
-const errorStyle: CSSProperties = { margin: 0, color: 'var(--c-red)', fontSize: 13 }
+const metricStyle: CSSProperties = { display: 'block', fontSize: 20, fontFamily: 'var(--font-display)', color: 'var(--color-text-primary)' }
+const metricLabelStyle: CSSProperties = { display: 'block', marginTop: 2, fontSize: 11, color: 'var(--color-text-secondary)' }
+const disclaimerStyle: CSSProperties = { margin: 0, fontSize: 11, lineHeight: 1.45, color: 'var(--color-text-secondary)' }
+const detailsStyle: CSSProperties = { marginTop: 4, borderTop: '1px solid var(--color-separator)', paddingTop: 8 }
+const detailsSummaryStyle: CSSProperties = { minHeight: 44, display: 'inline-flex', alignItems: 'center', cursor: 'pointer', color: 'var(--color-text-primary)', fontSize: 13, fontWeight: 650 }
+const technicalGridStyle: CSSProperties = { marginTop: 8, display: 'grid', gap: 10, padding: '12px 14px', background: 'var(--color-surface-elevated)', borderRadius: 'var(--r-control)', color: 'var(--color-text-secondary)', fontSize: 12, lineHeight: 1.5, overflowWrap: 'anywhere' }
+const technicalLabelStyle: CSSProperties = { display: 'block', marginBottom: 2, color: 'var(--color-text-primary)', fontWeight: 650 }
+const codeStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-primary)', overflowWrap: 'anywhere' }
+const errorStyle: CSSProperties = { margin: 0, color: 'var(--color-destructive)', fontSize: 13 }
