@@ -11,8 +11,8 @@ interface Props {
   /** Only relevant while a chat thread is on screen. */
   showChatSignals: boolean
   attachmentErrors: AttachmentError[]
-  gatewayOffline: boolean
-  onRetryGateway: () => void
+  modelUnavailable: boolean
+  onRetryModels: () => void
   saveState: SaveState
   onRetrySave: () => void
   briefUnavailable: boolean
@@ -35,8 +35,8 @@ const FAILS_REQUIRED = 3
 export function StatusBar({
   showChatSignals,
   attachmentErrors,
-  gatewayOffline,
-  onRetryGateway,
+  modelUnavailable,
+  onRetryModels,
   saveState,
   onRetrySave,
   briefUnavailable,
@@ -49,7 +49,7 @@ export function StatusBar({
   const offlineStreakRef = useRef(0)
   const [pwaDismissed, setPwaDismissed] = useState(false)
 
-  if (gatewayOffline) {
+  if (modelUnavailable) {
     offlineStreakRef.current++
   } else {
     offlineStreakRef.current = 0
@@ -75,9 +75,9 @@ export function StatusBar({
       <div role="status" style={{ ...rowStyle, justifyContent: 'space-between' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={dotStyle} />
-          gateway offline
+          models temporarily unavailable
         </span>
-        <button type="button" onClick={onRetryGateway} style={retryBtnStyle}>
+        <button type="button" onClick={onRetryModels} style={retryBtnStyle}>
           retry
         </button>
       </div>

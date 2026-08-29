@@ -7,8 +7,8 @@ afterEach(cleanup)
 const baseProps = {
   showChatSignals: true,
   attachmentErrors: [],
-  gatewayOffline: false,
-  onRetryGateway: vi.fn(),
+  modelUnavailable: false,
+  onRetryModels: vi.fn(),
   saveState: 'idle' as const,
   onRetrySave: vi.fn(),
   briefUnavailable: false,
@@ -22,32 +22,34 @@ describe('StatusBar', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('ranks attachment errors above gateway offline', () => {
+  it('ranks attachment errors above model availability failure', () => {
     render(
       <StatusBar
         {...baseProps}
         attachmentErrors={[{ file: 'x.png', reason: 'too big' }]}
-        gatewayOffline
+        modelUnavailable
       />,
     )
     expect(screen.getByRole('alert')).toHaveTextContent('x.png: too big')
-    expect(screen.queryByText('gateway offline')).toBeNull()
+    expect(screen.queryByText('model availability failure')).toBeNull()
   })
 
-  it('shows gateway offline above save-state failures and retries on click', () => {
-    const onRetryGateway = vi.fn()
+  it('shows model availability failure in user-facing language and retries on click', () => {
+    const onRetryModels = vi.fn()
     const props = {
       ...baseProps,
-      gatewayOffline: true,
-      onRetryGateway,
+      modelUnavailable: true,
+      onRetryModels,
       saveState: 'failed' as const,
     }
     const { rerender } = render(<StatusBar {...props} />)
     rerender(<StatusBar {...props} />)
     rerender(<StatusBar {...props} />)
-    expect(screen.getByText('gateway offline')).toBeInTheDocument()
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('models temporarily unavailable')
+    expect(status).not.toHaveTextContent(/gateway/i)
     fireEvent.click(screen.getByRole('button', { name: 'retry' }))
-    expect(onRetryGateway).toHaveBeenCalledTimes(1)
+    expect(onRetryModels).toHaveBeenCalledTimes(1)
   })
 
   it('shows a failed save with a working retry action', () => {

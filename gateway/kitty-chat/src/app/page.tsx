@@ -113,8 +113,8 @@ export default function KittyChat() {
           <StatusBar
             showChatSignals={k.activeView === 'chat' || k.activeView === 'home'}
             attachmentErrors={k.attachmentErrors}
-            gatewayOffline={k.modelGateway.loaded && !k.modelGateway.live}
-            onRetryGateway={k.retryGatewayBootstrap}
+            modelUnavailable={k.modelGateway.loaded && !k.modelGateway.live}
+            onRetryModels={k.retryGatewayBootstrap}
             saveState={k.saveState} onRetrySave={k.handleRetrySave}
             briefUnavailable={k.modelGateway.loaded && k.modelGateway.live && k.briefGateway.loaded && !k.briefGateway.live}
             briefError={k.briefGateway.error}
