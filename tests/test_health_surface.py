@@ -117,6 +117,27 @@ async def test_source_failure_fails_loud_never_silently_green():
 
 
 @pytest.mark.asyncio
+async def test_image_lab_health_ignores_completed_startup_recovery(monkeypatch):
+    import gateway.automation_supervisor as supervision
+    import gateway.health_surface as health_surface
+
+    statuses = {
+        "image-recovery": {"status": "unavailable", "reason": "task exited"},
+        "image-batch-worker": {"status": "available", "reason": "task running"},
+    }
+    monkeypatch.setattr(
+        supervision.supervisor,
+        "get_status",
+        lambda name: statuses[name],
+    )
+
+    domain = await health_surface._image_lab_source()
+
+    assert domain.status == "available"
+    assert domain.detail == {"image-batch-worker": "available"}
+
+
+@pytest.mark.asyncio
 async def test_image_provider_down_image_lab_still_functional():
     sources = _healthy_sources()
     sources["image_providers"] = _src(

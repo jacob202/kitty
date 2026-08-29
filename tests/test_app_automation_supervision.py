@@ -91,7 +91,6 @@ async def test_gateway_supervises_background_service_lifecycle(monkeypatch):
         assert supervised == {
             "cron",
             "image-batch-worker",
-            "image-recovery",
             "telegram",
         }
         assert next(stop for name, _factory, stop in recoverable if name == "cron") is stop_cron

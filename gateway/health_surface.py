@@ -152,8 +152,7 @@ async def _image_lab_source() -> HealthDomain:
     from gateway.automation_supervisor import supervisor
 
     entries = {
-        name: supervisor.get_status(name)
-        for name in ("image-recovery", "image-batch-worker")
+        "image-batch-worker": supervisor.get_status("image-batch-worker"),
     }
     if not entries:
         return HealthDomain("image_lab", "unknown", reason="no image workers tracked")
