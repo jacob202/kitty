@@ -389,3 +389,33 @@ class TestFullLoop:
         kinds = {s["kind"] for s in signals}
         assert "insight.returned" in kinds
         assert "insight.acted" in kinds
+
+
+def test_snoozed_insight_returns_after_snooze_window() -> None:
+    item_id = insight_loop.capture(text="come back later", category="task", explicit_consent=True)
+    insight_loop.mark_returned(item_id)
+    insight_loop.respond(item_id, "snooze", snooze_until="2030-01-02T08:00:00+00:00")
+
+    assert not any(item["id"] == item_id for item in insight_loop.list_due("2030-01-02T07:59:59+00:00"))
+    assert any(item["id"] == item_id for item in insight_loop.list_due("2030-01-02T08:00:00+00:00"))
+
+    assert insight_loop.mark_returned(item_id) is False  # real clock is before 2030
+    item = insight_loop.get_insight(item_id)
+    assert item is not None
+    assert item["payload"]["status"] == "snoozed"
+
+
+def test_elapsed_snooze_can_transition_back_to_returned(monkeypatch) -> None:
+    item_id = insight_loop.capture(text="return once", category="task", explicit_consent=True)
+    insight_loop.mark_returned(item_id)
+    insight_loop.respond(item_id, "snooze", snooze_until="2026-01-02T08:00:00+00:00")
+    monkeypatch.setattr(insight_loop, "_now_iso", lambda: "2026-01-02T08:01:00+00:00")
+
+    due = insight_loop.list_due("2026-01-02T08:01:00+00:00")
+    assert [item["id"] for item in due] == [item_id]
+    assert insight_loop.mark_returned(item_id) is True
+    assert insight_loop.mark_returned(item_id) is False
+    item = insight_loop.get_insight(item_id)
+    assert item is not None
+    assert item["payload"]["status"] == "returned"
+    assert item["payload"]["returned_count"] == 2

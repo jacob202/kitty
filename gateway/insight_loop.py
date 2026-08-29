@@ -104,11 +104,19 @@ def list_due(now: str | None = None) -> list[dict[str, Any]]:
     now = now or _now_iso()
     due: list[dict[str, Any]] = []
 
-    for item in _list_pending_approved():
+    for item in _list_returnable_approved():
         payload = item.get("payload", {})
+        status = payload.get("status", "pending")
         policy = payload.get("return_policy", "next_brief")
 
-        if policy == "next_brief":
+        # A snooze is always an explicit suppression window regardless of the
+        # insight's original return policy. Once the window expires it becomes
+        # returnable again exactly like a pending explicit-time insight.
+        if status == "snoozed":
+            ret_at = payload.get("return_at")
+            if ret_at and ret_at <= now:
+                due.append(item)
+        elif policy == "next_brief":
             due.append(item)
         elif policy == "explicit_time":
             ret_at = payload.get("return_at")
@@ -129,9 +137,14 @@ def mark_returned(item_id: int, channel: str = "signal") -> bool:
 
     payload = item.get("payload", {})
     current_status = payload.get("status", "pending")
-    if current_status != "pending":
+    if current_status not in {"pending", "snoozed"}:
         logger.warning("insight %s mark_returned skipped: status is %s", item_id, current_status)
         return False
+    if current_status == "snoozed":
+        return_at = payload.get("return_at")
+        if not return_at or return_at > _now_iso():
+            logger.warning("insight %s mark_returned skipped: snooze has not elapsed", item_id)
+            return False
 
     now_iso = _now_iso()
     returned_count = (payload.get("returned_count") or 0) + 1
@@ -315,15 +328,15 @@ def get_metrics() -> dict[str, Any]:
     }
 
 
-def _list_pending_approved() -> list[dict[str, Any]]:
-    """Return all insight items that are approved and status=pending."""
+def _list_returnable_approved() -> list[dict[str, Any]]:
+    """Return approved insights that may participate in the due-time sweep."""
     items = idea_mine_store.list_items(object_type="insight", db_file=INSIGHT_DB_FILE)
     result: list[dict[str, Any]] = []
     for item in items:
         if not idea_mine_store.is_surfaceable(item):
             continue
         payload = item.get("payload", {})
-        if payload.get("status", "pending") == "pending":
+        if payload.get("status", "pending") in {"pending", "snoozed"}:
             result.append(item)
     return result
 

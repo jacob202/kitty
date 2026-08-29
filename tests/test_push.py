@@ -197,3 +197,32 @@ class TestSendPushover:
             with patch("gateway.notify.send", return_value=True) as mock_send:
                 assert push._send_pushover("hi", "title", "https://x") is True
         mock_send.assert_called_once_with("hi", title="title", url="https://x")
+
+
+def test_push_history_hot_path_does_not_use_full_read_text(monkeypatch, tmp_path):
+    _clear_log(monkeypatch, tmp_path)
+    push.PUSH_LOG_FILE.write_text(
+        '\n'.join(
+            __import__('json').dumps({"ts": 10 + i, "kind": "info", "title": "x", "channel": "imessage", "ok": True, "dedupe_key": f"k-{i}"})
+            for i in range(1000)
+        ) + '\n',
+        encoding='utf-8',
+    )
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("full-file read_text must not be used")
+
+    monkeypatch.setattr(type(push.PUSH_LOG_FILE), "read_text", explode)
+    assert len(push._recent_log_entries()) == 1000
+
+
+def test_push_log_rotates_at_bounded_size(monkeypatch, tmp_path):
+    _clear_log(monkeypatch, tmp_path)
+    monkeypatch.setattr(push, "PUSH_LOG_MAX_BYTES", 512)
+    push.PUSH_LOG_FILE.write_text("x" * 600, encoding="utf-8")
+
+    push._log_attempt(kind="info", title="Kitty", channel="imessage", ok=True, dedupe_key="rotation")
+
+    assert push._rotated_log_path(1).exists()
+    entries = push._recent_log_entries()
+    assert any(entry.get("dedupe_key") == "rotation" for entry in entries)

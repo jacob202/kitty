@@ -531,3 +531,26 @@ def test_memory_graph_py_diff_is_cap_parameterization_only():
     # The assembler passes a computed cap to _select_unified_items; the
     # graph module itself should still define the default constant.
     assert "CONTEXT_TOKEN_CAP: int = 1200" in content
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tier", ["trivial", "standard", "deep"])
+async def test_whole_model_visible_context_is_bounded_with_clipping_receipt(monkeypatch, tier):
+    import gateway.context_assembler as assembler
+
+    huge = "X" * 120_000
+    monkeypatch.setattr(assembler, "_domain_prompt", lambda *_args, **_kwargs: huge)
+    monkeypatch.setattr(assembler, "personality_block", lambda: huge)
+    monkeypatch.setattr(assembler.user_context, "load_user_context", lambda: huge)
+    deps = _AssemblerDeps(adapters=[FakeAdapter("memory", items=[])], enrichments=(), skill_hint_fn=lambda _m: huge)
+
+    bundle = await assemble_context("hello", deps=deps, tier=tier, objective=huge)
+
+    cap = assembler.TOTAL_CONTEXT_TOKEN_CAPS[tier] * assembler._CHARS_PER_TOKEN_ESTIMATE
+    assert len(bundle.system) <= cap
+    assert bundle.context_budget["system_chars"] == len(bundle.system)
+    assert bundle.context_budget["total_token_cap"] == assembler.TOTAL_CONTEXT_TOKEN_CAPS[tier]
+    assert any(block["truncated"] for block in bundle.context_budget["blocks"])
+    assert bundle.context_budget["truncations"]
+    # Source warnings retain their original meaning; budget clipping has its own receipt.
+    assert bundle.warnings == []

@@ -131,11 +131,10 @@ async def ingest(
             logger.info("Content from %s already ingested (hash match), skipping", source)
             return IngestionResult(source=source, status="skipped", content_hash=content_hash)
 
-    # 3. Cleanup existing chunks for this source name
+    # 3. Snapshot existing chunk ids. They remain authoritative until a complete
+    # replacement has been embedded and successfully stored.
     existing_source = store.get(where={"source": source})
-    if existing_source["ids"]:
-        logger.info("New content detected for %s, pruning old chunks...", source)
-        archivist.delete_source_chunks(source)
+    existing_ids = list(existing_source.get("ids") or [])
 
     # 4. Judgment (Librarian)
     resolved_type = doc_type or librarian.detect_doc_type(path, raw_text[:1000] if raw_text else "")
@@ -167,7 +166,23 @@ async def ingest(
         taste_report,
         chunk_metadatas,
     )
+    # Store the replacement first. Only after the new chunks are durable do we
+    # remove the previous source ids. A cleanup failure rolls back the new ids,
+    # preferring the old known-good index over a partial/duplicated replacement.
     store.add(documents=chunks, embeddings=embeddings, ids=ids, metadatas=final_metadatas)
+    if existing_ids:
+        try:
+            store.delete(ids=existing_ids)
+        except Exception:
+            try:
+                store.delete(ids=ids)
+            except Exception as rollback_exc:
+                logger.exception(
+                    "Replacement cleanup failed for %s and new-chunk rollback also failed: %s",
+                    source,
+                    rollback_exc,
+                )
+            raise
 
     logger.info("Ingested %d chunks from %s (type=%s)", len(chunks), source, resolved_type)
     return IngestionResult(

@@ -27,6 +27,7 @@ from datetime import datetime
 from pathlib import Path
 
 from gateway import paths as _paths
+from gateway.jsonl_tail import read_tail_lines
 
 logger = logging.getLogger("kitty.prefetcher")
 
@@ -36,6 +37,7 @@ _HISTORY = _paths.DATA_DIR / "prefetch_history.jsonl"
 # ponytail: naive in-process TTL cache + last-N history scan. Fine for a
 # single-user local gateway; swap for a real store if history outgrows memory.
 _HISTORY_SCAN = 500
+_HISTORY_SCAN_BYTES = 2 * 1024 * 1024
 _CACHE_TTL_S = 300.0
 _RECENT_FILES = 5
 _cache: dict[str, tuple[float, str]] = {}
@@ -123,10 +125,9 @@ def record(query: str, fp: Fingerprint | None = None) -> None:
 def _load_history() -> list[dict]:
     if not _HISTORY.exists():
         return []
-    try:
-        lines = _HISTORY.read_text().splitlines()[-_HISTORY_SCAN:]
-    except OSError:
-        return []
+    lines = read_tail_lines(
+        _HISTORY, limit=_HISTORY_SCAN, max_bytes=_HISTORY_SCAN_BYTES
+    )
     rows: list[dict] = []
     for line in lines:
         try:
