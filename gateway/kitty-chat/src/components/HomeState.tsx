@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText } from '@/lib/ui';
 import { CapturePanel } from '@/components/CapturePanel';
@@ -422,6 +422,7 @@ function HealthStrip() {
   const health = useGatewayHealth();
   const models = useGatewayModels();
   const persistence = useChatsPersistence();
+  const repairs = useRepairs();
   const queryClient = useQueryClient();
 
   const gatewayOk = health.data?.ok === true;
@@ -429,14 +430,18 @@ function HealthStrip() {
   // masks LiteLLM failures behind a fallback model list.
   const litellmOk = health.data?.litellmReachable === true;
   const storeOk = persistence.data?.ok === true;
+  const repairIssues = repairs.data?.repairs.filter((repair) => repair.severity !== 'ok').length ?? 0;
+  const repairChecksUnknown = !repairs.isPending && (repairs.isError || !repairs.data || repairs.data.checks_run === 0);
+  const kittyNeedsAttention = !gatewayOk || repairIssues > 0 || repairChecksUnknown;
 
   const retry = () => {
     queryClient.invalidateQueries({ queryKey: ['health'] });
     queryClient.invalidateQueries({ queryKey: ['models'] });
     queryClient.invalidateQueries({ queryKey: ['chats', 'persistence'] });
+    queryClient.invalidateQueries({ queryKey: ['repairs'] });
   };
 
-  const loading = health.isPending || models.isPending || persistence.isPending;
+  const loading = health.isPending || models.isPending || persistence.isPending || repairs.isPending;
 
   return (
     <div
@@ -462,25 +467,33 @@ function HealthStrip() {
       ) : (
         <>
           <HealthDot
-            tone={gatewayOk ? 'ok' : 'bad'}
-            label={gatewayOk ? 'Kitty is connected' : OFFLINE_FIX}
+            tone={kittyNeedsAttention ? 'bad' : 'ok'}
+            label={
+              !gatewayOk
+                ? OFFLINE_FIX
+                : repairIssues > 0
+                  ? `Kitty needs attention · ${repairIssues} issue${repairIssues === 1 ? '' : 's'}`
+                  : repairChecksUnknown
+                    ? 'Kitty checks need attention'
+                    : 'Kitty is connected'
+            }
           />
           <HealthDot
             tone={!gatewayOk ? 'bad' : litellmOk ? 'ok' : 'bad'}
             label={
               !gatewayOk
-                ? 'routing unknown'
+                ? 'models unknown'
                 : litellmOk
-                  ? `routing live · ${models.data?.models.length ?? 0} models`
-                  : 'model routing is unavailable'
+                  ? `models ready · ${models.data?.models.length ?? 0}`
+                  : 'models are unavailable'
             }
           />
           <HealthDot
             tone={storeOk ? 'ok' : 'bad'}
             label={
               storeOk
-                ? `chat store ok · ${persistence.data?.count ?? 0} saved`
-                : `chat store: ${persistence.data?.error ?? 'unreachable'}`
+                ? `saved chats · ${persistence.data?.count ?? 0}`
+                : `saved chats unavailable${persistence.data?.error ? ` · ${persistence.data.error}` : ''}`
             }
           />
         </>
@@ -1821,7 +1834,19 @@ export function HomeState({
 }: Props) {
   const { visibleTiles } = useDashboardConfig();
   const weatherQuery = useGatewayWeather();
+  const repairs = useRepairs();
   const weather = weatherQuery.data?.weather;
+  const systemNeedsAttention = !repairs.isPending && (
+    repairs.isError ||
+    !repairs.data ||
+    repairs.data.checks_run === 0 ||
+    repairs.data.repairs.some((repair) => repair.severity !== 'ok')
+  );
+  const [systemOpen, setSystemOpen] = useState(false);
+
+  useEffect(() => {
+    if (systemNeedsAttention) setSystemOpen(true);
+  }, [systemNeedsAttention]);
 
   return (
     <div
@@ -1909,7 +1934,12 @@ export function HomeState({
           </div>
         </details>
 
-        <details data-testid="home-system-details" style={homeDisclosureStyle}>
+        <details
+          data-testid="home-system-details"
+          style={homeDisclosureStyle}
+          open={systemOpen}
+          onToggle={(event) => setSystemOpen(event.currentTarget.open)}
+        >
           <summary style={homeSummaryStyle}>System &amp; setup</summary>
           <div style={{ ...homeDisclosureGridStyle, gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
             {visibleTiles['health'] !== false && <HealthSurfaceCard />}

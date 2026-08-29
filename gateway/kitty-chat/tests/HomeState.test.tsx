@@ -337,10 +337,35 @@ describe('HomeState', () => {
   it('shows all-green health strip when everything answers', () => {
     render(<HomeState />);
     expect(screen.getByText('Kitty is connected')).toBeInTheDocument();
-    expect(screen.getByText('routing live · 2 models')).toBeInTheDocument();
-    expect(screen.getByText('chat store ok · 3 saved')).toBeInTheDocument();
+    expect(screen.getByText('models ready · 2')).toBeInTheDocument();
+    expect(screen.getByText('saved chats · 3')).toBeInTheDocument();
     expect(screen.getByText('retry')).toBeInTheDocument();
     expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
+  });
+
+  it('surfaces material health failures without making the user hunt for them', () => {
+    (useRepairs as Mock).mockReturnValue({
+      data: {
+        ok: false,
+        checks_run: 4,
+        issues: 4,
+        repairs: [
+          { id: 'core', severity: 'error', title: "Kitty's core service is unavailable", detail: '' },
+          { id: 'memory', severity: 'error', title: 'Memory search is temporarily unavailable', detail: '' },
+          { id: 'background', severity: 'warn', title: 'A background service needs setup', detail: '' },
+          { id: 'search', severity: 'warn', title: 'Search indexing needs attention', detail: '' },
+        ],
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+
+    render(<HomeState />);
+
+    expect(screen.getByTestId('home-system-details')).toHaveAttribute('open');
+    expect(screen.getByText('Kitty needs attention · 4 issues')).toBeVisible();
+    expect(screen.getByText("Kitty's core service is unavailable")).toBeVisible();
   });
 
   it('shows the gateway down fix when the gateway is down', () => {
@@ -352,7 +377,7 @@ describe('HomeState', () => {
     expect(
       screen.getAllByText(/Kitty is not connected — check if Kitty is running/).length,
     ).toBeGreaterThan(0);
-    expect(screen.getByText('routing unknown')).toBeInTheDocument();
+    expect(screen.getByText('models unknown')).toBeInTheDocument();
     expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
   });
 
@@ -371,8 +396,8 @@ describe('HomeState', () => {
       isPending: false,
     });
     render(<HomeState />);
-    expect(screen.getByText(/model routing is unavailable/)).toBeInTheDocument();
-    expect(screen.queryByText(/routing live/)).not.toBeInTheDocument();
+    expect(screen.getByText(/models are unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText(/models ready/)).not.toBeInTheDocument();
   });
 
   // ── health surface (full-stack projection) ──

@@ -227,11 +227,19 @@ function RuntimeBadge({
   compact?: boolean
 }) {
   const healthy = state === 'available'
-  const color = healthy ? 'var(--color-success)' : 'var(--color-destructive)'
-  const label = healthy ? 'runtime live' : `runtime ${state}`
+  const color = healthy ? 'var(--color-success)' : state === 'degraded' || state === 'stale' || state === 'unknown' ? 'var(--color-warning)' : 'var(--color-destructive)'
+  const label = state === 'available'
+    ? 'Kitty ready'
+    : state === 'degraded'
+      ? 'Kitty needs attention'
+      : state === 'unavailable'
+        ? 'Kitty unavailable'
+        : state === 'stale'
+          ? 'Kitty status is stale'
+          : 'Kitty status unknown'
   return (
     <span
-      title={detail ?? `runtime state: ${state}`}
+      title={detail ?? `Kitty status: ${state}`}
       aria-label={label}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
