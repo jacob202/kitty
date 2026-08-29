@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { MODELS } from '../src/lib/types'
 import {
   isDirectProviderReady,
+  isDirectProviderSelected,
   resolveChatModels,
   reconcileOneShotOverride,
 } from '../src/lib/model-availability'
@@ -17,6 +18,7 @@ describe('chat model availability policy', () => {
       runtimeReady: true,
       curatedReady: true,
       directProviderReady: false,
+      directProviderSelected: false,
     })
     expect(result).toEqual({ models: [], live: false })
   })
@@ -28,6 +30,7 @@ describe('chat model availability policy', () => {
       runtimeReady: false,
       curatedReady: false,
       directProviderReady: true,
+      directProviderSelected: true,
     })
     expect(result.live).toBe(true)
     expect(result.models.map(model => model.id)).toEqual(['kitty-default'])
@@ -42,6 +45,8 @@ describe('chat model availability policy', () => {
         disabled: false, position: 0, kind: 'api_credit', free_tier: false,
       }],
     }
+    expect(isDirectProviderSelected({ ...base, active: 'openrouter' })).toBe(true)
+    expect(isDirectProviderSelected({ ...base, active: 'auto' })).toBe(false)
     expect(isDirectProviderReady({ ...base, active: 'openrouter' })).toBe(true)
     expect(isDirectProviderReady({ ...base, active: 'auto' })).toBe(false)
     expect(isDirectProviderReady({ ...base, active: 'openrouter', providers: [{ ...base.providers[0], disabled: true }] })).toBe(false)
