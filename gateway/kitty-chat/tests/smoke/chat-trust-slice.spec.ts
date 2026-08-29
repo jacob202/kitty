@@ -60,6 +60,24 @@ async function stubGateway(page: Page, opts: { failAfterChunks?: number; errorEv
     })
   );
 
+  await page.route('**/proxy/models/picker', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        schema_version: 1,
+        source: 'smoke-test',
+        discovery: { state: 'available', reason: null, checked_at: null },
+        claims: { role_tags: 'heuristic', alternatives: 'cost-screened only' },
+        presets: [{
+          role: 'auto', label: 'Daily Kitty', route: 'kitty-default',
+          purpose: 'Everyday use.', kind: 'router', provider: null, model: null,
+          configured: true, catalogue: null, catalogue_state: 'not_applicable', alternatives: [],
+        }],
+      }),
+    })
+  );
+
   await page.route('**/proxy/runtime/**', (route) =>
     route.fulfill({
       status: 200,
