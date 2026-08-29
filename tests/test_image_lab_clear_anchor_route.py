@@ -28,4 +28,5 @@ def test_delete_anchor_route_calls_durable_clear(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["anchor_job_id"] is None
+    assert response.json()["undo_journal_id"] == "undo_anchor_1"
     assert calls == ["imgses_1"]

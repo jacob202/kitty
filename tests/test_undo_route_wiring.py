@@ -21,7 +21,7 @@ async def test_explicit_memory_delete_returns_undo_receipt(monkeypatch):
     result = await memories.delete_memory("exp_123")
 
     assert seen == ["exp_123"]
-    assert result == {"deleted": True, "memory_id": "exp_123"}
+    assert result["undo_journal_id"] == "undo_memory_1"
 
 
 @pytest.mark.asyncio
@@ -44,7 +44,8 @@ async def test_memory_correction_returns_undo_receipt(monkeypatch):
     )
 
     assert seen == [("exp_123", "corrected", "city")]
-    assert result == {"memory": {"id": "exp_corrected"}}
+    assert result["memory"]["id"] == "exp_corrected"
+    assert result["undo_journal_id"] == "undo_memory_2"
 
 
 @pytest.mark.asyncio
@@ -67,7 +68,7 @@ async def test_character_patch_returns_undo_receipt(monkeypatch):
 
     assert seen[0][0] == "char_1"
     assert seen[0][1]["name"] == "Aria v2"
-    assert result["name"] == "Aria v2"
+    assert result["undo_journal_id"] == "undo_char_1"
 
 
 @pytest.mark.asyncio
@@ -82,6 +83,7 @@ async def test_loop_toggle_returns_undo_receipt(monkeypatch):
     result = await loops.toggle_loop("loop_1")
 
     assert result["status"] == "paused"
+    assert result["undo_journal_id"] == "undo_loop_1"
 
 
 @pytest.mark.asyncio
@@ -98,8 +100,8 @@ async def test_cron_update_and_toggle_return_undo_receipts(monkeypatch):
     )
     toggled = await cron_routes.cron_toggle_schedule("sched_1")
 
-    assert updated == {"ok": True}
-    assert toggled == {"ok": True}
+    assert updated == {"ok": True, "undo_journal_id": "undo_cron_update"}
+    assert toggled == {"ok": True, "undo_journal_id": "undo_cron_toggle"}
 
 
 @pytest.mark.asyncio
@@ -116,3 +118,4 @@ async def test_anchor_set_returns_undo_receipt(monkeypatch):
     result = await extended.studio_set_anchor("imgses_1", extended.AnchorRequest(job_id="job_1"))
 
     assert result["anchor_job_id"] == "job_1"
+    assert result["undo_journal_id"] == "undo_anchor_1"

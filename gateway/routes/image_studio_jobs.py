@@ -164,13 +164,15 @@ async def studio_clear_anchor(session_id: str) -> dict:
     from gateway.routes.extended import _session_payload
 
     try:
-        undo_journal.clear_anchor_with_undo(session_id)
+        journal_id = undo_journal.clear_anchor_with_undo(session_id)
         session = require_session(session_id)
     except (SessionNotFoundError, undo_journal.UndoNotFound) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ImageSessionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return _session_payload(session)
+    result = _session_payload(session)
+    result["undo_journal_id"] = journal_id
+    return result
 
 
 def _iteration_error(exc: Exception) -> HTTPException:

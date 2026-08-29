@@ -82,13 +82,15 @@ async def toggle_loop(loop_id: str):
     from gateway import undo_journal
 
     try:
-        undo_journal.toggle_automation_with_undo(loop_id)
+        journal_id = undo_journal.toggle_automation_with_undo(loop_id)
     except undo_journal.UndoNotFound as exc:
         raise HTTPException(status_code=404, detail="Loop not found") from exc
 
     for s in cron.list_schedules():
         if s.get("id") == loop_id:
-            return _schedule_to_loop(s)
+            result = _schedule_to_loop(s)
+            result["undo_journal_id"] = journal_id
+            return result
     raise HTTPException(status_code=404, detail="Loop not found")
 
 

@@ -66,11 +66,12 @@ async def list_memories(namespace: Optional[str] = None, limit: int = 50) -> dic
 @router.delete("/memories/{memory_id}")
 async def delete_memory(memory_id: str) -> dict:
     """Forget governed explicit memory, or delete a legacy semantic memory."""
+    undo_journal_id: str | None = None
     if memory_id.startswith("exp_"):
         from gateway import undo_journal
 
         try:
-            undo_journal.forget_memory_with_undo(memory_id)
+            undo_journal_id = undo_journal.forget_memory_with_undo(memory_id)
             deleted = True
         except undo_journal.UndoNotFound as exc:
             raise StorageNotFound(
@@ -87,7 +88,10 @@ async def delete_memory(memory_id: str) -> dict:
             f"memory {memory_id!r} was not found",
             details={"memory_id": memory_id},
         )
-    return {"deleted": True, "memory_id": memory_id}
+    result = {"deleted": True, "memory_id": memory_id}
+    if undo_journal_id is not None:
+        result["undo_journal_id"] = undo_journal_id
+    return result
 
 
 @router.get("/memories/{memory_id}/explain")
@@ -129,7 +133,7 @@ async def correct_memory(memory_id: str, body: CorrectMemoryRequest) -> dict:
     corrected_id = entry.get("after", {}).get("id") if entry else None
     if not corrected_id:
         raise RuntimeError(f"undo journal {journal_id!r} lost corrected memory id")
-    return {"memory": explain(corrected_id)}
+    return {"memory": explain(corrected_id), "undo_journal_id": journal_id}
 
 
 @router.post("/memories/{memory_id}/pin")

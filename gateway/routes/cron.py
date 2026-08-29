@@ -97,7 +97,7 @@ async def cron_update_schedule(sid: str, payload: ScheduleRequest):
     from gateway import undo_journal
 
     try:
-        undo_journal.update_automation_with_undo(
+        journal_id = undo_journal.update_automation_with_undo(
             sid,
             payload.name,
             payload.action,
@@ -107,7 +107,7 @@ async def cron_update_schedule(sid: str, payload: ScheduleRequest):
         )
     except undo_journal.UndoNotFound as exc:
         raise HTTPException(status_code=404, detail=f"Schedule not found: {sid}") from exc
-    return {"ok": True}
+    return {"ok": True, "undo_journal_id": journal_id}
 
 
 @router.post("/cron/schedule/{sid}/toggle")
@@ -115,10 +115,10 @@ async def cron_toggle_schedule(sid: str):
     from gateway import cron, undo_journal
 
     try:
-        undo_journal.toggle_automation_with_undo(sid)
+        journal_id = undo_journal.toggle_automation_with_undo(sid)
     except undo_journal.UndoNotFound as exc:
         raise HTTPException(status_code=404, detail=f"Schedule not found: {sid}") from exc
     current = next((row for row in cron.list_schedules() if row.get("id") == sid), None)
     if current is None:
         raise HTTPException(status_code=404, detail=f"Schedule not found: {sid}")
-    return {"ok": bool(current.get("enabled"))}
+    return {"ok": bool(current.get("enabled")), "undo_journal_id": journal_id}

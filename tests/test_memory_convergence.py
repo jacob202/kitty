@@ -196,7 +196,11 @@ async def test_memories_route_forgets_explicit_id_without_mem0(monkeypatch):
         lambda memory_id: called.append(memory_id) or "undo_1",
     )
     result = await memories_route.delete_memory("exp_123")
-    assert result == {"deleted": True, "memory_id": "exp_123"}
+    assert result == {
+        "deleted": True,
+        "memory_id": "exp_123",
+        "undo_journal_id": "undo_1",
+    }
     assert called == ["exp_123"]
 
 
