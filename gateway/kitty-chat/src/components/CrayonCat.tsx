@@ -249,11 +249,12 @@ export function StateBadge({ state = 'idle' }: { state?: CatState }) {
       alignItems: 'center',
       gap: 6,
       fontSize: 11,
-      color: 'var(--ink-2)',
-      border: '1.5px solid var(--line)',
+      color: 'var(--color-text-secondary)',
+      border: '1px solid var(--color-separator)',
       borderRadius: 99,
-      padding: '3px 10px',
-      fontFamily: 'var(--font-mono)',
+      padding: '3px 8px',
+      fontFamily: 'var(--font-body)',
+      background: 'var(--color-surface-elevated)',
     }}>
       <span style={{
         width: 7,

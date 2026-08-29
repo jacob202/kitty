@@ -337,10 +337,35 @@ describe('HomeState', () => {
   it('shows all-green health strip when everything answers', () => {
     render(<HomeState />);
     expect(screen.getByText('Kitty is connected')).toBeInTheDocument();
-    expect(screen.getByText('routing live · 2 models')).toBeInTheDocument();
-    expect(screen.getByText('chat store ok · 3 saved')).toBeInTheDocument();
+    expect(screen.getByText('models ready · 2')).toBeInTheDocument();
+    expect(screen.getByText('saved chats · 3')).toBeInTheDocument();
     expect(screen.getByText('retry')).toBeInTheDocument();
     expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
+  });
+
+  it('surfaces material health failures without making the user hunt for them', () => {
+    (useRepairs as Mock).mockReturnValue({
+      data: {
+        ok: false,
+        checks_run: 4,
+        issues: 4,
+        repairs: [
+          { id: 'core', severity: 'error', title: "Kitty's core service is unavailable", detail: '' },
+          { id: 'memory', severity: 'error', title: 'Memory search is temporarily unavailable', detail: '' },
+          { id: 'background', severity: 'warn', title: 'A background service needs setup', detail: '' },
+          { id: 'search', severity: 'warn', title: 'Search indexing needs attention', detail: '' },
+        ],
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+
+    render(<HomeState />);
+
+    expect(screen.getByTestId('home-system-details')).toHaveAttribute('open');
+    expect(screen.getByText('Kitty needs attention · 4 issues')).toBeVisible();
+    expect(screen.getByText("Kitty's core service is unavailable")).toBeVisible();
   });
 
   it('shows the gateway down fix when the gateway is down', () => {
@@ -352,7 +377,7 @@ describe('HomeState', () => {
     expect(
       screen.getAllByText(/Kitty is not connected — check if Kitty is running/).length,
     ).toBeGreaterThan(0);
-    expect(screen.getByText('routing unknown')).toBeInTheDocument();
+    expect(screen.getByText('models unknown')).toBeInTheDocument();
     expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
   });
 
@@ -365,14 +390,26 @@ describe('HomeState', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
   });
 
+  it('does not call fallback models ready when the live model read failed', () => {
+    (useGatewayModels as Mock).mockReturnValue({
+      data: { models: LIVE_MODELS, fromLiveGateway: false, error: 'Could not read /api/models' },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.getByText('model list unavailable')).toBeInTheDocument();
+    expect(screen.queryByText(/models ready/)).not.toBeInTheDocument();
+  });
+
   it('shows model routing unavailable from the /health probe, never a fake routing-live', () => {
     (useGatewayHealth as Mock).mockReturnValue({
       data: { ok: true, litellmReachable: false, error: null },
       isPending: false,
     });
     render(<HomeState />);
-    expect(screen.getByText(/model routing is unavailable/)).toBeInTheDocument();
-    expect(screen.queryByText(/routing live/)).not.toBeInTheDocument();
+    expect(screen.getByText(/models are unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText(/models ready/)).not.toBeInTheDocument();
   });
 
   // ── health surface (full-stack projection) ──
@@ -1024,4 +1061,37 @@ describe('HomeState', () => {
     render(<HomeState />);
     expect(screen.getByText(/everything looks healthy/)).toBeInTheDocument();
   });
+
+  it('prioritizes daily work and collapses lower-signal context', () => {
+    render(<HomeState />);
+
+    const overview = screen.getByTestId('home-primary-overview');
+    expect(overview).toHaveTextContent("what's next");
+    expect(overview).toHaveTextContent('needs you');
+    expect(overview).toHaveTextContent('today');
+    expect(overview).toHaveTextContent('deadlines');
+    expect(overview).toHaveTextContent('active projects');
+
+    const more = screen.getByTestId('home-more-context');
+    const system = screen.getByTestId('home-system-details');
+    expect(more).not.toHaveAttribute('open');
+    expect(system).not.toHaveAttribute('open');
+    expect(more).toHaveTextContent('what changed');
+    expect(system).toHaveTextContent('health');
+    expect(system).toHaveTextContent(/builder/i);
+
+    expect(overview.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(more.compareDocumentPosition(system) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('uses the same bounded daily-overview composition on phone', () => {
+    render(<HomeState compact />);
+    const root = screen.getByTestId('home-daily-overview');
+    expect(root).toBeInTheDocument();
+    const content = screen.getByTestId('home-daily-overview-content');
+    expect(content.getAttribute('style') ?? '').toContain('max-width: 1120px');
+    const primary = screen.getByTestId('home-primary-overview');
+    expect(primary.getAttribute('style') ?? '').toContain('grid-template-columns: 1fr');
+  });
+
 });

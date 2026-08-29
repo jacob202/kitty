@@ -518,16 +518,19 @@ async def studio_get_character(character_id: str):
 
 @router.patch("/studio/characters/{character_id}")
 async def studio_update_character(character_id: str, req: CharacterUpdate):
-    from gateway.image_characters import CharacterError, CharacterNotFoundError, update_character
+    from gateway import undo_journal
+    from gateway.image_characters import CharacterError, CharacterNotFoundError, get_character
     try:
-        char = update_character(
+        journal_id = undo_journal.update_character_with_undo(
             character_id,
             name=req.name,
             description=req.description,
             preferred_recipe=req.preferred_recipe,
             identity_preset=req.identity_preset,
         )
-        return char.to_dict()
+        result = get_character(character_id).to_dict()
+        result["undo_journal_id"] = journal_id
+        return result
     except CharacterNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except CharacterError as exc:
@@ -818,22 +821,26 @@ async def studio_update_session(session_id: str, req: SessionUpdateRequest):
 @router.post("/studio/sessions/{session_id}/anchor")
 async def studio_set_anchor(session_id: str, req: AnchorRequest):
     """"Use this" — select a rendered result as the base for follow-up edits."""
+    from gateway import undo_journal
     from gateway.image_sessions import (
         AnchorError,
         ImageSessionError,
         SessionNotFoundError,
-        set_anchor,
+        require_session,
     )
 
     try:
-        session = set_anchor(session_id, req.job_id)
-    except SessionNotFoundError as exc:
+        journal_id = undo_journal.set_anchor_with_undo(session_id, req.job_id)
+        session = require_session(session_id)
+    except (SessionNotFoundError, undo_journal.UndoNotFound) as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except AnchorError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except ImageSessionError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return _session_payload(session)
+    result = _session_payload(session)
+    result["undo_journal_id"] = journal_id
+    return result
 
 
 @router.delete("/studio/sessions/{session_id}")

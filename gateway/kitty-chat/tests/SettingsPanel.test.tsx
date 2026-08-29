@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { SettingsPanel } from '../src/components/SettingsPanel'
@@ -30,15 +30,24 @@ vi.mock('../src/lib/queries', () => ({
 }))
 
 describe('SettingsPanel', () => {
-  it('shows editable personality documents and truthful model/voice state', () => {
+  it('puts ordinary preferences before runtime details while preserving real state', () => {
     render(<SettingsPanel theme="cosmic" onToggleTheme={vi.fn()} />)
 
     expect(screen.getByLabelText('tone description')).toHaveValue('direct, warm, and specific\nsecond line')
     expect(screen.getByLabelText('standing preferences')).toHaveValue('- keep it brief')
     expect(screen.getByRole('button', { name: 'save personality' })).toBeInTheDocument()
-    expect(screen.getByText('voice preview')).toBeInTheDocument()
-    expect(screen.getByText('models and routing')).toBeInTheDocument()
-    expect(screen.getByText('default')).toBeInTheDocument()
-    expect(screen.getByText('usage')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Appearance' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Personality' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Models & usage' })).toBeInTheDocument()
+    const headings = screen.getAllByRole('heading').map(node => node.textContent)
+    expect(headings.indexOf('Personality')).toBeLessThan(headings.indexOf('Models & usage'))
+    expect(screen.getByRole('button', { name: /switch theme/i })).toHaveStyle({ minHeight: '44px' })
+    expect(screen.getAllByText('default').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('4 calls')).toBeInTheDocument()
+    const technical = screen.getByText('Technical details').closest('details')
+    expect(technical).not.toBeNull()
+    expect(within(technical as HTMLElement).getByText(/127\.0\.0\.1:8000 via \/proxy/i)).toBeInTheDocument()
+    expect(within(technical as HTMLElement).getByText('kitty-default')).toBeInTheDocument()
   })
 })

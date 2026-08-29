@@ -126,6 +126,7 @@ async def test_update_schedule_with_timezone_replaces_metadata(automation_db):
     )
     result = await cron_routes.cron_update_schedule(sid, payload)
 
-    assert result == {"ok": True}
+    assert result["ok"] is True
+    assert result["undo_journal_id"].startswith("undo_")
     row = next(r for r in cron.list_schedules() if r["id"] == sid)
     assert row["metadata"] == '{"timezone": "America/Toronto"}'

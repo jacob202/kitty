@@ -94,26 +94,31 @@ async def cron_delete_schedule(sid: str):
 
 @router.patch("/cron/schedule/{sid}")
 async def cron_update_schedule(sid: str, payload: ScheduleRequest):
-    from gateway.cron import update
+    from gateway import undo_journal
 
-    ok = update(
-        sid,
-        payload.name,
-        payload.action,
-        payload.schedule_type,
-        payload.schedule_value,
-        metadata=_validate_timezone(payload.timezone),
-    )
-    if not ok:
-        raise HTTPException(status_code=404, detail=f"Schedule not found: {sid}")
-    return {"ok": True}
+    try:
+        journal_id = undo_journal.update_automation_with_undo(
+            sid,
+            payload.name,
+            payload.action,
+            payload.schedule_type,
+            payload.schedule_value,
+            metadata=_validate_timezone(payload.timezone),
+        )
+    except undo_journal.UndoNotFound as exc:
+        raise HTTPException(status_code=404, detail=f"Schedule not found: {sid}") from exc
+    return {"ok": True, "undo_journal_id": journal_id}
 
 
 @router.post("/cron/schedule/{sid}/toggle")
 async def cron_toggle_schedule(sid: str):
-    from gateway.cron import toggle
+    from gateway import cron, undo_journal
 
-    result = toggle(sid)
-    if result is None:
+    try:
+        journal_id = undo_journal.toggle_automation_with_undo(sid)
+    except undo_journal.UndoNotFound as exc:
+        raise HTTPException(status_code=404, detail=f"Schedule not found: {sid}") from exc
+    current = next((row for row in cron.list_schedules() if row.get("id") == sid), None)
+    if current is None:
         raise HTTPException(status_code=404, detail=f"Schedule not found: {sid}")
-    return {"ok": result}
+    return {"ok": bool(current.get("enabled")), "undo_journal_id": journal_id}

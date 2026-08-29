@@ -238,7 +238,7 @@ for (const viewport of VIEWPORTS) {
     await assertNoHorizontalOverflow(page)
 
     await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: /^studio$/i }).first().click()
+    await page.getByRole('button', { name: /^image lab$/i }).first().click()
     const lab = page.getByRole('region', { name: 'Image Lab' })
     await expect(lab).toBeVisible()
     await expect(lab.getByText(/no image engine is online/i)).toBeVisible()

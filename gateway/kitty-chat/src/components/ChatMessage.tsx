@@ -51,7 +51,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
 
   const showActions = isKitty && !isStreaming && Boolean(message.content)
   // On touch (compact) there is no hover to reveal actions — keep them visible.
-  const actionsVisible = hovered || focused || compact
+  const actionsVisible = hovered || focused || compact || turnStatus === 'interrupted' || turnStatus === 'failed'
 
   const submitFeedback = (rating: MessageFeedbackRating) => {
     feedback.mutate({ chatId, messageIndex, rating })
@@ -87,13 +87,13 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 5,
-                  background: isKitty ? 'var(--surface-2)' : 'rgba(255,255,255,0.18)',
-                  border: isKitty ? '1.5px solid var(--line)' : 'none',
+                  background: isKitty ? 'var(--color-surface-elevated)' : 'var(--color-selected)',
+                  border: '1px solid var(--color-separator)',
                   borderRadius: 8,
                   padding: '3px 8px',
                   fontFamily: 'var(--font-mono)',
                   fontSize: 10.5,
-                  color: isKitty ? 'var(--ink-2)' : 'var(--on-primary)',
+                  color: 'var(--color-text-secondary)',
                 }}>
                   <Paperclip size={10} />
                   {att.display_name}
@@ -101,13 +101,13 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               ))}
             </div>
           )}
-          <div style={{
-            maxWidth: 560,
-            borderRadius: isKitty ? '5px 17px 17px 17px' : '17px 5px 17px 17px',
-            padding: '11px 16px',
-            background: isKitty ? 'var(--surface)' : 'var(--primary)',
-            border: isKitty ? '1.5px solid var(--line)' : 'none',
-            boxShadow: 'var(--shadow-soft)',
+          <div data-testid="chat-message-bubble" style={{
+            maxWidth: compact ? 'calc(100vw - 64px)' : 680,
+            borderRadius: isKitty ? '16px 16px 16px 6px' : '16px 16px 6px 16px',
+            padding: compact ? '12px 14px' : '13px 16px',
+            background: isKitty ? 'var(--color-surface-elevated)' : 'var(--color-selected)',
+            border: '1px solid var(--color-separator)',
+            boxShadow: isKitty ? 'var(--shadow-soft)' : 'none',
           }}>
             {isStreaming && !message.content && !message.toolCalls?.length ? (
               <TypingDots />
@@ -126,12 +126,12 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
         {showActions && (
           <div className="msg-actions" style={{ ...actionRowStyle, opacity: actionsVisible ? 1 : 0 }}>
             <button onClick={copyMessage} style={actionBtnStyle} title="copy message" aria-label="copy message">
-              {copied ? <Check size={10} /> : <Copy size={10} />}
+              {copied ? <Check size={13} /> : <Copy size={13} />}
               <span>{copied ? 'copied' : 'copy'}</span>
             </button>
             {onRetry && (
               <button onClick={onRetry} style={actionBtnStyle} title="regenerate this reply" aria-label="retry message">
-                <RotateCcw size={10} />
+                <RotateCcw size={13} />
                 <span>retry</span>
               </button>
             )}
@@ -142,7 +142,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               aria-label="rate this response helpful"
               disabled={feedback.isPending}
             >
-              <ThumbsUp size={11} />
+              <ThumbsUp size={14} />
             </button>
             <button
               onClick={() => submitFeedback('down')}
@@ -151,7 +151,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               aria-label="rate this response unhelpful"
               disabled={feedback.isPending}
             >
-              <ThumbsDown size={11} />
+              <ThumbsDown size={14} />
             </button>
           </div>
         )}
@@ -176,7 +176,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
         {showActions && (message.provider || message.requestedModel || message.model || message.toolsState || message.routing?.length) && (
           <Attribution message={message} />
         )}
-        {totalBranches > 0 && (
+        {totalBranches > 1 && (
           <div style={{ ...actionRowStyle, gap: 6 }}>
             <span style={{ fontSize: 10, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
               {totalBranches === 1 ? '1 response' : `${totalBranches} responses`}
@@ -246,7 +246,7 @@ function MessageContent({ content, isUser, chatId, messageIndex }: { content: st
   return (
     <div style={{
       ...bodyStyle,
-      color: isUser ? 'var(--on-primary)' : 'var(--ink)',
+      color: 'var(--color-text-primary)',
     }}>
       <ReactMarkdown
         remarkPlugins={MARKDOWN_REMARK_PLUGINS}
@@ -331,12 +331,12 @@ function Attribution({ message }: { message: Message }) {
     : 'automatic routing'
   const modelLabel = message.requestedModel ?? message.model
   return (
-    <div style={{ ...actionRowStyle, flexWrap: 'wrap', gap: 6 }} data-testid="chat-attribution">
-      <span style={{ fontSize: 10, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
+    <div aria-label="Response details" style={{ ...actionRowStyle, flexWrap: 'wrap', gap: 6, paddingTop: 2 }} data-testid="chat-attribution">
+      <span style={detailChipStyle}>
         {providerLabel}{modelLabel ? ` · requested ${modelLabel}` : ''}
       </span>
       {message.toolsState === 'unavailable' && (
-        <span style={{ fontSize: 10, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
+        <span style={{ ...detailChipStyle, color: 'var(--color-warning)' }}>
 tools unavailable
         </span>
       )}
@@ -512,12 +512,20 @@ const actionRowStyle: CSSProperties = {
   display: 'flex', gap: 10, paddingLeft: 6,
   transition: 'opacity 0.12s linear',
 }
+const detailChipStyle: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', minHeight: 26,
+  padding: '3px 8px', borderRadius: 999,
+  border: '1px solid var(--color-separator)',
+  background: 'var(--color-surface-elevated)',
+  color: 'var(--color-text-muted)',
+  fontFamily: 'var(--font-body)', fontSize: 11,
+}
 const actionBtnStyle: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 4,
   minWidth: 44, minHeight: 44, justifyContent: 'center',
   background: 'transparent', border: 'none', padding: '2px 4px',
-  color: 'var(--ink-2)', fontFamily: 'var(--font-mono)',
-  fontSize: 10, cursor: 'pointer', borderRadius: 4,
+  color: 'var(--color-text-muted)', fontFamily: 'var(--font-body)',
+  fontSize: 11, cursor: 'pointer', borderRadius: 4,
 }
 
 const bodyStyle: CSSProperties = {

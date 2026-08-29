@@ -58,8 +58,8 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
     <aside style={{
       width,
       height: '100%',
-      background: 'var(--surface)',
-      borderRight: '1.5px solid var(--line)',
+      background: 'var(--color-surface)',
+      borderRight: '1px solid var(--color-separator)',
       display: 'flex',
       flexDirection: 'column',
       flexShrink: 0,
@@ -68,13 +68,12 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
         <button
           onClick={onNewChat}
           style={{
-            width: '100%', border: 'none', borderRadius: 12,
-            background: 'var(--primary)', color: 'var(--on-primary)',
-            padding: 11,
+            width: '100%', border: '1px solid var(--color-separator)', borderRadius: 12,
+            background: 'var(--color-selected)', color: 'var(--color-accent)',
+            padding: 10,
             fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 14,
             cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-            boxShadow: 'var(--btn-shadow)',
           }}
         >
           <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> new chat
@@ -82,7 +81,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
 
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
-          background: 'var(--surface-2)', border: '1.5px solid var(--line)',
+          background: 'var(--color-surface-elevated)', border: '1px solid var(--color-separator)',
           borderRadius: 11, padding: '8px 11px',
         }}>
           <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, color: 'var(--ink-2)', flexShrink: 0 }}>
@@ -96,7 +95,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
             style={{
               flex: 1, border: 'none', background: 'transparent',
               fontFamily: 'var(--font-body)', fontSize: 13,
-              color: 'var(--ink)', outline: 'none',
+              color: 'var(--color-text-primary)', outline: 'none',
             }}
           />
         </div>
@@ -110,15 +109,11 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
         )}
         {!searchEmpty && groups.map(g => (
           <div key={g.key} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '0 4px', marginBottom: 2 }}>
+            <div style={{ padding: '0 8px', marginBottom: 3 }}>
               <span style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10,
-                letterSpacing: '0.12em', textTransform: 'uppercase',
-                color: 'var(--ink-2)',
+                fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 650,
+                color: 'var(--color-text-muted)',
               }}>{g.label}</span>
-              <svg viewBox="0 0 80 7" preserveAspectRatio="none" style={{ width: 46, height: 6 }}>
-                <path d="M2 5 Q22 1 40 4 T78 3.5" stroke={SECTION_COLORS[g.key] ?? 'var(--c-blue)'} strokeWidth={2.4} fill="none" strokeLinecap="round" filter="url(#wob)" />
-              </svg>
             </div>
             {g.items.map(chat => (
               <SessionRow
@@ -143,11 +138,11 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
 
       <div style={{
         padding: '11px 14px',
-        borderTop: '1.5px solid var(--line)',
+        borderTop: '1px solid var(--color-separator)',
         display: 'flex', alignItems: 'center', gap: 8,
       }}>
         <span style={{ width: 7, height: 7, borderRadius: 99, background: 'var(--c-green)' }} />
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
+        <span style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--color-text-muted)' }}>
           all synced · audience of one
         </span>
       </div>
@@ -173,7 +168,7 @@ function SessionRow({ chat, active, dotColor, onSelect, onClose, onTogglePin }: 
         width: '100%', display: 'flex', alignItems: 'flex-start', gap: 9,
         border: 'none', borderRadius: 10,
         padding: '8px 9px', cursor: 'pointer',
-        background: active ? 'var(--ginger-fade)' : 'transparent',
+        background: active ? 'var(--color-selected)' : 'transparent',
         textAlign: 'left',
       }}
     >
@@ -183,17 +178,17 @@ function SessionRow({ chat, active, dotColor, onSelect, onClose, onTogglePin }: 
       }} />
       <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, flex: 1 }}>
         <span style={{
-          fontSize: 13, fontWeight: 600, color: 'var(--ink)',
+          fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{chat.title}</span>
         <span style={{
-          fontSize: 11.5, color: 'var(--ink-2)',
+          fontSize: 11.5, color: 'var(--color-text-muted)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{preview}</span>
       </span>
       <span style={{
         fontFamily: 'var(--font-mono)', fontSize: 10,
-        color: 'var(--ink-2)', flexShrink: 0, marginTop: 3,
+        color: 'var(--color-text-muted)', flexShrink: 0, marginTop: 3,
       }}>{timeAgo(chat.updatedAt)}</span>
       {chat.pinned && (
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--c-yellow)', flexShrink: 0 }}>

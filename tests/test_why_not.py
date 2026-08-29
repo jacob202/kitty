@@ -275,6 +275,8 @@ def test_interrupted_run_explained(automation_db, monkeypatch):
 
     assert explanation.status == "interrupted"
     assert "restarted" in explanation.reason
+    assert "retry it explicitly" in explanation.next_step
+    assert "may already have completed" in explanation.next_step
     assert explanation.evidence["run_id"] == run["id"]
 
 

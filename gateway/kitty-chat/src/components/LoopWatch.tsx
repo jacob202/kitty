@@ -13,10 +13,10 @@ interface Props {
 
 function statusColor(status: LoopStatus): string {
   switch (status) {
-    case 'running': return 'var(--c-green)'
-    case 'paused': return 'var(--cat-ginger)'
-    case 'error': return 'var(--c-red)'
-    case 'idle': return 'var(--ink-2)'
+    case 'running': return 'var(--color-success)'
+    case 'paused': return 'var(--color-warning)'
+    case 'error': return 'var(--color-destructive)'
+    case 'idle': return 'var(--color-text-muted)'
   }
 }
 
@@ -35,15 +35,21 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
     return (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4)
   })
 
+  const runningCount = loops.filter(loop => loop.status === 'running').length
+
   return (
     <div style={containerStyle}>
-      <div style={headerStyle}>
-        <span style={titleStyle}>{title}</span>
-        <span style={countStyle}>{loops.length} active</span>
-      </div>
-      <div style={listStyle}>
+      {title ? (
+        <div style={headerStyle}>
+          <span style={titleStyle}>{title}</span>
+          <span style={countStyle}>{runningCount} running · {loops.length} total</span>
+        </div>
+      ) : (
+        <div style={embeddedCountStyle}>{runningCount} running · {loops.length} total</div>
+      )}
+      <div data-testid="automation-loop-list" style={listStyle}>
         {sorted.map(loop => (
-          <div key={loop.loop_id} style={cardBaseStyle}>
+          <div key={loop.loop_id} data-testid="automation-loop-row" style={cardBaseStyle}>
             <div style={cardHeaderStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{
@@ -106,18 +112,22 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
   )
 }
 
-const containerStyle: CSSProperties = { ...card, display: 'flex', flexDirection: 'column', gap: 12 }
+const containerStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10 }
 const headerStyle: CSSProperties = cardHeader
 const titleStyle: CSSProperties = cardTitle
-const countStyle: CSSProperties = cardMeta
+const countStyle: CSSProperties = { fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-muted)' }
+const embeddedCountStyle: CSSProperties = { fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--color-text-muted)' }
 
 const listStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  gap: 8,
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 'var(--r-surface)',
+  overflow: 'hidden',
 }
 
-const cardBaseStyle: CSSProperties = { ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }
+const cardBaseStyle: CSSProperties = { padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6, borderBottom: '1px solid var(--color-separator)' }
 
 const cardHeaderStyle: CSSProperties = {
   display: 'flex',
@@ -129,46 +139,45 @@ const loopNameStyle: CSSProperties = {
   fontFamily: 'var(--font-body)',
   fontSize: 14,
   fontWeight: 600,
-  color: 'var(--ink)',
+  color: 'var(--color-text-primary)',
 }
 
 const badgeStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 9,
+  fontFamily: 'var(--font-body)',
+  fontSize: 11,
   fontWeight: 700,
   letterSpacing: '0.08em',
   textTransform: 'lowercase',
   border: '1px solid',
-  borderRadius: 4,
+  borderRadius: 999,
   padding: '2px 6px',
   background: 'transparent',
 }
 
-const toggleBtnStyle = (isRunning: boolean): CSSProperties => ({
-  background: 'var(--surface)',
-  border: '1px solid var(--line)',
-  borderRadius: 4,
-  width: 28,
-  height: 24,
+const toggleBtnStyle = (_isRunning: boolean): CSSProperties => ({
+  minWidth: 44,
+  minHeight: 44,
   display: 'grid',
   placeItems: 'center',
+  background: 'transparent',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 'var(--r-control)',
   cursor: 'pointer',
-  fontSize: 10,
-  color: 'var(--ink-2)',
-  transition: 'all 0.15s ease',
+  fontSize: 13,
+  color: 'var(--color-text-secondary)',
 })
 
 const descStyle: CSSProperties = {
   fontFamily: 'var(--font-body)',
-  fontSize: 12,
-  color: 'var(--ink-2)',
+  fontSize: 13,
+  color: 'var(--color-text-secondary)',
   lineHeight: 1.4,
 }
 
 const metaStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--ink-2)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  color: 'var(--color-text-muted)',
   display: 'flex',
   flexWrap: 'wrap',
   gap: 4,

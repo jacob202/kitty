@@ -186,15 +186,21 @@ async def test_memories_route_keeps_explicit_memory_when_mem0_is_down(monkeypatc
 
 
 async def test_memories_route_forgets_explicit_id_without_mem0(monkeypatch):
+    from gateway import undo_journal
     from gateway.routes import memories as memories_route
 
     called = []
     monkeypatch.setattr(
-        "gateway.explicit_memory.forget",
-        lambda memory_id: called.append(memory_id) or True,
+        undo_journal,
+        "forget_memory_with_undo",
+        lambda memory_id: called.append(memory_id) or "undo_1",
     )
     result = await memories_route.delete_memory("exp_123")
-    assert result == {"deleted": True, "memory_id": "exp_123"}
+    assert result == {
+        "deleted": True,
+        "memory_id": "exp_123",
+        "undo_journal_id": "undo_1",
+    }
     assert called == ["exp_123"]
 
 

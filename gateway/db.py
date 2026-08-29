@@ -36,7 +36,6 @@ _MIGRATION_RENAMES: dict[str, tuple[str, ...]] = {
     ),
 }
 
-
 def apply_pragmas(conn: sqlite3.Connection) -> None:
     """Apply standard WAL/busy/foreign_keys/sync pragmas to a connection.
 

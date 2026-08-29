@@ -95,9 +95,12 @@ def _terminal_next_step(outcome: str) -> str:
     if outcome == "completed":
         return "nothing to do; the automation already ran"
     if outcome == "failed":
-        return "fix the recorded error; the next occurrence will retry"
+        return "review the recorded error and retry it explicitly when ready"
     if outcome == "interrupted":
-        return "the gateway restarted mid-run; the next occurrence will retry"
+        return (
+            "review the interrupted run and retry it explicitly only if needed; "
+            "the action may already have completed before the gateway restarted"
+        )
     if outcome == "action_unavailable":
         return "register the action or fix its registration"
     if outcome == "source_unavailable":

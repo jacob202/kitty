@@ -149,3 +149,24 @@ def test_image_artifact_accepts_explicit_project_scope(tmp_path):
 
     assert artifact["project_id"] == 42
     assert artifact_store.get_artifact(artifact["id"])["project_id"] == 42
+
+
+def test_setting_parent_refreshes_existing_canonical_artifact_lineage(tmp_path):
+    parent = image_jobs.create_job("flux2", "txt2img")
+    parent_path = _output(tmp_path, "late-parent.png")
+    image_jobs.update_job(parent.job_id, output_path=str(parent_path))
+    parent_artifact = image_jobs.register_canonical_artifact(parent.job_id, project_id=42)
+
+    child = image_jobs.create_job("flux2", "txt2img")
+    child_path = _output(tmp_path, "late-child.png")
+    image_jobs.update_job(child.job_id, output_path=str(child_path))
+    first = image_jobs.register_canonical_artifact(child.job_id, project_id=42)
+    assert first["metadata"]["parent_job_id"] is None
+
+    image_jobs.set_parent(child.job_id, parent.job_id)
+
+    refreshed = artifact_store.get_artifact(first["id"])
+    assert refreshed is not None
+    assert refreshed["project_id"] == 42
+    assert refreshed["metadata"]["parent_job_id"] == parent.job_id
+    assert refreshed["metadata"]["parent_artifact_id"] == parent_artifact["id"]

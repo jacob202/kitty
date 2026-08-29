@@ -66,10 +66,18 @@ async def list_memories(namespace: Optional[str] = None, limit: int = 50) -> dic
 @router.delete("/memories/{memory_id}")
 async def delete_memory(memory_id: str) -> dict:
     """Forget governed explicit memory, or delete a legacy semantic memory."""
+    undo_journal_id: str | None = None
     if memory_id.startswith("exp_"):
-        from gateway.explicit_memory import forget
+        from gateway import undo_journal
 
-        deleted = forget(memory_id)
+        try:
+            undo_journal_id = undo_journal.forget_memory_with_undo(memory_id)
+            deleted = True
+        except undo_journal.UndoNotFound as exc:
+            raise StorageNotFound(
+                f"memory {memory_id!r} was not found",
+                details={"memory_id": memory_id},
+            ) from exc
     else:
         from gateway.memory import delete_memory as delete_semantic_memory
 
@@ -80,7 +88,10 @@ async def delete_memory(memory_id: str) -> dict:
             f"memory {memory_id!r} was not found",
             details={"memory_id": memory_id},
         )
-    return {"deleted": True, "memory_id": memory_id}
+    result = {"deleted": True, "memory_id": memory_id}
+    if undo_journal_id is not None:
+        result["undo_journal_id"] = undo_journal_id
+    return result
 
 
 @router.get("/memories/{memory_id}/explain")
@@ -106,31 +117,23 @@ async def explain_memory(memory_id: str) -> dict:
 @router.post("/memories/{memory_id}/correct")
 async def correct_memory(memory_id: str, body: CorrectMemoryRequest) -> dict:
     """Correct a remembered fact through the governed correction/supersession path."""
-    from gateway.explicit_memory import ExplicitMemoryNotFound, get, remember
+    from gateway import undo_journal
     from gateway.memory_explain import explain
 
-    original = get(memory_id, include_inactive=True)
-    if original is None:
-        raise StorageNotFound(
-            f"memory {memory_id!r} was not found",
-            details={"memory_id": memory_id},
-        )
     try:
-        corrected = remember(
-            body.text,
-            namespace=original["namespace"],
-            memory_key=body.memory_key or original["memory_key"],
-            supersedes_id=memory_id,
-            source_kind="user_correction",
-            source_ref=original.get("source_ref"),
-            sensitivity=original["sensitivity"],
+        journal_id = undo_journal.correct_memory_with_undo(
+            memory_id, body.text, memory_key=body.memory_key
         )
-    except ExplicitMemoryNotFound as exc:
+    except undo_journal.UndoNotFound as exc:
         raise StorageNotFound(
             f"memory {memory_id!r} was not found",
             details={"memory_id": memory_id},
         ) from exc
-    return {"memory": explain(corrected["id"])}
+    entry = undo_journal.get(journal_id)
+    corrected_id = entry.get("after", {}).get("id") if entry else None
+    if not corrected_id:
+        raise RuntimeError(f"undo journal {journal_id!r} lost corrected memory id")
+    return {"memory": explain(corrected_id), "undo_journal_id": journal_id}
 
 
 @router.post("/memories/{memory_id}/pin")

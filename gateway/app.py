@@ -123,10 +123,13 @@ async def lifespan(app: FastAPI):
             supervisor.mark("telegram", "degraded", reason=f"{type(exc).__name__}: {exc}")
             logger.exception("telegram bot startup failed — integration disabled")
 
+        # Startup BFL recovery is a one-shot reconciliation pass, not a
+        # persistent background service. Keep it asynchronous without putting
+        # normal task completion into the supervisor's unavailable state.
         image_recovery_task = asyncio.create_task(
             _recover_unknown_bfl_jobs_on_startup()
         )
-        supervisor.track_task("image-recovery", image_recovery_task)
+        app.state.image_recovery_task = image_recovery_task
 
         from gateway.image_batches import worker_loop as image_batch_worker_loop
         from gateway.routes.image_studio_jobs import execute_studio_batch_request
@@ -311,6 +314,13 @@ async def lifespan(app: FastAPI):
     yield
     if background_services_enabled:
         await supervisor.stop_all()
+        pending_image_recovery = getattr(app.state, "image_recovery_task", None)
+        if pending_image_recovery is not None and not pending_image_recovery.done():
+            pending_image_recovery.cancel()
+            try:
+                await pending_image_recovery
+            except asyncio.CancelledError:
+                pass
     try:
         from gateway.http_client import _http_client
 

@@ -1138,6 +1138,17 @@ export async function toggleCronSchedule(id: string): Promise<void> {
   await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
 }
 
+export interface AutomationRetryResult {
+  run: { id: string; status: string }
+  retried_from: string
+}
+
+export async function retryAutomationRun(runId: string): Promise<AutomationRetryResult> {
+  return gfetch<AutomationRetryResult>(`/automations/runs/${encodeURIComponent(runId)}/retry`, {
+    method: 'POST',
+  })
+}
+
 // ── Why didn't this happen? ─────────────────────────────────────────────────
 
 export type WhyStatus =
@@ -1561,6 +1572,12 @@ export async function fetchProjectNext(projectId: number): Promise<GatewayNextSt
 
 export async function fetchProjectNextSteps(limit = 3): Promise<GatewayNextStep[]> {
   return await gfetch<GatewayNextStep[]>(`/projects/next-steps?limit=${limit}`)
+}
+
+export async function fetchProjectNextStepMap(projectIds: number[]): Promise<GatewayNextStep[]> {
+  if (projectIds.length === 0) return []
+  const encoded = encodeURIComponent(projectIds.join(','))
+  return await gfetch<GatewayNextStep[]>(`/projects/next-step-map?project_ids=${encoded}`)
 }
 
 export async function fetchProjectResume(projectId: number): Promise<GatewayProjectResume> {

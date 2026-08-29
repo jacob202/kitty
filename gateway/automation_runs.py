@@ -270,6 +270,7 @@ def list_runs(
     *,
     automation_id: str | None = None,
     action: str | None = None,
+    statuses: set[str] | frozenset[str] | None = None,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
     """Return bounded recent run evidence, newest first."""
@@ -283,6 +284,10 @@ def list_runs(
     if action is not None:
         clauses.append("action = ?")
         params.append(action)
+    if statuses:
+        ordered_statuses = sorted(statuses)
+        clauses.append("status IN (" + ",".join("?" for _ in ordered_statuses) + ")")
+        params.extend(ordered_statuses)
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
     with kitty_db.connect(DB_FILE) as conn:
         conn.row_factory = sqlite3.Row

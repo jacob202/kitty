@@ -16,6 +16,7 @@ vi.mock('../src/lib/gateway', async () => {
     deleteCronSchedule: vi.fn(),
     toggleCronSchedule: vi.fn(),
     fetchScheduleWhy: vi.fn(),
+    retryAutomationRun: vi.fn(),
   }
 })
 
@@ -183,5 +184,99 @@ describe('CronPanel', () => {
       expect(screen.getByText('failed')).toBeInTheDocument()
     })
     expect(screen.getByText('RuntimeError: boom')).toBeInTheDocument()
+  })
+
+  it('offers an explicit safe retry for a failed run and reports the fresh run id', async () => {
+    vi.mocked(gateway.fetchScheduleWhy).mockResolvedValue({
+      status: 'failed',
+      reason: 'RuntimeError: boom',
+      relevant_at: 1700000061,
+      action: 'brief.refresh',
+      automation: 'abc123',
+      evidence: { run_id: 'arun_test' },
+      next_step: 'review the failed run and retry it explicitly',
+    })
+    vi.mocked(gateway.retryAutomationRun).mockResolvedValue({
+      run: { id: 'arun_retry', status: 'completed' },
+      retried_from: 'arun_test',
+    })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    renderWithQueryClient(<CronPanel variant="full" />)
+    await waitFor(() => expect(screen.getByText('Morning brief')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Why did Morning brief not run?' }))
+    const retry = await screen.findByRole('button', { name: 'Retry failed run' })
+    fireEvent.click(retry)
+
+    await waitFor(() => {
+      expect(confirm).toHaveBeenCalled()
+      expect(gateway.retryAutomationRun).toHaveBeenCalledWith('arun_test')
+      expect(screen.getByText('Retry completed as arun_retry.')).toBeVisible()
+    })
+  })
+
+  it('presents full-size schedules in user language', async () => {
+    renderWithQueryClient(<CronPanel variant="full" />)
+    await waitFor(() => expect(screen.getByText('Morning brief')).toBeInTheDocument())
+
+    expect(screen.getByText('Every day at 07:00')).toBeVisible()
+    expect(screen.getByText('Kitty runs brief refresh')).toBeVisible()
+    expect(screen.getByText('Active')).toBeVisible()
+    expect(screen.getByText('Paused')).toBeVisible()
+  })
+
+  it('uses explicit touch-sized controls in the full automation surface', async () => {
+    renderWithQueryClient(<CronPanel variant="full" />)
+    await waitFor(() => expect(screen.getByText('Morning brief')).toBeInTheDocument())
+
+    expect(screen.getByRole('button', { name: 'Why did Morning brief not run?' })).toHaveStyle({ minHeight: '44px' })
+    expect(screen.getByRole('button', { name: 'Pause Morning brief' })).toHaveStyle({ minHeight: '44px' })
+    expect(screen.getByRole('button', { name: 'Edit Morning brief' })).toHaveStyle({ minHeight: '44px' })
+  })
+
+})
+
+describe('CronPanel async truth', () => {
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+  })
+
+  it('distinguishes schedule loading from an empty schedule list', () => {
+    vi.mocked(gateway.fetchCronSchedules).mockReturnValue(new Promise(() => {}))
+    vi.mocked(gateway.fetchCronActions).mockResolvedValue([])
+    renderWithQueryClient(<CronPanel />)
+    expect(screen.getByText(/loading schedules/i)).toBeVisible()
+    expect(screen.queryByText(/no schedules yet/i)).not.toBeInTheDocument()
+  })
+
+  it('fails closed when schedules are unavailable instead of claiming none exist', async () => {
+    vi.mocked(gateway.fetchCronSchedules).mockRejectedValue(new Error('offline'))
+    vi.mocked(gateway.fetchCronActions).mockResolvedValue([])
+    renderWithQueryClient(<CronPanel />)
+    await waitFor(() => expect(screen.getByText(/schedules are unavailable right now/i)).toBeVisible())
+    expect(screen.queryByText(/no schedules yet/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /retry schedules/i })).toBeVisible()
+  })
+})
+
+describe('CronPanel mobile full layout', () => {
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+  })
+
+  it('uses one shared schedule surface and a full-width mobile action row', async () => {
+    vi.mocked(gateway.fetchCronSchedules).mockResolvedValue(mockSchedules)
+    vi.mocked(gateway.fetchCronActions).mockResolvedValue(['brief.refresh', 'nudges.check'])
+    renderWithQueryClient(<CronPanel variant="full" isMobile />)
+    await waitFor(() => expect(screen.getByText('Morning brief')).toBeVisible())
+
+    expect(screen.getByTestId('automation-schedule-list')).toBeVisible()
+    expect(screen.getAllByTestId('automation-schedule-row')).toHaveLength(2)
+    expect(screen.getAllByTestId('automation-schedule-actions')[0]).toHaveStyle({
+      gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    })
   })
 })

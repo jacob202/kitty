@@ -13,6 +13,7 @@ const WorkView = dynamic(() => import('./WorkView'))
 const StudioView = dynamic(() => import('./StudioView'))
 const ProjectsView = dynamic(() => import('./ProjectsView'))
 const LibraryView = dynamic(() => import('./LibraryView'))
+const AutomationsView = dynamic(() => import('./AutomationsView'))
 const TutorShell = dynamic(() => import('./TutorShell'))
 const JournalPanel = dynamic(() => import('./JournalPanel'))
 const TerminalView = dynamic(() => import('./TerminalView'))
@@ -53,6 +54,7 @@ interface ViewRendererProps {
     onInsightAction: (insightId: string, actionId: string) => void
     onPromptSelect: (content: string) => void
     loopsLoading: boolean
+    loopsError?: string | null
     insightsLoading: boolean
     promptsLoading: boolean
   }
@@ -85,8 +87,10 @@ export function ViewRenderer({
       case 'studio':
       case 'images':
         return <StudioView isMobile={isMobile} />
+      case 'builder-details':
+        return <div style={pad}><BuilderView {...builderProps} isMobile={isMobile} /></div>
       case 'builder':
-        return <div style={pad}><BuilderView {...builderProps} /></div>
+        return <WorkView isMobile={isMobile} onNavigate={homeProps?.onNavigate} />
       case 'agents':
         return <AgentWorkspacePanel />
       case 'library':
@@ -94,6 +98,8 @@ export function ViewRenderer({
         return <LibraryView isMobile={isMobile} />
       case 'projects':
         return <ProjectsView isMobile={isMobile} />
+      case 'automations':
+        return <AutomationsView isMobile={isMobile} loops={toolsProps?.loops ?? []} loopsLoading={toolsProps?.loopsLoading ?? false} loopsError={toolsProps?.loopsError ?? null} onLoopToggle={toolsProps?.onLoopToggle ?? (() => {})} />
     case 'settings':
     case 'providers':
     case 'tools':

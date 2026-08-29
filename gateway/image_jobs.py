@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from dataclasses import fields as dc_fields
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from gateway import db as kitty_db
@@ -33,6 +34,14 @@ from gateway import paths as _paths
 from gateway.paths import DB_MIGRATIONS_DIR
 
 _MIGRATION_FILE = DB_MIGRATIONS_DIR / "023_image_jobs.sql"
+
+# Per-process memo of DB paths whose image_jobs schema has already been ensured.
+# _ensure_db runs the full migration DDL + several PRAGMA table_info probes on
+# every create/get/list/transition, which dominates per-operation latency; the
+# schema is immutable within a process lifetime once migrated, so re-probing on
+# every call is pure waste. The SQL body is also read from disk only once.
+_ENSURED_DBS: set[str] = set()
+_MIGRATION_SQL: str | None = None
 
 _MAX_PROVIDER_JSON_BYTES = 65_536
 _MAX_ERROR_BYTES = 2_048
@@ -216,6 +225,15 @@ def _ensure_db(conn: Any = None) -> None:
     provider_status), drop and recreate it. This only fires during the
     IMG-01 transition period.
     """
+    global _MIGRATION_SQL
+
+    db_key = str(Path(_paths.KITTY_DB_FILE).resolve())
+    if db_key in _ENSURED_DBS:
+        return
+
+    if _MIGRATION_SQL is None:
+        _MIGRATION_SQL = _MIGRATION_FILE.read_text(encoding="utf-8")
+
     def _apply(c: Any) -> None:
         try:
             cols = {row[1] for row in c.execute("PRAGMA table_info(image_jobs)").fetchall()}
@@ -224,7 +242,7 @@ def _ensure_db(conn: Any = None) -> None:
         if "engine" in cols:
             # Old schema from pre-port — drop and recreate with new schema.
             c.execute("DROP TABLE IF EXISTS image_jobs")
-        c.executescript(_MIGRATION_FILE.read_text(encoding="utf-8"))
+        c.executescript(_MIGRATION_SQL)
 
     if conn is not None:
         _apply(conn)
@@ -239,6 +257,8 @@ def _ensure_db(conn: Any = None) -> None:
             _ensure_compiler_columns(c)
             _ensure_plan_provenance_columns(c)
             _ensure_canonical_artifact_column(c)
+
+    _ENSURED_DBS.add(db_key)
 
 
 def _check_json_bounded(value: str | None, field_name: str) -> None:
@@ -451,16 +471,27 @@ def find_by_provider(provider: str, provider_job_id: str) -> ImageJob | None:
     return _row_to_job(row) if row else None
 
 
-def list_recent(limit: int = 50) -> list[ImageJob]:
-    """Return the most recent jobs, newest first."""
+def list_recent(
+    limit: int = 50, *, statuses: set[ImageJobStatus] | frozenset[ImageJobStatus] | None = None
+) -> list[ImageJob]:
+    """Return the most recent jobs, optionally prefiltered by status."""
     if limit <= 0 or limit > 200:
         raise ImageJobError(f"limit must be between 1 and 200, got {limit}")
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
-        rows = conn.execute(
-            "SELECT * FROM image_jobs ORDER BY created_at DESC, job_id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        if statuses:
+            values = sorted(status.value for status in statuses)
+            placeholders = ",".join("?" for _ in values)
+            rows = conn.execute(
+                f"SELECT * FROM image_jobs WHERE status IN ({placeholders}) "
+                "ORDER BY created_at DESC, job_id DESC LIMIT ?",
+                (*values, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM image_jobs ORDER BY created_at DESC, job_id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
     return [_row_to_job(r) for r in rows]
 
 
@@ -597,6 +628,40 @@ def update_job(
     return updated
 
 
+def set_parent(job_id: str, parent_id: str) -> ImageJob:
+    """Record lineage on an already-created job without touching its operation.
+
+    Iteration re-runs an approved plan, which recreates the job with the same
+    operation (txt2img/img2img). Lineage is bookkeeping, not a render input, so
+    it is attached after the fact here rather than overloading ``parent_id`` on
+    the creation path (where it doubles as the img2img/variation anchor).
+    Unlike ``update_job`` this is allowed on terminal jobs, because a child's
+    lineage is recorded after it has already succeeded.
+    """
+    job = get_job(job_id)
+    if job is None:
+        raise JobNotFoundError(f"job {job_id} not found")
+    if not parent_id or not parent_id.strip():
+        raise ImageJobError("parent_id must not be empty")
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute(
+            "UPDATE image_jobs SET parent_id = ?, updated_at = ? WHERE job_id = ?",
+            (parent_id, _now_iso(), job_id),
+        )
+    updated = get_job(job_id)
+    assert updated is not None
+    if updated.canonical_artifact_id:
+        from gateway import artifact_store
+
+        existing_artifact = artifact_store.get_artifact(updated.canonical_artifact_id)
+        project_id = existing_artifact.get("project_id") if existing_artifact else None
+        register_canonical_artifact(job_id, project_id=project_id)
+        updated = get_job(job_id)
+        assert updated is not None
+    return updated
+
+
 def register_canonical_artifact(
     job_id: str, *, project_id: int | None = None
 ) -> dict[str, Any]:
@@ -607,8 +672,6 @@ def register_canonical_artifact(
     restart/retry repair cannot create duplicate Library entries. Artifact row
     creation and the image-job link share one SQLite transaction.
     """
-    from pathlib import Path
-
     from gateway import artifact_store
 
     job = get_job(job_id)
@@ -958,6 +1021,7 @@ __all__ = [
     "list_unknown",
     "transition",
     "update_job",
+    "set_parent",
     "requeue",
     "retry_job",
     "cancel_queued",

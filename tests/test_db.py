@@ -44,6 +44,59 @@ def test_migrate_applies_foundation_once(tmp_path):
     assert applied == [("001_foundation.sql",)]
 
 
+def test_migrate_applies_new_migration_dropped_after_first_run(tmp_path):
+    """A migration file added after migrate() has run must still be applied."""
+    db_file = tmp_path / "kitty.db"
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    (migrations_dir / "001_base.sql").write_text(
+        "CREATE TABLE IF NOT EXISTS t1 (id INTEGER PRIMARY KEY);",
+        encoding="utf-8",
+    )
+
+    first = db.migrate(db_file=db_file, migrations_dir=migrations_dir)
+    assert first == ["001_base.sql"]
+
+    (migrations_dir / "002_extra.sql").write_text(
+        "CREATE TABLE IF NOT EXISTS t2 (id INTEGER PRIMARY KEY);",
+        encoding="utf-8",
+    )
+    second = db.migrate(db_file=db_file, migrations_dir=migrations_dir)
+    assert second == ["002_extra.sql"]
+
+    with sqlite3.connect(db_file) as conn:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+    assert {"t1", "t2"} <= tables
+
+
+def test_migrate_reapplies_when_schema_marker_is_removed(tmp_path):
+    """Rollback recovery must not be hidden by an in-process migration cache."""
+    db_file = tmp_path / "kitty.db"
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    (migrations_dir / "001_base.sql").write_text(
+        "CREATE TABLE recovered (id INTEGER PRIMARY KEY);",
+        encoding="utf-8",
+    )
+
+    assert db.migrate(db_file=db_file, migrations_dir=migrations_dir) == ["001_base.sql"]
+    with sqlite3.connect(db_file) as conn:
+        conn.execute("DROP TABLE recovered")
+        conn.execute("DELETE FROM schema_migrations WHERE name = '001_base.sql'")
+        conn.commit()
+
+    assert db.migrate(db_file=db_file, migrations_dir=migrations_dir) == ["001_base.sql"]
+    with sqlite3.connect(db_file) as conn:
+        assert conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='recovered'"
+        ).fetchone() == ("recovered",)
+
+
 def test_migrate_reconciles_renamed_migrations_without_replaying_sql(tmp_path):
     """Renumbered migrations must not replay against DBs that saw legacy names."""
     db_file = tmp_path / "kitty.db"
@@ -235,6 +288,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "048_image_session_reserved_spend.sql",
         "049_automation_runs_payload.sql",
         "050_automation_runs_watch_disabled_status.sql",
+        "051_undo_journal.sql",
     ]
 
 

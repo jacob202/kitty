@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { REDIRECTS } from '../src/lib/views'
+import { REDIRECTS, getView } from '../src/lib/views'
 
 describe('view redirects', () => {
   it('redirects ordinary Builder navigation to Work', () => {
     expect(REDIRECTS.builder).toBe('work')
+  })
+
+  it('keeps deep Builder evidence as an explicit secondary surface', () => {
+    expect(getView('builder-details')?.title).toBe('Builder details')
+    expect(REDIRECTS['builder-details']).toBeUndefined()
+  })
+
+  it('keeps Automations as a first-class surface', () => {
+    expect(getView('automations')?.title).toBe('Automations')
+    expect(REDIRECTS.automations).toBeUndefined()
   })
 
   it('does not redirect Projects away from itself', () => {

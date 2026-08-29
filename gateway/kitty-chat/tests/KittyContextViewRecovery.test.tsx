@@ -43,6 +43,7 @@ function Harness() {
       <span data-testid="active-view">{kitty.activeView}</span>
       {kitty.viewPersistenceWarning && <span role="status">{kitty.viewPersistenceWarning}</span>}
       <button type="button" onClick={() => kitty.setActiveView('builder')}>open builder</button>
+      <button type="button" onClick={() => kitty.setActiveView('builder-details')}>open builder details</button>
     </div>
   )
 }
@@ -90,6 +91,14 @@ describe('Kitty active view recovery', () => {
 
     expect(screen.getByTestId('active-view')).toHaveTextContent('work')
     expect(screen.getByRole('status')).toHaveTextContent('This view cannot be remembered for reload because browser storage is unavailable.')
+  })
+
+  it('allows the secondary Builder details surface without changing ordinary Builder routing', async () => {
+    mountHarness()
+    await waitFor(() => expect(screen.getByTestId('active-view')).toHaveTextContent('home'))
+
+    act(() => screen.getByRole('button', { name: 'open builder details' }).click())
+    expect(screen.getByTestId('active-view')).toHaveTextContent('builder-details')
   })
 
   it('surfaces a warning when remembered-view storage cannot be read on reload', async () => {

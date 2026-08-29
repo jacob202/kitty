@@ -213,3 +213,49 @@ describe('ChatMessage memory block (CR-05)', () => {
     expect(screen.getByRole('button', { name: /kitty remembered 1 thing…/ })).toBeInTheDocument()
   })
 })
+
+
+describe('ChatMessage visual hierarchy', () => {
+  afterEach(cleanup)
+
+  function renderStyledMessage(
+    message: Message = kittyMsg,
+    props: Partial<React.ComponentProps<typeof ChatMessage>> = {},
+  ) {
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <ChatMessage message={message} chatId="chat-visual" messageIndex={1} {...props} />
+      </QueryClientProvider>,
+    )
+  }
+
+  it('uses restrained semantic message surfaces', () => {
+    renderStyledMessage()
+    const assistantBubble = screen.getByTestId('chat-message-bubble')
+    expect(assistantBubble.getAttribute('style') ?? '').toContain('background: var(--color-surface-elevated)')
+    expect(assistantBubble.getAttribute('style') ?? '').toContain('border: 1px solid var(--color-separator)')
+    cleanup()
+    renderStyledMessage({ ...kittyMsg, role: 'user' })
+    const userBubble = screen.getByTestId('chat-message-bubble')
+    expect(userBubble.getAttribute('style') ?? '').toContain('background: var(--color-selected)')
+    expect(userBubble.getAttribute('style') ?? '').toContain('border: 1px solid var(--color-separator)')
+  })
+
+  it('does not render branch chrome when there is only one response', () => {
+    renderStyledMessage(kittyMsg, { totalBranches: 1, branchCount: 0 })
+    expect(screen.queryByText('1 response')).not.toBeInTheDocument()
+    expect(screen.queryByText('showing 1')).not.toBeInTheDocument()
+  })
+
+  it('keeps interrupted recovery actions visible without hover', () => {
+    renderStyledMessage({ ...kittyMsg, turnStatus: 'interrupted' }, { onRetry: vi.fn() })
+    const retry = screen.getByRole('button', { name: 'retry message' })
+    expect(retry.parentElement).toHaveStyle({ opacity: '1' })
+  })
+
+  it('labels routing metadata as subordinate response details', () => {
+    renderStyledMessage({ ...kittyMsg, model: 'sonnet-4' })
+    expect(screen.getByTestId('chat-attribution')).toHaveAttribute('aria-label', 'Response details')
+  })
+})

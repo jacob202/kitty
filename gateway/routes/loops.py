@@ -79,13 +79,18 @@ async def create_loop(loop: dict):
 @router.post("/loop/{loop_id}/toggle")
 async def toggle_loop(loop_id: str):
     """Toggle a loop on/off."""
-    new_state = cron.toggle(loop_id)
-    if new_state is None:
-        raise HTTPException(status_code=404, detail="Loop not found")
+    from gateway import undo_journal
+
+    try:
+        journal_id = undo_journal.toggle_automation_with_undo(loop_id)
+    except undo_journal.UndoNotFound as exc:
+        raise HTTPException(status_code=404, detail="Loop not found") from exc
 
     for s in cron.list_schedules():
         if s.get("id") == loop_id:
-            return _schedule_to_loop(s)
+            result = _schedule_to_loop(s)
+            result["undo_journal_id"] = journal_id
+            return result
     raise HTTPException(status_code=404, detail="Loop not found")
 
 

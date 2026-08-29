@@ -22,7 +22,7 @@ describe('useProjectNextSteps', () => {
   it('uses one bulk next-steps request instead of expected-miss per-project 404 requests', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (url.includes('/projects/next-steps')) {
+      if (url.includes('/projects/next-step-map')) {
         return new Response(JSON.stringify([{ project_id: 1, step: 'Do life thing', why: 'important', recent_win: '', delegable: false, generated_at: 1 }]), { status: 200 })
       }
       const id = url.includes('/projects/1/next') ? 1 : 2
@@ -34,7 +34,7 @@ describe('useProjectNextSteps', () => {
     await waitFor(() => expect(result.current.every(query => !query.isPending)).toBe(true))
 
     const urls = fetchMock.mock.calls.map(([input]) => String(input))
-    expect(urls).toEqual(['/proxy/projects/next-steps?limit=2'])
+    expect(urls).toEqual(['/proxy/projects/next-step-map?project_ids=1%2C2'])
     expect(result.current[0].data?.step).toBe('Do life thing')
     expect(result.current[1].data).toBeNull()
   })

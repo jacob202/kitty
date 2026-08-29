@@ -16,25 +16,25 @@ export interface ButtonProps {
 
 const variantStyles: Record<NonNullable<ButtonProps['variant']>, CSSProperties> = {
   primary: {
-    background: 'var(--primary)',
-    color: 'var(--on-primary)',
+    background: 'var(--color-accent)',
+    color: 'var(--on-accent)',
     border: 'none',
     boxShadow: 'var(--btn-shadow)',
   },
   secondary: {
-    background: 'var(--surface)',
-    color: 'var(--ink)',
-    border: '1px solid var(--line)',
+    background: 'var(--color-surface)',
+    color: 'var(--color-text-primary)',
+    border: '1px solid var(--color-separator)',
   },
   ghost: {
     background: 'transparent',
-    color: 'var(--ink-2)',
+    color: 'var(--color-text-secondary)',
     border: 'none',
   },
   danger: {
     background: 'transparent',
-    color: 'var(--c-red)',
-    border: '1px solid var(--c-red)',
+    color: 'var(--color-destructive)',
+    border: '1px solid var(--color-destructive)',
   },
 }
 

@@ -67,6 +67,19 @@ describe('curated model picker', () => {
     expect(screen.getByText(/\$0.50 in · \$2.00 out/i)).toBeInTheDocument()
   })
 
+  it('uses the shared shell control treatment for the trigger', () => {
+    const models = buildPickerModels(payload)
+    render(<ModelSelectorCmdk activeModel={models[0]} models={models} onSelectModel={vi.fn()} />)
+
+    const trigger = screen.getByRole('button', { name: /Model: Daily Kitty/ })
+    expect(trigger).toHaveStyle({
+      fontFamily: 'var(--font-body)',
+      fontSize: '12px',
+      border: '1px solid var(--color-separator)',
+      background: 'var(--color-surface)',
+    })
+  })
+
   it('uses an opaque surface for the floating picker', () => {
     const models = buildPickerModels(payload)
     render(<ModelSelectorCmdk activeModel={models[0]} models={models} onSelectModel={vi.fn()} />)
@@ -75,7 +88,7 @@ describe('curated model picker', () => {
     const input = screen.getByPlaceholderText('search the shortlist…')
     const floatingSurface = input.parentElement?.parentElement
     expect(floatingSurface).not.toBeNull()
-    expect(floatingSurface).toHaveStyle({ background: 'var(--surface-solid)' })
+    expect(floatingSurface).toHaveStyle({ background: 'var(--color-surface)' })
   })
 
   it('uses curated data only to enrich runtime-backed choices, never to introduce another route', async () => {

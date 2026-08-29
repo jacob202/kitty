@@ -128,6 +128,28 @@ def get_next_steps(limit: int = 3) -> list[dict]:
     return next_step.select_steps(limit=limit)
 
 
+@router.get("/projects/next-step-map")
+def get_next_step_map(project_ids: str) -> list[dict]:
+    """Return exact generated steps for requested project ids without Home ranking.
+
+    Projects needs a complete projection for the rows it already owns. The
+    life-first ``/projects/next-steps`` endpoint is intentionally ranked and
+    capped for Home, so it must not double as a completeness API.
+    """
+    parts = [part.strip() for part in project_ids.split(",") if part.strip()]
+    if not parts:
+        return []
+    if len(parts) > 200:
+        raise HTTPException(status_code=400, detail="at most 200 project ids may be requested")
+    try:
+        ids = list(dict.fromkeys(int(part) for part in parts))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="project_ids must be comma-separated integers") from exc
+    if any(project_id <= 0 for project_id in ids):
+        raise HTTPException(status_code=400, detail="project ids must be positive")
+    return [step for project_id in ids if (step := next_step.get(project_id)) is not None]
+
+
 @router.get("/projects/{project_id}/next")
 def get_next(project_id: int) -> dict:
     # 404s if the project itself doesn't exist; a project that exists but

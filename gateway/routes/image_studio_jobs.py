@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from gateway import image_batches, image_estimates, image_recipes
-from gateway.image_runner import FLUX_GENERATE_MODEL, OPENROUTER_IMAGE_MODEL
+from gateway.image_runner import FLUX_EDIT_MODEL, FLUX_GENERATE_MODEL, OPENROUTER_IMAGE_MODEL
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["image-studio-jobs"])
@@ -40,6 +40,27 @@ class StudioBatchRequest(BaseModel):
     count: OutputCount = 1
 
 
+class JobModifyRequest(BaseModel):
+    """One-or-more render-parameter changes for iterating on an image.
+
+    Only fields present in the request body are changed; everything else is
+    carried forward from the source job. Provider, operation, plan, and intent
+    are intentionally absent so a modify can never re-route or re-approve.
+    """
+
+    prompt: str | None = None
+    negative_prompt: str | None = None
+    seed: int | None = None
+    width: int | None = None
+    height: int | None = None
+    steps: int | None = None
+    guidance: float | None = None
+    sampler: str | None = None
+    scheduler: str | None = None
+    model_id: str | None = None
+    preset_id: str | None = None
+
+
 def _exact_model_id(provider: str) -> str | None:
     provider = provider.strip().lower()
     if provider == "openrouter":
@@ -53,6 +74,73 @@ def _exact_model_id(provider: str) -> str | None:
     # Draw Things chooses its installed model at runtime. Returning None is
     # more honest than grouping observations under a made-up family label.
     return None
+
+
+def _iteration_model_id(recipe: object, *, operation: str) -> str | None:
+    """Resolve the exact model the current recipe would dispatch without doing I/O."""
+    provider = str(getattr(recipe, "provider", "")).strip().lower()
+    if provider == "flux2":
+        from gateway.flux2_targets import Flux2TargetError, resolve_flux2_target
+
+        target_id = getattr(recipe, "execution_target", None)
+        if not target_id:
+            return None
+        try:
+            return resolve_flux2_target(str(target_id)).model_id
+        except Flux2TargetError:
+            return None
+    if provider == "flux":
+        return FLUX_EDIT_MODEL if operation == "img2img" else FLUX_GENERATE_MODEL
+    if provider == "openrouter":
+        return OPENROUTER_IMAGE_MODEL
+    if provider == "comfyui":
+        from gateway.image_gen import SDXL_PHOTONIC
+
+        return SDXL_PHOTONIC
+    if provider in {"airforce", "fal", "drawthings"}:
+        try:
+            from mcp.imagen.engines import get
+
+            return getattr(get(provider), "model_name", None)
+        except Exception:
+            return None
+    return None
+
+
+def _validate_iteration_route(request: dict) -> None:
+    """Fail before dispatch when a retry/duplicate can no longer reproduce its source route."""
+    expected_provider = request.get("expected_provider")
+    expected_model_id = request.get("expected_model_id")
+    if not expected_provider and not expected_model_id:
+        return
+
+    recipe_id = request.get("recipe_id")
+    parent_id = request.get("lineage_parent_id")
+    if not recipe_id or not parent_id:
+        raise HTTPException(status_code=409, detail="source route cannot be proven for this iteration")
+
+    from gateway import image_jobs
+
+    source = image_jobs.get_job(str(parent_id))
+    if source is None:
+        raise HTTPException(status_code=409, detail="source route cannot be proven because the source job is missing")
+    if expected_provider and source.provider != expected_provider:
+        raise HTTPException(status_code=409, detail="source route metadata no longer matches the source provider")
+    if expected_model_id and source.model_id != expected_model_id:
+        raise HTTPException(status_code=409, detail="source route metadata no longer matches the source model")
+
+    try:
+        recipe = image_recipes.get_recipe(str(recipe_id))
+    except image_recipes.RecipeError as exc:
+        raise HTTPException(status_code=409, detail="source route recipe is no longer available") from exc
+    if not recipe.is_available:
+        raise HTTPException(status_code=409, detail="source route recipe is currently unavailable")
+    if expected_provider and recipe.provider != expected_provider:
+        raise HTTPException(status_code=409, detail="source route provider changed; refusing to reroute the iteration")
+
+    current_model_id = _iteration_model_id(recipe, operation=source.operation)
+    if expected_model_id and current_model_id != expected_model_id:
+        raise HTTPException(status_code=409, detail="source route model changed; refusing to reroute the iteration")
 
 
 async def studio_estimate(req: StudioEstimateRequest) -> dict:
@@ -138,16 +226,72 @@ async def studio_cancel_batch(batch_id: str) -> dict:
 
 @router.delete("/studio/sessions/{session_id}/anchor")
 async def studio_clear_anchor(session_id: str) -> dict:
-    from gateway.image_sessions import ImageSessionError, SessionNotFoundError, clear_anchor
+    from gateway import undo_journal
+    from gateway.image_sessions import ImageSessionError, SessionNotFoundError, require_session
     from gateway.routes.extended import _session_payload
 
     try:
-        session = clear_anchor(session_id)
-    except SessionNotFoundError as exc:
+        journal_id = undo_journal.clear_anchor_with_undo(session_id)
+        session = require_session(session_id)
+    except (SessionNotFoundError, undo_journal.UndoNotFound) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ImageSessionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return _session_payload(session)
+    result = _session_payload(session)
+    result["undo_journal_id"] = journal_id
+    return result
+
+
+def _iteration_error(exc: Exception) -> HTTPException:
+    from gateway.image_jobs import JobNotFoundError
+
+    if isinstance(exc, JobNotFoundError):
+        return HTTPException(status_code=404, detail=str(exc))
+    return HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/studio/jobs/{job_id}/duplicate")
+async def studio_duplicate_job(job_id: str) -> dict:
+    """Enqueue an independent re-run of a succeeded job's approved plan."""
+    from gateway import image_iteration
+    from gateway.image_jobs import ImageJobError
+    from gateway.image_sessions import ImageSessionError
+
+    try:
+        batch = image_iteration.enqueue_duplicate(job_id)
+    except (ImageJobError, ImageSessionError) as exc:
+        raise _iteration_error(exc) from exc
+    return {"batch": batch}
+
+
+@router.post("/studio/jobs/{job_id}/retry")
+async def studio_retry_job(job_id: str) -> dict:
+    """Enqueue a fresh attempt of a succeeded job's generation intent."""
+    from gateway import image_iteration
+    from gateway.image_jobs import ImageJobError
+    from gateway.image_sessions import ImageSessionError
+
+    try:
+        batch = image_iteration.enqueue_retry(job_id)
+    except (ImageJobError, ImageSessionError) as exc:
+        raise _iteration_error(exc) from exc
+    return {"batch": batch}
+
+
+@router.post("/studio/jobs/{job_id}/modify")
+async def studio_modify_job(job_id: str, req: JobModifyRequest) -> dict:
+    """Enqueue a re-run and report the changed-vs-unchanged diff."""
+
+    changes = req.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=400, detail="no parameters supplied to modify")
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            "Image Lab cannot safely dispatch a modified approved plan yet; "
+            "use a new Create request so the changed prompt is approved before rendering"
+        ),
+    )
 
 
 async def execute_studio_batch_request(request: dict) -> dict:
@@ -159,16 +303,23 @@ async def execute_studio_batch_request(request: dict) -> dict:
     from gateway import image_jobs
     from gateway.routes.extended import StudioGenerateRequest, studio_generate
 
+    _validate_iteration_route(request)
     payload = {
         key: value
         for key, value in request.items()
-        if key not in {"estimated_provider", "estimated_model_id"}
+        if key not in {
+            "estimated_provider", "estimated_model_id", "lineage_parent_id",
+            "expected_provider", "expected_model_id",
+        }
     }
+    lineage_parent_id = request.get("lineage_parent_id")
     started = time.monotonic()
     result = await studio_generate(StudioGenerateRequest(**payload))
     duration = max(time.monotonic() - started, 0.001)
 
     job_id = result.get("job_id")
+    if lineage_parent_id and isinstance(job_id, str) and job_id:
+        image_jobs.set_parent(job_id, lineage_parent_id)
     job = image_jobs.get_job(job_id) if isinstance(job_id, str) else None
     if job is not None:
         image_estimates.record_observation(
@@ -188,11 +339,15 @@ async def execute_studio_batch_request(request: dict) -> dict:
 
 
 __all__ = [
+    "JobModifyRequest",
     "StudioBatchRequest",
     "StudioEstimateRequest",
     "execute_studio_batch_request",
     "router",
     "studio_clear_anchor",
     "studio_create_batch",
+    "studio_duplicate_job",
     "studio_estimate",
+    "studio_modify_job",
+    "studio_retry_job",
 ]

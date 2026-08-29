@@ -81,7 +81,7 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
         <span
           style={{
             width: 7, height: 7, borderRadius: 99,
-            background: modelFromGateway ? activeModel.color : 'var(--c-red)',
+            background: modelFromGateway ? activeModel.color : 'var(--color-destructive)',
             flexShrink: 0,
           }}
         />
@@ -112,7 +112,7 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
                   }}
                   style={{
                     ...itemStyle,
-                    background: m.id === activeModel.id ? 'var(--ginger-fade)' : undefined,
+                    background: m.id === activeModel.id ? 'var(--color-selected)' : undefined,
                   }}
                   data-selected={m.id === activeModel.id || undefined}
                 >
@@ -175,13 +175,13 @@ function providerLabel(model: Model): string {
 }
 
 const chipBtnStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  color: 'var(--ink-2)',
-  border: '1.5px solid var(--line)',
-  borderRadius: 8,
-  padding: '4px 9px',
-  background: 'transparent',
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  color: 'var(--color-text-secondary)',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 10,
+  padding: '6px 9px',
+  background: 'var(--color-surface)',
   cursor: 'pointer',
 }
 
@@ -196,13 +196,13 @@ const popoverStyle: CSSProperties = {
   position: 'absolute',
   top: 'calc(100% + 6px)',
   right: 0,
-  background: 'var(--surface-solid)',
-  border: '1.5px solid var(--line)',
-  borderRadius: 12,
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 14,
   minWidth: 360,
   maxWidth: 'min(440px, calc(100vw - 24px))',
   zIndex: 100,
-  boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+  boxShadow: 'var(--shadow)',
   overflow: 'hidden',
 }
 
@@ -210,11 +210,11 @@ const inputStyle: CSSProperties = {
   width: '100%',
   padding: '10px 14px',
   border: 'none',
-  borderBottom: '1px solid var(--line)',
+  borderBottom: '1px solid var(--color-separator)',
   background: 'transparent',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
-  color: 'var(--ink)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 13,
+  color: 'var(--color-text-primary)',
   outline: 'none',
 }
 
@@ -226,9 +226,9 @@ const listStyle: CSSProperties = {
 
 const emptyStyle: CSSProperties = {
   padding: '12px 14px',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  color: 'var(--ink-2)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  color: 'var(--color-text-secondary)',
   textAlign: 'center',
 }
 
@@ -243,25 +243,25 @@ const itemStyle: CSSProperties = {
   cursor: 'pointer',
   fontFamily: 'var(--font-body)',
   fontSize: 13,
-  color: 'var(--ink)',
+  color: 'var(--color-text-primary)',
 }
 
 const providerChipStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.04em',
-  padding: '1px 5px', borderRadius: 999, border: '1px solid var(--line)',
-  color: 'var(--ink-2)', flexShrink: 0,
+  fontFamily: 'var(--font-body)', fontSize: 10, letterSpacing: '0.01em',
+  padding: '1px 5px', borderRadius: 999, border: '1px solid var(--color-separator)',
+  color: 'var(--color-text-muted)', flexShrink: 0,
 }
 
 const purposeStyle: CSSProperties = {
-  fontFamily: 'var(--font-body)', fontSize: 11, lineHeight: 1.35, color: 'var(--ink-2)',
+  fontFamily: 'var(--font-body)', fontSize: 12, lineHeight: 1.35, color: 'var(--color-text-secondary)',
 }
 
 const decisionRowStyle: CSSProperties = {
   display: 'flex', flexWrap: 'wrap', gap: '3px 10px', fontFamily: 'var(--font-mono)',
-  fontSize: 9, color: 'var(--ink-2)', opacity: 0.8,
+  fontSize: 10, color: 'var(--color-text-muted)', opacity: 0.92,
 }
 
 const footerStyle: CSSProperties = {
-  borderTop: '1px solid var(--line)', padding: '7px 12px', fontFamily: 'var(--font-mono)',
-  fontSize: 9, color: 'var(--ink-2)',
+  borderTop: '1px solid var(--color-separator)', padding: '8px 12px', fontFamily: 'var(--font-body)',
+  fontSize: 10, color: 'var(--color-text-muted)',
 }

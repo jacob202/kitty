@@ -44,6 +44,7 @@ import {
   updateCronSchedule,
   deleteCronSchedule,
   toggleCronSchedule,
+  retryAutomationRun,
   fetchScheduleWhy,
   type CronScheduleType,
   // image
@@ -67,6 +68,7 @@ import {
   setActiveProject,
   fetchProjectNext,
   fetchProjectNextSteps,
+  fetchProjectNextStepMap,
   fetchProjectResume,
   refreshProject,
   type GatewayProject,
@@ -496,6 +498,17 @@ export function useToggleCronSchedule() {
   })
 }
 
+export function useRetryAutomationRun() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (runId: string) => retryAutomationRun(runId),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['cron', 'why'] })
+      qc.invalidateQueries({ queryKey: ['cron', 'schedules'] })
+    },
+  })
+}
+
 export function useScheduleWhy(scheduleId: string | null) {
   return useQuery({
     queryKey: ['cron', 'why', scheduleId],
@@ -867,7 +880,7 @@ export function useWhatsNextSteps() {
 export function useProjectNextSteps(projects: GatewayProject[]) {
   const query = useQuery({
     queryKey: ['projects', 'next-steps', 'active', projects.map(project => project.id).join(',')],
-    queryFn: () => fetchProjectNextSteps(projects.length),
+    queryFn: () => fetchProjectNextStepMap(projects.map(project => project.id)),
     enabled: projects.length > 0,
     staleTime: 60_000,
   })
