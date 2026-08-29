@@ -256,6 +256,33 @@ def get_turn(turn_id: str) -> dict[str, Any] | None:
         return result
 
 
+def list_project_conversations(project_id: int, *, limit: int = 10) -> list[dict[str, Any]]:
+    """Return recent conversation descriptors owned by one Project.
+
+    This is a read-side projection from the canonical chat lifecycle store. It
+    deliberately does not load turns/messages; Project Resume needs context,
+    not a second copy of conversation contents.
+    """
+    if isinstance(project_id, bool) or not isinstance(project_id, int) or project_id <= 0:
+        raise ChatLifecycleError(f"project_id must be positive, got {project_id!r}")
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+        raise ChatLifecycleError(f"limit must be a positive integer, got {limit!r}")
+    bounded_limit = min(limit, 100)
+    init_db()
+    with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, project_id, title, objective, created_at, updated_at
+            FROM chat_conversations
+            WHERE project_id = ?
+            ORDER BY updated_at DESC, id DESC
+            LIMIT ?
+            """,
+            (project_id, bounded_limit),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def list_conversation(conversation_id: str) -> dict[str, Any]:
     """Return normalized conversation state and all ordered turns in bulk.
 
