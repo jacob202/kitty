@@ -266,7 +266,7 @@ def reconcile_interrupted_turns() -> int:
         rows = conn.execute(
             "SELECT id, conversation_id, sequence FROM chat_turns WHERE status = 'running' ORDER BY created_at"
         ).fetchall()
-        latest_sequence = {}
+        latest_sequence: dict[str, int] = {}
         for row in rows:
             latest_sequence[row["conversation_id"]] = max(
                 row["sequence"], latest_sequence.get(row["conversation_id"], row["sequence"])
