@@ -85,23 +85,30 @@ describe('Kitty model availability reconciliation', () => {
       active: 'openrouter', order: ['openrouter'], warnings: [], config_path: 'test',
       providers: [{ name: 'openrouter', configured: true, disabled: false }],
     })
-
     mount()
-
     await waitFor(() => expect(screen.getByTestId('live')).toHaveTextContent('true'))
     expect(screen.getByTestId('available')).toHaveTextContent('kitty-default')
     expect(screen.getByTestId('error')).toHaveTextContent('')
+  })
+
+  it('fails closed when an explicitly selected provider is disabled even while curated models are healthy', async () => {
+    shared.providers = query({
+      active: 'agentrouter', order: ['agentrouter'], warnings: [], config_path: 'test',
+      providers: [{ name: 'agentrouter', configured: true, disabled: true }],
+    })
+    mount()
+    await waitFor(() => expect(screen.getByTestId('live')).toHaveTextContent('false'))
+    expect(screen.getByTestId('available')).toHaveTextContent('')
+    expect(screen.getByTestId('error')).toHaveTextContent(/provider.*unavailable/i)
   })
 
   it('clears a one-shot override when that route leaves the live shortlist', async () => {
     const view = mount()
     fireEvent.click(screen.getByRole('button', { name: 'override code' }))
     expect(screen.getByTestId('override')).toHaveTextContent('kitty-code')
-
     shared.models = query({ models: [model('kitty-default', 'Daily Kitty')], fromLiveGateway: true, error: null })
     shared.runtime = runtime(['kitty-default'])
     await act(async () => { view.rerender(<KittyProvider><Harness /></KittyProvider>) })
-
     await waitFor(() => expect(screen.getByTestId('override')).toHaveTextContent(''))
   })
 })

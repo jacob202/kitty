@@ -34,17 +34,16 @@ describe('StatusBar', () => {
     expect(screen.queryByText('model availability failure')).toBeNull()
   })
 
-  it('shows model availability failure in user-facing language and retries on click', () => {
+  it('shows model availability failure immediately with a working retry action', () => {
     const onRetryModels = vi.fn()
-    const props = {
-      ...baseProps,
-      modelUnavailable: true,
-      onRetryModels,
-      saveState: 'failed' as const,
-    }
-    const { rerender } = render(<StatusBar {...props} />)
-    rerender(<StatusBar {...props} />)
-    rerender(<StatusBar {...props} />)
+    render(
+      <StatusBar
+        {...baseProps}
+        modelUnavailable
+        onRetryModels={onRetryModels}
+        saveState="failed"
+      />,
+    )
     const status = screen.getByRole('status')
     expect(status).toHaveTextContent('models temporarily unavailable')
     expect(status).not.toHaveTextContent(/gateway/i)
