@@ -128,9 +128,49 @@ def _recover_messages(conversation_id: str) -> list[dict]:
     messages: list[dict] = []
     seen_source_ids: set[str] = set()
     artifact_ids_needed: set[str] = set()
+    turns = [turn for turn in state.get("turns", []) if turn is not None]
+    latest_turn_for_source: dict[str, str] = {}
+    for turn in turns:
+        for msg in turn.get("messages", []):
+            source_id = msg.get("source_message_id")
+            if source_id is not None and msg.get("role") == "user":
+                latest_turn_for_source[source_id] = turn["id"]
 
-    for turn in state.get("turns", []):
-        if turn is None:
+    # A retry reuses the original user message's source_message_id but is not
+    # guaranteed to resend its attachments, and the superseded turn carrying
+    # them is dropped below. Collect every attachment ever recorded against a
+    # source_message_id up front so a retried message still shows the
+    # attachments the user originally sent.
+    attachments_by_source: dict[str, list[str]] = {}
+    for turn in turns:
+        for msg in turn.get("messages", []):
+            if msg.get("role") != "user":
+                continue
+            source_id = msg.get("source_message_id")
+            if source_id is None:
+                continue
+            raw_artifacts = msg.get("artifact_ids") or "[]"
+            try:
+                ids = json.loads(raw_artifacts) if isinstance(raw_artifacts, str) else raw_artifacts
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(ids, list):
+                continue
+            merged = attachments_by_source.setdefault(source_id, [])
+            for art_id in ids:
+                if isinstance(art_id, str) and art_id and art_id not in merged:
+                    merged.append(art_id)
+
+    for turn in turns:
+        user_source_ids = [
+            msg.get("source_message_id")
+            for msg in turn.get("messages", [])
+            if msg.get("role") == "user" and msg.get("source_message_id") is not None
+        ]
+        if user_source_ids and any(
+            latest_turn_for_source.get(source_id) != turn["id"]
+            for source_id in user_source_ids
+        ):
             continue
         attempt_model = None
         for attempt in turn.get("attempts", []):
@@ -145,23 +185,23 @@ def _recover_messages(conversation_id: str) -> list[dict]:
                     continue
                 seen_source_ids.add(source_id)
 
-            raw_artifacts = msg.get("artifact_ids") or "[]"
-            try:
-                artifact_ids = (
-                    json.loads(raw_artifacts)
-                    if isinstance(raw_artifacts, str)
-                    else raw_artifacts
-                )
-            except (TypeError, json.JSONDecodeError):
-                artifact_ids = []
-            if isinstance(artifact_ids, list):
-                artifact_ids_needed.update(
-                    art_id
-                    for art_id in artifact_ids
-                    if isinstance(art_id, str) and art_id
-                )
+            if source_id is not None and msg["role"] == "user" and source_id in attachments_by_source:
+                artifact_ids = attachments_by_source[source_id]
             else:
-                artifact_ids = []
+                raw_artifacts = msg.get("artifact_ids") or "[]"
+                try:
+                    artifact_ids = (
+                        json.loads(raw_artifacts)
+                        if isinstance(raw_artifacts, str)
+                        else raw_artifacts
+                    )
+                except (TypeError, json.JSONDecodeError):
+                    artifact_ids = []
+                if not isinstance(artifact_ids, list):
+                    artifact_ids = []
+            artifact_ids_needed.update(
+                art_id for art_id in artifact_ids if isinstance(art_id, str) and art_id
+            )
 
             messages.append(
                 {

@@ -20,6 +20,7 @@ async def test_gateway_supervises_background_service_lifecycle(monkeypatch):
     monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_chat_turns_on_startup", lambda: None)
     monkeypatch.setattr(app_module, "_reconcile_autonomy_sessions_on_startup", lambda: None)
     monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
 
