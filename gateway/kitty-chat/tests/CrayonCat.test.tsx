@@ -40,7 +40,7 @@ describe('Kitty state badge shell treatment', () => {
 
   it('uses semantic shell typography and separators', () => {
     const { getByText } = render(<StateBadge state="idle" />);
-    const style = getByText('ready').getAttribute('style') ?? '';
+    const style = getByText('idle').getAttribute('style') ?? '';
     expect(style).toContain('font-family: var(--font-body)');
     expect(style).toContain('color: var(--color-text-secondary)');
     expect(style).toContain('border: 1px solid var(--color-separator)');

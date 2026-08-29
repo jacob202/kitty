@@ -80,6 +80,54 @@ describe('ProjectsPanel recent files (Project Resume: Artifacts, slice 1)', () =
     expect(refetch).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps repo state and shell commands out of ordinary project copy', () => {
+    vi.mocked(queries.useProjects).mockReturnValue({
+      data: [{ ...project, summary: 'fix/dogfood-provider-chat-shell-2026-07-28 (dirty); 1 memory mention(s)' }],
+      isLoading: false, isError: false, error: null,
+    } as never)
+    vi.mocked(queries.useProjectNextSteps).mockReturnValue([{
+      data: {
+        project_id: 1,
+        step: 'Run `git status --short` and `git diff --stat`, then inspect the dirty branch.',
+        why: 'Before changing code, inspect the repo so work is not overwritten.',
+        recent_win: 'The branch `fix/dogfood-provider-chat-shell-2026-07-28` already exists.',
+        delegable: true, generated_at: 1,
+      },
+      isPending: false, isError: false,
+    }] as never)
+
+    renderPanel()
+
+    const copy = document.body.textContent ?? ''
+    expect(copy).not.toMatch(/fix\/dogfood|\bdirty\b|memory mention|git status|git diff|\bbranch\b|\brepo\b/i)
+    expect(screen.getByText('Development work is in progress.')).toBeInTheDocument()
+    expect(screen.getByText('Review the work already in progress before making more changes.')).toBeInTheDocument()
+  })
+
+  it('uses plain language when a project has no connected context yet', () => {
+    vi.mocked(queries.useProjects).mockReturnValue({
+      data: [{ ...project, id: 2, name: 'benefits-admin', kind: 'admin', summary: 'no data yet — refresh again after registering paths' }],
+      isLoading: false, isError: false, error: null,
+    } as never)
+    vi.mocked(queries.useProjectNextSteps).mockReturnValue([{
+      data: {
+        project_id: 2,
+        step: 'Register the benefits-admin project paths in your tracker, then refresh the project state once.',
+        why: 'There is no usable project data yet, so make the tracker able to see the repo.',
+        recent_win: 'Nothing notable is done yet; the current state says there is no data.',
+        delegable: true, generated_at: 1,
+      },
+      isPending: false, isError: false,
+    }] as never)
+
+    renderPanel()
+
+    const copy = document.body.textContent ?? ''
+    expect(copy).not.toMatch(/registering paths|project paths|tracker|\brepo\b/i)
+    expect(screen.getByText('No project details are connected yet.')).toBeInTheDocument()
+    expect(screen.getByText('Kitty needs more project context before it can suggest a next step.')).toBeInTheDocument()
+  })
+
   it('renders up to 5 recent artifacts with name, kind, state, and date', () => {
     vi.mocked(queries.useProjectResume).mockReturnValue({
       data: {
@@ -149,7 +197,8 @@ describe('ProjectsPanel recent files (Project Resume: Artifacts, slice 1)', () =
     expect(screen.getByText('ship the slice')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /project context/i }))
     expect(screen.getByText(/project context unavailable/)).toBeInTheDocument()
-    expect(screen.getByText(/gateway exploded/)).toBeInTheDocument()
+    expect(screen.getByText(/Something went wrong reaching Kitty/i)).toBeInTheDocument()
+    expect(screen.queryByText(/gateway exploded/i)).not.toBeInTheDocument()
     expect(screen.queryByText('recent files')).not.toBeInTheDocument()
   })
 

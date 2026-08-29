@@ -209,7 +209,7 @@ function Sparkle() {
 // ── Badge exports (compact status indicators) ────────────────────────
 
 const LABELS: Record<CatState, string> = {
-  idle: 'ready',
+  idle: 'idle',
   working: 'thinking',
   done: 'done',
   broke: 'issue',

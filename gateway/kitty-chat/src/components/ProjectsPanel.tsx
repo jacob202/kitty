@@ -53,6 +53,38 @@ export function ProjectsPanel() {
   )
 }
 
+const CODE_INTERNAL_COPY = /(?:\bgit\s+(?:status|diff)\b|\bbranch\b|\bdirty\b|memory mention|\brepo\b)/i
+const PROJECT_SETUP_INTERNAL_COPY = /(?:register(?:ing)?\b.*\bpaths?\b|\bproject paths?\b|\btracker\b|\brepo\b)/i
+
+function projectSummaryCopy(project: GatewayProject): string {
+  const summary = project.summary?.trim() ?? ''
+  if (!summary) return ''
+  if (project.kind === 'code' && CODE_INTERNAL_COPY.test(summary)) return 'Development work is in progress.'
+  if (PROJECT_SETUP_INTERNAL_COPY.test(summary)) return 'No project details are connected yet.'
+  return summary
+}
+
+function projectNextStepCopy(project: GatewayProject, nextStep: GatewayNextStep): GatewayNextStep {
+  const raw = `${nextStep.step} ${nextStep.why} ${nextStep.recent_win}`
+  if (project.kind === 'code' && CODE_INTERNAL_COPY.test(raw)) {
+    return {
+      ...nextStep,
+      step: 'Review the work already in progress before making more changes.',
+      why: 'This avoids overwriting work that is already underway.',
+      recent_win: 'There is already work in progress to continue from.',
+    }
+  }
+  if (PROJECT_SETUP_INTERNAL_COPY.test(raw)) {
+    return {
+      ...nextStep,
+      step: 'Kitty needs more project context before it can suggest a next step.',
+      why: 'More project information needs to be connected first.',
+      recent_win: '',
+    }
+  }
+  return nextStep
+}
+
 function ProjectCard({
   project,
   onRefresh,
@@ -74,6 +106,8 @@ function ProjectCard({
   const touched = project.last_touched
     ? new Date(project.last_touched * 1000).toLocaleDateString('en-CA')
     : null
+  const summary = projectSummaryCopy(project)
+  const nextCopy = nextStep ? projectNextStepCopy(project, nextStep) : null
 
   return (
     <article
@@ -96,7 +130,7 @@ function ProjectCard({
         </Button>
       </div>
 
-      {project.summary && <p style={summaryStyle}>{project.summary}</p>}
+      {summary && <p style={summaryStyle}>{summary}</p>}
 
       <div data-testid="project-next-step" style={nextBoxStyle}>
         <div style={nextLabelStyle}>what&apos;s next</div>
@@ -104,13 +138,13 @@ function ProjectCard({
           <p style={mutedStyle}>checking…</p>
         ) : nextError ? (
           <p style={mutedStyle}>couldn&apos;t read the next step — refresh the project to try again.</p>
-        ) : nextStep ? (
+        ) : nextCopy ? (
           <>
-            <p style={stepStyle}>{nextStep.step}</p>
-            {nextStep.why && <p style={whyStyle}>why: {nextStep.why}</p>}
-            {nextStep.recent_win && (
+            <p style={stepStyle}>{nextCopy.step}</p>
+            {nextCopy.why && <p style={whyStyle}>why: {nextCopy.why}</p>}
+            {nextCopy.recent_win && (
               <p style={{ ...whyStyle, color: 'var(--color-success)' }}>
-                recent win: {nextStep.recent_win}
+                recent win: {nextCopy.recent_win}
               </p>
             )}
           </>
@@ -151,8 +185,7 @@ function ProjectContext({ project }: { project: GatewayProject }) {
   if (resumeQuery.isError) {
     return (
       <p style={mutedStyle}>
-        project context unavailable (
-        {resumeQuery.error instanceof Error ? resumeQuery.error.message : 'gateway error'})
+        project context unavailable — {describeFailure(resumeQuery.error)}
       </p>
     )
   }

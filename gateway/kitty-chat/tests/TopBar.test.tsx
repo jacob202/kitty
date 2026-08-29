@@ -54,6 +54,12 @@ describe('TopBar runtime badge', () => {
     expect(screen.getByText('connected')).toBeInTheDocument()
   })
 
+  it('labels an idle task state without claiming the whole product is ready', () => {
+    renderTopBar(false, 'chat', 'available')
+    expect(screen.getByText('idle')).toBeInTheDocument()
+    expect(screen.queryByText('ready')).not.toBeInTheDocument()
+  })
+
   it('mobile collapses to a dot-only badge that keeps its accessible label', () => {
     renderTopBar(true)
     expect(screen.queryByText('connected')).not.toBeInTheDocument()
