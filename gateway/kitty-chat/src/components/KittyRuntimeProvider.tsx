@@ -28,15 +28,15 @@ function HealthGate({ children }: { children: React.ReactNode }) {
     fetch('/proxy/health', { signal: ctrl.signal })
       .then(r => {
         if (cancelled) return
-        if (!r.ok) throw new Error('Kitty gateway is unavailable')
+        if (!r.ok) throw new Error('Kitty is temporarily unavailable')
         setState('ok')
       })
       .catch((cause: unknown) => {
         if (cancelled) return
         const error = cause instanceof Error ? cause : new Error('Could not reach the gateway')
         const msg = error.name === 'AbortError'
-          ? 'Request timed out — is the Kitty gateway running?'
-          : (error.message || 'Could not reach the gateway')
+          ? 'Connection timed out.'
+          : (error.message || 'Kitty is temporarily unavailable')
         setError(msg)
         setState('down')
         retry = setTimeout(() => setAttempt(current => current + 1), HEALTH_RETRY_MS)
@@ -63,7 +63,7 @@ function HealthGate({ children }: { children: React.ReactNode }) {
       <div style={{ fontSize: '0.9rem', opacity: 0.5, textAlign: 'center', maxWidth: 320 }}>
         {state === 'checking'
           ? 'Connecting to Kitty...'
-          : `Gateway offline — Kitty is trying to reconnect automatically.${error ? `\n${error}` : ''}\nIf this keeps happening, reopen Kitty.`}
+          : `Kitty is offline — trying to reconnect automatically.${error ? `\n${error}` : ''}\nIf this keeps happening, reopen Kitty.`}
       </div>
     </div>
   )

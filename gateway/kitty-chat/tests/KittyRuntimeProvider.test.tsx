@@ -50,7 +50,7 @@ describe('KittyRuntimeProvider', () => {
     await act(async () => {
       await Promise.resolve()
     })
-    const offlineMessage = screen.getByText(/Gateway offline/)
+    const offlineMessage = screen.getByText(/Kitty is offline/)
     expect(offlineMessage).toBeInTheDocument()
     expect(offlineMessage).not.toHaveTextContent('./kitty')
     expect(offlineMessage).not.toHaveTextContent('terminal')
@@ -78,8 +78,9 @@ describe('KittyRuntimeProvider', () => {
       await Promise.resolve()
     })
 
-    const offlineMessage = screen.getByText(/Gateway offline/)
-    expect(offlineMessage).toHaveTextContent('Kitty gateway is unavailable')
+    const offlineMessage = screen.getByText(/Kitty is offline/)
+    expect(offlineMessage).toHaveTextContent('Kitty is temporarily unavailable')
+    expect(offlineMessage).not.toHaveTextContent(/gateway/i)
     expect(offlineMessage).not.toHaveTextContent('500')
   })
 
