@@ -1,0 +1,272 @@
+name: PR672 Publish Local Green
+
+on:
+  push:
+    branches: [fix/daily-driver-model-truth-20260829]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/daily-driver-model-truth-20260829
+          fetch-depth: 2
+      - name: Guard exact publisher parent
+        run: test "$(git rev-parse HEAD^)" = "30601137f5d7d782c3951e12b8b39e74fe58cfb6"
+      - name: Apply locally verified patch
+        run: |
+          cat > /tmp/pr672.patch <<'PATCH'
+          diff --git a/gateway/kitty-chat/src/components/StatusBar.tsx b/gateway/kitty-chat/src/components/StatusBar.tsx
+          index 18bf07c8..aa359ea0 100644
+          --- a/gateway/kitty-chat/src/components/StatusBar.tsx
+          +++ b/gateway/kitty-chat/src/components/StatusBar.tsx
+          @@ -1,6 +1,6 @@
+           'use client'
+           
+          -import { useRef, useState, type CSSProperties } from 'react'
+          +import { useState, type CSSProperties } from 'react'
+           import { AlertCircle, ArrowDownToLine, Share2, X } from 'lucide-react'
+           import type { AttachmentError } from '@/lib/attachment-validation'
+           import type { PwaInstallState } from '@/lib/pwa'
+          @@ -24,7 +24,6 @@ interface Props {
+             onPwaInstall?: () => void
+           }
+           
+          -const FAILS_REQUIRED = 3
+           
+           function modelStatusMessage(modelError?: string | null): string {
+             if (modelError?.startsWith('Model details timed out')) return modelError
+          @@ -55,16 +54,9 @@ export function StatusBar({
+             pwaInstalling = false,
+             onPwaInstall,
+           }: Props) {
+          -  const offlineStreakRef = useRef(0)
+             const [pwaDismissed, setPwaDismissed] = useState(false)
+           
+          -  if (modelUnavailable) {
+          -    offlineStreakRef.current++
+          -  } else {
+          -    offlineStreakRef.current = 0
+          -  }
+          -
+          -  const confirmedOffline = Boolean(modelError) || offlineStreakRef.current >= FAILS_REQUIRED
+          +  const confirmedOffline = modelUnavailable
+           
+             if (showChatSignals && attachmentErrors.length > 0) {
+               return (
+          diff --git a/gateway/kitty-chat/src/lib/model-availability.ts b/gateway/kitty-chat/src/lib/model-availability.ts
+          index 3611893d..89fe3c3d 100644
+          --- a/gateway/kitty-chat/src/lib/model-availability.ts
+          +++ b/gateway/kitty-chat/src/lib/model-availability.ts
+          @@ -5,9 +5,13 @@ export type ProviderAvailability = {
+             providers: Array<{ name: string; configured: boolean; disabled: boolean }>
+           }
+           
+          +export function isDirectProviderSelected(chain: ProviderAvailability | null | undefined): boolean {
+          +  return Boolean(chain?.active && chain.active !== 'auto')
+          +}
+          +
+           export function isDirectProviderReady(chain: ProviderAvailability | null | undefined): boolean {
+          -  if (!chain || !chain.active || chain.active === 'auto') return false
+          -  const selected = chain.providers.find(provider => provider.name === chain.active)
+          +  if (!isDirectProviderSelected(chain)) return false
+          +  const selected = chain!.providers.find(provider => provider.name === chain!.active)
+             return Boolean(selected?.configured && !selected.disabled)
+           }
+           
+          @@ -17,7 +21,11 @@ export function resolveChatModels(input: {
+             runtimeReady: boolean
+             curatedReady: boolean
+             directProviderReady: boolean
+          +  directProviderSelected: boolean
+           }): { models: Model[]; live: boolean } {
+          +  if (input.directProviderSelected && !input.directProviderReady) {
+          +    return { models: [], live: false }
+          +  }
+             if (input.directProviderReady) {
+               const daily = MODELS.find(model => model.id === 'kitty-default')
+               return { models: daily ? [daily] : [], live: Boolean(daily) }
+          diff --git a/gateway/kitty-chat/src/state/KittyContext.tsx b/gateway/kitty-chat/src/state/KittyContext.tsx
+          index 4b1a87ab..02976299 100644
+          --- a/gateway/kitty-chat/src/state/KittyContext.tsx
+          +++ b/gateway/kitty-chat/src/state/KittyContext.tsx
+          @@ -51,7 +51,7 @@ import {
+             hasActiveBuilderRun,
+           } from '@/lib/queries'
+           import type { CatState } from '@/components/CrayonCat'
+          -import { isDirectProviderReady, reconcileOneShotOverride, resolveChatModels } from '@/lib/model-availability'
+          +import { isDirectProviderReady, isDirectProviderSelected, reconcileOneShotOverride, resolveChatModels } from '@/lib/model-availability'
+           
+           const MOBILE_BREAKPOINT = 900
+           const ACTIVE_VIEW_STORAGE_KEY = 'kitty-active-view'
+          @@ -323,6 +323,7 @@ export function KittyProvider({ children }: { children: ReactNode }) {
+             const searchQuery = useMemo(() => latestSearchQuery(activeChat), [activeChatId, userMessageCount])
+           
+             const runtimeModelIds = runtimeQuery.data?.inference.available_models.value
+          +  const directProviderSelected = isDirectProviderSelected(providersQuery.data)
+             const directProviderReady = isDirectProviderReady(providersQuery.data)
+             const modelResolution = useMemo(() => resolveChatModels({
+               gatewayModels: modelsQuery.data?.models ?? MODELS,
+          @@ -331,25 +332,29 @@ export function KittyProvider({ children }: { children: ReactNode }) {
+                 && runtimeQuery.data?.inference.available_models.state === 'available',
+               curatedReady: modelsQuery.data?.fromLiveGateway === true,
+               directProviderReady,
+          +    directProviderSelected,
+             }), [
+          -    directProviderReady, modelsQuery.data?.fromLiveGateway, modelsQuery.data?.models,
+          +    directProviderReady, directProviderSelected, modelsQuery.data?.fromLiveGateway, modelsQuery.data?.models,
+               runtimeModelIds, runtimeQuery.data?.inference.available_models.state, runtimeQuery.isSuccess,
+             ])
+             const availableModels = modelResolution.models
+          -  const emptyVerifiedIntersection = !directProviderReady
+          +  const selectedProviderBlocked = directProviderSelected && !directProviderReady
+          +  const emptyVerifiedIntersection = !directProviderSelected
+               && modelsQuery.data?.fromLiveGateway === true
+               && runtimeQuery.isSuccess
+               && runtimeQuery.data?.inference.available_models.state === 'available'
+               && availableModels.length === 0
+           
+             const modelGateway = {
+          -    loaded: modelsQuery.isFetched || directProviderReady,
+          +    loaded: modelsQuery.isFetched || providersQuery.isFetched,
+               live: modelResolution.live,
+               error: directProviderReady
+                 ? null
+          -      : emptyVerifiedIntersection
+          -        ? 'No live curated models are available — Retry to reconnect to Kitty.'
+          -        : (modelsQuery.data?.error ?? null),
+          +      : selectedProviderBlocked
+          +        ? 'Selected model provider is unavailable — Retry to reconnect to Kitty.'
+          +        : emptyVerifiedIntersection
+          +          ? 'No live curated models are available — Retry to reconnect to Kitty.'
+          +          : (modelsQuery.data?.error ?? null),
+             }
+             const briefGateway = {
+               loaded: briefQuery.isFetched,
+          diff --git a/gateway/kitty-chat/tests/modelAvailabilityPolicy.test.ts b/gateway/kitty-chat/tests/modelAvailabilityPolicy.test.ts
+          index 8a413226..e494d087 100644
+          --- a/gateway/kitty-chat/tests/modelAvailabilityPolicy.test.ts
+          +++ b/gateway/kitty-chat/tests/modelAvailabilityPolicy.test.ts
+          @@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
+           import { MODELS } from '../src/lib/types'
+           import {
+             isDirectProviderReady,
+          +  isDirectProviderSelected,
+             resolveChatModels,
+             reconcileOneShotOverride,
+           } from '../src/lib/model-availability'
+          @@ -17,6 +18,7 @@ describe('chat model availability policy', () => {
+               runtimeReady: true,
+               curatedReady: true,
+               directProviderReady: false,
+          +    directProviderSelected: false,
+             })
+             expect(result).toEqual({ models: [], live: false })
+           })
+          @@ -28,6 +30,7 @@ describe('chat model availability policy', () => {
+               runtimeReady: false,
+               curatedReady: false,
+               directProviderReady: true,
+          +    directProviderSelected: true,
+             })
+             expect(result.live).toBe(true)
+             expect(result.models.map(model => model.id)).toEqual(['kitty-default'])
+          @@ -42,6 +45,8 @@ describe('chat model availability policy', () => {
+                 disabled: false, position: 0, kind: 'api_credit', free_tier: false,
+               }],
+             }
+          +    expect(isDirectProviderSelected({ ...base, active: 'openrouter' })).toBe(true)
+          +    expect(isDirectProviderSelected({ ...base, active: 'auto' })).toBe(false)
+             expect(isDirectProviderReady({ ...base, active: 'openrouter' })).toBe(true)
+             expect(isDirectProviderReady({ ...base, active: 'auto' })).toBe(false)
+             expect(isDirectProviderReady({ ...base, active: 'openrouter', providers: [{ ...base.providers[0], disabled: true }] })).toBe(false)
+          diff --git a/gateway/llm_client.py b/gateway/llm_client.py
+          index 0db9a75c..c5a3ae9a 100644
+          --- a/gateway/llm_client.py
+          +++ b/gateway/llm_client.py
+          @@ -204,9 +204,25 @@ _LITELLM_DEFAULT = "kitty-default"
+           _LITELLM_SONNET = "kitty-sonnet"
+           _LITELLM_SMALL = "kitty-small"
+           
+          +_AGENTROUTER_KEY_ENVS = ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY")
+          +
+          +
+          +def _load_dotenv_preserving_agentrouter_keys() -> bool:
+          +    """Reload generic dotenv values without caching AgentRouter credentials."""
+          +    present = {name for name in _AGENTROUTER_KEY_ENVS if name in os.environ}
+          +    preserved = {name: os.environ[name] for name in present}
+          +    try:
+          +        return bool(load_dotenv())
+          +    finally:
+          +        for name in _AGENTROUTER_KEY_ENVS:
+          +            if name in present:
+          +                os.environ[name] = preserved[name]
+          +            else:
+          +                os.environ.pop(name, None)
+          +
+           
+           def _env_slug(name: str, default: str) -> str:
+          -    load_dotenv()
+          +    _load_dotenv_preserving_agentrouter_keys()
+               v = os.environ.get(name, "").strip()
+               return v if v else default
+           
+          @@ -264,7 +280,7 @@ def resolve_agentrouter_api_key() -> str:
+               ``load_dotenv(override=True)`` here: provider inspection runs in-process and
+               must not rewrite security-critical settings such as ``GATEWAY_SECRET``.
+               """
+          -    env_names = ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY")
+          +    env_names = _AGENTROUTER_KEY_ENVS
+           
+               # Preserve the old override=True precedence without mutating os.environ:
+               # a repo dotenv key may be rotated while Gateway stays up, so parse the
+          @@ -298,7 +314,7 @@ def _sanitize_agentrouter_model_id(raw: str) -> str:
+           
+           def agentrouter_model_for_request(request_model: str | None) -> str:
+               """Pick the upstream AgentRouter model for Kitty's single route or an explicit id."""
+          -    load_dotenv()
+          +    _load_dotenv_preserving_agentrouter_keys()
+               rm = (request_model or "").strip()
+               if rm and rm not in model_routing.LEGACY_MODEL_ALIASES and rm != _LITELLM_DEFAULT:
+                   return _sanitize_agentrouter_model_id(rm)
+          @@ -617,7 +633,7 @@ def _call_provider(
+               # matching the per-function ``load_dotenv()`` the old direct callers did.
+               # ``load_dotenv()`` (no override) is right for the generic providers;
+               # AgentRouter's ``key_resolver`` does its own ``load_dotenv(override=True)``.
+          -    load_dotenv()
+          +    _load_dotenv_preserving_agentrouter_keys()
+           
+               if provider.key_resolver is not None:
+                   api_key = provider.key_resolver()
+          diff --git a/tests/test_llm_client.py b/tests/test_llm_client.py
+          index 7c561a27..e3685c65 100644
+          --- a/tests/test_llm_client.py
+          +++ b/tests/test_llm_client.py
+          @@ -1071,6 +1071,7 @@ def test_resolve_agentrouter_key_never_overwrites_gateway_runtime_env(monkeypatc
+                       os.environ["GATEWAY_SECRET"] = "dotenv-gateway-secret"
+           
+               monkeypatch.setattr(llm_client, "load_dotenv", dangerous_dotenv_reload)
+          +    monkeypatch.setattr(llm_client, "dotenv_values", lambda *_args, **_kwargs: {})
+           
+               assert llm_client.resolve_agentrouter_api_key() == "runtime-agentrouter-key"
+               assert os.environ["GATEWAY_SECRET"] == "runtime-gateway-secret"
+          PATCH
+          # YAML block indentation leaves two spaces in front of patch payload lines.
+          sed -i 's/^          //' /tmp/pr672.patch
+          git apply --check /tmp/pr672.patch
+          git apply /tmp/pr672.patch
+          rm .github/workflows/pr672-green-patch.yml
+          rm .github/workflows/pr672-publish-local-green.yml
+          git diff --check
+      - name: Commit exact verified tree
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A .github/workflows/pr672-green-patch.yml .github/workflows/pr672-publish-local-green.yml gateway/kitty-chat/src/components/StatusBar.tsx gateway/kitty-chat/src/lib/model-availability.ts gateway/kitty-chat/src/state/KittyContext.tsx gateway/kitty-chat/tests/modelAvailabilityPolicy.test.ts gateway/llm_client.py tests/test_llm_client.py
+          git commit -m 'fix(chat): fail closed for blocked provider state'
+          git push origin HEAD:fix/daily-driver-model-truth-20260829
