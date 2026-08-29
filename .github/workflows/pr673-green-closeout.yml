@@ -1,0 +1,473 @@
+name: PR673 bounded green closeout
+
+on:
+  push:
+    branches:
+      - closeout/finish-open-loops-20260829
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Guard exact parent
+        run: |
+          test "$(git rev-parse HEAD^)" = "78f880777ede4087e32d6be1c9149d3df05034d0"
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Apply regressions and production fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text()
+              if text.count(old) != 1:
+                  raise SystemExit(f"expected one match in {path}, got {text.count(old)}")
+              p.write_text(text.replace(old, new, 1))
+
+          def append_once(path: str, marker: str, block: str) -> None:
+              p = Path(path)
+              text = p.read_text() if p.exists() else ""
+              if marker not in text:
+                  p.write_text(text.rstrip() + "\n\n" + block.strip() + "\n")
+
+          # 1) Real JSONL read failures must propagate; only a missing file is empty history.
+          replace_once(
+              "gateway/jsonl_tail.py",
+              '''    try:\n        with path.open("rb") as fh:\n            fh.seek(0, 2)\n            pos = fh.tell()\n            chunks: list[bytes] = []\n            newline_count = 0\n            remaining = max_bytes\n            while pos > 0 and remaining > 0 and newline_count <= limit:\n                size = min(chunk_bytes, pos, remaining)\n                pos -= size\n                fh.seek(pos)\n                chunk = fh.read(size)\n                chunks.append(chunk)\n                newline_count += chunk.count(b"\\n")\n                remaining -= size\n    except OSError:\n        return []\n''',
+              '''    with path.open("rb") as fh:\n        fh.seek(0, 2)\n        pos = fh.tell()\n        chunks: list[bytes] = []\n        newline_count = 0\n        remaining = max_bytes\n        while pos > 0 and remaining > 0 and newline_count <= limit:\n            size = min(chunk_bytes, pos, remaining)\n            pos -= size\n            fh.seek(pos)\n            chunk = fh.read(size)\n            chunks.append(chunk)\n            newline_count += chunk.count(b"\\n")\n            remaining -= size\n''',
+          )
+
+          # 2) Refuse a symlinked .next ancestor before any rm/cp follows it.
+          replace_once(
+              "scripts/desktop/start_ui.sh",
+              "for destination in .next/standalone .next/standalone/.next .next/standalone/.next/static .next/standalone/public; do",
+              "for destination in .next .next/standalone .next/standalone/.next .next/standalone/.next/static .next/standalone/public; do",
+          )
+
+          # 3) Compare insight snoozes as aware instants, not strings.
+          replace_once(
+              "gateway/insight_loop.py",
+              '''def _now_ts() -> float:\n    return datetime.now(timezone.utc).timestamp()\n''',
+              '''def _now_ts() -> float:\n    return datetime.now(timezone.utc).timestamp()\n\n\ndef _parse_instant(value: str) -> datetime:\n    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))\n    if parsed.tzinfo is None:\n        parsed = parsed.replace(tzinfo=timezone.utc)\n    return parsed.astimezone(timezone.utc)\n\n\ndef _instant_is_due(return_at: str, now: str) -> bool:\n    try:\n        return _parse_instant(return_at) <= _parse_instant(now)\n    except (TypeError, ValueError):\n        return False\n''',
+          )
+          text = Path("gateway/insight_loop.py").read_text()
+          if text.count("if ret_at and ret_at <= now:") != 2:
+              raise SystemExit("unexpected insight due comparisons")
+          text = text.replace("if ret_at and ret_at <= now:", "if ret_at and _instant_is_due(ret_at, now):")
+          text = text.replace(
+              "if not return_at or return_at > _now_iso():",
+              "if not return_at or not _instant_is_due(return_at, _now_iso()):",
+              1,
+          )
+          Path("gateway/insight_loop.py").write_text(text)
+
+          # 4 + 7) Use a conservative UTF-8 byte upper bound and surface clipping warnings.
+          p = Path("gateway/context_assembler.py")
+          text = p.read_text().replace("_CHARS_PER_TOKEN_ESTIMATE = 4\n", "", 1)
+          start = text.index("def _truncate_context_block(")
+          end = text.index("\n\nasync def assemble_context(", start)
+          helpers = r'''def _budget_units(text: str) -> int:
+              """Conservative token upper bound: one unit per UTF-8 byte."""
+              return len(text.encode("utf-8"))
+
+
+          def _utf8_prefix(text: str, max_units: int) -> str:
+              if max_units <= 0:
+                  return ""
+              return text.encode("utf-8")[:max_units].decode("utf-8", errors="ignore")
+
+
+          def _truncate_context_block(text: str, limit: int) -> str:
+              if _budget_units(text) <= limit:
+                  return text
+              if limit <= 0:
+                  return ""
+              marker = _CONTEXT_TRUNCATION_MARKER
+              marker_units = _budget_units(marker)
+              if limit <= marker_units:
+                  return _utf8_prefix(text, limit)
+              prefix = _utf8_prefix(text, limit - marker_units).rstrip()
+              while prefix and _budget_units(prefix + marker) > limit:
+                  prefix = prefix[:-1]
+              return prefix + marker
+
+
+          def _fit_context_blocks(
+              blocks: list[tuple[str, str, float]], *, tier: str
+          ) -> tuple[str, dict[str, object], list[str]]:
+              """Fit named prompt blocks into a conservative whole-context budget."""
+              if tier not in TOTAL_CONTEXT_TOKEN_CAPS:
+                  raise ValueError(f"unknown context tier: {tier!r}")
+
+              present = [(name, text, share) for name, text, share in blocks if text]
+              token_cap = TOTAL_CONTEXT_TOKEN_CAPS[tier]
+              separator_units = max(0, len(present) - 1) * _budget_units("\n\n")
+              payload_cap = max(0, token_cap - separator_units)
+
+              allocations: list[int] = []
+              for _name, block_text, share in present:
+                  soft_cap = max(1, int(payload_cap * share))
+                  allocations.append(min(_budget_units(block_text), soft_cap))
+
+              leftover = max(0, payload_cap - sum(allocations))
+              for index, (_name, block_text, _share) in enumerate(present):
+                  if leftover <= 0:
+                      break
+                  missing = _budget_units(block_text) - allocations[index]
+                  if missing <= 0:
+                      continue
+                  extra = min(missing, leftover)
+                  allocations[index] += extra
+                  leftover -= extra
+
+              rendered: list[str] = []
+              evidence_blocks: list[dict[str, object]] = []
+              warnings: list[str] = []
+              for (name, block_text, _share), allocation in zip(present, allocations):
+                  original_units = _budget_units(block_text)
+                  clipped = allocation < original_units
+                  rendered_text = _truncate_context_block(block_text, allocation)
+                  included_units = _budget_units(rendered_text)
+                  rendered.append(rendered_text)
+                  evidence_blocks.append(
+                      {
+                          "name": name,
+                          "original_chars": len(block_text),
+                          "included_chars": len(rendered_text),
+                          "original_token_upper_bound": original_units,
+                          "included_token_upper_bound": included_units,
+                          "truncated": clipped,
+                      }
+                  )
+                  if clipped:
+                      warnings.append(
+                          f"context_budget:{name}: clipped {original_units} -> {included_units} utf8-byte token upper bound"
+                      )
+
+              system = _join_blocks(*rendered)
+              evidence: dict[str, object] = {
+                  "tier": tier,
+                  "total_token_cap": token_cap,
+                  "budget_unit": "utf8_bytes_upper_bound",
+                  "system_chars": len(system),
+                  "system_token_upper_bound": _budget_units(system),
+                  "blocks": evidence_blocks,
+              }
+              return system, evidence, warnings
+          '''
+          import textwrap
+          helpers = textwrap.dedent(helpers)
+          text = text[:start] + helpers.rstrip() + text[end:]
+          old = '''    budget_evidence["truncations"] = list(_budget_warnings)\n\n    return ContextBundle(\n'''
+          new = '''    budget_evidence["truncations"] = list(_budget_warnings)\n    warnings.extend(_budget_warnings)\n\n    return ContextBundle(\n'''
+          if old not in text:
+              raise SystemExit("context warning insertion point missing")
+          text = text.replace(old, new, 1)
+          p.write_text(text)
+
+          # 5) Collision-proof Knowledge replacement generations.
+          replace_once("gateway/knowledge.py", "import time\n", "import time\nimport uuid\n")
+          replace_once(
+              "gateway/knowledge.py",
+              '''    ids = [f"{source}__chunk_{i}_{int(time.time())}" for i in range(len(chunks))]\n''',
+              '''    generation = uuid.uuid4().hex\n    ids = [f"{source}__chunk_{i}_{generation}" for i in range(len(chunks))]\n''',
+          )
+
+          # 6) Enforce the cap at the final provider-visible message boundary.
+          p = Path("gateway/routes/completions.py")
+          text = p.read_text()
+          insert_at = text.index("\n\ndef route_model(")
+          helper = r'''
+
+          def _message_budget_units(message: dict) -> int:
+              return len(
+                  json.dumps(message, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+              )
+
+
+          def _prefix_for_system_budget(parts: dict[str, str], name: str, text: str, budget: int) -> str:
+              """Largest codepoint-safe prefix that keeps the serialized system message in budget."""
+              order = ("bundle", "runtime", "tool")
+
+              def rendered(candidate: str) -> str:
+                  trial = dict(parts)
+                  if candidate:
+                      trial[name] = candidate
+                  return "\n\n".join(trial[key] for key in order if trial.get(key))
+
+              if _message_budget_units({"role": "system", "content": rendered(text)}) <= budget:
+                  return text
+              low, high = 0, len(text)
+              while low < high:
+                  mid = (low + high + 1) // 2
+                  candidate = text[:mid]
+                  if _message_budget_units({"role": "system", "content": rendered(candidate)}) <= budget:
+                      low = mid
+                  else:
+                      high = mid - 1
+              return text[:low]
+
+
+          def _fit_final_model_messages(
+              *,
+              bundle_system: str,
+              runtime_system: str,
+              tool_system: str,
+              messages: list[dict],
+              token_cap: int,
+          ) -> tuple[list[dict], list[str]]:
+              """Bound the final model-visible payload while preserving the current user exactly."""
+              non_system = [dict(message) for message in messages if message.get("role") != "system"]
+              current_index = next(
+                  (index for index in range(len(non_system) - 1, -1, -1) if non_system[index].get("role") == "user"),
+                  None,
+              )
+              if current_index is None:
+                  raise HTTPException(status_code=400, detail="chat request requires a user message")
+              current_user = non_system[current_index]
+              current_units = _message_budget_units(current_user)
+              if current_units > token_cap:
+                  raise HTTPException(status_code=413, detail="Current message exceeds the model context budget")
+
+              warnings: list[str] = []
+              system_budget = token_cap - current_units
+              selected: dict[str, str] = {}
+              # Safety/tool truth first, then runtime truth, then contextual enrichment.
+              for name, part, required in (
+                  ("tool", tool_system, bool(tool_system)),
+                  ("runtime", runtime_system, False),
+                  ("bundle", bundle_system, False),
+              ):
+                  if not part:
+                      continue
+                  fitted = _prefix_for_system_budget(selected, name, part, system_budget)
+                  if required and fitted != part:
+                      raise HTTPException(status_code=413, detail="Current message leaves no room for required chat safety context")
+                  if fitted:
+                      selected[name] = fitted
+                  if fitted != part:
+                      warnings.append(f"context_budget:final_system:{name}: clipped")
+
+              system_content = "\n\n".join(
+                  selected[key] for key in ("bundle", "runtime", "tool") if selected.get(key)
+              )
+              final: list[dict] = []
+              used = current_units
+              if system_content:
+                  system_message = {"role": "system", "content": system_content}
+                  used += _message_budget_units(system_message)
+                  final.append(system_message)
+
+              history: list[dict] = []
+              dropped = 0
+              for message in reversed(non_system[:current_index]):
+                  units = _message_budget_units(message)
+                  if used + units <= token_cap:
+                      history.append(message)
+                      used += units
+                  else:
+                      dropped += 1
+              if dropped:
+                  warnings.append(f"context_budget:history: dropped {dropped} older message(s)")
+              final.extend(reversed(history))
+              final.append(current_user)
+
+              total = sum(_message_budget_units(message) for message in final)
+              if total > token_cap:
+                  raise RuntimeError(f"final model-visible payload exceeded context cap: {total}>{token_cap}")
+              return final, warnings
+          '''
+          helper = textwrap.dedent(helper)
+          text = text[:insert_at] + helper.rstrip() + text[insert_at:]
+          text = text.replace(
+              "from gateway.context_assembler import assemble_context, assert_not_total_failure",
+              "from gateway.context_assembler import (\n        TOTAL_CONTEXT_TOKEN_CAPS,\n        assemble_context,\n        assert_not_total_failure,\n    )",
+              1,
+          )
+          old = '''        assert_not_total_failure(bundle)\n        system_prompt = f"{bundle.system}\\n\\n{compact_runtime_context(runtime_manifest)}"\n        if not caller_supplies_tools:\n            system_prompt = f"{system_prompt}\\n\\n{_NO_TOOL_EXECUTOR_SYSTEM}"\n'''
+          new = '''        assert_not_total_failure(bundle)\n        runtime_system = compact_runtime_context(runtime_manifest)\n        tool_system = "" if caller_supplies_tools else _NO_TOOL_EXECUTOR_SYSTEM\n        enriched, final_budget_warnings = _fit_final_model_messages(\n            bundle_system=bundle.system,\n            runtime_system=runtime_system,\n            tool_system=tool_system,\n            messages=messages,\n            token_cap=TOTAL_CONTEXT_TOKEN_CAPS[tier],\n        )\n        bundle.warnings.extend(final_budget_warnings)\n        for warning in final_budget_warnings:\n            logger.warning("chat %s: %s", correlation_id, warning)\n        system_prompt = (\n            str(enriched[0].get("content", ""))\n            if enriched and enriched[0].get("role") == "system"\n            else ""\n        )\n'''
+          if old not in text:
+              raise SystemExit("completion system prompt block missing")
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              '''    enriched = [m for m in messages if m.get("role") != "system"]\n    enriched = [{"role": "system", "content": system_prompt}] + enriched\n\n''',
+              "",
+              1,
+          )
+          p.write_text(text)
+
+          # RED regressions (five remain in the workflow-produced commit; the final payload test is
+          # deliberately left uncommitted so the connector can add it as the final CI-triggering commit).
+          append_once("tests/test_jsonl_tail.py", "test_read_tail_lines_propagates_real_read_failure", r'''
+          from pathlib import Path
+
+          import pytest
+
+          from gateway.jsonl_tail import read_tail_lines
+
+
+          def test_read_tail_lines_propagates_real_read_failure() -> None:
+              class BrokenPath:
+                  def exists(self) -> bool:
+                      return True
+
+                  def open(self, *_args, **_kwargs):
+                      raise PermissionError("denied")
+
+              with pytest.raises(PermissionError, match="denied"):
+                  read_tail_lines(BrokenPath(), limit=5)  # type: ignore[arg-type]
+          ''')
+          append_once("tests/test_start_ui_script.py", "test_standalone_refuses_symlinked_next_ancestor", r'''
+          def test_standalone_refuses_symlinked_next_ancestor(tmp_path):
+              root = _fake_repo(tmp_path, build_id=False)
+              ui = root / "gateway" / "kitty-chat"
+              outside = tmp_path / "outside-next"
+              (outside / "standalone" / ".next" / "static").mkdir(parents=True)
+              (outside / "static").mkdir()
+              (outside / "BUILD_ID").write_text("external-build\n", encoding="utf-8")
+              (outside / "standalone" / "server.js").write_text("// external\n", encoding="utf-8")
+              sentinel = outside / "standalone" / ".next" / "static" / "sentinel.txt"
+              sentinel.write_text("keep", encoding="utf-8")
+              (outside / "static" / "app.css").write_text("body{}", encoding="utf-8")
+              (ui / ".next").symlink_to(outside, target_is_directory=True)
+              _set_build_newer_than_source(root)
+
+              result, calls = _run(root, tmp_path)
+
+              assert result.returncode != 0
+              assert "refusing symlinked standalone destination" in result.stderr
+              assert sentinel.read_text(encoding="utf-8") == "keep"
+              assert not any("node .next/standalone/server.js" in call for call in calls)
+          ''')
+          append_once("tests/test_insight_loop.py", "test_snooze_offset_is_compared_as_an_instant", r'''
+          def test_snooze_offset_is_compared_as_an_instant(monkeypatch) -> None:
+              item_id = insight_loop.capture(text="offset snooze", category="task", explicit_consent=True)
+              insight_loop.mark_returned(item_id)
+              insight_loop.respond(item_id, "snooze", snooze_until="2026-01-02T08:00:00-08:00")
+
+              assert not any(item["id"] == item_id for item in insight_loop.list_due("2026-01-02T12:00:00+00:00"))
+              assert any(item["id"] == item_id for item in insight_loop.list_due("2026-01-02T16:00:00+00:00"))
+              monkeypatch.setattr(insight_loop, "_now_iso", lambda: "2026-01-02T12:00:00+00:00")
+              assert insight_loop.mark_returned(item_id) is False
+          ''')
+          append_once("tests/test_context_assembler.py", "test_context_budget_is_utf8_conservative_and_surfaces_clipping", r'''
+          @pytest.mark.asyncio
+          async def test_context_budget_is_utf8_conservative_and_surfaces_clipping(monkeypatch):
+              import gateway.context_assembler as assembler
+
+              huge = "🧠" * 20_000
+              monkeypatch.setattr(assembler, "_domain_prompt", lambda *_args, **_kwargs: huge)
+              monkeypatch.setattr(assembler, "personality_block", lambda: huge)
+              monkeypatch.setattr(assembler.user_context, "load_user_context", lambda: huge)
+              deps = _AssemblerDeps(adapters=[FakeAdapter("memory", items=[])], enrichments=(), skill_hint_fn=lambda _m: huge)
+              bundle = await assemble_context("hello", deps=deps, tier="standard", objective=huge)
+              cap = assembler.TOTAL_CONTEXT_TOKEN_CAPS["standard"]
+              assert len(bundle.system.encode("utf-8")) <= cap
+              assert bundle.context_budget["system_token_upper_bound"] <= cap
+              assert any(warning.startswith("context_budget:") for warning in bundle.warnings)
+          ''')
+          append_once("tests/test_knowledge.py", "test_ingest_same_second_refresh_uses_disjoint_replacement_ids", r'''
+          @pytest.mark.asyncio
+          async def test_ingest_same_second_refresh_uses_disjoint_replacement_ids(tmp_path, monkeypatch):
+              from contracts.knowledge_pipeline import LibrarianReport
+              from gateway import knowledge
+
+              path = tmp_path / "manual.txt"
+              path.write_text("replacement", encoding="utf-8")
+              old_ids = ["manual.txt__chunk_0_1234"]
+              added_ids = []
+              class Store:
+                  def get(self, *, where):
+                      return {"ids": []} if "content_hash" in where else {"ids": old_ids}
+                  def add(self, *, documents, embeddings, ids, metadatas):
+                      added_ids.extend(ids)
+                  def delete(self, *, ids):
+                      pass
+              monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: Store())
+              monkeypatch.setattr(knowledge.clerk, "_extract_text", lambda _p: "replacement")
+              monkeypatch.setattr(knowledge.archivist, "_get_content_hash", lambda _text: "new-hash")
+              monkeypatch.setattr(knowledge.librarian, "detect_doc_type", lambda *_args: "general")
+              monkeypatch.setattr(knowledge.librarian, "generate_source_summary", lambda *_args: LibrarianReport(summary="summary", authority_score=0.8, relevance_period="persistent", primary_topic="test", needs_vision=False))
+              async def pipeline(*_args):
+                  return ["replacement chunk"], [{"chunk_index": 0, "is_visual": False}]
+              monkeypatch.setattr(knowledge, "_run_pipeline", pipeline)
+              monkeypatch.setattr(knowledge.archivist, "_embed", lambda _chunks: [[0.1, 0.2]])
+              monkeypatch.setattr(knowledge.time, "time", lambda: 1234)
+              result = await knowledge.ingest(path, source_label="manual.txt", force_refresh=True)
+              assert result.status == "success"
+              assert added_ids
+              assert set(added_ids).isdisjoint(old_ids)
+          ''')
+          append_once("tests/test_pr673_completions_budget.py", "test_final_model_visible_payload_is_bounded_and_preserves_current_user", r'''
+          import json
+
+          from gateway.routes import completions
+
+
+          def test_final_model_visible_payload_is_bounded_and_preserves_current_user() -> None:
+              current = {"role": "user", "content": "CURRENT 🧠 question"}
+              history = [
+                  {"role": "user", "content": "old user " * 80},
+                  {"role": "assistant", "content": "old assistant " * 80},
+                  current,
+              ]
+              final, warnings = completions._fit_final_model_messages(
+                  bundle_system="bundle " * 100,
+                  runtime_system="runtime " * 40,
+                  tool_system="tool guard " * 20,
+                  messages=history,
+                  token_cap=700,
+              )
+              units = sum(len(json.dumps(message, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) for message in final)
+              assert units <= 700
+              assert final[-1] == current
+              assert warnings
+          ''')
+
+          # Update the older char-estimate acceptance assertion to the conservative bound.
+          p = Path("tests/test_context_assembler.py")
+          text = p.read_text()
+          old = '''    cap = assembler.TOTAL_CONTEXT_TOKEN_CAPS[tier] * assembler._CHARS_PER_TOKEN_ESTIMATE\n    assert len(bundle.system) <= cap\n    assert bundle.context_budget["system_chars"] == len(bundle.system)\n    assert bundle.context_budget["total_token_cap"] == assembler.TOTAL_CONTEXT_TOKEN_CAPS[tier]\n    assert any(block["truncated"] for block in bundle.context_budget["blocks"])\n    assert bundle.context_budget["truncations"]\n    # Source warnings retain their original meaning; budget clipping has its own receipt.\n    assert bundle.warnings == []\n'''
+          new = '''    cap = assembler.TOTAL_CONTEXT_TOKEN_CAPS[tier]\n    assert len(bundle.system.encode("utf-8")) <= cap\n    assert bundle.context_budget["system_chars"] == len(bundle.system)\n    assert bundle.context_budget["system_token_upper_bound"] <= cap\n    assert bundle.context_budget["total_token_cap"] == assembler.TOTAL_CONTEXT_TOKEN_CAPS[tier]\n    assert any(block["truncated"] for block in bundle.context_budget["blocks"])\n    assert bundle.context_budget["truncations"]\n    assert any(warning.startswith("context_budget:") for warning in bundle.warnings)\n'''
+          if old not in text:
+              raise SystemExit("old context budget test block missing")
+          p.write_text(text.replace(old, new, 1))
+          PY
+      - name: Run focused green gate
+        run: |
+          python -m pytest -q \
+            tests/test_jsonl_tail.py::test_read_tail_lines_propagates_real_read_failure \
+            tests/test_start_ui_script.py::test_standalone_refuses_symlinked_next_ancestor \
+            tests/test_insight_loop.py::test_snooze_offset_is_compared_as_an_instant \
+            tests/test_context_assembler.py::test_context_budget_is_utf8_conservative_and_surfaces_clipping \
+            tests/test_knowledge.py::test_ingest_same_second_refresh_uses_disjoint_replacement_ids \
+            tests/test_pr673_completions_budget.py::test_final_model_visible_payload_is_bounded_and_preserves_current_user
+          python -m ruff check gateway/jsonl_tail.py gateway/insight_loop.py gateway/context_assembler.py gateway/knowledge.py gateway/routes/completions.py tests/test_jsonl_tail.py tests/test_start_ui_script.py tests/test_insight_loop.py tests/test_context_assembler.py tests/test_knowledge.py tests/test_pr673_completions_budget.py
+          bash -n scripts/desktop/start_ui.sh
+      - name: Commit verified fixes and self-remove
+        run: |
+          git config user.name "Jacob Brizinski"
+          git config user.email "jacobbrizinski@gmail.com"
+          rm .github/workflows/pr673-green-closeout.yml
+          git add gateway/jsonl_tail.py gateway/insight_loop.py gateway/context_assembler.py gateway/knowledge.py gateway/routes/completions.py scripts/desktop/start_ui.sh
+          git add tests/test_jsonl_tail.py tests/test_start_ui_script.py tests/test_insight_loop.py tests/test_context_assembler.py tests/test_knowledge.py
+          git add .github/workflows/pr673-green-closeout.yml
+          test -f tests/test_pr673_completions_budget.py
+          git commit -m "fix: close remaining runtime review gaps"
+          git push origin HEAD:closeout/finish-open-loops-20260829
