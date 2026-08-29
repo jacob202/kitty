@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,10 +55,28 @@ def _reconcile_image_batches_on_startup() -> None:
 
 
 def _reconcile_chat_turns_on_startup() -> None:
-    """Make ordinary chat turns truthful after the Gateway process restarts."""
-    from gateway.chat_lifecycle import reconcile_interrupted_turns
+    """Make orphaned Chat turns truthful and discoverable after restart."""
+    from gateway import chat_lifecycle, chats_store
 
-    reconciled = reconcile_interrupted_turns()
+    running_conversations = chat_lifecycle.list_running_conversations()
+    reconciled = chat_lifecycle.reconcile_interrupted_turns()
+    for conversation in running_conversations:
+        if chats_store.get_chat(conversation["id"]) is not None:
+            continue
+        created = datetime.fromtimestamp(conversation["created_at"], tz=timezone.utc).isoformat()
+        updated = datetime.fromtimestamp(conversation["updated_at"], tz=timezone.utc).isoformat()
+        shell = {
+            "id": conversation["id"],
+            "title": conversation["title"] or "recovered chat",
+            "messages": [],
+            "model": "kitty-default",
+            "color": "purple",
+            "createdAt": created,
+            "updatedAt": updated,
+        }
+        if conversation.get("objective") is not None:
+            shell["objective"] = conversation["objective"]
+        chats_store.upsert_chat(shell)
     if reconciled:
         logger.warning("interrupted %d orphaned chat turn(s) at startup", reconciled)
 

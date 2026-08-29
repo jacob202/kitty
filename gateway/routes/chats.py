@@ -128,9 +128,24 @@ def _recover_messages(conversation_id: str) -> list[dict]:
     messages: list[dict] = []
     seen_source_ids: set[str] = set()
     artifact_ids_needed: set[str] = set()
+    turns = [turn for turn in state.get("turns", []) if turn is not None]
+    latest_turn_for_source: dict[str, str] = {}
+    for turn in turns:
+        for msg in turn.get("messages", []):
+            source_id = msg.get("source_message_id")
+            if source_id is not None and msg.get("role") == "user":
+                latest_turn_for_source[source_id] = turn["id"]
 
-    for turn in state.get("turns", []):
-        if turn is None:
+    for turn in turns:
+        user_source_ids = [
+            msg.get("source_message_id")
+            for msg in turn.get("messages", [])
+            if msg.get("role") == "user" and msg.get("source_message_id") is not None
+        ]
+        if user_source_ids and any(
+            latest_turn_for_source.get(source_id) != turn["id"]
+            for source_id in user_source_ids
+        ):
             continue
         attempt_model = None
         for attempt in turn.get("attempts", []):

@@ -233,6 +233,23 @@ def finish_turn(
 
 RESTART_INTERRUPTED_ERROR = "Gateway restarted before the chat turn finished"
 RESTART_INTERRUPTED_MESSAGE = "Kitty restarted before this reply finished. Tap retry to try again."
+RESTART_INTERRUPTED_NO_RETRY_MESSAGE = "Kitty restarted before this reply finished."
+
+
+def list_running_conversations() -> list[dict[str, Any]]:
+    """Return conversation shells that currently own at least one running turn."""
+    init_db()
+    with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT c.id, c.project_id, c.title, c.objective, c.created_at, c.updated_at
+            FROM chat_conversations AS c
+            JOIN chat_turns AS t ON t.conversation_id = c.id
+            WHERE t.status = 'running'
+            ORDER BY c.updated_at DESC, c.id DESC
+            """
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def reconcile_interrupted_turns() -> int:
@@ -247,11 +264,21 @@ def reconcile_interrupted_turns() -> int:
     now = time.time()
     with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
         rows = conn.execute(
-            "SELECT id, conversation_id FROM chat_turns WHERE status = 'running' ORDER BY created_at"
+            "SELECT id, conversation_id, sequence FROM chat_turns WHERE status = 'running' ORDER BY created_at"
         ).fetchall()
+        latest_sequence = {}
+        for row in rows:
+            latest_sequence[row["conversation_id"]] = max(
+                row["sequence"], latest_sequence.get(row["conversation_id"], row["sequence"])
+            )
         for row in rows:
             turn_id = row["id"]
             conversation_id = row["conversation_id"]
+            interruption_message = (
+                RESTART_INTERRUPTED_MESSAGE
+                if row["sequence"] == latest_sequence[conversation_id]
+                else RESTART_INTERRUPTED_NO_RETRY_MESSAGE
+            )
             conn.execute(
                 """
                 UPDATE chat_attempts
@@ -271,7 +298,7 @@ def reconcile_interrupted_turns() -> int:
                         (id, turn_id, role, content, status, created_at)
                     VALUES (?, ?, 'assistant', ?, 'interrupted', ?)
                     """,
-                    (f"message_restart_{turn_id}", turn_id, RESTART_INTERRUPTED_MESSAGE, now),
+                    (f"message_restart_{turn_id}", turn_id, interruption_message, now),
                 )
             else:
                 conn.execute(

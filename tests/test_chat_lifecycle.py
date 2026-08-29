@@ -163,3 +163,36 @@ def test_reconcile_running_turns_does_not_touch_terminal_turns(monkeypatch, tmp_
     assert [m["content"] for m in turn["messages"] if m["role"] == "assistant"] == [
         "This turn is complete."
     ]
+
+
+def test_reconcile_only_latest_orphan_in_conversation_promises_retry(monkeypatch, tmp_path):
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file)
+
+    chat_lifecycle.start_turn(
+        conversation_id="multi-orphan",
+        project_id=None,
+        title="Two tabs",
+        user_message_id="user-one",
+        user_text="First tab",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+    chat_lifecycle.start_turn(
+        conversation_id="multi-orphan",
+        project_id=None,
+        title="Two tabs",
+        user_message_id="user-two",
+        user_text="Second tab",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+
+    assert chat_lifecycle.reconcile_interrupted_turns() == 2
+    turns = chat_lifecycle.list_conversation("multi-orphan")["turns"]
+    assistant_texts = [
+        next(message["content"] for message in turn["messages"] if message["role"] == "assistant")
+        for turn in turns
+    ]
+    assert assistant_texts[0] == "Kitty restarted before this reply finished."
+    assert assistant_texts[1] == "Kitty restarted before this reply finished. Tap retry to try again."

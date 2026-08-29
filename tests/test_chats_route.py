@@ -3,7 +3,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import chats_store
+from gateway import app as app_module
+from gateway import artifact_store, chat_lifecycle, chats_store
 from gateway.routes import chats as chats_route
 
 
@@ -13,6 +14,8 @@ def client(monkeypatch, tmp_path):
     db_file = tmp_path / "kitty" / "kitty.db"
     legacy_json = tmp_path / "kitty" / "chats.json"
     monkeypatch.setattr(chats_store, "CHATS_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(artifact_store, "ARTIFACTS_DB_FILE", db_file, raising=False)
     monkeypatch.setattr(chats_store, "LEGACY_CHATS_FILE", legacy_json, raising=False)
     app = FastAPI()
     app.include_router(chats_route.router)
@@ -121,3 +124,67 @@ def test_patch_objective_missing_chat_returns_404(client):
     r = client.patch("/chats/no-such/objective", json={"objective": "goal"})
 
     assert r.status_code == 404
+
+
+def test_restart_materializes_ledger_only_chat_for_reload_discovery(client):
+    chat_lifecycle.start_turn(
+        conversation_id="ledger-only",
+        project_id=None,
+        title="Interrupted first turn",
+        user_message_id="user-first",
+        user_text="Will this survive?",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+
+    assert client.get("/chats").json() == {"chats": []}
+
+    app_module._reconcile_chat_turns_on_startup()
+
+    listed = client.get("/chats").json()["chats"]
+    assert len(listed) == 1
+    assert listed[0]["id"] == "ledger-only"
+    assert listed[0]["title"] == "Interrupted first turn"
+    assert listed[0]["messages"] == []
+    assert listed[0]["model"] == "kitty-default"
+    assert listed[0]["color"] == "purple"
+    recovered = client.get("/chats/ledger-only/messages").json()["messages"]
+    assert [message["role"] for message in recovered] == ["user", "assistant"]
+    assert recovered[-1]["status"] == "interrupted"
+
+
+def test_retry_recovery_suppresses_superseded_interruption_bubble(client):
+    first = chat_lifecycle.start_turn(
+        conversation_id="retry-chat",
+        project_id=None,
+        title="Retry chat",
+        user_message_id="same-user-message",
+        user_text="Try this",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+    assert first.sequence == 1
+    chat_lifecycle.reconcile_interrupted_turns()
+
+    retry = chat_lifecycle.start_turn(
+        conversation_id="retry-chat",
+        project_id=None,
+        title="Retry chat",
+        user_message_id="same-user-message",
+        user_text="Try this",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+    chat_lifecycle.finish_turn(
+        retry,
+        status="succeeded",
+        assistant_text="Recovered answer",
+        resolved_model="kitty-default",
+    )
+
+    recovered = client.get("/chats/retry-chat/messages").json()["messages"]
+    assert [(message["role"], message["content"]) for message in recovered] == [
+        ("user", "Try this"),
+        ("assistant", "Recovered answer"),
+    ]
+    assert all("restarted before this reply" not in message["content"] for message in recovered)

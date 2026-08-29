@@ -300,6 +300,7 @@ async def test_lifespan_reconciles_chat_turns_left_running_by_previous_gateway(m
     monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
 
     calls: list[str] = []
+    monkeypatch.setattr(chat_lifecycle, "list_running_conversations", lambda: [])
     monkeypatch.setattr(
         chat_lifecycle,
         "reconcile_interrupted_turns",
