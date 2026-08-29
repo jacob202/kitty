@@ -36,15 +36,6 @@ _MIGRATION_RENAMES: dict[str, tuple[str, ...]] = {
     ),
 }
 
-# Per-process memo of migrations already applied. Several domain stores call
-# migrate() on every operation as a cheap "ensure schema exists" guard; without
-# this, steady-state reads/writes pay a full connection open + glob + schema
-# bookkeeping on every call. Keyed on (db path, migrations dir) -> the sorted
-# set of migration filenames that were current when the DB was last migrated,
-# so a newly added migration file still re-triggers the migrate body.
-_MIGRATED: dict[tuple[str, str], tuple[str, ...]] = {}
-
-
 def apply_pragmas(conn: sqlite3.Connection) -> None:
     """Apply standard WAL/busy/foreign_keys/sync pragmas to a connection.
 
@@ -74,11 +65,6 @@ def migrate(
     migration_path = Path(migrations_dir)
     if not migration_path.exists():
         raise RuntimeError(f"Migration directory does not exist: {migration_path}")
-
-    filenames = tuple(sorted(p.name for p in migration_path.glob("*.sql")))
-    cache_key = (str(db_path.resolve()), str(migration_path.resolve()))
-    if _MIGRATED.get(cache_key) == filenames:
-        return []
 
     applied_now: list[str] = []
     with connect(db_path) as conn:
@@ -113,7 +99,6 @@ def migrate(
             applied.add(path.name)
             applied_now.append(path.name)
             logger.info("Applied migration: %s", path.name)
-    _MIGRATED[cache_key] = filenames
     return applied_now
 
 
