@@ -513,6 +513,21 @@ def list_session_jobs(session_id: str, limit: int = 200) -> list[Any]:
     return [image_jobs._row_to_job(r) for r in rows]
 
 
+def job_session_id(job_id: str) -> str | None:
+    """Return the session a job is attached to, or None.
+
+    Exposes the ``image_jobs.session_id`` link (added by
+    ``_ensure_session_column``) so callers can resolve the character identity a
+    rendered job was produced under without inventing a second ownership model.
+    """
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        row = conn.execute(
+            "SELECT session_id FROM image_jobs WHERE job_id = ?", (job_id,)
+        ).fetchone()
+    return row["session_id"] if row else None
+
+
 def set_anchor(session_id: str, job_id: str) -> ImageSession:
     """Select a rendered result as the anchor for follow-up edits.
 

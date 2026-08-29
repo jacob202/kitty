@@ -617,6 +617,32 @@ def update_job(
     return updated
 
 
+def set_parent(job_id: str, parent_id: str) -> ImageJob:
+    """Record lineage on an already-created job without touching its operation.
+
+    Iteration re-runs an approved plan, which recreates the job with the same
+    operation (txt2img/img2img). Lineage is bookkeeping, not a render input, so
+    it is attached after the fact here rather than overloading ``parent_id`` on
+    the creation path (where it doubles as the img2img/variation anchor).
+    Unlike ``update_job`` this is allowed on terminal jobs, because a child's
+    lineage is recorded after it has already succeeded.
+    """
+    job = get_job(job_id)
+    if job is None:
+        raise JobNotFoundError(f"job {job_id} not found")
+    if not parent_id or not parent_id.strip():
+        raise ImageJobError("parent_id must not be empty")
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute(
+            "UPDATE image_jobs SET parent_id = ?, updated_at = ? WHERE job_id = ?",
+            (parent_id, _now_iso(), job_id),
+        )
+    updated = get_job(job_id)
+    assert updated is not None
+    return updated
+
+
 def register_canonical_artifact(
     job_id: str, *, project_id: int | None = None
 ) -> dict[str, Any]:
@@ -976,6 +1002,7 @@ __all__ = [
     "list_unknown",
     "transition",
     "update_job",
+    "set_parent",
     "requeue",
     "retry_job",
     "cancel_queued",

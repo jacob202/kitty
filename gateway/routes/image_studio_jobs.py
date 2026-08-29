@@ -40,6 +40,27 @@ class StudioBatchRequest(BaseModel):
     count: OutputCount = 1
 
 
+class JobModifyRequest(BaseModel):
+    """One-or-more render-parameter changes for iterating on an image.
+
+    Only fields present in the request body are changed; everything else is
+    carried forward from the source job. Provider, operation, plan, and intent
+    are intentionally absent so a modify can never re-route or re-approve.
+    """
+
+    prompt: str | None = None
+    negative_prompt: str | None = None
+    seed: int | None = None
+    width: int | None = None
+    height: int | None = None
+    steps: int | None = None
+    guidance: float | None = None
+    sampler: str | None = None
+    scheduler: str | None = None
+    model_id: str | None = None
+    preset_id: str | None = None
+
+
 def _exact_model_id(provider: str) -> str | None:
     provider = provider.strip().lower()
     if provider == "openrouter":
@@ -150,6 +171,59 @@ async def studio_clear_anchor(session_id: str) -> dict:
     return _session_payload(session)
 
 
+def _iteration_error(exc: Exception) -> HTTPException:
+    from gateway.image_jobs import JobNotFoundError
+
+    if isinstance(exc, JobNotFoundError):
+        return HTTPException(status_code=404, detail=str(exc))
+    return HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/studio/jobs/{job_id}/duplicate")
+async def studio_duplicate_job(job_id: str) -> dict:
+    """Enqueue an independent re-run of a succeeded job's approved plan."""
+    from gateway import image_iteration
+    from gateway.image_jobs import ImageJobError
+    from gateway.image_sessions import ImageSessionError
+
+    try:
+        batch = image_iteration.enqueue_duplicate(job_id)
+    except (ImageJobError, ImageSessionError) as exc:
+        raise _iteration_error(exc) from exc
+    return {"batch": batch}
+
+
+@router.post("/studio/jobs/{job_id}/retry")
+async def studio_retry_job(job_id: str) -> dict:
+    """Enqueue a fresh attempt of a succeeded job's generation intent."""
+    from gateway import image_iteration
+    from gateway.image_jobs import ImageJobError
+    from gateway.image_sessions import ImageSessionError
+
+    try:
+        batch = image_iteration.enqueue_retry(job_id)
+    except (ImageJobError, ImageSessionError) as exc:
+        raise _iteration_error(exc) from exc
+    return {"batch": batch}
+
+
+@router.post("/studio/jobs/{job_id}/modify")
+async def studio_modify_job(job_id: str, req: JobModifyRequest) -> dict:
+    """Enqueue a re-run and report the changed-vs-unchanged diff."""
+    from gateway import image_iteration
+    from gateway.image_jobs import ImageJobError
+    from gateway.image_sessions import ImageSessionError
+
+    changes = req.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=400, detail="no parameters supplied to modify")
+    try:
+        batch, diff = image_iteration.enqueue_modify(job_id, **changes)
+    except (ImageJobError, ImageSessionError) as exc:
+        raise _iteration_error(exc) from exc
+    return {"batch": batch, "changed": diff}
+
+
 async def execute_studio_batch_request(request: dict) -> dict:
     """Execute one queued child through the existing Studio generation path.
 
@@ -162,13 +236,16 @@ async def execute_studio_batch_request(request: dict) -> dict:
     payload = {
         key: value
         for key, value in request.items()
-        if key not in {"estimated_provider", "estimated_model_id"}
+        if key not in {"estimated_provider", "estimated_model_id", "lineage_parent_id"}
     }
+    lineage_parent_id = request.get("lineage_parent_id")
     started = time.monotonic()
     result = await studio_generate(StudioGenerateRequest(**payload))
     duration = max(time.monotonic() - started, 0.001)
 
     job_id = result.get("job_id")
+    if lineage_parent_id and isinstance(job_id, str) and job_id:
+        image_jobs.set_parent(job_id, lineage_parent_id)
     job = image_jobs.get_job(job_id) if isinstance(job_id, str) else None
     if job is not None:
         image_estimates.record_observation(
@@ -188,11 +265,15 @@ async def execute_studio_batch_request(request: dict) -> dict:
 
 
 __all__ = [
+    "JobModifyRequest",
     "StudioBatchRequest",
     "StudioEstimateRequest",
     "execute_studio_batch_request",
     "router",
     "studio_clear_anchor",
     "studio_create_batch",
+    "studio_duplicate_job",
     "studio_estimate",
+    "studio_modify_job",
+    "studio_retry_job",
 ]

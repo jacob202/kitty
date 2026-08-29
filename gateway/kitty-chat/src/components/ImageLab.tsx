@@ -41,8 +41,13 @@ type ImageBatch = {
   status: string
   count: number
   estimate: { cost?: EstimateFact; duration?: EstimateFact }
-  request?: { prompt?: string }
+  request?: { prompt?: string; lineage_parent_id?: string }
   items: BatchItem[]
+}
+
+type IterationResult = {
+  batch: ImageBatch
+  changed?: Record<string, { before: unknown; after: unknown }>
 }
 
 type AgentDecision = {
@@ -181,6 +186,84 @@ function useStudioCharacters() {
   }, [])
 
   return { characters, loading, fetchCharacters, createCharacter, uploadReference }
+}
+
+function ResultActions({ jobId, onNewBatch, onError }: {
+  jobId: string
+  onNewBatch: (batch: ImageBatch) => void
+  onError: (message: string) => void
+}) {
+  const [varyPrompt, setVaryPrompt] = useState('')
+  const [diff, setDiff] = useState<IterationResult['changed'] | null>(null)
+  const [working, setWorking] = useState(false)
+
+  async function iterate(kind: 'retry' | 'duplicate') {
+    setWorking(true)
+    try {
+      const response = await fetch(`/proxy/studio/jobs/${encodeURIComponent(jobId)}/${kind}`, { method: 'POST' })
+      const payload = await jsonOrError(response)
+      onNewBatch(payload.batch as ImageBatch)
+    } catch (error) {
+      onError(humanError(error))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  async function modify() {
+    const next = varyPrompt.trim()
+    if (!next || working) return
+    setWorking(true)
+    try {
+      const response = await fetch(`/proxy/studio/jobs/${encodeURIComponent(jobId)}/modify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: next }),
+      })
+      const payload = await jsonOrError(response) as IterationResult
+      onNewBatch(payload.batch)
+      setDiff(payload.changed ?? null)
+      setVaryPrompt('')
+    } catch (error) {
+      onError(humanError(error))
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        <button type="button" onClick={() => void iterate('retry')} disabled={working} style={secondaryButtonStyle}>
+          <RefreshCw size={9} /> retry
+        </button>
+        <button type="button" onClick={() => void iterate('duplicate')} disabled={working} style={secondaryButtonStyle}>
+          <Plus size={9} /> duplicate
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <input
+          type="text"
+          value={varyPrompt}
+          onChange={event => setVaryPrompt(event.target.value)}
+          onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void modify() } }}
+          placeholder="change one thing…"
+          aria-label="vary prompt"
+          style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+        />
+        <button type="button" onClick={() => void modify()} disabled={working || !varyPrompt.trim()} style={secondaryButtonStyle}>
+          vary
+        </button>
+      </div>
+      {diff && Object.keys(diff).length > 0 && (
+        <div style={metaStyle}>
+          {Object.entries(diff).map(([field, value]) => (
+            <div key={field}>{field}: {String(value.before)} → {String(value.after)}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
@@ -848,7 +931,12 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                 {batches.map(batch => (
                   <article key={batch.batch_id} style={resultBatchStyle}>
                     <div style={resultBatchHeaderStyle}>
-                      <strong style={{ overflowWrap: 'anywhere' }}>{batch.request?.prompt || 'Image generation'}</strong>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <strong style={{ overflowWrap: 'anywhere' }}>{batch.request?.prompt || 'Image generation'}</strong>
+                        {batch.request?.lineage_parent_id && (
+                          <div style={supportingTextStyle}>Variation of {batch.request.lineage_parent_id}</div>
+                        )}
+                      </div>
                       <span style={statusBadgeStyle}>{batch.status}</span>
                     </div>
                     <div style={{ ...resultGridStyle, ...(compact ? { gridTemplateColumns: '1fr' } : {}) }}>
@@ -863,9 +951,16 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                                 style={imageStyle}
                               />
                               {item.job_id && (
-                                <button type="button" onClick={() => void useThis(item.job_id as string)} style={secondaryButtonStyle}>
-                                  Use as edit source
-                                </button>
+                                <>
+                                  <button type="button" onClick={() => void useThis(item.job_id as string)} style={secondaryButtonStyle}>
+                                    Use as edit source
+                                  </button>
+                                  <ResultActions
+                                    jobId={item.job_id}
+                                    onNewBatch={newBatch => setBatches(previous => [newBatch, ...previous.filter(existing => existing.batch_id !== newBatch.batch_id)])}
+                                    onError={message => setError(message)}
+                                  />
+                                </>
                               )}
                             </>
                           ) : (
