@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from gateway import image_batches, image_estimates, image_recipes
-from gateway.image_runner import FLUX_GENERATE_MODEL, OPENROUTER_IMAGE_MODEL
+from gateway.image_runner import FLUX_EDIT_MODEL, FLUX_GENERATE_MODEL, OPENROUTER_IMAGE_MODEL
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["image-studio-jobs"])
@@ -74,6 +74,73 @@ def _exact_model_id(provider: str) -> str | None:
     # Draw Things chooses its installed model at runtime. Returning None is
     # more honest than grouping observations under a made-up family label.
     return None
+
+
+def _iteration_model_id(recipe: object, *, operation: str) -> str | None:
+    """Resolve the exact model the current recipe would dispatch without doing I/O."""
+    provider = str(getattr(recipe, "provider", "")).strip().lower()
+    if provider == "flux2":
+        from gateway.flux2_targets import Flux2TargetError, resolve_flux2_target
+
+        target_id = getattr(recipe, "execution_target", None)
+        if not target_id:
+            return None
+        try:
+            return resolve_flux2_target(str(target_id)).model_id
+        except Flux2TargetError:
+            return None
+    if provider == "flux":
+        return FLUX_EDIT_MODEL if operation == "img2img" else FLUX_GENERATE_MODEL
+    if provider == "openrouter":
+        return OPENROUTER_IMAGE_MODEL
+    if provider == "comfyui":
+        from gateway.image_gen import SDXL_PHOTONIC
+
+        return SDXL_PHOTONIC
+    if provider in {"airforce", "fal", "drawthings"}:
+        try:
+            from mcp.imagen.engines import get
+
+            return getattr(get(provider), "model_name", None)
+        except Exception:
+            return None
+    return None
+
+
+def _validate_iteration_route(request: dict) -> None:
+    """Fail before dispatch when a retry/duplicate can no longer reproduce its source route."""
+    expected_provider = request.get("expected_provider")
+    expected_model_id = request.get("expected_model_id")
+    if not expected_provider and not expected_model_id:
+        return
+
+    recipe_id = request.get("recipe_id")
+    parent_id = request.get("lineage_parent_id")
+    if not recipe_id or not parent_id:
+        raise HTTPException(status_code=409, detail="source route cannot be proven for this iteration")
+
+    from gateway import image_jobs
+
+    source = image_jobs.get_job(str(parent_id))
+    if source is None:
+        raise HTTPException(status_code=409, detail="source route cannot be proven because the source job is missing")
+    if expected_provider and source.provider != expected_provider:
+        raise HTTPException(status_code=409, detail="source route metadata no longer matches the source provider")
+    if expected_model_id and source.model_id != expected_model_id:
+        raise HTTPException(status_code=409, detail="source route metadata no longer matches the source model")
+
+    try:
+        recipe = image_recipes.get_recipe(str(recipe_id))
+    except image_recipes.RecipeError as exc:
+        raise HTTPException(status_code=409, detail="source route recipe is no longer available") from exc
+    if not recipe.is_available:
+        raise HTTPException(status_code=409, detail="source route recipe is currently unavailable")
+    if expected_provider and recipe.provider != expected_provider:
+        raise HTTPException(status_code=409, detail="source route provider changed; refusing to reroute the iteration")
+
+    current_model_id = _iteration_model_id(recipe, operation=source.operation)
+    if expected_model_id and current_model_id != expected_model_id:
+        raise HTTPException(status_code=409, detail="source route model changed; refusing to reroute the iteration")
 
 
 async def studio_estimate(req: StudioEstimateRequest) -> dict:
@@ -236,10 +303,14 @@ async def execute_studio_batch_request(request: dict) -> dict:
     from gateway import image_jobs
     from gateway.routes.extended import StudioGenerateRequest, studio_generate
 
+    _validate_iteration_route(request)
     payload = {
         key: value
         for key, value in request.items()
-        if key not in {"estimated_provider", "estimated_model_id", "lineage_parent_id"}
+        if key not in {
+            "estimated_provider", "estimated_model_id", "lineage_parent_id",
+            "expected_provider", "expected_model_id",
+        }
     }
     lineage_parent_id = request.get("lineage_parent_id")
     started = time.monotonic()

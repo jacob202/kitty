@@ -98,6 +98,14 @@ def build_generation_context(job_id: str) -> GenerationContext:
     job = image_jobs.get_job(job_id)
     assert job is not None
 
+    preset_id = job.preset_id
+    if preset_id is None and job.plan_id:
+        from gateway import image_plans
+
+        plan = image_plans.get_plan(job.plan_id)
+        if plan is not None:
+            preset_id = plan.recipe_id
+
     session_id = image_sessions.job_session_id(job_id)
     character_id: str | None = None
     reference_ids: list[str] = []
@@ -122,7 +130,7 @@ def build_generation_context(job_id: str) -> GenerationContext:
         guidance=job.guidance,
         sampler=job.sampler,
         scheduler=job.scheduler,
-        preset_id=job.preset_id,
+        preset_id=preset_id,
         provider_params_json=job.provider_params_json,
         workflow_template_id=job.workflow_template_id,
         workflow_hash=job.workflow_hash,

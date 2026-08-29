@@ -281,6 +281,23 @@ def test_iteration_batch_carries_source_negative_prompt(monkeypatch):
     assert batch["request"]["negative_prompt"] == "blurry"
 
 
+def test_generation_context_recovers_recipe_lock_from_approved_plan(monkeypatch):
+    from types import SimpleNamespace
+
+    from gateway import image_iteration, image_plans
+
+    src = _succeeded_job(preset_id=None)
+    monkeypatch.setattr(
+        image_plans,
+        "get_plan",
+        lambda plan_id: SimpleNamespace(recipe_id="bfl_flux2_draft") if plan_id == PLAN_ID else None,
+    )
+
+    ctx = image_iteration.build_generation_context(src.job_id)
+
+    assert ctx.preset_id == "bfl_flux2_draft"
+
+
 def test_iteration_refuses_source_without_exact_recipe_lock():
     from gateway import image_iteration
 
@@ -290,3 +307,45 @@ def test_iteration_refuses_source_without_exact_recipe_lock():
 
     with pytest.raises(image_iteration.IterationError, match="exact source recipe"):
         image_iteration.enqueue_duplicate(src.job_id)
+
+
+@pytest.mark.asyncio
+async def test_iteration_batch_refuses_route_drift_before_generation(monkeypatch):
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException
+
+    from gateway import image_recipes
+    from gateway.routes import extended
+    from gateway.routes import image_studio_jobs as routes
+
+    source = _succeeded_job(
+        provider="flux2",
+        model_id="flux-2-klein-4b",
+        preset_id="recipe_locked",
+    )
+    monkeypatch.setattr(
+        image_recipes,
+        "get_recipe",
+        lambda _rid: SimpleNamespace(
+            recipe_id="recipe_locked",
+            provider="openrouter",
+            model_family="different-model",
+            execution_target=None,
+            is_available=True,
+        ),
+    )
+
+    async def must_not_generate(_req):
+        raise AssertionError("route drift must be rejected before generation")
+
+    monkeypatch.setattr(extended, "studio_generate", must_not_generate)
+
+    with pytest.raises(HTTPException, match="source route"):
+        await routes.execute_studio_batch_request({
+            "prompt": "portrait",
+            "recipe_id": "recipe_locked",
+            "lineage_parent_id": source.job_id,
+            "expected_provider": "flux2",
+            "expected_model_id": "flux-2-klein-4b",
+        })
