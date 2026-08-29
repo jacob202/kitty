@@ -22,6 +22,18 @@ test.beforeEach(async ({ page }) => {
       },
     })
   );
+  await page.route('**/proxy/runtime/**', route =>
+    route.fulfill({
+      json: {
+        revision: 'smoke-test',
+        connections: { gateway: { state: 'available', reason: null } },
+        inference: { available_models: { state: 'available', value: ['kitty-default'] } },
+        tools: { state: 'available' },
+        context: { active_project: { value: null } },
+        execution: { builder: { value: null, state: 'available' } },
+      },
+    })
+  );
 });
 
 test('chat view loads and input is accessible', async ({ page }, testInfo) => {
