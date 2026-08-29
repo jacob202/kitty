@@ -344,6 +344,7 @@ def describe_providers() -> dict[str, Any]:
         PROVIDERS,
         effective_provider_order,
         provider_is_configured,
+        provider_is_environment_disabled,
     )
     from gateway.provider_prefs import load_preferences
 
@@ -355,6 +356,7 @@ def describe_providers() -> dict[str, Any]:
     providers: list[dict[str, object]] = []
     for name, config in PROVIDERS.items():
         configured = provider_is_configured(config)
+        environment_disabled = provider_is_environment_disabled(name)
         providers.append(
             {
                 "name": name,
@@ -364,7 +366,7 @@ def describe_providers() -> dict[str, Any]:
                 "api_key_env": list(config.api_key_env),
                 "requires_key": config.requires_key,
                 "configured": configured,
-                "disabled": name in disabled,
+                "disabled": name in disabled or environment_disabled,
                 "position": order.index(name) if name in order else None,
                 "active": active == name,
                 "kind": config.kind,
