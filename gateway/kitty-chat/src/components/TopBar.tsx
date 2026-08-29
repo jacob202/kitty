@@ -242,11 +242,15 @@ function RuntimeBadge({
         : state === 'stale'
           ? 'connection stale'
           : 'connection unknown'
+  // "Gateway" is the internal name for a component; it means nothing to the
+  // person using Kitty, and a screen reader user deserves the same plain
+  // wording the visible badge gets. Naming the connection is enough to keep
+  // this distinct from the cat StateBadge beside it.
   const accessibleLabel = state === 'stale'
-    ? 'Gateway connection status is stale'
+    ? 'Connection to Kitty is stale'
     : state === 'unknown'
-      ? 'Gateway connection status is unknown'
-      : `Gateway connection: ${label}`
+      ? 'Connection to Kitty is unknown'
+      : `Connection to Kitty: ${label}`
   return (
     <span
       title={detail ?? accessibleLabel}

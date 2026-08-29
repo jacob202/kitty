@@ -11,8 +11,8 @@ afterEach(cleanup)
 const baseProps = {
   showChatSignals: true,
   attachmentErrors: [],
-  gatewayOffline: false,
-  onRetryGateway: vi.fn(),
+  modelsUnavailable: false,
+  onRetryModels: vi.fn(),
   saveState: 'idle' as const,
   onRetrySave: vi.fn(),
   briefUnavailable: false,
@@ -26,32 +26,32 @@ describe('StatusBar', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('ranks attachment errors above gateway offline', () => {
+  it('ranks attachment errors above the models-unavailable row', () => {
     render(
       <StatusBar
         {...baseProps}
         attachmentErrors={[{ file: 'x.png', reason: 'too big' }]}
-        gatewayOffline
+        modelsUnavailable
       />,
     )
     expect(screen.getByRole('alert')).toHaveTextContent('x.png: too big')
-    expect(screen.queryByText('gateway offline')).toBeNull()
+    expect(screen.queryByText(/can't reach any models/i)).toBeNull()
   })
 
-  it('shows gateway offline above save-state failures and retries on click', () => {
-    const onRetryGateway = vi.fn()
+  it('shows the models-unavailable row above save-state failures and retries on click', () => {
+    const onRetryModels = vi.fn()
     const props = {
       ...baseProps,
-      gatewayOffline: true,
-      onRetryGateway,
+      modelsUnavailable: true,
+      onRetryModels,
       saveState: 'failed' as const,
     }
     const { rerender } = render(<StatusBar {...props} />)
     rerender(<StatusBar {...props} />)
     rerender(<StatusBar {...props} />)
-    expect(screen.getByText('gateway offline')).toBeInTheDocument()
+    expect(screen.getByText(/can't reach any models/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'retry' }))
-    expect(onRetryGateway).toHaveBeenCalledTimes(1)
+    expect(onRetryModels).toHaveBeenCalledTimes(1)
   })
 
   it('shows a failed save with a working retry action', () => {
@@ -131,5 +131,20 @@ describe('StatusBar', () => {
     } finally {
       localStorage.getItem = originalGetItem
     }
+  })
+  // Product acceptance, PR #675: this row claimed "gateway offline" while the
+  // Home panels correctly said "Kitty is running but this part isn't answering
+  // yet." The flag behind it is model-list availability, and HealthGate has
+  // already proven the gateway reachable before StatusBar renders at all — so
+  // the row must never claim the gateway is down, and must not use the word.
+  it('never claims the gateway is offline, and avoids internal vocabulary', () => {
+    const props = { ...baseProps, modelsUnavailable: true, showChatSignals: false }
+    const { container, rerender } = render(<StatusBar {...props} />)
+    rerender(<StatusBar {...props} />)
+    rerender(<StatusBar {...props} />)
+    const text = container.textContent ?? ''
+    expect(text).toMatch(/can't reach any models/i)
+    expect(text).not.toMatch(/gateway/i)
+    expect(text).not.toMatch(/offline/i)
   })
 })

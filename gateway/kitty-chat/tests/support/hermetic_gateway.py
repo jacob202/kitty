@@ -10,6 +10,7 @@ from fastapi import FastAPI
 
 import gateway.context_assembler as context_assembler
 import gateway.routes.completions as completions
+import gateway.provider_prefs as provider_prefs
 from gateway.auth import BearerAuthMiddleware
 from gateway.context_assembler import ContextBundle
 from gateway.doctor import Check
@@ -31,6 +32,7 @@ async def _hermetic_manifest(*, project_id=None) -> dict:
 context_assembler.assemble_context = _hermetic_context
 completions.compose_manifest = _hermetic_manifest
 completions.compact_runtime_context = lambda manifest: "<kitty_runtime_truth>hermetic</kitty_runtime_truth>"
+provider_prefs.active_provider = lambda: None
 
 app = FastAPI(title="Kitty Hermetic Chat Gateway")
 app.add_middleware(BearerAuthMiddleware)
