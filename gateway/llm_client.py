@@ -265,14 +265,19 @@ def resolve_agentrouter_api_key() -> str:
     must not rewrite security-critical settings such as ``GATEWAY_SECRET``.
     """
     env_names = ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY")
-    for env_name in env_names:
-        value = _clean_agentrouter_key(os.environ.get(env_name, ""), env_name)
-        if value:
-            return value
 
+    # Preserve the old override=True precedence without mutating os.environ:
+    # a repo dotenv key may be rotated while Gateway stays up, so parse the
+    # current file on every resolution and prefer it over any stale value that
+    # an earlier generic load_dotenv() call may have cached in the process.
     values = dotenv_values(PROJECT_ROOT / ".env")
     for env_name in env_names:
         value = _clean_agentrouter_key(values.get(env_name), env_name)
+        if value:
+            return value
+
+    for env_name in env_names:
+        value = _clean_agentrouter_key(os.environ.get(env_name, ""), env_name)
         if value:
             return value
     return ""
@@ -559,6 +564,11 @@ def _is_agentrouter_disabled() -> bool:
     return os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower() in ("1", "true", "yes")
 
 
+def provider_is_environment_disabled(provider_name: str) -> bool:
+    """Whether an environment kill switch makes a provider unusable."""
+    return provider_name == "agentrouter" and _is_agentrouter_disabled()
+
+
 def retry_with_backoff(
     func, max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 10.0
 ):
@@ -691,7 +701,7 @@ def selected_provider_name() -> str | None:
         raise ProviderChainExhausted([f"selected provider {name!r} is unknown"])
     if is_disabled(name):
         raise ProviderChainExhausted([f"selected provider {name!r} is disabled"])
-    if name == "agentrouter" and _is_agentrouter_disabled():
+    if provider_is_environment_disabled(name):
         raise ProviderChainExhausted(["selected provider 'agentrouter' is disabled by environment"])
     if not provider_is_configured(PROVIDERS[name]):
         raise ProviderChainExhausted([f"selected provider {name!r} is not configured"])
@@ -810,7 +820,7 @@ def call_llm(
             return min(int(remaining), timeout)
 
         for provider_name in effective_provider_order():
-            if provider_name == "agentrouter" and _is_agentrouter_disabled():
+            if provider_is_environment_disabled(provider_name):
                 errors.append(f"{provider_name}: {_REASON_DISABLED}")
                 continue
             if not provider_is_configured(PROVIDERS[provider_name]):
