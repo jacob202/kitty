@@ -93,7 +93,7 @@ Missing generated next steps are normal empty state. Use the bulk next-step proj
 Project rows share one surface and separators instead of becoming a stack of equal-weight cards. Keep only one page heading, use body typography for metadata, and keep the next-step surface neutral rather than accent-outlined.
 ## Image Lab
 
-Image Lab is a creative workspace, not a provider configuration form. The conversation/prompt canvas is primary; durable results and queued work occupy a dedicated secondary pane. On compact layouts those regions stack without changing the underlying session or queue model.
+Image Lab is a creative workspace, not a provider configuration form. Its default hierarchy is References → Create → Results → Activity. Durable results become dominant once present; queued/running work remains visible without turning provider/session mechanics into the primary interface. On compact layouts those regions stack without changing the underlying session or queue model.
 
 Persistent generation controls use body typography and touch-sized targets. Reference characters and anchored images are visible as selected context near the prompt, while exact provider, provenance, and recovery details remain subordinate unless they need attention. Cost and duration estimates stay visible before queueing without competing with the prompt itself.
 
@@ -128,3 +128,11 @@ Schedules use one shared list surface with readable human schedule/action langua
 Desktop may expose Automations directly in primary navigation. Phones keep six primary tabs; `More` owns secondary destinations such as Projects, Automations, and Settings and represents the selected secondary destination with `aria-current` instead of adding a squeezed seventh tab.
 
 Runtime/why evidence remains available on demand, while the default Automations view emphasizes what runs, whether it is active or paused, when it last ran, and what the user can do next.
+
+## Settings
+
+Settings is a preference surface first and an infrastructure surface second. Personal/appearance choices and ordinary product preferences come before provider/runtime mechanics; technical provider details stay truthful but visually subordinate.
+
+Use readable body typography and shared semantic surfaces rather than an operations-console treatment. Advanced configuration belongs behind explicit secondary sections/disclosure, and destructive or security-sensitive actions remain clearly labeled. Never expose secrets or manufacture provider availability.
+
+Phone Settings is a single readable vertical flow with touch-sized controls; it must not squeeze desktop provider tables or path/configuration controls into narrow layouts.

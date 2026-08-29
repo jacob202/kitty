@@ -29,6 +29,22 @@ const GATEWAY_STUBS = [
       { name: 'drawthings', label: 'Draw Things', available: false },
     ],
   }],
+  ['**/proxy/artifacts*', {
+    artifacts: [{
+      id: 'artifact-mobile-overflow-regression',
+      project_id: 7,
+      kind: 'image',
+      media_type: 'image/png',
+      display_name: 'job_2105d78bd23a469fb8db5645c85aa587.png',
+      state: 'ready',
+      size_bytes: 432311,
+      created_at: 1787500800,
+      created_by: 'image_lab',
+      conversation_id: null,
+      metadata: {},
+      error: null,
+    }],
+  }],
   ['**/proxy/knowledge/sources', {
     total_sources: 2,
     total_chunks: 3,
@@ -313,6 +329,10 @@ test.describe('phone dogfood — slice 1', () => {
     // The native file input still exists behind the picker.
     const fileInput = page.locator('input[type="file"][accept*=".pdf"]');
     expect(await fileInput.count(), 'native file input present').toBeGreaterThanOrEqual(1);
+
+    const layout = await collectOverflow(page);
+    expect(layout.scrollWidth, `Library page scrollWidth ${layout.scrollWidth} > viewport ${layout.width}`).toBeLessThanOrEqual(layout.width + 1);
+    expect(layout.offenders, `Library elements overhang the 390px viewport:\n${JSON.stringify(layout.offenders, null, 2)}`).toEqual([]);
   });
 });
 

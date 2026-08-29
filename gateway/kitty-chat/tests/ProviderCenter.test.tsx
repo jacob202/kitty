@@ -60,6 +60,13 @@ describe('provider call order', () => {
     expect(screen.getAllByText('openrouter').length).toBeGreaterThan(0);
   });
 
+  it('keeps technical provider actions touch-sized when Settings reveals them', () => {
+    render(<ProviderCenter />);
+    for (const button of screen.getAllByRole('button')) {
+      expect(button).toHaveStyle({ minHeight: '44px' });
+    }
+  });
+
   it('marks a provider with no key as not ready', () => {
     render(<ProviderCenter />);
     expect(screen.getByText(/OPENROUTER_API_KEY missing/)).toBeInTheDocument();

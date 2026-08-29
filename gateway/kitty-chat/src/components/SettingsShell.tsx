@@ -1,4 +1,5 @@
 'use client'
+import type { CSSProperties } from 'react'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { ProviderCenter } from '@/components/ProviderCenter'
 
@@ -9,93 +10,31 @@ export default function SettingsShell({ isMobile, theme, onToggleTheme }: {
   theme: ThemeMode
   onToggleTheme?: () => void
 }) {
-  const pad = isMobile ? '16px 12px 124px' : '24px 32px 40px'
+  const pad = isMobile ? '20px 16px 124px' : '32px 40px 48px'
 
   return (
-    <div style={{ flex: 1, padding: pad, display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
-      <header>
-        <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 32, color: 'var(--ink)' }}>Settings</h1>
-        <p style={{ margin: '4px 0 0', color: 'var(--ink-2)' }}>
-          Configure providers, appearance, and connected services.
-        </p>
+    <div style={{ flex: 1, padding: pad, display: 'flex', flexDirection: 'column', gap: 28, minWidth: 0 }}>
+      <header style={{ maxWidth: 720 }}>
+        <h1 style={pageTitleStyle}>Settings</h1>
+        <p style={pageSubtitleStyle}>Personalize Kitty first. Models, providers, and runtime diagnostics stay available when you need them.</p>
       </header>
 
-      <SettingsPanel theme={theme} onToggleTheme={onToggleTheme!} />
+      <SettingsPanel theme={theme} onToggleTheme={onToggleTheme ?? (() => {})} />
 
-      <section>
-        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--ink)', margin: '0 0 12px' }}>
-          Providers
-        </h2>
-        <ProviderCenter />
-      </section>
-
-      <section style={{
-        background: 'var(--surface)',
-        border: '1.5px solid var(--line)',
-        borderRadius: 14,
-        padding: 18,
-        display: 'grid',
-        gap: 10,
-      }}>
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: '0.12em',
-          textTransform: 'lowercase',
-          color: 'var(--ink-2)',
-        }}>
-          skills & tools
-        </span>
-        <p style={{
-          fontFamily: 'var(--font-body)',
-          fontSize: 13,
-          color: 'var(--ink)',
-          lineHeight: 1.6,
-          margin: 0,
-        }}>
-          Tutor, Agents, and Tools are available but unrouted. They earn their
-          place here when they prove daily usefulness. Until then, launch them
-          from the command palette (<kbd style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            padding: '1px 6px',
-            border: '1px solid var(--line)',
-            borderRadius: 4,
-          }}>⌘K</kbd>) or the sidebar rail.
-        </p>
-      </section>
-
-      <section style={{
-        background: 'var(--surface)',
-        border: '1.5px solid var(--line)',
-        borderRadius: 14,
-        padding: 18,
-        display: 'grid',
-        gap: 10,
-      }}>
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: '0.12em',
-          textTransform: 'lowercase',
-          color: 'var(--ink-2)',
-        }}>
-          advanced
-        </span>
-        <p style={{
-          fontFamily: 'var(--font-body)',
-          fontSize: 13,
-          color: 'var(--ink)',
-          lineHeight: 1.6,
-          margin: 0,
-        }}>
-          Theme: <strong>{theme}</strong>. Advanced settings appear here as
-          features mature — data export, cache management, and debug overlays
-          are on the roadmap.
-        </p>
-      </section>
+      <details style={technicalSectionStyle}>
+        <summary style={technicalSummaryStyle}>
+          <span>
+            <strong style={{ display: 'block', color: 'var(--ink)', fontSize: 16 }}>Provider & runtime details</strong>
+            <span style={{ display: 'block', marginTop: 3, color: 'var(--ink-2)', fontSize: 13, lineHeight: 1.45 }}>Routing, provider order, plugins, image engines, MCP, and external execution lanes.</span>
+          </span>
+        </summary>
+        <div style={{ paddingTop: 18 }}><ProviderCenter /></div>
+      </details>
     </div>
   )
 }
+
+const pageTitleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 34, lineHeight: 1.15, letterSpacing: '-0.025em', color: 'var(--ink)' }
+const pageSubtitleStyle: CSSProperties = { margin: '8px 0 0', color: 'var(--ink-2)', fontSize: 15, lineHeight: 1.55 }
+const technicalSectionStyle: CSSProperties = { maxWidth: 960, minWidth: 0, borderTop: '1px solid var(--line)', paddingTop: 18 }
+const technicalSummaryStyle: CSSProperties = { minHeight: 56, display: 'flex', alignItems: 'center', cursor: 'pointer', listStylePosition: 'outside', padding: '4px 2px' }

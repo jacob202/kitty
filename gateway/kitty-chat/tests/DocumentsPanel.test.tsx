@@ -55,6 +55,7 @@ describe('DocumentsPanel mobile (#346 Slice 1, PR#355 finding 1)', () => {
     expect(screen.getByTestId('library-url-control')).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/paste a URL/i)).toBeInTheDocument()
     expect(screen.getByTestId('library-file-picker')).toBeInTheDocument()
+    expect(screen.getByTestId('library-file-picker')).toHaveStyle({ minHeight: '44px' })
     expect(document.querySelector('input[type="file"][accept*=".pdf"]')).not.toBeNull()
   })
 
@@ -66,6 +67,7 @@ describe('DocumentsPanel mobile (#346 Slice 1, PR#355 finding 1)', () => {
     renderPanel(true)
     expect(screen.getByText(/ingest failed — gateway exploded/i)).toBeInTheDocument()
     expect(screen.getByTestId('library-url-control')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^add url$/i })).toHaveStyle({ minHeight: '44px' })
   })
 
   it('keeps ingest result state visible on mobile', () => {

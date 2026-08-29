@@ -176,7 +176,7 @@ export function ProviderCenter() {
               onClick={() => togglePlugin.mutate({ name: p.name, enabled: !p.enabled })}
               disabled={togglePlugin.isPending}
               variant={p.enabled ? 'primary' : 'secondary'}
-              size="sm"
+              size="md"
             >
               {p.enabled ? 'enabled' : 'disabled'}
             </Button>
@@ -193,7 +193,7 @@ export function ProviderCenter() {
             onClick={() => void imageStatusQuery.refetch()}
             disabled={imageStatusQuery.isFetching}
             variant="ghost"
-            size="sm"
+            size="md"
             icon={<RefreshCw size={12} />}
           >
             {imageStatusQuery.isFetching ? 'checking…' : 'refresh'}
@@ -386,7 +386,7 @@ Selecting a provider forces normal chat through that provider. Auto keeps Kitty 
               onClick={() => move(provider.name, -1)}
               disabled={save.isPending || provider.disabled || provider.position === 0}
               variant="ghost"
-              size="sm"
+              size="md"
               icon={<ChevronUp size={12} />}
               ariaLabel={`Move ${provider.name} up`}
             >{''}</Button>
@@ -394,7 +394,7 @@ Selecting a provider forces normal chat through that provider. Auto keeps Kitty 
               onClick={() => move(provider.name, 1)}
               disabled={save.isPending || provider.disabled || provider.position === order.length - 1}
               variant="ghost"
-              size="sm"
+              size="md"
               icon={<ChevronDown size={12} />}
               ariaLabel={`Move ${provider.name} down`}
             >{''}</Button>
@@ -402,7 +402,7 @@ Selecting a provider forces normal chat through that provider. Auto keeps Kitty 
               onClick={() => toggle(provider.name, !provider.disabled)}
               disabled={save.isPending}
               variant={provider.disabled ? 'secondary' : 'primary'}
-              size="sm"
+              size="md"
               ariaLabel={`${provider.disabled ? 'Enable' : 'Disable'} ${provider.name}`}
             >
               {provider.disabled ? 'off' : 'on'}

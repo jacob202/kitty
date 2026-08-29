@@ -165,6 +165,28 @@ describe('ImageLab', () => {
     expect(screen.getByTestId('image-lab-send')).toBeDisabled()
   })
 
+  it('fails closed and dispatches no generation work while engines are unavailable', async () => {
+    vi.mocked(queries.useImageStatus).mockReturnValue(offlineStatus() as never)
+    const fetchMock = stubFetch()
+    render(<ImageLab />)
+
+    const input = screen.getByPlaceholderText(/tell kitty what you want to make/i)
+    fireEvent.change(input, { target: { value: 'do not dispatch this' } })
+    const generate = screen.getByTestId('image-lab-send')
+    expect(generate).toBeDisabled()
+    fireEvent.click(generate)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/proxy/studio/estimate', expect.any(Object)))
+    const dispatched = fetchMock.mock.calls.filter(([url, init]) => {
+      const target = String(url)
+      const method = (init as RequestInit | undefined)?.method ?? 'GET'
+      return (target === '/proxy/studio/sessions' && method === 'POST')
+        || target === '/proxy/studio/agent'
+        || (target === '/proxy/studio/batches' && method === 'POST')
+    })
+    expect(dispatched).toHaveLength(0)
+  })
+
   it('tells the user how to bring an offline engine back', async () => {
     vi.mocked(queries.useImageStatus).mockReturnValue(offlineStatusWithReasons() as never)
     stubFetch()
@@ -259,6 +281,55 @@ describe('ImageLab', () => {
     expect(batchCall).toBeTruthy()
     expect(JSON.parse(String((batchCall?.[1] as RequestInit).body))).toMatchObject({
       character_id: 'char_1', plan_id: 'imgplan_1', session_id: 'imgses_1',
+    })
+  })
+
+
+  it('keeps completed artifact identity and failed recovery state actionable', async () => {
+    window.localStorage.setItem('kitty-image-lab-session', 'imgses_1')
+    const batch = {
+      batch_id: 'imgbatch_done', session_id: 'imgses_1', status: 'completed', count: 2,
+      estimate: estimate(2).estimate,
+      request: { prompt: 'two portraits' },
+      items: [
+        {
+          item_id: 'item_success', ordinal: 0, status: 'succeeded', job_id: 'job_keep_me', error: null,
+          result: { job_id: 'job_keep_me', filename: 'artifact one.png', routing_reason: 'real route' },
+        },
+        {
+          item_id: 'item_failure', ordinal: 1, status: 'failed', job_id: 'job_failed', result: null,
+          error: 'Provider stopped before the artifact completed.',
+        },
+      ],
+    }
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const target = String(url)
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate(1) }
+      if (target === '/proxy/studio/sessions/imgses_1' && !init?.method) {
+        return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', anchor_job_id: null, turns: [], jobs: [] }) }
+      }
+      if (target.startsWith('/proxy/studio/batches?')) {
+        return { ok: true, status: 200, json: async () => ({ batches: [batch] }) }
+      }
+      if (target === '/proxy/studio/sessions/imgses_1/anchor' && init?.method === 'POST') {
+        return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', anchor_job_id: 'job_keep_me', turns: [], jobs: [] }) }
+      }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ImageLab />)
+
+    const artifact = await screen.findByRole('img', { name: 'Generated image 1' })
+    expect(artifact).toHaveAttribute('src', '/proxy/image/view/artifact%20one.png')
+    expect(screen.getByText('Generation failed')).toBeInTheDocument()
+    expect(screen.getAllByText('Provider stopped before the artifact completed.')).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use as edit source' }))
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/proxy/studio/sessions/imgses_1/anchor', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: 'job_keep_me' }),
+      })
     })
   })
 
