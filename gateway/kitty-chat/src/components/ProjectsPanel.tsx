@@ -158,10 +158,18 @@ function ProjectContext({ project }: { project: GatewayProject }) {
 
   const items = resumeQuery.data?.work?.items ?? []
   const artifacts = resumeQuery.data?.artifacts ?? []
+  const conversations = resumeQuery.data?.conversations?.items ?? []
+  const conversationError = resumeQuery.data?.conversations?.error ?? null
+  const deadlines = resumeQuery.data?.deadlines?.items ?? []
+  const deadlineError = resumeQuery.data?.deadlines?.error ?? null
   const actions = project.next_actions.slice(0, 4)
 
-  if (actions.length === 0 && items.length === 0 && artifacts.length === 0) {
-    return <p style={mutedStyle}>no related work or recent files yet.</p>
+  if (
+    actions.length === 0 && items.length === 0 && artifacts.length === 0
+    && conversations.length === 0 && deadlines.length === 0
+    && !conversationError && !deadlineError
+  ) {
+    return <p style={mutedStyle}>no related work, conversations, files, or deadlines yet.</p>
   }
 
   return (
@@ -174,6 +182,45 @@ function ProjectContext({ project }: { project: GatewayProject }) {
               <li key={index} style={actionStyle}>{action}</li>
             ))}
           </ul>
+        </div>
+      )}
+      {(conversations.length > 0 || conversationError) && (
+        <div>
+          <div style={nextLabelStyle}>recent conversations</div>
+          {conversationError ? (
+            <p style={{ ...mutedStyle, marginTop: 6 }}>{conversationError}</p>
+          ) : (
+            <ul style={{ margin: '6px 0 0 18px', display: 'grid', gap: 4 }}>
+              {conversations.slice(0, 5).map(conversation => (
+                <li key={conversation.id} style={actionStyle}>
+                  <span>{conversation.title || 'Untitled conversation'}</span>{' '}
+                  <span style={metaStyle}>
+                    · {new Date(conversation.updated_at * 1000).toLocaleDateString('en-CA')}
+                    {conversation.objective ? ` · ${conversation.objective}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {(deadlines.length > 0 || deadlineError) && (
+        <div>
+          <div style={nextLabelStyle}>deadlines</div>
+          {deadlineError ? (
+            <p style={{ ...mutedStyle, marginTop: 6 }}>{deadlineError}</p>
+          ) : (
+            <ul style={{ margin: '6px 0 0 18px', display: 'grid', gap: 4 }}>
+              {deadlines.slice(0, 5).map(deadline => (
+                <li key={deadline.id} style={actionStyle}>
+                  <span>{deadline.obligation}</span>{' '}
+                  <span style={metaStyle}>
+                    · due {deadline.due_date}{deadline.status === 'needs_jacob' ? ' · needs you' : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
       {items.length > 0 && (

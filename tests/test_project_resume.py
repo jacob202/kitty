@@ -9,7 +9,15 @@ from typing import Any
 
 import pytest
 
-from gateway import artifact_store, builder_initiative, builder_queue, project_resume, project_store
+from gateway import (
+    artifact_store,
+    builder_initiative,
+    builder_queue,
+    chat_lifecycle,
+    deadline_store,
+    project_resume,
+    project_store,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -22,6 +30,8 @@ def isolate_project_store(monkeypatch, tmp_path):
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
     monkeypatch.setattr(artifact_store, "ARTIFACTS_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(deadline_store, "DEADLINES_DB_FILE", db_file, raising=False)
     # _work_source() reaches build_status_snapshot() with no db_path override,
     # which funnels through builder_queue.connect()/init_db() to this constant
     # — patch it too, or resume() tests would read/init the real Builder queue.
@@ -340,3 +350,49 @@ def _empty_graph_result():
     from gateway.memory_graph import GraphResult
 
     return GraphResult()
+
+
+class TestConversationAndDeadlineSources:
+    def test_resume_composes_recent_project_conversations_and_deadlines(self):
+        project = project_store.create("benefits", "admin")
+        other = project_store.create("other", "admin")
+        chat_lifecycle.start_turn(
+            conversation_id="benefits-chat", project_id=project["id"], title="Benefits paperwork",
+            user_message_id="m1", user_text="continue", manifest_revision="rev", requested_model="kitty-default",
+            objective="Submit renewal",
+        )
+        chat_lifecycle.start_turn(
+            conversation_id="other-chat", project_id=other["id"], title="Other chat",
+            user_message_id="m2", user_text="other", manifest_revision="rev", requested_model="kitty-default",
+        )
+        deadline_store.upsert({
+            "project_id": project["id"], "source": "knowledge:letter.pdf", "source_id": "d1",
+            "due_date": "2026-09-03", "obligation": "Submit renewal", "confidence": "high", "status": "open",
+        })
+        deadline_store.upsert({
+            "project_id": other["id"], "source": "knowledge:other.pdf", "source_id": "d2",
+            "due_date": "2026-09-01", "obligation": "Other deadline", "confidence": "high", "status": "open",
+        })
+
+        resumed = project_resume.resume(project["id"])
+
+        assert [item["id"] for item in resumed["conversations"]["items"]] == ["benefits-chat"]
+        assert resumed["conversations"]["items"][0]["objective"] == "Submit renewal"
+        assert set(resumed["conversations"]["items"][0]) == {"id", "title", "objective", "updated_at"}
+        assert resumed["conversations"]["error"] is None
+        assert [item["obligation"] for item in resumed["deadlines"]["items"]] == ["Submit renewal"]
+        assert set(resumed["deadlines"]["items"][0]) == {"id", "due_date", "obligation", "status", "confidence", "amount", "currency"}
+        assert resumed["deadlines"]["error"] is None
+
+    def test_resume_reports_conversation_and_deadline_source_failures_independently(self, monkeypatch):
+        project = project_store.create("degraded-project", "admin")
+        monkeypatch.setattr(chat_lifecycle, "list_project_conversations", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("chat store unavailable")))
+        monkeypatch.setattr(deadline_store, "list_for_project", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("deadline store unavailable")))
+
+        resumed = project_resume.resume(project["id"])
+
+        assert resumed["conversations"]["items"] == []
+        assert resumed["conversations"]["error"] == "Recent conversations are unavailable right now."
+        assert resumed["deadlines"]["items"] == []
+        assert resumed["deadlines"]["error"] == "Deadlines are unavailable right now."
+        assert resumed["id"] == project["id"]

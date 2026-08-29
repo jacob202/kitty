@@ -101,3 +101,19 @@ def test_escalation_recorded_once():
     deadline_store.record_escalation(d["id"], "T-7d")
     assert deadline_store.escalation_already_sent(d["id"], "T-7d")
     assert not deadline_store.escalation_already_sent(d["id"], "T-3d")
+
+
+def test_list_for_project_is_scoped_open_and_bounded():
+    second = project_store.create("second-project", "admin")
+    deadline_store.upsert(_sample(project_id=2, due_date="2026-08-03", obligation="Later open"))
+    deadline_store.upsert(_sample(project_id=2, due_date="2026-08-01", obligation="Soon open", source_id="soon"))
+    deadline_store.upsert(_sample(project_id=2, due_date="2026-07-31", obligation="Needs Jacob", confidence="needs_jacob", source_id="needs"))
+    closed = deadline_store.upsert(_sample(project_id=2, due_date="2026-07-30", obligation="Closed", source_id="closed"))
+    deadline_store.close(closed["id"])
+    deadline_store.upsert(_sample(project_id=second["id"], due_date="2026-07-29", obligation="Other project", source_id="other"))
+
+    rows = deadline_store.list_for_project(2, limit=2)
+
+    assert [row["obligation"] for row in rows] == ["Needs Jacob", "Soon open"]
+    assert all(row["project_id"] == 2 for row in rows)
+    assert all(row["status"] in {"open", "needs_jacob"} for row in rows)

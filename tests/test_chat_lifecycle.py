@@ -72,3 +72,32 @@ def test_list_conversation_does_not_use_per_turn_getter(monkeypatch, tmp_path):
     ]
     assert result["turns"][0]["attempts"][0]["status"] == "succeeded"
     assert result["turns"][1]["attempts"][0]["status"] == "succeeded"
+
+
+def test_list_project_conversations_is_scoped_recent_and_bounded(monkeypatch, tmp_path):
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file)
+    ticks = iter([100.0, 200.0, 300.0])
+    monkeypatch.setattr(chat_lifecycle.time, "time", lambda: next(ticks))
+
+    for conversation_id, project_id, title in [
+        ("chat-old", 7, "Older project chat"),
+        ("chat-other", 8, "Other project chat"),
+        ("chat-new", 7, "Newest project chat"),
+    ]:
+        chat_lifecycle.start_turn(
+            conversation_id=conversation_id,
+            project_id=project_id,
+            title=title,
+            user_message_id=f"message-{conversation_id}",
+            user_text="hello",
+            manifest_revision="test-revision",
+            requested_model="kitty-default",
+        )
+
+    rows = chat_lifecycle.list_project_conversations(7, limit=1)
+
+    assert [row["id"] for row in rows] == ["chat-new"]
+    assert rows[0]["title"] == "Newest project chat"
+    assert rows[0]["project_id"] == 7
+    assert "turns" not in rows[0]

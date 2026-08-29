@@ -1487,10 +1487,34 @@ export interface GatewayProjectWork {
   total_items: number
 }
 
+export interface GatewayProjectConversation {
+  id: string
+  title: string
+  objective: string | null
+  updated_at: number
+}
+
+export interface GatewayProjectDeadline {
+  id: number
+  due_date: string
+  obligation: string
+  amount: string | null
+  currency: string | null
+  confidence: string
+  status: string
+}
+
+export interface GatewayProjectSection<T> {
+  items: T[]
+  error: string | null
+}
+
 export interface GatewayProjectResume {
   id: number
   artifacts: GatewayProjectArtifact[]
   work: GatewayProjectWork
+  conversations: GatewayProjectSection<GatewayProjectConversation>
+  deadlines: GatewayProjectSection<GatewayProjectDeadline>
 }
 
 export interface GatewayArtifact {

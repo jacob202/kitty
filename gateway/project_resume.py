@@ -7,12 +7,11 @@ the whole refresh — same discipline as state_composer.compose_now(). No
 LLM summarization in v1 (mechanical only); a follow-on packet can add it
 with last-written-wins semantics per the original P6 design note.
 
-resume(id) is a pure read of the stored project fields, plus a live,
-bounded query of the Artifact store scoped to this project. Querying
-another store's owning API at read time is not composition in the
-refresh() sense (no write, no derived summary) — it is the same
-"query the owning store by project scope" discipline used everywhere
-else in Kitty rather than copying artifact rows into the project row.
+resume(id) is a pure read of the stored project fields plus bounded,
+project-scoped views from canonical child owners (Artifacts, Builder Work,
+chat lifecycle, and deadlines). Querying another store's owning API at read
+time is not composition in the refresh() sense (no write, no copied durable
+state) — it is the "query the owning store by project scope" discipline.
 
 Public API:
   refresh(project_id) -> dict
@@ -30,7 +29,14 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from pathlib import Path
 from typing import Any
 
-from gateway import artifact_store, memory_graph, project_store, signal_store
+from gateway import (
+    artifact_store,
+    chat_lifecycle,
+    deadline_store,
+    memory_graph,
+    project_store,
+    signal_store,
+)
 from gateway.builder_status import build_status_snapshot
 from gateway.paths import PROJECT_ROOT
 from gateway.work_projection import project_work_snapshot
@@ -45,6 +51,8 @@ SOURCE_TIMEOUT_SECONDS = 10.0
 GIT_TIMEOUT_SECONDS = 4.0
 SIGNAL_SCAN_LIMIT = 200
 ARTIFACT_LIMIT = 20
+CONVERSATION_LIMIT = 10
+DEADLINE_LIMIT = 10
 GIT_LOG_LINES = 5
 
 
@@ -100,6 +108,8 @@ def resume(project_id: int) -> dict[str, Any]:
         "links": project["links"],
         "artifacts": _artifact_source(project_id),
         "work": _work_source(project_id),
+        "conversations": _conversation_source(project_id),
+        "deadlines": _deadline_source(project_id),
     }
 
 
@@ -131,6 +141,49 @@ def _artifact_source(project_id: int) -> list[dict[str, Any]]:
         }
         for artifact in artifacts
     ]
+
+
+def _conversation_source(project_id: int) -> dict[str, Any]:
+    """Project-scoped recent chat descriptors from the canonical chat ledger."""
+    try:
+        conversations = chat_lifecycle.list_project_conversations(
+            project_id, limit=CONVERSATION_LIMIT
+        )
+    except Exception as exc:  # noqa: BLE001 — one source must not fail resume()
+        logger.warning("project %s resume conversation source failed: %s", project_id, exc)
+        return {"items": [], "error": "Recent conversations are unavailable right now."}
+    items = [
+        {
+            "id": conversation["id"],
+            "title": conversation["title"],
+            "objective": conversation["objective"],
+            "updated_at": conversation["updated_at"],
+        }
+        for conversation in conversations
+    ]
+    return {"items": items, "error": None}
+
+
+def _deadline_source(project_id: int) -> dict[str, Any]:
+    """Project-scoped current deadlines from the canonical deadline store."""
+    try:
+        deadlines = deadline_store.list_for_project(project_id, limit=DEADLINE_LIMIT)
+    except Exception as exc:  # noqa: BLE001 — one source must not fail resume()
+        logger.warning("project %s resume deadline source failed: %s", project_id, exc)
+        return {"items": [], "error": "Deadlines are unavailable right now."}
+    items = [
+        {
+            "id": deadline["id"],
+            "due_date": deadline["due_date"],
+            "obligation": deadline["obligation"],
+            "status": deadline["status"],
+            "confidence": deadline["confidence"],
+            "amount": deadline["amount"],
+            "currency": deadline["currency"],
+        }
+        for deadline in deadlines
+    ]
+    return {"items": items, "error": None}
 
 
 def _work_source(project_id: int) -> dict[str, Any]:

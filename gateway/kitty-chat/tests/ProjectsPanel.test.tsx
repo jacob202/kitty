@@ -136,6 +136,53 @@ describe('ProjectsPanel recent files (Project Resume: Artifacts, slice 1)', () =
     expect(screen.getByText(/gateway exploded/)).toBeInTheDocument()
     expect(screen.queryByText('recent files')).not.toBeInTheDocument()
   })
+
+  it('renders recent conversations and current deadlines from Project Resume', () => {
+    vi.mocked(queries.useProjectResume).mockReturnValue({
+      data: {
+        id: 1,
+        artifacts: [],
+        work: { items: [], total_items: 0 },
+        conversations: {
+          items: [{ id: 'chat-1', title: 'Benefits paperwork', objective: 'Submit renewal', updated_at: 1756410000 }],
+          error: null,
+        },
+        deadlines: {
+          items: [{ id: 4, due_date: '2026-09-03', obligation: 'Submit renewal', amount: null, currency: null, confidence: 'high', status: 'open' }],
+          error: null,
+        },
+      },
+      isLoading: false, isError: false, error: null,
+    } as never)
+    renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: /project context/i }))
+    expect(screen.getByText('recent conversations')).toBeInTheDocument()
+    expect(screen.getByText('Benefits paperwork')).toBeInTheDocument()
+    expect(screen.getAllByText(/Submit renewal/).length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('deadlines')).toBeInTheDocument()
+    expect(screen.getByText(/due 2026-09-03/)).toBeInTheDocument()
+  })
+
+  it('shows conversation and deadline source failures without hiding other context', () => {
+    vi.mocked(queries.useProjectResume).mockReturnValue({
+      data: {
+        id: 1,
+        artifacts: [{ id: 'a1', kind: 'text', display_name: 'notes.md', state: 'ready', created_at: 1750000000, media_type: 'text/plain', size_bytes: 10 }],
+        work: { items: [], total_items: 0 },
+        conversations: { items: [], error: 'Recent conversations are unavailable right now.' },
+        deadlines: { items: [], error: 'Deadlines are unavailable right now.' },
+      },
+      isLoading: false, isError: false, error: null,
+    } as never)
+    renderPanel()
+
+    fireEvent.click(screen.getByRole('button', { name: /project context/i }))
+    expect(screen.getByText('notes.md')).toBeInTheDocument()
+    expect(screen.getByText('Recent conversations are unavailable right now.')).toBeInTheDocument()
+    expect(screen.getByText('Deadlines are unavailable right now.')).toBeInTheDocument()
+  })
+
 })
 
 
@@ -214,6 +261,6 @@ describe('ProjectsPanel context empty state', () => {
   it('shows a truthful empty state when disclosed context has nothing else', () => {
     renderPanel()
     fireEvent.click(screen.getByRole('button', { name: /project context/i }))
-    expect(screen.getByText(/no related work or recent files yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/no related work, conversations, files, or deadlines yet/i)).toBeInTheDocument()
   })
 })

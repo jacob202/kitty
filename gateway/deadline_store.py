@@ -149,6 +149,27 @@ def list_open(status: str | None = None) -> list[dict[str, Any]]:
     return [_row_to_deadline(r) for r in rows]
 
 
+def list_for_project(project_id: int, *, limit: int = 10) -> list[dict[str, Any]]:
+    """Return current actionable deadlines scoped to one Project.
+
+    Closed rows stay in the canonical deadline store but are intentionally not
+    projected into Project Resume's current-context section.
+    """
+    if isinstance(project_id, bool) or not isinstance(project_id, int) or project_id <= 0:
+        raise DeadlineError(f"project_id must be positive, got {project_id!r}")
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+        raise DeadlineError(f"limit must be a positive integer, got {limit!r}")
+    init_db()
+    with kitty_db.connect(DEADLINES_DB_FILE) as conn:
+        rows = conn.execute(
+            f"SELECT {_DEADLINE_COLUMNS} FROM deadlines "
+            "WHERE project_id = ? AND status IN ('open', 'needs_jacob') "
+            "ORDER BY due_date ASC, created_at ASC LIMIT ?",
+            (project_id, min(limit, 100)),
+        ).fetchall()
+    return [_row_to_deadline(row) for row in rows]
+
+
 def list_needs_jacob() -> list[dict[str, Any]]:
     return list_open(status="needs_jacob")
 
