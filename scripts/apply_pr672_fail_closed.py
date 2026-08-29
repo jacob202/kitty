@@ -95,4 +95,28 @@ replace_once(
     "              disabled={k.isStreaming || modelUnavailable}\n",
 )
 
+gateway_test = ROOT / "gateway/kitty-chat/tests/gatewayIntegration.test.tsx"
+replace_once(
+    gateway_test,
+    "  it('keeps a live safe route when curated metadata is temporarily unavailable', async () => {\n",
+    "  it('keeps a safe route but reports degraded state when curated metadata is unavailable', async () => {\n",
+)
+replace_once(
+    gateway_test,
+    "    expect(result.fromLiveGateway).toBe(true)\n"
+    "    expect(result.error).toBeNull()\n"
+    "    expect(result.models.map(model => [model.id, model.name])).toEqual([['kitty-code', 'Code']])\n",
+    "    expect(result.fromLiveGateway).toBe(false)\n"
+    "    expect(result.error).toMatch(/model details unavailable/i)\n"
+    "    expect(result.models.map(model => [model.id, model.name])).toEqual([['kitty-code', 'Code']])\n",
+)
+
+page_test = ROOT / "gateway/kitty-chat/tests/PageSurfaceLayout.test.ts"
+replace_once(
+    page_test,
+    "    expect(composer).toContain('onSend={k.handleSend}')\n",
+    "    expect(composer).toContain('onSend={() => { if (!modelUnavailable) k.handleSend() }}')\n"
+    "    expect(composer).toContain('disabled={k.isStreaming || modelUnavailable}')\n",
+)
+
 print("PR #672 fail-closed patch applied")
