@@ -11,8 +11,10 @@ interface Props {
   /** Only relevant while a chat thread is on screen. */
   showChatSignals: boolean
   attachmentErrors: AttachmentError[]
-  gatewayOffline: boolean
-  onRetryGateway: () => void
+  /** The model list could not be reached. NOT gateway reachability — HealthGate
+   *  already proves the gateway is up before this component ever renders. */
+  modelsUnavailable: boolean
+  onRetryModels: () => void
   saveState: SaveState
   onRetrySave: () => void
   briefUnavailable: boolean
@@ -27,16 +29,16 @@ const FAILS_REQUIRED = 3
 
 /**
  * One line, ranked by how much it matters to the user right now. The old
- * layout stacked up to five independent banners (pwa install, gateway
- * offline, brief unavailable, save state, attachment errors) above the
+ * layout stacked up to five independent banners (pwa install, models
+ * unavailable, brief unavailable, save state, attachment errors) above the
  * thread; a user could see all five before a single message. Only the
  * highest-priority condition is ever visible — the rest wait their turn.
  */
 export function StatusBar({
   showChatSignals,
   attachmentErrors,
-  gatewayOffline,
-  onRetryGateway,
+  modelsUnavailable,
+  onRetryModels,
   saveState,
   onRetrySave,
   briefUnavailable,
@@ -46,7 +48,7 @@ export function StatusBar({
   pwaInstalling = false,
   onPwaInstall,
 }: Props) {
-  const offlineStreakRef = useRef(0)
+  const unavailableStreakRef = useRef(0)
   const [pwaDismissed, setPwaDismissed] = useState(() => {
     if (typeof window === 'undefined') return false
     try {
@@ -57,13 +59,13 @@ export function StatusBar({
     }
   })
 
-  if (gatewayOffline) {
-    offlineStreakRef.current++
+  if (modelsUnavailable) {
+    unavailableStreakRef.current++
   } else {
-    offlineStreakRef.current = 0
+    unavailableStreakRef.current = 0
   }
 
-  const confirmedOffline = offlineStreakRef.current >= FAILS_REQUIRED
+  const confirmedUnavailable = unavailableStreakRef.current >= FAILS_REQUIRED
 
   if (showChatSignals && attachmentErrors.length > 0) {
     return (
@@ -78,14 +80,14 @@ export function StatusBar({
     )
   }
 
-  if (confirmedOffline) {
+  if (confirmedUnavailable) {
     return (
       <div role="status" style={{ ...rowStyle, justifyContent: 'space-between' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={dotStyle} />
-          gateway offline
+          Kitty can&apos;t reach any models right now.
         </span>
-        <button type="button" onClick={onRetryGateway} style={retryBtnStyle}>
+        <button type="button" onClick={onRetryModels} style={retryBtnStyle}>
           retry
         </button>
       </div>
@@ -96,7 +98,7 @@ export function StatusBar({
     return (
       <div role="status" style={{ ...rowStyle, color: 'var(--c-red)', justifyContent: 'space-between' }}>
         <span>
-          {saveState === 'failed' ? 'save failed — chat not persisted' : 'gateway offline — chat not saved'}
+          {saveState === 'failed' ? 'save failed — chat not persisted' : 'offline — chat not saved'}
         </span>
         <button type="button" onClick={onRetrySave} style={retryBtnStyle}>
           retry

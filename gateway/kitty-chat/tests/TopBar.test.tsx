@@ -57,7 +57,7 @@ describe('TopBar runtime badge', () => {
   it('mobile collapses to a dot-only badge that keeps its accessible label', () => {
     renderTopBar(true)
     expect(screen.queryByText('connected')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Gateway connection: connected')).toBeInTheDocument()
+    expect(screen.getByLabelText('Connection to Kitty: connected')).toBeInTheDocument()
   })
 
   // The badge sits right next to the cat StateBadge, which reports Kitty's
@@ -67,7 +67,7 @@ describe('TopBar runtime badge', () => {
   it('does not claim ready while the backend is unavailable', () => {
     renderTopBar(true, 'chat', 'unavailable')
     expect(screen.queryByText('ready')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Gateway connection: not connected')).toBeInTheDocument()
+    expect(screen.getByLabelText('Connection to Kitty: not connected')).toBeInTheDocument()
   })
 
   it('does not claim ready while the backend state is unknown', () => {
@@ -80,14 +80,14 @@ describe('TopBar runtime badge', () => {
     renderTopBar(false, 'chat', 'unavailable')
     expect(screen.getByText('not connected')).toBeInTheDocument()
     expect(screen.queryByText(/^Kitty /)).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Gateway connection: not connected')).toBeInTheDocument()
+    expect(screen.getByLabelText('Connection to Kitty: not connected')).toBeInTheDocument()
   })
 
   it('describes the backend connection, not Kitty itself, when unknown', () => {
     renderTopBar(false, 'chat', 'unknown')
     expect(screen.getByText('connection unknown')).toBeInTheDocument()
     expect(screen.queryByText(/^Kitty /)).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Gateway connection status is unknown')).toBeInTheDocument()
+    expect(screen.getByLabelText('Connection to Kitty is unknown')).toBeInTheDocument()
   })
 })
 

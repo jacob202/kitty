@@ -212,7 +212,7 @@ const LABELS: Record<CatState, string> = {
   idle: 'ready',
   working: 'thinking',
   done: 'done',
-  broke: 'issue',
+  broke: 'reply failed',
 }
 
 export function CatFaceBadge({ state = 'idle' }: { state?: CatState }) {
@@ -241,10 +241,19 @@ export function CatFaceBadge({ state = 'idle' }: { state?: CatState }) {
   )
 }
 
+// This badge reports the last chat turn, not Kitty's overall health — it sits
+// beside a connection badge, so the accessible name has to say which it is.
+const STATE_DESCRIPTIONS: Record<CatState, string> = {
+  idle: 'Kitty is ready',
+  working: 'Kitty is working on a reply',
+  done: 'Kitty finished its reply',
+  broke: "Kitty's last reply failed",
+}
+
 export function StateBadge({ state = 'idle' }: { state?: CatState }) {
   const eye = EYE_COLORS[state]
   return (
-    <span style={{
+    <span aria-label={STATE_DESCRIPTIONS[state]} style={{
       display: 'inline-flex',
       alignItems: 'center',
       gap: 6,
