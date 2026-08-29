@@ -256,7 +256,7 @@ function ResultActions({ jobId, onNewBatch, onError }: {
         </button>
       </div>
       {diff && Object.keys(diff).length > 0 && (
-        <div style={metaStyle}>
+        <div style={supportingTextStyle}>
           {Object.entries(diff).map(([field, value]) => (
             <div key={field}>{field}: {String(value.before)} → {String(value.after)}</div>
           ))}
