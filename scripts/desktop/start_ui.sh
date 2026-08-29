@@ -76,4 +76,23 @@ else
   fi
 fi
 
-exec npm run start -- -H "${KITTY_UI_HOST}" -p "${KITTY_UI_PORT}"
+STANDALONE_SERVER=".next/standalone/server.js"
+if [[ ! -f "${STANDALONE_SERVER}" ]]; then
+  echo "[start_ui] Error: standalone build missing ${UI_DIR}/${STANDALONE_SERVER}" >&2
+  exit 1
+fi
+
+# Next standalone output deliberately omits static/public assets. Mirror them
+# into the standalone tree before launch so the server can serve the complete UI.
+mkdir -p .next/standalone/.next
+if [[ -d .next/static ]]; then
+  rm -rf .next/standalone/.next/static
+  cp -R .next/static .next/standalone/.next/static
+fi
+if [[ -d public ]]; then
+  rm -rf .next/standalone/public
+  cp -R public .next/standalone/public
+fi
+
+echo "[start_ui] launching standalone Next server"
+HOSTNAME="${KITTY_UI_HOST}" PORT="${KITTY_UI_PORT}" exec node "${STANDALONE_SERVER}"
