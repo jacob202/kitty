@@ -1029,3 +1029,22 @@ def test_selected_provider_that_answered_with_nothing_points_at_credit():
     assert "empty balance or a rate limit" in message
     assert "switched off" not in message
     _assert_no_operator_mechanics(message)
+
+
+def test_resolve_agentrouter_key_never_overwrites_gateway_runtime_env(monkeypatch):
+    """Provider inspection must not mutate unrelated live Gateway process settings."""
+    import os
+
+    from gateway import llm_client
+
+    monkeypatch.setenv("GATEWAY_SECRET", "runtime-gateway-secret")
+    monkeypatch.setenv("AGENT_ROUTER_TOKEN", "runtime-agentrouter-key")
+
+    def dangerous_dotenv_reload(*args, **kwargs):
+        if kwargs.get("override"):
+            os.environ["GATEWAY_SECRET"] = "dotenv-gateway-secret"
+
+    monkeypatch.setattr(llm_client, "load_dotenv", dangerous_dotenv_reload)
+
+    assert llm_client.resolve_agentrouter_api_key() == "runtime-agentrouter-key"
+    assert os.environ["GATEWAY_SECRET"] == "runtime-gateway-secret"
