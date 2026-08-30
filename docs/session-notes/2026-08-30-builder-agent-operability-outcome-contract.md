@@ -5,7 +5,9 @@
 - Task: implement the 2026-08-30 AI-agent reliability research recommendations for KittyBuilder
 - Execution owner: `interactive`
 - Branch/worktree: `feat/builder-agent-operability-20260830` / `.worktrees/builder-agent-operability-20260830`
-- Base SHA: `af3f6323d47be79c7f4d890d60ba54a99282d70f`
+- Initial base SHA: `af3f6323d47be79c7f4d890d60ba54a99282d70f`
+- Integrated base SHA: `242c339660197c3174d1bb3cfe37248a649989ff`
+- Independently reviewed implementation SHA: `b4a0b601b3b0d191665b456c0c6339cd565fb8a5`
 - Repair-cycle limit: `2`
 
 ## User-visible outcome
@@ -44,19 +46,28 @@ KittyBuilder has tested primitives for safe recovery of ambiguous side effects, 
 - Current implementation state: this branch only
 - Forbidden overlapping files: `gateway/builder_attempt.py`, `gateway/builder_loop.py`, `gateway/builder_runner.py`, `tests/test_builder_loop.py`, `tests/test_builder_runner.py`
 - Baseline: 87/87 relevant tests passed before implementation; unrelated builder-publish process-group test is sandbox-blocked.
-- Exact next verification action: AC-1 red/green cycle.
+- Exact next verification action: none for implementation; publish the verified non-main branch/PR without merging.
 
 ## Verifier report
 
 | Criterion | Verdict | Evidence | Required repair |
 |---|---|---|---|
-| AC-1 | UNVERIFIED | pending | pending |
-| AC-2 | UNVERIFIED | pending | pending |
-| AC-3 | UNVERIFIED | pending | pending |
-| AC-4 | UNVERIFIED | pending | pending |
-| AC-5 | UNVERIFIED | pending | pending |
-| AC-6 | UNVERIFIED | pending | pending |
+| AC-1 | PASS | Independent reviewer reran `tests/test_builder_operability.py`: 8/8; CAS race, lost-response recovery, confirmed-dead RUNNING reconciliation, and unknown fail-closed cases passed. | none |
+| AC-2 | PASS | Independent reviewer reran `tests/test_builder_contract.py`: 17/17; explicit graph/artifact/control validation passed. | none |
+| AC-3 | PASS | Independent reviewer reran `tests/test_builder_paid_routing.py`: 19/19; handoff/harness/candidate fail-closed cases passed. | none |
+| AC-4 | PASS | Independent reviewer reran `tests/test_compute_governor.py`: 47/47; additive migration and policy receipt checks passed. | none |
+| AC-5 | PASS | Independent reviewer reran `tests/test_session_learning.py`: 26/26; matched eval and repeated-evidence promotion passed. | none |
+| AC-6 | PASS | Reviewer reran combined focused suite: 117/117, `git diff --check` clean, and confirmed all forbidden overlapping files unchanged. Implementer also ran merged regression: 485 passed + 29 subtests, repo Ruff clean, focused mypy clean. | none |
 
 ## Final state
 
-`implemented, awaiting verification`
+`verified`
+
+
+## Independent review receipt
+
+- Reviewer trust boundary: separate detached worktree at the exact implementation SHA.
+- Reviewer model/agent: `opencode/nemotron-3-ultra-free` / read-only `free-reviewer`.
+- Verdict: **APPROVE**.
+- Findings: **none**.
+- Reviewer independently reran all 117 acceptance tests and checked the exact diff, forbidden-path boundary, SQLite/additive-state design, retry/recovery semantics, routing policy, and learning-store reuse.
