@@ -226,6 +226,13 @@ only while identity and invalidation conditions remain valid. They are shared
 continuity files, not a Builder queue or session diary. Builder workers must not
 edit `.claude/`.
 
+Both files are marked `merge=ours` in `.gitattributes`, so a merge keeps the
+current branch's checkpoint instead of conflicting on two agents' rewrites of the
+same lines. That driver is per-clone config, not carried by the repo — run
+`git config merge.ours.driver true` once; `scripts/preflight.sh` reports when it
+is missing. After a merge the checkpoint describes the branch you were on, so
+re-validate it with `scripts/check_continuity_state.py` before trusting it.
+
 **Write `.claude/STATE.md` and `.claude/HANDOFF.md` once per session, at session
 end.** Not on every milestone, not to log progress, not to record a thought.
 Gather every fact first, then write both files in one pass.
