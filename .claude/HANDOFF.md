@@ -3,8 +3,8 @@
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-30T18:10:57.315317+00:00",
-  "head_sha": "a19ec69aea85060239465a4de8112fb634a9ee4f",
+  "updated_at": "2026-08-30T18:46:12.782344+00:00",
+  "head_sha": "4b8cb7e0ce8d60acd7cd6a0fa62ec0db63ea51fa",
   "branch": "claude/kitty-power-run-l4dvwx",
   "worktree": ".",
   "status": "valid",
@@ -24,20 +24,21 @@
     "Superseded stale HANDOFF.md head_sha and ownership state to match current HEAD c5a43a5e",
     "Reconciled PR #675 with current main at 19c4f085 and verified the combined tree",
     "Resolved all addressed PR #675 review threads after confirming the fixes are present",
-    "Independent exact-head Product Acceptance passed on a19ec69a across desktop/mobile and live/degraded/down states with zero unexpected fixture requests"
+    "Independent exact-head Product Acceptance passed on a19ec69a across desktop/mobile and live/degraded/down states with zero unexpected fixture requests",
+    "Corrected the PR #675 body: the acceptance section claimed no independent reviewer existed while the checkbox was ticked, and the test counts named a superseded head",
+    "Reviewed 1b54452 from the concurrent lane and found its health-reason denylist leaked every one of the nineteen degraded/unavailable strings gateway/health_surface.py builds, and truncated one into the fragment 'embedding runtime returned'",
+    "Replaced that scrub with an allowlist translation plus a collapsed Technical details disclosure, keeping the cause reachable as the Codex P2 asked while the primary message stays plain language",
+    "Verified the fix in the running product against a stub gateway reporting real degraded reasons: plain sentence visible, raw reason collapsed, zero jargon in visible text at 1440x1600 and iPhone 14 Pro",
+    "PR #675 merged into main as 1e9ed573 at 2026-08-30T18:44:04Z, carrying the health-reason fix at 4b8cb7e"
   ],
   "blockers": [],
   "next_action": "none",
   "invalidation_conditions": [
-    "PR #675 merges or closes",
-    "Someone force-pushes or rewrites claude/kitty-power-run-l4dvwx so a19ec69a is no longer in its history"
+    "origin/main advances past 1e9ed573 with further changes to gateway/kitty-chat/src/components/",
+    "Someone force-pushes or rewrites claude/kitty-power-run-l4dvwx so 4b8cb7e0 is no longer in its history"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 675,
-    "state": "OPEN",
-    "head_sha": "a19ec69aea85060239465a4de8112fb634a9ee4f"
-  },
+  "pull_request": null,
   "parallel_work": [],
   "recommendations": [
     {
@@ -57,21 +58,21 @@
 
 **Identity:** PR #675 final continuity checkpoint, 2026-08-30.
 **Branch:** `claude/kitty-power-run-l4dvwx`.
-**Recorded parent:** `a19ec69a` (the continuity-only checkpoint commit may be one child ahead).
-**PR:** #675 is open and ready to merge once repository CI accepts this checkpoint.
+**Recorded parent:** `4b8cb7e0` (the continuity-only checkpoint commit may be one child ahead).
+**PR:** #675 **merged** into `main` as `1e9ed573` on 2026-08-30 at 18:44:04Z, with `4b8cb7e` as its head.
 
 ## Final verified state
 
 The product-facing work is complete. Failure/status copy is translated at render
 boundaries, model/runtime status no longer invents reply failures, project and
-Builder internals are hidden or translated, degraded health explanations retain a
-sanitized useful cause, the install-prompt dismissal reports storage failure and
+Builder internals are hidden or translated, degraded health explanations give a plain-language cause and
+keep the exact backend reason behind a collapsed disclosure, the install-prompt dismissal reports storage failure and
 persists when storage works, and the primary Chat/Search/Image text entries keep
 stable accessible names.
 
-Fresh verification on the integrated parent `a19ec69a`:
+Fresh verification on the integrated parent `4b8cb7e0`:
 
-- **581/581** Vitest tests passed across 76 files.
+- **582/582** Vitest tests passed across 76 files.
 - TypeScript clean and production build successful.
 - Ruff clean; hermetic browser smoke **3/3**.
 - Independent Product Acceptance **PASS** across desktop/mobile, all eight
@@ -81,6 +82,7 @@ Fresh verification on the integrated parent `a19ec69a`:
 
 ## Next move
 
-None inside this implementation session. Merge PR #675 after this continuity-only
-checkpoint turns the repository merge gate green. The dead ESLint config remains a
-separate deferred cleanup and is not a blocker for #675.
+None inside this implementation session. #675 is merged. This checkpoint was
+written after the merge, so it goes to `main` as its own small pull request
+rather than reusing the merged one. The dead ESLint config remains a separate
+deferred cleanup.
