@@ -192,6 +192,7 @@ describe('BuilderProposalCard', () => {
   it('maps retry, resume, and cancel to the existing Builder commands', async () => {
     const cases = [
       ['failed', /try again/i, { action: 'requeue', task_id: 'task-private-id' }],
+      ['exhausted', /try again/i, { action: 'requeue', task_id: 'task-private-id' }],
       ['paused', /resume this work/i, { action: 'resume', initiative_id: 'mission-private-id' }],
       ['running', /cancel this work/i, { action: 'cancel', task_id: 'task-private-id' }],
     ] as const
