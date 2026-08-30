@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 
 from gateway.auth import BearerAuthMiddleware
 from gateway.config import is_test_env
@@ -477,7 +478,6 @@ async def sse_stream(request: Request, session_id: str | None = None):
 
 register_routes(app)
 
-from fastapi.responses import HTMLResponse
 
 @app.get("/", response_class=HTMLResponse)
 def home():
