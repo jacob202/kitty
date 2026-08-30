@@ -51,6 +51,7 @@ function supervisor(overrides: Record<string, unknown> = {}) {
     on_hold: 9,
     last_tick_at: null,
     lock_path: '/tmp/supervisor.lock',
+    budget: { weekly_budget_cad: 6, estimated_spend_cad: 0.25, remaining_cad: 5.75, runs: 4, retries: 1, basis: 'local estimate' },
     ...overrides,
   }
 }
@@ -153,6 +154,11 @@ describe('Builder run banner', () => {
     renderWork([item()])
     expect(screen.getByText('Builder is stopped.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start Builder' })).toBeEnabled()
+  })
+
+  it('shows the weekly Builder spend tally from the governor ledger', () => {
+    renderWork([item()])
+    expect(screen.getByText(/CAD 0\.25 of CAD 6\.00 estimated this week/i)).toBeInTheDocument()
   })
 
   it('explains what is ready and what is waiting on a paused project', () => {

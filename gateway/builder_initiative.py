@@ -111,6 +111,8 @@ CREATE TABLE IF NOT EXISTS initiatives (
     manifest_sha256 TEXT NOT NULL,
     state TEXT NOT NULL DEFAULT 'active',
     pause_reason TEXT,
+    superseded_by TEXT,
+    superseded_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -160,6 +162,10 @@ def _ensure_initiative_columns(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE initiatives ADD COLUMN pause_reason TEXT")
     if existing and "project_id" not in existing:
         conn.execute("ALTER TABLE initiatives ADD COLUMN project_id INTEGER")
+    if existing and "superseded_by" not in existing:
+        conn.execute("ALTER TABLE initiatives ADD COLUMN superseded_by TEXT")
+    if existing and "superseded_at" not in existing:
+        conn.execute("ALTER TABLE initiatives ADD COLUMN superseded_at TIMESTAMP")
     if existing:
         # Builder has no per-initiative repo selection: resolve_base_sha always
         # resolves against Path.cwd(), and every packet's allowed_paths to date
@@ -956,6 +962,7 @@ def list_initiatives(db_path: Path | None = None) -> list[dict[str, Any]]:
             """
             SELECT i.id, i.title, i.manifest_version, i.manifest_sha256,
                    i.state, i.created_at, i.updated_at, i.project_id,
+                   i.superseded_by, i.superseded_at,
                    COUNT(p.packet_id) AS packet_count
             FROM initiatives i
             LEFT JOIN initiative_packets p ON p.initiative_id = i.id
@@ -981,6 +988,28 @@ def list_initiatives(db_path: Path | None = None) -> list[dict[str, Any]]:
                 }
             initiatives.append(initiative)
         return initiatives
+    finally:
+        conn.close()
+
+
+def list_initiative_gates(db_path: Path | None = None) -> list[dict[str, Any]]:
+    """Return the small durable execution-gate view used by the supervisor.
+
+    Unlike :func:`list_initiatives`, this deliberately does not compute packet
+    health per initiative. Polling and scheduling need operator state and
+    supersession only; packet eligibility remains owned by ``next_packet``.
+    """
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, state, superseded_by, superseded_at, created_at, updated_at
+            FROM initiatives
+            ORDER BY created_at ASC, id ASC
+            """
+        ).fetchall()
+        return [dict(row) for row in rows]
     finally:
         conn.close()
 
@@ -1821,9 +1850,51 @@ def set_initiative_state(
             raise InitiativeNotFoundError(initiative_id)
         conn.execute(
             "UPDATE initiatives SET state = ?, pause_reason = ?, "
-            "updated_at = CURRENT_TIMESTAMP "
+            "superseded_by = CASE WHEN ? = ? THEN NULL ELSE superseded_by END, "
+            "superseded_at = CASE WHEN ? = ? THEN NULL ELSE superseded_at END, "
+            "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (
+                state,
+                None if state != INITIATIVE_PAUSED else "operator state",
+                state, INITIATIVE_ACTIVE,
+                state, INITIATIVE_ACTIVE,
+                initiative_id,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def supersede_initiative(
+    initiative_id: str, successor: str, db_path: Path | None = None
+) -> None:
+    """Mark preserved work as historical without rewriting its outcome.
+
+    Active work is paused so it cannot launch. Existing paused, completed, and
+    failed states — and any prior pause reason — remain intact. Explicitly
+    resuming an initiative clears the supersession marker.
+    """
+    successor = (successor or "").strip()
+    if not successor:
+        raise ValueError("successor is required")
+    if successor == initiative_id:
+        raise ValueError("an initiative cannot supersede itself")
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT state FROM initiatives WHERE id = ?", (initiative_id,)
+        ).fetchone()
+        if row is None:
+            raise InitiativeNotFoundError(initiative_id)
+        state = str(row["state"])
+        next_state = INITIATIVE_PAUSED if state == INITIATIVE_ACTIVE else state
+        conn.execute(
+            "UPDATE initiatives SET state = ?, superseded_by = ?, "
+            "superseded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP "
             "WHERE id = ?",
-            (state, None if state != INITIATIVE_PAUSED else "operator state", initiative_id),
+            (next_state, successor, initiative_id),
         )
         conn.commit()
     finally:
