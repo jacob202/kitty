@@ -196,7 +196,9 @@ class BaseSHAResolutionError(RuntimeError):
 def resolve_base_sha(repo_root: Path | None = None) -> str:
     """Resolve an immutable full SHA from the current main branch HEAD.
 
-    Reads ``origin/main`` first, falls back to ``main``. The result is a full
+    Reads local ``main`` first, falls back to ``origin/main``. Builder executes
+    against the canonical local checkout, which may intentionally be ahead of
+    the last pushed remote ref. The result is a full
     40-character hex SHA (not a branch name) captured once at packet creation
     time. This value is stored in ``initiative_packets.base_sha`` and is never
     recomputed from live refs during execution, retry, or recovery.
@@ -205,7 +207,7 @@ def resolve_base_sha(repo_root: Path | None = None) -> str:
     """
     root = Path(repo_root) if repo_root else Path.cwd()
     failures: list[str] = []
-    for ref in ("origin/main", "main"):
+    for ref in ("main", "origin/main"):
         result = subprocess.run(
             ["git", "rev-parse", "--verify", "--quiet", ref],
             cwd=root,
