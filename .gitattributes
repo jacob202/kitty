@@ -1,0 +1,24 @@
+# Session continuity checkpoints keep the branch's own version on merge.
+#
+# .claude/STATE.md and .claude/HANDOFF.md describe what one session did. Several
+# agents write them concurrently, so every merge presented two full rewrites of
+# the same lines and conflicted — twice in one evening on the same two files,
+# each time with nothing real to reconcile. A checkpoint from another branch was
+# never the right answer for this branch anyway.
+#
+# `merge=ours` needs a driver registered per clone; git does not ship one under
+# that name (`-s ours` is a whole-merge strategy, not a per-file driver). The
+# driver is the shell builtin `true`, which succeeds without touching %A, so the
+# current branch's version survives:
+#
+#   git config merge.ours.driver true
+#
+# scripts/preflight.sh reports when that is missing. Without it git falls back to
+# a normal three-way merge and these files conflict again — noisily, not silently.
+#
+# Trade-off: after a merge the checkpoint describes the branch you were on, not
+# the work you merged in, so it can be stale. scripts/check_continuity_state.py
+# compares head_sha against HEAD and fails loudly when that happens, which is the
+# failure mode to prefer.
+.claude/STATE.md    merge=ours
+.claude/HANDOFF.md  merge=ours
