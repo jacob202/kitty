@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { AssistantRuntimeProvider } from '@assistant-ui/react'
 import { useKittyRuntime, type KittyRuntimeOptions } from '@/lib/kitty-runtime'
+import { describeFailure } from '@/lib/failure-copy'
 
 interface Props extends KittyRuntimeOptions {
   children: React.ReactNode
@@ -36,7 +37,9 @@ function HealthGate({ children }: { children: React.ReactNode }) {
         const error = cause instanceof Error ? cause : new Error('Could not reach the gateway')
         const msg = error.name === 'AbortError'
           ? 'Connection timed out.'
-          : (error.message || 'Kitty is temporarily unavailable')
+          : error.message === 'Kitty is temporarily unavailable'
+            ? error.message
+            : describeFailure(error)
         setError(msg)
         setState('down')
         retry = setTimeout(() => setAttempt(current => current + 1), HEALTH_RETRY_MS)

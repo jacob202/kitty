@@ -1,0 +1,20 @@
+{
+  "category": "test_gap",
+  "evidence": "PR #675: 533 unit tests, tsc and next build were all clean while StatusBar told the user 'gateway offline' at the same moment six Home panels correctly said 'Kitty is running but this part isn't answering yet.' The flag was wired to model-list availability, not gateway reachability, so the row could never be true as worded. No test asserted the row against the panels. It was only found by driving the built app against a backend that answered /health and 404'd the rest. Separately in the same session a green suite sat beside a page rendering 'This page couldn't load', caused by a stale next-server serving an overwritten .next.",
+  "fingerprint": "9890c56333166f42",
+  "id": "wfs_20260829t195355z_9890c56333166f42_c6b5ee56116670d0",
+  "impact": "Without a runtime pass the false claim would have shipped, and the stale-server artefact was nearly filed as a code crash. Twice in one session a green suite was mistaken for a working product.",
+  "occurrence_count": 1,
+  "promotion_reason": "single non-critical observation; collect another occurrence",
+  "promotion_status": "observe",
+  "recorded_at": "2026-08-29T19:53:55.929368Z",
+  "schema_version": 1,
+  "severity": "high",
+  "source_session": "claude-code/claude-kitty-power-run-l4dvwx/2026-08-29T19:30Z",
+  "stable_key": "green-suite-hid-user-facing-status-defect",
+  "store_scope": "repo-fallback",
+  "suggested_change": "For changes to user-facing failure or status copy, require one runtime pass on the real build against a partly-degraded backend before the PR is considered verified, and kill prior app servers before restarting so the served build matches the source.",
+  "summary": "A fully green unit suite and clean build did not catch a user-facing status claim that was false in every rendering.",
+  "verified_by": "Observed the contradiction in the running app at head c648eb52 and confirmed it gone at c15defa; the stale-server 500s cleared once the old next-server pid was killed and the app rebuilt.",
+  "window_days": 30
+}

@@ -65,6 +65,24 @@ describe('KittyRuntimeProvider', () => {
     expect(screen.getByText('home ready')).toBeInTheDocument()
   })
 
+  it('keeps browser network exceptions out of user-facing recovery copy', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+
+    render(
+      <KittyRuntimeProvider {...runtimeProps}>
+        <div>home ready</div>
+      </KittyRuntimeProvider>,
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const offlineMessage = screen.getByText(/Kitty is offline/)
+    expect(offlineMessage).not.toHaveTextContent('Failed to fetch')
+    expect(offlineMessage).toHaveTextContent("Can't reach Kitty")
+  })
+
   it('keeps gateway HTTP failures out of user-facing recovery copy', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
 

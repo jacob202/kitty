@@ -150,3 +150,39 @@ async def test_unified_context_returns_warm_cache_without_computing(monkeypatch)
 
     assert out == "WARM"
     assert hit_graph["called"] is False
+
+
+def test_history_reader_is_bounded_to_recent_tail(monkeypatch):
+    rows = []
+    for index in range(1200):
+        fp = FP.to_dict()
+        rows.append(__import__("json").dumps({"ts": index, "query": f"q-{index}", "fp": fp}))
+    prefetcher._HISTORY.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    monkeypatch.setattr(prefetcher, "_HISTORY_SCAN", 5)
+
+    loaded = prefetcher._load_history()
+
+    assert [row["query"] for row in loaded] == [f"q-{i}" for i in range(1195, 1200)]
+
+
+def test_history_hot_path_does_not_use_path_read_text(monkeypatch):
+    prefetcher.record("tail only", FP)
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("full-file read_text must not be used")
+
+    monkeypatch.setattr(type(prefetcher._HISTORY), "read_text", explode)
+    assert prefetcher._load_history()[-1]["query"] == "tail only"
+
+
+def test_history_reader_propagates_unreadable_evidence_even_if_exists_probe_would_hide_it(monkeypatch):
+    class UnreadableHistory:
+        def exists(self) -> bool:
+            return False
+
+        def open(self, *_args, **_kwargs):
+            raise PermissionError("history unreadable")
+
+    monkeypatch.setattr(prefetcher, "_HISTORY", UnreadableHistory())
+    with pytest.raises(PermissionError, match="history unreadable"):
+        prefetcher._load_history()
