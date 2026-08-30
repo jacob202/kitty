@@ -3,11 +3,11 @@
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-30T12:00:00Z",
+  "updated_at": "2026-08-30T17:56:55.098734+00:00",
   "head_sha": "c5a43a5ed3de7091b17d5b3fb7fc85d925dfc9a2",
   "branch": "claude/kitty-power-run-l4dvwx",
   "worktree": ".",
-  "status": "complete",
+  "status": "valid",
   "completed_items": [
     "Booted the real product (production build + hermetic gateway) and exercised all eight surfaces at 1440x900 and iPhone 14/14 Pro under available, degraded, and fully-stopped backend states",
     "Added describeFailure() as the single render-boundary translator for thrown gateway/query errors; routed Home, Projects, Documents and Library through it with working retry controls",
@@ -23,8 +23,10 @@
     "Fixed BuilderSurface DataQualityNotice to show translated detail when in Builder instead of 'Open Builder' dead-end; removed 'runtime manifest' internal vocabulary from Builder surface",
     "Superseded stale HANDOFF.md head_sha and ownership state to match current HEAD c5a43a5e"
   ],
-  "blockers": [],
-  "next_action": "none",
+  "blockers": [
+    "Independent Product Acceptance must be rerun on the integrated PR head before merge."
+  ],
+  "next_action": "Run independent Product Acceptance on the current PR head.",
   "invalidation_conditions": [
     "PR #675 merges or closes",
     "origin/main advances past the current mergeable base",
@@ -76,9 +78,9 @@
 }
 -->
 
-**Identity:** interactive OpenCode session, 2026-08-30.
-**Branch:** `claude/kitty-power-run-l4dvwx` @ `c5a43a5e`, clean, local only.
-**PR:** [#675](https://github.com/jacob202/kitty/pull/675) — open, **draft**, `mergeable_state: clean`.
+**Identity:** PR #675 continuity checkpoint, 2026-08-30.
+**Branch:** `claude/kitty-power-run-l4dvwx`; metadata records the verified code parent and this file is committed as the single checkpoint-only child.
+**PR:** [#675](https://github.com/jacob202/kitty/pull/675) — open; independent exact-head Product Acceptance is required before merge.
 
 **Supersedes** previous HANDOFF entries that referenced head `3e022bf`. The head
 has advanced to `c5a43a5e` (status badge truthfulness fix). All prior findings
@@ -148,14 +150,11 @@ empty**.
 
 ## Blocker
 
-**None.** The head has been updated to `c5a43a5e` with fresh review fixes.
-The previous non-independence blocker (same session wrote fix + review) is
-superseded by the new fixes being made in a separate session.
+Independent Product Acceptance must be rerun after this integration with current `main`.
 
 ## Next move
 
-Get an independent product acceptance pass on `c5a43a5e` under
-`docs/PRODUCT_ACCEPTANCE.md`, then lift draft on #675.
+Run the Product Acceptance gate on the resulting PR head, then use that exact-head evidence for merge review.
 
 The user goal to review against, unchanged from Jacob's request:
 
