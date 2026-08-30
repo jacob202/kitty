@@ -3,7 +3,7 @@
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-30T18:43:52.989840+00:00",
+  "updated_at": "2026-08-30T18:46:12.782344+00:00",
   "head_sha": "4b8cb7e0ce8d60acd7cd6a0fa62ec0db63ea51fa",
   "branch": "claude/kitty-power-run-l4dvwx",
   "worktree": ".",
@@ -25,20 +25,17 @@
     "Corrected the PR #675 body: the acceptance section claimed no independent reviewer existed while the checkbox was ticked, and the test counts named a superseded head",
     "Reviewed 1b54452 from the concurrent lane and found its health-reason denylist leaked every one of the nineteen degraded/unavailable strings gateway/health_surface.py builds, and truncated one into the fragment 'embedding runtime returned'",
     "Replaced that scrub with an allowlist translation plus a collapsed Technical details disclosure, keeping the cause reachable as the Codex P2 asked while the primary message stays plain language",
-    "Verified the fix in the running product against a stub gateway reporting real degraded reasons: plain sentence visible, raw reason collapsed, zero jargon in visible text at 1440x1600 and iPhone 14 Pro"
+    "Verified the fix in the running product against a stub gateway reporting real degraded reasons: plain sentence visible, raw reason collapsed, zero jargon in visible text at 1440x1600 and iPhone 14 Pro",
+    "PR #675 merged into main as 1e9ed573 at 2026-08-30T18:44:04Z, carrying the health-reason fix at 4b8cb7e"
   ],
   "blockers": [],
   "next_action": "none",
   "invalidation_conditions": [
-    "PR #675 merges or closes",
+    "origin/main advances past 1e9ed573 with further changes to gateway/kitty-chat/src/components/",
     "Someone force-pushes or rewrites claude/kitty-power-run-l4dvwx so 4b8cb7e0 is no longer in its history"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": {
-    "number": 675,
-    "state": "OPEN",
-    "head_sha": "4b8cb7e0ce8d60acd7cd6a0fa62ec0db63ea51fa"
-  },
+  "pull_request": null,
   "parallel_work": [],
   "recommendations": [
     {
@@ -58,9 +55,10 @@
 
 ## Current work
 
-PR #675 (`fix(ui): one truthful status, in plain language`) is at final integration.
-The checkpoint records parent `4b8cb7e0`; this continuity-only commit may sit one
-commit ahead of that parent by design.
+PR #675 (`fix(ui): one truthful status, in plain language`) **merged** into `main`
+as `1e9ed573` on 2026-08-30 at 18:44:04Z. The checkpoint records the merged head
+`4b8cb7e0`; this continuity-only commit sits ahead of it and goes to `main`
+separately.
 
 After the a19ec69a acceptance pass, an independent read of `1b54452` from the
 concurrent lane found a regression it had introduced. That commit correctly
@@ -95,10 +93,8 @@ collapsed "Technical details" disclosure.
 
 ## Session state
 
-The implementation session is complete. There is no remaining in-session action;
-PR #675 should merge once this continuity-only checkpoint passes repository CI.
-The dead ESLint config remains a separately deferred cleanup and is not a release
-blocker for this PR.
+The implementation session is complete and #675 is merged. There is no remaining
+in-session action. The dead ESLint config remains a separately deferred cleanup.
 
 Note for the next session: this container's clone is **shallow**, which makes
 `scripts/check_continuity_state.py` report two failures that are artifacts, not
