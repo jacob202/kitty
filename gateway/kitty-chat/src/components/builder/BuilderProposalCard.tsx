@@ -132,7 +132,7 @@ export function BuilderProposalCard({ task, chatId, messageIndex }: Props) {
         ) : <span> Kitty will report whether the work was validated.</span>}
       </div>
 
-      {!proposal && (
+      {!proposal && !proposalError && !propose.isError && (
         <button type="button" onClick={doPropose} disabled={propose.isPending} style={btnPrimary}>
           {propose.isPending ? 'Preparing…' : 'Prepare this work'}
         </button>
@@ -250,7 +250,7 @@ function ResumedBuilderJob({
             </div>
           )}
 
-          <button type="button" onClick={refresh} disabled={resume.isFetching} style={refreshButton}>Refresh status</button>
+          {!commandError && <button type="button" onClick={refresh} disabled={resume.isFetching} style={refreshButton}>Refresh status</button>}
         </>
       )}
     </div>

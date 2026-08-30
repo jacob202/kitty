@@ -105,6 +105,15 @@ describe('BuilderProposalCard', () => {
     expect(gateway.proposeBuilderJob).not.toHaveBeenCalled()
   })
 
+  it('uses one plain recovery action when proposal preparation fails', async () => {
+    vi.mocked(gateway.proposeBuilderJob).mockRejectedValue(new Error('POST /builder/conversation/propose failed: 503'))
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+    fireEvent.click(screen.getByRole('button', { name: /prepare this work/i }))
+    expect(await screen.findByText(/could not prepare this work/i)).toBeInTheDocument()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.queryByText(/503|propose/)).not.toBeInTheDocument()
+  })
+
   it('prepares, then sends one nonce-bound approval without a duplicate confirm step', async () => {
     vi.mocked(gateway.proposeBuilderJob).mockResolvedValue(preparedProposal)
     vi.mocked(gateway.approveBuilderJob).mockResolvedValue({ ok: true, state: 'accepted', mission_id: preparedProposal.mission_id })
@@ -237,5 +246,6 @@ describe('BuilderProposalCard', () => {
     fireEvent.click(await screen.findByRole('button', { name: /try again/i }))
     expect(await screen.findByText(/could not update this work/i)).toBeInTheDocument()
     expect(screen.queryByText(/task-private-id/)).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
   })
 })
