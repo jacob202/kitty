@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from gateway.builder_cli import build_parser, main
+from gateway.builder_paid_routing import PaidRoute
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -1764,6 +1765,28 @@ class TestInitiativeListHealthIndicator:
         assert parsed[1]["id"] == "init-beta"
 
 
+def _test_paid_route(tier: str) -> PaidRoute:
+    if tier == "frontier":
+        return PaidRoute(
+            tier="frontier",
+            provider="openrouter",
+            worker_model="openrouter/deepseek/deepseek-v4-pro",
+            reviewer_model="openrouter/qwen/qwen3.7-max",
+            governor_route="frontier",
+            projected_cost_cad=0.10,
+            max_projected_cost_cad=0.50,
+        )
+    return PaidRoute(
+        tier="cheap",
+        provider="openrouter",
+        worker_model="openrouter/xiaomi/mimo-v2.5",
+        reviewer_model="openrouter/minimax/minimax-m3",
+        governor_route="cheap",
+        projected_cost_cad=0.04,
+        max_projected_cost_cad=0.10,
+    )
+
+
 class TestInitiativePaidPreset:
     _RESULT = {
         "outcome": "succeeded",
@@ -1781,7 +1804,10 @@ class TestInitiativePaidPreset:
             "KITTYBUILDER_REVIEW_MODEL",
         ):
             monkeypatch.delenv(key, raising=False)
-        with patch("gateway.builder_loop.run_packet", return_value=self._RESULT) as mock_rp:
+        with (
+            patch("gateway.builder_paid_routing.resolve_paid_route", side_effect=_test_paid_route),
+            patch("gateway.builder_loop.run_packet", return_value=self._RESULT) as mock_rp,
+        ):
             rc = main(["initiative", "run-packet", "init-1", "p1", "--paid", "--json"])
 
         assert rc == 0
@@ -1797,7 +1823,10 @@ class TestInitiativePaidPreset:
         )
 
     def test_run_packet_frontier_is_explicit_paid_escalation(self):
-        with patch("gateway.builder_loop.run_packet", return_value=self._RESULT) as mock_rp:
+        with (
+            patch("gateway.builder_paid_routing.resolve_paid_route", side_effect=_test_paid_route),
+            patch("gateway.builder_loop.run_packet", return_value=self._RESULT) as mock_rp,
+        ):
             rc = main([
                 "initiative", "run-packet", "init-1", "p1",
                 "--paid", "--tier", "frontier", "--json",
