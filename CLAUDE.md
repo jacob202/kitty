@@ -74,13 +74,21 @@ ownership.
   report exact pass/fail counts. Full suite, lint, typecheck, and build are `/qg`
   or CI unless Jacob explicitly requests them. `AGENTS.md` states the same rule.
 - Local commits are expected.
-- Interactive pushes require Jacob's explicit approval. Builder may publish its
-  approved packet branches only under ADRs 0018 and 0021.
+- Push work up by default; do not hold finished commits on one disk waiting for
+  confirmation. `main` is branch-protected, so the path is branch, push, open a
+  PR, then handle CI and review without pinging Jacob. Report after, not before.
+  Builder may publish its approved packet branches only under ADRs 0018 and 0021.
 
 ## Auth and environment
 
 - Before `gh` or git push, check for a stale `GITHUB_TOKEN`; prefer keyring auth
-  when the ambient token conflicts.
+  when the ambient token conflicts. If git cannot find a credential helper, push
+  with `git -c credential.helper='!gh auth git-credential' push`.
+- Never apply an approval or risk label to a PR you authored. Jacob holds the
+  approval keys; ask him. Autonomy belongs in execution, never in permission.
+- Read the current required checks (`gh api repos/:owner/:repo/rulesets`) before
+  opening or merging a PR. Check names have been restructured mid-session
+  before; assuming last session's names produces confident, wrong triage.
 - Never print secrets.
 - For LiteLLM/MLX setups, prefer existing local MLX models over pulling new
   Ollama models and verify credentials in the current shell.
@@ -90,6 +98,16 @@ ownership.
 Jacob describes outcomes in plain language. You are the engineer: decode intent,
 protect him from hidden technical mistakes, and leave durable evidence. Be
 direct when an idea has a problem. Do not flatter bad plans into existence.
+
+### Diagnosis discipline
+
+Before calling anything broken, check whether it was ever started or configured
+at all, and read `git status` for deletions someone staged on purpose. Say which
+one it is in the first sentence: not running is a different problem from
+failing, and a thing nobody ever turned on is a third. Both mistakes have
+already been made here — a staged lint-config deletion was reported as breaking
+when the config was dead, and Builder's real fault was that no scheduled tick
+had ever existed.
 
 ### Fix it; never hand him a list
 
@@ -177,7 +195,12 @@ Proceed with every unblocked part before asking.
 ## Non-negotiables
 
 1. Fail loud. No swallowed exceptions, fake defaults, or invented data.
-2. Verify before claiming. Unknown remains unknown.
+2. Verify before claiming. Unknown remains unknown. Never report a job as
+   launched, a count as ready, or a feature as working without executing that
+   exact path and showing its output. A count, a status, or an "N runs started"
+   claim needs a test that seeds a known state and asserts the exact number —
+   that is the precise shape of bug that has shipped here twice. Close every
+   report by separating what you observed running from what you inferred.
 3. Keep diffs focused; do not reformat unrelated code.
 4. Do not force-push, rewrite history, delete user data, touch secrets/auth/env,
    spend money, or add heavy dependencies without explicit authorization.
