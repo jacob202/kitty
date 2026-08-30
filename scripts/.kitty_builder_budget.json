@@ -1,0 +1,12 @@
+{
+  "date": "2026-05-07",
+  "groq_requests": 0,
+  "or_spend_usd": 0.01,
+  "claude_spend_usd": 0.0,
+  "per_model": {
+    "qwen/qwen3-coder:free": {
+      "usd": 0.0,
+      "calls": 1
+    }
+  }
+}

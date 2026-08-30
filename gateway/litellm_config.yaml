@@ -1,0 +1,96 @@
+# LiteLLM — Kitty model surface
+#
+# The kitty-* names are ROLES, not models. App code asks for a role; this file
+# decides which provider answers. Check what's live with:
+#
+#   curl -s localhost:8000/api/model-routing | jq
+#
+# or open Settings → providers in the UI. Both show alias → provider → model
+# and whether the key is actually set.
+#
+#   kitty-default  → primary brain
+#   kitty-sonnet   → deep tier
+#   kitty-small    → cheap/fast
+#   kitty-vision   → vision tasks, image gen
+#
+# Repointing an alias at a different model means editing litellm_params.model
+# below (litellm's "<provider>/<model>" form), pointing api_key at the matching
+# env var, then restarting with `bash gateway/start_litellm.sh`.
+#
+# Changing which *provider answers* does not need any of that — that's the
+# direct-call chain in gateway/llm_client.py, reorderable live from
+# Settings -> providers or POST /api/providers.
+#
+# WARNING: kitty-default/sonnet/small/vision are all OpenRouter, and
+# kitty-default falls back to kitty-small which is also OpenRouter. One dead
+# balance takes out all four. kitty-local is the escape hatch — start it with
+# `bash gateway/start_mlx.sh`.
+#
+# Run: bash gateway/start_litellm.sh
+#
+# Env: OPENROUTER_API_KEY, LITELLM_MASTER_KEY
+
+model_list:
+  - model_name: kitty-default
+    litellm_params:
+      model: openrouter/deepseek/deepseek-v4-pro
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 16384
+
+  - model_name: kitty-sonnet
+    litellm_params:
+      model: openrouter/deepseek/deepseek-v4-pro
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 16384
+
+  - model_name: kitty-small
+    litellm_params:
+      model: openrouter/deepseek/deepseek-v4-flash
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 4096
+
+  # Reasoning tier. Deliberately not deepseek-v4-pro — that is what kitty-default
+  # already serves, so pointing "Think" at it made the menu entry a placebo.
+  - model_name: kitty-think
+    litellm_params:
+      model: openrouter/qwen/qwen3-235b-a22b-thinking-2507
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 16384
+
+  - model_name: kitty-code
+    litellm_params:
+      model: openrouter/qwen/qwen3-coder
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 16384
+
+  # mistral/mistral-small-latest is not an OpenRouter model id — this route
+  # answered 404 for every image Kitty ever sent it.
+  - model_name: kitty-vision
+    litellm_params:
+      model: openrouter/mistralai/mistral-small-3.2-24b-instruct
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 4096
+
+  # Local MLX on the Mac (gateway/start_mlx.sh). No key, no credit, no network.
+  # Start it before this route resolves: bash gateway/start_mlx.sh
+  - model_name: kitty-local
+    litellm_params:
+      model: openai/mlx-community/Qwen3.5-4B-4bit
+      api_base: os.environ/MLX_BASE_URL
+      api_key: "not-needed"
+      max_tokens: 4096
+
+router_settings:
+  routing_strategy: usage-based-routing-v2
+  num_retries: 1
+  timeout: 120
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
+  num_retries: 1
+  fallbacks:
+    - kitty-default: [kitty-small]
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

@@ -1,0 +1,3 @@
+-- Image Jobs V2: queue index created at runtime by image_jobs._ensure_queue_columns()
+-- to handle the ALTER TABLE → CREATE INDEX ordering correctly across fresh and
+-- existing databases. This migration file is intentionally a no-op.

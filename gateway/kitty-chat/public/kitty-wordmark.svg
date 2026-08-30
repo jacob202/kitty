@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 280" width="720" height="280">
+  
+  <defs>
+    <linearGradient id="wmInk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1410"></stop>
+      <stop offset="100%" stop-color="#0e0a08"></stop>
+    </linearGradient>
+    
+  </defs>
+
+  <rect width="720" height="280" fill="url(#wmInk)"></rect>
+
+  
+  <g stroke="#3a2e25" stroke-width="1" fill="none">
+    <path d="M 8 8 L 24 8 L 24 24"></path>
+    <path d="M 712 8 L 696 8 L 696 24"></path>
+    <path d="M 8 272 L 24 272 L 24 256"></path>
+    <path d="M 712 272 L 696 272 L 696 256"></path>
+  </g>
+
+  
+  <g class="face-body" fill="#7a7160" font-size="10" letter-spacing="2">
+    <text x="40" y="40" text-transform="uppercase">WORDMARK · 03 LOCKUPS</text>
+    <text x="680" y="40" text-anchor="end" text-transform="uppercase">v0.1 · kitty</text>
+  </g>
+
+  
+  <g transform="translate(40, 70)">
+    
+    <text class="face-display" x="0" y="100" font-size="128" fill="#3dc99a">$</text>
+    
+    <text class="face-display" x="78" y="100" font-size="128" fill="#ffa340" letter-spacing="-2">kitty</text>
+    
+    <rect x="334" y="86" width="14" height="14" fill="#a884ff"></rect>
+    
+    <rect x="356" y="32" width="16" height="76" fill="#ffc66b">
+      
+    </rect>
+    
+    <line x1="0" y1="120" x2="380" y2="120" stroke="#3a2e25" stroke-dasharray="2 4"></line>
+    <text class="face-body" x="0" y="138" font-size="10" fill="#7a7160" letter-spacing="2">PRIMARY · vt323 / 128px</text>
+  </g>
+
+  
+  <g transform="translate(440, 70)">
+    
+    <rect x="0" y="0" width="120" height="120" fill="#0e0a08" stroke="#3a2e25" stroke-width="1"></rect>
+    <text class="face-display" x="60" y="48" font-size="44" fill="#3dc99a" text-anchor="middle">$</text>
+    <text class="face-display" x="60" y="92" font-size="38" fill="#ffa340" text-anchor="middle" letter-spacing="-1">kitty</text>
+    <text class="face-body" x="0" y="138" font-size="10" fill="#7a7160" letter-spacing="2">STACKED · square slot</text>
+  </g>
+
+  
+  <g transform="translate(580, 70)">
+    <rect x="0" y="0" width="120" height="120" fill="#0e0a08" stroke="#3a2e25" stroke-width="1"></rect>
+    <text class="face-display" x="12" y="56" font-size="28" fill="#3dc99a">$</text>
+    <text class="face-display" x="32" y="56" font-size="28" fill="#ffa340" letter-spacing="-1">kitty</text>
+    <text class="face-display" x="100" y="56" font-size="28" fill="#3dc99a">:</text>
+    
+    <text class="face-body" x="12" y="80" font-size="11" fill="#bdb19a">hey :3</text>
+    <text class="face-body" x="12" y="96" font-size="11" fill="#bdb19a">heard you</text>
+    <text class="face-body" x="0" y="138" font-size="10" fill="#7a7160" letter-spacing="2">PROMPT · chat byline</text>
+  </g>
+
+  
+  <line x1="40" y1="240" x2="680" y2="240" stroke="#3a2e25" stroke-dasharray="2 6"></line>
+
+  
+  <g transform="translate(40, 252)">
+    <rect width="14" height="14" fill="#3dc99a"></rect>
+    <text class="face-body" x="20" y="11" font-size="10" fill="#bdb19a">teal · prompt</text>
+    <rect x="120" width="14" height="14" fill="#ffa340"></rect>
+    <text class="face-body" x="140" y="11" font-size="10" fill="#bdb19a">tabby · name</text>
+    <rect x="240" width="14" height="14" fill="#a884ff"></rect>
+    <text class="face-body" x="260" y="11" font-size="10" fill="#bdb19a">grape · punctuation</text>
+    <rect x="380" width="14" height="14" fill="#ffc66b"></rect>
+    <text class="face-body" x="400" y="11" font-size="10" fill="#bdb19a">tabby-glow · caret</text>
+  </g>
+
+  
+  <text class="face-body" x="680" y="263" text-anchor="end" font-size="10" fill="#7a7160" letter-spacing="2">ALWAYS LOWERCASE</text>
+</svg>
