@@ -39,12 +39,16 @@ inspection alone; use the final states in `verified-delivery`.
 
 ## Git, credentials, and irreversible actions
 
-Keep small Conventional Commits. Never push, force-push, rewrite history,
-delete data, touch secrets/auth/env, spend money, or add a heavy dependency
-without explicit authorization. Before `gh` or push, check for an ambient
-`GITHUB_TOKEN`; prefer `env -u GITHUB_TOKEN gh ...` when stored auth is valid,
-and never print credential values. Before merge, inspect every required Actions
-check run. A green aggregate status is not enough.
+Keep small Conventional Commits. Never force-push, rewrite history, delete data,
+touch secrets/auth/env, spend money, add a heavy dependency, merge, or push
+directly to `main` without explicit authorization. An explicit instruction from
+Jacob to implement, fix, continue, or finish a named technical task authorizes
+creating an isolated task worktree/branch, committing verified task work, pushing
+that non-main branch, and opening or updating its PR. It does not authorize the
+higher-impact actions listed above or material scope expansion. Before `gh` or
+push, check for an ambient `GITHUB_TOKEN`; prefer `env -u GITHUB_TOKEN gh ...`
+when stored auth is valid, and never print credential values. Before merge,
+inspect every required Actions check run. A green aggregate status is not enough.
 
 ## Builder ownership
 
