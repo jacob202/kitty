@@ -1,229 +1,226 @@
-# Kitty Packet Master — Resumable Registry and Campaign Design
+# Kitty Packet Master — Product-First Pilot
 
 **Date:** 2026-08-30  
-**Status:** approved design; design-only slice  
+**Status:** approved lean design; written-spec review pending
 **Owner:** ChatGPT Packet Master  
-**Lane:** packet registry, roadmap, and specification only
+**Lane:** product packets and bounded flow-break investigation only
 
 ## Decision
 
-Use a registry-first Packet Master. `docs/ACTIVE_MISSION.md` owns the
-objective and ordered outcomes; `docs/ROADMAP.md` owns priority and sequence;
-validated JSON initiative manifests are the only Builder-executable contracts.
-Generated registry and immutable sidecar checkpoints carry disposition,
-ownership, provenance, evidence, and resume data. They must not be added to
-the executable manifest.
+Prioritize one user-visible product outcome before building packet infrastructure.
+Defer a generated registry, disposition/metadata sidecars, checkpoint tree, and
+the 48-wave KFP catalog. The Aug 1–30 evidence audit verified no direct incident
+where a duplicate packet ID itself caused harm. Duplicate IDs remain a risk, not
+a reason to build a second control plane now.
 
-This design does not activate a mission, apply a manifest, mutate Builder, or
-replace the roadmap. It preserves history and makes credit-stop recovery
-deterministic.
+The first pilot is **LIBRARY-CHAT-001**: a person opens a ready local image in
+Library and sends it into Chat with truthful attachment state and no dead
+controls. It uses the existing Gateway, ArtifactStore, and native Kitty UI.
+Older-history research is not required for this pilot.
 
-## Authority boundaries
+## Authority order
 
-| Concern | Authority | Treatment |
-|---|---|---|
-| Purpose | `docs/NORTH_STAR.md` | reference |
-| Architecture/decisions | `docs/CONSTITUTION.md`, `docs/DECISIONS.md`, `docs/adr/` | reject conflicts |
-| Sequence | `docs/ROADMAP.md` | source of order |
-| Mission | `docs/ACTIVE_MISSION.md` | source of objective/acceptance |
-| Executable contract | `gateway/builder_initiative.py` | exact validator |
-| Free execution | `docs/FREE_MODEL_PACKET_STANDARD.md` | deterministic gates |
-| Disposition | `docs/DISPOSITION_LEDGER.md` until generated registry exists | reconcile only |
-| Live execution | supported Builder CLI/API projection | read-only |
-| Session continuation | `.claude/STATE.md`, `.claude/HANDOFF.md` when valid | evidence input |
+1. `docs/ACTIVE_MISSION.md` owns the current objective and acceptance contract.
+2. `docs/ROADMAP.md` owns priority and order; it is the sole active roadmap.
+3. Accepted ADRs, Constitution, and architecture docs govern design decisions.
+4. A packet receipt owns only its bounded implementation contract.
+5. Git/GitHub, running-product probes, CI, and supported Builder projections
+   outrank prose for current facts.
+6. Builder owns durable execution state; it is not inferred from packet files,
+   UI emptiness, or old reports.
 
-Gateway is product truth and KittyBuilder is execution control plane. Native
-Kitty UI is canonical. This lane changes neither.
+The current mission sequence remains REC-001 → WORK-001 → BUILDER-001 →
+IMAGE-001 → LIBRARY-001 → AUTO-001 → HOME-001 → ACCEPT-001. This document
+does not activate a mission or apply a Builder manifest.
 
-## Fresh evidence snapshot
+## Time-bound evidence snapshot
 
-- Base captured at worktree creation (2026-08-30T16:02:00-06:00 context): `git ls-remote origin refs/heads/main` returned `a1c0f09a7e86ff8a368b5a96e87c081ed0dae204`.
-- Review snapshot captured 2026-08-30T16:14:47-06:00: GitHub `main` advanced to `c7a7de0c2b670e968e4443d4ae494159243ccfb3` through merged PR #703. This branch is not current-main; its base-at-creation identity remains the prior SHA.
-- Isolated worktree: `/Users/jacobbrizinnski/orca/workspaces/kitty/kitty-packet-master-20260830`.
-- Branch: `jacob202/kitty-packet-master-20260830`; based on
-  `a1c0f09a7e86ff8a368b5a96e87c081ed0dae204` and containing the Packet Master
-  design commits. GitHub `main` later advanced to `c7a7de0c...`, so refresh and
-  reconcile against current main before publication.
-- Canonical checkout is dirty and was not modified.
-- PR #704 is open at `5eb17380f20b8add2b4166299c2d73e5cb3d97b0`; lane is Builder agent-operability.
-- PR #677 is open at `da3ace79ef7e274b41ca5fc012463d09587a74ea`; lane is actionable Work/Builder scheduling.
-- Preserved worktrees and open PRs are not automatically live agents. Only a
-  currently verified owner/lease counts as active; stale lock metadata is not
-  ownership.
-- `kb_mtgatvyi_340e` remains live/UNKNOWN until its terminal state is
-  reverified; this docs-only lane does not overlap it, #704, or #677.
-- Clean committed-tree inventory: 29 packet Markdown files (25 numbered), 35
-  initiative JSON files, 137 manifest packet entries, and 126 unique manifest
-  packet IDs.
-- Current mission sequence: `REC-001 → WORK-001 → BUILDER-001 → IMAGE-001 → LIBRARY-001 → AUTO-001 → HOME-001 → ACCEPT-001`.
+Captured 2026-08-30; refresh before implementation:
 
-The snapshot is time-bound. Live Builder queue, runtime health, and current
-review state are UNKNOWN until the resume protocol refreshes them.
+- Fresh GitHub main at capture: `c7a7de0c2b670e968e4443d4ae494159243ccfb3`.
+- The Packet Master branch was created earlier from `a1c0f09a...`; it is not
+  current-main and must be refreshed/reconciled before publication.
+- PR #675 is merged; no current open PR title/branch was found for the
+  Library/artifact/attach pilot. This title search does not prove file-level
+  non-overlap. Preserved worktrees/open PRs are not active agents without a
+  verified owner/lease.
+- `kb_mtgatvyi_340e` was observed blocked for `scope_violation` with no owner
+  and zero running queue tasks; this is time-bound, and external-process
+  absence remains UNKNOWN.
+- The canonical checkout is dirty; this lane never edits it.
 
-## Legacy duplicate problem
+## Verified pain appendix
 
-The repository has numbered Markdown packets, 35 current initiative JSON
-manifests (older inventory material referred to 40 historical manifests), campaign plans,
-superpowers plans/specs, research, audits, and a hand-maintained ledger. The
-packet README was updated 2026-07-14; the ledger is dated 2026-08-08; both
-predate this mission. Known defects include:
+### B8 wrong assignment
 
-- packet files 021/022 were renumbered to 023/024 but ghosts remain;
-- KTF-004 has four superseded manifests for one daylight-proof concern;
-- recovery-control-plane V1–V6 reuse three packet IDs;
-- aggregate and split KX manifests reuse eleven packet IDs;
-- a tracked manifest does not prove application to Builder.
+- Date: 2026-08-02–05.
+- Evidence: [B8 forensics](/Users/jacobbrizinnski/Projects/kitty/artifacts/forensic-b8-wrong-assignment-2026-08-05.md:12-24).
+- Task: `kb_msb4yx3n_f6e8`; intended onboarding repair was never materialized
+  as a Builder task.
+- Result: stale attempt 111 reactivated B8; attempts 106–114 ran the unrelated
+  trivia-doc packet; commits `7ea5e077`, `9bbc945a`, `00edce20`; B9/B10
+  remained unreachable.
+- Root cause: verified ownership/selection and stale-attempt failure, not
+  duplicate packet IDs.
 
-The README is provenance/intake guidance, not current queue truth. The generated
-registry must label missing live evidence UNKNOWN rather than infer from prose.
+### PR #675 inconsistent handoff evidence
 
-## Canonical artifact set
+- Date: 2026-08-30.
+- Evidence: [PR #675 review](https://github.com/jacob202/kitty/pull/675#pullrequestreview-5061574624).
+- Result: `.claude/STATE.md` and `.claude/HANDOFF.md` disagreed; continuity
+  checks failed while 4,819 other tests passed.
+- Root cause: verified stale/inconsistent checkpoint content on #675.
 
-1. `docs/ACTIVE_MISSION.md`: mission and outcome order.
-2. `docs/ROADMAP.md`: sole active sequence.
-3. `docs/initiatives/<initiative-id>.json`: immutable Builder input.
-4. `docs/packets/<source>.md`: human-readable source/provenance only.
-5. `docs/packet-registry.json`: deterministic generated index and collision guard.
-6. `docs/packet-dispositions.json`: explicit disposition/supersession sidecar.
-7. `docs/packet-checkpoints/<initiative-id>/<packet-id>.json`: immutable resume/evidence receipts.
-8. `docs/packet-roadmap.md`: resumable campaign map, never executable.
+### PR #673 stale-SHA acceptance
 
-No history is rewritten; superseded files remain provenance until explicitly
-authorized archival.
+- Date: 2026-08-30.
+- Evidence: [PR #673 review](https://github.com/jacob202/kitty/pull/673#pullrequestreview-5061417894).
+- Result: independent running-product acceptance targeted older
+  `e6591dc1...` while current reviewed head was `ead4d973...`; exact-head
+  acceptance had to be rerun before merge.
+- Root cause: verified evidence binding failure; duplicate-ID harm not shown.
 
-## Strict runtime-compatible manifest schema
+### PR #675/#677 overlapping continuity files
 
-The validator permits exactly these top-level keys:
+- Date: 2026-08-30.
+- Evidence: [PR #677 comment](https://github.com/jacob202/kitty/pull/677#issuecomment-5470489074).
+- Both PRs touched `.claude/STATE.md`/`.claude/HANDOFF.md`; whoever merged
+  second would need a rebase.
+- Direct cause of #675's four failures was its inconsistent checkpoint, not
+  overlap. Overlap is a verified merge-order risk; any extra rework is
+  inference, not measured.
 
-```json
-{"manifest_version":1,"initiative_id":"stable-id","title":"...","description":"...","packets":[]}
-```
+## Required lightweight packet receipt
 
-Each packet permits exactly `id`, `title`, `objective`, `depends_on`,
-`acceptance_criteria`, `allowed_paths`, `policy`, and
-`validation_commands`. Policy permits `max_attempts`, `priority`, and
-`routing`; routing permits only `model` and `provider`. IDs are bounded,
-dependencies must exist and be acyclic, and validation commands are limited.
+A packet receipt may be Markdown or the existing runtime-compatible manifest,
+but must state:
 
-Sidecar-only fields include `class`, `owner`, `activation`, `source_refs`,
-`base_sha`, `demo_contract`, `scope_budget`, `privacy`,
-`stop_conditions`, `evidence_requirements`, `status`, `supersedes`,
-`superseded_by`, `ratification`, `plan_only`, `reason`,
-`replaced_commit`, and `constraints`. Putting these in manifest JSON fails
-validation; `ktf-005-life-resume-loop-gate-v1.json` intentionally demonstrates
-this rejected plan-only shape.
+- one outcome and one owner;
+- exact base SHA and approved packet identity;
+- exact allowed paths and explicit paths not to touch;
+- acceptance criteria with runnable commands;
+- final-SHA evidence: changed paths, tests, review identity, and runtime proof
+  for runtime claims;
+- blockers, unknowns, stop/split condition, and one next action.
 
-## Registry and collision guard
+Do not add receipt metadata to executable JSON unless the Builder validator
+already accepts it. Keep product intent in the mission/roadmap and live state
+in Builder.
 
-Add a read-only `scripts/generate_packet_registry.py`. It should enumerate
-each `docs/initiatives/*.json` and run
-`./kitty builder initiative validate "$manifest" --json`, extract valid IDs/dependencies/
-paths/commands, join the disposition sidecar, and emit deterministic sorted JSON
-with source SHA and generation time. It must report duplicate initiative/packet
-IDs, invalid or intentionally rejected records, missing/cyclic dependencies,
-stale sources with no replacement, and manifests absent from the sidecar.
+## LIBRARY-CHAT-001 pilot
 
-Before mutation, explicitly check `kb_mtgatvyi_340e`, PR #704, and PR #677.
-Collision means REVIEW or DEPENDENCY, never a competing implementation. A
-manifest on disk is not evidence that it is queued. Add a CI/preflight check
-for invalid manifests, duplicate active IDs, and missing dispositions.
+### Objective
 
-## KFP packet-wave catalog
+From the native Library surface, attach one ready local image to a new or
+existing Chat message. Supported inputs are PNG, JPEG, and WebP files no
+larger than 5 MiB. The user sees ready, sending, sent, and failed states;
+retry is explicit and never duplicates a sent attachment.
 
-KFP IDs are Packet Master planning waves, not Builder packet IDs. They are
-stable sidecar identifiers; `planned` is not executable and `active` requires
-mission/roadmap authorization.
+### Approved implementation paths
 
-| ID | Title | Status | Depends |
-|---|---|---|---|
-| KFP-01 | Freeze authority map and mission receipt | active | — |
-| KFP-02 | Capture fresh GitHub main SHA | complete | KFP-01 |
-| KFP-03 | Inventory packet Markdown | complete | KFP-01 |
-| KFP-04 | Inventory initiative manifests | complete | KFP-01 |
-| KFP-05 | Detect duplicate packet IDs | complete | KFP-04 |
-| KFP-06 | Reconcile 021/022 packet ghosts | planned | KFP-03,KFP-05 |
-| KFP-07 | Reconcile initiative revisions | planned | KFP-04,KFP-05 |
-| KFP-08 | Define disposition sidecar | planned | KFP-06,KFP-07 |
-| KFP-09 | Implement deterministic registry | planned | KFP-08 |
-| KFP-10 | Add validator wrapper | planned | KFP-09 |
-| KFP-11 | Add duplicate-ID CI guard | planned | KFP-09 |
-| KFP-12 | Add missing-disposition guard | planned | KFP-09 |
-| KFP-13 | Add dependency-cycle report | planned | KFP-09 |
-| KFP-14 | Add source-to-manifest crosswalk | planned | KFP-09 |
-| KFP-15 | Record PR #704 boundary | active | KFP-02 |
-| KFP-16 | Record PR #677 boundary | active | KFP-02 |
-| KFP-17 | Record Builder task boundary | active | KFP-02 |
-| KFP-18 | Reconcile issue #490 | planned | KFP-15,KFP-16,KFP-17 |
-| KFP-19 | Define immutable packet identity | planned | KFP-07 |
-| KFP-20 | Define supersession graph | planned | KFP-19 |
-| KFP-21 | Define provenance retention | planned | KFP-20 |
-| KFP-22 | Define checkpoint schema | planned | KFP-19 |
-| KFP-23 | Define evidence schema | planned | KFP-22 |
-| KFP-24 | Define credit-stop resume | planned | KFP-22,KFP-23 |
-| KFP-25 | Draft resumable campaign roadmap | planned | KFP-08,KFP-24 |
-| KFP-26 | Map REC-001 baseline | planned | KFP-25 |
-| KFP-27 | Map WORK-001 repair | planned | KFP-26 |
-| KFP-28 | Map BUILDER-001 loop | planned | KFP-27 |
-| KFP-29 | Map IMAGE-001 truth | planned | KFP-28 |
-| KFP-30 | Map LIBRARY-001 artifacts | planned | KFP-29 |
-| KFP-31 | Map AUTO-001 automation | planned | KFP-30 |
-| KFP-32 | Map HOME-001 home | planned | KFP-31 |
-| KFP-33 | Map ACCEPT-001 acceptance | planned | KFP-32 |
-| KFP-34 | Author BUILDER-001 manifest | planned | KFP-28 |
-| KFP-35 | Validate BUILDER-001 manifest | planned | KFP-34 |
-| KFP-36 | Obtain explicit Builder approval | planned | KFP-35 |
-| KFP-37 | Prove bounded Builder loop | planned | KFP-36 |
-| KFP-38 | Prove interruption/recovery | planned | KFP-37 |
-| KFP-39 | Author IMAGE-001 packets | planned | KFP-29,KFP-38 |
-| KFP-40 | Author LIBRARY-001 packets | planned | KFP-30,KFP-39 |
-| KFP-41 | Author AUTO-001 packets | planned | KFP-31,KFP-40 |
-| KFP-42 | Author HOME-001 packets | planned | KFP-32,KFP-41 |
-| KFP-43 | Independent desktop acceptance | planned | KFP-33,KFP-42 |
-| KFP-44 | Independent iPhone acceptance | planned | KFP-43 |
-| KFP-45 | Reconcile acceptance evidence | planned | KFP-44 |
-| KFP-46 | Publish campaign checkpoint | planned | KFP-45 |
-| KFP-47 | Retire superseded registry sources | planned | KFP-46 |
-| KFP-48 | Declare mission outcome | planned | KFP-47 |
+Only these paths may change:
 
-## Commit, checkpoint, and routing protocol
+- `gateway/kitty-chat/src/components/LibraryView.tsx`
+- `gateway/kitty-chat/src/components/ChatMessage.tsx`
+- `gateway/kitty-chat/src/components/InputBar.tsx`
+- `gateway/kitty-chat/src/lib/chat-client.ts`
+- `gateway/kitty-chat/src/lib/gateway.ts`
+- `gateway/kitty-chat/src/lib/types.ts`
+- `gateway/kitty-chat/src/app/page.tsx`
+- `gateway/kitty-chat/src/__tests__/library-chat-001.test.tsx`
+- `gateway/routes/chats.py`
+- `tests/test_library_chat_001.py`
 
-Each commit has one purpose, owner, and non-main branch. Before mutation refresh
-main SHA, issue #490, PR/Builder collision state, and exact base. After mutation
-run `git diff --check`, validate affected manifests, record changed paths and
-exact results, and write a checkpoint containing manifest/source SHA, base SHA,
-owner, status, Builder IDs when known, evidence, unknowns, one next action, and
-blockers.
+No other paths are approved.
 
-Use Luna for inventory, validation, registry generation, crosswalks, formatting,
-and narrow docs. Escalate only for unresolved architecture/product choices,
-adversarial review, live UX acceptance, or human-judgment packets. Paid work
-stays within the mission budget. Credentials, spending, external delivery,
-physical checks, and product decisions are human-only.
+### Acceptance
 
-## Credit-stop resume protocol
+1. A ready PNG/JPEG/WebP at or below 5 MiB can be selected in Library and
+   appears in Chat before send.
+2. Unsupported type or size over 5 MiB is rejected before network dispatch with
+   plain-language actionable copy.
+3. Send shows one pending state and one durable sent attachment; retry after a
+   failed request sends at most one new request.
+4. Reload/reopen reads the durable sent attachment; no client-only success is
+   shown after reload.
+5. Gateway errors are translated at the render boundary; no raw route, status,
+   host, or stack trace is visible.
+6. Desktop and iPhone-class browser tests cover ready, reject, failure, retry,
+   and reload states.
+7. Focused backend/frontend tests and `git diff --check` pass.
 
-Preserve branch, manifest, checkpoint, and partial worktree. Record blocked or
-unknown with exact failure; never mark success. Do not recreate IDs or duplicate
-lanes. On resume refresh GitHub main, #490, PR #704/#677, Builder projection, and
-checkpoint identity; continue from `next_action`, rerun exact-head validation,
-then advance the wave.
+### Out of scope
 
-## Non-goals and risks
+PDF/audio/video, image transformation, cloud upload/provider changes, new
+ArtifactStore schema, chat history redesign, Library indexing redesign,
+Builder changes, credentials, live DB migration, or broad visual polish.
 
-No Builder code, queue/lease/attempt mutation, runtime/DB writes, second
-scheduler/roadmap/state machine, automatic apply, history rewrite, deletion,
-merge, push, credentials, or paid provider call. Risks are stale ledgers,
-duplicate IDs, aggregate/split overlap, sidecar fields copied into manifests,
-and planning status mistaken for live Builder status. Fail closed and expose
-UNKNOWN.
+### Validation and evidence
 
-## Exact next commits
+Run the named backend test, the named frontend test, the repository's existing
+focused UI command, and `git diff --check`. Record exact output, base and final
+SHA, changed paths, and one independent review bound to final SHA. Running-app
+proof must cover desktop and iPhone-class widths and a failed network path.
 
-1. `docs: add packet registry generator and validator` — deterministic
-   generator and focused duplicate/dependency/disposition tests.
-2. `docs: reconcile packet dispositions and supersession map` — sidecar for
-   packet ghosts, 026 audit, KTF-004, recovery V1–V6, and KX duplicates.
-3. `docs: add resumable packet-master campaign roadmap` — mission sequence
-   and KFP catalog; no Builder activation.
+## Guarded Builder improvements
 
-This design document is intentionally the only artifact in the initial commit.
+Builder changes are allowed only when a dated flow-break record proves Builder
+is the blocker, no verified active owner exists, and Jacob/mission authority
+approves a separate bounded change. The change must name exact paths, tests,
+owner, base SHA, and stop conditions. Shadow scheduler/queue/execution
+authority is forbidden: no second queue, scheduler, lease model, or state
+machine may be introduced. Existing Builder code may be repaired when the
+flow-break evidence and approval meet these conditions.
+
+## Five-step roadmap
+
+1. **Baseline:** refresh main, mission, ownership, and runtime evidence.
+2. **Pilot:** implement and independently accept LIBRARY-CHAT-001.
+3. **Flow-break pass:** record only reproducible blockers exposed by the pilot.
+4. **Bounded repair:** fix the highest-leverage approved blocker with one owner
+   and one packet/PR.
+5. **Mission acceptance:** re-run integrated journeys, then decide whether more
+   packet tooling is justified by measured friction.
+
+## Before/after workflows
+
+Before: idea or stale handoff → competing packet/spec → unclear owner →
+implementation/review on drifting SHA → manual reconstruction after failure.
+
+After: mission outcome → one small receipt with owner/base/allowed paths →
+fresh evidence and collision check → bounded implementation → exact-SHA
+validation/review/runtime proof → final receipt with one next action.
+
+## Success metrics
+
+- Pilot completion rate: one accepted Library→Chat journey without manual
+  reconstruction.
+- Truthfulness: zero raw errors, false success, or client-only attachment after
+  reload in the acceptance matrix.
+- Recovery: failed send has one explicit retry and zero duplicate sends.
+- Scope: zero changed paths outside the approved list.
+- Efficiency: no second implementation owner and no stale-SHA review accepted.
+- Builder escalation quality: every Builder change has a flow-break record and
+  explicit approval; otherwise no Builder code changes.
+
+## Optional future tooling
+
+Only if active duplicate friction recurs, add
+`scripts/list_packet_ids.py`. It must be read-only, list each packet ID and
+source path, and flag duplicates. It must not generate a registry, mutate
+manifests, infer status, inspect Builder state, or become a second authority.
+
+## Tiny flow-break record
+
+| Timestamp | Approved packet | Claimed task | Stage | Expected | Observed | Evidence link/SHA | Blocker owner | Decision |
+|---|---|---|---|---|---|---|---|---|
+| ISO-8601 | ID | task ID | select/claim/run/validate/review/publish | one sentence | one sentence | URL + SHA | person/lane/UNKNOWN | stop/fix/reassign |
+
+## Risks and resume rule
+
+The principal risks are stale evidence, unclear ownership, and overbuilding
+control-plane documentation before a user outcome exists. If credits or runtime
+capacity stop work, preserve the branch and receipt, record the exact blocker
+as UNKNOWN/BLOCKED, and resume by refreshing main, #490, relevant PRs, Builder
+projection, and the receipt's base/final identity. Never recreate a packet ID,
+claim success from code existence, or silently broaden scope.
