@@ -41,11 +41,6 @@ def client(monkeypatch):
         lambda body: {"memories": 0, "todos": 0},
     )
 
-    # Deploy — route awaits this, so it must be async.
-    async def _mock_deploy(target_dir, platform, config):
-        return {"status": "ok"}
-    monkeypatch.setattr("gateway.deploy.deploy", _mock_deploy)
-
     # Nudge
     monkeypatch.setattr("gateway.nudge.get_pending", lambda: [])
     monkeypatch.setattr("gateway.nudge.dismiss", lambda nudge_id: None)
@@ -60,24 +55,6 @@ def client(monkeypatch):
 
     # Weather
     monkeypatch.setattr("gateway.weather.get_weather", lambda: {"temp": 22, "condition": "clear"})
-
-    # Builder
-    monkeypatch.setattr(
-        "gateway.builder.start",
-        lambda goal, target_dir="", auto_approve=False: "build_001",
-    )
-    monkeypatch.setattr(
-        "gateway.builder.status",
-        lambda build_id: {"build_id": build_id, "status": "running"},
-    )
-    monkeypatch.setattr(
-        "gateway.builder.approve_stage",
-        lambda build_id, stage: True,
-    )
-    monkeypatch.setattr(
-        "gateway.builder.list_builds",
-        lambda limit=10: [],
-    )
 
     # Verifier — route awaits this, so it must be async.
     async def _mock_verify(target_dir, test_path=None):
@@ -98,16 +75,17 @@ def client(monkeypatch):
 
 
 class TestIMessage:
-    def test_send_happy_path(self, client, monkeypatch):
+    def test_send_route_is_removed(self, client, monkeypatch):
+        """AUTH-003 (RC-02): POST /imessage/send called gateway.imessage.send()
+        directly, bypassing the action queue entirely — no tier check, no
+        grant evaluation, no audit trail, and nothing in the tier file (a
+        signed-off policy set) authorizes an "imessage.send" kind. Proved
+        unreachable before deleting: no frontend caller, no tool_server
+        registration, no other backend reference (gateway.push calls
+        gateway.imessage.send directly, not this HTTP route)."""
         monkeypatch.setattr("gateway.imessage.is_available", lambda: True)
         r = client.post("/imessage/send", json={"recipient": "me", "message": "hi"})
-        assert r.status_code == 200
-        assert r.json()["sent"] is True
-
-    def test_send_unavailable_returns_400(self, client):
-        r = client.post("/imessage/send", json={"recipient": "me", "message": "hi"})
-        assert r.status_code == 400
-        assert "not available" in r.json()["detail"].lower()
+        assert r.status_code == 404
 
     def test_recent_unavailable_returns_available_false(self, client):
         r = client.get("/imessage/recent")
@@ -178,10 +156,16 @@ class TestSync:
 
 
 class TestDeploy:
-    def test_happy_path(self, client):
+    def test_deploy_route_is_removed(self, client):
+        """AUTH-004 (RC-02): POST /deploy took an unvalidated target_dir path
+        straight from the request body and passed it to gateway.deploy.deploy(),
+        which writes a Dockerfile into that directory — an arbitrary-path
+        filesystem write with no tier check, grant evaluation, or audit trail.
+        Proved unreachable before deleting: no frontend caller, no tool_server
+        registration, no other backend reference to gateway.deploy or this
+        route."""
         r = client.post("/deploy", json={"target_dir": "/tmp/test", "platform": "docker"})
-        assert r.status_code == 200
-        assert r.json()["status"] == "ok"
+        assert r.status_code == 404
 
 
 class TestNudge:
@@ -221,48 +205,6 @@ class TestWeather:
         assert body["temp"] == 22
         assert body["condition"] == "clear"
 
-
-class TestBuild:
-    def test_start(self, client):
-        r = client.post("/build/start", json={"goal": "fix tests"})
-        assert r.status_code == 200
-        body = r.json()
-        assert body["build_id"] == "build_001"
-        assert body["status"] == "started"
-
-    def test_status(self, client):
-        r = client.get("/build/test-build")
-        assert r.status_code == 200
-        assert r.json()["status"] == "running"
-
-    def test_status_not_found(self, client, monkeypatch):
-        monkeypatch.setattr(
-            "gateway.builder.status",
-            lambda build_id: {"status": "not_found"},
-        )
-        r = client.get("/build/ghost")
-        assert r.status_code == 404
-        assert "not found" in r.json()["detail"].lower()
-
-    def test_approve(self, client):
-        r = client.post("/build/test-build/approve/review")
-        assert r.status_code == 200
-        body = r.json()
-        assert body["approved"] is True
-
-    def test_approve_fails(self, client, monkeypatch):
-        monkeypatch.setattr(
-            "gateway.builder.approve_stage",
-            lambda build_id, stage: False,
-        )
-        r = client.post("/build/test-build/approve/review")
-        assert r.status_code == 400
-        assert "not awaiting" in r.json()["detail"].lower()
-
-    def test_list(self, client):
-        r = client.get("/builds")
-        assert r.status_code == 200
-        assert "builds" in r.json()
 
 
 class TestVerify:

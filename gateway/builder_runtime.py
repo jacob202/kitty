@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from gateway import builder_status
+from gateway import paths as _paths
 from gateway.builder_worker_session import WorkerState
 
 logger = logging.getLogger("kitty.builder_runtime")
@@ -48,7 +49,7 @@ def build_runtime_snapshot(
     ``worker_session`` fields.
 
     Worker session state is inferred from the run table (PID, heartbeat,
-    exit_code) and the task's lease. It does not require a live WorkerSession
+    exit_code) and the task's lease. It does not require a live worker process
     instance — it is a read-only projection usable by the runtime manifest
     and cockpit.
     """
@@ -128,7 +129,7 @@ def build_runtime_snapshot(
 
 
 def _connect(db_path: Path | None) -> sqlite3.Connection:
-    path = Path(db_path) if db_path else Path("data/kittybuilder/builder_queue.db")
+    path = Path(db_path) if db_path is not None else _paths.BUILDER_QUEUE_DB
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
     return conn

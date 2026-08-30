@@ -18,15 +18,34 @@ const controlsBar: CSSProperties = {
   boxSizing: 'border-box',
 }
 
+const globalControlsStyle: CSSProperties = {
+  borderBottom: '1px solid var(--color-separator)',
+  background: 'var(--color-surface)',
+}
+
+const globalControlsSummaryStyle: CSSProperties = {
+  minHeight: 44,
+  padding: '0 12px',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  cursor: 'pointer',
+  color: 'var(--color-text-secondary)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 13,
+  fontWeight: 600,
+}
+
 const btnBase: CSSProperties = {
   background: 'none',
-  border: '1px solid var(--line)',
-  borderRadius: 4,
-  padding: '3px 8px',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 'var(--r-control)',
+  minHeight: 36,
+  padding: '6px 10px',
   cursor: 'pointer',
-  color: 'var(--ink)',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
+  color: 'var(--color-text-primary)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
   display: 'flex',
   alignItems: 'center',
   gap: 4,
@@ -310,6 +329,30 @@ export function OperatorControls({ snapshot, selectedPacket }: OperatorControlsP
 
   if (actions.length === 0 && !command.isPending && !lastResult) return null
 
+  const controls = (
+    <div style={controlsBar}>
+      <span style={{ fontWeight: 700, fontSize: 10, letterSpacing: '0.05em', color: 'var(--color-text-muted)' }}>
+        CONTROLS
+      </span>
+      {actions.map((act) => (
+        <button
+          key={act.key}
+          type="button"
+          disabled={act.disabled || command.isPending}
+          onClick={() => execute(act)}
+          style={act.disabled ? btnDisabled : (act.style || btnBase)}
+          title={act.disabledReason || act.label}
+        >
+          {command.isPending && confirm?.action === act.action ? '…' : act.label}
+        </button>
+      ))}
+      <div style={{ flex: 1 }} />
+      <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+        {selectedPacket ? selectedPacket.packet_id.slice(0, 8) + '…' : 'no selection'}
+      </span>
+    </div>
+  )
+
   return (
     <>
       {confirm && (
@@ -348,27 +391,15 @@ export function OperatorControls({ snapshot, selectedPacket }: OperatorControlsP
         </div>
       )}
 
-      <div style={controlsBar}>
-        <span style={{ fontWeight: 700, fontSize: 9, letterSpacing: '0.05em', color: 'var(--ink-3)' }}>
-          CONTROLS
-        </span>
-        {actions.map((act) => (
-          <button
-            key={act.key}
-            type="button"
-            disabled={act.disabled || command.isPending}
-            onClick={() => execute(act)}
-            style={act.disabled ? btnDisabled : (act.style || btnBase)}
-            title={act.disabledReason || act.label}
-          >
-            {command.isPending && confirm?.action === act.action ? '…' : act.label}
-          </button>
-        ))}
-        <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 9 }}>
-          {selectedPacket ? selectedPacket.packet_id.slice(0, 8) + '…' : 'no selection'}
-        </span>
-      </div>
+      {selectedPacket ? controls : (
+        <details style={globalControlsStyle}>
+          <summary style={globalControlsSummaryStyle}>
+            Global controls
+            <span style={{ color: 'var(--color-text-muted)', fontWeight: 500 }}>{actions.length}</span>
+          </summary>
+          {controls}
+        </details>
+      )}
     </>
   )
 }

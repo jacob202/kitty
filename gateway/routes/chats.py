@@ -116,6 +116,9 @@ def _recover_messages(conversation_id: str) -> list[dict]:
     Deduplication: when the same user message is retried (same
     source_message_id across turns), only the most recent turn's messages are
     retained so restarts never show duplicated user text.
+
+    Artifact metadata is collected first and loaded with one batched store
+    lookup instead of opening a database connection for every attachment.
     """
     try:
         state = chat_lifecycle.list_conversation(conversation_id)
@@ -124,8 +127,50 @@ def _recover_messages(conversation_id: str) -> list[dict]:
 
     messages: list[dict] = []
     seen_source_ids: set[str] = set()
-    for turn in state.get("turns", []):
-        if turn is None:
+    artifact_ids_needed: set[str] = set()
+    turns = [turn for turn in state.get("turns", []) if turn is not None]
+    latest_turn_for_source: dict[str, str] = {}
+    for turn in turns:
+        for msg in turn.get("messages", []):
+            source_id = msg.get("source_message_id")
+            if source_id is not None and msg.get("role") == "user":
+                latest_turn_for_source[source_id] = turn["id"]
+
+    # A retry reuses the original user message's source_message_id but is not
+    # guaranteed to resend its attachments, and the superseded turn carrying
+    # them is dropped below. Collect every attachment ever recorded against a
+    # source_message_id up front so a retried message still shows the
+    # attachments the user originally sent.
+    attachments_by_source: dict[str, list[str]] = {}
+    for turn in turns:
+        for msg in turn.get("messages", []):
+            if msg.get("role") != "user":
+                continue
+            source_id = msg.get("source_message_id")
+            if source_id is None:
+                continue
+            raw_artifacts = msg.get("artifact_ids") or "[]"
+            try:
+                ids = json.loads(raw_artifacts) if isinstance(raw_artifacts, str) else raw_artifacts
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(ids, list):
+                continue
+            merged = attachments_by_source.setdefault(source_id, [])
+            for art_id in ids:
+                if isinstance(art_id, str) and art_id and art_id not in merged:
+                    merged.append(art_id)
+
+    for turn in turns:
+        user_source_ids = [
+            msg.get("source_message_id")
+            for msg in turn.get("messages", [])
+            if msg.get("role") == "user" and msg.get("source_message_id") is not None
+        ]
+        if user_source_ids and any(
+            latest_turn_for_source.get(source_id) != turn["id"]
+            for source_id in user_source_ids
+        ):
             continue
         attempt_model = None
         for attempt in turn.get("attempts", []):
@@ -134,33 +179,30 @@ def _recover_messages(conversation_id: str) -> list[dict]:
                 break
         turn_status = turn.get("status")
         for msg in turn.get("messages", []):
-            # Deduplicate: earlier turns sharing a client-side user message id
-            # are superseded by the latest turn. Skip stale duplicates.
             source_id = msg.get("source_message_id")
             if source_id is not None and msg["role"] == "user":
                 if source_id in seen_source_ids:
                     continue
                 seen_source_ids.add(source_id)
 
-            raw_artifacts = msg.get("artifact_ids") or "[]"
-            try:
-                artifact_ids = json.loads(raw_artifacts) if isinstance(raw_artifacts, str) else raw_artifacts
-            except (TypeError, json.JSONDecodeError):
-                artifact_ids = []
-            attachments = []
-            for art_id in artifact_ids:
-                artifact = artifact_store.get_artifact(art_id)
-                if artifact is None:
-                    continue
-                attachments.append(
-                    {
-                        "id": artifact["id"],
-                        "display_name": artifact["display_name"],
-                        "media_type": artifact["media_type"],
-                        "size": artifact["size_bytes"],
-                    }
-                )
-            memory_items = _recover_memory_items(msg.get("memory_items"))
+            if source_id is not None and msg["role"] == "user" and source_id in attachments_by_source:
+                artifact_ids = attachments_by_source[source_id]
+            else:
+                raw_artifacts = msg.get("artifact_ids") or "[]"
+                try:
+                    artifact_ids = (
+                        json.loads(raw_artifacts)
+                        if isinstance(raw_artifacts, str)
+                        else raw_artifacts
+                    )
+                except (TypeError, json.JSONDecodeError):
+                    artifact_ids = []
+                if not isinstance(artifact_ids, list):
+                    artifact_ids = []
+            artifact_ids_needed.update(
+                art_id for art_id in artifact_ids if isinstance(art_id, str) and art_id
+            )
+
             messages.append(
                 {
                     "id": msg["id"],
@@ -169,11 +211,32 @@ def _recover_messages(conversation_id: str) -> list[dict]:
                     "created_at": msg["created_at"],
                     "model": attempt_model if msg["role"] == "assistant" else None,
                     "status": turn_status,
-                    "attachments": attachments,
-                    "memory_items": memory_items,
+                    "artifact_ids": artifact_ids,
+                    "memory_items": _recover_memory_items(msg.get("memory_items")),
                 }
             )
-    return messages
+
+    artifacts_by_id = artifact_store.get_artifacts(list(artifact_ids_needed))
+
+    recovered: list[dict] = []
+    for message in messages:
+        attachments = []
+        for art_id in message.pop("artifact_ids", []):
+            artifact = artifacts_by_id.get(art_id)
+            if artifact is None:
+                continue
+            attachments.append(
+                {
+                    "id": artifact["id"],
+                    "display_name": artifact["display_name"],
+                    "media_type": artifact["media_type"],
+                    "size": artifact["size_bytes"],
+                }
+            )
+        message["attachments"] = attachments
+        recovered.append(message)
+
+    return recovered
 
 
 @router.get("/chats/{chat_id}/messages")

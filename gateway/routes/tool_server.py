@@ -11,13 +11,13 @@ Mounted under ``/tools/v1`` and protected by the Gateway bearer secret.
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, Field
 
-from gateway.models.builder import Mission
-from gateway.paths import BUILDER_QUEUE_DB, PROJECT_ROOT
+from gateway.paths import BUILDER_QUEUE_DB
 
 logger = logging.getLogger("kitty.tool_server")
 
@@ -30,10 +30,18 @@ _TOOL_RESULT_LIMIT = 10
 
 class RememberRequest(BaseModel):
     text: str = Field(min_length=1, max_length=4000, description="The fact to remember.")
-    namespace: str = Field(
-        default="facts",
-        description="Which shelf it belongs on: facts, preferences, projects.",
+    namespace: Literal["facts", "preferences"] = Field(default="facts", description="Shelf: facts or preferences.")
+    memory_key: str | None = Field(
+        default=None,
+        description="Stable key for a fact that may later be corrected, e.g. ui.theme.",
     )
+    supersedes_id: str | None = Field(
+        default=None,
+        description="Exact explicit-memory id this correction replaces.",
+    )
+    source_ref: str | None = Field(default=None, description="Optional conversation/source reference.")
+    sensitivity: str = Field(default="normal", description="normal or sensitive")
+    pinned: bool = False
 
 
 def _limit_context(context: str, limit: int) -> str:
@@ -72,29 +80,52 @@ async def search_memory(
     limit: int = Query(default=5, ge=1, le=_TOOL_RESULT_LIMIT),
 ) -> dict:
     """Search the unified memory graph, including journal, inbox, todos, and facts."""
+    from gateway.explicit_memory import search as search_explicit
     from gateway.memory_graph import unified_context
 
     try:
         context = await unified_context(query, _record=False)
+        explicit = search_explicit(query, limit=limit)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"memory search failed: {exc}") from exc
     return {
         "query": query,
         "context": _limit_context(context, limit),
         "result_limit": limit,
+        "explicit_memories": [
+            {key: row.get(key) for key in (
+                "id", "text", "memory_key", "namespace", "source_kind", "source_ref"
+            )}
+            for row in explicit[:limit]
+        ],
     }
 
 
 @router.post("/memory/remember", operation_id="remember", summary="Remember something about Jacob")
 def remember(body: RememberRequest) -> dict:
-    """Store a durable fact. Use for things worth recalling in a later chat."""
-    from gateway.memory import add_memory
+    """Store user-confirmed memory without requiring the semantic backend."""
+    from gateway.explicit_memory import remember as remember_explicit
 
+    source_kind = "user_correction" if body.supersedes_id else "user_explicit"
     try:
-        changed = add_memory(body.text, namespace=body.namespace)
+        row = remember_explicit(
+            body.text,
+            namespace=body.namespace,
+            memory_key=body.memory_key,
+            supersedes_id=body.supersedes_id,
+            source_kind=source_kind,
+            source_ref=body.source_ref or "tool:remember",
+            sensitivity=body.sensitivity,
+            pinned=body.pinned,
+        )
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"memory write failed: {exc}") from exc
-    return {"stored": changed, "namespace": body.namespace}
+    return {
+        "stored": True,
+        "namespace": row["namespace"],
+        "memory_id": row["id"],
+        "source_kind": row["source_kind"],
+    }
 
 
 @router.get(
@@ -216,35 +247,6 @@ def builder_status() -> dict:
         "needs_attention": attention[:_TOOL_RESULT_LIMIT],
         "needs_attention_total": len(attention),
     }
-
-
-@router.post(
-    "/builder/mission",
-    operation_id="submit_builder_mission",
-    summary="Submit an approved Mission to KittyBuilder",
-)
-def submit_builder_mission(body: Mission) -> dict:
-    """Materialize Kitty's approved Mission through Builder's durable boundary."""
-    from gateway.builder_initiative import (
-        BaseSHAResolutionError,
-        InitiativeConflictError,
-        ManifestError,
-        MissionSubmissionError,
-        submit_mission,
-    )
-
-    try:
-        return submit_mission(
-            body,
-            db_path=BUILDER_QUEUE_DB,
-            repo_root=PROJECT_ROOT,
-        )
-    except (MissionSubmissionError, ManifestError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except InitiativeConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except BaseSHAResolutionError as exc:
-        raise HTTPException(status_code=503, detail=f"Builder unavailable: {exc}") from exc
 
 
 @router.get(

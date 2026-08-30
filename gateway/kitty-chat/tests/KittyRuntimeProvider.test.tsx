@@ -50,7 +50,11 @@ describe('KittyRuntimeProvider', () => {
     await act(async () => {
       await Promise.resolve()
     })
-    expect(screen.getByText(/Gateway offline/)).toBeInTheDocument()
+    const offlineMessage = screen.getByText(/Kitty is offline/)
+    expect(offlineMessage).toBeInTheDocument()
+    expect(offlineMessage).not.toHaveTextContent('./kitty')
+    expect(offlineMessage).not.toHaveTextContent('terminal')
+    expect(offlineMessage).toHaveTextContent('reopen Kitty')
 
     await act(async () => {
       vi.advanceTimersByTime(5_000)
@@ -60,4 +64,42 @@ describe('KittyRuntimeProvider', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(screen.getByText('home ready')).toBeInTheDocument()
   })
+
+  it('keeps browser network exceptions out of user-facing recovery copy', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+
+    render(
+      <KittyRuntimeProvider {...runtimeProps}>
+        <div>home ready</div>
+      </KittyRuntimeProvider>,
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const offlineMessage = screen.getByText(/Kitty is offline/)
+    expect(offlineMessage).not.toHaveTextContent('Failed to fetch')
+    expect(offlineMessage).toHaveTextContent("Can't reach Kitty")
+  })
+
+  it('keeps gateway HTTP failures out of user-facing recovery copy', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
+
+    render(
+      <KittyRuntimeProvider {...runtimeProps}>
+        <div>home ready</div>
+      </KittyRuntimeProvider>,
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    const offlineMessage = screen.getByText(/Kitty is offline/)
+    expect(offlineMessage).toHaveTextContent('Kitty is temporarily unavailable')
+    expect(offlineMessage).not.toHaveTextContent(/gateway/i)
+    expect(offlineMessage).not.toHaveTextContent('500')
+  })
+
 })

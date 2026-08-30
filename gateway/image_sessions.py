@@ -21,6 +21,7 @@ Boundaries:
 from __future__ import annotations
 
 import json
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from dataclasses import fields as dc_fields
@@ -33,6 +34,7 @@ from gateway import paths as _paths
 from gateway.paths import DB_MIGRATIONS_DIR
 
 _MIGRATION_FILE = DB_MIGRATIONS_DIR / "029_image_sessions.sql"
+_PROJECTS_MIGRATION_FILE = DB_MIGRATIONS_DIR / "010_projects.sql"
 
 _MAX_JSON_BYTES = 65_536
 _MAX_TEXT_BYTES = 10_240
@@ -69,11 +71,16 @@ class AnchorError(ImageSessionError):
     """Raised when a job cannot serve as an anchor."""
 
 
+class SessionBudgetExceededError(ImageSessionError):
+    """Raised before dispatch when a render would exceed a session ceiling."""
+
+
 @dataclass
 class ImageSession:
     session_id: str
     status: ImageSessionStatus
     title: str | None
+    project_id: int | None
     character_id: str | None
     reference_ids_json: str | None
     anchor_job_id: str | None
@@ -82,6 +89,7 @@ class ImageSession:
     requested_changes_json: str | None
     last_plan_json: str | None
     spend_usd: float
+    reserved_spend_usd: float
     attempt_count: int
     created_at: str
     updated_at: str
@@ -222,14 +230,50 @@ def _ensure_session_column(conn: Any) -> None:
     )
 
 
+def _ensure_spend_columns(conn: Any) -> None:
+    """Add the unsettled paid-exposure column to image sessions.
+
+    ``spend_usd`` is settled spend only. ``reserved_spend_usd`` is conservative
+    pre-dispatch exposure that still counts against the budget until it is
+    released or reconciled. SQLite cannot add this column idempotently in SQL,
+    so the versioned migration is a marker and this helper owns the ALTER.
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(image_sessions)").fetchall()}
+    if "reserved_spend_usd" not in cols:
+        conn.execute(
+            "ALTER TABLE image_sessions ADD COLUMN reserved_spend_usd REAL NOT NULL DEFAULT 0"
+        )
+
+
+def _ensure_project_column(conn: Any) -> None:
+    """Add optional Project scope to image sessions.
+
+    The projects table is an explicit dependency once a creative session can be
+    project-scoped. The FK makes nonexistent project IDs fail closed instead of
+    becoming dangling provenance.
+    """
+    conn.executescript(_PROJECTS_MIGRATION_FILE.read_text(encoding="utf-8"))
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(image_sessions)").fetchall()}
+    if "project_id" not in cols:
+        conn.execute(
+            "ALTER TABLE image_sessions ADD COLUMN project_id INTEGER REFERENCES projects(id)"
+        )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_image_sessions_project "
+        "ON image_sessions(project_id, updated_at DESC)"
+    )
+
+
 def _ensure_db(conn: Any = None) -> None:
-    """Apply this module's migration, plus the image_jobs schema it references."""
+    """Apply this module's migration, plus the schemas it references."""
     def _apply(c: Any) -> None:
         from gateway import image_jobs
 
         image_jobs._ensure_db(c)
         c.executescript(_MIGRATION_FILE.read_text(encoding="utf-8"))
         _ensure_session_column(c)
+        _ensure_spend_columns(c)
+        _ensure_project_column(c)
 
     if conn is not None:
         _apply(conn)
@@ -243,6 +287,7 @@ def _row_to_session(row: Any) -> ImageSession:
         session_id=row["session_id"],
         status=ImageSessionStatus(row["status"]),
         title=row["title"],
+        project_id=row["project_id"],
         character_id=row["character_id"],
         reference_ids_json=row["reference_ids_json"],
         anchor_job_id=row["anchor_job_id"],
@@ -251,6 +296,9 @@ def _row_to_session(row: Any) -> ImageSession:
         requested_changes_json=row["requested_changes_json"],
         last_plan_json=row["last_plan_json"],
         spend_usd=row["spend_usd"] if row["spend_usd"] is not None else 0.0,
+        reserved_spend_usd=(
+            row["reserved_spend_usd"] if row["reserved_spend_usd"] is not None else 0.0
+        ),
         attempt_count=row["attempt_count"] if row["attempt_count"] is not None else 0,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
@@ -273,16 +321,20 @@ def _row_to_turn(row: Any) -> SessionTurn:
 def create_session(
     *,
     title: str | None = None,
+    project_id: int | None = None,
     character_id: str | None = None,
     reference_ids: list[str] | None = None,
     protected_traits: list[str] | None = None,
 ) -> ImageSession:
     """Open a new conversational image session."""
     _check_text_bounded(title, "title")
+    if project_id is not None and (isinstance(project_id, bool) or project_id <= 0):
+        raise ImageSessionError(f"project_id must be a positive integer, got {project_id!r}")
     session = ImageSession(
         session_id=_new_session_id(),
         status=ImageSessionStatus.ACTIVE,
         title=title,
+        project_id=project_id,
         character_id=character_id,
         reference_ids_json=_encode_list(reference_ids, "reference_ids"),
         anchor_job_id=None,
@@ -291,6 +343,7 @@ def create_session(
         requested_changes_json=None,
         last_plan_json=None,
         spend_usd=0.0,
+        reserved_spend_usd=0.0,
         attempt_count=0,
         created_at=_now_iso(),
         updated_at=_now_iso(),
@@ -305,10 +358,17 @@ def create_session(
     )
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
-        conn.execute(
-            f"INSERT INTO image_sessions ({columns_sql}) VALUES ({placeholders})",
-            values,
-        )
+        try:
+            conn.execute(
+                f"INSERT INTO image_sessions ({columns_sql}) VALUES ({placeholders})",
+                values,
+            )
+        except sqlite3.IntegrityError as exc:
+            if project_id is not None and "FOREIGN KEY" in str(exc).upper():
+                raise ImageSessionError(
+                    f"project {project_id} does not exist; refusing dangling image-session scope"
+                ) from exc
+            raise
     return session
 
 
@@ -453,6 +513,21 @@ def list_session_jobs(session_id: str, limit: int = 200) -> list[Any]:
     return [image_jobs._row_to_job(r) for r in rows]
 
 
+def job_session_id(job_id: str) -> str | None:
+    """Return the session a job is attached to, or None.
+
+    Exposes the ``image_jobs.session_id`` link (added by
+    ``_ensure_session_column``) so callers can resolve the character identity a
+    rendered job was produced under without inventing a second ownership model.
+    """
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        row = conn.execute(
+            "SELECT session_id FROM image_jobs WHERE job_id = ?", (job_id,)
+        ).fetchone()
+    return row["session_id"] if row else None
+
+
 def set_anchor(session_id: str, job_id: str) -> ImageSession:
     """Select a rendered result as the anchor for follow-up edits.
 
@@ -467,12 +542,17 @@ def set_anchor(session_id: str, job_id: str) -> ImageSession:
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
         row = conn.execute(
-            "SELECT job_id, status, artifact_id, output_path FROM image_jobs"
+            "SELECT job_id, session_id, status, artifact_id, output_path FROM image_jobs"
             " WHERE job_id = ?",
             (job_id,),
         ).fetchone()
         if row is None:
             raise AnchorError(f"no image job {job_id!r}")
+        owner_session_id = row["session_id"]
+        if owner_session_id is not None and owner_session_id != session_id:
+            raise AnchorError(
+                f"job {job_id!r} does not belong to session {session_id!r}"
+            )
         status = ImageJobStatus(row["status"])
         if status is not ImageJobStatus.SUCCEEDED:
             raise AnchorError(
@@ -512,6 +592,7 @@ def update_session(
     protected_traits: list[str] | None = None,
     requested_changes: list[str] | None = None,
     last_plan: dict[str, Any] | None = None,
+    clear_character: bool | None = None,
 ) -> ImageSession:
     """Update session context. Only supplied fields change."""
     _require_active(session_id)
@@ -520,7 +601,9 @@ def update_session(
     if title is not None:
         _check_text_bounded(title, "title")
         updates["title"] = title
-    if character_id is not None:
+    if clear_character:
+        updates["character_id"] = None
+    elif character_id is not None:
         updates["character_id"] = character_id
     if reference_ids is not None:
         updates["reference_ids_json"] = _encode_list(reference_ids, "reference_ids")
@@ -555,8 +638,181 @@ def update_session(
     return require_session(session_id)
 
 
+def reserve_attempt(
+    session_id: str,
+    *,
+    cost_usd: float,
+    max_attempts: int,
+    max_spend_usd: float,
+) -> ImageSession:
+    """Atomically reserve one render attempt before a paid provider is called."""
+    if cost_usd < 0:
+        raise ImageSessionError(f"cost_usd must not be negative, got {cost_usd}")
+    if max_attempts <= 0:
+        raise ImageSessionError(f"max_attempts must be positive, got {max_attempts}")
+    if max_spend_usd < 0:
+        raise ImageSessionError(
+            f"max_spend_usd must not be negative, got {max_spend_usd}"
+        )
+
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT status, attempt_count, spend_usd, reserved_spend_usd FROM image_sessions "
+            "WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if row is None:
+            raise SessionNotFoundError(f"no image session {session_id!r}")
+        if ImageSessionStatus(row["status"]).is_terminal():
+            raise SessionEndedError(f"session {session_id!r} has ended")
+        attempts = int(row["attempt_count"] or 0)
+        spend = float(row["spend_usd"] or 0.0)
+        reserved = float(row["reserved_spend_usd"] or 0.0)
+        if attempts >= max_attempts:
+            raise SessionBudgetExceededError(
+                f"session {session_id!r} has used {attempts} of "
+                f"{max_attempts} allowed attempts; generate refused"
+            )
+        projected = spend + reserved + cost_usd
+        if projected > max_spend_usd + 1e-12:
+            raise SessionBudgetExceededError(
+                f"session {session_id!r} would spend ${projected:.3f}, above its "
+                f"${max_spend_usd:.2f} allowance; generate refused"
+            )
+        conn.execute(
+            "UPDATE image_sessions SET attempt_count = attempt_count + 1, "
+            "reserved_spend_usd = reserved_spend_usd + ?, updated_at = ? WHERE session_id = ?",
+            (cost_usd, _now_iso(), session_id),
+        )
+    return require_session(session_id)
+
+
+def reconcile_reserved_attempt_cost(
+    session_id: str,
+    *,
+    reserved_cost_usd: float,
+    actual_cost_usd: float,
+) -> ImageSession:
+    """Replace one conservative paid reservation with provider-reported cost."""
+    if reserved_cost_usd < 0 or actual_cost_usd < 0:
+        raise ImageSessionError("reserved and actual cost must not be negative")
+
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT spend_usd, reserved_spend_usd FROM image_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if row is None:
+            raise SessionNotFoundError(f"no image session {session_id!r}")
+        reserved = float(row["reserved_spend_usd"] or 0.0)
+        if reserved + 1e-12 < reserved_cost_usd:
+            raise ImageSessionError(
+                f"session {session_id!r} reserved exposure ${reserved:.3f} is below the "
+                f"${reserved_cost_usd:.3f} reservation being reconciled"
+            )
+        conn.execute(
+            "UPDATE image_sessions SET reserved_spend_usd = reserved_spend_usd - ?, "
+            "spend_usd = spend_usd + ?, updated_at = ? WHERE session_id = ?",
+            (reserved_cost_usd, actual_cost_usd, _now_iso(), session_id),
+        )
+    return require_session(session_id)
+
+
+def release_reserved_attempt_cost(
+    session_id: str, *, reserved_cost_usd: float
+) -> ImageSession:
+    """Release one reservation only when dispatch is known not to have happened."""
+    if reserved_cost_usd < 0:
+        raise ImageSessionError("reserved cost must not be negative")
+
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT reserved_spend_usd FROM image_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if row is None:
+            raise SessionNotFoundError(f"no image session {session_id!r}")
+        reserved = float(row["reserved_spend_usd"] or 0.0)
+        if reserved + 1e-12 < reserved_cost_usd:
+            raise ImageSessionError(
+                f"session {session_id!r} reserved exposure ${reserved:.3f} is below the "
+                f"${reserved_cost_usd:.3f} reservation being released"
+            )
+        conn.execute(
+            "UPDATE image_sessions SET reserved_spend_usd = reserved_spend_usd - ?, "
+            "updated_at = ? WHERE session_id = ?",
+            (reserved_cost_usd, _now_iso(), session_id),
+        )
+    return require_session(session_id)
+
+
+def finalize_recovered_paid_job(
+    session_id: str,
+    job_id: str,
+    *,
+    reserved_cost_usd: float,
+    actual_cost_usd: float,
+) -> ImageSession:
+    """Atomically settle one recovered paid attempt and mark its artifact successful."""
+    if reserved_cost_usd < 0 or actual_cost_usd < 0:
+        raise ImageSessionError("recovered paid costs must not be negative")
+
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        session = conn.execute(
+            "SELECT reserved_spend_usd FROM image_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if session is None:
+            raise SessionNotFoundError(f"no image session {session_id!r}")
+        job = conn.execute(
+            "SELECT session_id, status, output_path, canonical_artifact_id "
+            "FROM image_jobs WHERE job_id = ?",
+            (job_id,),
+        ).fetchone()
+        if job is None:
+            raise ImageSessionError(f"no image job {job_id!r} to finalize")
+        if job["session_id"] != session_id:
+            raise ImageSessionError(
+                f"job {job_id!r} does not belong to session {session_id!r}"
+            )
+        if job["status"] != "unknown":
+            raise ImageSessionError(
+                f"job {job_id!r} is {job['status']!r}; only unknown jobs can be recovered"
+            )
+        if not job["output_path"] or not job["canonical_artifact_id"]:
+            raise ImageSessionError(
+                f"job {job_id!r} cannot be finalized before canonical artifact commit"
+            )
+        reserved = float(session["reserved_spend_usd"] or 0.0)
+        if reserved + 1e-12 < reserved_cost_usd:
+            raise ImageSessionError(
+                f"session {session_id!r} reserved exposure ${reserved:.3f} is below the "
+                f"${reserved_cost_usd:.3f} recovered reservation"
+            )
+        now = _now_iso()
+        conn.execute(
+            "UPDATE image_sessions SET reserved_spend_usd = reserved_spend_usd - ?, "
+            "spend_usd = spend_usd + ?, updated_at = ? WHERE session_id = ?",
+            (reserved_cost_usd, actual_cost_usd, now, session_id),
+        )
+        conn.execute(
+            "UPDATE image_jobs SET status = 'succeeded', normalized_error = NULL, "
+            "updated_at = ?, finished_at = ? WHERE job_id = ?",
+            (now, now, job_id),
+        )
+    return require_session(session_id)
+
+
 def record_attempt(session_id: str, *, cost_usd: float = 0.0) -> ImageSession:
-    """Count one render attempt and add its cost to the session total."""
+    """Count one completed render attempt and add its cost to the session total."""
     if cost_usd < 0:
         raise ImageSessionError(f"cost_usd must not be negative, got {cost_usd}")
     _require_active(session_id)

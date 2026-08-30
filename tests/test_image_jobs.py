@@ -153,6 +153,25 @@ class TestTransitions:
         assert job.status == ImageJobStatus.SUCCEEDED
         assert job.finished_at is not None
 
+    def test_submitted_job_can_become_unknown(self) -> None:
+        job = _make_job()
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+
+        unknown = jobs.transition(job.job_id, ImageJobStatus.UNKNOWN)
+
+        assert unknown.status == ImageJobStatus.UNKNOWN
+        assert unknown.finished_at is None
+
+    def test_running_job_can_become_unknown(self) -> None:
+        job = _make_job()
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+
+        unknown = jobs.transition(job.job_id, ImageJobStatus.UNKNOWN)
+
+        assert unknown.status == ImageJobStatus.UNKNOWN
+        assert unknown.finished_at is None
+
     def test_failed_path(self) -> None:
         job = _make_job()
         jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
@@ -305,16 +324,78 @@ class TestReconcile:
     def test_reconcile_stale_returns_zero(self) -> None:
         assert jobs.reconcile_stale() == 0
 
+    def test_restart_marks_submitted_without_provider_receipt_unknown(self) -> None:
+        job = _make_job()
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
 
-# ── 9. Integration with image_gen ──────────────────────────────────────────
+        assert jobs.reconcile_stale() == 1
+
+        recovered = jobs.get_job(job.job_id)
+        assert recovered is not None
+        assert recovered.status == ImageJobStatus.UNKNOWN
+        assert recovered.finished_at is None
+        assert "provider outcome unknown" in (recovered.normalized_error or "")
+
+    def test_restart_marks_running_with_provider_receipt_unknown(self) -> None:
+        job = _make_job()
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        jobs.update_job(job.job_id, provider_job_id="provider-123")
+        jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+
+        assert jobs.reconcile_stale() == 1
+
+        recovered = jobs.get_job(job.job_id)
+        assert recovered is not None
+        assert recovered.status == ImageJobStatus.UNKNOWN
+        assert recovered.provider_job_id == "provider-123"
+        assert recovered.finished_at is None
+
+    def test_unknown_provider_outcome_can_be_reconciled_to_success(self) -> None:
+        job = _make_job()
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        jobs.reconcile_stale()
+        jobs.update_job(job.job_id, output_path="/tmp/recovered.png")
+
+        resolved = jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
+
+        assert resolved.status == ImageJobStatus.SUCCEEDED
+        assert resolved.finished_at is not None
+
+    def test_unknown_provider_outcome_can_be_reconciled_to_failure(self) -> None:
+        job = _make_job()
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        jobs.reconcile_stale()
+
+        resolved = jobs.transition(job.job_id, ImageJobStatus.FAILED)
+
+        assert resolved.status == ImageJobStatus.FAILED
+        assert resolved.finished_at is not None
+
+    def test_list_unknown_returns_only_unresolved_provider_jobs(self) -> None:
+        unknown = _make_job(prompt="unknown")
+        active = _make_job(prompt="active")
+        jobs.transition(unknown.job_id, ImageJobStatus.SUBMITTED)
+        jobs.transition(unknown.job_id, ImageJobStatus.UNKNOWN)
+        jobs.transition(active.job_id, ImageJobStatus.SUBMITTED)
+
+        unresolved = jobs.list_unknown(limit=10)
+
+        assert [job.job_id for job in unresolved] == [unknown.job_id]
+
+    def test_unknown_restart_state_is_idempotent_and_not_requeued(self) -> None:
+        job = _make_job(max_retries=2)
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        jobs.reconcile_stale()
+
+        recovered = jobs.get_job(job.job_id)
+        assert recovered is not None
+        assert recovered.status == ImageJobStatus.UNKNOWN
+        assert jobs.reconcile_stale() == 0
+        with pytest.raises(ImageJobError, match="only FAILED jobs can be requeued"):
+            jobs.requeue(job.job_id)
 
 
-class TestImageGenIntegration:
-    def test_import_does_not_crash(self) -> None:
-        import gateway.image_gen  # noqa: F401
-
-
-# ── 10. Priority queue ────────────────────────────────────────────────────
+# ── 9. Priority queue ─────────────────────────────────────────────────────
 
 
 class TestPriorityQueue:
@@ -326,6 +407,13 @@ class TestPriorityQueue:
         job = _make_job()
         assert job.priority == 0
 
+    def test_list_queue_excludes_unknown_provider_outcomes(self) -> None:
+        job = _make_job(priority=100)
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        jobs.reconcile_stale()
+
+        assert job.job_id not in {queued.job_id for queued in jobs.list_queue(limit=10)}
+
     def test_list_queue_returns_non_terminal_ordered(self) -> None:
         _make_job(prompt="low", priority=0)
         _make_job(prompt="high", priority=10)
@@ -335,7 +423,7 @@ class TestPriorityQueue:
         assert queue[0].priority >= queue[1].priority
 
 
-# ── 11. Retry / requeue ───────────────────────────────────────────────────
+# ── 10. Retry / requeue ───────────────────────────────────────────────────
 
 
 class TestRetry:
@@ -379,6 +467,16 @@ class TestRetry:
 
 
 class TestCancelQueued:
+    def test_cancel_queued_preserves_unknown_provider_outcome(self) -> None:
+        job = _make_job()
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        jobs.reconcile_stale()
+
+        assert jobs.cancel_queued() == 0
+        recovered = jobs.get_job(job.job_id)
+        assert recovered is not None
+        assert recovered.status == ImageJobStatus.UNKNOWN
+
     def test_cancel_queued_all(self) -> None:
         _make_job(prompt="a")
         _make_job(prompt="b")

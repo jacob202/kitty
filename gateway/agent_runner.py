@@ -30,6 +30,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
+from gateway.autonomy_state import TERMINAL_STATUSES
 from gateway.db import connect as db_connect
 
 logger = logging.getLogger("kitty.agent_runner")
@@ -375,26 +376,21 @@ def _session_status(session_id: int) -> str | None:
 
 
 def get_status(session_id: int) -> dict[str, Any]:
-    """Get the current status of an agent by session_id."""
-    from gateway.autonomy_state import AutonomyState
+    """Get the current status of an agent by session_id.
 
-    state = AutonomyState(session_id=session_id)
-    history = state.get_history()
+    Only a missing row is `not_found`. A real session that has not recorded a
+    step yet reports its true status with zero counts; treating an empty history
+    as a missing agent made a freshly spawned session look like a failed spawn.
+    """
+    from gateway.autonomy_state import AutonomyState, get_session
 
-    if not history:
+    row = get_session(session_id)
+    if row is None:
         return {"session_id": session_id, "status": "not_found"}
 
-    # Find session row
-    import sqlite3
-
-    from gateway.autonomy_state import STATE_DB
-
-    with db_connect(STATE_DB) as conn:
-        conn.row_factory = sqlite3.Row
-        row = conn.execute("SELECT * FROM autonomy_sessions WHERE id = ?", (session_id,)).fetchone()
-
-    status = row["status"] if row else "unknown"
-    goal = row["goal"] if row else ""
+    history = AutonomyState(session_id=session_id).get_history()
+    status = row["status"]
+    goal = row["goal"] or ""
 
     iterations = sum(1 for h in history if h.get("role") == "assistant")
     last_content = ""
@@ -499,7 +495,7 @@ async def await_completion(
         status = get_status(session_id)
         if on_poll:
             on_poll(status)
-        if status["status"] in ("completed", "failed", "cancelled"):
+        if status["status"] in TERMINAL_STATUSES:
             return status
     return get_status(session_id)
 

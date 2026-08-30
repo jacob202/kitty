@@ -13,7 +13,7 @@ describe('BottomNav', () => {
     expect(screen.getByLabelText('Home')).toBeDefined()
     expect(screen.getByLabelText('Chat')).toBeDefined()
     expect(screen.getByLabelText('Work')).toBeDefined()
-    expect(screen.getByLabelText('Studio')).toBeDefined()
+    expect(screen.getByLabelText('Image Lab')).toBeDefined()
     expect(screen.getByLabelText('Library')).toBeDefined()
     expect(screen.getByLabelText('More')).toBeDefined()
   })
@@ -34,6 +34,33 @@ describe('BottomNav', () => {
     render(<BottomNav activeView="home" onViewChange={onViewChange} />)
     fireEvent.click(screen.getByLabelText('Chat'))
     expect(onViewChange).toHaveBeenCalledWith('chat')
+  })
+
+  it('uses phone-sized touch targets', () => {
+    render(<BottomNav activeView="home" onViewChange={onViewChange} />)
+    expect(screen.getByLabelText('Home')).toHaveStyle({ minHeight: '44px' })
+  })
+
+  it('opens secondary destinations from More without adding a seventh primary tab', () => {
+    render(<BottomNav activeView="home" onViewChange={onViewChange} />)
+    const more = screen.getByLabelText('More')
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(more)
+    expect(more).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('menu', { name: 'More destinations' })).toBeVisible()
+    expect(screen.getByRole('menuitem', { name: 'Projects' })).toBeVisible()
+    expect(screen.getByRole('menuitem', { name: 'Automations' })).toBeVisible()
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Automations' }))
+    expect(onViewChange).toHaveBeenCalledWith('automations')
+    expect(screen.queryByRole('menu', { name: 'More destinations' })).not.toBeInTheDocument()
+  })
+
+  it('marks More current for secondary destinations', () => {
+    render(<BottomNav activeView="automations" onViewChange={onViewChange} />)
+    expect(screen.getByLabelText('More')).toHaveAttribute('aria-current', 'page')
   })
 
   it('renders as a navigation landmark', () => {

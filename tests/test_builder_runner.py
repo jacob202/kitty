@@ -18,6 +18,8 @@ import pytest
 from gateway import builder_queue as bq
 from gateway import builder_runner as br
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
@@ -289,13 +291,13 @@ class TestRunWorker:
             task["id"],
             ["sh", "-c", "echo nope > outside.txt; sleep 60"],
             timeout_seconds=120,
-            heartbeat_seconds=1,
+            heartbeat_seconds=0.1,
             repo_root=repo,
             db_path=db_path,
         )
 
         elapsed = time.monotonic() - start
-        assert elapsed < 15
+        assert elapsed < 5
         assert run["state"] == bq.RUN_SCOPE_VIOLATION
         assert run["final_report"]["scope_violations"] == ["outside.txt"]
         refreshed = bq.get_task(task["id"], db_path=db_path)
@@ -404,31 +406,32 @@ class TestRunWorker:
         assert run["state"] == bq.RUN_SCOPE_VIOLATION
         assert run["final_report"]["scope_violations"] == ["outside.txt"]
 
-    def test_scope_check_includes_commits_since_start_sha(
+    @pytest.mark.skipif(__import__("sys").platform != "darwin", reason="Seatbelt proof is macOS-specific")
+    def test_worker_cannot_commit_shared_git_metadata(
         self, repo: Path, db_path: Path
     ):
         task = _queued_task(db_path, allowed_paths=["gateway/"])
-        command = [
-            "sh",
-            "-c",
-            "mkdir -p gateway && echo ok > gateway/ok.py && "
-            "git add gateway/ok.py && "
-            "git -c user.email=test@example.com -c user.name=test "
-            "commit -q -m worker-change",
-        ]
-
         run = br.run_worker(
             task["id"],
-            command,
+            [
+                "sh",
+                "-c",
+                "mkdir -p gateway && echo ok > gateway/ok.py && "
+                "git add gateway/ok.py && "
+                "git -c user.email=test@example.com -c user.name=test "
+                "commit -q -m worker-change",
+            ],
             timeout_seconds=30,
             heartbeat_seconds=1,
             repo_root=repo,
             db_path=db_path,
         )
 
-        assert run["state"] == bq.RUN_EXITED
+        assert run["state"] == bq.RUN_FAILED
         assert run["final_report"]["changed_paths"] == ["gateway/ok.py"]
         assert run["final_report"]["scope_violations"] == []
+        log = Path(run["final_report"]["log_path"]).read_text()
+        assert "Operation not permitted" in log
 
     def test_scope_check_rejects_prefix_confusion(
         self, repo: Path, db_path: Path
@@ -492,7 +495,7 @@ class TestRunWorker:
         task = _queued_task(db_path)
         run = br.run_worker(
             task["id"], ["sleep", "60"],
-            timeout_seconds=2, heartbeat_seconds=1,
+            timeout_seconds=0.25, heartbeat_seconds=0.05,
             repo_root=repo, db_path=db_path,
         )
         assert run["state"] == bq.RUN_TIMEOUT
@@ -515,7 +518,7 @@ class TestRunWorker:
         with pytest.raises(br.RunnerError, match="monitoring failed"):
             br.run_worker(
                 task["id"], ["sleep", "2"],
-                timeout_seconds=30, lease_seconds=5, heartbeat_seconds=1,
+                timeout_seconds=30, lease_seconds=5, heartbeat_seconds=0.1,
                 repo_root=repo, db_path=db_path,
             )
 
@@ -559,7 +562,7 @@ class TestRunWorker:
         with pytest.raises(br.RunnerError, match="monitoring failed"):
             br.run_worker(
                 task["id"], ["sleep", "2"],
-                timeout_seconds=30, lease_seconds=10, heartbeat_seconds=1,
+                timeout_seconds=30, lease_seconds=10, heartbeat_seconds=0.1,
                 repo_root=repo, db_path=db_path,
             )
 
@@ -601,7 +604,7 @@ class TestRunWorker:
         with pytest.raises(br.RunnerError, match="monitoring failed"):
             br.run_worker(
                 task["id"], ["sleep", "2"],
-                timeout_seconds=30, lease_seconds=5, heartbeat_seconds=1,
+                timeout_seconds=30, lease_seconds=5, heartbeat_seconds=0.1,
                 repo_root=repo, db_path=db_path,
             )
 
@@ -622,8 +625,8 @@ class TestRunWorker:
         run = br.run_worker(
             task["id"],
             ["sleep", "60"],
-            timeout_seconds=2,
-            heartbeat_seconds=1,
+            timeout_seconds=0.25,
+            heartbeat_seconds=0.05,
             repo_root=repo,
             db_path=db_path,
         )
@@ -791,10 +794,10 @@ class TestRunWorker:
         task = _queued_task(db_path)
         run = br.run_worker(
             task["id"],
-            ["sleep", "3"],
+            ["sleep", "0.8"],
             timeout_seconds=30,
-            lease_seconds=2,  # would expire mid-run without heartbeat
-            heartbeat_seconds=1,
+            lease_seconds=0.5,  # would expire mid-run without heartbeat
+            heartbeat_seconds=0.1,
             repo_root=repo,
             db_path=db_path,
         )
@@ -824,7 +827,7 @@ class TestRunWorker:
                 ["sleep", "2"],
                 timeout_seconds=30,
                 lease_seconds=5,
-                heartbeat_seconds=1,
+                heartbeat_seconds=0.1,
                 repo_root=repo,
                 db_path=db_path,
             )

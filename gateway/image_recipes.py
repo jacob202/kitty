@@ -25,6 +25,7 @@ class Recipe:
     provider: str
     workflow_template_id: str | None
     model_family: str | None
+    execution_target: str | None = None
     operation: str = "txt2img"
     quality_tier: str = "quality"
     expected_speed: str | None = None
@@ -59,6 +60,7 @@ class Recipe:
             "display_name": self.display_name,
             "description": self.description,
             "provider": self.provider,
+            "execution_target": self.execution_target,
             "quality_tier": self.quality_tier,
             "operation": self.operation,
             "supports_characters": self.supports_characters,
@@ -168,6 +170,85 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "is_available": False,
         "priority": 5,
     },
+    {
+        "recipe_id": "airforce_grok_imagine_2",
+        "display_name": "Grok Imagine Image 2.0 (Airforce)",
+        "description": "Low-cost hosted general image generation through Api.Airforce.",
+        "provider": "airforce",
+        "model_family": "grok-imagine-image-2.0",
+        "quality_tier": "quality",
+        "expected_speed": "seconds",
+        "default_width": 1024,
+        "default_height": 1024,
+        "max_width": 1792,
+        "max_height": 1792,
+        "supported_aspects": ["1:1", "16:9", "9:16"],
+        "supports_variation": True,
+        "license_notes": "xAI Grok Imagine Image 2.0 served by Api.Airforce; hosted paid usage.",
+        "is_available": False,
+        "priority": 40,
+    },
+    {
+        "recipe_id": "fal_flux_pulid",
+        "display_name": "FLUX PuLID (fal)",
+        "description": "Hosted single-reference character generation using fal FLUX PuLID.",
+        "provider": "fal",
+        "model_family": "flux-pulid",
+        "quality_tier": "quality",
+        "expected_speed": "seconds",
+        "default_width": 1024,
+        "default_height": 1024,
+        "max_width": 1536,
+        "max_height": 1536,
+        "supported_aspects": ["1:1", "3:2", "2:3", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+        "supports_characters": True,
+        "max_characters": 1,
+        "supports_variation": True,
+        "identity_strength": 95,
+        "license_notes": "fal-ai/flux-pulid hosted inference; billed per megapixel.",
+        "is_available": False,
+        "priority": 35,
+    },
+    {
+        "recipe_id": "bfl_flux2_draft",
+        "display_name": "FLUX.2 Klein 4B (hosted draft)",
+        "description": "Hosted FLUX.2 [klein] 4B on BFL Direct — fast 1MP draft tier.",
+        "provider": "flux2",
+        "model_family": "flux-2-klein-4b",
+        "execution_target": "flux2-klein-4b-h",
+        "quality_tier": "fast",
+        "expected_speed": "seconds",
+        "default_width": 1024,
+        "default_height": 1024,
+        "max_width": 1024,
+        "max_height": 1024,
+        "supported_aspects": ["1:1"],
+        "supports_img2img": True,
+        "supports_characters": True,
+        "max_characters": 2,
+        "license_notes": "FLUX.2 klein 4B: Apache-2.0. Hosted by Black Forest Labs; usage is paid.",
+        "priority": 4,
+    },
+    {
+        "recipe_id": "bfl_flux2_pro",
+        "display_name": "FLUX.2 Pro (hosted final)",
+        "description": "Hosted FLUX.2 Pro on BFL Direct — production 1MP final tier.",
+        "provider": "flux2",
+        "model_family": "flux-2-pro",
+        "execution_target": "flux2-pro-h",
+        "quality_tier": "quality",
+        "expected_speed": "seconds",
+        "default_width": 1024,
+        "default_height": 1024,
+        "max_width": 1024,
+        "max_height": 1024,
+        "supported_aspects": ["1:1"],
+        "supports_img2img": True,
+        "supports_characters": True,
+        "max_characters": 2,
+        "license_notes": "FLUX.2 Pro: BFL proprietary hosted model. Usage is paid.",
+        "priority": 3,
+    },
 ]
 
 
@@ -179,20 +260,37 @@ def _ensure_db() -> None:
     kitty_db.migrate(db_file=KITTY_DB_FILE)
 
 
+def _hosted_default_available(provider: str) -> bool | None:
+    """Runtime availability for built-in hosted recipes we can preflight cheaply."""
+    if provider not in {"airforce", "fal"}:
+        return None
+    from gateway.image_runner import hosted_image_configured
+
+    available, _ = hosted_image_configured(provider)
+    return available
+
+
 def seed_default_recipes() -> int:
-    """Insert default recipes if the table is empty. Returns count inserted."""
+    """Insert any missing built-in recipes and refresh hosted availability.
+
+    Older Kitty databases may already contain some defaults. Seeding therefore
+    reconciles by recipe_id instead of returning early when the table is non-empty.
+    """
     _ensure_db()
+    now = _now()
+    count = 0
     with kitty_db.connect(KITTY_DB_FILE) as conn:
-        row = conn.execute("SELECT COUNT(*) as cnt FROM image_recipes").fetchone()
-        if row and row["cnt"] > 0:
-            return 0
-        now = _now()
-        count = 0
         for r in DEFAULT_RECIPES:
-            conn.execute(
-                """INSERT INTO image_recipes
+            runtime_available = _hosted_default_available(r["provider"])
+            # Preserve the historical registry contract for local/built-in recipes:
+            # they are selectable after seeding and fail loudly at the transport
+            # preflight if their runtime is offline. Hosted Airforce/fal are the
+            # exception because their explicit spend opt-in can be checked here.
+            initial_available = runtime_available if runtime_available is not None else True
+            cur = conn.execute(
+                """INSERT OR IGNORE INTO image_recipes
                    (recipe_id, display_name, description, provider, workflow_template_id,
-                    model_family, operation, quality_tier, expected_speed,
+                    model_family, execution_target, operation, quality_tier, expected_speed,
                     default_width, default_height, max_width, max_height,
                     supported_aspects_json, supports_img2img, supports_characters,
                     max_characters, supports_pose_refs, supports_outfit_refs,
@@ -201,11 +299,12 @@ def seed_default_recipes() -> int:
                     identity_strength, required_models_json, required_nodes_json,
                     license_notes, is_available, priority, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     r["recipe_id"], r["display_name"], r.get("description"),
                     r["provider"], r.get("workflow_template_id"),
-                    r.get("model_family"), r.get("operation", "txt2img"),
+                    r.get("model_family"), r.get("execution_target"),
+                    r.get("operation", "txt2img"),
                     r["quality_tier"], r.get("expected_speed"),
                     r.get("default_width", 1024), r.get("default_height", 1024),
                     r.get("max_width", 2048), r.get("max_height", 2048),
@@ -224,10 +323,32 @@ def seed_default_recipes() -> int:
                     r.get("identity_strength", 0),
                     json.dumps(r.get("required_models")),
                     json.dumps(r.get("required_nodes")),
-                    r.get("license_notes"), 1, r.get("priority", 0), now, now,
+                    r.get("license_notes"), int(initial_available),
+                    r.get("priority", 0), now, now,
                 ),
             )
-            count += 1
+            if cur.rowcount > 0:
+                count += 1
+            if r["recipe_id"] in {"bfl_flux2_draft", "bfl_flux2_pro"}:
+                # These are built-in capability facts, not user preferences.
+                # Reconcile existing databases that seeded the recipes before
+                # multi-character support was represented in the registry.
+                conn.execute(
+                    """UPDATE image_recipes
+                       SET supports_characters = ?, max_characters = ?, updated_at = ?
+                       WHERE recipe_id = ?""",
+                    (
+                        int(r.get("supports_characters", False)),
+                        r.get("max_characters", 0),
+                        now,
+                        r["recipe_id"],
+                    ),
+                )
+            if runtime_available is not None:
+                conn.execute(
+                    "UPDATE image_recipes SET is_available = ?, updated_at = ? WHERE recipe_id = ?",
+                    (int(runtime_available), now, r["recipe_id"]),
+                )
         conn.commit()
     return count
 
@@ -283,18 +404,32 @@ def auto_route(
     if not recipes:
         raise RecipeError("no image recipes are available")
 
-    # If user prefers a specific recipe and it's available
+    # If user prefers a specific recipe and it's available, capability
+    # requirements still win over preference. A preferred one-character recipe
+    # must never collapse a two-character intent into a single identity lane.
     if preferred_recipe:
         try:
             r = get_recipe(preferred_recipe)
-            if r.is_available:
-                return RoutingDecision(r.recipe_id, r, "Selected by user preference")
         except RecipeError:
-            pass
+            r = None
+        if r is not None and r.is_available:
+            if has_character and (
+                not r.supports_characters or r.max_characters < character_count
+            ):
+                raise RecipeError(
+                    f"recipe {r.recipe_id!r} supports {r.max_characters} "
+                    f"character(s); requested {character_count}"
+                )
+            return RoutingDecision(r.recipe_id, r, "Selected by user preference")
 
-    # Identity-first: choose the highest-identity-strength recipe that supports characters
+    # Identity-first: choose the strongest recipe that can truthfully carry the
+    # full cast, not merely any recipe with character support.
     if identity_mode == "identity_first" and has_character:
-        char_recipes = [r for r in recipes if r.supports_characters]
+        char_recipes = [
+            r
+            for r in recipes
+            if r.supports_characters and r.max_characters >= character_count
+        ]
         if char_recipes:
             best = max(char_recipes, key=lambda r: (r.identity_strength, r.priority))
             return RoutingDecision(best.recipe_id, best,
@@ -353,6 +488,7 @@ def _row_to_recipe(row: Any) -> Recipe:
         provider=row["provider"],
         workflow_template_id=row["workflow_template_id"],
         model_family=row["model_family"],
+        execution_target=row["execution_target"],
         operation=row["operation"],
         quality_tier=row["quality_tier"],
         expected_speed=row["expected_speed"],

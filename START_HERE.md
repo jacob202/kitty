@@ -10,7 +10,10 @@ live evidence; it does not duplicate current state.
    `~/Projects/kitty`; Desktop copies are invalid.
 2. Inspect `git status --short --branch`, branch, HEAD, `origin/main`, and
    recent commits. Do not fetch, switch, stash, or clean merely to simplify
-   output.
+   output. Before any substantial implementation, also read
+   `docs/reference/MULTI_AGENT_COORDINATION.md`, check its live coordination
+   issue, and inspect the relevant Builder/local ownership state before
+   claiming an implementation lane.
 3. Run the receipt for the task class. Informational/planning work may use
    `./kitty context --agent --compact --skip-builder`; code or Builder work
    uses full `./kitty context --agent`. A failed, unknown, stale, or
@@ -27,7 +30,7 @@ live evidence; it does not duplicate current state.
 ## Task routing
 
 - Informational: run the receipt and load the directly relevant authority.
-- Planning: add `docs/ROADMAP_V2.md`, `docs/ACTIVE_MISSION.md`, and the current
+- Planning: add `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, and the current
   checkpoint only when relevant.
 - Code change: load the full order, then the outcome contract and narrow code or
   test surface. Run focused verification after each coherent change.
@@ -43,12 +46,16 @@ live evidence; it does not duplicate current state.
 3. [`AGENTS.md`](AGENTS.md)
 4. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 5. [`docs/DECISIONS.md`](docs/DECISIONS.md)
-6. [`docs/ROADMAP_V2.md`](docs/ROADMAP_V2.md)
+6. [`docs/ROADMAP.md`](docs/ROADMAP.md)
 7. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
 8. [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md)
 9. [`.claude/STATE.md`](.claude/STATE.md)
 10. [`.claude/HANDOFF.md`](.claude/HANDOFF.md) — only if its identity is valid
 <!-- kitty-reading-order:end -->
+
+`docs/reference/MULTI_AGENT_COORDINATION.md` is an operational coordination
+supplement, not another authority file. Its live issue is mutable campaign
+state and must be revalidated against current GitHub/Builder/Mac truth.
 
 ## Minimal command set
 

@@ -288,6 +288,42 @@ def update_character(
     return get_character(character_id)
 
 
+
+def restore_character_profile(
+    character_id: str,
+    *,
+    name: str,
+    description: str | None,
+    preferred_recipe: str | None,
+    identity_preset: str,
+    tags: list[str] | None,
+) -> Character:
+    """Restore an exact profile snapshot, including nullable fields."""
+    char = get_character(character_id)
+    if char.soft_deleted:
+        raise CharacterError(f"character {character_id!r} is soft-deleted")
+    clean_name = name.strip()
+    if not clean_name:
+        raise CharacterError("name must not be empty")
+    valid_presets = ("creative", "balanced", "identity_first")
+    if identity_preset not in valid_presets:
+        raise CharacterError(
+            f"identity_preset must be {'/'.join(valid_presets)}, got {identity_preset!r}"
+        )
+    with kitty_db.connect(KITTY_DB_FILE) as conn:
+        conn.execute(
+            """UPDATE image_characters
+               SET name = ?, description = ?, preferred_recipe = ?, identity_preset = ?,
+                   tags = ?, updated_at = ?
+               WHERE character_id = ?""",
+            (
+                clean_name, description, preferred_recipe, identity_preset,
+                _normalize_tags(tags), _now(), character_id,
+            ),
+        )
+        conn.commit()
+    return get_character(character_id)
+
 def soft_delete_character(character_id: str) -> Character:
     char = get_character(character_id)
     now = _now()
@@ -642,6 +678,7 @@ __all__ = [
     "get_character",
     "create_character",
     "update_character",
+    "restore_character_profile",
     "soft_delete_character",
     "supersede_character",
     "add_character_ref",

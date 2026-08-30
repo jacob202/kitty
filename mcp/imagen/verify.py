@@ -432,7 +432,7 @@ def generate_until(
 
 def _check_private(engine: str) -> None:
     """Raise if engine is a cloud service and private flag is set."""
-    cloud_engines = {"nano_banana", "imagen4", "dalle"}
+    cloud_engines = {"nano_banana", "imagen4", "dalle", "runware", "fal", "airforce"}
     if engine in cloud_engines:
         raise ValueError(
             f"Engine {engine!r} is a cloud service and private=True was set. "

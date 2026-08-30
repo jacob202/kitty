@@ -6,7 +6,7 @@ import type { Page } from '@playwright/test';
  * substitute: it drives the real running app at an iPhone 14 Pro-class viewport
  * through every primary destination and fails on the exact defects Jacob hit on
  * his phone — horizontal overflow, clipped controls, actions hidden under the
- * fixed tab bar, missing bottom-nav items, a Studio that invites an impossible
+ * fixed tab bar, missing bottom-nav items, an Image Lab that invites an impossible
  * generation, and a Library that demands a Mac file path.
  *
  * Runs without a live gateway: the health stub mounts the app and every other
@@ -14,7 +14,9 @@ import type { Page } from '@playwright/test';
  * source basename are stubbed in because those are the values that overflowed.
  */
 
-const DESTINATIONS = ['Home', 'Chat', 'Work', 'Studio', 'Library', 'More'];
+const PRIMARY_DESTINATIONS = ['Home', 'Chat', 'Work', 'Image Lab', 'Library'] as const;
+const SECONDARY_DESTINATIONS = ['Projects', 'Automations', 'Settings'] as const;
+const DESTINATIONS = [...PRIMARY_DESTINATIONS, ...SECONDARY_DESTINATIONS] as const;
 
 const GATEWAY_STUBS = [
   ['**/proxy/projects', { projects: [{ id: 1, name: 'kitty-gateway-rebuild' }] }],
@@ -26,6 +28,22 @@ const GATEWAY_STUBS = [
       { name: 'comfyui', label: 'ComfyUI', available: false },
       { name: 'drawthings', label: 'Draw Things', available: false },
     ],
+  }],
+  ['**/proxy/artifacts*', {
+    artifacts: [{
+      id: 'artifact-mobile-overflow-regression',
+      project_id: 7,
+      kind: 'image',
+      media_type: 'image/png',
+      display_name: 'job_2105d78bd23a469fb8db5645c85aa587.png',
+      state: 'ready',
+      size_bytes: 432311,
+      created_at: 1787500800,
+      created_by: 'image_lab',
+      conversation_id: null,
+      metadata: {},
+      error: null,
+    }],
   }],
   ['**/proxy/knowledge/sources', {
     total_sources: 2,
@@ -51,8 +69,8 @@ async function stubGateway(page: Page) {
   for (const [url, json] of GATEWAY_STUBS) {
     await page.route(url, (route) => route.fulfill({ json }));
   }
-  // Any generation/planning attempt must fail loudly so the test can prove it
-  // is never dispatched while engines are offline.
+  // Any legacy generation/planning attempt must fail loudly. The converged
+  // Image Lab should never dispatch durable batch work while engines are offline.
   await page.route('**/proxy/studio/generate', (route) => route.fulfill({
     status: 503,
     contentType: 'application/json',
@@ -122,7 +140,8 @@ async function lowestInteractiveAboveNav(page: Page, navTop: number) {
       // Skip the fixed tab bar itself and anything inside it.
       const fixed = el.closest('nav[aria-label="Main navigation"]');
       const inNav = el.closest('[aria-label="Main navigation"]') !== null;
-      if (fixed || inNav) continue;
+      const inClosedDisclosure = el.closest('details:not([open])') !== null;
+      if (fixed || inNav || inClosedDisclosure) continue;
       const style = getComputedStyle(el);
       if (style.position === 'fixed' || style.display === 'none') continue;
       const r = el.getBoundingClientRect();
@@ -152,6 +171,19 @@ async function assertLastActionableClearsNav(page: Page, navTop: number, label: 
   expect(last!.ok, `[${label}] ${last!.detail}`).toBe(true);
 }
 
+async function openDestination(page: Page, label: typeof DESTINATIONS[number]) {
+  const nav = page.getByRole('navigation', { name: 'Main navigation' });
+  if ((PRIMARY_DESTINATIONS as readonly string[]).includes(label)) {
+    await nav.getByRole('button', { name: label, exact: true }).click();
+    return;
+  }
+
+  await nav.getByRole('button', { name: 'More', exact: true }).click();
+  const menu = page.getByRole('menu', { name: 'More destinations' });
+  await expect(menu).toBeVisible();
+  await menu.getByRole('menuitem', { name: label, exact: true }).click();
+}
+
 test.describe('phone dogfood — slice 1', () => {
   test.beforeEach(({}, testInfo) => {
     testInfo.skip(testInfo.project.name !== 'mobile', 'phone-only acceptance');
@@ -161,7 +193,7 @@ test.describe('phone dogfood — slice 1', () => {
     await stubGateway(page);
   });
 
-  test('all six destinations: no overflow, full nav, reachable actions above the tab bar', async ({ page }) => {
+  test('all product destinations: no overflow, full nav, reachable actions above the tab bar', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
 
@@ -170,7 +202,7 @@ test.describe('phone dogfood — slice 1', () => {
     expect(navBox, 'tab bar has a box').not.toBeNull();
 
     for (const label of DESTINATIONS) {
-      await nav.getByRole('button', { name: label, exact: true }).click();
+      await openDestination(page, label);
       await expect(page.locator('main')).toBeVisible();
       // Async content (sources list, model chips, usage) can land after the view
       // mounts; a single early measurement would miss overflow that appears once
@@ -213,8 +245,8 @@ test.describe('phone dogfood — slice 1', () => {
     }
   });
 
-  test('Studio/More tab bar does not bury the last control behind the fixed nav', async ({ page }) => {
-    // Covered by the destination sweep, but pin the two destinations that had
+  test('Image Lab/Settings controls stay clear of the fixed nav', async ({ page }) => {
+    // Covered by the destination sweep, but pin the two surfaces that had
     // real clipping (Settings' long rows) with an explicit assertion.
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
@@ -222,76 +254,66 @@ test.describe('phone dogfood — slice 1', () => {
     const navBox = await nav.boundingBox();
     expect(navBox).not.toBeNull();
 
-    for (const label of ['Studio', 'More']) {
-      await nav.getByRole('button', { name: label, exact: true }).click();
+    for (const label of ['Image Lab', 'Settings'] as const) {
+      await openDestination(page, label);
       await page.waitForTimeout(900);
       await scrollMainToBottom(page);
       await assertLastActionableClearsNav(page, navBox!.y, label);
     }
   });
 
-  test('Studio fails closed with no image engine and never dispatches generation', async ({ page }) => {
-    await page.addInitScript(() => window.localStorage.setItem('kitty-onboarded', 'true'));
-    await stubGateway(page);
-
+  test('Image Lab fails closed with no image engine and never dispatches durable generation', async ({ page }) => {
     let generationAttempts = 0;
-    await page.route('**/proxy/studio/generate', (route) => { generationAttempts += 1; route.fulfill({ status: 503, body: '{}' }); });
+    await page.route('**/proxy/studio/batches', (route) => {
+      if (route.request().method() === 'POST') generationAttempts += 1;
+      route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+    });
 
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Studio' }).click();
-    await page.waitForTimeout(400);
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Image Lab' }).click();
 
-    await expect(page.getByTestId('studio-offline')).toBeVisible();
-    await expect(page.getByTestId('studio-check-again')).toBeVisible();
+    const workspace = page.getByRole('region', { name: 'Image Lab' });
+    await expect(workspace).toBeVisible();
+    await expect(workspace.getByText(/no image engine is online/i)).toBeVisible();
 
-    // Renderer-independent work stays available (finding 3): the composer is
-    // visible; with a prompt entered, plan preview is enabled — but sending
-    // stays disabled because no renderer is available. Plan inspection moved
-    // behind "advanced" when Studio became chat-first (issue #336, slice A5).
-    await page.locator('main').getByPlaceholder(/describe what you want to create/i).fill('a sleeping cat');
-    await page.locator('main').getByRole('button', { name: /advanced/i }).click();
-    await expect(page.locator('main').getByRole('button', { name: 'preview plan', exact: true })).toBeEnabled();
-    await expect(page.getByTestId('studio-send')).toBeDisabled();
-    await expect(page.locator('main').getByPlaceholder(/describe what you want to create/i)).toBeVisible();
+    const composer = workspace.getByPlaceholder(/tell kitty what you want to make or change/i);
+    await expect(composer).toBeVisible();
+    await composer.fill('a sleeping cat');
+    await expect(workspace.getByTestId('image-lab-send')).toBeDisabled();
+    await expect(workspace.getByText('Internal Server Error')).toHaveCount(0);
 
-    // No raw Internal Server Error; only the human offline message.
-    await expect(page.locator('main').getByText('Internal Server Error')).toHaveCount(0);
-    await expect(page.getByTestId('studio-offline')).toContainText('Plan preview and characters still work');
+    const checkAgain = workspace.getByRole('button', { name: 'check again' });
+    await expect(checkAgain).toBeVisible();
+    await checkAgain.click();
+    await expect(workspace.getByTestId('image-lab-send')).toBeDisabled();
 
-    // The recovery action actually re-checks (and stays fail-closed).
-    await page.getByTestId('studio-check-again').click();
-    await expect(page.getByTestId('studio-check-again')).toBeVisible();
-
-    expect(generationAttempts, 'no generation request may be dispatched while engines are offline').toBe(0);
+    expect(generationAttempts, 'no durable image batch may be dispatched while engines are offline').toBe(0);
   });
 
-  test('Studio character dialog stays fully inside the viewport when engines are available', async ({ page }) => {
+  test('Image Lab compact workspace stays fully inside the mobile viewport when engines are available', async ({ page }) => {
     await stubEnginesOnline(page);
     await page.goto('/');
     await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Studio' }).click();
-    await page.waitForTimeout(400);
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Image Lab' }).click();
 
-    // Open the character picker, then the create-character dialog.
-    await page.locator('main').getByRole('button', { name: /character/i }).first().click();
-    await page.locator('main').getByRole('button', { name: 'new character' }).click();
-    const dialog = page.getByRole('dialog', { name: 'create character' });
-    await expect(dialog).toBeVisible();
-    // The role=dialog node is the full-viewport overlay; measure the inner card,
-    // which is what must actually fit — no horizontal clipping, every action on screen.
-    const card = dialog.locator(':scope > div');
+    const lab = page.getByRole('region', { name: 'Image Lab' });
+    const workspace = page.getByTestId('image-lab-workspace');
+    await expect(lab).toBeVisible();
+    await expect(workspace).toBeVisible();
+
     const vw = await page.evaluate(() => window.innerWidth);
-    const vh = await page.evaluate(() => window.innerHeight);
-    const box = await card.boundingBox();
-    expect(box, 'character dialog card has a box').not.toBeNull();
-    expect(box!.x, 'character dialog starts off-screen left').toBeGreaterThanOrEqual(0);
-    expect(box!.x + box!.width, 'character dialog overflows right edge').toBeLessThanOrEqual(vw + 1);
-    expect(box!.y, 'character dialog starts off-screen top').toBeGreaterThanOrEqual(0);
-    expect(box!.y + box!.height, 'character dialog overflows viewport bottom').toBeLessThanOrEqual(vh + 1);
+    const labBox = await lab.boundingBox();
+    const workspaceBox = await workspace.boundingBox();
+    expect(labBox, 'Image Lab has a box').not.toBeNull();
+    expect(workspaceBox, 'Image Lab workspace has a box').not.toBeNull();
+    expect(labBox!.x).toBeGreaterThanOrEqual(0);
+    expect(labBox!.x + labBox!.width).toBeLessThanOrEqual(vw + 1);
+    expect(workspaceBox!.x).toBeGreaterThanOrEqual(0);
+    expect(workspaceBox!.x + workspaceBox!.width).toBeLessThanOrEqual(vw + 1);
 
-    const cancelBtn = dialog.getByRole('button', { name: 'cancel' });
-    expect(await cancelBtn.isVisible(), 'cancel stays visible/tappable in the character dialog').toBe(true);
+    const columns = await workspace.evaluate((el) => getComputedStyle(el).gridTemplateColumns);
+    expect(columns.split(' ').length, 'compact Image Lab should stack instead of squeezing two columns').toBe(1);
   });
 
   test('Library on mobile uses the native file picker and hides the Mac-path control', async ({ page }) => {
@@ -307,6 +329,10 @@ test.describe('phone dogfood — slice 1', () => {
     // The native file input still exists behind the picker.
     const fileInput = page.locator('input[type="file"][accept*=".pdf"]');
     expect(await fileInput.count(), 'native file input present').toBeGreaterThanOrEqual(1);
+
+    const layout = await collectOverflow(page);
+    expect(layout.scrollWidth, `Library page scrollWidth ${layout.scrollWidth} > viewport ${layout.width}`).toBeLessThanOrEqual(layout.width + 1);
+    expect(layout.offenders, `Library elements overhang the 390px viewport:\n${JSON.stringify(layout.offenders, null, 2)}`).toEqual([]);
   });
 });
 

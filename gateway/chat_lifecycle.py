@@ -231,6 +231,120 @@ def finish_turn(
         conn.commit()
 
 
+RESTART_INTERRUPTED_ERROR = "Gateway restarted before the chat turn finished"
+RESTART_INTERRUPTED_MESSAGE = "Kitty restarted before this reply finished. Tap retry to try again."
+RESTART_INTERRUPTED_NO_RETRY_MESSAGE = "Kitty restarted before this reply finished."
+
+
+def list_running_conversations() -> list[dict[str, Any]]:
+    """Return conversation shells that currently own at least one running turn.
+
+    ``requested_model`` reports the actual model of the most recent running
+    turn so restart recovery can record what the user really asked for
+    instead of inventing a default.
+    """
+    init_db()
+    with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT c.id, c.project_id, c.title, c.objective, c.created_at, c.updated_at,
+                (
+                    SELECT a.requested_model
+                    FROM chat_turns AS lt
+                    JOIN chat_attempts AS a ON a.turn_id = lt.id
+                    WHERE lt.conversation_id = c.id AND lt.status = 'running'
+                    ORDER BY lt.sequence DESC
+                    LIMIT 1
+                ) AS requested_model
+            FROM chat_conversations AS c
+            JOIN chat_turns AS t ON t.conversation_id = c.id
+            WHERE t.status = 'running'
+            ORDER BY c.updated_at DESC, c.id DESC
+            """
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def reconcile_interrupted_turns() -> int:
+    """Mark chat work left running by a previous Gateway process interrupted.
+
+    A newly-started process cannot own an in-flight coroutine from the previous
+    process. Leaving those rows as ``running`` makes restart recovery lie, so
+    close them atomically and persist one plain-language assistant record that
+    the UI can restore with its normal retry affordance.
+    """
+    init_db()
+    now = time.time()
+    with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
+        rows = conn.execute(
+            "SELECT id, conversation_id, sequence FROM chat_turns WHERE status = 'running' ORDER BY created_at"
+        ).fetchall()
+        if not rows:
+            return 0
+        conversation_ids = sorted({row["conversation_id"] for row in rows})
+        placeholders = ",".join("?" for _ in conversation_ids)
+        latest_sequence: dict[str, int] = {
+            row["conversation_id"]: row["max_sequence"]
+            for row in conn.execute(
+                f"""
+                SELECT conversation_id, MAX(sequence) AS max_sequence
+                FROM chat_turns
+                WHERE conversation_id IN ({placeholders})
+                GROUP BY conversation_id
+                """,
+                conversation_ids,
+            ).fetchall()
+        }
+        for row in rows:
+            turn_id = row["id"]
+            conversation_id = row["conversation_id"]
+            interruption_message = (
+                RESTART_INTERRUPTED_MESSAGE
+                if row["sequence"] == latest_sequence[conversation_id]
+                else RESTART_INTERRUPTED_NO_RETRY_MESSAGE
+            )
+            conn.execute(
+                """
+                UPDATE chat_attempts
+                SET status = 'interrupted', completed_at = ?, error = ?
+                WHERE turn_id = ? AND status = 'running'
+                """,
+                (now, RESTART_INTERRUPTED_ERROR, turn_id),
+            )
+            existing_assistant = conn.execute(
+                "SELECT id FROM chat_messages WHERE turn_id = ? AND role = 'assistant' LIMIT 1",
+                (turn_id,),
+            ).fetchone()
+            if existing_assistant is None:
+                conn.execute(
+                    """
+                    INSERT INTO chat_messages
+                        (id, turn_id, role, content, status, created_at)
+                    VALUES (?, ?, 'assistant', ?, 'interrupted', ?)
+                    """,
+                    (f"message_restart_{turn_id}", turn_id, interruption_message, now),
+                )
+            else:
+                conn.execute(
+                    "UPDATE chat_messages SET status = 'interrupted' WHERE turn_id = ? AND role = 'assistant'",
+                    (turn_id,),
+                )
+            conn.execute(
+                """
+                UPDATE chat_turns
+                SET status = 'interrupted', completed_at = ?, error = ?
+                WHERE id = ? AND status = 'running'
+                """,
+                (now, RESTART_INTERRUPTED_ERROR, turn_id),
+            )
+            conn.execute(
+                "UPDATE chat_conversations SET updated_at = ? WHERE id = ?",
+                (now, conversation_id),
+            )
+        conn.commit()
+    return len(rows)
+
+
 def get_turn(turn_id: str) -> dict[str, Any] | None:
     """Return a turn with its attempts and messages for recovery/read paths."""
     init_db()
@@ -256,8 +370,42 @@ def get_turn(turn_id: str) -> dict[str, Any] | None:
         return result
 
 
+def list_project_conversations(project_id: int, *, limit: int = 10) -> list[dict[str, Any]]:
+    """Return recent conversation descriptors owned by one Project.
+
+    This is a read-side projection from the canonical chat lifecycle store. It
+    deliberately does not load turns/messages; Project Resume needs context,
+    not a second copy of conversation contents.
+    """
+    if isinstance(project_id, bool) or not isinstance(project_id, int) or project_id <= 0:
+        raise ChatLifecycleError(f"project_id must be positive, got {project_id!r}")
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+        raise ChatLifecycleError(f"limit must be a positive integer, got {limit!r}")
+    bounded_limit = min(limit, 100)
+    init_db()
+    with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, project_id, title, objective, created_at, updated_at
+            FROM chat_conversations
+            WHERE project_id = ?
+            ORDER BY updated_at DESC, id DESC
+            LIMIT ?
+            """,
+            (project_id, bounded_limit),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def list_conversation(conversation_id: str) -> dict[str, Any]:
-    """Return normalized conversation state and all ordered turns."""
+    """Return normalized conversation state and all ordered turns in bulk.
+
+    Recovery used to call ``get_turn`` once per turn, opening a new SQLite
+    connection and issuing additional queries for every turn. Fetch all turns,
+    attempts, and messages with the same connection instead. This keeps the
+    read cost bounded by the number of lifecycle tables rather than the number
+    of turns in the conversation.
+    """
     if not conversation_id.strip():
         raise ChatLifecycleError("conversation_id must not be empty")
     init_db()
@@ -267,11 +415,47 @@ def list_conversation(conversation_id: str) -> dict[str, Any]:
         ).fetchone()
         if conversation is None:
             raise ChatLifecycleError(f"conversation {conversation_id} does not exist")
-        turns = [
-            dict(row)
-            for row in conn.execute(
-                "SELECT * FROM chat_turns WHERE conversation_id = ? ORDER BY sequence",
-                (conversation_id,),
-            ).fetchall()
-        ]
-    return {"conversation": dict(conversation), "turns": [get_turn(turn["id"]) for turn in turns]}
+
+        turn_rows = conn.execute(
+            "SELECT * FROM chat_turns WHERE conversation_id = ? ORDER BY sequence",
+            (conversation_id,),
+        ).fetchall()
+        turn_ids = [row["id"] for row in turn_rows]
+
+        if not turn_ids:
+            return {"conversation": dict(conversation), "turns": []}
+
+        placeholders = ",".join("?" for _ in turn_ids)
+        attempt_rows = conn.execute(
+            f"""
+            SELECT * FROM chat_attempts
+            WHERE turn_id IN ({placeholders})
+            ORDER BY turn_id, attempt_number
+            """,
+            turn_ids,
+        ).fetchall()
+        message_rows = conn.execute(
+            f"""
+            SELECT * FROM chat_messages
+            WHERE turn_id IN ({placeholders})
+            ORDER BY turn_id, created_at, id
+            """,
+            turn_ids,
+        ).fetchall()
+
+    attempts_by_turn: dict[str, list[dict[str, Any]]] = {turn_id: [] for turn_id in turn_ids}
+    messages_by_turn: dict[str, list[dict[str, Any]]] = {turn_id: [] for turn_id in turn_ids}
+
+    for row in attempt_rows:
+        attempts_by_turn[row["turn_id"]].append(dict(row))
+    for row in message_rows:
+        messages_by_turn[row["turn_id"]].append(dict(row))
+
+    turns: list[dict[str, Any]] = []
+    for row in turn_rows:
+        turn = dict(row)
+        turn["attempts"] = attempts_by_turn[row["id"]]
+        turn["messages"] = messages_by_turn[row["id"]]
+        turns.append(turn)
+
+    return {"conversation": dict(conversation), "turns": turns}

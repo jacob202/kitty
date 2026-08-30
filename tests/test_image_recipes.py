@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from gateway import db
 from gateway.image_recipes import (
     DEFAULT_RECIPES,
     RecipeError,
@@ -30,43 +31,13 @@ def override_db(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr("gateway.db.connect", _test_connect)
 
-    conn = _test_connect()
-    conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT)")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS image_jobs (
-            job_id TEXT PRIMARY KEY, provider TEXT NOT NULL, provider_job_id TEXT,
-            operation TEXT NOT NULL, status TEXT NOT NULL, prompt TEXT, negative_prompt TEXT,
-            seed INTEGER, model_id TEXT, preset_id TEXT, width INTEGER, height INTEGER,
-            steps INTEGER, guidance REAL, sampler TEXT, scheduler TEXT,
-            provider_params_json TEXT, workflow_template_id TEXT, workflow_hash TEXT,
-            artifact_id TEXT, output_path TEXT, normalized_error TEXT,
-            provider_diagnostics_json TEXT, parent_id TEXT,
-            created_at TEXT NOT NULL, updated_at TEXT NOT NULL, started_at TEXT, finished_at TEXT
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS image_recipes (
-            recipe_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, description TEXT,
-            provider TEXT NOT NULL, workflow_template_id TEXT, model_family TEXT,
-            operation TEXT NOT NULL DEFAULT 'txt2img', quality_tier TEXT NOT NULL,
-            expected_speed TEXT, default_width INTEGER DEFAULT 1024, default_height INTEGER DEFAULT 1024,
-            max_width INTEGER DEFAULT 2048, max_height INTEGER DEFAULT 2048,
-            supported_aspects_json TEXT, supports_img2img INTEGER NOT NULL DEFAULT 0,
-            supports_characters INTEGER NOT NULL DEFAULT 0, max_characters INTEGER NOT NULL DEFAULT 0,
-            supports_pose_refs INTEGER NOT NULL DEFAULT 0, supports_outfit_refs INTEGER NOT NULL DEFAULT 0,
-            supports_object_refs INTEGER NOT NULL DEFAULT 0, supports_location_refs INTEGER NOT NULL DEFAULT 0,
-            supports_style_refs INTEGER NOT NULL DEFAULT 0, supports_inpainting INTEGER NOT NULL DEFAULT 0,
-            supports_variation INTEGER NOT NULL DEFAULT 0, supports_upscaling INTEGER NOT NULL DEFAULT 0,
-            identity_strength INTEGER NOT NULL DEFAULT 0, required_models_json TEXT,
-            required_nodes_json TEXT, license_notes TEXT, is_available INTEGER NOT NULL DEFAULT 1,
-            priority INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        )
-    """)
-    # Mark all migrations as applied so _ensure_db is a no-op
-    for name in ["023_image_jobs.sql", "024_image_characters.sql", "025_image_references.sql", "026_image_recipes.sql"]:
-        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (name,))
-    conn.commit()
-    conn.close()
+    # Run the REAL migrations. This fixture used to hand-write image_jobs and
+    # image_recipes, then mark 023-026 applied so _ensure_db() was a no-op — which
+    # left image_characters absent while claiming 024 had run. Any later migration
+    # touching that table then failed against a database the fixture said was up
+    # to date. Same class of hole as issue #580: a fixture asserting a schema the
+    # migrations do not produce.
+    db.migrate(db_file=db_path)
     return db_path
 
 
@@ -81,6 +52,21 @@ class TestRecipeRegistry:
         seed_default_recipes()
         recipes = list_recipes()
         assert len(recipes) >= 2
+
+    def test_seed_reconciles_missing_defaults_in_existing_registry(self, override_db):
+        seed_default_recipes()
+        with db.connect(override_db) as conn:
+            conn.execute("DELETE FROM image_recipes WHERE recipe_id = ?", ("airforce_grok_imagine_2",))
+            conn.commit()
+        assert seed_default_recipes() == 1
+        assert get_recipe("airforce_grok_imagine_2").provider == "airforce"
+
+    def test_hosted_defaults_exist(self, override_db):
+        seed_default_recipes()
+        assert get_recipe("airforce_grok_imagine_2").provider == "airforce"
+        fal = get_recipe("fal_flux_pulid")
+        assert fal.provider == "fal"
+        assert fal.supports_characters is True
 
     def test_list_available_only(self, override_db):
         seed_default_recipes()
@@ -133,6 +119,92 @@ class TestAutoRouting:
         seed_default_recipes()
         decision = auto_route(has_character=False, quality_tier="fast")
         assert decision.recipe.quality_tier == "fast"
+
+    def test_hosted_recipe_seed_is_config_only_not_network_health(self, override_db, monkeypatch):
+        import httpx
+
+        monkeypatch.setenv("KITTY_IMAGE_AIRFORCE_ENABLED", "1")
+        monkeypatch.setenv("AIRFORCE_API_KEY", "test-key")
+        monkeypatch.setenv("KITTY_IMAGE_FAL_ENABLED", "1")
+        monkeypatch.setenv("FAL_KEY", "test-key-id:test-secret")
+        monkeypatch.setattr(
+            httpx,
+            "post",
+            lambda *a, **k: (_ for _ in ()).throw(AssertionError("startup must not probe Airforce")),
+        )
+        monkeypatch.setattr(
+            httpx,
+            "get",
+            lambda *a, **k: (_ for _ in ()).throw(AssertionError("startup must not probe fal")),
+        )
+
+        seed_default_recipes()
+
+        assert get_recipe("airforce_grok_imagine_2").is_available is True
+        assert get_recipe("fal_flux_pulid").is_available is True
+
+    def test_enabled_airforce_wins_default_quality_route(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_IMAGE_AIRFORCE_ENABLED", "1")
+        monkeypatch.setenv("AIRFORCE_API_KEY", "test-key")
+        seed_default_recipes()
+        decision = auto_route(has_character=False, quality_tier="quality")
+        assert decision.recipe_id == "airforce_grok_imagine_2"
+
+    def test_enabled_fal_wins_character_route(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_IMAGE_FAL_ENABLED", "1")
+        monkeypatch.setenv("FAL_KEY", "test-key")
+        seed_default_recipes()
+        decision = auto_route(
+            has_character=True,
+            character_count=1,
+            quality_tier="quality",
+            identity_mode="identity_first",
+        )
+        assert decision.recipe_id == "fal_flux_pulid"
+
+
+
+    def test_flux2_defaults_advertise_bounded_two_character_capability(self, override_db):
+        seed_default_recipes()
+        draft = get_recipe("bfl_flux2_draft")
+        pro = get_recipe("bfl_flux2_pro")
+        for recipe in (draft, pro):
+            assert recipe.supports_characters is True
+            assert recipe.max_characters == 2
+
+    def test_flux2_capability_reconciles_existing_seeded_rows(self, override_db):
+        seed_default_recipes()
+        with db.connect(override_db) as conn:
+            conn.execute(
+                "UPDATE image_recipes SET supports_characters = 0, max_characters = 0 "
+                "WHERE recipe_id IN ('bfl_flux2_draft', 'bfl_flux2_pro')"
+            )
+            conn.commit()
+
+        assert seed_default_recipes() == 0
+        assert get_recipe("bfl_flux2_draft").max_characters == 2
+        assert get_recipe("bfl_flux2_pro").supports_characters is True
+
+    def test_preferred_single_character_recipe_rejected_for_two_characters(self, override_db):
+        seed_default_recipes()
+        with pytest.raises(RecipeError, match="supports 1 character.*requested 2"):
+            auto_route(
+                has_character=True,
+                character_count=2,
+                preferred_recipe="comfyui_sdxl_standard",
+            )
+
+    def test_identity_first_respects_max_characters(self, override_db):
+        seed_default_recipes()
+        decision = auto_route(
+            has_character=True,
+            character_count=2,
+            identity_mode="identity_first",
+        )
+        assert decision.recipe is not None
+        assert decision.recipe.supports_characters is True
+        assert decision.recipe.max_characters >= 2
+        assert decision.recipe.provider == "flux2"
 
     def test_no_available_recipes_raises(self, override_db):
         seed_default_recipes()

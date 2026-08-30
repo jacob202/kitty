@@ -49,9 +49,9 @@ const EXTERNAL_LANES: Array<{
 ]
 
 const LANE_COLORS: Record<string, string> = {
-  'external escalation': 'var(--c-yellow)',
-  'executor lane': 'var(--c-blue)',
-  'external / later': 'var(--ink-2)',
+  'external escalation': 'var(--color-warning)',
+  'executor lane': 'var(--color-accent)',
+  'external / later': 'var(--color-text-secondary)',
 }
 
 export function ProviderCenter() {
@@ -84,7 +84,7 @@ export function ProviderCenter() {
         {modelsLive ? (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {models.map(m => (
-              <span key={m.id} style={{ ...chipStyle, borderColor: m.color, color: 'var(--ink)' }}>
+              <span key={m.id} style={{ ...chipStyle, borderColor: m.color, color: 'var(--color-text-primary)' }}>
                 {m.name}
               </span>
             ))}
@@ -110,13 +110,13 @@ export function ProviderCenter() {
 
         {routingQuery.isLoading && <p style={mutedStyle}>reading routing config…</p>}
         {routingQuery.isError && (
-          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+          <p style={{ ...mutedStyle, color: 'var(--color-destructive)' }}>
             couldn&apos;t read model routing —{' '}
             {routingQuery.error instanceof Error ? routingQuery.error.message : 'gateway error'}
           </p>
         )}
         {routingQuery.data && !routingQuery.data.readable && (
-          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>{routingQuery.data.error}</p>
+          <p style={{ ...mutedStyle, color: 'var(--color-destructive)' }}>{routingQuery.data.error}</p>
         )}
 
         {(routingQuery.data?.routes ?? []).map(route => (
@@ -143,7 +143,7 @@ export function ProviderCenter() {
         ))}
 
         {(routingQuery.data?.warnings ?? []).map(warning => (
-          <p key={warning} style={{ ...mutedStyle, color: 'var(--c-yellow)' }}>⚠ {warning}</p>
+          <p key={warning} style={{ ...mutedStyle, color: 'var(--color-warning)' }}>⚠ {warning}</p>
         ))}
 
         {routingQuery.data?.readable && (
@@ -160,7 +160,7 @@ export function ProviderCenter() {
         <div style={sectionLabelStyle}>plugins</div>
         {pluginsQuery.isLoading && <p style={mutedStyle}>loading plugins…</p>}
         {pluginsQuery.isError && (
-          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+          <p style={{ ...mutedStyle, color: 'var(--color-destructive)' }}>
             couldn&apos;t read plugins —{' '}
             {pluginsQuery.error instanceof Error ? pluginsQuery.error.message : 'gateway error'}
           </p>
@@ -176,7 +176,7 @@ export function ProviderCenter() {
               onClick={() => togglePlugin.mutate({ name: p.name, enabled: !p.enabled })}
               disabled={togglePlugin.isPending}
               variant={p.enabled ? 'primary' : 'secondary'}
-              size="sm"
+              size="md"
             >
               {p.enabled ? 'enabled' : 'disabled'}
             </Button>
@@ -193,14 +193,14 @@ export function ProviderCenter() {
             onClick={() => void imageStatusQuery.refetch()}
             disabled={imageStatusQuery.isFetching}
             variant="ghost"
-            size="sm"
+            size="md"
             icon={<RefreshCw size={12} />}
           >
             {imageStatusQuery.isFetching ? 'checking…' : 'refresh'}
           </Button>
         </div>
         {imageStatusQuery.isError && (
-          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+          <p style={{ ...mutedStyle, color: 'var(--color-destructive)' }}>
             couldn&apos;t read image engine health — gateway error
           </p>
         )}
@@ -227,7 +227,7 @@ export function ProviderCenter() {
         </div>
         {serversQuery.isLoading && <p style={mutedStyle}>loading servers…</p>}
         {serversQuery.isError && (
-          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+          <p style={{ ...mutedStyle, color: 'var(--color-destructive)' }}>
             couldn&apos;t read MCP servers —{' '}
             {serversQuery.error instanceof Error ? serversQuery.error.message : 'gateway error'}
           </p>
@@ -337,13 +337,13 @@ Selecting a provider forces normal chat through that provider. Auto keeps Kitty 
 
 {chainQuery.isLoading && <p style={mutedStyle}>reading provider chain…</p>}
       {chainQuery.isError && (
-        <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+        <p style={{ ...mutedStyle, color: 'var(--color-destructive)' }}>
           couldn&apos;t read the provider chain —{' '}
           {chainQuery.error instanceof Error ? chainQuery.error.message : 'gateway error'}
         </p>
       )}
       {save.isError && (
-        <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+        <p style={{ ...mutedStyle, color: 'var(--color-destructive)' }}>
           couldn&apos;t save —{' '}
           {save.error instanceof Error ? save.error.message : 'gateway rejected the change'}
         </p>
@@ -386,7 +386,7 @@ Selecting a provider forces normal chat through that provider. Auto keeps Kitty 
               onClick={() => move(provider.name, -1)}
               disabled={save.isPending || provider.disabled || provider.position === 0}
               variant="ghost"
-              size="sm"
+              size="md"
               icon={<ChevronUp size={12} />}
               ariaLabel={`Move ${provider.name} up`}
             >{''}</Button>
@@ -394,7 +394,7 @@ Selecting a provider forces normal chat through that provider. Auto keeps Kitty 
               onClick={() => move(provider.name, 1)}
               disabled={save.isPending || provider.disabled || provider.position === order.length - 1}
               variant="ghost"
-              size="sm"
+              size="md"
               icon={<ChevronDown size={12} />}
               ariaLabel={`Move ${provider.name} down`}
             >{''}</Button>
@@ -402,7 +402,7 @@ Selecting a provider forces normal chat through that provider. Auto keeps Kitty 
               onClick={() => toggle(provider.name, !provider.disabled)}
               disabled={save.isPending}
               variant={provider.disabled ? 'secondary' : 'primary'}
-              size="sm"
+              size="md"
               ariaLabel={`${provider.disabled ? 'Enable' : 'Disable'} ${provider.name}`}
             >
               {provider.disabled ? 'off' : 'on'}
@@ -412,7 +412,7 @@ Selecting a provider forces normal chat through that provider. Auto keeps Kitty 
       ))}
 
       {(chainQuery.data?.warnings ?? []).map(warning => (
-        <p key={warning} style={{ ...mutedStyle, color: 'var(--c-yellow)' }}>⚠ {warning}</p>
+        <p key={warning} style={{ ...mutedStyle, color: 'var(--color-warning)' }}>⚠ {warning}</p>
       ))}
     </div>
   )
@@ -426,7 +426,7 @@ function StatusDot({ ok, okLabel, badLabel }: { ok: boolean; okLabel: string; ba
           width: 7,
           height: 7,
           borderRadius: '50%',
-          background: ok ? 'var(--c-green)' : 'var(--c-red)',
+          background: ok ? 'var(--color-success)' : 'var(--color-destructive)',
           display: 'inline-block',
         }}
       />
@@ -437,9 +437,9 @@ function StatusDot({ ok, okLabel, badLabel }: { ok: boolean; okLabel: string; ba
 
 function ProviderKindBadge({ kind }: { kind: string }) {
   const colors: Record<string, string> = {
-    local: 'var(--c-green)',
-    api_credit: 'var(--c-blue)',
-    subscription: 'var(--c-yellow)',
+    local: 'var(--color-success)',
+    api_credit: 'var(--color-accent)',
+    subscription: 'var(--color-warning)',
   }
   const labels: Record<string, string> = {
     local: 'local',
@@ -453,8 +453,8 @@ function ProviderKindBadge({ kind }: { kind: string }) {
       letterSpacing: '0.06em',
       padding: '1px 6px',
       borderRadius: 999,
-      border: `1px solid ${colors[kind] ?? 'var(--line)'}`,
-      color: colors[kind] ?? 'var(--ink-2)',
+      border: `1px solid ${colors[kind] ?? 'var(--color-separator)'}`,
+      color: colors[kind] ?? 'var(--color-text-secondary)',
       flexShrink: 0,
     }}>
       {labels[kind] ?? kind}
@@ -480,13 +480,13 @@ function FreeTierBadge() {
 }
 
 const optionStyle: CSSProperties = {
-background: 'var(--surface-2)',
-border: '1.5px solid var(--line)',
+background: 'var(--color-surface-elevated)',
+border: '1.5px solid var(--color-separator)',
 borderRadius: 8,
 padding: '8px 10px',
 fontFamily: 'var(--font-mono)',
 fontSize: 11,
-color: 'var(--ink)',
+color: 'var(--color-text-primary)',
 }
 
 const titleStyle: CSSProperties = {
@@ -494,18 +494,18 @@ const titleStyle: CSSProperties = {
   fontWeight: 800,
   fontSize: 28,
   letterSpacing: '-0.02em',
-  color: 'var(--ink)',
+  color: 'var(--color-text-primary)',
 }
 
 const subtitleStyle: CSSProperties = {
   fontSize: 13,
-  color: 'var(--ink-2)',
+  color: 'var(--color-text-secondary)',
   marginTop: 2,
 }
 
 const cardStyle: CSSProperties = {
-  background: 'var(--surface)',
-  border: '1.5px solid var(--line)',
+  background: 'var(--color-surface)',
+  border: '1.5px solid var(--color-separator)',
   borderRadius: 14,
   padding: 18,
   display: 'grid',
@@ -520,7 +520,7 @@ const sectionLabelStyle: CSSProperties = {
   fontWeight: 700,
   letterSpacing: '0.12em',
   textTransform: 'lowercase',
-  color: 'var(--ink-2)',
+  color: 'var(--color-text-secondary)',
 }
 
 const rowStyle: CSSProperties = {
@@ -528,20 +528,20 @@ const rowStyle: CSSProperties = {
   alignItems: 'center',
   gap: 12,
   padding: '8px 0',
-  borderBottom: '1px solid var(--line)',
+  borderBottom: '1px solid var(--color-separator)',
   minWidth: 0,
 }
 
 const rowNameStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
-  color: 'var(--ink)',
+  color: 'var(--color-text-primary)',
   overflowWrap: 'anywhere',
 }
 
 const rowNoteStyle: CSSProperties = {
   fontSize: 12,
-  color: 'var(--ink-2)',
+  color: 'var(--color-text-secondary)',
   lineHeight: 1.5,
   overflowWrap: 'anywhere',
 }
@@ -551,7 +551,7 @@ const toggleStyle: CSSProperties = {
   fontSize: 10,
   letterSpacing: '0.06em',
   padding: '4px 12px',
-  border: '1.5px solid var(--line)',
+  border: '1.5px solid var(--color-separator)',
   borderRadius: 999,
   cursor: 'pointer',
   flexShrink: 0,
@@ -562,9 +562,9 @@ const refreshStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   padding: '3px 8px',
-  color: 'var(--ink-2)',
+  color: 'var(--color-text-secondary)',
   background: 'transparent',
-  border: '1px solid var(--line)',
+  border: '1px solid var(--color-separator)',
   borderRadius: 4,
   cursor: 'pointer',
 }
@@ -574,15 +574,15 @@ const chipStyle: CSSProperties = {
   fontSize: 10,
   letterSpacing: '0.06em',
   padding: '2px 8px',
-  border: '1px solid var(--line)',
+  border: '1px solid var(--color-separator)',
   borderRadius: 999,
-  color: 'var(--ink-2)',
+  color: 'var(--color-text-secondary)',
   flexShrink: 0,
 }
 
 const laneCardStyle: CSSProperties = {
   background: 'var(--bg)',
-  border: '1.5px solid var(--line)',
+  border: '1.5px solid var(--color-separator)',
   borderRadius: 10,
   padding: '10px 12px',
   display: 'grid',
@@ -600,14 +600,14 @@ const laneChipStyle: CSSProperties = {
 const metaStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--ink-2)',
+  color: 'var(--color-text-secondary)',
   overflowWrap: 'anywhere',
 }
 
 const mutedStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 12,
-  color: 'var(--ink-2)',
+  color: 'var(--color-text-secondary)',
   lineHeight: 1.6,
   overflowWrap: 'anywhere',
 }
@@ -615,8 +615,8 @@ const mutedStyle: CSSProperties = {
 const codeStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  background: 'var(--surface-2)',
+  background: 'var(--color-surface-elevated)',
   padding: '1px 5px',
   borderRadius: 4,
-  color: 'var(--ink)',
+  color: 'var(--color-text-primary)',
 }

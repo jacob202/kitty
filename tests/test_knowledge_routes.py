@@ -545,6 +545,16 @@ class TestSSRFProtection:
         )
         assert r.status_code == 403
 
+    def test_literal_ip_validation_does_not_use_dns(self, monkeypatch):
+        monkeypatch.setattr(
+            knowledge_route.socket,
+            "getaddrinfo",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("DNS must not run")),
+        )
+        assert knowledge_route._resolve_and_validate_host("93.184.216.34") == [
+            "93.184.216.34"
+        ]
+
     def test_ingest_rejects_non_http_scheme(self, client):
         r = client.post(
             "/knowledge/ingest", json={"url": "file:///etc/passwd"}

@@ -32,6 +32,7 @@ def _fresh_db(tmp_path: Path, monkeypatch):
     import gateway.paths as gp
 
     monkeypatch.setattr(gp, "KITTY_DB_FILE", test_db)
+    monkeypatch.setattr("gateway.artifact_store.ARTIFACTS_DB_FILE", test_db)
     monkeypatch.setattr(gp, "DATA_DIR", tmp_path / "data")
 
     conn = sqlite3.connect(str(test_db))
@@ -137,12 +138,19 @@ class TestEditDispatch:
     @pytest.mark.asyncio
     async def test_the_edit_job_records_its_parent_and_operation(self, tmp_path: Path):
         anchor = _succeeded_anchor(tmp_path)
+        intent_json = json.dumps({"intent_version": 1, "operation": "img2img"})
         result = await run_edit(
-            "broader build", anchor_job_id=anchor, worker=StubWorker()
+            "broader build",
+            anchor_job_id=anchor,
+            worker=StubWorker(),
+            plan_id="imgplan_edit",
+            intent_json=intent_json,
         )
 
         job = image_jobs.get_job(result.job_id)
         assert job.operation == "img2img"
+        assert job.plan_id == "imgplan_edit"
+        assert job.intent_json == intent_json
         assert job.parent_id == anchor
         assert job.workflow_template_id == "image_to_image_v1"
         assert json.loads(job.provider_params_json)["denoise"] == (

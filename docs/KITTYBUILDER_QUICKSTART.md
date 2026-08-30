@@ -14,6 +14,17 @@ To execute queued packets with zero-cost OpenCode models instead of paid
 tokens, see `docs/FREE_WORKERS.md` — the short version is
 `./kitty builder initiative run-packet <id> <packet> --free --watch`.
 
+When an initiative run is started with publication enabled, Builder also runs
+the **PR Janitor** before opening/updating the PR. It applies only packet-scoped
+Ruff fixes, runs `scripts/hooks/pre-push`, and feeds any remaining failure back
+into the existing bounded repair loop. Each pass is recorded as a
+`pr_janitor_pass` event; the janitor stops after 3 passes and leaves a durable
+blocker instead of looping indefinitely. Non-publishing/shadow runs are
+unchanged. Direct `queue publish` also runs the same safe deterministic fixer
+before `git push`; its existing Git pre-push hook remains the final gate.
+Semantic repair retries stay in the initiative run loop rather than creating a
+second worker loop inside the operator publish command.
+
 ## Quickstart
 
 ```bash
@@ -197,18 +208,12 @@ so the next worker starts from what actually happened instead of a stale chat.
   operator-gated publication step. It does not accept Missions autonomously,
   run as an always-on autonomous daemon, or bypass human push/merge authority.
 
-## Cutting over from GitHub issue #127
+## GitHub issue #127 cutover — complete
 
-Issue #127 stays the bridge inbox **until the local queue survives one full
-dogfooded task lifecycle** (add → claim → work → PR → done, plus one recovery
-event). After that:
+The cutover has already happened. New executable work goes into the local
+KittyBuilder queue/Mission state, not #127 comments. Issue #127 is historical
+bridge/audit metadata only; comments there are advisory and never mutate local
+state. PR reports, review, CI, and merge approval remain on the PR.
 
-1. New tasks go into the local queue (`queue add`), not #127 comments.
-2. #127 stays open for audit/history and as bridge metadata
-   (`bridge_source`/`bridge_external_id` on imported tasks) — comments there
-   are advisory only and never mutate local state.
-3. PR coordination is unchanged: reports, review, and merge approval happen
-   on the PR per `docs/WORKFLOW.md`.
-
-Double-tracking tasks in both places is the failure mode to avoid: after
-cutover, if it isn't in the queue, it isn't a task.
+Do not double-track tasks. If Builder has not recorded it durably, it is not an
+executable Builder task.

@@ -1,10 +1,12 @@
 import { MODELS, type Model } from './types'
+import { buildPickerModels, fetchModelPicker } from './model-picker'
 
 const GATEWAY_BASE = '/proxy'
 // The proxy has to cross the Next.js boundary and may wake a local gateway
 // store on the first request. 2.5s made healthy features look permanently
 // offline after a cold start; keep the timeout bounded but realistic.
 const DEFAULT_TIMEOUT_MS = 8000
+const SEARCH_TIMEOUT_MS = 7000
 
 export interface GatewayHeadline {
   title: string
@@ -41,12 +43,14 @@ export interface GatewaySearchSnapshot {
     knowledge: number
     journal: number
     todos: number
+    inbox: number
   }
   sections: {
     memories: string[]
     knowledge: string[]
     journal: string[]
     todos: string[]
+    inbox: string[]
   }
 }
 
@@ -315,6 +319,9 @@ export type GatewayBriefPayload = {
 
 export type GatewaySearchPayload = {
   snapshot: GatewaySearchSnapshot | null
+  hits: GatewaySearchHit[]
+  degradedStores: string[]
+  degradedErrors: string[]
   fromLiveGateway: boolean
   error: string | null
 }
@@ -418,6 +425,7 @@ export function summarizeGatewaySearch(raw: {
   knowledge?: GatewaySearchHit[]
   journal?: GatewaySearchHit[]
   todos?: GatewaySearchHit[]
+  inbox?: GatewaySearchHit[]
 }): GatewaySearchSnapshot {
   const pick = (items: GatewaySearchHit[] | undefined) =>
     (items ?? []).slice(0, 3).map(item => {
@@ -432,6 +440,7 @@ export function summarizeGatewaySearch(raw: {
   const knowledge = pick(raw.knowledge)
   const journal = pick(raw.journal)
   const todos = pick(raw.todos)
+  const inbox = pick(raw.inbox)
 
   return {
     query: (raw.query ?? '').trim(),
@@ -440,12 +449,14 @@ export function summarizeGatewaySearch(raw: {
       knowledge: knowledge.length,
       journal: journal.length,
       todos: todos.length,
+      inbox: inbox.length,
     },
     sections: {
       memories,
       knowledge,
       journal,
       todos,
+      inbox,
     },
   }
 }
@@ -470,8 +481,38 @@ export async function fetchGatewayModels(): Promise<GatewayModelsPayload> {
           return model?.id
         }).filter((id: unknown): id is string => typeof id === 'string')
       : []
+    const liveIds = new Set(ids)
+    let picker
+    try {
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+      try {
+        picker = await fetchModelPicker(controller.signal)
+      } finally {
+        window.clearTimeout(timeoutId)
+      }
+    } catch (err) {
+      const models = MODELS.filter(model => liveIds.has(model.id))
+      const error = err instanceof Error && err.name === 'AbortError'
+        ? 'Model details timed out — retry to reconnect to Kitty.'
+        : `Model details unavailable — ${describeFetchError(err, null)}. Retry to reconnect to Kitty.`
+      return {
+        models,
+        fromLiveGateway: false,
+        error,
+      }
+    }
+
+    const models = buildPickerModels(picker).filter(model => liveIds.has(model.id))
+    if (models.length === 0) {
+      return {
+        models: [],
+        fromLiveGateway: false,
+        error: 'No live curated models are available — retry to reconnect to Kitty.',
+      }
+    }
     return {
-      models: buildGatewayModels(ids, displayNames),
+      models,
       fromLiveGateway: true,
       error: null,
     }
@@ -625,6 +666,63 @@ export interface AgentSession {
   output?: string
 }
 
+export interface AgentWorkspaceAgent {
+  id: string
+  display_name: string
+  role: string
+  model: string | null
+  status: 'available' | 'paused' | 'retired'
+}
+
+export interface AgentWorkspaceMessage {
+  id: string
+  workspace_id: string
+  parent_message_id: string | null
+  sender_kind: 'user' | 'agent' | 'system'
+  sender_id: string
+  recipient_id: string | null
+  message_kind: 'prompt' | 'plan' | 'handoff' | 'review' | 'result' | 'status'
+  content: string
+  created_at: number
+}
+
+export interface AgentWorkspaceEvent {
+  id: string
+  sequence: number
+  workspace_id: string
+  type: string
+  actor_kind: 'user' | 'agent' | 'system'
+  actor_id: string
+  message_id: string | null
+  metadata: Record<string, unknown>
+  created_at: number
+}
+
+export interface AgentWorkspaceTurn {
+  id: string
+  workspace_id: string
+  user_message_id: string
+  status: 'running' | 'completed' | 'failed' | 'interrupted'
+  active_agent_id: string | null
+  error_type: string | null
+  error_message: string | null
+  started_at: number
+  finished_at: number | null
+}
+
+export interface AgentWorkspace {
+  id: string
+  name: string
+  objective: string | null
+  status: 'active' | 'paused' | 'closed'
+  created_at: number
+  updated_at: number
+  agents: AgentWorkspaceAgent[]
+  messages: AgentWorkspaceMessage[]
+  events: AgentWorkspaceEvent[]
+  turns: AgentWorkspaceTurn[]
+}
+
 async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController()
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
@@ -730,43 +828,54 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(item => typeof item === 'string')
 }
 
-export async function spawnAgent(goal: string, agentType: AgentType = 'explorer'): Promise<number | null> {
-  try {
-    const json = await gfetch<{ session_id?: number }>('/agent/spawn', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, agent_type: agentType }),
-    })
-    return json.session_id ?? null
-  } catch {
-    return null
+export async function spawnAgent(goal: string, agentType: AgentType = 'explorer'): Promise<number> {
+  const json = await gfetch<{ session_id?: number }>('/agent/spawn', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ goal, agent_type: agentType }),
+  })
+  if (json.session_id === undefined) {
+    throw new Error('gateway accepted the agent but returned no session id')
   }
+  return json.session_id
 }
 
-export async function fetchAgentStatus(sessionId: number): Promise<AgentSession | null> {
-  try {
-    return await gfetch<AgentSession>(`/agent/${sessionId}`)
-  } catch {
-    return null
-  }
+export async function fetchAgentStatus(sessionId: number): Promise<AgentSession> {
+  return await gfetch<AgentSession>(`/agent/${sessionId}`)
 }
 
 export async function fetchAgentSessions(limit = 10): Promise<AgentSession[]> {
-  try {
-    const json = await gfetch<{ agents?: AgentSession[] }>(`/agents?limit=${limit}`)
-    return json.agents ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ agents?: AgentSession[] }>(`/agents?limit=${limit}`)
+  return json.agents ?? []
 }
 
-export async function stopAgent(sessionId: number): Promise<boolean> {
-  try {
-    await gfetch(`/agent/${sessionId}/stop`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+export async function stopAgent(sessionId: number): Promise<void> {
+  await gfetch(`/agent/${sessionId}/stop`, { method: 'POST' })
+}
+
+// ── Shared agent workspace ──────────────────────────────────────────────────
+
+export async function createAgentWorkspace(name: string, objective?: string): Promise<AgentWorkspace> {
+  return gfetch<AgentWorkspace>('/agent-workspaces', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, objective: objective || null }),
+  })
+}
+
+export async function fetchAgentWorkspace(workspaceId: string): Promise<AgentWorkspace> {
+  return gfetch<AgentWorkspace>(`/agent-workspaces/${encodeURIComponent(workspaceId)}`)
+}
+
+export async function runAgentWorkspaceTurn(
+  workspaceId: string,
+  message: string,
+): Promise<{ status: 'running'; workspace_id: string; turn: AgentWorkspaceTurn }> {
+  return gfetch(`/agent-workspaces/${encodeURIComponent(workspaceId)}/turns`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, user_id: 'jacob' }),
+  })
 }
 
 // ── Todos ────────────────────────────────────────────────────────────────────
@@ -797,14 +906,12 @@ export async function addGatewayTodo(content: string): Promise<GatewayTodo> {
   })
 }
 
-export async function completeGatewayTodo(id: number): Promise<boolean> {
+export async function completeGatewayTodo(id: number): Promise<void> {
   await gfetch(`/todos/${id}/complete`, { method: 'POST' })
-  return true
 }
 
-export async function deleteGatewayTodo(id: number): Promise<boolean> {
+export async function deleteGatewayTodo(id: number): Promise<void> {
   await gfetch(`/todos/${id}`, { method: 'DELETE' })
-  return true
 }
 
 // ── Prompt Templates ─────────────────────────────────────────────────────────
@@ -818,65 +925,8 @@ export interface GatewayPromptTemplate {
 }
 
 export async function fetchGatewayPrompts(): Promise<GatewayPromptTemplate[]> {
-  try {
-    const json = await gfetch<{ templates?: GatewayPromptTemplate[] }>('/prompts')
-    return json.templates ?? []
-  } catch {
-    return []
-  }
-}
-
-// ── Tasks ────────────────────────────────────────────────────────────────────
-
-export type TaskType = 'research' | 'ingest' | 'build' | 'cleanup' | 'dream'
-
-export interface GatewayTask {
-  task_id: string
-  goal: string
-  task_type: string
-  status: string
-  created_at?: number
-  updated_at?: number
-  started_at?: number | null
-  completed_at?: number | null
-  /** Free-text step the runner is on, e.g. "Iteration 2...". */
-  progress?: string
-  error?: string | null
-}
-
-export async function fetchGatewayTasks(limit = 20): Promise<GatewayTask[]> {
-  try {
-    const json = await gfetch<{ tasks?: GatewayTask[] }>(`/tasks?limit=${limit}`)
-    return json.tasks ?? []
-  } catch {
-    return []
-  }
-}
-
-/** Throws on failure. Swallowing the error here made a dead gateway look like a
- *  successful launch: React Query fired onSuccess and the UI stayed silent. */
-export async function createGatewayTask(
-  goal: string,
-  taskType: TaskType = 'research',
-): Promise<string> {
-  const json = await gfetch<{ task_id?: string }>('/task/create', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ goal, task_type: taskType }),
-  })
-  if (!json.task_id) throw new Error('gateway accepted the task but returned no task id')
-  return json.task_id
-}
-
-/** Throws on failure — see createGatewayTask. */
-export async function cancelGatewayTask(taskId: string): Promise<void> {
-  if (!taskId) throw new Error('cannot cancel a task with no id')
-  await gfetch(`/task/${taskId}/cancel`, { method: 'POST' })
-}
-
-export async function fetchGatewayTaskOutput(taskId: string): Promise<string> {
-  const json = await gfetch<{ output?: string }>(`/task/${taskId}/output`)
-  return json.output ?? ''
+  const json = await gfetch<{ templates?: GatewayPromptTemplate[] }>('/prompts')
+  return json.templates ?? []
 }
 
 // ── Monitors ─────────────────────────────────────────────────────────────────
@@ -893,34 +943,22 @@ export interface GatewayMonitor {
 }
 
 export async function fetchGatewayMonitors(): Promise<GatewayMonitor[]> {
-  try {
-    const json = await gfetch<{ watches?: GatewayMonitor[] }>('/monitors')
-    return json.watches ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ watches?: GatewayMonitor[] }>('/monitors')
+  return json.watches ?? []
 }
 
-export async function addGatewayMonitor(url: string, label: string): Promise<string | null> {
-  try {
-    const json = await gfetch<{ watch_id?: string }>('/monitor/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, label }),
-    })
-    return json.watch_id ?? null
-  } catch {
-    return null
-  }
+export async function addGatewayMonitor(url: string, label: string): Promise<string> {
+  const json = await gfetch<{ watch_id?: string }>('/monitor/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, label }),
+  })
+  if (!json.watch_id) throw new Error('gateway accepted the monitor but returned no watch id')
+  return json.watch_id
 }
 
-export async function removeGatewayMonitor(watchId: string): Promise<boolean> {
-  try {
-    await gfetch(`/monitor/${watchId}`, { method: 'DELETE' })
-    return true
-  } catch {
-    return false
-  }
+export async function removeGatewayMonitor(watchId: string): Promise<void> {
+  await gfetch(`/monitor/${watchId}`, { method: 'DELETE' })
 }
 
 export async function fetchGatewaySearch(
@@ -930,47 +968,94 @@ export async function fetchGatewaySearch(
 ): Promise<GatewaySearchPayload> {
   const q = query.trim()
   if (!q) {
-    return { snapshot: null, fromLiveGateway: true, error: null }
+    return { snapshot: null, hits: [], degradedStores: [], degradedErrors: [], fromLiveGateway: true, error: null }
   }
 
   try {
     const response = await fetchWithTimeout(
       `${GATEWAY_BASE}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
-      4000,
+      SEARCH_TIMEOUT_MS,
       signal,
     )
     if (!response.ok) {
       return {
         snapshot: null,
+        hits: [],
+        degradedStores: [],
+        degradedErrors: [],
         fromLiveGateway: false,
         error: describeFetchError(null, response),
       }
     }
     const json = await response.json()
+    const grouped: Record<string, GatewaySearchHit[]> = {
+      memory: [],
+      knowledge: [],
+      journal: [],
+      todos: [],
+      inbox: [],
+    }
+    const hits: GatewaySearchHit[] = []
+    const degradedStores = Array.isArray(json?.degraded_stores)
+      ? json.degraded_stores
+        .filter((store: unknown): store is string => typeof store === 'string' && store.length > 0)
+        .slice(0, 10)
+        .map((store: string) => store.slice(0, 64))
+      : []
+    const degradedErrors = Array.isArray(json?.errors)
+      ? json.errors
+        .filter((error: unknown): error is string => typeof error === 'string')
+        .slice(0, 5)
+        .map((error: string) => error.slice(0, 240))
+      : []
+    for (const row of Array.isArray(json?.results) ? json.results : []) {
+      const store = typeof row?.store === 'string' ? row.store : ''
+      if (!(store in grouped) || typeof row?.content !== 'string') continue
+      const hit: GatewaySearchHit = {
+        kind: typeof row.kind === 'string' ? row.kind : store,
+        source: typeof row.source === 'string' ? row.source : store,
+        title: typeof row.title === 'string' ? row.title : store,
+        text: row.content,
+        score: typeof row.score === 'number' ? row.score : null,
+        metadata: isRecord(row.metadata) ? row.metadata : undefined,
+      }
+      grouped[store].push(hit)
+      hits.push(hit)
+    }
     return {
       snapshot: summarizeGatewaySearch({
         query: q,
-        memories: json?.memories,
-        knowledge: json?.knowledge,
-        journal: json?.journal,
-        todos: json?.todos,
+        memories: grouped.memory,
+        knowledge: grouped.knowledge,
+        journal: grouped.journal,
+        todos: grouped.todos,
+        inbox: grouped.inbox,
       }),
+      hits,
+      degradedStores,
+      degradedErrors,
       fromLiveGateway: true,
       error: null,
     }
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       if (signal?.aborted) {
-        return { snapshot: null, fromLiveGateway: true, error: null }
+        return { snapshot: null, hits: [], degradedStores: [], degradedErrors: [], fromLiveGateway: true, error: null }
       }
       return {
         snapshot: null,
+        hits: [],
+        degradedStores: [],
+        degradedErrors: [],
         fromLiveGateway: false,
         error: 'Request timed out — is the Kitty gateway running?',
       }
     }
     return {
       snapshot: null,
+      hits: [],
+      degradedStores: [],
+      degradedErrors: [],
       fromLiveGateway: false,
       error: describeFetchError(err, null),
     }
@@ -996,13 +1081,8 @@ export async function fetchGatewayLoops(): Promise<GatewayLoopsPayload> {
   }
 }
 
-export async function toggleGatewayLoop(loopId: string): Promise<boolean> {
-  try {
-    await gfetch(`/loop/${loopId}/toggle`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+export async function toggleGatewayLoop(loopId: string): Promise<void> {
+  await gfetch(`/loop/${loopId}/toggle`, { method: 'POST' })
 }
 
 // ── Insights Fetch ────────────────────────────────────────────────────────────
@@ -1024,13 +1104,8 @@ export async function fetchGatewayInsights(limit = 10): Promise<GatewayInsightsP
   }
 }
 
-export async function dismissGatewayInsight(insightId: string): Promise<boolean> {
-  try {
-    await gfetch(`/insight/${insightId}/dismiss`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+export async function dismissGatewayInsight(insightId: string): Promise<void> {
+  await gfetch(`/insight/${insightId}/dismiss`, { method: 'POST' })
 }
 
 // ── Cron Schedules ────────────────────────────────────────────────────────────
@@ -1048,21 +1123,13 @@ export interface CronSchedule {
 }
 
 export async function fetchCronSchedules(): Promise<CronSchedule[]> {
-  try {
-    const json = await gfetch<{ schedules?: CronSchedule[] }>('/cron/schedules')
-    return json.schedules ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ schedules?: CronSchedule[] }>('/cron/schedules')
+  return json.schedules ?? []
 }
 
 export async function fetchCronActions(): Promise<string[]> {
-  try {
-    const json = await gfetch<{ actions?: string[] }>('/cron/actions')
-    return json.actions ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ actions?: string[] }>('/cron/actions')
+  return json.actions ?? []
 }
 
 export async function createCronSchedule(
@@ -1070,26 +1137,18 @@ export async function createCronSchedule(
   action: string,
   scheduleType: CronScheduleType,
   scheduleValue: string,
-): Promise<string | null> {
-  try {
-    const json = await gfetch<{ id?: string }>('/cron/schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, action, schedule_type: scheduleType, schedule_value: scheduleValue }),
-    })
-    return json.id ?? null
-  } catch {
-    return null
-  }
+): Promise<string> {
+  const json = await gfetch<{ id?: string }>('/cron/schedule', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, action, schedule_type: scheduleType, schedule_value: scheduleValue }),
+  })
+  if (!json.id) throw new Error('gateway accepted the schedule but returned no id')
+  return json.id
 }
 
-export async function deleteCronSchedule(id: string): Promise<boolean> {
-  try {
-    await gfetch(`/cron/schedule/${id}`, { method: 'DELETE' })
-    return true
-  } catch {
-    return false
-  }
+export async function deleteCronSchedule(id: string): Promise<void> {
+  await gfetch(`/cron/schedule/${id}`, { method: 'DELETE' })
 }
 
 export async function updateCronSchedule(
@@ -1098,22 +1157,74 @@ export async function updateCronSchedule(
   action: string,
   scheduleType: CronScheduleType,
   scheduleValue: string,
-): Promise<boolean> {
+): Promise<void> {
   await gfetch(`/cron/schedule/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, action, schedule_type: scheduleType, schedule_value: scheduleValue }),
   })
-  return true
 }
 
-export async function toggleCronSchedule(id: string): Promise<boolean> {
-  try {
-    await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+export async function toggleCronSchedule(id: string): Promise<void> {
+  await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
+}
+
+export interface AutomationRetryResult {
+  run: { id: string; status: string }
+  retried_from: string
+}
+
+export async function retryAutomationRun(runId: string): Promise<AutomationRetryResult> {
+  return gfetch<AutomationRetryResult>(`/automations/runs/${encodeURIComponent(runId)}/retry`, {
+    method: 'POST',
+  })
+}
+
+// ── Why didn't this happen? ─────────────────────────────────────────────────
+
+export type WhyStatus =
+  | 'not_yet_due'
+  | 'disabled'
+  | 'already_claimed'
+  | 'claimed'
+  | 'source_unavailable'
+  | 'condition_false'
+  | 'policy_refused'
+  | 'approval_required'
+  | 'grant_expired'
+  | 'grant_revoked'
+  | 'action_unavailable'
+  | 'failed'
+  | 'interrupted'
+  | 'completed'
+  | 'execution_gap'
+  | 'pending_claim'
+  | 'not_triggered'
+
+export interface WhyExplanation {
+  status: WhyStatus
+  reason: string
+  relevant_at: number | null
+  action: string
+  automation: string
+  evidence: Record<string, unknown>
+  next_step: string
+}
+
+export async function fetchScheduleWhy(scheduleId: string): Promise<WhyExplanation> {
+  const json = await gfetch<{ explanation?: WhyExplanation }>(
+    `/automations/schedules/${scheduleId}/why`,
+  )
+  if (!json.explanation) throw new Error(`gateway returned no explanation for schedule ${scheduleId}`)
+  return json.explanation
+}
+
+export async function fetchActionWhy(action: string): Promise<WhyExplanation> {
+  const json = await gfetch<{ explanation?: WhyExplanation }>(
+    `/automations/${encodeURIComponent(action)}/why`,
+  )
+  if (!json.explanation) throw new Error(`gateway returned no explanation for action ${action}`)
+  return json.explanation
 }
 
 // ── Dream / Performance ─────────────────────────────────────────────────────
@@ -1167,6 +1278,7 @@ export interface ImageEngineStatus {
   name: string
   label: string
   available: boolean
+  unavailable_reason?: string | null
 }
 
 export interface ImageStatus {
@@ -1195,25 +1307,17 @@ export async function fetchImageStatus(): Promise<ImageStatus> {
 export async function generateImage(
   prompt: string,
   engine = 'comfyui',
-): Promise<{ filename: string; job_id?: string; engine?: string } | null> {
-  try {
-    return await gfetch<{ filename: string; job_id?: string; engine?: string }>('/image/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, engine }),
-    })
-  } catch {
-    return null
-  }
+): Promise<{ filename: string; job_id?: string; engine?: string }> {
+  return await gfetch<{ filename: string; job_id?: string; engine?: string }>('/image/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, engine }),
+  })
 }
 
 export async function fetchImageHistory(limit = 20): Promise<ImageEntry[]> {
-  try {
-    const json = await gfetch<{ images?: ImageEntry[] }>(`/image/history?limit=${limit}`)
-    return json.images ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ images?: ImageEntry[] }>(`/image/history?limit=${limit}`)
+  return json.images ?? []
 }
 
 // ── State / Actions ──────────────────────────────────────────────────────────
@@ -1259,12 +1363,19 @@ export async function fetchActions(status?: string): Promise<GatewayAction[]> {
   return json.actions ?? []
 }
 
-export async function approveAction(id: number): Promise<void> {
-  await gfetch(`/actions/${id}/approve`, { method: 'POST' })
+export async function approveAction(id: number): Promise<GatewayAction> {
+  return gfetch<GatewayAction>(`/actions/${id}/approve`, { method: 'POST' })
 }
 
 export async function rejectAction(id: number): Promise<void> {
   await gfetch(`/actions/${id}/reject`, { method: 'POST' })
+}
+
+/** Dispatch an approved (or auto-executable) action through its executor.
+ *  Approving a T2 action does not run it — this is the second, separate
+ *  call that actually produces the durable result. */
+export async function executeAction(id: number): Promise<GatewayAction> {
+  return gfetch<GatewayAction>(`/actions/${id}/execute`, { method: 'POST' })
 }
 
 export async function snapshotState(): Promise<void> {
@@ -1340,19 +1451,15 @@ export interface CaptureResult {
 export async function uploadCaptureFile(
   file: File,
   opts?: { conversationId?: string; projectId?: number },
-): Promise<CaptureResult | null> {
+): Promise<CaptureResult> {
   const formData = new FormData()
   formData.append('file', file)
   if (opts?.conversationId) formData.append('conversation_id', opts.conversationId)
   if (opts?.projectId !== undefined) formData.append('project_id', String(opts.projectId))
-  try {
-    return await gfetch<CaptureResult>('/capture/file', {
-      method: 'POST',
-      body: formData,
-    })
-  } catch {
-    return null
-  }
+  return await gfetch<CaptureResult>('/capture/file', {
+    method: 'POST',
+    body: formData,
+  })
 }
 
 // ── Projects ─────────────────────────────────────────────────────────────────
@@ -1385,11 +1492,115 @@ export interface GatewayNextStep {
   generated_at: number
 }
 
+/** The bounded artifact slice project_resume.resume() projects — see gateway/project_resume.py. */
+export interface GatewayProjectArtifact {
+  id: string
+  kind: string
+  display_name: string
+  state: string
+  created_at: number
+  media_type: string
+  size_bytes: number
+}
+
+/** One Builder initiative projected as a Work item — see gateway/_work_projection_item.py. */
+export interface GatewayProjectWorkItem {
+  id: string
+  title: string | null
+  state: 'active' | 'blocked' | 'failed' | 'ready' | 'waiting' | 'paused' | 'completed'
+  next_action: string | null
+  updated_at: string | null
+}
+
+/** The Work snapshot project_resume.resume() scopes to this project — see gateway/project_resume.py. */
+export interface GatewayProjectWork {
+  items: GatewayProjectWorkItem[]
+  total_items: number
+}
+
+export interface GatewayProjectConversation {
+  id: string
+  title: string
+  objective: string | null
+  updated_at: number
+}
+
+export interface GatewayProjectDeadline {
+  id: number
+  due_date: string
+  obligation: string
+  amount: string | null
+  currency: string | null
+  confidence: string
+  status: string
+}
+
+export interface GatewayProjectSection<T> {
+  items: T[]
+  error: string | null
+}
+
+export interface GatewayProjectResume {
+  id: number
+  artifacts: GatewayProjectArtifact[]
+  work: GatewayProjectWork
+  conversations: GatewayProjectSection<GatewayProjectConversation>
+  deadlines: GatewayProjectSection<GatewayProjectDeadline>
+}
+
+export interface GatewayArtifact {
+  id: string
+  project_id: number | null
+  kind: string
+  media_type: string
+  display_name: string
+  state: string
+  storage_uri?: string
+  content_hash?: string
+  size_bytes: number
+  created_at: number
+  created_by: string
+  source_ref?: string | null
+  conversation_id?: string | null
+  work_item_id?: string | null
+  run_id?: string | null
+  metadata: Record<string, unknown>
+  error?: string | null
+}
+
 // Projects/knowledge/provider fetchers throw on failure — react-query's
 // isError is the honest signal, not a silently empty list.
 export async function fetchProjects(): Promise<GatewayProject[]> {
   const json = await gfetch<{ projects?: GatewayProject[] }>('/projects')
   return json.projects ?? []
+}
+
+export async function fetchArtifacts(limit = 100): Promise<GatewayArtifact[]> {
+  const json = await gfetch<unknown>(`/artifacts?limit=${limit}`)
+  if (!isRecord(json) || !Array.isArray(json.artifacts)) {
+    throw new Error('Saved files returned an invalid response')
+  }
+
+  return json.artifacts.map((item): GatewayArtifact => {
+    if (
+      !isRecord(item)
+      || typeof item.id !== 'string'
+      || (item.project_id !== null && typeof item.project_id !== 'number')
+      || typeof item.kind !== 'string'
+      || typeof item.media_type !== 'string'
+      || typeof item.display_name !== 'string'
+      || typeof item.state !== 'string'
+      || typeof item.size_bytes !== 'number'
+      || typeof item.created_at !== 'number'
+      || typeof item.created_by !== 'string'
+    ) {
+      throw new Error('Saved files returned an invalid response')
+    }
+    return {
+      ...item,
+      metadata: isRecord(item.metadata) ? item.metadata : {},
+    } as GatewayArtifact
+  })
 }
 
 export async function fetchActiveProject(): Promise<GatewayActiveProjectPayload> {
@@ -1416,6 +1627,16 @@ export async function fetchProjectNext(projectId: number): Promise<GatewayNextSt
 
 export async function fetchProjectNextSteps(limit = 3): Promise<GatewayNextStep[]> {
   return await gfetch<GatewayNextStep[]>(`/projects/next-steps?limit=${limit}`)
+}
+
+export async function fetchProjectNextStepMap(projectIds: number[]): Promise<GatewayNextStep[]> {
+  if (projectIds.length === 0) return []
+  const encoded = encodeURIComponent(projectIds.join(','))
+  return await gfetch<GatewayNextStep[]>(`/projects/next-step-map?project_ids=${encoded}`)
+}
+
+export async function fetchProjectResume(projectId: number): Promise<GatewayProjectResume> {
+  return await gfetch<GatewayProjectResume>(`/projects/${projectId}/resume`)
 }
 
 /** Blocks on git + LLM composition server-side — give it a long timeout. */
@@ -1720,6 +1941,63 @@ export async function fetchGatewayHealth(): Promise<GatewayHealthPayload> {
   }
 }
 
+export type HealthDomainState = 'available' | 'degraded' | 'stale' | 'unavailable' | 'unknown'
+
+export interface HealthDomainStatus {
+  name: string
+  status: HealthDomainState
+  reason: string
+  detail: Record<string, unknown>
+}
+
+export type HealthSurfaceOverall = 'healthy' | 'degraded' | 'unavailable'
+
+export interface HealthSurfacePayload {
+  ok: boolean
+  generated_at: string | null
+  overall: HealthSurfaceOverall | null
+  domains: HealthDomainStatus[]
+  degraded: string[]
+  still_functional: string[]
+  pending_grants: number
+  error?: string
+}
+
+/** Full-stack health projection from /health/surface — the single surface
+ *  answering "is Kitty working, and if not, exactly what is wrong?". */
+export async function fetchHealthSurface(): Promise<HealthSurfacePayload> {
+  try {
+    const json = await gfetch<{
+      generated_at?: string
+      overall?: HealthSurfaceOverall
+      domains?: HealthDomainStatus[]
+      degraded?: string[]
+      still_functional?: string[]
+      pending_grants?: number
+    }>('/health/surface', undefined, 4000)
+    return {
+      ok: true,
+      generated_at: json.generated_at ?? null,
+      overall: json.overall ?? null,
+      domains: Array.isArray(json.domains) ? json.domains : [],
+      degraded: Array.isArray(json.degraded) ? json.degraded : [],
+      still_functional: Array.isArray(json.still_functional) ? json.still_functional : [],
+      pending_grants: typeof json.pending_grants === 'number' ? json.pending_grants : 0,
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      generated_at: null,
+      overall: null,
+      domains: [],
+      degraded: [],
+      still_functional: [],
+      pending_grants: 0,
+      error: describeFetchError(err, null),
+    }
+  }
+}
+
 export interface GatewayTailnetPayload {
   ok: boolean
   tailnetIp: string | null
@@ -1846,6 +2124,117 @@ export async function executeOperatorCommand(payload: OperatorCommandPayload): P
     },
     15000,
   )
+}
+
+// ── Conversation -> Builder job handoff ───────────────────────────────────────
+// Mirrors the KittyBuilder MCP bridge's propose/approve contract (see
+// gateway/conversation_handoff.py) so a job proposed from a Kitty chat and one
+// proposed by an MCP client share one approval mechanism and one durable store.
+
+export interface ConversationProposeRequest {
+  objective: string
+  instructions: string
+  allowed_paths: string[]
+  initiative_id?: string
+  title?: string
+  acceptance_criteria?: string[]
+  validation_commands?: string[]
+}
+
+export interface ConversationProposal {
+  ok: boolean
+  state?: string | null
+  error_code?: string | null
+  error?: string | null
+  next_action?: string | null
+  mission_id?: string | null
+  manifest_sha256?: string
+  expected_base_sha?: string
+  approval_nonce?: string
+  warnings?: string[]
+  prepared_manifest?: Record<string, unknown>
+  objective?: string
+  design?: { path: string; sha: string }
+  plan?: { path: string; sha: string }
+}
+
+export async function proposeBuilderJob(
+  payload: ConversationProposeRequest,
+): Promise<ConversationProposal> {
+  return await gfetch<ConversationProposal>(
+    '/builder/conversation/propose',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    20000,
+  )
+}
+
+export interface ConversationApproveRequest {
+  prepared_manifest: Record<string, unknown>
+  expected_manifest_sha: string
+  expected_base_sha: string
+  approval_nonce: string
+  confirmed: boolean
+}
+
+export interface ConversationApproval {
+  ok: boolean
+  state?: string | null
+  error_code?: string | null
+  error?: string | null
+  next_action?: string | null
+  mission_id?: string | null
+  apply_status?: string
+  tasks?: Array<{ packet_id: string; task_id: string }>
+}
+
+export async function approveBuilderJob(
+  payload: ConversationApproveRequest,
+): Promise<ConversationApproval> {
+  return await gfetch<ConversationApproval>(
+    '/builder/conversation/approve',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    15000,
+  )
+}
+
+export interface ConversationResume {
+  ok: boolean
+  state?: string | null
+  error_code?: string | null
+  error?: string | null
+  next_action?: string | null
+  objective?: string | null
+  mission?: { id?: string | null; manifest_sha256?: string | null; state?: string | null }
+  current_work?: {
+    packet_id?: string | null
+    task_id?: string | null
+    state?: string | null
+    attempt_count?: number | null
+  }
+  blocker?: string | null
+  pr?: {
+    number?: number | null
+    url?: string | null
+    checks_state?: string | null
+    review_state?: string | null
+    merged?: boolean | null
+  } | null
+}
+
+/** Recover durable Builder job state for a proposal a reloaded chat message
+ *  already approved — see gateway/conversation_handoff.py's `resume`. Chat
+ *  history is never the source of truth for this; only the mission id is. */
+export async function resumeBuilderJob(missionId: string): Promise<ConversationResume> {
+  const params = new URLSearchParams({ mission_id: missionId })
+  return await gfetch<ConversationResume>(`/builder/conversation/resume?${params.toString()}`, undefined, 15000)
 }
 
 // ── Experts ────────────────────────────────────────────────────────────────────

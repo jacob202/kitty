@@ -1,7 +1,8 @@
-"""Skills, agents, tasks, notifications, and image generation."""
+"""Skills, agents, notifications, and image generation."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import List, Optional
 
@@ -27,7 +28,7 @@ async def notify_send(payload: NotifyRequest):
     return {"sent": success}
 
 
-@router.get("/notify/test")
+@router.post("/notify/test")
 async def notify_test():
     from gateway.notify import is_configured, send
 
@@ -163,11 +164,12 @@ async def agent_spawn(payload: AgentSpawnRequest):
 @router.get("/agent/{session_id}")
 async def agent_status(session_id: int):
     from gateway.agent_runner import get_output, get_status
+    from gateway.autonomy_state import TERMINAL_STATUSES
 
     status = get_status(session_id)
     if status.get("status") == "not_found":
         raise HTTPException(status_code=404, detail="Agent not found")
-    if status.get("status") in ("completed", "failed", "cancelled"):
+    if status.get("status") in TERMINAL_STATUSES:
         status["output"] = get_output(session_id)
     return status
 
@@ -189,68 +191,6 @@ async def agent_stop(session_id: int):
     return {"session_id": session_id, "status": "cancelled"}
 
 
-# --- Task endpoints ---
-
-
-class TaskCreateRequest(BaseModel):
-    goal: str = Field(min_length=1, max_length=2000)
-    task_type: str = "research"
-    model: Optional[str] = None
-    metadata: Optional[dict] = None
-    run_immediately: bool = True
-
-
-@router.post("/task/create")
-async def task_create(payload: TaskCreateRequest):
-    from gateway.task_runner import create
-
-    task_id = create(
-        goal=payload.goal,
-        task_type=payload.task_type,
-        model=payload.model,
-        metadata=payload.metadata,
-        run_immediately=payload.run_immediately,
-    )
-    return {"task_id": task_id, "status": "queued"}
-
-
-@router.get("/tasks")
-async def task_list(status: Optional[str] = None, limit: int = 20):
-    from gateway.task_runner import list_tasks
-
-    return {"tasks": list_tasks(status=status, limit=limit)}
-
-
-@router.get("/task/{task_id}")
-async def task_get(task_id: str):
-    from gateway.task_runner import get
-
-    task = get(task_id)
-    if task.get("status") == "not_found":
-        raise HTTPException(status_code=404, detail="Task not found")
-    return task
-
-
-@router.get("/task/{task_id}/output")
-async def task_output(task_id: str):
-    from gateway.task_runner import get_output
-
-    output = get_output(task_id)
-    return {"task_id": task_id, "output": output}
-
-
-@router.post("/task/{task_id}/cancel")
-async def task_cancel(task_id: str):
-    from gateway.task_runner import cancel
-
-    cancelled = cancel(task_id)
-    if not cancelled:
-        raise HTTPException(
-            status_code=404, detail="Task not found or already finished"
-        )
-    return {"task_id": task_id, "status": "cancelled"}
-
-
 # --- Image generation ---
 
 
@@ -258,6 +198,15 @@ class ImageGenRequest(BaseModel):
     prompt: str
     engine: str = "comfyui"
     parent_id: Optional[str] = None
+
+
+COMFYUI_OFFLINE_REASON = (
+    "ComfyUI is not running on this Mac. Start ComfyUI, then check again."
+)
+DRAWTHINGS_OFFLINE_REASON = (
+    "Draw Things is not answering. Open the Draw Things app, turn on its API "
+    "server, then check again."
+)
 
 
 @router.get("/image/status")
@@ -278,19 +227,54 @@ async def image_status():
         raise RuntimeError("drawthings engine adapter does not expose is_available()")
     drawthings_available = bool(await asyncio.to_thread(probe))
 
-    from gateway.image_runner import flux_images_available, openrouter_images_available
+    from gateway.image_runner import (
+        airforce_images_available,
+        fal_images_available,
+        flux_images_available,
+        openrouter_images_available,
+    )
 
+    airforce_available, airforce_reason = airforce_images_available()
     flux_available, flux_reason = flux_images_available()
+    fal_available, fal_reason = fal_images_available()
     hosted_available, hosted_reason = openrouter_images_available()
     engines = [
-        {"name": "comfyui", "label": "ComfyUI", "available": comfy_available},
-        {"name": "drawthings", "label": "Draw Things", "available": drawthings_available},
+        {
+            "name": "comfyui",
+            "label": "ComfyUI",
+            "available": comfy_available,
+            "unavailable_reason": None if comfy_available else COMFYUI_OFFLINE_REASON,
+        },
+        {
+            "name": "drawthings",
+            "label": "Draw Things",
+            "available": drawthings_available,
+            "unavailable_reason": None if drawthings_available else DRAWTHINGS_OFFLINE_REASON,
+        },
+        {
+            "name": "airforce",
+            "label": "Grok Imagine 2.0 via Airforce",
+            "available": airforce_available,
+            "unavailable_reason": airforce_reason or None,
+            "cost_per_image_usd": 0.01,
+        },
         {
             "name": "flux",
             "label": "Flux (Black Forest Labs)",
             "available": flux_available,
             "unavailable_reason": flux_reason or None,
             "cost_per_image_usd": 0.025,
+        },
+        {
+            "name": "fal",
+            "label": "FLUX PuLID via fal",
+            "available": fal_available,
+            "unavailable_reason": fal_reason or None,
+            # fal bills PuLID at $0.0333/output MP, rounding up. Kitty's
+            # default square_hd output is 1024x1024 (>1 MP), so its provider
+            # price is two billable MP = $0.0666 before the $0.07 budget guard.
+            "cost_per_image_usd": 0.0666,
+            "cost_per_megapixel_usd": 0.0333,
         },
         {
             "name": "openrouter",
@@ -300,14 +284,25 @@ async def image_status():
             "cost_per_image_usd": 0.067,
         },
     ]
-    available = comfy_available or drawthings_available or flux_available or hosted_available
+    available = (
+        comfy_available
+        or drawthings_available
+        or airforce_available
+        or flux_available
+        or fal_available
+        or hosted_available
+    )
     # Local first when it is up (free), then the cheapest hosted lane.
     if comfy_available:
         backend = "comfyui"
     elif drawthings_available:
         backend = "drawthings"
+    elif airforce_available:
+        backend = "airforce"
     elif flux_available:
         backend = "flux"
+    elif fal_available:
+        backend = "fal"
     elif hosted_available:
         backend = "openrouter"
     else:
@@ -323,6 +318,14 @@ async def image_generate(req: ImageGenRequest):
     if engine not in ENGINES:
         raise HTTPException(
             status_code=422, detail=f"engine must be one of {', '.join(sorted(ENGINES))}"
+        )
+    if engine not in {"comfyui", "drawthings"}:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Hosted image generation requires the Studio session/batch path "
+                "so spend authorization, reservation, and recovery stay durable"
+            ),
         )
 
     try:
@@ -368,6 +371,20 @@ async def image_cancel(job_id: str):
         raise HTTPException(
             status_code=502, detail=f"ComfyUI cancellation failed: {exc}"
         ) from exc
+
+
+@router.post("/image/jobs/{job_id}/retry")
+async def image_job_retry(job_id: str):
+    """Retry a terminal image job as a new lineaged child with the same intent."""
+    from gateway.image_jobs import ImageJobError, JobNotFoundError, retry_job
+
+    try:
+        job = retry_job(job_id)
+    except JobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ImageJobError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"job": job.to_dict(), "retried_from": job_id}
 
 
 @router.get("/image/view/{filename:path}")
@@ -447,12 +464,20 @@ class StudioGenerateRequest(BaseModel):
 
 
 class PlanPreviewRequest(BaseModel):
-    """Preview a generation plan before committing to generation."""
+    """Preview a generation plan before committing to generation.
+
+    *content_lane*/*consent_basis*/*adult_confirmed* are the trusted policy
+    declaration (ADR 0040 #8) persisted with the approved plan. They default
+    to the safe lane, and private_adult cannot be inferred from prompt text.
+    """
     prompt: str
     character_id: Optional[str] = None
     recipe_id: Optional[str] = None
     guidance_tags: Optional[List[str]] = None
     session_id: Optional[str] = None
+    content_lane: Optional[str] = None
+    consent_basis: Optional[str] = None
+    adult_confirmed: bool = False
 
 
 @router.get("/studio/characters")
@@ -493,16 +518,19 @@ async def studio_get_character(character_id: str):
 
 @router.patch("/studio/characters/{character_id}")
 async def studio_update_character(character_id: str, req: CharacterUpdate):
-    from gateway.image_characters import CharacterError, CharacterNotFoundError, update_character
+    from gateway import undo_journal
+    from gateway.image_characters import CharacterError, CharacterNotFoundError, get_character
     try:
-        char = update_character(
+        journal_id = undo_journal.update_character_with_undo(
             character_id,
             name=req.name,
             description=req.description,
             preferred_recipe=req.preferred_recipe,
             identity_preset=req.identity_preset,
         )
-        return char.to_dict()
+        result = get_character(character_id).to_dict()
+        result["undo_journal_id"] = journal_id
+        return result
     except CharacterNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except CharacterError as exc:
@@ -660,6 +688,9 @@ async def studio_plan(req: PlanPreviewRequest):
             character_id=req.character_id,
             recipe_id=req.recipe_id,
             guidance_tags=req.guidance_tags,
+            content_lane=req.content_lane,
+            consent_basis=req.consent_basis,
+            adult_confirmed=req.adult_confirmed,
         )
     except ImagePlanError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -686,9 +717,16 @@ async def studio_plan(req: PlanPreviewRequest):
 
 class SessionCreateRequest(BaseModel):
     title: Optional[str] = None
+    project_id: Optional[int] = None
     character_id: Optional[str] = None
     reference_ids: Optional[List[str]] = None
     protected_traits: Optional[List[str]] = None
+
+
+class SessionUpdateRequest(SessionCreateRequest):
+    """PATCH body for an active session. Only supplied fields change."""
+
+    clear_character: Optional[bool] = False
 
 
 class AgentTurnRequest(BaseModel):
@@ -721,6 +759,7 @@ async def studio_create_session(req: SessionCreateRequest):
     try:
         session = create_session(
             title=req.title,
+            project_id=req.project_id,
             character_id=req.character_id,
             reference_ids=req.reference_ids,
             protected_traits=req.protected_traits,
@@ -749,25 +788,59 @@ async def studio_get_session(session_id: str):
     return _session_payload(session)
 
 
+@router.patch("/studio/sessions/{session_id}")
+async def studio_update_session(session_id: str, req: SessionUpdateRequest):
+    """Bind or refresh a character/references on an active session.
+
+    Only supplied fields change; the agent's session registry reads these on
+    the next turn, so attaching a character here is how a reference image is
+    wired into an already-open conversation.
+    """
+    from gateway.image_sessions import (
+        ImageSessionError,
+        SessionNotFoundError,
+        update_session,
+    )
+
+    try:
+        session = update_session(
+            session_id,
+            title=req.title,
+            character_id=req.character_id,
+            reference_ids=req.reference_ids,
+            protected_traits=req.protected_traits,
+            clear_character=req.clear_character,
+        )
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ImageSessionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _session_payload(session)
+
+
 @router.post("/studio/sessions/{session_id}/anchor")
 async def studio_set_anchor(session_id: str, req: AnchorRequest):
     """"Use this" — select a rendered result as the base for follow-up edits."""
+    from gateway import undo_journal
     from gateway.image_sessions import (
         AnchorError,
         ImageSessionError,
         SessionNotFoundError,
-        set_anchor,
+        require_session,
     )
 
     try:
-        session = set_anchor(session_id, req.job_id)
-    except SessionNotFoundError as exc:
+        journal_id = undo_journal.set_anchor_with_undo(session_id, req.job_id)
+        session = require_session(session_id)
+    except (SessionNotFoundError, undo_journal.UndoNotFound) as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except AnchorError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except ImageSessionError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return _session_payload(session)
+    result = _session_payload(session)
+    result["undo_journal_id"] = journal_id
+    return result
 
 
 @router.delete("/studio/sessions/{session_id}")
@@ -830,11 +903,26 @@ async def studio_agent_turn(req: AgentTurnRequest):
 @router.post("/studio/generate")
 async def studio_generate(req: StudioGenerateRequest):
     from gateway import image_recipes
-    from gateway.image_runner import ImageRunnerError, run
+    from gateway.image_runner import (
+        ImageDispatchNotSubmittedError,
+        ImageRunnerError,
+        estimated_cost_usd,
+        paid_engine_available,
+        read_anchor_artifact,
+        run,
+        run_edit,
+    )
 
     # Dispatch from the stored approved plan when plan_id is supplied. The
-    # plan owns the render inputs; request form fields for prompt, character,
-    # and recipe are ignored so a post-approval edit cannot change a render.
+    # plan owns the render inputs *and* the operation — request form fields
+    # for prompt, character, recipe, and operation are ignored so a
+    # post-approval edit cannot change what renders, and an approved edit
+    # cannot be silently downgraded to a fresh generation.
+    stored = None
+    stored_intent: dict = {}
+    operation = "txt2img"
+    approved_edit_anchor: str | None = None
+    character_ref_path: str | None = None
     if req.plan_id:
         from gateway.image_plans import (
             PlanNotApprovedError,
@@ -851,12 +939,64 @@ async def studio_generate(req: StudioGenerateRequest):
         except (PlanSessionMismatchError, PlanNotApprovedError, PlanStoreError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
+        operation = stored.operation
         prompt = stored.refined_prompt
-        has_character = bool(stored.character_id)
-        character_count = 1 if has_character else 0
+        stored_intent = getattr(stored, "intent", {}) or {}
+        typed_cast = list(stored_intent.get("cast", []))
+        if typed_cast:
+            character_count = len(typed_cast)
+            has_character = character_count > 0
+        else:
+            has_character = bool(stored.character_id)
+            character_count = 1 if has_character else 0
         preferred_recipe = stored.recipe_id
         character_id = stored.character_id
+        character_ref_path = getattr(stored, "character_ref_path", None)
         guidance_tags = stored.guidance_tags
+
+        if operation == "img2img":
+            # Fail loud before any spend or dispatch: a missing, unknown, or
+            # non-owned anchor means this session cannot honestly edit that
+            # image. Ownership reuses image_sessions' existing job-attachment
+            # record rather than inventing a second ownership model.
+            anchor_job_id = stored.anchor_job_id
+            if not anchor_job_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"plan {stored.plan_id!r} is operation='img2img' but has "
+                        "no anchor_job_id"
+                    ),
+                )
+            from gateway import image_jobs as _image_jobs
+            from gateway import image_sessions as _image_sessions
+
+            if _image_jobs.get_job(anchor_job_id) is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"anchor job {anchor_job_id!r} no longer exists",
+                )
+            owned_job_ids = {
+                j.job_id
+                for j in _image_sessions.list_session_jobs(stored.session_id)
+            }
+            if anchor_job_id not in owned_job_ids:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"anchor job {anchor_job_id!r} does not belong to "
+                        f"session {stored.session_id!r}; refusing to edit an "
+                        "image this session does not own"
+                    ),
+                )
+            approved_edit_anchor = anchor_job_id
+
+        # Content-lane contract (ADR 0040 #8): dispatch from the STORED plan's
+        # policy, never from a request body. The approved plan is the only
+        # trusted source of content_lane/consent_basis/adult_confirmed.
+        content_lane = stored.content_lane
+        consent_basis = stored.consent_basis
+        adult_confirmed = stored.adult_confirmed
     else:
         if not req.prompt or not req.prompt.strip():
             raise HTTPException(status_code=400, detail="prompt must not be empty")
@@ -867,6 +1007,36 @@ async def studio_generate(req: StudioGenerateRequest):
         preferred_recipe = req.recipe_id
         character_id = req.character_id
         guidance_tags = None
+        if character_id:
+            from gateway.image_characters import list_character_refs
+
+            character_refs = list_character_refs(character_id)
+            primary = next(
+                (ref for ref in character_refs if ref.is_primary),
+                character_refs[0] if character_refs else None,
+            )
+            character_ref_path = primary.storage_path if primary is not None else None
+
+        # A plan-less /studio/generate call carries no trusted policy metadata:
+        # it is safe lane, and a prompt can never promote itself to private.
+        content_lane = "safe"
+        consent_basis = None
+        adult_confirmed = False
+
+    # Resolve session context before routing, provider preflight, or spend. A
+    # supplied session is authoritative for Project scope; an unknown session
+    # must never be allowed to render first and fail only during attachment.
+    dispatch_session_id = req.session_id or (stored.session_id if stored else None)
+    session_context = None
+    project_id: int | None = None
+    if dispatch_session_id:
+        from gateway.image_sessions import SessionNotFoundError, require_session
+
+        try:
+            session_context = require_session(dispatch_session_id)
+        except SessionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        project_id = session_context.project_id
 
     try:
         decision = image_recipes.auto_route(
@@ -874,7 +1044,7 @@ async def studio_generate(req: StudioGenerateRequest):
             character_count=character_count,
             quality_tier=req.quality,
             identity_mode=req.identity,
-            operation="txt2img",
+            operation=operation,
             preferred_recipe=preferred_recipe,
         )
     except image_recipes.RecipeError as exc:
@@ -882,35 +1052,410 @@ async def studio_generate(req: StudioGenerateRequest):
 
     recipe = decision.recipe
 
-    try:
-        result = await run(
-            recipe.provider if recipe else "comfyui",
-            prompt,
-            recipe=recipe,
-            character_id=character_id,
-            negative_prompt=req.negative_prompt,
-            guidance_tags=guidance_tags,
+    # Defense in depth for typed multi-character plans. Even if routing is
+    # forced or replaced by a test/operator hook, no renderer may receive a
+    # cast larger than the recipe explicitly supports.
+    if character_count > 1:
+        max_characters = int(getattr(recipe, "max_characters", 0) or 0) if recipe else 0
+        if (
+            recipe is None
+            or not getattr(recipe, "supports_characters", False)
+            or max_characters < character_count
+        ):
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"recipe {decision.recipe_id!r} supports at most "
+                    f"{max_characters} character(s), but the approved plan requires "
+                    f"{character_count}"
+                ),
+            )
+
+    # auto_route does not filter on operation, so the img2img capability has
+    # to be asserted here or an approved edit would route to a text-only
+    # recipe (mirrors image_agent._route_recipe's same assertion).
+    if operation == "img2img" and (recipe is None or not recipe.supports_img2img):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"recipe {decision.recipe_id!r} does not support img2img; "
+                "no available recipe can perform a reference-conditioned edit"
+            ),
         )
+
+    # Content-lane seam (ADR 0040 #8): select the execution target from the
+    # stored plan's policy BEFORE any cost estimate or availability preflight.
+    # Private work must pick a private executor first so a hosted availability
+    # gate or hosted spend reservation can never run for private work — even if
+    # the recipe metadata names a hosted provider.
+    from gateway.image_policy import (
+        ImagePolicyError,
+        validate_image_execution_policy,
+    )
+
+    if content_lane == "private_adult":
+        # v1's only Kitty-controlled private executor is the worker edit lane
+        # (run_edit → kitty_worker). A private text-to-image plan has no
+        # private executor yet, so it is refused here — never downgraded to a
+        # hosted engine.
+        if operation != "img2img":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "content_lane='private_adult' has no private text-to-image "
+                    "executor in v1; only the worker edit lane (img2img) is "
+                    "private, refusing to route private work to a hosted provider"
+                ),
+            )
+        execution_target = "kitty_worker"
+    else:
+        execution_target = recipe.provider if recipe else "comfyui"
+
+    try:
+        validate_image_execution_policy(
+            content_lane, consent_basis, adult_confirmed, execution_target
+        )
+    except ImagePolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    engine = execution_target
+
+    # Hosted FLUX.2 (BFL Direct) selection (IL-03/IL-04). For provider=="flux2"
+    # the recipe names an explicit flux2 execution target; the exact model,
+    # estimate, availability, and dispatch must all agree on that one target.
+    flux2_target = None
+    compiled_request = None
+    reference_bytes: tuple[bytes, ...] = ()
+    render_width = 1024
+    render_height = 1024
+
+    if engine == "flux2":
+        from gateway.flux2_compiler import (
+            CompiledReference,
+            Flux2CompilerError,
+            compile_flux2_request,
+        )
+        from gateway.flux2_targets import (
+            Flux2TargetError,
+            resolve_flux2_target,
+        )
+
+        if not recipe or not recipe.execution_target:
+            raise HTTPException(
+                status_code=400,
+                detail="recipe for the hosted FLUX.2 lane names no execution target",
+            )
+        try:
+            flux2_target = resolve_flux2_target(recipe.execution_target)
+        except Flux2TargetError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        if recipe.default_width and recipe.default_width > 0:
+            render_width = recipe.default_width
+        if recipe.default_height and recipe.default_height > 0:
+            render_height = recipe.default_height
+
+        refs: list[CompiledReference] = []
+        ref_blobs: list[bytes] = []
+        if operation == "img2img":
+            if approved_edit_anchor is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="approved img2img plan lost its validated anchor before dispatch",
+                )
+            try:
+                anchor_bytes, anchor_name = read_anchor_artifact(
+                    approved_edit_anchor
+                )
+            except ImageRunnerError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            refs.append(
+                CompiledReference(
+                    reference_id=approved_edit_anchor,
+                    role="anchor",
+                    order=1,
+                    name=anchor_name,
+                )
+            )
+            ref_blobs.append(anchor_bytes)
+        stored_provenance = list(stored.references if stored else [])
+        typed_bindings = list(stored_intent.get("references", []))
+        if typed_bindings:
+            # Role-aware reference selection (ADR 0040): validate every bound
+            # reference against the selected recipe's declared capabilities and
+            # order identity references by cast depth before dispatch. A
+            # capability the provider cannot carry fails loudly rather than
+            # silently dropping or mis-using the reference.
+            from gateway.image_reference_selector import (
+                ReferenceCapabilityError,
+                UnknownReferenceRoleError,
+                select_references,
+            )
+
+            try:
+                selected = select_references(
+                    typed_bindings,
+                    list(stored_intent.get("cast", [])),
+                    recipe=recipe,
+                    operation=operation,
+                )
+            except (UnknownReferenceRoleError, ReferenceCapabilityError) as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            provenance_by_id = {
+                str(prov.get("reference_id")): prov
+                for prov in stored_provenance
+                if isinstance(prov, dict) and prov.get("reference_id")
+            }
+            for binding in selected:
+                reference_id = binding.reference_id
+                prov = provenance_by_id.get(reference_id)
+                if prov is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"approved plan reference {reference_id!r} has no durable "
+                            "reference provenance"
+                        ),
+                    )
+                path = prov.get("path")
+                if not path or not Path(path).is_file():
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"approved plan reference {reference_id!r} is missing "
+                            "from local storage"
+                        ),
+                    )
+                refs.append(
+                    CompiledReference(
+                        reference_id=reference_id,
+                        role=binding.role,
+                        order=len(refs) + 1,
+                        name=prov.get("name"),
+                        cast_slot=binding.cast_slot,
+                        character_id=binding.character_id,
+                        position=binding.position,
+                        depth_order=binding.depth_order,
+                    )
+                )
+                ref_blobs.append(Path(path).read_bytes())
+        else:
+            # Legacy persisted plans predate typed reference bindings. Preserve
+            # their old projection so historical approved plans remain usable.
+            for prov in stored_provenance:
+                path = prov.get("path") if isinstance(prov, dict) else getattr(prov, "path", None)
+                if not path or not Path(path).is_file():
+                    continue
+                refs.append(
+                    CompiledReference(
+                        reference_id=str(path),
+                        role="identity",
+                        order=len(refs) + 1,
+                        name=(prov.get("name") if isinstance(prov, dict) else getattr(prov, "name", None)),
+                    )
+                )
+                ref_blobs.append(Path(path).read_bytes())
+        reference_bytes = tuple(ref_blobs)
+
+        protected: list[str] = []
+        requested: list[str] = []
+        if stored is not None:
+            protected = list(stored.intent.get("protected_traits", []))
+            requested = list(stored.intent.get("requested_changes", []))
+        elif session_context is not None:
+            protected = list(session_context.protected_traits or [])
+            requested = list(session_context.requested_changes or [])
+        try:
+            compiled_request = compile_flux2_request(
+                prompt,
+                references=refs,
+                operation=operation,
+                # StudioGenerateRequest intentionally has no user-authored seed.
+                # Seeds become approved batch/VariationStrategy state in IL-08;
+                # do not invent mutable request-side reproducibility here.
+                seed=None,
+                width=render_width,
+                height=render_height,
+                quality_tier=req.quality,
+                protected_traits=protected,
+                requested_changes=requested,
+                negative_prompt=req.negative_prompt,
+            )
+        except Flux2CompilerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        reference_limit = getattr(flux2_target, "reference_limit", None)
+        if reference_limit is not None and len(refs) > int(reference_limit):
+            target_name = getattr(
+                flux2_target, "target_id", getattr(flux2_target, "model_id", "flux2")
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"FLUX.2 target {target_name!r} allows at most "
+                    f"{reference_limit} references; compiled {len(refs)}"
+                ),
+            )
+        try:
+            estimated_cost = flux2_target.estimate_cost_usd(
+                render_width, render_height, operation
+            )
+        except (Flux2TargetError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        try:
+            estimated_cost = estimated_cost_usd(engine)
+        except ImageRunnerError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    paid_attempt_reserved = False
+    if estimated_cost > 0:
+        if not req.session_id:
+            raise HTTPException(
+                status_code=400,
+                detail="paid image generation requires a session so spend can be budgeted",
+            )
+        available, reason = paid_engine_available(engine)
+        if not available:
+            raise HTTPException(status_code=400, detail=reason)
+
+        from gateway.image_agent import AgentBudget
+        from gateway.image_sessions import (
+            ImageSessionError,
+            SessionBudgetExceededError,
+            reserve_attempt,
+        )
+
+        budget = AgentBudget()
+        try:
+            reserve_attempt(
+                req.session_id,
+                cost_usd=estimated_cost,
+                max_attempts=budget.max_attempts,
+                max_spend_usd=budget.max_spend_usd,
+            )
+            paid_attempt_reserved = True
+        except SessionBudgetExceededError as exc:
+            raise HTTPException(status_code=429, detail=str(exc))
+        except ImageSessionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+    job_plan_id = stored.plan_id if stored is not None else None
+    stored_intent_for_job = (
+        getattr(stored, "intent", None) if stored is not None else None
+    )
+    job_intent_json = (
+        json.dumps(stored_intent_for_job, sort_keys=True, separators=(",", ":"))
+        if stored_intent_for_job
+        else None
+    )
+
+    try:
+        if engine == "flux2":
+            result = await run(
+                engine,
+                prompt,
+                recipe=recipe,
+                character_id=character_id,
+                character_ref_path=character_ref_path,
+                negative_prompt=req.negative_prompt,
+                guidance_tags=guidance_tags,
+                content_lane=content_lane,
+                consent_basis=consent_basis,
+                adult_confirmed=adult_confirmed,
+                flux2_target=flux2_target,
+                compiled_request=compiled_request,
+                reference_bytes=reference_bytes,
+                project_id=project_id,
+                plan_id=job_plan_id,
+                intent_json=job_intent_json,
+                session_id=req.session_id if paid_attempt_reserved else None,
+                reserved_cost_usd=estimated_cost if paid_attempt_reserved else None,
+            )
+        elif operation == "img2img":
+            if approved_edit_anchor is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="approved img2img plan lost its validated anchor before dispatch",
+                )
+            result = await run_edit(
+                prompt,
+                anchor_job_id=approved_edit_anchor,
+                recipe=recipe,
+                negative_prompt=req.negative_prompt,
+                content_lane=content_lane,
+                consent_basis=consent_basis,
+                adult_confirmed=adult_confirmed,
+                project_id=project_id,
+                plan_id=job_plan_id,
+                intent_json=job_intent_json,
+            )
+        else:
+            result = await run(
+                engine,
+                prompt,
+                recipe=recipe,
+                character_id=character_id,
+                character_ref_path=character_ref_path,
+                negative_prompt=req.negative_prompt,
+                guidance_tags=guidance_tags,
+                content_lane=content_lane,
+                consent_basis=consent_basis,
+                adult_confirmed=adult_confirmed,
+                project_id=project_id,
+                plan_id=job_plan_id,
+                intent_json=job_intent_json,
+                session_id=req.session_id if paid_attempt_reserved else None,
+                reserved_cost_usd=estimated_cost if paid_attempt_reserved else None,
+            )
         # Bind the render back to its conversation so a restart can replay it
         # and "use this" has something to anchor on. A failure to bind is
         # surfaced, not swallowed: a job the session cannot see is a job the
         # user cannot select.
         if req.session_id:
-            from gateway.image_sessions import ImageSessionError, attach_job, record_attempt
+            from gateway.image_sessions import (
+                ImageSessionError,
+                attach_job,
+                reconcile_reserved_attempt_cost,
+                record_attempt,
+            )
 
             try:
+                if paid_attempt_reserved and result.cost_usd is not None:
+                    reconcile_reserved_attempt_cost(
+                        req.session_id,
+                        reserved_cost_usd=estimated_cost,
+                        actual_cost_usd=result.cost_usd,
+                    )
                 attach_job(req.session_id, result.job_id)
-                record_attempt(req.session_id)
+                if not paid_attempt_reserved:
+                    record_attempt(req.session_id)
             except ImageSessionError as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
         return {
             "job_id": result.job_id,
             "filename": result.filename,
+            "actual_cost_usd": result.cost_usd,
+            "actual_cost_source": getattr(result, "cost_source", None),
             "recipe": result.recipe,
             "routing_reason": decision.reason,
             "plan_id": req.plan_id,
             "session_id": req.session_id,
         }
+    except ImageDispatchNotSubmittedError as e:
+        if paid_attempt_reserved and req.session_id:
+            from gateway.image_sessions import (
+                ImageSessionError,
+                release_reserved_attempt_cost,
+            )
+
+            try:
+                release_reserved_attempt_cost(
+                    req.session_id, reserved_cost_usd=estimated_cost
+                )
+            except ImageSessionError as release_exc:
+                raise HTTPException(status_code=500, detail=str(release_exc)) from release_exc
+        status = 503 if "not running" in str(e).lower() else 400
+        raise HTTPException(status_code=status, detail=str(e))
     except ImageRunnerError as e:
         status = 503 if "not running" in str(e).lower() else 400
         raise HTTPException(status_code=status, detail=str(e))

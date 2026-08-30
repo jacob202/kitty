@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -50,6 +51,8 @@ class Source(str, Enum):
     """Which store an :class:`Item` came from. Stable identifier; the string
     value is what callers see in :attr:`Item.source`."""
 
+    PROJECTS = "projects"
+    EXPLICIT_MEMORY = "explicit_memory"
     MEMORY = "memory"
     KNOWLEDGE = "knowledge"
     JOURNAL = "journal"
@@ -124,6 +127,117 @@ class StoreAdapter(ABC):
 # --- Store Adapters ---
 
 
+class ProjectAdapter(StoreAdapter):
+    """Read-only projection of canonical Project truth into request context."""
+
+    @property
+    def name(self) -> str:
+        return Source.PROJECTS.value
+
+    async def fetch(self, query: str) -> list[Item]:
+        from gateway.project_context import get_active_project
+        from gateway.project_store import list_projects
+
+        projects = await asyncio.to_thread(list_projects)
+        terms = {term for term in re.findall(r"[^\W_]+", query.casefold()) if len(term) > 1}
+
+        # A corrupt/missing persisted scope (ProjectContextError) is left to
+        # propagate rather than degrading silently to "no active project" —
+        # per the StoreAdapter contract, an infrastructure failure here must
+        # surface as a warning/degraded store, not an apparently healthy
+        # empty result that hides a broken scope.
+        active_id = (await asyncio.to_thread(get_active_project))["project_id"]
+
+        # The active project is always in scope, even for a generic query with
+        # no matchable terms — it's the project the user is actually working
+        # in. Every other project needs an explicit keyword match; without
+        # that gate, a term-less query returned every project unfiltered,
+        # leaking other projects' status/next-actions into unrelated context
+        # (C4-02).
+        ordered = sorted(projects, key=lambda p: p.get("id") != active_id)
+
+        items: list[Item] = []
+        for project in ordered:
+            is_active = project.get("id") == active_id
+            if not is_active:
+                if not terms:
+                    continue
+                searchable = " ".join(
+                    [str(project.get("name") or ""), str(project.get("summary") or ""),
+                     " ".join(map(str, project.get("next_actions") or [])),
+                     " ".join(map(str, project.get("open_questions") or []))]
+                ).casefold()
+                if not any(term in searchable for term in terms):
+                    continue
+            detail = [
+                f"Project {project.get('name')}: status={project.get('status', 'unknown')}",
+            ]
+            if project.get("summary"):
+                detail.append(f"summary={project['summary']}")
+            if project.get("next_actions"):
+                detail.append("next=" + "; ".join(map(str, project["next_actions"][:3])))
+            items.append(
+                Item(
+                    text=" | ".join(detail),
+                    source=Source.PROJECTS,
+                    score=None,
+                    metadata={
+                        "project_id": project.get("id"),
+                        "owner": "project_store",
+                        "kind": project.get("kind"),
+                        "status": project.get("status"),
+                        "active": is_active,
+                    },
+                )
+            )
+            if len(items) >= 5:
+                break
+        return items
+
+
+class ExplicitMemoryAdapter(StoreAdapter):
+    """Governed user-confirmed memory that does not require Mem0/Ollama."""
+
+    @property
+    def name(self) -> str:
+        return Source.EXPLICIT_MEMORY.value
+
+    async def fetch(self, query: str) -> list[Item]:
+        from gateway.explicit_memory import search
+
+        rows = await asyncio.to_thread(search, query, limit=5)
+        items: list[Item] = []
+        for row in rows:
+            sensitivity = row.get("sensitivity") or "normal"
+            metadata = {
+                "id": row.get("id"),
+                "memory_key": row.get("memory_key"),
+                "namespace": row.get("namespace"),
+                "source_kind": row.get("source_kind"),
+                "source_ref": row.get("source_ref"),
+                "truth_confidence": row.get("truth_confidence", 1.0),
+                "pinned": bool(row.get("pinned")),
+                "sensitivity": "high" if sensitivity != "normal" else "normal",
+            }
+            updated = row.get("updated_at")
+            ts = None
+            if isinstance(updated, str) and updated:
+                try:
+                    ts = datetime.fromisoformat(updated)
+                except ValueError:
+                    ts = None
+            items.append(
+                Item(
+                    text=str(row.get("text") or ""),
+                    source=Source.EXPLICIT_MEMORY,
+                    score=None,
+                    ts=ts,
+                    metadata=metadata,
+                )
+            )
+        return [item for item in items if item.text]
+
+
 class MemoryAdapter(StoreAdapter):
     """Adapter for mem0-based memory store."""
 
@@ -176,9 +290,9 @@ class KnowledgeAdapter(StoreAdapter):
                 Item(
                     text=text[:400],
                     source=Source.KNOWLEDGE,
-                    score=c.get("_score"),
+                    score=c.get("score"),
                     ts=None,
-                    metadata={k: v for k, v in c.items() if k not in {"text", "_score"}},
+                    metadata={k: v for k, v in c.items() if k not in {"text", "score"}},
                 )
             )
         return items
@@ -470,6 +584,8 @@ class WeaveAdapter(StoreAdapter):
 def _default_adapters() -> list[StoreAdapter]:
     """The active store adapters. MemPalace is appended only when enabled."""
     adapters: list[StoreAdapter] = [
+        ProjectAdapter(),
+        ExplicitMemoryAdapter(),
         MemoryAdapter(),
         KnowledgeAdapter(),
         JournalAdapter(),
@@ -477,7 +593,6 @@ def _default_adapters() -> list[StoreAdapter]:
         TodosAdapter(),
         InboxAdapter(),
         SignalsAdapter(),
-        WeaveAdapter(),
     ]
     try:
         from gateway.mempalace_adapter import MemPalaceAdapter
@@ -503,6 +618,7 @@ class GraphResult:
 
     results: dict[str, list[Item]] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    degraded_stores: list[str] = field(default_factory=list)
 
 
 class MemoryGraph:
@@ -546,6 +662,7 @@ class MemoryGraph:
         for i, adapter in enumerate(self._adapters):
             res = results[i]
             if isinstance(res, Exception):
+                result.degraded_stores.append(adapter.name)
                 if isinstance(res, TimeoutError):
                     logger.warning("%s fetch timed out", adapter.name)
                     result.errors.append(f"{adapter.name}: {type(res).__name__}: timed out")
@@ -590,8 +707,13 @@ async def unified_context(query: str, *, _record: bool = True) -> str:
     hit = prefetcher.get_cached(query)
     if hit is not None:
         return hit
+    # Captured before the (possibly slow) compute below so a correction that
+    # invalidates the cache while this call is in flight is detected on
+    # write, instead of this call silently resurrecting the pre-correction
+    # answer it started with (C4-03 follow-up).
+    generation = prefetcher.current_generation()
     result = await _get_graph().unified_context(query)
-    prefetcher.put_cached(query, result)
+    prefetcher.put_cached(query, result, generation=generation)
     if _record:
         prefetcher.record(query)
     return result
@@ -653,7 +775,11 @@ def _select_unified_items(
 
         added_any = False
         section_rendered: list[MemoryEvidence] = []
-        for item in items[:5]: # Allow up to 5 if budget permits
+        # Budget the highest-scored items first, not whatever order the
+        # adapter happened to return — an unscored (None) item sorts last
+        # rather than winning a budget slot ahead of a scored one (C4-05).
+        ranked_items = sorted(items, key=lambda i: i.score if i.score is not None else float("-inf"), reverse=True)
+        for item in ranked_items[:5]: # Allow up to 5 if budget permits
             if _is_sensitive(item, query_terms):
                 continue
 
@@ -676,7 +802,7 @@ def _select_unified_items(
 
             lines.append(f"- {text}")
             evidence: MemoryEvidence = {"text": text}
-            memory_id = item.metadata.get("id") if item.source is Source.MEMORY else None
+            memory_id = item.metadata.get("id") if item.source in {Source.MEMORY, Source.EXPLICIT_MEMORY} else None
             if isinstance(memory_id, str) and memory_id.strip():
                 evidence["memory_id"] = memory_id
             section_rendered.append(evidence)

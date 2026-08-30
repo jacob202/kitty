@@ -53,6 +53,24 @@ def test_cache_ttl_expiry(monkeypatch):
     assert prefetcher.get_cached("q") is None
 
 
+def test_put_cached_with_current_generation_writes():
+    generation = prefetcher.current_generation()
+    prefetcher.put_cached("q", "V", generation=generation)
+    assert prefetcher.get_cached("q") == "V"
+
+
+def test_put_cached_with_stale_generation_is_dropped():
+    """A write computed before an invalidation must not publish after it —
+    otherwise a slow query racing a correction resurrects the pre-correction
+    answer for the rest of the TTL (found by review on #629)."""
+    generation = prefetcher.current_generation()
+    prefetcher.invalidate_all()  # a correction lands mid-compute
+
+    prefetcher.put_cached("q", "STALE", generation=generation)
+
+    assert prefetcher.get_cached("q") is None
+
+
 @pytest.mark.asyncio
 async def test_warm_populates_cache_and_does_not_record_predictions(monkeypatch):
     monkeypatch.setattr(prefetcher, "capture_fingerprint", lambda: FP)
@@ -74,6 +92,48 @@ async def test_warm_populates_cache_and_does_not_record_predictions(monkeypatch)
     assert prefetcher.get_cached("recall my meds") == "CTX::recall my meds"
 
 
+def test_explicit_memory_correction_invalidates_prefetch_cache(tmp_path, monkeypatch):
+    """C4-03 / ACC-010 / FI-012: a stale cached context must not outlive an
+    explicit correction just because its 300s TTL hasn't expired yet."""
+    from gateway import explicit_memory
+
+    monkeypatch.setattr(explicit_memory, "DB_FILE", tmp_path / "kitty.db")
+
+    old = explicit_memory.remember("I prefer dark mode", memory_key="ui.theme")
+    prefetcher.put_cached("theme", f"CACHED::{old['text']}")
+    assert prefetcher.get_cached("theme") is not None
+
+    explicit_memory.remember("Use light mode now", memory_key="ui.theme")
+
+    assert prefetcher.get_cached("theme") is None
+
+
+def test_explicit_memory_forget_invalidates_prefetch_cache(tmp_path, monkeypatch):
+    from gateway import explicit_memory
+
+    monkeypatch.setattr(explicit_memory, "DB_FILE", tmp_path / "kitty.db")
+
+    row = explicit_memory.remember("My favorite editor is Zed", memory_key="editor")
+    prefetcher.put_cached("editor", "CACHED::Zed")
+    assert prefetcher.get_cached("editor") is not None
+
+    explicit_memory.forget(row["id"])
+
+    assert prefetcher.get_cached("editor") is None
+
+
+def test_forget_of_missing_memory_does_not_invalidate_cache(tmp_path, monkeypatch):
+    """A no-op forget (unknown/already-inactive id) must not pay for a cache
+    wipe it didn't cause — only an actual state change invalidates."""
+    from gateway import explicit_memory
+
+    monkeypatch.setattr(explicit_memory, "DB_FILE", tmp_path / "kitty.db")
+
+    prefetcher.put_cached("q", "V")
+    assert explicit_memory.forget("exp_does_not_exist") is False
+    assert prefetcher.get_cached("q") == "V"
+
+
 @pytest.mark.asyncio
 async def test_unified_context_returns_warm_cache_without_computing(monkeypatch):
     prefetcher.put_cached("hot", "WARM")
@@ -90,3 +150,39 @@ async def test_unified_context_returns_warm_cache_without_computing(monkeypatch)
 
     assert out == "WARM"
     assert hit_graph["called"] is False
+
+
+def test_history_reader_is_bounded_to_recent_tail(monkeypatch):
+    rows = []
+    for index in range(1200):
+        fp = FP.to_dict()
+        rows.append(__import__("json").dumps({"ts": index, "query": f"q-{index}", "fp": fp}))
+    prefetcher._HISTORY.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    monkeypatch.setattr(prefetcher, "_HISTORY_SCAN", 5)
+
+    loaded = prefetcher._load_history()
+
+    assert [row["query"] for row in loaded] == [f"q-{i}" for i in range(1195, 1200)]
+
+
+def test_history_hot_path_does_not_use_path_read_text(monkeypatch):
+    prefetcher.record("tail only", FP)
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("full-file read_text must not be used")
+
+    monkeypatch.setattr(type(prefetcher._HISTORY), "read_text", explode)
+    assert prefetcher._load_history()[-1]["query"] == "tail only"
+
+
+def test_history_reader_propagates_unreadable_evidence_even_if_exists_probe_would_hide_it(monkeypatch):
+    class UnreadableHistory:
+        def exists(self) -> bool:
+            return False
+
+        def open(self, *_args, **_kwargs):
+            raise PermissionError("history unreadable")
+
+    monkeypatch.setattr(prefetcher, "_HISTORY", UnreadableHistory())
+    with pytest.raises(PermissionError, match="history unreadable"):
+        prefetcher._load_history()

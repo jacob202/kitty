@@ -9,33 +9,26 @@ Every command:
 
 from __future__ import annotations
 
-import json
 import logging
-import shlex
-import subprocess
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
+from gateway.builder_attempt import AttemptError, get_open_attempt_for_task, run_validation
 from gateway.builder_events import builder_events
 from gateway.builder_initiative import (
     InitiativeNotFoundError,
     pause_initiative,
     resume_initiative,
 )
+from gateway.builder_publish import PublishError, publish_task
 from gateway.builder_queue import TaskNotFoundError as QueueTaskNotFoundError
+from gateway.builder_queue import detect_merged_prs, recover_durable_issues
+from gateway.builder_queue import init_db as init_queue_db
 from gateway.builder_queue import operator_cancel_task as _operator_cancel_task
 from gateway.builder_queue_leases import operator_release_task
 from gateway.models.builder import BuilderCommandRequest
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-KITTY_CLI = REPO_ROOT / "kitty"
-
 logger = logging.getLogger("kitty.builder_commands")
-
-
-class OperatorCommandError(ValueError):
-    """An operator command could not complete (blocked, missing data, stale lease)."""
 
 
 @dataclass
@@ -120,21 +113,6 @@ def _emit_event(event_type: str, payload: dict[str, Any]) -> None:
     )
 
 
-def _run_kitty(args: list[str], *, timeout: int = 120) -> str:
-    proc = subprocess.run(
-        [str(KITTY_CLI), "builder", *args],
-        cwd=str(REPO_ROOT),
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-    if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout or "").strip()[:400] or "no output"
-        raise OperatorCommandError(
-            f"`kitty builder {' '.join(args)}` exited {proc.returncode}: {detail}"
-        )
-    return (proc.stdout or "").strip()
-
 
 def command_requeue(
     task_id: str,
@@ -142,6 +120,7 @@ def command_requeue(
     actor: str,
     reason: str = "operator requeue from cockpit",
 ) -> CommandResult:
+    init_queue_db()
     try:
         result = operator_release_task(task_id, reason=reason)
     except QueueTaskNotFoundError:
@@ -184,6 +163,7 @@ def command_cancel(
     actor: str,
     reason: str = "operator cancel from cockpit",
 ) -> CommandResult:
+    init_queue_db()
     try:
         result = _operator_cancel_task(
             task_id,
@@ -296,61 +276,39 @@ def command_run_validation(
     actor: str,
     reason: str = "operator validation from cockpit",
 ) -> CommandResult:
-    try:
-        out = _run_kitty(
-            ["queue", "show", task_id, "--json"],
-            timeout=30,
-        )
-        task = json.loads(out)
-    except (json.JSONDecodeError, OperatorCommandError):
+    attempt = get_open_attempt_for_task(task_id)
+    if attempt is None:
         return CommandResult(
             ok=False,
             action="run_validation",
             task_id=task_id,
-            error=f"could not read task {task_id}",
-        )
-
-    acceptance = task.get("acceptance_criteria") or []
-    if not acceptance:
-        return CommandResult(
-            ok=False,
-            action="run_validation",
-            task_id=task_id,
-            error=(
-                "task has no acceptance criteria; validation requires a declared stop condition"
-            ),
+            error=f"task {task_id} has no open attempt to validate",
         )
 
     try:
-        current_dir = Path.cwd()
-        for cmd_text in acceptance:
-            if not cmd_text or not cmd_text.strip():
-                continue
-            args = shlex.split(cmd_text)
-            proc = subprocess.run(
-                args,
-                cwd=str(current_dir),
-                capture_output=True,
-                text=True,
-                timeout=300,
-            )
-            if proc.returncode != 0:
-                return CommandResult(
-                    ok=False,
-                    action="run_validation",
-                    task_id=task_id,
-                    error=(f"validation failed: {cmd_text[:120]} exited {proc.returncode}"),
-                    evidence={
-                        "failed_command": cmd_text[:500],
-                        "stderr": proc.stderr[:500],
-                    },
-                )
-    except Exception as exc:
+        updated = run_validation(int(attempt["id"]))
+    except AttemptError as exc:
         return CommandResult(
             ok=False,
             action="run_validation",
             task_id=task_id,
             error=str(exc),
+        )
+
+    validation = updated.get("validation") or {}
+    status = validation.get("status")
+    if status != "passed":
+        error = (
+            "task has no validation commands declared"
+            if status == "skipped"
+            else f"validation {status or 'did not produce a verdict'}"
+        )
+        return CommandResult(
+            ok=False,
+            action="run_validation",
+            task_id=task_id,
+            error=error,
+            evidence=validation,
         )
 
     _emit_event(
@@ -359,13 +317,16 @@ def command_run_validation(
             "command": "run_validation",
             "task_id": task_id,
             "actor": actor,
+            "reason": reason,
+            "attempt_id": attempt["id"],
         },
     )
     return CommandResult(
         ok=True,
         action="run_validation",
         task_id=task_id,
-        detail="validation passed all acceptance criteria",
+        detail=f"validation passed for attempt {attempt['id']}",
+        evidence=validation,
     )
 
 
@@ -377,17 +338,10 @@ def command_publish(
     remote: str = "origin",
 ) -> CommandResult:
     try:
-        out = _run_kitty(
-            ["queue", "publish", task_id, "--remote", remote, "--json"],
-            timeout=60,
-        )
-        details = json.loads(out)
-    except (json.JSONDecodeError, OperatorCommandError) as exc:
+        details = publish_task(task_id, remote=remote)
+    except (PublishError, QueueTaskNotFoundError, ValueError) as exc:
         return CommandResult(
-            ok=False,
-            action="publish",
-            task_id=task_id,
-            error=str(exc),
+            ok=False, action="publish", task_id=task_id, error=str(exc)
         )
 
     _emit_event(
@@ -404,7 +358,7 @@ def command_publish(
         action="publish",
         task_id=task_id,
         detail=f"task {task_id} published",
-        evidence=details if isinstance(details, dict) else {},
+        evidence=details,
     )
 
 
@@ -414,17 +368,13 @@ def command_recover_stale(
     expected_version: int | None = None,
 ) -> CommandResult:
     try:
-        out = _run_kitty(["queue", "recover", "--json"], timeout=60)
-        details = json.loads(out)
-    except (json.JSONDecodeError, OperatorCommandError) as exc:
+        details = recover_durable_issues()
+    except Exception as exc:
         return CommandResult(ok=False, action="recover_stale", error=str(exc))
 
     _emit_event(
         "command_completed",
-        {
-            "command": "recover_stale",
-            "actor": actor,
-        },
+        {"command": "recover_stale", "actor": actor},
     )
     return CommandResult(
         ok=True,
@@ -438,24 +388,15 @@ def command_reconcile_merges(
     *,
     actor: str,
 ) -> CommandResult:
-    """Promote tasks whose merged PR is not reflected in task state to done.
-
-    The supported recovery for a task cancelled (or left non-terminal) in error:
-    re-evaluate it against ground truth — its linked PR merged — instead of
-    mutating queue rows by hand.
-    """
+    """Reconcile durable task state against merged-PR ground truth."""
     try:
-        out = _run_kitty(["queue", "reconcile-merges", "--json"], timeout=60)
-        details = json.loads(out)
-    except (json.JSONDecodeError, OperatorCommandError) as exc:
+        details = detect_merged_prs()
+    except Exception as exc:
         return CommandResult(ok=False, action="reconcile_merges", error=str(exc))
 
     _emit_event(
         "command_completed",
-        {
-            "command": "reconcile_merges",
-            "actor": actor,
-        },
+        {"command": "reconcile_merges", "actor": actor},
     )
     return CommandResult(
         ok=True,
@@ -463,6 +404,7 @@ def command_reconcile_merges(
         detail=f"promoted {len(details.get('promoted', []))} merged task(s) to done",
         evidence=details,
     )
+
 
 
 COMMAND_HANDLERS: dict[str, Any] = {

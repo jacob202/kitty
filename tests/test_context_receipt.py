@@ -7,6 +7,8 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 from gateway.context_receipt import (
@@ -14,6 +16,8 @@ from gateway.context_receipt import (
     compact_context_receipt,
     run_continuity_checks,
 )
+
+pytestmark = pytest.mark.integration
 
 NOW = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)
 
@@ -179,7 +183,9 @@ def _levels(repo: Path, **kwargs) -> dict[str, str]:
     return {check.name: check.level for check in checks}
 
 
-def test_receipt_is_deterministic_and_reports_explicit_unknowns(tmp_path: Path):
+def test_receipt_is_deterministic_and_reports_explicit_unknowns(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("KITTY_DATA_ROOT", raising=False)
+    monkeypatch.delenv("KITTY_BUILDER_DATA_DIR", raising=False)
     repo, head = _repo(tmp_path)
 
     first = build_context_receipt(repo, expected_canonical=repo, now=NOW)
@@ -197,7 +203,9 @@ def test_receipt_is_deterministic_and_reports_explicit_unknowns(tmp_path: Path):
     }
 
 
-def test_receipt_reads_builder_through_read_only_summary(tmp_path: Path):
+def test_receipt_reads_builder_through_read_only_summary(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("KITTY_DATA_ROOT", raising=False)
+    monkeypatch.delenv("KITTY_BUILDER_DATA_DIR", raising=False)
     repo, _head = _repo(tmp_path)
     db_path = repo / "data/kittybuilder/builder_queue.db"
     bq.init_db(db_path)
@@ -208,6 +216,23 @@ def test_receipt_reads_builder_through_read_only_summary(tmp_path: Path):
     assert receipt["builder"]["state"] == "available", receipt["builder"]
     assert receipt["builder"]["queue"]["total"] == 0
     assert receipt["builder"]["initiatives"] == []
+
+
+def test_receipt_honors_configured_builder_data_root(tmp_path: Path, monkeypatch) -> None:
+    repo_parent = tmp_path / "repo"
+    repo_parent.mkdir()
+    repo, _head = _repo(repo_parent)
+    data_root = tmp_path / "isolated-data"
+    db_path = data_root / "kittybuilder" / "builder_queue.db"
+    bq.init_db(db_path)
+    bi.init_db(db_path)
+    monkeypatch.setenv("KITTY_DATA_ROOT", str(data_root))
+    monkeypatch.delenv("KITTY_BUILDER_DATA_DIR", raising=False)
+
+    receipt = build_context_receipt(repo, expected_canonical=repo, now=NOW)
+
+    assert receipt["builder"]["state"] == "available", receipt["builder"]
+    assert receipt["builder"]["database"] == str(db_path)
 
 
 def test_compact_receipt_preserves_freshness_and_omits_bulky_detail(tmp_path: Path):
@@ -406,6 +431,32 @@ def test_completed_mission_cannot_keep_active_session(tmp_path: Path):
     levels = _levels(repo)
 
     assert levels["mission:active_state"] == "FAIL"
+
+
+def test_squash_orphaned_mission_base_warns(tmp_path: Path):
+    # Squash-merging the PR a mission was approved on orphans the recorded base.
+    # That is the normal post-merge state, not a broken mission, so it must not
+    # red-gate CI forever.
+    repo, head = _repo(tmp_path)
+    # A parentless commit over HEAD's own tree: a real object off the ancestry
+    # line, without disturbing the working tree the fixture left in place.
+    orphaned = _git(repo, "commit-tree", f"{head}^{{tree}}", "-m", "squashed away")
+    _write(repo / "docs/ACTIVE_MISSION.md", _mission_metadata(orphaned))
+
+    levels = _levels(repo)
+
+    assert orphaned != head
+    assert levels["mission:base_sha"] == "WARN"
+
+
+def test_missing_mission_base_still_fails(tmp_path: Path):
+    # A base no one has is a broken approval record, not a squash.
+    repo, _head = _repo(tmp_path)
+    _write(repo / "docs/ACTIVE_MISSION.md", _mission_metadata("0" * 40))
+
+    levels = _levels(repo)
+
+    assert levels["mission:base_sha"] == "FAIL"
 
 
 def test_checkpoint_age_over_limit_warns(tmp_path: Path):

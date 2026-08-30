@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import time
+from pathlib import Path
 from typing import Any, Optional
 
 import httpx
@@ -15,6 +16,7 @@ from gateway.image_jobs import (
     create_job,
     get_job,
     list_recent,
+    register_canonical_artifact,
     transition,
     update_job,
 )
@@ -58,6 +60,11 @@ COMFY_REQUIRED_NODES = frozenset(
 # verifies these explicitly before building the workflow.
 COMFY_IDENTITY_NODES = frozenset({"IPAdapter", "IPAdapterModelLoader"})
 
+#: Legacy workflow/model-conditioning keywords for the ComfyUI SDXL path.
+#: NON-AUTHORITATIVE (ADR 0040): these affect provider_params_json["explicit"]
+#: job metadata only. They grant NO routing, content lane, consent, or executor
+#: authority — the content lane comes exclusively from the approved plan's
+#: declared policy (gateway.image_policy), never from prompt text.
 EXPLICIT_KW = {"explicit", "erect", "hard cock", "erection", "boner", "cock", "nude explicit"}
 
 
@@ -226,6 +233,9 @@ async def generate_with_character(
     steps: int = 8, cfg: float = 4.5,
     seed: int | None = None,
     guidance_tags: list[str] | None = None,
+    project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> dict:
     state_seed = seed or _seed()
     neg = negative_prompt or "worst quality, low quality, bad anatomy, deformed, ugly, watermark, blurry"
@@ -243,6 +253,8 @@ async def generate_with_character(
         model_id=SDXL_PHOTONIC, width=width, height=height,
         steps=steps, guidance=cfg, sampler="euler", scheduler="sgm_uniform",
         provider_params_json=json.dumps(provider_params) if provider_params else None,
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
 
     try:
@@ -288,13 +300,29 @@ async def generate_with_character(
         _mark_failed(job.job_id, str(exc)[:500])
         raise
 
-    update_job(job.job_id, output_path=str(local_path))
-    transition(job.job_id, ImageJobStatus.SUCCEEDED)
+    _finalize_persisted_job(job.job_id, local_path, project_id=project_id)
 
     return {
         "prompt_id": prompt_id, "filename": str(local_path),
         "job_id": job.job_id, "character_weight": identity_weight,
     }
+
+
+def _finalize_persisted_job(
+    job_id: str, local_path: Path, *, project_id: int | None = None
+) -> None:
+    """Link a persisted output into canonical Artifact truth, then succeed.
+
+    Persistence/registration failures are terminal failures, not zombie RUNNING
+    jobs. Both ComfyUI generation paths use this one completion seam.
+    """
+    try:
+        update_job(job_id, output_path=str(local_path))
+        register_canonical_artifact(job_id, project_id=project_id)
+        transition(job_id, ImageJobStatus.SUCCEEDED)
+    except Exception as exc:
+        _mark_failed(job_id, str(exc)[:500])
+        raise
 
 
 # ── polling, cancellation, and generation ────────────────────────────────────
@@ -462,6 +490,9 @@ async def generate(
     prompt: str,
     parent_id: str | None = None,
     guidance_tags: list[str] | None = None,
+    project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> dict:
     """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}."""
     p = _parse(prompt)
@@ -493,6 +524,8 @@ async def generate(
         workflow_template_id=template,
         workflow_hash=workflow_hash,
         parent_id=parent_id,
+        plan_id=plan_id,
+        intent_json=intent_json,
     )
 
     try:
@@ -546,7 +579,6 @@ async def generate(
     if current_job.status is ImageJobStatus.CANCELED:
         raise ImageGenerationCancelled(f"Image generation canceled for job {job.job_id}")
 
-    update_job(job.job_id, output_path=str(local_path))
-    transition(job.job_id, ImageJobStatus.SUCCEEDED)
+    _finalize_persisted_job(job.job_id, local_path, project_id=project_id)
 
     return {"prompt_id": prompt_id, "filename": str(local_path), "job_id": job.job_id}

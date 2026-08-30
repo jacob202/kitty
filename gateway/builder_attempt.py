@@ -26,7 +26,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 
 BUNDLE_VERSION = 1
@@ -127,7 +126,11 @@ def _ensure_attempt_columns(conn: sqlite3.Connection) -> None:
 
 def init_db(db_path: Path | None = None) -> None:
     """Ensure initiative schema plus the attempts table exist. Idempotent."""
-    bi.init_db(db_path)
+    # Local import avoids an import-time cycle: initiative projections consume
+    # attempt state, while attempt schema creation only needs initiative init.
+    from gateway import builder_initiative
+
+    builder_initiative.init_db(db_path)
     conn = bq.connect(db_path)
     try:
         _ensure_attempt_columns(conn)
@@ -260,6 +263,28 @@ def _prior_attempt_summary(row: sqlite3.Row) -> dict[str, Any]:
         digest["implementation"] = {
             "status": impl.get("status"),
             "summary": _clip(impl.get("summary"), NOTE_CAP),
+        }
+    if row["validation_json"]:
+        validation = json.loads(row["validation_json"])
+        failed = next(
+            (
+                command
+                for command in validation.get("commands", [])
+                if isinstance(command, dict) and not command.get("passed")
+            ),
+            None,
+        )
+        digest["validation"] = {
+            "status": validation.get("status"),
+            "failed_command": (
+                {
+                    "command": _clip(str(failed.get("command", "")), NOTE_CAP),
+                    "exit_code": failed.get("exit_code"),
+                    "output_tail": _clip(str(failed.get("output_tail", "")), NOTE_CAP),
+                }
+                if failed is not None
+                else None
+            ),
         }
     if row["review_json"]:
         review = json.loads(row["review_json"])
@@ -948,6 +973,7 @@ def run_validation(
     cwd: Path | None = None,
     timeout_seconds: int = DEFAULT_VALIDATION_TIMEOUT,
     db_path: Path | None = None,
+    extra_commands: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run the packet's declared validation_commands and record the verdict.
 
@@ -975,6 +1001,7 @@ def run_validation(
             if packet["validation_commands_json"]
             else []
         )
+        commands.extend(extra_commands or [])
         task_id = row["task_id"]
     finally:
         conn.close()
@@ -1155,6 +1182,27 @@ def close_attempt(
     except Exception:
         conn.rollback()
         raise
+    finally:
+        conn.close()
+
+
+def get_open_attempt_for_task(
+    task_id: str, db_path: Path | None = None
+) -> dict[str, Any] | None:
+    """Return the current open packet attempt for a durable task, if any."""
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT * FROM packet_attempts
+            WHERE task_id = ? AND outcome IS NULL
+            ORDER BY attempt_no DESC, id DESC
+            LIMIT 1
+            """,
+            (task_id,),
+        ).fetchone()
+        return _row_to_attempt(row) if row else None
     finally:
         conn.close()
 

@@ -1,25 +1,27 @@
 # Kitty Roadmap
 
-**Current gate:** KPROOF-001 — Two-Week Builder Proof  
-**Active mission:** [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md)  
-**Proof deadline:** 2026-08-18  
-**Last reconciled:** 2026-08-08
+**Current gate:** No broad roadmap stage is active
+**Mission record:** [`ACTIVE_MISSION.md`](ACTIVE_MISSION.md) — KPROOF-001 is superseded
+**KPROOF deadline:** 2026-08-18 (elapsed; no durable pass verdict recorded)
+**Last reconciled:** 2026-08-19
 
-This is the sole active delivery order. Issues, plans, packets, branches, and research do not become current work unless this roadmap or the active mission explicitly places them next.
+This remains the sole roadmap authority. A terminal mission does not automatically activate the next historical sequence. Issues, plans, packets, branches, and research become current work only through this roadmap or explicit Jacob approval tied to an accepted decision/packet.
 
 ## Current operating rule
 
-KPROOF-001 temporarily gates every broader roadmap stage. Finish the smallest real proof, verify it in the running system, and make the continue-or-pause decision before widening scope.
+KPROOF-001's bounded proof window ended without a durable record satisfying its full pass contract. The mission is therefore superseded as a scope gate, **not passed**. Jacob explicitly chose to continue targeted Kitty work after the deadline; that approval does not retroactively satisfy KPROOF and does not activate M1–M6.
 
-The previous trustworthy-daily-driver sequence is preserved below as post-proof work. It is **not** parallel execution while KPROOF-001 is running, except where an item is directly required to prove the active mission.
+Individually approved post-deadline work may proceed when its authority is explicit. Current examples are the product-surface convergence work and ADR 0040's Image Lab packets. They are not a second roadmap.
+
+The historical M1–M6 target below is **SUPERSEDED AS AN EXECUTION SEQUENCE**. ADR 0039 plus the 2026-08-23 Constitution amendment resolve the product-surface decision in favor of native Kitty; the old M1/M2 plan to make Open WebUI primary must not be executed. No broad replacement roadmap is activated implicitly by that correction.
 
 Runtime behavior outranks documentation, tests, commits, and agent claims. Reliability, truthful status, bounded cost, recovery, and a completed user outcome outrank speculative architecture or more surfaces.
 
-## Active gate — KPROOF-001
+## Closed gate — KPROOF-001 (superseded; no pass verdict)
 
 **Decision to prove:** Can Kitty take a software request from conversation to a working, verified feature without Jacob manually coordinating the agents?
 
-Execute in this order:
+Historical proof sequence (not current execution):
 
 1. **Establish live baseline**
    - inspect the canonical Mac checkout, current services, Builder state, provider availability, and test/build baseline;
@@ -60,20 +62,19 @@ Execute in this order:
 
 The proof passes only when one real Builder feature loop works in the launched application, survives the required review/recovery checks, stays within the authorized budget, and the resulting experience is preferable to manually coordinating direct AI tools.
 
-If the proof fails by 2026-08-18, pause Kitty for several months and preserve the evidence rather than negotiating the standard downward.
+No durable evidence recorded the full pass condition by 2026-08-18. The mission is superseded rather than relabelled pass/fail after the fact; Jacob's later decision to continue targeted work is recorded separately from the proof verdict.
 
-## After the proof — Version 2, milestones M1 to M6
+## Blocked post-proof target — Version 2, milestones M1 to M6
 
 There is one roadmap: this file. [`ROADMAP_V2.md`](ROADMAP_V2.md) is its detail appendix
 for the milestones below — objectives, packet catalog, and Builder initiative mapping.
-It is not a second plan to choose between, and nothing in it starts while KPROOF-001 is
-the active gate.
+It is not a second plan to choose between. KPROOF no longer runs, but this sequence still does **not** start automatically.
 
-If KPROOF-001 passes, reconcile this order from the proof evidence before starting M1.
+The M1–M6 table is retained only as target history. Its Open WebUI-primary M1/M2 premise is superseded by ADR 0039 and the amended Constitution, so it is not an executable dependency chain.
 
 | # | Milestone | What is true when it is done |
 |---|---|---|
-| M1 | Daily-driver shell is real | Open WebUI is the primary daily driver, live, replacing the Next.js shell |
+| M1 | Historical shell target (superseded) | Open WebUI-primary premise superseded by ADR 0039; native Kitty is canonical |
 | M2 | Console becomes the operator surface | The Next.js app stops competing as a chat shell and is re-roled as the operator console |
 | M3 | Builder → Work integration | The shell and console show real Builder execution as product-level work, not internals |
 | M4 | Failure, interruption, and receipts | A turn and a Builder run survive any provider, network, or crash failure, with honest receipts |

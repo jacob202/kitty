@@ -33,6 +33,11 @@ describe('SessionSidebar', () => {
     expect(screen.getByPlaceholderText('search chats')).toBeInTheDocument()
   })
 
+  it('gives chat search a stable accessible name', () => {
+    render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} />)
+    expect(screen.getByRole('textbox', { name: 'Search chats' })).toBeInTheDocument()
+  })
+
   it('shows today and earlier groups based on date', () => {
     render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} />)
     expect(screen.getByText('today')).toBeInTheDocument()
@@ -50,5 +55,35 @@ describe('SessionSidebar', () => {
     render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={onSelect} onNewChat={() => {}} onCloseChat={() => {}} />)
     fireEvent.click(screen.getByText('First Chat'))
     expect(onSelect).toHaveBeenCalledWith('chat-1')
+  })
+})
+
+
+describe('SessionSidebar visual hierarchy', () => {
+  afterEach(cleanup)
+
+  const chats: Chat[] = [{
+    id: 'chat-active',
+    title: 'Active Chat',
+    messages: [{ role: 'user', content: 'hello', timestamp: new Date() }],
+    model: 'kitty-default',
+    color: 'teal',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }]
+
+  it('keeps New chat useful without making it a primary-accent banner', () => {
+    render(<SessionSidebar chats={chats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} />)
+    const button = screen.getByRole('button', { name: /new chat/i })
+    const style = button.getAttribute('style') ?? ''
+    expect(style).toContain('background: var(--color-selected)')
+    expect(style).toContain('color: var(--color-accent)')
+    expect(style).toContain('border: 1px solid var(--color-separator)')
+  })
+
+  it('uses the shared selected state for the active conversation', () => {
+    render(<SessionSidebar chats={chats} activeChatId="chat-active" onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} />)
+    const active = screen.getByRole('button', { name: /Active Chat/ })
+    expect(active.getAttribute('style') ?? '').toContain('background: var(--color-selected)')
   })
 })

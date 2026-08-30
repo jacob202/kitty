@@ -20,11 +20,13 @@ and bounded error/text fields.
 from __future__ import annotations
 
 import json
+import mimetypes
 import uuid
 from dataclasses import dataclass
 from dataclasses import fields as dc_fields
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from gateway import db as kitty_db
@@ -32,6 +34,14 @@ from gateway import paths as _paths
 from gateway.paths import DB_MIGRATIONS_DIR
 
 _MIGRATION_FILE = DB_MIGRATIONS_DIR / "023_image_jobs.sql"
+
+# Per-process memo of DB paths whose image_jobs schema has already been ensured.
+# _ensure_db runs the full migration DDL + several PRAGMA table_info probes on
+# every create/get/list/transition, which dominates per-operation latency; the
+# schema is immutable within a process lifetime once migrated, so re-probing on
+# every call is pure waste. The SQL body is also read from disk only once.
+_ENSURED_DBS: set[str] = set()
+_MIGRATION_SQL: str | None = None
 
 _MAX_PROVIDER_JSON_BYTES = 65_536
 _MAX_ERROR_BYTES = 2_048
@@ -44,6 +54,7 @@ class ImageJobStatus(str, Enum):
     CREATED = "created"
     SUBMITTED = "submitted"
     RUNNING = "running"
+    UNKNOWN = "unknown"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELED = "canceled"
@@ -55,8 +66,19 @@ class ImageJobStatus(str, Enum):
 # Allowed lifecycle transitions: {current: {next, ...}}
 _ALLOWED_TRANSITIONS: dict[ImageJobStatus, set[ImageJobStatus]] = {
     ImageJobStatus.CREATED: {ImageJobStatus.SUBMITTED, ImageJobStatus.FAILED, ImageJobStatus.CANCELED},
-    ImageJobStatus.SUBMITTED: {ImageJobStatus.RUNNING, ImageJobStatus.FAILED, ImageJobStatus.CANCELED},
-    ImageJobStatus.RUNNING: {ImageJobStatus.SUCCEEDED, ImageJobStatus.FAILED, ImageJobStatus.CANCELED},
+    ImageJobStatus.SUBMITTED: {
+        ImageJobStatus.RUNNING,
+        ImageJobStatus.UNKNOWN,
+        ImageJobStatus.FAILED,
+        ImageJobStatus.CANCELED,
+    },
+    ImageJobStatus.RUNNING: {
+        ImageJobStatus.UNKNOWN,
+        ImageJobStatus.SUCCEEDED,
+        ImageJobStatus.FAILED,
+        ImageJobStatus.CANCELED,
+    },
+    ImageJobStatus.UNKNOWN: {ImageJobStatus.SUCCEEDED, ImageJobStatus.FAILED},
     ImageJobStatus.SUCCEEDED: set(),
     ImageJobStatus.FAILED: set(),
     ImageJobStatus.CANCELED: set(),
@@ -97,6 +119,7 @@ class ImageJob:
     workflow_template_id: str | None
     workflow_hash: str | None
     artifact_id: str | None
+    canonical_artifact_id: str | None
     output_path: str | None
     normalized_error: str | None
     provider_diagnostics_json: str | None
@@ -110,6 +133,12 @@ class ImageJob:
     max_retries: int = 0
     last_error: str | None = None
     queued_at: str | None = None
+    #: FLUX.2 compiler provenance (IL-03/IL-04). NULL for legacy jobs.
+    compiler_version: str | None = None
+    compiler_params_json: str | None = None
+    #: Immutable approved-plan provenance. NULL only for legacy/plan-less jobs.
+    plan_id: str | None = None
+    intent_json: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
@@ -151,6 +180,44 @@ def _ensure_queue_columns(conn: Any) -> None:
     )
 
 
+def _ensure_compiler_columns(conn: Any) -> None:
+    """Add FLUX.2 compiler provenance columns if missing (deferred migration).
+
+    IL-03/IL-04: every dispatched FLUX.2 job durably records its compiler
+    version and the compiled request. Legacy jobs keep compiler_version NULL.
+    """
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(image_jobs)").fetchall()}
+    except Exception:
+        cols = set()
+    if "compiler_version" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN compiler_version TEXT")
+    if "compiler_params_json" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN compiler_params_json TEXT")
+
+
+def _ensure_plan_provenance_columns(conn: Any) -> None:
+    """Add approved plan + ImageIntent provenance to image jobs."""
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(image_jobs)").fetchall()}
+    except Exception:
+        cols = set()
+    if "plan_id" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN plan_id TEXT")
+    if "intent_json" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN intent_json TEXT")
+
+
+def _ensure_canonical_artifact_column(conn: Any) -> None:
+    """Add the canonical Kitty Artifact link without changing legacy asset ids."""
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(image_jobs)").fetchall()}
+    except Exception:
+        cols = set()
+    if "canonical_artifact_id" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN canonical_artifact_id TEXT")
+
+
 def _ensure_db(conn: Any = None) -> None:
     """Apply only our migration so the store works on a fresh DB.
 
@@ -158,6 +225,15 @@ def _ensure_db(conn: Any = None) -> None:
     provider_status), drop and recreate it. This only fires during the
     IMG-01 transition period.
     """
+    global _MIGRATION_SQL
+
+    db_key = str(Path(_paths.KITTY_DB_FILE).resolve())
+    if db_key in _ENSURED_DBS:
+        return
+
+    if _MIGRATION_SQL is None:
+        _MIGRATION_SQL = _MIGRATION_FILE.read_text(encoding="utf-8")
+
     def _apply(c: Any) -> None:
         try:
             cols = {row[1] for row in c.execute("PRAGMA table_info(image_jobs)").fetchall()}
@@ -166,15 +242,23 @@ def _ensure_db(conn: Any = None) -> None:
         if "engine" in cols:
             # Old schema from pre-port — drop and recreate with new schema.
             c.execute("DROP TABLE IF EXISTS image_jobs")
-        c.executescript(_MIGRATION_FILE.read_text(encoding="utf-8"))
+        c.executescript(_MIGRATION_SQL)
 
     if conn is not None:
         _apply(conn)
         _ensure_queue_columns(conn)
+        _ensure_compiler_columns(conn)
+        _ensure_plan_provenance_columns(conn)
+        _ensure_canonical_artifact_column(conn)
     else:
         with kitty_db.connect(_paths.KITTY_DB_FILE) as c:
             _apply(c)
             _ensure_queue_columns(c)
+            _ensure_compiler_columns(c)
+            _ensure_plan_provenance_columns(c)
+            _ensure_canonical_artifact_column(c)
+
+    _ENSURED_DBS.add(db_key)
 
 
 def _check_json_bounded(value: str | None, field_name: str) -> None:
@@ -238,6 +322,7 @@ def _row_to_job(row: Any) -> ImageJob:
         workflow_template_id=row["workflow_template_id"],
         workflow_hash=row["workflow_hash"],
         artifact_id=row["artifact_id"],
+        canonical_artifact_id=row["canonical_artifact_id"],
         output_path=row["output_path"],
         normalized_error=row["normalized_error"],
         provider_diagnostics_json=row["provider_diagnostics_json"],
@@ -247,6 +332,10 @@ def _row_to_job(row: Any) -> ImageJob:
         max_retries=row["max_retries"] if row["max_retries"] is not None else 0,
         last_error=row["last_error"],
         queued_at=row["queued_at"],
+        compiler_version=row["compiler_version"],
+        compiler_params_json=row["compiler_params_json"],
+        plan_id=row["plan_id"],
+        intent_json=row["intent_json"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         started_at=row["started_at"],
@@ -276,15 +365,27 @@ def create_job(
     parent_id: str | None = None,
     priority: int = 0,
     max_retries: int = 0,
+    compiler_version: str | None = None,
+    compiler_params_json: str | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
 ) -> ImageJob:
     """Create a new image-job record. Returns the job. Raises on validation failure."""
     _check_json_bounded(provider_params_json, "provider_params_json")
+    _check_json_bounded(compiler_params_json, "compiler_params_json")
+    _check_json_bounded(intent_json, "intent_json")
     _check_text_bounded(prompt, "prompt")
     _check_text_bounded(negative_prompt, "negative_prompt")
     if not provider or not provider.strip():
         raise ImageJobError("provider must not be empty")
     if not operation or not operation.strip():
         raise ImageJobError("operation must not be empty")
+    if (plan_id is None) != (intent_json is None):
+        raise ImageJobError("plan_id and intent_json must be provided together")
+    if plan_id is not None:
+        if not plan_id.strip():
+            raise ImageJobError("plan_id must not be empty")
+        _check_text_bounded(plan_id, "plan_id")
     valid_ops = {"txt2img", "img2img", "variation", "upscale", "inpaint"}
     if operation not in valid_ops:
         raise ImageJobError(
@@ -314,6 +415,7 @@ def create_job(
         workflow_template_id=workflow_template_id,
         workflow_hash=workflow_hash,
         artifact_id=None,
+        canonical_artifact_id=None,
         output_path=None,
         normalized_error=None,
         provider_diagnostics_json=None,
@@ -323,6 +425,10 @@ def create_job(
         max_retries=max_retries,
         last_error=None,
         queued_at=now if max_retries > 0 else None,
+        compiler_version=compiler_version,
+        compiler_params_json=compiler_params_json,
+        plan_id=plan_id,
+        intent_json=intent_json,
         created_at=now,
         updated_at=now,
         started_at=None,
@@ -365,16 +471,27 @@ def find_by_provider(provider: str, provider_job_id: str) -> ImageJob | None:
     return _row_to_job(row) if row else None
 
 
-def list_recent(limit: int = 50) -> list[ImageJob]:
-    """Return the most recent jobs, newest first."""
+def list_recent(
+    limit: int = 50, *, statuses: set[ImageJobStatus] | frozenset[ImageJobStatus] | None = None
+) -> list[ImageJob]:
+    """Return the most recent jobs, optionally prefiltered by status."""
     if limit <= 0 or limit > 200:
         raise ImageJobError(f"limit must be between 1 and 200, got {limit}")
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
-        rows = conn.execute(
-            "SELECT * FROM image_jobs ORDER BY created_at DESC, job_id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        if statuses:
+            values = sorted(status.value for status in statuses)
+            placeholders = ",".join("?" for _ in values)
+            rows = conn.execute(
+                f"SELECT * FROM image_jobs WHERE status IN ({placeholders}) "
+                "ORDER BY created_at DESC, job_id DESC LIMIT ?",
+                (*values, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM image_jobs ORDER BY created_at DESC, job_id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
     return [_row_to_job(r) for r in rows]
 
 
@@ -452,10 +569,13 @@ def update_job(
     provider_job_id: str | None = None,
     output_path: str | None = None,
     artifact_id: str | None = None,
+    canonical_artifact_id: str | None = None,
     normalized_error: str | None = None,
     provider_diagnostics_json: str | None = None,
     started_at: str | None = None,
     workflow_hash: str | None = None,
+    width: int | None = None,
+    height: int | None = None,
 ) -> ImageJob:
     """Update mutable fields on an existing job. Fails loud on bad input."""
     job = get_job(job_id)
@@ -466,6 +586,11 @@ def update_job(
 
     _check_error_bounded(normalized_error)
     _check_json_bounded(provider_diagnostics_json, "provider_diagnostics_json")
+    for value, field in ((width, "width"), (height, "height")):
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value <= 0
+        ):
+            raise ImageJobError(f"{field} must be a positive integer")
 
     cols: dict[str, Any] = {"updated_at": _now_iso()}
     if provider_job_id is not None:
@@ -474,6 +599,8 @@ def update_job(
         cols["output_path"] = output_path
     if artifact_id is not None:
         cols["artifact_id"] = artifact_id
+    if canonical_artifact_id is not None:
+        cols["canonical_artifact_id"] = canonical_artifact_id
     if normalized_error is not None:
         cols["normalized_error"] = normalized_error
     if provider_diagnostics_json is not None:
@@ -482,6 +609,10 @@ def update_job(
         cols["started_at"] = started_at
     if workflow_hash is not None:
         cols["workflow_hash"] = workflow_hash
+    if width is not None:
+        cols["width"] = width
+    if height is not None:
+        cols["height"] = height
 
     set_clauses = ", ".join(f"{k} = ?" for k in cols)
     values = list(cols.values()) + [job_id]
@@ -495,6 +626,110 @@ def update_job(
     updated = get_job(job_id)
     assert updated is not None
     return updated
+
+
+def set_parent(job_id: str, parent_id: str) -> ImageJob:
+    """Record lineage on an already-created job without touching its operation.
+
+    Iteration re-runs an approved plan, which recreates the job with the same
+    operation (txt2img/img2img). Lineage is bookkeeping, not a render input, so
+    it is attached after the fact here rather than overloading ``parent_id`` on
+    the creation path (where it doubles as the img2img/variation anchor).
+    Unlike ``update_job`` this is allowed on terminal jobs, because a child's
+    lineage is recorded after it has already succeeded.
+    """
+    job = get_job(job_id)
+    if job is None:
+        raise JobNotFoundError(f"job {job_id} not found")
+    if not parent_id or not parent_id.strip():
+        raise ImageJobError("parent_id must not be empty")
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute(
+            "UPDATE image_jobs SET parent_id = ?, updated_at = ? WHERE job_id = ?",
+            (parent_id, _now_iso(), job_id),
+        )
+    updated = get_job(job_id)
+    assert updated is not None
+    if updated.canonical_artifact_id:
+        from gateway import artifact_store
+
+        existing_artifact = artifact_store.get_artifact(updated.canonical_artifact_id)
+        project_id = existing_artifact.get("project_id") if existing_artifact else None
+        register_canonical_artifact(job_id, project_id=project_id)
+        updated = get_job(job_id)
+        assert updated is not None
+    return updated
+
+
+def register_canonical_artifact(
+    job_id: str, *, project_id: int | None = None
+) -> dict[str, Any]:
+    """Register a persisted image output in Kitty's canonical Artifact spine.
+
+    The legacy ``artifact_id`` field may contain a provider/worker asset id and
+    is intentionally left untouched. Registration is deterministic by job id so
+    restart/retry repair cannot create duplicate Library entries. Artifact row
+    creation and the image-job link share one SQLite transaction.
+    """
+    from gateway import artifact_store
+
+    job = get_job(job_id)
+    if job is None:
+        raise JobNotFoundError(f"job {job_id} not found")
+    if not job.output_path:
+        raise ImageJobError(f"job {job_id} has no persisted output_path to register")
+    path = Path(job.output_path)
+    if not path.is_file():
+        raise ImageJobError(f"job {job_id} output is missing from disk: {path}")
+    if Path(artifact_store.ARTIFACTS_DB_FILE) != Path(_paths.KITTY_DB_FILE):
+        raise ImageJobError(
+            "image jobs and canonical Artifacts must share the same kitty.db"
+        )
+
+    parent_artifact_id = None
+    if job.parent_id:
+        parent = get_job(job.parent_id)
+        if parent is not None:
+            parent_artifact_id = parent.canonical_artifact_id
+
+    media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    artifact_store.init_db()
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        artifact = artifact_store.register_file(
+            path,
+            artifact_id=f"artifact_image_{job.job_id}",
+            kind="image",
+            media_type=media_type,
+            project_id=project_id,
+            created_by=f"image:{job.provider}",
+            source_ref=job.job_id,
+            metadata={
+                "image_job_id": job.job_id,
+                "provider": job.provider,
+                "provider_job_id": job.provider_job_id,
+                "provider_asset_id": job.artifact_id,
+                "operation": job.operation,
+                "model_id": job.model_id,
+                "seed": job.seed,
+                "width": job.width,
+                "height": job.height,
+                "compiler_version": job.compiler_version,
+                "parent_job_id": job.parent_id,
+                "parent_artifact_id": parent_artifact_id,
+                "workflow_template_id": job.workflow_template_id,
+                "workflow_hash": job.workflow_hash,
+            },
+            connection=conn,
+            refresh_existing=True,
+        )
+        conn.execute(
+            "UPDATE image_jobs SET canonical_artifact_id = ?, updated_at = ? "
+            "WHERE job_id = ?",
+            (artifact["id"], _now_iso(), job.job_id),
+        )
+    return artifact
 
 
 # ── Provider-request normalization ──────────────────────────────────────────
@@ -585,47 +820,41 @@ def normalize_comfyui_request(
 
 
 def reconcile_stale() -> int:
-    """Reconcile jobs orphaned by a gateway restart.
+    """Reconcile image jobs orphaned by a gateway restart truthfully.
 
-    Jobs that were never submitted (no provider_job_id) are marked canceled
-    — their generating coroutine is gone and no provider work exists.
-
-    Jobs that were submitted (have a provider_job_id) are marked failed
-    with a diagnostic message, because the provider may have completed
-    the work while the gateway was down. Marking them canceled would be
-    dishonest when provider state is unknown.
+    A job that never left ``created`` is canceled because Kitty can prove no
+    provider dispatch began. Once a job reached ``submitted`` or ``running``,
+    the provider outcome is conservatively ``unknown`` regardless of whether
+    Kitty managed to persist a provider receipt before the restart. This keeps
+    accepted-but-response-lost submissions from being treated as safe retries.
 
     Returns the number of rows reconciled.
     """
-    non_terminal = [s.value for s in ImageJobStatus if not s.is_terminal()]
     now = _now_iso()
-    placeholders = ",".join("?" for _ in non_terminal)
     total = 0
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
         cur = conn.execute(
             "UPDATE image_jobs SET status = ?, normalized_error = ?, "
-            f"updated_at = ?, finished_at = ? WHERE status IN ({placeholders}) "
-            "AND (provider_job_id IS NULL OR provider_job_id = '')",
+            "updated_at = ?, finished_at = ? WHERE status = ?",
             (
                 ImageJobStatus.CANCELED.value,
                 "orphaned by gateway restart (never submitted to provider)",
                 now,
                 now,
-                *non_terminal,
+                ImageJobStatus.CREATED.value,
             ),
         )
         total += cur.rowcount
         cur2 = conn.execute(
             "UPDATE image_jobs SET status = ?, normalized_error = ?, "
-            f"updated_at = ?, finished_at = ? WHERE status IN ({placeholders}) "
-            "AND provider_job_id IS NOT NULL AND provider_job_id != ''",
+            "updated_at = ?, finished_at = NULL WHERE status IN (?, ?)",
             (
-                ImageJobStatus.FAILED.value,
-                "gateway restarted; provider state unknown — manual check needed",
+                ImageJobStatus.UNKNOWN.value,
+                "gateway restarted; provider outcome unknown — reconciliation required",
                 now,
-                now,
-                *non_terminal,
+                ImageJobStatus.SUBMITTED.value,
+                ImageJobStatus.RUNNING.value,
             ),
         )
         total += cur2.rowcount
@@ -633,20 +862,37 @@ def reconcile_stale() -> int:
 
 
 def list_queue(limit: int = 50) -> list[ImageJob]:
-    """Return queued jobs ordered by priority (highest first), then FIFO."""
-    non_terminal = [s.value for s in ImageJobStatus if not s.is_terminal()]
+    """Return active dispatch jobs, excluding unresolved provider outcomes."""
+    active = [
+        ImageJobStatus.CREATED.value,
+        ImageJobStatus.SUBMITTED.value,
+        ImageJobStatus.RUNNING.value,
+    ]
     if limit <= 0 or limit > 200:
         raise ImageJobError(f"limit must be between 1 and 200, got {limit}")
-    non_terminal = [s.value for s in ImageJobStatus if not s.is_terminal()]
-    placeholders = ",".join("?" for _ in non_terminal)
+    placeholders = ",".join("?" for _ in active)
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
         rows = conn.execute(
             f"SELECT * FROM image_jobs WHERE status IN ({placeholders}) "
             "ORDER BY priority DESC, created_at ASC LIMIT ?",
-            (*non_terminal, limit),
+            (*active, limit),
         ).fetchall()
     return [_row_to_job(r) for r in rows]
+
+
+def list_unknown(limit: int = 50) -> list[ImageJob]:
+    """Return unresolved provider outcomes for recovery, oldest first."""
+    if limit <= 0 or limit > 200:
+        raise ImageJobError(f"limit must be between 1 and 200, got {limit}")
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        rows = conn.execute(
+            "SELECT * FROM image_jobs WHERE status = ? "
+            "ORDER BY updated_at ASC, job_id ASC LIMIT ?",
+            (ImageJobStatus.UNKNOWN.value, limit),
+        ).fetchall()
+    return [_row_to_job(row) for row in rows]
 
 
 def requeue(job_id: str) -> ImageJob:
@@ -685,9 +931,60 @@ def requeue(job_id: str) -> ImageJob:
     return get_job(job_id)  # type: ignore[return-value]
 
 
+def retry_job(job_id: str) -> ImageJob:
+    """Retry a failed job by minting a NEW child job with the same intent.
+
+    Unlike ``requeue`` (which reuses the same row), a retry preserves lineage:
+    the child records ``parent_id`` pointing at the original, and copies every
+    generation parameter, provider/model metadata, compiler provenance, and the
+    immutable plan + intent JSON verbatim. The new job gets a fresh job_id and
+    attempt lifecycle. Privacy/content lane and character are preserved through
+    the copied plan and intent, never re-derived from the request body.
+
+    Only a FAILED job can be retried. A terminal job in any other state has no
+    failed attempt to recover; duplicating a success is a separate operation.
+
+    Raises:
+        JobNotFoundError: job does not exist.
+        ImageJobError: job is not in terminal FAILED state.
+    """
+    job = get_job(job_id)
+    if job is None:
+        raise JobNotFoundError(f"job {job_id} not found")
+    if job.status != ImageJobStatus.FAILED:
+        raise ImageJobError(
+            f"job {job_id} is {job.status.value}; only terminal FAILED jobs can be retried"
+        )
+    return create_job(
+        job.provider,
+        job.operation,
+        prompt=job.prompt,
+        negative_prompt=job.negative_prompt,
+        seed=job.seed,
+        model_id=job.model_id,
+        preset_id=job.preset_id,
+        width=job.width,
+        height=job.height,
+        steps=job.steps,
+        guidance=job.guidance,
+        sampler=job.sampler,
+        scheduler=job.scheduler,
+        provider_params_json=job.provider_params_json,
+        workflow_template_id=job.workflow_template_id,
+        workflow_hash=job.workflow_hash,
+        parent_id=job.job_id,
+        priority=job.priority,
+        max_retries=job.max_retries,
+        compiler_version=job.compiler_version,
+        compiler_params_json=job.compiler_params_json,
+        plan_id=job.plan_id,
+        intent_json=job.intent_json,
+    )
+
+
 def cancel_queued(character_id: str | None = None, provider: str | None = None) -> int:
-    """Cancel all non-terminal jobs matching optional filters. Returns count."""
-    conditions = ["status NOT IN ('succeeded', 'failed', 'canceled')"]
+    """Cancel locally active jobs without erasing unknown provider outcomes."""
+    conditions = ["status IN ('created', 'submitted', 'running')"]
     params: list[Any] = []
     if character_id:
         conditions.append("character_id = ?")
@@ -721,9 +1018,12 @@ __all__ = [
     "list_recent",
     "list_children",
     "list_queue",
+    "list_unknown",
     "transition",
     "update_job",
+    "set_parent",
     "requeue",
+    "retry_job",
     "cancel_queued",
     "normalize_drawthings_request",
     "normalize_comfyui_request",

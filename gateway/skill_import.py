@@ -4,15 +4,21 @@ Adapted from ``deeptutor/utils/archive_extractor.py`` + ``document_validator.py`
 A skill bundle is a ``.zip`` of a ``SKILL.md`` plus optional data assets.
 Importing an untrusted bundle is gated the same way as a document upload:
 
-* every member is collapsed to a sanitized basename (defuses Zip Slip — no
-  path component survives) and written flat into ``<skills>/{name}/``;
+* every member's path is validated (no ``..`` segment, no absolute path —
+  defuses Zip Slip) and written into ``<skills>/{name}/`` preserving its
+  relative subdirectory, so the Agent Skills convention of ``references/``,
+  ``assets/`` etc. survives instead of colliding at a flattened root;
 * per-entry uncompressed size, cumulative size, entry count and compression
   ratio are bounded to defeat zip bombs;
 * only documentation/data extensions are accepted; no executable or nested
-  archive survives;
+  archive survives — this includes ``scripts/``, so a bundle depending on
+  executable helpers is rejected outright, not partially imported;
 * each member's leading bytes are sniffed so a renamed binary (``.exe`` -> ``.md``)
   is rejected;
-* ``__MACOSX`` resource forks, dotfiles, and directories are dropped.
+* ``__MACOSX`` resource forks, dotfiles, and directories are dropped;
+* a bundle may contain exactly one ``SKILL.md`` (the root) — a nested one
+  would otherwise be discoverable by :mod:`gateway.skill_registry`'s
+  filesystem scan as a second, entirely unvalidated skill.
 
 Failure is loud: any violation raises ``SkillImportError`` with a cause.
 
@@ -24,9 +30,10 @@ discoverable by :mod:`gateway.skill_registry`.
 from __future__ import annotations
 
 import logging
+import shutil
 import zipfile
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from gateway.paths import PROJECT_ROOT
 
@@ -65,6 +72,29 @@ class SkillImportResult:
     name: str
     path: Path
     files: list[str] = field(default_factory=list)
+
+
+def _safe_relative_path(filename: str) -> Path | None:
+    """Resolve a zip member's name to a safe relative path under the skill dir.
+
+    Checks traversal *before* the junk-file skip: a naive substring check for
+    dotfiles (``/.``) would otherwise also match `../` and silently treat an
+    escape attempt as a skippable file instead of raising.
+
+    Returns ``None`` for junk entries that should be silently skipped
+    (resource forks, dotfiles/dot-dirs). Raises :class:`SkillImportError` for
+    an escape attempt (``..`` segment or absolute path) rather than silently
+    collapsing it, since that is the Zip Slip case.
+    """
+    if filename.startswith("__MACOSX/"):
+        return None
+    pure = PurePosixPath(filename)
+    if pure.is_absolute() or any(part == ".." for part in pure.parts):
+        raise SkillImportError(f"zip-slip attempt: {filename!r}")
+    parts = [part for part in pure.parts if part != "."]
+    if not parts or any(part.startswith(".") for part in parts):
+        return None
+    return Path(*parts)
 
 
 def _reject_binary_payload(name: str, data: bytes) -> None:
@@ -124,15 +154,14 @@ def import_skill_bundle(zip_path: str | Path, *, target_root: Path = SKILL_ROOT)
         # First pass: bounds + name + type checks (no extraction yet).
         total = 0
         skmd_text: str | None = None
+        skill_md_count = 0
         for info in infos:
             if info.is_dir():
                 continue
-            if info.filename.startswith("__MACOSX/") or "/." in info.filename or info.filename.endswith("/."):
+            safe = _safe_relative_path(info.filename)
+            if safe is None:
                 continue
-            safe = Path(info.filename).name  # collapse to basename -> defuses Zip Slip
-            if not safe or safe.startswith("."):
-                continue
-            ext = Path(safe).suffix.lower()
+            ext = safe.suffix.lower()
             if ext not in ALLOWED_SKILL_EXTENSIONS:
                 raise SkillImportError(
                     f"rejected file type in bundle: {info.filename!r} ({ext or 'no extension'})"
@@ -146,10 +175,20 @@ def import_skill_bundle(zip_path: str | Path, *, target_root: Path = SKILL_ROOT)
             if total > MAX_BUNDLE_BYTES:
                 raise SkillImportError(f"bundle too large: {total} > {MAX_BUNDLE_BYTES}")
             data = zf.read(info)
-            _reject_binary_payload(safe, data)
-            if safe == "SKILL.md":
+            _reject_binary_payload(str(safe), data)
+            if safe.name == "SKILL.md":
+                # A SKILL.md anywhere but the root would still be picked up as
+                # an independent, unvalidated skill by skill_registry's
+                # rglob("SKILL.md") scan once extracted — refuse the whole
+                # bundle rather than silently install a second skill.
+                skill_md_count += 1
+            if safe == Path("SKILL.md"):
                 skmd_text = data.decode("utf-8", errors="strict")
 
+        if skill_md_count > 1:
+            raise SkillImportError(
+                f"bundle contains {skill_md_count} SKILL.md files; only the bundle root is allowed"
+            )
         if skmd_text is None:
             raise SkillImportError("bundle has no SKILL.md")
         name = _skill_name_from(skmd_text)
@@ -158,27 +197,37 @@ def import_skill_bundle(zip_path: str | Path, *, target_root: Path = SKILL_ROOT)
         if dest.exists():
             raise SkillImportError(f"skill already exists: {name!r}")
 
-        # Second pass: extract flat, validating each member's path.
+        # Second pass: extract preserving each member's validated relative path.
+        # Any failure here — including a path collision surfacing as a raw
+        # OSError — must not leave a half-written, still-discoverable skill
+        # directory behind.
         dest.mkdir(parents=True, exist_ok=True)
+        dest_resolved = dest.resolve()
         written: list[str] = []
-        for info in infos:
-            if info.is_dir():
-                continue
-            if info.filename.startswith("__MACOSX/") or "/." in info.filename or info.filename.endswith("/."):
-                continue
-            safe = Path(info.filename).name
-            if not safe or safe.startswith("."):
-                continue
-            ext = Path(safe).suffix.lower()
-            if ext not in ALLOWED_SKILL_EXTENSIONS:
-                continue
-            target = (dest / safe).resolve()
-            if target != (dest / safe).resolve() or not str(target).startswith(str(dest.resolve())):
-                raise SkillImportError(f"zip-slip attempt: {info.filename!r}")
-            data = zf.read(info)
-            _reject_binary_payload(safe, data)
-            target.write_bytes(data)
-            written.append(safe)
+        try:
+            for info in infos:
+                if info.is_dir():
+                    continue
+                safe = _safe_relative_path(info.filename)
+                if safe is None:
+                    continue
+                ext = safe.suffix.lower()
+                if ext not in ALLOWED_SKILL_EXTENSIONS:
+                    continue
+                target = (dest / safe).resolve()
+                if dest_resolved not in target.parents:
+                    raise SkillImportError(f"zip-slip attempt: {info.filename!r}")
+                data = zf.read(info)
+                _reject_binary_payload(str(safe), data)
+                try:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(data)
+                except OSError as exc:
+                    raise SkillImportError(f"failed to write {info.filename!r}: {exc}") from exc
+                written.append(safe.as_posix())
+        except Exception:
+            shutil.rmtree(dest, ignore_errors=True)
+            raise
 
     logger.info("Imported skill %r (%d files) from %s", name, len(written), zip_path)
     return SkillImportResult(name=name, path=dest, files=written)

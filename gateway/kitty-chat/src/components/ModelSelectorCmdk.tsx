@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { Command } from 'cmdk'
 import type { Model } from '@/lib/types'
+import { buildPickerModels, fetchModelPicker } from '@/lib/model-picker'
 
 interface Props {
   activeModel: Model
@@ -18,7 +19,26 @@ interface Props {
 export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFromGateway = true, compact = false }: Props) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [curatedModels, setCuratedModels] = useState<Model[] | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!modelFromGateway) {
+      setCuratedModels(null)
+      setOpen(false)
+      return
+    }
+    const controller = new AbortController()
+    void fetchModelPicker(controller.signal)
+      .then(payload => {
+        const curated = buildPickerModels(payload)
+        if (curated.length > 0) setCuratedModels(curated)
+      })
+      .catch(() => {
+        // The caller's runtime-backed model list remains the honest fallback.
+      })
+    return () => controller.abort()
+  }, [modelFromGateway])
 
   useEffect(() => {
     if (!open) return
@@ -33,52 +53,66 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
     if (!open) setSearch('')
   }, [open])
 
+  const visibleModels = useMemo(() => {
+    if (!curatedModels) return models
+    const curatedByRoute = new Map(curatedModels.map(model => [model.id, model]))
+    // Runtime-backed choices are authoritative. Curated picker data may add
+    // decision metadata to those routes, but it cannot introduce a route the
+    // app does not currently consider available.
+    return models.map(model => curatedByRoute.get(model.id) ?? model)
+  }, [curatedModels, models])
+
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen((o) => !o)}
+        disabled={!modelFromGateway}
+        title={modelFromGateway ? undefined : 'model availability is unknown — reconnect to Kitty before switching'}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={`Model: ${activeModel.name}`}
         style={{
           ...chipBtnStyle,
           display: 'flex', alignItems: 'center', gap: 6,
+          opacity: modelFromGateway ? 1 : 0.65,
+          cursor: modelFromGateway ? 'pointer' : 'not-allowed',
         }}
       >
         <span
-          title={modelFromGateway ? undefined : 'using offline model list'}
           style={{
             width: 7, height: 7, borderRadius: 99,
-            background: modelFromGateway ? activeModel.color : 'var(--c-red)',
+            background: modelFromGateway ? activeModel.color : 'var(--color-destructive)',
             flexShrink: 0,
           }}
         />
         <span style={compact ? compactLabelStyle : undefined}>{activeModel.name}</span>
       </button>
 
-      {open && (
+      {open && modelFromGateway && (
         <div style={popoverStyle}>
           <Command label="Select model" loop shouldFilter>
             <Command.Input
               value={search}
               onValueChange={setSearch}
-              placeholder="search models…"
+              placeholder="search the shortlist…"
               autoFocus
               style={inputStyle}
             />
             <Command.List style={listStyle}>
-              <Command.Empty style={emptyStyle}>no matches</Command.Empty>
-              {models.map((m) => (
+              <Command.Empty style={emptyStyle}>
+                {visibleModels.length === 0 ? 'no live models available' : 'no matches'}
+              </Command.Empty>
+              {visibleModels.map((m) => (
                 <Command.Item
                   key={m.id}
-                  value={m.name}
+                  value={`${m.name} ${m.upstreamModel ?? ''} ${m.provider ?? ''} ${m.purpose ?? ''}`}
                   onSelect={() => {
                     onSelectModel(m)
                     setOpen(false)
                   }}
                   style={{
                     ...itemStyle,
-                    background: m.id === activeModel.id ? 'var(--ginger-fade)' : undefined,
+                    background: m.id === activeModel.id ? 'var(--color-selected)' : undefined,
                   }}
                   data-selected={m.id === activeModel.id || undefined}
                 >
@@ -86,25 +120,27 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
                     aria-hidden="true"
                     style={{
                       width: 7, height: 7, borderRadius: 99,
-                      background: m.color, flexShrink: 0,
+                      background: m.color, flexShrink: 0, marginTop: 5,
                     }}
                   />
-                  <span style={{ flex: 1 }}>{m.name}</span>
-                  <span style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 9,
-                    letterSpacing: '0.05em',
-                    padding: '1px 5px',
-                    borderRadius: 999,
-                    border: '1px solid var(--line)',
-                    color: 'var(--ink-2)',
-                    flexShrink: 0,
-                  }}>
-                    {providerLabel(m.id)}
+                  <span style={{ display: 'grid', gap: 2, flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'flex', gap: 8, alignItems: 'baseline', minWidth: 0 }}>
+                      <span style={{ fontWeight: 650 }}>{m.name}</span>
+                      <span style={providerChipStyle}>{providerLabel(m)}</span>
+                    </span>
+                    {m.purpose && <span style={purposeStyle}>{m.purpose}</span>}
+                    <span style={decisionRowStyle}>
+                      <span>{m.upstreamModel ?? 'automatic route'}</span>
+                      {formatContext(m.contextLength) && <span>{formatContext(m.contextLength)}</span>}
+                      {formatPrice(m) && <span>{formatPrice(m)}</span>}
+                    </span>
                   </span>
                 </Command.Item>
               ))}
             </Command.List>
+            <div style={footerStyle}>
+              curated choices · exact provider facts only when known
+            </div>
           </Command>
         </div>
       )}
@@ -112,14 +148,40 @@ export function ModelSelectorCmdk({ activeModel, models, onSelectModel, modelFro
   )
 }
 
+function formatContext(contextLength?: number | null): string | null {
+  if (!contextLength || contextLength <= 0) return null
+  if (contextLength >= 1_000_000) return `${(contextLength / 1_000_000).toFixed(contextLength % 1_000_000 === 0 ? 0 : 1)}m context`
+  if (contextLength >= 1_000) return `${Math.round(contextLength / 1_000)}k context`
+  return `${contextLength} context`
+}
+
+function formatPrice(model: Model): string | null {
+  const input = model.inputUsdPerMillion
+  const output = model.outputUsdPerMillion
+  if (input == null && output == null) return null
+  const money = (value: number | null | undefined) => value == null ? '?' : `$${value.toFixed(2)}`
+  return `${money(input)} in · ${money(output)} out / 1m`
+}
+
+function providerLabel(model: Model): string {
+  if (model.provider) return model.provider === 'openrouter' ? 'OpenRouter' : model.provider
+  if (!model.upstreamModel) return 'auto'
+  const prefix = model.upstreamModel.split('/')[0]?.toLowerCase() ?? ''
+  const labels: Record<string, string> = {
+    openrouter: 'OpenRouter', openai: 'OpenAI', google: 'Google', gemini: 'Gemini',
+    anthropic: 'Anthropic', deepseek: 'DeepSeek', nvidia: 'NVIDIA', local: 'local',
+  }
+  return labels[prefix] ?? prefix
+}
+
 const chipBtnStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  color: 'var(--ink-2)',
-  border: '1.5px solid var(--line)',
-  borderRadius: 8,
-  padding: '4px 9px',
-  background: 'transparent',
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  color: 'var(--color-text-secondary)',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 10,
+  padding: '6px 9px',
+  background: 'var(--color-surface)',
   cursor: 'pointer',
 }
 
@@ -134,12 +196,13 @@ const popoverStyle: CSSProperties = {
   position: 'absolute',
   top: 'calc(100% + 6px)',
   right: 0,
-  background: 'var(--surface)',
-  border: '1.5px solid var(--line)',
-  borderRadius: 12,
-  minWidth: 260,
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 14,
+  minWidth: 360,
+  maxWidth: 'min(440px, calc(100vw - 24px))',
   zIndex: 100,
-  boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+  boxShadow: 'var(--shadow)',
   overflow: 'hidden',
 }
 
@@ -147,60 +210,58 @@ const inputStyle: CSSProperties = {
   width: '100%',
   padding: '10px 14px',
   border: 'none',
-  borderBottom: '1px solid var(--line)',
+  borderBottom: '1px solid var(--color-separator)',
   background: 'transparent',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
-  color: 'var(--ink)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 13,
+  color: 'var(--color-text-primary)',
   outline: 'none',
 }
 
 const listStyle: CSSProperties = {
   padding: 6,
-  maxHeight: 280,
+  maxHeight: 360,
   overflowY: 'auto',
 }
 
 const emptyStyle: CSSProperties = {
   padding: '12px 14px',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  color: 'var(--ink-2)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  color: 'var(--color-text-secondary)',
   textAlign: 'center',
 }
 
 const itemStyle: CSSProperties = {
   display: 'flex',
-  alignItems: 'center',
+  alignItems: 'flex-start',
   gap: 10,
   width: '100%',
-  padding: '8px 12px',
+  padding: '9px 12px',
   borderRadius: 8,
   border: 'none',
   cursor: 'pointer',
   fontFamily: 'var(--font-body)',
   fontSize: 13,
-  fontWeight: 500,
-  color: 'var(--ink)',
+  color: 'var(--color-text-primary)',
 }
 
-const idStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 9,
-  color: 'var(--ink-2)',
-  opacity: 0.7,
+const providerChipStyle: CSSProperties = {
+  fontFamily: 'var(--font-body)', fontSize: 10, letterSpacing: '0.01em',
+  padding: '1px 5px', borderRadius: 999, border: '1px solid var(--color-separator)',
+  color: 'var(--color-text-muted)', flexShrink: 0,
 }
 
-function providerLabel(modelId: string): string {
-  const prefix = modelId.split('/')[0]?.toLowerCase() ?? ''
-  const labels: Record<string, string> = {
-    openrouter: 'OpenRouter',
-    openai: 'OpenAI',
-    gemini: 'Gemini',
-    anthropic: 'Anthropic',
-    deepseek: 'DeepSeek',
-    nvidia: 'NVIDIA',
-    local: 'local',
-  }
-  return labels[prefix] ?? prefix
+const purposeStyle: CSSProperties = {
+  fontFamily: 'var(--font-body)', fontSize: 12, lineHeight: 1.35, color: 'var(--color-text-secondary)',
+}
+
+const decisionRowStyle: CSSProperties = {
+  display: 'flex', flexWrap: 'wrap', gap: '3px 10px', fontFamily: 'var(--font-mono)',
+  fontSize: 10, color: 'var(--color-text-muted)', opacity: 0.92,
+}
+
+const footerStyle: CSSProperties = {
+  borderTop: '1px solid var(--color-separator)', padding: '8px 12px', fontFamily: 'var(--font-body)',
+  fontSize: 10, color: 'var(--color-text-muted)',
 }

@@ -10,7 +10,6 @@ import { BottomNav } from '@/components/BottomNav'
 import { SessionSidebar } from '@/components/SessionSidebar'
 import { OnboardingModal } from '@/components/OnboardingModal'
 import { CommandPalette } from '@/components/CommandPalette'
-import { ActiveTaskCards } from '@/components/ActiveTaskCards'
 import { KittyRuntimeProvider } from '@/components/KittyRuntimeProvider'
 import { ViewRenderer } from '@/components/ViewRenderer'
 import { StatusBar } from '@/components/StatusBar'
@@ -20,11 +19,12 @@ import { CatCorner } from '@/components/CrayonCat'
 export default function KittyChat() {
   const k = useKitty()
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
+  const modelUnavailable = !k.modelGateway.live || k.availableModels.length === 0
 
   return (
     <div
       style={{
-        display: 'flex',         height: '100dvh', width: '100vw', overflow: 'hidden',
+        display: 'flex', height: '100dvh', width: '100vw', overflow: 'hidden',
         position: 'relative', background: 'var(--bg)', color: 'var(--ink)',
         fontFamily: 'var(--font-body)',
       }}
@@ -45,7 +45,7 @@ export default function KittyChat() {
       {!k.isMobile && <Rail activeView={k.activeView} onViewChange={k.setActiveView} theme={k.theme} onToggleTheme={k.handleToggleTheme} />}
       {k.isMobile && <BottomNav activeView={k.activeView} onViewChange={k.setActiveView} />}
 
-      {!k.isMobile && (k.activeView === 'chat' || k.activeView === 'home') && (
+      {!k.isMobile && k.activeView === 'chat' && (
         <SessionSidebar
           chats={k.chats} activeChatId={k.activeChatId}
           onSelectChat={k.handleSelectChat} onNewChat={() => { k.handleNewChat(); k.setActiveView('chat') }}
@@ -53,7 +53,7 @@ export default function KittyChat() {
         />
       )}
 
-      {k.isMobile && k.mobileSidebarOpen && (k.activeView === 'chat' || k.activeView === 'home') && (
+      {k.isMobile && k.mobileSidebarOpen && k.activeView === 'chat' && (
         <>
           <div onClick={() => k.setMobileSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.6)', zIndex: 40 }} />
           <div
@@ -61,9 +61,6 @@ export default function KittyChat() {
             style={{
               position: 'fixed', inset: '0 auto 0 0', width: 'min(320px, 84vw)',
               height: '100dvh', zIndex: 50, boxShadow: 'var(--shadow)',
-              // The sidebar's own --surface is translucent by design on desktop,
-              // where it sits in flow. Floating it over the page needs a solid
-              // backer or the whole app reads through it.
               background: 'var(--surface-solid)',
             }}
           >
@@ -79,8 +76,8 @@ export default function KittyChat() {
 
       <KittyRuntimeProvider
         messages={k.activeChat?.messages ?? []} isStreaming={k.isStreaming}
-        activeModel={k.activeModel} onSend={k.handleRuntimeSend}
-        onCancel={k.handleStop} onReload={k.handleRetry}
+        activeModel={k.activeModel} onSend={(text) => { if (!modelUnavailable) k.handleRuntimeSend(text) }}
+        onCancel={k.handleStop} onReload={() => { if (!modelUnavailable) k.handleRetry() }}
       >
         <main style={{
           flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
@@ -107,11 +104,18 @@ export default function KittyChat() {
           )}
           {k.activeView === 'chat' && !k.isMobile && <SignalFeed compact={k.isMobile} />}
 
+          {k.viewPersistenceWarning && (
+            <div role="status" style={{ padding: '8px 16px', borderBottom: '1px solid var(--line)', color: 'var(--c-yellow)', fontSize: 12 }}>
+              {k.viewPersistenceWarning}
+            </div>
+          )}
+
           <StatusBar
             showChatSignals={k.activeView === 'chat' || k.activeView === 'home'}
             attachmentErrors={k.attachmentErrors}
-            gatewayOffline={k.modelGateway.loaded && !k.modelGateway.live}
-            onRetryGateway={k.retryGatewayBootstrap}
+            modelUnavailable={k.modelGateway.loaded && modelUnavailable}
+            modelError={k.modelGateway.error}
+            onRetryModels={k.retryGatewayBootstrap}
             saveState={k.saveState} onRetrySave={k.handleRetrySave}
             briefUnavailable={k.modelGateway.loaded && k.modelGateway.live && k.briefGateway.loaded && !k.briefGateway.live}
             briefError={k.briefGateway.error}
@@ -130,7 +134,7 @@ export default function KittyChat() {
                 chatId: k.activeChat?.id ?? '',
                 isStreaming: k.isStreaming,
                 catState: k.catState,
-                onRetry: k.handleRetry,
+                onRetry: () => { if (!modelUnavailable) k.handleRetry() },
                 retryBranches: k.activeChat?.retryBranches,
                 onSwitchBranch: k.handleSwitchBranch,
                 onStartClick: () => k.textareaRef.current?.focus(),
@@ -142,27 +146,25 @@ export default function KittyChat() {
                 onNavigate: k.setActiveView,
                 onExpertClick: (expert: any) => { k.handleNewExpertChat(expert); k.setActiveView('chat') },
               }}
-              builderProps={{ onBack: () => k.setActiveView('home') }}
+              builderProps={{ onBack: () => k.setActiveView('work') }}
               toolsProps={{
                 loops: k.loops, insights: k.insights, promptTemplates: k.promptTemplates,
                 onLoopToggle: k.handleLoopToggle, onInsightDismiss: k.handleInsightDismiss,
                 onInsightAction: k.handleInsightAction, onPromptSelect: k.handlePromptSelect,
-                loopsLoading: k.loopsQuery.isLoading, insightsLoading: k.insightsQuery.isLoading,
+                loopsLoading: k.loopsQuery.isLoading, loopsError: k.loopsQuery.isError ? (k.loopsQuery.error instanceof Error ? k.loopsQuery.error.message : 'Gateway request failed') : null, insightsLoading: k.insightsQuery.isLoading,
                 promptsLoading: k.promptsQuery.isLoading,
               }}
             />
           </div>
 
-          {k.activeView === 'chat' && !k.isMobile && <ActiveTaskCards compact={k.isMobile} />}
-
-          {(k.activeView === 'chat' || k.activeView === 'home') && (
+          {k.activeView === 'chat' && (
             <InputBar
               value={k.input}
               onChange={(v: string) => { k.setInput(v); if (k.attachmentErrors.length) k.setAttachments([]) }}
-              onSend={k.handleSend}
+              onSend={() => { if (!modelUnavailable) k.handleSend() }}
               onStop={k.handleStop}
               isStreaming={k.isStreaming}
-              disabled={k.isStreaming}
+              disabled={k.isStreaming || modelUnavailable}
               chatTitle={k.activeChat?.title}
               modelName={k.activeModel.name}
               modelColor={k.activeModel.color}
@@ -181,7 +183,7 @@ export default function KittyChat() {
         </main>
       </KittyRuntimeProvider>
 
-      <CatCorner state={k.catState} />
+      {k.activeView !== 'home' && <CatCorner state={k.catState} />}
       <div aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
         {k.catState === 'working' ? 'Kitty is working' : k.catState === 'broke' ? 'Kitty needs attention' : k.catState === 'done' ? 'Kitty completed the task' : ''}
       </div>

@@ -248,6 +248,25 @@ def _builder_fact(*, observed_at: str, valid_until: str) -> dict[str, Any]:
         )
 
 
+def _grant_posture() -> dict[str, Any]:
+    """Standing user grants, summarized for a model turn (issue #554).
+
+    An unreadable grant store reports itself as unknown. Returning "no grants"
+    instead would read to a turn as "nothing is restricted and nothing is
+    pre-authorized", which is the one wrong answer here.
+    """
+    try:
+        from gateway import action_grants
+    except ImportError as exc:  # pragma: no cover - import wiring fault
+        return {"state": "unknown", "reason": f"grant module unavailable: {exc}"}
+    try:
+        posture = action_grants.approval_posture()
+    except Exception as exc:
+        logger.warning("Grant posture unavailable: %s", exc)
+        return {"state": "unknown", "reason": f"grant store read failed: {exc}"}
+    return {"state": "available", **posture}
+
+
 def _approval_fact(*, observed_at: str, valid_until: str) -> dict[str, Any]:
     try:
         raw = json.loads(ACTION_TIERS_FILE.read_text())
@@ -264,6 +283,7 @@ def _approval_fact(*, observed_at: str, valid_until: str) -> dict[str, Any]:
                 "disabled": disabled,
                 "auto_execute_tiers": ["T0", "T1"],
                 "approval_required_tiers": ["T2"],
+                "grants": _grant_posture(),
             },
             source=str(ACTION_TIERS_FILE),
             observed_at=observed_at,
@@ -396,8 +416,76 @@ def _summarize_builder_fact(fact: dict[str, Any]) -> dict[str, Any]:
     return {**fact, "value": summary}
 
 
+def _compact_runtime_fact(value: Any) -> Any:
+    """Keep fact truth while removing provenance duplicated by the manifest envelope."""
+    if not isinstance(value, dict):
+        return value
+    if "state" in value and ("value" in value or "reason" in value):
+        compact: dict[str, Any] = {"state": value.get("state")}
+        if "value" in value:
+            compact["value"] = value.get("value")
+        if value.get("reason"):
+            compact["reason"] = value["reason"]
+        return compact
+    return {key: _compact_runtime_fact(child) for key, child in value.items()}
+
+
+def _compact_operational_fact(fact: dict[str, Any]) -> dict[str, Any]:
+    """Project an operational fact to state/reason without verbose payload detail."""
+    compact: dict[str, Any] = {"state": fact.get("state")}
+    if fact.get("reason"):
+        compact["reason"] = fact["reason"]
+    return compact
+
+
+def _compact_tools_fact(fact: dict[str, Any]) -> dict[str, Any]:
+    compact = _compact_operational_fact(fact)
+    value = fact.get("value")
+    if fact.get("state") == "available" and isinstance(value, list):
+        compact["value"] = [
+            {key: row[key] for key in ("id", "approval_class") if key in row}
+            for row in value
+            if isinstance(row, dict)
+        ]
+    return compact
+
+
+def _compact_connections(connections: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for name, fact in connections.items():
+        if not isinstance(fact, dict):
+            continue
+        compact = _compact_operational_fact(fact)
+        value = fact.get("value")
+        if (
+            fact.get("state") == "available"
+            and isinstance(value, dict)
+            and isinstance(value.get("model_count"), int)
+        ):
+            compact["model_count"] = value["model_count"]
+        result[name] = compact
+    return result
+
+
+def _compact_approvals_fact(fact: dict[str, Any]) -> dict[str, Any]:
+    compact = _compact_operational_fact(fact)
+    value = fact.get("value")
+    if fact.get("state") == "available" and isinstance(value, dict):
+        for key in ("auto_execute_tiers", "approval_required_tiers"):
+            if key in value:
+                compact[key] = value[key]
+    return compact
+
+
 def compact_runtime_context(manifest: dict[str, Any]) -> str:
-    """Render only verified runtime facts needed by a model turn."""
+    """Render the bounded runtime truth a model turn actually needs.
+
+    The top-level manifest revision/freshness owns provenance for the whole
+    snapshot, so repeating source/observed/expiry on every nested fact only
+    consumes prompt budget. Tool registry, connection diagnostics, and approval
+    provenance is omitted, while context, inference, connections, tools, and
+    approvals remain visible per the capability-manifest projection contract.
+    """
     execution = manifest["execution"]
     builder = execution.get("builder")
     if isinstance(builder, dict):
@@ -407,21 +495,21 @@ def compact_runtime_context(manifest: dict[str, Any]) -> str:
         "manifest_revision": manifest["revision"],
         "generated_at": manifest["generated_at"],
         "valid_until": manifest["valid_until"],
-        "application": manifest["application"],
-        "clock": manifest["clock"],
-        "context": manifest["context"],
-        "execution": execution,
-        "inference": {
+        "application": _compact_runtime_fact(manifest["application"]),
+        "clock": _compact_runtime_fact(manifest["clock"]),
+        "context": _compact_runtime_fact(manifest["context"]),
+        "execution": _compact_runtime_fact(execution),
+        "inference": _compact_runtime_fact({
             "routing_mode": manifest["inference"]["routing_mode"],
             "available_models": manifest["inference"]["available_models"],
             "execution_location": manifest["inference"]["execution_location"],
-        },
-        "tools": manifest["tools"],
-        "connections": manifest["connections"],
-        "approvals": manifest["approvals"],
+        }),
+        "tools": _compact_tools_fact(manifest["tools"]),
+        "connections": _compact_connections(manifest["connections"]),
+        "approvals": _compact_approvals_fact(manifest["approvals"]),
     }
     return (
         "<kitty_runtime_truth>\n"
-        + json.dumps(context, sort_keys=True, ensure_ascii=True)
+        + json.dumps(context, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         + "\n</kitty_runtime_truth>"
     )

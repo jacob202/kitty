@@ -59,12 +59,22 @@ describe('gateway integration helpers', () => {
           score: null,
         },
       ],
+      inbox: [
+        {
+          kind: 'capture',
+          source: 'inbox',
+          title: 'Captured note',
+          text: 'remember this capture',
+          score: 0.7,
+        },
+      ],
     })
 
     expect(summary.query).toBe('honda')
     expect(summary.sections.memories[0]).toContain('remember this')
     expect(summary.sections.knowledge[0]).toContain('KB note')
     expect(summary.sections.todos[0]).toContain('Call shop')
+    expect(summary.sections.inbox[0]).toContain('Captured note')
   })
 })
 
@@ -105,6 +115,60 @@ describe('fetchGatewaySearch abort', () => {
     expect(result.snapshot).toBeNull()
   })
 
+  it('waits longer than the backend store timeout before aborting search', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('window', {
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+    })
+    vi.mocked(global.fetch).mockImplementation((_url, init) => {
+      const signal = init?.signal as AbortSignal | undefined
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => {
+          const err = new Error('The operation was aborted')
+          err.name = 'AbortError'
+          reject(err)
+        }, { once: true })
+      })
+    })
+
+    let settled = false
+    const pending = fetchGatewaySearch('slow partial search').then((result) => {
+      settled = true
+      return result
+    })
+    await vi.advanceTimersByTimeAsync(5_100)
+    expect(settled).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect((await pending).error).toContain('timed out')
+    vi.useRealTimers()
+  })
+
+  it('adapts the live flat /search contract into grouped context sections', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify({
+        query: 'mosfet',
+        results: [
+          { store: 'knowledge', content: 'MOSFET bias notes', score: 0.87 },
+          { store: 'memory', content: 'Jacob owns the manual', score: 0.8 },
+        ],
+        stores: ['knowledge', 'memory'],
+        errors: ['generic search warning'],
+        degraded_stores: ['memory', 'knowledge'],
+      }), { status: 200 }),
+    )
+
+    const result = await fetchGatewaySearch('mosfet', 3)
+
+    expect(result.fromLiveGateway).toBe(true)
+    expect(result.error).toBeNull()
+    expect(result.snapshot?.sections.knowledge[0]).toContain('MOSFET bias notes')
+    expect(result.snapshot?.sections.memories[0]).toContain('Jacob owns the manual')
+    expect(result.degradedStores).toEqual(['memory', 'knowledge'])
+    expect(result.degradedErrors).toEqual(['generic search warning'])
+  })
+
   it('returns error payload when gateway returns 500', async () => {
     vi.mocked(global.fetch).mockResolvedValue(
       new Response(null, { status: 500, statusText: 'Internal Server Error' })
@@ -123,16 +187,49 @@ describe('fetchGatewayModels', () => {
   })
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('keeps the live model list when the proxy is healthy', async () => {
+  it('keeps a safe route but reports degraded state when curated metadata is unavailable', async () => {
     vi.mocked(global.fetch).mockResolvedValue(
-      new Response(JSON.stringify({ data: [{ id: 'kitty-sonnet' }] }), { status: 200 }),
+      new Response(JSON.stringify({ data: [{ id: 'kitty-code' }] }), { status: 200 }),
     )
 
     const result = await fetchGatewayModels()
 
+    expect(result.fromLiveGateway).toBe(false)
+    expect(result.error).toMatch(/model details unavailable/i)
+    expect(result.models.map(model => [model.id, model.name])).toEqual([['kitty-code', 'Code']])
+  })
+
+  it('exposes only the configured human-facing shortlist when raw LiteLLM aliases include internal routes', async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          data: [
+            { id: 'kitty-default', display_name: 'deepseek-v4-pro' },
+            { id: 'kitty-sonnet', display_name: 'deepseek-v4-pro' },
+            { id: 'kitty-code', display_name: 'qwen3-coder' },
+            { id: 'kitty-local', display_name: 'Qwen3.5-4B-4bit' },
+          ],
+        }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          schema_version: 1, source: 'test',
+          discovery: { state: 'missing', reason: null, checked_at: null },
+          claims: { role_tags: 'heuristic', alternatives: 'cost-screened only' },
+          presets: [
+            { role: 'auto', label: 'Daily Kitty', route: 'kitty-default', purpose: 'Everyday use.', kind: 'router', provider: null, model: null, configured: true, catalogue: null, catalogue_state: 'not_applicable', alternatives: [] },
+            { role: 'code', label: 'Code', route: 'kitty-code', purpose: 'Repository work.', kind: 'model_role', provider: 'openrouter', model: 'qwen/qwen3-coder', configured: true, catalogue: null, catalogue_state: 'not_observed', alternatives: [] },
+          ],
+        }), { status: 200 }),
+      )
+
+    const result = await fetchGatewayModels()
+
     expect(result.fromLiveGateway).toBe(true)
-    expect(result.error).toBeNull()
-    expect(result.models.map(model => model.id)).toEqual(['kitty-sonnet'])
+    expect(result.models.map(model => [model.id, model.name])).toEqual([
+      ['kitty-default', 'Daily Kitty'],
+      ['kitty-code', 'Code'],
+    ])
   })
 
   it('marks the model list offline instead of hiding a proxy error', async () => {
@@ -205,14 +302,21 @@ describe('TopBar', () => {
     onKittyModeChange: () => undefined,
   }
 
-  it('shows offline indicator when modelFromGateway is false', () => {
+  it('disables model selection when live availability is unknown', () => {
     render(<TopBar {...baseProps} modelFromGateway={false} />)
-    expect(screen.getByTitle('using offline model list')).toBeInTheDocument()
+    const modelButton = screen.getByRole('button', { name: 'Model: default' })
+    expect(modelButton).toBeDisabled()
+    expect(modelButton).toHaveAttribute(
+      'title',
+      'model availability is unknown — reconnect to Kitty before switching',
+    )
   })
 
-  it('does not show offline indicator when modelFromGateway is true', () => {
+  it('does not show an unknown-availability warning when modelFromGateway is true', () => {
     render(<TopBar {...baseProps} modelFromGateway={true} />)
-    expect(screen.queryByTitle('using offline model list')).not.toBeInTheDocument()
+    expect(
+      screen.queryByTitle('model availability is unknown — reconnect to Kitty before switching'),
+    ).not.toBeInTheDocument()
   })
 
   it('reserves the iOS status-bar safe area in mobile mode', () => {

@@ -186,32 +186,13 @@ cp "${local_result}" "${KB_RESULT_PATH}"
 # set of paths); it stays as the safety net for every other exit path.
 rm -f "${local_bundle}" "${local_context}" "${local_result}"
 
-# CP-08 dogfood finding: the worker prompt never told the model to commit,
-# so a genuinely correct free-model implementation still failed publish
-# ("worktree is dirty") because nothing durable ever landed on the branch.
-# Commit on the model's behalf rather than trust it remembers — this is the
-# adapter's job, not a modeling task. Only for a real success with a real
-# change; a "failed" result leaves the worktree as evidence and is never
-# committed, and nothing runs (including the packet_id read below) when
-# there's nothing to commit.
+# The model-controlled adapter never mutates Git metadata.  On a completed
+# result it may sanitize worktree-only runtime residue; trusted Builder
+# orchestration performs the packet-marked commit before validation/review.
 if [[ "${result_status}" == "completed" ]]; then
   REPO_ROOT="$(git rev-parse --show-toplevel)"
   SANITIZE_SCRIPT="${REPO_ROOT}/scripts/sanitize_builder_state.sh"
   if [[ -x "${SANITIZE_SCRIPT}" ]]; then
     bash "${SANITIZE_SCRIPT}"
   fi
-fi
-
-if [[ "${result_status}" == "completed" ]] \
-  && [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
-  # builder_identity.verify_and_escalate requires every commit since the
-  # lease's base_sha to carry a "[<packet_id>]" marker in its subject line
-  # (a second CP-08 dogfood finding — a marker-less commit fails identity
-  # verification identically to a foreign/unauthorized one). packet_id
-  # isn't in any env var; it's read from the bundle we already staged a
-  # copy of above — reuse the KB_BUNDLE_PATH original since the local copy
-  # was just removed.
-  packet_id=$(python3 -c "import json; print(json.load(open('${KB_BUNDLE_PATH}'))['packet_id'])")
-  git add -A
-  git commit --quiet -m "[${packet_id}] kittybuilder: ${KB_TASK_ID} attempt ${KB_ATTEMPT_ID} (${chosen_model})"
 fi

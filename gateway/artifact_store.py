@@ -43,6 +43,9 @@ def register_file(
     source_ref: str | None = None,
     conversation_id: str | None = None,
     metadata: dict[str, Any] | None = None,
+    artifact_id: str | None = None,
+    connection: Any | None = None,
+    refresh_existing: bool = False,
 ) -> dict[str, Any]:
     """Register an existing local file without moving or deleting it."""
     if not kind.strip():
@@ -56,7 +59,11 @@ def register_file(
     if not path.is_file():
         raise ArtifactError(f"artifact source is not a file: {path}")
     content_hash, size_bytes = _hash_file(path)
-    artifact_id = f"artifact_{uuid.uuid4().hex}"
+    explicit_artifact_id = artifact_id is not None
+    if artifact_id is None:
+        artifact_id = f"artifact_{uuid.uuid4().hex}"
+    elif not artifact_id.strip():
+        raise ArtifactError("artifact_id must not be empty when supplied")
     now = time.time()
     artifact = {
         "id": artifact_id,
@@ -77,11 +84,11 @@ def register_file(
         "metadata": metadata or {},
         "error": None,
     }
-    init_db()
-    with kitty_db.connect(ARTIFACTS_DB_FILE) as conn:
+    def _insert(conn: Any) -> Any:
+        insert_verb = "INSERT OR IGNORE" if explicit_artifact_id else "INSERT"
         conn.execute(
-            """
-            INSERT INTO artifacts
+            f"""
+            {insert_verb} INTO artifacts
                 (id, project_id, kind, media_type, display_name, state, storage_uri,
                  content_hash, size_bytes, created_at, created_by, source_ref,
                  conversation_id, work_item_id, run_id, metadata_json, error)
@@ -96,13 +103,73 @@ def register_file(
                 json.dumps(artifact["metadata"], ensure_ascii=False), artifact["error"],
             ),
         )
-        conn.commit()
-    return artifact
+        return conn.execute(
+            "SELECT * FROM artifacts WHERE id = ?", (artifact_id,)
+        ).fetchone()
+
+    if connection is None:
+        init_db()
+        with kitty_db.connect(ARTIFACTS_DB_FILE) as conn:
+            row = _insert(conn)
+    else:
+        row = _insert(connection)
+    if row is None:
+        raise ArtifactError(f"artifact {artifact_id} disappeared during registration")
+    existing = _row_to_artifact(row)
+    identity_fields = ("kind", "created_by", "source_ref")
+    mismatched_identity = [
+        name for name in identity_fields if existing[name] != artifact[name]
+    ]
+    if mismatched_identity:
+        raise ArtifactError(
+            f"artifact id {artifact_id!r} already exists with different "
+            f"{', '.join(mismatched_identity)}"
+        )
+    if explicit_artifact_id and refresh_existing:
+        refresh_conn = connection
+        owns_connection = refresh_conn is None
+        if refresh_conn is None:
+            refresh_conn = kitty_db.connect(ARTIFACTS_DB_FILE)
+        try:
+            refresh_conn.execute(
+                """UPDATE artifacts SET media_type = ?, display_name = ?,
+                   storage_uri = ?, content_hash = ?, size_bytes = ?,
+                   project_id = ?, conversation_id = ?, metadata_json = ?
+                   WHERE id = ?""",
+                (
+                    artifact["media_type"], artifact["display_name"],
+                    artifact["storage_uri"], artifact["content_hash"],
+                    artifact["size_bytes"], artifact["project_id"],
+                    artifact["conversation_id"],
+                    json.dumps(artifact["metadata"], ensure_ascii=False),
+                    artifact_id,
+                ),
+            )
+            refreshed_row = refresh_conn.execute(
+                "SELECT * FROM artifacts WHERE id = ?", (artifact_id,)
+            ).fetchone()
+            if owns_connection:
+                refresh_conn.commit()
+        finally:
+            if owns_connection:
+                refresh_conn.close()
+        if refreshed_row is None:
+            raise ArtifactError(f"artifact {artifact_id} disappeared during refresh")
+        return _row_to_artifact(refreshed_row)
+
+    immutable = ("media_type", "storage_uri", "content_hash", "size_bytes")
+    mismatched = [name for name in immutable if existing[name] != artifact[name]]
+    if mismatched:
+        raise ArtifactError(
+            f"artifact id {artifact_id!r} already exists with different "
+            f"{', '.join(mismatched)}"
+        )
+    return existing
 
 
 def update_ingestion(artifact_id: str, *, status: str, error: str | None = None) -> dict[str, Any]:
     """Record downstream ingestion state without changing file readiness."""
-    if status not in {"queued", "ready", "failed"}:
+    if status not in {"queued", "ready", "failed", "not_indexed"}:
         raise ArtifactError(f"invalid ingestion status {status!r}")
     init_db()
     with kitty_db.connect(ARTIFACTS_DB_FILE) as conn:
@@ -136,6 +203,31 @@ def get_artifact(artifact_id: str) -> dict[str, Any] | None:
     with kitty_db.connect(ARTIFACTS_DB_FILE) as conn:
         row = conn.execute("SELECT * FROM artifacts WHERE id = ?", (artifact_id,)).fetchone()
     return _row_to_artifact(row) if row is not None else None
+
+
+def get_artifacts(artifact_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """Return many artifacts with bounded SQLite round-trips for recovery paths."""
+    if not artifact_ids:
+        return {}
+
+    unique_ids = list(dict.fromkeys(artifact_ids))
+    init_db()
+    result: dict[str, dict[str, Any]] = {}
+
+    # SQLite has a finite host-parameter limit; chunk large recovery requests.
+    for start in range(0, len(unique_ids), 500):
+        chunk = unique_ids[start : start + 500]
+        placeholders = ",".join("?" for _ in chunk)
+        with kitty_db.connect(ARTIFACTS_DB_FILE) as conn:
+            rows = conn.execute(
+                f"SELECT * FROM artifacts WHERE id IN ({placeholders})",
+                chunk,
+            ).fetchall()
+        for row in rows:
+            artifact = _row_to_artifact(row)
+            result[artifact["id"]] = artifact
+
+    return result
 
 
 def list_artifacts(

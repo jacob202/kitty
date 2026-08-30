@@ -14,7 +14,10 @@ def test_post_retries_server_errors():
     unavailable = MagicMock(status_code=503)
     recovered = MagicMock(status_code=200)
 
-    with patch("gateway.llm_client.httpx.post", side_effect=[unavailable, recovered]) as mock_post:
+    with (
+        patch.object(_post.retry, "sleep", lambda _seconds: None),
+        patch("gateway.llm_client.httpx.post", side_effect=[unavailable, recovered]) as mock_post,
+    ):
         result = _post("https://example.test/chat")
 
     assert result is recovered
@@ -199,6 +202,7 @@ def test_resolve_agentrouter_key_from_env():
 
     with (
         patch("gateway.llm_client.load_dotenv"),
+        patch("gateway.llm_client.dotenv_values", return_value={}),
         patch.dict("os.environ", {"AGENT_ROUTER_TOKEN": "sk-test-key"}),
     ):
         key = resolve_agentrouter_api_key()
@@ -210,6 +214,7 @@ def test_resolve_agentrouter_key_strips_quotes():
 
     with (
         patch("gateway.llm_client.load_dotenv"),
+        patch("gateway.llm_client.dotenv_values", return_value={}),
         patch.dict("os.environ", {"AGENTROUTER_API_KEY": '"sk-test-key"'}, clear=True),
     ):
         key = resolve_agentrouter_api_key()
@@ -222,6 +227,7 @@ def test_resolve_agentrouter_key_multiline_uses_first():
 
     with (
         patch("gateway.llm_client.load_dotenv"),
+        patch("gateway.llm_client.dotenv_values", return_value={}),
         patch.dict("os.environ", {"AGENTROUTER_API_KEY": "sk-line1\nsk-line2"}, clear=True),
     ):
         key = resolve_agentrouter_api_key()
@@ -231,13 +237,36 @@ def test_resolve_agentrouter_key_multiline_uses_first():
 def test_resolve_agentrouter_key_missing_returns_empty():
     from gateway.llm_client import resolve_agentrouter_api_key
 
-    with patch("gateway.llm_client.load_dotenv"), patch.dict("os.environ", {}, clear=True):
+    with (
+        patch("gateway.llm_client.load_dotenv"),
+        patch("gateway.llm_client.dotenv_values", return_value={}),
+        patch.dict("os.environ", {}, clear=True),
+    ):
         import os
 
         os.environ.pop("AGENTROUTER_API_KEY", None)
         os.environ.pop("AGENT_ROUTER_TOKEN", None)
         key = resolve_agentrouter_api_key()
     assert key == ""
+
+
+def test_resolve_agentrouter_key_prefers_current_dotenv_for_live_rotation():
+    """A repo key rotation must beat a stale value previously loaded into os.environ."""
+    from gateway.llm_client import resolve_agentrouter_api_key
+
+    with (
+        patch.dict("os.environ", {"AGENT_ROUTER_TOKEN": "stale-loaded-key"}, clear=True),
+        patch(
+            "gateway.llm_client.dotenv_values",
+            side_effect=[
+                {"AGENT_ROUTER_TOKEN": "fresh-key-1"},
+                {"AGENT_ROUTER_TOKEN": "fresh-key-2"},
+            ],
+        ),
+    ):
+        assert resolve_agentrouter_api_key() == "fresh-key-1"
+        assert resolve_agentrouter_api_key() == "fresh-key-2"
+        assert __import__("os").environ["AGENT_ROUTER_TOKEN"] == "stale-loaded-key"
 
 
 # ── call_llm integration (mocked network) ────────────────────────────────────
@@ -746,6 +775,31 @@ def test_agentrouter_model_for_request_default_reads_env():
     assert result == "env-model"
 
 
+# ── Airforce direct provider ───────────────────────────────────────────────
+
+
+def test_airforce_provider_maps_text_roles_to_verified_free_model():
+    from gateway.llm_client import PROVIDERS, _airforce_model_for_request
+
+    provider = PROVIDERS["airforce"]
+    assert provider.base_url == "https://api.airforce/v1"
+    assert provider.api_key_env == ("AIRFORCE_API_KEY",)
+    assert provider.kind == "api_credit"
+    assert provider.free_tier is True
+    for role in ("kitty-default", "kitty-small", "kitty-sonnet", "kitty-think", "kitty-code"):
+        assert _airforce_model_for_request(role) == "glm-4.7-flash"
+    # No free Airforce vision model has been verified for this account. Fail
+    # rather than silently route an image to a text-only model.
+    assert _airforce_model_for_request("kitty-vision") == "kitty-vision"
+    assert _airforce_model_for_request("custom-model") == "custom-model"
+
+
+def test_airforce_precedes_openrouter_in_default_fallback_order():
+    from gateway.llm_client import PROVIDER_FALLBACK_ORDER
+
+    assert PROVIDER_FALLBACK_ORDER.index("airforce") < PROVIDER_FALLBACK_ORDER.index("openrouter")
+
+
 # ── _openrouter_fallback_model ────────────────────────────────────────────
 
 
@@ -890,3 +944,134 @@ def test_log_chat_trace_omits_tier_when_none(tmp_path):
         entry = json.loads(f.readline())
     assert "tier" not in entry
     assert "trigger" not in entry
+
+
+# ── plain-language chain exhaustion ──────────────────────────────────────────
+
+# Jacob's conversation must never carry operator mechanics. Terminal commands,
+# .env, ports and proxy internals belong to the durable event instead.
+_OPERATOR_LEAKS = ("./kitty", ".env", "litellm", "HTTPConnectionPool", "api key", "127.0.0.1")
+
+
+def _assert_no_operator_mechanics(message: str) -> None:
+    for leak in _OPERATOR_LEAKS:
+        assert leak.lower() not in message.lower(), f"{leak!r} leaked into user copy: {message}"
+
+
+def test_dead_chain_states_setup_is_required_without_terminal_steps():
+    """The #498 shape: proxy down, every fallback missing a key."""
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(
+        [
+            "litellm: HTTPConnectionPool(host='127.0.0.1', port=4000): Max retries exceeded",
+            "openrouter: no api key configured",
+            "local: no api key configured",
+            "openai: no api key configured",
+            "agentrouter: disabled",
+        ]
+    )
+
+    assert "no model provider it can use" in message
+    assert "Setting up a provider is required" in message
+    _assert_no_operator_mechanics(message)
+
+
+def test_nothing_configured_does_not_send_him_to_an_empty_settings_screen():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(["litellm: boom", "openrouter: no api key configured"])
+
+    # Nothing is selectable, so pointing at Settings would be a dead end.
+    assert "Settings" not in message
+    _assert_no_operator_mechanics(message)
+
+
+def test_providers_that_answered_with_nothing_offer_one_settings_action():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(
+        ["litellm: boom", "openrouter: no response", "openai: no api key configured"]
+    )
+
+    assert "openrouter" in message
+    assert "empty balance or a rate limit" in message
+    assert message.count("Settings") == 1
+    _assert_no_operator_mechanics(message)
+
+
+def test_chain_deadline_reads_as_a_timeout_without_blaming_the_network():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(["litellm: boom", "chain: deadline 90.0s exceeded"])
+
+    assert "too long" in message
+    assert "deadline" not in message
+    # The chain records a deadline, not a cause — it must not invent one.
+    assert "internet" not in message.lower()
+    assert "connection" not in message.lower()
+    _assert_no_operator_mechanics(message)
+
+
+def test_selected_provider_failure_offers_exactly_one_action():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    unset = describe_chain_exhaustion(["selected provider 'openai' is not configured"])
+    assert "marked ready in Settings" in unset
+    assert unset.count("Settings") == 1
+    _assert_no_operator_mechanics(unset)
+
+    off = describe_chain_exhaustion(["selected provider 'agentrouter' is disabled"])
+    assert "switched off" in off
+    assert off.count("Settings") == 1
+    _assert_no_operator_mechanics(off)
+
+
+def test_empty_diagnostics_still_gives_an_in_product_action():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion([])
+
+    assert "Settings" in message
+    _assert_no_operator_mechanics(message)
+
+
+def test_exception_exposes_its_own_user_message():
+    from gateway.llm_client import ProviderChainExhausted
+
+    exc = ProviderChainExhausted(["litellm: boom", "openrouter: no api key configured"])
+
+    assert "Setting up a provider is required" in exc.user_message
+    _assert_no_operator_mechanics(exc.user_message)
+    # The operator record keeps the raw diagnostics.
+    assert "openrouter: no api key configured" in str(exc)
+
+
+def test_selected_provider_that_answered_with_nothing_points_at_credit():
+    from gateway.llm_client import describe_chain_exhaustion
+
+    message = describe_chain_exhaustion(["selected provider 'openai' returned no response"])
+
+    assert "empty balance or a rate limit" in message
+    assert "switched off" not in message
+    _assert_no_operator_mechanics(message)
+
+
+def test_resolve_agentrouter_key_never_overwrites_gateway_runtime_env(monkeypatch):
+    """Provider inspection must not mutate unrelated live Gateway process settings."""
+    import os
+
+    from gateway import llm_client
+
+    monkeypatch.setenv("GATEWAY_SECRET", "runtime-gateway-secret")
+    monkeypatch.setenv("AGENT_ROUTER_TOKEN", "runtime-agentrouter-key")
+
+    def dangerous_dotenv_reload(*args, **kwargs):
+        if kwargs.get("override"):
+            os.environ["GATEWAY_SECRET"] = "dotenv-gateway-secret"
+
+    monkeypatch.setattr(llm_client, "load_dotenv", dangerous_dotenv_reload)
+    monkeypatch.setattr(llm_client, "dotenv_values", lambda *_args, **_kwargs: {})
+
+    assert llm_client.resolve_agentrouter_api_key() == "runtime-agentrouter-key"
+    assert os.environ["GATEWAY_SECRET"] == "runtime-gateway-secret"

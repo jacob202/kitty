@@ -5,6 +5,20 @@ import { Model, STREAMING_LABEL } from '@/lib/types'
 import { StateBadge, type CatState } from './CrayonCat'
 import { ModelSelectorCmdk } from './ModelSelectorCmdk'
 
+const SURFACE_LABELS: Record<string, string> = {
+  home: 'Home',
+  chat: 'Chat',
+  work: 'Work',
+  builder: 'Work',
+  'builder-details': 'Builder details',
+  projects: 'Projects',
+  studio: 'Image Lab',
+  images: 'Image Lab',
+  library: 'Library',
+  automations: 'Automations',
+  settings: 'Settings',
+}
+
 interface Props {
   activeModel: Model
   models: Model[]
@@ -36,6 +50,7 @@ export function TopBar({
   onSelectModel,
   isStreaming,
   modelFromGateway = true,
+  activeView,
   catState = 'idle',
   onCommandPalette,
   isMobile = false,
@@ -48,6 +63,13 @@ export function TopBar({
   projectLoading = false,
   projectBusy = false,
 }: Props) {
+  // This badge reports the chat turn only. c648eb5 forced it to 'broke' whenever
+  // the runtime was not 'available', to stop it claiming "ready" while the
+  // backend was unknown — but that also fires for 'unknown' (still loading) and
+  // for degraded/stale, so the badge announced "reply failed" when no reply had
+  // failed, or when nothing had been sent at all. The relabel of idle to "idle"
+  // already removes the overclaim that gating existed to prevent, and the
+  // RuntimeBadge beside this one owns connection health.
 
   if (isMobile) {
     // Two rows on the phone. Squeezing a cat state, runtime, the active project
@@ -58,8 +80,8 @@ export function TopBar({
     return (
       <div style={{
         padding: 'calc(8px + env(safe-area-inset-top, 0px)) 12px 8px',
-        borderBottom: '1.5px solid var(--line)',
-        background: 'var(--surface)', flexShrink: 0,
+        borderBottom: '1px solid var(--color-separator)',
+        background: 'var(--color-surface)', flexShrink: 0,
         display: 'grid', gap: 6,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' }} data-testid="topbar-identity-row">
@@ -71,8 +93,8 @@ export function TopBar({
             </button>
           )}
           <span style={{
-            fontFamily: 'var(--font-display)', fontWeight: 800,
-            fontSize: 20, letterSpacing: '-0.02em', color: 'var(--ink)',
+            fontFamily: 'var(--font-body)', fontWeight: 700,
+            fontSize: 18, letterSpacing: '-0.02em', color: 'var(--color-text-primary)',
             flexShrink: 0,
           }}>kitty</span>
           <span style={{ flex: 1 }} />
@@ -104,24 +126,26 @@ export function TopBar({
     )
   }
 
+  const surfaceLabel = SURFACE_LABELS[activeView] ?? 'Kitty'
+
   return (
-    <div style={{
+    <header aria-label="Workspace toolbar" style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '0 26px', height: 58,
-      borderBottom: '1.5px solid var(--line)',
-      background: 'var(--surface)', flexShrink: 0,
+      padding: '0 20px', height: 'var(--topbar-height)',
+      borderBottom: '1px solid var(--color-separator)',
+      background: 'var(--color-surface)', flexShrink: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
         <span style={{
-          fontFamily: 'var(--font-display)', fontWeight: 800,
-          fontSize: 23, letterSpacing: '-0.02em', color: 'var(--ink)',
-        }}>kitty</span>
+          fontFamily: 'var(--font-body)', fontWeight: 650,
+          fontSize: 18, letterSpacing: '-0.02em', color: 'var(--color-text-primary)',
+        }}>{surfaceLabel}</span>
         <StateBadge state={catState} />
         <RuntimeBadge state={runtimeState} detail={runtimeDetail} />
         {isStreaming && (
           <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 11,
-            color: 'var(--c-yellow)',
+            fontFamily: 'var(--font-body)', fontSize: 12,
+            color: 'var(--color-warning)',
           }}>{STREAMING_LABEL}</span>
         )}
       </div>
@@ -146,7 +170,7 @@ export function TopBar({
           modelFromGateway={modelFromGateway}
         />
       </div>
-    </div>
+    </header>
   )
 }
 
@@ -210,17 +234,38 @@ function RuntimeBadge({
   compact?: boolean
 }) {
   const healthy = state === 'available'
-  const color = healthy ? 'var(--c-green)' : 'var(--c-red)'
-  const label = healthy ? 'runtime live' : `runtime ${state}`
+  const color = healthy ? 'var(--color-success)' : state === 'degraded' || state === 'stale' || state === 'unknown' ? 'var(--color-warning)' : 'var(--color-destructive)'
+  // These describe the BACKEND CONNECTION only. The cat StateBadge sits right
+  // next to this and reports Kitty's own state (e.g. "ready"), so a label here
+  // starting with "Kitty ___" read as a second, contradictory claim about the
+  // same thing.
+  const label = state === 'available'
+    ? 'connected'
+    : state === 'degraded'
+      ? 'partly connected'
+      : state === 'unavailable'
+        ? 'not connected'
+        : state === 'stale'
+          ? 'connection stale'
+          : 'connection unknown'
+  // "Gateway" is the internal name for a component; it means nothing to the
+  // person using Kitty, and a screen reader user deserves the same plain
+  // wording the visible badge gets. Naming the connection is enough to keep
+  // this distinct from the cat StateBadge beside it.
+  const accessibleLabel = state === 'stale'
+    ? 'Connection to Kitty is stale'
+    : state === 'unknown'
+      ? 'Connection to Kitty is unknown'
+      : `Connection to Kitty: ${label}`
   return (
     <span
-      title={detail ?? `runtime state: ${state}`}
-      aria-label={label}
+      title={detail ?? accessibleLabel}
+      aria-label={accessibleLabel}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
-        fontFamily: 'var(--font-mono)', fontSize: 10, whiteSpace: 'nowrap',
-        color, border: `1px solid ${color}`, borderRadius: 999,
-        padding: compact ? 4 : '3px 7px', opacity: 0.9,
+        fontFamily: 'var(--font-body)', fontSize: 11, whiteSpace: 'nowrap',
+        color, borderRadius: 999,
+        padding: compact ? 4 : '3px 4px', opacity: 0.92,
       }}
     >
       <span style={{ width: 5, height: 5, borderRadius: 99, background: color }} />
@@ -231,26 +276,26 @@ function RuntimeBadge({
 
 
 const chipBtnStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  color: 'var(--ink-2)',
-  border: '1.5px solid var(--line)',
-  borderRadius: 8,
-  padding: '4px 9px',
-  background: 'transparent',
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  color: 'var(--color-text-secondary)',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 10,
+  padding: '6px 9px',
+  background: 'var(--color-surface)',
   cursor: 'pointer',
 }
 
 const iconBtnStyle: CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   width: 44, height: 44, border: 'none', borderRadius: 12,
-  background: 'transparent', color: 'var(--ink-2)', cursor: 'pointer',
+  background: 'transparent', color: 'var(--color-text-secondary)', cursor: 'pointer',
 }
 
 const projectStatusStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--c-red)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 11,
+  color: 'var(--color-destructive)',
 }
 
 const truncateStyle: CSSProperties = {

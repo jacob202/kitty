@@ -32,7 +32,7 @@ describe('LoopWatch', () => {
   it('renders loop watch title and count', () => {
     render(<LoopWatch loops={mockLoops} />)
     expect(screen.getByText('Loop Watch')).toBeInTheDocument()
-    expect(screen.getByText('3 active')).toBeInTheDocument()
+    expect(screen.getByText('1 running · 3 total')).toBeInTheDocument()
   })
 
   it('shows all loops with correct statuses', () => {
@@ -82,5 +82,27 @@ describe('LoopWatch', () => {
   it('displays custom title', () => {
     render(<LoopWatch loops={mockLoops} title="Active Loops" />)
     expect(screen.getByText('Active Loops')).toBeInTheDocument()
+  })
+})
+
+describe('LoopWatch presentation', () => {
+  const presentationLoops: GatewayLoop[] = [
+    { loop_id: 'loop-1', name: 'Daily Brief', status: 'running', interval_minutes: 60 },
+    { loop_id: 'loop-2', name: 'Search Index', status: 'paused', interval_minutes: 15 },
+    { loop_id: 'loop-3', name: 'Backup', status: 'idle' },
+  ]
+
+  afterEach(cleanup)
+
+  it('reports running versus total routines truthfully', () => {
+    render(<LoopWatch loops={presentationLoops} />)
+    expect(screen.getByText('1 running · 3 total')).toBeVisible()
+  })
+
+  it('uses one shared routine list and touch-sized toggles', () => {
+    render(<LoopWatch loops={presentationLoops} onToggle={vi.fn()} />)
+    expect(screen.getByTestId('automation-loop-list')).toBeVisible()
+    expect(screen.getAllByTestId('automation-loop-row')).toHaveLength(3)
+    expect(screen.getByRole('button', { name: 'pause loop' })).toHaveStyle({ minHeight: '44px' })
   })
 })

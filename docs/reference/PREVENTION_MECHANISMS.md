@@ -14,9 +14,19 @@ prose alone is insufficient.
 immediately fixed.
 
 **Enforcement:** Required status checks on the `main` branch protection rule:
-`pytest`, `lint`, `typecheck`, `hygiene`, `kitty-chat`, `browser-smoke`. All
-must be `success` before merge. GitHub branch protection rule enforces this
-at the platform level.
+`policy-gate` and `merge-gate`. The aggregate merge gate owns the applicable
+`pytest`, `lint`, `typecheck`, `kitty-chat`, and `browser-smoke` evidence; docs/Markdown-only
+PRs may skip code/browser jobs. Every applicable required signal must succeed
+before `merge-gate` passes. GitHub ruleset enforcement applies this at the
+platform level.
+
+Post-merge validation on `main` is scope-aware for the same reason PRs are.
+Strict up-to-date checking plus zero bypass actors mean a merge commit carries
+exactly the tree its PR head validated, so re-running the code suite after a
+docs-only merge cannot detect a failure the PR gate did not. Red-main detection
+is preserved for every merge that touched code, and the nightly full suite in
+`.github/workflows/nightly-health.yml` is the time-based canary that catches
+drift no merge introduced.
 
 **Status:** ENFORCED. Branch protection is configured on GitHub.
 
@@ -112,12 +122,17 @@ roadmap and KLF-001 sits within it.
 | Cleanup/destructive change | confirmation that cleanup completed without side effects |
 | Auth/secrets/env change | Jacob's explicit approval + evidence of correct operation |
 
-**Enforcement:** CI check reads PR body for evidence markers. For risky scope
-(`risk/high`), the `pr-risk-guardrails.yml` workflow enforces `Manual approval: YES`
-in the body.
+**Enforcement:** `policy-gate` derives sensitive and native-UI scope from the
+actual changed paths, through the one canonical classifier in
+`scripts/pr_scope.py` that also selects required CI jobs. Sensitive scope requires `risk/approved`, an exact-head
+Risk approval receipt, and trusted independent review. Native UI source/public
+changes require the product-acceptance evidence block. `merge-gate` requires
+code checks only for code-bearing PRs and browser smoke only for non-documentation
+frontend changes.
 
-**Status:** PARTIALLY ENFORCED. Risk guardrails exist. Evidence check needs
-extension for non-risk evidence types (UI, restore, cost, cleanup).
+**Status:** PARTIALLY ENFORCED. Sensitive-scope and native-UI evidence are
+enforced; restore/cost/cleanup evidence remains change-specific rather than a
+generic PR-body parser.
 
 ## 10. Model origin tracking
 
@@ -126,9 +141,9 @@ extension for non-risk evidence types (UI, restore, cost, cleanup).
 approve its own work.
 
 **Enforcement:**
-- PR description check identifies the author model.
+- PR metadata/Builder evidence may identify the author model.
 - PR Agent Review identifies the reviewer model.
-- CI gate prevents merge if author == reviewer model for T1+ work.
+- `policy-gate` accepts only trusted exact-head independent review evidence for sensitive scope.
 
 **Status:** DEFINED. Needs `pr-model-origin-check.yml` workflow.
 

@@ -4,8 +4,6 @@ readable by memory_graph's SignalsAdapter.
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 
 from gateway import signal_store
@@ -19,23 +17,36 @@ def isolate_signal_store(monkeypatch, tmp_path):
 
 
 class TestWebMonitorEmitsSignals:
-    def test_notify_match_emits_web_monitor_signal(self):
-        from gateway.web_monitor import _notify_match
+    @pytest.mark.asyncio
+    async def test_matching_watch_emits_web_monitor_signal(self, monkeypatch, tmp_path):
+        import gateway.automation_actions as automation_actions
+        import gateway.web_monitor as wm
+        from gateway.web_monitor import _handle_watch_result
 
-        watch = {
-            "id": "abc123",
-            "label": "Example Watch",
-            "url": "https://example.com",
+        # _handle_watch_result re-checks the watch's current DB state before
+        # dispatching, so it needs a real backing row rather than a synthetic
+        # dict (matches the pattern in tests/test_web_monitor_automation.py).
+        monkeypatch.setattr(wm, "MONITOR_DB", tmp_path / "web_monitors.db")
+        watch_id = wm.add_watch(
+            "https://example.com", label="Example Watch", keywords=["launch", "kitty"]
+        )
+        watch = next(w for w in wm.list_watches() if w["id"] == watch_id)
+        result = {
+            "changed": True,
+            "keyword_matches": ["launch", "kitty"],
+            "hash": "content-v1",
         }
-        result = {"changed": True, "keyword_matches": ["launch", "kitty"]}
 
-        with patch("gateway.notify.send"):
-            _notify_match(watch, result)
+        async def fake_run_action(*_args, **_kwargs):
+            return {"status": "completed"}
+
+        monkeypatch.setattr(automation_actions, "run_action", fake_run_action)
+        await _handle_watch_result(watch, result)
 
         signals = signal_store.list_recent(source="web_monitor")
         assert len(signals) == 1
         assert signals[0]["kind"] == "watch_match"
-        assert signals[0]["payload"]["watch_id"] == "abc123"
+        assert signals[0]["payload"]["watch_id"] == watch_id
         assert signals[0]["payload"]["keyword_matches"] == ["launch", "kitty"]
 
 

@@ -1225,13 +1225,23 @@ def inspect_continuity(
             base_ancestor = _git(
                 repo_root, ["merge-base", "--is-ancestor", base_sha, head], required=False
             )
+            # A base that exists but is no longer an ancestor is WARN, not FAIL,
+            # for the same reason `_checkpoint_head_check` treats an orphaned
+            # head that way: squash-merging the PR a mission was approved on
+            # replaces that tip with a new commit, so the approved base leaves
+            # main's first-parent line as soon as the mission's own groundwork
+            # lands. A base missing from the object database entirely stays FAIL
+            # above — that is a broken approval record, not a squash.
             checks.append(
                 ContinuityCheck(
-                    "PASS" if base_ancestor.returncode == 0 else "FAIL",
+                    "PASS" if base_ancestor.returncode == 0 else "WARN",
                     "mission:base_sha",
                     base_sha
                     if base_ancestor.returncode == 0
-                    else f"mission base {base_sha} is not an ancestor of HEAD {head}",
+                    else (
+                        f"mission base {base_sha} is not an ancestor of HEAD {head} "
+                        "(squash-merged or superseded)"
+                    ),
                 )
             )
         mission_status = mission.get("status")
@@ -1379,8 +1389,18 @@ def _origin_main_relation(repo_root: Path, head: str) -> dict[str, Any]:
     }
 
 
+def _builder_db_path(canonical_checkout: Path) -> Path:
+    builder_root = os.environ.get("KITTY_BUILDER_DATA_DIR")
+    if builder_root:
+        return Path(builder_root).expanduser().resolve() / "builder_queue.db"
+    data_root = os.environ.get("KITTY_DATA_ROOT")
+    if data_root:
+        return Path(data_root).expanduser().resolve() / "kittybuilder" / "builder_queue.db"
+    return canonical_checkout / "data" / "kittybuilder" / "builder_queue.db"
+
+
 def _builder_summary(canonical_checkout: Path) -> dict[str, Any]:
-    db_path = canonical_checkout / "data" / "kittybuilder" / "builder_queue.db"
+    db_path = _builder_db_path(canonical_checkout)
     if not db_path.exists():
         return {
             "state": "unavailable",
@@ -1448,7 +1468,7 @@ def build_context_receipt(
         builder = {
             "state": "not_requested",
             "source": "gateway.builder_status.build_control_plane_summary",
-            "database": str(canonical_checkout / "data" / "kittybuilder" / "builder_queue.db"),
+            "database": str(_builder_db_path(canonical_checkout)),
             "reason": "Builder inspection was not requested for this task",
             "schema_version": None,
             "queue": None,

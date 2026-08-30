@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from gateway import action_queue, calendar_integration, todo_store
+from gateway import action_grants, action_queue, calendar_integration, todo_store
 
 
 @pytest.fixture(autouse=True)
@@ -17,6 +17,11 @@ def isolate(monkeypatch, tmp_path):
     """Isolated DB, drafts dir, and todo store; registry from the real tier file."""
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(action_queue, "ACTIONS_DB_FILE", db_file, raising=False)
+    # execute() consults the grant store, which binds its own path at import.
+    # Without this the queue reads a temp DB while the policy layer reads the
+    # real one — the tests would still pass, because an empty grants table
+    # leaves baseline behaviour unchanged, and would silently touch real data.
+    monkeypatch.setattr(action_grants, "GRANTS_DB_FILE", db_file, raising=False)
     monkeypatch.setattr(action_queue, "DRAFTS_DIR", tmp_path / "drafts", raising=False)
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", db_file, raising=False)
     # Point the legacy todo import at a path that does not exist so init_db()
@@ -284,3 +289,62 @@ def test_note_draft_filenames_are_unique_for_same_title():
     bodies = sorted(f.read_text(encoding="utf-8") for f in files)
     assert any("first" in b for b in bodies)
     assert any("second" in b for b in bodies)
+
+
+def test_approved_action_refuses_payload_changed_after_approval(monkeypatch):
+    """A one-shot approval is valid only for the exact proposed call."""
+    monkeypatch.setattr(calendar_integration, "create", lambda *a, **k: True)
+    action = _propose("calendar.event.create", {"title": "Dentist"})
+    approved = action_queue.approve(action["id"])
+    assert approved["approval_fingerprint"]
+
+    with action_queue.kitty_db.connect(action_queue.ACTIONS_DB_FILE) as conn:
+        conn.execute(
+            "UPDATE actions SET payload = ? WHERE id = ?",
+            (json.dumps({"title": "Wire $5000"}), action["id"]),
+        )
+        conn.commit()
+
+    with pytest.raises(action_queue.ApprovalIdentityMismatch):
+        action_queue.execute(action["id"])
+
+
+# --- REL-002: startup reconciliation of stale `executing` claims -----------
+
+
+def test_reconcile_stale_executing_marks_orphaned_claims_unknown():
+    """A row still `executing` after a restart has an unknowable outcome."""
+    action = _propose("todo.create", {"content": "x"})
+    assert action_queue._claim_for_execution(action["id"], "proposed") is True
+    assert action_queue.get(action["id"])["status"] == "executing"
+
+    reconciled = action_queue.reconcile_stale_executing()
+
+    assert reconciled == 1
+    row = action_queue.get(action["id"])
+    assert row["status"] == "unknown"
+    assert "unknown" in row["result"].lower()
+    assert row["executed_at"] is not None
+
+
+def test_reconcile_stale_executing_never_touches_other_statuses():
+    """Only `executing` rows are ambiguous; every other status stays put."""
+    proposed = _propose("todo.create", {"content": "a"})
+    executed = _propose("todo.create", {"content": "b"})
+    action_queue.execute(executed["id"])
+
+    reconciled = action_queue.reconcile_stale_executing()
+
+    assert reconciled == 0
+    assert action_queue.get(proposed["id"])["status"] == "proposed"
+    assert action_queue.get(executed["id"])["status"] == "executed"
+
+
+def test_unknown_actions_are_terminal_and_cannot_be_re_executed():
+    """Reconciled rows must never be blindly retried."""
+    action = _propose("todo.create", {"content": "x"})
+    assert action_queue._claim_for_execution(action["id"], "proposed") is True
+    action_queue.reconcile_stale_executing()
+
+    with pytest.raises(action_queue.ActionStateError):
+        action_queue.execute(action["id"])

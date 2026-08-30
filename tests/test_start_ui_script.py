@@ -33,11 +33,19 @@ def _fake_repo(tmp_path: Path, *, build_id: bool) -> Path:
     )
     (ui / "page.tsx").write_text("export default function Page() {}\n", encoding="utf-8")
     (root / "gateway" / "kitty-chat" / "package.json").write_text("{}\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "Kitty Test"], cwd=root, check=True)
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=root, check=True)
 
     if build_id:
         next_dir = root / "gateway" / "kitty-chat" / ".next"
         next_dir.mkdir()
         (next_dir / "BUILD_ID").write_text("test-build\n", encoding="utf-8")
+        standalone = next_dir / "standalone"
+        standalone.mkdir()
+        (standalone / "server.js").write_text("// fake standalone server\n", encoding="utf-8")
 
     return root
 
@@ -72,10 +80,18 @@ def _run(root: Path, tmp_path: Path, *, build_succeeds: bool = True) -> tuple[
 echo "npm $*" >> "{call_log}"
 if [[ "$1" == "run" && "$2" == "build" ]]; then
   if [[ {build_exit} -eq 0 ]]; then
-    mkdir -p .next && touch .next/BUILD_ID
+    mkdir -p .next/standalone && touch .next/BUILD_ID && printf '// fake\n' > .next/standalone/server.js
   fi
   exit {build_exit}
 fi
+exit 0
+""",
+    )
+
+    _write_executable(
+        fake_bin / "node",
+        f"""#!/bin/bash
+echo "node $* HOSTNAME=${{HOSTNAME:-}} PORT=${{PORT:-}}" >> "{call_log}"
 exit 0
 """,
     )
@@ -104,7 +120,7 @@ def test_current_build_starts_without_rebuilding(tmp_path):
     assert result.returncode == 0
     assert "build is current" in result.stdout
     assert not any("run build" in call for call in calls)
-    assert any("run start" in call for call in calls)
+    assert any("node .next/standalone/server.js" in call for call in calls)
 
 
 def test_source_newer_than_build_triggers_rebuild(tmp_path):
@@ -116,7 +132,7 @@ def test_source_newer_than_build_triggers_rebuild(tmp_path):
     assert result.returncode == 0
     assert "is newer than the last build" in result.stdout
     assert calls[0].startswith("npm run build")
-    assert any("run start" in call for call in calls)
+    assert any("node .next/standalone/server.js" in call for call in calls)
 
 
 def test_rebuild_clears_staleness_for_the_next_launch(tmp_path):
@@ -152,4 +168,91 @@ def test_failed_build_stops_the_service_instead_of_serving_stale_code(tmp_path):
     result, calls = _run(root, tmp_path, build_succeeds=False)
 
     assert result.returncode != 0
-    assert not any("run start" in call for call in calls)
+    assert not any("node .next/standalone/server.js" in call for call in calls)
+
+
+def test_successful_rebuild_records_exact_source_sha(tmp_path):
+    root = _fake_repo(tmp_path, build_id=False)
+    expected_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    result, _ = _run(root, tmp_path)
+
+    assert result.returncode == 0
+    stamp = root / "gateway" / "kitty-chat" / ".next" / "KITTY_SOURCE_SHA"
+    assert stamp.read_text(encoding="utf-8").strip() == expected_sha
+
+
+def test_standalone_server_receives_requested_host_and_port(tmp_path):
+    root = _fake_repo(tmp_path, build_id=True)
+    _set_build_newer_than_source(root)
+
+    result, calls = _run(root, tmp_path)
+
+    assert result.returncode == 0
+    assert any(
+        "node .next/standalone/server.js HOSTNAME=127.0.0.1 PORT=4000" in call
+        for call in calls
+    )
+
+
+def test_standalone_mirrors_static_and_public_assets(tmp_path):
+    root = _fake_repo(tmp_path, build_id=True)
+    ui = root / "gateway" / "kitty-chat"
+    (ui / ".next" / "static").mkdir()
+    (ui / ".next" / "static" / "app.css").write_text("body{}", encoding="utf-8")
+    (ui / "public").mkdir()
+    (ui / "public" / "favicon.txt").write_text("icon", encoding="utf-8")
+    _set_build_newer_than_source(root)
+
+    result, _calls = _run(root, tmp_path)
+
+    assert result.returncode == 0
+    assert (ui / ".next" / "standalone" / ".next" / "static" / "app.css").read_text() == "body{}"
+    assert (ui / ".next" / "standalone" / "public" / "favicon.txt").read_text() == "icon"
+
+
+def test_standalone_refuses_symlinked_asset_destination(tmp_path):
+    root = _fake_repo(tmp_path, build_id=True)
+    ui = root / "gateway" / "kitty-chat"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "sentinel.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    (ui / ".next" / "standalone" / ".next").symlink_to(outside, target_is_directory=True)
+    (ui / ".next" / "static").mkdir()
+    (ui / ".next" / "static" / "app.css").write_text("body{}", encoding="utf-8")
+    _set_build_newer_than_source(root)
+
+    result, calls = _run(root, tmp_path)
+
+    assert result.returncode != 0
+    assert "refusing symlinked standalone destination" in result.stderr
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+    assert not any("node .next/standalone/server.js" in call for call in calls)
+
+def test_standalone_refuses_symlinked_next_ancestor(tmp_path):
+    root = _fake_repo(tmp_path, build_id=False)
+    ui = root / "gateway" / "kitty-chat"
+    outside = tmp_path / "outside-next"
+    (outside / "standalone" / ".next" / "static").mkdir(parents=True)
+    (outside / "static").mkdir()
+    (outside / "BUILD_ID").write_text("external-build\n", encoding="utf-8")
+    (outside / "standalone" / "server.js").write_text("// external\n", encoding="utf-8")
+    sentinel = outside / "standalone" / ".next" / "static" / "sentinel.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    (outside / "static" / "app.css").write_text("body{}", encoding="utf-8")
+    (ui / ".next").symlink_to(outside, target_is_directory=True)
+    _set_build_newer_than_source(root)
+
+    result, calls = _run(root, tmp_path)
+
+    assert result.returncode != 0
+    assert "refusing symlinked standalone destination" in result.stderr
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+    assert not any("node .next/standalone/server.js" in call for call in calls)

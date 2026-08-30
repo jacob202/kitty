@@ -5,16 +5,37 @@ real commits), not a mocked subprocess — proves the actual git invocations
 work, not just that they were called.
 """
 import subprocess
+from typing import Any
 
 import pytest
 
-from gateway import project_resume, project_store
+from gateway import (
+    artifact_store,
+    builder_initiative,
+    builder_queue,
+    chat_lifecycle,
+    deadline_store,
+    project_resume,
+    project_store,
+)
 
 
 @pytest.fixture(autouse=True)
 def isolate_project_store(monkeypatch, tmp_path):
+    # Both project_store and artifact_store point at the same physical
+    # kitty.db in production (both derive from paths.KITTY_DB_FILE), so
+    # isolating tests means patching both module-level constants to the
+    # same tmp_path file — otherwise artifact_store would fall through
+    # to the real on-disk database.
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(artifact_store, "ARTIFACTS_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(deadline_store, "DEADLINES_DB_FILE", db_file, raising=False)
+    # _work_source() reaches build_status_snapshot() with no db_path override,
+    # which funnels through builder_queue.connect()/init_db() to this constant
+    # — patch it too, or resume() tests would read/init the real Builder queue.
+    monkeypatch.setattr(builder_queue, "BUILDER_QUEUE_DB", tmp_path / "kitty" / "builder_queue.db", raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -168,7 +189,210 @@ class TestResume:
         assert "git" not in resumed
 
 
+def _register_artifact(tmp_path, *, project_id, name="file.txt", kind="text"):
+    """Create a real artifact row against the isolated test DB."""
+    src = tmp_path / name
+    src.write_text(f"content for {name}", encoding="utf-8")
+    return artifact_store.register_file(
+        src,
+        kind=kind,
+        media_type="text/plain",
+        project_id=project_id,
+        created_by="test",
+    )
+
+
+class TestArtifactSource:
+    def test_resume_returns_project_artifacts(self, tmp_path):
+        project = project_store.create("with-artifacts", "admin")
+        registered = _register_artifact(tmp_path, project_id=project["id"])
+
+        resumed = project_resume.resume(project["id"])
+
+        assert len(resumed["artifacts"]) == 1
+        entry = resumed["artifacts"][0]
+        assert entry["id"] == registered["id"]
+        assert entry["kind"] == "text"
+        assert entry["display_name"] == "file.txt"
+        assert entry["state"] == "ready"
+        assert entry["created_at"] == registered["created_at"]
+        assert entry["media_type"] == "text/plain"
+        assert entry["size_bytes"] == registered["size_bytes"]
+
+    def test_resume_bounds_artifacts_to_the_limit(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(project_resume, "ARTIFACT_LIMIT", 3)
+        project = project_store.create("many-artifacts", "admin")
+        for i in range(5):
+            _register_artifact(tmp_path, project_id=project["id"], name=f"file{i}.txt")
+
+        resumed = project_resume.resume(project["id"])
+
+        assert len(resumed["artifacts"]) == 3
+
+    def test_project_with_zero_artifacts_returns_empty_list(self):
+        project = project_store.create("no-artifacts", "admin")
+
+        resumed = project_resume.resume(project["id"])
+
+        assert resumed["artifacts"] == []
+
+    def test_artifacts_are_scoped_to_the_requesting_project(self, tmp_path):
+        project_a = project_store.create("project-a", "admin")
+        project_b = project_store.create("project-b", "admin")
+        _register_artifact(tmp_path, project_id=project_a["id"], name="a.txt")
+        _register_artifact(tmp_path, project_id=project_b["id"], name="b.txt")
+
+        resumed_a = project_resume.resume(project_a["id"])
+        resumed_b = project_resume.resume(project_b["id"])
+
+        assert [a["display_name"] for a in resumed_a["artifacts"]] == ["a.txt"]
+        assert [a["display_name"] for a in resumed_b["artifacts"]] == ["b.txt"]
+
+
+def _init_repo(tmp_path, name="repo"):
+    repo = tmp_path / name
+    repo.mkdir()
+    for args in (
+        ["git", "init"],
+        ["git", "config", "user.email", "tests@example.invalid"],
+        ["git", "config", "user.name", "Project Resume Tests"],
+    ):
+        subprocess.run(args, cwd=repo, check=True, capture_output=True, text=True)
+    (repo / "README.md").write_text("# test repo\n")
+    subprocess.run(["git", "add", "README.md"], cwd=repo, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "commit", "-m", "init"], cwd=repo, check=True, capture_output=True, text=True
+    )
+    subprocess.run(["git", "branch", "-M", "main"], cwd=repo, check=True, capture_output=True, text=True)
+    return repo
+
+
+def _apply_initiative(tmp_path, *, initiative_id, project_id):
+    manifest = {
+        "manifest_version": 1,
+        "initiative_id": initiative_id,
+        "title": f"Work source test initiative {initiative_id}",
+        "packets": [
+            {
+                "id": f"{initiative_id}-P1",
+                "title": "Test packet",
+                "objective": "Exercise the work source.",
+                "acceptance_criteria": ["N/A"],
+                "allowed_paths": ["gateway/project_resume.py"],
+            }
+        ],
+    }
+    repo = _init_repo(tmp_path, name=f"repo-{initiative_id}")
+    builder_initiative.apply_manifest(manifest, repo_root=repo, project_id=project_id)
+
+
+class TestWorkSource:
+    def test_resume_returns_work_for_the_projects_own_initiative(self, tmp_path):
+        project = project_store.create("with-work", "code")
+        _apply_initiative(tmp_path, initiative_id="wk-a", project_id=project["id"])
+
+        resumed = project_resume.resume(project["id"])
+
+        assert [item["id"] for item in resumed["work"]["items"]] == ["wk-a"]
+
+    def test_work_is_scoped_to_the_requesting_project(self, tmp_path):
+        project_a = project_store.create("project-a-work", "code")
+        project_b = project_store.create("project-b-work", "code")
+        _apply_initiative(tmp_path, initiative_id="wk-scope-a", project_id=project_a["id"])
+        _apply_initiative(tmp_path, initiative_id="wk-scope-b", project_id=project_b["id"])
+
+        resumed_a = project_resume.resume(project_a["id"])
+        resumed_b = project_resume.resume(project_b["id"])
+
+        assert [item["id"] for item in resumed_a["work"]["items"]] == ["wk-scope-a"]
+        assert [item["id"] for item in resumed_b["work"]["items"]] == ["wk-scope-b"]
+
+    def test_project_with_zero_initiatives_returns_empty_work(self):
+        project = project_store.create("no-work", "code")
+
+        resumed = project_resume.resume(project["id"])
+
+        assert resumed["work"]["items"] == []
+        assert resumed["work"]["total_items"] == 0
+
+    def test_artifact_store_failure_does_not_crash_resume(self, tmp_path, monkeypatch):
+        project = project_store.create("flaky-artifacts", "admin")
+        _register_artifact(tmp_path, project_id=project["id"])
+
+        def boom(*, project_id=None, conversation_id=None, kind=None, limit=100):
+            raise RuntimeError("artifact store exploded")
+
+        monkeypatch.setattr(artifact_store, "list_artifacts", boom)
+
+        resumed = project_resume.resume(project["id"])
+
+        assert resumed["artifacts"] == []
+        assert resumed["id"] == project["id"]
+
+    def test_resume_with_artifacts_is_still_a_pure_read(self, tmp_path, monkeypatch):
+        project = project_store.create("pure-read-check", "admin")
+        _register_artifact(tmp_path, project_id=project["id"])
+
+        calls: list[Any] = []
+        monkeypatch.setattr(
+            project_store,
+            "update_fields",
+            lambda *a, **kw: calls.append((a, kw)) or pytest.fail("resume() must not mutate the project row"),
+        )
+
+        resumed = project_resume.resume(project["id"])
+
+        assert calls == []
+        assert len(resumed["artifacts"]) == 1
+
+
 def _empty_graph_result():
     from gateway.memory_graph import GraphResult
 
     return GraphResult()
+
+
+class TestConversationAndDeadlineSources:
+    def test_resume_composes_recent_project_conversations_and_deadlines(self):
+        project = project_store.create("benefits", "admin")
+        other = project_store.create("other", "admin")
+        chat_lifecycle.start_turn(
+            conversation_id="benefits-chat", project_id=project["id"], title="Benefits paperwork",
+            user_message_id="m1", user_text="continue", manifest_revision="rev", requested_model="kitty-default",
+            objective="Submit renewal",
+        )
+        chat_lifecycle.start_turn(
+            conversation_id="other-chat", project_id=other["id"], title="Other chat",
+            user_message_id="m2", user_text="other", manifest_revision="rev", requested_model="kitty-default",
+        )
+        deadline_store.upsert({
+            "project_id": project["id"], "source": "knowledge:letter.pdf", "source_id": "d1",
+            "due_date": "2026-09-03", "obligation": "Submit renewal", "confidence": "high", "status": "open",
+        })
+        deadline_store.upsert({
+            "project_id": other["id"], "source": "knowledge:other.pdf", "source_id": "d2",
+            "due_date": "2026-09-01", "obligation": "Other deadline", "confidence": "high", "status": "open",
+        })
+
+        resumed = project_resume.resume(project["id"])
+
+        assert [item["id"] for item in resumed["conversations"]["items"]] == ["benefits-chat"]
+        assert resumed["conversations"]["items"][0]["objective"] == "Submit renewal"
+        assert set(resumed["conversations"]["items"][0]) == {"id", "title", "objective", "updated_at"}
+        assert resumed["conversations"]["error"] is None
+        assert [item["obligation"] for item in resumed["deadlines"]["items"]] == ["Submit renewal"]
+        assert set(resumed["deadlines"]["items"][0]) == {"id", "due_date", "obligation", "status", "confidence", "amount", "currency"}
+        assert resumed["deadlines"]["error"] is None
+
+    def test_resume_reports_conversation_and_deadline_source_failures_independently(self, monkeypatch):
+        project = project_store.create("degraded-project", "admin")
+        monkeypatch.setattr(chat_lifecycle, "list_project_conversations", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("chat store unavailable")))
+        monkeypatch.setattr(deadline_store, "list_for_project", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("deadline store unavailable")))
+
+        resumed = project_resume.resume(project["id"])
+
+        assert resumed["conversations"]["items"] == []
+        assert resumed["conversations"]["error"] == "Recent conversations are unavailable right now."
+        assert resumed["deadlines"]["items"] == []
+        assert resumed["deadlines"]["error"] == "Deadlines are unavailable right now."
+        assert resumed["id"] == project["id"]

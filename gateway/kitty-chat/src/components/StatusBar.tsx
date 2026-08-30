@@ -1,9 +1,10 @@
 'use client'
 
-import { useRef, useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { AlertCircle, ArrowDownToLine, Share2, X } from 'lucide-react'
 import type { AttachmentError } from '@/lib/attachment-validation'
 import type { PwaInstallState } from '@/lib/pwa'
+import { describeFailure } from '@/lib/failure-copy'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'failed' | 'offline'
 
@@ -11,8 +12,9 @@ interface Props {
   /** Only relevant while a chat thread is on screen. */
   showChatSignals: boolean
   attachmentErrors: AttachmentError[]
-  gatewayOffline: boolean
-  onRetryGateway: () => void
+  modelUnavailable: boolean
+  modelError?: string | null
+  onRetryModels: () => void
   saveState: SaveState
   onRetrySave: () => void
   briefUnavailable: boolean
@@ -23,7 +25,19 @@ interface Props {
   onPwaInstall?: () => void
 }
 
-const FAILS_REQUIRED = 3
+
+function modelStatusMessage(modelError?: string | null): string {
+  if (modelError?.startsWith('Model details timed out')) {
+    return 'Model details are taking too long to load. Retry to reconnect to Kitty.'
+  }
+  if (modelError?.startsWith('Model details unavailable')) {
+    return 'Model details are unavailable right now. Retry to reconnect to Kitty.'
+  }
+  if (modelError?.startsWith('No live curated models')) {
+    return 'No models are available right now. Retry to reconnect to Kitty.'
+  }
+  return 'Models are temporarily unavailable. Retry to reconnect to Kitty.'
+}
 
 /**
  * One line, ranked by how much it matters to the user right now. The old
@@ -35,8 +49,9 @@ const FAILS_REQUIRED = 3
 export function StatusBar({
   showChatSignals,
   attachmentErrors,
-  gatewayOffline,
-  onRetryGateway,
+  modelUnavailable,
+  modelError,
+  onRetryModels,
   saveState,
   onRetrySave,
   briefUnavailable,
@@ -46,16 +61,17 @@ export function StatusBar({
   pwaInstalling = false,
   onPwaInstall,
 }: Props) {
-  const offlineStreakRef = useRef(0)
-  const [pwaDismissed, setPwaDismissed] = useState(false)
+  const [pwaDismissFailed, setPwaDismissFailed] = useState(false)
+  const [pwaDismissed, setPwaDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return localStorage.getItem('kitty-pwa-install-dismissed') === 'true'
+    } catch {
+      return false
+    }
+  })
 
-  if (gatewayOffline) {
-    offlineStreakRef.current++
-  } else {
-    offlineStreakRef.current = 0
-  }
-
-  const confirmedOffline = offlineStreakRef.current >= FAILS_REQUIRED
+  const confirmedOffline = modelUnavailable
 
   if (showChatSignals && attachmentErrors.length > 0) {
     return (
@@ -75,9 +91,9 @@ export function StatusBar({
       <div role="status" style={{ ...rowStyle, justifyContent: 'space-between' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={dotStyle} />
-          gateway offline
+          {modelStatusMessage(modelError)}
         </span>
-        <button type="button" onClick={onRetryGateway} style={retryBtnStyle}>
+        <button type="button" onClick={onRetryModels} style={retryBtnStyle}>
           retry
         </button>
       </div>
@@ -88,7 +104,7 @@ export function StatusBar({
     return (
       <div role="status" style={{ ...rowStyle, color: 'var(--c-red)', justifyContent: 'space-between' }}>
         <span>
-          {saveState === 'failed' ? 'save failed — chat not persisted' : 'gateway offline — chat not saved'}
+          {saveState === 'failed' ? 'save failed — chat not persisted' : 'offline — chat not saved'}
         </span>
         <button type="button" onClick={onRetrySave} style={retryBtnStyle}>
           retry
@@ -100,7 +116,7 @@ export function StatusBar({
   if (briefUnavailable) {
     return (
       <div role="status" style={rowStyle}>
-        Brief unavailable ({briefError ?? 'unknown'}). Chat still works.
+        {describeFailure(briefError)} Your daily brief is the part that&apos;s missing — chat still works.
       </div>
     )
   }
@@ -115,7 +131,14 @@ export function StatusBar({
   }
 
   if (pwaState === 'available' || pwaState === 'manual-ios') {
-    if (pwaDismissed) return null
+    if (pwaDismissed) {
+      if (!pwaDismissFailed) return null
+      return (
+        <div role="status" style={rowStyle}>
+          Hidden for now. Your browser is blocking storage, so this comes back next time you open Kitty.
+        </div>
+      )
+    }
     return (
       <div role="status" style={{ ...rowStyle, justifyContent: 'space-between' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
@@ -134,7 +157,23 @@ export function StatusBar({
               {pwaInstalling ? 'installing...' : 'install as app'}
             </button>
           )}
-          <button type="button" onClick={() => setPwaDismissed(true)} aria-label="Dismiss" style={closeBtnStyle}>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                localStorage.setItem('kitty-pwa-install-dismissed', 'true')
+              } catch {
+                // Storage is blocked, so this dismissal cannot outlive the tab.
+                // Hiding the banner anyway and saying nothing would claim a
+                // persistence that did not happen — the banner would just
+                // reappear on reload with no explanation.
+                setPwaDismissFailed(true)
+              }
+              setPwaDismissed(true)
+            }}
+            aria-label="Dismiss"
+            style={closeBtnStyle}
+          >
             <X size={12} />
           </button>
         </span>

@@ -44,6 +44,24 @@ describe('DocumentsPanel mobile (#346 Slice 1, PR#355 finding 1)', () => {
 
   afterEach(cleanup)
 
+  it('translates knowledge-index failures and keeps the existing refresh retry functional', () => {
+    const refetch = vi.fn()
+    vi.mocked(queries.useKnowledgeSources).mockReturnValue({
+      data: undefined, isPending: false, isFetching: false, isLoading: false, isError: true,
+      error: new Error('Gateway returned 404 Not Found'), refetch,
+    } as never)
+    vi.mocked(queries.useIngestKnowledge).mockReturnValue({
+      isPending: false, isError: false, data: undefined, error: null, mutate: vi.fn(),
+    } as never)
+
+    renderPanel(false)
+
+    expect(screen.getByText(/Kitty is running but this part isn't answering yet/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Gateway returned 404/i)).not.toBeInTheDocument()
+    screen.getByRole('button', { name: /refresh indexed sources/i }).click()
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
   it('hides the Mac-path affordance on mobile but KEEPS a URL ingestion control', () => {
     vi.mocked(queries.useIngestKnowledge).mockReturnValue({
       isPending: false, isError: false, data: undefined, error: null, mutate: vi.fn(),
@@ -55,6 +73,7 @@ describe('DocumentsPanel mobile (#346 Slice 1, PR#355 finding 1)', () => {
     expect(screen.getByTestId('library-url-control')).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/paste a URL/i)).toBeInTheDocument()
     expect(screen.getByTestId('library-file-picker')).toBeInTheDocument()
+    expect(screen.getByTestId('library-file-picker')).toHaveStyle({ minHeight: '44px' })
     expect(document.querySelector('input[type="file"][accept*=".pdf"]')).not.toBeNull()
   })
 
@@ -66,6 +85,7 @@ describe('DocumentsPanel mobile (#346 Slice 1, PR#355 finding 1)', () => {
     renderPanel(true)
     expect(screen.getByText(/ingest failed — gateway exploded/i)).toBeInTheDocument()
     expect(screen.getByTestId('library-url-control')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^add url$/i })).toHaveStyle({ minHeight: '44px' })
   })
 
   it('keeps ingest result state visible on mobile', () => {

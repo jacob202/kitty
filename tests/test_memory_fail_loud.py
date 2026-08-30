@@ -108,6 +108,20 @@ def test_add_memory_surfaces_write_failure() -> None:
     assert str(raised.value.__cause__) == "vector store is read-only"
 
 
+def test_add_memory_namespace_argument_cannot_be_overridden_by_metadata() -> None:
+    backend = MagicMock()
+    backend.add.return_value = {"results": [{"id": "memory-1", "event": "ADD"}]}
+
+    with patch.object(memory, "_get_memory", return_value=backend):
+        assert memory.add_memory(
+            "session summary",
+            namespace="sessions",
+            metadata={"namespace": "facts", "session_id": "session-1"},
+        ) is True
+
+    assert backend.add.call_args.kwargs["metadata"]["namespace"] == "sessions"
+
+
 def test_add_memory_rejects_unconfirmed_success_response() -> None:
     backend = MagicMock()
     backend.add.return_value = None
@@ -153,6 +167,17 @@ def test_search_memory_rejects_malformed_success_response() -> None:
             memory.MemoryError,
             match="missing 'results'",
         ),
+    ):
+        memory.search_memory("important query")
+
+
+def test_search_memory_rejects_non_mapping_result() -> None:
+    backend = MagicMock()
+    backend.search.return_value = {"results": ["not-a-memory-row"]}
+
+    with (
+        patch.object(memory, "_get_memory", return_value=backend),
+        pytest.raises(memory.MemoryError, match="result 0 is str, expected dict"),
     ):
         memory.search_memory("important query")
 
@@ -452,21 +477,24 @@ def test_consolidate_session_reports_no_persisted_change() -> None:
         assert memory.consolidate_session("test-no-change", messages) is False
 
 
-def test_memories_route_returns_structured_503_on_list_failure() -> None:
+def test_memories_route_reports_semantic_list_failure_without_hiding_explicit_memory() -> None:
     from gateway.app import app
 
     client = TestClient(app, raise_server_exceptions=False)
-    with patch.object(
-        memory,
-        "list_memories",
-        side_effect=memory.MemoryError("chroma unavailable"),
+    with (
+        patch("gateway.explicit_memory.list_memories", return_value=[]),
+        patch.object(
+            memory,
+            "list_memories",
+            side_effect=memory.MemoryError("chroma unavailable"),
+        ),
     ):
         response = client.get("/memories")
 
-    assert response.status_code == 503
+    assert response.status_code == 200
     assert response.json() == {
-        "error": "storage.unavailable",
-        "message": "chroma unavailable",
+        "memories": [],
+        "warnings": ["semantic_memory: chroma unavailable"],
     }
 
 

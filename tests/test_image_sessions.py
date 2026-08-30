@@ -152,6 +152,19 @@ class TestAnchor:
         with pytest.raises(AnchorError, match="job_nope"):
             sessions.set_anchor(s.session_id, "job_nope")
 
+    def test_cross_session_job_is_rejected_without_mutating_anchor(self):
+        owner = sessions.create_session()
+        other = sessions.create_session()
+        job = _succeeded_job(artifact_id="art_owner")
+        sessions.attach_job(owner.session_id, job.job_id)
+
+        with pytest.raises(AnchorError, match="does not belong to session"):
+            sessions.set_anchor(other.session_id, job.job_id)
+
+        unchanged = sessions.require_session(other.session_id)
+        assert unchanged.anchor_job_id is None
+        assert unchanged.anchor_artifact_id is None
+
     def test_unfinished_job_is_rejected(self):
         """An anchor that cannot be fed to a renderer must fail at selection."""
         s = sessions.create_session()
@@ -231,6 +244,13 @@ class TestContextUpdates:
         assert updated.character_id == "char_james"
         assert updated.protected_traits == ["face"]
 
+    def test_clear_character_detaches_without_touching_other_fields(self):
+        s = sessions.create_session(title="keep me", character_id="char_james")
+        updated = sessions.update_session(s.session_id, clear_character=True)
+        assert updated.character_id is None
+        assert updated.title == "keep me"
+        assert updated.protected_traits == []
+
     def test_last_plan_round_trips(self):
         s = sessions.create_session()
         plan = {"operation": "img2img", "refined_prompt": "broader build", "denoise": 0.4}
@@ -257,6 +277,44 @@ class TestContextUpdates:
 
 
 class TestSpendAndLifecycle:
+    def test_paid_reservation_is_exposure_not_settled_spend(self):
+        s = sessions.create_session()
+
+        reserved = sessions.reserve_attempt(
+            s.session_id, cost_usd=0.08, max_attempts=4, max_spend_usd=1.00
+        )
+
+        assert reserved.attempt_count == 1
+        assert reserved.spend_usd == 0.0
+        assert getattr(reserved, "reserved_spend_usd", None) == pytest.approx(0.08)
+
+    def test_reconcile_moves_reservation_into_settled_spend(self):
+        s = sessions.create_session()
+        sessions.reserve_attempt(
+            s.session_id, cost_usd=0.08, max_attempts=4, max_spend_usd=1.00
+        )
+
+        settled = sessions.reconcile_reserved_attempt_cost(
+            s.session_id, reserved_cost_usd=0.08, actual_cost_usd=0.04
+        )
+
+        assert settled.spend_usd == pytest.approx(0.04)
+        assert getattr(settled, "reserved_spend_usd", None) == 0.0
+
+    def test_release_drops_definite_no_submit_reservation_only(self):
+        s = sessions.create_session()
+        sessions.reserve_attempt(
+            s.session_id, cost_usd=0.08, max_attempts=4, max_spend_usd=1.00
+        )
+        release = getattr(sessions, "release_reserved_attempt_cost", None)
+        assert callable(release), "image sessions need a definite-no-submit release operation"
+
+        released = release(s.session_id, reserved_cost_usd=0.08)
+
+        assert released.spend_usd == 0.0
+        assert released.reserved_spend_usd == 0.0
+        assert released.attempt_count == 1
+
     def test_record_attempt_accumulates_count_and_cost(self):
         s = sessions.create_session()
         sessions.record_attempt(s.session_id, cost_usd=0.02)
@@ -293,3 +351,30 @@ class TestSpendAndLifecycle:
         sessions.append_turn(s.session_id, TurnRole.USER, "hello")
         sessions.end_session(s.session_id)
         assert [t.content for t in sessions.list_turns(s.session_id)] == ["hello"]
+
+
+def _insert_project(db_file: Path, *, name: str = "Image project") -> int:
+    migration = Path("gateway/migrations/010_projects.sql").read_text(encoding="utf-8")
+    with sqlite3.connect(db_file) as conn:
+        conn.executescript(migration)
+        cur = conn.execute(
+            "INSERT INTO projects (name, kind) VALUES (?, ?)", (name, "creative")
+        )
+        conn.commit()
+        assert cur.lastrowid is not None
+        return int(cur.lastrowid)
+
+
+def test_session_project_scope_round_trips(_fresh_db):
+    project_id = _insert_project(_fresh_db)
+    created = sessions.create_session(title="project portraits", project_id=project_id)
+
+    assert created.project_id == project_id
+    assert sessions.require_session(created.session_id).project_id == project_id
+    assert created.to_dict()["project_id"] == project_id
+
+
+def test_session_project_scope_rejects_unknown_project(_fresh_db):
+    _insert_project(_fresh_db)
+    with pytest.raises(ImageSessionError, match="project"):
+        sessions.create_session(project_id=999_999)

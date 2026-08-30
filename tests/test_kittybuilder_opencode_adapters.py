@@ -10,6 +10,10 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKER = ROOT / "scripts" / "kittybuilder_opencode_worker.sh"
 REVIEWER = ROOT / "scripts" / "kittybuilder_opencode_reviewer.sh"
@@ -37,8 +41,8 @@ def _manifest(bundle: Path, *, task_id: str = "task-1", attempt_id: str = "7") -
 def _fake_opencode(tmp_path: Path) -> Path:
     fake = tmp_path / "opencode"
     fake.write_text(
-        """#!/usr/bin/env python3
-import json
+        f"#!{sys.executable}\n"
+        + """import json
 import os
 import re
 import sys
@@ -173,6 +177,33 @@ def test_timeout_runner_kills_descendant_process_group(tmp_path: Path):
         raise AssertionError(f"timed-out descendant {pid} is still running: {state}")
 
 
+
+def test_timeout_runner_closes_child_stdin_when_parent_stdin_stays_open(tmp_path: Path):
+    marker = tmp_path / "stdin-eof.txt"
+    script = tmp_path / "read-stdin.py"
+    script.write_text(
+        "import sys\nfrom pathlib import Path\nsys.stdin.read()\nPath(sys.argv[1]).write_text('eof\\n', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+
+    proc = subprocess.Popen(
+        [sys.executable, str(TIMEOUT_RUNNER), "1", sys.executable, str(script), str(marker)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        returncode = proc.wait(timeout=3)
+        stdout = proc.stdout.read() if proc.stdout else ""
+        stderr = proc.stderr.read() if proc.stderr else ""
+    finally:
+        if proc.stdin:
+            proc.stdin.close()
+
+    assert returncode == 0, f"stdout={stdout!r} stderr={stderr!r}"
+    assert marker.read_text(encoding="utf-8") == "eof\n"
+
 def test_timeout_runner_forwards_outer_termination_to_descendants(tmp_path: Path):
     child_pid = tmp_path / "outer-child.pid"
     script = tmp_path / "spawn-outer-child.sh"
@@ -235,15 +266,12 @@ def test_worker_stages_and_validates_local_context(tmp_path: Path):
     assert not list(tmp_path.glob(".kittybuilder-*"))
 
 
-def test_worker_commits_a_real_completed_change(tmp_path: Path):
-    """CP-08 dogfood finding: publish failed on a genuinely correct free
-    implementation because nothing ever committed it. The adapter must
-    commit on the model's behalf for a real "completed" result.
+def test_worker_leaves_completed_change_for_trusted_parent_commit(tmp_path: Path):
+    """The model adapter may edit the worktree but cannot mutate Git metadata.
 
-    Bundle/context/result live outside the worktree (as they do in
-    production — the runner passes attempt-dir paths, not in-worktree
-    ones) so the committed diff can be asserted to be exactly the model's
-    change, nothing else."""
+    Trusted Builder orchestration commits a validated completed result before
+    review, so the adapter must leave the model's real change uncommitted.
+    """
     repo = tmp_path / "repo"
     repo.mkdir()
     _init_git_repo(repo)
@@ -271,25 +299,12 @@ def test_worker_commits_a_real_completed_change(tmp_path: Path):
         ["git", "status", "--porcelain=v1", "--untracked-files=all"],
         cwd=repo, check=True, capture_output=True, text=True,
     ).stdout
-    assert status == ""
+    assert status.split() == ["??", "implemented.txt"]
     after_head = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=repo, check=True,
         capture_output=True, text=True,
     ).stdout.strip()
-    assert after_head != before_head
-    log = subprocess.run(
-        ["git", "log", "-1", "--pretty=%s"], cwd=repo, check=True,
-        capture_output=True, text=True,
-    ).stdout
-    assert "[pkt-1]" in log
-    assert "task-1" in log and "7" in log
-    show = subprocess.run(
-        ["git", "show", "--name-only", "--pretty=", "HEAD"], cwd=repo,
-        check=True, capture_output=True, text=True,
-    ).stdout
-    # The committed diff is exactly the model's real change — none of the
-    # runner's own staging residue got swept in.
-    assert show.split() == ["implemented.txt"]
+    assert after_head == before_head
 
 
 def test_worker_does_not_commit_a_failed_result(tmp_path: Path):
@@ -439,15 +454,15 @@ def test_worker_times_out_silent_model_and_falls_through(tmp_path: Path):
     env.update(
         {
             "KITTYBUILDER_MODELS": "free-a free-b",
-            "KB_WORKER_TIMEOUT_SECONDS": "8",
+            "KB_WORKER_TIMEOUT_SECONDS": "2",
             "FAKE_OPENCODE_HANG_MODELS": "free-a",
-            "FAKE_OPENCODE_HANG_SECONDS": "6",
+            "FAKE_OPENCODE_HANG_SECONDS": "3",
             "FAKE_OPENCODE_MODEL_LOG": str(model_log),
         }
     )
 
     completed = subprocess.run(
-        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15
+        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=8
     )
 
     assert completed.returncode == 0, completed.stderr
@@ -674,9 +689,9 @@ def test_reviewer_times_out_silent_model_and_falls_through(tmp_path: Path):
             "KB_REVIEW_RESULT_PATH": str(review),
             "FAKE_OPENCODE_REVIEW": "1",
             "KITTYBUILDER_REVIEW_MODELS": "rev-a rev-b",
-            "KB_REVIEW_TIMEOUT_SECONDS": "8",
+            "KB_REVIEW_TIMEOUT_SECONDS": "2",
             "FAKE_OPENCODE_HANG_MODELS": "rev-a",
-            "FAKE_OPENCODE_HANG_SECONDS": "6",
+            "FAKE_OPENCODE_HANG_SECONDS": "3",
             "FAKE_OPENCODE_MODEL_LOG": str(model_log),
             "KB_REVIEW_CONTEXT_PATH": str(binding),
             "KB_REVIEW_SHA": subprocess.run(
@@ -688,7 +703,7 @@ def test_reviewer_times_out_silent_model_and_falls_through(tmp_path: Path):
     )
 
     completed = subprocess.run(
-        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=15
+        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=8
     )
 
     assert completed.returncode == 0, completed.stderr
@@ -817,11 +832,9 @@ def test_reviewer_honours_explicit_paid_agent_and_model(tmp_path: Path):
 
 
 def _wait_without_closing_stdin(proc: subprocess.Popen[str]) -> tuple[str, str]:
-    for _ in range(40):
-        if proc.poll() is not None:
-            break
-        time.sleep(0.025)
-    if proc.poll() is None:
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
         proc.terminate()
         try:
             proc.wait(timeout=2)

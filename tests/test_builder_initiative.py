@@ -11,7 +11,6 @@ import json
 import os
 import sqlite3
 import subprocess
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -20,14 +19,6 @@ from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 from gateway.builder_cli import main
-from gateway.models.builder import (
-    EvidenceCriterion,
-    Mission,
-    MissionEvidencePlan,
-    MissionExecution,
-    MissionOrigin,
-    MissionState,
-)
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -609,87 +600,6 @@ class TestWarnings:
 
 
 class TestApply:
-    def test_approved_mission_projects_to_one_durable_initiative(self, db_path: Path):
-        mission = Mission(
-            mission_id="mission-submit-v1",
-            objective="Implement the bounded Builder submission path",
-            rationale="Kitty owns intent; Builder owns durable execution.",
-            approved_at=datetime.now(timezone.utc),
-            state=MissionState.approved,
-            origin=MissionOrigin(base_sha="a" * 40),
-            execution=MissionExecution(allowed_paths=["gateway/routes/builder.py"]),
-            evidence_plan=MissionEvidencePlan(
-                acceptance_criteria=[EvidenceCriterion(description="the route persists work")],
-            ),
-        )
-
-        result = bi.submit_mission(mission, db_path=db_path)
-
-        assert result["status"] == "created"
-        assert result["initiative_id"] == "mission-submit-v1"
-        assert result["packets"][0]["packet_id"] == "P1"
-        assert result["packets"][0]["task_id"] is not None
-        initiative = bi.get_initiative("mission-submit-v1", db_path=db_path)
-        assert initiative["manifest"]["packets"][0]["acceptance_criteria"] == [
-            "the route persists work"
-        ]
-
-    def test_unapproved_mission_is_rejected_before_persistence(self, db_path: Path):
-        mission = Mission(mission_id="mission-draft-v1", objective="Do not run this")
-
-        with pytest.raises(bi.MissionSubmissionError, match="must be approved"):
-            bi.submit_mission(mission, db_path=db_path)
-
-        assert bi.list_initiatives(db_path=db_path) == []
-
-    def test_mission_persists_routing_policy(self, db_path: Path):
-        mission = Mission(
-            mission_id="mission-routing-v1",
-            objective="Preserve routing policy",
-            approved_at=datetime.now(timezone.utc),
-            state=MissionState.approved,
-            execution=MissionExecution(
-                allowed_paths=["gateway/routes/builder.py"],
-                routing_policy={"model": "model-x", "provider": "provider-y"},
-            ),
-            evidence_plan=MissionEvidencePlan(
-                acceptance_criteria=[EvidenceCriterion(description="routing survives")],
-            ),
-        )
-
-        result = bi.submit_mission(mission, db_path=db_path)
-        initiative = bi.get_initiative(result["initiative_id"], db_path=db_path)
-        assert initiative is not None
-        assert initiative["packets"][0]["policy"]["routing"] == {
-            "model": "model-x",
-            "provider": "provider-y",
-        }
-        assert bi.resolve_packet_routing(
-            result["initiative_id"],
-            "P1",
-            model=None,
-            provider=None,
-            db_path=db_path,
-        ) == ("model-x", "provider-y")
-
-    def test_mission_rejects_unknown_routing_policy_key(self, db_path: Path):
-        mission = Mission(
-            mission_id="mission-routing-unknown-v1",
-            objective="Reject unknown routing authority",
-            approved_at=datetime.now(timezone.utc),
-            state=MissionState.approved,
-            execution=MissionExecution(
-                allowed_paths=["gateway/routes/builder.py"],
-                routing_policy={"worker_command": "unsafe"},
-            ),
-            evidence_plan=MissionEvidencePlan(
-                acceptance_criteria=[EvidenceCriterion(description="unknown routing is rejected")],
-            ),
-        )
-
-        with pytest.raises(bi.MissionSubmissionError, match="routing_policy keys"):
-            bi.submit_mission(mission, db_path=db_path)
-
     def test_first_apply_creates_everything(self, db_path: Path):
         result = bi.apply_manifest(_manifest(), db_path=db_path)
         assert result["status"] == "created"
@@ -748,6 +658,51 @@ class TestApply:
             bi.apply_manifest(changed, db_path=db_path)
         # No partial mutation: still 2 tasks, stored manifest unchanged.
         assert len(bq.list_tasks(db_path=db_path)) == 2
+
+    def test_project_id_defaults_to_kitty(self, db_path: Path):
+        bi.apply_manifest(_manifest(), db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT project_id FROM initiatives WHERE id = ?", ("kitty-alpha-v1",)
+            ).fetchone()
+        finally:
+            conn.close()
+        assert row["project_id"] == 1
+
+    def test_project_id_accepts_an_explicit_value(self, db_path: Path):
+        bi.apply_manifest(_manifest(), db_path=db_path, project_id=7)
+        conn = bq.connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT project_id FROM initiatives WHERE id = ?", ("kitty-alpha-v1",)
+            ).fetchone()
+        finally:
+            conn.close()
+        assert row["project_id"] == 7
+
+    def test_pre_migration_rows_backfill_to_kitty(self, db_path: Path):
+        """A row written before the project_id column existed reads as 1
+        (kitty) once the migration runs — Builder has never operated on any
+        other repo, so this is observed fact, not a guess."""
+        bi.apply_manifest(_manifest(), db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            conn.execute("UPDATE initiatives SET project_id = NULL")
+            conn.commit()
+        finally:
+            conn.close()
+
+        bi.init_db(db_path)
+
+        conn = bq.connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT project_id FROM initiatives WHERE id = ?", ("kitty-alpha-v1",)
+            ).fetchone()
+        finally:
+            conn.close()
+        assert row["project_id"] == 1
         initiative = bi.get_initiative("kitty-alpha-v1", db_path=db_path)
         assert initiative["manifest"]["title"] == "Kitty Alpha build"
 

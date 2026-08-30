@@ -12,9 +12,34 @@ from typing import Any
 
 import pytest
 
+from gateway import builder_attempt as ba
 from gateway import builder_publish as bp
 from gateway import builder_queue as bq
 from gateway.builder_brief import default_branch_name
+
+
+@pytest.fixture(autouse=True)
+def _stub_direct_publish_janitor(monkeypatch):
+    if hasattr(bp, "bj"):
+        monkeypatch.setattr(
+            bp.bj,
+            "apply_safe_repairs",
+            lambda worktree, **kwargs: {
+                "changed": False,
+                "changed_paths": [],
+                "commit_sha": None,
+                "ruff_exit_code": 0,
+            },
+        )
+
+
+@pytest.fixture(autouse=True)
+def _approved_attempt_for_merge_tests(monkeypatch):
+    monkeypatch.setattr(
+        ba,
+        "get_attempt",
+        lambda attempt_id, db_path=None: {"id": attempt_id, "review": {"verdict": "approve"}},
+    )
 
 
 @pytest.fixture
@@ -78,6 +103,118 @@ def _init_worktree(tmp_path: Path, task: dict[str, Any]) -> Path:
 
 
 class TestPublishTask:
+    def test_direct_publish_runs_janitor_before_push(
+        self, tmp_path: Path, db_path: Path, monkeypatch
+    ):
+        task = _make_blocked_task(db_path)
+        root = _init_worktree(tmp_path, task)
+        branch = default_branch_name(task)
+        order: list[str] = []
+        captured: dict[str, Any] = {}
+
+        def janitor(worktree: Path, **kwargs: Any) -> dict[str, Any]:
+            order.append("janitor")
+            captured.update(kwargs)
+            return {
+                "changed": False,
+                "changed_paths": [],
+                "commit_sha": None,
+                "ruff_exit_code": 0,
+            }
+
+        monkeypatch.setattr(bp.bj, "apply_safe_repairs", janitor)
+
+        def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            if args[:3] == ["git", "symbolic-ref", "--quiet"]:
+                return subprocess.CompletedProcess(
+                    args, 0, stdout=branch + "\n", stderr=""
+                )
+            if args[:2] == ["git", "status"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "push"]:
+                order.append("push")
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:3] == ["gh", "pr", "list"]:
+                return subprocess.CompletedProcess(args, 0, stdout="[]\n", stderr="")
+            if args[:3] == ["gh", "pr", "create"]:
+                return subprocess.CompletedProcess(
+                    args, 0, stdout="https://github.com/example/kitty/pull/123\n", stderr=""
+                )
+            if args[:2] == ["git", "rev-parse"]:
+                return subprocess.CompletedProcess(args, 0, stdout="abc\n", stderr="")
+            raise AssertionError(args)
+
+        result = bp.publish_task(
+            task["id"], repo_root=root, db_path=db_path, run_cmd=fake
+        )
+
+        assert order[:2] == ["janitor", "push"]
+        assert captured["allowed_paths"] == task["allowed_paths"]
+        assert result["janitor"]["changed"] is False
+
+    def test_janitor_commit_after_approved_review_refuses_push_until_rereview(
+        self, tmp_path: Path, db_path: Path, monkeypatch
+    ):
+        task = _make_blocked_task(db_path)
+        root = _init_worktree(tmp_path, task)
+        branch = default_branch_name(task)
+        reviewed_sha = "a" * 40
+        mutated_sha = "b" * 40
+        bq.append_event(
+            task["id"],
+            "review_evidence_bound",
+            payload={
+                "attempt_id": 77,
+                "review_sha": reviewed_sha,
+                "diff_sha256": "d" * 64,
+                "changed_paths": ["README"],
+            },
+            db_path=db_path,
+        )
+        monkeypatch.setattr(
+            ba,
+            "get_attempt",
+            lambda attempt_id, db_path=None: {
+                "id": attempt_id,
+                "review": {"verdict": "approve"},
+            },
+        )
+
+        head = reviewed_sha
+
+        def janitor(worktree: Path, **kwargs: Any) -> dict[str, Any]:
+            nonlocal head
+            head = mutated_sha
+            return {
+                "changed": True,
+                "changed_paths": ["README"],
+                "commit_sha": mutated_sha,
+                "ruff_exit_code": 0,
+            }
+
+        monkeypatch.setattr(bp.bj, "apply_safe_repairs", janitor)
+
+        def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            if args[:3] == ["git", "symbolic-ref", "--quiet"]:
+                return subprocess.CompletedProcess(args, 0, stdout=branch + "\n", stderr="")
+            if args[:2] == ["git", "status"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "rev-parse"]:
+                return subprocess.CompletedProcess(args, 0, stdout=head + "\n", stderr="")
+            if args[:2] == ["git", "push"]:
+                pytest.fail("a post-review Janitor mutation must not be pushed")
+            raise AssertionError(args)
+
+        with pytest.raises(bp.PublishError, match="re-review"):
+            bp.publish_task(task["id"], repo_root=root, db_path=db_path, run_cmd=fake)
+
+        invalidations = [
+            event for event in bq.list_events(task["id"], db_path=db_path)
+            if event["type"] == "review_invalidated_before_publish"
+        ]
+        assert invalidations[-1]["payload"]["review_sha"] == reviewed_sha
+        assert invalidations[-1]["payload"]["current_sha"] == mutated_sha
+
     def test_dry_run_does_not_mutate_or_call_side_effects(
         self, tmp_path: Path, db_path: Path
     ):
@@ -269,6 +406,12 @@ def _make_pr_opened_task(db_path: Path, tmp_path: Path, *, pr_number: int = 42) 
     bq.transition_task(task["id"], bq.PR_OPENED, db_path=db_path)
     bq.transition_task(task["id"], bq.AWAITING_REVIEW, db_path=db_path)
     bq.attach_pr(task["id"], pr_number, pr_url=f"https://x/pull/{pr_number}", db_path=db_path)
+    bq.append_event(
+        task["id"],
+        "review_evidence_bound",
+        payload={"attempt_id": 77, "review_sha": "a" * 40},
+        db_path=db_path,
+    )
     return bq.get_task(task["id"], db_path=db_path)
 
 
@@ -417,7 +560,7 @@ class TestMergeAndVerify:
         assert not any(c[:2] == ["git", "push"] for c in calls)
         assert any(c == ["git", "rebase", "--abort"] for c in calls)
 
-    def test_rebase_and_retry_merges_on_clean_rebase(self, tmp_path: Path, db_path: Path):
+    def test_rebase_on_clean_rebase_requires_fresh_review(self, tmp_path: Path, db_path: Path):
         task = _make_pr_opened_task(db_path, tmp_path)
         merge_attempts = {"n": 0}
         calls: list[list[str]] = []
@@ -426,13 +569,7 @@ class TestMergeAndVerify:
             calls.append(list(args))
             if args[:3] == ["gh", "pr", "merge"]:
                 merge_attempts["n"] += 1
-                if merge_attempts["n"] == 1:
-                    return subprocess.CompletedProcess(args, 1, stdout="", stderr="stale")
-                return subprocess.CompletedProcess(args, 0, stdout="merged\n", stderr="")
-            if args[:3] == ["gh", "pr", "view"]:
-                return subprocess.CompletedProcess(
-                    args, 0, stdout=json.dumps({"mergeCommit": {"oid": "deadbeef00"}}), stderr="",
-                )
+                return subprocess.CompletedProcess(args, 1, stdout="", stderr="stale")
             if args[:2] == ["git", "fetch"]:
                 return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
             if args[:3] == ["git", "worktree", "add"]:
@@ -442,20 +579,34 @@ class TestMergeAndVerify:
                 return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
             if args[:2] == ["git", "push"] and "--force-with-lease" in args:
                 return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "rev-parse"]:
+                return subprocess.CompletedProcess(args, 0, stdout="rebasedsha01\n", stderr="")
             if args[:3] == ["git", "worktree", "remove"]:
-                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
-            if args[:2] == ["git", "reset"]:
-                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
-            if args[:2] == ["bash", "-lc"]:
                 return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
             raise AssertionError(f"unexpected call: {args}")
 
         result = bp.merge_and_verify(
             task["id"], validation_commands=["true"], repo_root=tmp_path, db_path=db_path, run_cmd=fake,
         )
-        assert result["outcome"] == "merged"
-        assert merge_attempts["n"] == 2
+        assert result["outcome"] == "awaiting_review"
+        assert result["rebased_head_sha"] == "rebasedsha01"
+        assert merge_attempts["n"] == 1
         assert any(c[:2] == ["git", "push"] and "--force-with-lease" in c for c in calls)
+        assert not any(c[:3] == ["gh", "pr", "merge"] for c in calls[1:])
+
+    def test_gh_merge_binds_to_expected_head_sha(self, tmp_path: Path):
+        calls: list[list[str]] = []
+        def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            calls.append(list(args))
+            if args[:3] == ["gh", "pr", "merge"]:
+                return subprocess.CompletedProcess(args, 0, stdout="merged\n", stderr="")
+            if args[:3] == ["gh", "pr", "view"]:
+                return subprocess.CompletedProcess(args, 0, stdout=json.dumps({"mergeCommit": {"oid": "merge01"}}), stderr="")
+            raise AssertionError(args)
+        result = bp._gh_pr_merge(123, cwd=tmp_path, run_cmd=fake, expected_head_sha="reviewed01")
+        assert result["merge_commit_sha"] == "merge01"
+        merge_call = calls[0]
+        assert merge_call[-2:] == ["--match-head-commit", "reviewed01"]
 
     def test_tripwire_skips_merge_after_two_reverts_in_window(self, tmp_path: Path, db_path: Path):
         # Two unrelated prior tasks whose auto-merge reverted.

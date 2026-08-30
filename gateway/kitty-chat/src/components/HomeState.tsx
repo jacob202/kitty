@@ -1,15 +1,18 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText } from '@/lib/ui';
 import { CapturePanel } from '@/components/CapturePanel';
 import { BuilderGlance } from '@/components/BuilderSurface';
 import { InsightReturnCard } from '@/components/InsightReturnCard';
 import { useDashboardConfig } from '@/hooks/useDashboardConfig';
+import { describeFailure } from '@/lib/failure-copy';
+import { projectNextStepCopy } from '@/lib/project-copy';
 import {
   useStateChanges,
   useActions,
   useApproveAction,
+  useExecuteAction,
   useRejectAction,
   useTodos,
   useNeedsJacob,
@@ -20,6 +23,7 @@ import {
   useProjectNextSteps,
   useWhatsNextSteps,
   useGatewayHealth,
+  useHealthSurface,
   useGatewayModels,
   useChatsPersistence,
   useSessionContext,
@@ -109,13 +113,17 @@ function SectionCard({
     <div
       style={{
         ...card,
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-separator)',
+        borderRadius: 'var(--r-surface)',
+        boxShadow: 'none',
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
         ...(span ? { gridColumn: '1 / -1' } : {}),
       }}
     >
-      <div style={cardHeader}>
+      <div style={{ ...cardHeader, borderBottom: '1px solid var(--color-separator)', paddingBottom: 10 }}>
         <span style={cardTitle}>{title}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {count !== undefined && <span style={cardMeta}>{count}</span>}
@@ -128,27 +136,35 @@ function SectionCard({
 }
 
 const actionButtonStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  fontWeight: 700,
-  padding: '2px 8px',
-  borderRadius: 4,
-  border: '1px solid var(--line)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 11,
+  fontWeight: 650,
+  padding: '5px 9px',
+  borderRadius: 8,
+  border: '1px solid var(--color-separator)',
   cursor: 'pointer',
-  background: 'var(--surface)',
-  color: 'var(--ink-2)',
+  background: 'var(--color-surface)',
+  color: 'var(--color-text-secondary)',
 };
 
 const primaryButtonStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  fontWeight: 700,
-  padding: '4px 12px',
-  borderRadius: 4,
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  fontWeight: 650,
+  padding: '7px 12px',
+  borderRadius: 10,
   border: 'none',
   cursor: 'pointer',
-  background: 'var(--primary)',
-  color: 'var(--on-primary)',
+  background: 'var(--color-accent)',
+  color: 'var(--on-accent)',
+};
+
+const homeEmptyState: React.CSSProperties = {
+  ...emptyState,
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  lineHeight: 1.5,
+  color: 'var(--color-text-muted)',
 };
 
 function ErrorCard({ message, onRetry }: { message: string; onRetry?: () => void }) {
@@ -167,7 +183,7 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry?: () => void
   );
 }
 
-const OFFLINE_FIX = 'gateway is not reachable — check if Kitty is running';
+const OFFLINE_FIX = 'Kitty is not connected — check if Kitty is running';
 
 // ── Repairs card ──────────────────────────────────────────────────────────────
 
@@ -175,6 +191,19 @@ const SEVERITY_COLORS: Record<string, string> = {
   ok: 'var(--c-green)',
   warn: 'var(--c-yellow)',
   error: 'var(--c-red)',
+}
+
+function repairTitle(title: string, detail?: string | null): string {
+  const raw = `${title} ${detail ?? ''}`
+  if (/transition history/i.test(raw)) return 'Builder activity history needs attention'
+  if (/partial packet records?/i.test(raw)) return 'Some Builder work is incomplete'
+  return title
+}
+
+function repairDetail(title: string, detail?: string | null): string {
+  const raw = `${title} ${detail ?? ''}`
+  if (/transition history|partial packet records?/i.test(raw)) return ''
+  return detail ?? ''
 }
 
 function RepairsCard() {
@@ -185,7 +214,7 @@ function RepairsCard() {
   if (repairs.isPending) {
     return (
       <SectionCard title="system">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           checking…
         </div>
       </SectionCard>
@@ -208,8 +237,8 @@ function RepairsCard() {
   if (issues.length === 0 && repairs.data.checks_run === 0) {
     return (
       <SectionCard title="system">
-        <div role="status" style={emptyState}>
-          nothing was checked — the gateway didn&apos;t run any health checks
+        <div role="status" style={homeEmptyState}>
+          nothing was checked — Kitty could not complete its health checks
         </div>
       </SectionCard>
     )
@@ -218,7 +247,7 @@ function RepairsCard() {
   if (issues.length === 0) {
     return (
       <SectionCard title="system">
-        <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ ...homeEmptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div>everything looks healthy</div>
           <div style={{ fontSize: 10 }}>{repairs.data.checks_run} checks passed — all services are responding</div>
         </div>
@@ -249,12 +278,12 @@ function RepairsCard() {
                 flex: 1,
               }}
             >
-              {item.title}
+              {repairTitle(item.title, item.detail)}
             </span>
           </div>
-          {item.detail && (
+          {repairDetail(item.title, item.detail) && (
             <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 14 }}>
-              {item.detail}
+              {repairDetail(item.title, item.detail)}
             </div>
           )}
           {item.fix && (
@@ -384,9 +413,9 @@ function HealthDot({ tone, label }: { tone: 'ok' | 'warn' | 'bad'; label: string
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-        fontFamily: 'var(--font-mono)',
-        fontSize: 11,
-        color: 'var(--ink-2)',
+        fontFamily: 'var(--font-body)',
+        fontSize: 12,
+        color: 'var(--color-text-secondary)',
       }}
     >
       <span
@@ -408,29 +437,39 @@ function HealthStrip() {
   const health = useGatewayHealth();
   const models = useGatewayModels();
   const persistence = useChatsPersistence();
+  const repairs = useRepairs();
   const queryClient = useQueryClient();
 
   const gatewayOk = health.data?.ok === true;
   // Direct probe reported by /health — not inferred from /api/models, which
   // masks LiteLLM failures behind a fallback model list.
   const litellmOk = health.data?.litellmReachable === true;
+  const modelsLive = models.data?.fromLiveGateway === true;
   const storeOk = persistence.data?.ok === true;
+  const repairIssues = repairs.data?.repairs.filter((repair) => repair.severity !== 'ok').length ?? 0;
+  const repairChecksUnknown = !repairs.isPending && (repairs.isError || !repairs.data || repairs.data.checks_run === 0);
+  const kittyNeedsAttention = !gatewayOk || repairIssues > 0 || repairChecksUnknown;
 
   const retry = () => {
     queryClient.invalidateQueries({ queryKey: ['health'] });
     queryClient.invalidateQueries({ queryKey: ['models'] });
     queryClient.invalidateQueries({ queryKey: ['chats', 'persistence'] });
+    queryClient.invalidateQueries({ queryKey: ['repairs'] });
   };
 
-  const loading = health.isPending || models.isPending || persistence.isPending;
+  const loading = health.isPending || models.isPending || persistence.isPending || repairs.isPending;
 
   return (
     <div
       role="status"
       style={{
         ...card,
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-separator)',
+        borderRadius: 14,
+        boxShadow: 'none',
         gridColumn: '1 / -1',
-        padding: '10px 16px',
+        padding: '10px 14px',
         display: 'flex',
         alignItems: 'center',
         gap: 18,
@@ -439,30 +478,40 @@ function HealthStrip() {
     >
       {loading ? (
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
-          checking gateway — status lands here in a sec…
+          checking Kitty connection — status lands here in a sec…
         </span>
       ) : (
         <>
           <HealthDot
-            tone={gatewayOk ? 'ok' : 'bad'}
-            label={gatewayOk ? 'gateway live' : OFFLINE_FIX}
-          />
-          <HealthDot
-            tone={!gatewayOk ? 'bad' : litellmOk ? 'ok' : 'bad'}
+            tone={kittyNeedsAttention ? 'bad' : 'ok'}
             label={
               !gatewayOk
-                ? 'routing unknown'
-                : litellmOk
-                  ? `routing live · ${models.data?.models.length ?? 0} models`
-                  : 'model routing is unavailable'
+                ? OFFLINE_FIX
+                : repairIssues > 0
+                  ? `Kitty needs attention · ${repairIssues} issue${repairIssues === 1 ? '' : 's'}`
+                  : repairChecksUnknown
+                    ? 'Kitty checks need attention'
+                    : 'Kitty is connected'
+            }
+          />
+          <HealthDot
+            tone={!gatewayOk || !litellmOk ? 'bad' : modelsLive ? 'ok' : 'warn'}
+            label={
+              !gatewayOk
+                ? 'models unknown'
+                : !litellmOk
+                  ? 'models are unavailable'
+                  : modelsLive
+                    ? `models ready · ${models.data?.models.length ?? 0}`
+                    : 'model list unavailable'
             }
           />
           <HealthDot
             tone={storeOk ? 'ok' : 'bad'}
             label={
               storeOk
-                ? `chat store ok · ${persistence.data?.count ?? 0} saved`
-                : `chat store: ${persistence.data?.error ?? 'unreachable'}`
+                ? `saved chats · ${persistence.data?.count ?? 0}`
+                : `saved chats unavailable${persistence.data?.error ? ` · ${describeFailure(persistence.data.error)}` : ''}`
             }
           />
         </>
@@ -473,6 +522,213 @@ function HealthStrip() {
       </button>
     </div>
   );
+}
+
+// ── Health surface (full-stack projection) ───────────────────────────────────
+
+const HEALTH_TONES: Record<string, 'ok' | 'warn' | 'bad'> = {
+  available: 'ok',
+  degraded: 'warn',
+  stale: 'warn',
+  unavailable: 'bad',
+  unknown: 'warn',
+};
+
+const HEALTH_LABELS: Record<string, string> = {
+  gateway: 'Kitty connection',
+  database: 'saved data',
+  memory: 'memory',
+  automation_supervisor: 'background tasks',
+  cron: 'scheduled tasks',
+  telegram: 'messages',
+  image_lab: 'image lab',
+  image_providers: 'image creation',
+  image_queue: 'image jobs',
+  ollama: 'local AI',
+  pending_grants: 'pending approvals',
+};
+
+// An allowlist, not a scrub. Health reasons are built from exception class
+// names, provider ids, ports and HTTP codes, so a denylist either passes
+// through the causes it does not recognise or shreds the sentence into a
+// fragment. Match a known cause and say what it means; otherwise fall back to
+// status-level copy and leave the raw reason to the technical disclosure.
+const HEALTH_REASON_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/litellm|model (?:router|proxy)/i, "Kitty can't reach the part that talks to the AI models."],
+  [/semantic memory unavailable/i, "Search over what Kitty remembers is down. Notes you saved yourself still work."],
+  [/embedding runtime/i, "The local AI behind search and memory isn't answering. Notes you saved yourself still work."],
+  [/sqlite|database is locked|no such table/i, "Kitty couldn't read its own saved data."],
+  [/grant store/i, "Kitty couldn't read your saved approvals."],
+  [/unresolved provider outcome/i, 'Some image jobs stopped without a result and need to be retried.'],
+  [/queue read failed/i, "Kitty couldn't read the list of image jobs."],
+  [/no image provider available|drawthings|comfyui/i, 'No image generator is available right now.'],
+  [/need attention/i, 'A background task needs attention.'],
+  [/did not start|task (?:exited|stopped)|worker exited|shutdown/i, 'A background task stopped running.'],
+  [/not configured/i, "This part isn't set up yet."],
+  [/no tracked services|no image workers tracked/i, 'Nothing is running here yet.'],
+];
+
+function healthReasonCopy(status: string, reason?: string): string {
+  const raw = reason?.trim() ?? '';
+  const known = raw ? HEALTH_REASON_PATTERNS.find(([pattern]) => pattern.test(raw)) : undefined;
+  if (known) return known[1];
+  if (status === 'unavailable') {
+    return 'This part of Kitty is unavailable right now. Refresh health to check again.';
+  }
+  if (status === 'degraded') {
+    return 'This part of Kitty is having trouble right now. Refresh health to check again.';
+  }
+  if (status === 'stale') {
+    return 'This status is out of date. Refresh health to check again.';
+  }
+  return 'No additional issue details are available.';
+}
+
+// One operator-facing surface for "is Kitty working, and if not exactly what
+// is wrong". Rows for every domain, a degraded section that expands the reason
+// on click, and a "still functional" section so a partial outage is honest.
+function HealthSurfaceCard() {
+  const surface = useHealthSurface();
+  const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  if (surface.isPending) {
+    return (
+      <SectionCard title="health" span>
+        <div role="status" style={homeEmptyState}>
+          checking…
+        </div>
+      </SectionCard>
+    );
+  }
+
+  if (surface.isError || !surface.data || !surface.data.ok) {
+    return (
+      <SectionCard title="health" span>
+        <ErrorCard
+          message={describeFailure(surface.error ?? surface.data?.error)}
+          onRetry={() => surface.refetch()}
+        />
+      </SectionCard>
+    );
+  }
+
+  const { overall, domains, degraded, still_functional: stillFunctional, pending_grants: pendingGrants } = surface.data;
+  const domainBy = new Map(domains.map((d) => [d.name, d]));
+
+  return (
+    <SectionCard
+      title="health"
+      count={overall ?? '—'}
+      span
+      action={
+        <button
+          type="button"
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['health-surface'] })}
+          style={actionButtonStyle}
+        >
+          refresh
+        </button>
+      }
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
+        {domains.map((domain) => (
+          <div key={domain.name} style={{ ...itemCard, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <HealthDot tone={HEALTH_TONES[domain.status] ?? 'warn'} label={HEALTH_LABELS[domain.name] ?? domain.name} />
+          </div>
+        ))}
+      </div>
+
+      {degraded.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--c-red)' }}>
+            degraded
+          </div>
+          {degraded.map((name) => {
+            const domain = domainBy.get(name);
+            const open = expanded === name;
+            return (
+              <div key={name} style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setExpanded(open ? null : name)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                >
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', flex: 1 }}>
+                    {HEALTH_LABELS[name] ?? name}
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', opacity: 0.7 }}>
+                    {open ? 'collapse' : 'explain'}
+                  </span>
+                </button>
+                {open && (
+                  <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 0 }}>
+                    {healthReasonCopy(domain?.status ?? 'unknown', domain?.reason)}
+                    {domain?.reason?.trim() && (
+                      <details style={homeDisclosureStyle}>
+                        <summary style={homeSummaryStyle}>Technical details</summary>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, wordBreak: 'break-word' }}>
+                          {domain.reason}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {stillFunctional.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--c-green)' }}>
+            still functional
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {stillFunctional.map((name) => (
+              <HealthDot key={name} tone="ok" label={HEALTH_LABELS[name] ?? name} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {pendingGrants > 0 && (
+        <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)' }}>
+          {pendingGrants} pending approval{pendingGrants === 1 ? '' : 's'} waiting on you
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ── Action approval: approve -> execute -> terminal outcome (C7-F08) ────────
+// Approving a T2 action only moves it proposed -> approved; it never runs on
+// its own. Without this second call the action sits "approved" forever and
+// the person who approved it never learns whether it actually happened.
+
+type ActionOutcome = { title: string; ok: boolean; message: string };
+
+async function approveAndExecuteAction(
+  action: GatewayAction,
+  approve: { mutateAsync: (id: number) => Promise<GatewayAction> },
+  execute: { mutateAsync: (id: number) => Promise<GatewayAction> },
+): Promise<ActionOutcome> {
+  await approve.mutateAsync(action.id);
+  try {
+    const executed = await execute.mutateAsync(action.id);
+    return {
+      title: action.title,
+      ok: executed.status === 'executed',
+      message: executed.result || (executed.status === 'executed' ? 'done' : `status: ${executed.status}`),
+    };
+  } catch (err) {
+    return {
+      title: action.title,
+      ok: false,
+      message: err instanceof Error ? err.message : 'could not run this action',
+    };
+  }
 }
 
 // ── What's next (hero) ───────────────────────────────────────────────────────
@@ -500,10 +756,12 @@ function WhatsNext({
   const stepQueries = useWhatsNextSteps();
   const todosQuery = useTodos();
   const approve = useApproveAction();
+  const execute = useExecuteAction();
   const reject = useRejectAction();
   const sessionContext = useSessionContext();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [outcome, setOutcome] = useState<ActionOutcome | null>(null);
 
   // ── Error checks first ──
   // These run before the loading guard so that a known failure (observed:
@@ -511,31 +769,30 @@ function WhatsNext({
   // control instead of staying stuck on "loading…" while other queries settle.
 
   if (sessionContext.isError) {
-    const message = sessionContext.error instanceof Error ? sessionContext.error.message : 'Could not reach the gateway';
     const retry = () => queryClient.invalidateQueries({ queryKey: ['session', 'context'] });
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
+        <ErrorCard message={describeFailure(sessionContext.error)} onRetry={retry} />
       </SectionCard>
     );
   }
 
   if (actionsQuery.isError || projectsQuery.isError) {
+    const failed = actionsQuery.isError ? actionsQuery : projectsQuery;
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={OFFLINE_FIX} />
+        <ErrorCard message={describeFailure(failed.error)} onRetry={() => failed.refetch()} />
       </SectionCard>
     );
   }
 
   if (todosQuery.isError || needsJacob.isError) {
     const failed = todosQuery.isError ? todosQuery : needsJacob;
-    const message = failed.error instanceof Error ? failed.error.message : 'Could not reach the gateway';
     const retryKey = todosQuery.isError ? ['todos'] : ['inbox', 'needs_jacob'];
     const retry = () => queryClient.invalidateQueries({ queryKey: retryKey });
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
+        <ErrorCard message={describeFailure(failed.error)} onRetry={retry} />
       </SectionCard>
     );
   }
@@ -548,7 +805,7 @@ function WhatsNext({
   if (isPending) {
     return (
       <SectionCard title="what's next" span>
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           loading…
         </div>
       </SectionCard>
@@ -566,6 +823,17 @@ function WhatsNext({
     }
   };
 
+  const handleApprove = async (targetAction: GatewayAction) => {
+    setBusy(true);
+    try {
+      setOutcome(await approveAndExecuteAction(targetAction, approve, execute));
+    } catch {
+      // approve itself failed — button re-enables via finally, nothing ran
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const action: GatewayAction | undefined = (actionsQuery.data ?? [])[0];
   const entry: GatewayTriageEntry | undefined = [...(needsJacob.data?.entries ?? [])].sort(
     (a, b) => b.confidence - a.confidence,
@@ -574,12 +842,33 @@ function WhatsNext({
   const project: GatewayProject | undefined = step
     ? (projectsQuery.data ?? []).find((p) => p.id === step.project_id)
     : undefined;
+  const displayStep = step && project ? projectNextStepCopy(project, step) : step;
   const todo = (todosQuery.data ?? []).find(
     (t) => t.status === 'pending' || t.status === 'active',
   );
 
   return (
     <SectionCard title="what's next" span>
+      {outcome && (
+        <div
+          role="status"
+          style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}
+        >
+          <div style={heroMetaStyle}>
+            {outcome.ok ? 'done' : 'did not complete'} · {outcome.title}
+          </div>
+          <div style={{ ...bodyText, fontSize: 12 }}>{outcome.message}</div>
+          <div>
+            <button
+              type="button"
+              onClick={() => setOutcome(null)}
+              style={{ ...actionButtonStyle, color: 'var(--ink-2)', opacity: 0.7 }}
+            >
+              dismiss
+            </button>
+          </div>
+        </div>
+      )}
       {action ? (
         <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={heroTextStyle}>{action.title}</div>
@@ -591,7 +880,7 @@ function WhatsNext({
             <button
               type="button"
               disabled={busy}
-              onClick={() => void decide(() => approve.mutateAsync(action.id))}
+              onClick={() => void handleApprove(action)}
               style={{ ...primaryButtonStyle, opacity: busy ? 0.5 : 1 }}
             >
               {busy ? '…' : 'approve'}
@@ -618,12 +907,12 @@ function WhatsNext({
             </button>
           </div>
         </div>
-      ) : step ? (
+      ) : displayStep ? (
         <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={heroTextStyle}>{step.step}</div>
+          <div style={heroTextStyle}>{displayStep.step}</div>
           <div style={heroMetaStyle}>
             {project ? `${project.name} · ` : ''}
-            {step.why ? `why: ${step.why}` : 'project next step'}
+            {displayStep.why ? `why: ${displayStep.why}` : 'project next step'}
           </div>
           <div>
             <button type="button" onClick={() => onNavigate('projects')} style={primaryButtonStyle} aria-label="open projects">
@@ -656,7 +945,7 @@ function WhatsNext({
           <div style={heroMetaStyle}>{sessionContext.data.open_threads.join(' · ')}</div>
         </div>
       ) : (
-        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ ...homeEmptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', alignItems: 'center', gap: 14 }}>
           <span aria-hidden style={{ color: 'var(--cat-ginger)', flexShrink: 0, pointerEvents: 'none' }}>
             <KidCatDoodle size={40} opacity={0.7} />
           </span>
@@ -684,9 +973,10 @@ const heroTextStyle: React.CSSProperties = {
 };
 
 const heroMetaStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--ink-2)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  lineHeight: 1.45,
+  color: 'var(--color-text-muted)',
 };
 
 // ── Active projects ──────────────────────────────────────────────────────────
@@ -698,7 +988,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
   if (projectsQuery.isPending) {
     return (
       <SectionCard title="active projects">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           loading…
         </div>
       </SectionCard>
@@ -708,7 +998,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
   if (projectsQuery.isError) {
     return (
       <SectionCard title="active projects">
-        <ErrorCard message="unavailable" />
+        <ErrorCard message={describeFailure(projectsQuery.error)} onRetry={() => projectsQuery.refetch()} />
       </SectionCard>
     );
   }
@@ -719,7 +1009,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
   if (active.length === 0) {
     return (
       <SectionCard title="active projects">
-        <div style={emptyState}>
+        <div style={homeEmptyState}>
           {projects.length === 0
             ? 'no projects registered — add one from the projects view'
             : 'no active projects — everything is parked or done'}
@@ -745,6 +1035,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
         const idx = projects.indexOf(p);
         const stepQuery = stepQueries[idx];
         const step = stepQuery?.data;
+        const displayStep = step ? projectNextStepCopy(p, step) : null;
         return (
           <button
             key={p.id}
@@ -780,9 +1071,9 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
               {stepQuery?.isPending
                 ? '…'
                 : stepQuery?.isError
-                  ? 'next step unreadable — gateway error'
-                  : step
-                    ? step.step
+                  ? 'next step unavailable — try again from Projects'
+                  : displayStep
+                    ? displayStep.step
                     : 'no next step yet — refresh it in projects'}
             </div>
           </button>
@@ -911,7 +1202,7 @@ function PhoneAccessCard() {
   if (tailnet.isPending) {
     return (
       <SectionCard title="phone access">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           loading…
         </div>
       </SectionCard>
@@ -921,10 +1212,10 @@ function PhoneAccessCard() {
   if (!tailnet.data?.ok || !tailnet.data.uiUrl) {
     return (
       <SectionCard title="phone access">
-        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div>phone access isn't set up yet — it needs Tailscale running on this Mac.</div>
+        <div style={{ ...homeEmptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div>Phone access needs its secure connection app running on this Mac.</div>
           <div style={{ ...bodyText, fontSize: 11 }}>
-            Open the Tailscale app to access Kitty from your phone.
+            Open the phone access app, then try Kitty from your phone again.
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button
@@ -932,7 +1223,7 @@ function PhoneAccessCard() {
               onClick={() => window.open('tailscale://', '_blank')}
               style={actionButtonStyle}
             >
-              open Tailscale
+              open phone access
             </button>
             <button
               type="button"
@@ -991,7 +1282,7 @@ function Deadlines() {
   if (deadlines.isPending) {
     return (
       <SectionCard title="deadlines">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           loading…
         </div>
       </SectionCard>
@@ -1003,7 +1294,7 @@ function Deadlines() {
   if (deadlines.data?.fromLiveGateway === false) {
     return (
       <SectionCard title="deadlines" action={sweepButton}>
-        <ErrorCard message="unavailable" />
+        <ErrorCard message={describeFailure(deadlines.data?.error)} onRetry={() => deadlines.refetch()} />
       </SectionCard>
     );
   }
@@ -1013,7 +1304,7 @@ function Deadlines() {
   if (open.length === 0) {
     return (
       <SectionCard title="deadlines" action={sweepButton}>
-        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px' }}>
+        <div style={{ ...homeEmptyState, textAlign: 'left', padding: '12px 2px' }}>
           no deadlines tracked yet — sweep scans your documents and mail for due
           dates and obligations.
           {sweep.data && sweep.data.blind_spots.length > 0 && (
@@ -1107,7 +1398,7 @@ function WhatChanged() {
   if (isPending) {
     return (
       <SectionCard title="what changed">
-        <div role="status" style={{ ...emptyState }}>
+        <div role="status" style={{ ...homeEmptyState }}>
           loading…
         </div>
       </SectionCard>
@@ -1122,7 +1413,7 @@ function WhatChanged() {
     );
   }
 
-  const { changes, new_signals, note } = data;
+  const { baseline_ts, changes, new_signals } = data;
   const count = changes.length + new_signals.length;
 
   const inboxSection = stateNowQuery.data?.sections.inbox;
@@ -1133,7 +1424,9 @@ function WhatChanged() {
 
   return (
     <SectionCard title="what changed" count={count || undefined} action={markPoint}>
-      {note && !changes.length && !new_signals.length ? <div style={emptyState}>{note}</div> : null}
+      {baseline_ts === null && !changes.length && !new_signals.length ? (
+        <div style={homeEmptyState}>no comparison point yet — mark one to start tracking changes</div>
+      ) : null}
       {changes.map((c: StateChange, i: number) => (
         <div key={i} style={itemCard}>
           <div
@@ -1186,8 +1479,8 @@ function WhatChanged() {
           </button>
         </div>
       )}
-      {!count && !note && !untriagedCount && (
-        <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {!count && baseline_ts !== null && !untriagedCount && (
+        <div style={{ ...homeEmptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div>nothing new since last snapshot</div>
           <div style={{ fontSize: 10 }}>tap mark point anytime to set a fresh baseline</div>
         </div>
@@ -1199,17 +1492,22 @@ function WhatChanged() {
 // ── Needs you (action queue) ─────────────────────────────────────────────────
 
 function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEntry) => void }) {
-  const { data: actions = [], isError, isPending } = useActions('proposed');
+  const { data: actions = [], isError, isPending, error, refetch } = useActions('proposed');
   const needsJacob = useNeedsJacob();
   const approve = useApproveAction();
+  const execute = useExecuteAction();
   const reject = useRejectAction();
   // Track which action is in-flight to disable its buttons and prevent races.
   const [pendingId, setPendingId] = useState<number | null>(null);
+  // Approving moves an action out of `actions` (no longer 'proposed'), so its
+  // terminal outcome has to live here, not in the query result, or it would
+  // vanish the instant it's most useful to see.
+  const [outcomes, setOutcomes] = useState<Record<number, ActionOutcome>>({});
 
   if (isPending || needsJacob.isPending) {
     return (
       <SectionCard title="needs you">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           loading…
         </div>
       </SectionCard>
@@ -1219,7 +1517,7 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
   if (isError) {
     return (
       <SectionCard title="needs you">
-        <ErrorCard message="unavailable" />
+        <ErrorCard message={describeFailure(error)} onRetry={() => refetch()} />
       </SectionCard>
     );
   }
@@ -1227,15 +1525,24 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
   const needsJacobEntries = needsJacob.data?.entries ?? [];
   const total = actions.length + needsJacobEntries.length;
 
-  const handleApprove = async (id: number) => {
-    setPendingId(id);
+  const handleApprove = async (action: GatewayAction) => {
+    setPendingId(action.id);
     try {
-      await approve.mutateAsync(id);
+      const result = await approveAndExecuteAction(action, approve, execute);
+      setOutcomes((current) => ({ ...current, [action.id]: result }));
     } catch {
-      // gateway error — button re-enables via finally
+      // approve itself failed — button re-enables via finally, nothing ran
     } finally {
       setPendingId(null);
     }
+  };
+
+  const dismissOutcome = (id: number) => {
+    setOutcomes((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
   };
 
   const handleReject = async (id: number) => {
@@ -1251,8 +1558,31 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
 
   return (
     <SectionCard title="needs you" count={total || undefined}>
+      {Object.entries(outcomes).map(([idStr, result]) => (
+        <div
+          key={idStr}
+          role="status"
+          style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}
+        >
+          <div
+            style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}
+          >
+            {result.ok ? 'done' : 'did not complete'} · {result.title}
+          </div>
+          <div style={{ ...bodyText, fontSize: 12 }}>{result.message}</div>
+          <div>
+            <button
+              type="button"
+              onClick={() => dismissOutcome(Number(idStr))}
+              style={{ ...actionButtonStyle, color: 'var(--ink-2)', opacity: 0.7 }}
+            >
+              dismiss
+            </button>
+          </div>
+        </div>
+      ))}
       {total === 0 ? (
-        <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ ...homeEmptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div>nothing waiting for you</div>
           <div style={{ fontSize: 10 }}>proposed actions and decisions will land here when there are any</div>
         </div>
@@ -1298,7 +1628,7 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
                   <button
                     type="button"
                     disabled={isBusy}
-                    onClick={() => void handleApprove(action.id)}
+                    onClick={() => void handleApprove(action)}
                     aria-label={`Approve ${action.title}`}
                     style={{
                       ...primaryButtonStyle,
@@ -1331,6 +1661,24 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
                 </div>
               </div>
               {action.preview && <div style={{ ...bodyText, fontSize: 12 }}>{action.preview}</div>}
+              {action.payload && Object.keys(action.payload).length > 0 && (
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
+                    color: 'var(--ink-2)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                  }}
+                >
+                  {Object.entries(action.payload).map(([key, value]) => (
+                    <div key={key}>
+                      {key}: {typeof value === 'string' ? value : JSON.stringify(value)}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })
@@ -1392,14 +1740,14 @@ function TodayPanel({
   // This card owns the /todos query. Do not borrow Brief's state: a healthy
   // todos response must remain truthful even when another dashboard card is
   // slow or unavailable.
-  const { data: todos = [], isPending, isError, error } = useTodos();
+  const { data: todos = [], isPending, isError, error, refetch } = useTodos();
 
   const open = todos.filter((t) => t.status === 'pending' || t.status === 'active');
 
   if (isPending) {
     return (
       <SectionCard title="today">
-        <div role="status" style={emptyState}>
+        <div role="status" style={homeEmptyState}>
           loading…
         </div>
       </SectionCard>
@@ -1407,10 +1755,9 @@ function TodayPanel({
   }
 
   if (isError) {
-    const message = error instanceof Error ? error.message : 'Could not reach the gateway';
     return (
       <SectionCard title="today">
-        <ErrorCard message={message} />
+        <ErrorCard message={describeFailure(error)} onRetry={() => refetch()} />
       </SectionCard>
     );
   }
@@ -1429,7 +1776,7 @@ function TodayPanel({
   return (
     <SectionCard title="today" count={open.length || undefined} action={openTasks}>
       {open.length === 0 ? (
-        <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ ...homeEmptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div>nothing on the list</div>
           <div style={{ fontSize: 10 }}>your day is wide open</div>
         </div>
@@ -1509,6 +1856,30 @@ function CaptureSection() {
   );
 }
 
+const homeDisclosureStyle: React.CSSProperties = {
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-separator)',
+  borderRadius: 14,
+  overflow: 'hidden',
+};
+
+const homeSummaryStyle: React.CSSProperties = {
+  cursor: 'pointer',
+  padding: '13px 15px',
+  fontFamily: 'var(--font-body)',
+  fontSize: 13,
+  fontWeight: 650,
+  color: 'var(--color-text-secondary)',
+  listStylePosition: 'inside',
+};
+
+const homeDisclosureGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 14,
+  padding: '0 14px 14px',
+  alignItems: 'start',
+};
+
 // ── Root ─────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -1526,95 +1897,124 @@ export function HomeState({
   onNavigate = () => {},
   onExpertClick,
 }: Props) {
-  const isCosmic =
-    typeof document !== 'undefined' &&
-    document.documentElement.getAttribute('data-theme') === 'cosmic';
   const { visibleTiles } = useDashboardConfig();
   const weatherQuery = useGatewayWeather();
+  const repairs = useRepairs();
   const weather = weatherQuery.data?.weather;
+  const systemNeedsAttention = !repairs.isPending && (
+    repairs.isError ||
+    !repairs.data ||
+    repairs.data.checks_run === 0 ||
+    repairs.data.repairs.some((repair) => repair.severity !== 'ok')
+  );
+  const [systemOpen, setSystemOpen] = useState(false);
+
+  useEffect(() => {
+    if (systemNeedsAttention) setSystemOpen(true);
+  }, [systemNeedsAttention]);
 
   return (
     <div
+      data-testid="home-daily-overview"
       style={{
         flex: 1,
         overflowY: 'auto',
-        padding: compact ? '16px 12px 40px' : isCosmic ? '28px 32px 48px' : '24px 32px 40px',
-        maxWidth: isCosmic ? 1320 : undefined,
-        margin: isCosmic ? '0 auto' : undefined,
-        display: 'grid',
-        gridTemplateColumns: compact
-          ? '1fr'
-          : isCosmic
-          ? 'repeat(3, minmax(0, 1fr))'
-          : 'repeat(auto-fit, minmax(340px, 1fr))',
-        gap: isCosmic ? 18 : 20,
-        alignContent: 'start',
+        padding: compact ? '16px 12px 40px' : '28px 28px 48px',
+        background: 'var(--color-canvas)',
       }}
     >
-      <div style={{ gridColumn: isCosmic ? '1 / -1' : undefined }}>
-        <h1
+      <div
+        data-testid="home-daily-overview-content"
+        style={{
+          width: '100%',
+          maxWidth: 1120,
+          margin: '0 auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: compact ? 14 : 18,
+        }}
+      >
+        <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20 }}>
+          <div style={{ minWidth: 0 }}>
+            <h1
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: compact ? 24 : 32,
+                lineHeight: 1.05,
+                fontWeight: 800,
+                letterSpacing: '-0.03em',
+                color: 'var(--color-text-primary)',
+                margin: 0,
+              }}
+            >
+              {greeting(new Date().getHours())}{preferredName ? `, ${preferredName}` : ''}
+            </h1>
+            <p style={{ margin: '7px 0 0', fontSize: 13, color: 'var(--color-text-muted)' }}>
+              what matters now, then what&apos;s waiting
+            </p>
+          </div>
+          {visibleTiles['weather'] !== false && weather && !weather.error && !compact && (
+            <div aria-label="Weather" style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                {weather.temp_c != null ? `${Math.round(weather.temp_c)}°C` : '—'}
+              </div>
+              {weather.description && (
+                <div style={{ marginTop: 2, fontSize: 12, color: 'var(--color-text-muted)', textTransform: 'capitalize' }}>
+                  {weather.description}
+                </div>
+              )}
+            </div>
+          )}
+        </header>
+
+        {visibleTiles['health'] !== false && <HealthStrip />}
+
+        <section
+          data-testid="home-primary-overview"
+          aria-label="Daily priorities"
           style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: compact ? 20 : 28,
-            fontWeight: 800,
-            letterSpacing: '-0.02em',
-            color: 'var(--ink)',
-            margin: 0,
+            display: 'grid',
+            gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+            gap: compact ? 12 : 16,
+            alignItems: 'start',
           }}
         >
-          {greeting(new Date().getHours())}{preferredName ? `, ${preferredName}` : ''}
-        </h1>
-      </div>
-      {visibleTiles['health'] !== false && <HealthStrip />}
-      {visibleTiles['health'] !== false && <RepairsCard />}
-      {visibleTiles['health'] !== false && <SignalsCard />}
-      <BuilderGlance onOpen={() => onNavigate('builder')} />
-      {visibleTiles['weather'] !== false && weather && !weather.error && (
-        <section style={{ ...card, display: 'grid', gap: 8 }}>
-          <div style={cardHeader}>
-            <div style={cardTitle}>weather</div>
-            <span style={cardMeta}>
-              {weather.temp_c != null ? `${Math.round(weather.temp_c)}°C` : '—'}
-            </span>
-          </div>
-          {weather.description && (
-            <p style={{ ...bodyText, margin: 0, textTransform: 'capitalize' }}>
-              {weather.description}
-            </p>
+          {visibleTiles['whats-next'] !== false && (
+            <WhatsNext preferredName={preferredName} onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
           )}
-          <div style={{ display: 'flex', gap: 16 }}>
-            {weather.humidity != null && (
-              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
-                {weather.humidity}% humidity
-              </span>
-            )}
-            {weather.wind_kmph != null && (
-              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
-                {weather.wind_kmph} km/h wind
-              </span>
-            )}
-            {weather.max_c != null && weather.min_c != null && (
-              <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
-                {Math.round(weather.max_c)}° / {Math.round(weather.min_c)}°
-              </span>
-            )}
-          </div>
+          {visibleTiles['needs-you'] !== false && <NeedsYou onDecideInChat={onDecideInChat} />}
+          {visibleTiles['today'] !== false && <TodayPanel onNavigate={onNavigate} />}
+          {visibleTiles['deadlines'] !== false && <Deadlines />}
+          {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}
         </section>
-      )}
-      {visibleTiles['whats-next'] !== false && (
-        <WhatsNext preferredName={preferredName} onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
-      )}
-      {visibleTiles['needs-you'] !== false && <NeedsYou onDecideInChat={onDecideInChat} />}
-      {visibleTiles['insight-loop'] !== false && <InsightReturnCard />}
-      {visibleTiles['deadlines'] !== false && <Deadlines />}
-      {visibleTiles['phone-access'] !== false && <PhoneAccessCard />}
-      {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}
-      {visibleTiles['active-projects'] !== false && <ExpertStrip onExpertClick={onExpertClick ?? (() => {})} />}
-      {visibleTiles['what-changed'] !== false && <WhatChanged />}
-      {visibleTiles['today'] !== false && (
-        <TodayPanel onNavigate={onNavigate} />
-      )}
-      {visibleTiles['capture'] !== false && <CaptureSection />}
+
+        {visibleTiles['capture'] !== false && <CaptureSection />}
+
+        <details data-testid="home-more-context" style={homeDisclosureStyle}>
+          <summary style={homeSummaryStyle}>More context</summary>
+          <div style={{ ...homeDisclosureGridStyle, gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
+            {visibleTiles['insight-loop'] !== false && <InsightReturnCard />}
+            {visibleTiles['what-changed'] !== false && <WhatChanged />}
+            {visibleTiles['active-projects'] !== false && <ExpertStrip onExpertClick={onExpertClick ?? (() => {})} />}
+          </div>
+        </details>
+
+        <details
+          data-testid="home-system-details"
+          style={homeDisclosureStyle}
+          open={systemOpen}
+          onToggle={(event) => setSystemOpen(event.currentTarget.open)}
+        >
+          <summary style={homeSummaryStyle}>System &amp; setup</summary>
+          <div style={{ ...homeDisclosureGridStyle, gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
+            {visibleTiles['health'] !== false && <HealthSurfaceCard />}
+            {visibleTiles['health'] !== false && <RepairsCard />}
+            {visibleTiles['health'] !== false && <SignalsCard />}
+            <BuilderGlance onOpen={() => onNavigate('work')} />
+            {visibleTiles['phone-access'] !== false && <PhoneAccessCard />}
+          </div>
+        </details>
+      </div>
     </div>
   );
 }

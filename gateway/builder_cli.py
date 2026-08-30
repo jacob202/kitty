@@ -1644,8 +1644,9 @@ def _cmd_initiative_resume(args: argparse.Namespace) -> int:
 
 def _cmd_initiative_doctor(args: argparse.Namespace) -> int:
     from gateway.builder_doctor import run_doctor
+    from gateway.paths import ROOT
 
-    result = run_doctor()
+    result = run_doctor(repo_root=ROOT)
 
     if args.json:
         print(json.dumps(result, indent=2, default=str))
@@ -1706,6 +1707,53 @@ def _cmd_initiative_close_attempt(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_supervisor_tick(args: argparse.Namespace) -> int:
+    """Run one supervisor tick: lock, select active initiatives, launch <=2 runs."""
+    from gateway import builder_supervisor as bs
+
+    try:
+        receipt = bs.tick(max_runs=args.max_runs)
+    except (ValueError, RuntimeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(receipt, indent=2, default=str))
+    else:
+        launched = len(receipt["launched"])
+        skipped = len(receipt["skipped"])
+        if receipt["status"] == "locked":
+            print("supervisor: another tick already holds the lock; nothing done")
+        elif receipt["status"] == "ok":
+            print(
+                f"supervisor: {launched} run(s) launched, "
+                f"{skipped} candidate(s) skipped, "
+                f"{len(receipt['scanned_initiatives'])} active initiative(s) scanned"
+            )
+        for entry in receipt["launched"]:
+            detail = entry.get("error") or "dispatched"
+            print(f"  launch {entry['initiative_id']}/{entry['packet_id']}: {detail}")
+    return 0 if receipt["status"] in {"ok", "locked"} else 1
+
+
+def _cmd_supervisor_status(args: argparse.Namespace) -> int:
+    """Read-only supervisor projection: initiatives, eligible work, active runs."""
+    from gateway import builder_supervisor as bs
+
+    projection = bs.status()
+    if args.json:
+        print(json.dumps(projection, indent=2, default=str))
+        return 0
+    print(f"lock: {projection['lock']['path']}")
+    print(f"active runs: {len(projection['active_runs'])}")
+    for initiative in projection["initiatives"]:
+        eligible = [p["packet_id"] for p in initiative["eligible_packets"]]
+        print(
+            f"  {initiative['initiative_id']:<40} "
+            f"{initiative['derived_state']:<10} eligible={eligible}"
+        )
+    return 0
+
+
 def _init_queue_db() -> None:
     """Initialize the queue DB safely before command dispatch."""
     from gateway.builder_queue import init_db
@@ -1756,12 +1804,14 @@ _GROUP_HELP = {
     "queue": "durable builder queue commands",
     "initiative": "initiative manifest commands",
     "contract": "builder contract commands",
+    "supervisor": "autonomous supervisor commands",
 }
 
 _GROUP_SUBPARSER_DEST = {
     "queue": "queue_command",
     "initiative": "initiative_command",
     "contract": "contract_command",
+    "supervisor": "supervisor_command",
 }
 
 
@@ -2058,6 +2108,19 @@ COMMANDS: list[CommandSpec] = [
     CommandSpec("initiative-doctor", "initiative", "doctor",
                 "read-only preflight: is it safe to run KittyBuilder right now?",
                 _cmd_initiative_doctor, [_a("--json", "output JSON", action="store_true")]),
+    # -- supervisor group ------------------------------------------------------
+    # Only two fixed verbs exist (tick/status). launchd generation is owned by
+    # the launcher script (scripts/start_builder_supervisor.sh), not the CLI.
+    CommandSpec("supervisor-tick", "supervisor", "tick",
+                "run one supervisor tick: one OS lock, deterministic selection "
+                "of eligible active initiatives, at most two canonical runs, "
+                "truthful receipts; duplicate ticks do nothing",
+                _cmd_supervisor_tick,
+                [_a("--max-runs", "max canonical runs per tick", type=int, default=2),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("supervisor-status", "supervisor", "status",
+                "read-only supervisor projection (initiatives, eligible work, active runs)",
+                _cmd_supervisor_status, [_a("--json", "output JSON", action="store_true")]),
 ]
 
 
@@ -2181,6 +2244,20 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         if args.initiative_command != "validate":
             _init_initiative_db()
+
+    if args.command == "supervisor":
+        # A tick claims tasks and creates runs, so it honors the kill switch;
+        # status is read-only and stays usable while frozen.
+        if args.supervisor_command == "tick" and _queue_disabled():
+            print(
+                "error: KittyBuilder queue is disabled "
+                "(KITTY_BUILDER_QUEUE_ENABLED=0); refusing to launch "
+                "supervisor runs. Unset the variable or set it to 1 to "
+                "re-enable.",
+                file=sys.stderr,
+            )
+            return 1
+        _init_initiative_db()
 
     return args.func(args)
 

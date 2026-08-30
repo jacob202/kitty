@@ -8,7 +8,7 @@ import pytest
 
 from gateway import image_jobs
 from gateway.image_jobs import ImageJobStatus
-from gateway.image_runner import ImageRunnerError, JobResult, run
+from gateway.image_runner import ImageDispatchNotSubmittedError, ImageRunnerError, JobResult, run
 
 
 @pytest.fixture(autouse=True)
@@ -16,10 +16,19 @@ def _tmp_db(tmp_path, monkeypatch):
     db_file = tmp_path / "kitty.db"
     monkeypatch.setattr("gateway.paths.KITTY_DB_FILE", db_file)
     monkeypatch.setattr("gateway.image_jobs._paths.KITTY_DB_FILE", db_file)
+    monkeypatch.setattr("gateway.artifact_store.ARTIFACTS_DB_FILE", db_file)
     from gateway import db as kitty_db
 
     kitty_db.migrate(db_file=db_file)
     return db_file
+
+
+def _save_image_to(path):
+    def _save(data: bytes, **_kwargs):
+        path.write_bytes(data)
+        return path
+
+    return _save
 
 
 def _fake_drawthings_engine(available: bool = True, data: bytes = b"fakepng"):
@@ -47,11 +56,24 @@ class TestComfyUIPath:
                 "filename": str(tmp_path / "out.png"),
                 "job_id": "job_test123",
             }
-            result = await run("comfyui", "a landscape")
+            result = await run(
+                "comfyui",
+                "a landscape",
+                plan_id="imgplan_comfy",
+                intent_json='{"intent_version":1,"operation":"txt2img"}',
+            )
 
             assert isinstance(result, JobResult)
             assert result.engine == "comfyui"
             assert result.filename == str(tmp_path / "out.png")
+            mock_gen.assert_awaited_once_with(
+                "a landscape",
+                parent_id=None,
+                guidance_tags=None,
+                project_id=None,
+                plan_id="imgplan_comfy",
+                intent_json='{"intent_version":1,"operation":"txt2img"}',
+            )
 
     @pytest.mark.asyncio
     async def test_comfyui_not_running_raises(self):
@@ -94,15 +116,24 @@ class TestDrawThingsPath:
             patch("mcp.imagen.engines.get", return_value=fake_engine),
             patch(
                 "mcp.imagen.io.save_image",
-                return_value=tmp_path / "dt_out.png",
+                side_effect=_save_image_to(tmp_path / "dt_out.png"),
             ),
         ):
-            result = await run("drawthings", "a bear")
+            result = await run(
+                "drawthings",
+                "a bear",
+                plan_id="imgplan_drawthings",
+                intent_json='{"intent_version":1,"operation":"txt2img"}',
+            )
 
             assert isinstance(result, JobResult)
             assert result.engine == "drawthings"
             assert result.job_id.startswith("job_")
             fake_engine.generate_async.assert_awaited_once_with("a bear")
+            job = image_jobs.get_job(result.job_id)
+            assert job is not None
+            assert job.plan_id == "imgplan_drawthings"
+            assert job.intent_json == '{"intent_version":1,"operation":"txt2img"}'
 
     @pytest.mark.asyncio
     async def test_drawthings_not_running_raises(self):
@@ -115,9 +146,7 @@ class TestDrawThingsPath:
     @pytest.mark.asyncio
     async def test_engine_failure_marks_job_failed(self):
         fake_engine = _fake_drawthings_engine(available=True)
-        fake_engine.generate_async = AsyncMock(
-            side_effect=RuntimeError("comfyui exploded")
-        )
+        fake_engine.generate_async = AsyncMock(side_effect=RuntimeError("comfyui exploded"))
 
         with (
             patch("mcp.imagen.engines.get", return_value=fake_engine),
@@ -141,7 +170,7 @@ class TestDrawThingsPath:
             patch("mcp.imagen.engines.get", return_value=fake_engine),
             patch(
                 "mcp.imagen.io.save_image",
-                return_value=tmp_path / "dt_out.png",
+                side_effect=_save_image_to(tmp_path / "dt_out.png"),
             ),
         ):
             await run("drawthings", "a bear", recipe=recipe)
@@ -149,6 +178,86 @@ class TestDrawThingsPath:
         jobs = image_jobs.list_recent(limit=1)
         assert len(jobs) == 1
         assert jobs[0].workflow_template_id == "dt_basic"
+
+
+class TestHostedRegistryPaths:
+    @pytest.mark.asyncio
+    async def test_airforce_success_uses_registered_engine(self, tmp_path, monkeypatch):
+        fake_engine = MagicMock()
+        fake_engine.model_name = "grok-imagine-image-2.0"
+        fake_engine.generate_async = AsyncMock(return_value=b"airforce-png")
+        monkeypatch.setenv("KITTY_IMAGE_AIRFORCE_ENABLED", "1")
+        monkeypatch.setenv("AIRFORCE_API_KEY", "test-key")
+
+        with (
+            patch("gateway.image_runner.paid_engine_available", return_value=(True, "")),
+            patch("mcp.imagen.engines.get", return_value=fake_engine),
+            patch(
+                "mcp.imagen.io.save_image", side_effect=_save_image_to(tmp_path / "airforce.png")
+            ),
+        ):
+            result = await run(
+                "airforce",
+                "a red panda coding",
+                plan_id="imgplan_airforce",
+                intent_json='{"intent_version":1,"operation":"txt2img"}',
+            )
+
+        assert result.engine == "airforce"
+        assert result.filename == str(tmp_path / "airforce.png")
+        fake_engine.generate_async.assert_awaited_once_with("a red panda coding")
+        job = image_jobs.list_recent(limit=1)[0]
+        assert job.provider == "airforce"
+        assert job.plan_id == "imgplan_airforce"
+        assert job.intent_json == '{"intent_version":1,"operation":"txt2img"}'
+
+    @pytest.mark.asyncio
+    async def test_fal_character_uses_bound_reference(self, tmp_path, monkeypatch):
+        ref = tmp_path / "identity.png"
+        ref.write_bytes(b"reference")
+        import io
+
+        from PIL import Image
+
+        image_buf = io.BytesIO()
+        Image.new("RGB", (1024, 1024), "white").save(image_buf, format="PNG")
+        fake_engine = MagicMock()
+        fake_engine.model_name = "fal-ai/flux-pulid"
+        fake_engine.generate_async = AsyncMock(return_value=image_buf.getvalue())
+        monkeypatch.setenv("KITTY_IMAGE_FAL_ENABLED", "1")
+        monkeypatch.setenv("FAL_KEY", "test-key")
+
+        with (
+            patch("gateway.image_runner.paid_engine_available", return_value=(True, "")),
+            patch("mcp.imagen.engines.get", return_value=fake_engine),
+            patch("mcp.imagen.io.save_image", side_effect=_save_image_to(tmp_path / "fal.png")),
+        ):
+            result = await run(
+                "fal",
+                "same fictional person outdoors",
+                character_id="char_test",
+                character_ref_path=str(ref),
+                negative_prompt="blurry",
+            )
+
+        assert result.engine == "fal"
+        assert result.cost_usd == pytest.approx(0.0666)
+        assert result.cost_source == "provider_contract"
+        job = image_jobs.list_recent(limit=1)[0]
+        assert (job.width, job.height) == (1024, 1024)
+        fake_engine.generate_async.assert_awaited_once_with(
+            "same fictional person outdoors",
+            identity_images=[ref],
+            negative_prompt="blurry",
+        )
+        assert image_jobs.list_recent(limit=1)[0].provider == "fal"
+
+    @pytest.mark.asyncio
+    async def test_fal_requires_character_reference(self, monkeypatch):
+        monkeypatch.setenv("KITTY_IMAGE_FAL_ENABLED", "1")
+        monkeypatch.setenv("FAL_KEY", "test-key")
+        with pytest.raises(ImageDispatchNotSubmittedError, match="character reference"):
+            await run("fal", "portrait")
 
 
 class TestCharacterPath:
@@ -164,9 +273,7 @@ class TestCharacterPath:
             ),
             patch(
                 "gateway.image_character_contracts.resolve_comfyui_character",
-                side_effect=CharacterContractError(
-                    "character only has legacy metadata/photos"
-                ),
+                side_effect=CharacterContractError("character only has legacy metadata/photos"),
             ),
             patch(
                 "gateway.image_character_contracts.comfyui_character_runtime_status",
@@ -258,6 +365,8 @@ class TestCharacterPath:
                 "at a lake",
                 character_id="char_abc",
                 negative_prompt="hat",
+                plan_id="imgplan_character",
+                intent_json='{"intent_version":1,"operation":"txt2img"}',
             )
 
         mock_gen.assert_awaited_once_with(
@@ -270,6 +379,9 @@ class TestCharacterPath:
             steps=26,
             cfg=3.0,
             guidance_tags=None,
+            project_id=None,
+            plan_id="imgplan_character",
+            intent_json='{"intent_version":1,"operation":"txt2img"}',
         )
         assert result.character_weight == 0.7
         assert result.recipe == "jacob-sdxl-v1"
@@ -302,3 +414,186 @@ class TestValidation:
                 }
                 result = await run("  ComfyUI  ", "test")
                 assert result.engine == "comfyui"
+
+
+class TestDirectHostedProvenance:
+    @pytest.mark.asyncio
+    async def test_openrouter_job_keeps_approved_plan_provenance(self, monkeypatch):
+        import base64
+
+        class Response:
+            status_code = 200
+            text = ""
+
+            def json(self):
+                image = base64.b64encode(b"png-bytes").decode()
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "images": [{"image_url": {"url": f"data:image/png;base64,{image}"}}]
+                            }
+                        }
+                    ],
+                    "usage": {"cost": 0.0},
+                }
+
+        class Client:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def post(self, *_args, **_kwargs):
+                return Response()
+
+        monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+        monkeypatch.setattr("gateway.image_runner.openrouter_images_available", lambda: (True, ""))
+        monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: Client())
+
+        result = await run(
+            "openrouter",
+            "a portrait",
+            plan_id="imgplan_openrouter",
+            intent_json='{"intent_version":1,"operation":"txt2img"}',
+        )
+
+        job = image_jobs.get_job(result.job_id)
+        assert job is not None
+        assert job.plan_id == "imgplan_openrouter"
+        assert job.intent_json == '{"intent_version":1,"operation":"txt2img"}'
+
+    @pytest.mark.asyncio
+    async def test_legacy_flux_job_keeps_approved_plan_provenance(self, monkeypatch):
+        class Response:
+            def __init__(self, *, payload=None, content=b"", status_code=200):
+                self._payload = payload or {}
+                self.content = content
+                self.status_code = status_code
+                self.text = ""
+
+            def json(self):
+                return self._payload
+
+            def raise_for_status(self):
+                if self.status_code >= 400:
+                    raise RuntimeError(self.status_code)
+
+        class Client:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def post(self, *_args, **_kwargs):
+                return Response(payload={"polling_url": "https://poll", "cost": 1.0})
+
+            async def get(self, url, **_kwargs):
+                if url == "https://poll":
+                    return Response(
+                        payload={"status": "Ready", "result": {"sample": "https://sample"}}
+                    )
+                return Response(content=b"flux-png")
+
+        monkeypatch.setenv("BFL_API_KEY", "test-key")
+        monkeypatch.setattr("gateway.image_runner.flux_images_available", lambda: (True, ""))
+        monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: Client())
+
+        result = await run(
+            "flux",
+            "a portrait",
+            plan_id="imgplan_flux_legacy",
+            intent_json='{"intent_version":1,"operation":"txt2img"}',
+        )
+
+        job = image_jobs.get_job(result.job_id)
+        assert job is not None
+        assert job.plan_id == "imgplan_flux_legacy"
+        assert job.intent_json == '{"intent_version":1,"operation":"txt2img"}'
+    @pytest.mark.asyncio
+    async def test_legacy_flux_submit_response_loss_stays_unknown(self, monkeypatch):
+        import httpx
+
+        class Client:
+            def __init__(self):
+                self.post_calls = 0
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def post(self, *_args, **_kwargs):
+                self.post_calls += 1
+                raise httpx.ReadTimeout("submit response lost")
+
+            async def get(self, *_args, **_kwargs):
+                raise AssertionError("must not poll without a provider receipt")
+
+        client = Client()
+        monkeypatch.setenv("BFL_API_KEY", "test-key")
+        monkeypatch.setattr("gateway.image_runner.flux_images_available", lambda: (True, ""))
+        monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: client)
+
+        with pytest.raises(ImageRunnerError) as exc:
+            await run("flux", "a portrait")
+
+        assert type(exc.value).__name__ == "ImageProviderOutcomeUnknownError"
+        assert client.post_calls == 1
+        job = image_jobs.list_recent(limit=1)[0]
+        assert job.status is ImageJobStatus.UNKNOWN
+        assert job.provider_job_id is None
+        with pytest.raises(image_jobs.ImageJobError, match="only FAILED jobs can be requeued"):
+            image_jobs.requeue(job.job_id)
+
+    @pytest.mark.asyncio
+    async def test_legacy_flux_poll_loss_preserves_provider_receipt(self, monkeypatch):
+        import json
+
+        import httpx
+
+        submit_payload = {
+            "id": "legacy-bfl-123",
+            "polling_url": "https://poll/legacy-bfl-123",
+            "cost": 1.0,
+        }
+
+        class Response:
+            status_code = 200
+            text = ""
+
+            def json(self):
+                return submit_payload
+
+        class Client:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return False
+
+            async def post(self, *_args, **_kwargs):
+                return Response()
+
+            async def get(self, url, **_kwargs):
+                if url == submit_payload["polling_url"]:
+                    raise httpx.ReadTimeout("poll response lost")
+                raise AssertionError(f"unexpected download before recovery: {url}")
+
+        monkeypatch.setenv("BFL_API_KEY", "test-key")
+        monkeypatch.setattr("gateway.image_runner.flux_images_available", lambda: (True, ""))
+        monkeypatch.setattr("httpx.AsyncClient", lambda *a, **k: Client())
+
+        with pytest.raises(ImageRunnerError) as exc:
+            await run("flux", "a portrait")
+
+        assert type(exc.value).__name__ == "ImageProviderOutcomeUnknownError"
+        job = image_jobs.list_recent(limit=1)[0]
+        assert job.status is ImageJobStatus.UNKNOWN
+        assert job.provider_job_id == "legacy-bfl-123"
+        diagnostics = json.loads(job.provider_diagnostics_json)
+        assert diagnostics["request_id"] == "legacy-bfl-123"
+        assert diagnostics["polling_url"] == submit_payload["polling_url"]

@@ -41,6 +41,15 @@ cd "${UI_DIR}"
 # stamp `next build` writes, and let a failed build stop the service rather than
 # fall back to serving stale code.
 BUILD_STAMP=".next/BUILD_ID"
+BUILD_SOURCE_STAMP=".next/KITTY_SOURCE_SHA"
+
+record_build_source() {
+  local source_sha
+  source_sha="$(git -C "${ROOT_DIR}" rev-parse HEAD 2>/dev/null || true)"
+  if [[ -n "${source_sha}" ]]; then
+    printf '%s\n' "${source_sha}" > "${BUILD_SOURCE_STAMP}"
+  fi
+}
 
 build_inputs=()
 for candidate in src public package.json package-lock.json tsconfig.json \
@@ -53,6 +62,7 @@ done
 if [[ ! -f "${BUILD_STAMP}" ]]; then
   echo "[start_ui] no usable build in ${UI_DIR}/.next — building"
   npm run build
+  record_build_source
 else
   # -newer over the whole input set is portable across BSD and GNU find; the
   # first hit is enough, the rest of the list does not need walking.
@@ -60,9 +70,37 @@ else
   if [[ -n "${stale_input}" ]]; then
     echo "[start_ui] ${stale_input} is newer than the last build — rebuilding"
     npm run build
+    record_build_source
   else
     echo "[start_ui] build is current — serving .next as-is"
   fi
 fi
 
-exec npm run start -- -H "${KITTY_UI_HOST}" -p "${KITTY_UI_PORT}"
+STANDALONE_SERVER=".next/standalone/server.js"
+if [[ ! -f "${STANDALONE_SERVER}" ]]; then
+  echo "[start_ui] Error: standalone build missing ${UI_DIR}/${STANDALONE_SERVER}" >&2
+  exit 1
+fi
+
+# Next standalone output deliberately omits static/public assets. Mirror them
+# into the standalone tree before launch so the server can serve the complete UI.
+# Refuse symlinked destinations: this launcher runs unattended under launchd and
+# must never follow a stale/malicious link outside the generated standalone tree.
+for destination in .next .next/standalone .next/standalone/.next .next/standalone/.next/static .next/standalone/public; do
+  if [[ -L "${destination}" ]]; then
+    echo "[start_ui] Error: refusing symlinked standalone destination ${destination}" >&2
+    exit 1
+  fi
+done
+mkdir -p .next/standalone/.next
+if [[ -d .next/static ]]; then
+  rm -rf .next/standalone/.next/static
+  cp -R .next/static .next/standalone/.next/static
+fi
+if [[ -d public ]]; then
+  rm -rf .next/standalone/public
+  cp -R public .next/standalone/public
+fi
+
+echo "[start_ui] launching standalone Next server"
+HOSTNAME="${KITTY_UI_HOST}" PORT="${KITTY_UI_PORT}" exec node "${STANDALONE_SERVER}"

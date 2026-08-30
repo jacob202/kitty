@@ -1,17 +1,24 @@
-# Active Mission — Two-Week Builder Proof
+# Active Mission — Two-Week Builder Proof (superseded)
 
-**Mission ID:** KPROOF-001  
-**Status:** Running  
-**Approved by:** Jacob on 2026-08-04  
-**Proof window:** 2026-08-04 through 2026-08-18  
-**Budget ceiling:** $25 CAD  
+**Mission ID:** KPROOF-001
+**Status:** Superseded — deadline elapsed without a durable pass verdict
+**Approved by:** Jacob on 2026-08-04
+**Proof window:** 2026-08-04 through 2026-08-18
+**Budget ceiling:** $25 CAD
 **Base SHA:** `b3f68aae84525f980d44db8d7b9e6d728457b0db`
+
+> **Current status (2026-08-19):** This bounded proof window ended on 2026-08-18.
+> No durable record proves the full pass condition, so this file must not claim a pass.
+> Jacob explicitly chose to continue targeted Kitty work after the deadline, including the
+> product-surface convergence and ADR 0040 Image Lab work. That post-deadline approval
+> supersedes this mission as a scope gate; it does **not** retroactively satisfy KPROOF.
+> No broad M1–M6 sequence is activated by this status change.
 
 <!-- kitty-mission
 {
   "schema_version": 1,
   "mission_id": "KPROOF-001",
-  "status": "running",
+  "status": "superseded",
   "approved_at": "2026-08-04T18:27:00-06:00",
   "approved_by": "Jacob",
   "base_sha": "b3f68aae84525f980d44db8d7b9e6d728457b0db",
@@ -21,8 +28,14 @@
 }
 -->
 
+The sections below preserve KPROOF-001's original bounded contract for evidence and retrospective use. They are **historical constraints**, not current authorization or prohibition after the terminal status above.
+
 ## Objective
 
+Take one real software request from conversation to a working, verified feature,
+with KittyBuilder carrying the execution and without Jacob manually coordinating
+agents. Everything below bounds that single objective: the proof runs to
+2026-08-18 under a $25 CAD ceiling, and Kitty continues only if it lands.
 
 ## Decision to prove
 
@@ -89,6 +102,9 @@ Jacob must be able to continue chatting with Kitty and ask what it is doing, why
 
 ## Acceptance Contract
 
+The pass and failure conditions below are the mission's contract: the pass
+condition decides whether Kitty continues, and the failure condition decides what
+happens to the work if it does not.
 
 ## Pass condition
 

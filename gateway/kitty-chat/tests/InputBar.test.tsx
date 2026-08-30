@@ -92,3 +92,33 @@ describe('CR-07 per-message model override', () => {
     expect(screen.queryByLabelText('model override for next message')).not.toBeInTheDocument()
   })
 })
+
+
+describe('InputBar visual hierarchy', () => {
+  afterEach(cleanup)
+
+  it('gives the message composer a stable accessible name', () => {
+    setup('')
+    expect(screen.getByRole('textbox', { name: 'Message Kitty' })).toBeInTheDocument()
+  })
+
+  it('uses a neutral composer until the textarea receives focus', () => {
+    const { textarea } = setup('', { compact: true })
+    const composer = textarea.parentElement
+    expect(composer).not.toBeNull()
+    let style = composer?.getAttribute('style') ?? ''
+    expect(style).toContain('border: 1px solid var(--color-separator)')
+    expect(style).toContain('box-shadow: var(--shadow-soft)')
+    fireEvent.focus(textarea)
+    style = composer?.getAttribute('style') ?? ''
+    expect(style).toContain('border: 1px solid var(--color-accent)')
+    expect(style).toContain('box-shadow: 0 0 0 3px var(--color-focus-ring)')
+  })
+
+  it('uses 16px phone text and 44px accessory targets', () => {
+    const { textarea } = setup('', { compact: true })
+    expect(textarea).toHaveStyle({ fontSize: '16px' })
+    expect(screen.getByRole('button', { name: 'attach a file' })).toHaveStyle({ width: '44px', height: '44px' })
+    expect(screen.getByRole('button', { name: 'start voice input' })).toHaveStyle({ width: '44px', height: '44px' })
+  })
+})

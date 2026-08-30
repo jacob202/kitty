@@ -3,98 +3,121 @@
 How agents and reviewers coordinate on Kitty pull requests. This is the
 coordination contract — read it before opening a PR.
 
-## Workflow automation baseline (2026-07-30)
+## Workflow automation baseline (2026-08-23)
 
-This repository now automates low-risk GitHub workflow steps while preserving
-manual control for risky actions.
+GitHub automation is deliberately split into high-signal deterministic checks and
+risk-scoped governance. Routine PRs should not be blocked by duplicate prose, bot
+comments, or an external model verdict.
 
 ### Automated now
 
-1. **PR intake formatting**
-   - `.github/pull_request_template.md` pre-fills required sections.
-   - `pr-description-check.yml` still enforces `## Summary` and `## Test plan`.
-2. **Issue intake structure**
-   - `.github/ISSUE_TEMPLATE/bug_report.yml` standardizes bug triage evidence.
-   - `.github/ISSUE_TEMPLATE/workflow_automation.yml` captures automation
-     requests with scope, guardrails, and success metrics.
-3. **PR scope triage**
-   - `.github/workflows/pr-auto-label.yml` applies path-based area labels from
-     `.github/labeler.yml`.
-   - The workflow creates missing `area/*` labels and emits a summary of changed
-     file count + final labels for observable triage logs.
-4. **Risk guardrails**
-   - `.github/workflows/pr-risk-guardrails.yml` detects sensitive scope (auth,
-     secrets/env-like files, dependency roots, CI workflows).
-   - Risky PRs receive `risk/high` + `risk/manual-approval` labels and require
-     explicit manual approval in the PR body (`Manual approval: YES` or checked
-     manual-approval checkbox).
-5. **Selective test hints**
-   - `.github/workflows/pr-test-hints.yml` posts scoped validation command
-     suggestions based on changed paths.
-6. **Release evidence comment**
-   - `.github/workflows/pr-release-evidence.yml` posts a PR comment summary from
-     completed `Tests` workflow runs (run URL, conclusion, per-job outcomes).
-7. **Stale hygiene**
-   - `.github/workflows/stale.yml` marks and closes inactive issues/PRs with
-     explicit timing and exemption labels.
+1. **PR intake and triage**
+   - `.github/pull_request_template.md` provides review context without making
+     `## Summary` / `## Test plan` formatting a merge condition.
+   - `.github/workflows/pr-auto-label.yml` applies path-based `area/*` labels.
+2. **Trusted policy**
+   - `.github/workflows/pr-agent-review.yml` is the trust workflow. It runs under
+     `pull_request_target`, executes reviewer/policy code from the repository
+     default branch, and emits the stable `policy-gate` result. PR-authored trust
+     code is never executed with repository tokens or review-model credentials.
+   - Native UI source/public changes require completed product acceptance.
+   - Sensitive scope (auth/security, CI policy, approval/action boundaries,
+     publication/destructive paths, secrets/env, dependency roots) requires
+     `risk/approved`, an exact-head Risk approval receipt, and trusted
+     independent review for the exact current head.
+   - Large PR size is advisory rather than a second approval ceremony.
+3. **Deterministic merge evidence**
+   - `.github/workflows/tests.yml` keeps Python `pytest`, Ruff, and mypy as hard
+     signals for code-bearing PRs. Docs/Markdown-only PRs skip those code jobs.
+   - `merge-gate` always reports one stable required result and accepts skipped
+     code/browser jobs only when the changed-path classifier marks them inapplicable.
+   - Kitty Chat and browser smoke remain hard evidence for non-documentation
+     frontend changes; unrelated PRs skip those expensive jobs.
+   - Scope is scope-aware on pushes to `main` too. Strict up-to-date checking
+     means a merge commit carries the tree the PR head already validated, so a
+     docs-only merge re-running the code suite proves nothing new.
+   - Draft PRs skip the expensive suite entirely. `ready_for_review` starts the
+     full applicable set without another push; `converted_to_draft` cancels
+     in-flight work nobody can merge.
+4. **Independent model review**
+   - `.github/workflows/pr-agent-review.yml` reviews a new code head using trusted
+     default-branch reviewer code, **only when the change is sensitive scope** —
+     the only scope whose `policy-gate` result consumes review evidence. Ordinary
+     PRs carry no external model dependency and cannot be blocked by a reviewer
+     outage. Editing prose or labels does not call the model again.
+   - `policy-gate` requires trusted exact-head review evidence only for sensitive
+     scope, and classifies the live PR itself rather than trusting the scope job,
+     so a failed scope job can never downgrade a sensitive PR. An independently
+     justified `review/override-approved` exact-head receipt remains the explicit
+     outage / false-positive escape hatch.
+5. **Nightly delivery health (Clock C)**
+   - `.github/workflows/nightly-health.yml` owns repository-wide hygiene
+     (vulture, lychee, deptry, pip-audit, bandit), the full suite with per-test
+     timings, and `scripts/ci_metrics.py` efficiency evidence. It is read-only:
+     it never mutates source, branches, or repository settings.
+
+The old standalone description, risk-guardrail, test-hint, and release-evidence
+comment workflows were removed because they duplicated policy/CI state without
+adding an independent safety signal.
+
+### Default-branch ruleset
+
+The active default-branch ruleset requires only `policy-gate` and `merge-gate`.
+Strict up-to-date checking, pull-request protection, deletion protection, and
+non-fast-forward protection remain enabled. Legacy `pr-policy` and `review-gate`
+compatibility jobs were retired after the two stable gate names were activated.
+
+### One classifier
+
+`scripts/pr_scope.py` is the single source of change scope — docs-only, code,
+frontend, and sensitive. `tests.yml` reads it to choose required jobs,
+`pr-agent-review.yml` reads it to decide whether independent model review is
+needed, and `scripts/pr_policy.py` imports its patterns for the trust gate. It is
+itself sensitive scope, so it cannot be edited without label, exact-head
+approval, and independent review.
+
+### The three validation clocks
+
+| Clock | Trigger | Purpose |
+| --- | --- | --- |
+| A — interactive | draft PR, local work | fast focused feedback; no merge suite |
+| B — ready to merge | non-draft PR, push to `main` | scope-appropriate deterministic evidence plus `policy-gate` and `merge-gate` |
+| C — nightly | schedule, manual dispatch | broad hygiene, full-suite profiling, drift and efficiency evidence |
 
 ### Guardrails (intentionally manual)
 
-- Approvals, merge decisions, and risky scope expansion remain manual.
-- Auth/secrets/env/destructive operations still require explicit human approval.
-- Automation must fail loud; unknown labels or script errors fail the workflow.
+- Merge decisions and risky scope expansion remain explicit human decisions.
+- Sensitive scope still requires final-head approval plus independent review.
+- A new commit invalidates exact-head approval/review evidence.
+- Automation fails loud when required evidence is unavailable; ordinary PRs do
+  not depend on the availability of an external review model.
 
-### Phased rollout
+## Builder authority and historical issue #127
 
-- **Phase 1 (shipped):** intake templates + PR area auto-labeling + logs.
-- **Phase 2 (shipped):** risk guardrails + selective test hints.
-- **Phase 3 (shipped baseline):** stale hygiene + PR CI evidence comments.
-- **Phase 4 (next):** measure cycle time, triage accuracy, stale false positives,
-  and reviewer-routing precision before enabling additional merge/release
-  automation.
+The local KittyBuilder SQLite queue/database is the authoritative execution
+state. Missions, packet eligibility, claims, attempts, recovery, review
+bindings, publication evidence, and merge reconciliation live there. GitHub
+remains the PR/CI/review/audit surface; it is not a task scheduler.
 
-## Bridge inbox — KittyBuilder Queue (issue #127)
+GitHub issue **#127 — "KittyBuilder Queue"** is historical bridge metadata only.
+Comments there do not create, claim, resume, cancel, or complete Builder work.
+A task is executable only after Builder records it durably. Do not double-track
+new work in both #127 and the Builder queue.
 
-GitHub issue **#127 — "KittyBuilder Queue"** is the current bridge inbox for
-KittyBuilder work while the local KittyBuilder orchestrator is not built yet.
-It is not the permanent source of truth. Phase 1 should move authoritative task
-state into a local KittyBuilder daemon/database; long term, GitHub stays useful
-for PRs, reviews, audit trail, and optional sync.
+The current handoff chain is:
 
-Until that local daemon exists, a worker task only counts once it appears as a
-comment on #127. Ideas, chat prompts, and stale handoffs in other channels are
-not executable tasks — they are coordination noise until a captain turns them
-into a scoped bridge task or the future local queue records them.
-
-The handoff chain:
-
-1. **Intake.** ChatGPT or Jacob posts a new task comment on #127. Each
-   comment must include `TASK:`, `BRANCH:`, `SCOPE:`, `DO NOT:`,
-   `VALIDATION:`, and `STOP:` (see the issue body for the exact format).
-2. **One captain, not self-selected workers.** Exactly one captain reads
-   the bridge queue and dispatches the next task. Workers do not self-select
-   broad work from the issue, the registry, or the packet README —
-   they take the specific task the captain assigns. If a task comment
-   does not clearly include scope, validation, and a stop point, the
-   worker asks for clarification on #127 instead of guessing.
-3. **Claim.** The worker replies `CLAIMED` with the branch name and
-   timestamp on the task comment before starting. If another worker
-   already claimed the same task, do not start. A stale claim (no update
-   for a long time) may be taken over with a `TAKING OVER` reply after
-   inspecting existing branches/PRs.
-4. **Implement.** Start from clean, up-to-date `main`. Create the
-   requested branch. Do only the stated scope.
-5. **Open PR.** The worker opens a PR for the implementation branch.
-   **PRs are for implementation branches; issue #127 is for task intake
-   and coordination — never the other way around.** Do not treat
-   issue #127 as a PR, and do not use an implementation branch as a
-   task queue.
-6. **Report on the PR.** Post the required final report comment on the
-   PR (see "Every PR gets a final report comment" below).
-7. **Close the loop on #127.** Comment back on issue #127 with the PR
-   number, then stop and wait.
-8. **Review/merge on the PR.** ChatGPT and Jacob review through PR
-   comments and merge there. The worker does not merge.
+1. **Intake.** Convert approved intent into a Builder Mission/initiative and
+   durable packets.
+2. **Dispatch.** Builder selects eligible work, owns claims/leases/worktrees,
+   and launches the bounded packet loop. Workers do not self-select broad work.
+3. **Implement/validate/review.** Evidence is bound to the durable attempt and
+   exact implementation SHA; a new HEAD invalidates stale review evidence.
+4. **Publish.** Builder records the PR link/head and GitHub supplies CI/review
+   projection. PR comments remain the human-visible review channel.
+5. **Merge/reconcile.** Merge remains approval-gated. Builder reconciles merged
+   PR truth back into task state, which unlocks dependent packets.
+6. **Continue.** The supervisor may dispatch newly eligible work; there is no
+   issue-comment captain queue.
 
 ### Read-only / stale agents
 
@@ -173,10 +196,24 @@ When a reviewer leaves a comment asking for a fix:
 
 ## Merge gate
 
-Do not merge a PR unless Jacob or ChatGPT explicitly approves the merge.
-A green CI check is not approval. A "looks good" in a different channel
-is not approval. The approval must appear as a PR comment or a direct
-instruction to merge.
+The stable merge contract is two required outcomes:
+
+- `merge-gate` — deterministic evidence matched to scope. Code-bearing PRs require
+  `pytest`, `lint`, and `typecheck`; non-documentation frontend changes additionally
+  require `kitty-chat` and `browser-smoke`. Docs/Markdown-only PRs skip those code
+  and browser jobs while `merge-gate` still reports a required result. Broad
+  hygiene runs nightly, not per PR.
+- `policy-gate` — trusted governance. Routine changes pass without model review.
+  Sensitive scope requires explicit exact-head approval and trusted independent
+  review; native UI source/public changes require product-acceptance evidence.
+
+The default branch remains strict/up-to-date: passing evidence must describe the
+current integration base rather than a stale branch. Green checks are necessary
+evidence, not merge authorization.
+
+Do not merge a PR unless Jacob or ChatGPT explicitly approves the merge. A
+"looks good" in another channel is not approval unless it is a direct instruction
+for that PR/head.
 
 Before any `gh` command or `git push`, run GitHub operations with the
 keyring-authenticated client:
@@ -197,7 +234,6 @@ auth (see `AGENTS.md` — this has bitten the repo before).
   registry.
 - It does not authorize autonomous merges or autonomous scope
   expansion.
-- It does not make the packet README, planning docs, or chat prompts
-  into a task queue. For now, only comments on issue #127 are bridge
-  tasks; after the local KittyBuilder daemon lands, the daemon/database
-  becomes the authoritative queue.
+- It does not make issue #127, the packet README, planning docs, chat prompts,
+  Discord, or PR comments into a task queue. Only durable KittyBuilder state
+  authorizes execution.

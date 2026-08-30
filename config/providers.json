@@ -10,5 +10,5 @@
   "disabled": [
     "agentrouter"
   ],
-  "active": "auto"
+  "active": "openrouter"
 }

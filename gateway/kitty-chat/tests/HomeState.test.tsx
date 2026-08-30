@@ -1,10 +1,11 @@
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import { describe, expect, it, afterEach, vi, beforeEach } from 'vitest';
 import type { Mock } from 'vitest';
 import {
   useStateChanges,
   useActions,
   useApproveAction,
+  useExecuteAction,
   useRejectAction,
   useTodos,
   useNeedsJacob,
@@ -15,6 +16,7 @@ import {
   useProjectNextSteps,
   useWhatsNextSteps,
   useGatewayHealth,
+  useHealthSurface,
   useGatewayWeather,
   useGatewayModels,
   useChatsPersistence,
@@ -38,6 +40,12 @@ vi.mock('../src/components/InsightReturnCard', () => ({
   InsightReturnCard: () => <div data-testid="insight-return-card" />,
 }));
 
+vi.mock('../src/components/BuilderSurface', () => ({
+  BuilderGlance: ({ onOpen }: { onOpen: () => void }) => (
+    <button type="button" onClick={onOpen}>Open Builder</button>
+  ),
+}));
+
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
@@ -46,6 +54,7 @@ vi.mock('../src/lib/queries', () => ({
   useStateChanges: vi.fn(),
   useActions: vi.fn(),
   useApproveAction: vi.fn(),
+  useExecuteAction: vi.fn(),
   useRejectAction: vi.fn(),
   useTodos: vi.fn(),
   useNeedsJacob: vi.fn(),
@@ -56,6 +65,7 @@ vi.mock('../src/lib/queries', () => ({
   useProjectNextSteps: vi.fn(),
   useWhatsNextSteps: vi.fn(),
   useGatewayHealth: vi.fn(),
+  useHealthSurface: vi.fn(),
   useGatewayWeather: vi.fn(),
   useGatewayModels: vi.fn(),
   useChatsPersistence: vi.fn(),
@@ -89,6 +99,7 @@ function setDefaultMocks() {
     isFetched: true,
   });
   (useApproveAction as Mock).mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
+  (useExecuteAction as Mock).mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
   (useRejectAction as Mock).mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
   (useTodos as Mock).mockReturnValue({
     data: [],
@@ -120,6 +131,32 @@ function setDefaultMocks() {
   (useWhatsNextSteps as Mock).mockReturnValue({ data: null, isPending: false, isError: false, isFetched: true });
   (useGatewayHealth as Mock).mockReturnValue({
     data: { ok: true, litellmReachable: true, error: null },
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
+  (useHealthSurface as Mock).mockReturnValue({
+    data: {
+      ok: true,
+      generated_at: '2026-08-23T00:00:00Z',
+      overall: 'healthy',
+      domains: [
+        { name: 'gateway', status: 'available', reason: '', detail: {} },
+        { name: 'database', status: 'available', reason: '', detail: {} },
+        { name: 'memory', status: 'available', reason: '', detail: {} },
+        { name: 'automation_supervisor', status: 'available', reason: '', detail: {} },
+        { name: 'cron', status: 'available', reason: '', detail: {} },
+        { name: 'telegram', status: 'available', reason: '', detail: {} },
+        { name: 'image_lab', status: 'available', reason: '', detail: {} },
+        { name: 'image_providers', status: 'available', reason: '', detail: {} },
+        { name: 'image_queue', status: 'available', reason: '', detail: {} },
+        { name: 'ollama', status: 'available', reason: '', detail: {} },
+        { name: 'pending_grants', status: 'available', reason: '', detail: { count: 0 } },
+      ],
+      degraded: [],
+      still_functional: ['gateway', 'database', 'memory', 'automation_supervisor', 'cron', 'telegram', 'image_lab', 'image_providers', 'image_queue', 'ollama', 'pending_grants'],
+      pending_grants: 0,
+    },
     isPending: false,
     isError: false,
     isFetched: true,
@@ -263,6 +300,24 @@ describe('HomeState', () => {
     expect(screen.getByText('capture')).toBeInTheDocument();
   });
 
+  it('never renders the gateway snapshot API instruction on Home', () => {
+    (useStateChanges as Mock).mockReturnValue({
+      data: {
+        baseline_ts: null,
+        current_ts: 0,
+        changes: [],
+        new_signals: [],
+        note: 'no snapshot yet — POST /state/snapshot to create a baseline',
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.queryByText(/POST \/state\/snapshot/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/no comparison point yet/i)).toBeInTheDocument();
+  });
+
   it('shows honest empty states when gateway returns no data', () => {
     (useSessionContext as Mock).mockReturnValue({
       data: { current_branch: 'main', last_session_topic: null, open_threads: [], next_actions: [] },
@@ -281,10 +336,70 @@ describe('HomeState', () => {
 
   it('shows all-green health strip when everything answers', () => {
     render(<HomeState />);
-    expect(screen.getByText('gateway live')).toBeInTheDocument();
-    expect(screen.getByText('routing live · 2 models')).toBeInTheDocument();
-    expect(screen.getByText('chat store ok · 3 saved')).toBeInTheDocument();
+    expect(screen.getByText('Kitty is connected')).toBeInTheDocument();
+    expect(screen.getByText('models ready · 2')).toBeInTheDocument();
+    expect(screen.getByText('saved chats · 3')).toBeInTheDocument();
     expect(screen.getByText('retry')).toBeInTheDocument();
+    expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
+  });
+
+  it('translates saved-chat transport failures before they reach the health strip', () => {
+    (useChatsPersistence as Mock).mockReturnValue({
+      data: { ok: false, count: 0, error: 'Gateway returned 404 Not Found' },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+
+    render(<HomeState />);
+
+    const health = screen.getByRole('status');
+    expect(health).toHaveTextContent("Kitty is running but this part isn't answering yet")
+    expect(health).not.toHaveTextContent('Gateway returned 404 Not Found')
+  });
+
+  it('keeps internal Builder repair jargon out of ordinary Home copy', () => {
+    (useRepairs as Mock).mockReturnValue({
+      data: {
+        ok: false, checks_run: 2, issues: 2,
+        repairs: [
+          { id: 'history', severity: 'warn', title: 'Builder has incomplete transition history', detail: '14 task(s) changed state without transition history' },
+          { id: 'packets', severity: 'warn', title: 'Builder status includes 2 partial packet records', detail: '2 partial packet records found' },
+        ],
+      },
+      isPending: false, isError: false, isFetched: true,
+    });
+
+    render(<HomeState />);
+    expect(screen.queryByText(/transition history/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/packet records/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Builder activity history needs attention')).toBeVisible()
+    expect(screen.getByText('Some Builder work is incomplete')).toBeVisible()
+  });
+
+  it('surfaces material health failures without making the user hunt for them', () => {
+    (useRepairs as Mock).mockReturnValue({
+      data: {
+        ok: false,
+        checks_run: 4,
+        issues: 4,
+        repairs: [
+          { id: 'core', severity: 'error', title: "Kitty's core service is unavailable", detail: '' },
+          { id: 'memory', severity: 'error', title: 'Memory search is temporarily unavailable', detail: '' },
+          { id: 'background', severity: 'warn', title: 'A background service needs setup', detail: '' },
+          { id: 'search', severity: 'warn', title: 'Search indexing needs attention', detail: '' },
+        ],
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+
+    render(<HomeState />);
+
+    expect(screen.getByTestId('home-system-details')).toHaveAttribute('open');
+    expect(screen.getByText('Kitty needs attention · 4 issues')).toBeVisible();
+    expect(screen.getByText("Kitty's core service is unavailable")).toBeVisible();
   });
 
   it('shows the gateway down fix when the gateway is down', () => {
@@ -294,9 +409,31 @@ describe('HomeState', () => {
     });
     render(<HomeState />);
     expect(
-      screen.getAllByText(/gateway is not reachable — check if Kitty is running/).length,
+      screen.getAllByText(/Kitty is not connected — check if Kitty is running/).length,
     ).toBeGreaterThan(0);
-    expect(screen.getByText('routing unknown')).toBeInTheDocument();
+    expect(screen.getByText('models unknown')).toBeInTheDocument();
+    expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
+  });
+
+  it('uses product language while the health strip is still checking', () => {
+    (useGatewayHealth as Mock).mockReturnValue({ data: undefined, isPending: true });
+    (useGatewayModels as Mock).mockReturnValue({ data: undefined, isPending: true });
+    (useChatsPersistence as Mock).mockReturnValue({ data: undefined, isPending: true });
+    render(<HomeState />);
+    expect(screen.getByText('checking Kitty connection — status lands here in a sec…')).toBeInTheDocument();
+    expect(screen.getByRole('status')).not.toHaveTextContent(/gateway/i);
+  });
+
+  it('does not call fallback models ready when the live model read failed', () => {
+    (useGatewayModels as Mock).mockReturnValue({
+      data: { models: LIVE_MODELS, fromLiveGateway: false, error: 'Could not read /api/models' },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.getByText('model list unavailable')).toBeInTheDocument();
+    expect(screen.queryByText(/models ready/)).not.toBeInTheDocument();
   });
 
   it('shows model routing unavailable from the /health probe, never a fake routing-live', () => {
@@ -305,8 +442,141 @@ describe('HomeState', () => {
       isPending: false,
     });
     render(<HomeState />);
-    expect(screen.getByText(/model routing is unavailable/)).toBeInTheDocument();
-    expect(screen.queryByText(/routing live/)).not.toBeInTheDocument();
+    expect(screen.getByText(/models are unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText(/models ready/)).not.toBeInTheDocument();
+  });
+
+  // ── health surface (full-stack projection) ──
+
+  it('renders every domain row and the still-functional section when healthy', () => {
+    render(<HomeState />);
+    expect(screen.getByText('health')).toBeInTheDocument();
+    // each healthy domain appears in the rows grid and again in the
+    // "still functional" section — duplicate presence is intended
+    expect(screen.getAllByText('Kitty connection').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('saved data').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('background tasks').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('image lab').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('image creation').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('image jobs').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('pending approvals').length).toBeGreaterThan(0);
+    expect(document.body.textContent ?? '').not.toMatch(/\bcron\b|\btelegram\b|\bollama\b|image providers|image queue/i);
+    expect(screen.getByText('still functional')).toBeInTheDocument();
+    expect(screen.queryByText('degraded')).not.toBeInTheDocument();
+  });
+
+  it('lists degraded domains and expands the reason on click', async () => {
+    (useHealthSurface as Mock).mockReturnValue({
+      data: {
+        ok: true,
+        generated_at: '2026-08-23T00:00:00Z',
+        overall: 'degraded',
+        domains: [
+          { name: 'gateway', status: 'available', reason: '', detail: {} },
+          { name: 'image_lab', status: 'available', reason: '', detail: {} },
+          {
+            name: 'ollama',
+            status: 'unavailable',
+            // The exact string gateway/health_surface.py builds for this domain.
+            reason:
+              'embedding runtime unreachable at http://localhost:11434: ConnectionError; explicit memory remains available independently',
+            detail: {},
+          },
+          { name: 'pending_grants', status: 'available', reason: '', detail: { count: 0 } },
+        ],
+        degraded: ['ollama'],
+        still_functional: ['gateway', 'image_lab'],
+        pending_grants: 0,
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    // card-header count and section heading both read "degraded"
+    expect(screen.getAllByText('degraded').length).toBeGreaterThan(0);
+    expect(screen.getByText('still functional')).toBeInTheDocument();
+    // reason is hidden until the row is expanded
+    expect(screen.queryByText(/embedding runtime/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /local AI/i }));
+    expect(await screen.findByText('collapse')).toBeInTheDocument();
+    // the cause is translated, and it says what still works
+    expect(
+      screen.getByText(/The local AI behind search and memory isn't answering/i),
+    ).toBeInTheDocument();
+    // the raw reason stays reachable for debugging, but only behind the disclosure
+    const details = screen.getByText('Technical details').closest('details');
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute('open');
+    expect(details?.textContent).toContain('ConnectionError');
+  });
+
+  it('falls back to status copy when the reason is not a cause it recognises', async () => {
+    (useHealthSurface as Mock).mockReturnValue({
+      data: {
+        ok: true,
+        generated_at: '2026-08-23T00:00:00Z',
+        overall: 'degraded',
+        domains: [
+          { name: 'gateway', status: 'available', reason: '', detail: {} },
+          { name: 'ollama', status: 'unavailable', reason: 'OLLAMA_BASE is not reachable', detail: {} },
+        ],
+        degraded: ['ollama'],
+        still_functional: ['gateway'],
+        pending_grants: 0,
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    fireEvent.click(screen.getByRole('button', { name: /local AI/i }));
+    expect(await screen.findByText('collapse')).toBeInTheDocument();
+    // an unrecognised reason must not become the sentence the user reads
+    expect(screen.getByText(/This part of Kitty is unavailable right now/i)).toBeInTheDocument();
+    const summary = screen.getByText('Technical details');
+    expect(summary.closest('details')).not.toHaveAttribute('open');
+  });
+
+  it('surfaces the pending approvals count when grants await', () => {
+    (useHealthSurface as Mock).mockReturnValue({
+      data: {
+        ok: true,
+        generated_at: '2026-08-23T00:00:00Z',
+        overall: 'healthy',
+        domains: [
+          { name: 'gateway', status: 'available', reason: '', detail: {} },
+          { name: 'pending_grants', status: 'available', reason: '', detail: { count: 2 } },
+        ],
+        degraded: [],
+        still_functional: ['gateway', 'pending_grants'],
+        pending_grants: 2,
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.getByText('2 pending approvals waiting on you')).toBeInTheDocument();
+  });
+
+  it('shows a plain-language failure message and a working retry when the health surface fails to load', () => {
+    const refetch = vi.fn();
+    (useHealthSurface as Mock).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: new Error('Gateway returned 404 Not Found'),
+      refetch,
+    });
+    render(<HomeState />);
+    const heading = screen.getByText('health');
+    const sectionCard = heading.parentElement!.parentElement as HTMLElement;
+    expect(within(sectionCard).getByText("Kitty is running but this part isn't answering yet.")).toBeInTheDocument();
+    expect(within(sectionCard).queryByText('health surface unavailable')).not.toBeInTheDocument();
+    expect(within(sectionCard).queryByText(/Gateway returned/)).not.toBeInTheDocument();
+    within(sectionCard).getByRole('button', { name: 'retry loading' }).click();
+    expect(refetch).toHaveBeenCalled();
   });
 
   // ── what's next hero ──
@@ -362,23 +632,34 @@ describe('HomeState', () => {
     expect(screen.getByText('last session: UI wiring fix pass')).toBeInTheDocument();
   });
 
-  it('shows an unavailable card in the hero when actions fail, without repeating the gateway-offline banner', () => {
-    (useActions as Mock).mockReturnValue({ data: undefined, isPending: false, isError: true });
+  it('shows a plain-language failure message in the hero when actions fail, without repeating the gateway-offline banner', () => {
+    (useActions as Mock).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: new Error('Gateway returned 404 Not Found'),
+      refetch: vi.fn(),
+    });
     render(<HomeState />);
-    expect(screen.getAllByText('unavailable').length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Kitty is running but this part isn't answering yet.").length).toBeGreaterThan(0);
+    expect(screen.queryByText('unavailable')).not.toBeInTheDocument();
+    expect(screen.queryByText(/404/)).not.toBeInTheDocument();
   });
 
-  it("shows an error with a retry button when /session/context fails, not a loading spinner", () => {
+  it("shows a plain-language error with a retry button when /session/context fails, not a loading spinner", () => {
     (useSessionContext as Mock).mockReturnValue({
       data: undefined,
       isPending: false,
       isError: true,
-      error: new Error('404 Not Found'),
+      error: new Error('Gateway returned 404 Not Found'),
     });
     render(<HomeState />);
-    // Must show an error alert with the real failure, not a loading spinner
+    // Must show an error alert with plain-language copy, not a loading spinner
+    // and never the raw HTTP diagnostic text.
     const alert = screen.getByRole('alert');
-    expect(alert.textContent).toMatch(/404 Not Found/);
+    expect(alert.textContent).toMatch(/Kitty is running but this part isn't answering yet\./);
+    expect(alert.textContent).not.toMatch(/404/);
+    expect(alert.textContent).not.toMatch(/Gateway returned/);
     expect(screen.queryByText('loading…')).not.toBeInTheDocument();
     // Must include a retry control (HealthStrip also has one, so at least 1)
     expect(screen.getAllByRole('button', { name: 'retry' }).length).toBeGreaterThanOrEqual(1);
@@ -424,6 +705,54 @@ describe('HomeState', () => {
     expect(screen.queryByText('kitty')).not.toBeInTheDocument();
   });
 
+  it('keeps project setup internals out of Home next-step copy', () => {
+    const rawStep = {
+      ...STEP,
+      project_id: 1,
+      step: 'Register the benefits-admin project paths in your tracker, then refresh the project state once.',
+      why: 'There is no usable project data yet, so make the tracker able to see the repo.',
+      recent_win: '',
+    };
+    (useProjects as Mock).mockReturnValue({ data: [PROJECT], isPending: false, isError: false });
+    (useWhatsNextSteps as Mock).mockReturnValue({ data: [rawStep], isPending: false, isError: false });
+    (useProjectNextSteps as Mock).mockReturnValue([{ data: rawStep, isPending: false, isError: false }]);
+    (useActions as Mock).mockReturnValue({ data: [], isPending: false, isError: false });
+    (useNeedsJacob as Mock).mockReturnValue({ data: { entries: [] }, isPending: false, isError: false });
+    (useTodos as Mock).mockReturnValue({ data: [], isPending: false, isError: false });
+
+    render(<HomeState />);
+
+    const copy = document.body.textContent ?? '';
+    expect(copy).not.toMatch(/project paths|tracker|\brepo\b/i);
+    expect(screen.getAllByText('Kitty needs more project context before it can suggest a next step.').length).toBeGreaterThan(0);
+  });
+
+  it('describes phone access without exposing its infrastructure dependency', () => {
+    render(<HomeState />);
+    expect(document.body.textContent ?? '').not.toMatch(/Tailscale/i);
+    expect(screen.getByText(/Phone access needs its secure connection app running on this Mac/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open phone access/i })).toBeInTheDocument();
+  });
+
+  it('shows a plain-language failure message and a working retry when active projects fails to load', () => {
+    const refetch = vi.fn();
+    (useProjects as Mock).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: new Error('Gateway returned 404 Not Found'),
+      refetch,
+    });
+    render(<HomeState />);
+    const heading = screen.getByText('active projects');
+    const sectionCard = heading.parentElement!.parentElement as HTMLElement;
+    expect(within(sectionCard).getByText("Kitty is running but this part isn't answering yet.")).toBeInTheDocument();
+    expect(within(sectionCard).queryByText('unavailable')).not.toBeInTheDocument();
+    expect(within(sectionCard).queryByText(/Gateway returned/)).not.toBeInTheDocument();
+    within(sectionCard).getByRole('button', { name: 'retry loading' }).click();
+    expect(refetch).toHaveBeenCalled();
+  });
+
   it('says so when a project has no generated step yet', () => {
     (useProjects as Mock).mockReturnValue({ data: [PROJECT], isPending: false, isError: false });
     (useProjectNextSteps as Mock).mockReturnValue([
@@ -445,11 +774,35 @@ describe('HomeState', () => {
     expect(statuses.length).toBeGreaterThan(0);
   });
 
-  it('shows an unavailable card when the actions query fails, without repeating the gateway-offline banner', () => {
-    (useActions as Mock).mockReturnValue({ data: undefined, isPending: false, isError: true });
+  it('shows a plain-language failure message when the actions query fails, without repeating the gateway-offline banner', () => {
+    (useActions as Mock).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: new Error('Gateway returned 404 Not Found'),
+      refetch: vi.fn(),
+    });
     render(<HomeState />);
-    // Both "what's next" and "needs you" read useActions, so both go unavailable.
-    expect(screen.getAllByText('unavailable').length).toBeGreaterThan(0);
+    // Both "what's next" and "needs you" read useActions, so both show the
+    // plain-language failure message.
+    expect(screen.getAllByText("Kitty is running but this part isn't answering yet.").length).toBeGreaterThan(0);
+    expect(screen.queryByText('unavailable')).not.toBeInTheDocument();
+  });
+
+  it('retries the actions query when "needs you" retry is clicked', () => {
+    const refetch = vi.fn();
+    (useActions as Mock).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: new Error('Gateway returned 404 Not Found'),
+      refetch,
+    });
+    render(<HomeState />);
+    const heading = screen.getByText('needs you');
+    const sectionCard = heading.parentElement!.parentElement as HTMLElement;
+    within(sectionCard).getByRole('button', { name: 'retry loading' }).click();
+    expect(refetch).toHaveBeenCalled();
   });
 
   it('shows an unavailable card when the state changes query fails, without repeating the gateway-offline banner', () => {
@@ -484,6 +837,112 @@ describe('HomeState', () => {
     expect(screen.getAllByText('Deploy to prod').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /approve Deploy to prod/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /reject Deploy to prod/i })).toBeInTheDocument();
+  });
+
+  it('shows the material payload arguments before approval (C7-F07)', () => {
+    (useActions as Mock).mockReturnValue({
+      data: [
+        {
+          id: 1,
+          title: 'Create calendar event',
+          preview: 'will create: Dentist',
+          kind: 'calendar.event.create',
+          risk_tier: 'T2',
+          source_kind: 'agent',
+          status: 'proposed',
+          created_at: '',
+          source_id: null,
+          payload: { title: 'Dentist', start_time: '2026-08-25T14:00:00' },
+          result: null,
+          decided_at: null,
+          executed_at: null,
+        },
+      ],
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.getByText('title: Dentist')).toBeInTheDocument();
+    expect(screen.getByText('start_time: 2026-08-25T14:00:00')).toBeInTheDocument();
+  });
+
+  it('approving an action in needs you also executes it and shows the outcome (C7-F08)', async () => {
+    const action = {
+      id: 1,
+      title: 'Deploy to prod',
+      preview: 'runs deploy.sh',
+      kind: 'shell',
+      risk_tier: 'T2',
+      source_kind: 'agent',
+      status: 'proposed',
+      created_at: '',
+      source_id: null,
+      payload: {},
+      result: null,
+      decided_at: null,
+      executed_at: null,
+    };
+    const approveMutateAsync = vi.fn().mockResolvedValue({ ...action, status: 'approved' });
+    const executeMutateAsync = vi.fn().mockResolvedValue({
+      ...action,
+      status: 'executed',
+      result: 'deployed to prod',
+    });
+    (useApproveAction as Mock).mockReturnValue({ isPending: false, mutateAsync: approveMutateAsync });
+    (useExecuteAction as Mock).mockReturnValue({ isPending: false, mutateAsync: executeMutateAsync });
+    (useActions as Mock).mockReturnValue({
+      data: [action],
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+
+    fireEvent.click(screen.getByRole('button', { name: /approve Deploy to prod/i }));
+
+    expect(approveMutateAsync).toHaveBeenCalledWith(1);
+    await screen.findByText(/done · Deploy to prod/);
+    expect(executeMutateAsync).toHaveBeenCalledWith(1);
+    expect(screen.getByText('deployed to prod')).toBeInTheDocument();
+  });
+
+  it('shows a did-not-complete outcome when execute fails after a successful approval', async () => {
+    const action = {
+      id: 1,
+      title: 'Create calendar event',
+      preview: 'will create: Dentist',
+      kind: 'calendar.event.create',
+      risk_tier: 'T2',
+      source_kind: 'agent',
+      status: 'proposed',
+      created_at: '',
+      source_id: null,
+      payload: {},
+      result: null,
+      decided_at: null,
+      executed_at: null,
+    };
+    (useApproveAction as Mock).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn().mockResolvedValue({ ...action, status: 'approved' }),
+    });
+    (useExecuteAction as Mock).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn().mockRejectedValue(new Error('osascript unavailable')),
+    });
+    (useActions as Mock).mockReturnValue({
+      data: [action],
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+
+    fireEvent.click(screen.getByRole('button', { name: /approve Create calendar event/i }));
+
+    await screen.findByText(/did not complete · Create calendar event/);
+    expect(screen.getByText('osascript unavailable')).toBeInTheDocument();
   });
 
   it('shows what changed when state diff is available', () => {
@@ -587,16 +1046,26 @@ describe('HomeState', () => {
     expect(mutate).toHaveBeenCalled();
   });
 
-  it("shows an honest error on Today when the gateway is down, not a misleading empty state", () => {
+  it("shows an honest, plain-language error on Today when the gateway is down, not a misleading empty state", () => {
+    const refetch = vi.fn();
     (useTodos as Mock).mockReturnValue({
       data: undefined,
       isPending: false,
       isError: true,
-      error: new Error('Could not reach the gateway'),
+      error: new Error('Gateway returned 404 Not Found'),
+      refetch,
     });
     render(<HomeState />);
-    expect(screen.getAllByText('Could not reach the gateway').length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Kitty is running but this part isn't answering yet.").length).toBeGreaterThan(0);
     expect(screen.queryByText('nothing on the list')).not.toBeInTheDocument();
+    // Never the raw HTTP diagnostic text
+    expect(screen.queryByText(/Gateway returned/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/404/)).not.toBeInTheDocument();
+    // The Today panel's own retry control actually refetches the todos query.
+    const heading = screen.getByText('today');
+    const sectionCard = heading.parentElement!.parentElement as HTMLElement;
+    within(sectionCard).getByRole('button', { name: 'retry loading' }).click();
+    expect(refetch).toHaveBeenCalled();
   });
 
   // ── click-throughs (cards change the active view) ──
@@ -701,14 +1170,22 @@ describe('HomeState', () => {
     expect(screen.queryByText(/no deadlines tracked yet/)).not.toBeInTheDocument();
   });
 
-  it('shows an honest offline state for deadlines when the gateway is down', () => {
+  it('shows an honest, plain-language offline state for deadlines when the gateway is down', () => {
+    const refetch = vi.fn();
     (useDeadlines as Mock).mockReturnValue({
-      data: { deadlines: [], fromLiveGateway: false, error: 'Could not reach the gateway' },
+      data: { deadlines: [], fromLiveGateway: false, error: 'Gateway returned 404 Not Found' },
       isPending: false,
       isError: false,
+      refetch,
     });
     render(<HomeState />);
-    expect(screen.getByText('unavailable')).toBeInTheDocument();
+    expect(screen.getByText("Kitty is running but this part isn't answering yet.")).toBeInTheDocument();
+    expect(screen.queryByText('unavailable')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Gateway returned/)).not.toBeInTheDocument();
+    // A working retry control accompanies the failure
+    const alert = screen.getByRole('alert');
+    within(alert).getByRole('button', { name: 'retry loading' }).click();
+    expect(refetch).toHaveBeenCalled();
   });
 
   it('runs a sweep from the deadlines card', () => {
@@ -731,22 +1208,32 @@ describe('HomeState', () => {
       data: undefined,
       isPending: false,
       isError: true,
-      error: new Error('404 Not Found'),
+      error: new Error('Gateway returned 404 Not Found'),
     });
     render(<HomeState />);
     // The What's Next card must render an alert (its error card) rather than
     // its own loading state (the text "loading…" may still appear in other
     // sections whose queries are pending — that's unrelated).
     const alerts = screen.getAllByRole('alert');
-    // At least one alert carries the /session/context error
-    const sessionAlert = alerts.find((a) => a.textContent?.includes('404'));
+    // At least one alert carries the plain-language /session/context failure —
+    // never the raw "404" / "Gateway returned" diagnostic text.
+    const sessionAlert = alerts.find((a) => a.textContent?.includes("Kitty is running but this part isn't answering yet."));
     expect(sessionAlert).toBeTruthy();
-    expect(sessionAlert!.textContent).toMatch(/gateway offline/);
+    expect(sessionAlert!.textContent).not.toMatch(/404/);
+    expect(sessionAlert!.textContent).not.toMatch(/Gateway returned/);
     // The error card has a retry button inside the alert
     expect(sessionAlert!.querySelector('button')).toBeTruthy();
     // The What's Next section heading should be visible (proving the section
     // rendered content, not a fallthrough loading … that would hide the heading)
     expect(screen.getByText("what's next")).toBeInTheDocument();
+  });
+
+  it('opens Work from the Builder glance', () => {
+    const onNavigate = vi.fn();
+    render(<HomeState onNavigate={onNavigate} />);
+    screen.getByRole('button', { name: /open builder/i }).click();
+    expect(onNavigate).toHaveBeenCalledWith('work');
+    expect(onNavigate).not.toHaveBeenCalledWith('builder');
   });
 
   it('does not claim health when zero checks ran', () => {
@@ -757,7 +1244,9 @@ describe('HomeState', () => {
       isFetched: true,
     });
     render(<HomeState />);
-    expect(screen.getByText(/nothing was checked/)).toBeInTheDocument();
+    const systemCard = screen.getByText(/nothing was checked/).closest('div');
+    expect(systemCard).toHaveTextContent('nothing was checked — Kitty could not complete its health checks');
+    expect(systemCard).not.toHaveTextContent(/gateway/i);
     expect(screen.queryByText(/everything looks healthy/)).not.toBeInTheDocument();
   });
 
@@ -771,4 +1260,37 @@ describe('HomeState', () => {
     render(<HomeState />);
     expect(screen.getByText(/everything looks healthy/)).toBeInTheDocument();
   });
+
+  it('prioritizes daily work and collapses lower-signal context', () => {
+    render(<HomeState />);
+
+    const overview = screen.getByTestId('home-primary-overview');
+    expect(overview).toHaveTextContent("what's next");
+    expect(overview).toHaveTextContent('needs you');
+    expect(overview).toHaveTextContent('today');
+    expect(overview).toHaveTextContent('deadlines');
+    expect(overview).toHaveTextContent('active projects');
+
+    const more = screen.getByTestId('home-more-context');
+    const system = screen.getByTestId('home-system-details');
+    expect(more).not.toHaveAttribute('open');
+    expect(system).not.toHaveAttribute('open');
+    expect(more).toHaveTextContent('what changed');
+    expect(system).toHaveTextContent('health');
+    expect(system).toHaveTextContent(/builder/i);
+
+    expect(overview.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(more.compareDocumentPosition(system) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('uses the same bounded daily-overview composition on phone', () => {
+    render(<HomeState compact />);
+    const root = screen.getByTestId('home-daily-overview');
+    expect(root).toBeInTheDocument();
+    const content = screen.getByTestId('home-daily-overview-content');
+    expect(content.getAttribute('style') ?? '').toContain('max-width: 1120px');
+    const primary = screen.getByTestId('home-primary-overview');
+    expect(primary.getAttribute('style') ?? '').toContain('grid-template-columns: 1fr');
+  });
+
 });

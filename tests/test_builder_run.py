@@ -8,7 +8,9 @@ write a valid implementation contract (no LLMs, no network). Always pass
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +27,14 @@ _GOOD_IMPL = json.dumps(
 )
 
 
+def _bundle_field_command(field: str) -> str:
+    code = f"import json, sys; print(json.load(open(sys.argv[1]))[{field!r}])"
+    return (
+        f"{shlex.quote(sys.executable)} -c {shlex.quote(code)} "
+        '"$KB_BUNDLE_PATH"'
+    )
+
+
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
@@ -33,6 +43,10 @@ def repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "config", "user.email", "t@t"], cwd=root, check=True)
     subprocess.run(["git", "config", "user.name", "t"], cwd=root, check=True)
     (root / "README.md").write_text("hello\n")
+    hook = root / "scripts" / "hooks" / "pre-push"
+    hook.parent.mkdir(parents=True)
+    hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    hook.chmod(0o755)
     subprocess.run(["git", "add", "."], cwd=root, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=root, check=True)
     return root
@@ -98,7 +112,69 @@ def _run(
     )
 
 
+@pytest.mark.integration
 class TestRunInitiative:
+    def test_infrastructure_blocked_stops_without_pausing_or_exhausting(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        _apply(db_path, [_packet("P1")], repo_root=repo)
+        monkeypatch.setattr(
+            br.bl,
+            "run_packet",
+            lambda *args, **kwargs: {
+                "outcome": br.bl.LOOP_INFRASTRUCTURE_BLOCKED,
+                "reason": "publication unavailable",
+                "attempts": [],
+            },
+        )
+
+        summary = _run(repo, db_path, tmp_path)
+
+        assert summary["outcome"] == br.bl.LOOP_INFRASTRUCTURE_BLOCKED
+        assert summary["exhausted"] == 0
+        assert bi.get_initiative_state(INITIATIVE, db_path=db_path) != bi.INITIATIVE_PAUSED
+        decisions = [
+            event for event in bq.list_events(summary["task_id"], db_path=db_path)
+            if event["type"] == br.EVENT_DECISION
+        ]
+        assert decisions[-1]["payload"]["decision"] == "infrastructure_blocked"
+
+    @pytest.mark.parametrize(("publish", "expected"), [(False, False), (True, True)])
+    def test_publish_mode_controls_publication_preflight(
+        self,
+        repo: Path,
+        db_path: Path,
+        tmp_path: Path,
+        monkeypatch,
+        publish: bool,
+        expected: bool,
+    ):
+        _apply(db_path, [_packet("P1")], repo_root=repo)
+        seen: list[bool | None] = []
+
+        def paused_loop(
+            initiative_id: str, packet_id: str, **kwargs: Any
+        ) -> dict[str, Any]:
+            seen.append(kwargs.get("publication_preflight"))
+            return {
+                "outcome": br.bl.LOOP_PAUSED,
+                "reason": "test stop",
+                "attempts": [],
+            }
+
+        monkeypatch.setattr(br.bl, "run_packet", paused_loop)
+        summary = br.run_initiative(
+            INITIATIVE,
+            worker_command=_worker(tmp_path),
+            publish=publish,
+            repo_root=repo,
+            db_path=db_path,
+            effectiveness_guard=False,
+        )
+
+        assert summary["outcome"] == "paused"
+        assert seen == [expected]
+
     def test_independent_packets_run_in_seq_order(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
@@ -370,6 +446,7 @@ class TestClassifyExhaustionUnit:
         assert result["stop_class"] == br.STOP_ROUTINE
 
 
+@pytest.mark.integration
 class TestStopClassIntegration:
     """End-to-end through run_initiative + bl.run_packet with real git repos
     and tiny shell workers — proves the CP-03 acceptance criteria, not just
@@ -445,12 +522,9 @@ class TestStopClassIntegration:
         worker = tmp_path / "differing.sh"
         worker.write_text(
             "#!/bin/sh\nset -e\n"
-            "attempt_no=$(python3 -c "
-            "\"import json; print(json.load(open('$KB_BUNDLE_PATH'))['attempt_no'])\")\n"
+            f"attempt_no=$({_bundle_field_command('attempt_no')})\n"
             "echo \"$attempt_no\" > marker.txt\n"
             "echo ok > done.txt\n"
-            "git add marker.txt done.txt\n"
-            "git -c user.email=t@t -c user.name=t commit -q -m \"[P1] attempt $attempt_no\"\n"
             f"printf '%s\\n' '{_GOOD_IMPL}' > \"$KB_RESULT_PATH\"\n",
             encoding="utf-8",
         )
@@ -527,8 +601,7 @@ class TestStopClassIntegration:
         worker = tmp_path / "selective.sh"
         worker.write_text(
             "#!/bin/sh\nset -e\n"
-            "packet_id=$(python3 -c "
-            "\"import json; print(json.load(open('$KB_BUNDLE_PATH'))['packet_id'])\")\n"
+            f"packet_id=$({_bundle_field_command('packet_id')})\n"
             "if [ \"$packet_id\" = \"P2\" ]; then echo ok > done.txt; fi\n"
             f"printf '%s\\n' '{_GOOD_IMPL}' > \"$KB_RESULT_PATH\"\n",
             encoding="utf-8",
@@ -592,8 +665,6 @@ class TestStopClassIntegration:
         committing_worker.write_text(
             "#!/bin/sh\nset -e\n"
             "echo ok > done.txt\n"
-            "git add done.txt\n"
-            "git -c user.email=t@t -c user.name=t commit -q -m \"[P1] implementation\"\n"
             f"printf '%s\\n' '{_GOOD_IMPL}' > \"$KB_RESULT_PATH\"\n",
             encoding="utf-8",
         )
@@ -633,6 +704,7 @@ class TestStopClassIntegration:
             )
 
 
+@pytest.mark.integration
 class TestCp06AutoMerge:
     """CP-06: run_initiative's gate="auto"/"manual" wiring around publish.
 
@@ -759,6 +831,7 @@ class TestCp06AutoMerge:
             _run(repo, db_path, tmp_path, publish=True, gate="bogus")
 
 
+@pytest.mark.integration
 class TestNeedsDecisionPause:
     """Regression: a packet whose exhaustion stop is needs_decision must
     durably pause the initiative instead of being re-selected and relaunched
@@ -928,8 +1001,7 @@ class TestNeedsDecisionPause:
         worker = tmp_path / "selective.sh"
         worker.write_text(
             "#!/bin/sh\nset -e\n"
-            "packet_id=$(python3 -c "
-            "\"import json; print(json.load(open('$KB_BUNDLE_PATH'))['packet_id'])\")\n"
+            f"packet_id=$({_bundle_field_command('packet_id')})\n"
             "if [ \"$packet_id\" = \"P2\" ]; then echo ok > done.txt; fi\n"
             f"printf '%s\\n' '{_GOOD_IMPL}' > \"$KB_RESULT_PATH\"\n",
             encoding="utf-8",

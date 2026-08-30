@@ -89,12 +89,12 @@ KITTY_GATEWAY_URL=http://127.0.0.1:8123
 })
 
 describe('resolveProxyConfig', () => {
-  it('prefers repo env over ambient process env', () => {
+  it('lets explicit proxy process overrides win over repo env', () => {
     expect(
       resolveProxyConfig(
         {
           KITTY_GATEWAY_URL: 'http://127.0.0.1:9999',
-          KITTY_GATEWAY_SECRET: 'ambient-secret',
+          KITTY_GATEWAY_SECRET: 'process-proxy-secret',
           GATEWAY_SECRET: 'ambient-gateway-secret',
         },
         {
@@ -104,7 +104,19 @@ describe('resolveProxyConfig', () => {
         }
       )
     ).toEqual({
-      gatewayUrl: 'http://127.0.0.1:8123',
+      gatewayUrl: 'http://127.0.0.1:9999',
+      gatewaySecret: 'process-proxy-secret',
+    })
+  })
+
+  it('does not let a generic ambient gateway secret override repo config', () => {
+    expect(
+      resolveProxyConfig(
+        { GATEWAY_SECRET: 'ambient-gateway-secret' },
+        { KITTY_GATEWAY_SECRET: 'repo-secret', GATEWAY_SECRET: 'repo-gateway-secret' }
+      )
+    ).toEqual({
+      gatewayUrl: 'http://127.0.0.1:8000',
       gatewaySecret: 'repo-secret',
     })
   })

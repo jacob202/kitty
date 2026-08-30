@@ -227,18 +227,266 @@ def test_librarian_defaults_to_free_ingest_lane(monkeypatch):
     assert mock_call.call_args.kwargs["model"] == "kitty-default"
 
 
-@pytest.mark.integration
-def test_ingest_and_search_roundtrip(tmp_path):
-    """Write a text file, ingest it, search for it. Requires Ollama."""
-    from gateway.knowledge import _get_collection, ingest_file, search_knowledge
-    _get_collection.cache_clear()
+@pytest.mark.asyncio
+async def test_ingest_and_search_roundtrip_uses_ephemeral_store(tmp_path, monkeypatch):
+    """Ingest and retrieve through real ephemeral Chroma, without network or user data."""
+    import chromadb
 
-    test_file = tmp_path / "test_roundtrip.txt"
-    test_file.write_text("Kitty integration test: Jacob has a purple mountain bicycle he uses on weekends.")
+    from contracts.knowledge_pipeline import LibrarianReport
+    from gateway import knowledge
 
-    n = ingest_file(test_file, sensitivity="low", source_label="test_roundtrip.txt")
-    assert n > 0, "Expected at least one chunk to be ingested"
+    collection = chromadb.EphemeralClient().get_or_create_collection(
+        "kitty_test_knowledge", metadata={"hnsw:space": "cosine"}
+    )
 
-    results = search_knowledge("bicycle", limit=3)
-    texts = [r["text"] for r in results]
-    assert any("bicycle" in t.lower() for t in texts), f"Expected 'bicycle' in results: {texts}"
+    def deterministic_embedding(text: str) -> list[float]:
+        lowered = text.lower()
+        if "bicycle" in lowered:
+            return [1.0, 0.0, 0.0]
+        if "volcano" in lowered:
+            return [0.0, 1.0, 0.0]
+        return [0.0, 0.0, 1.0]
+
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: collection)
+    monkeypatch.setattr(
+        knowledge.archivist,
+        "_embed",
+        lambda texts, timeout=120: [deterministic_embedding(text) for text in texts],
+    )
+    monkeypatch.setattr(
+        knowledge.archivist,
+        "_embed_cached",
+        lambda text: tuple(deterministic_embedding(text)),
+    )
+    monkeypatch.setattr(
+        knowledge.librarian,
+        "generate_source_summary",
+        lambda *args: LibrarianReport(
+            summary="A deterministic test source.",
+            authority_score=0.8,
+            relevance_period="persistent",
+            primary_topic="test",
+            needs_vision=False,
+        ),
+    )
+
+    bicycle_file = tmp_path / "bicycle_notes.txt"
+    bicycle_file.write_text(
+        "The workshop inventory includes a purple mountain bicycle with hydraulic brakes."
+    )
+    volcano_file = tmp_path / "volcano_notes.txt"
+    volcano_file.write_text(
+        "The geology notebook describes a dormant volcano and layers of basalt rock."
+    )
+
+    bicycle_ingest = await knowledge.ingest_file(
+        bicycle_file,
+        sensitivity="low",
+        source_label="bicycle_notes.txt",
+        collection="cycling",
+    )
+    volcano_ingest = await knowledge.ingest_file(
+        volcano_file,
+        sensitivity="low",
+        source_label="volcano_notes.txt",
+        collection="geology",
+    )
+
+    assert bicycle_ingest.status == "success"
+    assert volcano_ingest.status == "success"
+    stored = collection.get(where={"source": "bicycle_notes.txt"})
+    assert len(stored["ids"]) == bicycle_ingest.chunks_count
+    assert any("purple mountain bicycle" in text.lower() for text in stored["documents"])
+
+    results = await knowledge.search_knowledge(
+        "bicycle", limit=1, stitch_context=False
+    )
+    assert len(results) == 1
+    assert results[0]["source"] == "bicycle_notes.txt"
+    assert "purple mountain bicycle" in results[0]["text"].lower()
+
+    filtered = await knowledge.search_knowledge(
+        "volcano", collections=["cycling"], limit=3, stitch_context=False
+    )
+    assert filtered
+    assert {row["source"] for row in filtered} == {"bicycle_notes.txt"}
+    assert {row["metadata"]["collection"] for row in filtered} == {"cycling"}
+
+
+@pytest.mark.asyncio
+async def test_ingest_replacement_stores_new_chunks_before_deleting_old(tmp_path, monkeypatch):
+    from contracts.knowledge_pipeline import LibrarianReport
+    from gateway import knowledge
+
+    path = tmp_path / "manual.txt"
+    path.write_text("new manual content", encoding="utf-8")
+    events = []
+
+    class Store:
+        def get(self, *, where):
+            if "content_hash" in where:
+                return {"ids": []}
+            return {"ids": ["old-1", "old-2"]}
+
+        def add(self, *, documents, embeddings, ids, metadatas):
+            events.append(("add", list(ids)))
+
+        def delete(self, *, ids):
+            events.append(("delete", list(ids)))
+
+    store = Store()
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: store)
+    monkeypatch.setattr(knowledge.clerk, "_extract_text", lambda _p: "new manual content")
+    monkeypatch.setattr(knowledge.archivist, "_get_content_hash", lambda _text: "new-hash")
+    monkeypatch.setattr(knowledge.librarian, "detect_doc_type", lambda *_args: "general")
+    monkeypatch.setattr(
+        knowledge.librarian,
+        "generate_source_summary",
+        lambda *_args: LibrarianReport(
+            summary="summary",
+            authority_score=0.8,
+            relevance_period="persistent",
+            primary_topic="test",
+            needs_vision=False,
+        ),
+    )
+
+    async def pipeline(*_args):
+        return ["replacement chunk"], [{"chunk_index": 0, "is_visual": False}]
+
+    monkeypatch.setattr(knowledge, "_run_pipeline", pipeline)
+    monkeypatch.setattr(knowledge.archivist, "_embed", lambda _chunks: [[0.1, 0.2]])
+
+    result = await knowledge.ingest(path, source_label="manual.txt", force_refresh=True)
+
+    assert result.status == "success"
+    assert events[0][0] == "add"
+    assert events[1] == ("delete", ["old-1", "old-2"])
+
+
+@pytest.mark.asyncio
+async def test_ingest_skipped_replacement_preserves_old_source(tmp_path, monkeypatch):
+    from contracts.knowledge_pipeline import LibrarianReport
+    from gateway import knowledge
+
+    path = tmp_path / "manual.txt"
+    path.write_text("new manual content", encoding="utf-8")
+    deleted = []
+
+    class Store:
+        def get(self, *, where):
+            if "content_hash" in where:
+                return {"ids": []}
+            return {"ids": ["old-1"]}
+
+        def add(self, **_kwargs):
+            raise AssertionError("skipped replacement must not add")
+
+        def delete(self, *, ids):
+            deleted.extend(ids)
+
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: Store())
+    monkeypatch.setattr(knowledge.clerk, "_extract_text", lambda _p: "new manual content")
+    monkeypatch.setattr(knowledge.archivist, "_get_content_hash", lambda _text: "new-hash")
+    monkeypatch.setattr(knowledge.librarian, "detect_doc_type", lambda *_args: "general")
+    monkeypatch.setattr(
+        knowledge.librarian,
+        "generate_source_summary",
+        lambda *_args: LibrarianReport(
+            summary="summary",
+            authority_score=0.8,
+            relevance_period="persistent",
+            primary_topic="test",
+            needs_vision=False,
+        ),
+    )
+
+    async def empty_pipeline(*_args):
+        return [], []
+
+    monkeypatch.setattr(knowledge, "_run_pipeline", empty_pipeline)
+
+    result = await knowledge.ingest(path, source_label="manual.txt", force_refresh=True)
+
+    assert result.status == "skipped"
+    assert deleted == []
+
+
+@pytest.mark.asyncio
+async def test_ingest_add_failure_never_deletes_old_source(tmp_path, monkeypatch):
+    from contracts.knowledge_pipeline import LibrarianReport
+    from gateway import knowledge
+
+    path = tmp_path / "manual.txt"
+    path.write_text("new manual content", encoding="utf-8")
+    deleted = []
+
+    class Store:
+        def get(self, *, where):
+            if "content_hash" in where:
+                return {"ids": []}
+            return {"ids": ["old-1"]}
+
+        def add(self, **_kwargs):
+            raise RuntimeError("store unavailable")
+
+        def delete(self, *, ids):
+            deleted.extend(ids)
+
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: Store())
+    monkeypatch.setattr(knowledge.clerk, "_extract_text", lambda _p: "new manual content")
+    monkeypatch.setattr(knowledge.archivist, "_get_content_hash", lambda _text: "new-hash")
+    monkeypatch.setattr(knowledge.librarian, "detect_doc_type", lambda *_args: "general")
+    monkeypatch.setattr(
+        knowledge.librarian,
+        "generate_source_summary",
+        lambda *_args: LibrarianReport(
+            summary="summary",
+            authority_score=0.8,
+            relevance_period="persistent",
+            primary_topic="test",
+            needs_vision=False,
+        ),
+    )
+
+    async def pipeline(*_args):
+        return ["replacement chunk"], [{"chunk_index": 0, "is_visual": False}]
+
+    monkeypatch.setattr(knowledge, "_run_pipeline", pipeline)
+    monkeypatch.setattr(knowledge.archivist, "_embed", lambda _chunks: [[0.1, 0.2]])
+
+    with pytest.raises(RuntimeError, match="store unavailable"):
+        await knowledge.ingest(path, source_label="manual.txt", force_refresh=True)
+
+    assert deleted == []
+
+@pytest.mark.asyncio
+async def test_ingest_same_second_refresh_uses_disjoint_replacement_ids(tmp_path, monkeypatch):
+    from contracts.knowledge_pipeline import LibrarianReport
+    from gateway import knowledge
+
+    path = tmp_path / "manual.txt"
+    path.write_text("replacement", encoding="utf-8")
+    old_ids = ["manual.txt__chunk_0_1234"]
+    added_ids = []
+    class Store:
+        def get(self, *, where):
+            return {"ids": []} if "content_hash" in where else {"ids": old_ids}
+        def add(self, *, documents, embeddings, ids, metadatas):
+            added_ids.extend(ids)
+        def delete(self, *, ids):
+            pass
+    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: Store())
+    monkeypatch.setattr(knowledge.clerk, "_extract_text", lambda _p: "replacement")
+    monkeypatch.setattr(knowledge.archivist, "_get_content_hash", lambda _text: "new-hash")
+    monkeypatch.setattr(knowledge.librarian, "detect_doc_type", lambda *_args: "general")
+    monkeypatch.setattr(knowledge.librarian, "generate_source_summary", lambda *_args: LibrarianReport(summary="summary", authority_score=0.8, relevance_period="persistent", primary_topic="test", needs_vision=False))
+    async def pipeline(*_args):
+        return ["replacement chunk"], [{"chunk_index": 0, "is_visual": False}]
+    monkeypatch.setattr(knowledge, "_run_pipeline", pipeline)
+    monkeypatch.setattr(knowledge.archivist, "_embed", lambda _chunks: [[0.1, 0.2]])
+    monkeypatch.setattr(knowledge.time, "time", lambda: 1234)
+    result = await knowledge.ingest(path, source_label="manual.txt", force_refresh=True)
+    assert result.status == "success"
+    assert added_ids
+    assert set(added_ids).isdisjoint(old_ids)

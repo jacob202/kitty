@@ -25,6 +25,14 @@ PRICE_REGISTRY_USD_PER_MTOKENS: dict[str, dict[str, float]] = {
     "qwen/qwen3.7-plus": {"input": 0.32, "cached_input": 0.064, "output": 1.28},
     "qwen/qwen3.7-max": {"input": 1.25, "output": 3.75},
     "qwen/qwen3-coder:free": {"input": 0.0, "output": 0.0},
+    # OpenRouter provider snapshot, 2026-08-17. These paid Builder model
+    # slugs do not pin one provider, so pre-dispatch budgeting must not assume
+    # the cheapest/headline route. Use the highest currently listed standard
+    # provider input/output price; cached input is conservatively charged at
+    # the full input rate because not every provider guarantees a cache
+    # discount. This intentionally overestimates rather than underfunds spend.
+    "xiaomi/mimo-v2.5": {"input": 0.40, "cached_input": 0.40, "output": 2.00},
+    "minimax/minimax-m3": {"input": 0.60, "cached_input": 0.60, "output": 2.40},
 }
 
 

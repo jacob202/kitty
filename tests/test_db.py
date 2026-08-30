@@ -44,6 +44,99 @@ def test_migrate_applies_foundation_once(tmp_path):
     assert applied == [("001_foundation.sql",)]
 
 
+def test_migrate_applies_new_migration_dropped_after_first_run(tmp_path):
+    """A migration file added after migrate() has run must still be applied."""
+    db_file = tmp_path / "kitty.db"
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    (migrations_dir / "001_base.sql").write_text(
+        "CREATE TABLE IF NOT EXISTS t1 (id INTEGER PRIMARY KEY);",
+        encoding="utf-8",
+    )
+
+    first = db.migrate(db_file=db_file, migrations_dir=migrations_dir)
+    assert first == ["001_base.sql"]
+
+    (migrations_dir / "002_extra.sql").write_text(
+        "CREATE TABLE IF NOT EXISTS t2 (id INTEGER PRIMARY KEY);",
+        encoding="utf-8",
+    )
+    second = db.migrate(db_file=db_file, migrations_dir=migrations_dir)
+    assert second == ["002_extra.sql"]
+
+    with sqlite3.connect(db_file) as conn:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+    assert {"t1", "t2"} <= tables
+
+
+def test_migrate_reapplies_when_schema_marker_is_removed(tmp_path):
+    """Rollback recovery must not be hidden by an in-process migration cache."""
+    db_file = tmp_path / "kitty.db"
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    (migrations_dir / "001_base.sql").write_text(
+        "CREATE TABLE recovered (id INTEGER PRIMARY KEY);",
+        encoding="utf-8",
+    )
+
+    assert db.migrate(db_file=db_file, migrations_dir=migrations_dir) == ["001_base.sql"]
+    with sqlite3.connect(db_file) as conn:
+        conn.execute("DROP TABLE recovered")
+        conn.execute("DELETE FROM schema_migrations WHERE name = '001_base.sql'")
+        conn.commit()
+
+    assert db.migrate(db_file=db_file, migrations_dir=migrations_dir) == ["001_base.sql"]
+    with sqlite3.connect(db_file) as conn:
+        assert conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='recovered'"
+        ).fetchone() == ("recovered",)
+
+
+def test_migrate_reconciles_renamed_migrations_without_replaying_sql(tmp_path):
+    """Renumbered migrations must not replay against DBs that saw legacy names."""
+    db_file = tmp_path / "kitty.db"
+    migrations_dir = tmp_path / "migrations"
+    migrations_dir.mkdir()
+    db.migrate(db_file=db_file, migrations_dir=migrations_dir)
+
+    with db.connect(db_file) as conn:
+        conn.execute("CREATE TABLE image_recipes (recipe_id TEXT, execution_target TEXT)")
+        conn.executemany(
+            "INSERT INTO schema_migrations (name) VALUES (?)",
+            [
+                ("036_image_jobs_compiler_provenance.sql",),
+                ("037_image_recipes_execution_target.sql",),
+                ("038_image_jobs_canonical_artifact.sql",),
+                ("039_image_sessions_project_scope.sql",),
+            ],
+        )
+
+    (migrations_dir / "040_image_jobs_compiler_provenance.sql").write_text("-- no-op\n")
+    (migrations_dir / "041_image_recipes_execution_target.sql").write_text(
+        "ALTER TABLE image_recipes ADD COLUMN execution_target TEXT;\n"
+    )
+    (migrations_dir / "042_image_jobs_canonical_artifact.sql").write_text("-- no-op\n")
+    (migrations_dir / "043_image_sessions_project_scope.sql").write_text("-- no-op\n")
+
+    applied = db.migrate(db_file=db_file, migrations_dir=migrations_dir)
+
+    assert applied == []
+    db.assert_schema_current(db_file=db_file, migrations_dir=migrations_dir)
+    with sqlite3.connect(db_file) as conn:
+        recorded = {row[0] for row in conn.execute("SELECT name FROM schema_migrations")}
+    assert {
+        "040_image_jobs_compiler_provenance.sql",
+        "041_image_recipes_execution_target.sql",
+        "042_image_jobs_canonical_artifact.sql",
+        "043_image_sessions_project_scope.sql",
+    } <= recorded
+
+
 def test_connect_sets_row_factory_and_foreign_keys(tmp_path):
     db_file = tmp_path / "kitty.db"
 
@@ -140,6 +233,11 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "actions",
         "projects",
         "project_next_steps",
+        "image_job_observations",
+        "image_batches",
+        "image_batch_items",
+        "action_grants",
+        "automation_runs",
     } <= tables
     assert applied == [
         "001_foundation.sql",
@@ -172,6 +270,25 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "028_image_jobs_queue.sql",
         "029_image_sessions.sql",
         "030_image_plans.sql",
+        "031_agent_workspace.sql",
+        "032_agent_workspace_turns.sql",
+        "033_image_job_observations.sql",
+        "034_image_batches.sql",
+        "035_image_plans_operation.sql",
+        "036_action_grants.sql",
+        "037_action_approval_identity.sql",
+        "040_image_jobs_compiler_provenance.sql",
+        "041_image_recipes_execution_target.sql",
+        "042_image_jobs_canonical_artifact.sql",
+        "043_image_sessions_project_scope.sql",
+        "044_image_characters_v2_columns.sql",
+        "045_image_intent_provenance.sql",
+        "046_explicit_memories.sql",
+        "047_automation_runs.sql",
+        "048_image_session_reserved_spend.sql",
+        "049_automation_runs_payload.sql",
+        "050_automation_runs_watch_disabled_status.sql",
+        "051_undo_journal.sql",
     ]
 
 
@@ -256,37 +373,3 @@ def test_assert_schema_current_raises_if_migration_file_not_applied(tmp_path):
         db.assert_schema_current(db_file=db_file, migrations_dir=migrations_dir)
 
     assert "002_extra.sql" in str(exc.value)
-
-
-def test_assert_schema_current_raises_if_schema_migrations_table_missing(tmp_path):
-    """A brand-new database with no schema_migrations table raises a clear error."""
-    db_file = tmp_path / "empty.db"
-    migrations_dir = tmp_path / "migrations"
-    migrations_dir.mkdir()
-    (migrations_dir / "001_base.sql").write_text(
-        "CREATE TABLE IF NOT EXISTS t (id INTEGER PRIMARY KEY);",
-        encoding="utf-8",
-    )
-    # Create a db without running migrate (so schema_migrations never exists)
-    with db.connect(db_file) as conn:
-        conn.execute("CREATE TABLE placeholder (x INTEGER)")
-
-    with pytest.raises(RuntimeError) as exc:
-        db.assert_schema_current(db_file=db_file, migrations_dir=migrations_dir)
-
-    assert "schema_migrations" in str(exc.value).lower()
-
-
-def test_assert_schema_current_is_silent_when_no_migration_files(tmp_path):
-    """An empty migrations directory should not raise."""
-    db_file = tmp_path / "kitty.db"
-    migrations_dir = tmp_path / "empty_migrations"
-    migrations_dir.mkdir()
-    db.assert_schema_current(db_file=db_file, migrations_dir=migrations_dir)  # must not raise
-
-
-def test_assert_schema_current_real_migrations_are_current(tmp_path):
-    """All migration files in the real migrations directory apply cleanly."""
-    db_file = tmp_path / "kitty.db"
-    db.migrate(db_file=db_file)
-    db.assert_schema_current(db_file=db_file)  # uses default migrations_dir

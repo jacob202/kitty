@@ -31,14 +31,17 @@ import hashlib
 import json
 import math
 import os
+import shlex
 import subprocess
 import time
 from pathlib import Path
 from typing import Any
 
 from gateway import builder_attempt as ba
+from gateway import builder_execution_boundary as beb
 from gateway import builder_identity as bid
 from gateway import builder_initiative as bi
+from gateway import builder_pr_janitor as bj
 from gateway import builder_queue as bq
 from gateway import compute_governor as cg
 from gateway.builder_brief import default_branch_name
@@ -68,6 +71,7 @@ LOOP_SUCCEEDED = "succeeded"
 LOOP_EXHAUSTED = "exhausted"
 LOOP_CANCELLED = "cancelled"
 LOOP_PAUSED = "paused"
+LOOP_INFRASTRUCTURE_BLOCKED = "infrastructure_blocked"
 
 LOOP_PROVIDER_EXHAUSTED = "provider_exhausted"
 PROVIDER_EXHAUSTED_EXIT_CODE = 75
@@ -405,6 +409,61 @@ def _reconcile_stale_attempts(
     return reconciled
 
 
+def reconcile_interrupted_packet(
+    initiative_id: str,
+    packet_id: str,
+    *,
+    db_path: Path | None = None,
+    repo_root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Close one liveness-certified stale attempt and safely requeue its task.
+
+    This is recovery housekeeping only: it never dispatches a worker. It
+    preserves the crashed attempt evidence, releases the bound branch lease,
+    and uses the queue's operator-release transition so a paused initiative
+    can remain paused while its packet becomes reclaimable on resume.
+    """
+    bundle = ba.build_context_bundle(initiative_id, packet_id, db_path=db_path)
+    task_id = str(bundle["task_id"])
+    task = bq.get_task(task_id, db_path=db_path)
+    if task is None:
+        raise LoopError(f"task {task_id} for {initiative_id}/{packet_id} is missing")
+    if task["state"] != bq.BLOCKED:
+        return []
+
+    stale = ba.list_stale_attempts(initiative_id, packet_id, db_path=db_path)
+    reconciled: list[dict[str, Any]] = []
+    recovery_attempt_id: int | None = stale[-1]["id"] if stale else None
+    if stale:
+        reconciled = _reconcile_stale_attempts(
+            initiative_id, packet_id, db_path=db_path, repo_root=repo_root
+        )
+    else:
+        status = bi.initiative_status(initiative_id, db_path=db_path)
+        if packet_id not in status.get("recovery_needed", []):
+            return []
+        attempts = ba.list_attempts(initiative_id, packet_id, db_path=db_path)
+        recovery_attempt_id = attempts[-1]["id"] if attempts else None
+    try:
+        bq.operator_release_task(
+            task_id,
+            reason="stale_attempt_reconciliation",
+            db_path=db_path,
+        )
+    except Exception as exc:
+        _record_infrastructure_failure(
+            task_id,
+            reason=f"stale task release failed: {exc}",
+            phase="stale_attempt_task_release",
+            attempt_id=recovery_attempt_id,
+            db_path=db_path,
+        )
+        raise LoopError(
+            f"stale attempts were reconciled but task {task_id} could not be released: {exc}"
+        ) from exc
+    return reconciled
+
+
 def _write_review_context(
     path: Path,
     *,
@@ -495,14 +554,36 @@ def _run_review_command(
     env_extra: dict[str, str],
     timeout_seconds: int,
 ) -> str | None:
-    """Run the reviewer subprocess. Returns an error string or None."""
-    env = dict(os.environ)
-    env.pop("GITHUB_TOKEN", None)
-    env.pop("GH_TOKEN", None)
+    """Run a reviewer inside the lower-trust read-only boundary."""
+    result_raw = env_extra.get("KB_REVIEW_RESULT_PATH")
+    if not result_raw:
+        return "review command missing KB_REVIEW_RESULT_PATH"
+    result_path = Path(result_raw).resolve()
+    runtime_dir = result_path.parent / ".review-runtime"
+    env = beb.build_child_environment(os.environ, run_dir=runtime_dir)
     env.update(env_extra)
+
+    read_keys = (
+        "KB_BUNDLE_PATH",
+        "KB_IMPL_RESULT_PATH",
+        "KB_CONTEXT_MANIFEST_PATH",
+        "KB_REVIEW_CONTEXT_PATH",
+    )
+    read_paths = [Path(env[key]) for key in read_keys if env.get(key)]
+    write_keys = ("KB_REVIEW_RESULT_PATH", "KB_REVIEW_NOTE_PATH")
+    write_paths = [Path(env[key]) for key in write_keys if env.get(key)]
     try:
-        proc = subprocess.run(
+        wrapped = beb.wrap_command(
             command,
+            worktree=cwd,
+            run_dir=runtime_dir,
+            environment=env,
+            read_paths=read_paths,
+            write_paths=write_paths,
+            worktree_writable=False,
+        )
+        proc = subprocess.run(
+            wrapped,
             cwd=str(cwd),
             env=env,
             capture_output=True,
@@ -798,6 +879,7 @@ def run_packet(
     governor_risk_class: str = "routine",
     governor_projected_cost_cad: float | None = None,
     governor_requested_route: str | None = None,
+    publication_preflight: bool = False,
 ) -> dict[str, Any]:
     """Run the bounded repair loop for one packet.
 
@@ -843,35 +925,19 @@ def run_packet(
         # A runner exception can durably block the task while the process dies
         # before closing its packet attempt. Only that exact paired condition
         # permits automatic recovery; claimed/running tasks remain fenced.
-        stale = ba.list_stale_attempts(
-            initiative_id, packet_id, db_path=db_path
-        )
-        if not stale:
+        if not ba.list_stale_attempts(initiative_id, packet_id, db_path=db_path):
             raise LoopError(
                 f"task {task_id} for {initiative_id}/{packet_id} is blocked "
                 "without a stale open attempt; operator release is required"
             )
-        _reconcile_stale_attempts(
+        reconcile_interrupted_packet(
             initiative_id, packet_id, db_path=db_path, repo_root=repo_root
         )
-        try:
-            task = bq.operator_release_task(
-                task_id,
-                reason="stale_attempt_reconciliation",
-                db_path=db_path,
-            )
-        except Exception as exc:
-            _record_infrastructure_failure(
-                task_id,
-                reason=f"stale task release failed: {exc}",
-                phase="stale_attempt_task_release",
-                attempt_id=stale[-1]["id"],
-                db_path=db_path,
-            )
+        task = bq.get_task(task_id, db_path=db_path)
+        if task is None or task["state"] != bq.QUEUED:
             raise LoopError(
-                f"stale attempts were reconciled but task {task_id} could "
-                f"not be released: {exc}"
-            ) from exc
+                f"task {task_id} did not become queued after stale-attempt reconciliation"
+            )
     else:
         raise LoopError(
             f"task {task_id} for {initiative_id}/{packet_id} is "
@@ -887,7 +953,7 @@ def run_packet(
             provider=provider,
             db_path=db_path,
         )
-    except (bi.InitiativeNotFoundError, bi.MissionSubmissionError) as exc:
+    except (bi.InitiativeNotFoundError, bi.RoutingPolicyError) as exc:
         raise LoopError(f"durable routing policy rejected execution: {exc}") from exc
 
     crash_count, crash_reason = _consecutive_identical_crashes(
@@ -995,6 +1061,7 @@ def run_packet(
             )
 
     history: list[dict[str, Any]] = []
+    janitor_passes = 0
     while True:
         if bi.get_initiative_state(initiative_id, db_path=db_path) == bi.INITIATIVE_PAUSED:
             initiative = bi.get_initiative(initiative_id, db_path=db_path) or {}
@@ -1013,6 +1080,33 @@ def run_packet(
             bi.pause_initiative(initiative_id, reason, db_path=db_path)
             return {
                 "outcome": LOOP_PAUSED,
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "task_id": task_id,
+                "task_state": (bq.get_task(task_id, db_path=db_path) or {}).get("state"),
+                "reason": reason,
+                "attempts": history,
+            }
+
+        if publication_preflight and janitor_passes >= bj.JANITOR_MAX_PASSES:
+            reason = f"PR janitor exhausted after {bj.JANITOR_MAX_PASSES} passes"
+            _governor_settle(
+                initiative_id,
+                packet_id,
+                base_sha=base_sha,
+                governor_db=governor_db,
+                decision=governor_decision,
+                outcome=LOOP_EXHAUSTED,
+                attempts=history,
+                model=model,
+                provider=provider,
+                risk_class=governor_risk_class,
+                projected_cost_cad=governor_projected_cost_cad,
+                requested_route=governor_requested_route,
+                override_reason=governor_override,
+            )
+            return {
+                "outcome": LOOP_EXHAUSTED,
                 "initiative_id": initiative_id,
                 "packet_id": packet_id,
                 "task_id": task_id,
@@ -1071,7 +1165,7 @@ def run_packet(
                     )
 
         try:
-            preflight_worktree(task_id, repo_root=repo_root)
+            worktree_preflight = preflight_worktree(task_id, repo_root=repo_root)
         except RunnerError as exc:
             bq.append_event(
                 task_id,
@@ -1084,6 +1178,40 @@ def run_packet(
                 db_path=db_path,
             )
             raise LoopError(f"builder preflight failed: {exc}") from exc
+
+        if publication_preflight:
+            publication_root = Path(worktree_preflight["repo_root"])
+            publication_probe = bj.publication_preflight(publication_root)
+            detail = (publication_probe.stderr or publication_probe.stdout or "").strip()
+            if (
+                publication_probe.returncode != 0
+                and publication_probe.returncode != PROVIDER_EXHAUSTED_EXIT_CODE
+            ):
+                suffix = f": {detail}" if detail else ""
+                raise LoopError(
+                    "publication environment preflight failed unexpectedly "
+                    f"(exit {publication_probe.returncode}){suffix}"
+                )
+            if publication_probe.returncode == PROVIDER_EXHAUSTED_EXIT_CODE:
+                reason = "publication environment preflight exited 75" + (
+                    f": {detail}" if detail else ""
+                )
+                _record_infrastructure_failure(
+                    task_id,
+                    reason=reason,
+                    phase="publication_preflight",
+                    attempt_id=None,
+                    db_path=db_path,
+                )
+                return {
+                    "outcome": LOOP_INFRASTRUCTURE_BLOCKED,
+                    "initiative_id": initiative_id,
+                    "packet_id": packet_id,
+                    "task_id": task_id,
+                    "task_state": (bq.get_task(task_id, db_path=db_path) or {}).get("state"),
+                    "reason": reason,
+                    "attempts": history,
+                }
 
         try:
             expected_branch = default_branch_name(task)
@@ -1471,10 +1599,63 @@ def run_packet(
             else:
                 failure = error
 
+        if (
+            failure is None
+            and impl is not None
+            and impl.get("status") == "completed"
+        ):
+            try:
+                trusted_commit_sha = _commit_completed_worker_changes(
+                    expected_worktree,
+                    packet_id=packet_id,
+                    task_id=task_id,
+                    attempt_id=attempt_id,
+                )
+            except LoopError as exc:
+                failure = f"trusted parent commit failed: {exc}"
+            else:
+                if trusted_commit_sha is not None:
+                    entry["trusted_parent_commit_sha"] = trusted_commit_sha
+
         if failure is None and _runtime_budget_expired(deadline_monotonic):
             failure = "initiative runtime budget exceeded"
 
+        janitor_receipt: dict[str, Any] | None = None
+        janitor_error: str | None = None
+        janitor_head_before: str | None = None
+        janitor_head_after: str | None = None
+        janitor_pass_no: int | None = None
+        gate: dict[str, Any] | None = None
+        if failure is None and publication_preflight:
+            janitor_passes += 1
+            janitor_pass_no = janitor_passes
+            janitor_worktree = worktree_path(task_id, repo_root=repo_root)
+            janitor_head_before = worktree_head(janitor_worktree)
+            try:
+                janitor_receipt = bj.apply_safe_repairs(
+                    janitor_worktree,
+                    allowed_paths=bundle_preview.get("allowed_paths"),
+                    commit_marker=f"[{packet_id}]",
+                )
+            except bj.SafeRepairError as exc:
+                janitor_error = str(exc)
+                janitor_receipt = {
+                    "changed": False,
+                    "changed_paths": [],
+                    "commit_sha": None,
+                    "error": janitor_error,
+                }
+            janitor_head_after = worktree_head(janitor_worktree)
+
         if failure is None:
+            extra_commands: list[str] = []
+            if publication_preflight:
+                if janitor_error is not None:
+                    message = shlex.quote(
+                        f"PR janitor safe repair failed: {janitor_error}"
+                    )
+                    extra_commands.append(f"printf '%s\n' {message} >&2; exit 1")
+                extra_commands.append(bj.PUBLICATION_GATE_COMMAND)
             validated = ba.run_validation(
                 attempt_id,
                 cwd=worktree_path(task_id, repo_root=repo_root),
@@ -1482,9 +1663,43 @@ def run_packet(
                     validation_timeout_seconds, deadline_monotonic
                 ),
                 db_path=db_path,
+                extra_commands=extra_commands,
             )
             entry["validation_status"] = validated["validation"]["status"]
             manifest["validation"] = _validation_evidence(validated["validation"])
+            if publication_preflight and janitor_pass_no is not None:
+                gate = next(
+                    (
+                        command
+                        for command in validated["validation"]["commands"]
+                        if command.get("command") == bj.PUBLICATION_GATE_COMMAND
+                    ),
+                    None,
+                )
+                gate_status = (
+                    "passed" if gate is not None and gate.get("passed") else "failed"
+                )
+                janitor_event = {
+                    "pass_no": janitor_pass_no,
+                    "attempt_id": attempt_id,
+                    "head_before": janitor_head_before,
+                    "head_after": janitor_head_after,
+                    "repairs": janitor_receipt,
+                    "repair_error": janitor_error,
+                    "gate_status": gate_status,
+                    "gate_exit_code": gate.get("exit_code") if gate else None,
+                    "output_tail": str(gate.get("output_tail", ""))[-2000:]
+                    if gate
+                    else "",
+                }
+                entry["pr_janitor"] = janitor_event
+                manifest["pr_janitor"] = janitor_event
+                bq.append_event(
+                    task_id,
+                    "pr_janitor_pass",
+                    payload=janitor_event,
+                    db_path=db_path,
+                )
             write_run_manifest(manifest_path, manifest)
             if validated["validation"]["status"] == ba.VALIDATION_FAILED:
                 failure = "deterministic validation failed"
@@ -1506,6 +1721,46 @@ def run_packet(
                     entry["validation_failure"] = {
                         "command": failed_command.get("command"),
                         "exit_code": failed_command.get("exit_code"),
+                    }
+
+                if gate is not None and gate.get("exit_code") == PROVIDER_EXHAUSTED_EXIT_CODE:
+                    reason = "publication gate exited 75"
+                    output_tail = str(gate.get("output_tail", "")).strip()
+                    if output_tail:
+                        reason += f": {output_tail}"
+                    entry["outcome"] = ba.ATTEMPT_CRASHED
+                    entry["failure"] = reason
+                    entry["repairable"] = False
+                    manifest["outcome"] = "crashed"
+                    manifest["failure"] = _text_evidence(reason)
+                    write_run_manifest(manifest_path, manifest)
+                    worktree_evidence = archive_and_reset_worktree(
+                        worktree_path(task_id, repo_root=repo_root), attempt_dir
+                    )
+                    _close_bound_attempt(attempt, lease, ba.ATTEMPT_CRASHED, db_path=db_path)
+                    _record_infrastructure_failure(
+                        task_id,
+                        reason=reason,
+                        phase="publication_gate",
+                        attempt_id=attempt_id,
+                        db_path=db_path,
+                    )
+                    blocked_task = bq.get_task(task_id, db_path=db_path)
+                    if blocked_task is not None and blocked_task["state"] == bq.BLOCKED:
+                        bq.operator_release_task(
+                            task_id,
+                            reason="publication infrastructure unavailable; retry queued",
+                            db_path=db_path,
+                        )
+                    return {
+                        "outcome": LOOP_INFRASTRUCTURE_BLOCKED,
+                        "initiative_id": initiative_id,
+                        "packet_id": packet_id,
+                        "task_id": task_id,
+                        "task_state": (bq.get_task(task_id, db_path=db_path) or {}).get("state"),
+                        "reason": reason,
+                        "attempts": history,
+                        "worktree": worktree_evidence,
                     }
 
         if failure is None and _runtime_budget_expired(deadline_monotonic):
@@ -1753,3 +2008,45 @@ def run_packet(
                 "attempts": history,
                 "escalation": scope_escalation,
             }
+
+
+# NOTE: helper appended temporarily for E03; placement is normalized before commit.
+def _commit_completed_worker_changes(
+    worktree: Path,
+    *,
+    packet_id: str,
+    task_id: str,
+    attempt_id: int,
+) -> str | None:
+    status = subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if status.returncode != 0:
+        raise LoopError((status.stderr or status.stdout or "git status failed").strip())
+    if not status.stdout.strip():
+        return None
+    add = subprocess.run(["git", "add", "-A"], cwd=worktree, capture_output=True, text=True)
+    if add.returncode != 0:
+        raise LoopError((add.stderr or add.stdout or "git add failed").strip())
+    message = (
+        f"[{packet_id}] kittybuilder: {task_id} attempt {attempt_id} "
+        "(trusted parent)"
+    )
+    commit = subprocess.run(
+        [
+            "git", "-c", "user.name=KittyBuilder",
+            "-c", "user.email=kittybuilder@localhost",
+            "commit", "--quiet", "-m", message,
+        ],
+        cwd=worktree,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if commit.returncode != 0:
+        raise LoopError((commit.stderr or commit.stdout or "git commit failed").strip())
+    return worktree_head(worktree)

@@ -415,6 +415,17 @@ def run_initiative(
     bi.init_db(db_path)
     bq.recover_expired_leases(db_path=db_path)
     bq.recover_interrupted_runs(db_path=db_path)
+    # Recovery housekeeping is independent of execution permission. Close any
+    # liveness-certified stale attempt and requeue its packet before honoring
+    # an operator pause, so a paused campaign never preserves fake active work.
+    recovery_status = bi.initiative_status(initiative_id, db_path=db_path)
+    for recovery_packet_id in recovery_status.get("recovery_needed", []):
+        bl.reconcile_interrupted_packet(
+            initiative_id,
+            recovery_packet_id,
+            db_path=db_path,
+            repo_root=repo_root,
+        )
     started = time.monotonic()
     deadline_monotonic = (
         started + max_runtime_seconds if max_runtime_seconds is not None else None
@@ -526,6 +537,7 @@ def run_initiative(
                 governor_risk_class=governor_risk_class,
                 governor_projected_cost_cad=governor_projected_cost_cad,
                 governor_requested_route=governor_requested_route,
+                publication_preflight=publish,
             )
         except bl.LoopError as exc:
             _decide(
@@ -661,6 +673,35 @@ def run_initiative(
                         "succeeded": succeeded,
                         "exhausted": exhausted,
                     }
+        elif loop_result["outcome"] == bl.LOOP_INFRASTRUCTURE_BLOCKED:
+            processed.append(
+                {
+                    "packet_id": packet_id,
+                    "task_id": task_id,
+                    "outcome": loop_result["outcome"],
+                }
+            )
+            _decide(
+                task_id,
+                {
+                    "initiative_id": initiative_id,
+                    "packet_id": packet_id,
+                    "decision": "infrastructure_blocked",
+                    "reason": loop_result.get("reason"),
+                    "stop_class": STOP_ROUTINE,
+                },
+                db_path,
+            )
+            return {
+                "outcome": bl.LOOP_INFRASTRUCTURE_BLOCKED,
+                "reason": loop_result.get("reason"),
+                "stop_class": STOP_ROUTINE,
+                "packet_id": packet_id,
+                "task_id": task_id,
+                "processed": processed,
+                "succeeded": succeeded,
+                "exhausted": exhausted,
+            }
         elif loop_result["outcome"] == bl.LOOP_PROVIDER_EXHAUSTED:
             processed.append(
                 {

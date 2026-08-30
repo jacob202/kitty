@@ -22,14 +22,21 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import httpx
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 from gateway import model_routing
-from gateway.paths import LITELLM_BASE, LITELLM_KEY
+from gateway.paths import LITELLM_BASE, LITELLM_KEY, PROJECT_ROOT
 from gateway.settings import get_settings
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 
 logger = logging.getLogger("kitty.llm_client")
+
+
+# Reason suffixes appended to a chain's error list. The classifier below reads
+# them back, so producers and reader must use these rather than loose literals.
+_REASON_NO_KEY = "no api key configured"
+_REASON_DISABLED = "disabled"
+_REASON_NO_RESPONSE = "no response"
 
 
 class ProviderChainExhausted(RuntimeError):
@@ -45,6 +52,96 @@ class ProviderChainExhausted(RuntimeError):
         self.errors = list(errors)
         summary = "; ".join(errors) if errors else "no diagnostics"
         super().__init__(f"LLM provider chain exhausted: {summary}")
+
+    @property
+    def user_message(self) -> str:
+        """Plain-language cause and one next action, safe to show Jacob."""
+        return describe_chain_exhaustion(self.errors)
+
+
+# The one action every user-facing chain failure offers. Settings already lists
+# providers and marks which are usable, so this is a place Jacob can actually go.
+_PICK_ANOTHER = "Choose a different provider in Settings, under Providers."
+_PICK_ANOTHER_CLAUSE = "choose a different provider in Settings, under Providers."
+_PICK_READY = "Choose a provider marked ready in Settings, under Providers."
+_CHECK_PROVIDERS = "Open Settings, under Providers, to see which ones are ready."
+
+
+def _join_names(names: list[str]) -> str:
+    if len(names) == 1:
+        return names[0]
+    return f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def describe_chain_exhaustion(errors: list[str]) -> str:
+    """Turn raw provider diagnostics into one sentence Jacob can act on.
+
+    ``errors`` is operator detail ("openrouter: no api key configured") and stays
+    in the durable event. User-facing surfaces show this instead, so a failed turn
+    names one cause and one in-product action rather than six provider strings.
+
+    The action stays inside the product — Settings › Providers, which already
+    marks which providers are usable. Terminal commands, ``.env`` and proxy
+    internals belong to the operator record, not to Jacob's conversation. When
+    nothing is set up there is no in-product fix, so this says setup is required
+    instead of sending him to a screen with nothing to choose.
+    """
+    if not errors:
+        return (
+            "Kitty couldn't reach any model provider and didn't report why. "
+            f"{_CHECK_PROVIDERS}"
+        )
+
+    if len(errors) == 1 and errors[0].startswith("selected provider"):
+        detail = errors[0]
+        if "returned no response" in detail:
+            return (
+                "The provider you picked didn't send an answer back — usually an "
+                f"empty balance or a rate limit. {_PICK_ANOTHER}"
+            )
+        if "is not configured" in detail or "is unknown" in detail:
+            return (
+                "The provider you picked isn't set up, so Kitty couldn't answer. "
+                f"{_PICK_READY}"
+            )
+        return (
+            f"The provider you picked is switched off, so Kitty couldn't answer. {_PICK_ANOTHER}"
+        )
+
+    unconfigured: list[str] = []
+    switched_off: list[str] = []
+    silent: list[str] = []
+    timed_out = False
+    for entry in errors:
+        name, _, reason = entry.partition(": ")
+        if name == "chain":
+            timed_out = True
+        elif name == "litellm":
+            continue
+        elif reason == _REASON_NO_KEY:
+            unconfigured.append(name)
+        elif reason == _REASON_DISABLED:
+            switched_off.append(name)
+        elif reason == _REASON_NO_RESPONSE:
+            silent.append(name)
+
+    if timed_out:
+        # No claim about why it was slow: the chain records a deadline, not a cause.
+        return (
+            "The model providers took too long to answer, so Kitty stopped waiting. "
+            f"Try again — if it keeps happening, {_PICK_ANOTHER_CLAUSE}"
+        )
+    if silent:
+        return (
+            f"Kitty reached {_join_names(silent)} but got no usable answer back — "
+            f"usually an empty balance or a rate limit. {_PICK_ANOTHER}"
+        )
+    if unconfigured or switched_off:
+        return (
+            "Kitty has no model provider it can use, so this couldn't run. "
+            "Setting up a provider is required before the room can answer."
+        )
+    return f"Kitty's model providers all failed on this request. {_CHECK_PROVIDERS}"
 
 
 # Cap how long a single provider may spend establishing a connection, and bound
@@ -107,9 +204,25 @@ _LITELLM_DEFAULT = "kitty-default"
 _LITELLM_SONNET = "kitty-sonnet"
 _LITELLM_SMALL = "kitty-small"
 
+_AGENTROUTER_KEY_ENVS = ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY")
+
+
+def _load_dotenv_preserving_agentrouter_keys() -> bool:
+    """Reload generic dotenv values without caching AgentRouter credentials."""
+    present = {name for name in _AGENTROUTER_KEY_ENVS if name in os.environ}
+    preserved = {name: os.environ[name] for name in present}
+    try:
+        return bool(load_dotenv())
+    finally:
+        for name in _AGENTROUTER_KEY_ENVS:
+            if name in present:
+                os.environ[name] = preserved[name]
+            else:
+                os.environ.pop(name, None)
+
 
 def _env_slug(name: str, default: str) -> str:
-    load_dotenv()
+    _load_dotenv_preserving_agentrouter_keys()
     v = os.environ.get(name, "").strip()
     return v if v else default
 
@@ -146,22 +259,43 @@ def normalize_agentrouter_api_base(raw: str | None) -> str:
     return f"{base}/v1"
 
 
+def _clean_agentrouter_key(raw: object, env_name: str) -> str:
+    if not isinstance(raw, str):
+        return ""
+    value = raw.strip().strip('"').strip("'")
+    if "\n" in value or "\r" in value:
+        logger.warning(
+            "AgentRouter env %s had multiple lines — using first line only. Fix your .env.",
+            env_name,
+        )
+        value = value.splitlines()[0].strip()
+    return value
+
+
 def resolve_agentrouter_api_key() -> str:
-    """Read API key from env; supports AgentRouter doc names. Strips quotes and first line only."""
-    load_dotenv(override=True)
-    for env_name in ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY"):
-        v = os.environ.get(env_name, "")
-        if not isinstance(v, str):
-            continue
-        v = v.strip().strip('"').strip("'")
-        if "\n" in v or "\r" in v:
-            logger.warning(
-                "AgentRouter env %s had multiple lines — using first line only. Fix your .env.",
-                env_name,
-            )
-            v = v.splitlines()[0].strip()
-        if v:
-            return v
+    """Resolve AgentRouter credentials without mutating the Gateway process environment.
+
+    Process environment is authoritative. If neither documented key is present,
+    read only those key names from the repo dotenv file. Never call
+    ``load_dotenv(override=True)`` here: provider inspection runs in-process and
+    must not rewrite security-critical settings such as ``GATEWAY_SECRET``.
+    """
+    env_names = _AGENTROUTER_KEY_ENVS
+
+    # Preserve the old override=True precedence without mutating os.environ:
+    # a repo dotenv key may be rotated while Gateway stays up, so parse the
+    # current file on every resolution and prefer it over any stale value that
+    # an earlier generic load_dotenv() call may have cached in the process.
+    values = dotenv_values(PROJECT_ROOT / ".env")
+    for env_name in env_names:
+        value = _clean_agentrouter_key(values.get(env_name), env_name)
+        if value:
+            return value
+
+    for env_name in env_names:
+        value = _clean_agentrouter_key(os.environ.get(env_name, ""), env_name)
+        if value:
+            return value
     return ""
 
 
@@ -180,7 +314,7 @@ def _sanitize_agentrouter_model_id(raw: str) -> str:
 
 def agentrouter_model_for_request(request_model: str | None) -> str:
     """Pick the upstream AgentRouter model for Kitty's single route or an explicit id."""
-    load_dotenv()
+    _load_dotenv_preserving_agentrouter_keys()
     rm = (request_model or "").strip()
     if rm and rm not in model_routing.LEGACY_MODEL_ALIASES and rm != _LITELLM_DEFAULT:
         return _sanitize_agentrouter_model_id(rm)
@@ -195,6 +329,29 @@ def _openrouter_fallback_model(litellm_model: str) -> str:
     if direct:
         return direct
     return _LITELLM_TO_OPENROUTER.get(litellm_model, litellm_model)
+
+
+AIRFORCE_BASE = "https://api.airforce/v1"
+_AIRFORCE_TEXT_ROLES = {
+    _LITELLM_DEFAULT,
+    _LITELLM_SONNET,
+    _LITELLM_SMALL,
+    "kitty-think",
+    "kitty-code",
+}
+
+
+def _airforce_model_for_request(request_model: str | None) -> str:
+    """Map Kitty text roles to a verified Airforce free-tier chat model.
+
+    ``glm-4.7-flash`` was live-verified on this account on 2026-08-22.
+    Unknown/vision models pass through so we fail loudly rather than silently
+    send an image turn to a text-only model.
+    """
+    requested = (request_model or "").strip()
+    if not requested or requested in _AIRFORCE_TEXT_ROLES:
+        return os.environ.get("KITTY_AIRFORCE_MODEL", "").strip() or "glm-4.7-flash"
+    return requested
 
 
 def _finalize_openai_shape_response(
@@ -231,7 +388,7 @@ def _finalize_openai_shape_response(
 
 # --- Provider dispatcher ------------------------------------------------------
 #
-# Each of the 5 LLM providers becomes one row in ``PROVIDERS``. The dispatcher
+# Each direct LLM provider becomes one row in ``PROVIDERS``. The dispatcher
 # is generic: API-key resolution, model resolution, header building, HTTP POST,
 # and response extraction are all driven by the table. Provider-specific
 # behavior (e.g. AgentRouter's alt-UA retry) is data on the row.
@@ -333,6 +490,16 @@ PROVIDERS: dict[str, ProviderConfig] = {
         kind="api_credit",
         free_tier=True,
     ),
+    "airforce": ProviderConfig(
+        name="airforce",
+        route="airforce_direct",
+        base_url=AIRFORCE_BASE,
+        api_key_env=("AIRFORCE_API_KEY",),
+        model_default="glm-4.7-flash",
+        kind="api_credit",
+        free_tier=True,
+        model_resolver=_airforce_model_for_request,
+    ),
     "agentrouter": ProviderConfig(
         name="agentrouter",
         route="agentrouter_direct",
@@ -375,14 +542,14 @@ PROVIDERS: dict[str, ProviderConfig] = {
     ),
 }
 
-# Default order when Jacob hasn't set one: local first (free, no credit, no
-# network), then OpenAI (known-good paid), NVIDIA, AgentRouter (opt-in),
-# OpenRouter (cheap/free), Gemini.
+# Preserve the established fallback order and add Airforce immediately before
+# OpenRouter. Unconfigured providers are skipped without making a network call.
 PROVIDER_FALLBACK_ORDER: tuple[str, ...] = (
     "local",
     "openai",
     "nvidia",
     "agentrouter",
+    "airforce",
     "openrouter",
     "gemini",
 )
@@ -411,6 +578,11 @@ def effective_provider_order() -> list[str]:
 
 def _is_agentrouter_disabled() -> bool:
     return os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower() in ("1", "true", "yes")
+
+
+def provider_is_environment_disabled(provider_name: str) -> bool:
+    """Whether an environment kill switch makes a provider unusable."""
+    return provider_name == "agentrouter" and _is_agentrouter_disabled()
 
 
 def retry_with_backoff(
@@ -461,7 +633,7 @@ def _call_provider(
     # matching the per-function ``load_dotenv()`` the old direct callers did.
     # ``load_dotenv()`` (no override) is right for the generic providers;
     # AgentRouter's ``key_resolver`` does its own ``load_dotenv(override=True)``.
-    load_dotenv()
+    _load_dotenv_preserving_agentrouter_keys()
 
     if provider.key_resolver is not None:
         api_key = provider.key_resolver()
@@ -545,7 +717,7 @@ def selected_provider_name() -> str | None:
         raise ProviderChainExhausted([f"selected provider {name!r} is unknown"])
     if is_disabled(name):
         raise ProviderChainExhausted([f"selected provider {name!r} is disabled"])
-    if name == "agentrouter" and _is_agentrouter_disabled():
+    if provider_is_environment_disabled(name):
         raise ProviderChainExhausted(["selected provider 'agentrouter' is disabled by environment"])
     if not provider_is_configured(PROVIDERS[name]):
         raise ProviderChainExhausted([f"selected provider {name!r} is not configured"])
@@ -664,11 +836,11 @@ def call_llm(
             return min(int(remaining), timeout)
 
         for provider_name in effective_provider_order():
-            if provider_name == "agentrouter" and _is_agentrouter_disabled():
-                errors.append(f"{provider_name}: disabled")
+            if provider_is_environment_disabled(provider_name):
+                errors.append(f"{provider_name}: {_REASON_DISABLED}")
                 continue
             if not provider_is_configured(PROVIDERS[provider_name]):
-                errors.append(f"{provider_name}: no api key configured")
+                errors.append(f"{provider_name}: {_REASON_NO_KEY}")
                 continue
             _at = _budget_timeout()
             if _at is None:
@@ -691,7 +863,7 @@ def call_llm(
             )
             if out:
                 return out
-            errors.append(f"{provider_name}: no response")
+            errors.append(f"{provider_name}: {_REASON_NO_RESPONSE}")
 
         raise ProviderChainExhausted(errors)
 

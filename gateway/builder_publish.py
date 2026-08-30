@@ -16,10 +16,13 @@ import logging
 import os
 import re
 import signal
+import sqlite3
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
+from gateway import builder_attempt as ba
+from gateway import builder_pr_janitor as bj
 from gateway import builder_queue as bq
 from gateway.builder_brief import default_branch_name
 from gateway.builder_runner import worktree_path
@@ -112,6 +115,29 @@ def _require_task(task_id: str, db_path: Path | None) -> dict[str, Any]:
     if task is None:
         raise bq.TaskNotFoundError(f"task not found: {task_id}")
     return task
+
+
+def _packet_marker_for_task(task_id: str, db_path: Path | None) -> str | None:
+    """Return the initiative packet marker for a task when one exists."""
+    conn = bq.connect(db_path)
+    try:
+        try:
+            rows = conn.execute(
+                "SELECT packet_id FROM initiative_packets WHERE task_id = ? LIMIT 2",
+                (task_id,),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return None
+    finally:
+        conn.close()
+    if not rows:
+        return None
+    if len(rows) > 1:
+        raise PublishError(
+            f"task {task_id} maps to multiple initiative packets; refusing "
+            "to create an ambiguously attributed janitor commit"
+        )
+    return f"[{rows[0]['packet_id']}]"
 
 
 def _assert_publishable_state(task: dict[str, Any]) -> None:
@@ -418,6 +444,63 @@ def _advance_task_for_pr(
     return transitions
 
 
+def _latest_approved_review_binding(
+    task_id: str, db_path: Path | None
+) -> dict[str, Any] | None:
+    """Return the latest exact-head review binding only when it approved."""
+    events = bq.list_events(task_id, db_path=db_path)
+    latest = next(
+        (event for event in reversed(events) if event["type"] == "review_evidence_bound"),
+        None,
+    )
+    if latest is None:
+        return None
+    payload = latest.get("payload") or {}
+    attempt_id = payload.get("attempt_id")
+    review_sha = payload.get("review_sha")
+    if not isinstance(attempt_id, int) or not isinstance(review_sha, str) or not review_sha:
+        raise PublishError("latest review evidence binding is malformed; re-review required")
+    attempt = ba.get_attempt(attempt_id, db_path=db_path)
+    if attempt is None:
+        raise PublishError("latest review evidence attempt is missing; re-review required")
+    review = attempt.get("review") or {}
+    if review.get("verdict") != "approve":
+        return None
+    return {"attempt_id": attempt_id, "review_sha": review_sha}
+
+
+def _publish_head_sha(path: Path, run_cmd: RunCmd) -> str:
+    result = run_cmd(["git", "rev-parse", "HEAD"], cwd=path, check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        raise PublishError(
+            "could not resolve publish worktree HEAD while checking review evidence"
+        )
+    return result.stdout.strip()
+
+
+def _invalidate_review_before_publish(
+    task_id: str,
+    *,
+    binding: dict[str, Any],
+    current_sha: str,
+    db_path: Path | None,
+    reason: str,
+    janitor: dict[str, Any] | None = None,
+) -> None:
+    bq.append_event(
+        task_id,
+        "review_invalidated_before_publish",
+        payload={
+            "attempt_id": binding["attempt_id"],
+            "review_sha": binding["review_sha"],
+            "current_sha": current_sha,
+            "reason": reason,
+            "janitor_commit_sha": (janitor or {}).get("commit_sha"),
+        },
+        db_path=db_path,
+    )
+
+
 def publish_task(
     task_id: str,
     *,
@@ -455,6 +538,54 @@ def publish_task(
         return runner(args, cwd=cwd, check=check)
 
     path = _worktree_ready(task_id, branch, repo_root, _run)
+    review_binding = (
+        _latest_approved_review_binding(task_id, db_path) if not dry_run else None
+    )
+    if review_binding is not None:
+        current_sha = _publish_head_sha(path, _run)
+        if current_sha != review_binding["review_sha"]:
+            _invalidate_review_before_publish(
+                task_id,
+                binding=review_binding,
+                current_sha=current_sha,
+                db_path=db_path,
+                reason="worktree HEAD no longer matches approved review",
+            )
+            raise PublishError(
+                "approved review does not match current publish HEAD; re-review required"
+            )
+
+    janitor_info: dict[str, Any] | None = None
+    if not dry_run:
+        try:
+            janitor_info = bj.apply_safe_repairs(
+                path,
+                allowed_paths=task.get("allowed_paths"),
+                commit_marker=_packet_marker_for_task(task_id, db_path),
+                run_cmd=_run,
+            )
+        except bj.SafeRepairError as exc:
+            raise PublishError(f"PR janitor blocked publication: {exc}") from exc
+        bq.append_event(
+            task_id,
+            "pr_janitor_publish_preflight",
+            payload=janitor_info,
+            db_path=db_path,
+        )
+        if review_binding is not None:
+            current_sha = _publish_head_sha(path, _run)
+            if current_sha != review_binding["review_sha"]:
+                _invalidate_review_before_publish(
+                    task_id,
+                    binding=review_binding,
+                    current_sha=current_sha,
+                    db_path=db_path,
+                    reason="PR Janitor changed HEAD after approved review",
+                    janitor=janitor_info,
+                )
+                raise PublishError(
+                    "PR Janitor changed the approved review SHA; re-review required before publish"
+                )
     push_info = _push_branch(
         path, branch, remote=remote, dry_run=dry_run, run_cmd=_run
     )
@@ -507,6 +638,7 @@ def publish_task(
         "remote": remote,
         "base": base,
         "title": pr_title,
+        "janitor": janitor_info,
         "push": push_info,
         "pr": pr_info,
         "pr_link": link,
@@ -540,9 +672,11 @@ def _merge_check_worktree_path(repo_root: Path, task_id: str) -> Path:
 
 
 def _gh_pr_merge(
-    pr_number: int, *, cwd: Path, run_cmd: RunCmd
+    pr_number: int, *, cwd: Path, run_cmd: RunCmd, expected_head_sha: str | None = None
 ) -> dict[str, Any]:
     args = ["gh", "pr", "merge", str(pr_number), "--merge", "--delete-branch=false"]
+    if expected_head_sha:
+        args.extend(["--match-head-commit", expected_head_sha])
     result = run_cmd(args, cwd=cwd, check=False)
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "").strip() or "no output"
@@ -816,16 +950,47 @@ def merge_and_verify(
             "pr_number": pr_number,
         }
 
+    review_binding = _latest_approved_review_binding(task_id, db_path)
+    if review_binding is None:
+        raise MergeError("no approved exact-head review binding; fresh review required before merge")
+
     try:
-        merge_info = _gh_pr_merge(pr_number, cwd=root, run_cmd=runner)
-    except MergeError:
-        rebased = _rebase_onto_main(
-            root, task_id, default_branch_name(task), remote=remote, run_cmd=runner
+        merge_info = _gh_pr_merge(
+            pr_number, cwd=root, run_cmd=runner, expected_head_sha=review_binding["review_sha"]
         )
-        _cleanup_rebase_worktree(root, task_id, run_cmd=runner)
-        if not rebased:
-            raise
-        merge_info = _gh_pr_merge(pr_number, cwd=root, run_cmd=runner)
+    except MergeError:
+        branch = default_branch_name(task)
+        rebased = _rebase_onto_main(
+            root, task_id, branch, remote=remote, run_cmd=runner
+        )
+        rebase_path = _rebase_check_worktree_path(root, task_id)
+        try:
+            if not rebased:
+                raise
+            head = runner(["git", "rev-parse", "HEAD"], cwd=rebase_path, check=False)
+            rebased_head_sha = (head.stdout or "").strip() if head.returncode == 0 else ""
+            if not rebased_head_sha:
+                raise MergeError("clean rebase completed but rebased head sha could not be resolved")
+            bq.append_event(
+                task_id,
+                "review_required_after_rebase",
+                payload={
+                    "pr_number": pr_number,
+                    "branch": branch,
+                    "rebased_head_sha": rebased_head_sha,
+                    "reason": "branch head changed after review; fresh review required before merge",
+                },
+                db_path=db_path,
+            )
+            return {
+                "outcome": "awaiting_review",
+                "task_id": task_id,
+                "pr_number": pr_number,
+                "rebased_head_sha": rebased_head_sha,
+                "reason": "rebased head requires fresh review before merge",
+            }
+        finally:
+            _cleanup_rebase_worktree(root, task_id, run_cmd=runner)
     merge_commit_sha = merge_info["merge_commit_sha"]
 
     try:

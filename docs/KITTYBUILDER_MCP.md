@@ -59,6 +59,24 @@ python3.12 -m mcp.builder.server
 Configure a local MCP-capable client to start that command from the canonical
 Kitty checkout.
 
+### Codex registration
+
+Codex should register the stdio server with an absolute interpreter path and
+the canonical Kitty checkout as its working directory. Example `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.kittybuilder]
+command = "/absolute/path/to/kitty/venv/bin/python"
+args = ["-m", "mcp.builder.server"]
+cwd = "/absolute/path/to/kitty"
+startup_timeout_sec = 30
+```
+
+Verify registration with `codex mcp get kittybuilder`, then perform an MCP
+`tools/list` handshake. A generated snapshot of the live tool schemas is kept at
+`docs/reference/KITTYBUILDER_MCP_TOOL_SCHEMA.json`; regenerate it from the live
+server rather than hand-editing tool contracts.
+
 ## Streamable HTTP
 
 For a client that needs HTTP, the server supports MCP Streamable HTTP and binds
@@ -223,3 +241,67 @@ data/kittybuilder/mcp-launch/
 
 That log is diagnostic, not authoritative. Use Builder's supported projection
 for execution truth.
+
+## Discord Command Center projection
+
+Discord serves as a typed read-only projection and control surface for Builder
+state. It provides:
+
+- Initiative/packet/attempt status queries
+- Typed commands to trigger operations (pause, resume, doctor)
+- Notification of completion/failure events
+
+**Discord is projection only.** It has:
+
+- No shell access or arbitrary command execution
+- No approval, publication, or merge capabilities
+- No direct file/worktree manipulation
+- No bypass of Builder's governance or tiering
+
+All Discord commands translate to MCP tool calls or Builder CLI invocations.
+Builder remains the single authority for execution truth, initiatives, attempts,
+leases, and recovery state.
+
+## Autonomous supervisor
+
+The autonomous campaign supervisor (`gateway/builder_supervisor.py`) is a
+stateless tick/status dispatcher that periodically checks for eligible active
+initiatives and launches canonical worker runs. It does not own a second state
+machine — all eligibility, initiative rollups, packet selection, leases,
+worktrees, attempts, validation, review and publication stay in their existing
+durable owners.
+
+The supervisor runs as a launchd service with:
+
+- `RunAtLoad: true`, `StartInterval: 900` (15 minutes)
+- No `KeepAlive` (tick-based, not continuous)
+- Fixed login-safe `PATH`, canonical repo root working directory
+- Logs under `logs/builder/supervisor.log`
+
+Each tick:
+
+1. Acquires an exclusive OS lock (`fcntl.flock`) on the supervisor lockfile
+2. Deterministically selects eligible active initiatives (ordered by ID)
+3. Picks each initiative's next eligible packet (deterministic `seq` order)
+4. Launches **at most 2** canonical free worker runs per tick
+5. Returns a truthful receipt (locked/launched/skipped)
+
+Duplicate concurrent ticks are safe: a second tick cannot acquire the lock and
+returns a `locked` receipt with no launches. Duplicate sequential ticks launch
+nothing because the already-claimed tasks are no longer queued.
+
+The supervisor never self-installs. Use:
+
+```bash
+scripts/start_builder_supervisor.sh launchd > ~/Library/LaunchAgents/com.kitty.builder.supervisor.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kitty.builder.supervisor.plist
+```
+
+CLI surface (via `./kitty builder supervisor` or the start script):
+
+- `tick` — run one supervisor pass
+- `status` — read-only projection of initiatives/eligible work/active runs
+
+The supervisor dispatches only the free OpenCode worker adapter. It has no
+model selection, no paid routing, no interactive mode. Publication and merge
+remain manual operations outside the supervisor's scope.

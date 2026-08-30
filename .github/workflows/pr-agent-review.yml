@@ -1,8 +1,10 @@
 name: PR Agent Review
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, ready_for_review, labeled, unlabeled]
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
@@ -10,34 +12,100 @@ permissions:
   issues: write
 
 concurrency:
-  group: pr-agent-review-${{ github.event.pull_request.number }}
+  # review-concurrency-class: metadata events must not cancel a code-head review.
+  # Repeated events of the same type still cancel their own superseded run.
+  # merge_group carries no pull_request.number; head_ref is unique per queue
+  # entry (gh-readonly-queue/<base>/pr-<N>-<sha>) so entries stay independent.
+  group: pr-agent-review-${{ github.event.pull_request.number || github.event.merge_group.head_ref }}-${{ github.event.action }}
   cancel-in-progress: true
 
 jobs:
-  review:
+  scope:
+    name: scope
+    # policy-gate is a required check in the merge queue, so scope (and
+    # policy-gate below) must run for merge_group too, or the queue entry
+    # blocks forever waiting for a check nothing ever reports.
+    if: ${{ github.event_name == 'merge_group' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    outputs:
+      sensitive: ${{ steps.scope.outputs.sensitive }}
+    steps:
+      - name: Checkout trusted default-branch classifier
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Classify change scope
+        id: scope
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m scripts.pr_scope
+
+  agent-review:
+    name: agent-review
+    # Independent model review is evidence only sensitive scope consumes, so it
+    # is only produced for sensitive scope. Ordinary PRs carry no external model
+    # dependency at all, and a reviewer outage cannot block them.
+    #
+    # Metadata events (edited/labeled/unlabeled) deliberately do not recall the
+    # model: policy-gate re-evaluates live PR state on those events, but the code
+    # head under review has not changed.
+    needs: scope
     if: >-
       ${{ github.event.pull_request.draft == false &&
-          github.event.pull_request.user.login != 'dependabot[bot]' }}
+          needs.scope.outputs.sensitive == 'true' &&
+          (github.event.action == 'opened' ||
+           github.event.action == 'synchronize' ||
+           github.event.action == 'reopened' ||
+           github.event.action == 'ready_for_review') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     steps:
-      - name: Skip automatic re-review after a push
-        if: ${{ github.event.action == 'synchronize' }}
-        run: echo "PR head changed; preserving the existing review without another model call."
-
-      - name: Checkout
-        if: ${{ github.event.action != 'synchronize' }}
+      - name: Checkout trusted default-branch reviewer
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
 
       - name: Setup Python
-        if: ${{ github.event.action != 'synchronize' }}
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: Run agent review
-        if: ${{ github.event.action != 'synchronize' }}
+      - name: Produce exact-head model review evidence
+        id: produce
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          PR_REVIEW_MODEL: ${{ vars.PR_REVIEW_MODEL || 'openai/gpt-4o-mini' }}
+          PR_REVIEW_MODEL: "nvidia/nemotron-3-super-120b-a12b:free"
+          PR_REVIEW_REQUEST_ATTEMPTS: "2"
         run: python scripts/pr_review.py
+
+  policy-gate:
+    name: policy-gate
+    # policy-gate classifies the live PR itself rather than trusting the scope
+    # job's answer, so a failed or skipped scope job can never downgrade a
+    # sensitive PR into one that needs no review evidence. Must also run for
+    # merge_group (see scope's if, above) — it is a required check.
+    if: ${{ always() && (github.event_name == 'merge_group' || github.event.pull_request.draft == false) }}
+    needs: [scope, agent-review]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted default-branch policy
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Enforce trusted merge policy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m scripts.pr_policy

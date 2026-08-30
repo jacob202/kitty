@@ -199,6 +199,12 @@ def test_private_guard_blocks_cloud():
         _check_private("imagen4")
     with pytest.raises(ValueError, match="private=True"):
         _check_private("dalle")
+    with pytest.raises(ValueError, match="private=True"):
+        _check_private("runware")
+    with pytest.raises(ValueError, match="private=True"):
+        _check_private("fal")
+    with pytest.raises(ValueError, match="private=True"):
+        _check_private("airforce")
 
 
 def test_private_guard_allows_local():

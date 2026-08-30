@@ -29,7 +29,15 @@ logger = logging.getLogger("kitty.web_monitor")
 MONITOR_DB = DATA_DIR / "web_monitors.db"
 CHECK_INTERVAL_SECONDS: int = 300  # 5 minutes between global poll cycles
 
-_polling_task: asyncio.Task | None = None
+# check_due() sweeps every watch sequentially, each with an HTTP round trip
+# plus a fixed inter-watch delay, so one pass can run well past the cron
+# interval that triggers it. Nothing stops that same sweep from being
+# reachable a second way — a manual POST /automations/actions/monitors.check/run
+# has no equivalent to cron's atomic per-schedule claim. A held lock means a
+# second, overlapping sweep attempt skips instead of racing the first one on
+# the same watches' last_hash/last_checked reads-then-writes.
+_sweep_lock = asyncio.Lock()
+
 
 
 def init_db() -> None:
@@ -49,6 +57,9 @@ def init_db() -> None:
                 created_at REAL
             )
         """)
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(watches)").fetchall()}
+        if "last_keyword_matched" not in cols:
+            conn.execute("ALTER TABLE watches ADD COLUMN last_keyword_matched INTEGER DEFAULT 0")
         conn.commit()
 
 
@@ -73,8 +84,6 @@ def add_watch(
 
     logger.info("Web watch added: %s -> %s", watch_id, url[:80])
 
-    # Ensure polling is running
-    _ensure_polling()
     return watch_id
 
 
@@ -87,6 +96,21 @@ def remove_watch(watch_id: str) -> bool:
         return cursor.rowcount > 0
 
 
+
+def set_watch_enabled(watch_id: str, enabled: bool) -> bool | None:
+    """Set one watch enabled state. Returns the new state, or None if missing."""
+    init_db()
+    with db_connect(MONITOR_DB) as conn:
+        row = conn.execute("SELECT 1 FROM watches WHERE id = ?", (watch_id,)).fetchone()
+        if row is None:
+            return None
+        conn.execute(
+            "UPDATE watches SET enabled = ? WHERE id = ?",
+            (1 if enabled else 0, watch_id),
+        )
+        conn.commit()
+    return enabled
+
 def list_watches() -> list[dict]:
     """List all watches."""
     init_db()
@@ -96,6 +120,15 @@ def list_watches() -> list[dict]:
             "SELECT * FROM watches ORDER BY created_at DESC"
         ).fetchall()
     return [_row_to_dict(r) for r in rows]
+
+
+def get_watch(watch_id: str) -> dict | None:
+    """Fetch one watch's current row, or None if it no longer exists."""
+    init_db()
+    with db_connect(MONITOR_DB) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM watches WHERE id = ?", (watch_id,)).fetchone()
+    return _row_to_dict(row) if row is not None else None
 
 
 async def check_now(watch_id: str) -> dict:
@@ -111,46 +144,52 @@ async def check_now(watch_id: str) -> dict:
     watch = _row_to_dict(row)
     result = await _check_watch(watch)
 
-    if result.get("changed"):
-        _notify_match(watch, result)
-
+    await _handle_watch_result(watch, result)
     return result
 
 
-def _ensure_polling() -> None:
-    global _polling_task
-    if _polling_task is None or _polling_task.done():
-        _polling_task = asyncio.create_task(_poll_loop())
+async def check_due() -> dict:
+    """Check enabled watches whose per-watch interval is due once.
 
+    Timing ownership belongs to the canonical cron/Automation lifecycle; this
+    function retains web-monitor domain semantics and per-watch cadence.
 
-async def _poll_loop() -> None:
-    """Background loop that checks all enabled watches."""
-    logger.info("Web monitor polling started")
-    while True:
-        try:
-            watches = list_watches()
-            enabled = [w for w in watches if w.get("enabled")]
+    A sweep already in progress holds `_sweep_lock` for its full duration, so
+    an overlapping call skips rather than racing it over the same watches'
+    stored state. Any watch still due when the running sweep finishes gets
+    picked up on the next scheduled tick.
+    """
+    if _sweep_lock.locked():
+        logger.info("Web monitor sweep already in progress; skipping overlapping trigger")
+        return {"checked": 0, "changed": 0, "failed": 0, "skipped": True}
 
-            for watch in enabled:
-                try:
-                    interval = watch.get("interval_minutes", 30) * 60
-                    last_checked = watch.get("last_checked", 0)
-                    if time.time() - last_checked >= interval:
-                        result = await _check_watch(watch)
-                        if result.get("changed"):
-                            _notify_match(watch, result)
-                except Exception:
-                    logger.exception("Watch check failed for %s", watch.get("id"))
+    async with _sweep_lock:
+        checked = 0
+        changed = 0
+        failed = 0
+        now = time.time()
 
-                await asyncio.sleep(2)  # small gap between checks
+        for watch in [w for w in list_watches() if w.get("enabled")]:
+            interval = float(watch.get("interval_minutes", 30)) * 60
+            last_checked = float(watch.get("last_checked", 0) or 0)
+            if interval <= 0 or now - last_checked < interval:
+                continue
 
-        except asyncio.CancelledError:
-            logger.info("Web monitor polling stopped")
-            return
-        except Exception:
-            logger.exception("Web monitor poll cycle error")
+            try:
+                result = await _check_watch(watch)
+                checked += 1
+                if result.get("changed"):
+                    changed += 1
+                if result.get("status") == "error":
+                    failed += 1
+                await _handle_watch_result(watch, result)
+            except Exception:
+                failed += 1
+                logger.exception("Watch check failed for %s", watch.get("id"))
 
-        await asyncio.sleep(CHECK_INTERVAL_SECONDS)
+            await asyncio.sleep(2)
+
+        return {"checked": checked, "changed": changed, "failed": failed}
 
 
 async def _check_watch(watch: dict) -> dict:
@@ -158,6 +197,7 @@ async def _check_watch(watch: dict) -> dict:
     url = watch["url"]
     keywords = json.loads(watch.get("keywords", "[]")) if isinstance(watch.get("keywords"), str) else (watch.get("keywords") or [])
     old_hash = watch.get("last_hash", "")
+    was_keyword_matched = bool(watch.get("last_keyword_matched", False))
 
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
@@ -169,33 +209,40 @@ async def _check_watch(watch: dict) -> dict:
 
             text = resp.text
             new_hash = hashlib.sha256(text.encode()).hexdigest()
+            lower = text.lower()
+            matches = [k for k in keywords if k.lower() in lower] if keywords else []
+            now_matched = bool(matches)
 
-            # Update last checked time and hash
+            # Update last checked time, hash, and keyword-match state.
             now = time.time()
             with db_connect(MONITOR_DB) as conn:
                 conn.execute(
-                    "UPDATE watches SET last_hash = ?, last_checked = ?, last_result = ? WHERE id = ?",
-                    (new_hash, now, text[:5000], watch["id"]),
+                    "UPDATE watches SET last_hash = ?, last_checked = ?, last_result = ?, "
+                    "last_keyword_matched = ? WHERE id = ?",
+                    (new_hash, now, text[:5000], int(now_matched), watch["id"]),
                 )
                 conn.commit()
 
-            changed = new_hash != old_hash and old_hash != ""
+            if keywords:
+                # A keyword watch's condition is "this keyword is present". It
+                # must fire only on the false -> true transition: never on
+                # every poll while content keeps changing but the keyword
+                # stays matched (that was spamming a fresh notification per
+                # poll), and never on the very first check before any
+                # baseline exists (that was a false positive on creation).
+                content_changed = old_hash != "" and now_matched and not was_keyword_matched
+            else:
+                content_changed = new_hash != old_hash and old_hash != ""
 
             result = {
                 "watch_id": watch["id"],
                 "url": url,
-                "changed": changed,
+                "changed": content_changed,
                 "hash": new_hash[:16],
                 "content_length": len(text),
             }
-
-            # Check keyword matches
-            if keywords:
-                lower = text.lower()
-                matches = [k for k in keywords if k.lower() in lower]
-                if matches:
-                    result["keyword_matches"] = matches
-                    result["changed"] = True  # keyword match counts as change
+            if matches:
+                result["keyword_matches"] = matches
 
             return result
 
@@ -204,38 +251,112 @@ async def _check_watch(watch: dict) -> dict:
         return {"status": "error", "error": str(e), "changed": False}
 
 
-def _notify_match(watch: dict, result: dict) -> None:
-    """Send notification and emit a signal when a watch finds a match."""
-    try:
-        from gateway.notify import send
-        label = watch.get("label", watch.get("url", ""))
-        keywords = result.get("keyword_matches", [])
-        kw_text = f" Keywords: {', '.join(keywords)}" if keywords else ""
-        send(
-            message=f"Watch '{label}' updated.{kw_text}",
-            title="Kitty Web Monitor",
-            url=watch.get("url"),
-            url_title="Open URL",
-        )
-    except Exception:
-        logger.exception("Failed to send watch notification")
+async def _handle_watch_result(watch: dict, result: dict) -> None:
+    """Record monitor truth, emitting a signal before any notification action."""
+    from gateway import automation_actions, automation_runs
 
-    try:
-        from gateway.signal_store import emit
-
-        emit(
-            source="web_monitor",
-            kind="watch_match",
-            payload={
-                "watch_id": watch.get("id"),
-                "label": watch.get("label"),
-                "url": watch.get("url"),
-                "keyword_matches": result.get("keyword_matches", []),
-                "changed": result.get("changed", False),
-            },
+    automation_id = f"web_monitor:{watch.get('id')}"
+    if result.get("status") == "error":
+        run = automation_runs.begin_run(
+            automation_id=automation_id,
+            action="web_monitor.notify",
+            trigger_kind="monitor",
+            trigger_ref=str(watch.get("id") or ""),
         )
-    except Exception:
-        logger.exception("Failed to emit web_monitor signal")
+        automation_runs.finish_run(
+            run["id"],
+            status="source_unavailable",
+            error=str(result.get("error") or result.get("code") or "monitor source unavailable"),
+        )
+        return
+
+    if not result.get("changed"):
+        run = automation_runs.begin_run(
+            automation_id=automation_id,
+            action="web_monitor.notify",
+            trigger_kind="monitor",
+            trigger_ref=str(watch.get("id") or ""),
+        )
+        automation_runs.finish_run(
+            run["id"],
+            status="condition_false",
+            error="watch condition did not match",
+        )
+        return
+
+    # A sweep can take a while (per-watch HTTP round trips plus a fixed
+    # inter-watch delay), so `watch` may describe a state snapshotted well
+    # before this point. Re-check against the current row right before
+    # dispatching a notification: a watch disabled or deleted since being
+    # snapshotted must not still fire.
+    current = get_watch(str(watch.get("id") or ""))
+    if current is None or not current.get("enabled"):
+        run = automation_runs.begin_run(
+            automation_id=automation_id,
+            action="web_monitor.notify",
+            trigger_kind="monitor",
+            trigger_ref=str(watch.get("id") or ""),
+        )
+        automation_runs.finish_run(
+            run["id"],
+            status="watch_disabled",
+            error="watch was disabled or deleted before its notification could dispatch",
+        )
+        return
+
+    from gateway.signal_store import emit
+
+    signal = emit(
+        source="web_monitor",
+        kind="watch_match",
+        payload={
+            "watch_id": watch.get("id"),
+            "label": watch.get("label"),
+            "url": watch.get("url"),
+            "keyword_matches": result.get("keyword_matches", []),
+            "changed": True,
+        },
+        dedupe_key=f"web_monitor:{watch.get('id')}:{result.get('hash') or ''}",
+    )
+    if signal is None:
+        return
+    await automation_actions.run_action(
+        "web_monitor.notify",
+        trigger_kind="signal",
+        automation_id=automation_id,
+        trigger_ref=str(signal["id"]),
+        policy_scope_type="automation",
+        policy_scope_id=automation_id,
+        payload={
+            "signal_id": signal["id"],
+            "watch_id": watch.get("id"),
+            "label": watch.get("label"),
+            "url": watch.get("url"),
+            "keyword_matches": result.get("keyword_matches", []),
+        },
+    )
+
+
+async def deliver_notification(payload: dict) -> object:
+    """Send a web-monitor notification as one registered Automation action."""
+    from gateway.automation_actions import ActionResult, SourceUnavailable
+    from gateway.notify import is_configured, send
+
+    if not is_configured():
+        raise SourceUnavailable("Pushover is not configured")
+    label = str(payload.get("label") or payload.get("url") or "watch")
+    keywords = payload.get("keyword_matches") or []
+    kw_text = f" Keywords: {', '.join(map(str, keywords))}" if keywords else ""
+    delivered = await asyncio.to_thread(
+        send,
+        message=f"Watch '{label}' updated.{kw_text}",
+        title="Kitty Web Monitor",
+        url=payload.get("url"),
+        url_title="Open URL",
+    )
+    if not delivered:
+        raise RuntimeError("web monitor notification was not delivered")
+    return ActionResult(result_pointer=f"signal:{payload.get('signal_id')}")
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict:
@@ -244,4 +365,6 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
         d["keywords"] = json.loads(d.get("keywords", "[]"))
     except (json.JSONDecodeError, TypeError):
         d["keywords"] = []
+    d["enabled"] = bool(d.get("enabled", 0))
+    d["last_keyword_matched"] = bool(d.get("last_keyword_matched", 0))
     return d

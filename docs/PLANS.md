@@ -1,45 +1,56 @@
 # Kitty Planning Index
 
-**Status:** Navigation and disposition index; not a roadmap  
-**Updated:** 2026-07-28  
-**Roadmap authority:** `docs/ROADMAP_V2.md` (active authority; `docs/ROADMAP.md` superseded 2026-08-08)  
-**Active mission:** `docs/ACTIVE_MISSION.md`
+**Status:** Navigation and disposition index; not a roadmap
+**Updated:** 2026-08-19
+**Roadmap authority:** `docs/ROADMAP.md` — the only roadmap
+**Mission record:** `docs/ACTIVE_MISSION.md` — KPROOF-001 is terminal/superseded; no running mission is implied
 
-`docs/ROADMAP_V2.md` is the only active roadmap (replaced `docs/ROADMAP.md` 2026-08-08). This file exists to point readers
+`docs/ROADMAP_V2.md` is a blocked milestone-detail appendix, not an active roadmap. This file exists to point readers
 to reviewed plans and to prevent older session plans from silently regaining
 authority.
 
 ## Operating rule
 
-- Use `docs/ROADMAP_V2.md` for priority and sequencing.
-- Use `docs/ACTIVE_MISSION.md` for the current bounded mission.
+- Use `docs/ROADMAP.md` for priority and sequencing.
+- Use `docs/ACTIVE_MISSION.md` for the canonical mission record; its current status is terminal, so it is not a running scope gate.
 - Treat every file under `docs/plans/` or `docs/planning/` as supporting
   evidence unless the canonical roadmap explicitly activates it.
 - A plan that describes an older repository state must be superseded or
   archived rather than left marked “ready to implement.”
+- Accepted ADRs own durable architecture decisions even when an older plan
+  contains a conflicting model, provider, or mechanism recommendation.
 
 ## Reviewed implementation plans
 
-### Image Studio — preserved later-phase direction
+### Image Lab — preserved lifecycle, superseded model/mechanism choices
 
-**Current plan:**
+**Historical reviewed plan:**
 `docs/plans/image-studio-character-first-architecture-2026-07-28.md`
 
-The reviewed target is a character-first, session-oriented Image Studio for a
-persistent fictional adult character (“James”): maximum practical identity
-consistency, photorealistic premium finals, localized repair, multi-character
-scenes, a private Qwen/open-weight adult lane, safe hosted challengers, honest
-ETA, and bounded spending.
+The July 28 plan remains useful evidence for the character-first/session-oriented
+product goal, dual hosted/private boundary, durable job lifecycle, cost discipline,
+consent/safety framing, measurable identity evidence, and bounded repair/retry
+principles.
 
-This plan is implementation-ready for later sequencing but is **not current
-work** until Phase 1 in `docs/ROADMAP.md` exits.
+**Current durable execution decision:**
+`docs/adr/0040-image-lab-flux2-execution-architecture.md`
+
+ADR 0040 supersedes the July plan's model/provider/mechanism choices where they
+conflict. The v1 architecture is FLUX.2-first, with provider-neutral `ImageIntent`,
+a versioned semantic compiler, native multi-reference and native editing as the
+first mechanism, replaceable transports, and benchmark-gated escalation to LoRA
+or other identity/repair machinery only if native capability fails Kitty's
+acceptance bar.
+
+This index does not activate Image Lab implementation by itself. Priority and
+sequencing remain owned by `docs/ROADMAP.md` plus explicit Jacob approval. KPROOF-001 no longer authorizes or blocks this work.
 
 Superseded Image Studio plans:
 
 - `docs/planning/image-studio-character-system-2026-07-24.md` — older repository
   state and provider assumptions;
 - `docs/plans/image-runner-and-recipe-cleanup.md` — runner work partially landed;
-  remaining capability-truth work moved into the current plan.
+  remaining capability-truth work moved into later architecture decisions.
 
 ### KittyBuilder
 
@@ -69,12 +80,13 @@ preserved in Git history but is no longer operational guidance.
 | Need | Authority or source |
 |---|---|
 | Current priority and sequencing | `docs/ROADMAP.md` |
-| Current bounded mission | `docs/ACTIVE_MISSION.md` |
+| Mission record / acceptance contract | `docs/ACTIVE_MISSION.md` |
 | Authority relationships | `docs/AUTHORITY_MAP.md` |
 | Product direction | `docs/NORTH_STAR.md` and `docs/KITTY_PRODUCT_ARCHITECTURE.md` |
 | Current project status | `docs/PROJECT_STATUS.md` and runtime evidence |
 | Decisions | `docs/DECISIONS.md` and `docs/adr/` |
-| Later-phase Image Studio | `docs/plans/image-studio-character-first-architecture-2026-07-28.md` |
+| Image Lab durable execution architecture | `docs/adr/0040-image-lab-flux2-execution-architecture.md` |
+| Image Lab historical lifecycle/cost/safety evidence | `docs/plans/image-studio-character-first-architecture-2026-07-28.md` |
 | Archived material | `docs/archive/` and archive manifests |
 
 A plan cannot become current work merely by being newer, more detailed, or

@@ -1,5 +1,5 @@
 'use client'
-import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   // brief / models / search / weather (full payloads)
   fetchGatewayBrief,
@@ -32,12 +32,6 @@ import {
   fetchGatewayMonitors,
   addGatewayMonitor,
   removeGatewayMonitor,
-  // tasks
-  fetchGatewayTasks,
-  createGatewayTask,
-  cancelGatewayTask,
-  fetchGatewayTaskOutput,
-  type TaskType,
   // agents
   fetchAgentSessions,
   spawnAgent,
@@ -50,6 +44,8 @@ import {
   updateCronSchedule,
   deleteCronSchedule,
   toggleCronSchedule,
+  retryAutomationRun,
+  fetchScheduleWhy,
   type CronScheduleType,
   // image
   fetchImageStatus,
@@ -60,16 +56,20 @@ import {
   fetchActions,
   approveAction,
   rejectAction,
+  executeAction,
   fetchNeedsJacob,
   snapshotState,
   fetchStateNow,
   runInboxTriage,
   // projects
   fetchProjects,
+  fetchArtifacts,
   fetchActiveProject,
   setActiveProject,
   fetchProjectNext,
   fetchProjectNextSteps,
+  fetchProjectNextStepMap,
+  fetchProjectResume,
   refreshProject,
   type GatewayProject,
   // deadlines
@@ -77,6 +77,7 @@ import {
   runDeadlineSweep,
   // cockpit health
   fetchGatewayHealth,
+  fetchHealthSurface,
   fetchChatsPersistence,
   fetchGatewayTailnet,
   // repairs
@@ -84,6 +85,10 @@ import {
   executeRepair,
   // builder control
   executeOperatorCommand,
+  // conversation -> builder job handoff
+  proposeBuilderJob,
+  approveBuilderJob,
+  resumeBuilderJob,
   // experts
   fetchExpertList,
   // signals
@@ -422,42 +427,6 @@ export function useRemoveMonitor() {
   })
 }
 
-// ── Tasks ───────────────────────────────────────────────────────────────────
-
-export function useTasks(limit = 20) {
-  return useQuery({
-    queryKey: ['tasks', limit],
-    queryFn: () => fetchGatewayTasks(limit),
-    refetchInterval: 3_000,
-  })
-}
-
-export function useCreateTask() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ goal, taskType }: { goal: string; taskType: TaskType }) =>
-      createGatewayTask(goal, taskType),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
-  })
-}
-
-export function useCancelTask() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => cancelGatewayTask(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
-  })
-}
-
-/** Only fetched when a card is expanded — output files can be long. */
-export function useTaskOutput(taskId: string | null) {
-  return useQuery({
-    queryKey: ['task-output', taskId],
-    queryFn: () => fetchGatewayTaskOutput(taskId as string),
-    enabled: Boolean(taskId),
-  })
-}
-
 // ── Agents ──────────────────────────────────────────────────────────────────
 
 export function useAgentSessions(limit = 8) {
@@ -529,6 +498,26 @@ export function useToggleCronSchedule() {
   })
 }
 
+export function useRetryAutomationRun() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (runId: string) => retryAutomationRun(runId),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['cron', 'why'] })
+      qc.invalidateQueries({ queryKey: ['cron', 'schedules'] })
+    },
+  })
+}
+
+export function useScheduleWhy(scheduleId: string | null) {
+  return useQuery({
+    queryKey: ['cron', 'why', scheduleId],
+    queryFn: () => fetchScheduleWhy(scheduleId as string),
+    enabled: scheduleId !== null,
+    retry: false,
+  })
+}
+
 // ── Image generation ────────────────────────────────────────────────────────
 
 export function useImageStatus() {
@@ -586,6 +575,14 @@ export function useRejectAction() {
   })
 }
 
+export function useExecuteAction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => executeAction(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['actions'] }),
+  })
+}
+
 // ── Inbox triage (needs_jacob) ────────────────────────────────────────────────
 
 export function useNeedsJacob() {
@@ -631,6 +628,15 @@ export function useProjects() {
   return useQuery({ queryKey: ['projects'], queryFn: fetchProjects, refetchInterval: 60_000 })
 }
 
+export function useArtifacts(limit = 100) {
+  return useQuery({
+    queryKey: ['artifacts', limit],
+    queryFn: () => fetchArtifacts(limit),
+    staleTime: 30_000,
+    retry: false,
+  })
+}
+
 export function useActiveProject() {
   return useQuery({ queryKey: ['active-project'], queryFn: fetchActiveProject, staleTime: 30_000 })
 }
@@ -650,6 +656,14 @@ export function useProjectNext(projectId: number) {
   return useQuery({
     queryKey: ['projects', projectId, 'next'],
     queryFn: () => fetchProjectNext(projectId),
+    staleTime: 60_000,
+  })
+}
+
+export function useProjectResume(projectId: number) {
+  return useQuery({
+    queryKey: ['projects', projectId, 'resume'],
+    queryFn: () => fetchProjectResume(projectId),
     staleTime: 60_000,
   })
 }
@@ -741,6 +755,15 @@ export function useGatewayHealth() {
   })
 }
 
+export function useHealthSurface() {
+  return useQuery({
+    queryKey: ['health-surface'],
+    queryFn: fetchHealthSurface,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
+  })
+}
+
 export function useRepairs() {
   return useQuery({
     queryKey: ['repairs'],
@@ -774,6 +797,38 @@ export function useOperatorCommand() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
     },
+  })
+}
+
+// Conversation -> Builder job handoff: propose does not touch Builder queue
+// state, so nothing to invalidate. Approve creates a durable initiative —
+// invalidate the same live projections OperatorControls already refreshes.
+export function useProposeBuilderJob() {
+  return useMutation({ mutationFn: proposeBuilderJob })
+}
+
+export function useApproveBuilderJob() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: approveBuilderJob,
+    onSuccess: (data) => {
+      if (data.ok) {
+        queryClient.invalidateQueries({ queryKey: ['runtime-manifest'] })
+        queryClient.invalidateQueries({ queryKey: ['work'] })
+      }
+    },
+  })
+}
+
+/** Recover a Builder job's current state after a chat reload — `missionId`
+ *  is null until a proposal has actually been approved (see
+ *  BuilderProposalCard), so the query stays disabled until then. */
+export function useResumeBuilderJob(missionId: string | null) {
+  return useQuery({
+    queryKey: ['conversation-resume', missionId],
+    queryFn: () => resumeBuilderJob(missionId as string),
+    enabled: Boolean(missionId),
+    refetchInterval: 10_000,
   })
 }
 
@@ -820,17 +875,21 @@ export function useWhatsNextSteps() {
   })
 }
 
-/** One next-step query per project, sharing the ['projects', id, 'next']
- *  cache entries with useProjectNext so ProjectsPanel and Home never
- *  double-fetch. */
+/** Read all Home project next-steps in one request. Missing steps are normal
+ *  empty state, not per-project 404s that pollute the browser console. */
 export function useProjectNextSteps(projects: GatewayProject[]) {
-  return useQueries({
-    queries: projects.map(p => ({
-      queryKey: ['projects', p.id, 'next'],
-      queryFn: () => fetchProjectNext(p.id),
-      staleTime: 60_000,
-    })),
+  const query = useQuery({
+    queryKey: ['projects', 'next-steps', 'active', projects.map(project => project.id).join(',')],
+    queryFn: () => fetchProjectNextStepMap(projects.map(project => project.id)),
+    enabled: projects.length > 0,
+    staleTime: 60_000,
   })
+  const steps = query.data ?? []
+  return projects.map(project => ({
+    data: steps.find(step => step.project_id === project.id) ?? null,
+    isPending: query.isPending,
+    isError: query.isError,
+  }))
 }
 
 export function useUploadCapture() {
@@ -839,7 +898,10 @@ export function useUploadCapture() {
     mutationFn: (file: File) => uploadCaptureFile(file),
     // Indexing runs as a gateway background task; the invalidation gives the
     // fast path, the sources card's refresh button covers the slow one.
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] })
+      void qc.invalidateQueries({ queryKey: ['artifacts'] })
+    },
   })
 }
 

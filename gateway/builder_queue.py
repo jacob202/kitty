@@ -8,9 +8,10 @@ commands, daemon/API, worker execution, worktrees, or PR automation yet.
 
 Important scope notes (see docs/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md):
 
-- This module must not modify gateway/builder.py (autonomous pipeline) or
-  gateway/task_runner.py (generic tasks). It is a separate store backed by
-  BUILDER_QUEUE_DB, not the legacy TASK_DB.
+- This durable Builder queue was independent of the legacy generic
+  gateway/task_runner.py (removed — Builder already owned this domain). The
+  legacy gateway/builder.py pipeline has been retired; this store, backed by
+  BUILDER_QUEUE_DB, is the single Builder execution authority.
 - GitHub bridge metadata is advisory after Phase 1A. The only bridge field
   that affects idempotency is bridge_external_id; re-adding the same
   (bridge_source, bridge_external_id) must fail. GitHub comments never
@@ -1594,6 +1595,92 @@ def _recover_cancelled_task_due_to_merge(
         conn.close()
 
 
+def _reconcile_recovery_residue(db_path: Path | None = None) -> dict[str, Any]:
+    """Reconcile durable ownership residue without guessing about live work.
+
+    Mechanically safe residue is cleared only when durable attempt/task state
+    proves the ownership is terminal. Ambiguous open attempts are surfaced for
+    operator attention and never executed or auto-closed.
+    """
+    init_db(db_path)
+    conn = connect(db_path)
+    released_branch_leases: list[int] = []
+    cleared_task_leases: list[str] = []
+    ambiguous_open_attempts: list[int] = []
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        has_attempts = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'packet_attempts'"
+        ).fetchone() is not None
+        terminal_attempt_leases = (
+            conn.execute(
+                """
+                SELECT l.lease_id
+                FROM branch_leases l
+                JOIN packet_attempts a ON a.lease_id = l.lease_id
+                WHERE a.outcome IS NOT NULL
+                """
+            ).fetchall()
+            if has_attempts
+            else []
+        )
+        for row in terminal_attempt_leases:
+            lease_id = int(row["lease_id"])
+            cursor = conn.execute(
+                "DELETE FROM branch_leases WHERE lease_id = ?", (lease_id,)
+            )
+            if cursor.rowcount:
+                released_branch_leases.append(lease_id)
+
+        rows = conn.execute(
+            """
+            SELECT id FROM tasks
+            WHERE state IN (?, ?, ?)
+              AND (lease_owner IS NOT NULL OR lease_token IS NOT NULL OR lease_expires_at IS NOT NULL)
+            """,
+            (DONE, BLOCKED, CANCELLED),
+        ).fetchall()
+        for row in rows:
+            task_id = str(row["id"])
+            conn.execute(
+                """
+                UPDATE tasks
+                SET lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL,
+                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                WHERE id = ?
+                """,
+                (task_id,),
+            )
+            cleared_task_leases.append(task_id)
+
+        open_rows = (
+            conn.execute(
+                """
+                SELECT a.id
+                FROM packet_attempts a
+                LEFT JOIN runs r ON r.task_id = a.task_id
+                    AND r.state IN ('starting', 'running', 'cancel_requested')
+                WHERE a.outcome IS NULL AND a.lease_id IS NULL AND r.id IS NULL
+                """
+            ).fetchall()
+            if has_attempts
+            else []
+        )
+        ambiguous_open_attempts = [int(row["id"]) for row in open_rows]
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return {
+        "released_branch_leases": released_branch_leases,
+        "cleared_task_leases": cleared_task_leases,
+        "ambiguous_open_attempts": ambiguous_open_attempts,
+    }
+
+
 def recover_durable_issues(
     db_path: Path | None = None,
     *,
@@ -1613,8 +1700,12 @@ def recover_durable_issues(
 
     ``pr_merged`` is injectable for tests (defaults to ``_gh_pr_status``).
     """
+    # Recovery is a public Python authority, not merely a CLI implementation.
+    # Ensure the durable schema exists before lease/run scanners open it.
+    init_db(db_path)
     leases = recover_expired_leases(db_path=db_path)
     runs = recover_interrupted_runs(db_path=db_path)
+    residue = _reconcile_recovery_residue(db_path=db_path)
     merges = detect_merged_prs(db_path=db_path, pr_merged=pr_merged)
     done_unmerged = _reconcile_done_unmerged_prs(
         db_path=db_path, pr_merged=pr_merged
@@ -1622,6 +1713,7 @@ def recover_durable_issues(
     return {
         **leases,
         **runs,
+        **residue,
         "promoted": merges["promoted"],
         "already_merged": merges["already_merged"],
         "merge_errors": merges["errors"],

@@ -54,6 +54,7 @@ export function InputBar({
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  const [composerFocused, setComposerFocused] = useState(false)
   const modelMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -149,6 +150,8 @@ export function InputBar({
     e.target.value = ''
   }
 
+  const controlSize = compact ? 44 : 40
+
   return (
     <div style={{
       padding: compact ? '12px 12px calc(16px + env(safe-area-inset-bottom, 0px))' : '14px 26px 20px',
@@ -233,34 +236,30 @@ export function InputBar({
 
       <div style={{
         display: 'flex',
-        alignItems: 'center',
-        gap: 11,
-        background: 'var(--surface)',
-        border: '2px solid var(--primary)',
-        borderRadius: 16,
-        padding: '12px 16px',
-        boxShadow: 'var(--input-glow)',
+        alignItems: 'flex-end',
+        gap: compact ? 4 : 6,
+        background: 'var(--color-surface)',
+        border: composerFocused ? '1px solid var(--color-accent)' : '1px solid var(--color-separator)',
+        borderRadius: 18,
+        padding: compact ? '7px 8px 7px 14px' : '9px 10px 9px 14px',
+        boxShadow: composerFocused ? '0 0 0 3px var(--color-focus-ring)' : 'var(--shadow-soft)',
         maxWidth: compact ? '100%' : undefined,
         position: 'relative',
       }}>
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 15,
-          color: 'var(--primary)',
-          flexShrink: 0,
-        }}>→</span>
-
         <textarea
           ref={ref}
           value={value}
           onChange={e => onChange(e.target.value)}
           onKeyDown={handleKey}
+          onFocus={() => setComposerFocused(true)}
+          onBlur={() => setComposerFocused(false)}
           disabled={disabled}
+          aria-label="Message Kitty"
           placeholder="ask kitty anything"
           rows={1}
           style={{
             flex: 1, background: 'none', border: 'none', outline: 'none',
-            color: 'var(--ink)', fontFamily: 'var(--font-body)', fontSize: 15,
+            color: 'var(--color-text-primary)', fontFamily: 'var(--font-body)', fontSize: compact ? 16 : 15,
             resize: 'none', minHeight: 24, maxHeight: 200, lineHeight: 1.5,
             padding: 0,
           }}
@@ -285,7 +284,7 @@ export function InputBar({
               aria-expanded={modelMenuOpen}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 36, height: 36,
+                width: controlSize, height: controlSize,
                 background: 'transparent', border: 'none', borderRadius: 99,
                 color: overrideModel ? overrideModel.color : 'var(--ink-2)',
                 cursor: disabled ? 'not-allowed' : 'pointer',
@@ -300,11 +299,11 @@ export function InputBar({
                 style={{
                   position: 'absolute', bottom: 44, right: 0, zIndex: 30,
                   minWidth: 160,
-                  background: 'var(--surface)',
-                  border: '1.5px solid var(--line)',
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-separator)',
                   borderRadius: 12,
                   padding: 6,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+                  boxShadow: 'var(--shadow)',
                   display: 'flex', flexDirection: 'column', gap: 2,
                 }}
               >
@@ -354,7 +353,7 @@ export function InputBar({
           aria-label="attach a file"
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 36, height: 36, flexShrink: 0,
+            width: controlSize, height: controlSize, flexShrink: 0,
             background: 'transparent',
             border: 'none', borderRadius: 99,
             color: 'var(--ink-2)', cursor: disabled ? 'not-allowed' : 'pointer',
@@ -371,7 +370,7 @@ export function InputBar({
             aria-label={recState === 'recording' ? 'stop recording' : 'transcribing'}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 36, height: 36, flexShrink: 0,
+              width: controlSize, height: controlSize, flexShrink: 0,
               background: recState === 'recording' ? 'var(--c-red)' : 'transparent',
               border: 'none', borderRadius: 99,
               color: recState === 'recording' ? 'var(--on-primary)' : 'var(--ink-2)',
@@ -391,7 +390,7 @@ export function InputBar({
             aria-label="stop generating"
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 36, height: 36, flexShrink: 0,
+              width: controlSize, height: controlSize, flexShrink: 0,
               background: 'var(--c-red)',
               border: 'none', borderRadius: 99,
               color: '#fff', cursor: 'pointer',
@@ -406,10 +405,10 @@ export function InputBar({
             aria-label="send message"
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 36, height: 36, flexShrink: 0,
-              background: 'var(--primary)',
+              width: controlSize, height: controlSize, flexShrink: 0,
+              background: 'var(--color-accent)',
               border: 'none', borderRadius: 99,
-              color: 'var(--on-primary)', cursor: 'pointer',
+              color: 'var(--on-accent)', cursor: 'pointer',
               boxShadow: 'var(--btn-shadow)',
             }}
           >
@@ -422,7 +421,7 @@ export function InputBar({
             aria-label="start voice input"
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 36, height: 36, flexShrink: 0,
+              width: controlSize, height: controlSize, flexShrink: 0,
               background: 'transparent',
               border: 'none', borderRadius: 99,
               color: 'var(--ink-2)', cursor: 'pointer',

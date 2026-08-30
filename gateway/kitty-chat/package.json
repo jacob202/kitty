@@ -8,6 +8,8 @@
     "start": "next start -H 127.0.0.1 -p 4000",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:smoke": "playwright test",
+    "test:smoke:hermetic": "playwright test --config playwright.hermetic.config.ts",
     "gen:api-types": "openapi-typescript http://127.0.0.1:8000/openapi.json -o src/lib/gen/gateway-schema.d.ts"
   },
   "dependencies": {

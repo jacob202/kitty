@@ -12,21 +12,6 @@ router = APIRouter(tags=["integrations"])
 # --- iMessage endpoints ---
 
 
-class iMessageSendRequest(BaseModel):
-    recipient: str = Field(min_length=1, max_length=100)
-    message: str = Field(min_length=1, max_length=2000)
-
-
-@router.post("/imessage/send")
-async def imessage_send(payload: iMessageSendRequest):
-    from gateway.imessage import is_available, send
-
-    if not is_available():
-        raise HTTPException(status_code=400, detail="iMessage not available (macOS only)")
-    success = send(payload.recipient, payload.message)
-    return {"sent": success}
-
-
 @router.get("/imessage/recent")
 async def imessage_recent(limit: int = 10):
     from gateway.imessage import is_available, read_recent
@@ -115,22 +100,6 @@ async def sync_import(request: Request):
 # --- Search endpoint consolidated into routes/search.py ---
 
 
-# --- Deploy endpoint ---
-
-
-class DeployRequest(BaseModel):
-    target_dir: str = Field(min_length=1, max_length=1000)
-    platform: str = "docker"
-    config: Optional[dict] = None
-
-
-@router.post("/deploy")
-async def deploy_project(payload: DeployRequest):
-    from gateway.deploy import deploy
-
-    return await deploy(payload.target_dir, payload.platform, payload.config)
-
-
 # --- Nudge endpoints ---
 
 
@@ -182,54 +151,6 @@ async def weather():
     from gateway.weather import get_weather
 
     return get_weather() or {"error": "weather unavailable"}
-
-
-# --- Build endpoints ---
-
-
-class BuildStartRequest(BaseModel):
-    goal: str = Field(min_length=1, max_length=3000)
-    target_dir: str = ""
-    auto_approve: bool = False
-
-
-@router.post("/build/start")
-async def build_start(payload: BuildStartRequest):
-    from gateway.builder import start
-
-    build_id = start(
-        goal=payload.goal,
-        target_dir=payload.target_dir,
-        auto_approve=payload.auto_approve,
-    )
-    return {"build_id": build_id, "status": "started"}
-
-
-@router.get("/build/{build_id}")
-async def build_status(build_id: str):
-    from gateway.builder import status
-
-    s = status(build_id)
-    if s.get("status") == "not_found":
-        raise HTTPException(status_code=404, detail="Build not found")
-    return s
-
-
-@router.post("/build/{build_id}/approve/{stage}")
-async def build_approve(build_id: str, stage: str):
-    from gateway.builder import approve_stage
-
-    approved = approve_stage(build_id, stage)
-    if not approved:
-        raise HTTPException(status_code=400, detail="Stage not awaiting approval")
-    return {"build_id": build_id, "stage": stage, "approved": True}
-
-
-@router.get("/builds")
-async def build_list(limit: int = 10):
-    from gateway.builder import list_builds
-
-    return {"builds": list_builds(limit=limit)}
 
 
 # --- Verifier endpoints ---
