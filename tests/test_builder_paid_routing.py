@@ -141,6 +141,9 @@ def test_opencode_config_has_separate_free_and_paid_agents():
     assert agents["paid-builder"]["model"] == "openrouter/xiaomi/mimo-v2.5"
     assert agents["paid-reviewer"]["model"] == "openrouter/minimax/minimax-m3"
     assert agents["paid-reviewer"]["permission"]["edit"] == "deny"
+    assert agents["pr-reviewer"]["model"] == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+    assert agents["pr-reviewer"]["permission"]["edit"] == "deny"
+    assert agents["pr-reviewer"]["permission"]["bash"] == "deny"
 
 
 def test_real_paid_routes_fail_closed_while_spend_authority_conflicts():
