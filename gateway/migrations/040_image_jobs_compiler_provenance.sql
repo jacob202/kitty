@@ -1,5 +1,0 @@
--- IL-03/IL-04: FLUX.2 compiler provenance on the durable job ledger.
--- Columns are added at runtime by image_jobs._ensure_compiler_columns() (the
--- same deferred-ALTER ordering pattern as _ensure_queue_columns), so this
--- migration file is intentionally a no-op. Old jobs remain valid with
--- compiler_version = NULL.

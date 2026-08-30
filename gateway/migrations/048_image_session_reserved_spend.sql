@@ -1,4 +1,0 @@
--- Image Lab paid-spend truth.
--- The reserved_spend_usd column is added idempotently by
--- gateway.image_sessions._ensure_spend_columns() because SQLite has no
--- ALTER TABLE ... ADD COLUMN IF NOT EXISTS. spend_usd remains settled spend.

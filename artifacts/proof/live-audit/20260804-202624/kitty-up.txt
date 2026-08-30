@@ -1,6 +1,0 @@
-Starting Kitty...
-  kitty      pid=70633  port=-     checkout=/Users/jacobbrizinski/Projects/kitty sha=cec062f7 build=C7yLZ49_4mLw-bP24lIlT
-  LiteLLM  already running (pid 56753)
-  Gateway  already running (pid 56765)
-  Waiting for gateway...
-  Gateway  healthy ✓  http://127.0.0.1:8000

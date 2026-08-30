@@ -1,4 +1,0 @@
--- Image Lab project scope.
--- The nullable image_sessions.project_id column is added idempotently by
--- gateway.image_sessions._ensure_project_column() because SQLite has no
--- ALTER TABLE ... ADD COLUMN IF NOT EXISTS. Legacy sessions remain unscoped.

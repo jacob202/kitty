@@ -1,8 +1,0 @@
-service root : /Users/jacobbrizinski/kitty-services/openwebui
-version      : 0.10.2
-data         : /Users/jacobbrizinski/kitty-services/openwebui/data-fresh
-url          : http://127.0.0.1:3000
-process      : running pid 77891
-port         : open
-Gateway ready: http://127.0.0.1:8000 (5 models, kitty-auto present)
-open webui   : healthy

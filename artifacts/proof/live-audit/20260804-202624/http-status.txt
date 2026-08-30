@@ -1,6 +1,0 @@
-gateway_health=200
-gateway_openapi=401
-litellm_readiness=200
-litellm_liveliness=200
-openwebui_root=200
-kitty_ui_root=200

@@ -1,5 +1,0 @@
--- Image outputs join Kitty's canonical Artifact spine through
--- image_jobs.canonical_artifact_id. The nullable column is added defensively by
--- image_jobs._ensure_canonical_artifact_column(), matching the deferred ALTER
--- pattern used for queue/compiler columns so isolated legacy image-job schemas
--- upgrade safely without requiring the whole application schema.
