@@ -4,7 +4,7 @@ Start with `START_HERE.md` and follow its canonical reading order before making 
 
 ## How To Work Here
 
-- Anchor every action in `/Users/jacobbrizinski/Projects/kitty`.
+- Anchor every action in `/Users/jacobbrizinnski/Projects/kitty`.
 - Treat `/Users/jacobbrizinski/Documents/Kitty` as stale unless proven otherwise.
 - Check `git status --short --branch` before editing.
 - Preserve unrelated dirty work. Stash only with a descriptive message when needed to isolate branches.

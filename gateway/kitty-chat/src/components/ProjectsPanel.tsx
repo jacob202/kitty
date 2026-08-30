@@ -4,6 +4,8 @@ import { useProjects, useProjectNextSteps, useProjectResume, useRefreshProject }
 import type { GatewayNextStep, GatewayProject } from '@/lib/gateway'
 import { Button } from '@/components/ui/Button'
 import { RefreshCw } from 'lucide-react'
+import { describeFailure } from '@/lib/failure-copy'
+import { projectNextStepCopy, projectSummaryCopy } from '@/lib/project-copy'
 
 export function ProjectsPanel() {
   const projectsQuery = useProjects()
@@ -18,9 +20,9 @@ export function ProjectsPanel() {
   if (projectsQuery.isError) {
     return (
       <div style={errorBoxStyle}>
-        <strong>projects unavailable</strong> —{' '}
-        {projectsQuery.error instanceof Error ? projectsQuery.error.message : 'gateway error'}.
-        GET /projects didn&apos;t answer; is the gateway up?
+        <strong>projects unavailable</strong> — {describeFailure(projectsQuery.error)}
+        <br />
+        <Button onClick={() => void projectsQuery.refetch()} variant="ghost" size="md">retry projects</Button>
       </div>
     )
   }
@@ -73,6 +75,8 @@ function ProjectCard({
   const touched = project.last_touched
     ? new Date(project.last_touched * 1000).toLocaleDateString('en-CA')
     : null
+  const summary = projectSummaryCopy(project)
+  const nextCopy = nextStep ? projectNextStepCopy(project, nextStep) : null
 
   return (
     <article
@@ -95,7 +99,7 @@ function ProjectCard({
         </Button>
       </div>
 
-      {project.summary && <p style={summaryStyle}>{project.summary}</p>}
+      {summary && <p style={summaryStyle}>{summary}</p>}
 
       <div data-testid="project-next-step" style={nextBoxStyle}>
         <div style={nextLabelStyle}>what&apos;s next</div>
@@ -103,13 +107,13 @@ function ProjectCard({
           <p style={mutedStyle}>checking…</p>
         ) : nextError ? (
           <p style={mutedStyle}>couldn&apos;t read the next step — refresh the project to try again.</p>
-        ) : nextStep ? (
+        ) : nextCopy ? (
           <>
-            <p style={stepStyle}>{nextStep.step}</p>
-            {nextStep.why && <p style={whyStyle}>why: {nextStep.why}</p>}
-            {nextStep.recent_win && (
+            <p style={stepStyle}>{nextCopy.step}</p>
+            {nextCopy.why && <p style={whyStyle}>why: {nextCopy.why}</p>}
+            {nextCopy.recent_win && (
               <p style={{ ...whyStyle, color: 'var(--color-success)' }}>
-                recent win: {nextStep.recent_win}
+                recent win: {nextCopy.recent_win}
               </p>
             )}
           </>
@@ -150,8 +154,7 @@ function ProjectContext({ project }: { project: GatewayProject }) {
   if (resumeQuery.isError) {
     return (
       <p style={mutedStyle}>
-        project context unavailable (
-        {resumeQuery.error instanceof Error ? resumeQuery.error.message : 'gateway error'})
+        project context unavailable — {describeFailure(resumeQuery.error)}
       </p>
     )
   }

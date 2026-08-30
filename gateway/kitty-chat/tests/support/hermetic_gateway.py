@@ -9,7 +9,9 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 import gateway.context_assembler as context_assembler
+import gateway.provider_prefs as provider_prefs
 import gateway.routes.completions as completions
+import gateway.provider_prefs as provider_prefs
 from gateway.auth import BearerAuthMiddleware
 from gateway.context_assembler import ContextBundle
 from gateway.doctor import Check
@@ -19,6 +21,10 @@ from gateway.routes.repairs import _to_repair
 
 async def _hermetic_context(*args, **kwargs) -> ContextBundle:
     return ContextBundle(system="Hermetic Kitty browser continuity test context.")
+
+
+def _hermetic_provider_preferences() -> dict[str, object]:
+    return {"order": [], "disabled": [], "active": "auto"}
 
 
 async def _hermetic_manifest(*, project_id=None) -> dict:
@@ -35,8 +41,10 @@ async def _hermetic_manifest(*, project_id=None) -> dict:
 
 
 context_assembler.assemble_context = _hermetic_context
+provider_prefs.load_preferences = _hermetic_provider_preferences
 completions.compose_manifest = _hermetic_manifest
 completions.compact_runtime_context = lambda manifest: "<kitty_runtime_truth>hermetic</kitty_runtime_truth>"
+provider_prefs.active_provider = lambda: None
 
 app = FastAPI(title="Kitty Hermetic Chat Gateway")
 app.add_middleware(BearerAuthMiddleware)
