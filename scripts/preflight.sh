@@ -213,6 +213,17 @@ else
   warn "scripts/check_continuity_state.py missing"
 fi
 
+# .gitattributes marks the two checkpoint files merge=ours, but the driver is
+# per-clone config, not something the repo can carry. Without it git silently
+# falls back to a three-way merge and they conflict on every merge again.
+if [[ -f ".gitattributes" ]] && grep -q 'merge=ours' .gitattributes 2>/dev/null; then
+  if [[ -n "$(git config --get merge.ours.driver 2>/dev/null)" ]]; then
+    ok "checkpoint merge driver registered"
+  else
+    warn "checkpoint merge driver missing, so STATE.md/HANDOFF.md will conflict on every merge; run: git config merge.ours.driver true"
+  fi
+fi
+
 # ── Verdict ─────────────────────────────────────────────────────────────────
 printf '\n'
 if [[ $FAILURES -gt 0 ]]; then
