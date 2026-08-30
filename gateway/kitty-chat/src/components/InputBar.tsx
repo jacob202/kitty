@@ -254,6 +254,7 @@ export function InputBar({
           onFocus={() => setComposerFocused(true)}
           onBlur={() => setComposerFocused(false)}
           disabled={disabled}
+          aria-label="Message Kitty"
           placeholder="ask kitty anything"
           rows={1}
           style={{

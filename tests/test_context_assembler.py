@@ -186,10 +186,10 @@ async def test_partial_result_returns_bundle_with_warnings():
     bundle = await assemble_context("hello", deps=dep)
 
     assert isinstance(bundle, ContextBundle)
-    # 3 adapter failures + 3 enrichment failures = 6 warnings.
-    assert len(bundle.warnings) == 6
+    # Source failures remain distinguishable even when the context budget also clips.
     assert sum("ConnectionError" in w for w in bundle.warnings) == 3
     assert sum("OSError" in w for w in bundle.warnings) == 3
+    assert any(w.startswith("context_budget:") for w in bundle.warnings)
     assert len(bundle.memory_items) == 6
     assert len(bundle.live_blocks) == 6
     assert bundle.system  # non-empty
@@ -283,7 +283,8 @@ async def test_end_to_end_with_fake_fan_in():
     assert "j1" in bundle.system
     assert "[CAL] today" in bundle.live_blocks
     assert "[W] sunny" in bundle.live_blocks
-    assert bundle.warnings == []
+    assert all(w.startswith("context_budget:") for w in bundle.warnings)
+    assert bundle.context_budget["truncations"] == bundle.warnings
 
 
 # ---------------------------------------------------------------------------
@@ -531,3 +532,53 @@ def test_memory_graph_py_diff_is_cap_parameterization_only():
     # The assembler passes a computed cap to _select_unified_items; the
     # graph module itself should still define the default constant.
     assert "CONTEXT_TOKEN_CAP: int = 1200" in content
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tier", ["trivial", "standard", "deep"])
+async def test_whole_model_visible_context_is_bounded_with_clipping_receipt(monkeypatch, tier):
+    import gateway.context_assembler as assembler
+
+    huge = "X" * 120_000
+    monkeypatch.setattr(assembler, "_domain_prompt", lambda *_args, **_kwargs: huge)
+    monkeypatch.setattr(assembler, "personality_block", lambda: huge)
+    monkeypatch.setattr(assembler.user_context, "load_user_context", lambda: huge)
+    deps = _AssemblerDeps(adapters=[FakeAdapter("memory", items=[])], enrichments=(), skill_hint_fn=lambda _m: huge)
+
+    bundle = await assemble_context("hello", deps=deps, tier=tier, objective=huge)
+
+    cap = assembler.TOTAL_CONTEXT_TOKEN_CAPS[tier]
+    assert len(bundle.system.encode("utf-8")) <= cap
+    assert bundle.context_budget["system_chars"] == len(bundle.system)
+    assert bundle.context_budget["system_token_upper_bound"] <= cap
+    assert bundle.context_budget["total_token_cap"] == assembler.TOTAL_CONTEXT_TOKEN_CAPS[tier]
+    assert any(block["truncated"] for block in bundle.context_budget["blocks"])
+    assert bundle.context_budget["truncations"]
+    assert any(warning.startswith("context_budget:") for warning in bundle.warnings)
+
+@pytest.mark.asyncio
+async def test_context_budget_is_utf8_conservative_and_surfaces_clipping(monkeypatch):
+    import gateway.context_assembler as assembler
+
+    huge = "🧠" * 20_000
+    monkeypatch.setattr(assembler, "_domain_prompt", lambda *_args, **_kwargs: huge)
+    monkeypatch.setattr(assembler, "personality_block", lambda: huge)
+    monkeypatch.setattr(assembler.user_context, "load_user_context", lambda: huge)
+    deps = _AssemblerDeps(adapters=[FakeAdapter("memory", items=[])], enrichments=(), skill_hint_fn=lambda _m: huge)
+    bundle = await assemble_context("hello", deps=deps, tier="standard", objective=huge)
+    cap = assembler.TOTAL_CONTEXT_TOKEN_CAPS["standard"]
+    assert len(bundle.system.encode("utf-8")) <= cap
+    assert bundle.context_budget["system_token_upper_bound"] <= cap
+    assert any(warning.startswith("context_budget:") for warning in bundle.warnings)
+
+
+def test_memory_evidence_only_reports_whole_records_in_rendered_prompt() -> None:
+    from gateway.context_assembler import _reconcile_memory_evidence
+
+    items = [
+        {"text": "first memory", "memory_id": "m1"},
+        {"text": "second memory is clipped", "memory_id": "m2"},
+    ]
+    rendered = "## Memory\nfirst memory\nsecond memory is cli\n[truncated by Kitty context budget]"
+
+    assert _reconcile_memory_evidence(items, rendered) == [items[0]]

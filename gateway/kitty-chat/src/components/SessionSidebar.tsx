@@ -89,6 +89,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
           </svg>
           <input
             type="text"
+            aria-label="Search chats"
             placeholder="search chats"
             value={search}
             onChange={e => setSearch(e.target.value)}

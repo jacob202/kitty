@@ -869,6 +869,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                     void send()
                   }
                 }}
+                aria-label="Image request"
                 placeholder="tell Kitty what you want to make or change…"
                 rows={compact ? 4 : 5}
                 style={textareaStyle}
