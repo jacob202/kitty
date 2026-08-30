@@ -19,8 +19,10 @@ task, with audit entries in the existing append-only events table.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1017,6 +1019,15 @@ def run_validation(
                 "or pass an explicit --cwd"
             )
 
+    validation_env = dict(os.environ)
+    python_bin = str(Path(sys.executable).parent)
+    inherited_path = validation_env.get("PATH", "")
+    validation_env["PATH"] = (
+        f"{python_bin}:{inherited_path}" if inherited_path else python_bin
+    )
+    if sys.prefix != sys.base_prefix:
+        validation_env["VIRTUAL_ENV"] = sys.prefix
+
     results: list[dict[str, Any]] = []
     for command in commands:
         started = time.monotonic()
@@ -1036,6 +1047,7 @@ def run_validation(
                 capture_output=True,
                 text=True,
                 timeout=timeout_seconds,
+                env=validation_env,
             )
             exit_code: int | None = proc.returncode
             output = (proc.stdout or "") + (proc.stderr or "")
