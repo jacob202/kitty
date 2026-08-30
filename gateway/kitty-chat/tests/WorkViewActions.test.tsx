@@ -51,6 +51,7 @@ function supervisor(overrides: Record<string, unknown> = {}) {
     on_hold: 9,
     last_tick_at: null,
     lock_path: '/tmp/supervisor.lock',
+    scheduler_enabled: true,
     ...overrides,
   }
 }
@@ -76,7 +77,7 @@ afterEach(() => {
 
 describe('rowAction mapping', () => {
   it('offers a retry for work Builder can pick back up', () => {
-    const action = rowAction(item({ next_action: 'recover' }), false)
+    const action = rowAction(item({ next_action: 'recover' }), false, false)
     expect(action).toMatchObject({
       kind: 'command',
       label: 'Try again',
@@ -85,7 +86,7 @@ describe('rowAction mapping', () => {
   })
 
   it('offers to resume the project when the whole initiative is on hold', () => {
-    const action = rowAction(item({ state: 'paused', next_action: 'recover' }), false)
+    const action = rowAction(item({ state: 'paused', next_action: 'recover' }), false, false)
     expect(action).toMatchObject({
       kind: 'command',
       label: 'Resume this project',
@@ -93,25 +94,31 @@ describe('rowAction mapping', () => {
     })
   })
 
-  it('says retries are used up but still lets the user try again', () => {
+  it('does not offer a retry when automatic retries are exhausted', () => {
     const action = rowAction(item({ next_action: 'exhausted' }), false)
-    expect(action.kind).toBe('command')
-    expect((action as Extract<RowAction, { kind: 'command' }>).note).toMatch(/automatic retries/i)
+    expect(action.kind).toBe('none')
+    expect((action as Extract<RowAction, { kind: 'none' }>).explanation).toMatch(/retries are used up/i)
   })
 
-  it('offers to start Builder for ready work when Builder is stopped', () => {
-    const action = rowAction(item({ next_action: 'claim' }), false)
+  it('offers to start Builder for ready work when Builder is not scheduled', () => {
+    const action = rowAction(item({ next_action: 'claim' }), false, false)
     expect(action).toMatchObject({ kind: 'tick', label: 'Start Builder' })
   })
 
+  it('explains Builder is idle for ready work when the scheduler is enabled', () => {
+    const action = rowAction(item({ next_action: 'claim' }), false, true)
+    expect(action).toMatchObject({ kind: 'none' })
+    expect((action as Extract<RowAction, { kind: 'none' }>).explanation).toMatch(/idle.*scheduled/i)
+  })
+
   it('explains the wait instead of offering a button once Builder is running', () => {
-    const action = rowAction(item({ next_action: 'claim' }), true)
+    const action = rowAction(item({ next_action: 'claim' }), true, true)
     expect(action).toMatchObject({ kind: 'none' })
     expect((action as Extract<RowAction, { kind: 'none' }>).explanation).toMatch(/pick it up/i)
   })
 
   it('refuses to offer a retry it cannot actually send', () => {
-    const action = rowAction(item({ next_action: 'recover', current_packet: null }), false)
+    const action = rowAction(item({ next_action: 'recover', current_packet: null }), false, false)
     expect(action.kind).toBe('none')
     expect((action as Extract<RowAction, { kind: 'none' }>).explanation).toMatch(/cannot retry/i)
   })
@@ -121,7 +128,7 @@ describe('rowAction mapping', () => {
     ['done', /finished/i],
     ['await_review', /review/i],
   ])('explains why %s work has no action', (nextAction, expected) => {
-    const action = rowAction(item({ next_action: nextAction }), false)
+    const action = rowAction(item({ next_action: nextAction }), false, false)
     expect(action.kind).toBe('none')
     expect((action as Extract<RowAction, { kind: 'none' }>).explanation).toMatch(expected)
   })
@@ -132,29 +139,37 @@ describe('rowAction mapping', () => {
     const nextActions = ['recover', 'exhausted', 'claim', 'await_review', 'cancelled', 'done', 'something_new', null]
     for (const nextAction of nextActions) {
       for (const running of [true, false]) {
-        const action = rowAction(item({ next_action: nextAction }), running)
-        if (action.kind === 'none') expect(action.explanation.length).toBeGreaterThan(0)
-        else expect(action.label.length).toBeGreaterThan(0)
+        for (const schedulerEnabled of [true, false]) {
+          const action = rowAction(item({ next_action: nextAction }), running, schedulerEnabled)
+          if (action.kind === 'none') expect(action.explanation.length).toBeGreaterThan(0)
+          else expect(action.label.length).toBeGreaterThan(0)
+        }
       }
     }
   })
 })
 
 describe('Builder run banner', () => {
-  it('says Builder is stopped and offers to start it', () => {
-    renderWork([item()])
-    expect(screen.getByText('Builder is stopped.')).toBeInTheDocument()
+  it('says Builder is idle when scheduler is enabled but nothing is running', () => {
+    renderWork([item()], supervisor({ scheduler_enabled: true }))
+    expect(screen.getByText('Builder is idle.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start Builder' })).not.toBeInTheDocument()
+  })
+
+  it('says Builder is not scheduled when the scheduler is disabled', () => {
+    renderWork([item()], supervisor({ scheduler_enabled: false }))
+    expect(screen.getByText('Builder is not scheduled.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start Builder' })).toBeEnabled()
   })
 
   it('explains what is ready and what is waiting on a paused project', () => {
-    renderWork([item()])
+    renderWork([item()], supervisor({ scheduler_enabled: false }))
     expect(screen.getByText(/1 job is ready to run/)).toBeInTheDocument()
     expect(screen.getByText(/9 more are on hold until their project is resumed/)).toBeInTheDocument()
   })
 
   it('confirms before starting Builder because a run can cost money', () => {
-    renderWork([item()])
+    renderWork([item()], supervisor({ scheduler_enabled: false }))
     fireEvent.click(screen.getByRole('button', { name: 'Start Builder' }))
     expect(globalThis.confirm).toHaveBeenCalledWith(expect.stringMatching(/paid models/i))
     expect(mutate).toHaveBeenCalledWith('tick', expect.anything())
@@ -162,20 +177,40 @@ describe('Builder run banner', () => {
 
   it('does not start Builder when the user declines the confirmation', () => {
     vi.stubGlobal('confirm', vi.fn(() => false))
-    renderWork([item()])
+    renderWork([item()], supervisor({ scheduler_enabled: false }))
     fireEvent.click(screen.getByRole('button', { name: 'Start Builder' }))
     expect(mutate).not.toHaveBeenCalled()
   })
 
   it('cannot be started when there is nothing it could actually run', () => {
-    renderWork([item()], supervisor({ eligible_now: 0 }))
+    renderWork([item()], supervisor({ eligible_now: 0, scheduler_enabled: false }))
     expect(screen.getByRole('button', { name: 'Start Builder' })).toBeDisabled()
   })
 
   it('reports that Builder is working instead of offering to start it', () => {
-    renderWork([item({ next_action: 'claim' })], supervisor({ running: true, active_runs: [{ id: 'run_1' }] }))
+    renderWork([item({ next_action: 'claim' })], supervisor({ running: true, active_runs: [{ id: 'run_1' }], scheduler_enabled: true }))
     expect(screen.getByText('Builder is working.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start Builder' })).not.toBeInTheDocument()
+  })
+
+  it('shows unknown status when the supervisor query has not resolved', () => {
+    const unknownSupervisor = { data: undefined, isPending: true, isError: false, error: null }
+    useSupervisor.mockReturnValue(unknownSupervisor)
+    useWorkSnapshot.mockReturnValue({ data: snapshot([item()]), isPending: false, isError: false, error: null, refetch: vi.fn() })
+    useBuilderAction.mockReturnValue({ mutate, isPending: false })
+    render(<WorkView isMobile={false} />)
+    expect(screen.getByText('Builder status is unknown.')).toBeInTheDocument()
+    expect(screen.getByText(/Could not reach Builder's supervisor/)).toBeInTheDocument()
+  })
+
+  it('shows unknown status when the supervisor query failed', () => {
+    const failedSupervisor = { data: undefined, isPending: false, isError: true, error: new Error('offline'), refetch: vi.fn() }
+    useSupervisor.mockReturnValue(failedSupervisor)
+    useWorkSnapshot.mockReturnValue({ data: snapshot([item()]), isPending: false, isError: false, error: null, refetch: vi.fn() })
+    useBuilderAction.mockReturnValue({ mutate, isPending: false })
+    render(<WorkView isMobile={false} />)
+    expect(screen.getByText('Builder status is unknown.')).toBeInTheDocument()
+    expect(screen.getByText(/Could not reach Builder's supervisor/)).toBeInTheDocument()
   })
 })
 
@@ -191,7 +226,7 @@ describe('row actions', () => {
 
   it('confirms before cancelling, then sends the cancel', () => {
     renderWork([item({ next_action: 'recover' })])
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel it' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel task' }))
     expect(globalThis.confirm).toHaveBeenCalled()
     expect(mutate).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'cancel', task_id: 'kb_task_1' }),
@@ -201,7 +236,7 @@ describe('row actions', () => {
 
   it('offers no cancel for work that already finished', () => {
     renderWork([item({ next_action: 'done', state: 'completed' })])
-    expect(screen.queryByRole('button', { name: 'Cancel it' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel task' })).not.toBeInTheDocument()
     expect(screen.getByText(/this one is finished/i)).toBeInTheDocument()
   })
 

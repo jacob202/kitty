@@ -293,6 +293,10 @@ def _launch_run(
     The detached child owns ``builder_loop.run_packet`` and therefore creates
     the attempt bundle, validation evidence, reviewer binding, and durable run
     state. The supervisor owns only dispatch and returns promptly.
+
+    Before launching, verifies the task is still in a dispatchable state.
+    The supervisor holds an exclusive lock during this check-and-launch
+    window, so no other tick can change the task state concurrently.
     """
     del worker, model  # the canonical free CLI owns worker/model routing
     root = (repo_root or repo_root_default()).resolve()
@@ -303,6 +307,26 @@ def _launch_run(
     initiative_id = str(packet["initiative_id"])
     packet_id = str(packet["packet_id"])
     task_id = str(packet["task_id"])
+
+    task = bq.get_task(task_id, db_path=db_path)
+    if task is None:
+        raise SupervisorError(
+            f"task {task_id} disappeared before launch"
+        )
+    task_state = str(task["state"])
+    if task_state not in {bq.QUEUED, bq.BLOCKED}:
+        raise SupervisorError(
+            f"task {task_id} is {task_state}, not dispatchable; "
+            "another process claimed it"
+        )
+    if task_state == bq.BLOCKED and not ba.list_stale_attempts(
+        initiative_id, packet_id, db_path=db_path
+    ):
+        raise SupervisorError(
+            f"blocked task {task_id} has no stale attempt; "
+            "operator release is required"
+        )
+
     command = [
         str(kitty), "builder", "initiative", "run-packet",
         initiative_id, packet_id, "--free", "--json",
@@ -432,10 +456,12 @@ def status(db_path: Path | None = None) -> dict[str, Any]:
                     "worker": run.get("worker"),
                 }
             )
+    queue_enabled = os.environ.get("KITTY_BUILDER_QUEUE_ENABLED", "1") != "0"
     return {
         "lock": {"path": str(_lock_path(db_path))},
         "initiatives": rollup,
         "active_runs": active_runs,
+        "scheduler_enabled": queue_enabled,
     }
 
 

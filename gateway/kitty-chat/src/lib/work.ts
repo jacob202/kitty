@@ -226,6 +226,7 @@ export interface GatewaySupervisor {
   on_hold: number
   last_tick_at: string | null
   lock_path: string | null
+  scheduler_enabled: boolean
 }
 
 export interface BuilderCommandResult {
@@ -250,19 +251,26 @@ function isSupervisor(value: unknown): value is GatewaySupervisor {
     && typeof value.eligible_now === 'number'
     && typeof value.on_hold === 'number'
     && isNullableString(value.last_tick_at)
+    && typeof value.scheduler_enabled === 'boolean'
   )
 }
 
 export async function fetchSupervisor(): Promise<GatewaySupervisor> {
   const endpoint = `${GATEWAY_BASE}/builder/supervisor`
-  const response = await fetch(endpoint)
-  if (!response.ok) {
-    const detail = await errorDetail(response)
-    throw new Error(`GET ${endpoint} failed: ${response.status}${detail ? `: ${detail}` : ''}`)
+  const controller = new AbortController()
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+  try {
+    const response = await fetch(endpoint, { signal: controller.signal })
+    if (!response.ok) {
+      const detail = await errorDetail(response)
+      throw new Error(`GET ${endpoint} failed: ${response.status}${detail ? `: ${detail}` : ''}`)
+    }
+    const payload: unknown = await response.json()
+    if (!isSupervisor(payload)) throw new Error('Gateway /builder/supervisor returned an invalid payload')
+    return payload
+  } finally {
+    globalThis.clearTimeout(timeoutId)
   }
-  const payload: unknown = await response.json()
-  if (!isSupervisor(payload)) throw new Error('Gateway /builder/supervisor returned an invalid payload')
-  return payload
 }
 
 export function useSupervisor() {
@@ -279,29 +287,36 @@ export function useSupervisor() {
 // a non-200 as the only failure would report those refusals as success, so the
 // body is the authority and transport failure is folded into the same shape.
 async function postCommandResult(endpoint: string, body: unknown): Promise<BuilderCommandResult> {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body ?? {}),
-  })
-  let payload: unknown = null
+  const controller = new AbortController()
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
   try {
-    payload = await response.json()
-  } catch {
-    payload = null
-  }
-  if (isRecord(payload) && typeof payload.ok === 'boolean') {
-    return {
-      ok: payload.ok,
-      action: typeof payload.action === 'string' ? payload.action : undefined,
-      error: typeof payload.error === 'string' ? payload.error : null,
-      detail: payload.detail,
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+      signal: controller.signal,
+    })
+    let payload: unknown = null
+    try {
+      payload = await response.json()
+    } catch {
+      payload = null
     }
+    if (isRecord(payload) && typeof payload.ok === 'boolean') {
+      return {
+        ok: payload.ok,
+        action: typeof payload.action === 'string' ? payload.action : undefined,
+        error: typeof payload.error === 'string' ? payload.error : null,
+        detail: payload.detail,
+      }
+    }
+    if (!response.ok) {
+      return { ok: false, error: `Request failed: ${response.status} ${response.statusText}`.trim() }
+    }
+    return { ok: false, error: 'Builder returned an unreadable response.' }
+  } finally {
+    globalThis.clearTimeout(timeoutId)
   }
-  if (!response.ok) {
-    return { ok: false, error: `Request failed: ${response.status} ${response.statusText}`.trim() }
-  }
-  return { ok: false, error: 'Builder returned an unreadable response.' }
 }
 
 export function runBuilderCommand(command: BuilderCommand): Promise<BuilderCommandResult> {

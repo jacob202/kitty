@@ -19,6 +19,7 @@ function supervisor(overrides: Record<string, unknown> = {}) {
     on_hold: 9,
     last_tick_at: null,
     lock_path: '/tmp/supervisor.lock',
+    scheduler_enabled: true,
     ...overrides,
   }
 }

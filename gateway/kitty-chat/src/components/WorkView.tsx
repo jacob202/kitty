@@ -38,6 +38,8 @@ export default function WorkView({
   const supervisor = useSupervisor()
   const snapshot = work.data
   const builderRunning = supervisor.data?.running ?? false
+  const schedulerEnabled = supervisor.data?.scheduler_enabled ?? true
+  const supervisorKnown = !supervisor.isPending && !supervisor.isError && supervisor.data != null
   const sourceLabel = snapshot && isExpired(snapshot.valid_until) ? 'stale' : snapshot?.source.state
   const sourceReason = snapshot?.source.state === 'degraded' ? boundedSourceReason(snapshot.source.reason) : null
 
@@ -67,7 +69,10 @@ export default function WorkView({
             </div>
           </div>
           {sourceReason && <DegradedSourceNotice reason={sourceReason} />}
-          {supervisor.data && <BuilderRunBanner supervisor={supervisor.data} />}
+          {supervisor.data
+            ? <BuilderRunBanner supervisor={supervisor.data} schedulerEnabled={schedulerEnabled} supervisorKnown={supervisorKnown} />
+            : <BuilderRunBanner supervisor={{ schema_version: 1, running: false, active_runs: [], eligible_now: 0, on_hold: 0, last_tick_at: null, lock_path: null, scheduler_enabled: true }} schedulerEnabled={true} supervisorKnown={false} />
+          }
         </header>
 
         {work.isPending && <Notice>Loading work…</Notice>}
@@ -103,7 +108,7 @@ export default function WorkView({
                 {(['needs-you', 'in-progress', 'completed'] as WorkGroup[]).map(group => {
                   const items = snapshot.items.filter(item => workGroup(item) === group)
                   if (items.length === 0) return null
-                  return <WorkGroupSection key={group} group={group} items={items} builderRunning={builderRunning} />
+                  return <WorkGroupSection key={group} group={group} items={items} builderRunning={builderRunning} schedulerEnabled={schedulerEnabled} />
                 })}
               </div>
             )}
@@ -114,7 +119,7 @@ export default function WorkView({
   )
 }
 
-function WorkGroupSection({ group, items, builderRunning }: { group: WorkGroup; items: GatewayWorkItem[]; builderRunning: boolean }) {
+function WorkGroupSection({ group, items, builderRunning, schedulerEnabled }: { group: WorkGroup; items: GatewayWorkItem[]; builderRunning: boolean; schedulerEnabled: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const visibleItems = expanded ? items : items.slice(0, INITIAL_GROUP_ITEMS)
   const remaining = items.length - visibleItems.length
@@ -128,7 +133,7 @@ function WorkGroupSection({ group, items, builderRunning }: { group: WorkGroup; 
       </div>
       <div data-testid="work-group-list" style={groupListStyle}>
         {visibleItems.map((item, index) => (
-          <WorkRow key={item.id} item={item} isLast={index === visibleItems.length - 1} builderRunning={builderRunning} />
+          <WorkRow key={item.id} item={item} isLast={index === visibleItems.length - 1} builderRunning={builderRunning} schedulerEnabled={schedulerEnabled} />
         ))}
       </div>
       {items.length > INITIAL_GROUP_ITEMS && (
@@ -254,7 +259,7 @@ export type RowAction =
   | { kind: 'tick'; label: string; note?: string; confirm: string }
   | { kind: 'none'; explanation: string }
 
-export function rowAction(item: GatewayWorkItem, builderRunning: boolean): RowAction {
+export function rowAction(item: GatewayWorkItem, builderRunning: boolean, schedulerEnabled: boolean = true): RowAction {
   const taskId = item.current_packet?.task_id ?? null
   const initiativeId = item.source.initiative_id
 
@@ -269,7 +274,6 @@ export function rowAction(item: GatewayWorkItem, builderRunning: boolean): RowAc
 
   switch (item.next_action) {
     case 'recover':
-    case 'exhausted':
       if (!taskId) {
         return { kind: 'none', explanation: 'Kitty cannot retry this — Builder did not record which job it belongs to.' }
       }
@@ -277,14 +281,20 @@ export function rowAction(item: GatewayWorkItem, builderRunning: boolean): RowAc
         kind: 'command',
         label: 'Try again',
         command: { action: 'requeue', task_id: taskId, reason: 'Retried from Work' },
-        note: item.next_action === 'exhausted'
-          ? 'Builder already used up its automatic retries on this one.'
-          : undefined,
+      }
+    case 'exhausted':
+      return {
+        kind: 'none',
+        explanation: 'Automatic retries are used up. You can requeue it manually from Builder details if needed.',
       }
     case 'claim':
-      return builderRunning
-        ? { kind: 'none', explanation: 'Ready to go. Builder will pick it up on its next pass.' }
-        : { kind: 'tick', label: 'Start Builder', confirm: START_BUILDER_CONFIRM, note: 'Ready to go, but Builder is stopped.' }
+      if (builderRunning) {
+        return { kind: 'none', explanation: 'Ready to go. Builder will pick it up on its next pass.' }
+      }
+      if (!schedulerEnabled) {
+        return { kind: 'tick', label: 'Start Builder', confirm: START_BUILDER_CONFIRM, note: 'Ready to go, but Builder is not scheduled.' }
+      }
+      return { kind: 'none', explanation: 'Ready to go. Builder is idle but scheduled; it will pick this up on its next tick.' }
     case 'await_review':
       return { kind: 'none', explanation: 'Finished and waiting for a review. Kitty cannot start that for you yet.' }
     case 'cancelled':
@@ -297,7 +307,7 @@ export function rowAction(item: GatewayWorkItem, builderRunning: boolean): RowAc
 }
 
 const START_BUILDER_CONFIRM =
-  'Start Builder? It will begin working on jobs that are ready, which can use paid models.'
+  'Start Builder? It will scan all ready jobs and start working on them, which can use paid models.'
 
 function canCancel(item: GatewayWorkItem): boolean {
   const terminal = item.next_action === 'cancelled' || item.next_action === 'done' || item.state === 'completed'
@@ -320,7 +330,7 @@ function workDetailLabel(item: GatewayWorkItem): string | null {
   return raw
 }
 
-function WorkRow({ item, isLast, builderRunning }: { item: GatewayWorkItem; isLast: boolean; builderRunning: boolean }) {
+function WorkRow({ item, isLast, builderRunning, schedulerEnabled }: { item: GatewayWorkItem; isLast: boolean; builderRunning: boolean; schedulerEnabled: boolean }) {
   const approval = approvalLabel(item)
   const rawDetail = rawWorkDetail(item)
   const detail = workDetailLabel(item)
@@ -336,7 +346,7 @@ function WorkRow({ item, isLast, builderRunning }: { item: GatewayWorkItem; isLa
         <span style={{ ...stateLabelStyle, color: STATE_COLORS[item.state] }}>{item.state}</span>
       </div>
       {detail && <div style={{ color: 'var(--color-text-secondary)', fontSize: 13.5, lineHeight: 1.5 }}>{detail}</div>}
-      <RowActions item={item} builderRunning={builderRunning} />
+      <RowActions item={item} builderRunning={builderRunning} schedulerEnabled={schedulerEnabled} />
       {evidence.length > 0 && (
         <div style={evidenceRowStyle}>
           {evidence.map(label => <span key={label}>{label}</span>)}
@@ -361,8 +371,8 @@ function WorkRow({ item, isLast, builderRunning }: { item: GatewayWorkItem; isLa
 }
 
 
-function RowActions({ item, builderRunning }: { item: GatewayWorkItem; builderRunning: boolean }) {
-  const action = rowAction(item, builderRunning)
+function RowActions({ item, builderRunning, schedulerEnabled }: { item: GatewayWorkItem; builderRunning: boolean; schedulerEnabled: boolean }) {
+  const action = rowAction(item, builderRunning, schedulerEnabled)
   const builderAction = useBuilderAction()
   const [result, setResult] = useState<string | null>(null)
 
@@ -401,11 +411,11 @@ function RowActions({ item, builderRunning }: { item: GatewayWorkItem; builderRu
               disabled={busy}
               onClick={() => run(
                 { action: 'cancel', task_id: item.current_packet!.task_id!, reason: 'Cancelled from Work' },
-                `Cancel "${item.title || item.id}"? It will stop and stay stopped until you send it back.`,
+                `Cancel this task? Builder will stop working on it and it will stay stopped until you requeue it.`,
               )}
               style={{ ...secondaryActionStyle, opacity: busy ? 0.6 : 1 }}
             >
-              Cancel it
+              Cancel task
             </button>
           )}
         </div>
@@ -415,7 +425,7 @@ function RowActions({ item, builderRunning }: { item: GatewayWorkItem; builderRu
   )
 }
 
-function BuilderRunBanner({ supervisor }: { supervisor: GatewaySupervisor }) {
+function BuilderRunBanner({ supervisor, schedulerEnabled, supervisorKnown }: { supervisor: GatewaySupervisor; schedulerEnabled: boolean; supervisorKnown: boolean }) {
   const builderAction = useBuilderAction()
   const [result, setResult] = useState<string | null>(null)
 
@@ -423,6 +433,28 @@ function BuilderRunBanner({ supervisor }: { supervisor: GatewaySupervisor }) {
     return (
       <div style={bannerStyle}>
         <div><strong>Builder is working.</strong> {describeReady(supervisor)}</div>
+      </div>
+    )
+  }
+
+  if (!supervisorKnown) {
+    return (
+      <div style={bannerStyle}>
+        <div style={{ display: 'grid', gap: 4 }}>
+          <strong>Builder status is unknown.</strong>
+          <span>Could not reach Builder's supervisor. Check the gateway connection.</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (schedulerEnabled) {
+    return (
+      <div style={bannerStyle}>
+        <div style={{ display: 'grid', gap: 4 }}>
+          <strong>Builder is idle.</strong>
+          <span>Scheduled but nothing is running right now. {describeReady(supervisor)}</span>
+        </div>
       </div>
     )
   }
@@ -439,7 +471,7 @@ function BuilderRunBanner({ supervisor }: { supervisor: GatewaySupervisor }) {
   return (
     <div style={bannerStyle}>
       <div style={{ display: 'grid', gap: 4 }}>
-        <strong>Builder is stopped.</strong>
+        <strong>Builder is not scheduled.</strong>
         <span>Nothing moves until you start it. {describeReady(supervisor)}</span>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

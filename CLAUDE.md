@@ -74,10 +74,10 @@ ownership.
   report exact pass/fail counts. Full suite, lint, typecheck, and build are `/qg`
   or CI unless Jacob explicitly requests them. `AGENTS.md` states the same rule.
 - Local commits are expected.
-- Push work up by default; do not hold finished commits on one disk waiting for
-  confirmation. `main` is branch-protected, so the path is branch, push, open a
-  PR, then handle CI and review without pinging Jacob. Report after, not before.
-  Builder may publish its approved packet branches only under ADRs 0018 and 0021.
+- Push requires explicit authorization from Jacob — never push autonomously.
+  Once authorized, the path is branch, push, open a PR, then handle CI and
+  review without pinging Jacob. Report after, not before. Builder may publish
+  its approved packet branches only under ADRs 0018 and 0021.
 
 ## Auth and environment
 

@@ -22,11 +22,12 @@ def client():
     return TestClient(app)
 
 
-def _projection(*, initiatives, active_runs):
+def _projection(*, initiatives, active_runs, scheduler_enabled=True):
     return {
         "lock": {"path": "/data/kittybuilder/supervisor.lock"},
         "initiatives": initiatives,
         "active_runs": active_runs,
+        "scheduler_enabled": scheduler_enabled,
     }
 
 
@@ -72,6 +73,7 @@ class TestSupervisorStatusEndpoint:
             "on_hold": 0,
             "last_tick_at": None,
             "lock_path": "/data/kittybuilder/supervisor.lock",
+            "scheduler_enabled": True,
         }
 
     def test_reports_the_counts_the_launcher_would_honour(self, client, monkeypatch):
@@ -228,7 +230,7 @@ class TestSupervisorTickEndpoint:
         body = response.json()
         assert body["ok"] is False
         assert body["started"] == []
-        assert "canonical worker adapter missing" in body["error"]
+        assert "worker script is missing" in body["error"]
 
     def test_launch_error_entries_surface_as_ok_false(self, client, monkeypatch):
         receipt = {
@@ -257,5 +259,5 @@ class TestSupervisorTickEndpoint:
         assert response.status_code == 200
         body = response.json()
         assert body["ok"] is False
-        assert "Kitty launcher missing" in body["error"]
+        assert "Kitty launcher is missing" in body["error"]
         assert body["detail"] == receipt

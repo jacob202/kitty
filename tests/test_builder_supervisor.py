@@ -61,14 +61,14 @@ def _apply(
     packets: list[dict[str, Any]],
     *,
     repo_root: Path | None = None,
-) -> None:
+) -> dict[str, Any]:
     manifest = {
         "manifest_version": 1,
         "initiative_id": initiative_id,
         "title": f"Initiative {initiative_id}",
         "packets": packets,
     }
-    bi.apply_manifest(manifest, db_path=db_path, repo_root=repo_root)
+    return bi.apply_manifest(manifest, db_path=db_path, repo_root=repo_root)
 
 
 def test_lock_basic(db_path: Path) -> None:
@@ -256,7 +256,9 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
     kitty = repo / "kitty"
     kitty.write_text("#!/bin/sh\n", encoding="utf-8")
     kitty.chmod(0o755)
-    packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": "task-1"}
+    result_apply = _apply(db_path, "test-init-1", [_packet("p1")], repo_root=repo)
+    task_id = result_apply["packets"][0]["task_id"]
+    packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": task_id}
 
     with patch("gateway.builder_supervisor.subprocess.Popen") as popen:
         popen.return_value.pid = 4321
@@ -268,7 +270,22 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
     assert popen.call_args.kwargs["shell"] is False
     assert result["status"] == "dispatched"
     assert result["launcher_pid"] == 4321
-    assert result["task_id"] == "task-1"
+    assert result["task_id"] == task_id
+
+
+def test_launch_run_refuses_when_task_already_claimed(repo: Path, db_path: Path) -> None:
+    """_launch_run must not launch if the task left dispatchable state."""
+    kitty = repo / "kitty"
+    kitty.write_text("#!/bin/sh\n", encoding="utf-8")
+    kitty.chmod(0o755)
+    result_apply = _apply(db_path, "test-init-1", [_packet("p1")], repo_root=repo)
+    task_id = result_apply["packets"][0]["task_id"]
+    # Claim the task so it is no longer dispatchable
+    bq.claim_task(task_id, "other-worker", db_path=db_path)
+    packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": task_id}
+
+    with pytest.raises(bs.SupervisorError, match="not dispatchable"):
+        bs._launch_run(packet, repo_root=repo, db_path=db_path)
 
 
 
