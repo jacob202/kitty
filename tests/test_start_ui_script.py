@@ -18,7 +18,7 @@ def _write_executable(path: Path, body: str) -> None:
     path.chmod(0o755)
 
 
-def _fake_repo(tmp_path: Path, *, build_id: bool) -> Path:
+def _fake_repo(tmp_path: Path, *, build_id: bool, source_stamp: bool = True) -> Path:
     root = tmp_path / "repo"
     (root / "scripts" / "desktop").mkdir(parents=True)
     (root / "gateway" / "lib").mkdir(parents=True)
@@ -43,6 +43,15 @@ def _fake_repo(tmp_path: Path, *, build_id: bool) -> Path:
         next_dir = root / "gateway" / "kitty-chat" / ".next"
         next_dir.mkdir()
         (next_dir / "BUILD_ID").write_text("test-build\n", encoding="utf-8")
+        if source_stamp:
+            head = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            (next_dir / "KITTY_SOURCE_SHA").write_text(head, encoding="utf-8")
         standalone = next_dir / "standalone"
         standalone.mkdir()
         (standalone / "server.js").write_text("// fake standalone server\n", encoding="utf-8")
@@ -121,6 +130,26 @@ def test_current_build_starts_without_rebuilding(tmp_path):
     assert "build is current" in result.stdout
     assert not any("run build" in call for call in calls)
     assert any("node .next/standalone/server.js" in call for call in calls)
+
+
+def test_unstamped_build_is_rebuilt_so_its_source_is_provable(tmp_path):
+    # `next build` clears .next, so a build run outside this script leaves a
+    # current BUILD_ID with no source stamp. `kitty status` then reports the
+    # build source as unknown, and an unnameable build cannot back any claim
+    # about what the running UI contains.
+    root = _fake_repo(tmp_path, build_id=True, source_stamp=False)
+    _set_build_newer_than_source(root)
+
+    result, calls = _run(root, tmp_path)
+
+    assert result.returncode == 0
+    assert "no source stamp" in result.stdout
+    assert calls[0].startswith("npm run build")
+    stamp = root / "gateway" / "kitty-chat" / ".next" / "KITTY_SOURCE_SHA"
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    assert stamp.read_text(encoding="utf-8").strip() == head
 
 
 def test_source_newer_than_build_triggers_rebuild(tmp_path):
