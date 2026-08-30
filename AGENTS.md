@@ -39,6 +39,13 @@ inspection alone; use the final states in `verified-delivery`.
 
 ## Git, credentials, and irreversible actions
 
+The canonical checkout is an observation/integration point, not the default
+implementation workspace. Before creating any task branch intended for a PR,
+resolve the fresh GitHub `main` SHA and base the task worktree/branch on that
+SHA. Do not base new PR work on local `main` unless you have just proven it
+equals GitHub `main`; local-only integration commits can silently contaminate
+the PR.
+
 Keep small Conventional Commits. Never force-push, rewrite history, delete data,
 touch secrets/auth/env, spend money, add a heavy dependency, merge, or push
 directly to `main` without explicit authorization. An explicit instruction from
