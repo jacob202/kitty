@@ -181,7 +181,9 @@ function ResumedBuilderJob({
   const found = Boolean(data?.mission?.id)
   const status = jobStatus(data)
   const taskId = data?.current_work?.task_id || undefined
-  const command = commandFor(status, missionId, taskId, supervisor.data)
+  const packetId = data?.current_work?.packet_id || undefined
+  const nextAction = data?.next_action || undefined
+  const command = commandFor(status, nextAction, missionId, packetId, taskId, supervisor.data)
   const terminal = status === 'completed' || status === 'cancelled'
 
   const runCommand = (nextCommand: BuilderCommand | 'tick') => {
@@ -260,6 +262,8 @@ function ResumedBuilderJob({
 type JobStatus = 'queued' | 'running' | 'blocked' | 'failed' | 'waiting_review' | 'cancelled' | 'completed' | 'paused' | 'unknown'
 
 function jobStatus(data: ConversationResume | undefined): JobStatus {
+  const nextAction = String(data?.next_action || '').toLowerCase()
+  if (nextAction === 'exhausted') return 'failed'
   const raw = String(data?.current_work?.state || data?.mission?.state || '').toLowerCase()
   if (raw === 'queued' || raw === 'ready' || raw === 'pending') return 'queued'
   if (raw === 'claimed' || raw === 'running' || raw === 'active' || raw === 'in_progress') return 'running'
@@ -280,7 +284,17 @@ function statusLabel(status: JobStatus): string {
   }[status]
 }
 
-function commandFor(status: JobStatus, initiativeId: string, taskId: string | undefined, supervisor: { running?: boolean; eligible_now?: number } | undefined): BuilderCommand | 'tick' | null {
+function commandFor(
+  status: JobStatus,
+  nextAction: string | undefined,
+  initiativeId: string,
+  packetId: string | undefined,
+  taskId: string | undefined,
+  supervisor: { running?: boolean; eligible_now?: number } | undefined,
+): BuilderCommand | 'tick' | null {
+  if (nextAction?.toLowerCase() === 'exhausted' && packetId) {
+    return { action: 'grant_attempt', initiative_id: initiativeId, packet_id: packetId, reason: 'Granted one retry from chat' }
+  }
   if (status === 'queued' && supervisor && !supervisor.running && (supervisor.eligible_now ?? 0) > 0) return 'tick'
   if ((status === 'failed' || status === 'blocked') && taskId) return { action: 'requeue', task_id: taskId, reason: 'Retried from chat' }
   if (status === 'paused') return { action: 'resume', initiative_id: initiativeId }
@@ -289,7 +303,7 @@ function commandFor(status: JobStatus, initiativeId: string, taskId: string | un
 
 function commandLabel(command: BuilderCommand | 'tick'): string {
   if (command === 'tick') return 'Start this work'
-  if (command.action === 'requeue') return 'Try again'
+  if (command.action === 'requeue' || command.action === 'grant_attempt') return 'Try again'
   if (command.action === 'resume') return 'Resume this work'
   return 'Update this work'
 }

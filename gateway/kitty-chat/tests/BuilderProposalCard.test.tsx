@@ -192,7 +192,6 @@ describe('BuilderProposalCard', () => {
   it('maps retry, resume, and cancel to the existing Builder commands', async () => {
     const cases = [
       ['failed', /try again/i, { action: 'requeue', task_id: 'task-private-id' }],
-      ['exhausted', /try again/i, { action: 'requeue', task_id: 'task-private-id' }],
       ['paused', /resume this work/i, { action: 'resume', initiative_id: 'mission-private-id' }],
       ['running', /cancel this work/i, { action: 'cancel', task_id: 'task-private-id' }],
     ] as const
@@ -206,6 +205,22 @@ describe('BuilderProposalCard', () => {
       expect(mutate).toHaveBeenCalledWith(expect.objectContaining(command), expect.anything())
       vi.mocked(gateway.resumeBuilderJob).mockReset()
     }
+  })
+
+  it('grants one more attempt when durable projection says retries are exhausted', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'mission-private-id')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue(resumePayload({
+      mission: { id: 'mission-private-id', state: 'active' },
+      current_work: { packet_id: 'PACKET-001', task_id: 'task-private-id', state: 'queued', attempt_count: 3 },
+      next_action: 'exhausted',
+    }))
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+    fireEvent.click(await screen.findByRole('button', { name: /try again/i }))
+    expect(mutate).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'grant_attempt',
+      initiative_id: 'mission-private-id',
+      packet_id: 'PACKET-001',
+    }), expect.anything())
   })
 
   it('offers a manual status refresh and keeps the persisted mission after resume failure', async () => {
