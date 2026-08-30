@@ -2,27 +2,8 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
 
-const { useWorkSnapshot, useSupervisor, useBuilderAction, mutate } = vi.hoisted(() => ({
-  useWorkSnapshot: vi.fn(),
-  useSupervisor: vi.fn(),
-  useBuilderAction: vi.fn(),
-  mutate: vi.fn(),
-}))
-vi.mock('../src/lib/work', () => ({ useWorkSnapshot, useSupervisor, useBuilderAction }))
-
-function supervisor(overrides: Record<string, unknown> = {}) {
-  return {
-    schema_version: 1,
-    running: false,
-    active_runs: [],
-    eligible_now: 1,
-    on_hold: 9,
-    last_tick_at: null,
-    lock_path: '/tmp/supervisor.lock',
-    budget: { weekly_budget_cad: 6, estimated_spend_cad: 0.25, remaining_cad: 5.75, runs: 4, retries: 1, basis: 'local estimate' },
-    ...overrides,
-  }
-}
+const { useWorkSnapshot } = vi.hoisted(() => ({ useWorkSnapshot: vi.fn() }))
+vi.mock('../src/lib/work', () => ({ useWorkSnapshot }))
 
 function snapshot(validUntil = '2099-01-01T00:00:00Z', totalItems = 1) {
   return {
@@ -34,7 +15,6 @@ function snapshot(validUntil = '2099-01-01T00:00:00Z', totalItems = 1) {
     queue: null,
     item_limit: 50,
     total_items: totalItems,
-    historical_items: 48,
     items: [{
       id: 'WORK-SPINE-003',
       title: 'Ship Gateway Work Spine',
@@ -51,28 +31,14 @@ function snapshot(validUntil = '2099-01-01T00:00:00Z', totalItems = 1) {
   }
 }
 
-function renderSnapshot(data = snapshot(), supervisorData: unknown = supervisor()) {
+function renderSnapshot(data = snapshot()) {
   useWorkSnapshot.mockReturnValue({ data, isPending: false, isError: false, error: null, refetch: vi.fn() })
-  useSupervisor.mockReturnValue({ data: supervisorData, isPending: false, isError: false, error: null })
-  useBuilderAction.mockReturnValue({ mutate, isPending: false })
   render(<WorkView isMobile={false} />)
 }
 
 describe('WorkView projection', () => {
-  beforeEach(() => {
-    useWorkSnapshot.mockReset()
-    useSupervisor.mockReset()
-    useBuilderAction.mockReset()
-    mutate.mockReset()
-    useSupervisor.mockReturnValue({ data: supervisor(), isPending: false, isError: false, error: null })
-    useBuilderAction.mockReturnValue({ mutate, isPending: false })
-  })
+  beforeEach(() => useWorkSnapshot.mockReset())
   afterEach(cleanup)
-
-  it('reports preserved historical Builder initiatives without mixing them into current work', () => {
-    renderSnapshot()
-    expect(screen.getByText(/48 historical Builder initiatives hidden/i)).toBeInTheDocument()
-  })
 
   it('renders Gateway work truth', () => {
     renderSnapshot()
