@@ -490,11 +490,13 @@ describe('HomeState', () => {
     expect(screen.getAllByText('degraded').length).toBeGreaterThan(0);
     expect(screen.getByText('still functional')).toBeInTheDocument();
     // reason is hidden until the row is expanded
-    expect(screen.queryByText('OLLAMA_BASE is not reachable')).not.toBeInTheDocument();
+    expect(screen.queryByText(/OLLAMA_BASE/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /local AI/i }));
     expect(await screen.findByText('collapse')).toBeInTheDocument();
-    expect(screen.queryByText('OLLAMA_BASE is not reachable')).not.toBeInTheDocument();
-    expect(screen.getByText(/This part of Kitty is unavailable right now/i)).toBeInTheDocument();
+    // raw internal env var name must never reach the user
+    expect(screen.queryByText(/OLLAMA_BASE/)).not.toBeInTheDocument();
+    // the sanitized cause should appear instead of the generic status-only copy
+    expect(screen.getByText(/is not reachable/i)).toBeInTheDocument();
   });
 
   it('surfaces the pending approvals count when grants await', () => {

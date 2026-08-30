@@ -90,7 +90,7 @@ export function BuilderGlance({ onOpen }: BuilderGlanceProps) {
         <div style={cardHeader}><div style={cardTitle}>builder</div></div>
         <p style={{ ...bodyText, margin: 0 }}>
           {isUnavailable
-            ? 'Builder state is not available from the runtime manifest.'
+            ? 'Builder state is not available yet.'
             : 'nothing queued — ready when you are'}
         </p>
         <div>
@@ -193,7 +193,7 @@ export function BuilderSurface({ fact, isLoading, error, onBack }: BuilderSurfac
       <SurfaceHeader onBack={onBack} observedAt={fact.observed_at} />
       {stale && <StaleNotice />}
       {fact.state === 'degraded' && fact.reason && (
-        <DataQualityNotice detail={fact.reason} />
+        <DataQualityNotice detail={fact.reason} inBuilder />
       )}
       {snapshot.initiatives.length === 0 ? (
         <div style={card}>
@@ -250,7 +250,7 @@ function UnavailableState({
   error?: string | null
   onBack?: () => void
 }) {
-  const detail = fact?.reason || error || 'The runtime manifest did not return Builder state.'
+  const detail = fact?.reason || error || 'Builder state could not be loaded.'
   return (
     <section style={surfaceLayout}>
       <SurfaceHeader onBack={onBack} observedAt={fact?.observed_at} />
@@ -297,7 +297,35 @@ function StaleNotice() {
   )
 }
 
-function DataQualityNotice({ detail }: { detail: string }) {
+/** Translate Builder-internal jargon into plain language before it reaches the user. */
+function translateBuilderDetail(raw: string): string {
+  // Known internal patterns get clean, deterministic replacements.
+  if (/partial packet records?/i.test(raw)) return 'Some Builder work is incomplete.'
+  if (/transition history/i.test(raw)) return 'Builder activity history needs attention.'
+
+  // Unknown strings get internal naming stripped.
+  return raw
+    .replace(/\b[A-Z][A-Z_0-9]{2,}\b/g, '')        // ENV_VAR style names
+    .replace(/\/[a-z][\w/.\-]*/gi, '')               // /api/routes etc.
+    .replace(/\blocalhost:\d+/gi, '')                  // localhost:4110
+    .replace(/\b\d{3,5}\b/g, '')                      // bare port/error numbers
+    .replace(/[,;:\-–]+/g, ' ')                       // leftover punctuation
+    .replace(/\s{2,}/g, ' ')                          // collapse whitespace
+    .trim()
+}
+
+function DataQualityNotice({ detail, inBuilder }: { detail: string; inBuilder?: boolean }) {
+  const clean = translateBuilderDetail(detail)
+  if (inBuilder) {
+    return (
+      <div role="status" style={{ ...card, borderColor: 'var(--warning, var(--line))', display: 'grid', gap: 4 }}>
+        <strong style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)' }}>
+          Builder details are incomplete
+        </strong>
+        <span style={{ ...bodyText, overflowWrap: 'anywhere' }}>{clean}</span>
+      </div>
+    )
+  }
   const message = /partial packet records?|transition history/i.test(detail)
     ? 'Some Builder work is incomplete. Open Builder for details.'
     : 'Some Builder status details are incomplete. Open Builder for details.'
@@ -774,9 +802,9 @@ function PacketDetail({
         </div>
       </header>
       {stale && <StaleNotice />}
-      {degradedReason && <DataQualityNotice detail={degradedReason} />}
+      {degradedReason && <DataQualityNotice detail={degradedReason} inBuilder />}
       {packet.data_quality.state === 'partial' && (
-        <DataQualityNotice detail={packet.data_quality.issues.join(' ')} />
+        <DataQualityNotice detail={packet.data_quality.issues.join(' ')} inBuilder />
       )}
       {needsAction && (
         <div style={{ ...card, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderColor: 'var(--c-yellow)' }}>
@@ -1132,9 +1160,9 @@ function builderGlanceDetail(
   isLoading: boolean,
   error: unknown,
 ): string {
-  if (isLoading && !fact) return 'Checking the Builder runtime manifest.'
+  if (isLoading && !fact) return 'Checking Builder status.'
   if (!fact?.value || fact.state === 'unavailable' || fact.state === 'unknown') {
-    return fact?.reason || (error instanceof Error ? error.message : 'Builder state is not available from the runtime manifest.')
+    return fact?.reason || (error instanceof Error ? error.message : 'Builder state is not available yet.')
   }
   if (fact.state === 'degraded') return 'Some Builder work is incomplete. Open Builder for details.'
   if (fact.state === 'stale' || isExpired(fact.valid_until)) {

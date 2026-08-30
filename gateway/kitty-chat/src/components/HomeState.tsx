@@ -548,10 +548,29 @@ const HEALTH_LABELS: Record<string, string> = {
   pending_grants: 'pending approvals',
 };
 
-function healthReasonCopy(status: string): string {
-  if (status === 'unavailable') return 'This part of Kitty is unavailable right now. Refresh health to check again.';
-  if (status === 'degraded') return 'This part of Kitty is having trouble right now. Refresh health to check again.';
-  if (status === 'stale') return 'This status is out of date. Refresh health to check again.';
+/** Strip internal naming (env vars, routes, hostnames) that must never reach the user. */
+function sanitizeReason(raw: string): string {
+  return raw
+    .replace(/\b[A-Z][A-Z_0-9]{2,}\b/g, '')        // ENV_VAR style names
+    .replace(/\/[a-z][\w/.\-]*/gi, '')               // /api/routes, /health/surface etc.
+    .replace(/localhost:\d+/gi, '')                    // localhost:4110
+    .replace(/\b\d{3,5}\b/g, '')                      // bare port/error numbers
+    .replace(/[,;:\-–]+/g, ' ')                       // leftover punctuation
+    .replace(/\s{2,}/g, ' ')                          // collapse whitespace
+    .trim()
+}
+
+function healthReasonCopy(status: string, reason?: string): string {
+  const clean = reason ? sanitizeReason(reason) : '';
+  if (status === 'unavailable') {
+    return clean || 'This part of Kitty is unavailable right now. Refresh health to check again.';
+  }
+  if (status === 'degraded') {
+    return clean || 'This part of Kitty is having trouble right now. Refresh health to check again.';
+  }
+  if (status === 'stale') {
+    return 'This status is out of date. Refresh health to check again.';
+  }
   return 'No additional issue details are available.';
 }
 
@@ -634,7 +653,7 @@ function HealthSurfaceCard() {
                 </button>
                 {open && (
                   <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 0 }}>
-                    {healthReasonCopy(domain?.status ?? 'unknown')}
+                    {healthReasonCopy(domain?.status ?? 'unknown', domain?.reason)}
                   </div>
                 )}
               </div>
