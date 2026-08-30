@@ -17,7 +17,10 @@ WORK_ITEM_LIMIT = 50
 
 def _build(source, now=None):
     observed = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    items = [_project_work_item(item) for item in source.get("initiatives", [])]
+    initiatives = source.get("initiatives", [])
+    historical = [item for item in initiatives if item.get("superseded_by")]
+    current = [item for item in initiatives if not item.get("superseded_by")]
+    items = [_project_work_item(item) for item in current]
     ranked = _rank_work_items(items)
     bounded = _select_bounded_work_items(ranked, WORK_ITEM_LIMIT)
     return {
@@ -30,6 +33,7 @@ def _build(source, now=None):
         "items": bounded,
         "item_limit": WORK_ITEM_LIMIT,
         "total_items": len(items),
+        "historical_items": len(historical),
     }
 
 

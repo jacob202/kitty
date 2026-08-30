@@ -98,6 +98,9 @@ export default function WorkView({
             {snapshot.total_items > snapshot.items.length && (
               <div style={summaryMetaStyle}>Showing {snapshot.items.length} of {snapshot.total_items} most relevant items from Builder.</div>
             )}
+            {(snapshot.historical_items ?? 0) > 0 && (
+              <div style={summaryMetaStyle}>{snapshot.historical_items} historical Builder initiatives hidden from current work.</div>
+            )}
             {snapshot.items.length === 0 ? <Notice>No Builder work is currently projected.</Notice> : (
               <div style={{ display: 'grid', gap: 22 }}>
                 {(['needs-you', 'in-progress', 'completed'] as WorkGroup[]).map(group => {
@@ -435,7 +438,10 @@ function BuilderRunBanner({ supervisor }: { supervisor: GatewaySupervisor }) {
   if (supervisor.running) {
     return (
       <div style={bannerStyle}>
-        <div><strong>Builder is working.</strong> {describeReady(supervisor)}</div>
+        <div style={{ display: 'grid', gap: 4 }}>
+          <div><strong>Builder is working.</strong> {describeReady(supervisor)}</div>
+          <span>{describeBudget(supervisor)}</span>
+        </div>
       </div>
     )
   }
@@ -454,6 +460,7 @@ function BuilderRunBanner({ supervisor }: { supervisor: GatewaySupervisor }) {
       <div style={{ display: 'grid', gap: 4 }}>
         <strong>Builder is stopped.</strong>
         <span>Nothing moves until you start it. {describeReady(supervisor)}</span>
+        <span>{describeBudget(supervisor)}</span>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
@@ -468,6 +475,13 @@ function BuilderRunBanner({ supervisor }: { supervisor: GatewaySupervisor }) {
       </div>
     </div>
   )
+}
+
+function describeBudget(supervisor: GatewaySupervisor): string {
+  const spent = supervisor.budget.estimated_spend_cad.toFixed(2)
+  const budget = supervisor.budget.weekly_budget_cad.toFixed(2)
+  const runWord = supervisor.budget.runs === 1 ? 'run' : 'runs'
+  return `CAD ${spent} of CAD ${budget} estimated this week · ${supervisor.budget.runs} ${runWord}.`
 }
 
 function describeReady(supervisor: GatewaySupervisor): string {

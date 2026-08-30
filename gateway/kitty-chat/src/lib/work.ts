@@ -71,6 +71,7 @@ export interface GatewayWorkSnapshot {
   items: GatewayWorkItem[]
   item_limit: number
   total_items: number
+  historical_items?: number
 }
 
 const WORK_STATES = new Set<GatewayWorkState>([
@@ -173,6 +174,7 @@ function isWorkSnapshot(value: unknown): value is GatewayWorkSnapshot {
     && value.items.every(isWorkItem)
     && typeof value.item_limit === 'number'
     && typeof value.total_items === 'number'
+    && (value.historical_items === undefined || (typeof value.historical_items === 'number' && Number.isFinite(value.historical_items) && value.historical_items >= 0))
   )
 }
 
@@ -226,6 +228,14 @@ export interface GatewaySupervisor {
   on_hold: number
   last_tick_at: string | null
   lock_path: string | null
+  budget: {
+    weekly_budget_cad: number
+    estimated_spend_cad: number
+    remaining_cad: number
+    runs: number
+    retries: number
+    basis: string
+  }
 }
 
 export interface BuilderCommandResult {
@@ -251,6 +261,13 @@ function isSupervisor(value: unknown): value is GatewaySupervisor {
     && typeof value.eligible_now === 'number'
     && typeof value.on_hold === 'number'
     && isNullableString(value.last_tick_at)
+    && isRecord(value.budget)
+    && typeof value.budget.weekly_budget_cad === 'number'
+    && typeof value.budget.estimated_spend_cad === 'number'
+    && typeof value.budget.remaining_cad === 'number'
+    && typeof value.budget.runs === 'number'
+    && typeof value.budget.retries === 'number'
+    && typeof value.budget.basis === 'string'
   )
 }
 

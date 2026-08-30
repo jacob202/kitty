@@ -209,7 +209,7 @@ def test_blocked_without_a_stale_attempt_needs_operator_release(db_path: Path) -
     # claimed a launch. The supervisor must skip it with a nameable reason.
     packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": "task-1", "seq": 1}
     initiative = {"id": "test-init-1", "state": bi.INITIATIVE_ACTIVE}
-    with patch.object(bi, "list_initiatives", return_value=[initiative]):
+    with patch.object(bi, "list_initiative_gates", return_value=[initiative]):
         with patch.object(bs, "active_initiatives", return_value=[initiative]):
             with patch.object(bi, "next_packet", return_value=packet):
                 with patch.object(bq, "get_task", return_value={"id": "task-1", "state": bq.BLOCKED}):
@@ -275,6 +275,18 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
 def test_supervisor_launcher_defaults_to_repo_venv() -> None:
     launcher = (Path(__file__).parents[1] / "scripts" / "start_builder_supervisor.sh").read_text()
     assert 'PYTHON="${KITTYBUILDER_PYTHON:-${REPO_ROOT}/venv/bin/python}"' in launcher
+
+def test_budget_summary_initializes_an_empty_compute_ledger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    ledger = tmp_path / "compute-governor.db"
+    monkeypatch.setenv("KITTY_COMPUTE_GOVERNOR_DB", str(ledger))
+
+    summary = bs.budget_summary()
+
+    assert summary["weekly_budget_cad"] == 6.0
+    assert summary["estimated_spend_cad"] == 0.0
+    assert summary["runs"] == 0
+    assert ledger.exists()
+
 
 def test_status_projection(repo: Path, db_path: Path) -> None:
     """status() returns initiatives, eligible packets, active runs."""
@@ -382,7 +394,7 @@ def test_dispatchable_counts_include_blocked_recovery_work(db_path: Path) -> Non
     # pressing "Start Builder" actually starts.
     packet = {"initiative_id": "init-1", "packet_id": "p1", "task_id": "task-1", "seq": 1}
     initiative = {"id": "init-1", "state": bi.INITIATIVE_ACTIVE}
-    with patch.object(bi, "list_initiatives", return_value=[initiative]):
+    with patch.object(bi, "list_initiative_gates", return_value=[initiative]):
         with patch.object(bs, "active_initiatives", return_value=[initiative]):
             with patch.object(bi, "next_packet", return_value=packet):
                 with patch.object(bq, "get_task", return_value={"id": "task-1", "state": bq.BLOCKED}):
@@ -399,13 +411,24 @@ def test_dispatchable_counts_exclude_work_already_running(db_path: Path) -> None
     packet = {"initiative_id": "init-1", "packet_id": "p1", "task_id": "task-1", "seq": 1}
     initiative = {"id": "init-1", "state": bi.INITIATIVE_ACTIVE}
     running = [{"id": "run-1", "state": sorted(RUN_ACTIVE_STATES)[0]}]
-    with patch.object(bi, "list_initiatives", return_value=[initiative]):
+    with patch.object(bi, "list_initiative_gates", return_value=[initiative]):
         with patch.object(bs, "active_initiatives", return_value=[initiative]):
             with patch.object(bi, "next_packet", return_value=packet):
                 with patch.object(bq, "get_task", return_value={"id": "task-1", "state": bq.QUEUED}):
                     with patch.object(bq, "list_runs", return_value=running):
                         counts = bs.dispatchable_counts(db_path)
                         selected, _ = bs._select_packets(db_path, max_runs=1)
+
+    assert counts == {"now": 0, "on_hold": 0}
+    assert selected == []
+
+
+def test_superseded_initiative_is_not_launchable_or_counted_on_hold(repo: Path, db_path: Path) -> None:
+    _apply(db_path, "old-init", [_packet("p1")], repo_root=repo)
+    bi.supersede_initiative("old-init", "KITTY-RECOVERY-001", db_path=db_path)
+
+    counts = bs.dispatchable_counts(db_path)
+    selected, _ = bs._select_packets(db_path, max_runs=1)
 
     assert counts == {"now": 0, "on_hold": 0}
     assert selected == []

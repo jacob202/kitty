@@ -1540,3 +1540,30 @@ class TestCp04HealthMetrics:
         assert main(["initiative", "status", "kitty-alpha-v1"]) == 0
         out = capsys.readouterr().out
         assert "health:" in out
+
+
+def test_supersede_initiative_preserves_history_and_terminal_truth(db_path: Path):
+    bi.apply_manifest(_manifest(), db_path=db_path)
+    bi.pause_initiative("kitty-alpha-v1", reason="real prior pause reason", db_path=db_path)
+
+    bi.supersede_initiative("kitty-alpha-v1", "KITTY-RECOVERY-001", db_path=db_path)
+
+    stored = bi.get_initiative("kitty-alpha-v1", db_path=db_path)
+    assert stored is not None
+    assert stored["state"] == bi.INITIATIVE_PAUSED
+    assert stored["pause_reason"] == "real prior pause reason"
+    assert stored["superseded_by"] == "KITTY-RECOVERY-001"
+    assert stored["superseded_at"] is not None
+
+
+def test_resuming_superseded_initiative_explicitly_restores_it(db_path: Path):
+    bi.apply_manifest(_manifest(), db_path=db_path)
+    bi.supersede_initiative("kitty-alpha-v1", "KITTY-RECOVERY-001", db_path=db_path)
+
+    bi.resume_initiative("kitty-alpha-v1", db_path=db_path)
+
+    stored = bi.get_initiative("kitty-alpha-v1", db_path=db_path)
+    assert stored is not None
+    assert stored["state"] == bi.INITIATIVE_ACTIVE
+    assert stored["superseded_by"] is None
+    assert stored["superseded_at"] is None

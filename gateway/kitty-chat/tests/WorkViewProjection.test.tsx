@@ -19,6 +19,7 @@ function supervisor(overrides: Record<string, unknown> = {}) {
     on_hold: 9,
     last_tick_at: null,
     lock_path: '/tmp/supervisor.lock',
+    budget: { weekly_budget_cad: 6, estimated_spend_cad: 0.25, remaining_cad: 5.75, runs: 4, retries: 1, basis: 'local estimate' },
     ...overrides,
   }
 }
@@ -33,6 +34,7 @@ function snapshot(validUntil = '2099-01-01T00:00:00Z', totalItems = 1) {
     queue: null,
     item_limit: 50,
     total_items: totalItems,
+    historical_items: 48,
     items: [{
       id: 'WORK-SPINE-003',
       title: 'Ship Gateway Work Spine',
@@ -66,6 +68,11 @@ describe('WorkView projection', () => {
     useBuilderAction.mockReturnValue({ mutate, isPending: false })
   })
   afterEach(cleanup)
+
+  it('reports preserved historical Builder initiatives without mixing them into current work', () => {
+    renderSnapshot()
+    expect(screen.getByText(/48 historical Builder initiatives hidden/i)).toBeInTheDocument()
+  })
 
   it('renders Gateway work truth', () => {
     renderSnapshot()
