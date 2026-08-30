@@ -6,6 +6,8 @@ import { CapturePanel } from '@/components/CapturePanel';
 import { BuilderGlance } from '@/components/BuilderSurface';
 import { InsightReturnCard } from '@/components/InsightReturnCard';
 import { useDashboardConfig } from '@/hooks/useDashboardConfig';
+import { describeFailure } from '@/lib/failure-copy';
+import { projectNextStepCopy } from '@/lib/project-copy';
 import {
   useStateChanges,
   useActions,
@@ -191,6 +193,19 @@ const SEVERITY_COLORS: Record<string, string> = {
   error: 'var(--c-red)',
 }
 
+function repairTitle(title: string, detail?: string | null): string {
+  const raw = `${title} ${detail ?? ''}`
+  if (/transition history/i.test(raw)) return 'Builder activity history needs attention'
+  if (/partial packet records?/i.test(raw)) return 'Some Builder work is incomplete'
+  return title
+}
+
+function repairDetail(title: string, detail?: string | null): string {
+  const raw = `${title} ${detail ?? ''}`
+  if (/transition history|partial packet records?/i.test(raw)) return ''
+  return detail ?? ''
+}
+
 function RepairsCard() {
   const repairs = useRepairs()
   const execRepair = useExecuteRepair()
@@ -263,12 +278,12 @@ function RepairsCard() {
                 flex: 1,
               }}
             >
-              {item.title}
+              {repairTitle(item.title, item.detail)}
             </span>
           </div>
-          {item.detail && (
+          {repairDetail(item.title, item.detail) && (
             <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 14 }}>
-              {item.detail}
+              {repairDetail(item.title, item.detail)}
             </div>
           )}
           {item.fix && (
@@ -496,7 +511,7 @@ function HealthStrip() {
             label={
               storeOk
                 ? `saved chats · ${persistence.data?.count ?? 0}`
-                : `saved chats unavailable${persistence.data?.error ? ` · ${persistence.data.error}` : ''}`
+                : `saved chats unavailable${persistence.data?.error ? ` · ${describeFailure(persistence.data.error)}` : ''}`
             }
           />
         </>
@@ -520,18 +535,54 @@ const HEALTH_TONES: Record<string, 'ok' | 'warn' | 'bad'> = {
 };
 
 const HEALTH_LABELS: Record<string, string> = {
-  gateway: 'core service',
-  database: 'database',
+  gateway: 'Kitty connection',
+  database: 'saved data',
   memory: 'memory',
-  automation_supervisor: 'automation',
-  cron: 'cron',
-  telegram: 'telegram',
+  automation_supervisor: 'background tasks',
+  cron: 'scheduled tasks',
+  telegram: 'messages',
   image_lab: 'image lab',
-  image_providers: 'image providers',
-  image_queue: 'image queue',
-  ollama: 'ollama',
+  image_providers: 'image creation',
+  image_queue: 'image jobs',
+  ollama: 'local AI',
   pending_grants: 'pending approvals',
 };
+
+// An allowlist, not a scrub. Health reasons are built from exception class
+// names, provider ids, ports and HTTP codes, so a denylist either passes
+// through the causes it does not recognise or shreds the sentence into a
+// fragment. Match a known cause and say what it means; otherwise fall back to
+// status-level copy and leave the raw reason to the technical disclosure.
+const HEALTH_REASON_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/litellm|model (?:router|proxy)/i, "Kitty can't reach the part that talks to the AI models."],
+  [/semantic memory unavailable/i, "Search over what Kitty remembers is down. Notes you saved yourself still work."],
+  [/embedding runtime/i, "The local AI behind search and memory isn't answering. Notes you saved yourself still work."],
+  [/sqlite|database is locked|no such table/i, "Kitty couldn't read its own saved data."],
+  [/grant store/i, "Kitty couldn't read your saved approvals."],
+  [/unresolved provider outcome/i, 'Some image jobs stopped without a result and need to be retried.'],
+  [/queue read failed/i, "Kitty couldn't read the list of image jobs."],
+  [/no image provider available|drawthings|comfyui/i, 'No image generator is available right now.'],
+  [/need attention/i, 'A background task needs attention.'],
+  [/did not start|task (?:exited|stopped)|worker exited|shutdown/i, 'A background task stopped running.'],
+  [/not configured/i, "This part isn't set up yet."],
+  [/no tracked services|no image workers tracked/i, 'Nothing is running here yet.'],
+];
+
+function healthReasonCopy(status: string, reason?: string): string {
+  const raw = reason?.trim() ?? '';
+  const known = raw ? HEALTH_REASON_PATTERNS.find(([pattern]) => pattern.test(raw)) : undefined;
+  if (known) return known[1];
+  if (status === 'unavailable') {
+    return 'This part of Kitty is unavailable right now. Refresh health to check again.';
+  }
+  if (status === 'degraded') {
+    return 'This part of Kitty is having trouble right now. Refresh health to check again.';
+  }
+  if (status === 'stale') {
+    return 'This status is out of date. Refresh health to check again.';
+  }
+  return 'No additional issue details are available.';
+}
 
 // One operator-facing surface for "is Kitty working, and if not exactly what
 // is wrong". Rows for every domain, a degraded section that expands the reason
@@ -554,7 +605,10 @@ function HealthSurfaceCard() {
   if (surface.isError || !surface.data || !surface.data.ok) {
     return (
       <SectionCard title="health" span>
-        <ErrorCard message={surface.data?.error ?? 'health surface unavailable'} />
+        <ErrorCard
+          message={describeFailure(surface.error ?? surface.data?.error)}
+          onRetry={() => surface.refetch()}
+        />
       </SectionCard>
     );
   }
@@ -609,7 +663,15 @@ function HealthSurfaceCard() {
                 </button>
                 {open && (
                   <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 0 }}>
-                    {domain?.reason || 'no reason recorded'}
+                    {healthReasonCopy(domain?.status ?? 'unknown', domain?.reason)}
+                    {domain?.reason?.trim() && (
+                      <details style={homeDisclosureStyle}>
+                        <summary style={homeSummaryStyle}>Technical details</summary>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, wordBreak: 'break-word' }}>
+                          {domain.reason}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 )}
               </div>
@@ -707,31 +769,30 @@ function WhatsNext({
   // control instead of staying stuck on "loading…" while other queries settle.
 
   if (sessionContext.isError) {
-    const message = sessionContext.error instanceof Error ? sessionContext.error.message : 'Could not reach the gateway';
     const retry = () => queryClient.invalidateQueries({ queryKey: ['session', 'context'] });
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
+        <ErrorCard message={describeFailure(sessionContext.error)} onRetry={retry} />
       </SectionCard>
     );
   }
 
   if (actionsQuery.isError || projectsQuery.isError) {
+    const failed = actionsQuery.isError ? actionsQuery : projectsQuery;
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={OFFLINE_FIX} />
+        <ErrorCard message={describeFailure(failed.error)} onRetry={() => failed.refetch()} />
       </SectionCard>
     );
   }
 
   if (todosQuery.isError || needsJacob.isError) {
     const failed = todosQuery.isError ? todosQuery : needsJacob;
-    const message = failed.error instanceof Error ? failed.error.message : 'Could not reach the gateway';
     const retryKey = todosQuery.isError ? ['todos'] : ['inbox', 'needs_jacob'];
     const retry = () => queryClient.invalidateQueries({ queryKey: retryKey });
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
+        <ErrorCard message={describeFailure(failed.error)} onRetry={retry} />
       </SectionCard>
     );
   }
@@ -781,6 +842,7 @@ function WhatsNext({
   const project: GatewayProject | undefined = step
     ? (projectsQuery.data ?? []).find((p) => p.id === step.project_id)
     : undefined;
+  const displayStep = step && project ? projectNextStepCopy(project, step) : step;
   const todo = (todosQuery.data ?? []).find(
     (t) => t.status === 'pending' || t.status === 'active',
   );
@@ -845,12 +907,12 @@ function WhatsNext({
             </button>
           </div>
         </div>
-      ) : step ? (
+      ) : displayStep ? (
         <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={heroTextStyle}>{step.step}</div>
+          <div style={heroTextStyle}>{displayStep.step}</div>
           <div style={heroMetaStyle}>
             {project ? `${project.name} · ` : ''}
-            {step.why ? `why: ${step.why}` : 'project next step'}
+            {displayStep.why ? `why: ${displayStep.why}` : 'project next step'}
           </div>
           <div>
             <button type="button" onClick={() => onNavigate('projects')} style={primaryButtonStyle} aria-label="open projects">
@@ -936,7 +998,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
   if (projectsQuery.isError) {
     return (
       <SectionCard title="active projects">
-        <ErrorCard message="unavailable" />
+        <ErrorCard message={describeFailure(projectsQuery.error)} onRetry={() => projectsQuery.refetch()} />
       </SectionCard>
     );
   }
@@ -973,6 +1035,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
         const idx = projects.indexOf(p);
         const stepQuery = stepQueries[idx];
         const step = stepQuery?.data;
+        const displayStep = step ? projectNextStepCopy(p, step) : null;
         return (
           <button
             key={p.id}
@@ -1008,9 +1071,9 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
               {stepQuery?.isPending
                 ? '…'
                 : stepQuery?.isError
-                  ? 'next step unreadable — gateway error'
-                  : step
-                    ? step.step
+                  ? 'next step unavailable — try again from Projects'
+                  : displayStep
+                    ? displayStep.step
                     : 'no next step yet — refresh it in projects'}
             </div>
           </button>
@@ -1150,9 +1213,9 @@ function PhoneAccessCard() {
     return (
       <SectionCard title="phone access">
         <div style={{ ...homeEmptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div>phone access isn't set up yet — it needs Tailscale running on this Mac.</div>
+          <div>Phone access needs its secure connection app running on this Mac.</div>
           <div style={{ ...bodyText, fontSize: 11 }}>
-            Open the Tailscale app to access Kitty from your phone.
+            Open the phone access app, then try Kitty from your phone again.
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button
@@ -1160,7 +1223,7 @@ function PhoneAccessCard() {
               onClick={() => window.open('tailscale://', '_blank')}
               style={actionButtonStyle}
             >
-              open Tailscale
+              open phone access
             </button>
             <button
               type="button"
@@ -1231,7 +1294,7 @@ function Deadlines() {
   if (deadlines.data?.fromLiveGateway === false) {
     return (
       <SectionCard title="deadlines" action={sweepButton}>
-        <ErrorCard message="unavailable" />
+        <ErrorCard message={describeFailure(deadlines.data?.error)} onRetry={() => deadlines.refetch()} />
       </SectionCard>
     );
   }
@@ -1429,7 +1492,7 @@ function WhatChanged() {
 // ── Needs you (action queue) ─────────────────────────────────────────────────
 
 function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEntry) => void }) {
-  const { data: actions = [], isError, isPending } = useActions('proposed');
+  const { data: actions = [], isError, isPending, error, refetch } = useActions('proposed');
   const needsJacob = useNeedsJacob();
   const approve = useApproveAction();
   const execute = useExecuteAction();
@@ -1454,7 +1517,7 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
   if (isError) {
     return (
       <SectionCard title="needs you">
-        <ErrorCard message="unavailable" />
+        <ErrorCard message={describeFailure(error)} onRetry={() => refetch()} />
       </SectionCard>
     );
   }
@@ -1677,7 +1740,7 @@ function TodayPanel({
   // This card owns the /todos query. Do not borrow Brief's state: a healthy
   // todos response must remain truthful even when another dashboard card is
   // slow or unavailable.
-  const { data: todos = [], isPending, isError, error } = useTodos();
+  const { data: todos = [], isPending, isError, error, refetch } = useTodos();
 
   const open = todos.filter((t) => t.status === 'pending' || t.status === 'active');
 
@@ -1692,10 +1755,9 @@ function TodayPanel({
   }
 
   if (isError) {
-    const message = error instanceof Error ? error.message : 'Could not reach the gateway';
     return (
       <SectionCard title="today">
-        <ErrorCard message={message} />
+        <ErrorCard message={describeFailure(error)} onRetry={() => refetch()} />
       </SectionCard>
     );
   }
