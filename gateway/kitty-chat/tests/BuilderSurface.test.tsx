@@ -251,7 +251,9 @@ describe('BuilderSurface', () => {
         isLoading={false}
       />,
     )
-    expect(screen.getByText('Builder status includes 1 partial packet record.')).toBeInTheDocument()
+    expect(screen.queryByText(/partial packet record/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Some Builder work is incomplete.')).toBeInTheDocument()
+    expect(screen.queryByText(/Open Builder for details/i)).not.toBeInTheDocument()
     expect(screen.getByText('Builder UI test initiative')).toBeInTheDocument()
 
     rerender(

@@ -90,19 +90,15 @@ def _recent_log_entries() -> list[dict[str, Any]]:
 
 
 def _rotate_log_if_needed() -> None:
-    try:
-        if not PUSH_LOG_FILE.exists() or PUSH_LOG_FILE.stat().st_size < PUSH_LOG_MAX_BYTES:
-            return
-        oldest = _rotated_log_path(PUSH_LOG_ROTATIONS)
-        oldest.unlink(missing_ok=True)
-        for index in range(PUSH_LOG_ROTATIONS - 1, 0, -1):
-            src = _rotated_log_path(index)
-            if src.exists():
-                src.replace(_rotated_log_path(index + 1))
-        PUSH_LOG_FILE.replace(_rotated_log_path(1))
-    except OSError as exc:
-        logger.warning("push log rotation failed: %s", exc)
-
+    if not PUSH_LOG_FILE.exists() or PUSH_LOG_FILE.stat().st_size < PUSH_LOG_MAX_BYTES:
+        return
+    oldest = _rotated_log_path(PUSH_LOG_ROTATIONS)
+    oldest.unlink(missing_ok=True)
+    for index in range(PUSH_LOG_ROTATIONS - 1, 0, -1):
+        src = _rotated_log_path(index)
+        if src.exists():
+            src.replace(_rotated_log_path(index + 1))
+    PUSH_LOG_FILE.replace(_rotated_log_path(1))
 
 def _log_attempt(*, kind: str, title: str, channel: str, ok: bool, dedupe_key: str | None) -> None:
     PUSH_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)

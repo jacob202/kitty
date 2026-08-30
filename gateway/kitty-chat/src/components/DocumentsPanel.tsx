@@ -1,6 +1,7 @@
 'use client'
 import { useRef, useState, type CSSProperties } from 'react'
 import { useKnowledgeSources, useKnowledgeSearch, useIngestKnowledge, useUploadCapture } from '@/lib/queries'
+import { describeFailure } from '@/lib/failure-copy'
 
 const STATUS_COLORS: Record<string, string> = { success: 'var(--color-success)', skipped: 'var(--color-warning)', failed: 'var(--color-destructive)', pending: 'var(--color-accent)' }
 
@@ -102,7 +103,7 @@ export function DocumentsPanel({ isMobile = false }: { isMobile?: boolean }) {
           <button type="button" aria-label="Refresh indexed sources" onClick={() => void sourcesQuery.refetch()} disabled={sourcesQuery.isFetching} style={secondaryButtonStyle}>{sourcesQuery.isFetching ? 'Refreshing…' : 'Refresh'}</button>
         </div>
         {sourcesQuery.isLoading && <p style={mutedStyle}>Loading indexed sources…</p>}
-        {sourcesQuery.isError && <p role="status" style={{ ...mutedStyle, color: 'var(--color-destructive)' }}>Couldn&apos;t read the knowledge index — {sourcesQuery.error instanceof Error ? sourcesQuery.error.message : 'gateway error'}.</p>}
+        {sourcesQuery.isError && <p role="status" style={{ ...mutedStyle, color: 'var(--color-destructive)' }}>Couldn&apos;t read the knowledge index — {describeFailure(sourcesQuery.error)}</p>}
         {payload && payload.sources.length === 0 && <p style={mutedStyle}>Nothing indexed yet.</p>}
         {(payload?.sources ?? []).map(s => (
           <article key={s.name} style={sourceRowStyle}>

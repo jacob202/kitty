@@ -28,9 +28,22 @@ def _run_morning_proactive() -> None:
         push_to_jacob(text, kind="info", title="Life Suggestion")
 
 
+async def _to_thread_attached(fn) -> None:
+    task = asyncio.create_task(asyncio.to_thread(fn))
+    cancelled = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            cancelled = True
+    task.result()
+    if cancelled:
+        raise asyncio.CancelledError()
+
+
 async def evening_reflection_action() -> None:
-    await asyncio.to_thread(_run_evening_reflection)
+    await _to_thread_attached(_run_evening_reflection)
 
 
 async def morning_proactive_action() -> None:
-    await asyncio.to_thread(_run_morning_proactive)
+    await _to_thread_attached(_run_morning_proactive)

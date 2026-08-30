@@ -335,6 +335,24 @@ def _fit_context_blocks(
     }
     return system, evidence, warnings
 
+
+def _reconcile_memory_evidence(
+    items: list[MemoryEvidence], rendered_prompt: str
+) -> list[MemoryEvidence]:
+    """Keep only whole memory records that actually appear in prompt order."""
+    visible: list[MemoryEvidence] = []
+    cursor = 0
+    for item in items:
+        memory_text = item.get("text", "")
+        if not memory_text:
+            continue
+        index = rendered_prompt.find(memory_text, cursor)
+        if index < 0:
+            break
+        visible.append(item)
+        cursor = index + len(memory_text)
+    return visible
+
 async def assemble_context(
     message: str,
     parts_mode: bool = False,
@@ -428,6 +446,7 @@ async def assemble_context(
     )
     budget_evidence["truncations"] = list(_budget_warnings)
     warnings.extend(_budget_warnings)
+    injected_memory_items = _reconcile_memory_evidence(injected_memory_items, system)
 
     return ContextBundle(
         system=system,

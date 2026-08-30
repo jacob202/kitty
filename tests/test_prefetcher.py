@@ -173,3 +173,16 @@ def test_history_hot_path_does_not_use_path_read_text(monkeypatch):
 
     monkeypatch.setattr(type(prefetcher._HISTORY), "read_text", explode)
     assert prefetcher._load_history()[-1]["query"] == "tail only"
+
+
+def test_history_reader_propagates_unreadable_evidence_even_if_exists_probe_would_hide_it(monkeypatch):
+    class UnreadableHistory:
+        def exists(self) -> bool:
+            return False
+
+        def open(self, *_args, **_kwargs):
+            raise PermissionError("history unreadable")
+
+    monkeypatch.setattr(prefetcher, "_HISTORY", UnreadableHistory())
+    with pytest.raises(PermissionError, match="history unreadable"):
+        prefetcher._load_history()

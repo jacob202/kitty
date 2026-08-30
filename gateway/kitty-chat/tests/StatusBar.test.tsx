@@ -1,6 +1,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StatusBar } from '../src/components/StatusBar'
+
+beforeEach(() => {
+  localStorage.clear()
+})
 
 afterEach(cleanup)
 
@@ -45,7 +49,7 @@ describe('StatusBar', () => {
       />,
     )
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('models temporarily unavailable')
+    expect(status).toHaveTextContent('Models are temporarily unavailable. Retry to reconnect to Kitty.')
     expect(status).not.toHaveTextContent(/gateway/i)
     fireEvent.click(screen.getByRole('button', { name: 'retry' }))
     expect(onRetryModels).toHaveBeenCalledTimes(1)
@@ -59,10 +63,32 @@ describe('StatusBar', () => {
     }
     render(<StatusBar {...props} />)
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('Model details unavailable')
-    expect(status).toHaveTextContent('model picker returned 503')
-    expect(status).toHaveTextContent('Retry to reconnect to Kitty')
-    expect(status).not.toHaveTextContent(/gateway offline/i)
+    expect(status).toHaveTextContent('Model details are unavailable right now. Retry to reconnect to Kitty.')
+    expect(status).not.toHaveTextContent(/503|model picker|gateway/i)
+  })
+
+  it('translates timeout and no-model diagnostics into product language', () => {
+    const { rerender } = render(
+      <StatusBar
+        {...baseProps}
+        modelUnavailable
+        modelError="Model details timed out — request timed out after 5000ms."
+      />,
+    )
+    let status = screen.getByRole('status')
+    expect(status).toHaveTextContent('Model details are taking too long to load. Retry to reconnect to Kitty.')
+    expect(status).not.toHaveTextContent(/5000|request timed out|gateway/i)
+
+    rerender(
+      <StatusBar
+        {...baseProps}
+        modelUnavailable
+        modelError="No live curated models are available — provider discovery returned 503."
+      />,
+    )
+    status = screen.getByRole('status')
+    expect(status).toHaveTextContent('No models are available right now. Retry to reconnect to Kitty.')
+    expect(status).not.toHaveTextContent(/curated|provider|503|gateway/i)
   })
 
   it('shows a failed save with a working retry action', () => {
@@ -87,7 +113,8 @@ describe('StatusBar', () => {
 
   it('shows brief-unavailable when nothing higher-priority is active', () => {
     render(<StatusBar {...baseProps} briefUnavailable briefError="timeout" />)
-    expect(screen.getByText(/Brief unavailable \(timeout\)/)).toBeInTheDocument()
+    expect(screen.getByText(/took too long to answer/i)).toBeInTheDocument()
+    expect(screen.getByText(/chat still works/i)).toBeInTheDocument()
   })
 
   it('offers install when the browser can install the app', () => {
@@ -114,5 +141,84 @@ describe('StatusBar', () => {
   it('falls back to the transient save state when nothing else is active', () => {
     render(<StatusBar {...baseProps} saveState="saving" />)
     expect(screen.getByText('saving…')).toBeInTheDocument()
+  })
+  // The install prompt held its dismissal in component state, so it returned on
+  // every reload. On a phone that banner occupies a permanent strip and re-nags
+  // on every app restart.
+  it('persists dismissal to localStorage when dismiss button is clicked', () => {
+    render(<StatusBar {...baseProps} pwaState="available" />)
+    expect(screen.getByText(/dock launch/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(localStorage.getItem('kitty-pwa-install-dismissed')).toBe('true')
+  })
+
+  it('does not render install banner when kitty-pwa-install-dismissed is true in localStorage', () => {
+    localStorage.setItem('kitty-pwa-install-dismissed', 'true')
+    const { container } = render(<StatusBar {...baseProps} pwaState="available" />)
+    expect(container.firstChild).toBeNull()
+  })
+
+  // Codex P1 on #675: hiding the banner while the write failed claimed a
+  // persistence that did not happen — it silently returned on the next reload.
+  it('says so when the dismissal could not be saved', () => {
+    const originalSetItem = localStorage.setItem
+    localStorage.setItem = vi.fn(() => {
+      throw new Error('storage blocked')
+    })
+    try {
+      render(<StatusBar {...baseProps} pwaState="available" />)
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+      const status = screen.getByRole('status')
+      expect(status).toHaveTextContent(/blocking storage/i)
+      expect(status).toHaveTextContent(/comes back next time/i)
+      expect(screen.queryByText(/dock launch/i)).not.toBeInTheDocument()
+    } finally {
+      localStorage.setItem = originalSetItem
+    }
+  })
+
+  it('stays silent when the dismissal saved cleanly', () => {
+    const { container } = render(<StatusBar {...baseProps} pwaState="available" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('still renders and dismisses banner when localStorage throws on read', () => {
+    const originalGetItem = localStorage.getItem
+    localStorage.getItem = vi.fn(() => {
+      throw new Error('quota exceeded')
+    })
+    try {
+      render(<StatusBar {...baseProps} pwaState="manual-ios" />)
+      expect(screen.getByText(/Add to Home Screen/i)).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+      expect(screen.queryByText(/Add to Home Screen/i)).not.toBeInTheDocument()
+    } finally {
+      localStorage.getItem = originalGetItem
+    }
+  })
+  // The brief row was unreachable while the model row always fired, so this
+  // leak stayed hidden: it rendered the gateway's raw text verbatim
+  // ("Brief unavailable (Gateway returned 404 Not Found)"). Kitty's owner does
+  // not code; no user-facing row may show an HTTP status or internal name.
+  it('translates a brief failure instead of printing the raw gateway text', () => {
+    render(
+      <StatusBar
+        {...baseProps}
+        briefUnavailable
+        briefError="Gateway returned 404 Not Found"
+      />,
+    )
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent(/chat still works/i)
+    expect(status).not.toHaveTextContent(/Gateway returned/i)
+    expect(status).not.toHaveTextContent(/404/)
+  })
+
+  it('keeps internal vocabulary out of the offline save row', () => {
+    render(<StatusBar {...baseProps} saveState="offline" />)
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent(/chat not saved/i)
+    expect(status).not.toHaveTextContent(/gateway/i)
   })
 })

@@ -114,6 +114,12 @@ describe('ImageLab', () => {
     window.localStorage.clear()
   })
 
+  it('gives the image request composer a stable accessible name', () => {
+    stubFetch()
+    render(<ImageLab />)
+    expect(screen.getByRole('textbox', { name: 'Image request' })).toBeInTheDocument()
+  })
+
   it('shows the total estimate and queues one durable 4-image batch', async () => {
     const fetchMock = stubFetch()
     render(<ImageLab />)
