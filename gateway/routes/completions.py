@@ -74,8 +74,8 @@ def _prefix_for_system_budget(parts: dict[str, str], name: str, text: str, budge
     return text[:low]
 
 
-def _historical_budget_groups(messages: list[dict]) -> list[list[dict]]:
-    """Group assistant tool calls with their consecutive tool results."""
+def _atomic_history_groups(messages: list[dict]) -> list[list[dict]]:
+    """Group assistant tool calls with their contiguous tool results."""
     groups: list[list[dict]] = []
     index = 0
     while index < len(messages):
@@ -87,9 +87,9 @@ def _historical_budget_groups(messages: list[dict]) -> list[list[dict]]:
                 group.append(messages[index])
                 index += 1
             groups.append(group)
-        else:
-            groups.append([message])
-            index += 1
+            continue
+        groups.append([message])
+        index += 1
     return groups
 
 
@@ -101,7 +101,7 @@ def _fit_final_model_messages(
     messages: list[dict],
     token_cap: int,
 ) -> tuple[list[dict], list[str]]:
-    """Bound the model-visible payload while preserving the current turn exactly."""
+    """Bound the payload while preserving the current turn and tool exchanges."""
     non_system = [dict(message) for message in messages if message.get("role") != "system"]
     current_index = next(
         (index for index in range(len(non_system) - 1, -1, -1) if non_system[index].get("role") == "user"),
@@ -109,20 +109,15 @@ def _fit_final_model_messages(
     )
     if current_index is None:
         raise HTTPException(status_code=400, detail="chat request requires a user message")
-    current_user = non_system[current_index]
-    current_units = _message_budget_units(current_user)
-    if current_units > token_cap:
-        raise HTTPException(status_code=413, detail="Current message exceeds the model context budget")
-
     current_turn = non_system[current_index:]
-    required_units = sum(_message_budget_units(message) for message in current_turn)
-    if required_units > token_cap:
+    current_units = sum(_message_budget_units(message) for message in current_turn)
+    if current_units > token_cap:
         raise HTTPException(status_code=413, detail="Current turn exceeds the model context budget")
 
-
     warnings: list[str] = []
-    system_budget = token_cap - required_units
+    system_budget = token_cap - current_units
     selected: dict[str, str] = {}
+    # Safety/tool truth first, then runtime truth, then contextual enrichment.
     for name, part, required in (
         ("tool", tool_system, bool(tool_system)),
         ("runtime", runtime_system, bool(runtime_system)),
@@ -145,26 +140,25 @@ def _fit_final_model_messages(
     system_content = "\n\n".join(
         selected[key] for key in ("bundle", "runtime", "tool") if selected.get(key)
     )
-
     final: list[dict] = []
-    used = required_units
+    used = current_units
     if system_content:
         system_message = {"role": "system", "content": system_content}
         used += _message_budget_units(system_message)
         final.append(system_message)
 
-    kept_groups: list[list[dict]] = []
+    history_groups: list[list[dict]] = []
     dropped = 0
-    for group in reversed(_historical_budget_groups(non_system[:current_index])):
+    for group in reversed(_atomic_history_groups(non_system[:current_index])):
         units = sum(_message_budget_units(message) for message in group)
         if used + units <= token_cap:
-            kept_groups.append(group)
+            history_groups.append(group)
             used += units
         else:
             dropped += len(group)
     if dropped:
         warnings.append(f"context_budget:history: dropped {dropped} older message(s)")
-    for group in reversed(kept_groups):
+    for group in reversed(history_groups):
         final.extend(group)
     final.extend(current_turn)
 
@@ -417,7 +411,6 @@ async def chat_completions(request: Request):
 
     from gateway.context_assembler import (
         TOTAL_CONTEXT_TOKEN_CAPS,
-        _reconcile_memory_evidence,
         assemble_context,
         assert_not_total_failure,
     )
@@ -449,11 +442,6 @@ async def chat_completions(request: Request):
             if enriched and enriched[0].get("role") == "system"
             else ""
         )
-        memory_items_for_evidence = list(bundle.injected_memory_items)
-        if "context_budget:final_system:bundle: clipped" in final_budget_warnings:
-            memory_items_for_evidence = _reconcile_memory_evidence(
-                memory_items_for_evidence, system_prompt
-            )
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:
             _finish_lifecycle_or_raise(
@@ -506,7 +494,7 @@ async def chat_completions(request: Request):
       "message_count": len(enriched),
       "message_content_chars": upstream_chars,
       "system_prompt_chars": len(system_prompt),
-      "memory_items_injected": len(memory_items_for_evidence),
+      "memory_items_injected": len(bundle.injected_memory_items),
       "preprocessing_ms": int((time.monotonic() - t_start) * 1000),
       "tool_execution": "caller" if caller_supplies_tools else "unavailable",
   },
@@ -520,11 +508,11 @@ async def chat_completions(request: Request):
         # memories were injected — the trailer must then be absent.
         trailer_items: list[MemoryEvidence] | None = None
         memory_trailer: bytes | None = None
-        if memory_items_for_evidence:
+        if bundle.injected_memory_items:
             # Full injected texts, untruncated (Jacob, 2026-07-20): the render
             # budget already bounds them, and a mid-sentence chop reads worse
             # than a longer line in the "kitty remembered" block.
-            trailer_items = list(memory_items_for_evidence)
+            trailer_items = list(bundle.injected_memory_items)
             trailer_json = json.dumps(
                 {"memory_items": trailer_items}, ensure_ascii=False
             )
@@ -654,7 +642,7 @@ async def chat_completions(request: Request):
         # non-stream path used to record and return no memory evidence at
         # all, even when the same bundle injected memories into the prompt.
         non_stream_memory_items: list[MemoryEvidence] | None = (
-            list(memory_items_for_evidence) if memory_items_for_evidence else None
+            list(bundle.injected_memory_items) if bundle.injected_memory_items else None
         )
         if lifecycle_handle is not None:
             _finish_lifecycle_or_raise(

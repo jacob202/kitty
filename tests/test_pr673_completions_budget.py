@@ -43,12 +43,62 @@ def test_final_budget_never_truncates_required_runtime_truth() -> None:
     assert "runtime" in str(getattr(excinfo.value, "detail", "")).lower()
 
 
-def test_compact_runtime_truth_drops_redundant_provenance_and_operational_noise() -> None:
+
+def test_final_budget_preserves_post_user_tool_continuation() -> None:
+    current = {"role": "user", "content": "Use the weather tool"}
+    assistant_call = {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [{
+            "id": "call-1",
+            "type": "function",
+            "function": {"name": "weather", "arguments": "{}"},
+        }],
+    }
+    tool_result = {"role": "tool", "tool_call_id": "call-1", "content": "sunny"}
+    final, _ = completions._fit_final_model_messages(
+        bundle_system="",
+        runtime_system="",
+        tool_system="",
+        messages=[current, assistant_call, tool_result],
+        token_cap=1000,
+    )
+    assert final == [current, assistant_call, tool_result]
+
+
+def test_final_budget_keeps_historical_tool_exchange_atomic_when_trimming() -> None:
+    assistant_call = {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [{
+            "id": "old-call",
+            "type": "function",
+            "function": {"name": "lookup", "arguments": "x" * 400},
+        }],
+    }
+    tool_result = {"role": "tool", "tool_call_id": "old-call", "content": "ok"}
+    current = {"role": "user", "content": "CURRENT"}
+    cap = (
+        completions._message_budget_units(current)
+        + completions._message_budget_units(tool_result)
+        + 10
+    )
+    final, warnings = completions._fit_final_model_messages(
+        bundle_system="",
+        runtime_system="",
+        tool_system="",
+        messages=[assistant_call, tool_result, current],
+        token_cap=cap,
+    )
+    assert final == [current]
+    assert warnings == ["context_budget:history: dropped 2 older message(s)"]
+
+def test_compact_runtime_truth_keeps_required_sections_without_redundant_provenance() -> None:
     from gateway.runtime_manifest import compact_runtime_context
 
-    def fact(value, *, reason=None):
+    def fact(value, *, reason=None, state="available"):
         row = {
-            "state": "available",
+            "state": state,
             "value": value,
             "source": "PROVENANCE-NOISE",
             "observed_at": "2026-08-29T00:00:00Z",
@@ -68,15 +118,17 @@ def test_compact_runtime_truth_drops_redundant_provenance_and_operational_noise(
         "execution": {"builder": fact({"initiatives": [{"id": 1}], "queue": {"pending": 2}})},
         "inference": {"routing_mode": "gateway", "available_models": fact(["model-a"]), "execution_location": "local"},
         "tools": fact([{"id": "TOOL-NOISE"}]),
-        "connections": {"gateway": fact("CONNECTION-NOISE")},
-        "approvals": fact({"policy": "APPROVAL-NOISE"}),
+        "connections": {"gateway": fact("CONNECTION-NOISE", reason="connection unavailable", state="unavailable")},
+        "approvals": fact({"policy": "APPROVAL-NOISE"}, reason="approval policy degraded", state="degraded"),
     }
 
     rendered = compact_runtime_context(manifest)
     assert "Keep Me" in rendered
     assert "model-a" in rendered
     assert "PROVENANCE-NOISE" not in rendered
-    assert "TOOL-NOISE" not in rendered
+    assert "TOOL-NOISE" in rendered
+    assert "connection unavailable" in rendered
+    assert "approval policy degraded" in rendered
     assert "CONNECTION-NOISE" not in rendered
     assert "APPROVAL-NOISE" not in rendered
 
