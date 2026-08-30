@@ -37,7 +37,8 @@ Kitty UI is canonical. This lane changes neither.
 
 ## Fresh evidence snapshot
 
-- Fresh `git ls-remote origin refs/heads/main`: `a1c0f09a7e86ff8a368b5a96e87c081ed0dae204`.
+- Base captured at worktree creation (2026-08-30T16:02:00-06:00 context): `git ls-remote origin refs/heads/main` returned `a1c0f09a7e86ff8a368b5a96e87c081ed0dae204`.
+- Review snapshot captured 2026-08-30T16:14:47-06:00: GitHub `main` advanced to `c7a7de0c2b670e968e4443d4ae494159243ccfb3` through merged PR #703. This branch is not current-main; its base-at-creation identity remains the prior SHA.
 - Isolated worktree: `/Users/jacobbrizinnski/orca/workspaces/kitty/kitty-packet-master-20260830`.
 - Branch: `jacob202/kitty-packet-master-20260830`; HEAD exactly equals fresh main.
 - Canonical checkout is dirty and was not modified.
@@ -48,8 +49,9 @@ Kitty UI is canonical. This lane changes neither.
   ownership.
 - `kb_mtgatvyi_340e` remains live/UNKNOWN until its terminal state is
   reverified; this docs-only lane does not overlap it, #704, or #677.
-- Inventory: 29 packet Markdown files (25 numbered), 40 initiative JSON files,
-  152 manifest packet entries, and 126 unique manifest packet IDs.
+- Clean committed-tree inventory: 29 packet Markdown files (25 numbered), 35
+  initiative JSON files, 137 manifest packet entries, and 126 unique manifest
+  packet IDs.
 - Current mission sequence: `REC-001 → WORK-001 → BUILDER-001 → IMAGE-001 → LIBRARY-001 → AUTO-001 → HOME-001 → ACCEPT-001`.
 
 The snapshot is time-bound. Live Builder queue, runtime health, and current
@@ -110,14 +112,14 @@ this rejected plan-only shape.
 ## Registry and collision guard
 
 Add a read-only `scripts/generate_packet_registry.py`. It should enumerate
-`docs/initiatives/*.json), run
-`./kitty builder initiative validate --json`, extract valid IDs/dependencies/
+each `docs/initiatives/*.json` and run
+`./kitty builder initiative validate "$manifest" --json`, extract valid IDs/dependencies/
 paths/commands, join the disposition sidecar, and emit deterministic sorted JSON
 with source SHA and generation time. It must report duplicate initiative/packet
 IDs, invalid or intentionally rejected records, missing/cyclic dependencies,
 stale sources with no replacement, and manifests absent from the sidecar.
 
-Before mutation, explicitly check `kb_mtgatvyi_340`, PR #704, and PR #677.
+Before mutation, explicitly check `kb_mtgatvyi_340e`, PR #704, and PR #677.
 Collision means REVIEW or DEPENDENCY, never a competing implementation. A
 manifest on disk is not evidence that it is queued. Add a CI/preflight check
 for invalid manifests, duplicate active IDs, and missing dispositions.
@@ -221,4 +223,3 @@ UNKNOWN.
    and KFP catalog; no Builder activation.
 
 This design document is intentionally the only artifact in the initial commit.
-
