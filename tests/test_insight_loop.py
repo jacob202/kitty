@@ -216,6 +216,16 @@ class TestRespondSnooze:
         with pytest.raises(ValueError, match="snooze_until"):
             insight_loop.respond(item_id, "snooze")
 
+    def test_snooze_rejects_malformed_instant_without_persisting_it(self) -> None:
+        item_id = insight_loop.capture(text="bad instant", category="task", explicit_consent=True)
+        insight_loop.mark_returned(item_id)
+        with pytest.raises(ValueError, match="valid ISO datetime"):
+            insight_loop.respond(item_id, "snooze", snooze_until="not-a-date")
+        item = insight_loop.get_insight(item_id)
+        assert item is not None
+        assert item["payload"]["status"] == "returned"
+        assert item["payload"].get("return_at") is None
+
 
 # ── respond: archive ─────────────────────────────────────────────────────────
 
@@ -389,3 +399,60 @@ class TestFullLoop:
         kinds = {s["kind"] for s in signals}
         assert "insight.returned" in kinds
         assert "insight.acted" in kinds
+
+
+def test_snoozed_insight_returns_after_snooze_window() -> None:
+    item_id = insight_loop.capture(text="come back later", category="task", explicit_consent=True)
+    insight_loop.mark_returned(item_id)
+    insight_loop.respond(item_id, "snooze", snooze_until="2030-01-02T08:00:00+00:00")
+
+    assert not any(item["id"] == item_id for item in insight_loop.list_due("2030-01-02T07:59:59+00:00"))
+    assert any(item["id"] == item_id for item in insight_loop.list_due("2030-01-02T08:00:00+00:00"))
+
+    assert insight_loop.mark_returned(item_id) is False  # real clock is before 2030
+    item = insight_loop.get_insight(item_id)
+    assert item is not None
+    assert item["payload"]["status"] == "snoozed"
+
+
+def test_elapsed_snooze_can_transition_back_to_returned(monkeypatch) -> None:
+    item_id = insight_loop.capture(text="return once", category="task", explicit_consent=True)
+    insight_loop.mark_returned(item_id)
+    insight_loop.respond(item_id, "snooze", snooze_until="2026-01-02T08:00:00+00:00")
+    monkeypatch.setattr(insight_loop, "_now_iso", lambda: "2026-01-02T08:01:00+00:00")
+
+    due = insight_loop.list_due("2026-01-02T08:01:00+00:00")
+    assert [item["id"] for item in due] == [item_id]
+    assert insight_loop.mark_returned(item_id) is True
+    assert insight_loop.mark_returned(item_id) is False
+    item = insight_loop.get_insight(item_id)
+    assert item is not None
+    assert item["payload"]["status"] == "returned"
+    assert item["payload"]["returned_count"] == 2
+
+def test_snooze_offset_is_compared_as_an_instant(monkeypatch) -> None:
+    item_id = insight_loop.capture(text="offset snooze", category="task", explicit_consent=True)
+    insight_loop.mark_returned(item_id)
+    insight_loop.respond(item_id, "snooze", snooze_until="2026-01-02T08:00:00-08:00")
+
+    assert not any(item["id"] == item_id for item in insight_loop.list_due("2026-01-02T12:00:00+00:00"))
+    assert any(item["id"] == item_id for item in insight_loop.list_due("2026-01-02T16:00:00+00:00"))
+    monkeypatch.setattr(insight_loop, "_now_iso", lambda: "2026-01-02T12:00:00+00:00")
+    assert insight_loop.mark_returned(item_id) is False
+
+
+def test_snooze_rejects_malformed_instant_before_persistence(monkeypatch) -> None:
+    import pytest
+
+    from gateway import insight_loop
+
+    writes = []
+    monkeypatch.setattr(
+        insight_loop.idea_mine_store,
+        "update_payload",
+        lambda *args, **kwargs: writes.append((args, kwargs)),
+    )
+
+    with pytest.raises(ValueError, match="valid ISO datetime"):
+        insight_loop._do_snooze(1, {}, "not-a-date")
+    assert writes == []
