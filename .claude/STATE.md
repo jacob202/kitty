@@ -3,8 +3,8 @@
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-30T18:10:57.315317+00:00",
-  "head_sha": "a19ec69aea85060239465a4de8112fb634a9ee4f",
+  "updated_at": "2026-08-30T18:43:52.989840+00:00",
+  "head_sha": "4b8cb7e0ce8d60acd7cd6a0fa62ec0db63ea51fa",
   "branch": "claude/kitty-power-run-l4dvwx",
   "worktree": ".",
   "status": "complete",
@@ -21,19 +21,23 @@
     "Confirmed the model-picker 503 leak this session flagged is closed: the raw strings are now test inputs and the tests assert the user never sees them",
     "Reconciled PR #675 with current main at 19c4f085 and verified the combined tree",
     "Resolved all addressed PR #675 review threads after confirming the fixes are present",
-    "Independent exact-head Product Acceptance passed on a19ec69a across desktop/mobile and live/degraded/down states with zero unexpected fixture requests"
+    "Independent exact-head Product Acceptance passed on a19ec69a across desktop/mobile and live/degraded/down states with zero unexpected fixture requests",
+    "Corrected the PR #675 body: the acceptance section claimed no independent reviewer existed while the checkbox was ticked, and the test counts named a superseded head",
+    "Reviewed 1b54452 from the concurrent lane and found its health-reason denylist leaked every one of the nineteen degraded/unavailable strings gateway/health_surface.py builds, and truncated one into the fragment 'embedding runtime returned'",
+    "Replaced that scrub with an allowlist translation plus a collapsed Technical details disclosure, keeping the cause reachable as the Codex P2 asked while the primary message stays plain language",
+    "Verified the fix in the running product against a stub gateway reporting real degraded reasons: plain sentence visible, raw reason collapsed, zero jargon in visible text at 1440x1600 and iPhone 14 Pro"
   ],
   "blockers": [],
   "next_action": "none",
   "invalidation_conditions": [
     "PR #675 merges or closes",
-    "Someone force-pushes or rewrites claude/kitty-power-run-l4dvwx so a19ec69a is no longer in its history"
+    "Someone force-pushes or rewrites claude/kitty-power-run-l4dvwx so 4b8cb7e0 is no longer in its history"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
     "number": 675,
     "state": "OPEN",
-    "head_sha": "a19ec69aea85060239465a4de8112fb634a9ee4f"
+    "head_sha": "4b8cb7e0ce8d60acd7cd6a0fa62ec0db63ea51fa"
   },
   "parallel_work": [],
   "recommendations": [
@@ -55,12 +59,24 @@
 ## Current work
 
 PR #675 (`fix(ui): one truthful status, in plain language`) is at final integration.
-The checkpoint records parent `a19ec69a`; this continuity-only commit may sit one
+The checkpoint records parent `4b8cb7e0`; this continuity-only commit may sit one
 commit ahead of that parent by design.
+
+After the a19ec69a acceptance pass, an independent read of `1b54452` from the
+concurrent lane found a regression it had introduced. That commit correctly
+restored the degraded-domain reason the Codex P2 asked for, but scrubbed it with
+a denylist. Run against the nineteen degraded/unavailable strings
+`gateway/health_surface.py` actually builds, every one still reached the user
+(`LiteLLM unreachable`, `sqlite open failed OperationalError database is locked`,
+`HTTPConnectionPool(host='localhost' port=)`), and `embedding runtime returned
+HTTP 503` was truncated into the fragment `embedding runtime returned`, which
+then replaced the status fallback because it was non-empty. `4b8cb7e` replaces
+the scrub with an allowlist translation and keeps the exact reason behind a
+collapsed "Technical details" disclosure.
 
 ## Verified result
 
-- UI unit/component suite: **581/581 passed across 76 files**.
+- UI unit/component suite: **582/582 passed across 76 files**.
 - `npx tsc --noEmit -p tsconfig.json`: clean.
 - `npm run build`: succeeded.
 - `make lint`: Ruff clean.
@@ -69,6 +85,12 @@ commit ahead of that parent by design.
   desktop and iPhone-class viewports, all eight product surfaces, live/degraded/down
   service states, retry, reload persistence, accessibility-after-typing, and layout;
   zero unexpected hermetic requests.
+- `4b8cb7e` re-verified in the running product against a stub gateway serving the
+  real degraded reason strings: the health card shows the translated sentence, the
+  raw reason is present but collapsed, and a scan of visible text found no
+  exception name, provider id, host, port or HTTP code at either viewport.
+- `python3 scripts/check_continuity_state.py` at `4b8cb7e`: 0 failed;
+  `tests/test_check_continuity_state.py` 9 passed.
 - All addressed review conversations were resolved after verifying their fixes.
 
 ## Session state
@@ -77,3 +99,10 @@ The implementation session is complete. There is no remaining in-session action;
 PR #675 should merge once this continuity-only checkpoint passes repository CI.
 The dead ESLint config remains a separately deferred cleanup and is not a release
 blocker for this PR.
+
+Note for the next session: this container's clone is **shallow**, which makes
+`scripts/check_continuity_state.py` report two failures that are artifacts, not
+defects — `mission:base_sha` (the mission base object is simply absent locally;
+`git fetch origin <sha>` makes it appear) and `repo:canonical_checkout` (set
+`KITTY_EXPECTED_CANONICAL_CHECKOUT` to the real checkout path, as CI does). With
+both handled the script exits 0.
