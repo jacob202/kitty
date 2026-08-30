@@ -248,6 +248,25 @@ def _init_git_repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
+class TestBaseSHAResolution:
+    def test_prefers_local_main_when_it_is_ahead_of_origin_main(self, tmp_path: Path):
+        repo = _init_git_repo(tmp_path)
+        subprocess.run(["git", "checkout", "-q", "-b", "main"], cwd=repo, check=True)
+        (repo / "base.txt").write_text("base\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=repo, check=True)
+        remote_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+        subprocess.run(["git", "update-ref", "refs/remotes/origin/main", remote_sha], cwd=repo, check=True)
+
+        (repo / "local.txt").write_text("local ahead\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "local main ahead"], cwd=repo, check=True)
+        local_sha = subprocess.run(["git", "rev-parse", "main"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+
+        assert local_sha != remote_sha
+        assert bi.resolve_base_sha(repo) == local_sha
+
+
 class TestWarnings:
     # -- (a) acceptance_criteria without validation_commands -----------------
 
@@ -1540,3 +1559,30 @@ class TestCp04HealthMetrics:
         assert main(["initiative", "status", "kitty-alpha-v1"]) == 0
         out = capsys.readouterr().out
         assert "health:" in out
+
+
+def test_supersede_initiative_preserves_history_and_terminal_truth(db_path: Path):
+    bi.apply_manifest(_manifest(), db_path=db_path)
+    bi.pause_initiative("kitty-alpha-v1", reason="real prior pause reason", db_path=db_path)
+
+    bi.supersede_initiative("kitty-alpha-v1", "KITTY-RECOVERY-001", db_path=db_path)
+
+    stored = bi.get_initiative("kitty-alpha-v1", db_path=db_path)
+    assert stored is not None
+    assert stored["state"] == bi.INITIATIVE_PAUSED
+    assert stored["pause_reason"] == "real prior pause reason"
+    assert stored["superseded_by"] == "KITTY-RECOVERY-001"
+    assert stored["superseded_at"] is not None
+
+
+def test_resuming_superseded_initiative_explicitly_restores_it(db_path: Path):
+    bi.apply_manifest(_manifest(), db_path=db_path)
+    bi.supersede_initiative("kitty-alpha-v1", "KITTY-RECOVERY-001", db_path=db_path)
+
+    bi.resume_initiative("kitty-alpha-v1", db_path=db_path)
+
+    stored = bi.get_initiative("kitty-alpha-v1", db_path=db_path)
+    assert stored is not None
+    assert stored["state"] == bi.INITIATIVE_ACTIVE
+    assert stored["superseded_by"] is None
+    assert stored["superseded_at"] is None

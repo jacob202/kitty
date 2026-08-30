@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from gateway.builder_commands import (
@@ -78,3 +78,74 @@ async def builder_operator_command(body: OperatorCommandRequest):
     except Exception as exc:
         logger.exception("operator command %s failed", body.action)
         return {"ok": False, "action": body.action, "error": str(exc)}
+
+
+@router.get("/builder/supervisor")
+async def builder_supervisor_status():
+    """Read-only projection of the autonomous supervisor's own state.
+
+    Distinguishes work a tick would start right now (``eligible_now``, owning
+    initiative active) from work that is dispatchable in every respect except
+    that its initiative is paused (``on_hold``), which no tick will ever pick
+    up. Both counts come from ``dispatchable_counts()``, which shares one
+    predicate with the launching path — a projection that counted eligibility
+    differently would promise the operator a number the tick does not honour.
+    This route never queries queue storage itself.
+    """
+    from gateway import builder_supervisor as bs
+
+    try:
+        summary = bs.control_plane_summary()
+    except Exception as exc:
+        logger.exception("builder supervisor status read failed")
+        raise HTTPException(
+            status_code=503, detail=f"supervisor status read failed: {exc}"
+        ) from exc
+
+    return {
+        "schema_version": 1,
+        "running": len(summary["active_runs"]) > 0,
+        "active_runs": summary["active_runs"],
+        "eligible_now": summary["eligible_now"],
+        "on_hold": summary["on_hold"],
+        # The supervisor does not record when it last ticked anywhere durable
+        # (no receipt log, no launchd bookkeeping); reporting anything but
+        # null here would be fabricated.
+        "last_tick_at": None,
+        "lock_path": summary["lock_path"],
+        "budget": summary["budget"],
+    }
+
+
+@router.post("/builder/supervisor/tick")
+async def builder_supervisor_tick():
+    """Run exactly one supervisor tick and return a structured result.
+
+    Mirrors ``/builder/command``: never lets an exception escape as a 500,
+    and the caller must inspect ``ok`` rather than infer success from HTTP
+    200 alone. A concurrent tick is not an error — it is reported as
+    ``ok: true`` with an empty ``started`` list and the ``locked`` detail.
+    """
+    from gateway import builder_supervisor as bs
+
+    try:
+        receipt = bs.tick()
+    except Exception as exc:
+        logger.exception("builder supervisor tick failed")
+        return {"ok": False, "started": [], "error": str(exc), "detail": None}
+
+    if receipt["status"] not in {"ok", "locked"}:
+        errors = [entry["error"] for entry in receipt["launched"] if "error" in entry]
+        return {
+            "ok": False,
+            "started": receipt["launched"],
+            "error": "; ".join(errors) or "supervisor tick reported an error",
+            "detail": receipt,
+        }
+
+    return {
+        "ok": True,
+        "started": receipt["launched"],
+        "error": None,
+        "detail": receipt,
+    }

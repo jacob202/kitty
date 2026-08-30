@@ -64,6 +64,7 @@ ui-test:
 
 ui-build:
 	cd gateway/kitty-chat && node node_modules/next/dist/bin/next build
+	git rev-parse HEAD > gateway/kitty-chat/.next/KITTY_SOURCE_SHA
 
 ui-tailnet:
 	cd gateway/kitty-chat && node node_modules/next/dist/bin/next dev -H 0.0.0.0 -p 4000

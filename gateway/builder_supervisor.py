@@ -38,6 +38,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 from gateway.builder_queue_runs import RUN_ACTIVE_STATES
@@ -162,11 +163,12 @@ def active_initiatives(db_path: Path | None = None) -> list[dict[str, Any]]:
     ordinary eligibility is empty even though ``next_packet`` exposes a fenced
     recovery candidate. Packet runnability stays owned by ``next_packet``.
     """
-    initiatives = bi.list_initiatives(db_path)
+    initiatives = bi.list_initiative_gates(db_path)
     active = [
         initiative
         for initiative in initiatives
         if initiative.get("state") == bi.INITIATIVE_ACTIVE
+        and not initiative.get("superseded_by")
     ]
     return sorted(active, key=lambda i: str(i["id"]))
 
@@ -174,6 +176,66 @@ def active_initiatives(db_path: Path | None = None) -> list[dict[str, Any]]:
 def _validate_max_runs(max_runs: int) -> None:
     if max_runs < 1 or max_runs > MAX_RUNS_PER_TICK:
         raise ValueError(f"max_runs must be between 1 and at most {MAX_RUNS_PER_TICK}")
+
+
+def _dispatch_candidate(
+    initiative_id: str, db_path: Path | None
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """The one packet a tick would dispatch for this initiative, or why not.
+
+    Single definition of "dispatchable", shared by the launching path and by
+    the read-only projection. Two definitions drift, and a projection that
+    disagrees with the launcher tells the operator one number while the tick
+    does something else — which is exactly what a supervisor must never do.
+
+    Note that ``BLOCKED`` is dispatchable: ``next_packet`` returns fenced
+    recovery candidates, and re-running them is how blocked work recovers.
+    """
+    packet = bi.next_packet(initiative_id, db_path=db_path)
+    if packet is None:
+        return None, {
+            "initiative_id": initiative_id, "packet_id": None,
+            "task_id": None, "reason": "no_eligible_packet",
+        }
+    task = bq.get_task(str(packet["task_id"]), db_path=db_path)
+    if task is None:
+        return None, {
+            "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
+            "task_id": str(packet["task_id"]), "reason": "task_missing",
+        }
+    task_state = str(task["state"])
+    if task_state not in {bq.QUEUED, bq.BLOCKED}:
+        return None, {
+            "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
+            "task_id": str(packet["task_id"]),
+            "reason": "task_state_not_dispatchable",
+            "task_state": task_state,
+        }
+    # builder_loop.run_packet accepts a BLOCKED task only when a stale open
+    # attempt paired with a dead runner explains the block; anything else it
+    # refuses with "operator release is required". Dispatching those anyway
+    # burns a tick per packet forever while the receipt claims a launch, so
+    # the same precondition is asked here instead of discovered in a log.
+    if task_state == bq.BLOCKED and not ba.list_stale_attempts(
+        initiative_id, str(packet["packet_id"]), db_path=db_path
+    ):
+        return None, {
+            "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
+            "task_id": str(packet["task_id"]),
+            "reason": "needs_operator_release",
+            "task_state": task_state,
+        }
+    active_runs = [
+        run for run in bq.list_runs(str(packet["task_id"]), db_path=db_path)
+        if run["state"] in RUN_ACTIVE_STATES
+    ]
+    if active_runs:
+        return None, {
+            "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
+            "task_id": str(packet["task_id"]), "reason": "active_run_exists",
+            "run_id": str(active_runs[0]["id"]),
+        }
+    return packet, None
 
 
 def _select_packets(
@@ -186,43 +248,39 @@ def _select_packets(
     for initiative in active_initiatives(db_path):
         if len(selected) >= max_runs:
             break
-        initiative_id = str(initiative["id"])
-        packet = bi.next_packet(initiative_id, db_path=db_path)
+        packet, skip = _dispatch_candidate(str(initiative["id"]), db_path)
         if packet is None:
-            skipped.append({
-                "initiative_id": initiative_id, "packet_id": None,
-                "task_id": None, "reason": "no_eligible_packet",
-            })
-            continue
-        task = bq.get_task(str(packet["task_id"]), db_path=db_path)
-        if task is None:
-            skipped.append({
-                "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
-                "task_id": str(packet["task_id"]), "reason": "task_missing",
-            })
-            continue
-        task_state = str(task["state"])
-        if task_state not in {bq.QUEUED, bq.BLOCKED}:
-            skipped.append({
-                "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
-                "task_id": str(packet["task_id"]),
-                "reason": "task_state_not_dispatchable",
-                "task_state": task_state,
-            })
-            continue
-        active_runs = [
-            run for run in bq.list_runs(str(packet["task_id"]), db_path=db_path)
-            if run["state"] in RUN_ACTIVE_STATES
-        ]
-        if active_runs:
-            skipped.append({
-                "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
-                "task_id": str(packet["task_id"]), "reason": "active_run_exists",
-                "run_id": str(active_runs[0]["id"]),
-            })
+            skipped.append(skip)  # type: ignore[arg-type]
             continue
         selected.append(packet)
     return selected, skipped
+
+
+def dispatchable_counts(db_path: Path | None = None) -> dict[str, int]:
+    """How much work a tick could start now, and how much its project blocks.
+
+    ``now`` is what ticks would actually dispatch if they ran until nothing
+    was left; ``on_hold`` is work that is dispatchable in every respect except
+    that its initiative is paused, so no tick will ever pick it up. Both use
+    :func:`_dispatch_candidate`, so these numbers cannot disagree with what a
+    tick does.
+    """
+    now = 0
+    on_hold = 0
+    for initiative in bi.list_initiative_gates(db_path):
+        if initiative.get("superseded_by"):
+            continue
+        stored_state = initiative.get("state")
+        if stored_state not in (bi.INITIATIVE_ACTIVE, bi.INITIATIVE_PAUSED):
+            continue
+        packet, _ = _dispatch_candidate(str(initiative["id"]), db_path)
+        if packet is None:
+            continue
+        if stored_state == bi.INITIATIVE_ACTIVE:
+            now += 1
+        else:
+            on_hold += 1
+    return {"now": now, "on_hold": on_hold}
 
 
 def _launch_run(
@@ -343,6 +401,59 @@ def tick(
         }
 
 
+def active_runs_summary(db_path: Path | None = None) -> list[dict[str, Any]]:
+    """Return only currently-active run facts without scanning initiatives."""
+    active_runs: list[dict[str, Any]] = []
+    for state in sorted(RUN_ACTIVE_STATES):
+        for run in bq.list_runs(state=state, db_path=db_path):
+            active_runs.append(
+                {
+                    "run_id": str(run["id"]),
+                    "task_id": str(run["task_id"]),
+                    "state": run["state"],
+                    "worker": run.get("worker"),
+                }
+            )
+    return active_runs
+
+
+def budget_summary() -> dict[str, Any]:
+    """Expose the existing compute-governor weekly ledger for Builder UI."""
+    from gateway import compute_governor as cg
+
+    config = cg.load_reserve_config(cg.ROOT_CONFIG_PATH)
+    ledger_path = cg.default_db_path()
+    cg.init_db(ledger_path)
+    ledger = cg.weekly_ledger(ledger_path)
+    budget = float(config["weekly_budget_cad"])
+    spent = float(ledger["estimated_usage_cad"])
+    return {
+        "weekly_budget_cad": budget,
+        "estimated_spend_cad": spent,
+        "remaining_cad": max(budget - spent, 0.0),
+        "runs": int(ledger["runs"]),
+        "retries": int(ledger["retries"]),
+        "basis": ledger["basis"],
+    }
+
+
+def control_plane_summary(db_path: Path | None = None) -> dict[str, Any]:
+    """Cheap-enough Work poll projection without the full initiative rollup.
+
+    The old HTTP route called ``status()`` and then ``dispatchable_counts()``,
+    performing two independent per-initiative scans every ten seconds. Work only
+    needs active runs, launchable counts, lock identity, and budget truth.
+    """
+    counts = dispatchable_counts(db_path)
+    return {
+        "active_runs": active_runs_summary(db_path),
+        "eligible_now": counts["now"],
+        "on_hold": counts["on_hold"],
+        "lock_path": str(_lock_path(db_path)),
+        "budget": budget_summary(),
+    }
+
+
 def status(db_path: Path | None = None) -> dict[str, Any]:
     """Read-only projection: initiatives, eligible work, active runs, lock."""
     initiatives = bi.list_initiatives(db_path)
@@ -366,17 +477,7 @@ def status(db_path: Path | None = None) -> dict[str, Any]:
                 ],
             }
         )
-    active_runs: list[dict[str, Any]] = []
-    for state in sorted(RUN_ACTIVE_STATES):
-        for run in bq.list_runs(state=state, db_path=db_path):
-            active_runs.append(
-                {
-                    "run_id": str(run["id"]),
-                    "task_id": str(run["task_id"]),
-                    "state": run["state"],
-                    "worker": run.get("worker"),
-                }
-            )
+    active_runs = active_runs_summary(db_path)
     return {
         "lock": {"path": str(_lock_path(db_path))},
         "initiatives": rollup,
