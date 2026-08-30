@@ -9,9 +9,11 @@ import pytest
 
 from scripts.session_learning import (
     SignalError,
+    compare_capability_runs,
     Store,
     fingerprint,
     load_signals,
+    record_evaluation_signal,
     record_signal,
     summarize_signals,
 )
@@ -216,3 +218,100 @@ def test_written_signal_is_valid_json(tmp_path: Path) -> None:
     written = json.loads(Path(result["path"]).read_text(encoding="utf-8"))
 
     assert written == result["signal"]
+
+# --- paired capability evaluation and distilled learning ------------------
+
+
+def test_compare_capability_runs_measures_only_matched_tasks() -> None:
+    result = compare_capability_runs(
+        {"task-a": 0.50, "task-b": 0.70},
+        {"task-a": 0.80, "task-b": 0.90},
+        minimum_lift=0.10,
+        context={"model": "same-model", "workspace": "same-worktree", "scorer": "acceptance-v1"},
+    )
+
+    assert result["task_keys"] == ["task-a", "task-b"]
+    assert result["pair_count"] == 2
+    assert result["baseline_mean"] == pytest.approx(0.60)
+    assert result["candidate_mean"] == pytest.approx(0.85)
+    assert result["absolute_lift"] == pytest.approx(0.25)
+    assert result["improved"] is True
+    assert result["context"]["model"] == "same-model"
+
+
+def test_compare_capability_runs_rejects_unmatched_task_sets() -> None:
+    with pytest.raises(SignalError, match="identical task keys"):
+        compare_capability_runs(
+            {"task-a": 0.5},
+            {"task-b": 0.8},
+            context={"model": "m", "workspace": "w", "scorer": "s"},
+        )
+
+
+def test_compare_capability_runs_respects_minimum_lift() -> None:
+    result = compare_capability_runs(
+        {"task-a": 0.70, "task-b": 0.70},
+        {"task-a": 0.74, "task-b": 0.74},
+        minimum_lift=0.05,
+        context={"model": "m", "workspace": "w", "scorer": "s"},
+    )
+
+    assert result["absolute_lift"] == pytest.approx(0.04)
+    assert result["improved"] is False
+
+
+def test_non_improving_candidate_does_not_create_a_learning_signal(tmp_path: Path) -> None:
+    evaluation = compare_capability_runs(
+        {"task-a": 0.8},
+        {"task-a": 0.7},
+        context={"model": "m", "workspace": "w", "scorer": "s"},
+    )
+
+    result = record_evaluation_signal(
+        evaluation,
+        stable_key="candidate-harness-lift",
+        capability_name="candidate harness",
+        source_session="eval-1",
+        store=Store(tmp_path, "test"),
+        now=NOW,
+    )
+
+    assert result["created"] is False
+    assert result["signal"] is None
+    assert load_signals(tmp_path) == []
+
+
+def test_repeated_positive_paired_evidence_promotes_through_existing_learning_store(
+    tmp_path: Path,
+) -> None:
+    evaluation = compare_capability_runs(
+        {"task-a": 0.4, "task-b": 0.6},
+        {"task-a": 0.7, "task-b": 0.8},
+        minimum_lift=0.1,
+        context={"model": "m", "workspace": "w", "scorer": "s"},
+    )
+    store = Store(tmp_path, "test")
+
+    first = record_evaluation_signal(
+        evaluation,
+        stable_key="candidate-harness-lift",
+        capability_name="candidate harness",
+        source_session="eval-1",
+        store=store,
+        now=NOW,
+    )
+    second = record_evaluation_signal(
+        evaluation,
+        stable_key="candidate-harness-lift",
+        capability_name="candidate harness",
+        source_session="eval-2",
+        store=store,
+        now=NOW.replace(hour=21),
+    )
+
+    assert first["signal"]["category"] == "capability_improvement"
+    assert first["signal"]["promotion_status"] == "observe"
+    assert second["signal"]["occurrence_count"] == 2
+    assert second["signal"]["promotion_status"] == "promote"
+    assert "baseline_mean=0.500000" in second["signal"]["evidence"]
+    assert "candidate_mean=0.750000" in second["signal"]["evidence"]

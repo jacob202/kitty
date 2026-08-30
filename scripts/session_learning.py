@@ -22,6 +22,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -30,7 +31,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 SCHEMA_VERSION = 1
 DEFAULT_WINDOW_DAYS = 30
@@ -39,6 +40,7 @@ PROMOTION_STATUSES = frozenset({"observe", "promote"})
 CATEGORIES = frozenset(
     {
         "architecture_boundary",
+        "capability_improvement",
         "collision",
         "data_loss_risk",
         "duplicate_work",
@@ -376,6 +378,161 @@ def promotion_decision(
     if occurrence_count >= 2:
         return "promote", f"repeated in {occurrence_count} sessions within the window"
     return "observe", "single non-critical observation; collect another occurrence"
+
+
+def _score_mapping(value: Mapping[str, Any], *, label: str) -> dict[str, float]:
+    if not isinstance(value, Mapping) or not value:
+        raise SignalError(f"{label} must be a non-empty mapping of task keys to scores")
+    normalized: dict[str, float] = {}
+    for raw_key, raw_score in value.items():
+        if not isinstance(raw_key, str) or not raw_key.strip():
+            raise SignalError(f"{label} task keys must be non-empty strings")
+        if (
+            isinstance(raw_score, bool)
+            or not isinstance(raw_score, (int, float))
+            or not math.isfinite(raw_score)
+        ):
+            raise SignalError(f"{label}[{raw_key!r}] must be a finite numeric score")
+        normalized[raw_key.strip()] = float(raw_score)
+    if len(normalized) != len(value):
+        raise SignalError(f"{label} task keys must remain unique after normalization")
+    return normalized
+
+
+def _evaluation_context(value: Mapping[str, Any]) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        raise SignalError("paired evaluation context must be an object")
+    required = ("model", "workspace", "scorer")
+    normalized: dict[str, str] = {}
+    for key in required:
+        raw = value.get(key)
+        if not isinstance(raw, str) or not raw.strip():
+            raise SignalError(
+                "paired evaluation context must name non-empty model, workspace, and scorer"
+            )
+        normalized[key] = raw.strip()
+    unknown = sorted(set(value) - set(required))
+    if unknown:
+        raise SignalError(f"unknown paired evaluation context keys: {unknown}")
+    return normalized
+
+
+def compare_capability_runs(
+    baseline: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    *,
+    minimum_lift: float = 0.0,
+    context: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Compare a candidate capability against baseline on exactly matched tasks.
+
+    ``context`` records the shared model, workspace, and scorer. The function
+    refuses unmatched task sets so an apparent lift cannot be manufactured by
+    evaluating different work.
+    """
+    base = _score_mapping(baseline, label="baseline")
+    cand = _score_mapping(candidate, label="candidate")
+    if set(base) != set(cand):
+        raise SignalError(
+            "paired evaluation requires identical task keys for baseline and candidate"
+        )
+    if (
+        isinstance(minimum_lift, bool)
+        or not isinstance(minimum_lift, (int, float))
+        or not math.isfinite(minimum_lift)
+        or minimum_lift < 0
+    ):
+        raise SignalError("minimum_lift must be a finite non-negative number")
+    matched_context = _evaluation_context(context)
+    task_keys = sorted(base)
+    baseline_mean = sum(base[key] for key in task_keys) / len(task_keys)
+    candidate_mean = sum(cand[key] for key in task_keys) / len(task_keys)
+    lift = candidate_mean - baseline_mean
+    threshold = float(minimum_lift)
+    return {
+        "task_keys": task_keys,
+        "pair_count": len(task_keys),
+        "baseline_mean": baseline_mean,
+        "candidate_mean": candidate_mean,
+        "absolute_lift": lift,
+        "minimum_lift": threshold,
+        "improved": lift > 0 and lift >= threshold,
+        "context": matched_context,
+    }
+
+
+def record_evaluation_signal(
+    evaluation: Mapping[str, Any],
+    *,
+    stable_key: str,
+    capability_name: str,
+    source_session: str,
+    store: Store,
+    now: datetime | None = None,
+    window_days: int = DEFAULT_WINDOW_DAYS,
+) -> dict[str, Any]:
+    """Distill positive paired evidence through the existing learning store.
+
+    Raw trajectories remain elsewhere. This writes only a bounded evidence
+    signal, and the existing repeat-count promotion gate decides whether the
+    lesson is merely observed or promoted.
+    """
+    if not isinstance(evaluation, Mapping):
+        raise SignalError("evaluation must be an object")
+    if evaluation.get("improved") is not True:
+        return {
+            "created": False,
+            "path": None,
+            "signal": None,
+            "reason": "candidate did not meet the paired-evaluation lift threshold",
+        }
+    if not isinstance(capability_name, str) or not capability_name.strip():
+        raise SignalError("capability_name must be a non-empty string")
+
+    required_numbers = ("baseline_mean", "candidate_mean", "absolute_lift", "minimum_lift")
+    numbers: dict[str, float] = {}
+    for key in required_numbers:
+        raw = evaluation.get(key)
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not math.isfinite(raw):
+            raise SignalError(f"evaluation.{key} must be a finite number")
+        numbers[key] = float(raw)
+    pair_count = evaluation.get("pair_count")
+    if isinstance(pair_count, bool) or not isinstance(pair_count, int) or pair_count < 1:
+        raise SignalError("evaluation.pair_count must be a positive integer")
+    task_keys = evaluation.get("task_keys")
+    if not isinstance(task_keys, list) or len(task_keys) != pair_count or not all(
+        isinstance(key, str) and key for key in task_keys
+    ):
+        raise SignalError("evaluation.task_keys must contain one non-empty key per pair")
+    context = _evaluation_context(evaluation.get("context"))
+
+    evidence = (
+        f"paired evaluation: pair_count={pair_count}; "
+        f"baseline_mean={numbers['baseline_mean']:.6f}; "
+        f"candidate_mean={numbers['candidate_mean']:.6f}; "
+        f"absolute_lift={numbers['absolute_lift']:.6f}; "
+        f"minimum_lift={numbers['minimum_lift']:.6f}; "
+        f"model={context['model']}; workspace={context['workspace']}; "
+        f"scorer={context['scorer']}; task_keys={','.join(task_keys)}"
+    )
+    raw_payload = {
+        "stable_key": stable_key,
+        "category": "capability_improvement",
+        "severity": "medium",
+        "summary": (
+            f"{capability_name.strip()} improved matched Builder outcomes by "
+            f"{numbers['absolute_lift']:.6f} across {pair_count} task(s)."
+        ),
+        "evidence": evidence,
+        "impact": "Matched evidence indicates the candidate capability improves Builder outcomes.",
+        "suggested_change": (
+            "Promote the capability into the relevant Builder harness or packet only "
+            "after the existing learning gate sees repeated evidence."
+        ),
+        "source_session": source_session,
+        "verified_by": "paired-capability-eval",
+    }
+    return record_signal(raw_payload, store=store, now=now, window_days=window_days)
 
 
 def record_signal(
