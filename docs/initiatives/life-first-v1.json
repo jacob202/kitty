@@ -1,0 +1,62 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "life-first-v1",
+  "title": "Life-first: Kitty serves Jacob's life before its own development",
+  "description": "Implements ADR 0016 (docs/adr/0016-life-first-ordering.md). Life projects (job search, benefits, education, health, money) outrank code projects everywhere Kitty suggests or ranks; the daily companion path must run fully on free/cheap model routes. Bounded T1 packets suitable for free workers under the standing rules in docs/NORTH_STAR.md section 4.",
+  "packets": [
+    {
+      "id": "LF-01-life-first-next-step",
+      "title": "What's Next ranks life projects above code projects",
+      "objective": "In next-step generation/selection, projects whose kind is not 'code' (job search, benefits, education, and similar life projects) must be preferred over code projects when both have eligible steps. At most one Kitty-self-development suggestion may surface while any life-project step is available. Follow ADR 0016.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Given fixture projects of kind 'code' and a life kind, both with eligible steps, the generated What's Next surfaces the life project's step first",
+        "With one life step and multiple Kitty-development steps eligible, at most one self-development suggestion appears and never above the life step",
+        "Behavior with only code projects present is unchanged",
+        "python3.12 -m pytest tests/test_next_step.py -q passes"
+      ],
+      "allowed_paths": ["gateway/next_step.py", "tests/test_next_step.py"],
+      "policy": { "max_attempts": 2, "priority": 10 }
+    },
+    {
+      "id": "LF-02-project-life-kind",
+      "title": "Projects carry an explicit life/code kind the ranking can trust",
+      "objective": "Ensure every project record exposes a kind that distinguishes life projects from code projects (the UI already renders 'code'/'admin' chips). Add a migration or default so existing projects (Job search, Benefits searching, benefits-admin, Furthering education) are classified as life, and the projects API returns the kind consistently.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "GET /projects returns a kind for every project, with the four existing life projects classified as life (not code)",
+        "Creating a project without a kind gets an explicit default, not null",
+        "A regression test covers classification of the existing fixtures",
+        "python3.12 -m pytest tests/ -q passes for the touched test files"
+      ],
+      "allowed_paths": ["gateway/routes/projects.py", "gateway/projects*.py", "tests/"],
+      "policy": { "max_attempts": 2, "priority": 9 }
+    },
+    {
+      "id": "LF-03-free-route-guarantee",
+      "title": "Daily companion path never hard-requires a premium model",
+      "objective": "Add a test-level contract that chat, brief, and next-step default to the cheap/free LiteLLM routes (kitty-default, kitty-default-or, kitty-default-gemini) and degrade gracefully (explicit error, not silent failure) if a premium route is unavailable. Extends tests/test_litellm_config.py.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "A test asserts the default model for the daily path resolves to a non-premium route from gateway/litellm_config.yaml",
+        "A test asserts premium-route unavailability produces an explicit error or fallback, never a silent empty response",
+        "python3.12 -m pytest tests/test_litellm_config.py -q passes"
+      ],
+      "allowed_paths": ["gateway/llm_client.py", "tests/test_litellm_config.py", "tests/"],
+      "policy": { "max_attempts": 2, "priority": 7 }
+    },
+    {
+      "id": "LF-04-brief-leads-with-life",
+      "title": "Morning brief opens with one concrete life action",
+      "objective": "The morning brief's first content section must be the top life-project next step (one action, with its why), before news/model/system sections. Reuses the LF-01 ranking; if no life step exists, the brief says so honestly rather than substituting a code task.",
+      "depends_on": ["LF-01-life-first-next-step"],
+      "acceptance_criteria": [
+        "With a life step available, the rendered brief's first section contains that step and its why",
+        "With no life step available, the first section states that explicitly and no code task is promoted into it",
+        "python3.12 -m pytest tests/ -q passes for the touched test files"
+      ],
+      "allowed_paths": ["gateway/brief.py", "gateway/routes/brief.py", "tests/"],
+      "policy": { "max_attempts": 2, "priority": 6 }
+    }
+  ]
+}

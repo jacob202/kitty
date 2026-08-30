@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.kitty.gateway</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>__KITTY_ROOT__/gateway/start_gateway.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>__KITTY_ROOT__</string>
+
+    <!-- Restart automatically on crash -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Start when the user logs in -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>__KITTY_ROOT__/logs/gateway.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__KITTY_ROOT__/logs/gateway.log</string>
+
+    <!-- Give the process 10 s to shut down gracefully before SIGKILL -->
+    <key>ExitTimeOut</key>
+    <integer>10</integer>
+</dict>
+</plist>

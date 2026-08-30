@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Design System Handoff — Next Session</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; color: #1a1a1a; line-height: 1.55; }
+  h1 { border-bottom: 2px solid #1a1410; padding-bottom: 0.4rem; }
+  h2 { margin-top: 2rem; color: #ff7a1a; }
+  h3 { margin-top: 1.4rem; color: #251c17; }
+  code, pre { background: #f4f4f4; border-radius: 3px; font-family: ui-monospace, SF Mono, Menlo, monospace; }
+  code { padding: 0.1em 0.35em; font-size: 0.92em; }
+  pre { padding: 0.8em 1em; overflow-x: auto; border-left: 3px solid #ff7a1a; }
+  .file { font-family: ui-monospace, monospace; background: #fff7ec; padding: 0.1em 0.4em; border-radius: 3px; }
+  .must { background: #fff3d4; padding: 0.8em 1em; border-left: 3px solid #ff7a1a; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+  .no { color: #c0392b; font-weight: 600; }
+  .yes { color: #27ae60; font-weight: 600; }
+  ul { padding-left: 1.4rem; }
+  li { margin: 0.3rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 0.8rem 0; }
+  th, td { border: 1px solid #ddd; padding: 0.5em 0.8em; text-align: left; }
+  th { background: #f7eee2; }
+</style>
+</head>
+<body>
+
+<h1>Design System Handoff — Next Session</h1>
+<p>Goal: port the <span class="file">kitty-rail</span> design into <span class="file">gateway/kitty-chat/</span> (Next.js 16.2.6, Turbopack).</p>
+
+<h2>Where the source lives</h2>
+<table>
+<tr><th>Path</th><th>What</th></tr>
+<tr><td><span class="file">design-system/README.md</span></td><td>Original handoff rules from Claude Design</td></tr>
+<tr><td><span class="file">design-system/chats/chat1.md</span></td><td>Design intent, palette evolution</td></tr>
+<tr><td><span class="file">design-system/chats/chat2.md</span></td><td>Final iterations — calendar widget, no-bubbles, mascot bob</td></tr>
+<tr><td><span class="file">design-system/project/ui_kits/kitty-rail/</span></td><td><strong>The canonical design.</strong> index.html · app.jsx (693 lines) · kitty.css (899 lines) · tweaks-panel.jsx</td></tr>
+<tr><td><span class="file">design-system/project/colors_and_type.css</span></td><td>Design tokens — colors + font stack</td></tr>
+<tr><td><span class="file">design-system/project/assets/</span></td><td>SVG mascot, wordmark, glyphs — bring these into <code>kitty-chat/public/</code></td></tr>
+<tr><td><span class="file">design-system/project/screenshots/</span></td><td>Reference shots — palette + live-app comparisons</td></tr>
+<tr><td><span class="file">design-system/project/themes/openwebui-kitty.css</span></td><td>Separate OpenWebUI theme override — out of scope for kitty-chat port</td></tr>
+</table>
+
+<h2>What to ship (final design intent — distilled from chat2.md)</h2>
+<ul>
+  <li><strong>Palette: restrained.</strong> Tabby (primary <code>#ff7a1a</code>) + Grape (secondary) only. <span class="no">No rainbow tiles.</span> Mint = quiet success dot. Maple = overdue cards only. Teal/sky/lemon/blush dropped from main surface.</li>
+  <li><strong>Typography:</strong> Space Grotesk (display) + Space Mono (body)</li>
+  <li><strong>Layout:</strong> Three-pane — left rail (nav/identity), center chat, right sidebar (calendar at top, restrained cards below)</li>
+  <li><strong>Chat:</strong> <span class="no">No bubbles.</span> Line-per-message, minimal chrome. Small mascot peek only on Kitty's FIRST reply.</li>
+  <li><strong>Calendar widget:</strong> Feb 2026 grid at top-right, today highlighted in tabby, dots under days with events</li>
+  <li><strong>Mascot:</strong> Gentle 4-second bob animation on rail mark + empty-state hero + status pet</li>
+  <li><strong>Highlighted items:</strong> Background color with opacity (not full saturation) — see the calendar today-marker pattern</li>
+</ul>
+
+<h2 class="no">Anti-patterns (things the user explicitly rejected)</h2>
+<ul>
+  <li>Chat bubbles ("clutters up the whole interaction, very unnecessary")</li>
+  <li>Rainbow tile colors on briefs/cards</li>
+  <li>Avatars + labels on every message</li>
+  <li>Lemon as a primary star (demoted to spice-only)</li>
+</ul>
+
+<h2>Where it lands in the kitty-chat codebase</h2>
+<ul>
+  <li><strong>Target:</strong> <span class="file">gateway/kitty-chat/</span> (Next.js 16.2.6, Turbopack, port 4000)</li>
+  <li><strong>The kitty-rail prototype</strong> uses CDN React 18 + Babel inline — <span class="no">do NOT copy that structure.</span> Reimplement as Next.js components.</li>
+  <li><strong>Tokens first:</strong> port <code>colors_and_type.css</code> into <span class="file">kitty-chat/app/globals.css</span> or a Tailwind theme — every component depends on these vars.</li>
+  <li><strong>SVG assets:</strong> copy from <span class="file">design-system/project/assets/</span> → <span class="file">kitty-chat/public/</span>. Use Next's <code>&lt;Image&gt;</code> or inline SVG depending on animation needs.</li>
+</ul>
+
+<h2>Suggested first-session approach</h2>
+<ol>
+  <li><strong>Read in order:</strong> chat1.md (palette evolution), chat2.md (final iterations), kitty.css (tokens + components), app.jsx (component tree)</li>
+  <li><strong>Confirm scope</strong> with Jacob: full rail-port now? Or token+layout first, then components in passes?</li>
+  <li><strong>Migrate tokens</strong> to kitty-chat's CSS layer. Verify they render in browser at :4000.</li>
+  <li><strong>Build skeleton</strong>: 3-pane layout shell (no chat content yet)</li>
+  <li><strong>Calendar widget</strong> at top-right — discrete, self-contained</li>
+  <li><strong>Chat list</strong> — line-per-message; this is the most opinionated part, get user approval on the bare prototype before adding interactions</li>
+  <li><strong>Mascot bob</strong> last — pure CSS animation</li>
+</ol>
+
+<h2>Test / verify approach</h2>
+<ul>
+  <li>Kitty-chat dev server: <code>npm run dev</code> (port 4000)</li>
+  <li>Reference comparison: open the prototype directly — <span class="file">file:///.../design-system/project/ui_kits/kitty-rail/index.html</span> — side-by-side with localhost:4000 for pixel-level matching</li>
+  <li><span class="no">Do not screenshot</span> per README guidance — read source directly</li>
+</ul>
+
+<h2>Open questions for Jacob (ask before implementing)</h2>
+<ul>
+  <li>Replace existing kitty-chat UI directly, or build alongside at <code>/v2</code> route to compare?</li>
+  <li>Is <span class="file">kitty-terminal/</span> still in scope, or is it abandoned in favor of kitty-rail?</li>
+  <li>Animation polish budget — full 4s mascot bob or skip-for-MVP?</li>
+  <li>Calendar event source — does the gateway expose an endpoint, or use stub data for MVP?</li>
+</ul>
+
+<h2>Dependencies to install (likely)</h2>
+<pre>cd gateway/kitty-chat
+npm install @fontsource/space-grotesk @fontsource/space-mono</pre>
+
+<h2 class="yes">Pre-flight checklist before starting</h2>
+<ul>
+  <li>✅ Bundle moved to <span class="file">~/Projects/kitty/design-system/</span> (4.7 MB)</li>
+  <li>⚠ This dir is NOT yet in <span class="file">.gitignore</span> — decide: commit it (track reference) or ignore (keep repo lean)</li>
+  <li>⚠ LiteLLM still needs <code>OPENAI_API_KEY</code> in its env before chat will respond (separate from design work — can build UI without it)</li>
+  <li>⚠ <code>GITHUB_TOKEN</code> in <span class="file">~/Projects/kitty/.env</span> is stale — rotate the PAT before next push</li>
+</ul>
+
+</body>
+</html>

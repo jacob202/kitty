@@ -1,0 +1,229 @@
+{
+  "summary": {
+    "pass": 32,
+    "warn": 10,
+    "fail": 2
+  },
+  "checks": [
+    {
+      "level": "PASS",
+      "name": "connector:github",
+      "detail": "token present"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:checkpoint:agreement",
+      "detail": "STATE and HANDOFF identity/action fields match"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:docs:authority_map",
+      "detail": "19 unique concern owners"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:docs:builder_descriptions",
+      "detail": "active documents describe current Builder rails"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:docs:duplicate_authority_claims",
+      "detail": "authority routing is centralized"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:docs:front_door_links",
+      "detail": "10 reading-order links resolve"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:git:branch",
+      "detail": "main"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:git:origin_main",
+      "detail": "6a6d625682beeac586fce7d9d4868e3f29de08c3"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:handoff:active_action",
+      "detail": "Run python3 scripts/openwebui_local.py bootstrap --accept-charges on Jacob's Mac, fix every reported failure, then record independent review evidence before marking PR #384 ready"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:handoff:active_mission",
+      "detail": "docs/ACTIVE_MISSION.md"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:handoff:age",
+      "detail": "updated 2026-08-03T05:58:00Z"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:handoff:metadata",
+      "detail": "schema v1 metadata is valid"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:handoff:worktree",
+      "detail": "worktree label 'feat/openwebui-tomorrow-ready' (checkout at /Users/jacobbrizinski/Projects/kitty)"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:mission:active_state",
+      "detail": "mission=running, session=awaiting_review"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:mission:base_sha",
+      "detail": "e3b4c7a4c4c6f8d1b08c39a4fae38a5b56a92835"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:repo:canonical_checkout",
+      "detail": "/Users/jacobbrizinski/Projects/kitty"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:repo:worktree_registration",
+      "detail": "/Users/jacobbrizinski/Projects/kitty"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:state:active_action",
+      "detail": "Run python3 scripts/openwebui_local.py bootstrap --accept-charges on Jacob's Mac, fix every reported failure, then record independent review evidence before marking PR #384 ready"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:state:active_mission",
+      "detail": "docs/ACTIVE_MISSION.md"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:state:age",
+      "detail": "updated 2026-08-03T05:58:00Z"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:state:metadata",
+      "detail": "schema v1 metadata is valid"
+    },
+    {
+      "level": "PASS",
+      "name": "continuity:state:worktree",
+      "detail": "worktree label 'feat/openwebui-tomorrow-ready' (checkout at /Users/jacobbrizinski/Projects/kitty)"
+    },
+    {
+      "level": "PASS",
+      "name": "disk:data_dir",
+      "detail": "13.5 GB free at /Users/jacobbrizinski/Projects/kitty/data"
+    },
+    {
+      "level": "PASS",
+      "name": "env:.env",
+      "detail": "/Users/jacobbrizinski/Projects/kitty/.env"
+    },
+    {
+      "level": "PASS",
+      "name": "env:gateway_secret",
+      "detail": "set"
+    },
+    {
+      "level": "PASS",
+      "name": "env:llm_key",
+      "detail": "OPENROUTER_API_KEY set"
+    },
+    {
+      "level": "PASS",
+      "name": "env:parse",
+      "detail": "every line parses"
+    },
+    {
+      "level": "PASS",
+      "name": "runtime:gateway_freshness",
+      "detail": "gateway not running \u2014 no freshness check"
+    },
+    {
+      "level": "PASS",
+      "name": "runtime:venv",
+      "detail": "/Users/jacobbrizinski/Projects/kitty/venv"
+    },
+    {
+      "level": "PASS",
+      "name": "service:gateway",
+      "detail": "http://127.0.0.1:8000/health"
+    },
+    {
+      "level": "PASS",
+      "name": "service:litellm",
+      "detail": "http://127.0.0.1:8001/health/readiness"
+    },
+    {
+      "level": "PASS",
+      "name": "store:chromadb",
+      "detail": "0 collection(s) at /Users/jacobbrizinski/Projects/kitty/data/chromadb"
+    },
+    {
+      "level": "WARN",
+      "name": "codegraph:daemon",
+      "detail": "daemon PID file exists but process dead \u2014 index may be stale"
+    },
+    {
+      "level": "WARN",
+      "name": "connector:mail",
+      "detail": "token file not present \u2014 run: python -m gateway.connectors.mail --auth"
+    },
+    {
+      "level": "WARN",
+      "name": "continuity:handoff:branch",
+      "detail": "recorded branch 'feat/openwebui-tomorrow-ready' does not match current branch 'main'"
+    },
+    {
+      "level": "WARN",
+      "name": "continuity:handoff:head",
+      "detail": "recorded HEAD 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is not an ancestor of current HEAD cec062f7f12e48b8d15bab6361b6c61839d6e2eb"
+    },
+    {
+      "level": "WARN",
+      "name": "continuity:state:branch",
+      "detail": "recorded branch 'feat/openwebui-tomorrow-ready' does not match current branch 'main'"
+    },
+    {
+      "level": "WARN",
+      "name": "continuity:state:head",
+      "detail": "recorded HEAD 3d4c2404182173f2184f09aa7b6a4951d6e7f63a is not an ancestor of current HEAD cec062f7f12e48b8d15bab6361b6c61839d6e2eb"
+    },
+    {
+      "level": "WARN",
+      "name": "deadlines:watch",
+      "detail": "no open deadlines being watched"
+    },
+    {
+      "level": "WARN",
+      "name": "env:telegram_token",
+      "detail": "not set \u2014 Telegram bot disabled"
+    },
+    {
+      "level": "WARN",
+      "name": "push:channel",
+      "detail": "no channel configured \u2014 set PUSH_IMESSAGE_RECIPIENT or PUSHOVER_USER_KEY/PUSHOVER_API_TOKEN"
+    },
+    {
+      "level": "WARN",
+      "name": "store:mem0",
+      "detail": "local init: The api_key client option must be set either by passing api_key to the client or by setting the OPENAI_API_KEY environment variable"
+    },
+    {
+      "level": "FAIL",
+      "name": "continuity:handoff:pull_request",
+      "detail": "PR #384 expected OPEN@3d4c2404182173f2184f09aa7b6a4951d6e7f63a, live state is MERGED@9560b8bcf2fd5664d727b71fd1209fa62f69fb96 (PR advanced from the recorded 3d4c24041821)"
+    },
+    {
+      "level": "FAIL",
+      "name": "continuity:state:pull_request",
+      "detail": "PR #384 expected OPEN@3d4c2404182173f2184f09aa7b6a4951d6e7f63a, live state is MERGED@9560b8bcf2fd5664d727b71fd1209fa62f69fb96 (PR advanced from the recorded 3d4c24041821)"
+    }
+  ]
+}

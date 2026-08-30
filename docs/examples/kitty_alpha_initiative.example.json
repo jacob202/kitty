@@ -1,0 +1,55 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-alpha-v1",
+  "title": "Kitty Alpha build",
+  "description": "Multi-phase autonomous build of the Kitty Alpha feature set, executed sequentially by KittyBuilder with operator-controlled merges.",
+  "packets": [
+    {
+      "id": "KA-01-journal-search",
+      "title": "Journal keyword search endpoint",
+      "objective": "Add GET /journal/search to the FastAPI gateway that returns journal entries matching a keyword, ranked by recency, using the existing journal_store read path.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "GET /journal/search?q=<term> returns matching entries as JSON",
+        "Empty or missing q returns 422, not a 500",
+        "New tests cover match, no-match, and validation cases",
+        "pytest tests/test_journal*.py passes"
+      ],
+      "allowed_paths": [
+        "gateway/journal.py",
+        "gateway/journal_store.py",
+        "gateway/app.py",
+        "tests/test_journal_search.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 }
+    },
+    {
+      "id": "KA-02-search-ui",
+      "title": "Journal search box in kitty-chat",
+      "objective": "Add a search input to the journal view in gateway/kitty-chat that calls /journal/search and renders results, with an empty-state message.",
+      "depends_on": ["KA-01-journal-search"],
+      "acceptance_criteria": [
+        "Typing a term and pressing enter shows matching entries",
+        "No-results state renders a friendly message",
+        "make ui-test passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/app/journal/",
+        "gateway/kitty-chat/components/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 5 }
+    },
+    {
+      "id": "KA-03-search-docs",
+      "title": "Document journal search",
+      "objective": "Document the journal search endpoint and UI in docs/ARCHITECTURE.md and add a usage note to START_HERE.md.",
+      "depends_on": ["KA-01-journal-search", "KA-02-search-ui"],
+      "acceptance_criteria": [
+        "docs/ARCHITECTURE.md describes the endpoint, parameters, and data flow",
+        "START_HERE.md mentions the feature in one line"
+      ],
+      "allowed_paths": ["docs/ARCHITECTURE.md", "START_HERE.md"],
+      "policy": { "max_attempts": 1, "priority": 1 }
+    }
+  ]
+}

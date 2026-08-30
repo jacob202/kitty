@@ -1,0 +1,50 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "cp-example",
+  "title": "Example feature, prototype-gated",
+  "description": "Clarified 2026-07-XX; assumptions and Jacob's answers in the campaign brief.",
+  "packets": [
+    {
+      "id": "cp-example-proto",
+      "title": "Working skeleton, fixture data",
+      "objective": "Prove the shape end to end so design flaws surface before the full build.",
+      "acceptance_criteria": [
+        "demo command runs the happy path end to end against fixture data",
+        "existing test suite still passes"
+      ],
+      "allowed_paths": ["gateway/example_feature.py", "tests/test_example_feature.py"],
+      "validation_commands": ["python3.12 -m pytest tests/ -q --tb=short"],
+      "policy": {"max_attempts": 2}
+    },
+    {
+      "id": "cp-example-impl-a",
+      "title": "Full implementation: core logic",
+      "objective": "Production-quality build of the approved prototype direction.",
+      "depends_on": ["cp-example-proto"],
+      "acceptance_criteria": ["core logic handles the documented edge cases, asserted by tests"],
+      "allowed_paths": ["gateway/example_feature.py", "tests/test_example_feature.py"],
+      "validation_commands": ["python3.12 -m pytest tests/test_example_feature.py -q --tb=short"],
+      "policy": {"max_attempts": 3}
+    },
+    {
+      "id": "cp-example-impl-b",
+      "title": "Full implementation: CLI wiring",
+      "objective": "Expose the feature through the CLI, matching existing command conventions.",
+      "depends_on": ["cp-example-proto"],
+      "acceptance_criteria": ["./kitty example-feature run <arg> produces the documented output"],
+      "allowed_paths": ["gateway/builder_cli.py", "tests/test_builder_cli.py"],
+      "validation_commands": ["python3.12 -m pytest tests/test_builder_cli.py -q --tb=short"],
+      "policy": {"max_attempts": 3}
+    },
+    {
+      "id": "cp-example-impl-c",
+      "title": "Full implementation: docs",
+      "objective": "Document the feature for future authors.",
+      "depends_on": ["cp-example-impl-a", "cp-example-impl-b"],
+      "acceptance_criteria": ["docs/ page describes the feature and links a runnable example"],
+      "allowed_paths": ["docs/example_feature.md"],
+      "validation_commands": ["python3.12 -m pytest tests/ -q --tb=short"],
+      "policy": {"max_attempts": 2}
+    }
+  ]
+}

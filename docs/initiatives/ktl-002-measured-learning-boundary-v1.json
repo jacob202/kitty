@@ -1,0 +1,113 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "ktl-002-measured-learning-boundary-v1",
+  "title": "KTL-002: Measured KB learning with separate interactive and Builder lanes",
+  "description": "Current corrective proving initiative for the interactive/Builder boundary. Builder remains autonomous and interactive tools never consume its queue through bare next. Session-end records hash-chained, tamper-evident KB effectiveness receipts. This initiative supersedes the workflow-boundary packets retained in docs/initiatives/retired/ktl-001-leverage-and-learning-v1.json.retired; that non-applicable planning history does not supersede its independent reuse, evidence, capability, Product Studio, Agent Canvas, model-bench, or Mission-projection concepts. Tracking or validating this manifest does not authorize applying it to a Builder queue.",
+  "packets": [
+    {
+      "id": "KTL2-001-interactive-builder-boundary",
+      "title": "Prove bare next cannot consume Builder work",
+      "objective": "Verify across Claude Code, OpenCode, and Codex that bare next continues only the current interactive assignment, uses Builder only for collision/status awareness, and cannot apply initiatives, claim/select/run packets, or drain the queue. Explicit builder next and valid Builder-launched bundles remain governed Builder entrypoints. Every implementation records exactly one execution owner.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "A valid interactive checkpoint continues without using Builder as a task source",
+        "No interactive checkpoint produces an explicit no-op and leaves queued Builder tasks unchanged",
+        "Explicit builder next or a valid Builder bundle enters Builder without changing bare next semantics",
+        "Reviewing Builder output does not transfer implementation ownership",
+        "All repo entry instructions agree on the same execution-owner boundary"
+      ],
+      "allowed_paths": [
+        ".agents/skills/next/",
+        "START_HERE.md",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "SKILL_REGISTRY.md",
+        "scripts/resolve_next_work.py",
+        "tests/test_resolve_next_work.py",
+        "docs/adr/0025-session-learning-without-a-second-backlog.md",
+        "docs/adr/0026-measured-kb-effectiveness-and-execution-ownership.md"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 10
+      },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_resolve_next_work.py tests/test_context_receipt.py -q",
+        "git diff --check"
+      ]
+    },
+    {
+      "id": "KTL2-002-kb-effectiveness-receipts",
+      "title": "Measure KB retrieval, efficiency, and accepted quality",
+      "objective": "Verify the hash-chained, append-only effectiveness receipt and rolling report. Record one execution owner, consulted/used/stale entries, canonical promotions, and only evidence-backed token, cost, elapsed, attempt, repair, regression, and independent-review values. Unknowns stay null; cohort comparison is observational and cannot claim causation.",
+      "depends_on": [
+        "KTL2-001-interactive-builder-boundary"
+      ],
+      "acceptance_criteria": [
+        "Identical receipts are idempotent and conflicting session identities fail",
+        "Unknown fields, invalid entry subsets, corrupt history, blank lines, and receipt-ID mismatches fail loudly",
+        "Unknown token/time/cost/quality values remain unknown rather than zero",
+        "Summary reports retrieval usefulness/staleness, evidence coverage, efficiency, first-pass approval, regressions, avoided duplication/corrections, and canonical promotions",
+        "Report marks cohorts observational and sample sizes insufficient when thresholds are not met",
+        "Session-end writes one receipt without creating issues, recommendations, roadmap work, or Builder tasks"
+      ],
+      "allowed_paths": [
+        ".agents/skills/session-end/",
+        "scripts/kb_effectiveness.py",
+        "tests/test_kb_effectiveness.py",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "START_HERE.md",
+        "SKILL_REGISTRY.md",
+        "docs/adr/0026-measured-kb-effectiveness-and-execution-ownership.md"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 9
+      },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_kb_effectiveness.py -q",
+        "python3.12 -m pytest tests/test_context_receipt.py -q",
+        "git diff --check"
+      ]
+    },
+    {
+      "id": "KTL2-003-parallel-lanes-e2e",
+      "title": "Prove autonomous Builder and interactive continuity in parallel",
+      "objective": "Run a zero-cost non-destructive proof with two separate lanes. Builder independently selects and executes one approved packet through validation and review. In parallel, an interactive tool receives bare next, continues only its own checkpoint, and session-end writes execution_owner=interactive plus an effectiveness receipt. Prove neither lane claims, duplicates, schedules, or reports the other's implementation.",
+      "depends_on": [
+        "KTL2-001-interactive-builder-boundary",
+        "KTL2-002-kb-effectiveness-receipts"
+      ],
+      "acceptance_criteria": [
+        "Builder progresses without an interactive bare-next instruction",
+        "Bare next leaves Builder task identities and leases unchanged",
+        "Each implementation has exactly one execution owner",
+        "Builder attempt/review evidence and interactive continuity/effectiveness evidence remain separate but cross-referenced",
+        "A second interactive tool resolves the same valid interactive continuation rather than completed Builder work",
+        "The final report names unavailable measurements and makes no causal token/quality claim"
+      ],
+      "allowed_paths": [
+        ".agents/skills/next/",
+        ".agents/skills/session-end/",
+        "scripts/kb_effectiveness.py",
+        "tests/test_kb_effectiveness.py",
+        ".claude/STATE.md",
+        ".claude/HANDOFF.md",
+        "docs/mission/evidence.md",
+        "docs/session-notes/",
+        "tests/workflow/"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 8
+      },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_kb_effectiveness.py tests/workflow/ -q",
+        "python3.12 scripts/check_continuity_state.py",
+        "./kitty context --agent",
+        "git diff --check"
+      ]
+    }
+  ]
+}

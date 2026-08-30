@@ -1,0 +1,86 @@
+name: PR Auto Label
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  auto-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure label set exists
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const required = [
+              { name: "area/backend", color: "1d76db", description: "Backend gateway, MCP, or Python tests" },
+              { name: "area/frontend", color: "5319e7", description: "Next.js UI and frontend runtime" },
+              { name: "area/docs", color: "0e8a16", description: "Documentation and written guidance" },
+              { name: "area/ci", color: "fbca04", description: "CI workflows and automation config" },
+              { name: "area/automation", color: "0052cc", description: "Automation scripts, launcher, or Makefile" },
+            ];
+
+            const existing = await github.paginate(github.rest.issues.listLabelsForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+            const names = new Set(existing.map((label) => label.name));
+
+            for (const label of required) {
+              if (names.has(label.name)) {
+                core.info(`label exists: ${label.name}`);
+                continue;
+              }
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ...label,
+              });
+              core.notice(`created label: ${label.name}`);
+            }
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # pull_request_target runs with a write-scoped token. The labeler reads
+          # its config from the base checkout and needs no git credentials, so
+          # none are left behind in .git/config.
+          persist-credentials: false
+
+      - name: Apply path-based labels
+        id: labeler
+        uses: actions/labeler@v7
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          configuration-path: ".github/labeler.yml"
+          # Preserve manually applied governance labels such as risk/approved.
+          sync-labels: false
+
+      - name: Emit triage summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pull_number = context.payload.pull_request.number;
+            const [files, labels] = await Promise.all([
+              github.paginate(github.rest.pulls.listFiles, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number,
+                per_page: 100,
+              }),
+              github.rest.issues.listLabelsOnIssue({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pull_number,
+              }),
+            ]);
+
+            core.notice(`triage: ${files.length} changed files`);
+            core.notice(`labels: ${labels.data.map((label) => label.name).join(", ") || "(none)"}`);
+

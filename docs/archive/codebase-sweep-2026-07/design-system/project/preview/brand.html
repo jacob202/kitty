@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>kitty — brand</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #0a0706;
+    color: var(--cream);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* CRT vignette + scanlines applied to whole stage */
+  body::before {
+    content: ""; position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.6) 100%),
+      repeating-linear-gradient(to bottom, rgba(255,255,255,0.035) 0 1px, transparent 1px 3px);
+    pointer-events: none;
+    z-index: 50;
+    mix-blend-mode: overlay;
+  }
+  /* tiny noise field */
+  body::after {
+    content: ""; position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><filter id='n'><feTurbulence baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.06 0'/></filter><rect width='80' height='80' filter='url(%23n)'/></svg>");
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 51;
+    mix-blend-mode: screen;
+  }
+
+  .frame {
+    position: relative;
+    z-index: 1;
+    height: 100vh;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "head head"
+      "stage rail"
+      "foot foot";
+    gap: 0;
+  }
+
+  /* === Head bar === */
+  .head {
+    grid-area: head;
+    border-bottom: 1px dashed var(--ink-line);
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--cream-faint);
+  }
+  .head .dot {
+    width: 8px; height: 8px;
+    background: var(--mint);
+    box-shadow: 0 0 8px var(--mint);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+  .head .crumb { color: var(--cream-dim); }
+  .head .crumb b { color: var(--tabby); font-weight: 500; letter-spacing: 0.08em; }
+  .head .right {
+    margin-left: auto;
+    display: flex; gap: 18px;
+    color: var(--cream-faint);
+  }
+  .head .right span b { color: var(--cream); font-weight: 500; }
+
+  /* === Main stage: chromatic wordmark + cat === */
+  .stage {
+    grid-area: stage;
+    position: relative;
+    padding: 56px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* faint orange hex grid behind */
+  .stage::before {
+    content: ""; position: absolute; inset: 0;
+    background-image:
+      linear-gradient(to right,  rgba(255,122,26,0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,122,26,0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: radial-gradient(ellipse at 30% 60%, black 0%, transparent 70%);
+  }
+
+  .speaker {
+    position: relative;
+    font-family: var(--font-display);
+    font-size: 12vw;
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    margin: 0;
+    text-transform: lowercase;
+  }
+  .speaker .dollar {
+    color: var(--mint);
+    font-size: 0.55em;
+    vertical-align: 0.35em;
+    margin-right: 0.05em;
+    text-shadow: 0 0 18px rgba(124,224,179,0.5);
+  }
+  /* chromatic split — three layered words */
+  .word-stack {
+    position: relative;
+    display: inline-block;
+  }
+  .word-stack .layer {
+    display: inline-block;
+    line-height: 1;
+  }
+  .word-stack .base {
+    color: var(--tabby);
+    text-shadow: 0 0 24px rgba(255,122,26,0.45);
+    position: relative;
+    z-index: 3;
+  }
+  .word-stack .red {
+    position: absolute; inset: 0;
+    color: #ff2a6d;
+    transform: translate(-3px, 1px);
+    mix-blend-mode: screen;
+    z-index: 1;
+    animation: jitter-r 4s steps(1) infinite;
+  }
+  .word-stack .cyan {
+    position: absolute; inset: 0;
+    color: #00e0ff;
+    transform: translate(3px, -1px);
+    mix-blend-mode: screen;
+    z-index: 2;
+    animation: jitter-c 4s steps(1) infinite;
+  }
+  @keyframes jitter-r {
+    0%, 92%, 100% { transform: translate(-3px, 1px); }
+    93% { transform: translate(-5px, 2px); }
+    94% { transform: translate(-1px, 0); }
+    95% { transform: translate(-4px, -1px); }
+  }
+  @keyframes jitter-c {
+    0%, 88%, 100% { transform: translate(3px, -1px); }
+    89% { transform: translate(5px, -2px); }
+    90% { transform: translate(1px, 0); }
+    91% { transform: translate(4px, 1px); }
+  }
+
+  .caret {
+    display: inline-block;
+    width: 0.45em;
+    height: 0.7em;
+    background: var(--tabby-glow);
+    margin-left: 0.04em;
+    box-shadow: 0 0 24px rgba(255,176,102,0.7);
+    animation: blink 1s steps(2) infinite;
+    vertical-align: 0;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .lockup-meta {
+    margin-top: 28px;
+    display: flex;
+    gap: 36px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--cream-faint);
+    align-items: flex-start;
+  }
+  .lockup-meta span b {
+    display: block;
+    color: var(--cream);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .lockup-meta span b.alt {
+    font-family: var(--font-display);
+    font-size: 18px;
+    color: var(--tabby-glow);
+    letter-spacing: -0.01em;
+  }
+
+  /* === Right rail: kitty as a sprite-sheet creature === */
+  .rail {
+    grid-area: rail;
+    border-left: 1px dashed var(--ink-line);
+    background: linear-gradient(180deg, rgba(255,122,26,0.04), transparent 40%);
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow: hidden;
+  }
+  .rail-h {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--cream-faint);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .rail-h::after { content: ""; flex: 1; height: 1px; background: var(--ink-line); }
+
+  /* hero pose */
+  .hero-cat {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 0;
+  }
+  .hero-cat img {
+    width: 240px; height: 240px;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 0 28px rgba(255,122,26,0.4));
+  }
+  /* radial halo behind hero cat */
+  .hero-cat::before {
+    content: ""; position: absolute;
+    width: 320px; height: 320px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,122,26,0.18) 0%, transparent 60%);
+    z-index: 0;
+  }
+  .hero-cat::after {
+    content: ""; position: absolute;
+    width: 280px; height: 280px;
+    border: 1px dashed rgba(255,122,26,0.25);
+    border-radius: 50%;
+    animation: spin 18s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* sprite strip */
+  .sprite-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--ink-line);
+    border: 1px solid var(--ink-line);
+    padding: 1px;
+  }
+  .sprite-cell {
+    background: var(--ink-deep);
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 8px;
+    position: relative;
+  }
+  .sprite-cell img {
+    width: 80%;
+    image-rendering: pixelated;
+  }
+  .sprite-cell .lbl {
+    position: absolute;
+    bottom: 6px; left: 6px;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--cream-faint);
+  }
+  .sprite-cell .id {
+    position: absolute;
+    top: 6px; right: 8px;
+    font-family: var(--font-display);
+    font-size: 14px;
+    color: var(--tabby-deep);
+  }
+
+  /* tagline / boot log === */
+  .boot {
+    font-family: var(--font-body);
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--cream-dim);
+  }
+  .boot .ok { color: var(--mint); }
+  .boot .warn { color: var(--lemon); }
+  .boot .key { color: var(--tabby); }
+  .boot .ln { display: flex; gap: 8px; }
+  .boot .ln .t { width: 56px; color: var(--cream-faint); flex-shrink: 0; }
+
+  /* === Footer === */
+  .foot {
+    grid-area: foot;
+    border-top: 1px dashed var(--ink-line);
+    padding: 12px 28px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--cream-faint);
+  }
+  .foot .meter {
+    display: flex; gap: 2px;
+    margin-left: auto;
+  }
+  .foot .meter i {
+    width: 10px; height: 14px;
+    background: var(--ink-line);
+    display: inline-block;
+  }
+  .foot .meter i.on { background: var(--tabby); box-shadow: 0 0 4px var(--tabby); }
+  .foot .meter i.peak { background: var(--maple); }
+
+  .ascii-flourish {
+    position: absolute;
+    pointer-events: none;
+    color: rgba(255,122,26,0.18);
+    font-family: var(--font-body);
+    font-size: 10px;
+    line-height: 1.1;
+    letter-spacing: 0.05em;
+    white-space: pre;
+  }
+  .ascii-flourish.tl { top: 60px; left: 20px; }
+  .ascii-flourish.bl { bottom: 60px; left: 20px; color: rgba(124,224,179,0.18); }
+
+  /* status line below wordmark */
+  .status-line {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--cream-dim);
+    max-width: 38ch;
+    line-height: 1.5;
+  }
+  .status-line .pill {
+    display: inline-block;
+    border: 1px solid var(--grape);
+    color: var(--grape);
+    padding: 1px 8px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    vertical-align: 1px;
+    margin: 0 4px;
+  }
+</style>
+</head>
+<body>
+  <div class="frame">
+
+    <!-- HEAD BAR -->
+    <header class="head">
+      <span class="dot"></span>
+      <span class="crumb"><b>kitty.os</b> · brand · primary identity</span>
+      <span class="right">
+        <span>uptime <b>00:14:22</b></span>
+        <span>mood <b style="color:var(--mint)">chill</b></span>
+        <span>build <b>0.1.7</b></span>
+      </span>
+    </header>
+
+    <!-- MAIN STAGE -->
+    <section class="stage">
+      <div class="ascii-flourish tl">┌─ &gt;&gt; sig.in
+│  freq: 432hz
+│  amp:  0.84
+└─ purr.engine</div>
+
+      <h1 class="speaker">
+        <span class="dollar">$</span><span class="word-stack">
+          <span class="layer red" aria-hidden="true">kitty</span>
+          <span class="layer cyan" aria-hidden="true">kitty</span>
+          <span class="layer base">kitty</span>
+        </span><span class="caret"></span>
+      </h1>
+
+      <p class="status-line">
+        a personal ai that lives in your terminal, answers to <span class="pill">kitty</span> and, on rare occasions, to her formal name <em style="color:var(--cream); font-style:normal;">lumpy space princess</em>.
+      </p>
+
+      <div class="lockup-meta">
+        <span>wordmark<b class="alt">VT323 · 12vw</b></span>
+        <span>chroma<b>tabby / cyan / magenta</b></span>
+        <span>caret<b>tabby-glow · 1hz</b></span>
+        <span>aka<b>lumpy space princess</b></span>
+      </div>
+
+      <div class="ascii-flourish bl">  ╱╲___╱╲
+ (  o   o  )
+  \   ω   /
+  ~~~~~~~~~</div>
+    </section>
+
+    <!-- RIGHT RAIL: kitty as a creature -->
+    <aside class="rail">
+      <div>
+        <div class="rail-h">creature · prime</div>
+        <div class="hero-cat">
+          <img src="../assets/kitty-mascot.svg" alt="kitty">
+        </div>
+      </div>
+
+      <div>
+        <div class="rail-h">states · sprite sheet</div>
+        <div class="sprite-strip">
+          <div class="sprite-cell">
+            <span class="id">01</span>
+            <img src="../assets/kitty-sleeping.svg" alt="">
+            <span class="lbl">sleeping</span>
+          </div>
+          <div class="sprite-cell">
+            <span class="id">02</span>
+            <img src="../assets/kitty-blink.svg" alt="">
+            <span class="lbl">winky</span>
+          </div>
+          <div class="sprite-cell">
+            <span class="id">03</span>
+            <img src="../assets/kitty-alert.svg" alt="">
+            <span class="lbl">alert</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="rail-h">boot · log</div>
+        <div class="boot">
+          <div class="ln"><span class="t">[00.01]</span><span><span class="ok">ok</span> &nbsp;loading <span class="key">purr.engine</span></span></div>
+          <div class="ln"><span class="t">[00.04]</span><span><span class="ok">ok</span> &nbsp;tabby fur calibrated</span></div>
+          <div class="ln"><span class="t">[00.07]</span><span><span class="ok">ok</span> &nbsp;eyes online · mint</span></div>
+          <div class="ln"><span class="t">[00.09]</span><span><span class="warn">..</span> &nbsp;snaggletooth attached</span></div>
+          <div class="ln"><span class="t">[00.12]</span><span><span class="ok">ok</span> &nbsp;mood: <em style="color:var(--cream); font-style:normal;">vaguely curious</em></span></div>
+          <div class="ln"><span class="t">[00.14]</span><span><span class="key">$</span> &nbsp;hey :3</span></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- FOOTER -->
+    <footer class="foot">
+      <span>v0.1 · kitty design system</span>
+      <span style="color:var(--cream-dim)">©2026 marc — for personal use, with consent</span>
+      <span class="meter" aria-label="signal strength">
+        <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on peak"></i><i></i><i></i>
+      </span>
+      <span>signal · 8/10</span>
+    </footer>
+
+  </div>
+</body>
+</html>

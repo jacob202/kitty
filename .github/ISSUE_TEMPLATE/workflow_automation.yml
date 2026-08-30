@@ -1,0 +1,48 @@
+name: Workflow automation request
+description: Propose a workflow/GitHub automation improvement.
+title: "automation: "
+labels:
+  - enhancement
+  - automation
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What manual step should become automatic?
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: Issue triage
+        - label: Branch creation
+        - label: Testing
+        - label: PR creation/formatting
+        - label: Review routing
+        - label: Merge/release flow
+  - type: textarea
+    id: current_process
+    attributes:
+      label: Current manual process
+      description: List current steps and where errors/delays happen.
+    validations:
+      required: true
+  - type: textarea
+    id: guardrails
+    attributes:
+      label: Guardrails
+      description: What must remain manual or require explicit approval?
+      placeholder: auth/secrets/env edits, risky merges, destructive operations
+    validations:
+      required: true
+  - type: textarea
+    id: success
+    attributes:
+      label: Success metrics
+      description: How should we measure time saved, quality, and failure rate?
+    validations:
+      required: true
+

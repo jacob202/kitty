@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>kitty — color</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--ink);
+    color: var(--cream);
+    font-family: var(--font-body);
+    padding: 48px 56px;
+    min-height: 100vh;
+    box-sizing: border-box;
+    background-image:
+      radial-gradient(circle at 8% -10%, rgba(255,122,26,0.10), transparent 40%),
+      radial-gradient(circle at 100% 30%, rgba(168,132,255,0.10), transparent 40%),
+      radial-gradient(circle at 30% 110%, rgba(33,189,217,0.08), transparent 50%);
+  }
+  .head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 24px;
+    margin-bottom: 32px;
+    padding-bottom: 18px;
+    border-bottom: 1px dashed var(--ink-line);
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-size: 60px;
+    line-height: 0.95;
+    margin: 0;
+    color: var(--cream);
+    letter-spacing: -0.02em;
+  }
+  h1 .o { color: var(--tabby); }
+  h1 .t { color: var(--teal); }
+  h1 .p { color: var(--grape); }
+  h1 .m { color: var(--mint); }
+  h1 .y { color: var(--lemon); }
+  .sub { color: var(--cream-dim); font-size: 14px; max-width: 56ch; line-height: 1.55; margin: 12px 0 0; }
+  .stripes {
+    display: flex; gap: 0; height: 96px; min-width: 380px;
+    border: 1px solid var(--ink-line); border-radius: 6px; overflow: hidden;
+  }
+  .stripes div { flex: 1; }
+
+  .stars {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .star {
+    background: linear-gradient(180deg, rgba(37,28,23,0.6), rgba(14,10,8,0.6));
+    border: 1px solid var(--ink-line);
+    padding: 14px;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 168px;
+  }
+  .star.tabby { border-color: rgba(255,122,26,0.5); }
+  .star.teal { border-color: rgba(33,189,217,0.5); }
+  .star.grape { border-color: rgba(168,132,255,0.5); }
+  .star.mint { border-color: rgba(155,232,107,0.5); }
+  .star.lemon { border-color: rgba(244,197,66,0.5); }
+  .star .label {
+    font-family: var(--font-display);
+    font-size: 26px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+  .star.tabby .label { color: var(--tabby); }
+  .star.teal .label { color: var(--teal); }
+  .star.grape .label { color: var(--grape); }
+  .star.mint .label { color: var(--mint); }
+  .star.lemon .label { color: var(--lemon); }
+  .star .role {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--cream-faint);
+    margin-top: -6px;
+  }
+  .star .blob {
+    flex: 1;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.4);
+    min-height: 44px;
+  }
+  .star.tabby .blob { background: var(--tabby); }
+  .star.teal .blob { background: var(--teal); }
+  .star.grape .blob { background: var(--grape); }
+  .star.mint .blob { background: var(--mint); }
+  .star.lemon .blob { background: var(--lemon); }
+  .star .ramp {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 3px;
+    height: 22px;
+  }
+  .star .ramp div { border-radius: 3px; }
+
+  /* Group blocks */
+  .group { margin-bottom: 28px; }
+  .group-label {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 11px;
+    color: var(--cream-faint);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .group-label::after { content: ""; flex: 1; height: 1px; background: var(--ink-line); }
+  .group-label b { color: var(--cream); font-weight: 500; letter-spacing: 0.14em; }
+
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+  }
+  .sw {
+    border: 1px solid var(--ink-line);
+    background: rgba(37,28,23,0.5);
+    padding: 10px;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .chip {
+    height: 52px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.35);
+  }
+  .name { font-size: 12px; color: var(--cream); font-weight: 500; }
+  .hex { font-size: 10px; color: var(--cream-faint); text-transform: uppercase; letter-spacing: 0.08em; }
+  .role-s { font-size: 10px; color: var(--cream-dim); }
+
+  /* Pairings demo */
+  .pairings {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .pair {
+    padding: 14px 14px 16px;
+    border: 1px solid var(--ink-line);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 100px;
+    background: var(--ink-soft);
+  }
+  .pair .pair-h {
+    font-family: var(--font-display);
+    font-size: 22px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+  .pair .pair-b {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .pair .pair-tag {
+    align-self: flex-start;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    margin-top: auto;
+  }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <h1><span class="o">orange</span>. <span class="t">teal</span>. <span class="p">purple</span>. <span class="m">mint</span>. <span class="y">yellow</span>.</h1>
+      <p class="sub">five-color squad. tabby's the brand. <b style="color:var(--teal)">teal</b> leans cyan-blue — handles "go, fresh, link". <b style="color:var(--mint)">mint</b> leans yellow-green — soft confirms, sleeping timers. they sit on opposite ends of the cool side so they can't be confused for each other. grape is kitty's signature spice. lemon is the friendly heads-up.</p>
+    </div>
+    <div class="stripes" aria-hidden="true">
+      <div style="background:#1a1410"></div>
+      <div style="background:#ff7a1a"></div>
+      <div style="background:#21bdd9"></div>
+      <div style="background:#a884ff"></div>
+      <div style="background:#9be86b"></div>
+      <div style="background:#f4c542"></div>
+      <div style="background:#f5ead3"></div>
+    </div>
+  </div>
+
+  <!-- Hero five -->
+  <div class="stars">
+    <div class="star tabby">
+      <div><div class="label">tabby</div><div class="role">brand · primary</div></div>
+      <div class="blob"></div>
+      <div class="ramp">
+        <div style="background:#ffb066"></div>
+        <div style="background:#ff7a1a"></div>
+        <div style="background:#cc4f00"></div>
+      </div>
+    </div>
+    <div class="star teal">
+      <div><div class="label">teal</div><div class="role">go · fresh · links</div></div>
+      <div class="blob"></div>
+      <div class="ramp">
+        <div style="background:#6cdcef"></div>
+        <div style="background:#21bdd9"></div>
+        <div style="background:#0e7a8f"></div>
+      </div>
+    </div>
+    <div class="star grape">
+      <div><div class="label">grape</div><div class="role">spice · tags</div></div>
+      <div class="blob"></div>
+      <div class="ramp">
+        <div style="background:#cab8ff"></div>
+        <div style="background:#a884ff"></div>
+        <div style="background:#7748e6"></div>
+      </div>
+    </div>
+    <div class="star mint">
+      <div><div class="label">mint</div><div class="role">soft success</div></div>
+      <div class="blob"></div>
+      <div class="ramp">
+        <div style="background:#caf4a5"></div>
+        <div style="background:#9be86b"></div>
+        <div style="background:#5fa838"></div>
+      </div>
+    </div>
+    <div class="star lemon">
+      <div><div class="label">lemon</div><div class="role">heads up</div></div>
+      <div class="blob"></div>
+      <div class="ramp">
+        <div style="background:#fde08a"></div>
+        <div style="background:#f4c542"></div>
+        <div style="background:#b88a14"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Surfaces + text -->
+  <div class="group">
+    <div class="group-label"><b>surfaces &amp; text</b> · the quiet stuff</div>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#1a1410"></div><div class="name">--ink</div><div class="hex">#1a1410</div><div class="role-s">primary surface</div></div>
+      <div class="sw"><div class="chip" style="background:#251c17"></div><div class="name">--ink-soft</div><div class="hex">#251c17</div><div class="role-s">raised</div></div>
+      <div class="sw"><div class="chip" style="background:#0e0a08"></div><div class="name">--ink-deep</div><div class="hex">#0e0a08</div><div class="role-s">recessed</div></div>
+      <div class="sw"><div class="chip" style="background:#3a2e25"></div><div class="name">--ink-line</div><div class="hex">#3a2e25</div><div class="role-s">hairlines</div></div>
+      <div class="sw"><div class="chip" style="background:#f5ead3"></div><div class="name">--cream</div><div class="hex">#f5ead3</div><div class="role-s">primary text</div></div>
+      <div class="sw"><div class="chip" style="background:#bdb19a"></div><div class="name">--cream-dim</div><div class="hex">#bdb19a</div><div class="role-s">secondary text</div></div>
+    </div>
+  </div>
+
+  <!-- Teal vs Mint — proof of distinction -->
+  <div class="group">
+    <div class="group-label"><b>teal vs mint</b> · cool family, opposite ends</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+      <div style="border:1px solid rgba(33,189,217,0.4); border-radius:8px; padding:18px; background:linear-gradient(135deg, rgba(33,189,217,0.08), transparent);">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
+          <span style="font-family:var(--font-display); font-size:30px; color:var(--teal); line-height:1;">teal · cyan-blue</span>
+          <span style="font-size:10px; color:var(--cream-faint); text-transform:uppercase; letter-spacing:0.14em;">hue ≈ 192°</span>
+        </div>
+        <div style="font-size:12px; color:var(--cream-dim); line-height:1.55; margin-bottom:12px;">live state. links. "go." the active step in a flow. anything user-driven and instant.</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <span style="background:var(--teal); color:var(--ink); font-family:var(--font-display); font-size:16px; padding:4px 10px; border-radius:4px;">go →</span>
+          <span style="border:1px solid var(--teal); color:var(--teal); font-size:11px; text-transform:uppercase; letter-spacing:0.14em; padding:4px 10px; border-radius:999px;">live</span>
+          <span style="color:var(--teal); font-size:13px; text-decoration:underline; text-underline-offset:3px;">view 4 changes</span>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(155,232,107,0.4); border-radius:8px; padding:18px; background:linear-gradient(135deg, rgba(155,232,107,0.08), transparent);">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px;">
+          <span style="font-family:var(--font-display); font-size:30px; color:var(--mint); line-height:1;">mint · yellow-green</span>
+          <span style="font-size:10px; color:var(--cream-faint); text-transform:uppercase; letter-spacing:0.14em;">hue ≈ 95°</span>
+        </div>
+        <div style="font-size:12px; color:var(--cream-dim); line-height:1.55; margin-bottom:12px;">soft done. quiet confirm. timers that finished while you were away. nothing demanding your eye.</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <span style="background:var(--mint); color:var(--ink); font-family:var(--font-display); font-size:16px; padding:4px 10px; border-radius:4px;">^_^ done</span>
+          <span style="border:1px solid var(--mint); color:var(--mint); font-size:11px; text-transform:uppercase; letter-spacing:0.14em; padding:4px 10px; border-radius:999px;">napped</span>
+          <span style="color:var(--mint); font-size:13px;">✓ saved 9:14am</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Other / spice -->
+  <div class="group">
+    <div class="group-label"><b>extras</b> · errors and friends</div>
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#ff5577"></div><div class="name">--maple</div><div class="hex">#ff5577</div><div class="role-s">errors / hot</div></div>
+      <div class="sw"><div class="chip" style="background:#6ec1ff"></div><div class="name">--sky</div><div class="hex">#6ec1ff</div><div class="role-s">info / inline links</div></div>
+      <div class="sw"><div class="chip" style="background:#ff8aa6"></div><div class="name">--blush</div><div class="hex">#ff8aa6</div><div class="role-s">cheek glow · accents</div></div>
+      <div class="sw"></div>
+      <div class="sw"></div>
+      <div class="sw"></div>
+    </div>
+  </div>
+
+  <!-- Pairings -->
+  <div class="group">
+    <div class="group-label"><b>pairings</b> · what kitty actually wears</div>
+    <div class="pairings">
+      <div class="pair" style="background:#1a1410; color:#ff7a1a">
+        <div class="pair-h">$ kitty</div>
+        <div class="pair-b" style="color:#f5ead3">tabby on ink</div>
+        <div class="pair-tag">brand</div>
+      </div>
+      <div class="pair" style="background:#1a1410; color:#21bdd9">
+        <div class="pair-h">go →</div>
+        <div class="pair-b" style="color:#f5ead3">teal on ink</div>
+        <div class="pair-tag">action</div>
+      </div>
+      <div class="pair" style="background:#1a1410; color:#a884ff">
+        <div class="pair-h">tagged</div>
+        <div class="pair-b" style="color:#f5ead3">grape on ink</div>
+        <div class="pair-tag">spice</div>
+      </div>
+      <div class="pair" style="background:#1a1410; color:#9be86b">
+        <div class="pair-h">all set :3</div>
+        <div class="pair-b" style="color:#f5ead3">mint on ink</div>
+        <div class="pair-tag">success</div>
+      </div>
+      <div class="pair" style="background:#1a1410; color:#f4c542">
+        <div class="pair-h">heads up</div>
+        <div class="pair-b" style="color:#f5ead3">lemon on ink</div>
+        <div class="pair-tag">warn</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

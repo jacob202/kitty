@@ -1,0 +1,357 @@
+name: Tests
+
+on:
+  pull_request:
+    # ready_for_review is required: expensive jobs are skipped while a PR is a
+    # draft, so without it a PR marked ready would never produce merge-gate for
+    # its current head. converted_to_draft enters the same concurrency group and
+    # therefore cancels in-flight work nobody can merge.
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+  push:
+    branches: [ main ]
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+# Required work is scope-aware on every event, including pushes to main: the
+# scope of a merge is the scope of what it merged. Post-merge re-running of code
+# suites for a docs-only merge proves nothing, because the strict up-to-date
+# requirement means the merged tree is the tree the PR head already validated.
+# merge_group carries this same requirement into the merge queue: every job
+# `merge-gate` needs must run there too, or the queue entry blocks forever
+# waiting for a check that never gets reported.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: changes
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+      frontend: ${{ steps.scope.outputs.frontend }}
+      sensitive: ${{ steps.scope.outputs.sensitive }}
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Classify change scope
+        id: scope
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -m scripts.pr_scope
+
+  pytest:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      # The continuity check defaults to ~/Projects/kitty; on CI runners the
+      # checkout lives under $GITHUB_WORKSPACE. This override keeps the check
+      # honest without hardcoding runner paths in the source.
+      KITTY_EXPECTED_CANONICAL_CHECKOUT: ${{ github.workspace }}
+      KITTY_EXPECTED_TEST_CHECKOUT: ${{ github.workspace }}
+      KITTY_EXPECTED_TEST_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Builder's immutable packet base must resolve from origin/main.
+          fetch-depth: 0
+          # Attach HEAD to the actual branch (not the merge preview or a bare
+          # SHA), so continuity checks read a proper git:branch and matched
+          # recorded HEAD instead of a detached-HEAD false positive.
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Run fast test suite
+        run: |
+          # TH-03 ratchet: floor = measured 76% (2026-07-19, pristine
+          # worktree at origin/main) minus 3. Council --ignore flags removed:
+          # both files were deleted in d260309 (2026-06-18).
+          set -o pipefail
+          python -m pytest tests/ -q --tb=short \
+            --cov=gateway --cov-report=term-missing --cov-fail-under=73 \
+            2>&1 | tee pytest-output.txt
+
+      - name: Upload pytest output
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-output
+          path: pytest-output.txt
+          retention-days: 7
+
+  pytest-integration:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      KITTY_EXPECTED_CANONICAL_CHECKOUT: ${{ github.workspace }}
+      KITTY_EXPECTED_TEST_CHECKOUT: ${{ github.workspace }}
+      KITTY_EXPECTED_TEST_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+
+      - name: Run required process integration suite
+        run: |
+          set -o pipefail
+          python -m pytest tests/ -q --tb=short \
+            -o addopts="--strict-markers" -m integration \
+            2>&1 | tee pytest-integration-output.txt
+
+      - name: Upload integration pytest output
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-integration-output
+          path: pytest-integration-output.txt
+          retention-days: 7
+
+  lint:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+          ruff check gateway/ tests/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+
+  typecheck:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      # The checked paths' dependencies must be installed. Without them
+      # `ignore_missing_imports` turns every third-party import into `Any` and
+      # mypy silently checks nothing about it — that is how seven real errors in
+      # mcp/imagen/ reached main unseen while the pre-push hook, which runs where
+      # the libraries exist, blocked every push on them.
+      #
+      # workers/comfy_worker/requirements.txt is deliberately excluded: it is a
+      # separately deployed service pinning fastapi 0.140.0 / pydantic 2.12.5
+      # against the gateway's 0.141.1 / 2.13.4, so adding it makes pip
+      # unresolvable. Its imports are the same packages, and type checking needs
+      # them present, not pinned to that service's versions.
+      - name: Mypy
+        run: |
+          python -m pip install --upgrade pip
+          pip install mypy types-requests types-PyYAML types-python-dateutil
+          pip install -r requirements.txt \
+            -r mcp/builder/requirements.txt \
+            -r mcp/imagen/requirements.txt
+          mypy gateway/ mcp/ workers/ scripts/runpod_worker_smoke_test.py
+
+  kitty-chat:
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gateway/kitty-chat
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gateway/kitty-chat/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Test
+        run: npm test
+      - name: npm audit (advisory)
+        continue-on-error: true
+        run: npm audit --audit-level=high
+      - name: Build
+        run: node node_modules/next/dist/bin/next build
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    needs: [changes, kitty-chat]
+    if: ${{ always() && needs.changes.outputs.frontend == 'true' && needs.kitty-chat.result == 'success' }}
+    defaults:
+      run:
+        working-directory: gateway/kitty-chat
+    env:
+      KITTY_GATEWAY_SECRET: smoke-test-secret
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gateway/kitty-chat/package-lock.json
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Gateway dependencies for hermetic seam
+        run: pip install -r ../../requirements.txt
+      - name: Install
+        run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Build
+        run: node node_modules/next/dist/bin/next build --webpack
+      - name: Start gateway stub for health gate
+        run: |
+          python3 - <<'PY' &
+          import http.server
+
+          class Handler(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  if self.path.startswith("/health"):
+                      self.send_response(200)
+                      self.end_headers()
+                      self.wfile.write(b'{"status":"ok"}')
+                  else:
+                      self.send_response(503)
+                      self.end_headers()
+
+              def log_message(self, *args):
+                  pass
+
+          http.server.HTTPServer(("127.0.0.1", 8000), Handler).serve_forever()
+          PY
+          echo $! > /tmp/kitty-gateway-stub.pid
+          sleep 1
+          kill -0 "$(cat /tmp/kitty-gateway-stub.pid)" || { echo "gateway stub failed to stay alive" >&2; exit 1; }
+      - name: Start server
+        run: |
+          node node_modules/next/dist/bin/next start -p 4000 &
+          echo $! > /tmp/kitty-next.pid
+          sleep 1
+          kill -0 "$(cat /tmp/kitty-next.pid)" || { echo "Next server failed to stay alive" >&2; exit 1; }
+      - name: Wait for owned servers
+        run: |
+          kill -0 "$(cat /tmp/kitty-gateway-stub.pid)"
+          kill -0 "$(cat /tmp/kitty-next.pid)"
+          npx wait-on http://localhost:4000 --timeout 30000
+      - name: Run smoke tests
+        env:
+          PLAYWRIGHT_PORT: "4000"
+          PLAYWRIGHT_REUSE_EXISTING_SERVER: "1"
+        run: npm run test:smoke
+      - name: Run browser → real Gateway → temp DB seam
+        env:
+          KITTY_HERMETIC_PYTHON: python
+        run: npm run test:smoke:hermetic
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: gateway/kitty-chat/playwright-report/
+          retention-days: 7
+
+  merge-gate:
+    name: merge-gate
+    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
+    needs: [changes, pytest, pytest-integration, lint, typecheck, kitty-chat, browser-smoke]
+    runs-on: ubuntu-latest
+    env:
+      CHANGES_RESULT: ${{ needs.changes.result }}
+      CODE: ${{ needs.changes.outputs.code }}
+      PYTEST_RESULT: ${{ needs.pytest.result }}
+      PYTEST_INTEGRATION_RESULT: ${{ needs.pytest-integration.result }}
+      LINT_RESULT: ${{ needs.lint.result }}
+      TYPECHECK_RESULT: ${{ needs.typecheck.result }}
+      FRONTEND: ${{ needs.changes.outputs.frontend }}
+      KITTY_CHAT_RESULT: ${{ needs.kitty-chat.result }}
+      BROWSER_SMOKE_RESULT: ${{ needs.browser-smoke.result }}
+    steps:
+      - name: Aggregate required deterministic evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CHANGES_RESULT" == "success" ]] || { echo "changes must succeed; got $CHANGES_RESULT" >&2; exit 1; }
+
+          if [[ "$CODE" == "true" ]]; then
+            for pair in \
+              "pytest:$PYTEST_RESULT" \
+              "pytest-integration:$PYTEST_INTEGRATION_RESULT" \
+              "lint:$LINT_RESULT" \
+              "typecheck:$TYPECHECK_RESULT"; do
+              name="${pair%%:*}"
+              result="${pair#*:}"
+              [[ "$result" == "success" ]] || { echo "$name must succeed for code scope; got $result" >&2; exit 1; }
+            done
+          else
+            for pair in \
+              "pytest:$PYTEST_RESULT" \
+              "pytest-integration:$PYTEST_INTEGRATION_RESULT" \
+              "lint:$LINT_RESULT" \
+              "typecheck:$TYPECHECK_RESULT"; do
+              name="${pair%%:*}"
+              result="${pair#*:}"
+              [[ "$result" == "skipped" || "$result" == "success" ]] || { echo "unexpected $name result for docs-only scope: $result" >&2; exit 1; }
+            done
+            echo "Required code checks were not applicable to docs-only scope."
+          fi
+
+          if [[ "$FRONTEND" == "true" ]]; then
+            [[ "$KITTY_CHAT_RESULT" == "success" ]] || { echo "kitty-chat must succeed for frontend scope; got $KITTY_CHAT_RESULT" >&2; exit 1; }
+            [[ "$BROWSER_SMOKE_RESULT" == "success" ]] || { echo "browser-smoke must succeed for frontend scope; got $BROWSER_SMOKE_RESULT" >&2; exit 1; }
+          else
+            [[ "$KITTY_CHAT_RESULT" == "skipped" || "$KITTY_CHAT_RESULT" == "success" ]] || { echo "unexpected kitty-chat result: $KITTY_CHAT_RESULT" >&2; exit 1; }
+            [[ "$BROWSER_SMOKE_RESULT" == "skipped" || "$BROWSER_SMOKE_RESULT" == "success" ]] || { echo "unexpected browser-smoke result: $BROWSER_SMOKE_RESULT" >&2; exit 1; }
+          fi
+
+          echo "Required merge evidence is green for this change scope."

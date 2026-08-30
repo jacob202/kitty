@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kitty Chat</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; width: 100%;
+    background: #111;
+    color: #e2e2e2;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+    font-size: 14px;
+    overflow: hidden;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    display: flex;
+    align-items: stretch;
+    height: 48px;
+    background: #161616;
+    border-bottom: 1px solid #242424;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .wordmark {
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    border-right: 1px solid #242424;
+    flex-shrink: 0;
+    gap: 10px;
+  }
+  .wordmark-logo {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #9b59ff 0%, #e8572a 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: -1px;
+    box-shadow: 0 0 12px #9b59ff44;
+    flex-shrink: 0;
+    /* placeholder until real icon */
+    font-style: italic;
+  }
+  .wordmark-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #f0f0f0;
+    letter-spacing: -0.5px;
+  }
+  .wordmark-name span { color: #e8572a; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    align-items: stretch;
+    flex: 1;
+    overflow: hidden;
+    gap: 0;
+  }
+  .tab {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 16px;
+    font-size: 12px;
+    color: #555;
+    border-right: 1px solid #1e1e1e;
+    cursor: pointer;
+    white-space: nowrap;
+    position: relative;
+    transition: background 0.1s, color 0.1s;
+    min-width: 0;
+    max-width: 200px;
+  }
+  .tab:hover { background: #1a1a1a; color: #888; }
+  .tab.active {
+    color: #e2e2e2;
+    background: #111;
+    border-top: 2px solid transparent;
+  }
+  .tab.active.teal-tab  { border-top-color: #00c2a8; }
+  .tab.active.purple-tab { border-top-color: #9b59ff; }
+  .tab-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tab-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .tab-x {
+    margin-left: auto;
+    padding-left: 6px;
+    color: #333;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .tab:hover .tab-x { color: #666; }
+  .tab-add {
+    display: flex; align-items: center;
+    padding: 0 14px;
+    color: #333; font-size: 18px;
+    cursor: pointer;
+  }
+  .tab-add:hover { color: #555; }
+
+  /* Right controls */
+  .topbar-right {
+    display: flex; align-items: center;
+    padding: 0 16px;
+    border-left: 1px solid #242424;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .model-picker {
+    display: flex; align-items: center; gap: 7px;
+    border: 1px solid #2e2e2e;
+    border-radius: 6px;
+    padding: 5px 12px;
+    background: #1a1a1a;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    color: #ccc;
+    transition: border-color 0.15s;
+  }
+  .model-picker:hover { border-color: #9b59ff55; }
+  .model-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #9b59ff;
+    box-shadow: 0 0 8px #9b59ffaa;
+    flex-shrink: 0;
+  }
+  .model-label { color: #9b59ff; font-size: 12px; }
+  .chevron { color: #444; font-size: 10px; }
+  .icon-btn {
+    color: #444; font-size: 15px;
+    cursor: pointer; padding: 4px;
+    transition: color 0.1s;
+  }
+  .icon-btn:hover { color: #888; }
+
+  /* ── CHAT AREA ── */
+  .chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 40px 0 20px;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: #2a2a2a transparent;
+  }
+
+  .messages {
+    max-width: 780px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .msg {
+    display: flex;
+    gap: 16px;
+    padding: 14px 0;
+    align-items: flex-start;
+    border-bottom: 1px solid #1a1a1a;
+  }
+  .msg:last-child { border-bottom: none; }
+
+  .avatar {
+    width: 36px; height: 36px;
+    border-radius: 9px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    margin-top: 2px;
+    letter-spacing: -0.5px;
+  }
+  .avatar-ai {
+    background: linear-gradient(135deg, #1c0a33 0%, #0d001a 100%);
+    border: 1px solid #9b59ff44;
+    box-shadow: 0 0 12px #9b59ff22, inset 0 1px 0 #9b59ff22;
+    color: #9b59ff;
+    font-size: 17px;
+  }
+  .avatar-user {
+    background: linear-gradient(135deg, #2a1108 0%, #1a0a00 100%);
+    border: 1px solid #e8572a44;
+    box-shadow: 0 0 10px #e8572a18;
+    color: #e8572a;
+    font-size: 13px;
+  }
+
+  .msg-body { flex: 1; min-width: 0; }
+  .msg-meta {
+    display: flex; align-items: baseline; gap: 10px;
+    margin-bottom: 7px;
+  }
+  .msg-who { font-size: 12px; font-weight: 700; color: #e2e2e2; }
+  .msg-who.ai { color: #9b59ff; }
+  .msg-when { font-size: 11px; color: #333; }
+  .msg-model { font-size: 10px; color: #2e2e2e; }
+
+  .msg-text {
+    font-size: 14px;
+    line-height: 1.75;
+    color: #d0d0d0;
+  }
+  .msg-text code {
+    background: #1a2a1a;
+    color: #6fcf7c;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 13px;
+  }
+  .msg-text .hi { color: #00c2a8; }
+  .msg-text .hv { color: #9b59ff; }
+
+  .code-block {
+    margin-top: 12px;
+    background: #141414;
+    border: 1px solid #222;
+    border-left: 3px solid #00c2a8;
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #777;
+    overflow-x: auto;
+  }
+  .kw { color: #9b59ff; }
+  .fn { color: #00c2a8; }
+  .st { color: #6fcf7c; }
+  .cm { color: #2e2e2e; }
+  .nu { color: #4d9fff; }
+
+  .tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; }
+  .tag {
+    border-radius: 20px; padding: 3px 9px;
+    font-size: 11px; display: inline-flex; align-items: center; gap: 4px;
+    font-family: inherit;
+  }
+  .t-teal   { background: #082a22; border: 1px solid #00c2a855; color: #00c2a8; }
+  .t-purple { background: #160d2a; border: 1px solid #9b59ff55; color: #9b59ff; }
+  .t-mint   { background: #0a1f0d; border: 1px solid #6fcf7c55; color: #6fcf7c; }
+  .t-blue   { background: #080f2a; border: 1px solid #4d9fff55; color: #4d9fff; }
+  .t-orange { background: #1c0f08; border: 1px solid #e8572a55; color: #e8572a; }
+
+  /* Typing indicator */
+  .typing-dots { display: inline-flex; gap: 5px; align-items: center; padding-top: 4px; }
+  .typing-dots span {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #9b59ff;
+    animation: bounce 1.2s infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%, 80%, 100% { opacity: 0.25; transform: scale(0.75); }
+    40% { opacity: 1; transform: scale(1); }
+  }
+
+  /* ── INPUT ── */
+  .input-area {
+    flex-shrink: 0;
+    padding: 12px 32px 20px;
+    background: #111;
+    border-top: 1px solid #1e1e1e;
+  }
+  .input-inner {
+    max-width: 780px;
+    margin: 0 auto;
+  }
+  .input-box {
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    background: #161616;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .input-box:focus-within {
+    border-color: #9b59ff55;
+    box-shadow: 0 0 20px #9b59ff0d;
+  }
+  textarea {
+    width: 100%; background: none; border: none; outline: none;
+    color: #e2e2e2; font-family: inherit; font-size: 14px;
+    padding: 14px 16px 8px;
+    resize: none; min-height: 50px;
+    line-height: 1.6;
+  }
+  textarea::placeholder { color: #2e2e2e; }
+  .input-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 10px 10px;
+    gap: 8px;
+  }
+  .input-actions { display: flex; gap: 5px; }
+  .chip {
+    border: 1px solid #222;
+    border-radius: 12px;
+    padding: 3px 9px;
+    font-size: 11px;
+    color: #444;
+    cursor: pointer;
+    font-family: inherit;
+    background: none;
+    transition: border-color 0.1s, color 0.1s;
+  }
+  .chip:hover { border-color: #3a3a3a; color: #777; }
+  .send-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: linear-gradient(90deg, #e8572a, #f07d3a);
+    border: none; border-radius: 6px;
+    color: #fff; font-family: inherit; font-size: 12px; font-weight: 600;
+    padding: 7px 16px; cursor: pointer;
+    letter-spacing: 0.3px;
+    box-shadow: 0 0 12px #e8572a33;
+    transition: opacity 0.15s;
+  }
+  .send-btn:hover { opacity: 0.88; }
+
+  .input-footer {
+    display: flex; justify-content: center;
+    margin-top: 8px;
+    font-size: 11px;
+    color: #2a2a2a;
+    gap: 16px;
+  }
+  .input-footer span { display: flex; align-items: center; gap: 4px; }
+  .input-footer .dot { width: 5px; height: 5px; border-radius: 50%; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="wordmark">
+      <div class="wordmark-logo">k</div>
+      <span class="wordmark-name">kit<span>ty</span></span>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active teal-tab">
+        <span class="tab-dot" style="background:#00c2a8;box-shadow:0 0 6px #00c2a8aa;"></span>
+        <span class="tab-label">embeddings deep-dive</span>
+        <span class="tab-x">✕</span>
+      </div>
+      <div class="tab">
+        <span class="tab-dot" style="background:#9b59ff;box-shadow:0 0 5px #9b59ff88;"></span>
+        <span class="tab-label">trip planning</span>
+        <span class="tab-x">✕</span>
+      </div>
+      <div class="tab">
+        <span class="tab-dot" style="background:#4d9fff;box-shadow:0 0 5px #4d9fff88;"></span>
+        <span class="tab-label">resume rewrite</span>
+        <span class="tab-x">✕</span>
+      </div>
+      <div class="tab">
+        <span class="tab-dot" style="background:#6fcf7c;box-shadow:0 0 5px #6fcf7c88;"></span>
+        <span class="tab-label">code review</span>
+        <span class="tab-x">✕</span>
+      </div>
+      <div class="tab-add">+</div>
+    </div>
+
+    <div class="topbar-right">
+      <div class="model-picker">
+        <span class="model-dot"></span>
+        <span class="model-label">sonnet-4</span>
+        <span class="chevron">⌄</span>
+      </div>
+      <span class="icon-btn" title="Command palette">⌘</span>
+      <span class="icon-btn" title="History">≡</span>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="chat-area">
+    <div class="messages">
+
+      <div class="msg">
+        <div class="avatar avatar-user">jb</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-who">you</span>
+            <span class="msg-when">2:31 pm</span>
+          </div>
+          <div class="msg-text">explain embeddings like i'm a developer who understands vectors but has never touched ML</div>
+        </div>
+      </div>
+
+      <div class="msg">
+        <div class="avatar avatar-ai">✦</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-who ai">kitty</span>
+            <span class="msg-when">2:31 pm</span>
+            <span class="msg-model">· sonnet-4</span>
+          </div>
+          <div class="msg-text">
+            Think of an embedding as a <span class="hi">coordinate for meaning</span>. You take text and run it through a model that produces a fixed-size float array — say, 1536 dimensions for <code>text-embedding-3-small</code>.<br><br>
+            Two sentences that mean similar things produce vectors that are <span class="hv">geometrically close</span> in that space. That proximity is measurable with cosine similarity — the dot product of the unit vectors.
+          </div>
+          <div class="code-block"><span class="cm"># cosine similarity between two embeddings</span>
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">cosine_sim</span>(a, b):
+    <span class="kw">return</span> np.<span class="fn">dot</span>(a, b) / (np.<span class="fn">linalg.norm</span>(a) * np.<span class="fn">linalg.norm</span>(b))
+
+sim = <span class="fn">cosine_sim</span>(embed(<span class="st">"cat"</span>), embed(<span class="st">"feline"</span>))  <span class="cm"># → ~0.91</span>
+sim = <span class="fn">cosine_sim</span>(embed(<span class="st">"cat"</span>), embed(<span class="st">"database"</span>)) <span class="cm"># → ~0.21</span></div>
+          <div class="tags">
+            <span class="tag t-teal">vectors</span>
+            <span class="tag t-purple">ML basics</span>
+            <span class="tag t-mint">python</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="msg">
+        <div class="avatar avatar-user">jb</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-who">you</span>
+            <span class="msg-when">2:34 pm</span>
+          </div>
+          <div class="msg-text">ok and how does that relate to RAG?</div>
+        </div>
+      </div>
+
+      <div class="msg">
+        <div class="avatar avatar-ai">✦</div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-who ai">kitty</span>
+            <span class="msg-when">2:34 pm</span>
+            <span class="msg-model">· sonnet-4</span>
+          </div>
+          <div class="typing-dots">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- INPUT -->
+  <div class="input-area">
+    <div class="input-inner">
+      <div class="input-box">
+        <textarea placeholder="→ ask kitty_" rows="2"></textarea>
+        <div class="input-bar">
+          <div class="input-actions">
+            <button class="chip">/ commands</button>
+            <button class="chip">@ mention</button>
+            <button class="chip">⌘K history</button>
+          </div>
+          <button class="send-btn">send ↵</button>
+        </div>
+      </div>
+      <div class="input-footer">
+        <span><span class="dot" style="background:#00c2a8;box-shadow:0 0 4px #00c2a888;"></span> embeddings deep-dive</span>
+        <span style="color:#1e1e1e;">·</span>
+        <span><span class="dot" style="background:#9b59ff;"></span> sonnet-4</span>
+        <span style="color:#1e1e1e;">·</span>
+        <span>4 msgs · ~2.1k tokens</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# External hosts that answer link checks with bot-hostile or flaky status
+# codes unrelated to link validity. Each entry has blocked an unrelated PR
+# at least once (see the hygiene job in .github/workflows/tests.yml).
+# textgrad.com answers HEAD requests with 415 Unsupported Media Type.
+https?://textgrad\.com.*
+
+# departuremono.com font CDN times out intermittently (archive preview files).
+https?://departuremono\.com.*
+
+# modal.com answers link checks with 403 Forbidden (bot-hostile); legitimately
+# reachable in a browser.
+https?://modal\.com.*
+https://github.com/svd-ai-lab/open-engineer

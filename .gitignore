@@ -1,0 +1,117 @@
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+.env.backup
+.env.before*
+*.pem
+*.key
+*.ppk
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+
+# Personal data (keep structure, ignore contents)
+data/*
+!data/.gitkeep
+chroma_db/
+logs/*
+!logs/.gitkeep
+*.log
+*.jsonl
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# macOS
+.DS_Store
+Icon?
+._*
+
+# Frontend (gateway/kitty-chat)
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.cursor/
+.mcp.json
+.aura/
+.claude/settings.local.json
+.claude/handoff-archive/
+.claude/worktrees/
+reflection-notes.md
+
+# Misc
+*.sqlite
+*.db
+duplicate_analysis_report.txt
+*_analysis_report.txt
+.superpowers/
+
+# Ephemeral runtime state
+.kitty.pid
+.kittybuilder_session.json
+.agent/session_logs/*.md
+.codex/
+
+# Never commit a literal $HOME dir (script ran with unexpanded $HOME) or Open WebUI data
+/$HOME/
+**/open-webui-data/
+.webui_secret
+
+# IDE
+.kiro/
+
+# Stale pre-restructure paths (canonical: gateway/kitty-chat/, gateway/)
+/kitty-chat/
+kitty_gateway/
+.aider*
+
+.worktrees/
+
+# Imagen runtime
+mcp/imagen/ComfyUI/
+mcp/imagen/.venv/
+mcp/imagen/.env
+mcp/imagen/*.ckpt
+mcp/imagen/models/
+mcp/imagen/Icon*
+mcp/imagen/COLAB_INSTRUCTIONS.md
+mcp/imagen/test_run.py
+
+# local junk/scratch moved out of the way, never committed
+.trash/
+tmp/
+
+# oh-my-opencode-slim local config
+.slim/
+
+# Build artifacts
+.coverage
+*.pyc
+__pycache__/
+gateway/kitty-chat/test-results/
+
+# Local Deepwork coordination state
+.slim/deepwork/
+
+# BEGIN oh-my-opencode-slim clonedeps
+.slim/clonedeps/repos/
+# END oh-my-opencode-slim clonedeps
+.opencode/
+
+# Personal reference photos — never in git. Live at ~/kitty-services/faces/
+config/imagen/faces/*/
+docs/session-notes/workflow-signals/.workflow-signals.lock

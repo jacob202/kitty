@@ -1,0 +1,112 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kx-02-chat-execution",
+  "title": "KX-02: Chat execution experience — tool activity, approvals, artifacts, retries",
+  "description": "Upgrade the chat experience with tool-call cards (collapsible per-tool with status, duration, result), approval gates (inline card with approve/decline), interrupt/resume, artifact cards in-stream, and accessible state announcements. Derived from assistant-ui tool cards (MIT), agent-canvas approval UX (MIT), and Pipali retry patterns (Apache-2.0).",
+  "packets": [
+    {
+      "id": "KX-02-01-tool-cards",
+      "title": "Tool-call cards: collapsible per-tool with status, duration, result preview",
+      "objective": "Replace the current inline tool-result text with collapsible tool-call cards. Each tool call gets a card showing: tool name + icon, status (running/done/failed), duration, and expandable result. Streaming tool calls show a spinner and update inline. Harvested pattern from assistant-ui/assistant-ui (MIT). Write ToolCallCard in shared/. Hook into the existing tool result rendering in ChatMessage.tsx.",
+      "depends_on": ["KX-01-01-shared-components"],
+      "acceptance_criteria": [
+        "Tool calls render as collapsible cards, not inline text",
+        "Running state shows spinner; done state shows check + duration; failed shows error + retry",
+        "Result content is expandable/collapsible",
+        "Streaming tool calls update inline without flicker",
+        "make ui-test + npm run build pass"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/shared/ToolCallCard.tsx",
+        "gateway/kitty-chat/src/components/ChatMessage.tsx",
+        "gateway/kitty-chat/src/lib/types.ts",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-02-02-approval-gates",
+      "title": "Approval gates: inline card with approve/decline, pause on pending",
+      "objective": "When Kitty needs approval, render an inline ApprovalGate card instead of a raw prompt. The card shows: what Kitty wants to do, details, and approve/decline buttons. The conversation pauses until resolved. After approval, the action continues. After decline, conversation resumes with preference recorded. Harvested from agent-canvas (MIT) approval UX.",
+      "depends_on": ["KX-02-01-tool-cards"],
+      "acceptance_criteria": [
+        "Approval requests render as inline cards, not raw text",
+        "Conversation pauses with a visible 'waiting for approval' indicator",
+        "Approve continues the action; Decline records preference and resumes",
+        "Keyboard accessible (Enter on Approve, Escape on Decline)",
+        "make ui-test + npm run build pass"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/shared/ApprovalGate.tsx",
+        "gateway/kitty-chat/src/components/ChatMessage.tsx",
+        "gateway/kitty-chat/src/lib/chat-client.ts",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 9 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-02-03-artifact-cards",
+      "title": "Artifact cards in chat stream: images, documents, code, reports",
+      "objective": "Render ArtifactCard for generated outputs in-stream. When the backend returns an artifact reference, render the appropriate ArtifactCard type (image=thumbnail, document=excerpt, code=preview, report=summary). Each card shows provenance (which tool/model created it). Actions: view full, download, copy (code).",
+      "depends_on": ["KX-01-01-shared-components"],
+      "acceptance_criteria": [
+        "Artifact references in chat render as ArtifactCards, not bare links",
+        "Each type renders with correct visual model per the plan",
+        "Provenance is visible (created by tool X at time Y)",
+        "View/download/copy actions work",
+        "make ui-test + npm run build pass"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/shared/ArtifactCard.tsx",
+        "gateway/kitty-chat/src/components/ChatMessage.tsx",
+        "gateway/kitty-chat/src/lib/types.ts",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-02-04-retry-recovery",
+      "title": "Retry and recovery: per-message retry, interruption resume, error recovery",
+      "objective": "Replace the current single-message retry with per-tool and per-message retry. Failed tool calls get a retry button that re-runs just that tool. Interrupted messages get retry and continue options. Gateway connectivity errors show a slim persistent banner (not blocking modal) with retry. Every error links to the specific control, never a generic toast. Harvested from Pipali retry patterns (Apache-2.0).",
+      "depends_on": ["KX-02-01-tool-cards"],
+      "acceptance_criteria": [
+        "Failed tool call shows retry button that re-runs the specific tool",
+        "Interrupted message shows retry and continue options",
+        "Gateway offline shows slim banner, not modal",
+        "Every error message names what failed and how to recover",
+        "make ui-test + npm run build pass"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/ChatMessage.tsx",
+        "gateway/kitty-chat/src/app/page.tsx",
+        "gateway/kitty-chat/src/lib/chat-client.ts",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 7 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-02-05-status-announcements",
+      "title": "Accessible live status announcements for streaming and state changes",
+      "objective": "Add aria-live regions to announce streaming content updates and state changes to screen readers. The main content area gets aria-live='polite' for normal streaming. aria-live='assertive' for errors, approvals needed, and gateway-down states. StatusBadge gets role='status' for automatic announcement.",
+      "depends_on": ["KX-01-06-accessibility"],
+      "acceptance_criteria": [
+        "Streaming content is announced to screen readers via polite region",
+        "Errors and approval requests are announced via assertive region",
+        "StatusBadge announces state changes automatically",
+        "make ui-test + npm run build pass"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/ChatMessage.tsx",
+        "gateway/kitty-chat/src/components/shared/StatusBadge.tsx",
+        "gateway/kitty-chat/src/app/layout.tsx",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 5 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    }
+  ]
+}

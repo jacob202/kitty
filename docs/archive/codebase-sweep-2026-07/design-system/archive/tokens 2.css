@@ -1,0 +1,122 @@
+/* ============================================================
+   KITTY — Design Tokens
+   Two skins: [data-theme="day"] (manila paper) and
+              [data-theme="night"] (chalkboard)
+   Apply to <html> or the root app element.
+   ============================================================ */
+
+/* ── DAY: manila paper ─────────────────────────────────────── */
+[data-theme="day"], :root {
+
+  /* surfaces */
+  --bg:         #F3EAD6;   /* warm manila paper */
+  --surface:    #FBF5E9;   /* raised card / panel */
+  --surface-2:  #EBE0C9;   /* recessed / sidebar rail */
+  --line:       #DACBA9;   /* borders, dividers */
+
+  /* ink */
+  --ink:        #3E3527;   /* primary text — warm dark brown */
+  --ink-2:      #897C64;   /* secondary / muted text */
+
+  /* primary — soft cornflower blue */
+  --primary:        #5B7FBF;
+  --primary-deep:   #3E5E97;   /* pressed / shadow offset */
+  --primary-fade:   rgba(91,127,191,.16); /* focus ring / active bg */
+  --on-primary:     #FFFFFF;
+
+  /* crayon accent palette */
+  --cat-ginger:   #E68A47;   /* the mascot — always this, never primary */
+  --cat-green:    #7FA85F;   /* eye */
+  --cat-pink:     #E5869A;   /* nose, inner ear, cheek */
+  --cat-outline:  #4A3D2C;   /* stroke on paper */
+  --ginger-fade:  rgba(230,138,71,.16);
+
+  --c-red:    #DC6657;   /* pinned, error, destructive */
+  --c-green:  #6E9B52;   /* ok, done, synced */
+  --c-yellow: #D6A93E;   /* warning, working */
+  --c-purple: #A988C2;   /* avatar, about, oddball */
+  --c-blue:   #5B7FBF;   /* alias for --primary */
+
+  /* elevation */
+  --shadow:      0 3px 0 var(--primary-deep), 0 6px 14px rgba(0,0,0,.10);
+  --shadow-soft: 0 2px 8px rgba(62,53,39,.06);
+
+  /* grain */
+  --grain-opacity: 0.048;
+  --grain-blend:   multiply;
+}
+
+/* ── NIGHT: chalkboard ─────────────────────────────────────── */
+[data-theme="night"] {
+
+  /* surfaces */
+  --bg:         #272D2B;   /* deep chalkboard slate */
+  --surface:    #2F3633;
+  --surface-2:  #39423E;
+  --line:       #4A534D;
+
+  /* ink */
+  --ink:        #F1ECDD;   /* chalky cream */
+  --ink-2:      #A6AEA4;
+
+  /* primary — light cornflower on dark */
+  --primary:        #88ABDA;
+  --primary-deep:   #5E84B8;
+  --primary-fade:   rgba(136,171,218,.20);
+  --on-primary:     #23282E;   /* dark text on light-blue button */
+
+  /* crayon accent palette (chalk pastels on board) */
+  --cat-ginger:   #F0A463;
+  --cat-green:    #9DC07E;
+  --cat-pink:     #F0A0B4;
+  --cat-outline:  #F1ECDD;   /* chalk-cream outline on board */
+  --ginger-fade:  rgba(240,164,99,.18);
+
+  --c-red:    #EC8576;
+  --c-green:  #9DC07E;
+  --c-yellow: #F0D06A;
+  --c-purple: #C0A4DA;
+  --c-blue:   #88ABDA;
+
+  /* elevation */
+  --shadow:      0 3px 0 var(--primary-deep), 0 6px 14px rgba(0,0,0,.30);
+  --shadow-soft: 0 2px 8px rgba(0,0,0,.18);
+
+  /* grain */
+  --grain-opacity: 0.05;
+  --grain-blend:   screen;
+}
+
+/* ── Typography ────────────────────────────────────────────── */
+:root {
+  /* families */
+  --font-display: 'Bricolage Grotesque', sans-serif;   /* headers, wordmark */
+  --font-body:    'Hanken Grotesk', sans-serif;         /* all UI text */
+  --font-mono:    'JetBrains Mono', monospace;          /* hotkeys, state echoes, timestamps only */
+
+  /* scale */
+  --t-hero:    5rem;      /* wordmark / splash */
+  --t-display: 3rem;      /* section hero */
+  --t-h1:      2.25rem;
+  --t-h2:      1.5rem;
+  --t-h3:      1.125rem;
+  --t-body:    0.9375rem; /* 15px default */
+  --t-small:   0.8125rem; /* 13px */
+  --t-tiny:    0.6875rem; /* 11px — mono labels only */
+
+  /* spacing (8px base) */
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3:  12px;
+  --s-4:  16px;
+  --s-5:  24px;
+  --s-6:  32px;
+  --s-7:  48px;
+  --s-8:  64px;
+
+  /* radii — generous on surfaces, tighter on controls */
+  --r-surface: 16px;
+  --r-control: 12px;
+  --r-chip:    999px;
+  --r-tag:     6px;
+}

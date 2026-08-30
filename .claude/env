@@ -1,0 +1,5 @@
+# Claude Code session environment overrides.
+# gh uses keyring auth when GITHUB_TOKEN is unset or empty.
+# The shell that launches Claude Code sometimes inherits a stale PAT here,
+# which causes 401s. Clearing it forces gh to fall back to keyring credentials.
+GITHUB_TOKEN=

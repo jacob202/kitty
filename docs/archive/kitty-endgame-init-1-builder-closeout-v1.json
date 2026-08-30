@@ -1,0 +1,121 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-endgame-init-1-builder-closeout-v1",
+  "title": "Kitty Endgame INIT-1: Builder closeout and operator authority",
+  "description": "L0 planning manifest for the Kitty Endgame Builder closeout. Recommended worker tier for every packet: Luna medium reasoning. Manifest v1 only permits max_attempts and priority in policy, so tier selection is recorded here and in each objective rather than as an unsupported schema key. B2 is the authority gate: each concrete B3+ remediation must be added as its own immutable packet after the B2 audit names the gap, owner, and allowed paths. B7 and B8 are deliberately sequenced after the audit so they cannot grant execution authority outside verified Builder state.",
+  "packets": [
+    {
+      "id": "B1-dogfood-preflight",
+      "title": "B1: Dogfood preflight and branch reconciliation",
+      "objective": "[Luna medium] Reconcile the live Builder queue, registered worktrees, current branch, and merged PR evidence before any Endgame dispatch. Write a concise evidence record under docs/initiatives/ that identifies the canonical next eligible packet, duplicates/superseded work, active leases, and any reason the closeout must stop. This packet is read-only with respect to Builder queue and Git state: it must not apply manifests, start attempts, mutate task state, create branches, or run packets.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The evidence record names the source commands and their observed timestamp",
+        "The record classifies every currently queued or blocked packet as runnable, dependency-gated, superseded, or needs Jacob",
+        "The record names any duplicate initiative identity and recommends one canonical lane",
+        "No Builder queue, Git branch, worktree, or runtime file is changed"
+      ],
+      "allowed_paths": [
+        "docs/initiatives/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 },
+      "validation_commands": [
+        "./kitty builder initiative doctor --json",
+        "git diff --check"
+      ]
+    },
+    {
+      "id": "B2-kbs4-gap-audit",
+      "title": "B2: KB-S4 gap audit, docs only",
+      "objective": "[Luna medium] Audit the remaining KB-S4 / Builder closeout gaps using live code, tests, queue evidence, and the B1 reconciliation record. Write a docs-only gap register under docs/initiatives/. For each gap, state whether it is already landed, blocked on Jacob, unsafe to automate, or suitable for a new one-gap B3+ packet. Every proposed remediation must include exact allowed paths, dependencies, acceptance criteria, validation commands, and its execution authority boundary. Do not implement a gap in this packet.",
+      "depends_on": ["B1-dogfood-preflight"],
+      "acceptance_criteria": [
+        "A gap register exists under docs/initiatives/ and is evidence-linked to B1",
+        "Each open gap is classified as landed, needs Jacob, unsafe to automate, or eligible for a one-gap follow-up packet",
+        "Every eligible follow-up has explicit allowed paths, acceptance criteria, validation commands, and dependency edges",
+        "No production, queue, or UI code is changed"
+      ],
+      "allowed_paths": [
+        "docs/initiatives/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 9 },
+      "validation_commands": [
+        "./kitty builder initiative doctor --json",
+        "git diff --check"
+      ]
+    },
+    {
+      "id": "B3-gap-remediation-template",
+      "title": "B3: Materialize one audit-approved gap packet",
+      "objective": "[Luna medium] Convert exactly one B2 gap marked eligible into a new, separately validated initiative manifest under docs/initiatives/. This is a manifest-authoring packet only: do not apply the new manifest, run its packet, or widen its allowed paths after validation. Additional B4..Bn remediations are intentionally not predeclared because their scope must come from the B2 evidence register, not a speculative umbrella packet.",
+      "depends_on": ["B2-kbs4-gap-audit"],
+      "acceptance_criteria": [
+        "Exactly one B2-approved gap is represented by a new valid manifest under docs/initiatives/",
+        "The new manifest has a narrow objective, exact allowed paths, dependency edges, acceptance criteria, and validation commands",
+        "The new manifest validates with ./kitty builder initiative validate --json",
+        "The manifest is not applied and no queue state changes"
+      ],
+      "allowed_paths": [
+        "docs/initiatives/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": [
+        "./kitty builder initiative doctor --json",
+        "git diff --check"
+      ]
+    },
+    {
+      "id": "B7-home-run-authority-gate",
+      "title": "B7: Home Run next-packet POST and UI authority gate",
+      "objective": "[Luna medium] Add one explicit, audited Home Run action for the single next eligible Builder packet. The POST endpoint and UI button must be disabled unless the runtime manifest supplies an eligible packet and all authority checks pass. It must show the selected initiative/packet, require an explicit confirmation, record an auditable event, reject stale/paused/blocked/superseded targets with a specific error, and never choose a packet client-side. It must not bypass Builder's existing run-packet, worker, review, approval, publish, or queue protections. This packet must be coordinated with any active Builder UI work before execution.",
+      "depends_on": ["B3-gap-remediation-template"],
+      "acceptance_criteria": [
+        "The server accepts only the current runtime-manifest next eligible packet and rejects client-selected stale, paused, blocked, or superseded targets with explicit errors",
+        "The UI names the selected packet and requires confirmation before POST",
+        "The action records an auditable Builder event without bypassing existing authorization or review gates",
+        "Route and UI tests cover success, no-eligible-packet, stale-target, paused-initiative, and authorization-rejection states",
+        "Relevant backend and frontend test slices and the production UI build pass"
+      ],
+      "allowed_paths": [
+        "gateway/routes/",
+        "gateway/builder_*.py",
+        "gateway/runtime_manifest.py",
+        "gateway/kitty-chat/src/components/BuilderSurface.tsx",
+        "gateway/kitty-chat/src/lib/gateway.ts",
+        "gateway/kitty-chat/tests/BuilderSurface.test.tsx",
+        "tests/test_builder_*.py",
+        "tests/test_runtime_manifest.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 7 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_builder_cli.py tests/test_builder_initiative.py tests/test_runtime_manifest.py -q --tb=short",
+        "cd gateway/kitty-chat && npm test -- --run tests/BuilderSurface.test.tsx",
+        "cd gateway/kitty-chat && npm run build"
+      ]
+    },
+    {
+      "id": "B8-initiative-progress-card",
+      "title": "B8: Initiative progress and next-action card",
+      "objective": "[Luna medium] Add a read-only Builder card that explains each initiative's state, progress, active/blocked packet, exact blocker, recommended next action, and who has authority to take it. The card must derive exclusively from the runtime Builder manifest; it must distinguish unavailable/stale/partial data from real queue state and must not imply authority that the backend does not expose. Any action affordance may only link to B7's audited flow when its server-side authority predicate is true. Coordinate with active Builder UI work before execution.",
+      "depends_on": ["B7-home-run-authority-gate"],
+      "acceptance_criteria": [
+        "The card renders active, completed, paused, blocked, failed, unavailable, stale, and partial-data states truthfully",
+        "Each non-complete initiative shows progress, the next or blocked packet, a plain-language reason, and an authority owner",
+        "No client-side inference upgrades a blocked or paused packet into a runnable action",
+        "The card has component tests for complete, active, blocked, paused, unavailable, and stale data",
+        "The production UI build passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/BuilderSurface.tsx",
+        "gateway/kitty-chat/src/components/HomeState.tsx",
+        "gateway/kitty-chat/src/lib/gateway.ts",
+        "gateway/kitty-chat/tests/BuilderSurface.test.tsx"
+      ],
+      "policy": { "max_attempts": 2, "priority": 6 },
+      "validation_commands": [
+        "cd gateway/kitty-chat && npm test -- --run tests/BuilderSurface.test.tsx",
+        "cd gateway/kitty-chat && npm run build"
+      ]
+    }
+  ]
+}

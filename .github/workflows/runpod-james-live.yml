@@ -1,0 +1,166 @@
+name: RunPod James Single Smoke
+
+# NOTE: dispatch-only on purpose. Every run rents a real GPU and passes
+# --accept-charges, so a push trigger spends money unattended on each commit.
+# Restore an automatic trigger only after a live run has succeeded end to end.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: runpod-james-live-direct-v4
+  cancel-in-progress: true
+
+jobs:
+  james-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+      RUNPOD_TEMPLATE_ID: 2lv7ev3wfp
+      KITTY_BOOTSTRAP_REF: ${{ github.sha }}
+      RUNPOD_MAX_HOURLY_RATE: "0.60"
+      RUNPOD_HARD_RUNTIME_MINUTES: "30"
+      RUNPOD_READY_TIMEOUT_SECONDS: "1200"
+      RUNPOD_GENERATION_TIMEOUT_SECONDS: "600"
+      RUNPOD_POLL_INTERVAL_SECONDS: "5"
+      RUNPOD_CLOUD_TYPES: COMMUNITY,SECURE
+      RUNPOD_CAPACITY_RETRY_ROUNDS: "4"
+      RUNPOD_CAPACITY_RETRY_SECONDS: "20"
+      COMFY_CHECKPOINT: RealVisXL_V4.0.safetensors
+      COMFY_CHECKPOINT_URL: https://huggingface.co/SG161222/RealVisXL_V4.0/resolve/main/RealVisXL_V4.0.safetensors?download=true
+      COMFY_CHECKPOINT_SHA256: 912c9dc74f5855175c31a7993f863a043ac8dcc31732b324cd05d75cd7e16844
+
+    steps:
+      - name: Checkout direct-image smoke commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Apply verified REST schema correction
+        shell: bash
+        run: |
+          sed -i '/"templateId": None,/d' gateway/runpod_control.py
+          ! grep -q '"templateId": None' gateway/runpod_control.py
+
+      - name: Announce live smoke
+        run: |
+          gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
+            "RunPod one-image direct-image smoke: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install live-run dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx==0.28.1 pillow==11.3.0
+
+      - name: Prepare ephemeral worker token
+        shell: bash
+        # ::add-mask:: must run before the value reaches GITHUB_ENV. Without it
+        # the token is printed verbatim in every later step's env dump, and this
+        # repository's action logs are public.
+        run: |
+          value="$(openssl rand -hex 32)"
+          echo "::add-mask::$value"
+          echo "KITTY_WORKER_BEARER_TOKEN=$value" >> "$GITHUB_ENV"
+
+      - name: Confirm RunPod credential is present
+        shell: bash
+        run: |
+          test -n "$RUNPOD_API_KEY" || { echo "RUNPOD_API_KEY secret is missing" >&2; exit 2; }
+
+      - name: Generate one real smoke image
+        shell: bash
+        run: |
+          python scripts/runpod_james_adaptive.py \
+            --attempts 1 \
+            --output-dir runtime-data/runpod-james \
+            --accept-charges
+
+      - name: Upload generated image and provenance
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: runpod-james-${{ github.run_id }}
+          path: runtime-data/runpod-james/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Report success
+        if: success()
+        run: |
+          gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
+            "RunPod one-image direct-image smoke succeeded. Genuine image and provenance: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+      - name: Report failure
+        if: failure()
+        run: |
+          gh pr comment 306 --repo "$GITHUB_REPOSITORY" --body \
+            "RunPod one-image direct-image smoke failed. Exact logs and failure manifest: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+  cleanup:
+    if: always()
+    needs: james-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+    steps:
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - run: pip install httpx==0.28.1
+
+      - name: Terminate every James smoke resource
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import httpx
+
+          base = "https://rest.runpod.io/v1"
+          headers = {
+              "Authorization": f"Bearer {os.environ['RUNPOD_API_KEY']}",
+              "Content-Type": "application/json",
+          }
+          with httpx.Client(timeout=45) as client:
+              pods = client.get(f"{base}/pods", headers=headers)
+              pods.raise_for_status()
+              for pod in pods.json():
+                  if str(pod.get("name") or "").startswith("kitty-image-james-"):
+                      pod_id = str(pod.get("id") or "")
+                      if pod_id:
+                          response = client.delete(f"{base}/pods/{pod_id}", headers=headers)
+                          if response.status_code not in {204, 404}:
+                              response.raise_for_status()
+
+              templates = client.get(
+                  f"{base}/templates",
+                  headers=headers,
+                  params={"includePublicTemplates": False, "includeRunpodTemplates": False},
+              )
+              templates.raise_for_status()
+              values = templates.json()
+              if isinstance(values, dict):
+                  values = values.get("templates") or values.get("data") or []
+              for template in values if isinstance(values, list) else []:
+                  if str(template.get("name") or "").startswith("kitty-james-live-"):
+                      template_id = str(template.get("id") or "")
+                      if template_id:
+                          response = client.delete(
+                              f"{base}/templates/{template_id}", headers=headers
+                          )
+                          if response.status_code not in {204, 404}:
+                              response.raise_for_status()
+          PY

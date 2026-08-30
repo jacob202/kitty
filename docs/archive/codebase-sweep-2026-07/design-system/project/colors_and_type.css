@@ -1,0 +1,159 @@
+/* =========================================================================
+   Kitty Design System — tokens
+   Import this file anywhere you need brand variables.
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+:root {
+  /* ---------- Color: surfaces ---------- */
+  --ink:          #1a1410;   /* primary dark surface (deep brown-black) */
+  --ink-soft:     #251c17;   /* raised surface */
+  --ink-deep:     #0e0a08;   /* recessed surface / void */
+  --ink-line:     #3a2e25;   /* hairline borders on dark */
+
+  /* ---------- Color: text ---------- */
+  --cream:        #f5ead3;   /* primary text on ink */
+  --cream-dim:    #bdb19a;   /* secondary text */
+  --cream-faint:  #7a7160;   /* tertiary / metadata */
+
+  /* ---------- Color: brand ---------- */
+  --tabby:        #ff7a1a;   /* primary brand orange */
+  --tabby-deep:   #cc4f00;   /* pressed/hover orange */
+  --tabby-glow:   #ffb066;   /* highlights, scanlines */
+
+  /* ---------- Color: co-stars (orange, teal, purple do most of the talking) ---------- */
+  --teal:         #21bdd9;   /* co-primary — cyan-leaning; links, action, fresh */
+  --teal-deep:    #0e7a8f;   /* pressed teal */
+  --teal-glow:    #6cdcef;   /* highlight teal */
+
+  --grape:        #a884ff;   /* co-primary purple — tags, accents, kitty's signature */
+  --grape-deep:   #7748e6;   /* pressed purple */
+  --grape-glow:   #cab8ff;   /* soft purple highlight */
+
+  /* ---------- Color: spice (small doses) ---------- */
+  --maple:        #ff5577;   /* errors / hot moments — pinky red, not tomato */
+  --lemon:        #f4c542;   /* warning / heads-up */
+  --sky:          #6ec1ff;   /* informational, inline links */
+  --mint:         #9be86b;   /* soft success — green/yellow-leaning; sleeping timers, gentle confirms */
+  --blush:        #ff8aa6;   /* cheek glow / decorative accent */
+
+  /* ---------- Color: light mode (secondary skin) ---------- */
+  --paper:        #f5ead3;
+  --paper-soft:   #ebdfc4;
+  --paper-line:   #d5c7a8;
+
+  /* ---------- Type families ---------- */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;   /* headlines, wordmark, kitty's voice */
+  --font-body:    'Space Mono', 'SF Mono', 'Consolas', monospace;   /* body, ui, code, meta */
+
+  /* ---------- Type scale ---------- */
+  --t-hero:    4.5rem;
+  --t-display: 3rem;
+  --t-h1:      2rem;
+  --t-h2:      1.375rem;
+  --t-h3:      1.125rem;
+  --t-body:    0.9375rem;
+  --t-small:   0.8125rem;
+  --t-tiny:    0.6875rem;
+
+  --lh-display: 1.1;
+  --lh-body:    1.5;
+
+  --ls-display: -0.01em;
+  --ls-body:    0;
+  --ls-caps:    0.08em;
+
+  /* ---------- Spacing (8px base) ---------- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  /* ---------- Radii (small on purpose) ---------- */
+  --r-0: 0;
+  --r-1: 2px;
+  --r-2: 4px;
+  --r-pill: 999px;
+
+  /* ---------- Borders ---------- */
+  --border-thin: 1px solid var(--ink-line);
+  --border-block: 2px solid var(--cream);
+
+  /* ---------- Shadows ---------- */
+  --shadow-block: 4px 4px 0 var(--ink-deep);
+  --shadow-block-tabby: 4px 4px 0 var(--tabby-deep);
+  --shadow-glow: 0 0 24px rgba(255, 122, 26, 0.35);
+
+  /* ---------- Motion ---------- */
+  --ease-step: steps(4, end);              /* chunky 8-bit motion */
+  --ease-out:  cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast:  120ms;
+  --dur-base:  200ms;
+  --dur-slow:  360ms;
+}
+
+/* =========================================================================
+   Base reset / brand defaults
+   Apply by adding `class="kitty"` to <body>, or extend on :root if global.
+   ========================================================================= */
+
+.kitty {
+  background: var(--ink);
+  color: var(--cream);
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  letter-spacing: var(--ls-body);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'ss01', 'cv01';
+}
+
+.kitty h1, .kitty h2, .kitty h3,
+.kitty .display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: var(--lh-display);
+  letter-spacing: var(--ls-display);
+  text-transform: lowercase;
+}
+
+.kitty h1 { font-size: var(--t-h1); }
+.kitty h2 { font-size: var(--t-h2); }
+.kitty h3 { font-size: var(--t-h3); }
+
+.kitty .caps {
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  font-size: var(--t-tiny);
+  color: var(--cream-dim);
+}
+
+.kitty a { color: var(--grape); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.kitty a:hover { color: var(--tabby); }
+
+/* Scanline overlay utility */
+.kitty-scanlines {
+  position: relative;
+}
+.kitty-scanlines::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255,255,255,0.04) 0 1px,
+    transparent 1px 4px
+  );
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+/* Pixel rendering for pixel art */
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+}

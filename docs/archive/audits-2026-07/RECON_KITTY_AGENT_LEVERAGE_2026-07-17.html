@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kitty Agent-Layer Leverage Recon — 2026-07-17</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark; }
+  html,body { margin:0; padding:0; }
+  body {
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 1200px; margin: 0 auto; padding: 24px 28px 96px;
+    color: #1a1a1a; background: #fafafa;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #eaeaea; background: #111; }
+    code, pre { background: #1c1c1c; color: #eaeaea; }
+    th { background: #1a1a1a; }
+    tr:nth-child(even) td { background: #161616; }
+    a { color: #79b8ff; }
+    blockquote { border-left-color: #444; color: #bbb; }
+  }
+  h1 { font-size: 22px; margin: 4px 0 4px; }
+  h2 { font-size: 17px; margin: 32px 0 8px; padding-top: 8px; border-top: 1px solid #ddd; }
+  @media (prefers-color-scheme: dark) { h2 { border-top-color: #333; } }
+  h3 { font-size: 15px; margin: 20px 0 4px; }
+  p, ul, ol { margin: 4px 0 10px; }
+  code {
+    font: 13px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    background: #f0f0f0; padding: 1px 5px; border-radius: 3px;
+  }
+  pre {
+    background: #f0f0f0; padding: 10px 12px; border-radius: 4px;
+    overflow-x: auto; font: 12.5px/1.4 ui-monospace, Menlo, monospace;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0 14px; font-size: 13px; }
+  th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid #ddd; }
+  @media (prefers-color-scheme: dark) { th, td { border-bottom-color: #2a2a2a; } }
+  th { background: #efefef; font-weight: 600; }
+  tr:nth-child(even) td { background: #f5f5f5; }
+  .pill {
+    display: inline-block; padding: 1px 6px; border-radius: 8px;
+    font-size: 11px; font-weight: 600; letter-spacing: .3px;
+  }
+  .pill-keep   { background:#d3ecd3; color:#2b6b2b; }
+  .pill-wrap   { background:#dfe6ff; color:#1f3a99; }
+  .pill-proto  { background:#fff3c7; color:#7a5a10; }
+  .pill-watch  { background:#e8e8e8; color:#444; }
+  .pill-reject { background:#f4d3d3; color:#8b1b1b; }
+  .pill-adopt  { background:#c6ebc6; color:#175217; }
+  .pill-extract{ background:#e0d4f7; color:#4c2b91; }
+  .pill-solved { background:#cfe6e6; color:#1b5555; }
+  @media (prefers-color-scheme: dark) {
+    .pill-keep{background:#1e3a1e;color:#a6d9a6;}
+    .pill-wrap{background:#1e2a5c;color:#a8b8ff;}
+    .pill-proto{background:#3d3320;color:#f5d78b;}
+    .pill-watch{background:#2a2a2a;color:#bbb;}
+    .pill-reject{background:#3d1e1e;color:#f4a6a6;}
+    .pill-adopt{background:#1a3a1a;color:#a6e6a6;}
+    .pill-extract{background:#2a1e40;color:#d1b8ff;}
+    .pill-solved{background:#153a3a;color:#a6d9d9;}
+  }
+  .note {
+    background: #fff8e1; border-left: 3px solid #d6b800; padding: 6px 12px;
+    margin: 10px 0; font-size: 13.5px;
+  }
+  @media (prefers-color-scheme: dark) {
+    .note { background: #2a2510; border-left-color: #7a6810; color: #eee; }
+  }
+  .stop {
+    background: #fdecec; border-left: 3px solid #b03030; padding: 6px 12px;
+    margin: 10px 0;
+  }
+  @media (prefers-color-scheme: dark) {
+    .stop { background: #2a1414; border-left-color: #a13030; color: #f8dcdc; }
+  }
+  .win {
+    background: #e6f4e6; border-left: 3px solid #2b8c2b; padding: 6px 12px;
+    margin: 10px 0;
+  }
+  @media (prefers-color-scheme: dark) {
+    .win { background: #142a14; border-left-color: #4aa04a; color: #dcf8dc; }
+  }
+  .subtle { color: #666; font-size: 13px; }
+  .toc { column-count: 2; column-gap: 24px; font-size: 13px; }
+  .toc a { text-decoration: none; }
+  .tag { font-family: ui-monospace, Menlo, monospace; font-size: 11px; padding: 1px 5px; border-radius: 3px; background:#eee; color:#555; }
+  @media (prefers-color-scheme: dark) { .tag { background:#222; color:#aaa; } }
+  .measured { color:#1a5c1a; font-weight:600; }
+  .repofact { color:#0d3a99; font-weight:600; }
+  .inferred { color:#7a5a10; font-weight:600; }
+  .unknown  { color:#8b1b1b; font-weight:600; }
+  @media (prefers-color-scheme: dark) {
+    .measured { color:#7ac47a; }
+    .repofact { color:#7ab0ff; }
+    .inferred { color:#f5d78b; }
+    .unknown  { color:#f4a6a6; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Kitty Agent-Layer Engineering-Leverage Recon</h1>
+<div class="subtle">
+  Completed 2026-07-17. Read-only against live source. Prototypes ran in an
+  isolated venv at <code>/private/tmp/…/docs/recon/2026-07-17-agent-leverage/experiments/.venv</code>,
+  never installed into Kitty's runtime.
+</div>
+
+<div class="note">
+  <b>Evidence key</b> —
+  <span class="measured">MEASURED</span> = ran here now;
+  <span class="repofact">REPO FACT</span> = read from live source or gh api;
+  <span class="inferred">INFERRED</span> = reasoning from the two above;
+  <span class="unknown">UNKNOWN</span> = flagged for follow-up.
+</div>
+
+<div class="toc">
+  <a href="#exec">1. Executive recommendation</a><br>
+  <a href="#priors">2. Prior work &amp; what changed</a><br>
+  <a href="#p1">3. Phase 1 — Kitty agent-side ownership map</a><br>
+  <a href="#matrix">4. 28-capability matrix</a><br>
+  <a href="#candidates">5. Candidate comparison matrix (9 externals)</a><br>
+  <a href="#prototypes">6. Prototype methodology &amp; results</a><br>
+  <a href="#dims">7. Quality · cost · dep · privacy · failure analysis</a><br>
+  <a href="#builder">8. Builder-protection analysis</a><br>
+  <a href="#decisions">9. Decision matrix</a><br>
+  <a href="#keep">10. Retain custom</a><br>
+  <a href="#simplify">11. Simplify · replace · never build</a><br>
+  <a href="#arch">12. Revised architecture (shortest credible)</a><br>
+  <a href="#roadmap">13. Roadmap changes &amp; Builder-ready packets</a><br>
+  <a href="#pcp">14. PCP-mission delta from this recon</a><br>
+  <a href="#uncertainty">15. Remaining uncertainty</a><br>
+  <a href="#reproduce">16. Reproducibility appendix</a>
+</div>
+
+<h2 id="exec">1. Executive recommendation (for Jacob)</h2>
+
+<div class="win">
+  <b>Two adoption bets, both small, both reversible:</b>
+  <ol>
+    <li><b>Plain Pydantic Mission (v1)</b> as the ADR-0017 seam — no new dependency, ~130 lines, verified round-trip and strict-field-reject. Ship as <code>gateway/mission.py</code>.</li>
+    <li><b>DSPy for compiled reasoning</b>, starting with one Signature (<code>CompileMission</code>). MIT, LiteLLM-native, GEPA/MIPROv2/SIMBA/Assertions all live in v3.2.1. Isolated to <code>experiments/</code> until one honest eval on <code>next_step</code> beats hand-tuned within cost budget on the cheap route.</li>
+  </ol>
+  Everything else — LangGraph, MSAF, OpenAI Agents SDK, Letta as runtime, Agent Lightning, TextGrad, PydanticAI as adopted framework — <b>does not survive the evidence</b>. Details in §9.
+</div>
+
+<p>The one-line verdict on Builder: <b>do not replace it with any workflow framework.</b> LangGraph/MSAF/Temporal solve Kitty's <i>reasoning-graph</i> checkpointing, not Builder's <i>execution</i> checkpointing. Builder already ships execution. See §8.</p>
+
+<h2 id="priors">2. Prior work &amp; what this recon changed</h2>
+
+<p><span class="repofact">REPO FACT.</span> Two audits from 2026-07-14 already answered the infra/execution side:</p>
+<ul>
+  <li><code>docs/AUDIT_ENGINEERING_LEVERAGE_2026-07-14.md</code> — Phase 1 (Builder-heavy state map) + Phase 4 (Builder protection) + Phase 6 (dispositions for Hatchet, Temporal, DBOS, Prefect, vulture, lychee, deptry, uv, mise, adr-tools, vale, trufflehog).</li>
+  <li><code>docs/AUDIT_EXTERNAL_ARCHITECTURE_2026-07-14.md</code> — Phase 3 for infra, "never build again" registry, "strategic ownership" registry.</li>
+</ul>
+<p><span class="repofact">REPO FACT.</span> <code>docs/adr/0017-kitty-mission-builder-control-plane.md</code> ratified the Kitty → Mission → KittyBuilder contract on 2026-07-17. This recon takes that as given.</p>
+<p>This recon covers the delta the July audits did not: Kitty's agent-side capabilities, the 9 agent/optimizer frameworks (DSPy specifics, PydanticAI, LangGraph, MSAF, OpenAI Agents SDK, Letta, LlamaIndex Workflows, Agent Lightning, TextGrad), and the typed <code>Mission</code> seam.</p>
+
+<h2 id="p1">3. Phase 1 — Kitty agent-side ownership map (verified live)</h2>
+
+<p>The July audit's ownership table stands; below is the <b>agent-loop</b> side only, re-verified from live source on the PCP branch (<code>feat/project-control-plane-foundation</code>).</p>
+
+<table>
+  <colgroup><col style="width:22%"><col style="width:44%"><col style="width:14%"><col style="width:20%"></colgroup>
+  <thead><tr><th>Concern</th><th>Owner (file · line hints)</th><th>Maturity</th><th>Known hazard</th></tr></thead>
+  <tbody>
+    <tr><td>Chat / agent loop</td><td><code>gateway/agent_runner.py</code> (508 LoC, OODA-VL)</td><td>Medium</td><td>T2 Card B — <code>stop()</code> unreliability</td></tr>
+    <tr><td>Prompt / context</td><td><code>gateway/context_assembler.py</code> (319) · <code>gateway/prompts.py</code> (223) · <code>prompts/soul_v1.md</code> · <code>config/SOUL.md</code></td><td>High (assembly) / Low (catalog)</td><td>4 of 5 <code>DOMAIN_TO_FILE</code> slots empty</td></tr>
+    <tr><td>Memory / retrieval</td><td><code>gateway/memory_graph.py</code> (707, unified read) + mem0, chroma, <code>journal_store.py</code></td><td>High</td><td>Consolidation on session close is a no-op (Blueprint §5)</td></tr>
+    <tr><td>Model routing</td><td><code>gateway/llm_client.py</code> (860, D10 privacy) + LiteLLM proxy</td><td>High</td><td>No per-model capability profile; escalation is manual</td></tr>
+    <tr><td>Tools</td><td><code>gateway/routes/kitty_tools.py</code> · <code>gateway/honcho.py</code></td><td>Medium</td><td>No formal tool-description schema; no MCP surface</td></tr>
+    <tr><td>Reasoning-mode selection</td><td>Implicit in prompts, no typed switch</td><td>Low</td><td>Can't A/B modes; no decision receipt</td></tr>
+    <tr><td>Structured outputs</td><td>Ad-hoc JSON parsing across routes</td><td>Low</td><td>No schema-repair, no retry; silent 500s possible</td></tr>
+    <tr><td>HITL / editable proposals</td><td>Absent Kitty-side (Builder gates are T2 code-only)</td><td>Absent</td><td>No "draft-and-edit" pattern for messages/emails/PRs</td></tr>
+    <tr><td>Resumable Kitty workflows</td><td><code>gateway/context_receipt.py</code> (1131, new on PCP branch) + <code>state_composer.py</code> + <code>.claude/STATE.md</code></td><td>Emerging</td><td>Not versioned or typed as a first-class object yet</td></tr>
+    <tr><td>Evals / KittyBench</td><td><code>tests/bench/</code> (seeds only: <code>test_builder_state_machine</code>, <code>test_isc_criteria</code>) + 2246 pytest</td><td>Low</td><td>No cheap-vs-premium harness; no optimizer target</td></tr>
+    <tr><td>Kitty ↔ Builder seam</td><td>ADR-0015 boundary + ADR-0017 ratification + <code>gateway/builder_status.py</code> (read-only projection)</td><td>Contract solid, impl partial</td><td>No typed Mission object crossing the seam yet</td></tr>
+    <tr><td>Reasoning policy / model tier</td><td>Implicit in <code>llm_client.py</code> table</td><td>Absent as policy layer</td><td>No typed Budget object; no arbitration</td></tr>
+    <tr><td>Observability of reasoning</td><td><code>observability.py</code> (JSONL) + <code>token_usage_log.py</code> + <code>./kitty doctor --spend</code></td><td>Medium</td><td>Per-call granularity; no per-step decision receipts</td></tr>
+  </tbody>
+</table>
+
+<p>Constitution/doctrine anchors verified live: Constitution Article III (Leverage Before Reinvention) + ADR-0007 (borrow patterns, not worldviews) + ADR-0015 (Kitty/Builder boundary) + ADR-0016 (life-first) + ADR-0017 (Kitty → Mission → Builder). All apply.</p>
+
+<h2 id="matrix">4. 28-capability matrix (evidence-backed)</h2>
+
+<table>
+  <colgroup><col style="width:3%"><col style="width:22%"><col style="width:24%"><col style="width:9%"><col style="width:9%"><col style="width:15%"><col style="width:18%"></colgroup>
+  <thead>
+    <tr><th>#</th><th>Capability</th><th>Kitty owner today</th><th>Custom?</th><th>Diff?</th><th>External(s) evaluated</th><th>Disposition</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>Natural-language intent reconstruction</td><td><code>context_assembler</code> + prompt heuristics</td><td>Partial</td><td>No</td><td>DSPy Predict/ReAct; PydanticAI Agent</td><td><span class="pill pill-proto">Prototype DSPy (P1 below)</span></td></tr>
+    <tr><td>2</td><td>Objective vs proposed method separation</td><td>Ad-hoc in prompts</td><td>No</td><td>No</td><td>DSPy Signature typed OutputFields</td><td><span class="pill pill-proto">Prototype DSPy</span></td></tr>
+    <tr><td>3</td><td>Material missing-context detection</td><td>None as a first-class check</td><td>No</td><td>Partial (Voice rule)</td><td>DSPy Assertions; LlamaIndex router</td><td><span class="pill pill-proto">Prototype DSPy Assertions</span></td></tr>
+    <tr><td>4</td><td>Typed Mission creation + validation</td><td>None; delegation is prose today</td><td>No</td><td>YES (seam)</td><td>Plain Pydantic; PydanticAI</td><td><span class="pill pill-adopt">Adopt plain Pydantic</span></td></tr>
+    <tr><td>5</td><td>Evidence &amp; source planning</td><td>Partial in <code>context_enrichment.py</code></td><td>Partial</td><td>Partial</td><td>LlamaIndex Workflows; DSPy ReAct</td><td><span class="pill pill-proto">Prototype</span></td></tr>
+    <tr><td>6</td><td>Selective personal-context retrieval</td><td><code>memory_graph.py</code> + mem0</td><td>Yes</td><td>YES (D10)</td><td>Letta memory blocks</td><td><span class="pill pill-solved">Already Kitty-solved</span></td></tr>
+    <tr><td>7</td><td>Durable project/session continuity</td><td><code>context_receipt.py</code> (PCP branch) + STATE.md</td><td>Yes</td><td>YES</td><td>LangGraph checkpoint; MSAF checkpoint</td><td><span class="pill pill-solved">Already Kitty-solved</span></td></tr>
+    <tr><td>8</td><td>Reasoning-mode selection</td><td>Implicit</td><td>No</td><td>Partial</td><td>DSPy modules (Predict/CoT/ReAct)</td><td><span class="pill pill-wrap">Wrap (thin router)</span></td></tr>
+    <tr><td>9</td><td>Model &amp; provider routing</td><td><code>llm_client.py</code> + LiteLLM</td><td>Yes</td><td>YES (D10)</td><td>—</td><td><span class="pill pill-keep">Keep</span></td></tr>
+    <tr><td>10</td><td>Cost / latency / quality budgeting</td><td>Partial (<code>doctor --spend</code>)</td><td>Partial</td><td>No</td><td>Typed Budget object</td><td><span class="pill pill-wrap">Wrap (typed Budget)</span></td></tr>
+    <tr><td>11</td><td>Direct reasoning</td><td>Default in all routes</td><td>Yes</td><td>No</td><td>DSPy Predict</td><td><span class="pill pill-keep">Keep</span></td></tr>
+    <tr><td>12</td><td>Tool-first reasoning</td><td>Partial (<code>routes/kitty_tools.py</code>)</td><td>Partial</td><td>No</td><td>DSPy ReAct; PydanticAI toolsets; OpenAI Agents SDK</td><td><span class="pill pill-proto">Prototype DSPy ReAct</span></td></tr>
+    <tr><td>13</td><td>Critique &amp; repair</td><td><code>self_review.py</code>, <code>voice_gate.py</code>; Builder repair loop</td><td>Yes</td><td>Partial</td><td>DSPy Assertions; TextGrad</td><td><span class="pill pill-proto">Prototype DSPy Assertions</span></td></tr>
+    <tr><td>14</td><td>Parallel / ensemble reasoning</td><td>None</td><td>No</td><td>No</td><td>DSPy MultiChainComparison</td><td><span class="pill pill-watch">Watch (YAGNI today)</span></td></tr>
+    <tr><td>15</td><td>Arbitration &amp; answer synthesis</td><td>None as a mechanism</td><td>No</td><td>No</td><td>council pattern (already in <code>docs/council-routing-design.md</code>)</td><td><span class="pill pill-watch">Watch</span></td></tr>
+    <tr><td>16</td><td>Structured outputs &amp; schema repair</td><td>Ad-hoc JSON parse</td><td>Weak</td><td>No</td><td>Plain Pydantic + retry; PydanticAI</td><td><span class="pill pill-adopt">Adopt Pydantic + custom retry</span></td></tr>
+    <tr><td>17</td><td>Human approval / editable proposals</td><td>Builder T2 gates; not Kitty-side</td><td>Partial</td><td>YES</td><td>PydanticAI approvals; MSAF request ports; LangGraph interrupts</td><td><span class="pill pill-extract">Extract pattern (draft-and-edit)</span></td></tr>
+    <tr><td>18</td><td>Resumable long-running Kitty workflows</td><td><code>context_receipt.py</code> emerging</td><td>Emerging</td><td>Partial</td><td>LangGraph checkpoints; MSAF; Temporal</td><td><span class="pill pill-solved">Already Kitty-solved (+ Builder for exec)</span></td></tr>
+    <tr><td>19</td><td>Memory hierarchy &amp; context compression</td><td><code>memory_graph</code> unified; consolidation no-op</td><td>Partial</td><td>YES</td><td>Letta memory blocks</td><td><span class="pill pill-extract">Extract Letta Block pattern</span></td></tr>
+    <tr><td>20</td><td>Expert-library retrieval</td><td>Skills registry + ChromaDB (empty)</td><td>Partial</td><td>Partial</td><td>LlamaIndex router</td><td><span class="pill pill-watch">Watch</span></td></tr>
+    <tr><td>21</td><td>Evaluation &amp; regression testing</td><td>pytest (2246) + <code>tests/bench/</code> seeds</td><td>Partial</td><td>YES (life tasks)</td><td><code>pydantic_evals</code>; Braintrust (July audit)</td><td><span class="pill pill-wrap">Wrap (small custom eval harness)</span></td></tr>
+    <tr><td>22</td><td>Prompt / program optimization</td><td>None (hand-tuned)</td><td>No</td><td>No</td><td>DSPy (GEPA/MIPROv2/SIMBA); TextGrad; Agent Lightning</td><td><span class="pill pill-proto">Prototype DSPy — highest bet</span></td></tr>
+    <tr><td>23</td><td>Distillation cheap ← premium</td><td>None</td><td>No</td><td>YES (North Star §3)</td><td>DSPy BootstrapFewShot &amp; BootstrapFinetune; TextGrad</td><td><span class="pill pill-proto">Prototype DSPy</span></td></tr>
+    <tr><td>24</td><td>Observability, traces, decision receipts</td><td>JSONL + <code>doctor --spend</code></td><td>Yes</td><td>Partial</td><td>LangFuse (July: ref only); OTel-LLM</td><td><span class="pill pill-keep">Keep + add decision-receipt schema</span></td></tr>
+    <tr><td>25</td><td>Mission delegation to KittyBuilder</td><td>Prose today; ADR-0015 &amp; ADR-0017</td><td>Partial</td><td>YES</td><td>—</td><td><span class="pill pill-adopt">Adopt plain Pydantic Mission</span></td></tr>
+    <tr><td>26</td><td>Result / evidence ingestion back to Kitty</td><td><code>builder_status.py</code> read-only projection</td><td>Yes</td><td>YES</td><td>—</td><td><span class="pill pill-keep">Keep + plain-language summary</span></td></tr>
+    <tr><td>27</td><td>Stale-state / authority invalidation</td><td>Builder lease/heartbeat + <code>context_receipt</code> invalidation_conditions</td><td>Partial</td><td>Partial</td><td>—</td><td><span class="pill pill-keep">Keep + expires_at on Mission</span></td></tr>
+    <tr><td>28</td><td>Privacy &amp; local-data boundaries</td><td>D10 in <code>llm_client.py</code></td><td>Yes</td><td>YES</td><td>—</td><td><span class="pill pill-keep">Keep — verify each candidate against D10</span></td></tr>
+  </tbody>
+</table>
+
+<h2 id="candidates">5. Candidate comparison matrix (9 externals, primary-source verified)</h2>
+
+<p>All rows below use data fetched from <code>gh api</code> against the listed repository <b>on 2026-07-17</b>. <span class="repofact">REPO FACT</span> for every column except "Disposition".</p>
+
+<table>
+  <colgroup>
+    <col style="width:14%"><col style="width:7%"><col style="width:8%"><col style="width:12%"><col style="width:10%"><col style="width:28%"><col style="width:21%">
+  </colgroup>
+  <thead>
+    <tr>
+      <th>Framework</th><th>License</th><th>Stars</th><th>Latest release</th><th>Last push</th>
+      <th>Core deps &amp; provider posture</th><th>Preliminary disposition</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>DSPy</b> <span class="tag">stanfordnlp/dspy</span></td>
+      <td>MIT</td><td>36,185</td><td>3.2.1 (2026-05-05)</td><td>2026-07-16</td>
+      <td>LiteLLM-native (<code>dspy/clients/_litellm.py</code>, <code>lm.py</code> 32 KB, Anthropic/OpenAI/local adapters). All 4 optimizers Jacob's mission asked for live in <code>dspy/teleprompt/</code>: <code>gepa/</code>, <code>mipro_optimizer_v2.py</code> (34 KB), <code>simba.py</code> (16 KB), assertions in <code>predict/</code>. <code>bootstrap_finetune.py</code> covers distillation.</td>
+      <td><span class="pill pill-proto">Prototype (highest priority)</span></td>
+    </tr>
+    <tr>
+      <td><b>PydanticAI</b> <span class="tag">pydantic/pydantic-ai</span></td>
+      <td>MIT</td><td>18,616</td><td>v2.12.0 (2026-07-17 TODAY)</td><td>2026-07-17</td>
+      <td>Slim core = <code>httpx + pydantic&gt;=2.12 + pydantic-graph</code>. Anthropic is opt-in extra <code>anthropic&gt;=0.108.0</code>. Optional integrations: temporal, dbos, prefect, logfire, mcp. Provider-neutral by design.</td>
+      <td><span class="pill pill-watch">Watch (Pydantic alone suffices for Mission)</span></td>
+    </tr>
+    <tr>
+      <td><b>LangGraph</b> <span class="tag">langchain-ai/langgraph</span></td>
+      <td>MIT</td><td>37,499</td><td>1.2.9 (2026-07-10)</td><td>2026-07-16</td>
+      <td>Core dep <code>langchain-core&gt;=1.4.7,&lt;2</code> — pulls LangChain worldview (ADR-0007 hazard). SQLite/Postgres/in-memory checkpointers available. Security caveat in checkpoint README: default serializer accepts any Python type; set <code>LANGGRAPH_STRICT_MSGPACK=true</code>.</td>
+      <td><span class="pill pill-extract">Extract pattern (thread_id/checkpoint_id shape)</span></td>
+    </tr>
+    <tr>
+      <td><b>Microsoft Agent Framework</b> <span class="tag">microsoft/agent-framework</span></td>
+      <td>MIT</td><td>12,178</td><td>python-1.11.0 (2026-07-10)</td><td>2026-07-16</td>
+      <td>Both Python and .NET; docs point at Azure/Foundry. 656 open issues — very young. Runtime footprint not evaluated in depth (dep read deferred).</td>
+      <td><span class="pill pill-watch">Watch (young + Azure gravity)</span></td>
+    </tr>
+    <tr>
+      <td><b>OpenAI Agents SDK</b> <span class="tag">openai/openai-agents-python</span></td>
+      <td>MIT</td><td>27,966</td><td>v0.18.3 (2026-07-17 TODAY)</td><td>2026-07-17</td>
+      <td>Sub-1.0 versioning; provider name is on the tin. Provider-neutrality claim needs verification but framework is designed around OpenAI's tool-call protocol.</td>
+      <td><span class="pill pill-reject">Reject (provider lock-in vs North Star §3)</span></td>
+    </tr>
+    <tr>
+      <td><b>Letta</b> <span class="tag">letta-ai/letta</span></td>
+      <td>Apache-2.0</td><td>23,831</td><td>v0.16.8 (2026-05-14)</td><td>2026-07-03</td>
+      <td>Server-oriented: <code>fastapi</code>, <code>uvicorn==0.29.0</code>, <code>sqlalchemy[asyncio]&gt;=2.0.41</code>, <code>alembic&gt;=1.13.3</code>. Docker/compose in repo. Memory model has <code>Block</code>/<code>FileBlock</code>/<code>ContextWindowOverview</code>.</td>
+      <td><span class="pill pill-extract">Extract pattern only (server = wrong shape for local-first)</span></td>
+    </tr>
+    <tr>
+      <td><b>LlamaIndex Workflows</b> <span class="tag">run-llama/llama_index</span></td>
+      <td>MIT</td><td>50,904</td><td>v0.14.23 (2026-06-24)</td><td>2026-07-16</td>
+      <td>Monorepo (<code>llama-index-core</code>, <code>llama-index-integrations</code>). Workflows are one submodule; importing standalone still pulls core.</td>
+      <td><span class="pill pill-watch">Watch (Builder + plain Python cover it today)</span></td>
+    </tr>
+    <tr>
+      <td><b>Agent Lightning</b> <span class="tag">microsoft/agent-lightning</span></td>
+      <td>MIT</td><td>17,395</td><td>v0.3.0 (2025-12-24)</td><td>2026-07-16</td>
+      <td>Sub-1.0. <b>Latest release 7 months old</b> despite recent pushes — release cadence lagging. 152 open issues.</td>
+      <td><span class="pill pill-watch">Watch (release lag; DSPy already has GEPA)</span></td>
+    </tr>
+    <tr>
+      <td><b>TextGrad</b> <span class="tag">zou-group/textgrad</span></td>
+      <td>MIT</td><td>3,654</td><td>v0.1.6 (2024-12-15)</td><td>2025-07-25</td>
+      <td><b>Latest release 18 months old; last push 11 months ago.</b> Nature paper reference implementation; maintenance dying.</td>
+      <td><span class="pill pill-reject">Reject (maintenance risk; DSPy covers the use case)</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="prototypes">6. Prototype methodology &amp; results</h2>
+
+<p>All prototypes ran in an isolated Python 3.12.13 venv at
+<code>docs/recon/2026-07-17-agent-leverage/experiments/.venv</code>. Dependency install measured at
+<span class="measured">255 MB</span> total (litellm 94 M, numpy 34 M, openai 19 M,
+anthropic 12 M, pydantic-ai 8 M, dspy 3 M, plus transitive). Nothing installed
+into Kitty's runtime venv.</p>
+
+<h3>Prototype 1 — Typed Mission (Pydantic vs PydanticAI)</h3>
+<p><span class="measured">MEASURED.</span> Two files, both green in this session:</p>
+<ul>
+  <li><code>proto_1_mission_contract/mission_pydantic.py</code> — 5 assertions pass: JSON round-trip (1134 chars), unknown-field rejection via <code>extra='forbid'</code>, bad-SHA rejection via <code>@field_validator</code>, all 10 MissionState enum values, missing-required rejection.</li>
+  <li><code>proto_1_mission_contract/mission_pydantic_ai.py</code> — <code>Agent(output_type=Mission)</code> constructs, <code>output_validator</code> + <code>ModelRetry</code> register, <code>tool_plain</code> registers; end-to-end structured output via <code>FunctionModel</code> emits a schema-valid Mission and PydanticAI validates it.</li>
+</ul>
+<p><b>Findings:</b></p>
+<ul>
+  <li><span class="measured">MEASURED.</span> PydanticAI injects the Mission's JSON schema (<code>Mission.model_json_schema()</code>) as prompt content: <b>5820 chars ≈ 1455 tokens</b> of fixed prompt overhead per structured call. That is a real per-call cost.</li>
+  <li><span class="measured">MEASURED.</span> PydanticAI's default retry budget is <b>1</b>. First run of Proto 1b threw <code>UnexpectedModelBehavior: Exceeded maximum output retries (1)</code> because <code>TestModel</code> synthesized a <code>mission_id="a"</code> which violated the strict pattern <code>^[A-Z]+-\d+$</code>. A real LLM would hit the same failure mode occasionally.</li>
+  <li><span class="inferred">INFERRED.</span> PydanticAI's incremental value over plain Pydantic (~130 LoC) is: structured-output retry loop + typed tool registration + <code>ModelRetry</code> exception. All of which Kitty can replicate in ~50 lines of custom code. For only 1–2 typed outputs (Mission being the primary), custom wins.</li>
+</ul>
+
+<h3>Prototype 2 — DSPy Signature for intent compilation</h3>
+<p><span class="measured">MEASURED.</span> <code>proto_2_intent_compile/dspy_intent.py</code> defines <code>CompileMission(dspy.Signature)</code> with typed input/output fields matching Kitty's needs (objective, proposed_method, strategy, missing_context, clarifying_question). Offline structural test: <code>dspy.Predict(CompileMission)</code> parses a canned adapter response correctly. Live-eval rig (<code>run_live()</code>) skips honestly when no <code>OPENROUTER_API_KEY</code> or <code>ANTHROPIC_API_KEY</code> is set.</p>
+<p><span class="unknown">UNKNOWN (blocked).</span> No API keys in this session's shell (only <code>ANTHROPIC_BASE_URL</code> was set); live quality/cost numbers deferred. The rig is committed so Jacob can run <code>python dspy_intent.py</code> with keys and get numbers on 5 representative Jacob-style requests.</p>
+
+<h3>Prototype 3 — DSPy compile pipeline for cheap-model uplift</h3>
+<p><span class="measured">MEASURED.</span> <code>proto_3_dspy_uplift/compile_next_step.py</code> offline pass:</p>
+<ul>
+  <li>Metric function <code>_mission_quality</code> scores 1.0 on training example 1 with the canned response.</li>
+  <li><code>BootstrapFewShot</code> instantiates against <code>CompileMission</code>.</li>
+  <li>Availability check: <code>MIPROv2 = True · GEPA = True · SIMBA = True</code> — all 4 optimizers Jacob's mission specified are live in dspy 3.2.1.</li>
+</ul>
+<p><span class="unknown">UNKNOWN (blocked).</span> Live compile (premium teacher → cheap student) needs both keys; deferred. The rig runs baseline (uncompiled cheap), teacher (premium), and compiled cheap on the same 5 inputs and reports valid rate, exact-strategy match, unnecessary-clarification rate, wall-clock. <b>This is the highest-leverage measurement in the recon.</b></p>
+
+<h3>Prototype 4 — LangGraph checkpoint pattern read (no install)</h3>
+<p><span class="repofact">REPO FACT (fetched via gh api).</span> LangGraph checkpoint interface:</p>
+<ul>
+  <li><code>BaseCheckpointSaver</code> with <code>.put</code>, <code>.get</code>, <code>.list</code>, <code>.put_writes</code>. SQLite/Postgres/in-memory backends. <code>langgraph-checkpoint-sqlite</code> pulls only <code>aiosqlite</code> + <code>sqlite-vec</code>.</li>
+  <li>Concept: <code>thread_id</code> → sequence of checkpoints (superstep snapshots); optional <code>checkpoint_id</code> for mid-thread resume.</li>
+  <li>Pending writes: partial superstep results survive so nodes don't re-run on resume.</li>
+  <li>Security note from the README itself: default <code>JsonPlusSerializer</code> accepts any Python type. Deserialization of untrusted checkpoints could execute code. New apps should set <code>LANGGRAPH_STRICT_MSGPACK=true</code>.</li>
+</ul>
+<p><span class="inferred">INFERRED.</span> Kitty's <code>context_receipt.py</code> + Mission (with revision/state) + Builder queue already provide equivalent semantics: read-time freshness invariants, mid-flight state, and durable resume — with a hard-fail security model that doesn't include arbitrary deserialization. Nothing to borrow from LangGraph's SQLite schema that improves on Kitty's existing shape.</p>
+
+<h3>Prototype 5 — Letta memory-block pattern read (no install)</h3>
+<p><span class="repofact">REPO FACT.</span> Letta memory model (from <code>letta/schemas/memory.py</code>):</p>
+<ul>
+  <li><code>Memory(blocks: List[Block], file_blocks: List[FileBlock], agent_type, git_enabled)</code>.</li>
+  <li><code>ContextWindowOverview</code> introspects tokens per section: system, core memory, memory filesystem, tool usage rules, directories, summary memory, functions definitions, messages.</li>
+  <li>Runtime shape: SQLAlchemy + alembic + fastapi + uvicorn — server-oriented, not a library.</li>
+</ul>
+<p><span class="inferred">INFERRED.</span> The <b>Block schema shape</b> (labelled semantic memory sections with per-section token counts) is a useful pattern Kitty's <code>context_assembler.py</code> could formalize. But the runtime (Postgres + web server) is the wrong shape for Kitty's local-first single-user model. Extract the pattern, not the framework. Concrete suggestion: add a small <code>MemoryBlock</code> Pydantic type to <code>memory_graph</code>'s output so callers can see "what section is this from and how many tokens." Ships in ~30 LoC.</p>
+
+<h2 id="dims">7. Quality · cost · dep · privacy · failure analysis</h2>
+
+<table>
+  <thead><tr><th>Dimension</th><th>Plain Pydantic Mission</th><th>PydanticAI</th><th>DSPy</th><th>LangGraph</th><th>Letta</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Output quality</td>
+      <td>Strict validation</td>
+      <td>Same + auto-retry</td>
+      <td>Compile improves it</td>
+      <td>N/A (workflow)</td>
+      <td>N/A (memory)</td>
+    </tr>
+    <tr>
+      <td>Prompt overhead</td>
+      <td>0 (no schema injected)</td>
+      <td><span class="measured">~1455 tok/call</span> for Mission</td>
+      <td>Signature adds ~100–400 tok/call</td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Runtime dep footprint</td>
+      <td>0 (Pydantic already in Kitty)</td>
+      <td><span class="measured">~8 MB pydantic-ai + 12 MB anthropic extra</span></td>
+      <td><span class="measured">~3 MB dspy + 94 MB litellm</span> (Kitty has LiteLLM already)</td>
+      <td>langchain-core + langgraph-checkpoint(-sqlite)</td>
+      <td>Postgres + fastapi + uvicorn + alembic — heavy</td>
+    </tr>
+    <tr>
+      <td>Provider neutrality</td>
+      <td>N/A</td>
+      <td>Opt-in per provider — good</td>
+      <td>LiteLLM-native — good</td>
+      <td>Provider-agnostic — good</td>
+      <td>Server side; unclear</td>
+    </tr>
+    <tr>
+      <td>Local-first fit</td>
+      <td>Perfect</td>
+      <td>Good (library, not server)</td>
+      <td>Good (library)</td>
+      <td>Good (SQLite backend available)</td>
+      <td>Bad (server-oriented)</td>
+    </tr>
+    <tr>
+      <td>Privacy risk to Kitty D10</td>
+      <td>None</td>
+      <td>Logfire is opt-in (default off); verify network calls</td>
+      <td>Cache is on-disk local; no phone-home known</td>
+      <td>None (data stays local)</td>
+      <td>Server may proxy; verify</td>
+    </tr>
+    <tr>
+      <td>Failure semantics</td>
+      <td>ValidationError — fail loud</td>
+      <td>ModelRetry + UnexpectedModelBehavior — bounded retry</td>
+      <td>Exceptions raise; compiler failures return partial</td>
+      <td>Deserialization security caveat if untrusted input</td>
+      <td>Web-layer failures muddy</td>
+    </tr>
+    <tr>
+      <td>Reversibility</td>
+      <td>Perfect</td>
+      <td>High (models are plain Pydantic anyway)</td>
+      <td>Medium (compiled programs pickled; re-exportable)</td>
+      <td>Low (LangChain lock-in)</td>
+      <td>Very low (schema migrations)</td>
+    </tr>
+    <tr>
+      <td>Migration cost if adopted</td>
+      <td>~130 LoC + 5 tests</td>
+      <td>~200 LoC + ~50 tests</td>
+      <td>~300 LoC + eval fixtures</td>
+      <td>Rewrite reasoning as graph</td>
+      <td>Rewrite storage layer</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="builder">8. Builder-protection analysis</h2>
+
+<p>ADR-0015 §2 and ADR-0017 §"Independence guarantees" define the boundary. Nothing in this recon crosses it. Explicit non-replacements:</p>
+
+<ol>
+  <li><b>LangGraph / MSAF / LlamaIndex Workflows are NOT eligible to replace Builder.</b> They solve <i>reasoning-graph</i> checkpointing (the trace of a single Kitty turn). Builder solves <i>execution</i> checkpointing (attempt state, worktree isolation, lease fencing, SHA-256 verification, publication). Different problems. If a reasoning framework is later adopted, it wraps <i>inside</i> Kitty's turn — <b>never around Builder</b>.</li>
+  <li><b>Temporal / DBOS / Hatchet / Prefect stay rejected</b> (July audit R1). Replacing Builder's SQLite queue would kill zero-dependency + local-first + fail-loud. PydanticAI's optional integrations with those (via <code>[temporal]</code>/<code>[dbos]</code>/<code>[prefect]</code> extras) are for its own agents; they do not touch Builder.</li>
+  <li><b>OpenAI Agents SDK is out on hard-constraint grounds.</b> Provider lock-in violates model/provider neutrality per Kitty's constraints and North Star §3. Read guardrail source patterns; don't adopt the SDK.</li>
+</ol>
+
+<p><b>Builder-side capabilities that MUST stay Kitty-owned</b> (from July audit's Strategic Ownership Registry, all reaffirmed):</p>
+<ul>
+  <li>Builder packet lifecycle · initiative model · lease semantics · durable attempts with worktree isolation · evidence ledger (attempt → review → publish SHA-256 chain).</li>
+  <li>Kitty side: memory_graph unified read · D10 privacy boundary · SOUL/voice · life-first ordering · reasoning-policy OODA-VL · resume loop.</li>
+</ul>
+
+<h2 id="decisions">9. Decision matrix</h2>
+
+<table>
+  <colgroup><col style="width:16%"><col style="width:12%"><col style="width:22%"><col style="width:12%"><col style="width:12%"><col style="width:12%"><col style="width:14%"></colgroup>
+  <thead>
+    <tr>
+      <th>Candidate</th><th>Disposition</th><th>Evidence &amp; rationale</th>
+      <th>Code removed / avoided</th><th>Migration cost</th><th>Lock-in</th><th>Reversibility</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>Plain Pydantic Mission</b></td>
+      <td><span class="pill pill-adopt">Adopt now</span></td>
+      <td>Proto 1a passes 5/5 assertions. Zero new dep (Pydantic already in Kitty). Directly satisfies ADR-0017's typed Mission requirement.</td>
+      <td>Ad-hoc JSON parsing across routes when Missions cross the seam</td>
+      <td>Low (~2h)</td>
+      <td>None</td>
+      <td>Perfect</td>
+    </tr>
+    <tr>
+      <td><b>DSPy (Predict + Assertions + BootstrapFewShot; MIPROv2 later)</b></td>
+      <td><span class="pill pill-proto">Prototype (P1)</span></td>
+      <td>Proto 2 &amp; 3 offline pass; live eval blocked on keys. Directly attacks North Star §3 (cheap-model uplift). Provider-neutral via LiteLLM (already in Kitty).</td>
+      <td>Prompt maintenance drift; manual few-shot curation</td>
+      <td>Medium (1 packet)</td>
+      <td>Medium (programs pickled)</td>
+      <td>Medium — programs re-exportable</td>
+    </tr>
+    <tr>
+      <td><b>PydanticAI</b></td>
+      <td><span class="pill pill-watch">Watch (defer)</span></td>
+      <td>Proto 1b measured 1455 tok/call overhead + retries=1 gotcha. Value-add over plain Pydantic is a ~50-line custom retry-wrapper. Not worth 8 MB + Anthropic extra for one Mission type.</td>
+      <td>—</td>
+      <td>N/A</td>
+      <td>Low</td>
+      <td>N/A</td>
+    </tr>
+    <tr>
+      <td><b>LangGraph</b></td>
+      <td><span class="pill pill-extract">Extract pattern (thread_id/checkpoint_id)</span></td>
+      <td>Interface studied. Kitty's <code>context_receipt</code> + Mission state + Builder queue already provide the equivalent. LangChain worldview drag violates ADR-0007.</td>
+      <td>—</td>
+      <td>—</td>
+      <td>High (LangChain)</td>
+      <td>Low (hard to un-Lang)</td>
+    </tr>
+    <tr>
+      <td><b>Microsoft Agent Framework</b></td>
+      <td><span class="pill pill-watch">Watch</span></td>
+      <td>Young (656 open issues), Azure gravity, dep footprint not measured yet. Reconsider on next audit if it matures.</td>
+      <td>—</td>
+      <td>—</td>
+      <td>Medium–High</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><b>OpenAI Agents SDK</b></td>
+      <td><span class="pill pill-reject">Reject</span></td>
+      <td>Sub-1.0; provider lock-in violates North Star §3. Read guardrail pattern only.</td>
+      <td>—</td>
+      <td>—</td>
+      <td>Very high</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><b>Letta (memory-block <i>pattern</i>)</b></td>
+      <td><span class="pill pill-extract">Extract pattern</span></td>
+      <td>Block/FileBlock schema is a good inspectability improvement for <code>memory_graph</code>. Runtime is server + Postgres — wrong shape. Take the schema, not the code.</td>
+      <td>Handrolled section labels in <code>context_assembler</code></td>
+      <td>Low (~30 LoC)</td>
+      <td>None (pattern only)</td>
+      <td>Perfect</td>
+    </tr>
+    <tr>
+      <td><b>LlamaIndex Workflows</b></td>
+      <td><span class="pill pill-watch">Watch</span></td>
+      <td>Builder + plain Python cover the workflow use case for Kitty. Reconsider if Kitty ever needs event-driven multi-step workflows outside Builder's domain.</td>
+      <td>—</td>
+      <td>—</td>
+      <td>Medium</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><b>Agent Lightning</b></td>
+      <td><span class="pill pill-watch">Watch</span></td>
+      <td>Release cadence lagging (v0.3.0 seven months old). DSPy's GEPA/MIPROv2/SIMBA already cover the optimization use case.</td>
+      <td>—</td>
+      <td>—</td>
+      <td>Medium</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><b>TextGrad</b></td>
+      <td><span class="pill pill-reject">Reject</span></td>
+      <td>Latest release 18 months old; last push 11 months ago. Maintenance dying.</td>
+      <td>—</td>
+      <td>—</td>
+      <td>Low</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td colspan="7" style="background:#eaeaea"><b>Rollups from July 2026 audits (unchanged by this recon)</b></td>
+    </tr>
+    <tr>
+      <td>Hatchet · Temporal · DBOS · Prefect</td><td><span class="pill pill-reject">Reject (reference only)</span></td><td>Would replace Builder's zero-dep local queue.</td><td>—</td><td>—</td><td>—</td><td>—</td>
+    </tr>
+    <tr>
+      <td>LiteLLM · mem0 · codegraph · Braintrust (patterns)</td>
+      <td><span class="pill pill-keep">Keep / already referenced</span></td><td>Already in Kitty or referenced in July audit.</td><td>—</td><td>—</td><td>—</td><td>—</td>
+    </tr>
+    <tr>
+      <td>vulture · lychee · deptry · uv · mise · vale · trufflehog</td>
+      <td><span class="pill pill-adopt">Adopted (partial)</span></td><td>vulture + lychee already landed on <code>chore/engineering-leverage-phase-8-9</code>.</td><td>—</td><td>Low</td><td>Low</td><td>High</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="keep">10. Custom systems Kitty should retain</h2>
+<ol>
+  <li><b>Kitty ↔ Builder boundary</b> — ADR-0015 &amp; ADR-0017. Non-negotiable.</li>
+  <li><b>D10 privacy boundary</b> in <code>gateway/llm_client.py</code>.</li>
+  <li><b>SOUL / voice / life-first ordering</b> — <code>config/SOUL.md</code>, <code>docs/adr/0016-life-first-ordering.md</code>.</li>
+  <li><b>memory_graph unified read</b> + context_assembler 10-step pipeline.</li>
+  <li><b>Reasoning-policy loop</b> — OBSERVE→ORIENT→DECIDE→ACT→VERIFY→LEARN in <code>gateway/agent_runner.py</code>.</li>
+  <li><b>Builder queue &amp; execution rails</b> — packets, initiatives, attempts, leases, worktrees, evidence ledger.</li>
+  <li><b>Context receipt / continuity foundation</b> — the new <code>gateway/context_receipt.py</code> is a differentiator; keep and extend.</li>
+  <li><b>Resume loop</b> as product identity — Home = What's Next / Needs You / While You Were Away.</li>
+</ol>
+
+<h2 id="simplify">11. Simplify · replace · never build</h2>
+
+<p><b>Simplify or remove (already flagged by July audit; still true):</b></p>
+<ul>
+  <li>Ad-hoc JSON parsing across routes → typed Mission + retry wrapper.</li>
+  <li>4 empty <code>DOMAIN_TO_FILE</code> prompt slots — delete unused mappings.</li>
+  <li>Speculative <code>docs/council-routing-design.md</code> until there's demand.</li>
+</ul>
+
+<p><b>Never build (new items from this recon + July audit):</b></p>
+<ul>
+  <li>A workflow engine (Builder handles execution; reasoning framework is optional).</li>
+  <li>An LLM proxy (LiteLLM).</li>
+  <li>A prompt optimizer (DSPy).</li>
+  <li>A dead-code detector (vulture — adopted).</li>
+  <li>A link checker (lychee — adopted).</li>
+  <li>A tracing standard (OTel when needed).</li>
+  <li>A graph DB (Kuzu when needed).</li>
+  <li>A code formatter (ruff/prettier).</li>
+</ul>
+
+<h2 id="arch">12. Revised architecture — the shortest credible path</h2>
+
+<pre>Jacob
+  │  conversation (terse, non-linear, life-first)
+  ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ KITTY (interpretive / agentic layer — local, single-user)              │
+│                                                                        │
+│  intent compilation ▶ context &amp; evidence planning                      │
+│  ├── SOUL / voice / life-first ordering            [keep custom]       │
+│  ├── memory_graph unified read + D10 privacy       [keep custom]       │
+│  ├── context_assembler 10-step + Block labels      [extend: Letta pat] │
+│  ├── reasoning-policy (OODA-VL)                    [keep custom]       │
+│  ├── typed IO + retry wrapper                      [ADOPT: Pydantic]   │
+│  ├── compiled reasoning modules (evaluate)         [PROTOTYPE: DSPy]   │
+│  ├── decision receipts                             [extend: JSONL]     │
+│  └── continuity receipt / resumable Kitty          [keep + extend]     │
+│                                                                        │
+│  ▼ emits: Mission(v1) — typed, versioned, minimal                      │
+│                                                                        │
+│  { schema_version, mission_id, created_at, approved_at,                │
+│    origin { conversation_id, message_refs, project_id, repository,     │
+│             base_sha, context_receipt_ref },                           │
+│    objective { outcome, rationale, non_goals },                        │
+│    context { required_refs, selected_refs, missing, contradictions,    │
+│              assumptions },                                            │
+│    execution { strategy, packets, dependencies, allowed_paths,         │
+│               forbidden_operations, worker_constraints,                │
+│               routing_policy },                                        │
+│    authority { risk_tier, policy_version, approvals, expires_at },     │
+│    budgets { max_attempts, max_time, max_tokens, max_cost },           │
+│    evidence_plan { acceptance_criteria, validation_commands,           │
+│                    required_artifacts, independent_review },           │
+│    state ∈ {proposed, awaiting_approval, approved, accepted, running,  │
+│             blocked, succeeded, failed, cancelled, superseded} }       │
+└──────────────────────────────┬─────────────────────────────────────────┘
+                               │  Mission (validated Pydantic)
+                               │  Kitty stays usable if seam is down
+                               ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ KITTYBUILDER (execution control plane — unchanged, ADR-0015 &amp; -0017)  │
+│  queue · initiatives · packets · leases · isolated worktrees           │
+│  attempts · validation · independent review · publication · evidence   │
+└────────────────────────────────────────────────────────────────────────┘
+                               ▲
+                               │  ResultReceipt(evidence + plain-language)
+                               │  → memory_graph + Home "While You Were Away"</pre>
+
+<h2 id="roadmap">13. Roadmap changes &amp; Builder-ready packets</h2>
+
+<p>Ordered by dependency. Each is one packet — bounded allowed_paths, ~1 attempt, independent review, evidence gate. Ready for the free-worker pipeline.</p>
+
+<table>
+  <colgroup><col style="width:6%"><col style="width:19%"><col style="width:12%"><col style="width:8%"><col style="width:55%"></colgroup>
+  <thead><tr><th>#</th><th>Packet</th><th>Blocked by</th><th>Effort</th><th>Scope</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>P0</td><td><code>mission-contract-v1</code></td><td>—</td><td>~2h</td>
+      <td>Ship <code>gateway/mission.py</code> from Proto 1a. Add <code>tests/test_mission_contract.py</code>. No new dep. Acceptance: model round-trips; forward-compat with unknown fields via versioning; expires_at enforced; MissionState transitions gated.</td>
+    </tr>
+    <tr>
+      <td>P1</td><td><code>dspy-spike-next-step</code></td><td>P0 (imports Mission)</td><td>~1 day</td>
+      <td>Isolate under <code>experiments/dspy_next_step/</code> (Kitty-repo path but marked experimental in <code>pyproject.toml</code>). Run Proto 3's live compile: uncompiled cheap vs premium teacher vs compiled cheap on 5+ representative <code>next_step</code> inputs. Report exact-strategy match, unnecessary-clarification rate, token count, cost, wall-clock. Decision gate: promote to production only if compiled cheap meets a pre-set floor (e.g., ≥90% of premium quality at &lt;20% cost).</td>
+    </tr>
+    <tr>
+      <td>P2</td><td><code>letta-block-schema-adapt</code></td><td>—</td><td>~4h</td>
+      <td>Add <code>MemoryBlock</code> Pydantic type to <code>gateway/memory_graph.py</code> outputs (label, section, source_id, token_estimate). Callers can inspect what section each item came from. Refactor <code>context_assembler.py</code> to emit block-labeled output. Do not import Letta.</td>
+    </tr>
+    <tr>
+      <td>P3</td><td><code>decision-receipt-v1</code></td><td>P0 (Mission has budgets)</td><td>~4h</td>
+      <td>Extend <code>gateway/observability.py</code> to emit per-reasoning-step decision receipt: mode chosen, model chosen, cost, retries, schema-repair count, mission_id (if applicable). No new dep. Surface via <code>./kitty doctor --spend</code>.</td>
+    </tr>
+    <tr>
+      <td>P4</td><td><code>dspy-decision-report</code></td><td>P1 result</td><td>~2h</td>
+      <td>If P1 result meets floor: promote DSPy pattern to a stable Kitty module; add to <code>requirements.txt</code>; update ADR. If it fails: keep hand-tuned and record why in <code>docs/DECISIONS.md</code>. Do not run this packet before P1 returns.</td>
+    </tr>
+    <tr>
+      <td>P5</td><td><code>continuity-receipt-v2</code></td><td>—</td><td>~4h</td>
+      <td>Extend <code>context_receipt.py</code> with a versioned "resume receipt" object surfaced to Kitty UI ("last mission touched: PCPF-001, awaiting review"). Ties into Home "Needs You" card. Small.</td>
+    </tr>
+    <tr>
+      <td>P6</td><td><code>agent-framework-recon-followup</code></td><td>—</td><td>~1 session</td>
+      <td>Optional: run this recon again in Q4 2026 for MSAF (once matured), Agent Lightning (if v1.0 released), and PydanticAI (if Kitty needs multiple typed outputs). Skip unless triggered by concrete need.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="pcp">14. PCP-mission delta from this recon</h2>
+
+<p><span class="repofact">REPO FACT.</span> The PCP branch (<code>feat/project-control-plane-foundation</code>) already:</p>
+<ul>
+  <li>Ratifies ADR-0017 with the exact Mission schema shape this recon confirms.</li>
+  <li>Ships <code>gateway/context_receipt.py</code> (1131 LoC) as the continuity foundation.</li>
+  <li>Does NOT yet ship <code>gateway/mission.py</code> — the typed Mission object.</li>
+</ul>
+<p><b>Delta from this recon:</b> the PCP mission is <b>additive-ready</b>. P0 (<code>mission-contract-v1</code>) is the natural next packet on top of the merged PCP main. No conflict with what PCP ratified; no scope removal needed.</p>
+<p><span class="inferred">INFERRED.</span> One thing to check when PCP is merged: whether any downstream Kitty code currently uses ad-hoc JSON for delegation to Builder. If so, the P0 packet also migrates those call sites in the same commit. Grep target: <code>builder_initiative.claim</code> and <code>builder_attempt.create</code> call sites — verify they already accept a structured payload, else adapt.</p>
+
+<h2 id="uncertainty">15. Remaining uncertainty (honest)</h2>
+<ul>
+  <li><span class="unknown">UNKNOWN.</span> DSPy cheap-vs-premium quality delta on real Kitty tasks — needs live keys. Proto 3 rig is ready.</li>
+  <li><span class="unknown">UNKNOWN.</span> Whether PydanticAI's Logfire integration phones home by default when the extra is not installed — likely off, but not verified this session.</li>
+  <li><span class="unknown">UNKNOWN.</span> MSAF's actual Python runtime footprint and Azure coupling — deferred; low priority given the young state.</li>
+  <li><span class="unknown">UNKNOWN.</span> Whether OpenAI Agents SDK could be used provider-neutrally in practice — deferred; disposition holds on North Star §3 grounds regardless.</li>
+  <li><span class="inferred">INFERRED.</span> Letta's "Block" pattern is worth extracting, but a smaller custom implementation may already exist inside <code>context_assembler.py</code>. P2's first step should read the assembler carefully before adding new types.</li>
+</ul>
+
+<h2 id="reproduce">16. Reproducibility appendix</h2>
+
+<p>Everything in this recon is reproducible from the repo state at the time of writing.</p>
+
+<pre># One-time isolated env (never installs into Kitty runtime)
+python3.12 -m venv docs/recon/2026-07-17-agent-leverage/experiments/.venv
+source docs/recon/2026-07-17-agent-leverage/experiments/.venv/bin/activate
+pip install dspy 'pydantic-ai-slim[anthropic]'
+
+# Prototype 1a — Pydantic Mission (offline, 5 assertions)
+python docs/recon/2026-07-17-agent-leverage/experiments/proto_1_mission_contract/mission_pydantic.py
+
+# Prototype 1b — PydanticAI (offline; measures schema-injection overhead)
+python docs/recon/2026-07-17-agent-leverage/experiments/proto_1_mission_contract/mission_pydantic_ai.py
+
+# Prototype 2 — DSPy Signature (offline; live-eval opt-in via env)
+python docs/recon/2026-07-17-agent-leverage/experiments/proto_2_intent_compile/dspy_intent.py
+
+# Prototype 3 — DSPy compile pipeline (offline; --live for cheap-vs-premium)
+python docs/recon/2026-07-17-agent-leverage/experiments/proto_3_dspy_uplift/compile_next_step.py
+python docs/recon/2026-07-17-agent-leverage/experiments/proto_3_dspy_uplift/compile_next_step.py --live
+# --live requires:  OPENROUTER_API_KEY  and  ANTHROPIC_API_KEY
+
+# Framework metadata (primary source)
+cat scratchpad/recon/github_metadata.txt</pre>
+
+<p>All results in this report were produced by the commands above against
+DSPy 3.2.1 and PydanticAI v2.12.0, both current as of 2026-07-17.</p>
+
+<hr>
+<div class="subtle">
+  Recon executed after PCP branch <code>feat/project-control-plane-foundation</code> merged via
+  PR <a href="https://github.com/jacob202/kitty/pull/185">#185</a>. Deliverable lives at
+  <code>docs/RECON_KITTY_AGENT_LEVERAGE_2026-07-17.html</code>; reproducible experiments at
+  <code>docs/recon/2026-07-17-agent-leverage/experiments/</code>. This recon PR is DRAFT
+  and requires Jacob's review — do not merge without approval.
+</div>
+
+</body>
+</html>

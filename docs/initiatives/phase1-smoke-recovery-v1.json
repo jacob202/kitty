@@ -1,0 +1,30 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "phase1-smoke-recovery",
+  "title": "Phase 1: Builder smoke and recovery proof",
+  "description": "Minimal smoke initiative to prove the full Builder lifecycle: validate manifest, apply to queue, run with free worker, verify evidence, and optionally exercise crash recovery. One packet, deterministic acceptance, no side effects beyond data/smoke/.",
+  "packets": [
+    {
+      "id": "P1S-hello",
+      "title": "Write smoke marker file",
+      "objective": "Create data/smoke/hello.txt containing the exact string 'KittyBuilder smoke test passed' followed by a newline. Use echo or a minimal write. Do not create any other files. Do not modify any existing files outside data/smoke/.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "data/smoke/hello.txt exists",
+        "data/smoke/hello.txt contains the exact string 'KittyBuilder smoke test passed' (trailing newline is fine)",
+        "No other files were created or modified"
+      ],
+      "allowed_paths": [
+        "data/smoke/hello.txt"
+      ],
+      "policy": {
+        "max_attempts": 3,
+        "priority": 10
+      },
+      "validation_commands": [
+        "test -f data/smoke/hello.txt || { echo 'FAIL: hello.txt missing'; exit 1; }",
+        "grep -q 'KittyBuilder smoke test passed' data/smoke/hello.txt || { echo 'FAIL: wrong content'; exit 1; }"
+      ]
+    }
+  ]
+}
