@@ -45,6 +45,128 @@ in this chat runtime.
 """.strip()
 
 
+def _message_budget_units(message: dict) -> int:
+    return len(
+        json.dumps(message, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    )
+
+
+def _prefix_for_system_budget(parts: dict[str, str], name: str, text: str, budget: int) -> str:
+    """Largest codepoint-safe prefix that keeps the serialized system message in budget."""
+    order = ("bundle", "runtime", "tool")
+
+    def rendered(candidate: str) -> str:
+        trial = dict(parts)
+        if candidate:
+            trial[name] = candidate
+        return "\n\n".join(trial[key] for key in order if trial.get(key))
+
+    if _message_budget_units({"role": "system", "content": rendered(text)}) <= budget:
+        return text
+    low, high = 0, len(text)
+    while low < high:
+        mid = (low + high + 1) // 2
+        candidate = text[:mid]
+        if _message_budget_units({"role": "system", "content": rendered(candidate)}) <= budget:
+            low = mid
+        else:
+            high = mid - 1
+    return text[:low]
+
+
+def _atomic_history_groups(messages: list[dict]) -> list[list[dict]]:
+    """Group assistant tool calls with their contiguous tool results."""
+    groups: list[list[dict]] = []
+    index = 0
+    while index < len(messages):
+        message = messages[index]
+        if message.get("role") == "assistant" and message.get("tool_calls"):
+            group = [message]
+            index += 1
+            while index < len(messages) and messages[index].get("role") == "tool":
+                group.append(messages[index])
+                index += 1
+            groups.append(group)
+            continue
+        groups.append([message])
+        index += 1
+    return groups
+
+
+def _fit_final_model_messages(
+    *,
+    bundle_system: str,
+    runtime_system: str,
+    tool_system: str,
+    messages: list[dict],
+    token_cap: int,
+) -> tuple[list[dict], list[str]]:
+    """Bound the payload while preserving the current turn and tool exchanges."""
+    non_system = [dict(message) for message in messages if message.get("role") != "system"]
+    current_index = next(
+        (index for index in range(len(non_system) - 1, -1, -1) if non_system[index].get("role") == "user"),
+        None,
+    )
+    if current_index is None:
+        raise HTTPException(status_code=400, detail="chat request requires a user message")
+    current_turn = non_system[current_index:]
+    current_units = sum(_message_budget_units(message) for message in current_turn)
+    if current_units > token_cap:
+        raise HTTPException(status_code=413, detail="Current turn exceeds the model context budget")
+
+    warnings: list[str] = []
+    system_budget = token_cap - current_units
+    selected: dict[str, str] = {}
+    # Safety/tool truth first, then runtime truth, then contextual enrichment.
+    for name, part, required in (
+        ("tool", tool_system, bool(tool_system)),
+        ("runtime", runtime_system, bool(runtime_system)),
+        ("bundle", bundle_system, False),
+    ):
+        if not part:
+            continue
+        fitted = _prefix_for_system_budget(selected, name, part, system_budget)
+        if required and fitted != part:
+            required_context = "runtime context" if name == "runtime" else "safety context"
+            raise HTTPException(
+                status_code=413,
+                detail=f"Current message leaves no room for required chat {required_context}",
+            )
+        if fitted:
+            selected[name] = fitted
+        if fitted != part:
+            warnings.append(f"context_budget:final_system:{name}: clipped")
+
+    system_content = "\n\n".join(
+        selected[key] for key in ("bundle", "runtime", "tool") if selected.get(key)
+    )
+    final: list[dict] = []
+    used = current_units
+    if system_content:
+        system_message = {"role": "system", "content": system_content}
+        used += _message_budget_units(system_message)
+        final.append(system_message)
+
+    history_groups: list[list[dict]] = []
+    dropped = 0
+    for group in reversed(_atomic_history_groups(non_system[:current_index])):
+        units = sum(_message_budget_units(message) for message in group)
+        if used + units <= token_cap:
+            history_groups.append(group)
+            used += units
+        else:
+            dropped += len(group)
+    if dropped:
+        warnings.append(f"context_budget:history: dropped {dropped} older message(s)")
+    for group in reversed(history_groups):
+        final.extend(group)
+    final.extend(current_turn)
+
+    total = sum(_message_budget_units(message) for message in final)
+    if total > token_cap:
+        raise RuntimeError(f"final model-visible payload exceeded context cap: {total}>{token_cap}")
+    return final, warnings
+
 def route_model(message: str) -> str:
     """Compatibility routing seam for tests and callers that still patch this Module."""
     return resolve_chat_route("kitty-default", message, reroute_virtual_models=True).model
@@ -287,7 +409,11 @@ async def chat_completions(request: Request):
             on_request_error()
             raise
 
-    from gateway.context_assembler import assemble_context, assert_not_total_failure
+    from gateway.context_assembler import (
+        TOTAL_CONTEXT_TOKEN_CAPS,
+        assemble_context,
+        assert_not_total_failure,
+    )
 
     try:
         on_context_fetch()
@@ -299,9 +425,23 @@ async def chat_completions(request: Request):
             tier=tier,
         )
         assert_not_total_failure(bundle)
-        system_prompt = f"{bundle.system}\n\n{compact_runtime_context(runtime_manifest)}"
-        if not caller_supplies_tools:
-            system_prompt = f"{system_prompt}\n\n{_NO_TOOL_EXECUTOR_SYSTEM}"
+        runtime_system = compact_runtime_context(runtime_manifest)
+        tool_system = "" if caller_supplies_tools else _NO_TOOL_EXECUTOR_SYSTEM
+        enriched, final_budget_warnings = _fit_final_model_messages(
+            bundle_system=bundle.system,
+            runtime_system=runtime_system,
+            tool_system=tool_system,
+            messages=messages,
+            token_cap=TOTAL_CONTEXT_TOKEN_CAPS[tier],
+        )
+        bundle.warnings.extend(final_budget_warnings)
+        for warning in final_budget_warnings:
+            logger.warning("chat %s: %s", correlation_id, warning)
+        system_prompt = (
+            str(enriched[0].get("content", ""))
+            if enriched and enriched[0].get("role") == "system"
+            else ""
+        )
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:
             _finish_lifecycle_or_raise(
@@ -313,9 +453,6 @@ async def chat_completions(request: Request):
             lifecycle_done = True
         on_request_error()
         raise
-
-    enriched = [m for m in messages if m.get("role") != "system"]
-    enriched = [{"role": "system", "content": system_prompt}] + enriched
 
     stripped = {
         # content_class is a legacy D10 field (ADR 0022). It no longer routes

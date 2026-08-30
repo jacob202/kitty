@@ -33,6 +33,11 @@ describe('SessionSidebar', () => {
     expect(screen.getByPlaceholderText('search chats')).toBeInTheDocument()
   })
 
+  it('gives chat search a stable accessible name', () => {
+    render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} />)
+    expect(screen.getByRole('textbox', { name: 'Search chats' })).toBeInTheDocument()
+  })
+
   it('shows today and earlier groups based on date', () => {
     render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} />)
     expect(screen.getByText('today')).toBeInTheDocument()

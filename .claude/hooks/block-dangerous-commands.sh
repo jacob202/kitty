@@ -60,6 +60,25 @@ if contains_cmd '(^|[;&|()]+[[:space:]]*)git[[:space:]]+push'; then
   fi
 fi
 
+# ── PR self-approval protections ────────────────────────────────────────
+# risk/approved unlocks risky-scope merges in scripts/pr_policy.py. An agent
+# that can apply it can approve its own work. Jacob holds the approval keys —
+# agents get autonomy in execution, never in permission. Removing a
+# mistakenly-applied label stays allowed; only adding one is blocked.
+if contains_icmd '\-\-add-label'; then
+  ADD_LABEL_ARG=$(printf '%s' "$COMMAND" | grep -oiE -- '--add-label[[:space:]=]+"[^"]*"|--add-label[[:space:]=]+'"'"'[^'"'"']*'"'"'|--add-label[[:space:]=]+[^[:space:]]+' | head -1)
+  if printf '%s' "$ADD_LABEL_ARG" | grep -qiE 'risk/approved|approved|approval'; then
+    emit_deny "Blocked: adding an approval/risk label to a PR. You cannot approve your own work — Jacob applies risk/approved after review."
+  fi
+fi
+if contains_cmd 'gh[[:space:]]+label' && ! contains_cmd 'gh[[:space:]]+label[[:space:]]+list' \
+   && contains_icmd 'risk/approved|approved|approval'; then
+  emit_deny "Blocked: modifying the approval label definition. You cannot approve your own work — Jacob owns risk/approved."
+fi
+if contains_cmd 'gh[[:space:]]+api' && contains_cmd '/labels' && contains_cmd 'risk/approved'; then
+  emit_deny "Blocked: gh api call touching /labels with risk/approved. You cannot approve your own work — Jacob applies this label after review."
+fi
+
 # ── Destructive filesystem operations ───────────────────────────────────
 # rm -rf targeting root, home, $HOME, $VAR (any unresolved expansion), or parent traversal.
 # We normalise quotes before matching so "my folder", '$HOME/trash', etc. Are all inspected.

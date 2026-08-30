@@ -95,8 +95,7 @@ async def builder_supervisor_status():
     from gateway import builder_supervisor as bs
 
     try:
-        projection = bs.status()
-        counts = bs.dispatchable_counts()
+        summary = bs.control_plane_summary()
     except Exception as exc:
         logger.exception("builder supervisor status read failed")
         raise HTTPException(
@@ -105,13 +104,17 @@ async def builder_supervisor_status():
 
     return {
         "schema_version": 1,
-        "running": len(projection["active_runs"]) > 0,
-        "active_runs": projection["active_runs"],
-        "eligible_now": counts["now"],
-        "on_hold": counts["on_hold"],
+        "running": len(summary["active_runs"]) > 0,
+        "active_runs": summary["active_runs"],
+        "eligible_now": summary["eligible_now"],
+        "on_hold": summary["on_hold"],
+        # The supervisor does not record when it last ticked anywhere durable
+        # (no receipt log, no launchd bookkeeping); reporting anything but
+        # null here would be fabricated.
         "last_tick_at": None,
-        "lock_path": projection["lock"]["path"],
-        "scheduler_enabled": projection.get("scheduler_enabled"),
+        "lock_path": summary["lock_path"],
+        "budget": summary["budget"],
+        "scheduler_enabled": summary["scheduler_enabled"],
     }
 
 

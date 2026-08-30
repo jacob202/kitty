@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 
 from gateway.auth import BearerAuthMiddleware
 from gateway.config import is_test_env
@@ -270,28 +271,13 @@ async def lifespan(app: FastAPI):
             register_action("experts.poll", _action_poll_experts)
             register_action("prefetch.warm", _action_warm_prefetch)
 
+            from gateway.life_cron import evening_reflection_action, morning_proactive_action
+
             async def _action_life_evening_reflection():
-                from gateway.life_awareness import evening_reflection
-
-                result = evening_reflection()
-                from gateway.push import push_to_jacob
-
-                push_to_jacob(
-                    result.get("reflection", "")[:300],
-                    kind="info",
-                    title="Kitty Evening Reflection",
-                )
+                await evening_reflection_action()
 
             async def _action_life_morning_proactive():
-                from gateway.life_awareness import morning_proactive
-
-                result = morning_proactive()
-                suggestions = result.get("proactive_suggestions", [])
-                if suggestions:
-                    from gateway.push import push_to_jacob
-
-                    text = suggestions[0].get("text", "")
-                    push_to_jacob(text, kind="info", title="Life Suggestion")
+                await morning_proactive_action()
 
             async def _action_insights_return_due():
                 from gateway.insight_loop import return_due
@@ -491,3 +477,8 @@ async def sse_stream(request: Request, session_id: str | None = None):
 
 
 register_routes(app)
+
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return "<h1>Kitty</h1>"

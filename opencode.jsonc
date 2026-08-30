@@ -15,7 +15,7 @@
     },
     "external_directory": {
       "*": "deny",
-      "/Users/jacobbrizinski/kb/*": "allow"
+      "/Users/jacobbrizinnski/kb/*": "allow"
     },
     "question": "deny",
     "task": "deny"

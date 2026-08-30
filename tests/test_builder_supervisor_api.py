@@ -50,16 +50,64 @@ def _counts(monkeypatch, *, now: int, on_hold: int):
     )
 
 
-class TestSupervisorStatusEndpoint:
-    def test_returns_documented_shape(self, client, monkeypatch):
-        projection = _projection(
-            initiatives=[_initiative("init-a", "active", ["P1"])],
-            active_runs=[],
-        )
+class TestSupervisorControlPlaneSummary:
+    def test_route_avoids_the_full_per_initiative_status_scan(self, client, monkeypatch):
+        def expensive_status_must_not_run():
+            raise AssertionError("full supervisor status scan must not run on the Work poll path")
+
+        monkeypatch.setattr("gateway.builder_supervisor.status", expensive_status_must_not_run)
         monkeypatch.setattr(
-            "gateway.builder_supervisor.status", lambda: projection
+            "gateway.builder_supervisor.control_plane_summary",
+            lambda: {
+                "active_runs": [],
+                "eligible_now": 2,
+                "on_hold": 6,
+                "lock_path": "/data/kittybuilder/supervisor.lock",
+                "scheduler_enabled": True,
+                "budget": {
+                    "weekly_budget_cad": 6.0,
+                    "estimated_spend_cad": 0.25,
+                    "remaining_cad": 5.75,
+                    "runs": 4,
+                    "retries": 1,
+                    "basis": "local estimate",
+                },
+            },
+            raising=False,
         )
-        _counts(monkeypatch, now=1, on_hold=0)
+
+        response = client.get("/builder/supervisor")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["eligible_now"] == 2
+        assert body["budget"]["estimated_spend_cad"] == 0.25
+        assert body["budget"]["remaining_cad"] == 5.75
+
+
+class TestSupervisorStatusEndpoint:
+    def _summary(self, *, active_runs=None, now=1, on_hold=0):
+        return {
+            "active_runs": active_runs or [],
+            "eligible_now": now,
+            "on_hold": on_hold,
+            "lock_path": "/data/kittybuilder/supervisor.lock",
+            "scheduler_enabled": True,
+            "budget": {
+                "weekly_budget_cad": 6.0,
+                "estimated_spend_cad": 0.25,
+                "remaining_cad": 5.75,
+                "runs": 4,
+                "retries": 1,
+                "basis": "local estimate",
+            },
+        }
+
+    def test_returns_documented_shape(self, client, monkeypatch):
+        monkeypatch.setattr(
+            "gateway.builder_supervisor.control_plane_summary",
+            lambda: self._summary(),
+        )
 
         response = client.get("/builder/supervisor")
 
@@ -74,24 +122,21 @@ class TestSupervisorStatusEndpoint:
             "last_tick_at": None,
             "lock_path": "/data/kittybuilder/supervisor.lock",
             "scheduler_enabled": True,
+            "budget": {
+                "weekly_budget_cad": 6.0,
+                "estimated_spend_cad": 0.25,
+                "remaining_cad": 5.75,
+                "runs": 4,
+                "retries": 1,
+                "basis": "local estimate",
+            },
         }
 
     def test_reports_the_counts_the_launcher_would_honour(self, client, monkeypatch):
-        # The route must not recount eligibility from the projection: the
-        # projection's notion is narrower than what a tick dispatches, and a
-        # number the tick does not honour is worse than no number.
-        projection = _projection(
-            initiatives=[
-                _initiative("init-active", "active", ["P1", "P2"]),
-                _initiative("init-paused", "paused", ["P3"]),
-                _initiative("init-completed", "completed", ["P4"]),
-            ],
-            active_runs=[],
-        )
         monkeypatch.setattr(
-            "gateway.builder_supervisor.status", lambda: projection
+            "gateway.builder_supervisor.control_plane_summary",
+            lambda: self._summary(now=3, on_hold=6),
         )
-        _counts(monkeypatch, now=3, on_hold=6)
 
         response = client.get("/builder/supervisor")
 
@@ -100,40 +145,24 @@ class TestSupervisorStatusEndpoint:
         assert body["eligible_now"] == 3
         assert body["on_hold"] == 6
 
-    def test_status_failure_is_a_503_not_a_crash(self, client, monkeypatch):
+    def test_summary_failure_is_a_503_not_a_crash(self, client, monkeypatch):
         def boom():
             raise RuntimeError("queue unreadable")
 
-        monkeypatch.setattr("gateway.builder_supervisor.status", boom)
+        monkeypatch.setattr("gateway.builder_supervisor.control_plane_summary", boom)
 
         response = client.get("/builder/supervisor")
 
         assert response.status_code == 503
         assert "queue unreadable" in response.json()["detail"]
 
-    def test_count_failure_is_a_503_not_a_crash(self, client, monkeypatch):
-        projection = _projection(initiatives=[], active_runs=[])
-        monkeypatch.setattr("gateway.builder_supervisor.status", lambda: projection)
-
-        def boom(*_args, **_kwargs):
-            raise RuntimeError("selection unreadable")
-
-        monkeypatch.setattr("gateway.builder_supervisor.dispatchable_counts", boom)
-
-        response = client.get("/builder/supervisor")
-
-        assert response.status_code == 503
-        assert "selection unreadable" in response.json()["detail"]
-
     def test_running_true_when_active_runs_present(self, client, monkeypatch):
-        projection = _projection(
-            initiatives=[],
-            active_runs=[
-                {"run_id": "run-1", "task_id": "task-1", "state": "running", "worker": "w"}
-            ],
-        )
+        active_runs = [
+            {"run_id": "run-1", "task_id": "task-1", "state": "running", "worker": "w"}
+        ]
         monkeypatch.setattr(
-            "gateway.builder_supervisor.status", lambda: projection
+            "gateway.builder_supervisor.control_plane_summary",
+            lambda: self._summary(active_runs=active_runs),
         )
 
         response = client.get("/builder/supervisor")
@@ -141,12 +170,12 @@ class TestSupervisorStatusEndpoint:
         assert response.status_code == 200
         body = response.json()
         assert body["running"] is True
-        assert body["active_runs"] == projection["active_runs"]
+        assert body["active_runs"] == active_runs
 
     def test_running_false_when_no_active_runs(self, client, monkeypatch):
-        projection = _projection(initiatives=[], active_runs=[])
         monkeypatch.setattr(
-            "gateway.builder_supervisor.status", lambda: projection
+            "gateway.builder_supervisor.control_plane_summary",
+            lambda: self._summary(active_runs=[]),
         )
 
         response = client.get("/builder/supervisor")
@@ -158,7 +187,7 @@ class TestSupervisorStatusEndpoint:
         def _raise():
             raise RuntimeError("queue db is locked")
 
-        monkeypatch.setattr("gateway.builder_supervisor.status", _raise)
+        monkeypatch.setattr("gateway.builder_supervisor.control_plane_summary", _raise)
 
         response = client.get("/builder/supervisor")
 

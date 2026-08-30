@@ -40,9 +40,30 @@ describe('Kitty state badge shell treatment', () => {
 
   it('uses semantic shell typography and separators', () => {
     const { getByText } = render(<StateBadge state="idle" />);
-    const style = getByText('ready').getAttribute('style') ?? '';
+    const style = getByText('idle').getAttribute('style') ?? '';
     expect(style).toContain('font-family: var(--font-body)');
     expect(style).toContain('color: var(--color-text-secondary)');
     expect(style).toContain('border: 1px solid var(--color-separator)');
+  });
+
+  // Product acceptance, PR #675: this badge reports the last chat turn, but it
+  // sits beside the gateway-connection badge, so a bare "issue" read as a
+  // verdict on all of Kitty. It must name what it is about.
+  it('says the failure is about the reply, not about Kitty as a whole', () => {
+    const { getByText, getByLabelText } = render(<StateBadge state="broke" />);
+    expect(getByText('reply failed')).toBeInTheDocument();
+    expect(getByLabelText("Kitty's last reply failed")).toBeInTheDocument();
+  });
+
+  it('gives every state an accessible description', () => {
+    for (const [state, name] of [
+      ['idle', 'Kitty is idle'],
+      ['working', 'Kitty is working'],
+      ['done', 'Kitty finished its reply'],
+    ] as const) {
+      const { getByLabelText, unmount } = render(<StateBadge state={state} />);
+      expect(getByLabelText(name)).toBeInTheDocument();
+      unmount();
+    }
   });
 });

@@ -169,7 +169,7 @@ def register_file(
 
 def update_ingestion(artifact_id: str, *, status: str, error: str | None = None) -> dict[str, Any]:
     """Record downstream ingestion state without changing file readiness."""
-    if status not in {"queued", "ready", "failed"}:
+    if status not in {"queued", "ready", "failed", "not_indexed"}:
         raise ArtifactError(f"invalid ingestion status {status!r}")
     init_db()
     with kitty_db.connect(ARTIFACTS_DB_FILE) as conn:
