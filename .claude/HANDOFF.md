@@ -3,8 +3,8 @@
 <!-- kitty-handoff
 {
   "schema_version": 2,
-  "updated_at": "2026-08-29T23:30:00Z",
-  "head_sha": "9c60762a2626dd2cc02da7cf1513780e0581fb26",
+  "updated_at": "2026-08-30T03:10:00Z",
+  "head_sha": "3e022bf110391d3104a8955f2b0083ed436ad7d1",
   "branch": "claude/kitty-power-run-l4dvwx",
   "worktree": ".",
   "status": "complete",
@@ -16,7 +16,9 @@
     "Gave the chat composer, chat search and Image Lab prompt accessible names that survive typing",
     "Ran the independent product acceptance review requested on head c648eb52 and returned FAIL on one clause of three",
     "Fixed that FAIL in c15defa; it was later superseded by the #672 merge, which solved the same defect more broadly",
-    "Reconciled the #672 merge in 9c60762: took their model-availability rework, restored two fixes their merge reverted by accident, and fixed the brief row leak it newly exposed"
+    "Reconciled the #672 merge in 9c60762: took their model-availability rework, restored two fixes their merge reverted by accident, and fixed the brief row leak it newly exposed",
+    "Verified three pushes from a concurrent lane (17f7341, 7ffd740, 3e022bf) without changing them: project-copy.ts strips developer vocabulary from project text, and modelStatusMessage now translates model transport diagnostics instead of passing them through",
+    "Confirmed the model-picker 503 leak this session flagged is closed: the raw strings are now test inputs and the tests assert the user never sees them"
   ],
   "blockers": [
     "Current head has had no independent acceptance pass: the same session that ran the acceptance review also wrote the fix and the merge resolution"
@@ -25,13 +27,13 @@
   "invalidation_conditions": [
     "PR #675 merges or closes",
     "origin/main advances past e2b7a06 and the branch is no longer mergeable clean",
-    "Someone pushes to claude/kitty-power-run-l4dvwx past 9c60762"
+    "Someone pushes to claude/kitty-power-run-l4dvwx past 3e022bf"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
     "number": 675,
     "state": "OPEN",
-    "head_sha": "9c60762a2626dd2cc02da7cf1513780e0581fb26"
+    "head_sha": "3e022bf110391d3104a8955f2b0083ed436ad7d1"
   },
   "parallel_work": [
     {
@@ -48,20 +50,9 @@
   ],
   "recommendations": [
     {
-      "id": "independent-acceptance-9c60762",
-      "what": "Run an independent product acceptance pass on PR #675 head 9c60762, then lift draft so CI actually executes",
+      "id": "independent-acceptance-3e022bf",
+      "what": "Run an independent product acceptance pass on PR #675 head 3e022bf, then lift draft so CI actually executes",
       "why": "This session ran the acceptance review, wrote the fix, and resolved the #672 merge, so it is not independent for the current head; and every CI job is gated on draft == false, so nothing is machine-validated yet",
-      "class": "code",
-      "status": "ready",
-      "blocked_by": null,
-      "release_check": null,
-      "deferred_count": 0,
-      "first_deferred": null
-    },
-    {
-      "id": "model-picker-503-leak",
-      "what": "Remove the raw HTTP status from #672's model-picker copy ('model picker returned 503'), which its own StatusBar test asserts",
-      "why": "It is a raw HTTP status in product copy \u2014 the same defect class PR #675 exists to remove \u2014 but it is recently-merged deliberate work, so changing it inside a merge resolution would reverse someone else's decision without review",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -85,12 +76,12 @@
 -->
 
 **Identity:** interactive Claude Code session, 2026-08-29.
-**Branch:** `claude/kitty-power-run-l4dvwx` @ `9c60762`, clean, pushed.
+**Branch:** `claude/kitty-power-run-l4dvwx` @ `3e022bf`, clean, pushed.
 **PR:** [#675](https://github.com/jacob202/kitty/pull/675) — open, **draft**, `mergeable_state: clean`.
 
 **Invalid once** #675 merges or closes, `origin/main` advances past `e2b7a06`
 such that the branch stops being mergeable clean, or anyone pushes past
-`9c60762`.
+`3e022bf`.
 
 ## What this session did
 
@@ -153,7 +144,7 @@ empty**.
 
 ## Blocker
 
-**Head `9c60762` has had no independent acceptance pass.** This session ran the
+**Head `3e022bf` has had no independent acceptance pass.** This session ran the
 acceptance review Jacob requested (against `c648eb52`), returned FAIL, wrote the
 fix, and then resolved the #672 merge. That makes it non-independent for the
 current head, so the PR stays draft rather than self-certifying.
@@ -164,7 +155,7 @@ the gate mechanically and gets real CI coverage.
 
 ## Next move
 
-Get an independent product acceptance pass on `9c60762` under
+Get an independent product acceptance pass on `3e022bf` under
 `docs/PRODUCT_ACCEPTANCE.md`, then lift draft on #675.
 
 The user goal to review against, unchanged from Jacob's request:
@@ -209,9 +200,9 @@ available to this session. Do not backfill them from intuition.
 
 ## Exact verification results
 
-At `9c60762` unless noted:
+At `3e022bf` unless noted:
 
-- `npx vitest run` — **567 passed, 75 files, 0 failed** (baseline at session start: 508)
+- `npx vitest run` — **570 passed, 75 files, 0 failed** (baseline at session start: 508)
 - `npx tsc --noEmit -p tsconfig.json` — clean
 - `npm run build` — succeeded
 - `npx playwright test` — **30 passed, 20 skipped, 0 failed** (at `1d25d05`; the 20 skips are project-scoping, desktop-only vs phone-only)
