@@ -35,6 +35,13 @@ check_untyped_defs = false
 warn_unused_ignores = true
 exclude = ["gateway/kitty-chat/", "tests/"]
 
+# Ratchet: modules verified to pass with body-level checking enabled
+# (mypy --check-untyped-defs, 2026-08-30). Extend this list as more modules
+# qualify; never weaken an entry already listed here.
+[[tool.mypy.overrides]]
+module = ["gateway.db", "gateway.auth", "gateway.action_queue"]
+check_untyped_defs = true
+
 [tool.coverage.run]
 source = ["gateway"]
 omit = ["gateway/kitty-chat/*"]
