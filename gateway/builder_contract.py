@@ -44,6 +44,131 @@ def validate_contract(spec: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _workflow_string_list(value: Any, *, label: str) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(
+        isinstance(item, str) and item.strip() for item in value
+    ):
+        raise ContractError(f"{label} must be a list of non-empty strings")
+    normalized = [item.strip() for item in value]
+    if len(normalized) != len(set(normalized)):
+        raise ContractError(f"{label} must not contain duplicates")
+    return normalized
+
+
+def compile_workflow(spec: dict[str, Any]) -> dict[str, Any]:
+    """Compile a Builder contract into explicit artifact/control-flow steps.
+
+    The compiler is deliberately deterministic. It does not ask a model to
+    invent a workflow: authored steps are normalized and checked, while legacy
+    contracts become one explicit ``execute`` step for incremental adoption.
+    """
+    errors = validate_contract(spec)
+    if errors:
+        raise ContractError("; ".join(errors))
+
+    inputs = _workflow_string_list(spec.get("inputs"), label="contract.inputs")
+    raw_steps = spec.get("steps")
+    if raw_steps is None:
+        return {
+            "entry_step": "execute",
+            "inputs": inputs,
+            "steps": [
+                {
+                    "id": "execute",
+                    "instruction": spec["goal"].strip(),
+                    "requires": list(inputs),
+                    "produces": ["result"],
+                    "validation_commands": _workflow_string_list(
+                        spec.get("validation_commands", []),
+                        label="contract.validation_commands",
+                    ),
+                    "on_success": None,
+                }
+            ],
+        }
+
+    if not isinstance(raw_steps, list) or not raw_steps:
+        raise ContractError("contract.steps must be a non-empty list when provided")
+    if not all(isinstance(step, dict) for step in raw_steps):
+        raise ContractError("contract.steps must contain only JSON objects")
+
+    ids: list[str] = []
+    for index, raw in enumerate(raw_steps):
+        step_id = raw.get("id")
+        if not isinstance(step_id, str) or not step_id.strip():
+            raise ContractError(f"contract.steps[{index}].id must be a non-empty string")
+        step_id = step_id.strip()
+        if step_id in ids:
+            raise ContractError(f"duplicate step id: {step_id!r}")
+        ids.append(step_id)
+
+    normalized: list[dict[str, Any]] = []
+    for index, raw in enumerate(raw_steps):
+        instruction = raw.get("instruction")
+        if not isinstance(instruction, str) or not instruction.strip():
+            raise ContractError(
+                f"contract.steps[{index}].instruction must be a non-empty string"
+            )
+        if "on_success" in raw:
+            successor = raw["on_success"]
+        else:
+            successor = ids[index + 1] if index + 1 < len(ids) else None
+        if successor is not None and (
+            not isinstance(successor, str) or not successor.strip()
+        ):
+            raise ContractError(
+                f"contract.steps[{index}].on_success must be null or a non-empty step id"
+            )
+        successor = successor.strip() if isinstance(successor, str) else None
+        if successor is not None and successor not in ids:
+            raise ContractError(
+                f"step {ids[index]!r} has unknown on_success target {successor!r}"
+            )
+        normalized.append(
+            {
+                "id": ids[index],
+                "instruction": instruction.strip(),
+                "requires": _workflow_string_list(
+                    raw.get("requires"), label=f"step {ids[index]!r}.requires"
+                ),
+                "produces": _workflow_string_list(
+                    raw.get("produces"), label=f"step {ids[index]!r}.produces"
+                ),
+                "validation_commands": _workflow_string_list(
+                    raw.get("validation_commands"),
+                    label=f"step {ids[index]!r}.validation_commands",
+                ),
+                "on_success": successor,
+            }
+        )
+
+    by_id = {step["id"]: step for step in normalized}
+    available = set(inputs)
+    visited: list[str] = []
+    current: str | None = ids[0]
+    while current is not None:
+        if current in visited:
+            cycle = " -> ".join([*visited, current])
+            raise ContractError(f"workflow contains a cycle: {cycle}")
+        step = by_id[current]
+        missing = [item for item in step["requires"] if item not in available]
+        if missing:
+            raise ContractError(
+                f"step {current!r} requires unavailable artifact(s): {missing}"
+            )
+        visited.append(current)
+        available.update(step["produces"])
+        current = step["on_success"]
+
+    if len(visited) != len(normalized):
+        unreachable = [step_id for step_id in ids if step_id not in visited]
+        raise ContractError(f"workflow contains unreachable step(s): {unreachable}")
+
+    return {"entry_step": ids[0], "inputs": inputs, "steps": normalized}
+
+
 def _run_command(cmd: str, cwd: Path | None = None, timeout: float = 60.0) -> dict[str, Any]:
     """Run one shell command and return structured results."""
     try:
@@ -91,9 +216,21 @@ def run_contract(
     if errors:
         raise ContractError("; ".join(errors))
 
+    workflow = compile_workflow(spec)
     goal = spec["goal"].strip()
     criteria_in = spec.get("criteria") or builder_core.derive_criteria(goal)
-    commands = spec.get("validation_commands", [])
+    if spec.get("steps") is None:
+        commands = [
+            cmd
+            for step in workflow["steps"]
+            for cmd in step["validation_commands"]
+        ]
+    else:
+        commands = list(spec.get("validation_commands", [])) + [
+            cmd
+            for step in workflow["steps"]
+            for cmd in step["validation_commands"]
+        ]
 
     command_results = []
     for cmd in commands:
@@ -116,6 +253,7 @@ def run_contract(
     return {
         "valid": True,
         "goal": goal,
+        "workflow": workflow,
         "criteria": checked,
         "command_results": command_results,
         "passed": passed,
