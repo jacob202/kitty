@@ -100,9 +100,9 @@ def _changed_paths(repo_root: Path, base_sha: str) -> list[str]:
 
 
 def _get_allowed_paths(
-    packet_id: str, *, db_path: Path | None = None
+    initiative_id: str, packet_id: str, *, db_path: Path | None = None
 ) -> list[str]:
-    """Return one unambiguous, valid durable packet allowlist.
+    """Return the durable allowlist for one initiative/packet identity.
 
     Reads through ``initiative_packets.task_id`` to the task's own
     ``allowed_paths`` — the same source ``builder_runner.py``'s live scope
@@ -118,16 +118,18 @@ def _get_allowed_paths(
         rows = conn.execute(
             "SELECT t.allowed_paths_json FROM initiative_packets ip "
             "JOIN tasks t ON t.id = ip.task_id "
-            "WHERE ip.packet_id = ? LIMIT 2",
-            (packet_id,),
+            "WHERE ip.initiative_id = ? AND ip.packet_id = ? LIMIT 2",
+            (initiative_id, packet_id),
         ).fetchall()
     finally:
         conn.close()
     if not rows:
-        raise IdentityError(f"packet {packet_id!r} has no allowlist row")
+        raise IdentityError(
+            f"packet {initiative_id}/{packet_id!r} has no allowlist row"
+        )
     if len(rows) != 1:
         raise IdentityError(
-            f"packet_id {packet_id!r} is not globally unique; lease identity is ambiguous"
+            f"packet {initiative_id}/{packet_id!r} has multiple allowlist rows"
         )
     try:
         parsed = json.loads(rows[0]["allowed_paths_json"])
@@ -259,7 +261,7 @@ def verify_worker_identity(
 
         try:
             changed = _changed_paths(repo_root, lease["base_sha"])
-            allowed = _get_allowed_paths(packet_id, db_path=db_path)
+            allowed = _get_allowed_paths(initiative_id, packet_id, db_path=db_path)
             violations = find_changed_path_violations(changed, allowed)
         except (IdentityError, ValueError) as exc:
             findings.append(_finding("allowed_paths", str(exc)))
