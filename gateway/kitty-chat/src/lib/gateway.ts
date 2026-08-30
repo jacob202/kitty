@@ -1,4 +1,4 @@
-import { MODELS, type Model } from './types'
+import { MODELS, type MessageAttachment, type Model } from './types'
 import { buildPickerModels, fetchModelPicker } from './model-picker'
 
 const GATEWAY_BASE = '/proxy'
@@ -1566,6 +1566,24 @@ export interface GatewayArtifact {
   run_id?: string | null
   metadata: Record<string, unknown>
   error?: string | null
+}
+
+/** A Library artifact resolved into a chat-ready image attachment by
+ *  POST /chats/use-in-chat. The `data_url` carries the image bytes so the
+ *  chat send can build an OpenAI image part from the same object the composer
+ *  shows. */
+export interface ChatImageAttachment extends MessageAttachment {
+  data_url: string
+}
+
+/** Resolve a saved artifact for use in chat. Throws on rejection so the UI
+ *  can show the gateway's plain-language reason instead of a fake success. */
+export async function useArtifactInChat(artifactId: string): Promise<ChatImageAttachment> {
+  return await gfetch<ChatImageAttachment>('/chats/use-in-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ artifact_id: artifactId }),
+  })
 }
 
 // Projects/knowledge/provider fetchers throw on failure — react-query's

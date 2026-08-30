@@ -101,13 +101,94 @@ describe('LibraryView artifact truth', () => {
     expect(within(details as HTMLElement).getByText(/conversation chat-new/i)).toBeInTheDocument()
   })
 
-  it('fails closed instead of claiming an artifact can be used in chat before content resolution exists', async () => {
+  it('stages a ready image into chat and switches to the chat view', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/proxy/artifacts')) {
+        return new Response(JSON.stringify({
+          artifacts: [{
+            id: 'artifact_1', project_id: 7, kind: 'capture', media_type: 'image/png',
+            display_name: 'camera-reference.png', state: 'ready', size_bytes: 2048,
+            created_at: 1787259000, created_by: 'capture', conversation_id: 'chat-1',
+            metadata: { ingestion_status: 'queued' }, error: null,
+          }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.includes('/proxy/chats/use-in-chat')) {
+        return new Response(JSON.stringify({
+          id: 'artifact_1', display_name: 'camera-reference.png',
+          media_type: 'image/png', size: 2048, data_url: 'data:image/png;base64,AAAA',
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('not found', { status: 404 })
+    }))
+
     renderLibrary()
 
-    const action = await screen.findByRole('button', { name: /use camera-reference\.png in chat unavailable/i })
-    expect(action).toBeDisabled()
-    expect(action).toHaveStyle({ minHeight: '44px' })
-    expect(screen.getByText(/chat use is unavailable until kitty can resolve artifact content safely/i)).toBeInTheDocument()
+    const action = await screen.findByRole('button', { name: /use camera-reference\.png in chat/i })
+    expect(action).toBeEnabled()
+    fireEvent.click(action)
+
+    expect(await screen.findByText('camera-reference.png')).toBeInTheDocument()
+    expect(setAttachments).toHaveBeenCalled()
+    expect(setActiveView).toHaveBeenCalledWith('chat')
+  })
+
+  it('shows the gateway plain-language reason when an artifact cannot be used in chat', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/proxy/artifacts')) {
+        return new Response(JSON.stringify({
+          artifacts: [{
+            id: 'artifact_pdf', project_id: 7, kind: 'document', media_type: 'application/pdf',
+            display_name: 'notes.pdf', state: 'ready', size_bytes: 4096,
+            created_at: 1787259000, created_by: 'capture', conversation_id: 'chat-1',
+            metadata: {}, error: null,
+          }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.includes('/proxy/chats/use-in-chat')) {
+        return new Response(JSON.stringify({ detail: 'Only images can be attached into a chat message from Library.' }), { status: 415, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('not found', { status: 404 })
+    }))
+
+    renderLibrary()
+
+    const action = await screen.findByRole('button', { name: /use notes\.pdf in chat/i })
+    expect(action).toBeEnabled()
+    fireEvent.click(action)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Only images can be attached into a chat message/)
+    expect(setAttachments).not.toHaveBeenCalled()
+    expect(setActiveView).not.toHaveBeenCalled()
+  })
+
+  it('keeps the disabled-use control for non-image or non-ready artifacts with a plain reason', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      artifacts: [
+        {
+          id: 'artifact_pdf', project_id: 7, kind: 'document', media_type: 'application/pdf',
+          display_name: 'notes.pdf', state: 'ready', size_bytes: 4096, created_at: 1787250000,
+          created_by: 'capture', conversation_id: 'chat-old', metadata: {}, error: null,
+        },
+        {
+          id: 'artifact_processing', project_id: 8, kind: 'capture', media_type: 'image/png',
+          display_name: 'new-camera-reference.png', state: 'processing', size_bytes: 2048, created_at: 1787259000,
+          created_by: 'capture', conversation_id: 'chat-new', metadata: { ingestion_status: 'queued' }, error: null,
+        },
+      ],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
+
+    renderLibrary()
+
+    const pdf = await screen.findByRole('button', { name: /use notes\.pdf in chat unavailable/i })
+    expect(pdf).toBeDisabled()
+    expect(screen.getByText(/only images can be attached/i)).toBeInTheDocument()
+
+    const processing = screen.getByRole('button', { name: /use new-camera-reference\.png in chat unavailable/i })
+    expect(processing).toBeDisabled()
+    expect(screen.getByText(/not ready to use in chat yet/i)).toBeInTheDocument()
     expect(setAttachments).not.toHaveBeenCalled()
     expect(setActiveView).not.toHaveBeenCalled()
   })

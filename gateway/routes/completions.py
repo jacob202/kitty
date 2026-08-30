@@ -200,6 +200,60 @@ def _message_text(content: object) -> str:
     )
 
 
+def _attach_images_to_user_message(
+    messages: list[dict],
+    image_parts: list[dict],
+) -> list[dict]:
+    """Attach resolved image parts to the latest user message.
+
+    The chat route receives ``attachment_ids`` (durable artifact ids) and the
+    wire messages only carry text. This splices the resolved image parts into
+    the current user message so the model actually sees the image. The user
+    text stays a text part so every existing text consumer keeps working.
+    """
+    if not image_parts:
+        return messages
+    updated = list(messages)
+    for index in range(len(updated) - 1, -1, -1):
+        message = updated[index]
+        if message.get("role") != "user":
+            continue
+        content = message.get("content", "")
+        if isinstance(content, str):
+            parts = [{"type": "text", "text": content}] if content else []
+        elif isinstance(content, list):
+            parts = list(content)
+        else:
+            parts = []
+        parts.extend(image_parts)
+        updated[index] = {**message, "content": parts}
+        return updated
+    return updated
+
+
+def _resolve_attachment_image_parts(attachment_ids: list[str]) -> list[dict]:
+    """Turn durable artifact ids into OpenAI image_url parts.
+
+    Reuses the same type/size/state validation as the Library → chat bridge
+    (``gateway/routes/chats.py``) so a Library-staged image and a direct
+    ``attachment_ids`` send agree on what is attachable. Any failure raises a
+    plain-language HTTPException before the request is dispatched upstream.
+    """
+    from gateway.routes.chats import _resolve_chat_image_attachment
+
+    parts: list[dict] = []
+    for artifact_id in attachment_ids:
+        attachment = _resolve_chat_image_attachment(artifact_id)
+        data_url = attachment.get("data_url")
+        if not isinstance(data_url, str) or not data_url:
+            raise HTTPException(
+                status_code=409,
+                detail="That saved file could not be prepared for chat.",
+            )
+        parts.append({"type": "image_url", "image_url": {"url": data_url}})
+    return parts
+
+
 class CloseSessionRequest(BaseModel):
     messages: list[dict] = Field(default_factory=list)
     session_id: str = ""
@@ -474,6 +528,22 @@ async def chat_completions(request: Request):
         "model": model,
         "stream": stream,
     }
+
+    if attachment_ids:
+        from gateway import artifact_store
+
+        try:
+            resolved_parts = _resolve_attachment_image_parts(attachment_ids)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail="One of the attached files could not be used in chat.",
+            ) from exc
+        payload["messages"] = _attach_images_to_user_message(
+            payload["messages"], resolved_parts
+        )
 
     selected_provider = selected_provider_name()
     provider_label = selected_provider or "auto"

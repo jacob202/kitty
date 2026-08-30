@@ -1,14 +1,31 @@
 'use client'
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { DocumentsPanel } from '@/components/DocumentsPanel'
 import { useArtifacts } from '@/lib/queries'
-import type { GatewayArtifact } from '@/lib/gateway'
+import type { GatewayArtifact, ChatImageAttachment } from '@/lib/gateway'
+import { useArtifactInChat } from '@/lib/gateway'
 import { describeFailure } from '@/lib/failure-copy'
+import { useKitty } from '@/state/KittyContext'
+
+const CHAT_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
 export default function LibraryView({ isMobile }: { isMobile: boolean }) {
+  const { setAttachments, setActiveView } = useKitty()
+  const [useError, setUseError] = useState<string | null>(null)
   const pad = isMobile ? '20px 16px 124px' : '32px 40px 48px'
   const artifacts = useArtifacts()
   const recentArtifacts = [...(artifacts.data ?? [])].sort((a, b) => b.created_at - a.created_at)
+
+  const handleUseInChat = async (artifact: GatewayArtifact) => {
+    setUseError(null)
+    try {
+      const attachment: ChatImageAttachment = await useArtifactInChat(artifact.id)
+      setAttachments((prev) => [...prev.filter((a) => a.id !== attachment.id), attachment])
+      setActiveView('chat')
+    } catch (err) {
+      setUseError(err instanceof Error ? err.message : 'That file could not be used in chat right now.')
+    }
+  }
 
   return (
     <div style={{ flex: 1, padding: pad, display: 'flex', flexDirection: 'column', gap: 28, minWidth: 0 }}>
@@ -44,9 +61,14 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
         {recentArtifacts.length > 0 && (
           <ul aria-label="Recent artifacts" style={artifactListStyle}>
             {recentArtifacts.map(artifact => (
-              <ArtifactRow key={artifact.id} artifact={artifact} />
+              <ArtifactRow key={artifact.id} artifact={artifact} onUseInChat={() => void handleUseInChat(artifact)} />
             ))}
           </ul>
+        )}
+        {useError && (
+          <p role="alert" style={{ ...mutedStyle, color: 'var(--color-destructive)', marginTop: 10 }}>
+            {useError}
+          </p>
         )}
       </section>
 
@@ -67,10 +89,17 @@ function artifactErrorMessage(error: unknown): string {
   return describeFailure(error)
 }
 
-function ArtifactRow({ artifact }: { artifact: GatewayArtifact }) {
+function ArtifactRow({ artifact, onUseInChat }: { artifact: GatewayArtifact; onUseInChat: () => void }) {
   const ingestion = typeof artifact.metadata?.ingestion_status === 'string' ? artifact.metadata.ingestion_status : null
   const created = new Date(artifact.created_at * 1000)
   const state = humanize(artifact.state)
+  const isImage = artifact.media_type.startsWith('image/')
+  const chatReady = isImage && artifact.state === 'ready' && CHAT_IMAGE_TYPES.has(artifact.media_type)
+  const chatUnavailableReason = !isImage
+    ? 'Only images can be attached into a chat message from Library.'
+    : artifact.state !== 'ready'
+      ? 'This file is not ready to use in chat yet.'
+      : 'This image type isn\u2019t supported in chat yet — use PNG, JPEG, or WebP.'
 
   return (
     <li style={artifactItemStyle}>
@@ -90,15 +119,26 @@ function ArtifactRow({ artifact }: { artifact: GatewayArtifact }) {
         </div>
 
         <div style={artifactActionsStyle}>
-          <button
-            type="button"
-            aria-label={`Use ${artifact.display_name} in chat unavailable`}
-            disabled
-            style={{ ...useButtonStyle, cursor: 'not-allowed', opacity: 0.6, color: 'var(--color-text-secondary)' }}
-          >
-            Use in chat unavailable
-          </button>
-          <span style={openUnavailableStyle}>Chat use is unavailable until Kitty can resolve artifact content safely.</span>
+          {chatReady ? (
+            <button
+              type="button"
+              onClick={onUseInChat}
+              aria-label={`Use ${artifact.display_name} in chat`}
+              style={useButtonStyle}
+            >
+              Use in chat
+            </button>
+          ) : (
+            <button
+              type="button"
+              aria-label={`Use ${artifact.display_name} in chat unavailable`}
+              disabled
+              style={{ ...useButtonStyle, cursor: 'not-allowed', opacity: 0.6, color: 'var(--color-text-secondary)' }}
+            >
+              Use in chat unavailable
+            </button>
+          )}
+          {!chatReady && <span style={openUnavailableStyle}>{chatUnavailableReason}</span>}
         </div>
 
         <details style={detailsStyle}>

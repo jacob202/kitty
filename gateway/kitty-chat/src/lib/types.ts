@@ -6,6 +6,14 @@ export interface MessageAttachment {
   display_name: string
   media_type: string
   size?: number
+  /**
+   * Image bytes as a data URL, present only while the attachment is staged in
+   * the composer and not yet durable in the conversation ledger. The chat send
+   * builds an OpenAI image_url part from this; after a durable send the read
+   * surface reconstructs the same shape from the artifact store, without the
+   * inline bytes.
+   */
+  data_url?: string
 }
 
 /** A prompt-injected memory, optionally linked to its durable delete target. */
