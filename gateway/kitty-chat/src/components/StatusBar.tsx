@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { AlertCircle, ArrowDownToLine, Share2, X } from 'lucide-react'
 import type { AttachmentError } from '@/lib/attachment-validation'
 import type { PwaInstallState } from '@/lib/pwa'
@@ -11,8 +11,9 @@ interface Props {
   /** Only relevant while a chat thread is on screen. */
   showChatSignals: boolean
   attachmentErrors: AttachmentError[]
-  gatewayOffline: boolean
-  onRetryGateway: () => void
+  modelUnavailable: boolean
+  modelError?: string | null
+  onRetryModels: () => void
   saveState: SaveState
   onRetrySave: () => void
   briefUnavailable: boolean
@@ -23,7 +24,13 @@ interface Props {
   onPwaInstall?: () => void
 }
 
-const FAILS_REQUIRED = 3
+
+function modelStatusMessage(modelError?: string | null): string {
+  if (modelError?.startsWith('Model details timed out')) return modelError
+  if (modelError?.startsWith('Model details unavailable')) return modelError
+  if (modelError?.startsWith('No live curated models')) return modelError
+  return 'models temporarily unavailable'
+}
 
 /**
  * One line, ranked by how much it matters to the user right now. The old
@@ -35,8 +42,9 @@ const FAILS_REQUIRED = 3
 export function StatusBar({
   showChatSignals,
   attachmentErrors,
-  gatewayOffline,
-  onRetryGateway,
+  modelUnavailable,
+  modelError,
+  onRetryModels,
   saveState,
   onRetrySave,
   briefUnavailable,
@@ -46,16 +54,9 @@ export function StatusBar({
   pwaInstalling = false,
   onPwaInstall,
 }: Props) {
-  const offlineStreakRef = useRef(0)
   const [pwaDismissed, setPwaDismissed] = useState(false)
 
-  if (gatewayOffline) {
-    offlineStreakRef.current++
-  } else {
-    offlineStreakRef.current = 0
-  }
-
-  const confirmedOffline = offlineStreakRef.current >= FAILS_REQUIRED
+  const confirmedOffline = modelUnavailable
 
   if (showChatSignals && attachmentErrors.length > 0) {
     return (
@@ -75,9 +76,9 @@ export function StatusBar({
       <div role="status" style={{ ...rowStyle, justifyContent: 'space-between' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={dotStyle} />
-          gateway offline
+          {modelStatusMessage(modelError)}
         </span>
-        <button type="button" onClick={onRetryGateway} style={retryBtnStyle}>
+        <button type="button" onClick={onRetryModels} style={retryBtnStyle}>
           retry
         </button>
       </div>

@@ -7,8 +7,8 @@ afterEach(cleanup)
 const baseProps = {
   showChatSignals: true,
   attachmentErrors: [],
-  gatewayOffline: false,
-  onRetryGateway: vi.fn(),
+  modelUnavailable: false,
+  onRetryModels: vi.fn(),
   saveState: 'idle' as const,
   onRetrySave: vi.fn(),
   briefUnavailable: false,
@@ -22,32 +22,47 @@ describe('StatusBar', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('ranks attachment errors above gateway offline', () => {
+  it('ranks attachment errors above model availability failure', () => {
     render(
       <StatusBar
         {...baseProps}
         attachmentErrors={[{ file: 'x.png', reason: 'too big' }]}
-        gatewayOffline
+        modelUnavailable
       />,
     )
     expect(screen.getByRole('alert')).toHaveTextContent('x.png: too big')
-    expect(screen.queryByText('gateway offline')).toBeNull()
+    expect(screen.queryByText('model availability failure')).toBeNull()
   })
 
-  it('shows gateway offline above save-state failures and retries on click', () => {
-    const onRetryGateway = vi.fn()
+  it('shows model availability failure immediately with a working retry action', () => {
+    const onRetryModels = vi.fn()
+    render(
+      <StatusBar
+        {...baseProps}
+        modelUnavailable
+        onRetryModels={onRetryModels}
+        saveState="failed"
+      />,
+    )
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('models temporarily unavailable')
+    expect(status).not.toHaveTextContent(/gateway/i)
+    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
+    expect(onRetryModels).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces picker-specific model detail failures instead of calling the gateway offline', () => {
     const props = {
       ...baseProps,
-      gatewayOffline: true,
-      onRetryGateway,
-      saveState: 'failed' as const,
+      modelUnavailable: true,
+      modelError: 'Model details unavailable — model picker returned 503. Retry to reconnect to Kitty.',
     }
-    const { rerender } = render(<StatusBar {...props} />)
-    rerender(<StatusBar {...props} />)
-    rerender(<StatusBar {...props} />)
-    expect(screen.getByText('gateway offline')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'retry' }))
-    expect(onRetryGateway).toHaveBeenCalledTimes(1)
+    render(<StatusBar {...props} />)
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('Model details unavailable')
+    expect(status).toHaveTextContent('model picker returned 503')
+    expect(status).toHaveTextContent('Retry to reconnect to Kitty')
+    expect(status).not.toHaveTextContent(/gateway offline/i)
   })
 
   it('shows a failed save with a working retry action', () => {

@@ -202,6 +202,7 @@ def test_resolve_agentrouter_key_from_env():
 
     with (
         patch("gateway.llm_client.load_dotenv"),
+        patch("gateway.llm_client.dotenv_values", return_value={}),
         patch.dict("os.environ", {"AGENT_ROUTER_TOKEN": "sk-test-key"}),
     ):
         key = resolve_agentrouter_api_key()
@@ -213,6 +214,7 @@ def test_resolve_agentrouter_key_strips_quotes():
 
     with (
         patch("gateway.llm_client.load_dotenv"),
+        patch("gateway.llm_client.dotenv_values", return_value={}),
         patch.dict("os.environ", {"AGENTROUTER_API_KEY": '"sk-test-key"'}, clear=True),
     ):
         key = resolve_agentrouter_api_key()
@@ -225,6 +227,7 @@ def test_resolve_agentrouter_key_multiline_uses_first():
 
     with (
         patch("gateway.llm_client.load_dotenv"),
+        patch("gateway.llm_client.dotenv_values", return_value={}),
         patch.dict("os.environ", {"AGENTROUTER_API_KEY": "sk-line1\nsk-line2"}, clear=True),
     ):
         key = resolve_agentrouter_api_key()
@@ -234,13 +237,36 @@ def test_resolve_agentrouter_key_multiline_uses_first():
 def test_resolve_agentrouter_key_missing_returns_empty():
     from gateway.llm_client import resolve_agentrouter_api_key
 
-    with patch("gateway.llm_client.load_dotenv"), patch.dict("os.environ", {}, clear=True):
+    with (
+        patch("gateway.llm_client.load_dotenv"),
+        patch("gateway.llm_client.dotenv_values", return_value={}),
+        patch.dict("os.environ", {}, clear=True),
+    ):
         import os
 
         os.environ.pop("AGENTROUTER_API_KEY", None)
         os.environ.pop("AGENT_ROUTER_TOKEN", None)
         key = resolve_agentrouter_api_key()
     assert key == ""
+
+
+def test_resolve_agentrouter_key_prefers_current_dotenv_for_live_rotation():
+    """A repo key rotation must beat a stale value previously loaded into os.environ."""
+    from gateway.llm_client import resolve_agentrouter_api_key
+
+    with (
+        patch.dict("os.environ", {"AGENT_ROUTER_TOKEN": "stale-loaded-key"}, clear=True),
+        patch(
+            "gateway.llm_client.dotenv_values",
+            side_effect=[
+                {"AGENT_ROUTER_TOKEN": "fresh-key-1"},
+                {"AGENT_ROUTER_TOKEN": "fresh-key-2"},
+            ],
+        ),
+    ):
+        assert resolve_agentrouter_api_key() == "fresh-key-1"
+        assert resolve_agentrouter_api_key() == "fresh-key-2"
+        assert __import__("os").environ["AGENT_ROUTER_TOKEN"] == "stale-loaded-key"
 
 
 # ── call_llm integration (mocked network) ────────────────────────────────────
@@ -1029,3 +1055,23 @@ def test_selected_provider_that_answered_with_nothing_points_at_credit():
     assert "empty balance or a rate limit" in message
     assert "switched off" not in message
     _assert_no_operator_mechanics(message)
+
+
+def test_resolve_agentrouter_key_never_overwrites_gateway_runtime_env(monkeypatch):
+    """Provider inspection must not mutate unrelated live Gateway process settings."""
+    import os
+
+    from gateway import llm_client
+
+    monkeypatch.setenv("GATEWAY_SECRET", "runtime-gateway-secret")
+    monkeypatch.setenv("AGENT_ROUTER_TOKEN", "runtime-agentrouter-key")
+
+    def dangerous_dotenv_reload(*args, **kwargs):
+        if kwargs.get("override"):
+            os.environ["GATEWAY_SECRET"] = "dotenv-gateway-secret"
+
+    monkeypatch.setattr(llm_client, "load_dotenv", dangerous_dotenv_reload)
+    monkeypatch.setattr(llm_client, "dotenv_values", lambda *_args, **_kwargs: {})
+
+    assert llm_client.resolve_agentrouter_api_key() == "runtime-agentrouter-key"
+    assert os.environ["GATEWAY_SECRET"] == "runtime-gateway-secret"

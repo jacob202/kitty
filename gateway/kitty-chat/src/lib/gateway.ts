@@ -1,4 +1,5 @@
 import { MODELS, type Model } from './types'
+import { buildPickerModels, fetchModelPicker } from './model-picker'
 
 const GATEWAY_BASE = '/proxy'
 // The proxy has to cross the Next.js boundary and may wake a local gateway
@@ -480,8 +481,38 @@ export async function fetchGatewayModels(): Promise<GatewayModelsPayload> {
           return model?.id
         }).filter((id: unknown): id is string => typeof id === 'string')
       : []
+    const liveIds = new Set(ids)
+    let picker
+    try {
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+      try {
+        picker = await fetchModelPicker(controller.signal)
+      } finally {
+        window.clearTimeout(timeoutId)
+      }
+    } catch (err) {
+      const models = MODELS.filter(model => liveIds.has(model.id))
+      const error = err instanceof Error && err.name === 'AbortError'
+        ? 'Model details timed out — retry to reconnect to Kitty.'
+        : `Model details unavailable — ${describeFetchError(err, null)}. Retry to reconnect to Kitty.`
+      return {
+        models,
+        fromLiveGateway: false,
+        error,
+      }
+    }
+
+    const models = buildPickerModels(picker).filter(model => liveIds.has(model.id))
+    if (models.length === 0) {
+      return {
+        models: [],
+        fromLiveGateway: false,
+        error: 'No live curated models are available — retry to reconnect to Kitty.',
+      }
+    }
     return {
-      models: buildGatewayModels(ids, displayNames),
+      models,
       fromLiveGateway: true,
       error: null,
     }
