@@ -47,9 +47,9 @@ jobs:
 
   agent-review:
     name: agent-review
-    # Independent model review is evidence only sensitive scope consumes, so it
-    # is only produced for sensitive scope. Ordinary PRs carry no external model
-    # dependency at all, and a reviewer outage cannot block them.
+    # Review every new non-draft PR head automatically with a zero-cost OpenCode
+    # reviewer. Ordinary PRs do not depend on the model result; sensitive PRs
+    # still require exact-head approval evidence through policy-gate.
     #
     # Metadata events (edited/labeled/unlabeled) deliberately do not recall the
     # model: policy-gate re-evaluates live PR state on those events, but the code
@@ -57,13 +57,13 @@ jobs:
     needs: scope
     if: >-
       ${{ github.event.pull_request.draft == false &&
-          needs.scope.outputs.sensitive == 'true' &&
           (github.event.action == 'opened' ||
            github.event.action == 'synchronize' ||
            github.event.action == 'reopened' ||
            github.event.action == 'ready_for_review') }}
     runs-on: ubuntu-latest
     timeout-minutes: 4
+    continue-on-error: true
     steps:
       - name: Checkout trusted default-branch reviewer
         uses: actions/checkout@v4
@@ -76,13 +76,20 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install OpenCode
+        run: bun install --global opencode-ai
+
       - name: Produce exact-head model review evidence
         id: produce
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          PR_REVIEW_MODEL: "nvidia/nemotron-3-super-120b-a12b:free"
+          PR_REVIEW_MODEL: "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+          PR_REVIEW_AGENT: "pr-reviewer"
           PR_REVIEW_REQUEST_ATTEMPTS: "2"
         run: python scripts/pr_review.py
 
