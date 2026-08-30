@@ -11,7 +11,6 @@ const MODEL_IDS = [
   'kitty-think',
   'kitty-code',
   'kitty-vision',
-  'deepseek-v4-pro',
 ]
 
 const DISPLAY_NAMES: Record<string, string> = {
@@ -20,7 +19,6 @@ const DISPLAY_NAMES: Record<string, string> = {
   'kitty-think': 'Think',
   'kitty-code': 'Code',
   'kitty-vision': 'Vision',
-  'deepseek-v4-pro': 'deepseek-v4-pro',
 }
 
 const PROVIDER_DISPATCH_PATH = /\/(?:api\/chat\/completions|studio\/(?:agent|generate|plan)|image\/generate|mcp\/imagen)(?:\/|$)/
@@ -55,7 +53,7 @@ function runtimeManifest() {
 }
 
 function pickerPayload() {
-  const roles = ['auto', 'fast', 'think', 'code', 'vision', 'other']
+  const roles = ['auto', 'fast', 'think', 'code', 'vision']
   return {
     schema_version: 1,
     source: 'hermetic-pr-528',
@@ -64,7 +62,7 @@ function pickerPayload() {
     presets: MODEL_IDS.map((route, index) => ({
       role: roles[index], label: DISPLAY_NAMES[route], route,
       purpose: index === 0 ? 'Choose the right lane.' : 'Curated Kitty choice.',
-      kind: 'model_role', provider: null, model: null, configured: true,
+      kind: index === 0 ? 'router' : 'model_role', provider: null, model: null, configured: true,
       catalogue: null, catalogue_state: 'unknown', alternatives: [],
     })),
   }
@@ -117,6 +115,7 @@ async function installHermeticStubs(
       return json(route, { data: MODEL_IDS.map(id => ({ id, display_name: DISPLAY_NAMES[id] })) })
     }
     if (path === '/models/picker') return json(route, pickerPayload())
+    if (path === '/api/providers') return json(route, { active: 'auto', order: [], providers: [], warnings: [], config_path: 'hermetic' })
     if (path.startsWith('/runtime/manifest')) return json(route, runtimeManifest())
     if (path === '/chats') return json(route, { chats: [] })
     if (path === '/signals') return json(route, { ok: true, checks_run: 0, issues: 0, repairs: [] })

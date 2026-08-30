@@ -22,10 +22,10 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import httpx
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 from gateway import model_routing
-from gateway.paths import LITELLM_BASE, LITELLM_KEY
+from gateway.paths import LITELLM_BASE, LITELLM_KEY, PROJECT_ROOT
 from gateway.settings import get_settings
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 
@@ -204,9 +204,25 @@ _LITELLM_DEFAULT = "kitty-default"
 _LITELLM_SONNET = "kitty-sonnet"
 _LITELLM_SMALL = "kitty-small"
 
+_AGENTROUTER_KEY_ENVS = ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY")
+
+
+def _load_dotenv_preserving_agentrouter_keys() -> bool:
+    """Reload generic dotenv values without caching AgentRouter credentials."""
+    present = {name for name in _AGENTROUTER_KEY_ENVS if name in os.environ}
+    preserved = {name: os.environ[name] for name in present}
+    try:
+        return bool(load_dotenv())
+    finally:
+        for name in _AGENTROUTER_KEY_ENVS:
+            if name in present:
+                os.environ[name] = preserved[name]
+            else:
+                os.environ.pop(name, None)
+
 
 def _env_slug(name: str, default: str) -> str:
-    load_dotenv()
+    _load_dotenv_preserving_agentrouter_keys()
     v = os.environ.get(name, "").strip()
     return v if v else default
 
@@ -243,22 +259,43 @@ def normalize_agentrouter_api_base(raw: str | None) -> str:
     return f"{base}/v1"
 
 
+def _clean_agentrouter_key(raw: object, env_name: str) -> str:
+    if not isinstance(raw, str):
+        return ""
+    value = raw.strip().strip('"').strip("'")
+    if "\n" in value or "\r" in value:
+        logger.warning(
+            "AgentRouter env %s had multiple lines — using first line only. Fix your .env.",
+            env_name,
+        )
+        value = value.splitlines()[0].strip()
+    return value
+
+
 def resolve_agentrouter_api_key() -> str:
-    """Read API key from env; supports AgentRouter doc names. Strips quotes and first line only."""
-    load_dotenv(override=True)
-    for env_name in ("AGENT_ROUTER_TOKEN", "AGENTROUTER_API_KEY"):
-        v = os.environ.get(env_name, "")
-        if not isinstance(v, str):
-            continue
-        v = v.strip().strip('"').strip("'")
-        if "\n" in v or "\r" in v:
-            logger.warning(
-                "AgentRouter env %s had multiple lines — using first line only. Fix your .env.",
-                env_name,
-            )
-            v = v.splitlines()[0].strip()
-        if v:
-            return v
+    """Resolve AgentRouter credentials without mutating the Gateway process environment.
+
+    Process environment is authoritative. If neither documented key is present,
+    read only those key names from the repo dotenv file. Never call
+    ``load_dotenv(override=True)`` here: provider inspection runs in-process and
+    must not rewrite security-critical settings such as ``GATEWAY_SECRET``.
+    """
+    env_names = _AGENTROUTER_KEY_ENVS
+
+    # Preserve the old override=True precedence without mutating os.environ:
+    # a repo dotenv key may be rotated while Gateway stays up, so parse the
+    # current file on every resolution and prefer it over any stale value that
+    # an earlier generic load_dotenv() call may have cached in the process.
+    values = dotenv_values(PROJECT_ROOT / ".env")
+    for env_name in env_names:
+        value = _clean_agentrouter_key(values.get(env_name), env_name)
+        if value:
+            return value
+
+    for env_name in env_names:
+        value = _clean_agentrouter_key(os.environ.get(env_name, ""), env_name)
+        if value:
+            return value
     return ""
 
 
@@ -277,7 +314,7 @@ def _sanitize_agentrouter_model_id(raw: str) -> str:
 
 def agentrouter_model_for_request(request_model: str | None) -> str:
     """Pick the upstream AgentRouter model for Kitty's single route or an explicit id."""
-    load_dotenv()
+    _load_dotenv_preserving_agentrouter_keys()
     rm = (request_model or "").strip()
     if rm and rm not in model_routing.LEGACY_MODEL_ALIASES and rm != _LITELLM_DEFAULT:
         return _sanitize_agentrouter_model_id(rm)
@@ -543,6 +580,11 @@ def _is_agentrouter_disabled() -> bool:
     return os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower() in ("1", "true", "yes")
 
 
+def provider_is_environment_disabled(provider_name: str) -> bool:
+    """Whether an environment kill switch makes a provider unusable."""
+    return provider_name == "agentrouter" and _is_agentrouter_disabled()
+
+
 def retry_with_backoff(
     func, max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 10.0
 ):
@@ -591,7 +633,7 @@ def _call_provider(
     # matching the per-function ``load_dotenv()`` the old direct callers did.
     # ``load_dotenv()`` (no override) is right for the generic providers;
     # AgentRouter's ``key_resolver`` does its own ``load_dotenv(override=True)``.
-    load_dotenv()
+    _load_dotenv_preserving_agentrouter_keys()
 
     if provider.key_resolver is not None:
         api_key = provider.key_resolver()
@@ -675,7 +717,7 @@ def selected_provider_name() -> str | None:
         raise ProviderChainExhausted([f"selected provider {name!r} is unknown"])
     if is_disabled(name):
         raise ProviderChainExhausted([f"selected provider {name!r} is disabled"])
-    if name == "agentrouter" and _is_agentrouter_disabled():
+    if provider_is_environment_disabled(name):
         raise ProviderChainExhausted(["selected provider 'agentrouter' is disabled by environment"])
     if not provider_is_configured(PROVIDERS[name]):
         raise ProviderChainExhausted([f"selected provider {name!r} is not configured"])
@@ -794,7 +836,7 @@ def call_llm(
             return min(int(remaining), timeout)
 
         for provider_name in effective_provider_order():
-            if provider_name == "agentrouter" and _is_agentrouter_disabled():
+            if provider_is_environment_disabled(provider_name):
                 errors.append(f"{provider_name}: {_REASON_DISABLED}")
                 continue
             if not provider_is_configured(PROVIDERS[provider_name]):

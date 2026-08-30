@@ -32,7 +32,7 @@ export function describeFailure(error: unknown): string {
     if (status >= 400 && status <= 499) return "Kitty couldn't complete that request."
   }
 
-  if (name === 'AbortError' || /timed out|AbortError/i.test(message)) {
+  if (name === 'AbortError' || /timed out|timeout|AbortError/i.test(message)) {
     return 'Kitty took too long to answer. Try again.'
   }
 

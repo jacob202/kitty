@@ -19,6 +19,7 @@ import { CatCorner } from '@/components/CrayonCat'
 export default function KittyChat() {
   const k = useKitty()
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
+  const modelUnavailable = !k.modelGateway.live || k.availableModels.length === 0
 
   return (
     <div
@@ -75,8 +76,8 @@ export default function KittyChat() {
 
       <KittyRuntimeProvider
         messages={k.activeChat?.messages ?? []} isStreaming={k.isStreaming}
-        activeModel={k.activeModel} onSend={k.handleRuntimeSend}
-        onCancel={k.handleStop} onReload={k.handleRetry}
+        activeModel={k.activeModel} onSend={(text) => { if (!modelUnavailable) k.handleRuntimeSend(text) }}
+        onCancel={k.handleStop} onReload={() => { if (!modelUnavailable) k.handleRetry() }}
       >
         <main style={{
           flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
@@ -112,7 +113,8 @@ export default function KittyChat() {
           <StatusBar
             showChatSignals={k.activeView === 'chat' || k.activeView === 'home'}
             attachmentErrors={k.attachmentErrors}
-            modelsUnavailable={k.modelGateway.loaded && !k.modelGateway.live}
+            modelUnavailable={k.modelGateway.loaded && modelUnavailable}
+            modelError={k.modelGateway.error}
             onRetryModels={k.retryGatewayBootstrap}
             saveState={k.saveState} onRetrySave={k.handleRetrySave}
             briefUnavailable={k.modelGateway.loaded && k.modelGateway.live && k.briefGateway.loaded && !k.briefGateway.live}
@@ -132,7 +134,7 @@ export default function KittyChat() {
                 chatId: k.activeChat?.id ?? '',
                 isStreaming: k.isStreaming,
                 catState: k.catState,
-                onRetry: k.handleRetry,
+                onRetry: () => { if (!modelUnavailable) k.handleRetry() },
                 retryBranches: k.activeChat?.retryBranches,
                 onSwitchBranch: k.handleSwitchBranch,
                 onStartClick: () => k.textareaRef.current?.focus(),
@@ -159,10 +161,10 @@ export default function KittyChat() {
             <InputBar
               value={k.input}
               onChange={(v: string) => { k.setInput(v); if (k.attachmentErrors.length) k.setAttachments([]) }}
-              onSend={k.handleSend}
+              onSend={() => { if (!modelUnavailable) k.handleSend() }}
               onStop={k.handleStop}
               isStreaming={k.isStreaming}
-              disabled={k.isStreaming}
+              disabled={k.isStreaming || modelUnavailable}
               chatTitle={k.activeChat?.title}
               modelName={k.activeModel.name}
               modelColor={k.activeModel.color}

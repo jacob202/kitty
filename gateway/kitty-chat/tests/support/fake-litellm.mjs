@@ -11,7 +11,7 @@ const server = http.createServer((req, res) => {
   }
   if (req.method === 'GET' && req.url === '/v1/models') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ data: [{ id: 'hermetic-model', object: 'model' }] }))
+    res.end(JSON.stringify({ data: [{ id: 'kitty-default', object: 'model' }] }))
     return
   }
   if (req.method === 'POST' && req.url === '/v1/chat/completions') {
@@ -24,7 +24,7 @@ const server = http.createServer((req, res) => {
       const chunk = {
         id: 'chatcmpl-hermetic',
         object: 'chat.completion.chunk',
-        model: 'hermetic-model',
+        model: 'kitty-default',
         choices: [{ index: 0, delta: { role: 'assistant', content: reply }, finish_reason: null }],
       }
       res.write(`data: ${JSON.stringify(chunk)}\n\n`)

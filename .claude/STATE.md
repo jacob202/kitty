@@ -3,34 +3,35 @@
 <!-- kitty-state
 {
   "schema_version": 2,
-  "updated_at": "2026-08-29T19:30:00Z",
-  "head_sha": "3fb1773d85bb61675385e0ceef0bbd13d9b93628",
+  "updated_at": "2026-08-29T23:30:00Z",
+  "head_sha": "9c60762a2626dd2cc02da7cf1513780e0581fb26",
   "branch": "claude/kitty-power-run-l4dvwx",
   "worktree": ".",
   "status": "complete",
   "completed_items": [
     "Booted the real product (production build + hermetic gateway) and exercised all eight surfaces at 1440x900 and iPhone 14/14 Pro under available, degraded, and fully-stopped backend states",
-    "Added describeFailure() as the single render-boundary translator for thrown gateway/query errors; routed all six Home panels through it with working retry controls",
+    "Added describeFailure() as the single render-boundary translator for thrown gateway/query errors; routed Home, Projects, Documents and Library through it with working retry controls",
     "Reworded RuntimeBadge so it describes the backend connection only, ending the contradictory 'ready' + 'Kitty status unknown' pairing",
     "Persisted the Safari install-prompt dismissal to localStorage so it survives reload",
+    "Gave the chat composer, chat search and Image Lab prompt accessible names that survive typing",
     "Ran the independent product acceptance review requested on head c648eb52 and returned FAIL on one clause of three",
-    "Fixed that FAIL in c15defa: StatusBar no longer claims the gateway is offline when it is running",
-    "Merged current origin/main (#676) into the branch; no conflicts"
+    "Fixed that FAIL in c15defa; it was later superseded by the #672 merge, which solved the same defect more broadly",
+    "Reconciled the #672 merge in 9c60762: took their model-availability rework, restored two fixes their merge reverted by accident, and fixed the brief row leak it newly exposed"
   ],
   "blockers": [
-    "Current head has had no independent acceptance pass: the same session that ran the acceptance review also wrote the fix at c15defa"
+    "Current head has had no independent acceptance pass: the same session that ran the acceptance review also wrote the fix and the merge resolution"
   ],
   "next_action": "none",
   "invalidation_conditions": [
     "PR #675 merges or closes",
-    "origin/main advances and the branch is no longer mergeable clean",
-    "Someone pushes to claude/kitty-power-run-l4dvwx past 3fb1773"
+    "origin/main advances past e2b7a06 and the branch is no longer mergeable clean",
+    "Someone pushes to claude/kitty-power-run-l4dvwx past 9c60762"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": {
     "number": 675,
     "state": "OPEN",
-    "head_sha": "3fb1773d85bb61675385e0ceef0bbd13d9b93628"
+    "head_sha": "9c60762a2626dd2cc02da7cf1513780e0581fb26"
   },
   "parallel_work": [
     {
@@ -42,24 +43,25 @@
         "scripts/",
         "tests/"
       ],
-      "observed_at": "2026-08-29T19:28:00Z"
-    },
-    {
-      "kind": "pull_request",
-      "ref": "https://github.com/jacob202/kitty/pull/672",
-      "owner": "jacob202",
-      "touches": [
-        "gateway/llm_client.py",
-        "gateway/model_routing.py"
-      ],
-      "observed_at": "2026-08-29T19:28:00Z"
+      "observed_at": "2026-08-29T23:28:00Z"
     }
   ],
   "recommendations": [
     {
-      "id": "independent-acceptance-3fb1773",
-      "what": "Run an independent product acceptance pass on PR #675 head 3fb1773, then lift draft so CI actually executes",
-      "why": "This session ran the acceptance review and then wrote the fix, so it is not independent for the current head; and every CI job is gated on draft == false, so nothing is machine-validated yet",
+      "id": "independent-acceptance-9c60762",
+      "what": "Run an independent product acceptance pass on PR #675 head 9c60762, then lift draft so CI actually executes",
+      "why": "This session ran the acceptance review, wrote the fix, and resolved the #672 merge, so it is not independent for the current head; and every CI job is gated on draft == false, so nothing is machine-validated yet",
+      "class": "code",
+      "status": "ready",
+      "blocked_by": null,
+      "release_check": null,
+      "deferred_count": 0,
+      "first_deferred": null
+    },
+    {
+      "id": "model-picker-503-leak",
+      "what": "Remove the raw HTTP status from #672's model-picker copy ('model picker returned 503'), which its own StatusBar test asserts",
+      "why": "It is a raw HTTP status in product copy \u2014 the same defect class PR #675 exists to remove \u2014 but it is recently-merged deliberate work, so changing it inside a merge resolution would reverse someone else's decision without review",
       "class": "code",
       "status": "ready",
       "blocked_by": null,
@@ -75,7 +77,7 @@
       "status": "deferred",
       "blocked_by": "deleting the file was refused by this environment's permission guard; needs Jacob or a session permitted to remove it",
       "release_check": "test -f gateway/kitty-chat/eslint.config.mjs",
-      "deferred_count": 1,
+      "deferred_count": 2,
       "first_deferred": "2026-08-29"
     }
   ]
@@ -88,7 +90,7 @@ Interactive polish/hardening power run on the Kitty UI, requested directly by
 Jacob. Focus: what the product says when part of it is broken.
 
 All work is on `claude/kitty-power-run-l4dvwx`, published as draft PR #675.
-Working tree clean; local and `origin` agree at `3fb1773`.
+Working tree clean; local and `origin` agree at `9c60762`.
 
 ## Execution ownership
 
@@ -110,15 +112,22 @@ Six commits of mine on the branch, plus two merges:
 | `c648eb5` | remaining acceptance-failure translations (same) |
 | `c15defa` | **cleared the acceptance FAIL** — StatusBar no longer claims the gateway is offline while it is running |
 | `3fb1773` | merge of `origin/main` (#676, `config/providers.json` only) |
+| `9c60762` | **merge of `origin/main` carrying #672**, which independently reworked the same status row — see below |
 
-The `c15defa` root cause is worth carrying: `gatewayOffline` was wired to
-model-list availability (`page.tsx:115`), not gateway reachability — and
-`HealthGate` already proves the gateway reachable before `StatusBar` renders at
-all, so that row could never have been true as worded.
+The `c15defa` root cause is worth carrying even though the merge superseded the
+fix itself: `gatewayOffline` was wired to model-list availability, not gateway
+reachability — and `HealthGate` already proves the gateway reachable before
+`StatusBar` renders at all, so that row could never have been true as worded.
+#672 reached the same conclusion independently and its version won.
 
-## Verification (exact, at `3fb1773` unless noted)
+`9c60762` also restored two fixes #672's merge reverted by accident (install-prompt
+persistence, and `gateway` in the save row), and fixed one defect the merge newly
+exposed: the brief row was printing `Brief unavailable (Gateway returned 404 Not
+Found)` verbatim. It had been unreachable while the model row masked it.
 
-- `npx vitest run` — **546 passed, 72 files, 0 failed** (508 at session start)
+## Verification (exact, at `9c60762` unless noted)
+
+- `npx vitest run` — **567 passed, 75 files, 0 failed** (508 at session start)
 - `npx tsc --noEmit -p tsconfig.json` — clean
 - `npm run build` — succeeded
 - `npx playwright test` (desktop + mobile projects) — **30 passed, 20 skipped, 0 failed** (run at `1d25d05`)
@@ -134,9 +143,10 @@ returned **FAIL** on one clause of three
 The FAIL is fixed in `c15defa`
 ([detail](https://github.com/jacob202/kitty/pull/675#issuecomment-5464349298)).
 
-**Head `3fb1773` has had no independent pass.** The reviewer who ran the
-acceptance also wrote the fix, so the gate is not satisfied for the current head
-and PR #675 remains draft on that basis rather than self-certifying.
+**Head `9c60762` has had no independent pass.** The session that ran the
+acceptance also wrote the fix and resolved the #672 merge, so the gate is not
+satisfied for the current head and PR #675 remains draft on that basis rather
+than self-certifying.
 
 ## CI
 

@@ -1,9 +1,10 @@
 'use client'
 
-import { useRef, useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { AlertCircle, ArrowDownToLine, Share2, X } from 'lucide-react'
 import type { AttachmentError } from '@/lib/attachment-validation'
 import type { PwaInstallState } from '@/lib/pwa'
+import { describeFailure } from '@/lib/failure-copy'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'failed' | 'offline'
 
@@ -11,9 +12,8 @@ interface Props {
   /** Only relevant while a chat thread is on screen. */
   showChatSignals: boolean
   attachmentErrors: AttachmentError[]
-  /** The model list could not be reached. NOT gateway reachability — HealthGate
-   *  already proves the gateway is up before this component ever renders. */
-  modelsUnavailable: boolean
+  modelUnavailable: boolean
+  modelError?: string | null
   onRetryModels: () => void
   saveState: SaveState
   onRetrySave: () => void
@@ -25,19 +25,26 @@ interface Props {
   onPwaInstall?: () => void
 }
 
-const FAILS_REQUIRED = 3
+
+function modelStatusMessage(modelError?: string | null): string {
+  if (modelError?.startsWith('Model details timed out')) return modelError
+  if (modelError?.startsWith('Model details unavailable')) return modelError
+  if (modelError?.startsWith('No live curated models')) return modelError
+  return 'models temporarily unavailable'
+}
 
 /**
  * One line, ranked by how much it matters to the user right now. The old
- * layout stacked up to five independent banners (pwa install, models
- * unavailable, brief unavailable, save state, attachment errors) above the
+ * layout stacked up to five independent banners (pwa install, gateway
+ * offline, brief unavailable, save state, attachment errors) above the
  * thread; a user could see all five before a single message. Only the
  * highest-priority condition is ever visible — the rest wait their turn.
  */
 export function StatusBar({
   showChatSignals,
   attachmentErrors,
-  modelsUnavailable,
+  modelUnavailable,
+  modelError,
   onRetryModels,
   saveState,
   onRetrySave,
@@ -48,24 +55,16 @@ export function StatusBar({
   pwaInstalling = false,
   onPwaInstall,
 }: Props) {
-  const unavailableStreakRef = useRef(0)
   const [pwaDismissed, setPwaDismissed] = useState(() => {
     if (typeof window === 'undefined') return false
     try {
-      const stored = localStorage.getItem('kitty-pwa-install-dismissed')
-      return stored === 'true'
+      return localStorage.getItem('kitty-pwa-install-dismissed') === 'true'
     } catch {
       return false
     }
   })
 
-  if (modelsUnavailable) {
-    unavailableStreakRef.current++
-  } else {
-    unavailableStreakRef.current = 0
-  }
-
-  const confirmedUnavailable = unavailableStreakRef.current >= FAILS_REQUIRED
+  const confirmedOffline = modelUnavailable
 
   if (showChatSignals && attachmentErrors.length > 0) {
     return (
@@ -80,12 +79,12 @@ export function StatusBar({
     )
   }
 
-  if (confirmedUnavailable) {
+  if (confirmedOffline) {
     return (
       <div role="status" style={{ ...rowStyle, justifyContent: 'space-between' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={dotStyle} />
-          Kitty can&apos;t reach any models right now.
+          {modelStatusMessage(modelError)}
         </span>
         <button type="button" onClick={onRetryModels} style={retryBtnStyle}>
           retry
@@ -110,7 +109,7 @@ export function StatusBar({
   if (briefUnavailable) {
     return (
       <div role="status" style={rowStyle}>
-        Brief unavailable ({briefError ?? 'unknown'}). Chat still works.
+        {describeFailure(briefError)} Your daily brief is the part that&apos;s missing — chat still works.
       </div>
     )
   }

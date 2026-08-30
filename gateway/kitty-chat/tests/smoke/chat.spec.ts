@@ -4,6 +4,36 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.setItem('kitty-onboarded', 'true');
   });
+  await page.route('**/proxy/api/models', route =>
+    route.fulfill({ json: { data: [{ id: 'kitty-default' }] } })
+  );
+  await page.route('**/proxy/models/picker', route =>
+    route.fulfill({
+      json: {
+        schema_version: 1,
+        source: 'smoke-test',
+        discovery: { state: 'available', reason: null, checked_at: null },
+        claims: { role_tags: 'heuristic', alternatives: 'cost-screened only' },
+        presets: [{
+          role: 'auto', label: 'Daily Kitty', route: 'kitty-default',
+          purpose: 'Everyday use.', kind: 'router', provider: null, model: null,
+          configured: true, catalogue: null, catalogue_state: 'not_applicable', alternatives: [],
+        }],
+      },
+    })
+  );
+  await page.route('**/proxy/runtime/**', route =>
+    route.fulfill({
+      json: {
+        revision: 'smoke-test',
+        connections: { gateway: { state: 'available', reason: null } },
+        inference: { available_models: { state: 'available', value: ['kitty-default'] } },
+        tools: { state: 'available' },
+        context: { active_project: { value: null } },
+        execution: { builder: { value: null, state: 'available' } },
+      },
+    })
+  );
 });
 
 test('chat view loads and input is accessible', async ({ page }, testInfo) => {

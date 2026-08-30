@@ -8,6 +8,7 @@ test('browser → real Gateway → temp DB survives reload with fake model bound
   await page.getByRole('button', { name: /^chat$/i }).first().click()
   const composer = page.locator('textarea').first()
   await expect(composer).toBeVisible()
+  await expect(composer).toBeEnabled()
 
   const userText = `hermetic continuity ${Date.now()}`
   await composer.fill(userText)

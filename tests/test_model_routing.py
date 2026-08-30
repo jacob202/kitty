@@ -201,6 +201,7 @@ class TestProviderChain:
             provider_prefs, "PROVIDER_PREFS_FILE", tmp_path / "providers.json"
         )
         monkeypatch.setattr(llm_client, "load_dotenv", lambda *args, **kwargs: False)
+        monkeypatch.setattr(llm_client, "dotenv_values", lambda *args, **kwargs: {})
 
     def test_local_mlx_is_in_the_chain(self):
         names = {p["name"] for p in model_routing.describe_providers()["providers"]}
@@ -222,6 +223,18 @@ class TestProviderChain:
             if p["name"] == "openrouter"
         )
         assert openrouter["configured"] is False
+
+    def test_agentrouter_environment_disable_is_reported_as_disabled(self, monkeypatch):
+        monkeypatch.setenv("AGENT_ROUTER_TOKEN", "sk-test")
+        monkeypatch.setenv("KITTY_DISABLE_AGENTROUTER", "1")
+
+        agentrouter = next(
+            p
+            for p in model_routing.describe_providers()["providers"]
+            if p["name"] == "agentrouter"
+        )
+        assert agentrouter["configured"] is True
+        assert agentrouter["disabled"] is True
 
     def test_saved_preference_shows_up_in_the_order(self):
         from gateway.llm_client import PROVIDERS
