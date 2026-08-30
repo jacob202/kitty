@@ -23,7 +23,8 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
       setAttachments((prev) => [...prev.filter((a) => a.id !== attachment.id), attachment])
       setActiveView('chat')
     } catch (err) {
-      setUseError(err instanceof Error ? err.message : 'That file could not be used in chat right now.')
+      const explained = err instanceof Error && err.name === 'ArtifactChatRejection'
+      setUseError(explained ? (err as Error).message : describeFailure(err))
     }
   }
 

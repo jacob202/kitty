@@ -1576,14 +1576,44 @@ export interface ChatImageAttachment extends MessageAttachment {
   data_url: string
 }
 
+/** The route already writes its rejection reasons for a person to read, so the
+ *  render boundary shows `detail` verbatim rather than collapsing every 4xx
+ *  into one generic sentence. Anything without a reason keeps the raw
+ *  diagnostic form for `describeFailure` to translate. */
+async function artifactChatRejection(response: Response): Promise<Error | null> {
+  let detail: unknown
+  try {
+    const body: unknown = await response.json()
+    detail = body && typeof body === 'object' ? (body as { detail?: unknown }).detail : null
+  } catch {
+    return null
+  }
+  if (typeof detail !== 'string' || detail.trim() === '') return null
+  const rejection = new Error(detail.slice(0, 300))
+  rejection.name = 'ArtifactChatRejection'
+  return rejection
+}
+
 /** Resolve a saved artifact for use in chat. Throws on rejection so the UI
  *  can show the gateway's plain-language reason instead of a fake success. */
 export async function useArtifactInChat(artifactId: string): Promise<ChatImageAttachment> {
-  return await gfetch<ChatImageAttachment>('/chats/use-in-chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ artifact_id: artifactId }),
-  })
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+  try {
+    const response = await fetch(`${GATEWAY_BASE}/chats/use-in-chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ artifact_id: artifactId }),
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      throw (await artifactChatRejection(response))
+        ?? new Error(`Gateway returned ${response.status} ${response.statusText}`.trim())
+    }
+    return (await response.json()) as ChatImageAttachment
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
 }
 
 // Projects/knowledge/provider fetchers throw on failure — react-query's
