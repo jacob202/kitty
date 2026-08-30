@@ -274,11 +274,12 @@ def active_initiatives(db_path: Path | None = None) -> list[dict[str, Any]]:
     ordinary eligibility is empty even though ``next_packet`` exposes a fenced
     recovery candidate. Packet runnability stays owned by ``next_packet``.
     """
-    initiatives = bi.list_initiatives(db_path)
+    initiatives = bi.list_initiative_gates(db_path)
     active = [
         initiative
         for initiative in initiatives
         if initiative.get("state") == bi.INITIATIVE_ACTIVE
+        and not initiative.get("superseded_by")
     ]
     return sorted(active, key=lambda i: str(i["id"]))
 
@@ -384,7 +385,9 @@ def dispatchable_counts(db_path: Path | None = None) -> dict[str, int]:
     """
     now = 0
     on_hold = 0
-    for initiative in bi.list_initiatives(db_path):
+    for initiative in bi.list_initiative_gates(db_path):
+        if initiative.get("superseded_by"):
+            continue
         stored_state = initiative.get("state")
         if stored_state not in (bi.INITIATIVE_ACTIVE, bi.INITIATIVE_PAUSED):
             continue
@@ -552,6 +555,62 @@ def tick(
         }
 
 
+def active_runs_summary(db_path: Path | None = None) -> list[dict[str, Any]]:
+    """Return only currently-active run facts without scanning initiatives."""
+    active_runs: list[dict[str, Any]] = []
+    for state in sorted(RUN_ACTIVE_STATES):
+        for run in bq.list_runs(state=state, db_path=db_path):
+            active_runs.append(
+                {
+                    "run_id": str(run["id"]),
+                    "task_id": str(run["task_id"]),
+                    "state": run["state"],
+                    "worker": run.get("worker"),
+                }
+            )
+    return active_runs
+
+
+def budget_summary() -> dict[str, Any]:
+    """Expose the existing compute-governor weekly ledger for Builder UI."""
+    from gateway import compute_governor as cg
+
+    config = cg.load_reserve_config(cg.ROOT_CONFIG_PATH)
+    ledger_path = cg.default_db_path()
+    cg.init_db(ledger_path)
+    ledger = cg.weekly_ledger(ledger_path)
+    budget = float(config["weekly_budget_cad"])
+    spent = float(ledger["estimated_usage_cad"])
+    return {
+        "weekly_budget_cad": budget,
+        "estimated_spend_cad": spent,
+        "remaining_cad": max(budget - spent, 0.0),
+        "runs": int(ledger["runs"]),
+        "retries": int(ledger["retries"]),
+        "basis": ledger["basis"],
+    }
+
+
+def control_plane_summary(db_path: Path | None = None) -> dict[str, Any]:
+    """Cheap-enough Work poll projection without the full initiative rollup.
+
+    The old HTTP route called ``status()`` and then ``dispatchable_counts()``,
+    performing two independent per-initiative scans every ten seconds. Work only
+    needs active runs, launchable counts, lock identity, and budget truth.
+    """
+    counts = dispatchable_counts(db_path)
+    return {
+        "active_runs": active_runs_summary(db_path),
+        "eligible_now": counts["now"],
+        "on_hold": counts["on_hold"],
+        "lock_path": str(_lock_path(db_path)),
+        "budget": budget_summary(),
+        # Work needs this to say whether anything runs without being asked.
+        # Sourcing it here keeps the ten-second poll to a single call.
+        "scheduler_enabled": _scheduler_enabled(),
+    }
+
+
 def status(db_path: Path | None = None) -> dict[str, Any]:
     """Read-only projection: initiatives, eligible work, active runs, lock."""
     initiatives = bi.list_initiatives(db_path)
@@ -575,17 +634,7 @@ def status(db_path: Path | None = None) -> dict[str, Any]:
                 ],
             }
         )
-    active_runs: list[dict[str, Any]] = []
-    for state in sorted(RUN_ACTIVE_STATES):
-        for run in bq.list_runs(state=state, db_path=db_path):
-            active_runs.append(
-                {
-                    "run_id": str(run["id"]),
-                    "task_id": str(run["task_id"]),
-                    "state": run["state"],
-                    "worker": run.get("worker"),
-                }
-            )
+    active_runs = active_runs_summary(db_path)
     return {
         "lock": {"path": str(_lock_path(db_path))},
         "initiatives": rollup,

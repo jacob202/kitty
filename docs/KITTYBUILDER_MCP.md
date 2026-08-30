@@ -59,6 +59,24 @@ python3.12 -m mcp.builder.server
 Configure a local MCP-capable client to start that command from the canonical
 Kitty checkout.
 
+### Codex registration
+
+Codex should register the stdio server with an absolute interpreter path and
+the canonical Kitty checkout as its working directory. Example `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.kittybuilder]
+command = "/absolute/path/to/kitty/venv/bin/python"
+args = ["-m", "mcp.builder.server"]
+cwd = "/absolute/path/to/kitty"
+startup_timeout_sec = 30
+```
+
+Verify registration with `codex mcp get kittybuilder`, then perform an MCP
+`tools/list` handshake. A generated snapshot of the live tool schemas is kept at
+`docs/reference/KITTYBUILDER_MCP_TOOL_SCHEMA.json`; regenerate it from the live
+server rather than hand-editing tool contracts.
+
 ## Streamable HTTP
 
 For a client that needs HTTP, the server supports MCP Streamable HTTP and binds
