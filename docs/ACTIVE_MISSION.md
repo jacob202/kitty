@@ -1,128 +1,91 @@
-# Active Mission — Two-Week Builder Proof (superseded)
+# Active Mission — Kitty Recovery
 
-**Mission ID:** KPROOF-001
-**Status:** Superseded — deadline elapsed without a durable pass verdict
-**Approved by:** Jacob on 2026-08-04
-**Proof window:** 2026-08-04 through 2026-08-18
-**Budget ceiling:** $25 CAD
-**Base SHA:** `b3f68aae84525f980d44db8d7b9e6d728457b0db`
-
-> **Current status (2026-08-19):** This bounded proof window ended on 2026-08-18.
-> No durable record proves the full pass condition, so this file must not claim a pass.
-> Jacob explicitly chose to continue targeted Kitty work after the deadline, including the
-> product-surface convergence and ADR 0040 Image Lab work. That post-deadline approval
-> supersedes this mission as a scope gate; it does **not** retroactively satisfy KPROOF.
-> No broad M1–M6 sequence is activated by this status change.
+**Mission ID:** KITTY-RECOVERY-001
+**Status:** Running
+**Approved by:** Jacob on 2026-08-29
+**Base SHA:** `e2b7a061e87b159f535e37b021d9c6a2955647c4`
+**Spend ceiling:** CAD 6.00 per week, enforced by `config/compute_governor.json`
 
 <!-- kitty-mission
 {
   "schema_version": 1,
-  "mission_id": "KPROOF-001",
-  "status": "superseded",
-  "approved_at": "2026-08-04T18:27:00-06:00",
+  "mission_id": "KITTY-RECOVERY-001",
+  "status": "running",
+  "approved_at": "2026-08-29T23:00:00-06:00",
   "approved_by": "Jacob",
-  "base_sha": "b3f68aae84525f980d44db8d7b9e6d728457b0db",
+  "base_sha": "e2b7a061e87b159f535e37b021d9c6a2955647c4",
   "authority": "docs/ACTIVE_MISSION.md",
-  "deadline": "2026-08-18",
-  "budget_cad": 25
+  "deadline": null,
+  "budget_cad": 6
 }
 -->
 
-The sections below preserve KPROOF-001's original bounded contract for evidence and retrospective use. They are **historical constraints**, not current authorization or prohibition after the terminal status above.
+Supersedes KPROOF-001, whose proof window ended 2026-08-18 without a durable
+pass verdict. That file's history is preserved in git; nothing here retroactively
+satisfies it.
 
 ## Objective
 
-Take one real software request from conversation to a working, verified feature,
-with KittyBuilder carrying the execution and without Jacob manually coordinating
-agents. Everything below bounds that single objective: the proof runs to
-2026-08-18 under a $25 CAD ceiling, and Kitty continues only if it lands.
-
-## Decision to prove
-
-Can Kitty provide a genuinely better way to take a software request from conversation to a working, verified feature without Jacob manually coordinating the agents?
-
-Kitty continues only as this bounded proof. The proof is not authorization to build the full vision.
-
-## Phase 1 — Evidence-driven audit
-
-Inspect the running application, Builder's actual execution path, working integrations, dead or unwired UI, GitHub history and issues, and repair-versus-replacement options. Separate direct evidence from inference and unknowns.
-
-The audit must produce:
-
-- what demonstrably works;
-- what only appears to work;
-- what should be preserved;
-- what should be repaired or replaced;
-- the smallest two-week implementation sequence;
-- a tiny webpage prototype of the proposed conversation-and-progress experience.
-
-No repository rebuild or broad implementation begins during the audit.
-
-## Phase 2 — Experience test
-
-The prototype must show:
-
-- a polished Kitty conversation;
-- decisive guidance about the next move;
-- relevant personal and project context;
-- visible Builder progress beside the conversation;
-- the ability to question or redirect work while it runs;
-- a plain statement of what is happening now and what comes next.
-
-It passes only if Jacob genuinely prefers the experience to opening ChatGPT or Claude directly for the same project task.
-
-## Phase 3 — One real Builder loop
-
-Use one currently dead interaction in the Build Work area and complete this loop:
-
-1. Jacob discusses the broken interaction with Kitty.
-2. Kitty helps define the desired outcome.
-3. Jacob approves the result contract.
-4. Builder creates a durable job.
-5. Builder chooses an available capable model.
-6. Context survives model or provider changes.
-7. Builder edits the code.
-8. Builder launches the real application.
-9. Builder exercises the feature end to end.
-10. A second model reviews the implementation and result.
-11. Builder repairs remaining defects.
-12. Kitty reports completion only after the interaction works in the running product.
-
-Jacob must be able to continue chatting with Kitty and ask what it is doing, why, and what comes next.
-
-## Non-negotiable rules
-
-- Runtime behavior outranks documentation, tests, commits, and agent claims.
-- Existing working code comes first; Git history and evidence come second.
-- Architecture may change only when evidence supports it.
-- Models are replaceable workers. Provider or usage exhaustion must not erase the job or its context.
-- Ask before exceeding the proof budget, deleting anything, sending messages, publishing, or changing account or security settings.
-- Jacob may steer and answer meaningful questions, but manual agent coordination counts as proof failure.
-- Do not add image generation, broad computer control, deep memory, elaborate routing, another agent framework, or a major redesign during this mission.
+Turn Kitty from an accumulation of partially connected subsystems into a
+coherent product Jacob would voluntarily use. He must be able to ask for
+meaningful work, approve a bounded outcome, watch progress, ask questions,
+recover from failure, and get a real result.
 
 ## Acceptance Contract
 
-The pass and failure conditions below are the mission's contract: the pass
-condition decides whether Kitty continues, and the failure condition decides what
-happens to the work if it does not.
+The mission is complete when an independent reviewer completes the key
+journeys at desktop and iPhone-class widths with no contradictory status,
+dead primary controls, raw server errors, clipped dialogs, or horizontal
+overflow (ACCEPT-001). All preceding sequence items (REC-001 through
+HOME-001) must be verified in the running product.
 
-## Pass condition
+## The rule that governs every surface
 
-By 2026-08-18:
+Every surface must be actionable in place. Information Jacob cannot act on right
+there is a defect, not a feature. On Work he must be able to do work — retry,
+unblock, resume, cancel, create, plan. The same holds for Image Lab, Library,
+Automations, and Home. An item with genuinely no available action must say so in
+plain language and say why. Recorded in `config/PREFERENCES.md` 2026-08-29.
 
-- Builder completes one real feature loop;
-- the result works in the launched application;
-- the experience is pleasant, fast, clear, and understandable;
-- Jacob would voluntarily choose Kitty over direct ChatGPT or Claude for the next project task.
+## Sequence
 
-## Failure condition
+1. **REC-001 — one trustworthy baseline.** *Done.* Local `main` reconciled onto
+   `origin/main`; the running UI's build source is provable and self-heals when
+   it is not.
+2. **WORK-001 — repair Work.** *Done.* Every row resolves to a real Builder
+   command or a stated reason none exists. A banner reports whether Builder is
+   running and what it can actually start.
+3. **BUILDER-001 — chat → packet → result.** *Next.* Prove one bounded loop end
+   to end in the running product — request, bounded proposal, explicit approval,
+   durable packet, worker claim, progress, result — plus one interruption and
+   recovery loop. `/builder/conversation/propose` and `/builder/conversation/approve`
+   already exist.
+4. **IMAGE-001 — make Image Lab honest.** Decision-relevant model, provider, and
+   recipe truth without turning the normal workflow into provider jargon.
+   Characters need a durable profile a person can understand.
+5. **LIBRARY-001 — restore Library value.** Artifacts stay visible when indexing
+   is down; saved, indexed, indexing-failed, and content-unavailable read as
+   distinct states.
+6. **AUTO-001 — repair Automations.** An enabled schedule must not look healthy
+   when its heartbeat is stale. Retry must be explicit and safe against duplicate
+   external effects.
+7. **HOME-001 — repair Home.** Answer what matters now, what Kitty is doing, and
+   what Jacob can do next. Remove decorative cards that support no decision.
+8. **ACCEPT-001 — integrated acceptance.** An independent reviewer completes the
+   key journeys at desktop and iPhone-class widths with no contradictory status,
+   dead primary controls, raw server errors, clipped dialogs, or horizontal
+   overflow.
 
-Pause Kitty for several months if Builder still requires constant supervision, the interface remains frustrating, or Jacob still prefers direct tools.
+## Standing constraints
 
-Preserve working integrations, repository history, the prototype, audit, and findings. Use existing AI tools separately until the technology or Jacob's capacity changes enough to justify another attempt.
-
-## Product boundary
-
-The central product is a personal AI operator that understands the project, recommends the next move, visibly carries the work through to a functioning result, and keeps going when individual models or sessions fail.
-
-Everything else must earn its place by helping that loop work.
+- Gateway is product truth; KittyBuilder is the execution control plane; native
+  `gateway/kitty-chat` is the canonical product surface.
+- Reuse the existing memory, work, artifact, action, session, and provider
+  systems. Do not build a parallel model registry, queue, artifact store, or
+  frontend state machine to make the UI easier.
+- Builder may run unattended on its schedule. It may not push, open a PR, merge,
+  provision paid infrastructure, or alter credentials without Jacob's explicit
+  approval.
+- User-facing copy carries no packet IDs, ports, env vars, raw HTTP status,
+  stack traces, or internal service names.
+- Pending, skipped, stale, or self-authored review evidence is unverified.

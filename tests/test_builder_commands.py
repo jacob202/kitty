@@ -52,6 +52,7 @@ class TestCommandHandlersRegistered:
     def test_all_handlers_registered(self):
         assert set(COMMAND_HANDLERS.keys()) == {
             "requeue",
+            "grant_attempt",
             "cancel",
             "pause",
             "resume",
@@ -90,6 +91,37 @@ class TestOperatorCommandDispatch:
             "actor": "builder-ui",
             "reason": "stop it",
         }
+
+    def test_grant_attempt_dispatches_with_packet_identity(self, monkeypatch):
+        received = {}
+
+        def fake_grant_attempt(initiative_id, packet_id, *, reason):
+            received.update(initiative_id=initiative_id, packet_id=packet_id, reason=reason)
+            return {
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "task_id": "task-1",
+                "new_effective_limit": 4,
+            }
+
+        monkeypatch.setattr("gateway.builder_commands.grant_attempt", fake_grant_attempt, raising=False)
+        result = dispatch_operator_command(
+            BuilderCommandRequest(
+                action="grant_attempt",
+                initiative_id="init-1",
+                packet_id="packet-1",
+                reason="retry from Work",
+                actor="kitty-ui",
+            )
+        )
+
+        assert result.ok is True
+        assert received == {
+            "initiative_id": "init-1",
+            "packet_id": "packet-1",
+            "reason": "retry from Work",
+        }
+        assert result.evidence["new_effective_limit"] == 4
 
     def test_unknown_action_returns_available_commands(self):
         result = dispatch_operator_command(BuilderCommandRequest(action="not-a-command"))
