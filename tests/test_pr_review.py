@@ -189,8 +189,8 @@ def test_prompt_rejects_generic_speculative_review_noise() -> None:
     assert "exact input" in prompt or "exact state" in prompt
 
 
-def test_default_github_reviewer_uses_known_content_producer() -> None:
-    assert pr_review.DEFAULT_REVIEW_MODEL == "openai/gpt-4o-mini"
+def test_default_github_reviewer_uses_free_opencode_model() -> None:
+    assert pr_review.DEFAULT_REVIEW_MODEL == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
 
 
 def test_exact_head_override_requires_label_full_sha_and_reason() -> None:
@@ -237,61 +237,48 @@ def test_agent_review_workflow_rechecks_override_metadata_without_recalling_mode
     assert "github.event.action == 'labeled'" not in workflow
     assert "github.event.action == 'unlabeled'" not in workflow
 
-def test_review_request_disables_optional_reasoning_to_preserve_verdict_budget(
+def test_review_request_uses_restricted_opencode_agent_and_free_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import json
+    calls: list[list[str]] = []
 
-    class FakeResponse:
-        def __enter__(self):
-            return self
-        def __exit__(self, *_args):
-            return False
-        def read(self) -> bytes:
-            return json.dumps({"choices": [{"message": {"content": pr_review.NO_FINDINGS}}]}).encode()
+    class Result:
+        returncode = 0
+        stdout = pr_review.NO_FINDINGS + "\n"
+        stderr = ""
 
-    payloads: list[dict] = []
-    def fake_urlopen(request, timeout=0):
-        payloads.append(json.loads(request.data.decode()))
-        return FakeResponse()
+    def fake_run(command, **_kwargs):
+        calls.append(command)
+        return Result()
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr(pr_review, "urlopen", fake_urlopen)
+    monkeypatch.setattr(pr_review.subprocess, "run", fake_run)
 
     assert pr_review._review_chunk("diff") == pr_review.NO_FINDINGS
-    assert payloads[0]["reasoning"]["effort"] == "none"
+    command = calls[0]
+    assert command[:2] == ["opencode", "run"]
+    assert command[command.index("--agent") + 1] == "pr-reviewer"
+    assert command[command.index("--model") + 1] == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+    assert "untrusted review data" in command[-1]
 
 
-def test_review_chunk_retries_transient_empty_content(monkeypatch: pytest.MonkeyPatch) -> None:
-    import json
-
-    class FakeResponse:
-        def __init__(self, payload: dict) -> None:
-            self.payload = payload
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_args):
-            return False
-
-        def read(self) -> bytes:
-            return json.dumps(self.payload).encode()
-
-    replies = iter(
-        [
-            {"choices": [{"message": {"content": ""}, "finish_reason": "stop"}]},
-            {"choices": [{"message": {"content": pr_review.NO_FINDINGS}, "finish_reason": "stop"}]},
-        ]
-    )
+def test_review_chunk_retries_transient_empty_opencode_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    outputs = iter(["", pr_review.NO_FINDINGS + "\n"])
     calls: list[int] = []
 
-    def fake_urlopen(_request, timeout=0):
-        calls.append(timeout)
-        return FakeResponse(next(replies))
+    class Result:
+        returncode = 0
+        stderr = ""
+
+        def __init__(self, stdout: str) -> None:
+            self.stdout = stdout
+
+    def fake_run(_command, **_kwargs):
+        calls.append(1)
+        return Result(next(outputs))
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    monkeypatch.setattr(pr_review, "urlopen", fake_urlopen)
+    monkeypatch.setattr(pr_review.subprocess, "run", fake_run)
     monkeypatch.setattr(pr_review.time, "sleep", lambda _seconds: None)
 
     assert pr_review._review_chunk("diff") == pr_review.NO_FINDINGS

@@ -136,16 +136,32 @@ def test_change_scope_comes_from_the_canonical_classifier() -> None:
         assert key in outputs, key
 
 
-def test_model_review_runs_only_for_sensitive_scope() -> None:
+def test_model_review_runs_automatically_via_free_opencode_on_each_code_head() -> None:
     text, workflow = _workflow("pr-agent-review.yml")
-    jobs = workflow["jobs"]
-    assert "python -m scripts.pr_scope" in text
-    review_if = jobs["agent-review"]["if"]
-    assert "needs.scope.outputs.sensitive == 'true'" in review_if
+    review = workflow["jobs"]["agent-review"]
+    review_if = str(review["if"])
+
     assert DRAFT_GUARD in review_if
+    assert "needs.scope.outputs.sensitive == 'true'" not in review_if
+    for code_action in ("opened", "synchronize", "reopened", "ready_for_review"):
+        assert f"github.event.action == '{code_action}'" in review_if
     for metadata_action in ("edited", "labeled", "unlabeled"):
         assert f"github.event.action == '{metadata_action}'" not in review_if
 
+    setup_bun = next(step for step in review["steps"] if str(step.get("uses", "")).startswith("oven-sh/setup-bun@"))
+    assert setup_bun
+    install = next(step for step in review["steps"] if step.get("name") == "Install OpenCode")
+    assert "opencode-ai" in str(install.get("run", ""))
+
+    produce = next(step for step in review["steps"] if step.get("id") == "produce")
+    assert produce["run"] == "python scripts/pr_review.py"
+    assert produce["env"]["PR_REVIEW_MODEL"] == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+    assert "OPENROUTER_API_KEY" in produce["env"]
+    assert "OPENCODE_API_KEY" not in produce["env"]
+    assert "claude" not in text.lower()
+
+def test_legacy_claude_code_review_workflow_is_removed() -> None:
+    assert not (WORKFLOWS / "claude-code-review.yml").exists()
 
 def test_policy_gate_is_independent_of_the_scope_and_review_jobs() -> None:
     text, workflow = _workflow("pr-agent-review.yml")
