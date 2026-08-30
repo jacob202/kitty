@@ -93,9 +93,17 @@ describe('rowAction mapping', () => {
     })
   })
 
-  it('says retries are used up but still lets the user try again', () => {
+  it('grants one additional attempt when automatic retries are exhausted', () => {
     const action = rowAction(item({ next_action: 'exhausted' }), false)
-    expect(action.kind).toBe('command')
+    expect(action).toMatchObject({
+      kind: 'command',
+      label: 'Try again',
+      command: {
+        action: 'grant_attempt',
+        initiative_id: 'PUBLIC-GOLDEN-PATH-001',
+        packet_id: 'PGP-001',
+      },
+    })
     expect((action as Extract<RowAction, { kind: 'command' }>).note).toMatch(/automatic retries/i)
   })
 
@@ -185,6 +193,17 @@ describe('row actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(mutate).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'requeue', task_id: 'kb_task_1' }),
+      expect.anything(),
+    )
+  })
+
+
+
+  it('grants a new attempt rather than requeueing an already-queued exhausted task', () => {
+    renderWork([item({ next_action: 'exhausted', current_packet: { id: 'PGP-001', title: 'CI parity', task_id: 'kb_task_1', task_state: 'queued' } })])
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'grant_attempt', initiative_id: 'PUBLIC-GOLDEN-PATH-001', packet_id: 'PGP-001' }),
       expect.anything(),
     )
   })

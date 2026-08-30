@@ -236,8 +236,9 @@ export interface BuilderCommandResult {
 }
 
 export interface BuilderCommand {
-  action: 'requeue' | 'cancel' | 'resume' | 'pause'
+  action: 'requeue' | 'grant_attempt' | 'cancel' | 'resume' | 'pause'
   task_id?: string
+  packet_id?: string
   initiative_id?: string
   reason?: string
 }

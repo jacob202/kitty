@@ -269,7 +269,6 @@ export function rowAction(item: GatewayWorkItem, builderRunning: boolean): RowAc
 
   switch (item.next_action) {
     case 'recover':
-    case 'exhausted':
       if (!taskId) {
         return { kind: 'none', explanation: 'Kitty cannot retry this — Builder did not record which job it belongs to.' }
       }
@@ -277,10 +276,24 @@ export function rowAction(item: GatewayWorkItem, builderRunning: boolean): RowAc
         kind: 'command',
         label: 'Try again',
         command: { action: 'requeue', task_id: taskId, reason: 'Retried from Work' },
-        note: item.next_action === 'exhausted'
-          ? 'Builder already used up its automatic retries on this one.'
-          : undefined,
       }
+    case 'exhausted': {
+      const packetId = item.current_packet?.id ?? item.source.packet_id
+      if (!packetId) {
+        return { kind: 'none', explanation: 'Kitty cannot retry this — Builder did not record which packet used its retry budget.' }
+      }
+      return {
+        kind: 'command',
+        label: 'Try again',
+        command: {
+          action: 'grant_attempt',
+          initiative_id: initiativeId,
+          packet_id: packetId,
+          reason: 'Granted one retry from Work',
+        },
+        note: 'Builder already used up its automatic retries on this one.',
+      }
+    }
     case 'claim':
       return builderRunning
         ? { kind: 'none', explanation: 'Ready to go. Builder will pick it up on its next pass.' }
