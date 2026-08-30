@@ -97,6 +97,11 @@ describe('CR-07 per-message model override', () => {
 describe('InputBar visual hierarchy', () => {
   afterEach(cleanup)
 
+  it('gives the message composer a stable accessible name', () => {
+    setup('')
+    expect(screen.getByRole('textbox', { name: 'Message Kitty' })).toBeInTheDocument()
+  })
+
   it('uses a neutral composer until the textarea receives focus', () => {
     const { textarea } = setup('', { compact: true })
     const composer = textarea.parentElement
