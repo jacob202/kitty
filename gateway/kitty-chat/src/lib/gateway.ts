@@ -2220,11 +2220,6 @@ export interface ConversationResume {
     attempt_count?: number | null
   }
   blocker?: string | null
-  evidence?: {
-    implementation?: { summary?: string | null } | null
-    validation?: { status?: string | null; summary?: string | null } | null
-    review?: { verdict?: string | null; summary?: string | null } | null
-  } | null
   pr?: {
     number?: number | null
     url?: string | null
