@@ -62,6 +62,7 @@ class TestSupervisorControlPlaneSummary:
                 "eligible_now": 2,
                 "on_hold": 6,
                 "lock_path": "/data/kittybuilder/supervisor.lock",
+                "scheduler": {"supported": True, "installed": True, "loaded": True, "healthy": True, "label": "com.kitty.builder.supervisor", "plist_path": "/tmp/supervisor.plist", "start_interval_seconds": 900, "run_at_load": True, "last_exit_status": 0, "pid": None, "last_tick_at": None, "next_run_at": None, "reason": None},
                 "budget": {
                     "weekly_budget_cad": 6.0,
                     "estimated_spend_cad": 0.25,
@@ -90,6 +91,7 @@ class TestSupervisorStatusEndpoint:
             "eligible_now": now,
             "on_hold": on_hold,
             "lock_path": "/data/kittybuilder/supervisor.lock",
+            "scheduler": {"supported": True, "installed": True, "loaded": True, "healthy": True, "label": "com.kitty.builder.supervisor", "plist_path": "/tmp/supervisor.plist", "start_interval_seconds": 900, "run_at_load": True, "last_exit_status": 0, "pid": None, "last_tick_at": None, "next_run_at": None, "reason": None},
             "budget": {
                 "weekly_budget_cad": 6.0,
                 "estimated_spend_cad": 0.25,
@@ -117,6 +119,8 @@ class TestSupervisorStatusEndpoint:
             "eligible_now": 1,
             "on_hold": 0,
             "last_tick_at": None,
+            "next_run_at": None,
+            "scheduler": {"supported": True, "installed": True, "loaded": True, "healthy": True, "label": "com.kitty.builder.supervisor", "plist_path": "/tmp/supervisor.plist", "start_interval_seconds": 900, "run_at_load": True, "last_exit_status": 0, "pid": None, "last_tick_at": None, "next_run_at": None, "reason": None},
             "lock_path": "/data/kittybuilder/supervisor.lock",
             "budget": {
                 "weekly_budget_cad": 6.0,

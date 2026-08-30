@@ -112,6 +112,8 @@ async def builder_supervisor_status():
         # (no receipt log, no launchd bookkeeping); reporting anything but
         # null here would be fabricated.
         "last_tick_at": None,
+        "next_run_at": None,
+        "scheduler": summary["scheduler"],
         "lock_path": summary["lock_path"],
         "budget": summary["budget"],
     }

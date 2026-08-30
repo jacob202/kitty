@@ -2,8 +2,8 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
 
-const { useWorkSnapshot, usePreflight } = vi.hoisted(() => ({ useWorkSnapshot: vi.fn(), usePreflight: vi.fn() }))
-vi.mock('../src/lib/work', () => ({ useWorkSnapshot, usePreflight }))
+const { useWorkSnapshot, usePreflight, useSupervisor } = vi.hoisted(() => ({ useWorkSnapshot: vi.fn(), usePreflight: vi.fn(), useSupervisor: vi.fn() }))
+vi.mock('../src/lib/work', () => ({ useWorkSnapshot, usePreflight, useSupervisor }))
 
 function snapshot(validUntil = '2099-01-01T00:00:00Z', totalItems = 1) {
   return {
@@ -39,6 +39,8 @@ function renderSnapshot(data = snapshot()) {
 describe('WorkView projection', () => {
   beforeEach(() => {
     useWorkSnapshot.mockReset()
+    useSupervisor.mockReset()
+    useSupervisor.mockReturnValue({ data: undefined, isError: false })
     usePreflight.mockReset()
     usePreflight.mockReturnValue({ data: null, isPending: false, isError: false })
   })
@@ -265,6 +267,8 @@ describe('WorkView projection', () => {
 describe('WorkView visual hierarchy', () => {
   beforeEach(() => {
     useWorkSnapshot.mockReset()
+    useSupervisor.mockReset()
+    useSupervisor.mockReturnValue({ data: undefined, isError: false })
     usePreflight.mockReset()
     usePreflight.mockReturnValue({ data: null, isPending: false, isError: false })
   })

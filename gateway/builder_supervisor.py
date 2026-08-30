@@ -634,6 +634,87 @@ def preflight_packet(
     }
 
 
+def scheduler_status(
+    repo_root: Path | None = None, *, plist_path: Path | None = None
+) -> dict[str, Any]:
+    """Read the supported macOS LaunchAgent state without mutating it.
+
+    ``installed`` means the expected plist exists. ``loaded`` comes from
+    ``launchctl print`` for the current GUI session. ``healthy`` additionally
+    requires the installed plist to match Kitty's canonical scheduler contract.
+    We intentionally do not invent last-tick or next-run timestamps: launchd
+    does not provide either as durable Kitty evidence.
+    """
+    root = (repo_root or repo_root_default()).resolve()
+    agent_path = plist_path or (
+        Path.home() / "Library" / "LaunchAgents" / f"{SUPERVISOR_LABEL}.plist"
+    )
+    result: dict[str, Any] = {
+        "supported": sys.platform == "darwin",
+        "installed": agent_path.exists(),
+        "loaded": False,
+        "healthy": False,
+        "label": SUPERVISOR_LABEL,
+        "plist_path": str(agent_path),
+        "start_interval_seconds": None,
+        "run_at_load": None,
+        "last_exit_status": None,
+        "pid": None,
+        "last_tick_at": None,
+        "next_run_at": None,
+        "reason": None,
+    }
+    if sys.platform != "darwin":
+        result["reason"] = "scheduled Builder execution is supported on macOS launchd only"
+        return result
+    if not agent_path.exists():
+        result["reason"] = "Builder LaunchAgent plist is not installed"
+        return result
+    try:
+        installed = plistlib.loads(agent_path.read_bytes())
+    except Exception as exc:
+        result["reason"] = f"Builder LaunchAgent plist is unreadable: {exc}"
+        return result
+
+    result["start_interval_seconds"] = installed.get("StartInterval")
+    result["run_at_load"] = installed.get("RunAtLoad")
+    expected = render_supervisor_plist(root)
+    contract_keys = ("Label", "ProgramArguments", "WorkingDirectory", "RunAtLoad", "StartInterval")
+    contract_ok = all(installed.get(key) == expected.get(key) for key in contract_keys) and "KeepAlive" not in installed
+
+    domain = f"gui/{os.getuid()}/{SUPERVISOR_LABEL}"
+    try:
+        proc = subprocess.run(
+            ["launchctl", "print", domain], capture_output=True, text=True, timeout=5
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        result["reason"] = f"could not inspect LaunchAgent: {exc}"
+        return result
+    if proc.returncode == 0:
+        result["loaded"] = True
+        for raw in proc.stdout.splitlines():
+            line = raw.strip()
+            if line.startswith("pid = "):
+                try:
+                    result["pid"] = int(line.split("=", 1)[1].strip())
+                except ValueError:
+                    pass
+            elif line.startswith("last exit code = "):
+                try:
+                    result["last_exit_status"] = int(line.split("=", 1)[1].strip())
+                except ValueError:
+                    pass
+    if not contract_ok:
+        result["reason"] = "installed LaunchAgent does not match Kitty's supported scheduler contract"
+    elif not result["loaded"]:
+        result["reason"] = "Builder LaunchAgent is installed but not loaded"
+    elif result["last_exit_status"] not in (None, 0):
+        result["reason"] = f"Builder LaunchAgent last exited with status {result['last_exit_status']}"
+    else:
+        result["healthy"] = True
+    return result
+
+
 def control_plane_summary(db_path: Path | None = None) -> dict[str, Any]:
     """Cheap-enough Work poll projection without the full initiative rollup.
 
@@ -648,6 +729,7 @@ def control_plane_summary(db_path: Path | None = None) -> dict[str, Any]:
         "on_hold": counts["on_hold"],
         "lock_path": str(_lock_path(db_path)),
         "budget": budget_summary(),
+        "scheduler": scheduler_status(),
     }
 
 

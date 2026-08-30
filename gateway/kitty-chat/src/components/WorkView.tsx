@@ -2,7 +2,7 @@
 
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { usePreflight, useWorkSnapshot, type GatewayWorkItem, type GatewayWorkState } from '@/lib/work'
+import { usePreflight, useSupervisor, useWorkSnapshot, type GatewayWorkItem, type GatewayWorkState } from '@/lib/work'
 import { approveBuilderJob, proposeBuilderJob, type ConversationProposal } from '@/lib/gateway'
 
 type WorkGroup = 'needs-you' | 'in-progress' | 'completed'
@@ -28,6 +28,7 @@ export default function WorkView({
   onNavigate?: (view: string) => void
 }) {
   const work = useWorkSnapshot()
+  const supervisor = useSupervisor()
   const snapshot = work.data
   const sourceLabel = snapshot && isExpired(snapshot.valid_until) ? 'stale' : snapshot?.source.state
   const sourceReason = snapshot?.source.state === 'degraded' ? boundedSourceReason(snapshot.source.reason) : null
@@ -58,6 +59,7 @@ export default function WorkView({
             </div>
           </div>
           {sourceReason && <DegradedSourceNotice reason={sourceReason} />}
+          <SchedulerStatus supervisor={supervisor.data} failed={supervisor.isError} />
         </header>
 
         {work.isPending && <Notice>Loading work…</Notice>}
@@ -132,6 +134,24 @@ function WorkGroupSection({ group, items }: { group: WorkGroup; items: GatewayWo
         </button>
       )}
     </section>
+  )
+}
+
+function SchedulerStatus({ supervisor, failed }: { supervisor: ReturnType<typeof useSupervisor>['data']; failed: boolean }) {
+  if (failed) return <div style={degradedNoticeStyle}>Scheduled Builder status is unavailable.</div>
+  if (!supervisor) return null
+  const scheduler = supervisor.scheduler
+  const state = scheduler.healthy ? 'healthy' : scheduler.installed ? 'needs attention' : 'not installed'
+  return (
+    <div data-testid="builder-scheduler-status" style={preflightBannerStyle}>
+      <strong>Scheduled Builder: {state}</strong>
+      {scheduler.start_interval_seconds && <span>every {Math.round(scheduler.start_interval_seconds / 60)} min</span>}
+      <span>{scheduler.loaded ? 'loaded' : 'not loaded'}</span>
+      {scheduler.last_exit_status !== null && <span>last exit {scheduler.last_exit_status}</span>}
+      {scheduler.reason && <span>{scheduler.reason}</span>}
+      {scheduler.last_tick_at === null && <span>last tick time unavailable</span>}
+      {scheduler.next_run_at === null && <span>next run time unavailable</span>}
+    </div>
   )
 }
 

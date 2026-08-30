@@ -2,13 +2,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
 
-const { useWorkSnapshot, usePreflight, proposeBuilderJob, approveBuilderJob } = vi.hoisted(() => ({
+const { useWorkSnapshot, usePreflight, useSupervisor, proposeBuilderJob, approveBuilderJob } = vi.hoisted(() => ({
   useWorkSnapshot: vi.fn(),
   usePreflight: vi.fn(),
+  useSupervisor: vi.fn(),
   proposeBuilderJob: vi.fn(),
   approveBuilderJob: vi.fn(),
 }))
-vi.mock('../src/lib/work', () => ({ useWorkSnapshot, usePreflight }))
+vi.mock('../src/lib/work', () => ({ useWorkSnapshot, usePreflight, useSupervisor }))
 vi.mock('../src/lib/gateway', () => ({ proposeBuilderJob, approveBuilderJob }))
 
 function readySnapshot() {
@@ -34,6 +35,8 @@ function readySnapshot() {
 describe('WorkView preflight', () => {
   beforeEach(() => {
     proposeBuilderJob.mockReset()
+    useSupervisor.mockReset()
+    useSupervisor.mockReturnValue({ data: { schema_version: 1, running: false, active_runs: [], eligible_now: 1, on_hold: 0, last_tick_at: null, next_run_at: null, scheduler: { supported: true, installed: true, loaded: true, healthy: true, label: 'com.kitty.builder.supervisor', plist_path: '/tmp/supervisor.plist', start_interval_seconds: 900, run_at_load: true, last_exit_status: 0, pid: null, last_tick_at: null, next_run_at: null, reason: null }, lock_path: '/tmp/lock', budget: {} }, isError: false })
     approveBuilderJob.mockReset()
     useWorkSnapshot.mockReturnValue({ data: readySnapshot(), isPending: false, isError: false, error: null, refetch: vi.fn() })
     usePreflight.mockReturnValue({
@@ -78,6 +81,15 @@ describe('WorkView preflight', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send to Builder' }))
     await waitFor(() => expect(approveBuilderJob).toHaveBeenCalledOnce())
     expect(screen.getByRole('status')).toHaveTextContent('Sent to Builder')
+  })
+
+  it('shows truthful scheduled Builder status without inventing timestamps', () => {
+    render(<WorkView isMobile={false} />)
+    const status = screen.getByTestId('builder-scheduler-status')
+    expect(status).toHaveTextContent('Scheduled Builder: healthy')
+    expect(status).toHaveTextContent('every 15 min')
+    expect(status).toHaveTextContent('last tick time unavailable')
+    expect(status).toHaveTextContent('next run time unavailable')
   })
 
 })

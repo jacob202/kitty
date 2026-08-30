@@ -82,6 +82,35 @@ export interface GatewayPreflightResult {
   dispatch_hash?: string
 }
 
+export interface GatewaySchedulerStatus {
+  supported: boolean
+  installed: boolean
+  loaded: boolean
+  healthy: boolean
+  label: string
+  plist_path: string
+  start_interval_seconds: number | null
+  run_at_load: boolean | null
+  last_exit_status: number | null
+  pid: number | null
+  last_tick_at: string | null
+  next_run_at: string | null
+  reason: string | null
+}
+
+export interface GatewaySupervisorStatus {
+  schema_version: number
+  running: boolean
+  active_runs: Array<Record<string, unknown>>
+  eligible_now: number
+  on_hold: number
+  last_tick_at: string | null
+  next_run_at: string | null
+  scheduler: GatewaySchedulerStatus
+  lock_path: string
+  budget: Record<string, unknown>
+}
+
 export interface GatewayWorkSnapshot {
   schema_version: number
   observed_at: string
@@ -221,6 +250,28 @@ function isPreflightResult(value: unknown): value is GatewayPreflightResult {
   )
 }
 
+function isSupervisorStatus(value: unknown): value is GatewaySupervisorStatus {
+  if (!isRecord(value) || !isRecord(value.scheduler)) return false
+  const scheduler = value.scheduler
+  return (
+    value.schema_version === 1
+    && typeof value.running === 'boolean'
+    && Array.isArray(value.active_runs)
+    && typeof value.eligible_now === 'number'
+    && typeof value.on_hold === 'number'
+    && typeof value.lock_path === 'string'
+    && typeof scheduler.supported === 'boolean'
+    && typeof scheduler.installed === 'boolean'
+    && typeof scheduler.loaded === 'boolean'
+    && typeof scheduler.healthy === 'boolean'
+    && typeof scheduler.label === 'string'
+    && typeof scheduler.plist_path === 'string'
+    && (scheduler.start_interval_seconds === null || typeof scheduler.start_interval_seconds === 'number')
+    && (scheduler.last_exit_status === null || typeof scheduler.last_exit_status === 'number')
+    && (scheduler.reason === null || typeof scheduler.reason === 'string')
+  )
+}
+
 async function errorDetail(response: Response): Promise<string | null> {
   try {
     const body: unknown = await response.json()
@@ -271,6 +322,27 @@ export async function fetchPreflight(initiativeId: string, packetId: string): Pr
   } finally {
     globalThis.clearTimeout(timeoutId)
   }
+}
+
+export async function fetchSupervisorStatus(): Promise<GatewaySupervisorStatus> {
+  const endpoint = `${GATEWAY_BASE}/builder/supervisor`
+  const response = await fetch(endpoint)
+  if (!response.ok) {
+    const detail = await errorDetail(response)
+    throw new Error(detail || `GET ${endpoint} failed: ${response.status}`)
+  }
+  const payload: unknown = await response.json()
+  if (!isSupervisorStatus(payload)) throw new Error('Gateway supervisor returned an invalid payload')
+  return payload
+}
+
+export function useSupervisor() {
+  return useQuery({
+    queryKey: ['builder-supervisor'],
+    queryFn: fetchSupervisorStatus,
+    refetchInterval: 10_000,
+    staleTime: 5_000,
+  })
 }
 
 export function usePreflight(initiativeId: string | null, packetId: string | null) {
