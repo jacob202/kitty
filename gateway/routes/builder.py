@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from gateway.builder_commands import (
@@ -22,6 +22,7 @@ from gateway.builder_commands import (
     dispatch_operator_command,
 )
 from gateway.builder_events import builder_events
+from gateway.builder_initiative import INITIATIVE_ACTIVE, INITIATIVE_PAUSED
 from gateway.models.builder import BuilderCommandRequest
 
 logger = logging.getLogger("kitty.builder_routes")
@@ -78,3 +79,81 @@ async def builder_operator_command(body: OperatorCommandRequest):
     except Exception as exc:
         logger.exception("operator command %s failed", body.action)
         return {"ok": False, "action": body.action, "error": str(exc)}
+
+
+@router.get("/builder/supervisor")
+async def builder_supervisor_status():
+    """Read-only projection of the autonomous supervisor's own state.
+
+    Distinguishes packets that are eligible and runnable right now
+    (``eligible_now``, owning initiative is active) from packets that are
+    eligible but parked (``on_hold``, owning initiative is paused). Both
+    counts and every other field come straight from
+    ``gateway.builder_supervisor.status()`` — this route never queries queue
+    storage itself.
+    """
+    from gateway import builder_supervisor as bs
+
+    try:
+        projection = bs.status()
+    except Exception as exc:
+        logger.exception("builder supervisor status read failed")
+        raise HTTPException(
+            status_code=503, detail=f"supervisor status read failed: {exc}"
+        ) from exc
+
+    eligible_now = 0
+    on_hold = 0
+    for initiative in projection["initiatives"]:
+        packet_count = len(initiative["eligible_packets"])
+        if initiative["stored_state"] == INITIATIVE_ACTIVE:
+            eligible_now += packet_count
+        elif initiative["stored_state"] == INITIATIVE_PAUSED:
+            on_hold += packet_count
+
+    return {
+        "schema_version": 1,
+        "running": len(projection["active_runs"]) > 0,
+        "active_runs": projection["active_runs"],
+        "eligible_now": eligible_now,
+        "on_hold": on_hold,
+        # The supervisor does not record when it last ticked anywhere durable
+        # (no receipt log, no launchd bookkeeping); reporting anything but
+        # null here would be fabricated.
+        "last_tick_at": None,
+        "lock_path": projection["lock"]["path"],
+    }
+
+
+@router.post("/builder/supervisor/tick")
+async def builder_supervisor_tick():
+    """Run exactly one supervisor tick and return a structured result.
+
+    Mirrors ``/builder/command``: never lets an exception escape as a 500,
+    and the caller must inspect ``ok`` rather than infer success from HTTP
+    200 alone. A concurrent tick is not an error — it is reported as
+    ``ok: true`` with an empty ``started`` list and the ``locked`` detail.
+    """
+    from gateway import builder_supervisor as bs
+
+    try:
+        receipt = bs.tick()
+    except Exception as exc:
+        logger.exception("builder supervisor tick failed")
+        return {"ok": False, "started": [], "error": str(exc), "detail": None}
+
+    if receipt["status"] not in {"ok", "locked"}:
+        errors = [entry["error"] for entry in receipt["launched"] if "error" in entry]
+        return {
+            "ok": False,
+            "started": receipt["launched"],
+            "error": "; ".join(errors) or "supervisor tick reported an error",
+            "detail": receipt,
+        }
+
+    return {
+        "ok": True,
+        "started": receipt["launched"],
+        "error": None,
+        "detail": receipt,
+    }
