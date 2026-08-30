@@ -476,3 +476,9 @@ async def sse_stream(request: Request, session_id: str | None = None):
 
 
 register_routes(app)
+
+from fastapi.responses import HTMLResponse
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return "<h1>Kitty</h1>"
