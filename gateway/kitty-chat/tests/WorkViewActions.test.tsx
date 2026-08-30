@@ -3,13 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView, { rowAction, type RowAction } from '../src/components/WorkView'
 import type { GatewayWorkItem } from '../src/lib/work'
 
-const { useWorkSnapshot, useSupervisor, useBuilderAction, mutate } = vi.hoisted(() => ({
+const { useWorkSnapshot, useSupervisor, useBuilderAction, usePreflight, mutate } = vi.hoisted(() => ({
   useWorkSnapshot: vi.fn(),
   useSupervisor: vi.fn(),
   useBuilderAction: vi.fn(),
+  usePreflight: vi.fn(() => ({ data: null, isPending: false, isError: false })),
   mutate: vi.fn(),
 }))
-vi.mock('../src/lib/work', () => ({ useWorkSnapshot, useSupervisor, useBuilderAction }))
+vi.mock('../src/lib/work', () => ({ useWorkSnapshot, useSupervisor, useBuilderAction, usePreflight }))
 
 function item(overrides: Partial<GatewayWorkItem> = {}): GatewayWorkItem {
   return {
