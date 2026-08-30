@@ -472,6 +472,24 @@ class TestRunValidation:
         updated = ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
         assert updated["validation"] == {"status": "skipped", "commands": []}
 
+    def test_validation_uses_builder_python_environment(
+        self, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        _apply_with_commands(
+            db_path,
+            ["python -c \"import sys; print(sys.executable)\""],
+        )
+        attempt = ba.start_attempt("val-test", PACKET, db_path=db_path)
+        monkeypatch.setenv("PATH", "/usr/bin:/bin")
+
+        updated = ba.run_validation(
+            attempt["id"], cwd=tmp_path, db_path=db_path
+        )
+
+        validation = updated["validation"]
+        assert validation["status"] == ba.VALIDATION_PASSED
+        assert sys.executable in validation["commands"][0]["output_tail"]
+
     def test_runs_in_given_cwd(self, db_path: Path, tmp_path: Path):
         (tmp_path / "marker.txt").write_text("here", encoding="utf-8")
         _apply_with_commands(db_path, ["cat marker.txt"])
