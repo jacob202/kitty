@@ -111,4 +111,4 @@
 - [x] Run narrow lint/type checks for changed Python files if available without widening into unrelated failures.
 - [x] Confirm forbidden overlapping files are unchanged relative to base.
 - [x] Attempt a genuinely separate free reviewer process with only spec, SHA/diff, tests, and evidence. If unavailable, classify as `implemented, awaiting verification` rather than `verified`.
-- [ ] Push the non-main branch and open/update a PR only after the verification evidence is fresh.
+- [x] Push the non-main branch and open/update a PR only after the verification evidence is fresh. PR #704 opened against `main`; left unmerged.

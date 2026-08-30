@@ -8,6 +8,7 @@
 - Initial base SHA: `af3f6323d47be79c7f4d890d60ba54a99282d70f`
 - Integrated base SHA: `242c339660197c3174d1bb3cfe37248a649989ff`
 - Independently reviewed implementation SHA: `b4a0b601b3b0d191665b456c0c6339cd565fb8a5`
+- Published PR: `#704` (`feat/builder-agent-operability-20260830` -> `main`)
 - Repair-cycle limit: `2`
 
 ## User-visible outcome
@@ -46,7 +47,7 @@ KittyBuilder has tested primitives for safe recovery of ambiguous side effects, 
 - Current implementation state: this branch only
 - Forbidden overlapping files: `gateway/builder_attempt.py`, `gateway/builder_loop.py`, `gateway/builder_runner.py`, `tests/test_builder_loop.py`, `tests/test_builder_runner.py`
 - Baseline: 87/87 relevant tests passed before implementation; unrelated builder-publish process-group test is sandbox-blocked.
-- Exact next verification action: none for implementation; publish the verified non-main branch/PR without merging.
+- Exact next verification action: none; PR #704 remains open and unmerged.
 
 ## Verifier report
 
@@ -61,7 +62,7 @@ KittyBuilder has tested primitives for safe recovery of ambiguous side effects, 
 
 ## Final state
 
-`verified`
+`verified and published as PR #704`
 
 
 ## Independent review receipt
@@ -71,3 +72,9 @@ KittyBuilder has tested primitives for safe recovery of ambiguous side effects, 
 - Verdict: **APPROVE**.
 - Findings: **none**.
 - Reviewer independently reran all 117 acceptance tests and checked the exact diff, forbidden-path boundary, SQLite/additive-state design, retry/recovery semantics, routing policy, and learning-store reuse.
+
+## Publication receipt
+
+- PR: `#704` — `builder: implement agent operability and durable execution primitives`.
+- Coordination issue `#490` updated with exact head, verification counts, and PR reference.
+- PR remains open and unmerged.
