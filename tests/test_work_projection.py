@@ -200,6 +200,28 @@ def test_bounded_projection_treats_terminal_cancelled_failures_as_completed_grou
     assert terminal["next_action"] == "cancelled"
 
 
+def test_superseded_partial_history_does_not_degrade_current_work():
+    current_packet = _base_packet("current", eligibility_state="eligible", next_action="claim")
+    old_packet = _base_packet("old", data_quality_state="partial")
+    current = _snapshot_for(current_packet, next_packet="current")["initiatives"][0]
+    current["initiative_id"] = "current-init"
+    old = _snapshot_for(old_packet, initiative_state="paused")["initiatives"][0]
+    old["initiative_id"] = "old-init"
+    old["superseded_by"] = "KITTY-RECOVERY-001"
+    old["superseded_at"] = "2026-08-30T17:00:00Z"
+    source = {
+        "schema_version": 2,
+        "integrity": {"state": "partial", "partial_packets": 1, "total_packets": 2},
+        "initiatives": [old, current],
+    }
+
+    payload = project_work_snapshot(source, now=NOW)
+
+    assert payload["source"]["state"] == "available"
+    assert payload["historical_items"] == 1
+    assert payload["total_items"] == 1
+
+
 def test_primary_work_projection_hides_superseded_history_but_counts_it():
     current_packet = _base_packet("current", eligibility_state="eligible", next_action="claim")
     old_packet = _base_packet("old", task_state="blocked", next_action="recover")
