@@ -106,7 +106,7 @@ function ArtifactRow({ artifact }: { artifact: GatewayArtifact }) {
           <div style={technicalGridStyle}>
             <span>Type: {artifact.kind}</span>
             <span>Media: {artifact.media_type}</span>
-            {ingestion ? <span>Index: {ingestion}</span> : null}
+            {ingestion ? <span>Index: {humanize(ingestion)}</span> : null}
             {artifact.project_id != null ? <span>Project {artifact.project_id}</span> : null}
             {artifact.conversation_id ? <span>Conversation {artifact.conversation_id}</span> : null}
             {artifact.error ? <span style={{ color: 'var(--color-destructive)' }}>Error: {artifact.error}</span> : null}

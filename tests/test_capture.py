@@ -139,3 +139,23 @@ class TestCaptureFile:
         response = client.post("/capture/file", data={"path": str(sneaky)})
 
         assert response.status_code == 403
+
+
+def test_background_index_skipped_is_not_reported_ready(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from gateway import knowledge
+    from gateway.routes import capture
+    from gateway.sse import broadcaster
+
+    async def skipped_ingest(**_kwargs):
+        return SimpleNamespace(status="skipped", source="duplicate.txt")
+
+    updates = []
+    monkeypatch.setattr(knowledge, "ingest", skipped_ingest)
+    monkeypatch.setattr(capture.artifact_store, "update_ingestion", lambda artifact_id, **kwargs: updates.append((artifact_id, kwargs)))
+    monkeypatch.setattr(broadcaster, "broadcast", lambda *_args, **_kwargs: None)
+
+    capture._index_capture("cap-1", tmp_path / "duplicate.txt", "artifact-1")
+
+    assert updates == [("artifact-1", {"status": "not_indexed"})]

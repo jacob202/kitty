@@ -59,7 +59,9 @@ async def test_trivial_tier_bypasses_memory_graph_and_enrichment():
     assert bundle.memory_items == []
     assert bundle.injected_memory_items == []
     assert bundle.live_blocks == []
-    assert bundle.warnings == []
+    assert bundle.warnings
+    assert all(w.startswith("context_budget:") for w in bundle.warnings)
+    assert bundle.context_budget["truncations"] == bundle.warnings
     assert "should-not-run" not in bundle.system
 
 
