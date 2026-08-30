@@ -92,6 +92,15 @@ else
     assert_clean_ui_source
     npm run build
     record_build_source
+  elif [[ ! -f "${BUILD_SOURCE_STAMP}" ]]; then
+    # `next build` clears .next, so a build run outside this script (make
+    # ui-build, a manual next build) leaves a valid BUILD_ID with no source
+    # stamp. Serving it would make `kitty status` report the build source as
+    # unknown, and a build whose source cannot be named cannot back any claim
+    # about what the running UI contains. Rebuild so build identity is provable.
+    echo "[start_ui] build has no source stamp — rebuilding to make it identifiable"
+    npm run build
+    record_build_source
   else
     echo "[start_ui] build is current — serving .next as-is"
   fi
