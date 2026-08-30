@@ -581,12 +581,12 @@ def active_runs_summary(db_path: Path | None = None) -> list[dict[str, Any]]:
     return active_runs
 
 
-def budget_summary() -> dict[str, Any]:
+def budget_summary(ledger_db_path: Path | str | None = None) -> dict[str, Any]:
     """Expose the existing compute-governor weekly ledger for Builder UI."""
     from gateway import compute_governor as cg
 
     config = cg.load_reserve_config(cg.ROOT_CONFIG_PATH)
-    ledger_path = cg.default_db_path()
+    ledger_path = Path(ledger_db_path) if ledger_db_path is not None else cg.default_db_path()
     cg.init_db(ledger_path)
     ledger = cg.weekly_ledger(ledger_path)
     budget = float(config["weekly_budget_cad"])
@@ -599,6 +599,283 @@ def budget_summary() -> dict[str, Any]:
         "retries": int(ledger["retries"]),
         "basis": ledger["basis"],
     }
+
+
+# ---------------------------------------------------------------------------
+# Preflight — read-only pre-launch review of the next packet.
+# ---------------------------------------------------------------------------
+
+PREFLIGHT_RUN = "run"
+PREFLIGHT_BLOCKED = "blocked"
+PREFLIGHT_REFUSE = "refuse"
+
+
+def _repo_head(repo_root: Path) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    sha = result.stdout.strip()
+    if result.returncode != 0 or len(sha) != 40:
+        detail = result.stderr.strip() or result.stdout.strip() or "HEAD unavailable"
+        raise SupervisorError(f"cannot resolve current repo HEAD: {detail}")
+    return sha
+
+
+def _packet_route(packet: dict[str, Any], cg: Any) -> str:
+    policy = packet.get("policy") or {}
+    routing = policy.get("routing") or {}
+    explicit = routing.get("route")
+    if explicit in cg.ROUTE_MODELS:
+        return str(explicit)
+    configured_model = routing.get("model")
+    for route, model in cg.ROUTE_MODELS.items():
+        if configured_model == model:
+            return route
+    return cg.ROUTE_FREE
+
+
+def preflight_packet(
+    initiative_id: str,
+    packet_id: str,
+    *,
+    db_path: Path | None = None,
+    repo_root: Path | None = None,
+    ledger_db_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """Read-only packet review before Builder creates an attempt or run.
+
+    This deliberately reuses the durable initiative packet, manifest validator,
+    eligibility derivation, retry accounting, and compute governor. It never
+    changes task/run/attempt state.
+    """
+    from gateway import compute_governor as cg
+
+    initiative = bi.get_initiative(initiative_id, db_path=db_path)
+    if initiative is None:
+        return {
+            "action": PREFLIGHT_REFUSE,
+            "route": None,
+            "estimated_cost_cad": 0.0,
+            "cost_basis": "local estimate — not a provider invoice",
+            "reasons": [f"Initiative {initiative_id} no longer exists."],
+            "packet": {"initiative_id": initiative_id, "packet_id": packet_id},
+            "budget": budget_summary(ledger_db_path),
+            "eligibility": {"state": "unavailable", "blocked_by": []},
+            "data_quality": {"state": "invalid", "issues": ["initiative missing"]},
+        }
+
+    target = next(
+        (packet for packet in initiative.get("packets", []) if packet.get("packet_id") == packet_id),
+        None,
+    )
+    if target is None:
+        return {
+            "action": PREFLIGHT_REFUSE,
+            "route": None,
+            "estimated_cost_cad": 0.0,
+            "cost_basis": "local estimate — not a provider invoice",
+            "reasons": [f"Packet {packet_id} is not part of initiative {initiative_id}."],
+            "packet": {"initiative_id": initiative_id, "packet_id": packet_id},
+            "budget": budget_summary(ledger_db_path),
+            "eligibility": {"state": "unavailable", "blocked_by": []},
+            "data_quality": {"state": "invalid", "issues": ["packet missing"]},
+        }
+
+    issues: list[str] = []
+    manifest_errors = bi.validate_manifest(initiative.get("manifest") or {})
+    issues.extend(f"manifest: {error}" for error in manifest_errors)
+    if not target.get("task_id"):
+        issues.append("packet has no durable task id")
+    if not target.get("base_sha"):
+        issues.append("packet has no immutable base SHA")
+    if not target.get("acceptance_criteria"):
+        issues.append("packet has no acceptance criteria")
+    if not target.get("allowed_paths"):
+        issues.append("packet has no allowed paths")
+    if not target.get("validation_commands"):
+        issues.append("packet has no declared validation commands")
+
+    task_id = target.get("task_id")
+    task = bq.get_task(task_id, db_path=db_path) if task_id else None
+    if task_id and task is None:
+        issues.append(f"durable task {task_id} is missing")
+
+    packet_states = bi._read_packets_with_states(initiative_id, db_path)
+    by_id = {packet["packet_id"]: packet for packet in packet_states}
+    state_packet = by_id.get(packet_id)
+    exhausted = bi._exhausted_packet_ids(initiative_id, packet_states, db_path=db_path)
+    eligibility = bi.derive_packet_eligibility(
+        packet_id=packet_id,
+        task_state=(state_packet or {}).get("state"),
+        depends_on=(state_packet or target).get("depends_on") or [],
+        task_states={pid: packet.get("state") for pid, packet in by_id.items()},
+        exhausted_packet_ids=exhausted,
+    )
+
+    reasons: list[str] = []
+    stored_state = str(initiative.get("state") or bi.INITIATIVE_ACTIVE)
+    if stored_state != bi.INITIATIVE_ACTIVE:
+        reason = initiative.get("pause_reason") if stored_state == bi.INITIATIVE_PAUSED else None
+        reasons.append(
+            f"Initiative is {stored_state}." + (f" {reason}" if reason else "")
+        )
+    if issues:
+        reasons.extend(f"Unsafe packet input: {issue}." for issue in issues)
+    if eligibility.get("state") != "eligible":
+        blocked_by = eligibility.get("blocked_by") or []
+        if blocked_by:
+            reasons.append(
+                f"Packet is {eligibility.get('state')}; blocked by {', '.join(map(str, blocked_by[:5]))}."
+            )
+        else:
+            reasons.append(f"Packet is {eligibility.get('state')}." )
+
+    base_sha = target.get("base_sha")
+    current_head: str | None = None
+    if repo_root is not None and base_sha:
+        try:
+            current_head = _repo_head(Path(repo_root).resolve())
+        except Exception as exc:
+            reasons.append(f"Could not verify packet freshness: {exc}.")
+        else:
+            if current_head != base_sha:
+                reasons.append(
+                    f"Packet base {str(base_sha)[:12]} is stale; current code is {current_head[:12]}."
+                )
+
+    requested_route = _packet_route(target, cg)
+    cost = cg.preflight_route_and_cost(
+        requested_route=requested_route,
+        db_path=ledger_db_path,
+    )
+    if requested_route != cg.ROUTE_FREE and not cost["within_budget"]:
+        reasons.append(
+            f"Estimated CAD {cost['estimated_cost_cad']:.4f} exceeds the remaining weekly budget "
+            f"of CAD {cost['remaining_cad']:.4f}."
+        )
+
+    fatal_missing = task is None or bool(manifest_errors)
+    if fatal_missing:
+        action = PREFLIGHT_REFUSE
+    elif reasons:
+        action = PREFLIGHT_BLOCKED
+    else:
+        action = PREFLIGHT_RUN
+
+    dispatch_hash = hashlib.sha256(
+        f"{initiative_id}/{packet_id}/{base_sha or 'none'}".encode("utf-8")
+    ).hexdigest()
+    return {
+        "action": action,
+        "route": cost["projected_route"],
+        "estimated_cost_cad": cost["estimated_cost_cad"],
+        "cost_basis": cost["estimated_cost_cad_label"],
+        "reasons": reasons,
+        "packet": {
+            "initiative_id": initiative_id,
+            "packet_id": packet_id,
+            "task_id": task_id,
+            "base_sha": base_sha,
+            "current_head": current_head,
+        },
+        "budget": {
+            "weekly_budget_cad": cost["weekly_budget_cad"],
+            "remaining_cad": cost["remaining_cad"],
+            "within_budget": cost["within_budget"],
+            "basis": "local estimate — not a provider invoice",
+        },
+        "eligibility": eligibility,
+        "data_quality": {
+            "state": "complete" if not issues else ("invalid" if manifest_errors else "partial"),
+            "issues": issues,
+        },
+        "dispatch_hash": dispatch_hash,
+    }
+
+
+def scheduler_status(
+    repo_root: Path | None = None, *, plist_path: Path | None = None
+) -> dict[str, Any]:
+    """Read the supported macOS LaunchAgent state without mutating it.
+
+    ``installed`` means the expected plist exists. ``loaded`` comes from
+    ``launchctl print`` for the current GUI session. ``healthy`` additionally
+    requires the installed plist to match Kitty's canonical scheduler contract.
+    We intentionally do not invent last-tick or next-run timestamps: launchd
+    does not provide either as durable Kitty evidence.
+    """
+    root = (repo_root or repo_root_default()).resolve()
+    agent_path = plist_path or (
+        Path.home() / "Library" / "LaunchAgents" / f"{SUPERVISOR_LABEL}.plist"
+    )
+    result: dict[str, Any] = {
+        "supported": sys.platform == "darwin",
+        "installed": agent_path.exists(),
+        "loaded": False,
+        "healthy": False,
+        "label": SUPERVISOR_LABEL,
+        "plist_path": str(agent_path),
+        "start_interval_seconds": None,
+        "run_at_load": None,
+        "last_exit_status": None,
+        "pid": None,
+        "last_tick_at": None,
+        "next_run_at": None,
+        "reason": None,
+    }
+    if sys.platform != "darwin":
+        result["reason"] = "scheduled Builder execution is supported on macOS launchd only"
+        return result
+    if not agent_path.exists():
+        result["reason"] = "Builder LaunchAgent plist is not installed"
+        return result
+    try:
+        installed = plistlib.loads(agent_path.read_bytes())
+    except Exception as exc:
+        result["reason"] = f"Builder LaunchAgent plist is unreadable: {exc}"
+        return result
+
+    result["start_interval_seconds"] = installed.get("StartInterval")
+    result["run_at_load"] = installed.get("RunAtLoad")
+    expected = render_supervisor_plist(root)
+    contract_keys = ("Label", "ProgramArguments", "WorkingDirectory", "RunAtLoad", "StartInterval")
+    contract_ok = all(installed.get(key) == expected.get(key) for key in contract_keys) and "KeepAlive" not in installed
+
+    domain = f"gui/{os.getuid()}/{SUPERVISOR_LABEL}"
+    try:
+        proc = subprocess.run(
+            ["launchctl", "print", domain], capture_output=True, text=True, timeout=5
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        result["reason"] = f"could not inspect LaunchAgent: {exc}"
+        return result
+    if proc.returncode == 0:
+        result["loaded"] = True
+        for raw in proc.stdout.splitlines():
+            line = raw.strip()
+            if line.startswith("pid = "):
+                try:
+                    result["pid"] = int(line.split("=", 1)[1].strip())
+                except ValueError:
+                    pass
+            elif line.startswith("last exit code = "):
+                try:
+                    result["last_exit_status"] = int(line.split("=", 1)[1].strip())
+                except ValueError:
+                    pass
+    if not contract_ok:
+        result["reason"] = "installed LaunchAgent does not match Kitty's supported scheduler contract"
+    elif not result["loaded"]:
+        result["reason"] = "Builder LaunchAgent is installed but not loaded"
+    elif result["last_exit_status"] not in (None, 0):
+        result["reason"] = f"Builder LaunchAgent last exited with status {result['last_exit_status']}"
+    else:
+        result["healthy"] = True
+    return result
 
 
 def control_plane_summary(db_path: Path | None = None) -> dict[str, Any]:
@@ -615,9 +892,10 @@ def control_plane_summary(db_path: Path | None = None) -> dict[str, Any]:
         "on_hold": counts["on_hold"],
         "lock_path": str(_lock_path(db_path)),
         "budget": budget_summary(),
-        # Work needs this to say whether anything runs without being asked.
-        # Sourcing it here keeps the ten-second poll to a single call.
+        # Work needs the compact boolean for existing action semantics and the
+        # detailed projection for truthful scheduler observability.
         "scheduler_enabled": _scheduler_enabled(),
+        "scheduler": scheduler_status(),
     }
 
 

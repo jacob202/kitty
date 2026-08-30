@@ -4,6 +4,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
 import {
   useBuilderAction,
+  usePreflight,
   useSupervisor,
   useWorkSnapshot,
   type BuilderCommand,
@@ -11,6 +12,7 @@ import {
   type GatewayWorkItem,
   type GatewayWorkState,
 } from '@/lib/work'
+import { approveBuilderJob, proposeBuilderJob, type ConversationProposal } from '@/lib/gateway'
 
 type WorkGroup = 'needs-you' | 'in-progress' | 'completed'
 
@@ -73,6 +75,7 @@ export default function WorkView({
             ? <BuilderRunBanner supervisor={supervisor.data} supervisorKnown={supervisorKnown} />
             : <BuilderRunBanner supervisor={{ schema_version: 1, running: false, active_runs: [], eligible_now: 0, on_hold: 0, last_tick_at: null, lock_path: null, scheduler_enabled: null }} supervisorKnown={false} />
           }
+          <SchedulerStatus supervisor={supervisor.data} failed={supervisor.isError} />
         </header>
 
         {work.isPending && <Notice>Loading work…</Notice>}
@@ -95,6 +98,7 @@ export default function WorkView({
 
         {snapshot && (
           <>
+            <BuilderCockpit onSent={() => void work.refetch()} />
             <div style={countStripStyle} aria-label="Work status summary">
               {(['active', 'blocked', 'failed', 'ready', 'waiting', 'paused', 'completed'] as GatewayWorkState[])
                 .filter(state => snapshot.counts[state] > 0)
@@ -145,6 +149,99 @@ function WorkGroupSection({ group, items, builderRunning, schedulerEnabled }: { 
           {expanded ? 'Show fewer' : `Show ${remaining} more`}
         </button>
       )}
+    </section>
+  )
+}
+
+function SchedulerStatus({ supervisor, failed }: { supervisor: ReturnType<typeof useSupervisor>['data']; failed: boolean }) {
+  if (failed) return <div style={degradedNoticeStyle}>Scheduled Builder status is unavailable.</div>
+  if (!supervisor?.scheduler) return null
+  const scheduler = supervisor.scheduler
+  const state = scheduler.healthy ? 'healthy' : scheduler.installed ? 'needs attention' : 'not installed'
+  return (
+    <div data-testid="builder-scheduler-status" style={preflightBannerStyle}>
+      <strong>Scheduled Builder: {state}</strong>
+      {scheduler.start_interval_seconds && <span>every {Math.round(scheduler.start_interval_seconds / 60)} min</span>}
+      <span>{scheduler.loaded ? 'loaded' : 'not loaded'}</span>
+      {scheduler.last_exit_status !== null && <span>last exit {scheduler.last_exit_status}</span>}
+      {scheduler.reason && <span>{scheduler.reason}</span>}
+      {scheduler.last_tick_at === null && <span>last tick time unavailable</span>}
+      {scheduler.next_run_at === null && <span>next run time unavailable</span>}
+    </div>
+  )
+}
+
+function BuilderCockpit({ onSent }: { onSent: () => void }) {
+  const [objective, setObjective] = useState('')
+  const [paths, setPaths] = useState('')
+  const [proposal, setProposal] = useState<ConversationProposal | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  const allowedPaths = paths.split(/[\n,]+/).map(path => path.trim()).filter(Boolean)
+  const canPrepare = objective.trim().length >= 8 && allowedPaths.length > 0 && !busy
+  const canSend = Boolean(
+    proposal?.prepared_manifest && proposal.manifest_sha256 && proposal.expected_base_sha && proposal.approval_nonce,
+  ) && !busy
+
+  async function prepare() {
+    if (!canPrepare) return
+    setBusy(true); setMessage(null); setProposal(null)
+    try {
+      const next = await proposeBuilderJob({
+        objective: objective.trim(),
+        instructions: objective.trim(),
+        allowed_paths: allowedPaths,
+        title: objective.trim().slice(0, 96),
+        acceptance_criteria: [`Complete the requested work within: ${allowedPaths.join(', ')}`],
+      })
+      if (!next.ok) throw new Error(next.error || 'Builder could not prepare the proposal.')
+      setProposal(next)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Builder could not prepare the proposal.')
+    } finally { setBusy(false) }
+  }
+
+  async function send() {
+    if (!proposal?.prepared_manifest || !proposal.manifest_sha256 || !proposal.expected_base_sha || !proposal.approval_nonce) return
+    setBusy(true); setMessage(null)
+    try {
+      const result = await approveBuilderJob({
+        prepared_manifest: proposal.prepared_manifest,
+        expected_manifest_sha: proposal.manifest_sha256,
+        expected_base_sha: proposal.expected_base_sha,
+        approval_nonce: proposal.approval_nonce,
+        confirmed: true,
+      })
+      if (!result.ok) throw new Error(result.error || 'Builder could not queue the proposal.')
+      setMessage('Sent to Builder. It will appear in Work as durable status updates arrive.')
+      setProposal(null); setObjective(''); setPaths(''); onSent()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Builder could not queue the proposal.')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <section aria-label="Ask Builder" style={cockpitStyle}>
+      <div style={{ display: 'grid', gap: 4 }}>
+        <strong style={{ color: 'var(--color-text-primary)' }}>Ask Builder</strong>
+        <span style={summaryMetaStyle}>Prepare bounded work here, review it, then explicitly send it.</span>
+      </div>
+      <textarea aria-label="What should Builder do?" value={objective} onChange={event => setObjective(event.target.value)} placeholder="What should Builder do?" rows={3} style={cockpitInputStyle} />
+      <input aria-label="Allowed paths" value={paths} onChange={event => setPaths(event.target.value)} placeholder="Allowed paths, comma separated — e.g. gateway/kitty-chat/src, tests" style={cockpitInputStyle} />
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" onClick={() => void prepare()} disabled={!canPrepare} style={secondaryActionStyle}>Prepare proposal</button>
+        {proposal && <button type="button" onClick={() => void send()} disabled={!canSend} style={secondaryActionStyle}>Send to Builder</button>}
+      </div>
+      {proposal && (
+        <div data-testid="builder-proposal-preview" style={preflightBannerStyle}>
+          <strong>Proposal ready.</strong>
+          <span>{objective.trim()}</span>
+          <span>scope: {allowedPaths.join(', ')}</span>
+          {proposal.warnings?.map(warning => <span key={warning}>{warning}</span>)}
+        </div>
+      )}
+      {message && <div role="status" style={preflightBannerStyle}>{message}</div>}
     </section>
   )
 }
@@ -205,6 +302,8 @@ function approvalLabel(item: GatewayWorkItem): string | null {
   return typeof state === 'string' ? `approval ${state}` : null
 }
 
+const cockpitStyle: CSSProperties = { display: 'grid', gap: 10, border: '1px solid var(--color-separator)', borderRadius: 'var(--r-surface)', background: 'var(--color-surface)', padding: '14px 16px' }
+const cockpitInputStyle: CSSProperties = { width: '100%', boxSizing: 'border-box', border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', background: 'var(--color-surface-elevated)', color: 'var(--color-text-primary)', padding: '10px 12px', fontFamily: 'var(--font-body)', fontSize: 13 }
 const workCanvasStyle: CSSProperties = { width: '100%', maxWidth: 1120, margin: '0 auto', display: 'grid', gap: 20, alignContent: 'start' }
 const workHeaderStyle: CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }
 const workHeaderActionsStyle: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }
@@ -231,6 +330,8 @@ const bannerStyle: CSSProperties = { display: 'flex', alignItems: 'center', just
 const workRowStyle: CSSProperties = { padding: '14px 16px', display: 'grid', gap: 7 }
 const stateLabelStyle: CSSProperties = { fontFamily: 'var(--font-body)', fontSize: 11.5, fontWeight: 600 }
 const evidenceRowStyle: CSSProperties = { display: 'flex', gap: '4px 12px', flexWrap: 'wrap', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-muted)' }
+const preflightBannerStyle: CSSProperties = { display: 'flex', gap: '4px 10px', flexWrap: 'wrap', alignItems: 'center', border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', padding: '8px 10px', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-secondary)', background: 'var(--color-surface-elevated)' }
+const preflightErrorStyle: CSSProperties = { ...preflightBannerStyle, color: 'var(--color-warning)' }
 
 const WORK_DETAIL_LABELS: Record<string, string> = {
   shadow_run_complete: 'The previous Builder run completed; this item remains blocked.',
@@ -317,6 +418,11 @@ function WorkRow({ item, isLast, builderRunning, schedulerEnabled }: { item: Gat
   const rawDetail = rawWorkDetail(item)
   const detail = workDetailLabel(item)
   const evidence = evidenceLabels(item)
+  const packetId = item.current_packet?.id ?? item.source.packet_id
+  const preflight = usePreflight(
+    item.next_action === 'claim' ? item.source.initiative_id : null,
+    item.next_action === 'claim' ? packetId : null,
+  )
   return (
     <article
       data-testid="work-row"
@@ -329,6 +435,17 @@ function WorkRow({ item, isLast, builderRunning, schedulerEnabled }: { item: Gat
       </div>
       {detail && <div style={{ color: 'var(--color-text-secondary)', fontSize: 13.5, lineHeight: 1.5 }}>{detail}</div>}
       <RowActions item={item} builderRunning={builderRunning} schedulerEnabled={schedulerEnabled} />
+      {preflight.data && (
+        <div data-testid="preflight-banner" style={preflightBannerStyle}>
+          <strong>Preflight {preflight.data.action === 'run' ? 'ready' : preflight.data.action}</strong>
+          {preflight.data.route && <span>{preflight.data.route}</span>}
+          <span>CAD {preflight.data.estimated_cost_cad.toFixed(4)} local estimate</span>
+          {preflight.data.reasons.length > 0 && <span>{preflight.data.reasons[0]}</span>}
+        </div>
+      )}
+      {preflight.isError && item.next_action === 'claim' && (
+        <div style={preflightErrorStyle}>Preflight is unavailable; Builder should not start this packet until the check succeeds.</div>
+      )}
       {evidence.length > 0 && (
         <div style={evidenceRowStyle}>
           {evidence.map(label => <span key={label}>{label}</span>)}

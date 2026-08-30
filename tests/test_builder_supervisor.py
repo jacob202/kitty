@@ -420,6 +420,36 @@ def test_status_projection(repo: Path, db_path: Path) -> None:
     assert len(initiatives[0]["eligible_packets"]) == 2
 
 
+
+
+def test_scheduler_status_reads_installed_launchagent(repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    plist_path = tmp_path / "com.kitty.builder.supervisor.plist"
+    plist_path.write_bytes(bs.render_supervisor_plist_bytes(repo))
+
+    class Completed:
+        returncode = 0
+        stdout = "pid = 123\nlast exit code = 0\n"
+        stderr = ""
+
+    monkeypatch.setattr(bs.subprocess, "run", lambda *args, **kwargs: Completed())
+    result = bs.scheduler_status(repo, plist_path=plist_path)
+
+    assert result["installed"] is True
+    assert result["loaded"] is True
+    assert result["healthy"] is True
+    assert result["start_interval_seconds"] == 900
+    assert result["pid"] == 123
+    assert result["last_exit_status"] == 0
+    assert result["last_tick_at"] is None
+    assert result["next_run_at"] is None
+
+
+def test_scheduler_status_reports_missing_plist(repo: Path, tmp_path: Path) -> None:
+    result = bs.scheduler_status(repo, plist_path=tmp_path / "missing.plist")
+    assert result["installed"] is False
+    assert result["healthy"] is False
+    assert "not installed" in result["reason"]
+
 def test_render_supervisor_plist(tmp_path: Path) -> None:
     """render_supervisor_plist returns valid plist dict."""
     repo = tmp_path / "repo"
