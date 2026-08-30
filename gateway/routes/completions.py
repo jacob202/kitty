@@ -101,14 +101,18 @@ def _fit_final_model_messages(
     # Safety/tool truth first, then runtime truth, then contextual enrichment.
     for name, part, required in (
         ("tool", tool_system, bool(tool_system)),
-        ("runtime", runtime_system, False),
+        ("runtime", runtime_system, bool(runtime_system)),
         ("bundle", bundle_system, False),
     ):
         if not part:
             continue
         fitted = _prefix_for_system_budget(selected, name, part, system_budget)
         if required and fitted != part:
-            raise HTTPException(status_code=413, detail="Current message leaves no room for required chat safety context")
+            required_context = "runtime context" if name == "runtime" else "safety context"
+            raise HTTPException(
+                status_code=413,
+                detail=f"Current message leaves no room for required chat {required_context}",
+            )
         if fitted:
             selected[name] = fitted
         if fitted != part:

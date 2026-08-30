@@ -123,8 +123,6 @@ def record(query: str, fp: Fingerprint | None = None) -> None:
 
 
 def _load_history() -> list[dict]:
-    if not _HISTORY.exists():
-        return []
     lines = read_tail_lines(
         _HISTORY, limit=_HISTORY_SCAN, max_bytes=_HISTORY_SCAN_BYTES
     )
