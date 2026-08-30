@@ -49,7 +49,7 @@ describe('StatusBar', () => {
       />,
     )
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('models temporarily unavailable')
+    expect(status).toHaveTextContent('Models are temporarily unavailable. Retry to reconnect to Kitty.')
     expect(status).not.toHaveTextContent(/gateway/i)
     fireEvent.click(screen.getByRole('button', { name: 'retry' }))
     expect(onRetryModels).toHaveBeenCalledTimes(1)
@@ -63,10 +63,32 @@ describe('StatusBar', () => {
     }
     render(<StatusBar {...props} />)
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('Model details unavailable')
-    expect(status).toHaveTextContent('model picker returned 503')
-    expect(status).toHaveTextContent('Retry to reconnect to Kitty')
-    expect(status).not.toHaveTextContent(/gateway offline/i)
+    expect(status).toHaveTextContent('Model details are unavailable right now. Retry to reconnect to Kitty.')
+    expect(status).not.toHaveTextContent(/503|model picker|gateway/i)
+  })
+
+  it('translates timeout and no-model diagnostics into product language', () => {
+    const { rerender } = render(
+      <StatusBar
+        {...baseProps}
+        modelUnavailable
+        modelError="Model details timed out — request timed out after 5000ms."
+      />,
+    )
+    let status = screen.getByRole('status')
+    expect(status).toHaveTextContent('Model details are taking too long to load. Retry to reconnect to Kitty.')
+    expect(status).not.toHaveTextContent(/5000|request timed out|gateway/i)
+
+    rerender(
+      <StatusBar
+        {...baseProps}
+        modelUnavailable
+        modelError="No live curated models are available — provider discovery returned 503."
+      />,
+    )
+    status = screen.getByRole('status')
+    expect(status).toHaveTextContent('No models are available right now. Retry to reconnect to Kitty.')
+    expect(status).not.toHaveTextContent(/curated|provider|503|gateway/i)
   })
 
   it('shows a failed save with a working retry action', () => {

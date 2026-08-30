@@ -27,10 +27,16 @@ interface Props {
 
 
 function modelStatusMessage(modelError?: string | null): string {
-  if (modelError?.startsWith('Model details timed out')) return modelError
-  if (modelError?.startsWith('Model details unavailable')) return modelError
-  if (modelError?.startsWith('No live curated models')) return modelError
-  return 'models temporarily unavailable'
+  if (modelError?.startsWith('Model details timed out')) {
+    return 'Model details are taking too long to load. Retry to reconnect to Kitty.'
+  }
+  if (modelError?.startsWith('Model details unavailable')) {
+    return 'Model details are unavailable right now. Retry to reconnect to Kitty.'
+  }
+  if (modelError?.startsWith('No live curated models')) {
+    return 'No models are available right now. Retry to reconnect to Kitty.'
+  }
+  return 'Models are temporarily unavailable. Retry to reconnect to Kitty.'
 }
 
 /**
