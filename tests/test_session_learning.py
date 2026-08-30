@@ -9,8 +9,8 @@ import pytest
 
 from scripts.session_learning import (
     SignalError,
-    compare_capability_runs,
     Store,
+    compare_capability_runs,
     fingerprint,
     load_signals,
     record_evaluation_signal,

@@ -125,7 +125,10 @@ def test_unknown_effect_is_not_retried_when_postcondition_is_still_unknown(tmp_p
         calls += 1
         raise bo.OutcomeUnknownError("timeout after dispatch")
 
-    verifier = lambda _: bo.Verification(state=bo.VERIFICATION_UNKNOWN, evidence="provider unavailable")
+    def verifier(_: dict[str, object]) -> bo.Verification:
+        return bo.Verification(
+            state=bo.VERIFICATION_UNKNOWN, evidence="provider unavailable"
+        )
 
     with pytest.raises(bo.OutcomeUnknownError):
         bo.execute_invocation(

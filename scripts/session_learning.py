@@ -399,7 +399,7 @@ def _score_mapping(value: Mapping[str, Any], *, label: str) -> dict[str, float]:
     return normalized
 
 
-def _evaluation_context(value: Mapping[str, Any]) -> dict[str, str]:
+def _evaluation_context(value: Any) -> dict[str, str]:
     if not isinstance(value, Mapping):
         raise SignalError("paired evaluation context must be an object")
     required = ("model", "workspace", "scorer")
@@ -585,7 +585,6 @@ def record_signal(
                 severity=payload["severity"],
                 occurrence_count=occurrence_count,
             )
-            timestamp = observed_at.strftime("%Y%m%dT%H%M%SZ")
             record = {
                 "schema_version": SCHEMA_VERSION,
                 "id": _signal_id(
