@@ -277,6 +277,28 @@ class TestRunWorker:
         assert refreshed["state"] == bq.QUEUED
         assert bq.list_runs(task_id=task["id"], db_path=db_path) == []
 
+    def test_worker_uses_repo_validation_venv_python(self, repo: Path, db_path: Path):
+        venv_bin = repo / "venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        python = venv_bin / "python"
+        python.write_text("#!/bin/sh\necho repo-validation-python\n")
+        python.chmod(0o755)
+
+        task = _queued_task(db_path)
+        run = br.run_worker(
+            task["id"],
+            ["sh", "-c", "python --version"],
+            worker="test-worker",
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_EXITED
+        log = Path(run["log_path"]).read_text()
+        assert "repo-validation-python" in log
+
     def test_successful_run_blocks_task_with_report(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
         run = br.run_worker(

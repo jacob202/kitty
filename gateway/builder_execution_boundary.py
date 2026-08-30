@@ -70,6 +70,7 @@ def wrap_command(
     run_dir: Path,
     environment: Mapping[str, str],
     read_paths: Sequence[Path] = (),
+    extra_read_subpaths: Sequence[Path] = (),
     write_paths: Sequence[Path] = (),
     worktree_writable: bool = True,
 ) -> list[str]:
@@ -84,6 +85,7 @@ def wrap_command(
         command=command,
         environment=environment,
         read_paths=read_paths,
+        extra_read_subpaths=extra_read_subpaths,
         write_paths=write_paths,
         worktree_writable=worktree_writable,
     )
@@ -97,6 +99,7 @@ def build_sandbox_profile(
     command: Sequence[str],
     environment: Mapping[str, str],
     read_paths: Sequence[Path] = (),
+    extra_read_subpaths: Sequence[Path] = (),
     write_paths: Sequence[Path] = (),
     worktree_writable: bool = True,
 ) -> str:
@@ -132,6 +135,7 @@ def build_sandbox_profile(
             read_subpaths.add(str(Path(*resolved_executable.parts[:bin_index]).resolve()))
 
     read_subpaths.update(_command_support_read_paths(command, worktree))
+    read_subpaths.update(str(Path(path).resolve()) for path in extra_read_subpaths)
     git_subpaths, git_literals = _git_metadata_read_paths(worktree)
     read_subpaths.update(git_subpaths)
     read_literals = {
@@ -159,8 +163,10 @@ def build_sandbox_profile(
     }
     # Seatbelt requires directory metadata traversal to reach explicitly
     # readable executables/venvs; metadata access does not grant file content.
-    for path in (launch_executable, resolved_executable, worktree, run_dir):
-        metadata_literals.update(str(parent) for parent in path.parents)
+    for path in (launch_executable, resolved_executable, worktree, run_dir, *extra_read_subpaths):
+        resolved_path = Path(path).resolve()
+        metadata_literals.add(str(resolved_path))
+        metadata_literals.update(str(parent) for parent in resolved_path.parents)
     # Git resolves a linked worktree through the common .git/worktrees tree.
     # The content under those directories is already narrowly read-enabled
     # above; allow metadata traversal of their parent directories so Git can
