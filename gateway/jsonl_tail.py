@@ -41,4 +41,4 @@ def read_tail_lines(
     lines = data.splitlines()
     if pos > 0 and data and not data.startswith(b"\n") and lines:
         lines = lines[1:]
-    return [line.decode("utf-8", errors="replace") for line in lines[-limit:]]
+    return [line.decode("utf-8") for line in lines[-limit:]]

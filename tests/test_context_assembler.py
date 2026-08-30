@@ -570,3 +570,15 @@ async def test_context_budget_is_utf8_conservative_and_surfaces_clipping(monkeyp
     assert len(bundle.system.encode("utf-8")) <= cap
     assert bundle.context_budget["system_token_upper_bound"] <= cap
     assert any(warning.startswith("context_budget:") for warning in bundle.warnings)
+
+
+def test_memory_evidence_only_reports_whole_records_in_rendered_prompt() -> None:
+    from gateway.context_assembler import _reconcile_memory_evidence
+
+    items = [
+        {"text": "first memory", "memory_id": "m1"},
+        {"text": "second memory is clipped", "memory_id": "m2"},
+    ]
+    rendered = "## Memory\nfirst memory\nsecond memory is cli\n[truncated by Kitty context budget]"
+
+    assert _reconcile_memory_evidence(items, rendered) == [items[0]]

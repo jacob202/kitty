@@ -226,3 +226,23 @@ def test_push_log_rotates_at_bounded_size(monkeypatch, tmp_path):
     assert push._rotated_log_path(1).exists()
     entries = push._recent_log_entries()
     assert any(entry.get("dedupe_key") == "rotation" for entry in entries)
+
+
+def test_rotation_failure_propagates(tmp_path, monkeypatch) -> None:
+    import pytest
+
+    from gateway import push
+
+    active = tmp_path / "push_log.jsonl"
+    active.write_text("xx", encoding="utf-8")
+    monkeypatch.setattr(push, "PUSH_LOG_FILE", active)
+    monkeypatch.setattr(push, "PUSH_LOG_MAX_BYTES", 1)
+    monkeypatch.setattr(push, "PUSH_LOG_ROTATIONS", 1)
+
+    class BrokenRotation:
+        def unlink(self, *, missing_ok=False):
+            raise PermissionError("rotation denied")
+
+    monkeypatch.setattr(push, "_rotated_log_path", lambda _index: BrokenRotation())
+    with pytest.raises(PermissionError, match="rotation denied"):
+        push._rotate_log_if_needed()

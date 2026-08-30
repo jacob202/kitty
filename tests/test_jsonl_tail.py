@@ -26,3 +26,11 @@ def test_read_tail_lines_handles_missing_file_without_exists_preflight() -> None
             raise FileNotFoundError("gone")
 
     assert read_tail_lines(MissingPath(), limit=5) == []  # type: ignore[arg-type]
+
+
+def test_read_tail_lines_rejects_corrupt_utf8(tmp_path) -> None:
+    path = tmp_path / "corrupt.jsonl"
+    path.write_bytes(b'{"dedupe_key":"bad-\xff"}\n')
+
+    with pytest.raises(UnicodeDecodeError):
+        read_tail_lines(path, limit=5)

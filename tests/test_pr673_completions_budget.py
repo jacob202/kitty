@@ -79,3 +79,77 @@ def test_compact_runtime_truth_drops_redundant_provenance_and_operational_noise(
     assert "TOOL-NOISE" not in rendered
     assert "CONNECTION-NOISE" not in rendered
     assert "APPROVAL-NOISE" not in rendered
+
+
+def test_current_tool_continuation_is_preserved() -> None:
+    current = {"role": "user", "content": "look this up"}
+    assistant_call = {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [{
+            "id": "call-1",
+            "type": "function",
+            "function": {"name": "lookup", "arguments": "{}"},
+        }],
+    }
+    tool_result = {"role": "tool", "tool_call_id": "call-1", "content": "42"}
+    final, _warnings = completions._fit_final_model_messages(
+        bundle_system="",
+        runtime_system="",
+        tool_system="",
+        messages=[current, assistant_call, tool_result],
+        token_cap=1_000,
+    )
+    assert final == [current, assistant_call, tool_result]
+
+
+def test_historical_tool_exchange_is_dropped_atomically() -> None:
+    assistant_call = {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [{
+            "id": "call-old",
+            "type": "function",
+            "function": {"name": "lookup", "arguments": "x" * 400},
+        }],
+    }
+    tool_result = {"role": "tool", "tool_call_id": "call-old", "content": "ok"}
+    current = {"role": "user", "content": "new question"}
+    final, warnings = completions._fit_final_model_messages(
+        bundle_system="",
+        runtime_system="",
+        tool_system="",
+        messages=[assistant_call, tool_result, current],
+        token_cap=180,
+    )
+    assert final == [current]
+    assert any("history" in warning for warning in warnings)
+
+
+def test_compact_runtime_truth_keeps_unavailable_capability_reasons() -> None:
+    from gateway.runtime_manifest import compact_runtime_context
+
+    def fact(value, *, state="available", reason=None):
+        row = {"state": state, "value": value, "source": "noise"}
+        if reason:
+            row["reason"] = reason
+        return row
+
+    manifest = {
+        "revision": "r1",
+        "generated_at": "now",
+        "valid_until": "later",
+        "application": {"name": "Kitty", "version": fact("1"), "build_commit": "abc", "environment": "test"},
+        "clock": fact({"current_time": "now", "timezone": "UTC"}),
+        "context": {"active_project": fact(None), "repository": fact({"branch": "main"})},
+        "execution": {"builder": fact({"initiatives": []})},
+        "inference": {"routing_mode": "gateway", "available_models": fact([]), "execution_location": "local"},
+        "tools": fact([{"id": "secret"}], state="unavailable", reason="tool probe down"),
+        "connections": {"gateway": fact("secret", state="degraded", reason="gateway probe down")},
+        "approvals": fact({"policy": "secret"}, state="unknown", reason="approval probe down"),
+    }
+    rendered = compact_runtime_context(manifest)
+    assert "tool probe down" in rendered
+    assert "gateway probe down" in rendered
+    assert "approval probe down" in rendered
+    assert '"secret"' not in rendered

@@ -429,3 +429,20 @@ def test_snooze_offset_is_compared_as_an_instant(monkeypatch) -> None:
     assert any(item["id"] == item_id for item in insight_loop.list_due("2026-01-02T16:00:00+00:00"))
     monkeypatch.setattr(insight_loop, "_now_iso", lambda: "2026-01-02T12:00:00+00:00")
     assert insight_loop.mark_returned(item_id) is False
+
+
+def test_snooze_rejects_malformed_instant_before_persistence(monkeypatch) -> None:
+    import pytest
+
+    from gateway import insight_loop
+
+    writes = []
+    monkeypatch.setattr(
+        insight_loop.idea_mine_store,
+        "update_payload",
+        lambda *args, **kwargs: writes.append((args, kwargs)),
+    )
+
+    with pytest.raises(ValueError, match="valid ISO datetime"):
+        insight_loop._do_snooze(1, {}, "not-a-date")
+    assert writes == []

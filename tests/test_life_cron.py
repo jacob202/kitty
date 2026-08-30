@@ -27,3 +27,24 @@ async def test_life_cron_blocking_work_does_not_block_event_loop(monkeypatch, ac
 
     assert elapsed < 0.08
     await task
+
+
+@pytest.mark.asyncio
+async def test_thread_action_waits_for_worker_before_propagating_cancellation(monkeypatch) -> None:
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def fake_to_thread(_fn):
+        started.set()
+        await release.wait()
+
+    monkeypatch.setattr(life_cron.asyncio, "to_thread", fake_to_thread)
+    task = asyncio.create_task(life_cron.evening_reflection_action())
+    await started.wait()
+    task.cancel()
+    await asyncio.sleep(0)
+    assert not task.done()
+
+    release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task

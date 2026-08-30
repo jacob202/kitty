@@ -430,6 +430,18 @@ def _compact_runtime_fact(value: Any) -> Any:
     return {key: _compact_runtime_fact(child) for key, child in value.items()}
 
 
+def _compact_runtime_status(value: Any) -> Any:
+    """Keep only availability state/reason for operational capability surfaces."""
+    if not isinstance(value, dict):
+        return value
+    if "state" in value:
+        compact: dict[str, Any] = {"state": value.get("state")}
+        if value.get("reason"):
+            compact["reason"] = value["reason"]
+        return compact
+    return {key: _compact_runtime_status(child) for key, child in value.items()}
+
+
 def compact_runtime_context(manifest: dict[str, Any]) -> str:
     """Render the bounded runtime truth a model turn actually needs.
 
@@ -457,6 +469,9 @@ def compact_runtime_context(manifest: dict[str, Any]) -> str:
             "available_models": manifest["inference"]["available_models"],
             "execution_location": manifest["inference"]["execution_location"],
         }),
+        "tools": _compact_runtime_status(manifest["tools"]),
+        "connections": _compact_runtime_status(manifest["connections"]),
+        "approvals": _compact_runtime_status(manifest["approvals"]),
     }
     return (
         "<kitty_runtime_truth>\n"
