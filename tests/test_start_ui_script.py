@@ -228,3 +228,60 @@ def test_standalone_server_receives_requested_host_and_port(tmp_path):
         "node .next/standalone/server.js HOSTNAME=127.0.0.1 PORT=4000" in call
         for call in calls
     )
+
+
+def test_standalone_mirrors_static_and_public_assets(tmp_path):
+    root = _fake_repo(tmp_path, build_id=True)
+    ui = root / "gateway" / "kitty-chat"
+    (ui / ".next" / "static").mkdir()
+    (ui / ".next" / "static" / "app.css").write_text("body{}", encoding="utf-8")
+    (ui / "public").mkdir()
+    (ui / "public" / "favicon.txt").write_text("icon", encoding="utf-8")
+    _set_build_newer_than_source(root)
+
+    result, _calls = _run(root, tmp_path)
+
+    assert result.returncode == 0
+    assert (ui / ".next" / "standalone" / ".next" / "static" / "app.css").read_text() == "body{}"
+    assert (ui / ".next" / "standalone" / "public" / "favicon.txt").read_text() == "icon"
+
+
+def test_standalone_refuses_symlinked_asset_destination(tmp_path):
+    root = _fake_repo(tmp_path, build_id=True)
+    ui = root / "gateway" / "kitty-chat"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "sentinel.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    (ui / ".next" / "standalone" / ".next").symlink_to(outside, target_is_directory=True)
+    (ui / ".next" / "static").mkdir()
+    (ui / ".next" / "static" / "app.css").write_text("body{}", encoding="utf-8")
+    _set_build_newer_than_source(root)
+
+    result, calls = _run(root, tmp_path)
+
+    assert result.returncode != 0
+    assert "refusing symlinked standalone destination" in result.stderr
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+    assert not any("node .next/standalone/server.js" in call for call in calls)
+
+def test_standalone_refuses_symlinked_next_ancestor(tmp_path):
+    root = _fake_repo(tmp_path, build_id=False)
+    ui = root / "gateway" / "kitty-chat"
+    outside = tmp_path / "outside-next"
+    (outside / "standalone" / ".next" / "static").mkdir(parents=True)
+    (outside / "static").mkdir()
+    (outside / "BUILD_ID").write_text("external-build\n", encoding="utf-8")
+    (outside / "standalone" / "server.js").write_text("// external\n", encoding="utf-8")
+    sentinel = outside / "standalone" / ".next" / "static" / "sentinel.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    (outside / "static" / "app.css").write_text("body{}", encoding="utf-8")
+    (ui / ".next").symlink_to(outside, target_is_directory=True)
+    _set_build_newer_than_source(root)
+
+    result, calls = _run(root, tmp_path)
+
+    assert result.returncode != 0
+    assert "refusing symlinked standalone destination" in result.stderr
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+    assert not any("node .next/standalone/server.js" in call for call in calls)

@@ -22,6 +22,7 @@ import time
 from datetime import datetime
 from typing import Any, Callable
 
+from gateway.jsonl_tail import read_tail_lines
 from gateway.paths import CONFIG_DIR, LOGS_DIR
 
 logger = logging.getLogger("kitty.push")
@@ -29,6 +30,9 @@ logger = logging.getLogger("kitty.push")
 PUSH_LOG_FILE = LOGS_DIR / "push_log.jsonl"
 USER_PROFILE_PATH = CONFIG_DIR / "user_profile.json"
 DEDUPE_WINDOW_SECONDS = 24 * 60 * 60
+PUSH_LOG_MAX_BYTES = 5 * 1024 * 1024
+PUSH_LOG_ROTATIONS = 3
+PUSH_LOG_TAIL_LINES = 20_000
 
 
 def _channels() -> list[str]:
@@ -65,23 +69,40 @@ def _in_quiet_hours(window: str, now: datetime) -> bool:
     return now >= start or now < end
 
 
+def _rotated_log_path(index: int) -> Any:
+    return PUSH_LOG_FILE.with_name(f"{PUSH_LOG_FILE.name}.{index}")
+
+
 def _recent_log_entries() -> list[dict[str, Any]]:
-    if not PUSH_LOG_FILE.exists():
-        return []
     entries: list[dict[str, Any]] = []
-    for line in PUSH_LOG_FILE.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            entries.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
+    # Oldest retained rotation first so callers observe chronological order.
+    paths = [_rotated_log_path(i) for i in range(PUSH_LOG_ROTATIONS, 0, -1)] + [PUSH_LOG_FILE]
+    for path in paths:
+        for line in read_tail_lines(path, limit=PUSH_LOG_TAIL_LINES, max_bytes=PUSH_LOG_MAX_BYTES):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
     return entries
 
 
+def _rotate_log_if_needed() -> None:
+    if not PUSH_LOG_FILE.exists() or PUSH_LOG_FILE.stat().st_size < PUSH_LOG_MAX_BYTES:
+        return
+    oldest = _rotated_log_path(PUSH_LOG_ROTATIONS)
+    oldest.unlink(missing_ok=True)
+    for index in range(PUSH_LOG_ROTATIONS - 1, 0, -1):
+        src = _rotated_log_path(index)
+        if src.exists():
+            src.replace(_rotated_log_path(index + 1))
+    PUSH_LOG_FILE.replace(_rotated_log_path(1))
+
 def _log_attempt(*, kind: str, title: str, channel: str, ok: bool, dedupe_key: str | None) -> None:
     PUSH_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _rotate_log_if_needed()
     entry = {
         "ts": time.time(),
         "kind": kind,

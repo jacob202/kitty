@@ -25,36 +25,7 @@
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null,
-  "parallel_work": [
-    {
-      "kind": "open_pr",
-      "ref": "673",
-      "owner": "unknown",
-      "touches": [
-        "gateway/runtime_manifest.py"
-      ],
-      "observed_at": "2026-08-30T05:50:00Z"
-    },
-    {
-      "kind": "open_pr",
-      "ref": "675",
-      "owner": "unknown",
-      "touches": [
-        "gateway/kitty-chat/src"
-      ],
-      "observed_at": "2026-08-30T05:50:00Z"
-    },
-    {
-      "kind": "local_commit",
-      "ref": "ead4d9733ce664e556d84465ff8f2dd15dc3808b",
-      "owner": "interactive",
-      "touches": [
-        "gateway/runtime_manifest.py",
-        "tests/test_pr673_completions_budget.py"
-      ],
-      "observed_at": "2026-08-30T05:50:00Z"
-    }
-  ],
+  "parallel_work": [],
   "recommendations": [],
   "execution_owner": "interactive"
 }

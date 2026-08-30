@@ -28,36 +28,7 @@
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null,
-  "parallel_work": [
-    {
-      "kind": "open_pr",
-      "ref": "673",
-      "owner": "unknown",
-      "touches": [
-        "gateway/runtime_manifest.py"
-      ],
-      "observed_at": "2026-08-30T05:50:00Z"
-    },
-    {
-      "kind": "open_pr",
-      "ref": "675",
-      "owner": "unknown",
-      "touches": [
-        "gateway/kitty-chat/src"
-      ],
-      "observed_at": "2026-08-30T05:50:00Z"
-    },
-    {
-      "kind": "local_commit",
-      "ref": "ead4d9733ce664e556d84465ff8f2dd15dc3808b",
-      "owner": "interactive",
-      "touches": [
-        "gateway/runtime_manifest.py",
-        "tests/test_pr673_completions_budget.py"
-      ],
-      "observed_at": "2026-08-30T05:50:00Z"
-    }
-  ],
+  "parallel_work": [],
   "recommendations": []
 }
 -->
@@ -72,13 +43,8 @@ The overnight schedule is installed and active. One packet
 operator release, which is the Try again control in Work; six are parked behind
 paused initiatives.
 
-## Unpushed work worth preserving
-
-`.worktrees/pr673-finalize-20260829` holds commit `ead4d973`, one commit beyond
-PR #673's pushed head, changing `gateway/runtime_manifest.py` and adding
-`tests/test_pr673_completions_budget.py`. It is not on any remote and looks like
-the repair for #673's failing pytest/policy/merge gates. Do not rebuild that work
-from scratch and do not delete that worktree.
-
+The PR #675 power-run lane merged into `main` as `1e9ed573` on 2026-08-30 and
+its continuity checkpoint is recorded in main's history; PR #673 merged as
+`19c4f085`, which also carries `ead4d973` from `.worktrees/pr673-finalize-20260829`.
 `.worktrees/continue-kitty-power-run-20260829` is fully contained in PR #675 —
 nothing there is at risk.
