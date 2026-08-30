@@ -155,7 +155,11 @@ def _index_capture(capture_id: str, file_path: Path, artifact_id: str) -> None:
             result.status,
             result.source,
         )
-        ingestion_status = "failed" if result.status == "failed" else "ready"
+        ingestion_status = {
+            "success": "ready",
+            "skipped": "not_indexed",
+            "failed": "failed",
+        }.get(result.status, "failed")
         artifact_store.update_ingestion(artifact_id, status=ingestion_status)
         broadcaster.broadcast("knowledge_updated")
     except Exception as exc:
