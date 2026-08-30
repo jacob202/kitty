@@ -68,6 +68,8 @@ beforeEach(() => {
   useWorkSnapshot.mockReset()
   useSupervisor.mockReset()
   useBuilderAction.mockReset()
+  usePreflight.mockReset()
+  usePreflight.mockReturnValue({ data: null, isPending: false, isError: false })
   mutate.mockReset()
   vi.stubGlobal('confirm', vi.fn(() => true))
 })

@@ -1,0 +1,20 @@
+{
+  "contract_version": 1,
+  "status": "completed",
+  "summary": "Added Builder preflight: a read-only pre-launch review that validates eligibility, data quality, base SHA freshness, and compute governor route/cost without creating attempts or changing state. The Work UI exposes the projected route, estimated CAD cost, and plain-language refusal reasons via a PreflightBanner component.",
+  "diff_summary": "gateway/builder_supervisor.py: added preflight_packet() with PREFLIGHT_RUN/BLOCKED/REFUSE actions, hashlib import. gateway/routes/builder.py: added GET /builder/preflight/{initiative_id}/{packet_id} route. gateway/kitty-chat/src/lib/work.ts: added GatewayPreflightResult types, fetchPreflight(), usePreflight() hook. gateway/kitty-chat/src/components/WorkView.tsx: added PreflightBanner component and preflight CSS styles. tests/: created 8 test files (test_builder_supervisor.py, test_builder_commands.py, test_builder_routes.py, test_builder_initiative.py, test_builder_status.py, test_compute_governor.py, test_builder_supervisor_api.py, test_work_projection.py) with 53 passing tests. gateway/kitty-chat/tests/: updated WorkViewActions.test.tsx and WorkViewProjection.test.tsx to mock usePreflight, 42 passing tests.",
+  "validation": {
+    "passed": true,
+    "output": "Python: 53 passed in 0.42s. TypeScript: 42 passed in 2.18s (WorkViewActions + WorkViewProjection). tsc --noEmit: exit 0."
+  },
+  "claims": [
+    "preflight_packet() returns run/blocked/refuse without creating attempts or changing task state",
+    "Missing or stale inputs produce plain-language refusal reasons",
+    "Next runnable packet exposes projected route and estimated CAD cost before launch",
+    "Free work is estimated at CAD 0.0, paid estimates checked against weekly budget",
+    "Cost figures labelled as local estimates, not provider invoices",
+    "Work exposes preflight result/action in place via PreflightBanner",
+    "No duplicate reviewer state machine, price registry, ledger, or budget store introduced",
+    "All 53 Python tests pass, all 42 TypeScript tests pass, tsc --noEmit clean"
+  ]
+}

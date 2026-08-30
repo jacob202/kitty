@@ -2,13 +2,14 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
 
-const { useWorkSnapshot, useSupervisor, useBuilderAction, mutate } = vi.hoisted(() => ({
+const { useWorkSnapshot, useSupervisor, useBuilderAction, usePreflight, mutate } = vi.hoisted(() => ({
   useWorkSnapshot: vi.fn(),
   useSupervisor: vi.fn(),
   useBuilderAction: vi.fn(),
+  usePreflight: vi.fn(() => ({ data: null, isPending: false, isError: false })),
   mutate: vi.fn(),
 }))
-vi.mock('../src/lib/work', () => ({ useWorkSnapshot, useSupervisor, useBuilderAction }))
+vi.mock('../src/lib/work', () => ({ useWorkSnapshot, useSupervisor, useBuilderAction, usePreflight }))
 
 function supervisor(overrides: Record<string, unknown> = {}) {
   return {
@@ -63,6 +64,8 @@ describe('WorkView projection', () => {
     useWorkSnapshot.mockReset()
     useSupervisor.mockReset()
     useBuilderAction.mockReset()
+    usePreflight.mockReset()
+    usePreflight.mockReturnValue({ data: null, isPending: false, isError: false })
     mutate.mockReset()
     useSupervisor.mockReturnValue({ data: supervisor(), isPending: false, isError: false, error: null })
     useBuilderAction.mockReturnValue({ mutate, isPending: false })
