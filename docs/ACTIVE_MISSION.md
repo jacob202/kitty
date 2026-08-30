@@ -24,12 +24,20 @@ Supersedes KPROOF-001, whose proof window ended 2026-08-18 without a durable
 pass verdict. That file's history is preserved in git; nothing here retroactively
 satisfies it.
 
-## Goal
+## Objective
 
 Turn Kitty from an accumulation of partially connected subsystems into a
 coherent product Jacob would voluntarily use. He must be able to ask for
 meaningful work, approve a bounded outcome, watch progress, ask questions,
 recover from failure, and get a real result.
+
+## Acceptance Contract
+
+The mission is complete when an independent reviewer completes the key
+journeys at desktop and iPhone-class widths with no contradictory status,
+dead primary controls, raw server errors, clipped dialogs, or horizontal
+overflow (ACCEPT-001). All preceding sequence items (REC-001 through
+HOME-001) must be verified in the running product.
 
 ## The rule that governs every surface
 
