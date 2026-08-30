@@ -161,6 +161,19 @@ def worktree_path(task_id: str, *, repo_root: Path | None = None) -> Path:
     return _repo_root(repo_root) / ".worktrees" / "kittybuilder" / task_id
 
 
+def _validation_toolchain(repo_root: Path) -> tuple[Path | None, list[Path]]:
+    """Return the repo validation venv and read-only runtime roots, if present."""
+    for name in ("venv", ".venv"):
+        venv = (repo_root / name).resolve()
+        python = venv / "bin" / "python"
+        if not python.exists():
+            continue
+        runtime_root = python.resolve().parent.parent
+        read_roots = list(dict.fromkeys((venv, runtime_root)))
+        return venv, read_roots
+    return None, []
+
+
 def _git(
     args: list[str],
     cwd: Path,
@@ -1135,6 +1148,7 @@ def run_worker(
     assert run is not None
 
     child_env = beb.build_child_environment(os.environ, run_dir=run_dir)
+    validation_venv, validation_read_roots = _validation_toolchain(root)
     child_env["GH_CONFIG_DIR"] = str(gh_config_dir)
     child_env["GIT_CONFIG_GLOBAL"] = os.devnull
     child_env["GIT_CONFIG_SYSTEM"] = os.devnull
@@ -1157,6 +1171,10 @@ def run_worker(
         child_env.update(extra_env)
     if context_env:
         child_env.update(context_env)
+    # Runner-owned validation tooling wins over optional attempt/context env.
+    if validation_venv is not None:
+        child_env["VIRTUAL_ENV"] = str(validation_venv)
+        child_env["PATH"] = f"{validation_venv / 'bin'}:{child_env['PATH']}"
     child_env.update(
         KB_TASK_ID=task_id,
         KB_RUN_ID=run_id,
@@ -1206,6 +1224,7 @@ def run_worker(
                 run_dir=run_dir,
                 environment=child_env,
                 read_paths=boundary_read_paths,
+                extra_read_subpaths=validation_read_roots,
                 write_paths=boundary_write_paths,
             )
             proc = subprocess.Popen(
