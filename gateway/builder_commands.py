@@ -57,6 +57,7 @@ _COMMAND_ARGUMENTS: dict[str, frozenset[str]] = {
     "publish": frozenset({"task_id", "actor", "reason"}),
     "recover_stale": frozenset({"actor", "expected_version"}),
     "reconcile_merges": frozenset({"actor"}),
+    "preflight": frozenset({"initiative_id", "packet_id", "actor", "reason"}),
 }
 
 
@@ -465,6 +466,180 @@ def command_reconcile_merges(
 
 
 
+def command_preflight(
+    initiative_id: str,
+    packet_id: str,
+    *,
+    actor: str = "preflight-probe",
+    reason: str | None = None,
+) -> CommandResult:
+    """Read-only preflight: validate a packet before execution without side effects.
+
+    Returns the projected route, estimated CAD cost, and any blockers.
+    Creates no attempt, changes no task/run state, and mutates nothing.
+    All cost figures are local estimates, not provider invoices.
+    """
+    from gateway import builder_initiative as bi
+    from gateway import builder_queue as bq
+    from gateway import compute_governor as cg
+
+    bi.init_db()
+    initiative = bi.get_initiative(initiative_id)
+    if initiative is None:
+        return CommandResult(
+            ok=False,
+            action="preflight",
+            error=f"initiative not found: {initiative_id}",
+        )
+
+    packet = next(
+        (item for item in initiative.get("packets", [])
+         if item.get("packet_id") == packet_id),
+        None,
+    )
+    if packet is None:
+        return CommandResult(
+            ok=False,
+            action="preflight",
+            error=f"packet not found: {packet_id} in initiative {initiative_id}",
+        )
+
+    blockers: list[str] = []
+    warnings: list[str] = []
+
+    # 1. Initiative state check
+    initiative_state = initiative.get("state")
+    if initiative_state != bi.INITIATIVE_ACTIVE:
+        blockers.append(
+            f"initiative state is {initiative_state!r}, not 'active'"
+        )
+
+    # 2. Initiative superseded check
+    if initiative.get("superseded_by"):
+        blockers.append(
+            f"initiative is superseded by {initiative['superseded_by']}"
+        )
+
+    # 3. Packet eligibility check
+    task_state = packet.get("task_state")
+    if task_state is None:
+        blockers.append("packet has no task record")
+    elif task_state != bq.QUEUED:
+        blockers.append(f"packet task state is {task_state!r}, not 'queued'")
+
+    # 4. Dependency check
+    depends_on = packet.get("depends_on") or []
+    initiative_packets = initiative.get("packets", [])
+    packet_states = {
+        p["packet_id"]: p.get("task_state")
+        for p in initiative_packets
+        if p.get("packet_id")
+    }
+    for dep in depends_on:
+        dep_state = packet_states.get(dep)
+        if dep_state is None:
+            blockers.append(f"dependency {dep!r} not found")
+        elif dep_state not in {bq.DONE, None}:
+            blockers.append(
+                f"dependency {dep!r} is in state {dep_state!r}, not 'done'"
+            )
+
+    # 5. Attempt budget check
+    attempt_rows = bi.ba.list_attempts(initiative_id, packet_id)
+    max_attempts = (packet.get("policy") or {}).get("max_attempts",
+                                                     bi.ba.DEFAULT_MAX_ATTEMPTS)
+    budget_exhausted = bi.ba._attempts_exhausted(packet, attempt_rows)
+    if budget_exhausted:
+        blockers.append(
+            f"attempt budget exhausted ({len(attempt_rows)} attempts, "
+            f"max {max_attempts})"
+        )
+
+    # 6. Manifest freshness check (base_sha must be set)
+    base_sha = packet.get("base_sha")
+    if not base_sha:
+        warnings.append("packet has no base_sha recorded; manifest may be stale")
+
+    # 7. Compute governor decision
+    governor_result = None
+    governor_blockers: list[str] = []
+    try:
+        config = cg.load_reserve_config(cg.ROOT_CONFIG_PATH)
+        ledger_path = cg.default_db_path()
+        cg.init_db(ledger_path)
+        reserve = cg.reserve_from_ledger(ledger_path, config)
+
+        # Build a minimal dispatch from packet metadata
+        dispatch = cg.Dispatch(
+            task_type="implement",
+            work_kind="implementation",
+            subject_ref=f"{initiative_id}/{packet_id}",
+            head_sha=base_sha or "0" * 40,
+            artifact=", ".join(packet.get("allowed_paths") or []),
+            acceptance_tests=tuple(packet.get("acceptance_criteria") or []),
+            allowed_scope=tuple(packet.get("allowed_paths") or []),
+            exclusions=(),
+            risk_class="routine",
+            stopping_condition="acceptance tests pass",
+            requested_route="free",
+        )
+        decision = cg.decide(ledger_path, dispatch, reserve=reserve)
+        governor_result = {
+            "action": decision.action,
+            "route": decision.route,
+            "reasons": list(decision.reasons),
+            "dispatch_hash": decision.dispatch_hash,
+            "estimated_cost_cad": (
+                cg.estimate_pass_cost_cad(decision.route)
+                if decision.route else 0.0
+            ),
+        }
+        if decision.action in {cg.ACTION_DEFER, cg.ACTION_REJECT}:
+            governor_blockers = list(decision.reasons)
+    except Exception as exc:
+        warnings.append(f"governor evaluation failed: {exc}")
+
+    # 8. Budget remaining
+    budget_info = None
+    try:
+        config = cg.load_reserve_config(cg.ROOT_CONFIG_PATH)
+        ledger_path = cg.default_db_path()
+        cg.init_db(ledger_path)
+        reserve = cg.reserve_from_ledger(ledger_path, config)
+        budget_info = {
+            "weekly_budget_cad": reserve.weekly_budget_cad,
+            "estimated_spend_cad": reserve.estimated_spend_cad,
+            "remaining_cad": reserve.remaining_cad,
+            "basis": "local estimate from Kitty's own token ledger — NOT a provider meter",
+        }
+    except Exception:
+        pass
+
+    all_blockers = blockers + governor_blockers
+    can_proceed = len(all_blockers) == 0
+
+    return CommandResult(
+        ok=True,
+        action="preflight",
+        detail=(
+            f"preflight {'passed' if can_proceed else 'blocked'} "
+            f"for {packet_id}"
+        ),
+        evidence={
+            "initiative_id": initiative_id,
+            "packet_id": packet_id,
+            "initiative_state": initiative_state,
+            "task_state": task_state,
+            "base_sha": base_sha,
+            "can_proceed": can_proceed,
+            "blockers": all_blockers,
+            "warnings": warnings,
+            "governor": governor_result,
+            "budget": budget_info,
+        },
+    )
+
+
 COMMAND_HANDLERS: dict[str, Any] = {
     "requeue": command_requeue,
     "grant_attempt": command_grant_attempt,
@@ -475,4 +650,5 @@ COMMAND_HANDLERS: dict[str, Any] = {
     "publish": command_publish,
     "recover_stale": command_recover_stale,
     "reconcile_merges": command_reconcile_merges,
+    "preflight": command_preflight,
 }

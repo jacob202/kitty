@@ -149,3 +149,24 @@ async def builder_supervisor_tick():
         "error": None,
         "detail": receipt,
     }
+
+
+@router.get("/builder/preflight")
+async def builder_preflight(
+    initiative_id: str = Query(..., description="Initiative ID"),
+    packet_id: str = Query(..., description="Packet ID"),
+):
+    """Read-only preflight check for a packet before execution.
+
+    Returns the projected route, estimated CAD cost, and any blockers.
+    Creates no attempt, changes no task/run state. All cost figures are
+    local estimates, not provider invoices.
+    """
+    from gateway.builder_commands import command_preflight
+
+    try:
+        result = command_preflight(initiative_id, packet_id)
+        return command_result_payload(result)
+    except Exception as exc:
+        logger.exception("preflight check failed")
+        return {"ok": False, "action": "preflight", "error": str(exc)}

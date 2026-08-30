@@ -51,9 +51,19 @@ export interface GatewayWorkItem {
   } | null
   blocker: { state?: string; reason?: string | null; blocked_by?: string[] } | null
   next_action: string | null
+  preflight: GatewayPreflight | null
   evidence: Record<string, unknown>
   data_quality: { state: string; issues?: string[] }
   updated_at: string | null
+}
+
+export interface GatewayPreflight {
+  can_proceed: boolean
+  blockers: string[]
+  warnings: string[]
+  route: string | null
+  estimated_cost_cad: number
+  basis: string
 }
 
 export interface GatewayWorkSnapshot {
@@ -136,6 +146,7 @@ function isCurrentRun(value: unknown): boolean {
 function isWorkItem(value: unknown): value is GatewayWorkItem {
   if (!isRecord(value)) return false
   const blocker = value.blocker
+  const preflight = value.preflight
   return (
     typeof value.id === 'string'
     && (typeof value.title === 'string' || value.title === null)
@@ -148,6 +159,19 @@ function isWorkItem(value: unknown): value is GatewayWorkItem {
     && isCurrentRun(value.current_run)
     && isEvidence(value.evidence)
     && (value.next_action === undefined || value.next_action === null || typeof value.next_action === 'string')
+    && (
+      preflight === undefined
+      || preflight === null
+      || (
+        isRecord(preflight)
+        && typeof preflight.can_proceed === 'boolean'
+        && Array.isArray(preflight.blockers)
+        && Array.isArray(preflight.warnings)
+        && (preflight.route === undefined || preflight.route === null || typeof preflight.route === 'string')
+        && typeof preflight.estimated_cost_cad === 'number'
+        && typeof preflight.basis === 'string'
+      )
+    )
     && (
       blocker === undefined
       || blocker === null
@@ -246,7 +270,7 @@ export interface BuilderCommandResult {
 }
 
 export interface BuilderCommand {
-  action: 'requeue' | 'grant_attempt' | 'cancel' | 'resume' | 'pause'
+  action: 'requeue' | 'grant_attempt' | 'cancel' | 'resume' | 'pause' | 'preflight'
   task_id?: string
   packet_id?: string
   initiative_id?: string
