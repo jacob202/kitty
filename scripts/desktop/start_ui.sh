@@ -43,6 +43,15 @@ cd "${UI_DIR}"
 BUILD_STAMP=".next/BUILD_ID"
 BUILD_SOURCE_STAMP=".next/KITTY_SOURCE_SHA"
 
+assert_clean_ui_source() {
+  local dirty
+  dirty="$(git -C "${ROOT_DIR}" status --porcelain --untracked-files=normal -- gateway/kitty-chat 2>/dev/null || true)"
+  if [[ -n "${dirty}" ]]; then
+    echo "[start_ui] Error: refusing to build uncommitted Kitty UI source because the build could not be attributed to a clean commit." >&2
+    return 1
+  fi
+}
+
 record_build_source() {
   local source_sha
   source_sha="$(git -C "${ROOT_DIR}" rev-parse HEAD 2>/dev/null || true)"
@@ -61,6 +70,7 @@ done
 
 if [[ ! -f "${BUILD_STAMP}" ]]; then
   echo "[start_ui] no usable build in ${UI_DIR}/.next — building"
+  assert_clean_ui_source
   npm run build
   record_build_source
 else

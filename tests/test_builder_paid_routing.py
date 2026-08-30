@@ -143,18 +143,7 @@ def test_opencode_config_has_separate_free_and_paid_agents():
     assert agents["paid-reviewer"]["permission"]["edit"] == "deny"
 
 
-def test_real_cheap_route_uses_the_refreshed_independent_pair():
-    # The actual production config, not the synthetic _policy() fixture above.
-    route = bpr.resolve_paid_route("cheap")
-
-    assert route.worker_model == "openrouter/xiaomi/mimo-v2.5"
-    assert route.reviewer_model == "openrouter/minimax/minimax-m3"
-    assert route.worker_model != route.reviewer_model
-    assert 0 < route.projected_cost_cad <= route.max_projected_cost_cad == 0.10
-
-
-def test_real_frontier_route_is_unchanged():
-    route = bpr.resolve_paid_route("frontier")
-
-    assert route.worker_model == "openrouter/deepseek/deepseek-v4-pro"
-    assert route.reviewer_model == "openrouter/qwen/qwen3.7-max"
+def test_real_paid_routes_fail_closed_while_spend_authority_conflicts():
+    for tier in ("cheap", "frontier"):
+        with pytest.raises(bpr.PaidRoutingError, match="Spend authority is unresolved"):
+            bpr.resolve_paid_route(tier)

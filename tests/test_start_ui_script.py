@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 START_UI = ROOT / "scripts" / "desktop" / "start_ui.sh"
 LOAD_ENV = ROOT / "gateway" / "lib" / "load_env_safe.sh"
+MAKEFILE = ROOT / "Makefile"
 
 # start_ui.sh resolves its repo root from its own location, so the real script is
 # copied into a throwaway tree rather than pointed at the checkout. That keeps the
@@ -190,6 +191,20 @@ def test_missing_build_is_built_before_starting(tmp_path):
     assert calls[0].startswith("npm run build")
 
 
+def test_dirty_ui_source_is_not_built_or_stamped_as_clean_head(tmp_path):
+    root = _fake_repo(tmp_path, build_id=False)
+    (root / "gateway" / "kitty-chat" / "src" / "page.tsx").write_text(
+        "export default function Page() { return null }\n", encoding="utf-8"
+    )
+
+    result, calls = _run(root, tmp_path)
+
+    assert result.returncode != 0
+    assert "refusing to build uncommitted Kitty UI source" in result.stderr
+    assert not any("run build" in call for call in calls)
+    assert not (root / "gateway" / "kitty-chat" / ".next" / "KITTY_SOURCE_SHA").exists()
+
+
 def test_failed_build_stops_the_service_instead_of_serving_stale_code(tmp_path):
     root = _fake_repo(tmp_path, build_id=True)
     _set_source_newer_than_build(root)
@@ -228,3 +243,10 @@ def test_standalone_server_receives_requested_host_and_port(tmp_path):
         "node .next/standalone/server.js HOSTNAME=127.0.0.1 PORT=4000" in call
         for call in calls
     )
+
+
+def test_make_ui_build_refuses_dirty_ui_before_stamping_clean_head():
+    source = MAKEFILE.read_text(encoding="utf-8")
+    target = source.split("ui-build:", 1)[1].split("\n\n", 1)[0]
+    assert "Refusing ui-build: gateway/kitty-chat has uncommitted source changes." in target
+    assert target.index("Refusing ui-build: gateway/kitty-chat has uncommitted source changes.") < target.index("next build")

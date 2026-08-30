@@ -226,7 +226,7 @@ export interface GatewaySupervisor {
   on_hold: number
   last_tick_at: string | null
   lock_path: string | null
-  scheduler_enabled: boolean
+  scheduler_enabled: boolean | null
 }
 
 export interface BuilderCommandResult {
@@ -237,8 +237,9 @@ export interface BuilderCommandResult {
 }
 
 export interface BuilderCommand {
-  action: 'requeue' | 'cancel' | 'resume' | 'pause'
+  action: 'requeue' | 'grant_attempt' | 'cancel' | 'resume' | 'pause'
   task_id?: string
+  packet_id?: string
   initiative_id?: string
   reason?: string
 }
@@ -251,7 +252,7 @@ function isSupervisor(value: unknown): value is GatewaySupervisor {
     && typeof value.eligible_now === 'number'
     && typeof value.on_hold === 'number'
     && isNullableString(value.last_tick_at)
-    && typeof value.scheduler_enabled === 'boolean'
+    && (typeof value.scheduler_enabled === 'boolean' || value.scheduler_enabled === null)
   )
 }
 

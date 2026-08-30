@@ -13,7 +13,12 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from gateway.builder_attempt import AttemptError, get_open_attempt_for_task, run_validation
+from gateway.builder_attempt import (
+    AttemptError,
+    get_open_attempt_for_task,
+    grant_attempt,
+    run_validation,
+)
 from gateway.builder_events import builder_events
 from gateway.builder_initiative import (
     InitiativeNotFoundError,
@@ -44,6 +49,7 @@ class CommandResult:
 
 _COMMAND_ARGUMENTS: dict[str, frozenset[str]] = {
     "requeue": frozenset({"task_id", "actor", "reason"}),
+    "grant_attempt": frozenset({"initiative_id", "packet_id", "actor", "reason"}),
     "cancel": frozenset({"task_id", "actor", "reason"}),
     "pause": frozenset({"initiative_id", "actor", "reason"}),
     "resume": frozenset({"initiative_id", "actor"}),
@@ -75,6 +81,7 @@ def dispatch_operator_command(request: BuilderCommandRequest) -> CommandResult:
     values: dict[str, Any] = {
         "task_id": task_id,
         "initiative_id": request.initiative_id,
+        "packet_id": request.packet_id,
         "actor": request.actor or "cockpit-operator",
         "reason": request.reason,
         "expected_version": request.expected_version,
@@ -154,6 +161,57 @@ def command_requeue(
         task_id=task_id,
         detail=f"task {task_id} requeued",
         evidence={"new_state": result.get("state")},
+    )
+
+
+def command_grant_attempt(
+    initiative_id: str,
+    packet_id: str,
+    *,
+    actor: str,
+    reason: str = "operator retry from cockpit",
+) -> CommandResult:
+    """Grant one additional retry to an attempt-exhausted packet.
+
+    Exhaustion is an attempt-budget condition, not a queue-state condition.
+    Requeueing an already-queued exhausted task is an illegal queued->queued
+    transition and leaves the retry budget unchanged.
+    """
+    try:
+        details = grant_attempt(
+            initiative_id,
+            packet_id,
+            reason=reason,
+        )
+    except Exception as exc:
+        logger.warning(
+            "grant attempt %s/%s failed: %s", initiative_id, packet_id, exc
+        )
+        return CommandResult(
+            ok=False,
+            action="grant_attempt",
+            error=str(exc),
+        )
+
+    task_id = str(details.get("task_id") or "") or None
+    _emit_event(
+        "command_completed",
+        {
+            "command": "grant_attempt",
+            "initiative_id": initiative_id,
+            "packet_id": packet_id,
+            "task_id": task_id or "",
+            "actor": actor,
+            "reason": reason,
+        },
+    )
+    return CommandResult(
+        ok=True,
+        action="grant_attempt",
+        task_id=task_id,
+        detail=f"one additional attempt granted for {packet_id}",
+        event_id=details.get("event_id"),
+        evidence=details,
     )
 
 
@@ -409,6 +467,7 @@ def command_reconcile_merges(
 
 COMMAND_HANDLERS: dict[str, Any] = {
     "requeue": command_requeue,
+    "grant_attempt": command_grant_attempt,
     "cancel": command_cancel,
     "pause": command_pause,
     "resume": command_resume,

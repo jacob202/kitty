@@ -111,7 +111,7 @@ async def builder_supervisor_status():
         "on_hold": counts["on_hold"],
         "last_tick_at": None,
         "lock_path": projection["lock"]["path"],
-        "scheduler_enabled": projection.get("scheduler_enabled", True),
+        "scheduler_enabled": projection.get("scheduler_enabled"),
     }
 
 

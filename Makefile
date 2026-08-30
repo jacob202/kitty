@@ -63,6 +63,7 @@ ui-test:
 	cd gateway/kitty-chat && npm test
 
 ui-build:
+	@test -z "$$(git status --porcelain --untracked-files=normal -- gateway/kitty-chat)" || { echo "Refusing ui-build: gateway/kitty-chat has uncommitted source changes." >&2; exit 1; }
 	cd gateway/kitty-chat && node node_modules/next/dist/bin/next build
 	git rev-parse HEAD > gateway/kitty-chat/.next/KITTY_SOURCE_SHA
 

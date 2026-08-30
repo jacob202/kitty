@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "paid_openrouter_enabled": true,
+  "paid_openrouter_enabled": false,
   "routes": {
     "cheap": {
       "provider": "openrouter",
@@ -16,5 +16,6 @@
       "governor_route": "frontier",
       "max_projected_cad_per_attempt": 0.50
     }
-  }
+  },
+  "disabled_reason": "Spend authority is unresolved: config/PREFERENCES.md records CAD 2 total while docs/ACTIVE_MISSION.md and compute_governor.json record CAD 6 per week."
 }
