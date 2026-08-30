@@ -2,8 +2,8 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
 
-const { useWorkSnapshot } = vi.hoisted(() => ({ useWorkSnapshot: vi.fn() }))
-vi.mock('../src/lib/work', () => ({ useWorkSnapshot }))
+const { useWorkSnapshot, usePreflight, useSupervisor } = vi.hoisted(() => ({ useWorkSnapshot: vi.fn(), usePreflight: vi.fn(), useSupervisor: vi.fn() }))
+vi.mock('../src/lib/work', () => ({ useWorkSnapshot, usePreflight, useSupervisor }))
 
 function snapshot(validUntil = '2099-01-01T00:00:00Z', totalItems = 1) {
   return {
@@ -37,7 +37,13 @@ function renderSnapshot(data = snapshot()) {
 }
 
 describe('WorkView projection', () => {
-  beforeEach(() => useWorkSnapshot.mockReset())
+  beforeEach(() => {
+    useWorkSnapshot.mockReset()
+    useSupervisor.mockReset()
+    useSupervisor.mockReturnValue({ data: undefined, isError: false })
+    usePreflight.mockReset()
+    usePreflight.mockReturnValue({ data: null, isPending: false, isError: false })
+  })
   afterEach(cleanup)
 
   it('renders Gateway work truth', () => {
@@ -259,7 +265,13 @@ describe('WorkView projection', () => {
 
 
 describe('WorkView visual hierarchy', () => {
-  beforeEach(() => useWorkSnapshot.mockReset())
+  beforeEach(() => {
+    useWorkSnapshot.mockReset()
+    useSupervisor.mockReset()
+    useSupervisor.mockReturnValue({ data: undefined, isError: false })
+    usePreflight.mockReset()
+    usePreflight.mockReturnValue({ data: null, isPending: false, isError: false })
+  })
   afterEach(cleanup)
 
   it('bounds each status group to the five most relevant rows until expanded', () => {
