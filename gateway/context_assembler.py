@@ -213,7 +213,10 @@ def _domain_prompt(message: str, domain: str | None) -> str:
         prompt = user_context.build_interview_prompt(prompt)
 
     if domain == "code":
-        prompt = _join_blocks(prompt, prompts.get_prompt("builder.proposal"))
+        # The Builder handoff is the task-specific instruction for build/fix turns.
+        # Keep it first so the bounded domain block cannot clip that contract off
+        # the tail of the much longer generic Kitty prompt.
+        prompt = _join_blocks(prompts.get_prompt("builder.proposal"), prompt)
 
     return prompt
 
