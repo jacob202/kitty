@@ -1,0 +1,119 @@
+diff --git a/tests/test_context_assembler.py b/tests/test_context_assembler.py
+index 238c5e20..e23b7401 100644
+--- a/tests/test_context_assembler.py
++++ b/tests/test_context_assembler.py
+@@ -554,3 +554,19 @@ async def test_whole_model_visible_context_is_bounded_with_clipping_receipt(monk
+     assert bundle.context_budget["truncations"]
+     # Source warnings retain their original meaning; budget clipping has its own receipt.
+     assert bundle.warnings == []
++
++@pytest.mark.asyncio
++async def test_context_budget_is_utf8_conservative_and_surfaces_clipping(monkeypatch):
++    import gateway.context_assembler as assembler
++
++    huge = "🧠" * 20_000
++    monkeypatch.setattr(assembler, "_domain_prompt", lambda *_args, **_kwargs: huge)
++    monkeypatch.setattr(assembler, "personality_block", lambda: huge)
++    monkeypatch.setattr(assembler.user_context, "load_user_context", lambda: huge)
++    deps = _AssemblerDeps(adapters=[FakeAdapter("memory", items=[])], enrichments=(), skill_hint_fn=lambda _m: huge)
++
++    bundle = await assemble_context("hello", deps=deps, tier="standard", objective=huge)
++
++    cap = assembler.TOTAL_CONTEXT_TOKEN_CAPS["standard"]
++    assert len(bundle.system.encode("utf-8")) <= cap
++    assert any(warning.startswith("context_budget:") for warning in bundle.warnings)
+diff --git a/tests/test_insight_loop.py b/tests/test_insight_loop.py
+index ecc71298..aa33079b 100644
+--- a/tests/test_insight_loop.py
++++ b/tests/test_insight_loop.py
+@@ -419,3 +419,14 @@ def test_elapsed_snooze_can_transition_back_to_returned(monkeypatch) -> None:
+     assert item is not None
+     assert item["payload"]["status"] == "returned"
+     assert item["payload"]["returned_count"] == 2
++
++def test_snooze_offset_is_compared_as_an_instant(monkeypatch) -> None:
++    item_id = insight_loop.capture(text="offset snooze", category="task", explicit_consent=True)
++    insight_loop.mark_returned(item_id)
++    insight_loop.respond(item_id, "snooze", snooze_until="2026-01-02T08:00:00-08:00")
++
++    assert not any(item["id"] == item_id for item in insight_loop.list_due("2026-01-02T12:00:00+00:00"))
++    assert any(item["id"] == item_id for item in insight_loop.list_due("2026-01-02T16:00:00+00:00"))
++
++    monkeypatch.setattr(insight_loop, "_now_iso", lambda: "2026-01-02T12:00:00+00:00")
++    assert insight_loop.mark_returned(item_id) is False
+diff --git a/tests/test_knowledge.py b/tests/test_knowledge.py
+index a11c3c36..8f71807d 100644
+--- a/tests/test_knowledge.py
++++ b/tests/test_knowledge.py
+@@ -459,3 +459,42 @@ async def test_ingest_add_failure_never_deletes_old_source(tmp_path, monkeypatch
+         await knowledge.ingest(path, source_label="manual.txt", force_refresh=True)
+ 
+     assert deleted == []
++
++@pytest.mark.asyncio
++async def test_ingest_same_second_refresh_uses_disjoint_replacement_ids(tmp_path, monkeypatch):
++    from contracts.knowledge_pipeline import LibrarianReport
++    from gateway import knowledge
++
++    path = tmp_path / "manual.txt"
++    path.write_text("replacement", encoding="utf-8")
++    old_ids = ["manual.txt__chunk_0_1234"]
++    added_ids = []
++
++    class Store:
++        def get(self, *, where):
++            if "content_hash" in where:
++                return {"ids": []}
++            return {"ids": old_ids}
++
++        def add(self, *, documents, embeddings, ids, metadatas):
++            added_ids.extend(ids)
++
++        def delete(self, *, ids):
++            pass
++
++    monkeypatch.setattr(knowledge.archivist, "_get_collection", lambda: Store())
++    monkeypatch.setattr(knowledge.clerk, "_extract_text", lambda _p: "replacement")
++    monkeypatch.setattr(knowledge.archivist, "_get_content_hash", lambda _text: "new-hash")
++    monkeypatch.setattr(knowledge.librarian, "detect_doc_type", lambda *_args: "general")
++    monkeypatch.setattr(knowledge.librarian, "generate_source_summary", lambda *_args: LibrarianReport(summary="summary", authority_score=0.8, relevance_period="persistent", primary_topic="test", needs_vision=False))
++    async def pipeline(*_args):
++        return ["replacement chunk"], [{"chunk_index": 0, "is_visual": False}]
++    monkeypatch.setattr(knowledge, "_run_pipeline", pipeline)
++    monkeypatch.setattr(knowledge.archivist, "_embed", lambda _chunks: [[0.1, 0.2]])
++    monkeypatch.setattr(knowledge.time, "time", lambda: 1234)
++
++    result = await knowledge.ingest(path, source_label="manual.txt", force_refresh=True)
++
++    assert result.status == "success"
++    assert added_ids
++    assert set(added_ids).isdisjoint(old_ids)
+diff --git a/tests/test_start_ui_script.py b/tests/test_start_ui_script.py
+index c2818164..dc534888 100644
+--- a/tests/test_start_ui_script.py
++++ b/tests/test_start_ui_script.py
+@@ -235,3 +235,24 @@ def test_standalone_refuses_symlinked_asset_destination(tmp_path):
+     assert "refusing symlinked standalone destination" in result.stderr
+     assert sentinel.read_text(encoding="utf-8") == "keep"
+     assert not any("node .next/standalone/server.js" in call for call in calls)
++
++def test_standalone_refuses_symlinked_next_ancestor(tmp_path):
++    root = _fake_repo(tmp_path, build_id=False)
++    ui = root / "gateway" / "kitty-chat"
++    outside = tmp_path / "outside-next"
++    (outside / "standalone" / ".next" / "static").mkdir(parents=True)
++    (outside / "static").mkdir()
++    (outside / "BUILD_ID").write_text("external-build\n", encoding="utf-8")
++    (outside / "standalone" / "server.js").write_text("// external\n", encoding="utf-8")
++    sentinel = outside / "standalone" / ".next" / "static" / "sentinel.txt"
++    sentinel.write_text("keep", encoding="utf-8")
++    (outside / "static" / "app.css").write_text("body{}", encoding="utf-8")
++    (ui / ".next").symlink_to(outside, target_is_directory=True)
++    _set_build_newer_than_source(root)
++
++    result, calls = _run(root, tmp_path)
++
++    assert result.returncode != 0
++    assert "refusing symlinked standalone destination" in result.stderr
++    assert sentinel.read_text(encoding="utf-8") == "keep"
++    assert not any("node .next/standalone/server.js" in call for call in calls)
