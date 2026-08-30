@@ -41,3 +41,41 @@ def test_final_budget_never_truncates_required_runtime_truth() -> None:
         )
     assert getattr(excinfo.value, "status_code", None) == 413
     assert "runtime" in str(getattr(excinfo.value, "detail", "")).lower()
+
+
+def test_compact_runtime_truth_drops_redundant_provenance_and_operational_noise() -> None:
+    from gateway.runtime_manifest import compact_runtime_context
+
+    def fact(value, *, reason=None):
+        row = {
+            "state": "available",
+            "value": value,
+            "source": "PROVENANCE-NOISE",
+            "observed_at": "2026-08-29T00:00:00Z",
+            "valid_until": "2026-08-29T00:00:15Z",
+        }
+        if reason is not None:
+            row["reason"] = reason
+        return row
+
+    manifest = {
+        "revision": "abc123",
+        "generated_at": "2026-08-29T00:00:00Z",
+        "valid_until": "2026-08-29T00:00:15Z",
+        "application": {"name": "Kitty", "version": fact("1"), "build_commit": "deadbeef", "environment": "test"},
+        "clock": fact({"current_time": "now", "timezone": "UTC"}),
+        "context": {"active_project": fact({"id": 7, "name": "Keep Me"}), "repository": fact({"branch": "main"})},
+        "execution": {"builder": fact({"initiatives": [{"id": 1}], "queue": {"pending": 2}})},
+        "inference": {"routing_mode": "gateway", "available_models": fact(["model-a"]), "execution_location": "local"},
+        "tools": fact([{"id": "TOOL-NOISE"}]),
+        "connections": {"gateway": fact("CONNECTION-NOISE")},
+        "approvals": fact({"policy": "APPROVAL-NOISE"}),
+    }
+
+    rendered = compact_runtime_context(manifest)
+    assert "Keep Me" in rendered
+    assert "model-a" in rendered
+    assert "PROVENANCE-NOISE" not in rendered
+    assert "TOOL-NOISE" not in rendered
+    assert "CONNECTION-NOISE" not in rendered
+    assert "APPROVAL-NOISE" not in rendered

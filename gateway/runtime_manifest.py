@@ -416,8 +416,29 @@ def _summarize_builder_fact(fact: dict[str, Any]) -> dict[str, Any]:
     return {**fact, "value": summary}
 
 
+def _compact_runtime_fact(value: Any) -> Any:
+    """Keep fact truth while removing provenance duplicated by the manifest envelope."""
+    if not isinstance(value, dict):
+        return value
+    if "state" in value and ("value" in value or "reason" in value):
+        compact: dict[str, Any] = {"state": value.get("state")}
+        if "value" in value:
+            compact["value"] = value.get("value")
+        if value.get("reason"):
+            compact["reason"] = value["reason"]
+        return compact
+    return {key: _compact_runtime_fact(child) for key, child in value.items()}
+
+
 def compact_runtime_context(manifest: dict[str, Any]) -> str:
-    """Render only verified runtime facts needed by a model turn."""
+    """Render the bounded runtime truth a model turn actually needs.
+
+    The top-level manifest revision/freshness owns provenance for the whole
+    snapshot, so repeating source/observed/expiry on every nested fact only
+    consumes prompt budget. Tool registry, connection diagnostics, and approval
+    policy remain enforced/exposed by their owning runtime surfaces rather than
+    being repeated in every chat prompt.
+    """
     execution = manifest["execution"]
     builder = execution.get("builder")
     if isinstance(builder, dict):
@@ -427,21 +448,18 @@ def compact_runtime_context(manifest: dict[str, Any]) -> str:
         "manifest_revision": manifest["revision"],
         "generated_at": manifest["generated_at"],
         "valid_until": manifest["valid_until"],
-        "application": manifest["application"],
-        "clock": manifest["clock"],
-        "context": manifest["context"],
-        "execution": execution,
-        "inference": {
+        "application": _compact_runtime_fact(manifest["application"]),
+        "clock": _compact_runtime_fact(manifest["clock"]),
+        "context": _compact_runtime_fact(manifest["context"]),
+        "execution": _compact_runtime_fact(execution),
+        "inference": _compact_runtime_fact({
             "routing_mode": manifest["inference"]["routing_mode"],
             "available_models": manifest["inference"]["available_models"],
             "execution_location": manifest["inference"]["execution_location"],
-        },
-        "tools": manifest["tools"],
-        "connections": manifest["connections"],
-        "approvals": manifest["approvals"],
+        }),
     }
     return (
         "<kitty_runtime_truth>\n"
-        + json.dumps(context, sort_keys=True, ensure_ascii=True)
+        + json.dumps(context, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         + "\n</kitty_runtime_truth>"
     )
