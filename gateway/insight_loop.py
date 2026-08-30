@@ -262,6 +262,10 @@ def _do_snooze(
 ) -> dict[str, Any]:
     if not snooze_until:
         raise ValueError("snooze requires a snooze_until ISO datetime")
+    try:
+        _parse_instant(snooze_until)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("snooze_until must be a valid ISO datetime") from exc
 
     idea_mine_store.update_payload(
         item_id,

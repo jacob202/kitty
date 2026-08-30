@@ -430,14 +430,57 @@ def _compact_runtime_fact(value: Any) -> Any:
     return {key: _compact_runtime_fact(child) for key, child in value.items()}
 
 
+def _compact_operational_fact(fact: dict[str, Any]) -> dict[str, Any]:
+    """Project an operational fact to state/reason without verbose payload detail."""
+    compact: dict[str, Any] = {"state": fact.get("state")}
+    if fact.get("reason"):
+        compact["reason"] = fact["reason"]
+    return compact
+
+
+def _compact_tools_fact(fact: dict[str, Any]) -> dict[str, Any]:
+    compact = _compact_operational_fact(fact)
+    value = fact.get("value")
+    if isinstance(value, list):
+        compact["value"] = [
+            {key: row[key] for key in ("id", "approval_class") if key in row}
+            for row in value
+            if isinstance(row, dict)
+        ]
+    return compact
+
+
+def _compact_connections(connections: dict[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for name, fact in connections.items():
+        if not isinstance(fact, dict):
+            continue
+        compact = _compact_operational_fact(fact)
+        value = fact.get("value")
+        if isinstance(value, dict) and isinstance(value.get("model_count"), int):
+            compact["model_count"] = value["model_count"]
+        result[name] = compact
+    return result
+
+
+def _compact_approvals_fact(fact: dict[str, Any]) -> dict[str, Any]:
+    compact = _compact_operational_fact(fact)
+    value = fact.get("value")
+    if isinstance(value, dict):
+        for key in ("auto_execute_tiers", "approval_required_tiers"):
+            if key in value:
+                compact[key] = value[key]
+    return compact
+
+
 def compact_runtime_context(manifest: dict[str, Any]) -> str:
     """Render the bounded runtime truth a model turn actually needs.
 
     The top-level manifest revision/freshness owns provenance for the whole
     snapshot, so repeating source/observed/expiry on every nested fact only
     consumes prompt budget. Tool registry, connection diagnostics, and approval
-    policy remain enforced/exposed by their owning runtime surfaces rather than
-    being repeated in every chat prompt.
+    provenance is omitted, while context, inference, connections, tools, and
+    approvals remain visible per the capability-manifest projection contract.
     """
     execution = manifest["execution"]
     builder = execution.get("builder")
@@ -457,6 +500,9 @@ def compact_runtime_context(manifest: dict[str, Any]) -> str:
             "available_models": manifest["inference"]["available_models"],
             "execution_location": manifest["inference"]["execution_location"],
         }),
+        "tools": _compact_tools_fact(manifest["tools"]),
+        "connections": _compact_connections(manifest["connections"]),
+        "approvals": _compact_approvals_fact(manifest["approvals"]),
     }
     return (
         "<kitty_runtime_truth>\n"

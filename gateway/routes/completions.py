@@ -74,6 +74,25 @@ def _prefix_for_system_budget(parts: dict[str, str], name: str, text: str, budge
     return text[:low]
 
 
+def _atomic_history_groups(messages: list[dict]) -> list[list[dict]]:
+    """Group assistant tool calls with their contiguous tool results."""
+    groups: list[list[dict]] = []
+    index = 0
+    while index < len(messages):
+        message = messages[index]
+        if message.get("role") == "assistant" and message.get("tool_calls"):
+            group = [message]
+            index += 1
+            while index < len(messages) and messages[index].get("role") == "tool":
+                group.append(messages[index])
+                index += 1
+            groups.append(group)
+            continue
+        groups.append([message])
+        index += 1
+    return groups
+
+
 def _fit_final_model_messages(
     *,
     bundle_system: str,
@@ -82,7 +101,7 @@ def _fit_final_model_messages(
     messages: list[dict],
     token_cap: int,
 ) -> tuple[list[dict], list[str]]:
-    """Bound the final model-visible payload while preserving the current user exactly."""
+    """Bound the payload while preserving the current turn and tool exchanges."""
     non_system = [dict(message) for message in messages if message.get("role") != "system"]
     current_index = next(
         (index for index in range(len(non_system) - 1, -1, -1) if non_system[index].get("role") == "user"),
@@ -90,10 +109,10 @@ def _fit_final_model_messages(
     )
     if current_index is None:
         raise HTTPException(status_code=400, detail="chat request requires a user message")
-    current_user = non_system[current_index]
-    current_units = _message_budget_units(current_user)
+    current_turn = non_system[current_index:]
+    current_units = sum(_message_budget_units(message) for message in current_turn)
     if current_units > token_cap:
-        raise HTTPException(status_code=413, detail="Current message exceeds the model context budget")
+        raise HTTPException(status_code=413, detail="Current turn exceeds the model context budget")
 
     warnings: list[str] = []
     system_budget = token_cap - current_units
@@ -128,19 +147,20 @@ def _fit_final_model_messages(
         used += _message_budget_units(system_message)
         final.append(system_message)
 
-    history: list[dict] = []
+    history_groups: list[list[dict]] = []
     dropped = 0
-    for message in reversed(non_system[:current_index]):
-        units = _message_budget_units(message)
+    for group in reversed(_atomic_history_groups(non_system[:current_index])):
+        units = sum(_message_budget_units(message) for message in group)
         if used + units <= token_cap:
-            history.append(message)
+            history_groups.append(group)
             used += units
         else:
-            dropped += 1
+            dropped += len(group)
     if dropped:
         warnings.append(f"context_budget:history: dropped {dropped} older message(s)")
-    final.extend(reversed(history))
-    final.append(current_user)
+    for group in reversed(history_groups):
+        final.extend(group)
+    final.extend(current_turn)
 
     total = sum(_message_budget_units(message) for message in final)
     if total > token_cap:

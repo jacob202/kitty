@@ -216,6 +216,16 @@ class TestRespondSnooze:
         with pytest.raises(ValueError, match="snooze_until"):
             insight_loop.respond(item_id, "snooze")
 
+    def test_snooze_rejects_malformed_instant_without_persisting_it(self) -> None:
+        item_id = insight_loop.capture(text="bad instant", category="task", explicit_consent=True)
+        insight_loop.mark_returned(item_id)
+        with pytest.raises(ValueError, match="valid ISO datetime"):
+            insight_loop.respond(item_id, "snooze", snooze_until="not-a-date")
+        item = insight_loop.get_insight(item_id)
+        assert item is not None
+        assert item["payload"]["status"] == "returned"
+        assert item["payload"].get("return_at") is None
+
 
 # ── respond: archive ─────────────────────────────────────────────────────────
 
