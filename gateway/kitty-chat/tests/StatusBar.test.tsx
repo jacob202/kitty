@@ -158,6 +158,31 @@ describe('StatusBar', () => {
     expect(container.firstChild).toBeNull()
   })
 
+  // Codex P1 on #675: hiding the banner while the write failed claimed a
+  // persistence that did not happen — it silently returned on the next reload.
+  it('says so when the dismissal could not be saved', () => {
+    const originalSetItem = localStorage.setItem
+    localStorage.setItem = vi.fn(() => {
+      throw new Error('storage blocked')
+    })
+    try {
+      render(<StatusBar {...baseProps} pwaState="available" />)
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+      const status = screen.getByRole('status')
+      expect(status).toHaveTextContent(/blocking storage/i)
+      expect(status).toHaveTextContent(/comes back next time/i)
+      expect(screen.queryByText(/dock launch/i)).not.toBeInTheDocument()
+    } finally {
+      localStorage.setItem = originalSetItem
+    }
+  })
+
+  it('stays silent when the dismissal saved cleanly', () => {
+    const { container } = render(<StatusBar {...baseProps} pwaState="available" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(container.firstChild).toBeNull()
+  })
+
   it('still renders and dismisses banner when localStorage throws on read', () => {
     const originalGetItem = localStorage.getItem
     localStorage.getItem = vi.fn(() => {

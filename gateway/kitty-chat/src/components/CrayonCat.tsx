@@ -245,7 +245,10 @@ export function CatFaceBadge({ state = 'idle' }: { state?: CatState }) {
 // beside a connection badge, so the accessible name has to say which it is.
 const STATE_DESCRIPTIONS: Record<CatState, string> = {
   idle: 'Kitty is idle',
-  working: 'Kitty is working on a reply',
+  // Not "working on a reply": useKittyState also returns 'working' while a
+  // Builder run is active with an idle chat, so a reply-specific word would
+  // invent a chat operation that is not happening.
+  working: 'Kitty is working',
   done: 'Kitty finished its reply',
   broke: "Kitty's last reply failed",
 }
@@ -253,7 +256,7 @@ const STATE_DESCRIPTIONS: Record<CatState, string> = {
 export function StateBadge({ state = 'idle' }: { state?: CatState }) {
   const eye = EYE_COLORS[state]
   return (
-    <span aria-label={STATE_DESCRIPTIONS[state]} style={{
+    <span role="status" aria-label={STATE_DESCRIPTIONS[state]} style={{
       display: 'inline-flex',
       alignItems: 'center',
       gap: 6,

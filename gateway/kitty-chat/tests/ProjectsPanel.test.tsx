@@ -197,7 +197,7 @@ describe('ProjectsPanel recent files (Project Resume: Artifacts, slice 1)', () =
     expect(screen.getByText('ship the slice')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /project context/i }))
     expect(screen.getByText(/project context unavailable/)).toBeInTheDocument()
-    expect(screen.getByText(/Something went wrong reaching Kitty/i)).toBeInTheDocument()
+    expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument()
     expect(screen.queryByText(/gateway exploded/i)).not.toBeInTheDocument()
     expect(screen.queryByText('recent files')).not.toBeInTheDocument()
   })

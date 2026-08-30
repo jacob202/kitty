@@ -63,7 +63,13 @@ export function TopBar({
   projectLoading = false,
   projectBusy = false,
 }: Props) {
-  const displayCatState: CatState = runtimeState === 'available' ? catState : 'broke'
+  // This badge reports the chat turn only. c648eb5 forced it to 'broke' whenever
+  // the runtime was not 'available', to stop it claiming "ready" while the
+  // backend was unknown — but that also fires for 'unknown' (still loading) and
+  // for degraded/stale, so the badge announced "reply failed" when no reply had
+  // failed, or when nothing had been sent at all. The relabel of idle to "idle"
+  // already removes the overclaim that gating existed to prevent, and the
+  // RuntimeBadge beside this one owns connection health.
 
   if (isMobile) {
     // Two rows on the phone. Squeezing a cat state, runtime, the active project
@@ -92,7 +98,7 @@ export function TopBar({
             flexShrink: 0,
           }}>kitty</span>
           <span style={{ flex: 1 }} />
-          <StateBadge state={displayCatState} />
+          <StateBadge state={catState} />
           <RuntimeBadge state={runtimeState} detail={runtimeDetail} compact />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, maxWidth: '100%' }} data-testid="topbar-workspace-row">
@@ -134,7 +140,7 @@ export function TopBar({
           fontFamily: 'var(--font-body)', fontWeight: 650,
           fontSize: 18, letterSpacing: '-0.02em', color: 'var(--color-text-primary)',
         }}>{surfaceLabel}</span>
-        <StateBadge state={displayCatState} />
+        <StateBadge state={catState} />
         <RuntimeBadge state={runtimeState} detail={runtimeDetail} />
         {isStreaming && (
           <span style={{

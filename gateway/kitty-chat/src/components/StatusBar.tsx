@@ -61,6 +61,7 @@ export function StatusBar({
   pwaInstalling = false,
   onPwaInstall,
 }: Props) {
+  const [pwaDismissFailed, setPwaDismissFailed] = useState(false)
   const [pwaDismissed, setPwaDismissed] = useState(() => {
     if (typeof window === 'undefined') return false
     try {
@@ -130,7 +131,14 @@ export function StatusBar({
   }
 
   if (pwaState === 'available' || pwaState === 'manual-ios') {
-    if (pwaDismissed) return null
+    if (pwaDismissed) {
+      if (!pwaDismissFailed) return null
+      return (
+        <div role="status" style={rowStyle}>
+          Hidden for now. Your browser is blocking storage, so this comes back next time you open Kitty.
+        </div>
+      )
+    }
     return (
       <div role="status" style={{ ...rowStyle, justifyContent: 'space-between' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
@@ -155,7 +163,11 @@ export function StatusBar({
               try {
                 localStorage.setItem('kitty-pwa-install-dismissed', 'true')
               } catch {
-                // storage failed, fall back to in-memory-only
+                // Storage is blocked, so this dismissal cannot outlive the tab.
+                // Hiding the banner anyway and saying nothing would claim a
+                // persistence that did not happen — the banner would just
+                // reappear on reload with no explanation.
+                setPwaDismissFailed(true)
               }
               setPwaDismissed(true)
             }}

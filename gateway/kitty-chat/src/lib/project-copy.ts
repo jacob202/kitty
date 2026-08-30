@@ -1,7 +1,11 @@
 import type { GatewayNextStep, GatewayProject } from '@/lib/gateway'
 
 const CODE_INTERNAL_COPY = /(?:\bgit\s+(?:status|diff)\b|\bbranch\b|\bdirty\b|memory mention|\brepo\b)/i
-const PROJECT_SETUP_INTERNAL_COPY = /(?:register(?:ing)?\b.*\bpaths?\b|\bproject paths?\b|\btracker\b|\brepo\b)/i
+// `tracker` was unqualified, so ordinary life-project content — "set up a
+// habit tracker", "review sleep tracker results" — was rewritten into the
+// false claim that no project details are connected. Only the internal
+// project/issue tracker counts here.
+const PROJECT_SETUP_INTERNAL_COPY = /(?:register(?:ing)?\b.*\bpaths?\b|\bproject paths?\b|\b(?:project|issue|builder)\s+tracker\b|\brepo\b)/i
 
 export function projectSummaryCopy(project: GatewayProject): string {
   const summary = project.summary?.trim() ?? ''

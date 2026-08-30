@@ -58,7 +58,7 @@ describe('Kitty state badge shell treatment', () => {
   it('gives every state an accessible description', () => {
     for (const [state, name] of [
       ['idle', 'Kitty is idle'],
-      ['working', 'Kitty is working on a reply'],
+      ['working', 'Kitty is working'],
       ['done', 'Kitty finished its reply'],
     ] as const) {
       const { getByLabelText, unmount } = render(<StateBadge state={state} />);

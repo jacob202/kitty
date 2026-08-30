@@ -15,13 +15,13 @@ describe('describeFailure', () => {
 
   it('maps a 401 Gateway error to a secret-check message', () => {
     const result = describeFailure(new Error('Gateway returned 401 Unauthorized'))
-    expect(result).toBe('Kitty refused the request — check the gateway secret in Settings.')
+    expect(result).toBe("Kitty wouldn't allow that request. If it keeps happening, restart Kitty.")
     expect(result).not.toContain('401')
   })
 
   it('maps a 403 Gateway error to a secret-check message', () => {
     const result = describeFailure(new Error('Gateway returned 403 Forbidden'))
-    expect(result).toBe('Kitty refused the request — check the gateway secret in Settings.')
+    expect(result).toBe("Kitty wouldn't allow that request. If it keeps happening, restart Kitty.")
     expect(result).not.toContain('403')
   })
 
@@ -70,27 +70,52 @@ describe('describeFailure', () => {
 
   it('falls back to a generic message for an unrecognized Error', () => {
     const result = describeFailure(new Error('some unexpected internal detail'))
-    expect(result).toBe('Something went wrong reaching Kitty.')
+    expect(result).toBe('Something went wrong.')
   })
 
   it('falls back to a generic message for a non-Error value', () => {
     const result = describeFailure('a raw string thrown directly')
-    expect(result).toBe('Something went wrong reaching Kitty.')
+    expect(result).toBe('Something went wrong.')
   })
 
   it('falls back to a generic message for undefined', () => {
     const result = describeFailure(undefined)
-    expect(result).toBe('Something went wrong reaching Kitty.')
+    expect(result).toBe('Something went wrong.')
   })
 
   it('falls back to a generic message for an empty Error message', () => {
     const result = describeFailure(new Error(''))
-    expect(result).toBe('Something went wrong reaching Kitty.')
+    expect(result).toBe('Something went wrong.')
   })
 
   it('never returns the raw error message verbatim', () => {
     const raw = 'some unexpected internal detail'
     const result = describeFailure(new Error(raw))
     expect(result).not.toBe(raw)
+  })
+  // Codex P2 on #675: 401/403 pointed at a "gateway secret in Settings" control
+  // that does not exist in src/components — the secret comes from environment
+  // config, so the advice named a recovery the user could not perform.
+  it('does not send the user to a control that does not exist', () => {
+    for (const status of ['401 Unauthorized', '403 Forbidden']) {
+      const result = describeFailure(new Error(`Gateway returned ${status}`))
+      expect(result).not.toMatch(/settings/i)
+      expect(result).not.toMatch(/secret/i)
+      expect(result).not.toMatch(/gateway/i)
+    }
+  })
+
+  // Codex P2 on #675: the fallback blamed the connection for errors where Kitty
+  // had answered and the payload was unusable.
+  it('does not blame the connection when Kitty answered with an unusable payload', () => {
+    const result = describeFailure(new Error('Saved files returned an invalid response'))
+    expect(result).toMatch(/couldn't read/i)
+    expect(result).not.toMatch(/reach/i)
+  })
+
+  it('keeps the generic fallback free of a connectivity claim', () => {
+    const result = describeFailure(new Error('some unexpected internal detail'))
+    expect(result).toBe('Something went wrong.')
+    expect(result).not.toMatch(/reach/i)
   })
 })

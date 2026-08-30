@@ -27,7 +27,7 @@ export function describeFailure(error: unknown): string {
   if (gatewayStatus) {
     const status = Number(gatewayStatus[1])
     if (status === 404) return "Kitty is running but this part isn't answering yet."
-    if (status === 401 || status === 403) return 'Kitty refused the request — check the gateway secret in Settings.'
+    if (status === 401 || status === 403) return "Kitty wouldn't allow that request. If it keeps happening, restart Kitty."
     if (status >= 500 && status <= 599) return "Kitty's service hit an error. Try again in a moment."
     if (status >= 400 && status <= 499) return "Kitty couldn't complete that request."
   }
@@ -40,5 +40,11 @@ export function describeFailure(error: unknown): string {
     return "Can't reach Kitty — check that it's running."
   }
 
-  return 'Something went wrong reaching Kitty.'
+  // Kitty answered, but with something this screen could not use. Saying
+  // "reaching Kitty" here would blame the connection for a reply that arrived.
+  if (/invalid payload|invalid response|unexpected response|malformed/i.test(message)) {
+    return "Kitty replied with something this screen couldn't read. Try again."
+  }
+
+  return 'Something went wrong.'
 }
