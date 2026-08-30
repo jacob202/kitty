@@ -530,8 +530,6 @@ async def chat_completions(request: Request):
     }
 
     if attachment_ids:
-        from gateway import artifact_store
-
         try:
             resolved_parts = _resolve_attachment_image_parts(attachment_ids)
         except HTTPException:

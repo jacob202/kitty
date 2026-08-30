@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import LibraryView from '../src/components/LibraryView'
 
-const setAttachments = vi.fn()
+const setAttachments = vi.fn((updater: unknown) => {
+  if (typeof updater === 'function') {
+    return updater([])
+  }
+  return updater
+})
 const setActiveView = vi.fn()
 
 vi.mock('../src/state/KittyContext', () => ({
