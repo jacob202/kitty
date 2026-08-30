@@ -45,7 +45,7 @@ describe('StatusBar', () => {
       />,
     )
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('models temporarily unavailable')
+    expect(status).toHaveTextContent('Models temporarily unavailable — Retry to reconnect to Kitty.')
     expect(status).not.toHaveTextContent(/gateway/i)
     fireEvent.click(screen.getByRole('button', { name: 'retry' }))
     expect(onRetryModels).toHaveBeenCalledTimes(1)

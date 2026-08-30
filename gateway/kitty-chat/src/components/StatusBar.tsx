@@ -29,7 +29,7 @@ function modelStatusMessage(modelError?: string | null): string {
   if (modelError?.startsWith('Model details timed out')) return modelError
   if (modelError?.startsWith('Model details unavailable')) return modelError
   if (modelError?.startsWith('No live curated models')) return modelError
-  return 'models temporarily unavailable'
+  return 'Models temporarily unavailable — Retry to reconnect to Kitty.'
 }
 
 /**
