@@ -453,13 +453,14 @@ describe('HomeState', () => {
     expect(screen.getByText('health')).toBeInTheDocument();
     // each healthy domain appears in the rows grid and again in the
     // "still functional" section — duplicate presence is intended
-    expect(screen.getAllByText('core service').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('database').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('automation').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Kitty connection').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('saved data').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('background tasks').length).toBeGreaterThan(0);
     expect(screen.getAllByText('image lab').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('image providers').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('image queue').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('image creation').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('image jobs').length).toBeGreaterThan(0);
     expect(screen.getAllByText('pending approvals').length).toBeGreaterThan(0);
+    expect(document.body.textContent ?? '').not.toMatch(/\bcron\b|\btelegram\b|\bollama\b|image providers|image queue/i);
     expect(screen.getByText('still functional')).toBeInTheDocument();
     expect(screen.queryByText('degraded')).not.toBeInTheDocument();
   });
@@ -490,9 +491,10 @@ describe('HomeState', () => {
     expect(screen.getByText('still functional')).toBeInTheDocument();
     // reason is hidden until the row is expanded
     expect(screen.queryByText('OLLAMA_BASE is not reachable')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /ollama/ }));
+    fireEvent.click(screen.getByRole('button', { name: /local AI/i }));
     expect(await screen.findByText('collapse')).toBeInTheDocument();
-    expect(screen.getByText('OLLAMA_BASE is not reachable')).toBeInTheDocument();
+    expect(screen.queryByText('OLLAMA_BASE is not reachable')).not.toBeInTheDocument();
+    expect(screen.getByText(/This part of Kitty is unavailable right now/i)).toBeInTheDocument();
   });
 
   it('surfaces the pending approvals count when grants await', () => {
@@ -660,6 +662,35 @@ describe('HomeState', () => {
     expect(screen.getByText('benefits-admin')).toBeInTheDocument();
     // parked project stays out of the active list
     expect(screen.queryByText('kitty')).not.toBeInTheDocument();
+  });
+
+  it('keeps project setup internals out of Home next-step copy', () => {
+    const rawStep = {
+      ...STEP,
+      project_id: 1,
+      step: 'Register the benefits-admin project paths in your tracker, then refresh the project state once.',
+      why: 'There is no usable project data yet, so make the tracker able to see the repo.',
+      recent_win: '',
+    };
+    (useProjects as Mock).mockReturnValue({ data: [PROJECT], isPending: false, isError: false });
+    (useWhatsNextSteps as Mock).mockReturnValue({ data: [rawStep], isPending: false, isError: false });
+    (useProjectNextSteps as Mock).mockReturnValue([{ data: rawStep, isPending: false, isError: false }]);
+    (useActions as Mock).mockReturnValue({ data: [], isPending: false, isError: false });
+    (useNeedsJacob as Mock).mockReturnValue({ data: { entries: [] }, isPending: false, isError: false });
+    (useTodos as Mock).mockReturnValue({ data: [], isPending: false, isError: false });
+
+    render(<HomeState />);
+
+    const copy = document.body.textContent ?? '';
+    expect(copy).not.toMatch(/project paths|tracker|\brepo\b/i);
+    expect(screen.getAllByText('Kitty needs more project context before it can suggest a next step.').length).toBeGreaterThan(0);
+  });
+
+  it('describes phone access without exposing its infrastructure dependency', () => {
+    render(<HomeState />);
+    expect(document.body.textContent ?? '').not.toMatch(/Tailscale/i);
+    expect(screen.getByText(/Phone access needs its secure connection app running on this Mac/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open phone access/i })).toBeInTheDocument();
   });
 
   it('shows a plain-language failure message and a working retry when active projects fails to load', () => {

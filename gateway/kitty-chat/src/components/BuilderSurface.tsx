@@ -298,12 +298,15 @@ function StaleNotice() {
 }
 
 function DataQualityNotice({ detail }: { detail: string }) {
+  const message = /partial packet records?|transition history/i.test(detail)
+    ? 'Some Builder work is incomplete. Open Builder for details.'
+    : 'Some Builder status details are incomplete. Open Builder for details.'
   return (
     <div role="status" style={{ ...card, borderColor: 'var(--warning, var(--line))', display: 'grid', gap: 4 }}>
       <strong style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)' }}>
-        Partial Builder data
+        Builder details are incomplete
       </strong>
-      <span style={{ ...bodyText, overflowWrap: 'anywhere' }}>{detail}</span>
+      <span style={{ ...bodyText, overflowWrap: 'anywhere' }}>{message}</span>
     </div>
   )
 }
@@ -1133,7 +1136,7 @@ function builderGlanceDetail(
   if (!fact?.value || fact.state === 'unavailable' || fact.state === 'unknown') {
     return fact?.reason || (error instanceof Error ? error.message : 'Builder state is not available from the runtime manifest.')
   }
-  if (fact.state === 'degraded' && fact.reason) return fact.reason
+  if (fact.state === 'degraded') return 'Some Builder work is incomplete. Open Builder for details.'
   if (fact.state === 'stale' || isExpired(fact.valid_until)) {
     return 'The last known Builder snapshot is visible, but it is past its freshness window.'
   }

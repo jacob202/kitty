@@ -7,6 +7,7 @@ import { BuilderGlance } from '@/components/BuilderSurface';
 import { InsightReturnCard } from '@/components/InsightReturnCard';
 import { useDashboardConfig } from '@/hooks/useDashboardConfig';
 import { describeFailure } from '@/lib/failure-copy';
+import { projectNextStepCopy } from '@/lib/project-copy';
 import {
   useStateChanges,
   useActions,
@@ -534,18 +535,25 @@ const HEALTH_TONES: Record<string, 'ok' | 'warn' | 'bad'> = {
 };
 
 const HEALTH_LABELS: Record<string, string> = {
-  gateway: 'core service',
-  database: 'database',
+  gateway: 'Kitty connection',
+  database: 'saved data',
   memory: 'memory',
-  automation_supervisor: 'automation',
-  cron: 'cron',
-  telegram: 'telegram',
+  automation_supervisor: 'background tasks',
+  cron: 'scheduled tasks',
+  telegram: 'messages',
   image_lab: 'image lab',
-  image_providers: 'image providers',
-  image_queue: 'image queue',
-  ollama: 'ollama',
+  image_providers: 'image creation',
+  image_queue: 'image jobs',
+  ollama: 'local AI',
   pending_grants: 'pending approvals',
 };
+
+function healthReasonCopy(status: string): string {
+  if (status === 'unavailable') return 'This part of Kitty is unavailable right now. Refresh health to check again.';
+  if (status === 'degraded') return 'This part of Kitty is having trouble right now. Refresh health to check again.';
+  if (status === 'stale') return 'This status is out of date. Refresh health to check again.';
+  return 'No additional issue details are available.';
+}
 
 // One operator-facing surface for "is Kitty working, and if not exactly what
 // is wrong". Rows for every domain, a degraded section that expands the reason
@@ -626,7 +634,7 @@ function HealthSurfaceCard() {
                 </button>
                 {open && (
                   <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 0 }}>
-                    {domain?.reason || 'no reason recorded'}
+                    {healthReasonCopy(domain?.status ?? 'unknown')}
                   </div>
                 )}
               </div>
@@ -797,6 +805,7 @@ function WhatsNext({
   const project: GatewayProject | undefined = step
     ? (projectsQuery.data ?? []).find((p) => p.id === step.project_id)
     : undefined;
+  const displayStep = step && project ? projectNextStepCopy(project, step) : step;
   const todo = (todosQuery.data ?? []).find(
     (t) => t.status === 'pending' || t.status === 'active',
   );
@@ -861,12 +870,12 @@ function WhatsNext({
             </button>
           </div>
         </div>
-      ) : step ? (
+      ) : displayStep ? (
         <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={heroTextStyle}>{step.step}</div>
+          <div style={heroTextStyle}>{displayStep.step}</div>
           <div style={heroMetaStyle}>
             {project ? `${project.name} · ` : ''}
-            {step.why ? `why: ${step.why}` : 'project next step'}
+            {displayStep.why ? `why: ${displayStep.why}` : 'project next step'}
           </div>
           <div>
             <button type="button" onClick={() => onNavigate('projects')} style={primaryButtonStyle} aria-label="open projects">
@@ -989,6 +998,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
         const idx = projects.indexOf(p);
         const stepQuery = stepQueries[idx];
         const step = stepQuery?.data;
+        const displayStep = step ? projectNextStepCopy(p, step) : null;
         return (
           <button
             key={p.id}
@@ -1024,9 +1034,9 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
               {stepQuery?.isPending
                 ? '…'
                 : stepQuery?.isError
-                  ? 'next step unreadable — gateway error'
-                  : step
-                    ? step.step
+                  ? 'next step unavailable — try again from Projects'
+                  : displayStep
+                    ? displayStep.step
                     : 'no next step yet — refresh it in projects'}
             </div>
           </button>
@@ -1166,9 +1176,9 @@ function PhoneAccessCard() {
     return (
       <SectionCard title="phone access">
         <div style={{ ...homeEmptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div>phone access isn't set up yet — it needs Tailscale running on this Mac.</div>
+          <div>Phone access needs its secure connection app running on this Mac.</div>
           <div style={{ ...bodyText, fontSize: 11 }}>
-            Open the Tailscale app to access Kitty from your phone.
+            Open the phone access app, then try Kitty from your phone again.
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button
@@ -1176,7 +1186,7 @@ function PhoneAccessCard() {
               onClick={() => window.open('tailscale://', '_blank')}
               style={actionButtonStyle}
             >
-              open Tailscale
+              open phone access
             </button>
             <button
               type="button"
