@@ -424,31 +424,43 @@ def _diff_sha256(path: Path, start_sha: str) -> str:
     return digest.hexdigest()
 
 
-def archive_and_reset_worktree(path: Path, evidence_dir: Path) -> dict[str, Any]:
-    """Preserve a crashed worker's uncommitted changes, then reset the worktree.
+def archive_and_reset_worktree(
+    path: Path,
+    evidence_dir: Path,
+    *,
+    reset_sha: str | None = None,
+) -> dict[str, Any]:
+    """Preserve failed-attempt changes, then return to a clean base.
 
-    Stages everything (so untracked files land in one patch), writes the patch
-    and porcelain status into *evidence_dir*, then hard-resets and cleans the
-    worktree so the next attempt starts from a clean tree instead of tripping
-    ``ensure_worktree``'s dirty refusal forever. A missing or clean worktree is
-    a no-op. Returns ``{"state", "patch_path"}``.
+    When ``reset_sha`` is provided, evidence is cumulative from that durable
+    packet base and committed worker changes are reset too. This prevents a
+    non-repairable retry from silently inheriting commits made by a crashed or
+    orphaned worker. Without ``reset_sha`` the historical HEAD-relative
+    behavior is preserved for callers that only need to clear dirty state.
     """
     if not path.exists():
         return {"state": "missing", "patch_path": None}
+
     status = _git_output(
         ["status", "--porcelain=v1", "--untracked-files=all"], cwd=path
     )
-    if not status.strip():
+    current_head = worktree_head(path)
+    reset_target = reset_sha or current_head
+    if not status.strip() and current_head == reset_target:
         return {"state": "clean", "patch_path": None}
+
     evidence_dir.mkdir(parents=True, exist_ok=True)
     _git_output(["add", "-A"], cwd=path)
-    patch = _git_output(["diff", "--cached", "HEAD"], cwd=path)
+    patch = _git_output(["diff", "--cached", reset_target], cwd=path)
     patch_path = evidence_dir / "crashed-worktree.patch"
     patch_path.write_text(patch, encoding="utf-8")
     (evidence_dir / "crashed-worktree-status.txt").write_text(
         status, encoding="utf-8"
     )
-    _git_output(["reset", "--hard", "HEAD"], cwd=path)
+    (evidence_dir / "crashed-worktree-head.txt").write_text(
+        f"{current_head}\n", encoding="utf-8"
+    )
+    _git_output(["reset", "--hard", reset_target], cwd=path)
     _git_output(["clean", "-fd"], cwd=path)
     return {"state": "archived_and_reset", "patch_path": str(patch_path)}
 

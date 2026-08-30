@@ -172,6 +172,41 @@ class TestEnsureWorktree:
                     reuse_dirty=True,
                 )
 
+    def test_archive_reset_returns_committed_changes_to_durable_base(
+        self, repo: Path, tmp_path: Path
+    ):
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        path = br.ensure_worktree(
+            "kb_reset_base", "kittybuilder/kb_reset_base", repo_root=repo
+        )
+        (path / "committed.txt").write_text("must not leak into retry\n")
+        subprocess.run(["git", "add", "committed.txt"], cwd=path, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "worker commit"], cwd=path, check=True)
+        assert br.worktree_head(path) != base_sha
+
+        evidence = tmp_path / "attempt-evidence"
+        result = br.archive_and_reset_worktree(
+            path, evidence, reset_sha=base_sha
+        )
+
+        assert result["state"] == "archived_and_reset"
+        assert br.worktree_head(path) == base_sha
+        assert not (path / "committed.txt").exists()
+        assert "committed.txt" in (evidence / "crashed-worktree.patch").read_text()
+        assert subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout == ""
+
     def test_remove_clean_worktree(self, repo: Path):
         path = br.ensure_worktree("kb_t5_aaaa", "kittybuilder/kb_t5_aaaa", repo_root=repo)
         removed = br.remove_worktree("kb_t5_aaaa", repo_root=repo)
