@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 const GATEWAY_BASE = '/proxy'
 const DEFAULT_TIMEOUT_MS = 8000
+const SUPERVISOR_TICK_TIMEOUT_MS = 25_000
 const MAX_ERROR_DETAIL = 240
 
 export type GatewayWorkState =
@@ -287,9 +288,9 @@ export function useSupervisor() {
 // the operator must see (task not found, initiative already running). Treating
 // a non-200 as the only failure would report those refusals as success, so the
 // body is the authority and transport failure is folded into the same shape.
-async function postCommandResult(endpoint: string, body: unknown): Promise<BuilderCommandResult> {
+async function postCommandResult(endpoint: string, body: unknown, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<BuilderCommandResult> {
   const controller = new AbortController()
-  const timeoutId = globalThis.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs)
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -325,7 +326,7 @@ export function runBuilderCommand(command: BuilderCommand): Promise<BuilderComma
 }
 
 export function runSupervisorTick(): Promise<BuilderCommandResult> {
-  return postCommandResult(`${GATEWAY_BASE}/builder/supervisor/tick`, {})
+  return postCommandResult(`${GATEWAY_BASE}/builder/supervisor/tick`, {}, SUPERVISOR_TICK_TIMEOUT_MS)
 }
 
 /** Runs a Builder action and refreshes both projections it can change. */

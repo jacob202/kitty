@@ -202,9 +202,20 @@ describe('Builder run banner', () => {
   })
 
   it('reports that Builder is working instead of offering to start it', () => {
-    renderWork([item({ next_action: 'claim' })], supervisor({ running: true, active_runs: [{ id: 'run_1' }] }))
+    renderWork([item({ next_action: 'claim' })], supervisor({ running: true, active_runs: [{ id: 'run_1' }], scheduler_enabled: true }))
     expect(screen.getByText('Builder is working.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Run ready work now' })).not.toBeInTheDocument()
+  })
+
+  it('keeps a global pass available while Builder is working when scheduling is off and capacity remains', () => {
+    renderWork([item({ next_action: 'claim' })], supervisor({
+      running: true,
+      active_runs: [{ id: 'run_1' }],
+      scheduler_enabled: false,
+      eligible_now: 1,
+    }))
+    expect(screen.getByText('Builder is working.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run ready work now' })).toBeEnabled()
   })
 
   it('shows unknown status when the supervisor query has not resolved', () => {
@@ -274,6 +285,15 @@ describe('row actions', () => {
     renderWork([item({ next_action: 'done', state: 'completed' })])
     expect(screen.queryByRole('button', { name: 'Cancel task' })).not.toBeInTheDocument()
     expect(screen.getByText(/this one is finished/i)).toBeInTheDocument()
+  })
+
+  it.each(['running', 'pr_opened'])('hides cancellation when task state %s rejects operator cancel', taskState => {
+    renderWork([item({
+      state: 'active',
+      next_action: 'await_review',
+      current_packet: { id: 'PGP-001', title: 'CI parity', task_id: 'kb_task_1', task_state: taskState },
+    })])
+    expect(screen.queryByRole('button', { name: 'Cancel task' })).not.toBeInTheDocument()
   })
 
   it('shows Builder’s refusal in plain words instead of silently doing nothing', () => {

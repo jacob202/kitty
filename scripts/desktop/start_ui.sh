@@ -79,6 +79,7 @@ else
   stale_input="$(find "${build_inputs[@]}" -newer "${BUILD_STAMP}" -print 2>/dev/null | head -1 || true)"
   if [[ -n "${stale_input}" ]]; then
     echo "[start_ui] ${stale_input} is newer than the last build — rebuilding"
+    assert_clean_ui_source
     npm run build
     record_build_source
   elif [[ ! -f "${BUILD_SOURCE_STAMP}" ]]; then
@@ -88,6 +89,7 @@ else
     # unknown, and a build whose source cannot be named cannot back any claim
     # about what the running UI contains. Rebuild so build identity is provable.
     echo "[start_ui] build has no source stamp — rebuilding to make it identifiable"
+    assert_clean_ui_source
     npm run build
     record_build_source
   else

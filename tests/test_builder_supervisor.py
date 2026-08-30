@@ -293,6 +293,31 @@ def test_launch_run_refuses_when_task_already_claimed(repo: Path, db_path: Path)
 
 
 
+def test_wait_for_durable_claim_timeout_terminates_the_detached_process_group(monkeypatch) -> None:
+    class FakeProcess:
+        pid = 4321
+        def poll(self):
+            return None
+        def wait(self, timeout=None):
+            self.wait_timeout = timeout
+            return 0
+
+    process = FakeProcess()
+    monkeypatch.setattr(bs.bq, "get_task", lambda *_args, **_kwargs: {"id": "task-1", "state": bq.QUEUED, "claim_version": 3})
+    clock = iter([0.0, 2.0])
+    monkeypatch.setattr(bs.time, "monotonic", lambda: next(clock))
+    killed = []
+    monkeypatch.setattr(bs.os, "killpg", lambda pgid, sig: killed.append((pgid, sig)))
+
+    with pytest.raises(bs.SupervisorError, match="did not durably claim"):
+        bs._wait_for_durable_claim(
+            "task-1", process, initial_claim_version=3, db_path=None, timeout_seconds=1.0
+        )
+
+    assert killed == [(4321, bs.signal.SIGTERM)]
+    assert process.wait_timeout == 2.0
+
+
 def test_wait_for_durable_claim_requires_claim_version_to_advance(monkeypatch) -> None:
     class FakeProcess:
         pid = 4321

@@ -288,7 +288,9 @@ const START_BUILDER_CONFIRM =
 
 function canCancel(item: GatewayWorkItem): boolean {
   const terminal = item.next_action === 'cancelled' || item.next_action === 'done' || item.state === 'completed'
-  return !terminal && Boolean(item.current_packet?.task_id)
+  const taskState = item.current_packet?.task_state ?? null
+  const commandRejectsState = taskState === 'running' || taskState === 'pr_opened'
+  return !terminal && !commandRejectsState && Boolean(item.current_packet?.task_id)
 }
 
 function rawWorkDetail(item: GatewayWorkItem): string | null {
@@ -303,6 +305,9 @@ function workDetailLabel(item: GatewayWorkItem): string | null {
   if (/^[a-z0-9]+(?:_[a-z0-9]+)+$/i.test(raw)) {
     const words = raw.replaceAll('_', ' ')
     return `${words.charAt(0).toUpperCase()}${words.slice(1)}.`
+  }
+  if (/^Blocked by [A-Za-z0-9]+(?:[-_][A-Za-z0-9]+){2,}\.?$/.test(raw)) {
+    return 'Waiting on an earlier Builder step.'
   }
   return raw
 }
@@ -407,13 +412,6 @@ function RowActions({ item, builderRunning, schedulerEnabled }: { item: GatewayW
 function BuilderRunBanner({ supervisor, supervisorKnown }: { supervisor: GatewaySupervisor; supervisorKnown: boolean }) {
   const builderAction = useBuilderAction()
   const [result, setResult] = useState<string | null>(null)
-  if (supervisor.running) return <div style={bannerStyle}><div><strong>Builder is working.</strong> {describeReady(supervisor)}</div></div>
-  if (!supervisorKnown) return (
-    <div style={bannerStyle}><div style={{ display: 'grid', gap: 4 }}>
-      <strong>Builder status is unknown.</strong>
-      <span>Could not reach Builder's supervisor. Check the gateway connection.</span>
-    </div></div>
-  )
   const start = () => {
     if (!globalThis.confirm(START_BUILDER_CONFIRM)) return
     setResult(null)
@@ -422,6 +420,25 @@ function BuilderRunBanner({ supervisor, supervisorKnown }: { supervisor: Gateway
       onError: error => setResult(error instanceof Error ? error.message : 'Builder could not start.'),
     })
   }
+  if (supervisor.running) return (
+    <div style={bannerStyle}>
+      <div><strong>Builder is working.</strong> {describeReady(supervisor)}</div>
+      {supervisor.scheduler_enabled === false && supervisor.eligible_now > 0 && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button type="button" disabled={builderAction.isPending} onClick={start} style={{ ...primaryActionStyle, opacity: builderAction.isPending ? 0.6 : 1 }}>
+            {builderAction.isPending ? 'Starting…' : 'Run ready work now'}
+          </button>
+          {result && <span role="status" style={actionResultStyle}>{result}</span>}
+        </div>
+      )}
+    </div>
+  )
+  if (!supervisorKnown) return (
+    <div style={bannerStyle}><div style={{ display: 'grid', gap: 4 }}>
+      <strong>Builder status is unknown.</strong>
+      <span>Could not reach Builder's supervisor. Check the gateway connection.</span>
+    </div></div>
+  )
   if (supervisor.scheduler_enabled === true) return (
     <div style={bannerStyle}><div style={{ display: 'grid', gap: 4 }}>
       <strong>Builder is idle.</strong>

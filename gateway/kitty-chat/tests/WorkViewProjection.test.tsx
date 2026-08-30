@@ -154,6 +154,21 @@ describe('WorkView projection', () => {
     expect(screen.getByText('shadow_run_complete')).toBeVisible()
   })
 
+  it('keeps packet identifiers out of the primary blocker copy', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      items: [{
+        ...base,
+        state: 'blocked',
+        blocker: { state: 'blocked', reason: 'Blocked by BUILDER-PREFLIGHT-proto.', blocked_by: [] },
+        next_action: 'blocked',
+      }],
+    })
+    for (const match of screen.getAllByText(/BUILDER-PREFLIGHT-proto/)) expect(match).not.toBeVisible()
+    expect(screen.getByText(/earlier Builder step/i)).toBeInTheDocument()
+  })
+
   it('puts terminal cancelled failures with finished work instead of Needs you', () => {
     const base = snapshot().items[0]
     renderSnapshot({

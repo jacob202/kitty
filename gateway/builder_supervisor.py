@@ -34,6 +34,7 @@ import hashlib
 import json
 import os
 import plistlib
+import signal
 import subprocess
 import sys
 import time
@@ -182,9 +183,18 @@ def _wait_for_durable_claim(
             raise SupervisorError(f"Builder child {process.pid} exited before durably claiming task {task_id}")
         time.sleep(0.05)
     try:
-        process.terminate()
-    except OSError:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
         pass
+    else:
+        try:
+            process.wait(timeout=2.0)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=2.0)
     raise SupervisorError(f"Builder child {process.pid} did not durably claim task {task_id} within {timeout_seconds:g}s")
 
 

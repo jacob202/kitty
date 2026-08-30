@@ -10,6 +10,7 @@ events and returns structured results.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 
@@ -95,7 +96,7 @@ async def builder_supervisor_status():
     from gateway import builder_supervisor as bs
 
     try:
-        summary = bs.control_plane_summary()
+        summary = await asyncio.to_thread(bs.control_plane_summary)
     except Exception as exc:
         logger.exception("builder supervisor status read failed")
         raise HTTPException(
