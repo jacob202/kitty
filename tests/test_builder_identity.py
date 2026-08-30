@@ -519,11 +519,16 @@ class TestWorkerIdentity:
         assert not any(finding.field == "allowed_paths" for finding in findings)
         assert not any(finding.category == "scope_drift" for finding in findings)
 
-    def test_duplicate_packet_ids_make_identity_ambiguous(
+    def test_duplicate_packet_ids_are_scoped_by_initiative(
         self, repo: Path, db_path: Path
     ) -> None:
         lease = self._valid_identity(repo, db_path)
-        _apply(db_path, initiative_id="identity-test-2", packet_id=PACKET)
+        _apply(
+            db_path,
+            initiative_id="identity-test-2",
+            packet_id=PACKET,
+            allowed_paths=["somewhere-else/only.py"],
+        )
         findings = verify_worker_identity(
             INITIATIVE,
             PACKET,
@@ -531,7 +536,8 @@ class TestWorkerIdentity:
             db_path=db_path,
             expected_lease_id=lease["lease_id"],
         )
-        assert any(finding.field == "allowed_paths" for finding in findings)
+        assert not any(finding.field == "allowed_paths" for finding in findings)
+        assert not any(finding.category == "scope_drift" for finding in findings)
 
     def test_verify_and_escalate_returns_structured_artifact(
         self, repo: Path, db_path: Path
