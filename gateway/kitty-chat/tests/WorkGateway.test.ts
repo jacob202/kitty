@@ -201,3 +201,30 @@ it.each([
   const fetchWork = (work as Record<string, unknown>).fetchGatewayWorkSnapshot as () => Promise<unknown>
   await expect(fetchWork()).rejects.toThrow('Gateway /work returned an invalid payload')
 })
+
+
+it('allows a supervisor tick longer than the ordinary 8-second mutation timeout', async () => {
+  vi.useFakeTimers()
+  try {
+    let signal: AbortSignal | undefined
+    const fetchMock = vi.fn((_url: string | URL | Request, init?: RequestInit) => {
+      signal = init?.signal ?? undefined
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const settled = work.runSupervisorTick().then(
+      () => 'resolved',
+      () => 'rejected',
+    )
+    await vi.advanceTimersByTimeAsync(8_100)
+    expect(signal?.aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(signal?.aborted).toBe(true)
+    expect(await settled).toBe('rejected')
+  } finally {
+    vi.useRealTimers()
+  }
+})

@@ -2,8 +2,27 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
 
-const { useWorkSnapshot } = vi.hoisted(() => ({ useWorkSnapshot: vi.fn() }))
-vi.mock('../src/lib/work', () => ({ useWorkSnapshot }))
+const { useWorkSnapshot, useSupervisor, useBuilderAction, mutate } = vi.hoisted(() => ({
+  useWorkSnapshot: vi.fn(),
+  useSupervisor: vi.fn(),
+  useBuilderAction: vi.fn(),
+  mutate: vi.fn(),
+}))
+vi.mock('../src/lib/work', () => ({ useWorkSnapshot, useSupervisor, useBuilderAction }))
+
+function supervisor(overrides: Record<string, unknown> = {}) {
+  return {
+    schema_version: 1,
+    running: false,
+    active_runs: [],
+    eligible_now: 1,
+    on_hold: 9,
+    last_tick_at: null,
+    lock_path: '/tmp/supervisor.lock',
+    scheduler_enabled: true,
+    ...overrides,
+  }
+}
 
 function snapshot(validUntil = '2099-01-01T00:00:00Z', totalItems = 1) {
   return {
@@ -31,13 +50,22 @@ function snapshot(validUntil = '2099-01-01T00:00:00Z', totalItems = 1) {
   }
 }
 
-function renderSnapshot(data = snapshot()) {
+function renderSnapshot(data = snapshot(), supervisorData: unknown = supervisor()) {
   useWorkSnapshot.mockReturnValue({ data, isPending: false, isError: false, error: null, refetch: vi.fn() })
+  useSupervisor.mockReturnValue({ data: supervisorData, isPending: false, isError: false, error: null })
+  useBuilderAction.mockReturnValue({ mutate, isPending: false })
   render(<WorkView isMobile={false} />)
 }
 
 describe('WorkView projection', () => {
-  beforeEach(() => useWorkSnapshot.mockReset())
+  beforeEach(() => {
+    useWorkSnapshot.mockReset()
+    useSupervisor.mockReset()
+    useBuilderAction.mockReset()
+    mutate.mockReset()
+    useSupervisor.mockReturnValue({ data: supervisor(), isPending: false, isError: false, error: null })
+    useBuilderAction.mockReturnValue({ mutate, isPending: false })
+  })
   afterEach(cleanup)
 
   it('renders Gateway work truth', () => {
@@ -124,6 +152,21 @@ describe('WorkView projection', () => {
 
     fireEvent.click(screen.getByText('Details'))
     expect(screen.getByText('shadow_run_complete')).toBeVisible()
+  })
+
+  it('keeps packet identifiers out of the primary blocker copy', () => {
+    const base = snapshot().items[0]
+    renderSnapshot({
+      ...snapshot(),
+      items: [{
+        ...base,
+        state: 'blocked',
+        blocker: { state: 'blocked', reason: 'Blocked by BUILDER-PREFLIGHT-proto.', blocked_by: [] },
+        next_action: 'blocked',
+      }],
+    })
+    for (const match of screen.getAllByText(/BUILDER-PREFLIGHT-proto/)) expect(match).not.toBeVisible()
+    expect(screen.getByText(/earlier Builder step/i)).toBeInTheDocument()
   })
 
   it('puts terminal cancelled failures with finished work instead of Needs you', () => {

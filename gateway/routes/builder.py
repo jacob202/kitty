@@ -10,6 +10,7 @@ events and returns structured results.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 
@@ -95,7 +96,7 @@ async def builder_supervisor_status():
     from gateway import builder_supervisor as bs
 
     try:
-        summary = bs.control_plane_summary()
+        summary = await asyncio.to_thread(bs.control_plane_summary)
     except Exception as exc:
         logger.exception("builder supervisor status read failed")
         raise HTTPException(
@@ -114,7 +115,24 @@ async def builder_supervisor_status():
         "last_tick_at": None,
         "lock_path": summary["lock_path"],
         "budget": summary["budget"],
+        "scheduler_enabled": summary["scheduler_enabled"],
     }
+
+
+_SUPERVISOR_ERROR_TRANSLATIONS: dict[str, str] = {
+    "canonical worker adapter missing": "Builder's worker script is missing. Check the installation.",
+    "Kitty launcher missing": "Kitty launcher is missing. Check the installation.",
+    "disappeared before launch": "A task was claimed by another process before Builder could start it.",
+    "not dispatchable": "A task was already claimed by another process.",
+}
+
+
+def _translate_supervisor_error(raw: str) -> str:
+    """Map common supervisor internal errors to plain-language messages."""
+    for fragment, plain in _SUPERVISOR_ERROR_TRANSLATIONS.items():
+        if fragment in raw:
+            return plain
+    return "Builder encountered an unexpected error. Check the logs for details."
 
 
 @router.post("/builder/supervisor/tick")
@@ -132,14 +150,15 @@ async def builder_supervisor_tick():
         receipt = bs.tick()
     except Exception as exc:
         logger.exception("builder supervisor tick failed")
-        return {"ok": False, "started": [], "error": str(exc), "detail": None}
+        return {"ok": False, "started": [], "error": _translate_supervisor_error(str(exc)), "detail": None}
 
     if receipt["status"] not in {"ok", "locked"}:
         errors = [entry["error"] for entry in receipt["launched"] if "error" in entry]
+        raw = "; ".join(errors) or "supervisor tick reported an error"
         return {
             "ok": False,
             "started": receipt["launched"],
-            "error": "; ".join(errors) or "supervisor tick reported an error",
+            "error": _translate_supervisor_error(raw),
             "detail": receipt,
         }
 
