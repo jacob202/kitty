@@ -161,3 +161,98 @@ def test_real_frontier_route_is_unchanged():
 
     assert route.worker_model == "openrouter/deepseek/deepseek-v4-pro"
     assert route.reviewer_model == "openrouter/qwen/qwen3.7-max"
+
+
+def test_escalation_compacts_weak_trajectory_to_durable_artifacts():
+    plan = bpr.plan_handoff("cheap", "frontier")
+    assert plan.context_mode == "artifacts_compact"
+    assert "stronger" in plan.reason
+
+    free_plan = bpr.plan_handoff("free", "frontier")
+    assert free_plan.context_mode == "artifacts_compact"
+
+
+def test_downshift_preserves_stronger_model_trajectory():
+    plan = bpr.plan_handoff("frontier", "cheap")
+    assert plan.context_mode == "preserve_trajectory"
+    assert "downshift" in plan.reason
+
+
+def test_same_tier_handoff_continues_without_repacking_context():
+    plan = bpr.plan_handoff("cheap", "cheap")
+    assert plan.context_mode == "continue"
+
+
+def test_task_classes_select_bounded_harness_profiles():
+    assert bpr.select_harness_profile("implementation").name == "coding"
+    assert bpr.select_harness_profile("planning_pass").name == "research"
+    assert bpr.select_harness_profile("independent_review").name == "review"
+    assert bpr.select_harness_profile("recovery").name == "recovery"
+    assert bpr.select_harness_profile("independent_review").workspace_mode == "read_only"
+
+
+def test_execution_routing_plan_exposes_ordered_candidates_handoff_and_harness(tmp_path: Path):
+    payload = _policy()
+    payload["routes"]["cheap"]["worker_fallback_models"] = [
+        "openrouter/xiaomi/mimo-v2.5"
+    ]
+    payload["routes"]["cheap"]["reviewer_fallback_models"] = [
+        "openrouter/minimax/minimax-m3"
+    ]
+
+    plan = bpr.build_execution_routing_plan(
+        "cheap",
+        task_class="implementation",
+        source_tier="free",
+        config_path=_write(tmp_path, payload),
+    )
+
+    assert plan.worker_candidates == (
+        "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/xiaomi/mimo-v2.5",
+    )
+    assert plan.reviewer_candidates == (
+        "openrouter/qwen/qwen3.7-plus",
+        "openrouter/minimax/minimax-m3",
+    )
+    assert plan.handoff.context_mode == "artifacts_compact"
+    assert plan.harness.name == "coding"
+    assert plan.to_policy_dict()["max_projected_cost_cad"] == 0.10
+
+
+def test_fallback_candidates_fail_closed_on_malformed_or_duplicate_models(tmp_path: Path):
+    malformed = _policy()
+    malformed["routes"]["cheap"]["worker_fallback_models"] = ["not-openrouter/model"]
+    with pytest.raises(bpr.PaidRoutingError, match="fallback"):
+        bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, malformed))
+
+    duplicate = _policy()
+    duplicate["routes"]["cheap"]["worker_fallback_models"] = [
+        duplicate["routes"]["cheap"]["worker_model"]
+    ]
+    with pytest.raises(bpr.PaidRoutingError, match="duplicate"):
+        bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, duplicate))
+
+
+
+def test_execution_routing_plan_rejects_explicitly_empty_source_tier(tmp_path: Path):
+    with pytest.raises(bpr.PaidRoutingError, match="unknown source tier"):
+        bpr.build_execution_routing_plan(
+            "cheap",
+            task_class="implementation",
+            source_tier="",
+            config_path=_write(tmp_path, _policy()),
+        )
+
+
+def test_fallback_candidates_must_all_fit_attempt_ceiling(tmp_path: Path):
+    payload = _policy(cheap_cap=0.10)
+    payload["routes"]["cheap"]["worker_fallback_models"] = [
+        "openrouter/deepseek/deepseek-v4-pro"
+    ]
+    payload["routes"]["cheap"]["reviewer_fallback_models"] = [
+        "openrouter/qwen/qwen3.7-max"
+    ]
+
+    with pytest.raises(bpr.PaidRoutingError, match="ceiling"):
+        bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, payload))
