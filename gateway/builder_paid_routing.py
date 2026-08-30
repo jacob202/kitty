@@ -259,9 +259,7 @@ def resolve_paid_route(
     if not isinstance(enabled, bool):
         raise PaidRoutingError("paid_openrouter_enabled must be boolean")
     if not enabled:
-        reason = payload.get("disabled_reason")
-        detail = f": {reason}" if isinstance(reason, str) and reason.strip() else ""
-        raise PaidRoutingError(f"paid OpenRouter execution is disabled{detail}")
+        raise PaidRoutingError("paid OpenRouter execution is disabled")
     if tier not in _ALLOWED_TIERS:
         raise PaidRoutingError(
             f"unknown paid tier {tier!r}; expected one of {sorted(_ALLOWED_TIERS)}"

@@ -20,7 +20,6 @@ from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_loop as bl
 from gateway import builder_queue as bq
-from gateway.builder_paid_routing import PaidRoute
 
 pytestmark = pytest.mark.integration
 
@@ -2559,19 +2558,7 @@ def test_paid_frontier_downgrade_runs_the_authorized_cheap_route(
         f'cat > "$KB_RESULT_PATH" <<\'EOF\'\n{_GOOD_IMPL}\nEOF\n',
     )
 
-    cheap_route = PaidRoute(
-        tier="cheap",
-        provider="openrouter",
-        worker_model="openrouter/xiaomi/mimo-v2.5",
-        reviewer_model="openrouter/minimax/minimax-m3",
-        governor_route="cheap",
-        projected_cost_cad=0.04,
-        max_projected_cost_cad=0.10,
-    )
-    with (
-        patch("gateway.builder_loop.cg.decide", return_value=decision),
-        patch("gateway.builder_paid_routing.resolve_paid_route", return_value=cheap_route),
-    ):
+    with patch("gateway.builder_loop.cg.decide", return_value=decision):
         result = bl.run_packet(
             INITIATIVE,
             PACKET,
