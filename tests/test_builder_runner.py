@@ -65,6 +65,45 @@ class TestEnsureWorktree:
         )
         assert head.stdout.strip() == "kittybuilder/kb_t1_aaaa"
 
+    def test_worktree_add_allows_checkout_longer_than_generic_git_timeout(self, repo: Path):
+        real_run = subprocess.run
+        observed_timeouts = []
+
+        def guarded_run(args, *positional, **kwargs):
+            if list(args[:3]) == ["git", "worktree", "add"]:
+                observed_timeouts.append(kwargs.get("timeout"))
+                if (kwargs.get("timeout") or 0) <= 15:
+                    raise subprocess.TimeoutExpired(args, kwargs.get("timeout"))
+            return real_run(args, *positional, **kwargs)
+
+        with patch.object(br.subprocess, "run", side_effect=guarded_run):
+            path = br.ensure_worktree(
+                "kb_slow_checkout", "kittybuilder/kb_slow_checkout", repo_root=repo
+            )
+
+        assert path.exists()
+        assert observed_timeouts and observed_timeouts[0] > 15
+
+    def test_worktree_add_timeout_removes_partial_initializing_tree(self, repo: Path):
+        real_run = subprocess.run
+        task_id = "kb_partial_timeout"
+        path = repo / ".worktrees" / "kittybuilder" / task_id
+
+        def timed_out_run(args, *positional, **kwargs):
+            if list(args[:3]) == ["git", "worktree", "add"]:
+                path.mkdir(parents=True, exist_ok=True)
+                (path / "partial.txt").write_text("incomplete checkout\n")
+                raise subprocess.TimeoutExpired(args, kwargs.get("timeout"))
+            return real_run(args, *positional, **kwargs)
+
+        with patch.object(br.subprocess, "run", side_effect=timed_out_run):
+            with pytest.raises(br.RunnerError, match="worktree add timed out"):
+                br.ensure_worktree(
+                    task_id, f"kittybuilder/{task_id}", repo_root=repo
+                )
+
+        assert not path.exists()
+
     def test_reuses_clean_worktree(self, repo: Path):
         p1 = br.ensure_worktree("kb_t2_aaaa", "kittybuilder/kb_t2_aaaa", repo_root=repo)
         p2 = br.ensure_worktree("kb_t2_aaaa", "kittybuilder/kb_t2_aaaa", repo_root=repo)

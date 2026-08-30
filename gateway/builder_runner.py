@@ -56,6 +56,8 @@ logger = logging.getLogger("kitty.builder_runner")
 DEFAULT_LEASE_SECONDS = 60
 DEFAULT_HEARTBEAT_SECONDS = 10
 DEFAULT_TIMEOUT_SECONDS = 3600
+_GIT_TIMEOUT_SECONDS = 15
+_WORKTREE_ADD_TIMEOUT_SECONDS = 120
 _TERM_GRACE_SECONDS = 10
 
 # Task blocked-reasons per run outcome (all shadow-mode exits block the task).
@@ -159,9 +161,18 @@ def worktree_path(task_id: str, *, repo_root: Path | None = None) -> Path:
     return _repo_root(repo_root) / ".worktrees" / "kittybuilder" / task_id
 
 
-def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+def _git(
+    args: list[str],
+    cwd: Path,
+    *,
+    timeout_seconds: int = _GIT_TIMEOUT_SECONDS,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, timeout=15
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=timeout_seconds,
     )
 
 
@@ -174,6 +185,29 @@ def _git_output(args: list[str], cwd: Path) -> str:
             f"(exit {result.returncode}): {detail}"
         )
     return result.stdout
+
+
+
+def _cleanup_timed_out_worktree(root: Path, path: Path) -> None:
+    """Remove only an incomplete worktree created by this failed add."""
+    if path.exists():
+        _git(
+            ["worktree", "unlock", str(path)],
+            cwd=root,
+            timeout_seconds=_GIT_TIMEOUT_SECONDS,
+        )
+        removed = _git(
+            ["worktree", "remove", "--force", str(path)],
+            cwd=root,
+            timeout_seconds=_WORKTREE_ADD_TIMEOUT_SECONDS,
+        )
+        if removed.returncode != 0 and path.exists():
+            shutil.rmtree(path)
+    _git(
+        ["worktree", "prune"],
+        cwd=root,
+        timeout_seconds=_WORKTREE_ADD_TIMEOUT_SECONDS,
+    )
 
 
 def ensure_worktree(
@@ -241,22 +275,37 @@ def ensure_worktree(
         .returncode
         == 0
     )
-    if branch_exists:
-        result = _git(["worktree", "add", str(path), branch], cwd=root)
-    else:
-        base = base_sha
-        if base is None:
-            base = "origin/main"
-            if (
-                _git(["rev-parse", "--verify", "--quiet", base], cwd=root).returncode
-                != 0
-            ):
-                base = "main"
-        if _git(["rev-parse", "--verify", "--quiet", base], cwd=root).returncode != 0:
-            raise RunnerError(
-                f"cannot create worktree {path}: base {base!r} does not exist"
+    try:
+        if branch_exists:
+            result = _git(
+                ["worktree", "add", str(path), branch],
+                cwd=root,
+                timeout_seconds=_WORKTREE_ADD_TIMEOUT_SECONDS,
             )
-        result = _git(["worktree", "add", str(path), "-b", branch, base], cwd=root)
+        else:
+            base = base_sha
+            if base is None:
+                base = "origin/main"
+                if (
+                    _git(["rev-parse", "--verify", "--quiet", base], cwd=root).returncode
+                    != 0
+                ):
+                    base = "main"
+            if _git(["rev-parse", "--verify", "--quiet", base], cwd=root).returncode != 0:
+                raise RunnerError(
+                    f"cannot create worktree {path}: base {base!r} does not exist"
+                )
+            result = _git(
+                ["worktree", "add", str(path), "-b", branch, base],
+                cwd=root,
+                timeout_seconds=_WORKTREE_ADD_TIMEOUT_SECONDS,
+            )
+    except subprocess.TimeoutExpired as exc:
+        _cleanup_timed_out_worktree(root, path)
+        raise RunnerError(
+            f"git worktree add timed out for {path} after "
+            f"{_WORKTREE_ADD_TIMEOUT_SECONDS} seconds"
+        ) from exc
 
     if result.returncode != 0:
         raise RunnerError(

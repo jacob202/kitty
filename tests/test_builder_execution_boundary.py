@@ -62,6 +62,36 @@ def test_sandboxed_git_can_read_linked_worktree_metadata(tmp_path: Path) -> None
     assert len(lines[1]) == 40
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
+def test_sandboxed_process_can_signal_same_sandbox_child_group(tmp_path: Path) -> None:
+    worktree = tmp_path / "worktree"
+    run_dir = tmp_path / "run"
+    worktree.mkdir()
+    run_dir.mkdir()
+    env = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
+    script = """
+import os, signal, subprocess
+proc = subprocess.Popen(['/bin/sleep', '2'], start_new_session=True)
+try:
+    os.killpg(proc.pid, signal.SIGTERM)
+    proc.wait(timeout=1)
+finally:
+    if proc.poll() is None:
+        proc.kill()
+        proc.wait()
+"""
+    command = boundary.wrap_command(
+        [str(Path(sys.executable).resolve()), "-c", script],
+        worktree=worktree,
+        run_dir=run_dir,
+        environment=env,
+    )
+
+    completed = subprocess.run(command, cwd=worktree, env=env, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr
+
+
 def test_child_environment_is_explicit_and_secret_free(tmp_path: Path) -> None:
     source = dict(os.environ)
     source.update({"GATEWAY_SECRET": "sentinel", "OPENROUTER_API_KEY": "sentinel"})

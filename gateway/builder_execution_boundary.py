@@ -186,7 +186,8 @@ def build_sandbox_profile(
     )
     return (
         '(version 1) '
-        '(allow process*) (allow sysctl-read) (allow mach-lookup) '
+        '(allow process*) (allow signal (target same-sandbox)) '
+        '(allow sysctl-read) (allow mach-lookup) '
         '(deny file-read*) '
         f'{read_rules} '
         '(deny file-write*) '
