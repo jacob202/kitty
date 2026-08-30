@@ -61,6 +61,24 @@ logger = logging.getLogger("kitty.context_assembler")
 
 SkillHintFn = Callable[[str], str]
 
+# Whole model-visible prompt caps. Memory has its own tighter selection budget,
+# but every other block must also fit inside one explicit request envelope.
+TOTAL_CONTEXT_TOKEN_CAPS: dict[str, int] = {
+    "trivial": 3_000,
+    "standard": 8_000,
+    "deep": 16_000,
+}
+_CONTEXT_BLOCK_SHARES: dict[str, float] = {
+    "domain": 0.25,
+    "objective": 0.05,
+    "personality": 0.10,
+    "user_context": 0.25,
+    "skill": 0.05,
+    "memory": 0.20,
+    "enrichments": 0.10,
+}
+_CONTEXT_TRUNCATION_MARKER = "\n[truncated by Kitty context budget]"
+
 # --- Parts system (folded from gateway/parts.py) ---
 # Triggers that suggest a parts-mode response adds value
 _HIGH_STAKES_TRIGGERS = [
@@ -156,6 +174,7 @@ class ContextBundle:
     live_blocks: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     injected_memory_items: list[MemoryEvidence] = field(default_factory=list)
+    context_budget: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -194,7 +213,10 @@ def _domain_prompt(message: str, domain: str | None) -> str:
         prompt = user_context.build_interview_prompt(prompt)
 
     if domain == "code":
-        prompt = _join_blocks(prompt, prompts.get_prompt("builder.proposal"))
+        # The Builder handoff is the task-specific instruction for build/fix turns.
+        # Keep it first so the bounded domain block cannot clip that contract off
+        # the tail of the much longer generic Kitty prompt.
+        prompt = _join_blocks(prompts.get_prompt("builder.proposal"), prompt)
 
     return prompt
 
@@ -223,6 +245,113 @@ def _join_blocks(*blocks: str) -> str:
     """Concatenate non-empty blocks with a blank line between them."""
     return "\n\n".join(b for b in blocks if b)
 
+
+def _budget_units(text: str) -> int:
+    """Conservative token upper bound: one unit per UTF-8 byte."""
+    return len(text.encode("utf-8"))
+
+
+def _utf8_prefix(text: str, max_units: int) -> str:
+    if max_units <= 0:
+        return ""
+    return text.encode("utf-8")[:max_units].decode("utf-8", errors="ignore")
+
+
+def _truncate_context_block(text: str, limit: int) -> str:
+    if _budget_units(text) <= limit:
+        return text
+    if limit <= 0:
+        return ""
+    marker = _CONTEXT_TRUNCATION_MARKER
+    marker_units = _budget_units(marker)
+    if limit <= marker_units:
+        return _utf8_prefix(text, limit)
+    prefix = _utf8_prefix(text, limit - marker_units).rstrip()
+    while prefix and _budget_units(prefix + marker) > limit:
+        prefix = prefix[:-1]
+    return prefix + marker
+
+
+def _fit_context_blocks(
+    blocks: list[tuple[str, str, float]], *, tier: str
+) -> tuple[str, dict[str, object], list[str]]:
+    """Fit named prompt blocks into a conservative whole-context budget."""
+    if tier not in TOTAL_CONTEXT_TOKEN_CAPS:
+        raise ValueError(f"unknown context tier: {tier!r}")
+
+    present = [(name, text, share) for name, text, share in blocks if text]
+    token_cap = TOTAL_CONTEXT_TOKEN_CAPS[tier]
+    separator_units = max(0, len(present) - 1) * _budget_units("\n\n")
+    payload_cap = max(0, token_cap - separator_units)
+
+    allocations: list[int] = []
+    for _name, block_text, share in present:
+        soft_cap = max(1, int(payload_cap * share))
+        allocations.append(min(_budget_units(block_text), soft_cap))
+
+    leftover = max(0, payload_cap - sum(allocations))
+    for index, (_name, block_text, _share) in enumerate(present):
+        if leftover <= 0:
+            break
+        missing = _budget_units(block_text) - allocations[index]
+        if missing <= 0:
+            continue
+        extra = min(missing, leftover)
+        allocations[index] += extra
+        leftover -= extra
+
+    rendered: list[str] = []
+    evidence_blocks: list[dict[str, object]] = []
+    warnings: list[str] = []
+    for (name, block_text, _share), allocation in zip(present, allocations):
+        original_units = _budget_units(block_text)
+        clipped = allocation < original_units
+        rendered_text = _truncate_context_block(block_text, allocation)
+        included_units = _budget_units(rendered_text)
+        rendered.append(rendered_text)
+        evidence_blocks.append(
+            {
+                "name": name,
+                "original_chars": len(block_text),
+                "included_chars": len(rendered_text),
+                "original_token_upper_bound": original_units,
+                "included_token_upper_bound": included_units,
+                "truncated": clipped,
+            }
+        )
+        if clipped:
+            warnings.append(
+                f"context_budget:{name}: clipped {original_units} -> {included_units} utf8-byte token upper bound"
+            )
+
+    system = _join_blocks(*rendered)
+    evidence: dict[str, object] = {
+        "tier": tier,
+        "total_token_cap": token_cap,
+        "budget_unit": "utf8_bytes_upper_bound",
+        "system_chars": len(system),
+        "system_token_upper_bound": _budget_units(system),
+        "blocks": evidence_blocks,
+    }
+    return system, evidence, warnings
+
+
+def _reconcile_memory_evidence(
+    items: list[MemoryEvidence], rendered_prompt: str
+) -> list[MemoryEvidence]:
+    """Keep only whole memory records that actually appear in prompt order."""
+    visible: list[MemoryEvidence] = []
+    cursor = 0
+    for item in items:
+        memory_text = item.get("text", "")
+        if not memory_text:
+            continue
+        index = rendered_prompt.find(memory_text, cursor)
+        if index < 0:
+            break
+        visible.append(item)
+        cursor = index + len(memory_text)
+    return visible
 
 async def assemble_context(
     message: str,
@@ -258,25 +387,15 @@ async def assemble_context(
     deps = deps or _AssemblerDeps()
     warnings: list[str] = []
 
-    base_prompt = _domain_prompt(message, domain)
+    domain_block = _domain_prompt(message, domain)
     if parts_mode or _should_surface_parts(message):
-        base_prompt = _build_parts_system_prompt(base_prompt)
+        domain_block = _build_parts_system_prompt(domain_block)
 
-    if objective:
-        base_prompt = _join_blocks(base_prompt, f"Thread goal: {objective}")
-
+    objective_block = f"Thread goal: {objective}" if objective else ""
     personality = personality_block()
-    if personality:
-        base_prompt = _join_blocks(base_prompt, personality)
-
     user_block = user_context.load_user_context()
-    if user_block:
-        base_prompt = _join_blocks(base_prompt, user_block)
-
     hint_fn = deps.skill_hint_fn or _default_skill_hint
     hint = hint_fn(message)
-    if hint:
-        base_prompt = _join_blocks(base_prompt, hint)
 
     # Trivial chats are deliberately context-light. The classifier has already
     # established that historical memory cannot materially improve this turn,
@@ -306,11 +425,28 @@ async def assemble_context(
         enrichment_blocks, enrichment_warnings = await run_enrichments(deps.enrichments, message)
     warnings.extend(enrichment_warnings)
 
-    system = _join_blocks(
-        base_prompt,
-        memory_block,
-        *enrichment_blocks,
+    enrichment_share = _CONTEXT_BLOCK_SHARES["enrichments"]
+    each_enrichment_share = (
+        enrichment_share / len(enrichment_blocks) if enrichment_blocks else 0.0
     )
+    context_blocks: list[tuple[str, str, float]] = [
+        ("domain", domain_block, _CONTEXT_BLOCK_SHARES["domain"]),
+        ("objective", objective_block, _CONTEXT_BLOCK_SHARES["objective"]),
+        ("personality", personality, _CONTEXT_BLOCK_SHARES["personality"]),
+        ("user_context", user_block, _CONTEXT_BLOCK_SHARES["user_context"]),
+        ("skill", hint, _CONTEXT_BLOCK_SHARES["skill"]),
+        ("memory", memory_block, _CONTEXT_BLOCK_SHARES["memory"]),
+    ]
+    context_blocks.extend(
+        (f"enrichment:{index}", block, each_enrichment_share)
+        for index, block in enumerate(enrichment_blocks)
+    )
+    system, budget_evidence, _budget_warnings = _fit_context_blocks(
+        context_blocks, tier=tier
+    )
+    budget_evidence["truncations"] = list(_budget_warnings)
+    warnings.extend(_budget_warnings)
+    injected_memory_items = _reconcile_memory_evidence(injected_memory_items, system)
 
     return ContextBundle(
         system=system,
@@ -318,6 +454,7 @@ async def assemble_context(
         live_blocks=list(enrichment_blocks),
         warnings=warnings,
         injected_memory_items=injected_memory_items,
+        context_budget=budget_evidence,
     )
 
 
