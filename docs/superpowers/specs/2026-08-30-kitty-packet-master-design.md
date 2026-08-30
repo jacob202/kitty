@@ -40,7 +40,10 @@ Kitty UI is canonical. This lane changes neither.
 - Base captured at worktree creation (2026-08-30T16:02:00-06:00 context): `git ls-remote origin refs/heads/main` returned `a1c0f09a7e86ff8a368b5a96e87c081ed0dae204`.
 - Review snapshot captured 2026-08-30T16:14:47-06:00: GitHub `main` advanced to `c7a7de0c2b670e968e4443d4ae494159243ccfb3` through merged PR #703. This branch is not current-main; its base-at-creation identity remains the prior SHA.
 - Isolated worktree: `/Users/jacobbrizinnski/orca/workspaces/kitty/kitty-packet-master-20260830`.
-- Branch: `jacob202/kitty-packet-master-20260830`; HEAD exactly equals fresh main.
+- Branch: `jacob202/kitty-packet-master-20260830`; based on
+  `a1c0f09a7e86ff8a368b5a96e87c081ed0dae204` and containing the Packet Master
+  design commits. GitHub `main` later advanced to `c7a7de0c...`, so refresh and
+  reconcile against current main before publication.
 - Canonical checkout is dirty and was not modified.
 - PR #704 is open at `5eb17380f20b8add2b4166299c2d73e5cb3d97b0`; lane is Builder agent-operability.
 - PR #677 is open at `da3ace79ef7e274b41ca5fc012463d09587a74ea`; lane is actionable Work/Builder scheduling.
@@ -59,7 +62,8 @@ review state are UNKNOWN until the resume protocol refreshes them.
 
 ## Legacy duplicate problem
 
-The repository has numbered Markdown packets, 40 JSON manifests, campaign plans,
+The repository has numbered Markdown packets, 35 current initiative JSON
+manifests (older inventory material referred to 40 historical manifests), campaign plans,
 superpowers plans/specs, research, audits, and a hand-maintained ledger. The
 packet README was updated 2026-07-14; the ledger is dated 2026-08-08; both
 predate this mission. Known defects include:
