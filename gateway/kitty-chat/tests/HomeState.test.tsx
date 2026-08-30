@@ -474,7 +474,14 @@ describe('HomeState', () => {
         domains: [
           { name: 'gateway', status: 'available', reason: '', detail: {} },
           { name: 'image_lab', status: 'available', reason: '', detail: {} },
-          { name: 'ollama', status: 'unavailable', reason: 'OLLAMA_BASE is not reachable', detail: {} },
+          {
+            name: 'ollama',
+            status: 'unavailable',
+            // The exact string gateway/health_surface.py builds for this domain.
+            reason:
+              'embedding runtime unreachable at http://localhost:11434: ConnectionError; explicit memory remains available independently',
+            detail: {},
+          },
           { name: 'pending_grants', status: 'available', reason: '', detail: { count: 0 } },
         ],
         degraded: ['ollama'],
@@ -490,13 +497,45 @@ describe('HomeState', () => {
     expect(screen.getAllByText('degraded').length).toBeGreaterThan(0);
     expect(screen.getByText('still functional')).toBeInTheDocument();
     // reason is hidden until the row is expanded
-    expect(screen.queryByText(/OLLAMA_BASE/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/embedding runtime/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /local AI/i }));
     expect(await screen.findByText('collapse')).toBeInTheDocument();
-    // raw internal env var name must never reach the user
-    expect(screen.queryByText(/OLLAMA_BASE/)).not.toBeInTheDocument();
-    // the sanitized cause should appear instead of the generic status-only copy
-    expect(screen.getByText(/is not reachable/i)).toBeInTheDocument();
+    // the cause is translated, and it says what still works
+    expect(
+      screen.getByText(/The local AI behind search and memory isn't answering/i),
+    ).toBeInTheDocument();
+    // the raw reason stays reachable for debugging, but only behind the disclosure
+    const details = screen.getByText('Technical details').closest('details');
+    expect(details).not.toBeNull();
+    expect(details).not.toHaveAttribute('open');
+    expect(details?.textContent).toContain('ConnectionError');
+  });
+
+  it('falls back to status copy when the reason is not a cause it recognises', async () => {
+    (useHealthSurface as Mock).mockReturnValue({
+      data: {
+        ok: true,
+        generated_at: '2026-08-23T00:00:00Z',
+        overall: 'degraded',
+        domains: [
+          { name: 'gateway', status: 'available', reason: '', detail: {} },
+          { name: 'ollama', status: 'unavailable', reason: 'OLLAMA_BASE is not reachable', detail: {} },
+        ],
+        degraded: ['ollama'],
+        still_functional: ['gateway'],
+        pending_grants: 0,
+      },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    fireEvent.click(screen.getByRole('button', { name: /local AI/i }));
+    expect(await screen.findByText('collapse')).toBeInTheDocument();
+    // an unrecognised reason must not become the sentence the user reads
+    expect(screen.getByText(/This part of Kitty is unavailable right now/i)).toBeInTheDocument();
+    const summary = screen.getByText('Technical details');
+    expect(summary.closest('details')).not.toHaveAttribute('open');
   });
 
   it('surfaces the pending approvals count when grants await', () => {

@@ -548,25 +548,35 @@ const HEALTH_LABELS: Record<string, string> = {
   pending_grants: 'pending approvals',
 };
 
-/** Strip internal naming (env vars, routes, hostnames) that must never reach the user. */
-function sanitizeReason(raw: string): string {
-  return raw
-    .replace(/\b[A-Z][A-Z_0-9]{2,}\b/g, '')        // ENV_VAR style names
-    .replace(/\/[a-z][\w/.\-]*/gi, '')               // /api/routes, /health/surface etc.
-    .replace(/localhost:\d+/gi, '')                    // localhost:4110
-    .replace(/\b\d{3,5}\b/g, '')                      // bare port/error numbers
-    .replace(/[,;:\-–]+/g, ' ')                       // leftover punctuation
-    .replace(/\s{2,}/g, ' ')                          // collapse whitespace
-    .trim()
-}
+// An allowlist, not a scrub. Health reasons are built from exception class
+// names, provider ids, ports and HTTP codes, so a denylist either passes
+// through the causes it does not recognise or shreds the sentence into a
+// fragment. Match a known cause and say what it means; otherwise fall back to
+// status-level copy and leave the raw reason to the technical disclosure.
+const HEALTH_REASON_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/litellm|model (?:router|proxy)/i, "Kitty can't reach the part that talks to the AI models."],
+  [/semantic memory unavailable/i, "Search over what Kitty remembers is down. Notes you saved yourself still work."],
+  [/embedding runtime/i, "The local AI behind search and memory isn't answering. Notes you saved yourself still work."],
+  [/sqlite|database is locked|no such table/i, "Kitty couldn't read its own saved data."],
+  [/grant store/i, "Kitty couldn't read your saved approvals."],
+  [/unresolved provider outcome/i, 'Some image jobs stopped without a result and need to be retried.'],
+  [/queue read failed/i, "Kitty couldn't read the list of image jobs."],
+  [/no image provider available|drawthings|comfyui/i, 'No image generator is available right now.'],
+  [/need attention/i, 'A background task needs attention.'],
+  [/did not start|task (?:exited|stopped)|worker exited|shutdown/i, 'A background task stopped running.'],
+  [/not configured/i, "This part isn't set up yet."],
+  [/no tracked services|no image workers tracked/i, 'Nothing is running here yet.'],
+];
 
 function healthReasonCopy(status: string, reason?: string): string {
-  const clean = reason ? sanitizeReason(reason) : '';
+  const raw = reason?.trim() ?? '';
+  const known = raw ? HEALTH_REASON_PATTERNS.find(([pattern]) => pattern.test(raw)) : undefined;
+  if (known) return known[1];
   if (status === 'unavailable') {
-    return clean || 'This part of Kitty is unavailable right now. Refresh health to check again.';
+    return 'This part of Kitty is unavailable right now. Refresh health to check again.';
   }
   if (status === 'degraded') {
-    return clean || 'This part of Kitty is having trouble right now. Refresh health to check again.';
+    return 'This part of Kitty is having trouble right now. Refresh health to check again.';
   }
   if (status === 'stale') {
     return 'This status is out of date. Refresh health to check again.';
@@ -654,6 +664,14 @@ function HealthSurfaceCard() {
                 {open && (
                   <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 0 }}>
                     {healthReasonCopy(domain?.status ?? 'unknown', domain?.reason)}
+                    {domain?.reason?.trim() && (
+                      <details style={homeDisclosureStyle}>
+                        <summary style={homeSummaryStyle}>Technical details</summary>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, wordBreak: 'break-word' }}>
+                          {domain.reason}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 )}
               </div>
