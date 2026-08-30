@@ -22,7 +22,6 @@ from gateway.builder_commands import (
     dispatch_operator_command,
 )
 from gateway.builder_events import builder_events
-from gateway.builder_initiative import INITIATIVE_ACTIVE, INITIATIVE_PAUSED
 from gateway.models.builder import BuilderCommandRequest
 
 logger = logging.getLogger("kitty.builder_routes")
@@ -85,38 +84,31 @@ async def builder_operator_command(body: OperatorCommandRequest):
 async def builder_supervisor_status():
     """Read-only projection of the autonomous supervisor's own state.
 
-    Distinguishes packets that are eligible and runnable right now
-    (``eligible_now``, owning initiative is active) from packets that are
-    eligible but parked (``on_hold``, owning initiative is paused). Both
-    counts and every other field come straight from
-    ``gateway.builder_supervisor.status()`` — this route never queries queue
-    storage itself.
+    Distinguishes work a tick would start right now (``eligible_now``, owning
+    initiative active) from work that is dispatchable in every respect except
+    that its initiative is paused (``on_hold``), which no tick will ever pick
+    up. Both counts come from ``dispatchable_counts()``, which shares one
+    predicate with the launching path — a projection that counted eligibility
+    differently would promise the operator a number the tick does not honour.
+    This route never queries queue storage itself.
     """
     from gateway import builder_supervisor as bs
 
     try:
         projection = bs.status()
+        counts = bs.dispatchable_counts()
     except Exception as exc:
         logger.exception("builder supervisor status read failed")
         raise HTTPException(
             status_code=503, detail=f"supervisor status read failed: {exc}"
         ) from exc
 
-    eligible_now = 0
-    on_hold = 0
-    for initiative in projection["initiatives"]:
-        packet_count = len(initiative["eligible_packets"])
-        if initiative["stored_state"] == INITIATIVE_ACTIVE:
-            eligible_now += packet_count
-        elif initiative["stored_state"] == INITIATIVE_PAUSED:
-            on_hold += packet_count
-
     return {
         "schema_version": 1,
         "running": len(projection["active_runs"]) > 0,
         "active_runs": projection["active_runs"],
-        "eligible_now": eligible_now,
-        "on_hold": on_hold,
+        "eligible_now": counts["now"],
+        "on_hold": counts["on_hold"],
         # The supervisor does not record when it last ticked anywhere durable
         # (no receipt log, no launchd bookkeeping); reporting anything but
         # null here would be fabricated.

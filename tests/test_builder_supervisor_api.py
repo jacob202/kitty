@@ -42,6 +42,13 @@ def _initiative(initiative_id: str, stored_state: str, eligible_packet_ids: list
     }
 
 
+def _counts(monkeypatch, *, now: int, on_hold: int):
+    monkeypatch.setattr(
+        "gateway.builder_supervisor.dispatchable_counts",
+        lambda *_args, **_kwargs: {"now": now, "on_hold": on_hold},
+    )
+
+
 class TestSupervisorStatusEndpoint:
     def test_returns_documented_shape(self, client, monkeypatch):
         projection = _projection(
@@ -51,6 +58,7 @@ class TestSupervisorStatusEndpoint:
         monkeypatch.setattr(
             "gateway.builder_supervisor.status", lambda: projection
         )
+        _counts(monkeypatch, now=1, on_hold=0)
 
         response = client.get("/builder/supervisor")
 
@@ -66,9 +74,10 @@ class TestSupervisorStatusEndpoint:
             "lock_path": "/data/kittybuilder/supervisor.lock",
         }
 
-    def test_splits_eligible_now_vs_on_hold_by_initiative_state(
-        self, client, monkeypatch
-    ):
+    def test_reports_the_counts_the_launcher_would_honour(self, client, monkeypatch):
+        # The route must not recount eligibility from the projection: the
+        # projection's notion is narrower than what a tick dispatches, and a
+        # number the tick does not honour is worse than no number.
         projection = _projection(
             initiatives=[
                 _initiative("init-active", "active", ["P1", "P2"]),
@@ -80,13 +89,39 @@ class TestSupervisorStatusEndpoint:
         monkeypatch.setattr(
             "gateway.builder_supervisor.status", lambda: projection
         )
+        _counts(monkeypatch, now=3, on_hold=6)
 
         response = client.get("/builder/supervisor")
 
         assert response.status_code == 200
         body = response.json()
-        assert body["eligible_now"] == 2
-        assert body["on_hold"] == 1
+        assert body["eligible_now"] == 3
+        assert body["on_hold"] == 6
+
+    def test_status_failure_is_a_503_not_a_crash(self, client, monkeypatch):
+        def boom():
+            raise RuntimeError("queue unreadable")
+
+        monkeypatch.setattr("gateway.builder_supervisor.status", boom)
+
+        response = client.get("/builder/supervisor")
+
+        assert response.status_code == 503
+        assert "queue unreadable" in response.json()["detail"]
+
+    def test_count_failure_is_a_503_not_a_crash(self, client, monkeypatch):
+        projection = _projection(initiatives=[], active_runs=[])
+        monkeypatch.setattr("gateway.builder_supervisor.status", lambda: projection)
+
+        def boom(*_args, **_kwargs):
+            raise RuntimeError("selection unreadable")
+
+        monkeypatch.setattr("gateway.builder_supervisor.dispatchable_counts", boom)
+
+        response = client.get("/builder/supervisor")
+
+        assert response.status_code == 503
+        assert "selection unreadable" in response.json()["detail"]
 
     def test_running_true_when_active_runs_present(self, client, monkeypatch):
         projection = _projection(
