@@ -56,6 +56,32 @@ export interface GatewayWorkItem {
   updated_at: string | null
 }
 
+export type PreflightAction = 'run' | 'blocked' | 'refuse'
+
+export interface GatewayPreflightResult {
+  action: PreflightAction
+  route: string | null
+  estimated_cost_cad: number
+  cost_basis: string
+  reasons: string[]
+  packet: {
+    initiative_id: string
+    packet_id: string
+    task_id?: string | null
+    base_sha?: string | null
+    current_head?: string | null
+  }
+  budget: {
+    weekly_budget_cad: number
+    remaining_cad: number
+    within_budget: boolean
+    basis: string
+  }
+  eligibility: { state: string; blocked_by?: string[] }
+  data_quality: { state: string; issues?: string[] }
+  dispatch_hash?: string
+}
+
 export interface GatewayWorkSnapshot {
   schema_version: number
   observed_at: string
@@ -176,6 +202,25 @@ function isWorkSnapshot(value: unknown): value is GatewayWorkSnapshot {
   )
 }
 
+function isPreflightResult(value: unknown): value is GatewayPreflightResult {
+  if (!isRecord(value) || !isRecord(value.packet) || !isRecord(value.budget) || !isRecord(value.eligibility) || !isRecord(value.data_quality)) return false
+  return (
+    (value.action === 'run' || value.action === 'blocked' || value.action === 'refuse')
+    && (value.route === null || typeof value.route === 'string')
+    && typeof value.estimated_cost_cad === 'number'
+    && typeof value.cost_basis === 'string'
+    && Array.isArray(value.reasons)
+    && value.reasons.every(reason => typeof reason === 'string')
+    && typeof value.packet.initiative_id === 'string'
+    && typeof value.packet.packet_id === 'string'
+    && typeof value.budget.weekly_budget_cad === 'number'
+    && typeof value.budget.remaining_cad === 'number'
+    && typeof value.budget.within_budget === 'boolean'
+    && typeof value.eligibility.state === 'string'
+    && typeof value.data_quality.state === 'string'
+  )
+}
+
 async function errorDetail(response: Response): Promise<string | null> {
   try {
     const body: unknown = await response.json()
@@ -207,6 +252,35 @@ export async function fetchGatewayWorkSnapshot(): Promise<GatewayWorkSnapshot> {
   } finally {
     globalThis.clearTimeout(timeoutId)
   }
+}
+
+export async function fetchPreflight(initiativeId: string, packetId: string): Promise<GatewayPreflightResult> {
+  const endpoint = `${GATEWAY_BASE}/builder/preflight/${encodeURIComponent(initiativeId)}/${encodeURIComponent(packetId)}`
+  const controller = new AbortController()
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+  try {
+    const response = await fetch(endpoint, { signal: controller.signal })
+    if (!response.ok) {
+      const detail = await errorDetail(response)
+      const suffix = detail ? `: ${detail}` : ''
+      throw new Error(`GET ${endpoint} failed: ${response.status} ${response.statusText}${suffix}`.trim())
+    }
+    const payload: unknown = await response.json()
+    if (!isPreflightResult(payload)) throw new Error('Gateway preflight returned an invalid payload')
+    return payload
+  } finally {
+    globalThis.clearTimeout(timeoutId)
+  }
+}
+
+export function usePreflight(initiativeId: string | null, packetId: string | null) {
+  return useQuery({
+    queryKey: ['builder-preflight', initiativeId, packetId],
+    queryFn: () => fetchPreflight(initiativeId!, packetId!),
+    enabled: Boolean(initiativeId && packetId),
+    staleTime: 5_000,
+    refetchInterval: 10_000,
+  })
 }
 
 export function useWorkSnapshot() {

@@ -286,3 +286,33 @@ class TestSupervisorTickEndpoint:
         assert body["ok"] is False
         assert "Kitty launcher missing" in body["error"]
         assert body["detail"] == receipt
+
+
+class TestPreflightEndpoint:
+    def test_returns_read_only_preflight_projection(self, client, monkeypatch):
+        expected = {
+            "action": "run",
+            "route": "free",
+            "estimated_cost_cad": 0.0,
+            "cost_basis": "local estimate — not a provider invoice",
+            "reasons": [],
+            "packet": {"initiative_id": "init-a", "packet_id": "p1"},
+            "budget": {"weekly_budget_cad": 6.0, "remaining_cad": 6.0, "within_budget": True, "basis": "local estimate"},
+            "eligibility": {"state": "eligible", "blocked_by": []},
+            "data_quality": {"state": "complete", "issues": []},
+        }
+        monkeypatch.setattr(
+            "gateway.builder_supervisor.preflight_packet",
+            lambda initiative_id, packet_id, **kwargs: expected,
+        )
+        response = client.get("/builder/preflight/init-a/p1")
+        assert response.status_code == 200
+        assert response.json() == expected
+
+    def test_preflight_failure_is_explicit(self, client, monkeypatch):
+        def boom(*_args, **_kwargs):
+            raise RuntimeError("preflight unavailable")
+        monkeypatch.setattr("gateway.builder_supervisor.preflight_packet", boom)
+        response = client.get("/builder/preflight/init-a/p1")
+        assert response.status_code == 500
+        assert "preflight unavailable" in response.json()["detail"]

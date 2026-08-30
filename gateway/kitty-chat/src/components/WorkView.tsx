@@ -2,7 +2,7 @@
 
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { useWorkSnapshot, type GatewayWorkItem, type GatewayWorkState } from '@/lib/work'
+import { usePreflight, useWorkSnapshot, type GatewayWorkItem, type GatewayWorkState } from '@/lib/work'
 
 type WorkGroup = 'needs-you' | 'in-progress' | 'completed'
 
@@ -210,6 +210,8 @@ const retryStyle: CSSProperties = { minHeight: 44, display: 'inline-flex', align
 const workRowStyle: CSSProperties = { padding: '14px 16px', display: 'grid', gap: 7 }
 const stateLabelStyle: CSSProperties = { fontFamily: 'var(--font-body)', fontSize: 11.5, fontWeight: 600 }
 const evidenceRowStyle: CSSProperties = { display: 'flex', gap: '4px 12px', flexWrap: 'wrap', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-muted)' }
+const preflightBannerStyle: CSSProperties = { display: 'flex', gap: '4px 10px', flexWrap: 'wrap', alignItems: 'center', border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', padding: '8px 10px', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-secondary)', background: 'var(--color-surface-elevated)' }
+const preflightErrorStyle: CSSProperties = { ...preflightBannerStyle, color: 'var(--color-warning)' }
 
 const WORK_DETAIL_LABELS: Record<string, string> = {
   shadow_run_complete: 'The previous Builder run completed; this item remains blocked.',
@@ -247,6 +249,11 @@ function WorkRow({ item, isLast }: { item: GatewayWorkItem; isLast: boolean }) {
   const rawDetail = rawWorkDetail(item)
   const detail = workDetailLabel(item)
   const evidence = evidenceLabels(item)
+  const packetId = item.current_packet?.id ?? item.source.packet_id
+  const preflight = usePreflight(
+    item.next_action === 'claim' ? item.source.initiative_id : null,
+    item.next_action === 'claim' ? packetId : null,
+  )
   return (
     <article
       data-testid="work-row"
@@ -258,6 +265,17 @@ function WorkRow({ item, isLast }: { item: GatewayWorkItem; isLast: boolean }) {
         <span style={{ ...stateLabelStyle, color: STATE_COLORS[item.state] }}>{item.state}</span>
       </div>
       {detail && <div style={{ color: 'var(--color-text-secondary)', fontSize: 13.5, lineHeight: 1.5 }}>{detail}</div>}
+      {preflight.data && (
+        <div data-testid="preflight-banner" style={preflightBannerStyle}>
+          <strong>Preflight {preflight.data.action === 'run' ? 'ready' : preflight.data.action}</strong>
+          {preflight.data.route && <span>{preflight.data.route}</span>}
+          <span>CAD {preflight.data.estimated_cost_cad.toFixed(4)} local estimate</span>
+          {preflight.data.reasons.length > 0 && <span>{preflight.data.reasons[0]}</span>}
+        </div>
+      )}
+      {preflight.isError && item.next_action === 'claim' && (
+        <div style={preflightErrorStyle}>Preflight is unavailable; Builder should not start this packet until the check succeeds.</div>
+      )}
       {evidence.length > 0 && (
         <div style={evidenceRowStyle}>
           {evidence.map(label => <span key={label}>{label}</span>)}

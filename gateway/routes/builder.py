@@ -149,3 +149,25 @@ async def builder_supervisor_tick():
         "error": None,
         "detail": receipt,
     }
+
+
+@router.get("/builder/preflight/{initiative_id}/{packet_id}")
+async def builder_preflight(initiative_id: str, packet_id: str):
+    """Read-only pre-flight review of a single packet before execution.
+
+    Returns a structured decision (``run`` | ``blocked`` | ``refuse``) with
+    projected route, estimated CAD cost, eligibility, data quality, and
+    plain-language reasons.  This endpoint never creates an attempt, changes
+    task state, or launches a run.
+    """
+    from gateway import builder_supervisor as bs
+
+    try:
+        result = bs.preflight_packet(initiative_id, packet_id, repo_root=bs.repo_root_default())
+    except Exception as exc:
+        logger.exception("preflight %s/%s failed", initiative_id, packet_id)
+        raise HTTPException(
+            status_code=500, detail=f"preflight failed: {exc}"
+        ) from exc
+
+    return result
