@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { DocumentsPanel } from '@/components/DocumentsPanel'
 import { useArtifacts } from '@/lib/queries'
 import type { GatewayArtifact } from '@/lib/gateway'
+import { describeFailure } from '@/lib/failure-copy'
 
 export default function LibraryView({ isMobile }: { isMobile: boolean }) {
   const pad = isMobile ? '20px 16px 124px' : '32px 40px 48px'
@@ -62,10 +63,8 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
 
 function artifactErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : ''
-  if (message.includes('401')) return 'Sign in again to load saved files.'
-  if (message.includes('403')) return 'You do not have access to saved files.'
   if (message === 'Saved files returned an invalid response') return `${message}. Try again.`
-  return 'Saved files are unavailable right now. Try again.'
+  return describeFailure(error)
 }
 
 function ArtifactRow({ artifact }: { artifact: GatewayArtifact }) {

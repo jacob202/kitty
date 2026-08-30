@@ -63,6 +63,13 @@ export function TopBar({
   projectLoading = false,
   projectBusy = false,
 }: Props) {
+  // This badge reports the chat turn only. c648eb5 forced it to 'broke' whenever
+  // the runtime was not 'available', to stop it claiming "ready" while the
+  // backend was unknown — but that also fires for 'unknown' (still loading) and
+  // for degraded/stale, so the badge announced "reply failed" when no reply had
+  // failed, or when nothing had been sent at all. The relabel of idle to "idle"
+  // already removes the overclaim that gating existed to prevent, and the
+  // RuntimeBadge beside this one owns connection health.
 
   if (isMobile) {
     // Two rows on the phone. Squeezing a cat state, runtime, the active project
@@ -228,19 +235,32 @@ function RuntimeBadge({
 }) {
   const healthy = state === 'available'
   const color = healthy ? 'var(--color-success)' : state === 'degraded' || state === 'stale' || state === 'unknown' ? 'var(--color-warning)' : 'var(--color-destructive)'
+  // These describe the BACKEND CONNECTION only. The cat StateBadge sits right
+  // next to this and reports Kitty's own state (e.g. "ready"), so a label here
+  // starting with "Kitty ___" read as a second, contradictory claim about the
+  // same thing.
   const label = state === 'available'
-    ? 'Kitty connected'
+    ? 'connected'
     : state === 'degraded'
-      ? 'Kitty needs attention'
+      ? 'partly connected'
       : state === 'unavailable'
-        ? 'Kitty unavailable'
+        ? 'not connected'
         : state === 'stale'
-          ? 'Kitty status is stale'
-          : 'Kitty status unknown'
+          ? 'connection stale'
+          : 'connection unknown'
+  // "Gateway" is the internal name for a component; it means nothing to the
+  // person using Kitty, and a screen reader user deserves the same plain
+  // wording the visible badge gets. Naming the connection is enough to keep
+  // this distinct from the cat StateBadge beside it.
+  const accessibleLabel = state === 'stale'
+    ? 'Connection to Kitty is stale'
+    : state === 'unknown'
+      ? 'Connection to Kitty is unknown'
+      : `Connection to Kitty: ${label}`
   return (
     <span
-      title={detail ?? `Kitty status: ${state}`}
-      aria-label={label}
+      title={detail ?? accessibleLabel}
+      aria-label={accessibleLabel}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
         fontFamily: 'var(--font-body)', fontSize: 11, whiteSpace: 'nowrap',
