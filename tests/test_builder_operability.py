@@ -310,3 +310,136 @@ def test_confirmed_runner_loss_with_ambiguous_effect_preserves_verification(tmp_
         "result": None,
         "evidence": "provider audit endpoint unavailable",
     }
+
+
+
+def test_concurrent_idempotent_request_creation_returns_one_durable_receipt(tmp_path: Path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier, Lock
+
+    db = tmp_path / "builder.db"
+    barrier = Barrier(2)
+    lock = Lock()
+    counter = 0
+
+    def synchronized_id(_: str) -> str:
+        nonlocal counter
+        with lock:
+            counter += 1
+            value = counter
+        barrier.wait(timeout=5)
+        return f"inv_test_{value}"
+
+    monkeypatch.setattr(bo, "generate_id_with_base36", synchronized_id)
+
+    def request_once():
+        return bo.request_invocation(
+            db_path=db,
+            operation="test.concurrent-create",
+            idempotency_key="same-key",
+            effect_class=bo.EFFECT_RECONCILABLE,
+            request={"value": 1},
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        receipts = [future.result() for future in [pool.submit(request_once), pool.submit(request_once)]]
+
+    assert receipts[0]["invocation_id"] == receipts[1]["invocation_id"]
+    assert receipts[0]["status"] == bo.STATUS_REQUESTED
+
+
+def test_stale_unknown_verification_cannot_overwrite_terminal_success(tmp_path: Path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    db = tmp_path / "builder.db"
+
+    with pytest.raises(bo.OutcomeUnknownError):
+        bo.execute_invocation(
+            db_path=db,
+            operation="test.concurrent-reconcile",
+            idempotency_key="same-effect",
+            effect_class=bo.EFFECT_RECONCILABLE,
+            request={"value": 1},
+            execute=lambda: (_ for _ in ()).throw(bo.OutcomeUnknownError("lost")),
+            verify=lambda _: bo.Verification(state=bo.VERIFICATION_UNKNOWN),
+        )
+
+    unknown_started = Event()
+    success_finished = Event()
+
+    def unknown_verify(_: dict[str, object]) -> bo.Verification:
+        unknown_started.set()
+        assert success_finished.wait(timeout=5)
+        return bo.Verification(state=bo.VERIFICATION_UNKNOWN, evidence="stale unknown")
+
+    def applied_verify(_: dict[str, object]) -> bo.Verification:
+        assert unknown_started.wait(timeout=5)
+        return bo.Verification(
+            state=bo.VERIFICATION_APPLIED,
+            result={"ok": True},
+            evidence="fresh applied",
+        )
+
+    def stale_call():
+        result = bo.execute_invocation(
+            db_path=db,
+            operation="test.concurrent-reconcile",
+            idempotency_key="same-effect",
+            effect_class=bo.EFFECT_RECONCILABLE,
+            request={"value": 1},
+            execute=lambda: pytest.fail("must not replay"),
+            verify=unknown_verify,
+        )
+        assert result["status"] == bo.STATUS_SUCCEEDED
+
+    def fresh_call():
+        try:
+            return bo.execute_invocation(
+                db_path=db,
+                operation="test.concurrent-reconcile",
+                idempotency_key="same-effect",
+                effect_class=bo.EFFECT_RECONCILABLE,
+                request={"value": 1},
+                execute=lambda: pytest.fail("must not replay"),
+                verify=applied_verify,
+            )
+        finally:
+            success_finished.set()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        stale = pool.submit(stale_call)
+        fresh = pool.submit(fresh_call)
+        fresh.result()
+        stale.result()
+
+    final = bo.get_invocation_by_key("test.concurrent-reconcile", "same-effect", db_path=db)
+    assert final["status"] == bo.STATUS_SUCCEEDED
+    assert final["verification"]["state"] == bo.VERIFICATION_APPLIED
+    assert final["verification"]["evidence"] == "fresh applied"
+
+
+def test_nonserializable_success_result_becomes_unknown_for_reconciliation(tmp_path: Path):
+    db = tmp_path / "builder.db"
+    calls = 0
+
+    def execute():
+        nonlocal calls
+        calls += 1
+        return {"not_json": object()}
+
+    with pytest.raises(bo.OperabilityError, match="JSON-serializable"):
+        bo.execute_invocation(
+            db_path=db,
+            operation="test.serialization",
+            idempotency_key="bad-result",
+            effect_class=bo.EFFECT_RECONCILABLE,
+            request={"value": 1},
+            execute=execute,
+            verify=lambda _: bo.Verification(state=bo.VERIFICATION_UNKNOWN),
+        )
+
+    assert calls == 1
+    receipt = bo.get_invocation_by_key("test.serialization", "bad-result", db_path=db)
+    assert receipt["status"] == bo.STATUS_UNKNOWN
+    assert "serial" in (receipt["last_error"] or "").lower()

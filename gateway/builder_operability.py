@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -204,21 +205,39 @@ def request_invocation(
             return _row_to_invocation(existing)
 
         invocation_id = generate_id_with_base36("inv")
-        conn.execute(
-            "INSERT INTO operation_receipts "
-            "(invocation_id, operation, idempotency_key, request_fingerprint, request_json, "
-            "effect_class, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                invocation_id,
-                operation,
-                idempotency_key,
-                fingerprint,
-                request_json,
-                effect_class,
-                STATUS_REQUESTED,
-            ),
-        )
-        conn.commit()
+        try:
+            conn.execute(
+                "INSERT INTO operation_receipts "
+                "(invocation_id, operation, idempotency_key, request_fingerprint, request_json, "
+                "effect_class, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    invocation_id,
+                    operation,
+                    idempotency_key,
+                    fingerprint,
+                    request_json,
+                    effect_class,
+                    STATUS_REQUESTED,
+                ),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            winner = conn.execute(
+                "SELECT * FROM operation_receipts WHERE operation = ? AND idempotency_key = ?",
+                (operation, idempotency_key),
+            ).fetchone()
+            if winner is None:
+                raise
+            if (
+                winner["request_fingerprint"] != fingerprint
+                or winner["effect_class"] != effect_class
+            ):
+                raise InvocationConflictError(
+                    f"idempotency key {idempotency_key!r} for {operation!r} was reused "
+                    "for a different request or effect class"
+                )
+            return _row_to_invocation(winner)
     return get_invocation(invocation_id, db_path=db_path)
 
 
@@ -394,15 +413,26 @@ def execute_invocation(
             return _response(recovered)
         if verification.state == VERIFICATION_UNKNOWN:
             with bq.connect(db_path) as conn:
-                conn.execute(
+                cursor = conn.execute(
                     "UPDATE operation_receipts SET verification_json = ?, "
-                    "updated_at = CURRENT_TIMESTAMP WHERE invocation_id = ?",
+                    "updated_at = CURRENT_TIMESTAMP WHERE invocation_id = ? AND status = ?",
                     (
                         _canonical_json(verification.to_dict(), label="verification"),
                         receipt["invocation_id"],
+                        STATUS_UNKNOWN,
                     ),
                 )
-                conn.commit()
+                if cursor.rowcount == 1:
+                    conn.commit()
+                else:
+                    conn.rollback()
+                    current = get_invocation(receipt["invocation_id"], db_path=db_path)
+                    if current["status"] == STATUS_SUCCEEDED:
+                        return _response(current)
+                    raise InvocationUnresolvedError(
+                        f"invocation {receipt['invocation_id']} changed during verification; "
+                        "refusing concurrent replay"
+                    )
             raise InvocationUnresolvedError(
                 f"invocation {receipt['invocation_id']} postcondition remains unknown; "
                 "refusing to replay a possibly committed effect"
@@ -427,6 +457,16 @@ def execute_invocation(
     except Exception as exc:
         _transition(
             receipt["invocation_id"], STATUS_FAILED, db_path=db_path, error=str(exc)
+        )
+        raise
+    try:
+        _canonical_json(result, label="result")
+    except OperabilityError as exc:
+        _transition(
+            receipt["invocation_id"],
+            STATUS_UNKNOWN,
+            db_path=db_path,
+            error=f"result serialization failed: {exc}",
         )
         raise
     succeeded = _transition(

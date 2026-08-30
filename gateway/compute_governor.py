@@ -287,7 +287,14 @@ def _ensure_receipt_columns(conn: sqlite3.Connection) -> None:
     """Add receipt fields introduced after the original governor schema."""
     columns = {str(row["name"]) for row in conn.execute("PRAGMA table_info(work_receipts)")}
     if "policy_json" not in columns:
-        conn.execute("ALTER TABLE work_receipts ADD COLUMN policy_json TEXT")
+        try:
+            conn.execute("ALTER TABLE work_receipts ADD COLUMN policy_json TEXT")
+        except sqlite3.OperationalError:
+            refreshed = {
+                str(row["name"]) for row in conn.execute("PRAGMA table_info(work_receipts)")
+            }
+            if "policy_json" not in refreshed:
+                raise
 
 
 def init_db(db_path: Path | str = COMPUTE_GOVERNOR_DB) -> None:

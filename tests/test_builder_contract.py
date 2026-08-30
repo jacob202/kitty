@@ -101,6 +101,30 @@ class TestRunContract:
         assert result["passed"] is False
         assert result["command_results"][0]["passed"] is False
 
+    def test_run_executes_step_local_validation_commands(self):
+        with patch(
+            "gateway.builder_contract.builder_core.check_criteria",
+            return_value=[{"criterion": "checks pass", "passed": True, "note": "ok"}],
+        ):
+            result = run_contract(
+                {
+                    "goal": "implement then verify",
+                    "criteria": ["checks pass"],
+                    "steps": [
+                        {"id": "implement", "instruction": "implement"},
+                        {
+                            "id": "verify",
+                            "instruction": "verify",
+                            "validation_commands": ["false"],
+                        },
+                    ],
+                }
+            )
+
+        assert result["passed"] is False
+        assert [entry["command"] for entry in result["command_results"]] == ["false"]
+        assert result["command_results"][0]["passed"] is False
+
     def test_run_fails_when_criteria_fail(self, tmp_path: Path):
         with patch(
             "gateway.builder_contract.builder_core.check_criteria",

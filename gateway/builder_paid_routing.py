@@ -310,10 +310,14 @@ def resolve_paid_route(
         route.get("max_projected_cad_per_attempt"),
         f"paid route {tier!r}.max_projected_cad_per_attempt",
     )
-    projected = _projected_attempt_cost_cad(governor_route, worker_model, reviewer_model)
+    projected = max(
+        _projected_attempt_cost_cad(governor_route, worker, reviewer)
+        for worker in worker_candidates
+        for reviewer in reviewer_candidates
+    )
     if projected > ceiling:
         raise PaidRoutingError(
-            f"paid route {tier!r} projects CAD {projected:.4f} per attempt, "
+            f"paid route {tier!r} candidate set projects CAD {projected:.4f} per attempt, "
             f"above configured ceiling CAD {ceiling:.4f}"
         )
     return PaidRoute(
@@ -337,7 +341,7 @@ def build_execution_routing_plan(
 ) -> ExecutionRoutingPlan:
     """Combine paid-route truth with handoff and bounded harness policy."""
     route = resolve_paid_route(tier, config_path=config_path)
-    source = source_tier or tier
+    source = tier if source_tier is None else source_tier
     return ExecutionRoutingPlan(
         tier=route.tier,
         provider=route.provider,

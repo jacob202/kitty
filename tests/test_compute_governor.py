@@ -497,3 +497,40 @@ def test_non_json_routing_policy_fails_before_recording_receipt(db: Path):
 
     with cg.connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM work_receipts").fetchone()[0] == 0
+
+
+
+def test_init_db_concurrently_migrates_legacy_policy_column(tmp_path: Path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    legacy = tmp_path / "legacy-concurrent.db"
+    with sqlite3.connect(legacy) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE work_receipts (
+                receipt_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_type TEXT NOT NULL,
+                subject_ref TEXT NOT NULL,
+                head_sha TEXT NOT NULL,
+                dispatch_hash TEXT NOT NULL,
+                work_kind TEXT NOT NULL,
+                risk_class TEXT NOT NULL,
+                route TEXT NOT NULL,
+                model TEXT,
+                provider TEXT,
+                outcome TEXT NOT NULL,
+                retries INTEGER NOT NULL DEFAULT 0,
+                estimated_usage_cad REAL NOT NULL DEFAULT 0.0,
+                override_reason TEXT,
+                created_at TEXT NOT NULL
+            );
+            """
+        )
+
+    for _ in range(20):
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(lambda _: cg.init_db(legacy), range(8)))
+
+    with cg.connect(legacy) as conn:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(work_receipts)")}
+    assert "policy_json" in columns

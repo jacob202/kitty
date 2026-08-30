@@ -219,7 +219,18 @@ def run_contract(
     workflow = compile_workflow(spec)
     goal = spec["goal"].strip()
     criteria_in = spec.get("criteria") or builder_core.derive_criteria(goal)
-    commands = spec.get("validation_commands", [])
+    if spec.get("steps") is None:
+        commands = [
+            cmd
+            for step in workflow["steps"]
+            for cmd in step["validation_commands"]
+        ]
+    else:
+        commands = list(spec.get("validation_commands", [])) + [
+            cmd
+            for step in workflow["steps"]
+            for cmd in step["validation_commands"]
+        ]
 
     command_results = []
     for cmd in commands:

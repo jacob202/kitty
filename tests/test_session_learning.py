@@ -315,3 +315,28 @@ def test_repeated_positive_paired_evidence_promotes_through_existing_learning_st
     assert second["signal"]["promotion_status"] == "promote"
     assert "baseline_mean=0.500000" in second["signal"]["evidence"]
     assert "candidate_mean=0.750000" in second["signal"]["evidence"]
+
+
+
+def test_tampered_positive_evaluation_cannot_create_learning_signal(tmp_path: Path) -> None:
+    evaluation = compare_capability_runs(
+        {"task-a": 0.8},
+        {"task-a": 0.4},
+        minimum_lift=0.1,
+        context={"model": "m", "workspace": "w", "scorer": "s"},
+    )
+    tampered = dict(evaluation)
+    tampered["improved"] = True
+    tampered["absolute_lift"] = 0.5
+
+    with pytest.raises(SignalError, match="evaluation"):
+        record_evaluation_signal(
+            tampered,
+            stable_key="tampered-capability-lift",
+            capability_name="tampered capability",
+            source_session="eval-tampered",
+            store=Store(tmp_path, "test"),
+            now=NOW,
+        )
+
+    assert load_signals(tmp_path) == []

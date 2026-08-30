@@ -232,3 +232,27 @@ def test_fallback_candidates_fail_closed_on_malformed_or_duplicate_models(tmp_pa
     ]
     with pytest.raises(bpr.PaidRoutingError, match="duplicate"):
         bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, duplicate))
+
+
+
+def test_execution_routing_plan_rejects_explicitly_empty_source_tier(tmp_path: Path):
+    with pytest.raises(bpr.PaidRoutingError, match="unknown source tier"):
+        bpr.build_execution_routing_plan(
+            "cheap",
+            task_class="implementation",
+            source_tier="",
+            config_path=_write(tmp_path, _policy()),
+        )
+
+
+def test_fallback_candidates_must_all_fit_attempt_ceiling(tmp_path: Path):
+    payload = _policy(cheap_cap=0.10)
+    payload["routes"]["cheap"]["worker_fallback_models"] = [
+        "openrouter/deepseek/deepseek-v4-pro"
+    ]
+    payload["routes"]["cheap"]["reviewer_fallback_models"] = [
+        "openrouter/qwen/qwen3.7-max"
+    ]
+
+    with pytest.raises(bpr.PaidRoutingError, match="ceiling"):
+        bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, payload))

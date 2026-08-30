@@ -479,13 +479,6 @@ def record_evaluation_signal(
     """
     if not isinstance(evaluation, Mapping):
         raise SignalError("evaluation must be an object")
-    if evaluation.get("improved") is not True:
-        return {
-            "created": False,
-            "path": None,
-            "signal": None,
-            "reason": "candidate did not meet the paired-evaluation lift threshold",
-        }
     if not isinstance(capability_name, str) or not capability_name.strip():
         raise SignalError("capability_name must be a non-empty string")
 
@@ -505,6 +498,26 @@ def record_evaluation_signal(
     ):
         raise SignalError("evaluation.task_keys must contain one non-empty key per pair")
     context = _evaluation_context(evaluation.get("context"))
+    if numbers["minimum_lift"] < 0:
+        raise SignalError("evaluation.minimum_lift must be non-negative")
+    computed_lift = numbers["candidate_mean"] - numbers["baseline_mean"]
+    if not math.isclose(numbers["absolute_lift"], computed_lift, rel_tol=1e-12, abs_tol=1e-12):
+        raise SignalError(
+            "evaluation.absolute_lift must equal candidate_mean - baseline_mean"
+        )
+    improved = evaluation.get("improved")
+    if not isinstance(improved, bool):
+        raise SignalError("evaluation.improved must be boolean")
+    expected_improved = computed_lift > 0 and computed_lift >= numbers["minimum_lift"]
+    if improved != expected_improved:
+        raise SignalError("evaluation.improved is inconsistent with the measured lift")
+    if not expected_improved:
+        return {
+            "created": False,
+            "path": None,
+            "signal": None,
+            "reason": "candidate did not meet the paired-evaluation lift threshold",
+        }
 
     evidence = (
         f"paired evaluation: pair_count={pair_count}; "
