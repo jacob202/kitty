@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 const GATEWAY_BASE = '/proxy'
 const DEFAULT_TIMEOUT_MS = 8000
@@ -215,5 +215,112 @@ export function useWorkSnapshot() {
     queryFn: fetchGatewayWorkSnapshot,
     refetchInterval: 10_000,
     staleTime: 5_000,
+  })
+}
+
+export interface GatewaySupervisor {
+  schema_version: number
+  running: boolean
+  active_runs: unknown[]
+  eligible_now: number
+  on_hold: number
+  last_tick_at: string | null
+  lock_path: string | null
+}
+
+export interface BuilderCommandResult {
+  ok: boolean
+  action?: string
+  error: string | null
+  detail?: unknown
+}
+
+export interface BuilderCommand {
+  action: 'requeue' | 'cancel' | 'resume' | 'pause'
+  task_id?: string
+  initiative_id?: string
+  reason?: string
+}
+
+function isSupervisor(value: unknown): value is GatewaySupervisor {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.running === 'boolean'
+    && Array.isArray(value.active_runs)
+    && typeof value.eligible_now === 'number'
+    && typeof value.on_hold === 'number'
+    && isNullableString(value.last_tick_at)
+  )
+}
+
+export async function fetchSupervisor(): Promise<GatewaySupervisor> {
+  const endpoint = `${GATEWAY_BASE}/builder/supervisor`
+  const response = await fetch(endpoint)
+  if (!response.ok) {
+    const detail = await errorDetail(response)
+    throw new Error(`GET ${endpoint} failed: ${response.status}${detail ? `: ${detail}` : ''}`)
+  }
+  const payload: unknown = await response.json()
+  if (!isSupervisor(payload)) throw new Error('Gateway /builder/supervisor returned an invalid payload')
+  return payload
+}
+
+export function useSupervisor() {
+  return useQuery({
+    queryKey: ['builder-supervisor'],
+    queryFn: fetchSupervisor,
+    refetchInterval: 10_000,
+    staleTime: 5_000,
+  })
+}
+
+// The command and tick routes answer 200 with {ok:false, error} for refusals
+// the operator must see (task not found, initiative already running). Treating
+// a non-200 as the only failure would report those refusals as success, so the
+// body is the authority and transport failure is folded into the same shape.
+async function postCommandResult(endpoint: string, body: unknown): Promise<BuilderCommandResult> {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  })
+  let payload: unknown = null
+  try {
+    payload = await response.json()
+  } catch {
+    payload = null
+  }
+  if (isRecord(payload) && typeof payload.ok === 'boolean') {
+    return {
+      ok: payload.ok,
+      action: typeof payload.action === 'string' ? payload.action : undefined,
+      error: typeof payload.error === 'string' ? payload.error : null,
+      detail: payload.detail,
+    }
+  }
+  if (!response.ok) {
+    return { ok: false, error: `Request failed: ${response.status} ${response.statusText}`.trim() }
+  }
+  return { ok: false, error: 'Builder returned an unreadable response.' }
+}
+
+export function runBuilderCommand(command: BuilderCommand): Promise<BuilderCommandResult> {
+  return postCommandResult(`${GATEWAY_BASE}/builder/command`, { actor: 'kitty-ui', ...command })
+}
+
+export function runSupervisorTick(): Promise<BuilderCommandResult> {
+  return postCommandResult(`${GATEWAY_BASE}/builder/supervisor/tick`, {})
+}
+
+/** Runs a Builder action and refreshes both projections it can change. */
+export function useBuilderAction() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (command: BuilderCommand | 'tick') =>
+      command === 'tick' ? runSupervisorTick() : runBuilderCommand(command),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['work'] })
+      void queryClient.invalidateQueries({ queryKey: ['builder-supervisor'] })
+    },
   })
 }
