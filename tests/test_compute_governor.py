@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -416,3 +417,83 @@ def test_dispatch_from_mapping_preserves_requested_route():
     dispatch = cg.dispatch_from_mapping(payload)
 
     assert dispatch.requested_route == cg.ROUTE_FREE
+
+# --- routing policy receipt snapshots -------------------------------------
+
+
+def test_record_receipt_round_trips_canonical_routing_policy(db: Path):
+    policy = {
+        "harness": {"name": "coding", "workspace_mode": "write"},
+        "handoff": {"context_mode": "artifacts_compact"},
+        "worker_candidates": ["openrouter/model-a", "openrouter/model-b"],
+        "budget": {"weekly_cad": 6.0, "per_attempt_cad": 0.10},
+    }
+
+    receipt_id = cg.record_receipt(
+        db,
+        _dispatch(),
+        outcome=cg.OUTCOME_SETTLED,
+        route=cg.ROUTE_CHEAP,
+        policy=policy,
+        now=NOW,
+    )
+
+    with cg.connect(db) as conn:
+        row = conn.execute(
+            "SELECT policy_json FROM work_receipts WHERE receipt_id = ?", (receipt_id,)
+        ).fetchone()
+
+    assert json.loads(row["policy_json"]) == policy
+    assert row["policy_json"] == json.dumps(
+        policy, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+
+
+def test_init_db_adds_policy_column_to_legacy_receipt_store(tmp_path: Path):
+    legacy = tmp_path / "legacy.db"
+    with sqlite3.connect(legacy) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE work_receipts (
+                receipt_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_type TEXT NOT NULL,
+                subject_ref TEXT NOT NULL,
+                head_sha TEXT NOT NULL,
+                dispatch_hash TEXT NOT NULL,
+                work_kind TEXT NOT NULL,
+                risk_class TEXT NOT NULL,
+                route TEXT NOT NULL,
+                model TEXT,
+                provider TEXT,
+                outcome TEXT NOT NULL,
+                retries INTEGER NOT NULL DEFAULT 0,
+                estimated_usage_cad REAL NOT NULL DEFAULT 0.0,
+                override_reason TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX idx_receipts_settled_pass
+                ON work_receipts(task_type, subject_ref, head_sha)
+                WHERE outcome = 'settled' AND override_reason IS NULL;
+            """
+        )
+
+    cg.init_db(legacy)
+
+    with cg.connect(legacy) as conn:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(work_receipts)")}
+    assert "policy_json" in columns
+
+
+def test_non_json_routing_policy_fails_before_recording_receipt(db: Path):
+    with pytest.raises(cg.GovernorError, match="policy must be JSON-serializable"):
+        cg.record_receipt(
+            db,
+            _dispatch(),
+            outcome=cg.OUTCOME_SETTLED,
+            route=cg.ROUTE_CHEAP,
+            policy={"bad": object()},
+            now=NOW,
+        )
+
+    with cg.connect(db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM work_receipts").fetchone()[0] == 0

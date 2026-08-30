@@ -30,7 +30,7 @@ import hashlib
 import json
 import os
 import sqlite3
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS work_receipts (
     outcome TEXT NOT NULL,
     retries INTEGER NOT NULL DEFAULT 0,
     estimated_usage_cad REAL NOT NULL DEFAULT 0.0,
+    policy_json TEXT,
     override_reason TEXT,
     created_at TEXT NOT NULL
 );
@@ -282,9 +283,17 @@ def connect(db_path: Path | str = COMPUTE_GOVERNOR_DB) -> sqlite3.Connection:
     return conn
 
 
+def _ensure_receipt_columns(conn: sqlite3.Connection) -> None:
+    """Add receipt fields introduced after the original governor schema."""
+    columns = {str(row["name"]) for row in conn.execute("PRAGMA table_info(work_receipts)")}
+    if "policy_json" not in columns:
+        conn.execute("ALTER TABLE work_receipts ADD COLUMN policy_json TEXT")
+
+
 def init_db(db_path: Path | str = COMPUTE_GOVERNOR_DB) -> None:
     with connect(db_path) as conn:
         conn.executescript(_SCHEMA_SQL)
+        _ensure_receipt_columns(conn)
 
 
 def find_settled_receipt(
@@ -332,6 +341,7 @@ def record_receipt(
     retries: int = 0,
     estimated_usage_cad: float = 0.0,
     override_reason: str | None = None,
+    policy: Mapping[str, Any] | None = None,
     now: datetime | None = None,
 ) -> int:
     """Persist what was actually spent. Raises on a duplicate settled pass."""
@@ -342,14 +352,28 @@ def record_receipt(
     # An empty override string is not an override: it must be NULL so the
     # partial unique index still guards the un-overridden allowance.
     override_reason = (override_reason or "").strip() or None
+    policy_json: str | None = None
+    if policy is not None:
+        if not isinstance(policy, Mapping):
+            raise GovernorError("policy must be a JSON-serializable object")
+        try:
+            policy_json = json.dumps(
+                dict(policy),
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+                allow_nan=False,
+            )
+        except (TypeError, ValueError) as exc:
+            raise GovernorError(f"policy must be JSON-serializable: {exc}") from exc
     stamp = (now or datetime.now(timezone.utc)).isoformat()
     with connect(db_path) as conn:
         try:
             cursor = conn.execute(
                 "INSERT INTO work_receipts (task_type, subject_ref, head_sha, dispatch_hash, "
                 "work_kind, risk_class, route, model, provider, outcome, retries, "
-                "estimated_usage_cad, override_reason, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "estimated_usage_cad, policy_json, override_reason, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     dispatch.task_type,
                     dispatch.subject_ref,
@@ -363,6 +387,7 @@ def record_receipt(
                     outcome,
                     retries,
                     estimated_usage_cad,
+                    policy_json,
                     override_reason,
                     stamp,
                 ),
