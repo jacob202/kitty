@@ -248,6 +248,25 @@ def _init_git_repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
+class TestBaseSHAResolution:
+    def test_prefers_local_main_when_it_is_ahead_of_origin_main(self, tmp_path: Path):
+        repo = _init_git_repo(tmp_path)
+        subprocess.run(["git", "checkout", "-q", "-b", "main"], cwd=repo, check=True)
+        (repo / "base.txt").write_text("base\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=repo, check=True)
+        remote_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+        subprocess.run(["git", "update-ref", "refs/remotes/origin/main", remote_sha], cwd=repo, check=True)
+
+        (repo / "local.txt").write_text("local ahead\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "local main ahead"], cwd=repo, check=True)
+        local_sha = subprocess.run(["git", "rev-parse", "main"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+
+        assert local_sha != remote_sha
+        assert bi.resolve_base_sha(repo) == local_sha
+
+
 class TestWarnings:
     # -- (a) acceptance_criteria without validation_commands -----------------
 

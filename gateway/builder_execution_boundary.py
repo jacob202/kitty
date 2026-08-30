@@ -161,6 +161,12 @@ def build_sandbox_profile(
     # readable executables/venvs; metadata access does not grant file content.
     for path in (launch_executable, resolved_executable, worktree, run_dir):
         metadata_literals.update(str(parent) for parent in path.parents)
+    # Git resolves a linked worktree through the common .git/worktrees tree.
+    # The content under those directories is already narrowly read-enabled
+    # above; allow metadata traversal of their parent directories so Git can
+    # resolve the explicitly permitted paths under Seatbelt.
+    for git_path in [*(Path(path) for path in git_subpaths), *(Path(path) for path in git_literals)]:
+        metadata_literals.update(str(parent) for parent in git_path.parents)
 
     read_rules = " ".join(
         [

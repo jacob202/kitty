@@ -21,6 +21,47 @@ def _serve_once(listener: socket.socket) -> None:
         pass
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
+def test_sandboxed_git_can_read_linked_worktree_metadata(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+    (repo / "README.md").write_text("hello\n")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)
+
+    worktree = tmp_path / "linked"
+    subprocess.run(["git", "worktree", "add", "-q", "-b", "builder/test", str(worktree), "main"], cwd=repo, check=True)
+    run_dir = tmp_path / "run"
+    env = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
+    raw_command = ["/bin/bash", "-lc", "git rev-parse --show-toplevel && git rev-parse HEAD && git status --porcelain"]
+    profile = boundary.build_sandbox_profile(
+        worktree=worktree,
+        run_dir=run_dir,
+        command=raw_command,
+        environment=env,
+    )
+    common_git = repo / ".git"
+    assert f'(allow file-read-metadata (literal "{common_git}"))' in profile
+    assert f'(allow file-read-metadata (literal "{common_git / "worktrees"}"))' in profile
+
+    command = boundary.wrap_command(
+        raw_command,
+        worktree=worktree,
+        run_dir=run_dir,
+        environment=env,
+    )
+
+    completed = subprocess.run(command, cwd=worktree, env=env, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr
+    lines = completed.stdout.splitlines()
+    assert lines[0] == str(worktree)
+    assert len(lines[1]) == 40
+
+
 def test_child_environment_is_explicit_and_secret_free(tmp_path: Path) -> None:
     source = dict(os.environ)
     source.update({"GATEWAY_SECRET": "sentinel", "OPENROUTER_API_KEY": "sentinel"})
