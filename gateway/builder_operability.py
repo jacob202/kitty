@@ -243,37 +243,107 @@ def _transition(
         if verification is not None
         else None
     )
+    expected_status = current["status"]
     with bq.connect(db_path) as conn:
         if target == STATUS_RUNNING:
-            conn.execute(
+            cursor = conn.execute(
                 "UPDATE operation_receipts SET status = ?, "
                 "started_at = COALESCE(started_at, CURRENT_TIMESTAMP), last_error = NULL, "
-                "updated_at = CURRENT_TIMESTAMP WHERE invocation_id = ?",
-                (target, invocation_id),
+                "updated_at = CURRENT_TIMESTAMP WHERE invocation_id = ? AND status = ?",
+                (target, invocation_id, expected_status),
             )
         elif target in {STATUS_SUCCEEDED, STATUS_FAILED}:
-            conn.execute(
+            cursor = conn.execute(
                 "UPDATE operation_receipts SET status = ?, result_json = ?, "
                 "verification_json = COALESCE(?, verification_json), last_error = ?, "
                 "ended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP "
-                "WHERE invocation_id = ?",
-                (target, result_json, verification_json, error, invocation_id),
+                "WHERE invocation_id = ? AND status = ?",
+                (
+                    target,
+                    result_json,
+                    verification_json,
+                    error,
+                    invocation_id,
+                    expected_status,
+                ),
             )
         elif target == STATUS_UNKNOWN:
-            conn.execute(
-                "UPDATE operation_receipts SET status = ?, last_error = ?, ended_at = NULL, "
-                "updated_at = CURRENT_TIMESTAMP WHERE invocation_id = ?",
-                (target, error, invocation_id),
+            cursor = conn.execute(
+                "UPDATE operation_receipts SET status = ?, "
+                "verification_json = COALESCE(?, verification_json), last_error = ?, "
+                "ended_at = NULL, updated_at = CURRENT_TIMESTAMP "
+                "WHERE invocation_id = ? AND status = ?",
+                (target, verification_json, error, invocation_id, expected_status),
             )
         else:
-            conn.execute(
+            cursor = conn.execute(
                 "UPDATE operation_receipts SET status = ?, "
                 "verification_json = COALESCE(?, verification_json), last_error = NULL, "
-                "ended_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE invocation_id = ?",
-                (target, verification_json, invocation_id),
+                "ended_at = NULL, updated_at = CURRENT_TIMESTAMP "
+                "WHERE invocation_id = ? AND status = ?",
+                (target, verification_json, invocation_id, expected_status),
+            )
+        if cursor.rowcount != 1:
+            conn.rollback()
+            raise InvocationUnresolvedError(
+                f"invocation {invocation_id} changed while transitioning "
+                f"{expected_status!r} -> {target!r}; refusing concurrent replay"
             )
         conn.commit()
     return get_invocation(invocation_id, db_path=db_path)
+
+
+def reconcile_interrupted_invocation(
+    invocation_id: str,
+    *,
+    verify: Callable[[dict[str, Any]], Verification],
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Reconcile a RUNNING receipt after the caller proved its runner is dead.
+
+    This function never re-executes the operation. If the postcondition exists,
+    it records success. If it definitely does not exist, it records failure so a
+    later normal execution may retry. If the postcondition is still ambiguous,
+    it records UNKNOWN and fails closed. The caller owns the proof that no live
+    runner still controls the invocation.
+    """
+    receipt = get_invocation(invocation_id, db_path=db_path)
+    if receipt["status"] != STATUS_RUNNING:
+        raise OperabilityError(
+            f"invocation {invocation_id} is {receipt['status']!r}, not running; "
+            "interrupted-run reconciliation requires a confirmed lost runner"
+        )
+
+    verification = verify(receipt)
+    verification.to_dict()
+    if verification.state == VERIFICATION_APPLIED:
+        return _transition(
+            invocation_id,
+            STATUS_SUCCEEDED,
+            db_path=db_path,
+            result=verification.result,
+            verification=verification,
+        )
+    if verification.state == VERIFICATION_NOT_APPLIED:
+        return _transition(
+            invocation_id,
+            STATUS_FAILED,
+            db_path=db_path,
+            verification=verification,
+            error="confirmed runner loss; postcondition not applied",
+        )
+
+    _transition(
+        invocation_id,
+        STATUS_UNKNOWN,
+        db_path=db_path,
+        verification=verification,
+        error="confirmed runner loss; postcondition remains unknown",
+    )
+    raise InvocationUnresolvedError(
+        f"invocation {invocation_id} postcondition remains unknown after confirmed "
+        "runner loss; refusing replay"
+    )
 
 
 def _response(receipt: dict[str, Any]) -> dict[str, Any]:
