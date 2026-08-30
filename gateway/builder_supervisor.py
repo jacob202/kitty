@@ -30,6 +30,7 @@ not in the CLI, so the CLI surface stays fixed.
 from __future__ import annotations
 
 import errno
+import hashlib
 import json
 import os
 import plistlib
@@ -434,6 +435,201 @@ def budget_summary() -> dict[str, Any]:
         "runs": int(ledger["runs"]),
         "retries": int(ledger["retries"]),
         "basis": ledger["basis"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Preflight — read-only pre-launch review of the next packet.
+# ---------------------------------------------------------------------------
+
+# Actions the preflight may return.
+PREFLIGHT_RUN = "run"
+PREFLIGHT_BLOCKED = "blocked"
+PREFLIGHT_REFUSE = "refuse"
+
+
+def preflight_packet(
+    initiative_id: str,
+    packet_id: str,
+    *,
+    db_path: Path | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Read-only review of a single packet before execution.
+
+    Reuses existing eligibility, data quality, manifest validation, and
+    compute governor.  Does **not** create an attempt, change task state, or
+    launch a run.  The result is a plain-language decision the Work UI can
+    display in place of the raw ``next_action``.
+
+    Returns a dict with at least ``action`` (``run`` | ``blocked`` |
+    ``refuse``), ``route``, ``estimated_cost_cad``, ``budget``, ``reasons``,
+    ``packet``, ``eligibility``, and ``data_quality``.
+    """
+    from gateway import compute_governor as cg
+
+    # 1. Look up the initiative and find the target packet.
+    initiative = bi.get_initiative(initiative_id, db_path=db_path)
+    if initiative is None:
+        return {
+            "action": PREFLIGHT_REFUSE,
+            "route": None,
+            "estimated_cost_cad": 0.0,
+            "cost_basis": cg.TYPICAL_PASS_TOKENS[cg.ROUTE_FREE],
+            "reasons": [f"initiative {initiative_id!r} not found"],
+            "packet": {"initiative_id": initiative_id, "packet_id": packet_id},
+            "budget": budget_summary(),
+            "eligibility": {"state": "unavailable", "blocked_by": []},
+            "data_quality": {"state": "unknown", "issues": []},
+        }
+
+    packets = initiative.get("packets") or []
+    target = next(
+        (p for p in packets if p.get("packet_id") == packet_id), None,
+    )
+    if target is None:
+        return {
+            "action": PREFLIGHT_REFUSE,
+            "route": None,
+            "estimated_cost_cad": 0.0,
+            "cost_basis": cg.TYPICAL_PASS_TOKENS[cg.ROUTE_FREE],
+            "reasons": [
+                f"packet {packet_id!r} not found in initiative {initiative_id!r}",
+            ],
+            "packet": {"initiative_id": initiative_id, "packet_id": packet_id},
+            "budget": budget_summary(),
+            "eligibility": {"state": "unavailable", "blocked_by": []},
+            "data_quality": {"state": "unknown", "issues": []},
+        }
+
+    # 1b. Check the initiative's stored operator state.  A paused initiative
+    #     means no tick will dispatch any of its packets, regardless of
+    #     eligibility.
+    stored_state = str(initiative.get("state", bi.INITIATIVE_ACTIVE))
+    if stored_state == bi.INITIATIVE_PAUSED:
+        pause_reason = initiative.get("pause_reason") or "initiative is paused"
+        return {
+            "action": PREFLIGHT_BLOCKED,
+            "route": None,
+            "estimated_cost_cad": 0.0,
+            "cost_basis": "local estimate",
+            "reasons": [f"initiative is paused: {pause_reason}"],
+            "packet": {
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "task_id": target.get("task_id"),
+                "base_sha": target.get("base_sha"),
+            },
+            "budget": budget_summary(),
+            "eligibility": {"state": "paused", "blocked_by": []},
+            "data_quality": {"state": "complete", "issues": []},
+        }
+
+    task_id = target.get("task_id")
+    task = bq.get_task(task_id, db_path=db_path) if task_id else None
+    task_state = task["state"] if task else None
+
+    # 2. Check data quality: the manifest row exists and has valid JSON.
+    dq_issues: list[str] = []
+    if target.get("validation_commands_json") is None and target.get("acceptance_criteria_json") is None:
+        dq_issues.append("packet metadata is missing acceptance criteria or validation commands")
+    data_quality_state = "complete" if not dq_issues else "partial"
+
+    # 3. Check eligibility using the existing pure helper.
+    by_id = {
+        p.get("packet_id"): p
+        for p in bi._read_packets_with_states(initiative_id, db_path)
+    }
+    exhausted_ids = bi._exhausted_packet_ids(
+        initiative_id, list(by_id.values()), db_path=db_path,
+    )
+    eligibility = bi.derive_packet_eligibility(
+        packet_id=packet_id,
+        task_state=task_state,
+        depends_on=target.get("depends_on") or [],
+        task_states={pid: p.get("state") for pid, p in by_id.items()},
+        exhausted_packet_ids=exhausted_ids,
+    )
+
+    reasons: list[str] = []
+    if eligibility["state"] != "eligible":
+        if eligibility["blocked_by"]:
+            reasons.append(
+                f"packet is {eligibility['state']}; blocked by {', '.join(str(b) for b in eligibility['blocked_by'][:5])}"
+            )
+        else:
+            reasons.append(f"packet is {eligibility['state']}")
+
+    # 4. Check the base SHA against the current repo HEAD.
+    base_sha = target.get("base_sha")
+    if base_sha and repo_root:
+        try:
+            current_sha = bi.resolve_base_sha(repo_root)
+            if current_sha != base_sha:
+                reasons.append(
+                    f"base SHA {base_sha[:12]}\u2026 differs from current HEAD "
+                    f"{current_sha[:12]}\u2026; the code has changed since this packet was created"
+                )
+        except Exception:
+            reasons.append("could not verify base SHA freshness")
+
+    # 5. Route through compute governor for projected cost.
+    policy = target.get("policy") or {}
+    routing_policy = policy.get("routing") or {}
+    requested_route = cg.ROUTE_FREE  # free route is the default
+    for cfg_route, cfg_model in cg.ROUTE_MODELS.items():
+        if routing_policy.get("model") == cfg_model:
+            requested_route = cfg_route
+            break
+
+    config = cg.load_reserve_config(cg.ROOT_CONFIG_PATH)
+    ledger_path = cg.default_db_path()
+    cg.init_db(ledger_path)
+    reserve = cg.reserve_from_ledger(ledger_path, config)
+    dispatch_hash = hashlib.sha256(
+        f"{initiative_id}/{packet_id}/{base_sha or 'none'}".encode()
+    ).hexdigest()
+    estimated_cost = cg.estimate_pass_cost_cad(requested_route)
+
+    # Check budget for paid routes.
+    if requested_route != cg.ROUTE_FREE and estimated_cost > reserve.remaining_cad:
+        reasons.append(
+            f"estimated CAD {estimated_cost:.4f} exceeds remaining weekly budget "
+            f"CAD {reserve.remaining_cad:.4f}"
+        )
+
+    # 6. Determine the action.
+    has_blockers = bool(reasons)
+    action = PREFLIGHT_RUN
+    if eligibility["state"] not in {"eligible"}:
+        action = PREFLIGHT_BLOCKED
+    elif has_blockers:
+        action = PREFLIGHT_BLOCKED if eligibility["state"] == "eligible" else PREFLIGHT_REFUSE
+        # If eligibility is eligible but other reasons exist (e.g. stale SHA),
+        # it is still blocked from safe execution.
+        if action == PREFLIGHT_RUN and any(
+            "differs from current HEAD" in r or "exceeds remaining weekly budget" in r
+            for r in reasons
+        ):
+            action = PREFLIGHT_BLOCKED
+
+    budget = budget_summary()
+    return {
+        "action": action,
+        "route": requested_route if action == PREFLIGHT_RUN else None,
+        "estimated_cost_cad": round(estimated_cost, 4),
+        "cost_basis": "local estimate from Kitty\u2019s own token ledger \u2014 NOT a provider meter",
+        "reasons": reasons,
+        "packet": {
+            "initiative_id": initiative_id,
+            "packet_id": packet_id,
+            "task_id": task_id,
+            "base_sha": base_sha,
+        },
+        "budget": budget,
+        "eligibility": eligibility,
+        "data_quality": {"state": data_quality_state, "issues": dq_issues},
+        "dispatch_hash": dispatch_hash,
     }
 
 

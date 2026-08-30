@@ -4,9 +4,11 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
 import {
   useBuilderAction,
+  usePreflight,
   useSupervisor,
   useWorkSnapshot,
   type BuilderCommand,
+  type GatewayPreflightResult,
   type GatewaySupervisor,
   type GatewayWorkItem,
   type GatewayWorkState,
@@ -201,6 +203,74 @@ function approvalLabel(item: GatewayWorkItem): string | null {
   if (!approval || typeof approval !== 'object') return null
   const state = (approval as Record<string, unknown>).state
   return typeof state === 'string' ? `approval ${state}` : null
+}
+
+function PreflightBanner({ item }: { item: GatewayWorkItem }) {
+  const initiativeId = item.source.initiative_id
+  const packetId = item.current_packet?.id ?? item.source.packet_id
+  const preflight = usePreflight(
+    item.next_action === 'claim' ? initiativeId : null,
+    item.next_action === 'claim' ? packetId : null,
+  )
+
+  if (!preflight.data) return null
+  const pf = preflight.data
+
+  // Only show for non-free routes or when there is a blocking reason.
+  const hasBlockingReasons = pf.reasons.length > 0
+  const isPaid = pf.route !== null && pf.route !== 'free'
+  if (!hasBlockingReasons && !isPaid) return null
+
+  return (
+    <div data-testid="preflight-banner" style={preflightBannerStyle}>
+      {pf.route && (
+        <span style={preflightRouteStyle}>
+          {pf.route === 'free' ? 'Free route' : `Route: ${pf.route}`}
+          {isPaid && (
+            <span style={preflightCostStyle}>
+              {' '}&middot; est. CAD {pf.estimated_cost_cad.toFixed(4)}
+              <span style={preflightBasisStyle}> (local estimate)</span>
+            </span>
+          )}
+        </span>
+      )}
+      {hasBlockingReasons && (
+        <div style={preflightReasonsStyle}>
+          {pf.reasons.map((reason, index) => (
+            <div key={index} style={{ color: 'var(--color-warning)' }}>{reason}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const preflightBannerStyle: CSSProperties = {
+  border: '1px solid var(--color-separator)',
+  borderRadius: 'var(--r-control)',
+  background: 'var(--color-surface-elevated)',
+  padding: '8px 10px',
+  fontSize: 12,
+  lineHeight: 1.5,
+  display: 'grid',
+  gap: 4,
+}
+const preflightRouteStyle: CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontWeight: 600,
+  color: 'var(--color-text-secondary)',
+}
+const preflightCostStyle: CSSProperties = {
+  fontWeight: 400,
+}
+const preflightBasisStyle: CSSProperties = {
+  color: 'var(--color-text-muted)',
+  fontSize: 11,
+}
+const preflightReasonsStyle: CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  lineHeight: 1.5,
 }
 
 const workCanvasStyle: CSSProperties = { width: '100%', maxWidth: 1120, margin: '0 auto', display: 'grid', gap: 20, alignContent: 'start' }
@@ -426,6 +496,7 @@ function RowActions({ item, builderRunning }: { item: GatewayWorkItem; builderRu
           )}
         </div>
       )}
+      <PreflightBanner item={item} />
       {result && <div role="status" style={actionResultStyle}>{result}</div>}
     </div>
   )

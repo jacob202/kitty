@@ -342,3 +342,104 @@ export function useBuilderAction() {
     },
   })
 }
+
+// ---------------------------------------------------------------------------
+// Preflight — read-only pre-launch review of the next packet.
+// ---------------------------------------------------------------------------
+
+export type PreflightAction = 'run' | 'blocked' | 'refuse'
+
+export interface GatewayPreflightPacket {
+  initiative_id: string
+  packet_id: string | null
+  task_id: string | null
+  base_sha: string | null
+}
+
+export interface GatewayPreflightBudget {
+  weekly_budget_cad: number
+  estimated_spend_cad: number
+  remaining_cad: number
+  runs: number
+  retries: number
+  basis: string
+}
+
+export interface GatewayPreflightEligibility {
+  state: string
+  blocked_by: string[]
+}
+
+export interface GatewayPreflightDataQuality {
+  state: string
+  issues?: string[]
+}
+
+export interface GatewayPreflightResult {
+  action: PreflightAction
+  route: string | null
+  estimated_cost_cad: number
+  cost_basis: string
+  reasons: string[]
+  packet: GatewayPreflightPacket
+  budget: GatewayPreflightBudget
+  eligibility: GatewayPreflightEligibility
+  data_quality: GatewayPreflightDataQuality
+  dispatch_hash?: string
+}
+
+function isPreflightResult(value: unknown): value is GatewayPreflightResult {
+  if (!isRecord(value)) return false
+  const action = value.action
+  return (
+    (action === 'run' || action === 'blocked' || action === 'refuse')
+    && (value.route === null || typeof value.route === 'string')
+    && typeof value.estimated_cost_cad === 'number'
+    && typeof value.cost_basis === 'string'
+    && Array.isArray(value.reasons)
+    && value.reasons.every((r: unknown) => typeof r === 'string')
+    && isRecord(value.packet)
+    && typeof value.packet.initiative_id === 'string'
+    && isRecord(value.budget)
+    && typeof value.budget.weekly_budget_cad === 'number'
+    && isRecord(value.eligibility)
+    && typeof value.eligibility.state === 'string'
+    && Array.isArray(value.eligibility.blocked_by)
+    && isRecord(value.data_quality)
+    && typeof value.data_quality.state === 'string'
+  )
+}
+
+export async function fetchPreflight(
+  initiativeId: string,
+  packetId: string,
+): Promise<GatewayPreflightResult> {
+  const endpoint = `${GATEWAY_BASE}/builder/preflight/${encodeURIComponent(initiativeId)}/${encodeURIComponent(packetId)}`
+  const controller = new AbortController()
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+  try {
+    const response = await fetch(endpoint, { signal: controller.signal })
+    if (!response.ok) {
+      const detail = await errorDetail(response)
+      const suffix = detail ? `: ${detail}` : ''
+      throw new Error(`GET ${endpoint} failed: ${response.status} ${response.statusText}${suffix}`.trim())
+    }
+    const payload: unknown = await response.json()
+    if (!isPreflightResult(payload)) {
+      throw new Error('Gateway preflight returned an invalid payload')
+    }
+    return payload
+  } finally {
+    globalThis.clearTimeout(timeoutId)
+  }
+}
+
+export function usePreflight(initiativeId: string | null, packetId: string | null) {
+  return useQuery({
+    queryKey: ['builder-preflight', initiativeId, packetId],
+    queryFn: () => fetchPreflight(initiativeId!, packetId!),
+    enabled: initiativeId !== null && packetId !== null,
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  })
+}
