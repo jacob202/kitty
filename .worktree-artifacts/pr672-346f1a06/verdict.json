@@ -1,0 +1,81 @@
+{
+  "head": "346f1a06e35c1b3c52fce92e2b679783fc862c35",
+  "verdict": "PASS",
+  "reviewer": "independent-product-acceptance",
+  "desktop": {
+    "viewport": "1440x900",
+    "port": 4190,
+    "picker_found": true,
+    "model_labels": [
+      "Daily Kitty (auto) — Classify the turn and select the cheapest role that can complete it reliably.",
+      "Quick (OpenRouter) — Routine, bounded, low-risk work where latency and cost matter.",
+      "Think (OpenRouter) — Ambiguous planning, architecture, synthesis, and difficult debugging.",
+      "Code (OpenRouter) — Repository implementation, debugging, and verified patches.",
+      "Vision (OpenRouter) — Screenshots, documents, UI inspection, photographs, and multimodal turns."
+    ],
+    "selection_works": true,
+    "page_coherent_after_selection": true,
+    "raw_aliases_in_primary_labels": false,
+    "overflow": false
+  },
+  "iphone": {
+    "viewport": "393x852",
+    "port": 4190,
+    "picker_found": true,
+    "model_labels_visible": true,
+    "selection_works": true,
+    "overflow": false,
+    "controls_tappable": true,
+    "not_clipped": true
+  },
+  "normal_path": {
+    "port": 4190,
+    "picker_curated": true,
+    "five_role_labels": true,
+    "human_facing_names": ["Daily Kitty", "Quick", "Think", "Code", "Vision"],
+    "search_field_visible": true,
+    "footer_note": "curated choices · exact provider facts only when known"
+  },
+  "degraded_path": {
+    "port": 4191,
+    "clear_recovery_state": true,
+    "recovery_messages": [
+      "Kitty is offline — trying to reconnect automatically.",
+      "Kitty is temporarily unavailable",
+      "If this keeps happening, reopen Kitty."
+    ],
+    "welcome_screen_visible": true,
+    "continue_button_visible": true,
+    "no_raw_aliases": true,
+    "no_stack_traces": true,
+    "no_terminal_instructions": true,
+    "no_ports_or_env_vars": true,
+    "expected_console_errors": "11x 500 Internal Server Error (expected — Gateway intentionally unreachable)"
+  },
+  "reload_restart": {
+    "page_reloaded": true,
+    "model_picker_still_works": true,
+    "overflow_after_reload": false,
+    "ui_coherent": true
+  },
+  "overflow": false,
+  "raw_errors": {
+    "desktop": [],
+    "iphone": [],
+    "degraded_expected": "11x Failed to load resource: 500 Internal Server Error (expected network failures from intentionally unreachable Gateway)"
+  },
+  "actionable_findings": [],
+  "evidence_files": [
+    "01-desktop-initial.png",
+    "02-desktop-picker-opened.png",
+    "03-desktop-option-selected.png",
+    "04-iphone-initial.png",
+    "05-iphone-picker-opened.png",
+    "05b-iphone-option-selected.png",
+    "06-iphone-reload.png",
+    "06b-iphone-reload-picker.png",
+    "07-degraded-initial.png",
+    "RECEIPT.md",
+    "verdict.json"
+  ]
+}

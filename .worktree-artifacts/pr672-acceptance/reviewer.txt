@@ -1,0 +1,67 @@
+[0m
+> build · hy3-free
+[0m
+[0m$ [0mgit rev-parse HEAD && git status --short --untracked-files=no
+aa970ab315af83b5f1c7c2d5b6e4b742e5399262
+[0m
+[0m→ [0mRead .worktree-artifacts/pr672-acceptance/reviewer-run.cjs
+SHA matches, status clean. Reading the reviewer script.
+All required items are covered: both viewports (line 21), healthy state (line 10-12), picker-only 503 (line 13), disabled composer/send (14,17), model-specific recovery copy with Retry (15-16,18), zero completion requests (17), recovery (18), reload (19), horizontal overflow (10,15,19), unexpected errors (20), screenshots + JSON (20). Running it.
+[0m
+[0m$ [0mnode .worktree-artifacts/pr672-acceptance/reviewer-run.cjs
+{"sha":"aa970ab315af83b5f1c7c2d5b6e4b742e5399262","name":"desktop","healthyOverflow":false,"degradedOverflow":false,"reloadOverflow":false,"degradedText":"Model details unavailable — Retry to reconnect to Kitty. retry","completionRequests":0,"unexpectedErrors":[]}
+{"sha":"aa970ab315af83b5f1c7c2d5b6e4b742e5399262","name":"iphone","healthyOverflow":false,"degradedOverflow":false,"reloadOverflow":false,"degradedText":"Model details unavailable — Retry to reconnect to Kitty. retry","completionRequests":0,"unexpectedErrors":[]}
+[0m
+[0m$ [0mls -1 .worktree-artifacts/pr672-acceptance/reviewer-evidence/ && echo "---DESKTOP---" && cat .worktree-artifacts/pr672-acceptance/reviewer-evidence/desktop.json && echo "---IPHONE---" && cat .worktree-artifacts/pr672-acceptance/reviewer-evidence/iphone.json
+desktop-01-healthy.png
+desktop-02-degraded.png
+desktop-03-recovered.png
+desktop-04-reload.png
+desktop.json
+iphone-01-healthy.png
+iphone-02-degraded.png
+iphone-03-recovered.png
+iphone-04-reload.png
+iphone.json
+---DESKTOP---
+{
+  "sha": "aa970ab315af83b5f1c7c2d5b6e4b742e5399262",
+  "name": "desktop",
+  "healthyOverflow": false,
+  "degradedOverflow": false,
+  "reloadOverflow": false,
+  "degradedText": "Model details unavailable — Retry to reconnect to Kitty. retry",
+  "completionRequests": 0,
+  "unexpectedErrors": [],
+  "allErrors": [
+    {
+      "phase": "degraded",
+      "type": "console",
+      "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+    }
+  ]
+}---IPHONE---
+{
+  "sha": "aa970ab315af83b5f1c7c2d5b6e4b742e5399262",
+  "name": "iphone",
+  "healthyOverflow": false,
+  "degradedOverflow": false,
+  "reloadOverflow": false,
+  "degradedText": "Model details unavailable — Retry to reconnect to Kitty. retry",
+  "completionRequests": 0,
+  "unexpectedErrors": [],
+  "allErrors": [
+    {
+      "phase": "degraded",
+      "type": "console",
+      "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+    }
+  ]
+}
+[0m
+Both ran clean. Inspecting evidence files and screenshots.
+[0m$ [0mgit rev-parse HEAD && git status --short --untracked-files=no
+aa970ab315af83b5f1c7c2d5b6e4b742e5399262
+[0m
+8 screenshots, both JSONs present, no unexpected errors. Re-confirming clean tracked state.
+PASS: aa970ab315af83b5f1c7c2d5b6e4b742e5399262 — both viewports: healthy curated labels, picker-only 503 disables composer, "Model details unavailable — Retry to reconnect to Kitty", 0 completions, recovery+reload OK, no overflow, no unexpected errors, 8 screenshots + JSON evidence.

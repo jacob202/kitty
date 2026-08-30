@@ -1,0 +1,49 @@
+{
+  "sha": "153cafea3758effbd2e7e7c1a3d0777a2bc5a606",
+  "name": "desktop",
+  "healthyOverflow": false,
+  "degradedOverflow": false,
+  "reloadOverflow": false,
+  "directOverflow": false,
+  "disabledDirectOverflow": false,
+  "degradedText": "Model details unavailable — model picker returned 503. Retry to reconnect to Kitty. retry",
+  "completionRequests": 0,
+  "unexpectedErrors": [],
+  "allErrors": [
+    {
+      "phase": "degraded",
+      "type": "console",
+      "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+    },
+    {
+      "phase": "direct",
+      "type": "console",
+      "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+    },
+    {
+      "phase": "direct",
+      "type": "console",
+      "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+    },
+    {
+      "phase": "direct",
+      "type": "console",
+      "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+    },
+    {
+      "phase": "disabled-direct",
+      "type": "console",
+      "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+    },
+    {
+      "phase": "disabled-direct",
+      "type": "console",
+      "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+    },
+    {
+      "phase": "disabled-direct",
+      "type": "console",
+      "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)"
+    }
+  ]
+}

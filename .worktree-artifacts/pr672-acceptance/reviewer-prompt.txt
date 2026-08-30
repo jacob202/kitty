@@ -1,0 +1,16 @@
+You are the independent Product Acceptance reviewer for Kitty PR #672. You did not implement this change.
+
+User goal: In Chat, a person should only be offered curated models that are actually live. If the model-detail picker fails while Kitty itself remains up, Chat must fail closed, explain that model details are unavailable, give one clear Retry action, never dispatch a chat request, and recover after Retry/reload.
+
+Exact head: aa970ab315af83b5f1c7c2d5b6e4b742e5399262
+Running product: http://127.0.0.1:4195 using the real local Gateway.
+
+READ ONLY. Do not edit, commit, checkout, reset, push, merge, or send chat. Do not call paid/external providers.
+
+Do exactly this:
+1. Verify `git rev-parse HEAD` equals the exact SHA and `git status --short --untracked-files=no` is empty.
+2. Read `.worktree-artifacts/pr672-acceptance/reviewer-run.cjs` and confirm it tests BOTH 1440x900 and 393x852, healthy state, picker-only 503, disabled composer/send, model-specific recovery copy with Retry, zero chat-completion requests, recovery, reload, horizontal overflow, unexpected browser errors, and screenshot/JSON evidence. If any required item is missing, return BLOCK without editing.
+3. Run `node .worktree-artifacts/pr672-acceptance/reviewer-run.cjs` yourself.
+4. Inspect `.worktree-artifacts/pr672-acceptance/reviewer-evidence/desktop.json` and `iphone.json`; confirm eight screenshots exist.
+5. Re-run exact HEAD/status checks and ensure tracked state stayed clean.
+6. Return one line only: `PASS: <sha> — <concise evidence>` or `BLOCK: <sha> — <concise reason>`.

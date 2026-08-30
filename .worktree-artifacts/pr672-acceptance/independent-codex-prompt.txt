@@ -1,0 +1,8 @@
+You are the INDEPENDENT Product Acceptance reviewer for Kitty PR #672.
+You did not implement this change. Exact head required:
+6149cca0ab03caae2f6262f2cc8ffcf32eab3725
+
+READ ONLY with respect to repository tracked files: do not edit, commit, checkout, reset, push, merge, or change configuration. Do not send a chat message and do not invoke any paid/external model or image provider.
+
+The exact-head native Kitty build is already running at http://127.0.0.1:4197 against the real local Gateway. The acceptance driver is:
+.worktree-artifacts/pr672-acceptance/reviewer-run.cjs
