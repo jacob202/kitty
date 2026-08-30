@@ -136,5 +136,6 @@ def register_routes(app: FastAPI) -> None:
         work,
         extended,
         magic,
+        work,
     ):
         app.include_router(module.router)
