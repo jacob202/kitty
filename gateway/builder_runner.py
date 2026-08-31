@@ -74,7 +74,11 @@ _BLOCK_REASONS = {
 
 # Env vars the runner strips for credential isolation; extra_env (KB-S3b)
 # may never re-supply them.
-_EXTRA_ENV_BLOCKED = frozenset(
+#
+# Public so the Builder doctor can assert the set still covers the credentials
+# it expects — a silent gap here would leak a push-capable token to a worker
+# process, so the invariant is checked rather than assumed.
+EXTRA_ENV_BLOCKED = frozenset(
     {
         "GITHUB_TOKEN", "GH_TOKEN", "SSH_AUTH_SOCK", "SSH_AGENT_PID",
         "GIT_SSH_COMMAND", "GIT_SSH", "GH_CONFIG_DIR", "GIT_ASKPASS",
@@ -115,7 +119,7 @@ def preflight_worktree(
     before opening an implementation attempt so an infrastructure failure does
     not consume the packet's attempt budget.
     """
-    root = _repo_root(repo_root)
+    root = resolve_repo_root(repo_root)
     if not task_id or "/" in task_id or "\\" in task_id:
         raise RunnerError(f"invalid builder task id for preflight: {task_id!r}")
 
@@ -146,7 +150,14 @@ def preflight_worktree(
     }
 
 
-def _repo_root(repo_root: Path | None) -> Path:
+def resolve_repo_root(repo_root: Path | None) -> Path:
+    """Resolve the checkout root that Builder worktrees are created under.
+
+    Public because callers outside the runner (publish, doctor) must agree with
+    the runner on which checkout they are operating on. Passing an explicit
+    root short-circuits the `git` probe — prefer it in tests and in any caller
+    that already knows the path, since `git rev-parse` raises on failure.
+    """
     if repo_root is not None:
         return Path(repo_root)
     runtime_override = os.environ.get("KITTY_BUILDER_REPO_ROOT")
@@ -163,7 +174,7 @@ def _repo_root(repo_root: Path | None) -> Path:
 
 
 def worktree_path(task_id: str, *, repo_root: Path | None = None) -> Path:
-    return _repo_root(repo_root) / ".worktrees" / "kittybuilder" / task_id
+    return resolve_repo_root(repo_root) / ".worktrees" / "kittybuilder" / task_id
 
 
 _MAX_SYMLINK_HOPS = 16
@@ -277,7 +288,7 @@ def ensure_worktree(
     infrastructure failure and always raises; ``reuse_dirty`` accepts only
     successful status output that truthfully reports the tree as dirty.
     """
-    root = _repo_root(repo_root)
+    root = resolve_repo_root(repo_root)
     path = root / ".worktrees" / "kittybuilder" / task_id
 
     if path.exists():
@@ -372,7 +383,7 @@ def remove_worktree(
     Cleanup may remove exactly that one untracked file; every other dirty
     state, including a modified or tracked marker, still fails loudly.
     """
-    root = _repo_root(repo_root)
+    root = resolve_repo_root(repo_root)
     path = root / ".worktrees" / "kittybuilder" / task_id
     if not path.exists():
         raise RunnerError(f"no worktree at {path}")
@@ -1053,7 +1064,7 @@ def run_worker(
     if not command:
         raise ValueError("command must be a non-empty list")
     if extra_env:
-        overlap = _EXTRA_ENV_BLOCKED & set(extra_env)
+        overlap = EXTRA_ENV_BLOCKED & set(extra_env)
         if overlap:
             raise ValueError(
                 f"extra_env may not override credential isolation: {sorted(overlap)}"
@@ -1118,7 +1129,7 @@ def run_worker(
             ) from exc
 
     try:
-        root = _repo_root(repo_root).resolve()
+        root = resolve_repo_root(repo_root).resolve()
         configured_repo = task.get("repo_path")
         if configured_repo:
             expected_root = Path(str(configured_repo)).expanduser().resolve()
@@ -1301,7 +1312,7 @@ def run_worker(
         child_env[f"GIT_CONFIG_KEY_{index}"] = key
         child_env[f"GIT_CONFIG_VALUE_{index}"] = config_value
     if extra_env:
-        # Additions only — validated against _EXTRA_ENV_BLOCKED up front; the
+        # Additions only — validated against EXTRA_ENV_BLOCKED up front; the
         # runner-owned KB_* vars below always win.
         child_env.update(extra_env)
     if context_env:
@@ -2096,7 +2107,7 @@ def run_worker_detached(
     if not command:
         raise ValueError("command must be a non-empty list")
     if extra_env:
-        overlap = _EXTRA_ENV_BLOCKED & set(extra_env)
+        overlap = EXTRA_ENV_BLOCKED & set(extra_env)
         if overlap:
             raise ValueError(
                 f"extra_env may not override credential isolation: {sorted(overlap)}"
@@ -2114,7 +2125,7 @@ def run_worker_detached(
             "runner renews ownership before it expires"
         )
 
-    root = _repo_root(repo_root).resolve()
+    root = resolve_repo_root(repo_root).resolve()
     queue_db = Path(db_path) if db_path is not None else BUILDER_QUEUE_DB
     runs_dir = queue_db.parent / "runs"
     runs_dir.mkdir(parents=True, exist_ok=True)
@@ -2153,7 +2164,7 @@ def run_worker_detached(
     # run_worker), so strip them here too to keep them out of the supervisor
     # log stream.
     supervisor_env = dict(os.environ)
-    for key in _EXTRA_ENV_BLOCKED:
+    for key in EXTRA_ENV_BLOCKED:
         supervisor_env.pop(key, None)
     supervisor_env["GIT_CONFIG_GLOBAL"] = os.devnull
     supervisor_env["GIT_CONFIG_SYSTEM"] = os.devnull

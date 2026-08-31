@@ -36,7 +36,7 @@ REQUIRED_WORKER_COMMANDS = ("bash", "git", "false")
 _REMOTE_REPO_RE = re.compile(r"(?:[:/]([^/:]+?))(?:\.git)?$")
 
 # Credential vars the runner must never let a worker see (mirrors the
-# builder_runner._EXTRA_ENV_BLOCKED sanity check below).
+# builder_runner.EXTRA_ENV_BLOCKED sanity check below).
 _EXPECTED_BLOCKED_CREDENTIALS = frozenset({"GITHUB_TOKEN", "GH_TOKEN", "SSH_AUTH_SOCK"})
 
 
@@ -431,7 +431,7 @@ def _check_github_boundary() -> list[Check]:
 
 def _check_credential_isolation() -> list[Check]:
     try:
-        from gateway.builder_runner import _EXTRA_ENV_BLOCKED
+        from gateway.builder_runner import EXTRA_ENV_BLOCKED
     except ImportError as exc:
         return [
             Check(
@@ -440,21 +440,21 @@ def _check_credential_isolation() -> list[Check]:
                 f"cannot import builder_runner: {exc}",
             )
         ]
-    if not _EXTRA_ENV_BLOCKED:
+    if not EXTRA_ENV_BLOCKED:
         return [
             Check(
                 "FAIL",
                 "runner:credential_isolation",
-                "builder_runner._EXTRA_ENV_BLOCKED is empty",
+                "builder_runner.EXTRA_ENV_BLOCKED is empty",
             )
         ]
-    missing = _EXPECTED_BLOCKED_CREDENTIALS - set(_EXTRA_ENV_BLOCKED)
+    missing = _EXPECTED_BLOCKED_CREDENTIALS - set(EXTRA_ENV_BLOCKED)
     if missing:
         return [
             Check(
                 "FAIL",
                 "runner:credential_isolation",
-                f"_EXTRA_ENV_BLOCKED is missing expected credential var(s): "
+                f"EXTRA_ENV_BLOCKED is missing expected credential var(s): "
                 f"{sorted(missing)}",
             )
         ]
@@ -462,7 +462,7 @@ def _check_credential_isolation() -> list[Check]:
         Check(
             "PASS",
             "runner:credential_isolation",
-            f"{len(_EXTRA_ENV_BLOCKED)} credential var(s) blocked from worker env",
+            f"{len(EXTRA_ENV_BLOCKED)} credential var(s) blocked from worker env",
         )
     ]
 

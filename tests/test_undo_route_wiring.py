@@ -111,7 +111,7 @@ async def test_anchor_set_returns_undo_receipt(monkeypatch):
     monkeypatch.setattr(image_sessions, "require_session", lambda session_id: session)
     monkeypatch.setattr(
         extended,
-        "_session_payload",
+        "session_payload",
         lambda value: {"session_id": value.session_id, "anchor_job_id": "job_1"},
     )
 

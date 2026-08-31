@@ -250,7 +250,7 @@ def _recover_messages(conversation_id: str) -> list[dict]:
     return recovered
 
 
-def _resolve_chat_image_attachment(artifact_id: str, *, include_data_url: bool = True) -> dict:
+def resolve_chat_image_attachment(artifact_id: str, *, include_data_url: bool = True) -> dict:
     """Resolve a stored artifact to a chat-ready image attachment.
 
     Raises a plain-language HTTPException for any artifact that cannot be used
@@ -358,7 +358,7 @@ async def use_in_chat(request: Request) -> dict:
     artifact_id = body.get("artifact_id")
     if not isinstance(artifact_id, str) or not artifact_id.strip():
         raise HTTPException(status_code=400, detail="artifact_id is required")
-    return _resolve_chat_image_attachment(artifact_id.strip(), include_data_url=False)
+    return resolve_chat_image_attachment(artifact_id.strip(), include_data_url=False)
 
 
 @router.get("/chats/{chat_id}/messages")

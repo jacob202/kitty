@@ -16,7 +16,7 @@ def test_patch_session_route_binds_character(monkeypatch):
     monkeypatch.setattr(image_sessions, "update_session", fake_update)
     monkeypatch.setattr(
         extended,
-        "_session_payload",
+        "session_payload",
         lambda session: {"session_id": "imgses_1", "character_id": "char_1"},
     )
 
@@ -46,7 +46,7 @@ def test_patch_session_route_clears_character(monkeypatch):
     monkeypatch.setattr(image_sessions, "update_session", fake_update)
     monkeypatch.setattr(
         extended,
-        "_session_payload",
+        "session_payload",
         lambda session: {"session_id": "imgses_1", "character_id": None},
     )
 

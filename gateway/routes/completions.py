@@ -414,11 +414,11 @@ def _resolve_attachment_image_parts(attachment_ids: list[str]) -> list[dict]:
     ``attachment_ids`` send agree on what is attachable. Any failure raises a
     plain-language HTTPException before the request is dispatched upstream.
     """
-    from gateway.routes.chats import _resolve_chat_image_attachment
+    from gateway.routes.chats import resolve_chat_image_attachment
 
     parts: list[dict] = []
     for artifact_id in attachment_ids:
-        attachment = _resolve_chat_image_attachment(artifact_id)
+        attachment = resolve_chat_image_attachment(artifact_id)
         data_url = attachment.get("data_url")
         if not isinstance(data_url, str) or not data_url:
             raise HTTPException(
@@ -1190,28 +1190,28 @@ def _build_repairs_context() -> str | None:
     try:
         from gateway.doctor import (
             Check,
-            _check_codegraph,
-            _check_disk,
-            _check_env,
-            _check_gateway_freshness,
-            _check_mem0,
-            _check_services,
-            _check_venv,
-            _load_env,
+            check_codegraph,
+            check_disk,
+            check_env,
+            check_gateway_freshness,
+            check_mem0,
+            check_services,
+            check_venv,
+            load_env,
         )
-        from gateway.routes.repairs import _to_repair
+        from gateway.routes.repairs import to_repair
 
-        env = _load_env()
+        env = load_env()
         checks: list[Check] = []
-        checks.extend(_check_env(env))
-        checks.extend(_check_disk())
-        checks.extend(_check_services(env))
-        checks.extend(_check_mem0(env))
-        checks.extend(_check_venv())
-        checks.extend(_check_codegraph())
-        checks.extend(_check_gateway_freshness())
+        checks.extend(check_env(env))
+        checks.extend(check_disk())
+        checks.extend(check_services(env))
+        checks.extend(check_mem0(env))
+        checks.extend(check_venv())
+        checks.extend(check_codegraph())
+        checks.extend(check_gateway_freshness())
 
-        repairs = [_to_repair(c) for c in checks]
+        repairs = [to_repair(c) for c in checks]
         issues = [r for r in repairs if r["severity"] != "ok"]
         all_ok = len(issues) == 0
 

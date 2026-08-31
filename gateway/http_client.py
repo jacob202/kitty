@@ -43,6 +43,33 @@ async def get_http_client() -> httpx.AsyncClient:
     return _http_client
 
 
+async def aclose_http_client() -> None:
+    """Close the cached client, if one was ever built. Safe to call repeatedly.
+
+    This is the public shutdown path. Reading the cached client directly is
+    not: the cache is dropped on event-loop switches, so a caller holding an
+    earlier reference can try to close a client that belongs to a dead loop.
+    """
+    global _http_client, _loop
+
+    if _http_client is None or _http_client.is_closed:
+        _http_client = None
+        _loop = None
+        return
+
+    if _loop is not None and _loop.is_closed():
+        # Never await against a closed loop — that raises RuntimeError and the
+        # caller (lifespan shutdown) has no useful recovery. Drop the
+        # reference and let GC reclaim the transport.
+        _http_client = None
+        _loop = None
+        return
+
+    await _http_client.aclose()
+    _http_client = None
+    _loop = None
+
+
 def _reset_for_tests() -> None:
     """Clear the cached client and loop reference. Test-only."""
     global _http_client, _loop

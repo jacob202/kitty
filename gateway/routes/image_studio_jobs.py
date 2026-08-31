@@ -236,7 +236,7 @@ async def studio_cancel_batch(batch_id: str) -> dict:
 async def studio_clear_anchor(session_id: str) -> dict:
     from gateway import undo_journal
     from gateway.image_sessions import ImageSessionError, SessionNotFoundError, require_session
-    from gateway.routes.extended import _session_payload
+    from gateway.routes.extended import session_payload
 
     try:
         journal_id = undo_journal.clear_anchor_with_undo(session_id)
@@ -245,7 +245,7 @@ async def studio_clear_anchor(session_id: str) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ImageSessionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    result = _session_payload(session)
+    result = session_payload(session)
     result["undo_journal_id"] = journal_id
     return result
 

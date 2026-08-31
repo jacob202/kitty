@@ -28,14 +28,14 @@ def list_repairs():
     try:
         from gateway.doctor import (
             Check,
-            _check_codegraph,
-            _check_disk,
-            _check_env,
-            _check_gateway_freshness,
-            _check_mem0,
-            _check_services,
-            _check_venv,
-            _load_env,
+            check_codegraph,
+            check_disk,
+            check_env,
+            check_gateway_freshness,
+            check_mem0,
+            check_services,
+            check_venv,
+            load_env,
         )
     except ImportError:
         logger.error("cannot import doctor checks", exc_info=True)
@@ -45,15 +45,15 @@ def list_repairs():
             "repairs": [],
         }
 
-    env = _load_env()
+    env = load_env()
     checks: list[Check] = []
-    checks.extend(_check_env(env))
-    checks.extend(_check_disk())
-    checks.extend(_check_services(env))
-    checks.extend(_check_mem0(env))
-    checks.extend(_check_venv())
-    checks.extend(_check_codegraph())
-    checks.extend(_check_gateway_freshness())
+    checks.extend(check_env(env))
+    checks.extend(check_disk())
+    checks.extend(check_services(env))
+    checks.extend(check_mem0(env))
+    checks.extend(check_venv())
+    checks.extend(check_codegraph())
+    checks.extend(check_gateway_freshness())
     checks.extend(_check_builder_health())
     checks.extend(_check_queue_backup_age())
 
@@ -64,7 +64,7 @@ def list_repairs():
         "ok": ok,
         "checks_run": len(checks),
         "issues": len(errors),
-        "repairs": [_to_repair(c) for c in checks],
+        "repairs": [to_repair(c) for c in checks],
     }
 
 
@@ -163,7 +163,14 @@ def _public_detail(check) -> str:
     return "Technical details are available in diagnostics."
 
 
-def _to_repair(check) -> dict:
+def to_repair(check) -> dict:
+    """Translate a doctor `Check` into the repair card the UI renders.
+
+    Public because the repairs engine is not the only consumer: the chat
+    context builder folds the same cards into a prompt, and the hermetic
+    kitty-chat gateway replays them. Detail text is scrubbed of internal
+    paths and hostnames — this dict crosses to the browser.
+    """
     level_map = {"PASS": "ok", "WARN": "warn", "FAIL": "error"}
     severity = level_map.get(check.level, "warn")
     detail = _public_detail(check)

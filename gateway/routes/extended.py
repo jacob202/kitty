@@ -740,7 +740,7 @@ class AnchorRequest(BaseModel):
     job_id: str
 
 
-def _session_payload(session) -> dict:
+def session_payload(session) -> dict:
     """A session plus the turns and jobs a resumed conversation replays."""
     from gateway import image_sessions
 
@@ -766,7 +766,7 @@ async def studio_create_session(req: SessionCreateRequest):
         )
     except ImageSessionError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return _session_payload(session)
+    return session_payload(session)
 
 
 @router.get("/studio/sessions")
@@ -785,7 +785,7 @@ async def studio_get_session(session_id: str):
         session = require_session(session_id)
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    return _session_payload(session)
+    return session_payload(session)
 
 
 @router.patch("/studio/sessions/{session_id}")
@@ -815,7 +815,7 @@ async def studio_update_session(session_id: str, req: SessionUpdateRequest):
         raise HTTPException(status_code=404, detail=str(exc))
     except ImageSessionError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return _session_payload(session)
+    return session_payload(session)
 
 
 @router.post("/studio/sessions/{session_id}/anchor")
@@ -838,7 +838,7 @@ async def studio_set_anchor(session_id: str, req: AnchorRequest):
         raise HTTPException(status_code=400, detail=str(exc))
     except ImageSessionError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    result = _session_payload(session)
+    result = session_payload(session)
     result["undo_journal_id"] = journal_id
     return result
 

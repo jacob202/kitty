@@ -250,7 +250,7 @@ async def test_doctor_reports_actual_semantic_memory_degradation(monkeypatch):
         raise memory.MemoryError("ollama embedder unavailable")
 
     monkeypatch.setattr(memory, "_probe_memory_backend", unavailable)
-    [check] = doctor._check_mem0({"MEM0_API_KEY": "misleading-hosted-key"})
+    [check] = doctor.check_mem0({"MEM0_API_KEY": "misleading-hosted-key"})
 
     assert check.level == "WARN"
     assert check.name == "store:mem0"
@@ -263,7 +263,7 @@ async def test_doctor_passes_only_when_kitty_mem0_initializes(monkeypatch):
     from gateway import doctor, memory
 
     monkeypatch.setattr(memory, "_probe_memory_backend", lambda: object())
-    [check] = doctor._check_mem0({})
+    [check] = doctor.check_mem0({})
     assert check.level == "PASS"
     assert "semantic memory available" in check.detail.lower()
 

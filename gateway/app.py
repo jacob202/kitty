@@ -385,10 +385,9 @@ async def lifespan(app: FastAPI):
             except asyncio.CancelledError:
                 pass
     try:
-        from gateway.http_client import _http_client
+        from gateway.http_client import aclose_http_client
 
-        if _http_client and not _http_client.is_closed:
-            await _http_client.aclose()
+        await aclose_http_client()
     except Exception:
         logger.warning("Failed to close HTTP client during shutdown")
 

@@ -17,7 +17,7 @@ def test_delete_anchor_route_calls_durable_clear(monkeypatch):
     monkeypatch.setattr(image_sessions, "require_session", lambda session_id: cleared)
     monkeypatch.setattr(
         extended,
-        "_session_payload",
+        "session_payload",
         lambda session: {"session_id": "imgses_1", "anchor_job_id": None},
     )
 

@@ -12,7 +12,7 @@ def test_gateway_secret_warning_matches_fail_closed_auth(monkeypatch, tmp_path) 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     (tmp_path / ".env").write_text("OPENROUTER_API_KEY=set\n", encoding="utf-8")
 
-    checks = doctor._check_env({"OPENROUTER_API_KEY": "set"})
+    checks = doctor.check_env({"OPENROUTER_API_KEY": "set"})
 
     gateway_secret = next(c for c in checks if c.name == "env:gateway_secret")
 
@@ -32,7 +32,7 @@ def test_doctor_uses_litellm_readiness_endpoint(monkeypatch) -> None:
 
     monkeypatch.setattr(doctor, "_http_ok", fake_http_ok)
 
-    doctor._check_services({"GATEWAY_PORT": "5001", "LITELLM_PORT": "8001"})
+    doctor.check_services({"GATEWAY_PORT": "5001", "LITELLM_PORT": "8001"})
 
     assert "http://127.0.0.1:8001/health/readiness" in seen_urls
 
@@ -76,18 +76,18 @@ def test_env_parse_runs_as_part_of_check_env(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     (tmp_path / ".env").write_text("OPENROUTER_API_KEY=set\n", encoding="utf-8")
-    checks = doctor._check_env({"OPENROUTER_API_KEY": "set"})
+    checks = doctor.check_env({"OPENROUTER_API_KEY": "set"})
     assert any(c.name == "env:parse" for c in checks)
 
 
-# --- _check_env ---
+# --- check_env ---
 
 
 def test_check_env_fails_when_no_dotenv(monkeypatch, tmp_path) -> None:
     from gateway import doctor
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
-    checks = doctor._check_env({})
+    checks = doctor.check_env({})
     names = {c.name for c in checks}
     assert "env:.env" in names
     dotenv_check = next(c for c in checks if c.name == "env:.env")
@@ -99,7 +99,7 @@ def test_check_env_passes_with_llm_key(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     (tmp_path / ".env").write_text("ANTHROPIC_API_KEY=sk-test\n", encoding="utf-8")
-    checks = doctor._check_env({"ANTHROPIC_API_KEY": "sk-test"})
+    checks = doctor.check_env({"ANTHROPIC_API_KEY": "sk-test"})
     llm_check = next(c for c in checks if c.name == "env:llm_key")
     assert llm_check.level == "PASS"
 
@@ -109,7 +109,7 @@ def test_check_env_fails_without_any_llm_key(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     (tmp_path / ".env").write_text("GATEWAY_SECRET=x\n", encoding="utf-8")
-    checks = doctor._check_env({"GATEWAY_SECRET": "x"})
+    checks = doctor.check_env({"GATEWAY_SECRET": "x"})
     llm_check = next(c for c in checks if c.name == "env:llm_key")
     assert llm_check.level == "FAIL"
 
@@ -119,7 +119,7 @@ def test_check_env_warns_when_telegram_token_missing(monkeypatch, tmp_path) -> N
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     (tmp_path / ".env").write_text("OPENROUTER_API_KEY=set\n", encoding="utf-8")
-    checks = doctor._check_env({"OPENROUTER_API_KEY": "set"})
+    checks = doctor.check_env({"OPENROUTER_API_KEY": "set"})
     tg = next(c for c in checks if c.name == "env:telegram_token")
     assert tg.level == "WARN"
 
@@ -129,19 +129,19 @@ def test_check_env_passes_when_telegram_token_set(monkeypatch, tmp_path) -> None
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     (tmp_path / ".env").write_text("OPENROUTER_API_KEY=set\n", encoding="utf-8")
-    checks = doctor._check_env({"OPENROUTER_API_KEY": "set", "TELEGRAM_BOT_TOKEN": "123:ABC"})
+    checks = doctor.check_env({"OPENROUTER_API_KEY": "set", "TELEGRAM_BOT_TOKEN": "123:ABC"})
     tg = next(c for c in checks if c.name == "env:telegram_token")
     assert tg.level == "PASS"
 
 
-# --- _check_services ---
+# --- check_services ---
 
 
 def test_check_services_fails_when_gateway_unreachable(monkeypatch) -> None:
     from gateway import doctor
 
     monkeypatch.setattr(doctor, "_http_ok", lambda *a, **k: False)
-    checks = doctor._check_services({"GATEWAY_PORT": "8000", "LITELLM_PORT": "8001"})
+    checks = doctor.check_services({"GATEWAY_PORT": "8000", "LITELLM_PORT": "8001"})
     gw = next(c for c in checks if c.name == "service:gateway")
     assert gw.level == "FAIL"
 
@@ -150,7 +150,7 @@ def test_check_services_passes_when_gateway_reachable(monkeypatch) -> None:
     from gateway import doctor
 
     monkeypatch.setattr(doctor, "_http_ok", lambda *a, **k: True)
-    checks = doctor._check_services({"GATEWAY_PORT": "8000", "LITELLM_PORT": "8001"})
+    checks = doctor.check_services({"GATEWAY_PORT": "8000", "LITELLM_PORT": "8001"})
     gw = next(c for c in checks if c.name == "service:gateway")
     assert gw.level == "PASS"
 
@@ -160,7 +160,7 @@ def test_check_services_uses_env_gateway_port(monkeypatch) -> None:
 
     seen: list[str] = []
     monkeypatch.setattr(doctor, "_http_ok", lambda url, **k: (seen.append(url), True)[1])
-    doctor._check_services({"GATEWAY_PORT": "9999", "LITELLM_PORT": "8001"})
+    doctor.check_services({"GATEWAY_PORT": "9999", "LITELLM_PORT": "8001"})
     assert any("9999" in u for u in seen)
 
 
@@ -171,7 +171,7 @@ def test_check_services_fails_when_litellm_unreachable(monkeypatch) -> None:
         return "8000" in url  # gateway ok, LiteLLM fails
 
     monkeypatch.setattr(doctor, "_http_ok", selective)
-    checks = doctor._check_services({"GATEWAY_PORT": "8000", "LITELLM_PORT": "8001"})
+    checks = doctor.check_services({"GATEWAY_PORT": "8000", "LITELLM_PORT": "8001"})
     ll = next(c for c in checks if c.name == "service:litellm")
     assert ll.level == "FAIL"
 
@@ -216,7 +216,7 @@ def test_check_chromadb_passes_when_working(monkeypatch, tmp_path) -> None:
     assert "2" in checks[0].detail
 
 
-# --- _check_mem0 ---
+# --- check_mem0 ---
 
 
 def test_check_mem0_api_key_does_not_override_kitty_backend() -> None:
@@ -225,7 +225,7 @@ def test_check_mem0_api_key_does_not_override_kitty_backend() -> None:
     with patch.object(
         memory, "_probe_memory_backend", side_effect=memory.MemoryError("ollama unavailable")
     ):
-        checks = doctor._check_mem0({"MEM0_API_KEY": "m0-abc"})
+        checks = doctor.check_mem0({"MEM0_API_KEY": "m0-abc"})
     assert checks[0].level == "WARN"
     assert "ollama unavailable" in checks[0].detail
 
@@ -236,7 +236,7 @@ def test_check_mem0_missing_dependency_is_degraded_not_fatal() -> None:
     with patch.object(
         memory, "_probe_memory_backend", side_effect=memory.MemoryError("mem0ai is not installed")
     ):
-        checks = doctor._check_mem0({})
+        checks = doctor.check_mem0({})
     assert checks[0].level == "WARN"
     assert "explicit memory" in checks[0].detail
 
@@ -245,7 +245,7 @@ def test_check_mem0_warns_on_actual_kitty_init_exception() -> None:
     from gateway import doctor, memory
 
     with patch.object(memory, "_probe_memory_backend", side_effect=RuntimeError("config error")):
-        checks = doctor._check_mem0({})
+        checks = doctor.check_mem0({})
     assert checks[0].level == "WARN"
     assert "config error" in checks[0].detail
 
@@ -254,12 +254,12 @@ def test_check_mem0_passes_when_kitty_config_initializes() -> None:
     from gateway import doctor, memory
 
     with patch.object(memory, "_probe_memory_backend", return_value=object()):
-        checks = doctor._check_mem0({})
+        checks = doctor.check_mem0({})
     assert checks[0].level == "PASS"
     assert "semantic memory available" in checks[0].detail
 
 
-# --- _check_disk ---
+# --- check_disk ---
 
 
 def _fake_disk_usage(free_bytes: int):
@@ -276,7 +276,7 @@ def test_check_disk_passes_when_sufficient(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     monkeypatch.setattr(shutil, "disk_usage", _fake_disk_usage(10 << 30))
-    checks = doctor._check_disk()
+    checks = doctor.check_disk()
     assert checks[0].level == "PASS"
 
 
@@ -287,7 +287,7 @@ def test_check_disk_warns_when_low(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     monkeypatch.setattr(shutil, "disk_usage", _fake_disk_usage(int(1.0 * 1024**3)))
-    checks = doctor._check_disk()
+    checks = doctor.check_disk()
     assert checks[0].level == "WARN"
 
 
@@ -298,11 +298,11 @@ def test_check_disk_fails_when_critically_low(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     monkeypatch.setattr(shutil, "disk_usage", _fake_disk_usage(int(0.2 * 1024**3)))
-    checks = doctor._check_disk()
+    checks = doctor.check_disk()
     assert checks[0].level == "FAIL"
 
 
-# --- _check_venv ---
+# --- check_venv ---
 
 
 def test_check_venv_passes_when_exists(monkeypatch, tmp_path) -> None:
@@ -312,7 +312,7 @@ def test_check_venv_passes_when_exists(monkeypatch, tmp_path) -> None:
     venv_bin = tmp_path / "venv" / "bin"
     venv_bin.mkdir(parents=True)
     (venv_bin / "python").touch()
-    checks = doctor._check_venv()
+    checks = doctor.check_venv()
     assert checks[0].level == "PASS"
 
 
@@ -320,7 +320,7 @@ def test_check_venv_fails_when_missing(monkeypatch, tmp_path) -> None:
     from gateway import doctor
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
-    checks = doctor._check_venv()
+    checks = doctor.check_venv()
     assert checks[0].level == "FAIL"
 
 
@@ -336,17 +336,17 @@ def test_main_exits_nonzero_on_failure(monkeypatch, tmp_path) -> None:
     def _all_pass(*_a, **_k):
         return [doctor.Check("PASS", "service:gateway", "ok")]
 
-    monkeypatch.setattr(doctor, "_check_services", _all_pass)
+    monkeypatch.setattr(doctor, "check_services", _all_pass)
     monkeypatch.setattr(
         doctor, "_check_chromadb", lambda: [doctor.Check("PASS", "store:chromadb", "ok")]
     )
     monkeypatch.setattr(
-        doctor, "_check_mem0", lambda _e: [doctor.Check("PASS", "store:mem0", "ok")]
+        doctor, "check_mem0", lambda _e: [doctor.Check("PASS", "store:mem0", "ok")]
     )
     monkeypatch.setattr(
-        doctor, "_check_disk", lambda: [doctor.Check("PASS", "disk:data_dir", "ok")]
+        doctor, "check_disk", lambda: [doctor.Check("PASS", "disk:data_dir", "ok")]
     )
-    monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
+    monkeypatch.setattr(doctor, "check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
 
     import sys
 
@@ -371,11 +371,11 @@ def test_main_exits_zero_on_all_pass(monkeypatch, tmp_path) -> None:
     )
 
     pass_check = doctor.Check("PASS", "x", "ok")
-    monkeypatch.setattr(doctor, "_check_services", lambda _e: [pass_check])
+    monkeypatch.setattr(doctor, "check_services", lambda _e: [pass_check])
     monkeypatch.setattr(doctor, "_check_chromadb", lambda: [pass_check])
-    monkeypatch.setattr(doctor, "_check_mem0", lambda _e: [pass_check])
-    monkeypatch.setattr(doctor, "_check_disk", lambda: [pass_check])
-    monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
+    monkeypatch.setattr(doctor, "check_mem0", lambda _e: [pass_check])
+    monkeypatch.setattr(doctor, "check_disk", lambda: [pass_check])
+    monkeypatch.setattr(doctor, "check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
     monkeypatch.setattr(doctor, "_check_repository_continuity", lambda: [pass_check])
 
     import sys
@@ -399,11 +399,11 @@ def test_main_strict_fails_on_warn(monkeypatch, tmp_path) -> None:
 
     doctor.Check("WARN", "env:gateway_secret", "not set")
     pass_check = doctor.Check("PASS", "x", "ok")
-    monkeypatch.setattr(doctor, "_check_services", lambda _e: [pass_check])
+    monkeypatch.setattr(doctor, "check_services", lambda _e: [pass_check])
     monkeypatch.setattr(doctor, "_check_chromadb", lambda: [pass_check])
-    monkeypatch.setattr(doctor, "_check_mem0", lambda _e: [pass_check])
-    monkeypatch.setattr(doctor, "_check_disk", lambda: [pass_check])
-    monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
+    monkeypatch.setattr(doctor, "check_mem0", lambda _e: [pass_check])
+    monkeypatch.setattr(doctor, "check_disk", lambda: [pass_check])
+    monkeypatch.setattr(doctor, "check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
     monkeypatch.setattr(doctor, "_check_repository_continuity", lambda: [pass_check])
 
     import sys
@@ -430,11 +430,11 @@ def test_main_json_output_shape(monkeypatch, tmp_path, capsys) -> None:
     )
 
     pass_check = doctor.Check("PASS", "x", "ok")
-    monkeypatch.setattr(doctor, "_check_services", lambda _e: [pass_check])
+    monkeypatch.setattr(doctor, "check_services", lambda _e: [pass_check])
     monkeypatch.setattr(doctor, "_check_chromadb", lambda: [pass_check])
-    monkeypatch.setattr(doctor, "_check_mem0", lambda _e: [pass_check])
-    monkeypatch.setattr(doctor, "_check_disk", lambda: [pass_check])
-    monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
+    monkeypatch.setattr(doctor, "check_mem0", lambda _e: [pass_check])
+    monkeypatch.setattr(doctor, "check_disk", lambda: [pass_check])
+    monkeypatch.setattr(doctor, "check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
     monkeypatch.setattr(doctor, "_check_repository_continuity", lambda: [pass_check])
 
     import sys
@@ -642,7 +642,7 @@ def test_github_connector_warns_when_token_missing(monkeypatch) -> None:
     assert checks[0].detail == "GITHUB_TOKEN not present in environment or .env"
 
 
-# --- _load_env ---
+# --- load_env ---
 
 
 def test_load_env_returns_os_environ_when_no_dotenv(monkeypatch, tmp_path) -> None:
@@ -650,7 +650,7 @@ def test_load_env_returns_os_environ_when_no_dotenv(monkeypatch, tmp_path) -> No
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     monkeypatch.setenv("TEST_VAR", "from_env")
-    result = doctor._load_env()
+    result = doctor.load_env()
     assert result["TEST_VAR"] == "from_env"
 
 
@@ -661,7 +661,7 @@ def test_load_env_reads_dotenv_values(monkeypatch, tmp_path) -> None:
     (tmp_path / ".env").write_text(
         "MY_KEY=my_value\nANOTHER=123\n", encoding="utf-8"
     )
-    result = doctor._load_env()
+    result = doctor.load_env()
     assert result["MY_KEY"] == "my_value"
     assert result["ANOTHER"] == "123"
 
@@ -673,7 +673,7 @@ def test_load_env_skips_comments_and_empty_lines(monkeypatch, tmp_path) -> None:
     (tmp_path / ".env").write_text(
         "# this is a comment\n\nKEY=val\n", encoding="utf-8"
     )
-    result = doctor._load_env()
+    result = doctor.load_env()
     assert result["KEY"] == "val"
     assert "# this is a comment" not in result
 
@@ -685,7 +685,7 @@ def test_load_env_uses_setdefault_not_override(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     monkeypatch.setenv("EXISTING", "from_env")
     (tmp_path / ".env").write_text("EXISTING=from_dotenv\n", encoding="utf-8")
-    result = doctor._load_env()
+    result = doctor.load_env()
     assert result["EXISTING"] == "from_env"
 
 
@@ -694,7 +694,7 @@ def test_load_env_strips_quotes_from_values(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     (tmp_path / ".env").write_text('QUOTED="hello"\n', encoding="utf-8")
-    result = doctor._load_env()
+    result = doctor.load_env()
     assert result["QUOTED"] == "hello"
 
 

@@ -42,7 +42,12 @@ class Check:
     detail: str
 
 
-def _load_env() -> dict[str, str]:
+def load_env() -> dict[str, str]:
+    """Return the process environment overlaid with this checkout's `.env`.
+
+    Values already present in `os.environ` win, so an operator's shell export or
+    a supervisor-injected secret is never shadowed by a stale `.env` line.
+    """
     env = dict(os.environ)
     dotenv = ROOT / ".env"
     if dotenv.exists():
@@ -65,7 +70,13 @@ def _http_ok(url: str, timeout: float = 3.0, headers: dict | None = None) -> boo
         return False
 
 
-def _check_env(env: dict) -> list[Check]:
+def check_env(env: dict) -> list[Check]:
+    """Check `.env` presence, its parse, and the required keys it must supply.
+
+    Returns early with a single FAIL when `.env` is absent: every remaining
+    check in this group reads values that file is expected to provide, so
+    reporting them separately would be noise.
+    """
     out: list[Check] = []
 
     dotenv = ROOT / ".env"
@@ -136,7 +147,13 @@ def _check_env_parse(dotenv: pathlib.Path) -> list[Check]:
     ]
 
 
-def _check_services(env: dict) -> list[Check]:
+def check_services(env: dict) -> list[Check]:
+    """Probe the two HTTP services the gateway cannot route without.
+
+    LiteLLM is checked on its `/health/readiness` route rather than `/health`
+    because a proxy that is up but has no healthy model still returns 200 on the
+    latter.
+    """
     out: list[Check] = []
 
     gw_port = env.get("GATEWAY_PORT", "8000")
@@ -171,7 +188,7 @@ def _check_chromadb() -> list[Check]:
         return [Check("FAIL", "store:chromadb", f"error: {exc}")]
 
 
-def _check_mem0(env: dict) -> list[Check]:
+def check_mem0(env: dict) -> list[Check]:
     """Check Kitty's configured semantic-memory path, not Mem0 defaults."""
     del env  # hosted MEM0_API_KEY is not used by gateway.memory's production path
     try:
@@ -195,7 +212,12 @@ def _check_mem0(env: dict) -> list[Check]:
         ]
 
 
-def _check_disk() -> list[Check]:
+def check_disk() -> list[Check]:
+    """Check free space on the volume holding `data/`.
+
+    `data/` is created if missing so `disk_usage` measures the real target
+    rather than failing on a first run.
+    """
     data_dir = ROOT / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     usage = shutil.disk_usage(data_dir)
@@ -323,7 +345,7 @@ def _gateway_process_start_time() -> float | None:
         return None
 
 
-def _check_gateway_freshness(
+def check_gateway_freshness(
     *,
     process_start: float | None = None,
     source_mtime: float | None = None,
@@ -377,7 +399,7 @@ def _check_deadlines() -> list[Check]:
     ]
 
 
-def _check_codegraph() -> list[Check]:
+def check_codegraph() -> list[Check]:
     """Check codegraph daemon health and index freshness."""
     cg_dir = ROOT / ".codegraph"
     db_path = cg_dir / "codegraph.db"
@@ -454,7 +476,13 @@ def _check_repository_continuity() -> list[Check]:
     ]
 
 
-def _check_venv() -> list[Check]:
+def check_venv() -> list[Check]:
+    """Check that the background-service venv exists at the expected path.
+
+    Builder workers, the codegraph daemon, and cron all exec
+    `venv/bin/python` directly, so a missing venv fails those jobs rather than
+    the gateway itself.
+    """
     venv = ROOT / "venv"
     if (venv / "bin" / "python").exists():
         return [Check("PASS", "runtime:venv", str(venv))]
@@ -506,20 +534,20 @@ def main() -> int:
     if args.spend:
         return _spend_report(args.json)
 
-    env = _load_env()
+    env = load_env()
     checks: list[Check] = (
-        _check_venv()
-        + _check_env(env)
-        + _check_services(env)
+        check_venv()
+        + check_env(env)
+        + check_services(env)
         + _check_chromadb()
-        + _check_mem0(env)
-        + _check_disk()
+        + check_mem0(env)
+        + check_disk()
         + _check_mail_connector(env)
         + _check_github_connector(env)
         + _check_push_channel(env)
         + _check_deadlines()
-        + _check_gateway_freshness()
-        + _check_codegraph()
+        + check_gateway_freshness()
+        + check_codegraph()
         + _check_repository_continuity()
     )
 

@@ -401,14 +401,14 @@ class TestCredentialIsolation:
     def test_empty_blocklist_fails(self, monkeypatch):
         from gateway import builder_runner
 
-        monkeypatch.setattr(builder_runner, "_EXTRA_ENV_BLOCKED", frozenset())
+        monkeypatch.setattr(builder_runner, "EXTRA_ENV_BLOCKED", frozenset())
         checks = doctor._check_credential_isolation()
         assert checks[0].level == "FAIL"
 
     def test_missing_expected_var_fails(self, monkeypatch):
         from gateway import builder_runner
 
-        monkeypatch.setattr(builder_runner, "_EXTRA_ENV_BLOCKED", frozenset({"SSH_AUTH_SOCK"}))
+        monkeypatch.setattr(builder_runner, "EXTRA_ENV_BLOCKED", frozenset({"SSH_AUTH_SOCK"}))
         checks = doctor._check_credential_isolation()
         assert checks[0].level == "FAIL"
         assert "GITHUB_TOKEN" in checks[0].detail

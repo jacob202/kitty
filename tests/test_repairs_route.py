@@ -27,7 +27,7 @@ def test_builder_integrity_issue_is_not_reported_as_a_stale_lease(monkeypatch) -
 
 
 def test_gateway_failure_has_plain_language_and_a_recheck_action() -> None:
-    repair = repairs._to_repair(
+    repair = repairs.to_repair(
         SimpleNamespace(
             level="FAIL",
             name="service:gateway",
@@ -66,7 +66,7 @@ def test_repair_payload_never_exposes_internal_setup_diagnostics() -> None:
         "kitty up",
     )
     for name, detail in cases:
-        repair = repairs._to_repair(SimpleNamespace(level="FAIL", name=name, detail=detail))
+        repair = repairs.to_repair(SimpleNamespace(level="FAIL", name=name, detail=detail))
         fix_label = (repair.get("fix") or {}).get("label", "")
         visible = f"{repair['title']} {repair['detail']} {fix_label}"
         assert not any(token in visible for token in forbidden), visible
@@ -87,7 +87,7 @@ def test_repair_payload_sanitizes_category_diagnostics_without_marker_tokens() -
     ]
 
     for name, detail, expected_detail in cases:
-        repair = repairs._to_repair(SimpleNamespace(level="WARN", name=name, detail=detail))
+        repair = repairs.to_repair(SimpleNamespace(level="WARN", name=name, detail=detail))
 
         assert repair["detail"] == expected_detail
         assert detail not in repair["detail"]
@@ -138,7 +138,7 @@ def test_public_infrastructure_repairs_use_product_language_only() -> None:
     }
 
     for name, detail, product_terms in cases:
-        repair = repairs._to_repair(SimpleNamespace(level="WARN", name=name, detail=detail))
+        repair = repairs.to_repair(SimpleNamespace(level="WARN", name=name, detail=detail))
         fix_label = (repair.get("fix") or {}).get("label", "")
         visible = f"{repair['title']} {repair['detail']} {fix_label}".lower()
 
@@ -158,7 +158,7 @@ def test_passing_checks_never_receive_failure_language() -> None:
     ]
 
     for name, detail, expected_detail in cases:
-        repair = repairs._to_repair(SimpleNamespace(level="PASS", name=name, detail=detail))
+        repair = repairs.to_repair(SimpleNamespace(level="PASS", name=name, detail=detail))
         assert repair["severity"] == "ok"
         assert repair["detail"] == expected_detail
         assert "unavailable" not in repair["detail"].lower()

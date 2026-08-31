@@ -1048,6 +1048,6 @@ def merge_and_verify(
 def _repo_root_or(repo_root: Path | None) -> Path:
     if repo_root is not None:
         return repo_root
-    from gateway.builder_runner import _repo_root
+    from gateway.builder_runner import resolve_repo_root
 
-    return _repo_root(None)
+    return resolve_repo_root(None)

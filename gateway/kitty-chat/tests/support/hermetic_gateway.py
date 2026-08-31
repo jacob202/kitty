@@ -16,7 +16,7 @@ from gateway.auth import BearerAuthMiddleware
 from gateway.context_assembler import ContextBundle
 from gateway.doctor import Check
 from gateway.routes.chats import router as chats_router
-from gateway.routes.repairs import _to_repair
+from gateway.routes.repairs import to_repair
 
 
 async def _hermetic_context(*args, **kwargs) -> ContextBundle:
@@ -105,5 +105,5 @@ async def repairs() -> dict[str, object]:
         "ok": False,
         "checks_run": len(checks),
         "issues": len(checks),
-        "repairs": [_to_repair(check) for check in checks],
+        "repairs": [to_repair(check) for check in checks],
     }
