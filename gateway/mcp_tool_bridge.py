@@ -1,64 +1,88 @@
-"""MCP Tool Bridge — runtime MCP server discovery and tool invocation.
+"""MCP Tool Bridge — runtime discovery and bounded tool invocation.
 
-Discovers MCP servers from plugin registry, connects to them, and exposes
-tools for invocation by the LLM or API.
-
-Public API:
-  list_servers() -> list[dict]       List configured MCP servers
-  list_tools(server_name) -> list    List tools on a server
-  invoke(server_name, tool_name, args) -> dict
+This module deliberately owns only the transport/lifecycle seam. Kitty's
+standing authorization policy remains in :mod:`gateway.action_grants`.
+Circuit state is process-local load-shedding state, not durable product truth.
 """
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-from typing import Optional
+import math
+import time
+from dataclasses import dataclass
+from threading import Lock
+from typing import Any, Optional
 
 logger = logging.getLogger("kitty.mcp_tool_bridge")
 
-# For now, MCP servers are defined in config. Full MCP protocol support
-# (stdio/SSE transport) is a future upgrade. This module reads server
-# configs and exposes tool metadata for the LLM.
+DEFAULT_TOOL_TIMEOUT_SECONDS = 120.0
+MAX_TOOL_TIMEOUT_SECONDS = 300.0
+PROCESS_REAP_GRACE_SECONDS = 1.0
+CIRCUIT_FAILURE_THRESHOLD = 3
+CIRCUIT_COOLDOWN_SECONDS = 30.0
+
+
+@dataclass
+class _CircuitState:
+    consecutive_failures: int = 0
+    opened_at: float | None = None
+    probe_in_flight: bool = False
+    last_error: str = ""
+
+
+_CIRCUITS: dict[tuple[str, str], _CircuitState] = {}
+_CIRCUIT_LOCK = Lock()
+_monotonic = time.monotonic
+
+
+def reset_circuit_breakers() -> None:
+    """Clear ephemeral cutoff state. Primarily a deterministic test/operator seam."""
+    with _CIRCUIT_LOCK:
+        _CIRCUITS.clear()
 
 
 def list_servers() -> list[dict]:
-    """List all configured MCP servers from plugins and config."""
-    servers = []
+    """List all configured MCP servers from plugins and repo config."""
+    servers: list[dict] = []
 
-    # From plugin registry
     try:
         from gateway.plugin_registry import get_enabled_mcp_servers
+
         servers.extend(get_enabled_mcp_servers())
     except Exception:
         logger.exception("failed to load MCP servers from plugin registry")
 
-    # From .mcp.json config
     try:
         from gateway.paths import PROJECT_ROOT
+
         mcp_config = PROJECT_ROOT / ".mcp.json"
         if mcp_config.exists():
             config = json.loads(mcp_config.read_text())
             for name, server in config.get("mcpServers", {}).items():
-                servers.append({
-                    "name": name,
-                    "command": server.get("command", ""),
-                    "args": server.get("args", []),
-                    "env": server.get("env", {}),
-                    "source": "config",
-                })
-    except Exception as e:
-        logger.warning("Failed to read .mcp.json: %s", e)
+                servers.append(
+                    {
+                        "name": name,
+                        "command": server.get("command", ""),
+                        "args": server.get("args", []),
+                        "env": server.get("env", {}),
+                        "timeout_seconds": server.get("timeout_seconds"),
+                        "tool_timeouts": server.get("tool_timeouts"),
+                        "source": "config",
+                    }
+                )
+    except Exception as exc:
+        logger.warning("Failed to read .mcp.json: %s", exc)
 
     return servers
 
 
 def list_tools(server_name: str) -> list[dict]:
-    """List tools available on an MCP server. Stub for now — returns from config."""
-    # Full MCP protocol tool listing requires connecting to the server.
-    # For now, return known tool schemas from plugin definitions.
+    """List tools available on an MCP server from registered definitions."""
     try:
         from gateway.plugin_registry import get_enabled_mcp_servers
+
         servers = get_enabled_mcp_servers()
         for server in servers:
             if server.get("name") == server_name:
@@ -68,37 +92,165 @@ def list_tools(server_name: str) -> list[dict]:
     return []
 
 
+def _validated_timeout(value: object, *, label: str) -> float:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(float(value))
+        or float(value) <= 0
+        or float(value) > MAX_TOOL_TIMEOUT_SECONDS
+    ):
+        raise ValueError(
+            f"{label} must be a finite positive number <= {MAX_TOOL_TIMEOUT_SECONDS:g}"
+        )
+    return float(value)
+
+
+def _tool_timeout(server: dict[str, Any], tool_name: str) -> float:
+    per_tool = server.get("tool_timeouts")
+    if per_tool is not None:
+        if not isinstance(per_tool, dict):
+            raise ValueError("tool_timeouts must be an object")
+        if tool_name in per_tool:
+            return _validated_timeout(
+                per_tool[tool_name], label=f"tool timeout for {tool_name!r}"
+            )
+    server_timeout = server.get("timeout_seconds")
+    if server_timeout is not None:
+        return _validated_timeout(server_timeout, label="server timeout_seconds")
+    return DEFAULT_TOOL_TIMEOUT_SECONDS
+
+
+def _before_call(key: tuple[str, str]) -> tuple[bool, float]:
+    """Return whether a call may start and, when blocked, retry-after seconds."""
+    now = _monotonic()
+    with _CIRCUIT_LOCK:
+        state = _CIRCUITS.get(key)
+        if state is None or state.opened_at is None:
+            return True, 0.0
+        remaining = CIRCUIT_COOLDOWN_SECONDS - (now - state.opened_at)
+        if remaining > 0:
+            return False, remaining
+        if state.probe_in_flight:
+            return False, 0.0
+        state.probe_in_flight = True
+        return True, 0.0
+
+
+def _record_success(key: tuple[str, str]) -> None:
+    with _CIRCUIT_LOCK:
+        _CIRCUITS.pop(key, None)
+
+
+def _record_failure(key: tuple[str, str], message: str) -> None:
+    now = _monotonic()
+    with _CIRCUIT_LOCK:
+        state = _CIRCUITS.setdefault(key, _CircuitState())
+        was_probe = state.probe_in_flight
+        state.probe_in_flight = False
+        state.consecutive_failures += 1
+        state.last_error = message[:500]
+        if was_probe or state.consecutive_failures >= CIRCUIT_FAILURE_THRESHOLD:
+            state.opened_at = now
+
+
+def tool_health_snapshot() -> dict[str, Any]:
+    """Return configured/circuit health without pretending remote liveness was probed."""
+    configured = list_servers()
+    now = _monotonic()
+    open_circuits: list[dict[str, Any]] = []
+    with _CIRCUIT_LOCK:
+        for (server, tool), state in sorted(_CIRCUITS.items()):
+            if state.opened_at is None:
+                continue
+            retry_after = max(
+                0.0, CIRCUIT_COOLDOWN_SECONDS - (now - state.opened_at)
+            )
+            open_circuits.append(
+                {
+                    "server": server,
+                    "tool": tool,
+                    "consecutive_failures": state.consecutive_failures,
+                    "retry_after_seconds": round(retry_after, 3),
+                    "probe_due": retry_after <= 0 and not state.probe_in_flight,
+                    "last_error": state.last_error,
+                }
+            )
+    return {
+        "state": "degraded" if open_circuits else "available",
+        "configured_servers": len(configured),
+        "open_circuits": open_circuits,
+        "remote_health_probed": False,
+    }
+
+
+async def _communicate(
+    proc: asyncio.subprocess.Process, payload: bytes, *, timeout: float
+) -> tuple[bytes, bytes]:
+    async with asyncio.timeout(timeout):
+        return await proc.communicate(payload)
+
+
+async def _reap_process(proc: asyncio.subprocess.Process) -> None:
+    """Guarantee a spawned child is not left alive after interruption."""
+    if proc.returncode is not None:
+        return
+    proc.terminate()
+    try:
+        async with asyncio.timeout(PROCESS_REAP_GRACE_SECONDS):
+            await proc.wait()
+            return
+    except TimeoutError:
+        proc.kill()
+        await proc.wait()
+
+
+def _error(message: str, *, code: str) -> dict[str, Any]:
+    return {"error": message, "code": code}
+
+
 async def invoke(
     server_name: str,
     tool_name: str,
     arguments: Optional[dict] = None,
 ) -> dict:
-    """Invoke an MCP tool. Returns the tool's response.
-
-    Currently supports filesystem and memory MCP servers via subprocess.
-    Full MCP protocol integration is a future upgrade.
-    """
+    """Invoke an MCP tool with bounded timeout, cleanup, and failure cutoff."""
     servers = list_servers()
     server = next((s for s in servers if s.get("name") == server_name), None)
     if not server:
-        return {"error": f"MCP server not found: {server_name}"}
+        return _error(f"MCP server not found: {server_name}", code="server_not_found")
 
     command = server.get("command", "")
     if not command:
-        return {"error": f"No command configured for server: {server_name}"}
+        return _error(
+            f"No command configured for server: {server_name}",
+            code="invalid_configuration",
+        )
 
     try:
-        # Build MCP tool invocation payload
-        payload = {
-            "jsonrpc": "2.0",
-            "method": "tools/call",
-            "params": {
-                "name": tool_name,
-                "arguments": arguments or {},
-            },
-            "id": 1,
+        timeout = _tool_timeout(server, tool_name)
+    except ValueError as exc:
+        return _error(str(exc), code="invalid_configuration")
+
+    key = (server_name, tool_name)
+    allowed, retry_after = _before_call(key)
+    if not allowed:
+        return {
+            **_error(
+                f"MCP tool circuit is open for {server_name}/{tool_name}",
+                code="circuit_open",
+            ),
+            "retry_after_seconds": round(retry_after, 3),
         }
 
+    payload = {
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {"name": tool_name, "arguments": arguments or {}},
+        "id": 1,
+    }
+    proc: asyncio.subprocess.Process | None = None
+    try:
         proc = await asyncio.create_subprocess_exec(
             command,
             *server.get("args", []),
@@ -106,35 +258,72 @@ async def invoke(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(json.dumps(payload).encode()),
-            timeout=120,
+        stdout, stderr = await _communicate(
+            proc, json.dumps(payload).encode(), timeout=timeout
         )
 
         if proc.returncode != 0:
-            return {"error": stderr.decode()[:500]}
+            message = stderr.decode(errors="replace")[:500] or (
+                f"MCP server exited with code {proc.returncode}"
+            )
+            _record_failure(key, message)
+            return _error(message, code="server_error")
 
-        response = json.loads(stdout.decode())
+        try:
+            response = json.loads(stdout.decode())
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            message = f"MCP server returned invalid JSON: {exc}"
+            _record_failure(key, message)
+            return _error(message, code="invalid_response")
+        if not isinstance(response, dict):
+            message = "MCP server returned a non-object response"
+            _record_failure(key, message)
+            return _error(message, code="invalid_response")
         if "error" in response:
-            return {"error": response["error"]}
-        return response.get("result", {})
+            message = str(response["error"])
+            _record_failure(key, message)
+            return _error(message, code="tool_error")
 
-    except asyncio.TimeoutError:
-        return {"error": "MCP tool invocation timed out"}
-    except Exception as e:
-        logger.error("MCP invoke failed: %s", e)
-        return {"error": str(e)}
+        result = response.get("result", {})
+        if not isinstance(result, dict):
+            message = "MCP tool result must be an object"
+            _record_failure(key, message)
+            return _error(message, code="invalid_response")
+        _record_success(key)
+        return result
+    except TimeoutError:
+        if proc is not None:
+            await _reap_process(proc)
+        message = f"MCP tool invocation timed out after {timeout:g}s"
+        _record_failure(key, message)
+        return _error(message, code="timeout")
+    except asyncio.CancelledError:
+        if proc is not None:
+            await _reap_process(proc)
+        _record_failure(key, "MCP tool invocation was cancelled")
+        raise
+    except Exception as exc:
+        if proc is not None:
+            await _reap_process(proc)
+        logger.exception("MCP invoke failed: %s", exc)
+        message = str(exc)
+        _record_failure(key, message)
+        return _error(message, code="transport_error")
 
 
 def get_tool_schema_for_llm() -> list[dict]:
-    """Return a list of available MCP tools formatted for LLM tool use."""
+    """Return available MCP tools formatted for LLM tool use."""
     tools = []
     servers = list_servers()
     for server in servers:
         for tool in server.get("tools", []):
-            tools.append({
-                "name": f"mcp__{server['name']}__{tool.get('name', '')}",
-                "description": tool.get("description", f"MCP tool from {server['name']}"),
-                "parameters": tool.get("parameters", {}),
-            })
+            tools.append(
+                {
+                    "name": f"mcp__{server['name']}__{tool.get('name', '')}",
+                    "description": tool.get(
+                        "description", f"MCP tool from {server['name']}"
+                    ),
+                    "parameters": tool.get("parameters", {}),
+                }
+            )
     return tools
