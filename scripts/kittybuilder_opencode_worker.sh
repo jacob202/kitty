@@ -116,23 +116,29 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMEOUT_RUNNER="${SCRIPT_DIR}/run_with_timeout.py"
 worker_budget=${KB_WORKER_TIMEOUT_SECONDS:-3600}
 
+# The ladder exists for models that never get started — unavailable, refusing,
+# erroring — and those fail within seconds. Dividing the budget by the model
+# count instead handed the model doing the actual work a fraction of the time
+# and killed it mid-edit: on 2026-08-31 the first model to answer got 599s of
+# a 3600s budget and timed out with the packet half done. A model that is
+# working earns what is left; one that fails cleanly leaves it for the next.
+# The reserve keeps enough budget for the result file to be written.
 model_timeout() {
-  local remaining_models="$1"
   local elapsed=$((SECONDS - budget_started))
-  local remaining=$((worker_budget - elapsed))
+  local reserve=$((worker_budget / 10))
+  (( reserve < 60 )) || reserve=60
+  local remaining=$((worker_budget - elapsed - reserve))
   (( remaining > 0 )) || remaining=1
-  echo $(((remaining + remaining_models - 1) / remaining_models))
+  echo "${remaining}"
 }
 
 # A model may hand off to the next free model only when it failed cleanly:
 # no result written and no change to HEAD or the worktree. Falling back over
 # partial work would let a second model build on debris the first left behind.
 chosen_model=""
-model_index=0
 for model in "${models[@]}"; do
   before="$(fingerprint)"
-  remaining_models=$((${#models[@]} - model_index))
-  slot_seconds=$(model_timeout "${remaining_models}")
+  slot_seconds=$(model_timeout)
   echo "=== ${lane_label} builder attempt: ${model} (${slot_seconds}s slot) ==="
   set +e
   python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" \
@@ -140,7 +146,6 @@ for model in "${models[@]}"; do
     --title "KittyBuilder ${lane_label} packet worker" "${prompt}" </dev/null
   rc=$?
   set -e
-  model_index=$((model_index + 1))
   if [[ ${rc} -eq 124 ]]; then
     echo "WARNING: ${model} timed out after ${slot_seconds}s." >&2
   fi

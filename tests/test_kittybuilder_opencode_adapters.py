@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -1015,3 +1016,35 @@ def test_reviewer_closes_stdin_before_launching_opencode(tmp_path: Path):
 
     assert proc.returncode == 0, stderr
     assert json.loads(review.read_text())["verdict"] == "approve"
+
+
+def test_worker_gives_the_working_model_the_whole_budget(tmp_path: Path):
+    """The ladder is for models that never start, not for slicing work time.
+
+    Dividing the budget by model count gave the first model to answer 599s of
+    a 3600s budget, which killed a real packet mid-edit on 2026-08-31.
+    """
+    _init_git_repo(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    result = tmp_path / "implementation.json"
+    fake = _fake_opencode(tmp_path)
+    env = _env(fake, bundle=bundle, context=context, result=result)
+    env.update(
+        {
+            "KITTYBUILDER_MODELS": "free-a free-b free-c free-d",
+            "KB_WORKER_TIMEOUT_SECONDS": "1000",
+        }
+    )
+
+    completed = subprocess.run(
+        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    slot = re.search(r"\((\d+)s slot\)", completed.stdout)
+    assert slot, completed.stdout
+    # The 1000s budget less a 60s write-out reserve, not 1000/4. The exact
+    # value moves with the second or two the adapter spends starting up.
+    assert 900 <= int(slot.group(1)) <= 940
