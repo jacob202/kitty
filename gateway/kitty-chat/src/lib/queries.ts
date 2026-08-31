@@ -55,6 +55,7 @@ import {
   // state / actions / inbox
   fetchStateChanges,
   fetchActions,
+  fetchAction,
   approveAction,
   rejectAction,
   executeAction,
@@ -65,6 +66,7 @@ import {
   // projects
   fetchProjects,
   fetchArtifacts,
+  fetchArtifact,
   fetchActiveProject,
   setActiveProject,
   fetchProjectNext,
@@ -569,6 +571,15 @@ export function useActions(status?: string) {
   })
 }
 
+export function useAction(actionId: number) {
+  return useQuery({
+    queryKey: ['actions', 'one', actionId],
+    queryFn: () => fetchAction(actionId),
+    refetchInterval: 5_000,
+    retry: false,
+  })
+}
+
 export function useApproveAction() {
   const qc = useQueryClient()
   return useMutation({
@@ -642,6 +653,15 @@ export function useArtifacts(limit = 100) {
   return useQuery({
     queryKey: ['artifacts', limit],
     queryFn: () => fetchArtifacts(limit),
+    staleTime: 30_000,
+    retry: false,
+  })
+}
+
+export function useArtifact(artifactId: string) {
+  return useQuery({
+    queryKey: ['artifacts', 'one', artifactId],
+    queryFn: () => fetchArtifact(artifactId),
     staleTime: 30_000,
     retry: false,
   })
