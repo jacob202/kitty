@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from gateway import action_grants, action_queue, calendar_integration, todo_store
+from gateway import action_grants, action_queue, calendar_integration, todo_store, undo_journal
 
 
 @pytest.fixture(autouse=True)
@@ -27,6 +27,8 @@ def isolate(monkeypatch, tmp_path):
     # Point the legacy todo import at a path that does not exist so init_db()
     # never reads the real on-disk data/todos.db into the temp kitty.db.
     monkeypatch.setattr(todo_store, "TODO_DB", tmp_path / "todos-legacy-absent.db", raising=False)
+    # _exec_todo_create records an undo journal entry; point it at the temp DB.
+    monkeypatch.setattr(undo_journal, "DB_FILE", db_file, raising=False)
     action_queue.reload_registry()
     yield
     # Some tests point ACTION_TIERS_FILE at a deliberately-broken file; restore

@@ -3,7 +3,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import action_grants, action_queue, calendar_integration, todo_store
+from gateway import action_grants, action_queue, calendar_integration, todo_store, undo_journal
 from gateway.routes import actions as actions_route
 
 
@@ -16,6 +16,8 @@ def client(monkeypatch, tmp_path):
     monkeypatch.setattr(action_grants, "GRANTS_DB_FILE", db_file, raising=False)
     monkeypatch.setattr(action_queue, "DRAFTS_DIR", tmp_path / "drafts", raising=False)
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", db_file, raising=False)
+    # _exec_todo_create records an undo journal entry; point it at the temp DB.
+    monkeypatch.setattr(undo_journal, "DB_FILE", db_file, raising=False)
     monkeypatch.setattr(calendar_integration, "create", lambda *a, **k: True)
     action_queue.reload_registry()
     app = FastAPI()
