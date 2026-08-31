@@ -18,6 +18,8 @@ import {
   useGatewayHealth,
   useHealthSurface,
   useGatewayWeather,
+  useIntelligence,
+  useRefreshIntelligenceConnections,
   useGatewayModels,
   useChatsPersistence,
   useSessionContext,
@@ -78,6 +80,8 @@ vi.mock('../src/lib/queries', () => ({
   useExecuteRepair: vi.fn(),
   useExpertList: vi.fn(),
   useSignals: vi.fn(),
+  useIntelligence: vi.fn(),
+  useRefreshIntelligenceConnections: vi.fn(),
 }));
 
 const LIVE_MODELS = [
@@ -167,6 +171,13 @@ function setDefaultMocks() {
     isError: false,
     isFetched: true,
   });
+  (useIntelligence as Mock).mockReturnValue({
+    data: { items: [], counts: { shown: 0, total_candidates: 0 }, sources: {} },
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
+  (useRefreshIntelligenceConnections as Mock).mockReturnValue({ isPending: false, mutate: vi.fn() });
   (useGatewayModels as Mock).mockReturnValue({
     data: { models: LIVE_MODELS, fromLiveGateway: true, error: null },
     isPending: false,

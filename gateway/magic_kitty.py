@@ -25,6 +25,15 @@ _LAST_CONNECTIONS_CACHE: dict[str, Any] = {
 }
 
 
+def cached_connections(max_age_seconds: float = 21_600) -> list[dict[str, Any]]:
+    """Return recent cached connections without triggering an LLM call."""
+    generated_at = float(_LAST_CONNECTIONS_CACHE.get("generated_at") or 0.0)
+    if generated_at <= 0 or (time.time() - generated_at) > max_age_seconds:
+        return []
+    rows = _LAST_CONNECTIONS_CACHE.get("connections")
+    return [dict(row) for row in rows] if isinstance(rows, list) else []
+
+
 def discover_connections(force: bool = False) -> dict[str, Any]:
     """Return cross-project connection insights.
 
