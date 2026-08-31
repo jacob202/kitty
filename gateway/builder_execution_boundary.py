@@ -54,6 +54,13 @@ def build_child_environment(
         XDG_DATA_HOME=str(home / ".local" / "share"),
         XDG_CACHE_HOME=str(home / ".cache"),
     )
+    command_line_tools = Path("/Library/Developer/CommandLineTools")
+    if sys.platform == "darwin" and command_line_tools.is_dir():
+        # Apple's /usr/bin tool shims refuse to run when xcode-select points at
+        # a full Xcode whose licence has not been accepted, which kills a child
+        # before it can report anything. The Command Line Tools have no licence
+        # prompt, so pin children to them.
+        child["DEVELOPER_DIR"] = str(command_line_tools)
     return child
 
 
@@ -135,7 +142,11 @@ def build_sandbox_profile(
             read_subpaths.add(str(Path(*resolved_executable.parts[:bin_index]).resolve()))
 
     read_subpaths.update(_command_support_read_paths(command, worktree))
-    read_subpaths.update(str(Path(path).resolve()) for path in extra_read_subpaths)
+    # Both spellings: Seatbelt matches an alias directory by the name the
+    # caller uses, so resolving these away would deny a symlinked toolchain.
+    for path in extra_read_subpaths:
+        read_subpaths.add(str(Path(path).absolute()))
+        read_subpaths.add(str(Path(path).resolve()))
     git_subpaths, git_literals = _git_metadata_read_paths(worktree)
     read_subpaths.update(git_subpaths)
     read_literals = {
@@ -164,9 +175,9 @@ def build_sandbox_profile(
     # Seatbelt requires directory metadata traversal to reach explicitly
     # readable executables/venvs; metadata access does not grant file content.
     for path in (launch_executable, resolved_executable, worktree, run_dir, *extra_read_subpaths):
-        resolved_path = Path(path).resolve()
-        metadata_literals.add(str(resolved_path))
-        metadata_literals.update(str(parent) for parent in resolved_path.parents)
+        for variant in (Path(path).absolute(), Path(path).resolve()):
+            metadata_literals.add(str(variant))
+            metadata_literals.update(str(parent) for parent in variant.parents)
     # Git resolves a linked worktree through the common .git/worktrees tree.
     # The content under those directories is already narrowly read-enabled
     # above; allow metadata traversal of their parent directories so Git can
@@ -244,12 +255,23 @@ def _command_support_read_paths(command: Sequence[str], worktree: Path) -> set[s
     return paths
 
 
+def boundary_git_executable() -> str:
+    """Return the git Builder resolves from its own fixed PATH.
+
+    Resolution stays inside ``_SAFE_PATH`` so a model-controlled environment
+    cannot substitute a different git. ``/usr/bin/git`` alone is not usable:
+    on a Mac with Xcode selected it is a shim that refuses to run until the
+    licence is accepted, which would abort every worker launch.
+    """
+    return shutil.which("git", path=_SAFE_PATH) or "/usr/bin/git"
+
+
 def _git_metadata_read_paths(worktree: Path) -> tuple[set[str], set[str]]:
     git_file = worktree / ".git"
     if not git_file.exists() and not git_file.is_symlink():
         return set(), set()
     result = subprocess.run(
-        ["/usr/bin/git", "-C", str(worktree), "rev-parse", "--git-dir", "--git-common-dir"],
+        [boundary_git_executable(), "-C", str(worktree), "rev-parse", "--git-dir", "--git-common-dir"],
         check=False,
         capture_output=True,
         text=True,
