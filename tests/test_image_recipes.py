@@ -188,6 +188,19 @@ class TestAutoRouting:
 
 
 
+    def test_flux2_recipes_follow_runtime_paid_provider_readiness(self, override_db, monkeypatch):
+        monkeypatch.delenv("KITTY_IMAGE_PAID_ENABLED", raising=False)
+        monkeypatch.delenv("BFL_API_KEY", raising=False)
+        seed_default_recipes()
+        assert get_recipe("bfl_flux2_draft").is_available is False
+        assert get_recipe("bfl_flux2_pro").is_available is False
+
+        monkeypatch.setenv("KITTY_IMAGE_PAID_ENABLED", "1")
+        monkeypatch.setenv("BFL_API_KEY", "test-key")
+        seed_default_recipes()
+        assert get_recipe("bfl_flux2_draft").is_available is True
+        assert get_recipe("bfl_flux2_pro").is_available is True
+
     def test_flux2_defaults_advertise_bounded_two_character_capability(self, override_db):
         seed_default_recipes()
         draft = get_recipe("bfl_flux2_draft")
@@ -218,7 +231,9 @@ class TestAutoRouting:
                 preferred_recipe="comfyui_sdxl_standard",
             )
 
-    def test_identity_first_respects_max_characters(self, override_db):
+    def test_identity_first_respects_max_characters(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_IMAGE_PAID_ENABLED", "1")
+        monkeypatch.setenv("BFL_API_KEY", "test-key")
         seed_default_recipes()
         decision = auto_route(
             has_character=True,
