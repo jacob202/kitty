@@ -582,3 +582,44 @@ def test_memory_evidence_only_reports_whole_records_in_rendered_prompt() -> None
     rendered = "## Memory\nfirst memory\nsecond memory is cli\n[truncated by Kitty context budget]"
 
     assert _reconcile_memory_evidence(items, rendered) == [items[0]]
+
+
+@pytest.mark.asyncio
+async def test_context_health_is_full_and_healthy_prompt_has_no_degradation_marker():
+    dep = _AssemblerDeps(
+        adapters=[FakeAdapter("memory", items=[Item(text="known", source=Source.MEMORY)])],
+        enrichments=(_fake_enrichment("[LIVE] ok"),),
+    )
+
+    bundle = await assemble_context("hello", deps=dep)
+
+    assert bundle.context_health["mode"] == "full"
+    assert bundle.context_health["degraded_sources"] == []
+    assert bundle.context_health["warning_count"] == 0
+    assert bundle.context_health["budget_clipped"] == any(
+        warning.startswith("context_budget:") for warning in bundle.warnings
+    )
+    assert "<kitty_context_state" not in bundle.system
+
+
+@pytest.mark.asyncio
+async def test_context_failures_create_sanitized_model_visible_degradation_receipt():
+    dep = _AssemblerDeps(
+        adapters=[
+            FakeAdapter("memory", items=[Item(text="known", source=Source.MEMORY)]),
+            FakeAdapter(
+                "knowledge",
+                exc=RuntimeError("SECRET backend path /private/thing should not reach prompt"),
+            ),
+        ],
+        enrichments=(),
+    )
+
+    bundle = await assemble_context("hello", deps=dep)
+
+    assert bundle.context_health["mode"] == "degraded"
+    assert bundle.context_health["degraded_sources"] == ["knowledge"]
+    assert bundle.context_health["warning_count"] == 1
+    assert '<kitty_context_state mode="degraded" unavailable_sources="knowledge">' in bundle.system
+    assert "Do not imply you used missing context" in bundle.system
+    assert "SECRET backend path" not in bundle.system
