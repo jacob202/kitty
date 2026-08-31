@@ -87,6 +87,7 @@ async def run(
     parent_id: str | None = None,
     guidance_tags: list[str] | None = None,
     source_image: bytes | None = None,
+    quality_tier: str | None = None,
     content_lane: str = "safe",
     consent_basis: str | None = None,
     adult_confirmed: bool = False,
@@ -143,6 +144,14 @@ async def run(
             intent_json=intent_json,
             session_id=session_id,
             reserved_cost_usd=reserved_cost_usd,
+        )
+
+    if engine == "openai":
+        return await _run_openai(
+            prompt, recipe=recipe, parent_id=parent_id, source_image=source_image,
+            character_ref_path=character_ref_path, project_id=project_id,
+            plan_id=plan_id, intent_json=intent_json, session_id=session_id,
+            quality_tier=quality_tier,
         )
 
     if engine == "openrouter":
@@ -818,7 +827,7 @@ async def recover_unknown_bfl_jobs(limit: int = 50) -> int:
 #: Engines ``run`` will dispatch to. Hosted engines carry a conservative
 #: contracted per-render estimate so the session budget can be reserved before
 #: a provider call is allowed to spend money.
-ENGINES = frozenset({"comfyui", "drawthings", "airforce", "fal", "flux", "flux2", "openrouter"})
+ENGINES = frozenset({"comfyui", "drawthings", "airforce", "fal", "flux", "flux2", "openrouter", "openai"})
 _ESTIMATED_COST_USD = {
     "comfyui": 0.0,
     "drawthings": 0.0,
@@ -833,6 +842,9 @@ _ESTIMATED_COST_USD = {
     # available.
     "flux": 0.08,
     "openrouter": 0.15,
+    # Conservative high-quality square ceiling. Actual GPT-Image-2 token usage
+    # is reconciled from the provider response when available.
+    "openai": 0.25,
 }
 
 
@@ -854,6 +866,8 @@ def paid_engine_available(engine: str) -> tuple[bool, str]:
         return flux2_images_available()
     if normalized == "openrouter":
         return openrouter_images_available()
+    if normalized == "openai":
+        return openai_images_available()
     if normalized == "airforce":
         return airforce_images_available()
     if normalized == "fal":
@@ -890,16 +904,16 @@ def _hosted_engine_enabled(provider: str) -> bool:
 
 def hosted_image_configured(provider: str) -> tuple[bool, str]:
     normalized = provider.strip().lower()
-    if normalized not in {"airforce", "fal"}:
+    if normalized not in {"airforce", "fal", "openai"}:
         raise ImageRunnerError(f"no hosted image configuration contract for {provider!r}")
     if not _hosted_engine_enabled(normalized):
         env_name = f"KITTY_IMAGE_{normalized.upper()}_ENABLED"
-        label = "Airforce" if normalized == "airforce" else "fal"
+        label = {"airforce": "Airforce", "fal": "fal", "openai": "OpenAI"}[normalized]
         return False, (
             f"{label} image generation is off. Set {env_name}=1 in .env and "
             f"restart Kitty to use your {label} credits."
         )
-    key_name = "AIRFORCE_API_KEY" if normalized == "airforce" else "FAL_KEY"
+    key_name = {"airforce": "AIRFORCE_API_KEY", "fal": "FAL_KEY", "openai": "OPENAI_API_KEY"}[normalized]
     if not os.environ.get(key_name, "").strip():
         return False, f"{key_name} is not set"
     return True, ""
@@ -1062,6 +1076,168 @@ def fal_images_available() -> tuple[bool, str]:
     model = os.environ.get("FAL_MODEL", "fal-ai/flux-pulid").strip()
     return _cached_hosted_health(
         "fal", model, api_key, lambda: _probe_fal_image_health(api_key, model)
+    )
+
+
+OPENAI_IMAGE_MODEL = os.environ.get("KITTY_OPENAI_IMAGE_MODEL", "gpt-image-2")
+
+
+def openai_images_available() -> tuple[bool, str]:
+    """Whether the direct GPT-Image-2 lane is explicitly enabled and configured."""
+    configured, reason = hosted_image_configured("openai")
+    if not configured:
+        return False, reason
+    return True, ""
+
+
+def _openai_image_client():
+    from openai import AsyncOpenAI
+
+    return AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"].strip())
+
+
+def _openai_image_actual_cost_usd(usage: Any | None) -> float | None:
+    """Price provider-reported GPT-Image-2 token usage using configurable rates.
+
+    Defaults reflect the public GPT-Image-2 rates current on 2026-08-31.
+    Environment overrides keep cost truth adjustable without a code deploy.
+    """
+    if usage is None:
+        return None
+    details = getattr(usage, "input_tokens_details", None)
+    try:
+        text_tokens = int(getattr(details, "text_tokens", 0) or 0)
+        image_tokens = int(getattr(details, "image_tokens", 0) or 0)
+        output_tokens = int(getattr(usage, "output_tokens", 0) or 0)
+        text_rate = float(os.environ.get("KITTY_OPENAI_IMAGE_TEXT_INPUT_USD_PER_M", "5"))
+        image_rate = float(os.environ.get("KITTY_OPENAI_IMAGE_INPUT_USD_PER_M", "8"))
+        output_rate = float(os.environ.get("KITTY_OPENAI_IMAGE_OUTPUT_USD_PER_M", "30"))
+    except (TypeError, ValueError):
+        return None
+    return round((text_tokens * text_rate + image_tokens * image_rate + output_tokens * output_rate) / 1_000_000, 6)
+
+
+def _openai_quality(quality_tier: str | None, recipe: Any | None) -> str:
+    tier = str(quality_tier or getattr(recipe, "quality_tier", "quality") or "quality").lower()
+    return {"fast": "low", "quality": "medium", "maximum": "high"}.get(tier, "medium")
+
+
+def _openai_image_upload(data: bytes, name_hint: str) -> tuple[str, bytes, str]:
+    """Build an OpenAI upload tuple from actual image bytes, never a guessed MIME."""
+    import io
+
+    from PIL import Image, UnidentifiedImageError
+
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            fmt = str(image.format or "").upper()
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ImageDispatchNotSubmittedError(
+            "OpenAI reference image could not be decoded before submission"
+        ) from exc
+    formats = {
+        "PNG": (".png", "image/png"),
+        "JPEG": (".jpg", "image/jpeg"),
+        "WEBP": (".webp", "image/webp"),
+    }
+    resolved = formats.get(fmt)
+    if resolved is None:
+        raise ImageDispatchNotSubmittedError(
+            f"OpenAI reference image format {fmt or 'unknown'!r} is unsupported; use PNG, JPEG, or WebP"
+        )
+    extension, media_type = resolved
+    stem = Path(name_hint).stem or "reference"
+    return f"{stem}{extension}", data, media_type
+
+
+async def _run_openai(
+    prompt: str,
+    *,
+    recipe: Any | None = None,
+    parent_id: str | None = None,
+    source_image: bytes | None = None,
+    character_ref_path: str | None = None,
+    project_id: int | None = None,
+    plan_id: str | None = None,
+    intent_json: str | None = None,
+    session_id: str | None = None,
+    quality_tier: str | None = None,
+) -> JobResult:
+    """Direct OpenAI Images lane using GPT-Image-2 for generation and edits."""
+    import base64
+
+    from openai import APIConnectionError, APITimeoutError
+
+    enabled, reason = openai_images_available()
+    if not enabled:
+        raise ImageDispatchNotSubmittedError(reason)
+
+    reference_images: list[Any] = []
+    if source_image is not None:
+        reference_images.append(_openai_image_upload(source_image, "edit-source"))
+    if character_ref_path:
+        ref_path = Path(character_ref_path)
+        if not ref_path.is_file():
+            raise ImageDispatchNotSubmittedError(
+                f"OpenAI character reference is missing from disk: {ref_path}"
+            )
+        reference_images.append(_openai_image_upload(ref_path.read_bytes(), ref_path.name))
+
+    operation = "img2img" if source_image is not None else ("variation" if parent_id else "txt2img")
+    job = image_jobs.create_job(
+        provider="openai", operation=operation, prompt=prompt, parent_id=parent_id,
+        model_id=OPENAI_IMAGE_MODEL,
+        workflow_template_id=recipe.workflow_template_id if recipe else None,
+        plan_id=plan_id, intent_json=intent_json,
+    )
+    try:
+        _attach_job_to_session_before_dispatch(job.job_id, session_id)
+        image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        client = _openai_image_client()
+        request = {
+            "model": OPENAI_IMAGE_MODEL,
+            "prompt": prompt,
+            "quality": _openai_quality(quality_tier, recipe),
+            "size": "1024x1024",
+            "response_format": "b64_json",
+            "output_format": "png",
+        }
+        try:
+            if reference_images:
+                response = await client.images.edit(
+                    **request,
+                    image=reference_images if len(reference_images) > 1 else reference_images[0],
+                    input_fidelity="high",
+                )
+            else:
+                response = await client.images.generate(**request)
+        except (APIConnectionError, APITimeoutError) as exc:
+            message = f"OpenAI image provider outcome unknown after transport error: {exc}"
+            _mark_unknown(job.job_id, message)
+            raise ImageProviderOutcomeUnknownError(message) from exc
+        image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+        data_items = getattr(response, "data", None) or []
+        encoded = getattr(data_items[0], "b64_json", None) if data_items else None
+        if not encoded:
+            raise ImageRunnerError("OpenAI returned no image bytes")
+        data = base64.b64decode(encoded)
+        path = _persist_artifact(job.job_id, f"{job.job_id}.png", data)
+        image_jobs.update_job(job.job_id, output_path=str(path))
+        image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)
+        image_jobs.transition(job.job_id, ImageJobStatus.SUCCEEDED)
+        actual_cost = _openai_image_actual_cost_usd(getattr(response, "usage", None))
+    except ImageProviderOutcomeUnknownError:
+        raise
+    except Exception as exc:
+        _mark_failed(job.job_id, f"{type(exc).__name__}: {exc}"[:500])
+        raise
+
+    return JobResult(
+        job_id=job.job_id, filename=str(path), engine="openai",
+        recipe=recipe.recipe_id if recipe else None,
+        routing_reason="GPT-Image-2 high-fidelity edit" if reference_images else "GPT-Image-2 generation",
+        cost_usd=actual_cost,
+        cost_source="provider_usage" if actual_cost is not None else None,
     )
 
 

@@ -452,6 +452,59 @@ class TestEditPlanDispatchRoute:
         assert captured["anchor_job_id"] == anchor
 
     @pytest.mark.asyncio
+    async def test_safe_openai_edit_dispatches_anchor_through_approved_hosted_recipe(
+        self, tmp_path: Path, monkeypatch
+    ):
+        s = sessions.create_session()
+        anchor = _succeeded_anchor(tmp_path)
+        sessions.attach_job(s.session_id, anchor)
+        sessions.set_anchor(s.session_id, anchor)
+        stored = persist_plan(
+            s.session_id, _build_plan(), operation="img2img", anchor_job_id=anchor
+        )
+        captured: dict = {}
+
+        def fake_auto_route(**kwargs):
+            captured["route_operation"] = kwargs["operation"]
+            from gateway.image_recipes import Recipe, RoutingDecision
+            recipe = Recipe(
+                recipe_id="openai_gpt_image_2", display_name="GPT-Image-2",
+                description=None, provider="openai", workflow_template_id=None,
+                model_family="gpt-image-2", supports_img2img=True,
+            )
+            return RoutingDecision(recipe.recipe_id, recipe, "selected hosted edit")
+
+        async def fake_run(engine, prompt, **kwargs):
+            captured.update({"engine": engine, "prompt": prompt, **kwargs})
+            from gateway.image_runner import JobResult
+            job = image_jobs.create_job(
+                provider=engine, operation="img2img", prompt=prompt,
+                parent_id=kwargs.get("parent_id"),
+            )
+            return JobResult(job_id=job.job_id, filename="/tmp/openai-edit.png", engine=engine)
+
+        async def fail_run_edit(*_args, **_kwargs):
+            raise AssertionError("safe hosted edit must not be diverted to kitty_worker")
+
+        monkeypatch.setattr("gateway.image_recipes.auto_route", fake_auto_route)
+        monkeypatch.setattr("gateway.image_runner.run", fake_run)
+        monkeypatch.setattr("gateway.image_runner.run_edit", fail_run_edit)
+        monkeypatch.setattr("gateway.image_runner.estimated_cost_usd", lambda engine: 0.0)
+
+        await extended.studio_generate(extended.StudioGenerateRequest(
+            prompt="mutable text ignored", plan_id=stored.plan_id, session_id=s.session_id
+        ))
+
+        assert captured["route_operation"] == "img2img"
+        assert captured["engine"] == "openai"
+        assert captured["prompt"] == stored.refined_prompt
+        assert captured["parent_id"] == anchor
+        assert captured["source_image"] == Path(
+            image_jobs.get_job(anchor).output_path
+        ).read_bytes()
+        assert captured["content_lane"] == "safe"
+
+    @pytest.mark.asyncio
     async def test_edit_refuses_anchor_not_owned_by_session(
         self, tmp_path: Path, monkeypatch
     ):
