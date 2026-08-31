@@ -285,6 +285,12 @@ describe('ProjectsPanel visual hierarchy', () => {
     expect(screen.getAllByTestId('project-row')).toHaveLength(1)
   })
 
+  it('opens a dedicated project workspace from the project row', () => {
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: /open workspace/i }))
+    expect(screen.getByRole('dialog', { name: /kitty project workspace/i })).toBeVisible()
+  })
+
   it('keeps project context closed until the user asks for it', () => {
     renderPanel()
     const context = screen.getByRole('button', { name: /project context/i })
