@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useTodos, useAddTodo, useCompleteTodo, useDeleteTodo } from '@/lib/queries'
 import { Button } from '@/components/ui/Button'
 import { WorkCard } from '@/components/shared/WorkCard'
-import { Check, X, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 
 export function TodoPanel() {
   const todosQuery = useTodos()
@@ -11,6 +11,14 @@ export function TodoPanel() {
   const completeTodo = useCompleteTodo()
   const deleteTodo = useDeleteTodo()
   const [input, setInput] = useState('')
+
+  if (todosQuery.isPending) return <p style={noticeStyle}>loading todos…</p>
+  if (todosQuery.isError) return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <p style={noticeStyle}>Todos are unavailable right now.</p>
+      <button type="button" onClick={() => void todosQuery.refetch()} style={retryStyle}>retry todos</button>
+    </div>
+  )
 
   const todos = todosQuery.data ?? []
   const active = todos.filter(t => t.status === 'pending' || t.status === 'in_progress')
@@ -24,6 +32,11 @@ export function TodoPanel() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {(completeTodo.isError || addTodo.isError || deleteTodo.isError) && (
+        <p style={errorStyle}>
+          {completeTodo.isError ? "Couldn't complete todo right now." : addTodo.isError ? "Couldn't add todo right now." : "Couldn't clear completed todos right now."}
+        </p>
+      )}
       {/* Active todos as cards */}
       {active.length === 0 ? (
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-2)', margin: 0 }}>
@@ -64,6 +77,7 @@ export function TodoPanel() {
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
           placeholder="add a todo…"
+          aria-label="Add a todo"
           style={{
             flex: 1, padding: '6px 12px', borderRadius: 10, border: '1.5px solid var(--line)',
             background: 'var(--surface-2)', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink)',
@@ -77,3 +91,7 @@ export function TodoPanel() {
     </div>
   )
 }
+
+const noticeStyle = { fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-2)', margin: 0 }
+const errorStyle = { ...noticeStyle, color: 'var(--c-red)' }
+const retryStyle = { width: 'fit-content', padding: '5px 10px', border: '1px solid var(--line)', borderRadius: 8, background: 'transparent', color: 'var(--ink)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 12 }

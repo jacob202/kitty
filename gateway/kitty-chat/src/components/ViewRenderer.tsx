@@ -2,7 +2,6 @@
 
 import dynamic from 'next/dynamic'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { TodoPanel } from './TodoPanel'
 
 // -- lazy-loaded view components ------------------------------------------------
 
@@ -19,6 +18,7 @@ const TutorShell = dynamic(() => import('./TutorShell'))
 const JournalPanel = dynamic(() => import('./JournalPanel'))
 const TerminalView = dynamic(() => import('./TerminalView'))
 const AgentWorkspacePanel = dynamic(() => import('./AgentWorkspacePanel').then((mod) => mod.AgentWorkspacePanel))
+const TodoPanel = dynamic(() => import('./TodoPanel').then((mod) => mod.TodoPanel))
 
 // -- view renderer --------------------------------------------------------------
 

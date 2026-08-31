@@ -16,7 +16,7 @@ function renderPanel() {
 
 describe('TodoPanel', () => {
   beforeEach(() => {
-    vi.mocked(queries.useTodos).mockReturnValue({ data: [{ id: 7, content: 'ship it', status: 'pending' }], isPending: false } as never)
+    vi.mocked(queries.useTodos).mockReturnValue({ data: [{ id: 7, content: 'ship it', status: 'pending' }], isPending: false, isError: false } as never)
     vi.mocked(queries.useCompleteTodo).mockReturnValue({ mutate: vi.fn(), isPending: false } as never)
     vi.mocked(queries.useAddTodo).mockReturnValue({ mutate: vi.fn(), isPending: false } as never)
     vi.mocked(queries.useDeleteTodo).mockReturnValue({ mutate: vi.fn(), isPending: false } as never)
@@ -35,8 +35,23 @@ describe('TodoPanel', () => {
     const add = vi.fn()
     vi.mocked(queries.useAddTodo).mockReturnValue({ mutate: add, isPending: false } as never)
     renderPanel()
-    fireEvent.change(screen.getByPlaceholderText('add a todo…'), { target: { value: 'new item' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Add a todo' }), { target: { value: 'new item' } })
     fireEvent.click(screen.getByRole('button', { name: 'add' }))
     expect(add).toHaveBeenCalledWith('new item', expect.any(Object))
+  })
+
+  it('shows a friendly load failure and retries', () => {
+    const refetch = vi.fn()
+    vi.mocked(queries.useTodos).mockReturnValue({ data: undefined, isPending: false, isError: true, refetch } as never)
+    renderPanel()
+    expect(screen.getByText(/todos are unavailable/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /retry todos/i }))
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a friendly completion failure', () => {
+    vi.mocked(queries.useCompleteTodo).mockReturnValue({ mutate: vi.fn(), isPending: false, isError: true } as never)
+    renderPanel()
+    expect(screen.getByText(/couldn't complete todo/i)).toBeInTheDocument()
   })
 })

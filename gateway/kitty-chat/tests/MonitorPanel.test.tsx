@@ -16,7 +16,7 @@ function renderPanel() {
 
 describe('MonitorPanel', () => {
   beforeEach(() => {
-    vi.mocked(queries.useMonitors).mockReturnValue({ data: [{ id: 'row-9', url: 'https://example.com', label: 'Example', last_match: null }], isPending: false } as never)
+    vi.mocked(queries.useMonitors).mockReturnValue({ data: [{ id: 'row-9', url: 'https://example.com', label: 'Example', last_keyword_matched: false }], isPending: false, isError: false } as never)
     vi.mocked(queries.useAddMonitor).mockReturnValue({ mutate: vi.fn(), isPending: false } as never)
     vi.mocked(queries.useRemoveMonitor).mockReturnValue({ mutate: vi.fn(), isPending: false } as never)
   })
@@ -35,9 +35,30 @@ describe('MonitorPanel', () => {
     vi.mocked(queries.useAddMonitor).mockReturnValue({ mutate: add, isPending: false } as never)
     renderPanel()
     fireEvent.click(screen.getByRole('button', { name: /add monitor/i }))
-    fireEvent.change(screen.getByPlaceholderText('https://…'), { target: { value: 'https://kitty.dev' } })
-    fireEvent.change(screen.getByPlaceholderText('label (optional)'), { target: { value: 'Kitty' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Monitor URL' }), { target: { value: 'https://kitty.dev' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Monitor label' }), { target: { value: 'Kitty' } })
     fireEvent.click(screen.getByRole('button', { name: 'add' }))
     expect(add).toHaveBeenCalledWith({ url: 'https://kitty.dev', label: 'Kitty' }, expect.any(Object))
+  })
+
+  it('renders the backend matched status field', () => {
+    vi.mocked(queries.useMonitors).mockReturnValue({ data: [{ id: 'row-9', url: 'https://example.com', label: 'Example', last_keyword_matched: true }], isPending: false, isError: false } as never)
+    renderPanel()
+    expect(screen.getByText('hit')).toBeInTheDocument()
+  })
+
+  it('shows a friendly load failure and retries', () => {
+    const refetch = vi.fn()
+    vi.mocked(queries.useMonitors).mockReturnValue({ data: undefined, isPending: false, isError: true, refetch } as never)
+    renderPanel()
+    expect(screen.getByText(/monitors are unavailable/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /retry monitors/i }))
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows friendly mutation failure status', () => {
+    vi.mocked(queries.useRemoveMonitor).mockReturnValue({ mutate: vi.fn(), isPending: false, isError: true } as never)
+    renderPanel()
+    expect(screen.getByText(/couldn't remove monitor/i)).toBeInTheDocument()
   })
 })

@@ -15,6 +15,14 @@ export function MonitorPanel() {
   const [label, setLabel] = useState('')
   const [showForm, setShowForm] = useState(false)
 
+  if (monitorsQuery.isPending) return <p style={emptyStyle}>loading monitors…</p>
+  if (monitorsQuery.isError) return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <p style={emptyStyle}>Monitors are unavailable right now.</p>
+      <button type="button" onClick={() => void monitorsQuery.refetch()} style={addButtonStyle}>retry monitors</button>
+    </div>
+  )
+
   function handleAdd() {
     const u = url.trim()
     const l = label.trim() || u
@@ -41,8 +49,8 @@ export function MonitorPanel() {
             <div key={m.id} style={rowStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={labelStyle}>{m.label}</span>
-                <span style={{ ...statusStyle, color: m.last_match ? 'var(--cat-ginger)' : 'var(--ink-2)' }}>
-                  {m.last_match ? 'hit' : 'watching'}
+                <span style={{ ...statusStyle, color: m.last_keyword_matched ? 'var(--cat-ginger)' : 'var(--ink-2)' }}>
+                  {m.last_keyword_matched ? 'hit' : 'watching'}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
@@ -59,12 +67,14 @@ export function MonitorPanel() {
       {showForm ? (
         <div style={{ display: 'grid', gap: 5 }}>
           <input
+            aria-label="Monitor URL"
             value={url}
             onChange={e => setUrl(e.target.value)}
             placeholder="https://…"
             style={inputStyle}
           />
           <input
+            aria-label="Monitor label"
             value={label}
             onChange={e => setLabel(e.target.value)}
             placeholder="label (optional)"
@@ -82,6 +92,11 @@ export function MonitorPanel() {
         </div>
       ) : (
         <button onClick={() => setShowForm(true)} style={addButtonStyle}>+ add monitor</button>
+      )}
+      {(addMonitor.isError || removeMonitor.isError) && (
+        <p style={{ ...emptyStyle, color: 'var(--c-red)' }}>
+          {addMonitor.isError ? "Couldn't add monitor right now." : "Couldn't remove monitor right now."}
+        </p>
       )}
     </div>
   )

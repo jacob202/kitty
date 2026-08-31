@@ -28,8 +28,10 @@ test('Tasks and Automations mount todo and monitor controls', async ({ page }) =
   await page.getByRole('button', { name: 'Open tasks' }).click()
   await expect(page.getByPlaceholder('add a todo…')).toBeVisible()
   const complete = page.getByRole('button', { name: /complete/i })
+  await assertControlAboveMobileBar(page, complete)
+  const completeRequest = page.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname === '/proxy/todos/3/complete')
   await complete.click()
-  await assertControlAboveMobileBar(page, page.getByPlaceholder('add a todo…'))
+  await completeRequest
   await assertNoHorizontalOverflow(page)
 
   if (page.viewportSize()?.width && page.viewportSize()!.width < 600) {
@@ -40,7 +42,9 @@ test('Tasks and Automations mount todo and monitor controls', async ({ page }) =
   }
   await expect(page.getByRole('heading', { name: 'Monitors' })).toBeVisible()
   const remove = page.getByRole('button', { name: /remove monitor/i })
+  await assertControlAboveMobileBar(page, remove)
+  const removeRequest = page.waitForRequest(request => request.method() === 'DELETE' && new URL(request.url()).pathname === '/proxy/monitor/m-1')
   await remove.click()
-  await assertControlAboveMobileBar(page, page.getByRole('button', { name: /add monitor/i }))
+  await removeRequest
   await assertNoHorizontalOverflow(page)
 })

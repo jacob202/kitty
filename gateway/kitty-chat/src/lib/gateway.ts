@@ -939,7 +939,7 @@ export interface GatewayMonitor {
   interval_minutes?: number
   last_checked?: number | null
   last_hash?: string | null
-  last_match?: string | null
+  last_keyword_matched?: boolean
 }
 
 export async function fetchGatewayMonitors(): Promise<GatewayMonitor[]> {
