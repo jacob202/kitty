@@ -21,6 +21,8 @@ import os
 
 import httpx
 
+from gateway import brief, context_assembler, domain_router, llm_client, self_review, voice_gate
+
 logger = logging.getLogger("kitty.telegram_bot")
 
 TELEGRAM_API = "https://api.telegram.org"
@@ -68,18 +70,10 @@ async def send_message(chat_id: int, text: str) -> bool:
 async def _process_message(chat_id: int, text: str) -> None:
     """Route a user message through Kitty's pipeline and reply."""
     try:
-        from gateway.context_assembler import get_system_prompt
-        from gateway.domain_router import classify_domain
-        from gateway.llm_client import (
-            chat_completions_non_stream,
-            extract_assistant_text,
-            route_model,
-        )
-        from gateway.voice_gate import filter_response
 
-        domain = classify_domain(text)
-        system_prompt = await get_system_prompt(text, domain=domain)
-        model = route_model(text)
+        domain = domain_router.classify_domain(text)
+        system_prompt = await context_assembler.get_system_prompt(text, domain=domain)
+        model = llm_client.route_model(text)
 
         payload = {
             "model": model,
@@ -90,10 +84,10 @@ async def _process_message(chat_id: int, text: str) -> None:
             ],
         }
 
-        data = await chat_completions_non_stream(payload)
-        reply = extract_assistant_text(data)
+        data = await llm_client.chat_completions_non_stream(payload)
+        reply = llm_client.extract_assistant_text(data)
 
-        gate = filter_response(reply)
+        gate = voice_gate.filter_response(reply)
         reply = gate.cleaned
 
         if reply:
@@ -101,9 +95,8 @@ async def _process_message(chat_id: int, text: str) -> None:
 
         # Log interaction
         try:
-            from gateway.self_review import record_interaction
 
-            record_interaction(text, reply)
+            self_review.record_interaction(text, reply)
         except Exception:
             logger.debug("telegram: failed to record interaction", exc_info=True)
 
@@ -168,11 +161,10 @@ async def _handle_command(chat_id: int, text: str) -> None:
             "Hey! I'm Kitty. Ask me anything — I'm connected to the same brain as the desktop app.",
         )
     elif cmd == "/brief":
-        from gateway.brief import generate_brief
 
         try:
-            brief = generate_brief()
-            intention = brief.get("intention", "")[:1500]
+            generated = brief.generate_brief()
+            intention = generated.get("intention", "")[:1500]
             await send_message(
                 chat_id, intention or "Brief generated — check the desktop app for full details."
             )
@@ -180,9 +172,8 @@ async def _handle_command(chat_id: int, text: str) -> None:
             logger.exception("telegram: /brief command failed")
             await send_message(chat_id, "Brief generation failed — try again later.")
     elif cmd == "/stuck":
-        from gateway.brief import get_tasks_summary
 
-        await send_message(chat_id, get_tasks_summary())
+        await send_message(chat_id, brief.get_tasks_summary())
     elif cmd == "/help":
         await send_message(
             chat_id,
