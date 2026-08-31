@@ -56,6 +56,12 @@ describe('MonitorPanel', () => {
     expect(refetch).toHaveBeenCalledTimes(1)
   })
 
+  it('shows a friendly loading state', () => {
+    vi.mocked(queries.useMonitors).mockReturnValue({ data: undefined, isPending: true, isError: false } as never)
+    renderPanel()
+    expect(screen.getByText('loading monitors…')).toBeInTheDocument()
+  })
+
   it('shows friendly mutation failure status', () => {
     vi.mocked(queries.useRemoveMonitor).mockReturnValue({ mutate: vi.fn(), isPending: false, isError: true } as never)
     renderPanel()

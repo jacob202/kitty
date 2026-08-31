@@ -49,6 +49,12 @@ describe('TodoPanel', () => {
     expect(refetch).toHaveBeenCalledTimes(1)
   })
 
+  it('shows a friendly loading state', () => {
+    vi.mocked(queries.useTodos).mockReturnValue({ data: undefined, isPending: true, isError: false } as never)
+    renderPanel()
+    expect(screen.getByText('loading todos…')).toBeInTheDocument()
+  })
+
   it('shows a friendly completion failure', () => {
     vi.mocked(queries.useCompleteTodo).mockReturnValue({ mutate: vi.fn(), isPending: false, isError: true } as never)
     renderPanel()

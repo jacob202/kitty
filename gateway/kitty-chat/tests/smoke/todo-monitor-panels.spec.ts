@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => window.localStorage.setItem('kitty-onboarded', 'true'))
   await page.route('**/proxy/todos', route => route.fulfill({ json: { todos: [{ id: 3, content: 'check launch', status: 'pending' }] } }))
   await page.route('**/proxy/todos/3/complete', route => route.fulfill({ status: 200, json: {} }))
-  await page.route('**/proxy/monitors', route => route.fulfill({ json: { watches: [{ id: 'm-1', url: 'https://example.com', label: 'Example', last_match: null }] } }))
+  await page.route('**/proxy/monitors', route => route.fulfill({ json: { watches: [{ id: 'm-1', url: 'https://example.com', label: 'Example', last_keyword_matched: true }] } }))
   await page.route('**/proxy/monitor/m-1', route => route.fulfill({ status: 200, json: { deleted: 'm-1' } }))
 })
 
@@ -41,6 +41,7 @@ test('Tasks and Automations mount todo and monitor controls', async ({ page }) =
     await page.getByRole('button', { name: 'Automations' }).click()
   }
   await expect(page.getByRole('heading', { name: 'Monitors' })).toBeVisible()
+  await expect(page.getByText('hit')).toBeVisible()
   const remove = page.getByRole('button', { name: /remove monitor/i })
   await assertControlAboveMobileBar(page, remove)
   const removeRequest = page.waitForRequest(request => request.method() === 'DELETE' && new URL(request.url()).pathname === '/proxy/monitor/m-1')
