@@ -44,6 +44,14 @@ describe('TopBar surface hierarchy', () => {
     expect(within(toolbar).getByText('Image Lab')).toBeInTheDocument()
     expect(within(toolbar).queryByRole('heading')).not.toBeInTheDocument()
   })
+
+  it('shows Tasks label for the tasks view', () => {
+    renderTopBar(false, 'tasks')
+    const toolbar = screen.getByRole('banner', { name: 'Workspace toolbar' })
+    expect(within(toolbar).getByText('Tasks')).toBeInTheDocument()
+    expect(within(toolbar).queryByRole('heading')).not.toBeInTheDocument()
+    expect(screen.queryByText('kitty')).not.toBeInTheDocument()
+  })
 })
 
 describe('TopBar runtime badge', () => {

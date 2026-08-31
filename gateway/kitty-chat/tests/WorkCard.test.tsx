@@ -65,6 +65,13 @@ describe('WorkCard', () => {
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
 
+  it('renders and invokes the dedicated completion action', () => {
+    const onComplete = vi.fn()
+    render(<WorkCard id="1" title="Task" status="scheduled" onComplete={onComplete} />)
+    fireEvent.click(screen.getByRole('button', { name: /complete/i }))
+    expect(onComplete).toHaveBeenCalledTimes(1)
+  })
+
   it('renders all status variants', () => {
     const states = ['working', 'needs_user', 'scheduled', 'paused', 'failed', 'completed', 'unavailable', 'degraded', 'canceled'] as const
     for (const status of states) {

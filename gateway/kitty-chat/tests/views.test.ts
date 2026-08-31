@@ -16,6 +16,10 @@ describe('view redirects', () => {
     expect(REDIRECTS.automations).toBeUndefined()
   })
 
+  it('keeps Tasks as a dedicated secondary surface', () => {
+    expect(REDIRECTS.tasks).toBeUndefined()
+  })
+
   it('does not redirect Projects away from itself', () => {
     // Rail's primary nav, Home's "open projects" actions, and Cmd-K's
     // "projects" command all navigate to this id expecting ProjectsView.
