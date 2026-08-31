@@ -5,7 +5,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from gateway import deadline_extractor, deadline_store, deadline_sweep
+from gateway import deadline_extractor, deadline_store, deadline_sweep, deadline_watch
 from gateway.deadline_store import DeadlineNotFound
 
 logger = logging.getLogger("kitty.routes.deadlines")
@@ -46,9 +46,48 @@ def close_deadline(deadline_id: int) -> dict:
 
 
 @router.post("/deadlines/sweep")
-def post_sweep(push: bool = False) -> dict:
-    report = deadline_sweep.sweep(push_fn=_push if push else None)
-    return report
+def post_sweep(push: bool = True) -> dict:
+    report = deadline_sweep.sweep()
+    if not push:
+        return {
+            **report,
+            "escalated": 0,
+            "escalation_failed": 0,
+            "delivery_status": "not_requested",
+            "delivery_message": "Deadline escalation was not requested.",
+        }
+
+    escalation = deadline_watch.check_and_push(push_fn=_push)
+    pushed = int(escalation.get("pushed", 0))
+    failed = int(escalation.get("failed", 0))
+    attempted = int(escalation.get("attempted", 0))
+
+    if attempted == 0:
+        delivery_status = "nothing_due"
+        delivery_message = "No new deadline warning was due."
+    elif pushed == 0 and failed > 0:
+        delivery_status = "source_unavailable"
+        delivery_message = (
+            "A deadline warning was due, but nothing was delivered. "
+            "Check notification setup and try again."
+        )
+    elif failed > 0:
+        delivery_status = "partial"
+        delivery_message = (
+            f"{pushed} deadline warning{'s' if pushed != 1 else ''} delivered; "
+            f"{failed} could not be delivered."
+        )
+    else:
+        delivery_status = "delivered"
+        delivery_message = f"{pushed} deadline warning{'s' if pushed != 1 else ''} delivered."
+
+    return {
+        **report,
+        "escalated": pushed,
+        "escalation_failed": failed,
+        "delivery_status": delivery_status,
+        "delivery_message": delivery_message,
+    }
 
 
 def _push(message: str, *, title: str, kind: str, dedupe_key: str) -> bool:

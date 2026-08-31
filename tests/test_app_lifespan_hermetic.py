@@ -46,8 +46,10 @@ async def test_test_env_skips_external_background_services(monkeypatch):
 @pytest.mark.asyncio
 async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypatch):
     import gateway.app as app_module
+    import gateway.automation_actions as automation_actions
     import gateway.brief_scheduler as brief_scheduler
     import gateway.cron as cron
+    import gateway.deadline_watch as deadline_watch
     import gateway.image_batches as image_batches
     import gateway.image_recipes as image_recipes
     import gateway.inbox_watcher as inbox_watcher
@@ -78,6 +80,13 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
 
     scans: list[str] = []
     monkeypatch.setattr(inbox_watcher, "scan_once", lambda: scans.append("scan"))
+    deadline_runs: list[str] = []
+    monkeypatch.setattr(
+        deadline_watch,
+        "check_and_push",
+        lambda: deadline_runs.append("run")
+        or {"checked": 1, "due": 1, "attempted": 1, "pushed": 1, "failed": 0, "skipped": 0},
+    )
 
     actions: dict[str, object] = {}
     schedules: list[tuple] = []
@@ -92,10 +101,22 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
         assert "traces.compact" in actions
         assert ("brief cache refresh", "brief.refresh", "interval", "15") in schedules
         assert ("web monitor due checks", "monitors.check", "interval", "5") in schedules
+        assert ("deadline watch", "deadline_watch.check_and_push", "daily", "09:00") in schedules
         assert ("iCloud inbox scan", "inbox.scan", "interval", "0.5") in schedules
         assert ("trace log compaction", "traces.compact", "daily", "03:30") in schedules
+        assert "deadline_watch.check_and_push" in actions
         await actions["inbox.scan"]()  # type: ignore[operator]
+        await actions["deadline_watch.check_and_push"]()  # type: ignore[operator]
         assert scans == ["scan"]
+        assert deadline_runs == ["run"]
+
+        monkeypatch.setattr(
+            deadline_watch,
+            "check_and_push",
+            lambda: {"checked": 1, "due": 1, "attempted": 1, "pushed": 0, "failed": 1, "skipped": 1},
+        )
+        with pytest.raises(automation_actions.SourceUnavailable, match="nothing was delivered"):
+            await actions["deadline_watch.check_and_push"]()  # type: ignore[operator]
 
 
 @pytest.mark.asyncio

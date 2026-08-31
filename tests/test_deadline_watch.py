@@ -43,9 +43,9 @@ def test_fires_today_checkpoint():
         return True
 
     result = deadline_watch.check_and_push(now=date(2026, 7, 20), push_fn=push_fn)
-    assert result == {"checked": 1, "pushed": 1, "skipped": 0}
+    assert result == {"checked": 1, "due": 1, "attempted": 1, "pushed": 1, "failed": 0, "skipped": 0}
     assert pushes[0]["title"] == "Deadline T-7d"
-    assert pushes[0]["kind"] == "alert"
+    assert pushes[0]["kind"] == "info"
 
 
 def test_skips_already_sent():
@@ -59,7 +59,7 @@ def test_skips_already_sent():
         return True
 
     result = deadline_watch.check_and_push(now=date(2026, 7, 20), push_fn=push_fn)
-    assert result == {"checked": 1, "pushed": 0, "skipped": 1}
+    assert result == {"checked": 1, "due": 1, "attempted": 0, "pushed": 0, "failed": 0, "skipped": 1}
     assert pushes == []
 
 
@@ -86,4 +86,37 @@ def test_push_failure_counts_skipped():
         return False
 
     result = deadline_watch.check_and_push(now=date(2026, 7, 20), push_fn=push_fn)
-    assert result == {"checked": 1, "pushed": 0, "skipped": 1}
+    assert result == {"checked": 1, "due": 1, "attempted": 1, "pushed": 0, "failed": 1, "skipped": 1}
+
+
+@pytest.mark.parametrize(
+    ("days_out", "expected_checkpoint", "expected_kind"),
+    [
+        (7, "T-7d", "info"),
+        (3, "T-3d", "info"),
+        (1, "T-1d", "alert"),
+        (0, "day-of", "alert"),
+    ],
+)
+def test_checkpoint_kind_matches_escalation_contract(days_out, expected_checkpoint, expected_kind):
+    from datetime import timedelta
+
+    today = date(2026, 7, 20)
+    _make_deadline((today + timedelta(days=days_out)).isoformat())
+    pushes = []
+
+    def push_fn(message: str, *, title: str, kind: str, dedupe_key: str) -> bool:
+        pushes.append({"title": title, "kind": kind, "dedupe_key": dedupe_key})
+        return True
+
+    result = deadline_watch.check_and_push(now=today, push_fn=push_fn)
+
+    assert result["attempted"] == 1
+    assert result["pushed"] == 1
+    assert pushes == [
+        {
+            "title": f"Deadline {expected_checkpoint}",
+            "kind": expected_kind,
+            "dedupe_key": f"deadline-1-{expected_checkpoint}",
+        }
+    ]

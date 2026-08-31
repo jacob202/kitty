@@ -34,7 +34,10 @@ def check_and_push(
     sender = push_fn or _default_push
 
     checked = 0
+    due = 0
+    attempted = 0
     pushed = 0
+    failed = 0
     skipped = 0
 
     for deadline in deadline_store.list_open(status="open"):
@@ -43,17 +46,19 @@ def check_and_push(
         if checkpoint is None:
             skipped += 1
             continue
+        due += 1
         if deadline_store.escalation_already_sent(deadline["id"], checkpoint):
             skipped += 1
             continue
 
+        attempted += 1
         message = _format_message(deadline, checkpoint)
         dedupe_key = f"deadline-{deadline['id']}-{checkpoint}"
         try:
             ok = sender(
                 message,
                 title=f"Deadline {checkpoint}",
-                kind="alert",
+                kind="info" if checkpoint in {"T-7d", "T-3d"} else "alert",
                 dedupe_key=dedupe_key,
             )
         except Exception as exc:  # noqa: BLE001 — a push failure must not crash the cron
@@ -65,9 +70,17 @@ def check_and_push(
             deadline_store.mark_pushed(deadline["id"])
             pushed += 1
         else:
+            failed += 1
             skipped += 1
 
-    return {"checked": checked, "pushed": pushed, "skipped": skipped}
+    return {
+        "checked": checked,
+        "due": due,
+        "attempted": attempted,
+        "pushed": pushed,
+        "failed": failed,
+        "skipped": skipped,
+    }
 
 
 def _format_message(deadline: dict[str, Any], checkpoint: str) -> str:
