@@ -1,8 +1,8 @@
 # Kitty Packet Master — Product-First Pilot
 
-**Date:** 2026-08-30  
+**Date:** 2026-08-30
 **Status:** approved lean design; written-spec review pending
-**Owner:** ChatGPT Packet Master  
+**Owner:** ChatGPT Packet Master
 **Lane:** product packets and bounded flow-break investigation only
 
 ## Decision
