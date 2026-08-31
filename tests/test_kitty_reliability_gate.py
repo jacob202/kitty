@@ -92,3 +92,20 @@ def test_timed_out_repetition_becomes_failed_evidence(monkeypatch: pytest.Monkey
     assert receipt["all_passed"] is False
     assert receipt["runs"][0]["exit_code"] == 124
     assert "timed out" in receipt["runs"][0]["stderr_tail"]
+
+
+def test_head_movement_during_gate_invalidates_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
+    heads = iter(["a" * 40, "b" * 40])
+    monkeypatch.setattr(gate, "_git_head", lambda: next(heads))
+    monkeypatch.setattr(
+        gate.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
+    )
+
+    receipt = gate.run_gate(1)
+
+    assert receipt["head_sha"] == "a" * 40
+    assert receipt["end_head_sha"] == "b" * 40
+    assert receipt["head_unchanged"] is False
+    assert receipt["all_passed"] is False

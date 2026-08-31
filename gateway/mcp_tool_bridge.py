@@ -142,6 +142,14 @@ def _record_success(key: tuple[str, str]) -> None:
         _CIRCUITS.pop(key, None)
 
 
+def _release_probe(key: tuple[str, str]) -> None:
+    """Release a half-open probe after caller cancellation without blaming the tool."""
+    with _CIRCUIT_LOCK:
+        state = _CIRCUITS.get(key)
+        if state is not None:
+            state.probe_in_flight = False
+
+
 def _record_failure(key: tuple[str, str], message: str) -> None:
     now = _monotonic()
     with _CIRCUIT_LOCK:
@@ -154,9 +162,37 @@ def _record_failure(key: tuple[str, str], message: str) -> None:
             state.opened_at = now
 
 
+def _server_configuration_error(server: dict[str, Any]) -> str | None:
+    name = server.get("name")
+    label = str(name or "<unnamed>")
+    command = server.get("command")
+    if not isinstance(command, str) or not command.strip():
+        return f"{label}: command must be a non-empty string"
+    args = server.get("args", [])
+    if not isinstance(args, list) or not all(isinstance(arg, str) for arg in args):
+        return f"{label}: args must be a list of strings"
+    try:
+        if server.get("timeout_seconds") is not None:
+            _validated_timeout(server["timeout_seconds"], label="timeout_seconds")
+        tool_timeouts = server.get("tool_timeouts")
+        if tool_timeouts is not None:
+            if not isinstance(tool_timeouts, dict):
+                raise ValueError("tool_timeouts must be an object")
+            for tool, value in tool_timeouts.items():
+                if not isinstance(tool, str) or not tool.strip():
+                    raise ValueError("tool_timeouts keys must be non-empty strings")
+                _validated_timeout(value, label=f"tool timeout for {tool!r}")
+    except ValueError as exc:
+        return f"{label}: {exc}"
+    return None
+
+
 def tool_health_snapshot() -> dict[str, Any]:
     """Return configured/circuit health without pretending remote liveness was probed."""
     configured = list_servers()
+    configuration_errors = [
+        error for server in configured if (error := _server_configuration_error(server))
+    ]
     now = _monotonic()
     open_circuits: list[dict[str, Any]] = []
     with _CIRCUIT_LOCK:
@@ -177,8 +213,9 @@ def tool_health_snapshot() -> dict[str, Any]:
                 }
             )
     return {
-        "state": "degraded" if open_circuits else "available",
+        "state": "degraded" if open_circuits or configuration_errors else "available",
         "configured_servers": len(configured),
+        "configuration_errors": configuration_errors,
         "open_circuits": open_circuits,
         "remote_health_probed": False,
     }
@@ -220,12 +257,10 @@ async def invoke(
     if not server:
         return _error(f"MCP server not found: {server_name}", code="server_not_found")
 
-    command = server.get("command", "")
-    if not command:
-        return _error(
-            f"No command configured for server: {server_name}",
-            code="invalid_configuration",
-        )
+    configuration_error = _server_configuration_error(server)
+    if configuration_error:
+        return _error(configuration_error, code="invalid_configuration")
+    command = server["command"]
 
     try:
         timeout = _tool_timeout(server, tool_name)
@@ -300,7 +335,7 @@ async def invoke(
     except asyncio.CancelledError:
         if proc is not None:
             await _reap_process(proc)
-        _record_failure(key, "MCP tool invocation was cancelled")
+        _release_probe(key)
         raise
     except Exception as exc:
         if proc is not None:
