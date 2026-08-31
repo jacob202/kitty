@@ -250,11 +250,24 @@ def check_packet(
             )
 
     policy = packet.get("policy") or {}
-    routing = policy.get("routing") or {}
-    if routing.get("model") or routing.get("provider"):
-        findings.append(
-            Finding("WARN", pid, f"packet requests paid routing {routing} — the companion doc must justify the spend")
-        )
+    routing = policy.get("routing")
+    if isinstance(routing, dict):
+        # A present routing key must be a non-empty string; explicit nulls read
+        # as "no preference" but the validator rejects the manifest outright.
+        blank = sorted(k for k, v in routing.items() if not isinstance(v, str) or not v.strip())
+        if blank:
+            findings.append(
+                Finding(
+                    "ERROR",
+                    pid,
+                    f"policy.routing has empty value(s) for {blank} — the Builder validator rejects "
+                    "this. Omit 'routing' entirely for free work.",
+                )
+            )
+        elif routing:
+            findings.append(
+                Finding("WARN", pid, f"packet requests paid routing {routing} — the companion doc must justify the spend")
+            )
 
     depends = packet.get("depends_on") or []
     if pid in depends:

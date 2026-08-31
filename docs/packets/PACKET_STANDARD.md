@@ -79,10 +79,26 @@ Exactly these packet keys, nothing else:
   "depends_on": [],
   "acceptance_criteria": [],
   "allowed_paths": [],
-  "policy": { "max_attempts": 2, "priority": 0, "routing": { "model": null, "provider": null } },
+  "policy": { "max_attempts": 2, "priority": 0 },
   "validation_commands": []
 }
 ```
+
+**`policy.routing` is omitted for free work.** Writing
+`"routing": {"model": null, "provider": null}` looks harmless and is rejected:
+the validator requires every routing key that is *present* to be a non-empty
+string. Omit the key entirely (or use `{}`) and the packet runs on the free
+ladder. Only a packet that genuinely pins a paid route names both, and its
+companion doc justifies the spend under §10.
+
+Verified against `./kitty builder initiative validate`: omitted, `{}`, and
+`null` all pass; `{"model": null, "provider": null}` fails.
+
+**Expect one warning.** A packet whose `allowed_paths` span two or more
+subsystems (backend plus frontend, say) draws
+`manifest looks prototype-shaped ... but no packet id ends in '-proto'`. That is
+a heuristic, not a defect, and most real packets trip it. Do not rename packets
+to `-proto` to silence it.
 
 **Identity rules.**
 
