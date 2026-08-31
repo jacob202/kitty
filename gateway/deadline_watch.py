@@ -7,16 +7,16 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import Any, Callable
+from typing import Any, Callable, Union
 
 from gateway import deadline_store
 
 logger = logging.getLogger("kitty.deadline_watch")
 
-PushFn = Callable[[str], bool]
+PushFn = Callable[..., Union[bool, dict]]
 
 
-def _default_push(message: str, *, title: str, kind: str, dedupe_key: str) -> bool:
+def _default_push(message: str, *, title: str, kind: str, dedupe_key: str) -> Union[bool, dict]:
     from gateway.push import push_to_jacob
 
     return push_to_jacob(message, title=title, kind=kind, dedupe_key=dedupe_key)
@@ -24,7 +24,7 @@ def _default_push(message: str, *, title: str, kind: str, dedupe_key: str) -> bo
 
 def check_and_push(
     now: date | None = None,
-    push_fn: Callable[..., bool] | None = None,
+    push_fn: Callable[..., Union[bool, dict]] | None = None,
 ) -> dict[str, Any]:
     """Scan open deadlines and push for any due escalation checkpoint today.
 

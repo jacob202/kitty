@@ -84,8 +84,8 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
     monkeypatch.setattr(
         deadline_watch,
         "check_and_push",
-        lambda: deadline_runs.append("run")
-        or {"checked": 1, "due": 1, "attempted": 1, "pushed": 1, "failed": 0, "skipped": 0},
+        lambda now=None: deadline_runs.append("run")
+        or {"checked": 1, "due": 1, "attempted": 1, "pushed": 1, "failed": 0, "skipped": 0, "quiet_hours_deferred": 0},
     )
 
     actions: dict[str, object] = {}
@@ -113,7 +113,7 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
         monkeypatch.setattr(
             deadline_watch,
             "check_and_push",
-            lambda: {"checked": 1, "due": 1, "attempted": 1, "pushed": 0, "failed": 1, "skipped": 1},
+            lambda now=None: {"checked": 1, "due": 1, "attempted": 1, "pushed": 0, "failed": 1, "skipped": 1, "quiet_hours_deferred": 0},
         )
         with pytest.raises(automation_actions.SourceUnavailable, match="nothing was delivered"):
             await actions["deadline_watch.check_and_push"]()  # type: ignore[operator]

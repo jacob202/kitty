@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from typing import Union
 
 from fastapi import APIRouter, HTTPException
 
@@ -100,10 +101,10 @@ def post_sweep(push: bool = True) -> dict:
         "escalation_failed": failed,
         "delivery_status": delivery_status,
         "delivery_message": delivery_message,
-    }
+}
 
 
-def _push(message: str, *, title: str, kind: str, dedupe_key: str) -> dict:
+def _push(message: str, *, title: str, kind: str, dedupe_key: str) -> Union[bool, dict]:
     from gateway.push import push_to_jacob
 
     return push_to_jacob(message, title=title, kind=kind, dedupe_key=dedupe_key)
