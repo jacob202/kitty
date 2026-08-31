@@ -162,6 +162,33 @@ def worktree_path(task_id: str, *, repo_root: Path | None = None) -> Path:
     return _repo_root(repo_root) / ".worktrees" / "kittybuilder" / task_id
 
 
+_MAX_SYMLINK_HOPS = 16
+
+
+def _interpreter_hops(python: Path) -> list[Path]:
+    """Return every path the interpreter symlink chain passes through.
+
+    Seatbelt authorises an ``execve`` against each name in the chain as
+    written, not against the final real path, so a venv whose interpreter
+    points through an alias directory (uv installs ``cpython-3.12-*`` as a
+    symlink to ``cpython-3.12.14-*``) is denied unless the alias hop is
+    allowed too.
+    """
+    hops: list[Path] = []
+    seen: set[Path] = set()
+    current = python.absolute()
+    for _ in range(_MAX_SYMLINK_HOPS):
+        if current in seen:
+            break
+        seen.add(current)
+        hops.append(current)
+        if not current.is_symlink():
+            break
+        target = Path(os.readlink(current))
+        current = target if target.is_absolute() else (current.parent / target)
+    return hops
+
+
 def _validation_toolchain(repo_root: Path) -> tuple[Path | None, list[Path]]:
     """Return the repo validation venv and read-only runtime roots, if present."""
     for name in ("venv", ".venv"):
@@ -169,9 +196,10 @@ def _validation_toolchain(repo_root: Path) -> tuple[Path | None, list[Path]]:
         python = venv / "bin" / "python"
         if not python.exists():
             continue
-        runtime_root = python.resolve().parent.parent
-        read_roots = list(dict.fromkeys((venv, runtime_root)))
-        return venv, read_roots
+        read_roots = [venv]
+        for hop in _interpreter_hops(python):
+            read_roots.append(hop.parent.parent)
+        return venv, list(dict.fromkeys(read_roots))
     return None, []
 
 
