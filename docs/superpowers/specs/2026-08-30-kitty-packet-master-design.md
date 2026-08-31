@@ -1,7 +1,7 @@
 # Kitty Packet Master — Product-First Pilot
 
 **Date:** 2026-08-30
-**Status:** approved lean design; written-spec review pending
+**Status:** implemented/reviewed; exact-head Product Acceptance pending
 **Owner:** ChatGPT Packet Master
 **Lane:** product packets and bounded flow-break investigation only
 
@@ -33,21 +33,20 @@ The current mission sequence remains REC-001 → WORK-001 → BUILDER-001 →
 IMAGE-001 → LIBRARY-001 → AUTO-001 → HOME-001 → ACCEPT-001. This document
 does not activate a mission or apply a Builder manifest.
 
-## Time-bound evidence snapshot
+## Implementation checkpoint
 
-Captured 2026-08-30; refresh before implementation:
+Verified 2026-08-30 against the finished PR #705 implementation:
 
-- Fresh GitHub main at capture: `c7a7de0c2b670e968e4443d4ae494159243ccfb3`.
-- The Packet Master branch was created earlier from `a1c0f09a...`; it is not
-  current-main and must be refreshed/reconciled before publication.
-- PR #675 is merged; no current open PR title/branch was found for the
-  Library/artifact/attach pilot. This title search does not prove file-level
-  non-overlap. Preserved worktrees/open PRs are not active agents without a
-  verified owner/lease.
-- `kb_mtgatvyi_340e` was observed blocked for `scope_violation` with no owner
-  and zero running queue tasks; this is time-bound, and external-process
-  absence remains UNKNOWN.
-- The canonical checkout is dirty; this lane never edits it.
+- Approved packet base SHA: `29ffba5a49115644e93bb444fdfcf25e295ff5ee`.
+- Integrated main at reconciliation: `1013dbd41c28710f08451b8a683d703272270385`.
+- PR #705 implementation checkpoint: `a851e647c71666df404f7ecc7819956c414e9a72`.
+- The implementation changes the 11 reconciled pilot/support paths listed
+  below, plus the separately approved two-file Vision exception.
+- Final publication and Product Acceptance evidence is bound externally to the
+  resulting PR head; this document cannot contain its own final content SHA.
+
+The checkpoint is time-bound. Git/GitHub, running-product probes, CI, and
+supported Builder projections remain authoritative for current facts.
 
 ## Verified pain appendix
 
@@ -116,29 +115,37 @@ existing Chat message. Supported inputs are PNG, JPEG, and WebP files no
 larger than 5 MiB. The user sees ready, sending, sent, and failed states;
 retry is explicit and never duplicates a sent attachment.
 
-### Approved implementation paths
+### Final pilot/support receipt
 
-Only these paths may change:
+These are the 11 actual pilot/support paths in the final receipt:
 
+- `docs/superpowers/specs/2026-08-30-kitty-packet-master-design.md`
 - `gateway/kitty-chat/src/components/LibraryView.tsx`
-- `gateway/kitty-chat/src/components/ChatMessage.tsx`
-- `gateway/kitty-chat/src/components/InputBar.tsx`
-- `gateway/kitty-chat/src/lib/chat-client.ts`
 - `gateway/kitty-chat/src/lib/gateway.ts`
 - `gateway/kitty-chat/src/lib/types.ts`
-- `gateway/kitty-chat/src/app/page.tsx`
-- `gateway/kitty-chat/src/__tests__/library-chat-001.test.tsx`
+- `gateway/kitty-chat/src/state/KittyContext.tsx`
+- `gateway/kitty-chat/tests/LibraryView.test.tsx`
+- `gateway/kitty-chat/tests/library-chat-001.test.tsx`
+- `gateway/kitty-chat/tests/smoke/library-chat-001.spec.ts`
 - `gateway/routes/chats.py`
+- `gateway/routes/completions.py`
 - `tests/test_library_chat_001.py`
 
-No other paths are approved.
+Separately approved Vision prerequisite exception:
+
+- `gateway/llm_client.py`
+- `tests/test_llm_client.py`
+
+This exception preserves the dedicated multimodal `kitty-vision` mapping and
+was approved and reviewed separately. No other paths are approved.
 
 ### Acceptance
 
 1. A ready PNG/JPEG/WebP at or below 5 MiB can be selected in Library and
    appears in Chat before send.
-2. Unsupported type or size over 5 MiB is rejected before network dispatch with
-   plain-language actionable copy.
+2. Unsupported type or size over 5 MiB is rejected before completion/provider
+   dispatch with plain-language actionable copy; the Gateway request performs
+   authoritative size/type validation.
 3. Send shows one pending state and one durable sent attachment; retry after a
    failed request sends at most one new request.
 4. Reload/reopen reads the durable sent attachment; no client-only success is
@@ -147,7 +154,10 @@ No other paths are approved.
    host, or stack trace is visible.
 6. Desktop and iPhone-class browser tests cover ready, reject, failure, retry,
    and reload states.
-7. Focused backend/frontend tests and `git diff --check` pass.
+7. Focused backend/frontend tests and `git diff --check` pass. The focused
+   frontend tests are `gateway/kitty-chat/tests/LibraryView.test.tsx` and
+   `gateway/kitty-chat/tests/library-chat-001.test.tsx`; the browser test is
+   `gateway/kitty-chat/tests/smoke/library-chat-001.spec.ts`.
 
 ### Out of scope
 
@@ -157,10 +167,12 @@ Builder changes, credentials, live DB migration, or broad visual polish.
 
 ### Validation and evidence
 
-Run the named backend test, the named frontend test, the repository's existing
-focused UI command, and `git diff --check`. Record exact output, base and final
-SHA, changed paths, and one independent review bound to final SHA. Running-app
-proof must cover desktop and iPhone-class widths and a failed network path.
+Run `pytest -q tests/test_library_chat_001.py`,
+`npm test -- --run tests/LibraryView.test.tsx tests/library-chat-001.test.tsx`
+from `gateway/kitty-chat`, the repository's existing focused UI command, and
+`git diff --check`. Record exact output, base and final SHA, changed paths, and
+one independent review bound to final SHA. Running-app proof must cover desktop
+and iPhone-class widths and a failed network path.
 
 ## Guarded Builder improvements
 
@@ -198,7 +210,8 @@ validation/review/runtime proof → final receipt with one next action.
 - Truthfulness: zero raw errors, false success, or client-only attachment after
   reload in the acceptance matrix.
 - Recovery: failed send has one explicit retry and zero duplicate sends.
-- Scope: zero changed paths outside the approved list.
+- Scope: zero paths outside the reconciled 11-path pilot receipt plus the
+  explicit two-file Vision exception.
 - Efficiency: no second implementation owner and no stale-SHA review accepted.
 - Builder escalation quality: every Builder change has a flow-break record and
   explicit approval; otherwise no Builder code changes.
