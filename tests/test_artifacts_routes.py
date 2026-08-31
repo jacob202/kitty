@@ -81,3 +81,58 @@ class TestGetArtifact:
         r = client.get("/artifacts/nonexistent-id")
         assert r.status_code == 404
         assert "does not exist" in r.json()["detail"]
+
+
+class TestArtifactContent:
+    def test_serves_registered_ready_text_by_artifact_id(self, client):
+        artifact_id = client.get("/artifacts").json()["artifacts"][0]["id"]
+
+        response = client.get(f"/artifacts/{artifact_id}/content")
+
+        assert response.status_code == 200
+        assert response.text == "hello world"
+        assert response.headers["content-type"].startswith("text/plain")
+
+    def test_missing_backing_file_fails_closed(self, client):
+        artifact = client.get("/artifacts").json()["artifacts"][0]
+        from pathlib import Path
+        Path(artifact["storage_uri"]).unlink()
+
+        response = client.get(f"/artifacts/{artifact['id']}/content")
+
+        assert response.status_code == 404
+        assert "missing from disk" in response.json()["detail"].lower()
+
+    def test_non_ready_artifact_is_not_served(self, client, monkeypatch):
+        artifact = client.get("/artifacts").json()["artifacts"][0]
+        original = artifact_store.get_artifact
+
+        def get_artifact(artifact_id):
+            value = original(artifact_id)
+            if value is not None:
+                value["state"] = "processing"
+            return value
+
+        monkeypatch.setattr(artifact_store, "get_artifact", get_artifact)
+
+        response = client.get(f"/artifacts/{artifact['id']}/content")
+
+        assert response.status_code == 409
+        assert "not ready" in response.json()["detail"].lower()
+
+    def test_active_html_content_is_not_previewable(self, client, monkeypatch):
+        artifact = client.get("/artifacts").json()["artifacts"][0]
+        original = artifact_store.get_artifact
+
+        def get_artifact(artifact_id):
+            value = original(artifact_id)
+            if value is not None:
+                value["media_type"] = "text/html"
+            return value
+
+        monkeypatch.setattr(artifact_store, "get_artifact", get_artifact)
+
+        response = client.get(f"/artifacts/{artifact['id']}/content")
+
+        assert response.status_code == 415
+        assert "preview" in response.json()["detail"].lower()
