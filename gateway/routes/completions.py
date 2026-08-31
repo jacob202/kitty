@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from gateway import action_queue, artifact_store, chat_lifecycle, chats_store
+from gateway import action_queue, artifact_store, chat_lifecycle, chats_store, context_references
 from gateway.chat_errors import (
     FRIENDLY_MESSAGES,
     ChatErrorKind,
@@ -44,8 +44,6 @@ conversation. When execution is required, state plainly that tools are unavailab
 in this chat runtime.
 """.strip()
 
-
-_DURABLE_CHAT_OBJECT_LIMIT = 6
 
 
 def _one_line(value: object, limit: int = 120) -> str:
@@ -151,6 +149,42 @@ def _durable_chat_object_system(
                 + "\n```"
             )
     return "\n".join(lines)
+
+
+def _strip_context_markers_from_content(content):
+    if isinstance(content, str):
+        return context_references.strip_context_markers(content)
+    if isinstance(content, list):
+        cleaned = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text" and isinstance(part.get("text"), str):
+                cleaned.append({**part, "text": context_references.strip_context_markers(part["text"])})
+            else:
+                cleaned.append(part)
+        return cleaned
+    return content
+
+
+def _prepare_explicit_context(messages: list[dict]):
+    """Strip persisted markers from model-visible history and resolve latest refs."""
+    latest_user_index = None
+    raw_user_text = ""
+    for index in range(len(messages) - 1, -1, -1):
+        if messages[index].get("role") == "user":
+            latest_user_index = index
+            raw_user_text = _message_text(messages[index].get("content", ""))
+            break
+
+    clean_messages = [
+        {**message, "content": _strip_context_markers_from_content(message.get("content", ""))}
+        for message in messages
+    ]
+    if latest_user_index is None:
+        return clean_messages, "", "", "", []
+
+    clean_user_text, refs = context_references.extract_context_references(raw_user_text)
+    context_block, warnings = context_references.resolve_context_references(refs)
+    return clean_messages, clean_user_text, raw_user_text, context_block, warnings
 
 
 def _message_budget_units(message: dict) -> int:
@@ -454,19 +488,19 @@ async def chat_completions(request: Request):
             detail=f"project_id must be a positive integer, got {raw_project_id!r}",
         )
     messages = body.get("messages", [])
+    messages, user_text, raw_user_text, explicit_context_block, explicit_context_warnings = (
+        _prepare_explicit_context(messages)
+    )
     stream = body.get("stream", True)
     # A caller that sends tool schemas is the one that executes the calls —
     # Open WebUI does exactly this. Kitty has no executor of its own here, so the
     # schemas and the "tools are unavailable" instruction both hinge on this.
     caller_supplies_tools = bool(body.get("tools"))
 
-    user_text = ""
     turn_has_image = False
     for m in reversed(messages):
         if m.get("role") == "user":
-            content = m.get("content", "")
-            user_text = _message_text(content)
-            turn_has_image = _has_image(content)
+            turn_has_image = _has_image(m.get("content", ""))
             break
 
     raw_attachment_ids = body.get("attachment_ids")
@@ -598,7 +632,7 @@ async def chat_completions(request: Request):
                 project_id=scoped_project_id,
                 title=conversation_title,
                 user_message_id=user_message_id,
-                user_text=user_text,
+                user_text=raw_user_text or user_text,
                 manifest_revision=runtime_manifest["revision"],
                 requested_model=model,
                 attachment_ids=attachment_ids,
@@ -662,6 +696,13 @@ async def chat_completions(request: Request):
             tier=tier,
         )
         assert_not_total_failure(bundle)
+        if explicit_context_warnings:
+            bundle.warnings.extend(
+                f"explicit_context: {warning}" for warning in explicit_context_warnings
+            )
+        bundle_system = bundle.system
+        if explicit_context_block:
+            bundle_system = f"{bundle_system}\n\n{explicit_context_block}"
         runtime_system = compact_runtime_context(runtime_manifest)
         project_name = (
             manifest_project.get("name")
@@ -676,7 +717,7 @@ async def chat_completions(request: Request):
         )
         tool_system = "" if caller_supplies_tools else _NO_TOOL_EXECUTOR_SYSTEM
         enriched, final_budget_warnings = _fit_final_model_messages(
-            bundle_system=bundle.system,
+            bundle_system=bundle_system,
             runtime_system=runtime_system,
             tool_system=tool_system,
             optional_system=durable_object_system,
