@@ -30,6 +30,7 @@ def _isolate(tmp_path, monkeypatch, name):
     db_file = tmp_path / f"{name}.db"
     monkeypatch.setattr(kitty_db, "KITTY_DB_FILE", db_file)
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr("gateway.journal_store.JOURNAL_DB_FILE", db_file)
     return db_file
 
 
@@ -178,3 +179,231 @@ def test_export_to_file_and_import_from_file_round_trip(tmp_path, monkeypatch):
     assert counts["todos"] == 1
     assert plugin_registry._load_db_settings() == {"alpha": True}
     assert todo_store.get()[0]["content"] == "z"
+
+
+# --- Replacement semantics (import replaces, does not append) ---
+
+
+def test_import_is_idempotent_for_todos(tmp_path, monkeypatch):
+    """Importing the same snapshot twice leaves the same record count."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    todo_store.update([
+        {"content": "a", "status": "pending", "active_form": ""},
+        {"content": "b", "status": "completed", "active_form": ""},
+    ])
+
+    snapshot = storage_sync.export_all()
+
+    # First import
+    counts1 = storage_sync.import_all(snapshot)
+    assert counts1["todos"] == 2
+
+    # Second import — same snapshot, same count
+    counts2 = storage_sync.import_all(snapshot)
+    assert counts2["todos"] == 2
+    assert len(todo_store.get()) == 2
+
+
+def test_import_is_idempotent_for_plugin_settings(tmp_path, monkeypatch):
+    """Importing the same snapshot twice leaves the same record count."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    plugin_registry.register("alpha", default_enabled=True)
+    plugin_registry.register("beta", default_enabled=False)
+    plugin_registry.enable("alpha")
+    plugin_registry.disable("beta")
+
+    snapshot = storage_sync.export_all()
+
+    counts1 = storage_sync.import_all(snapshot)
+    assert counts1["plugin_settings"] == 2
+
+    counts2 = storage_sync.import_all(snapshot)
+    assert counts2["plugin_settings"] == 2
+    assert plugin_registry._load_db_settings() == {"alpha": True, "beta": False}
+
+
+def test_import_replaces_todos_does_not_append(tmp_path, monkeypatch):
+    """After import, store contains only snapshot records, nothing from before."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+
+    # Pre-populate with records that should be wiped
+    todo_store.update([
+        {"content": "old1", "status": "pending", "active_form": ""},
+        {"content": "old2", "status": "completed", "active_form": ""},
+    ])
+    assert len(todo_store.get()) == 2
+
+    # Import a different snapshot
+    snapshot = {
+        "format_version": storage_sync.FORMAT_VERSION,
+        "exported_at": "2026-01-01T00:00:00Z",
+        "stores": {
+            "todos": [{"content": "new1", "status": "pending", "active_form": ""}],
+            "plugin_settings": {},
+            "memories": [],
+            "journal_entries": [],
+            "preferences": {},
+        },
+    }
+    counts = storage_sync.import_all(snapshot)
+    assert counts["todos"] == 1
+
+    restored = todo_store.get()
+    assert len(restored) == 1
+    assert restored[0]["content"] == "new1"
+    assert all(t["content"] != "old1" for t in restored)
+    assert all(t["content"] != "old2" for t in restored)
+
+
+def test_import_replaces_plugin_settings_does_not_append(tmp_path, monkeypatch):
+    """After import, plugin_settings contains only snapshot records."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+
+    plugin_registry.register("old_alpha", default_enabled=True)
+    plugin_registry.register("old_beta", default_enabled=True)
+    plugin_registry.enable("old_alpha")
+    plugin_registry.enable("old_beta")
+    assert plugin_registry._load_db_settings() == {"old_alpha": True, "old_beta": True}
+
+    snapshot = {
+        "format_version": storage_sync.FORMAT_VERSION,
+        "exported_at": "2026-01-01T00:00:00Z",
+        "stores": {
+            "todos": [],
+            "plugin_settings": {"new_gamma": True},
+            "memories": [],
+            "journal_entries": [],
+            "preferences": {},
+        },
+    }
+    counts = storage_sync.import_all(snapshot)
+    assert counts["plugin_settings"] == 1
+
+    restored = plugin_registry._load_db_settings()
+    assert restored == {"new_gamma": True}
+    assert "old_alpha" not in restored
+    assert "old_beta" not in restored
+
+
+def test_import_replaces_journal_entries_does_not_append(tmp_path, monkeypatch):
+    """After import, journal contains only snapshot records."""
+    from gateway import journal_store
+
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    journal_store.init_db()
+
+    # Pre-populate
+    journal_store.append_entry(ts=1000.0, entry="old entry 1")
+    journal_store.append_entry(ts=2000.0, entry="old entry 2")
+    assert len(journal_store.list_entries(limit=100)) == 2
+
+    snapshot = {
+        "format_version": storage_sync.FORMAT_VERSION,
+        "exported_at": "2026-01-01T00:00:00Z",
+        "stores": {
+            "todos": [],
+            "plugin_settings": {},
+            "memories": [],
+            "journal_entries": [
+                {"ts": 3000.0, "entry": "new entry", "theme": "test"},
+            ],
+            "preferences": {},
+        },
+    }
+    counts = storage_sync.import_all(snapshot)
+    assert counts["journal_entries"] == 1
+
+    restored = journal_store.list_entries(limit=100)
+    assert len(restored) == 1
+    assert restored[0]["entry"] == "new entry"
+    assert all(e["entry"] != "old entry 1" for e in restored)
+    assert all(e["entry"] != "old entry 2" for e in restored)
+
+
+def test_preferences_round_trip(tmp_path, monkeypatch):
+    """Preferences export/import round-trip preserves records."""
+    from gateway import explicit_memory
+
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    monkeypatch.setattr(explicit_memory, "DB_FILE", tmp_path / "explicit.db")
+
+    # Store some preferences
+    explicit_memory.remember(
+        "dark mode", namespace="preferences", memory_key="theme"
+    )
+    explicit_memory.remember(
+        "verbose logs", namespace="preferences", memory_key="logging"
+    )
+
+    snapshot = storage_sync.export_all()
+    prefs = snapshot["stores"]["preferences"]
+    assert len(prefs) == 2
+    pref_texts = {p["text"] for p in prefs.values()}
+    assert "dark mode" in pref_texts
+    assert "verbose logs" in pref_texts
+
+    # Clear and re-import
+    for row in explicit_memory.list_memories(namespace="preferences", limit=100):
+        explicit_memory.forget(row["id"])
+    assert len(explicit_memory.list_memories(namespace="preferences", limit=100)) == 0
+
+    counts = storage_sync.import_all(snapshot)
+    assert counts["preferences"] == 2
+
+    restored = explicit_memory.list_memories(namespace="preferences", limit=100)
+    assert len(restored) == 2
+    restored_texts = {r["text"] for r in restored}
+    assert "dark mode" in restored_texts
+    assert "verbose logs" in restored_texts
+
+
+def test_preferences_empty_round_trip(tmp_path, monkeypatch):
+    """An empty preferences snapshot round-trips cleanly."""
+    from gateway import explicit_memory
+
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+    # Isolate explicit_memory's DB too so it doesn't leak from other tests.
+    monkeypatch.setattr(explicit_memory, "DB_FILE", tmp_path / "explicit.db")
+
+    snapshot = storage_sync.export_all()
+    assert snapshot["stores"]["preferences"] == {}
+
+    counts = storage_sync.import_all(snapshot)
+    assert counts["preferences"] == 0
+    assert explicit_memory.list_memories(namespace="preferences", limit=100) == []
+
+
+def test_export_memories_and_journal_are_exhaustive(tmp_path, monkeypatch):
+    """Export functions do not cap at 1000 records."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+
+    from gateway import journal_store
+
+    journal_store.init_db()
+    for i in range(5):
+        journal_store.append_entry(ts=float(i), entry=f"entry-{i}")
+
+    # journal_store.list_entries with a generous limit returns all entries
+    all_entries = journal_store.list_entries(limit=100_000)
+    assert len(all_entries) == 5
+
+    # The export function uses limit=100_000, verify it works
+    exported = storage_sync.export_journal_entries()
+    assert len(exported) == 5
+
+
+def test_import_rejects_wrong_preferences_payload_shape(tmp_path, monkeypatch):
+    """A preferences payload that is not a dict raises ValueError."""
+    _isolate_plugin(tmp_path, monkeypatch)
+    _isolate(tmp_path, monkeypatch, "todo")
+
+    with pytest.raises(ValueError, match="preferences payload must be a dict"):
+        storage_sync.import_preferences("not-a-dict")

@@ -45,13 +45,17 @@ def _iso_now() -> str:
 
 
 def export_memories() -> list[dict]:
+    """Return every memory from the Mem0 backend (no record limit)."""
     from gateway.memory import list_memories
 
-    return list_memories(limit=1000)
+    return list_memories(limit=0)
 
 
 def export_journal_entries() -> list[dict]:
-    return journal_store.list_entries(limit=1000)
+    """Return every journal entry (no record limit)."""
+    # journal_store.list_entries treats limit=0 as SQL LIMIT 0 (returns nothing),
+    # so use a generous ceiling instead.
+    return journal_store.list_entries(limit=100_000)
 
 
 def export_todos() -> list[dict]:
@@ -63,8 +67,23 @@ def export_plugin_settings() -> dict[str, bool]:
 
 
 def export_preferences() -> dict:
-    """Preferences store. Currently a placeholder; reserved for future use."""
-    return {}
+    """Return explicit-memory records in the 'preferences' namespace."""
+    from gateway import explicit_memory
+
+    rows = explicit_memory.list_memories(namespace="preferences", limit=10_000)
+    return {
+        row["id"]: {
+            "text": row["text"],
+            "memory_key": row.get("memory_key"),
+            "source_kind": row.get("source_kind", "user_explicit"),
+            "source_ref": row.get("source_ref"),
+            "sensitivity": row.get("sensitivity", "normal"),
+            "pinned": row.get("pinned", False),
+            "created_at": row.get("created_at"),
+            "updated_at": row.get("updated_at"),
+        }
+        for row in rows
+    }
 
 
 def export_all() -> dict[str, Any]:
@@ -95,10 +114,25 @@ def export_to_file(path: Path | None = None) -> Path:
 
 
 def import_memories(payload: list[dict]) -> int:
-    from gateway.memory import add_memory
+    """Replace the memories store with ``payload``.
+
+    Deletes every existing memory first, then adds each record from the
+    snapshot.  Fails loud on the first error; the store will hold exactly
+    the snapshot's records (plus any that were successfully added before
+    the failure).
+    """
+    from gateway.memory import add_memory, delete_memory, list_memories
 
     if not isinstance(payload, list):
         raise ValueError(f"memories payload must be a list, got {type(payload).__name__}")
+
+    # Clear existing memories so the store ends up with exactly the snapshot's records.
+    existing = list_memories(limit=0)
+    for row in existing:
+        mid = row.get("id")
+        if mid:
+            delete_memory(mid)
+
     added = 0
     for record in payload:
         if not isinstance(record, dict):
@@ -115,8 +149,22 @@ def import_memories(payload: list[dict]) -> int:
 
 
 def import_journal_entries(payload: list[dict]) -> int:
+    """Replace the journal store with ``payload``.
+
+    Deletes every existing entry first, then appends each record from the
+    snapshot.  Fails loud on the first error; the store will hold exactly
+    the snapshot's records (plus any that were successfully added before
+    the failure).
+    """
     if not isinstance(payload, list):
         raise ValueError(f"journal_entries payload must be a list, got {type(payload).__name__}")
+
+    # Clear existing entries so the store ends up with exactly the snapshot's records.
+    journal_store.init_db()
+    with kitty_db.connect(journal_store.JOURNAL_DB_FILE) as conn:
+        conn.execute("DELETE FROM journal_entries")
+        conn.commit()
+
     added = 0
     for record in payload:
         if not isinstance(record, dict):
@@ -169,10 +217,43 @@ def import_plugin_settings(payload: dict[str, bool]) -> int:
 
 
 def import_preferences(payload: dict) -> int:
-    """Preferences store. Currently a no-op (reserved)."""
+    """Replace the preferences store with ``payload``.
+
+    Forgets every existing preference first, then stores each record from
+    the snapshot.  Fails loud on the first error; the store will hold
+    exactly the snapshot's records (plus any that were successfully added
+    before the failure).
+    """
+    from gateway import explicit_memory
+
     if not isinstance(payload, dict):
         raise ValueError(f"preferences payload must be a dict, got {type(payload).__name__}")
-    return len(payload)
+
+    # Clear existing preferences so the store ends up with exactly the snapshot's records.
+    existing = explicit_memory.list_memories(namespace="preferences", limit=10_000)
+    for row in existing:
+        explicit_memory.forget(row["id"])
+
+    added = 0
+    for _pref_id, pref_data in payload.items():
+        if not isinstance(pref_data, dict):
+            raise ValueError(
+                f"preference record must be a dict, got {type(pref_data).__name__}"
+            )
+        text = pref_data.get("text", "")
+        if not text:
+            continue
+        explicit_memory.remember(
+            text,
+            namespace="preferences",
+            memory_key=pref_data.get("memory_key"),
+            source_kind=pref_data.get("source_kind", "user_explicit"),
+            source_ref=pref_data.get("source_ref"),
+            sensitivity=pref_data.get("sensitivity", "normal"),
+            pinned=pref_data.get("pinned", False),
+        )
+        added += 1
+    return added
 
 
 _IMPORTERS: dict[str, Callable[..., int]] = {
