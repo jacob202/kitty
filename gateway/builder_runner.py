@@ -38,6 +38,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn
@@ -56,6 +57,8 @@ logger = logging.getLogger("kitty.builder_runner")
 DEFAULT_LEASE_SECONDS = 60
 DEFAULT_HEARTBEAT_SECONDS = 10
 DEFAULT_TIMEOUT_SECONDS = 3600
+_GIT_TIMEOUT_SECONDS = 15
+_WORKTREE_ADD_TIMEOUT_SECONDS = 120
 _TERM_GRACE_SECONDS = 10
 
 # Task blocked-reasons per run outcome (all shadow-mode exits block the task).
@@ -159,9 +162,31 @@ def worktree_path(task_id: str, *, repo_root: Path | None = None) -> Path:
     return _repo_root(repo_root) / ".worktrees" / "kittybuilder" / task_id
 
 
-def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+def _validation_toolchain(repo_root: Path) -> tuple[Path | None, list[Path]]:
+    """Return the repo validation venv and read-only runtime roots, if present."""
+    for name in ("venv", ".venv"):
+        venv = (repo_root / name).resolve()
+        python = venv / "bin" / "python"
+        if not python.exists():
+            continue
+        runtime_root = python.resolve().parent.parent
+        read_roots = list(dict.fromkeys((venv, runtime_root)))
+        return venv, read_roots
+    return None, []
+
+
+def _git(
+    args: list[str],
+    cwd: Path,
+    *,
+    timeout_seconds: int = _GIT_TIMEOUT_SECONDS,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, timeout=15
+        ["git", *args],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=timeout_seconds,
     )
 
 
@@ -174,6 +199,29 @@ def _git_output(args: list[str], cwd: Path) -> str:
             f"(exit {result.returncode}): {detail}"
         )
     return result.stdout
+
+
+
+def _cleanup_timed_out_worktree(root: Path, path: Path) -> None:
+    """Remove only an incomplete worktree created by this failed add."""
+    if path.exists():
+        _git(
+            ["worktree", "unlock", str(path)],
+            cwd=root,
+            timeout_seconds=_GIT_TIMEOUT_SECONDS,
+        )
+        removed = _git(
+            ["worktree", "remove", "--force", str(path)],
+            cwd=root,
+            timeout_seconds=_WORKTREE_ADD_TIMEOUT_SECONDS,
+        )
+        if removed.returncode != 0 and path.exists():
+            shutil.rmtree(path)
+    _git(
+        ["worktree", "prune"],
+        cwd=root,
+        timeout_seconds=_WORKTREE_ADD_TIMEOUT_SECONDS,
+    )
 
 
 def ensure_worktree(
@@ -241,22 +289,37 @@ def ensure_worktree(
         .returncode
         == 0
     )
-    if branch_exists:
-        result = _git(["worktree", "add", str(path), branch], cwd=root)
-    else:
-        base = base_sha
-        if base is None:
-            base = "origin/main"
-            if (
-                _git(["rev-parse", "--verify", "--quiet", base], cwd=root).returncode
-                != 0
-            ):
-                base = "main"
-        if _git(["rev-parse", "--verify", "--quiet", base], cwd=root).returncode != 0:
-            raise RunnerError(
-                f"cannot create worktree {path}: base {base!r} does not exist"
+    try:
+        if branch_exists:
+            result = _git(
+                ["worktree", "add", str(path), branch],
+                cwd=root,
+                timeout_seconds=_WORKTREE_ADD_TIMEOUT_SECONDS,
             )
-        result = _git(["worktree", "add", str(path), "-b", branch, base], cwd=root)
+        else:
+            base = base_sha
+            if base is None:
+                base = "origin/main"
+                if (
+                    _git(["rev-parse", "--verify", "--quiet", base], cwd=root).returncode
+                    != 0
+                ):
+                    base = "main"
+            if _git(["rev-parse", "--verify", "--quiet", base], cwd=root).returncode != 0:
+                raise RunnerError(
+                    f"cannot create worktree {path}: base {base!r} does not exist"
+                )
+            result = _git(
+                ["worktree", "add", str(path), "-b", branch, base],
+                cwd=root,
+                timeout_seconds=_WORKTREE_ADD_TIMEOUT_SECONDS,
+            )
+    except subprocess.TimeoutExpired as exc:
+        _cleanup_timed_out_worktree(root, path)
+        raise RunnerError(
+            f"git worktree add timed out for {path} after "
+            f"{_WORKTREE_ADD_TIMEOUT_SECONDS} seconds"
+        ) from exc
 
     if result.returncode != 0:
         raise RunnerError(
@@ -375,31 +438,43 @@ def _diff_sha256(path: Path, start_sha: str) -> str:
     return digest.hexdigest()
 
 
-def archive_and_reset_worktree(path: Path, evidence_dir: Path) -> dict[str, Any]:
-    """Preserve a crashed worker's uncommitted changes, then reset the worktree.
+def archive_and_reset_worktree(
+    path: Path,
+    evidence_dir: Path,
+    *,
+    reset_sha: str | None = None,
+) -> dict[str, Any]:
+    """Preserve failed-attempt changes, then return to a clean base.
 
-    Stages everything (so untracked files land in one patch), writes the patch
-    and porcelain status into *evidence_dir*, then hard-resets and cleans the
-    worktree so the next attempt starts from a clean tree instead of tripping
-    ``ensure_worktree``'s dirty refusal forever. A missing or clean worktree is
-    a no-op. Returns ``{"state", "patch_path"}``.
+    When ``reset_sha`` is provided, evidence is cumulative from that durable
+    packet base and committed worker changes are reset too. This prevents a
+    non-repairable retry from silently inheriting commits made by a crashed or
+    orphaned worker. Without ``reset_sha`` the historical HEAD-relative
+    behavior is preserved for callers that only need to clear dirty state.
     """
     if not path.exists():
         return {"state": "missing", "patch_path": None}
+
     status = _git_output(
         ["status", "--porcelain=v1", "--untracked-files=all"], cwd=path
     )
-    if not status.strip():
+    current_head = worktree_head(path)
+    reset_target = reset_sha or current_head
+    if not status.strip() and current_head == reset_target:
         return {"state": "clean", "patch_path": None}
+
     evidence_dir.mkdir(parents=True, exist_ok=True)
     _git_output(["add", "-A"], cwd=path)
-    patch = _git_output(["diff", "--cached", "HEAD"], cwd=path)
+    patch = _git_output(["diff", "--cached", reset_target], cwd=path)
     patch_path = evidence_dir / "crashed-worktree.patch"
     patch_path.write_text(patch, encoding="utf-8")
     (evidence_dir / "crashed-worktree-status.txt").write_text(
         status, encoding="utf-8"
     )
-    _git_output(["reset", "--hard", "HEAD"], cwd=path)
+    (evidence_dir / "crashed-worktree-head.txt").write_text(
+        f"{current_head}\n", encoding="utf-8"
+    )
+    _git_output(["reset", "--hard", reset_target], cwd=path)
     _git_output(["clean", "-fd"], cwd=path)
     return {"state": "archived_and_reset", "patch_path": str(patch_path)}
 
@@ -919,6 +994,45 @@ def run_worker(
     lease_token = task["lease_token"]
     claim_version = task["claim_version"]
 
+    # Worktree creation and context preparation can legitimately take longer
+    # than one lease interval. Keep ownership alive from the moment we claim
+    # the task, not only after the model process has started.
+    prelaunch_stop = threading.Event()
+    prelaunch_errors: list[Exception] = []
+
+    def _prelaunch_heartbeat() -> None:
+        while not prelaunch_stop.wait(heartbeat_seconds):
+            try:
+                bq.renew_lease(
+                    task_id,
+                    lease_token,
+                    claim_version,
+                    lease_seconds=lease_seconds,
+                    db_path=db_path,
+                )
+            except Exception as exc:
+                prelaunch_errors.append(exc)
+                return
+
+    prelaunch_thread = threading.Thread(
+        target=_prelaunch_heartbeat,
+        name=f"builder-prelaunch-heartbeat-{task_id}",
+        daemon=True,
+    )
+    prelaunch_thread.start()
+
+    def _stop_prelaunch_heartbeat(*, check_error: bool) -> None:
+        prelaunch_stop.set()
+        prelaunch_thread.join(timeout=max(1.0, heartbeat_seconds * 2))
+        if prelaunch_thread.is_alive():
+            raise RunnerError(f"prelaunch heartbeat did not stop for task {task_id}")
+        if check_error and prelaunch_errors:
+            exc = prelaunch_errors[0]
+            raise RunnerError(
+                f"prelaunch lease heartbeat failed for task {task_id}: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+
     try:
         root = _repo_root(repo_root).resolve()
         configured_repo = task.get("repo_path")
@@ -939,7 +1053,8 @@ def run_worker(
             reuse_dirty=reuse_dirty_worktree,
         )
     except Exception:
-        # Nothing started yet — hand the claim back cleanly.
+        # Nothing started yet — stop lease maintenance and hand the claim back.
+        _stop_prelaunch_heartbeat(check_error=False)
         bq.worker_release_task(task_id, lease_token, claim_version, db_path=db_path)
         raise
 
@@ -1007,7 +1122,17 @@ def run_worker(
             payload={"run_id": run_id, "worker": worker},
             db_path=db_path,
         )
+        _stop_prelaunch_heartbeat(check_error=True)
+        # Hand the process-monitoring loop a full fresh lease window.
+        bq.renew_lease(
+            task_id,
+            lease_token,
+            claim_version,
+            lease_seconds=lease_seconds,
+            db_path=db_path,
+        )
     except Exception as exc:
+        _stop_prelaunch_heartbeat(check_error=False)
         if run is None:
             try:
                 bq.worker_release_task(
@@ -1074,6 +1199,7 @@ def run_worker(
     assert run is not None
 
     child_env = beb.build_child_environment(os.environ, run_dir=run_dir)
+    validation_venv, validation_read_roots = _validation_toolchain(root)
     child_env["GH_CONFIG_DIR"] = str(gh_config_dir)
     child_env["GIT_CONFIG_GLOBAL"] = os.devnull
     child_env["GIT_CONFIG_SYSTEM"] = os.devnull
@@ -1096,6 +1222,10 @@ def run_worker(
         child_env.update(extra_env)
     if context_env:
         child_env.update(context_env)
+    # Runner-owned validation tooling wins over optional attempt/context env.
+    if validation_venv is not None:
+        child_env["VIRTUAL_ENV"] = str(validation_venv)
+        child_env["PATH"] = f"{validation_venv / 'bin'}:{child_env['PATH']}"
     child_env.update(
         KB_TASK_ID=task_id,
         KB_RUN_ID=run_id,
@@ -1145,6 +1275,7 @@ def run_worker(
                 run_dir=run_dir,
                 environment=child_env,
                 read_paths=boundary_read_paths,
+                extra_read_subpaths=validation_read_roots,
                 write_paths=boundary_write_paths,
             )
             proc = subprocess.Popen(

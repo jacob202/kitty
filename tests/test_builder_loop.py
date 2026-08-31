@@ -903,6 +903,54 @@ class TestNoStaleArtifactReuse:
         ]
         assert stale_events[0]["payload"]["worktree"]["state"] == "archived_and_reset"
 
+    def test_stale_committed_worktree_resets_to_packet_base(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        from gateway import builder_runner as br
+        from gateway.builder_brief import default_branch_name
+
+        task_id = _apply(
+            db_path,
+            allowed_paths=["done.txt", "committed.txt"],
+            repo_root=repo,
+        )
+        branch = default_branch_name({"id": task_id})
+        base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+        stale, _lease = ba.claim_and_start_attempt(
+            INITIATIVE,
+            PACKET,
+            worker_id="dead-packet-worker",
+            branch=branch,
+            worktree_path=str(repo / ".worktrees" / "kittybuilder" / task_id),
+            base_sha=base_sha,
+            db_path=db_path,
+        )
+        wt = br.ensure_worktree(
+            task_id, branch, repo_root=repo, base_sha=base_sha
+        )
+        (wt / "committed.txt").write_text("orphaned commit\n")
+        subprocess.run(["git", "add", "committed.txt"], cwd=wt, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "orphaned worker commit"],
+            cwd=wt,
+            check=True,
+        )
+        assert br.worktree_head(wt) != base_sha
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+        assert not (wt / "committed.txt").exists()
+        attempt_dir = db_path.parent / "attempts" / task_id / str(stale["id"])
+        patch = (attempt_dir / "crashed-worktree.patch").read_text()
+        assert "committed.txt" in patch
+        runs = bq.list_runs(task_id=task_id, db_path=db_path)
+        assert "committed.txt" not in runs[-1]["final_report"]["changed_paths"]
+
     def test_clean_worktree_reconciliation_archives_nothing(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
@@ -1222,6 +1270,7 @@ class TestNoStaleArtifactReuse:
         assert "B.txt" in delta
         assert "A.txt" not in delta
 
+    @pytest.mark.skipif(__import__("sys").platform != "darwin", reason="Seatbelt proof is macOS-specific")
     def test_reviewer_mutation_is_blocked_before_it_can_taint_worktree(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
