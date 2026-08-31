@@ -22,7 +22,7 @@ from gateway.paths import KITTY_DB_FILE
 
 DB_FILE = KITTY_DB_FILE
 
-ENTITY_TYPES = frozenset({"memory", "character", "automation", "image"})
+ENTITY_TYPES = frozenset({"memory", "character", "automation", "image", "todo"})
 
 
 class UndoError(Exception):
@@ -189,6 +189,22 @@ def snapshot_anchor(session_id: str) -> dict[str, Any]:
     }
 
 
+def snapshot_todo(todo_id: int) -> dict[str, Any]:
+    from gateway import todo_store
+
+    todos = todo_store.get()
+    for t in todos:
+        if t["id"] == todo_id:
+            return {
+                "id": t["id"],
+                "content": t["content"],
+                "status": t["status"],
+                "active_form": t.get("active_form", ""),
+                "sort_order": t["sort_order"],
+            }
+    raise UndoNotFound(f"todo not found: {todo_id}")
+
+
 # --- restore dispatch --------------------------------------------------------
 
 
@@ -275,6 +291,18 @@ def _restore(entry: dict[str, Any]) -> dict[str, Any]:
         else:
             image_sessions.clear_anchor(entity_id)
         return {"entity_type": entity_type, "entity_id": entity_id, "restored": "image"}
+
+    if entity_type == "todo":
+        from gateway import todo_store
+
+        if operation == "create":
+            # Undoing a create = delete the todo that was created.
+            todo_id = int(entity_id)
+            if not todo_store.delete_by_id(todo_id):
+                raise UndoNotFound(f"todo not found: {todo_id}")
+            return {"entity_type": entity_type, "entity_id": entity_id, "restored": "todo"}
+
+        raise UndoError(f"unsupported todo operation: {operation!r}")
 
     raise UndoError(f"unsupported entity type: {entity_type!r}")
 

@@ -123,10 +123,21 @@ def init_db() -> None:
 # raises to signal a failed execution (recorded, never retried).
 
 
-def _exec_todo_create(payload: dict[str, Any]) -> str:
+def _exec_todo_create(payload: dict[str, Any]) -> str | tuple[str, str]:
+    from gateway import undo_journal
+
     content = str(payload["content"]).strip()
     todo = storage_router.add_todo(content)
-    return f"todo created (id={todo.get('id')}): {todo.get('content', content)}"
+    todo_id = todo.get("id")
+    # Record the creation in the undo journal so it can be undone.
+    journal_id = undo_journal.record(
+        "todo",
+        str(todo_id),
+        "create",
+        None,
+        {"id": todo_id, "content": todo.get("content", content), "status": todo.get("status", "pending")},
+    )
+    return f"todo created (id={todo_id}): {todo.get('content', content)}", journal_id
 
 
 def _exec_note_draft(payload: dict[str, Any]) -> str:
@@ -162,7 +173,7 @@ def _exec_calendar_create(payload: dict[str, Any]) -> str:
     return f"calendar event created: {title}"
 
 
-_EXECUTORS: dict[str, Callable[[dict[str, Any]], str]] = {
+_EXECUTORS: dict[str, Callable[[dict[str, Any]], str | tuple[str, str]]] = {
     "todo.create": _exec_todo_create,
     "note.draft": _exec_note_draft,
     "packet.delegate": _exec_packet_delegate,
@@ -172,7 +183,7 @@ _EXECUTORS: dict[str, Callable[[dict[str, Any]], str]] = {
 
 # --- Registry (tier file × executors) --------------------------------------
 
-_REGISTRY: dict[str, tuple[str, Callable[[dict[str, Any]], str]]] | None = None
+_REGISTRY: dict[str, tuple[str, Callable[[dict[str, Any]], str | tuple[str, str]]]] | None = None
 
 
 def _load_tiers() -> tuple[dict[str, str], set[str]]:
@@ -190,9 +201,9 @@ def _load_tiers() -> tuple[dict[str, str], set[str]]:
     return tiers, disabled
 
 
-def _build_registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], str]]]:
+def _build_registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], str | tuple[str, str]]]]:
     tiers, disabled = _load_tiers()
-    registry: dict[str, tuple[str, Callable[[dict[str, Any]], str]]] = {}
+    registry: dict[str, tuple[str, Callable[[dict[str, Any]], str | tuple[str, str]]]] = {}
     for kind, fn in _EXECUTORS.items():
         if kind in disabled:
             raise ActionConfigError(
@@ -204,7 +215,7 @@ def _build_registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], str]]]:
     return registry
 
 
-def _registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], str]]]:
+def _registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], str | tuple[str, str]]]]:
     global _REGISTRY
     if _REGISTRY is None:
         _REGISTRY = _build_registry()
@@ -363,7 +374,11 @@ def execute(action_id: int) -> dict[str, Any]:
         # quietly eating part of the user's ceiling.
         _release_budget(action_id, decision, cost, reserved)
         return _finish(action_id, "failed", f"{type(exc).__name__}: {exc}")
-    return _finish(action_id, "executed", result)
+
+    undo_journal_id = None
+    if isinstance(result, tuple):
+        result, undo_journal_id = result
+    return _finish(action_id, "executed", result, undo_journal_id=undo_journal_id)
 
 
 def _reserve_budget(decision: action_grants.Decision, cost_usd: float | None) -> bool:
@@ -501,7 +516,7 @@ def _decide(
     return _require(action_id)
 
 
-def _finish(action_id: int, status: str, result: str) -> dict[str, Any]:
+def _finish(action_id: int, status: str, result: str, *, undo_journal_id: str | None = None) -> dict[str, Any]:
     init_db()
     with kitty_db.connect(ACTIONS_DB_FILE) as conn:
         conn.execute(
@@ -509,7 +524,10 @@ def _finish(action_id: int, status: str, result: str) -> dict[str, Any]:
             (status, result, time.time(), action_id),
         )
         conn.commit()
-    return _require(action_id)
+    action = _require(action_id)
+    if undo_journal_id:
+        action["undo_journal_id"] = undo_journal_id
+    return action
 
 
 def _require(action_id: int) -> dict[str, Any]:
