@@ -4,6 +4,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
 import {
   useBuilderAction,
+  usePreflight,
   useSupervisor,
   useWorkSnapshot,
   type BuilderCommand,
@@ -73,6 +74,7 @@ export default function WorkView({
             ? <BuilderRunBanner supervisor={supervisor.data} supervisorKnown={supervisorKnown} />
             : <BuilderRunBanner supervisor={{ schema_version: 1, running: false, active_runs: [], eligible_now: 0, on_hold: 0, last_tick_at: null, lock_path: null, scheduler_enabled: null }} supervisorKnown={false} />
           }
+          <SchedulerStatus supervisor={supervisor.data} failed={supervisor.isError} />
         </header>
 
         {work.isPending && <Notice>Loading work…</Notice>}
@@ -146,6 +148,24 @@ function WorkGroupSection({ group, items, builderRunning, schedulerEnabled }: { 
         </button>
       )}
     </section>
+  )
+}
+
+function SchedulerStatus({ supervisor, failed }: { supervisor: ReturnType<typeof useSupervisor>['data']; failed: boolean }) {
+  if (failed) return <div style={degradedNoticeStyle}>Scheduled Builder status is unavailable.</div>
+  if (!supervisor?.scheduler) return null
+  const scheduler = supervisor.scheduler
+  const state = scheduler.healthy ? 'healthy' : scheduler.installed ? 'needs attention' : 'not installed'
+  return (
+    <div data-testid="builder-scheduler-status" style={preflightBannerStyle}>
+      <strong>Scheduled Builder: {state}</strong>
+      {scheduler.start_interval_seconds && <span>every {Math.round(scheduler.start_interval_seconds / 60)} min</span>}
+      <span>{scheduler.loaded ? 'loaded' : 'not loaded'}</span>
+      {scheduler.last_exit_status !== null && <span>last exit {scheduler.last_exit_status}</span>}
+      {scheduler.reason && <span>{scheduler.reason}</span>}
+      {scheduler.last_tick_at === null && <span>last tick time unavailable</span>}
+      {scheduler.next_run_at === null && <span>next run time unavailable</span>}
+    </div>
   )
 }
 
@@ -231,6 +251,8 @@ const bannerStyle: CSSProperties = { display: 'flex', alignItems: 'center', just
 const workRowStyle: CSSProperties = { padding: '14px 16px', display: 'grid', gap: 7 }
 const stateLabelStyle: CSSProperties = { fontFamily: 'var(--font-body)', fontSize: 11.5, fontWeight: 600 }
 const evidenceRowStyle: CSSProperties = { display: 'flex', gap: '4px 12px', flexWrap: 'wrap', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-muted)' }
+const preflightBannerStyle: CSSProperties = { display: 'flex', gap: '4px 10px', flexWrap: 'wrap', alignItems: 'center', border: '1px solid var(--color-separator)', borderRadius: 'var(--r-control)', padding: '8px 10px', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--color-text-secondary)', background: 'var(--color-surface-elevated)' }
+const preflightErrorStyle: CSSProperties = { ...preflightBannerStyle, color: 'var(--color-warning)' }
 
 const WORK_DETAIL_LABELS: Record<string, string> = {
   shadow_run_complete: 'The previous Builder run completed; this item remains blocked.',
@@ -317,6 +339,11 @@ function WorkRow({ item, isLast, builderRunning, schedulerEnabled }: { item: Gat
   const rawDetail = rawWorkDetail(item)
   const detail = workDetailLabel(item)
   const evidence = evidenceLabels(item)
+  const packetId = item.current_packet?.id ?? item.source.packet_id
+  const preflight = usePreflight(
+    item.next_action === 'claim' ? item.source.initiative_id : null,
+    item.next_action === 'claim' ? packetId : null,
+  )
   return (
     <article
       data-testid="work-row"
@@ -329,6 +356,17 @@ function WorkRow({ item, isLast, builderRunning, schedulerEnabled }: { item: Gat
       </div>
       {detail && <div style={{ color: 'var(--color-text-secondary)', fontSize: 13.5, lineHeight: 1.5 }}>{detail}</div>}
       <RowActions item={item} builderRunning={builderRunning} schedulerEnabled={schedulerEnabled} />
+      {preflight.data && (
+        <div data-testid="preflight-banner" style={preflightBannerStyle}>
+          <strong>Preflight {preflight.data.action === 'run' ? 'ready' : preflight.data.action}</strong>
+          {preflight.data.route && <span>{preflight.data.route}</span>}
+          <span>CAD {preflight.data.estimated_cost_cad.toFixed(4)} local estimate</span>
+          {preflight.data.reasons.length > 0 && <span>{preflight.data.reasons[0]}</span>}
+        </div>
+      )}
+      {preflight.isError && item.next_action === 'claim' && (
+        <div style={preflightErrorStyle}>Preflight is unavailable; Builder should not start this packet until the check succeeds.</div>
+      )}
       {evidence.length > 0 && (
         <div style={evidenceRowStyle}>
           {evidence.map(label => <span key={label}>{label}</span>)}

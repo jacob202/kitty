@@ -6,6 +6,9 @@ export interface MessageAttachment {
   display_name: string
   media_type: string
   size?: number
+  /** Legacy/local-only preview payload. Never serialize this to the model request;
+   * durable artifact ids are resolved by the Gateway exactly once at send time. */
+  data_url?: string
 }
 
 /** A prompt-injected memory, optionally linked to its durable delete target. */

@@ -223,3 +223,43 @@ def test_config_server_preserves_timeout_policy(monkeypatch: pytest.MonkeyPatch,
 
     assert servers[0]["timeout_seconds"] == 12
     assert servers[0]["tool_timeouts"] == {"lookup": 3}
+
+
+@pytest.mark.asyncio
+async def test_caller_cancellation_does_not_poison_dependency_circuit(monkeypatch: pytest.MonkeyPatch) -> None:
+    started = asyncio.Event()
+
+    class StartedProcess(FakeProcess):
+        async def communicate(self, payload: bytes) -> tuple[bytes, bytes]:
+            started.set()
+            await asyncio.Event().wait()
+            raise AssertionError("unreachable")
+
+    proc = StartedProcess(returncode=None, hang=True)
+    monkeypatch.setattr(bridge, "list_servers", lambda: [_server(timeout_seconds=10)])
+    monkeypatch.setattr(bridge, "CIRCUIT_FAILURE_THRESHOLD", 1)
+
+    async def spawn(*args, **kwargs):
+        return proc
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", spawn)
+    task = asyncio.create_task(bridge.invoke("demo", "lookup"))
+    await asyncio.wait_for(started.wait(), timeout=1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert bridge.tool_health_snapshot()["open_circuits"] == []
+
+
+def test_invalid_server_configuration_is_degraded_health(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        bridge,
+        "list_servers",
+        lambda: [_server(timeout_seconds=-1), _server(name="missing-command", command="")],
+    )
+
+    snapshot = bridge.tool_health_snapshot()
+
+    assert snapshot["state"] == "degraded"
+    assert len(snapshot["configuration_errors"]) == 2

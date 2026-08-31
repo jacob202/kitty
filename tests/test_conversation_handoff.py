@@ -87,6 +87,52 @@ def test_propose_without_approval_does_not_create_builder_job(repo: Path) -> Non
     assert _initiative_rows(db_path) == []
 
 
+def test_propose_binds_to_current_checkout_head_when_local_main_is_stale(repo: Path) -> None:
+    _git(repo, "switch", "-c", "feature/live-cockpit")
+    (repo / "README.md").write_text("# fixture\n\nfeature work\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "-m", "feature work")
+    current_head = _git(repo, "rev-parse", "HEAD")
+    assert _git(repo, "rev-parse", "main") != current_head
+
+    result = conversation_handoff.propose(**_task())
+    assert result["ok"] is True, result
+    assert result["state"] == "prepared"
+    assert result["expected_base_sha"] == current_head
+
+
+def test_approved_conversation_job_keeps_current_checkout_base_when_main_is_stale(repo: Path) -> None:
+    _git(repo, "switch", "-c", "feature/live-approval")
+    (repo / "README.md").write_text("# fixture\n\napproval work\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "-m", "approval work")
+    current_head = _git(repo, "rev-parse", "HEAD")
+    assert _git(repo, "rev-parse", "main") != current_head
+
+    proposal = conversation_handoff.propose(**_task())
+    assert proposal["ok"] is True, proposal
+    approved = conversation_handoff.approve(
+        prepared_manifest=proposal["prepared_manifest"],
+        expected_manifest_sha=proposal["manifest_sha256"],
+        expected_base_sha=proposal["expected_base_sha"],
+        approval_nonce=proposal["approval_nonce"],
+        confirmed=True,
+    )
+
+    assert approved["ok"] is True, approved
+    db_path = repo / "data" / "kittybuilder" / "builder_queue.db"
+    conn = bq.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT base_sha FROM initiative_packets WHERE initiative_id = ? AND packet_id = ?",
+            (approved["mission_id"], "packet-1"),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    assert row["base_sha"] == current_head
+
+
 def test_explicit_approval_creates_exactly_one_durable_job(repo: Path) -> None:
     proposal = conversation_handoff.propose(**_task())
 

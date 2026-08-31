@@ -246,3 +246,27 @@ async def test_mcp_tool_health_with_no_servers_is_available_but_not_live_probed(
     assert domain.status == "available"
     assert "no MCP servers configured" in domain.reason
     assert domain.detail["remote_health_probed"] is False
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_configuration_error_is_degraded_even_without_open_circuit(monkeypatch):
+    import gateway.health_surface as health_surface
+    import gateway.mcp_tool_bridge as mcp
+
+    monkeypatch.setattr(
+        mcp,
+        "tool_health_snapshot",
+        lambda: {
+            "state": "degraded",
+            "configured_servers": 1,
+            "configuration_errors": ["demo: timeout_seconds must be positive"],
+            "open_circuits": [],
+            "remote_health_probed": False,
+        },
+    )
+
+    domain = await health_surface._mcp_tools_source()
+
+    assert domain.status == "degraded"
+    assert "1 MCP configuration error" in domain.reason
+    assert domain.detail["remote_health_probed"] is False
