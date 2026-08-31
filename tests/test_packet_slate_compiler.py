@@ -144,3 +144,68 @@ def test_held_builder_packet_emits_doc_but_not_manifest_entry(tmp_path: Path):
     assert "**Owner:** builder (held)" in doc
     assert "**Builder manifest:** held" in doc
     assert "Active PR owns gateway/app.py." in doc
+
+
+def test_companion_doc_matches_packet_standard_sections(tmp_path: Path):
+    payload = _source()
+    payload["packets"][0]["outcome"] = "Jacob can see the new behavior without reading implementation details."
+    payload["packets"][0]["plan"] = [
+        "Add a regression that proves the missing behavior.",
+        "Implement the bounded change inside the declared fence.",
+    ]
+    payload["packets"][0]["not_in_scope"] = ["Do not change adjacent subsystems."]
+    completed = _run_compiler(tmp_path, payload)
+
+    assert completed.returncode == 0, completed.stderr
+    doc = (tmp_path / "packets" / "DEMO-01.md").read_text(encoding="utf-8")
+    assert "## What Jacob can do after this" in doc
+    assert "Jacob can see the new behavior" in doc
+    assert "## Why this is the next thing" in doc
+    assert "## Plan" in doc
+    assert "1. Add a regression" in doc
+    assert "## Not in scope" in doc
+    assert "- Do not change adjacent subsystems." in doc
+    assert "**Tier 1 — mechanical.**" in doc
+    assert "**Tier 2 — running app.**" in doc
+    assert "**Tier 3 — product acceptance.**" in doc
+    assert "## Stop condition" in doc
+    assert "## Recovery" in doc
+
+
+def test_interactive_doc_names_smoke_and_independent_acceptance(tmp_path: Path):
+    payload = _source()
+    entry = payload["packets"][0]
+    entry["lane"] = "interactive"
+    entry["outcome"] = "Jacob can complete the visible task from the running app."
+    entry["tier2"] = "Run gateway/kitty-chat/tests/smoke/demo.spec.ts at desktop and iPhone-14 widths."
+    entry["tier3"] = "An independent reviewer completes the task in the running app and records Product Acceptance."
+    entry["manifest"]["validation_commands"] = [
+        "cd gateway/kitty-chat && npx vitest run tests/Demo.test.tsx --reporter=dot",
+        "cd gateway/kitty-chat && npx playwright test tests/smoke/demo.spec.ts",
+    ]
+    completed = _run_compiler(tmp_path, payload)
+
+    assert completed.returncode == 0, completed.stderr
+    doc = (tmp_path / "packets" / "DEMO-01.md").read_text(encoding="utf-8")
+    assert "**Builder manifest:** none" in doc
+    assert "**Tier 1 — mechanical.** Interactive validation" in doc
+    assert "gateway/kitty-chat/tests/smoke/demo.spec.ts" in doc
+    assert "independent reviewer" in doc.lower()
+
+
+def test_interactive_hold_reason_marks_doc_held_without_entering_manifest(tmp_path: Path):
+    payload = _source()
+    entry = payload["packets"][0]
+    entry["lane"] = "interactive"
+    entry["hold_reason"] = "PR #999 owns the required frontend seam."
+    entry["manifest"]["validation_commands"] = [
+        "cd gateway/kitty-chat && npx vitest run tests/Demo.test.tsx --reporter=dot"
+    ]
+    completed = _run_compiler(tmp_path, payload)
+
+    assert completed.returncode == 0, completed.stderr
+    manifest = json.loads((tmp_path / "initiative.json").read_text(encoding="utf-8"))
+    assert manifest["packets"] == []
+    doc = (tmp_path / "packets" / "DEMO-01.md").read_text(encoding="utf-8")
+    assert "**Owner:** interactive (held)" in doc
+    assert "PR #999 owns the required frontend seam." in doc
