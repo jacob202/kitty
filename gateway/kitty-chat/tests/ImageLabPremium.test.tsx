@@ -111,6 +111,36 @@ describe('Image Lab premium workspace', () => {
     )).toBe(true)
   })
 
+  it('disables recipes whose live engine is offline even when registry metadata says available', async () => {
+    vi.mocked(queries.useImageStatus).mockReturnValue({
+      data: { available: true, engines: [
+        { name: 'openrouter', label: 'OpenRouter', available: true },
+        { name: 'comfyui', label: 'ComfyUI', available: false, unavailable_reason: 'ComfyUI is offline' },
+      ] },
+      isPending: false, isError: false, refetch: vi.fn(),
+    } as never)
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const target = String(url)
+      if (target === '/proxy/studio/recipes') return { ok: true, status: 200, json: async () => ({ recipes: [
+        { recipe_id: 'comfyui_pulid_sdxl', display_name: 'PuLID SDXL Identity', provider: 'comfyui', quality_tier: 'maximum', supports_img2img: true, is_available: true },
+        { recipe_id: 'openrouter_auto', display_name: 'OpenRouter image', provider: 'openrouter', quality_tier: 'quality', supports_img2img: true, is_available: true },
+      ] }) }
+      if (target === '/proxy/studio/characters') return { ok: true, status: 200, json: async () => ({ characters: [] }) }
+      if (target === '/proxy/studio/sessions/imgses_1') return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', anchor_job_id: null, turns: [], jobs: [] }) }
+      if (target.startsWith('/proxy/studio/batches?')) return { ok: true, status: 200, json: async () => ({ batches: [] }) }
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate }
+      return { ok: true, status: 200, json: async () => ({}) }
+    }))
+
+    render(<ImageLab />)
+    const route = await screen.findByRole('combobox', { name: 'generation route' })
+    const offline = Array.from(route.querySelectorAll('option')).find(option => option.value === 'comfyui_pulid_sdxl')
+    const online = Array.from(route.querySelectorAll('option')).find(option => option.value === 'openrouter_auto')
+    expect(offline).toBeDisabled()
+    expect(offline).toHaveTextContent('unavailable')
+    expect(online).not.toBeDisabled()
+  })
+
   it('lets two finished candidates open in a focused comparison dialog', async () => {
     render(<ImageLab />)
     await screen.findByRole('img', { name: 'Generated image 1' })
