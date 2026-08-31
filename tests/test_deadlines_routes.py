@@ -87,9 +87,9 @@ def test_sweep_endpoint_escalates_by_default_and_reports_delivered_count(client,
         assert push_fn is None
         return {"found": 1, "open": 1, "needs_jacob": 0, "blind_spots": [], "top": None, "generated_at": "now"}
 
-    def fake_watch(*, push_fn):
+    def fake_watch(*, push_fn, now=None):
         assert callable(push_fn)
-        return {"checked": 1, "due": 1, "attempted": 1, "pushed": 1, "failed": 0, "skipped": 0}
+        return {"checked": 1, "due": 1, "attempted": 1, "pushed": 1, "failed": 0, "skipped": 0, "quiet_hours_deferred": 0}
 
     monkeypatch.setattr("gateway.routes.deadlines.deadline_sweep.sweep", fake_sweep)
     monkeypatch.setattr("gateway.routes.deadlines.deadline_watch.check_and_push", fake_watch)
@@ -109,7 +109,7 @@ def test_sweep_endpoint_reports_when_due_warning_could_not_be_delivered(client, 
     )
     monkeypatch.setattr(
         "gateway.routes.deadlines.deadline_watch.check_and_push",
-        lambda **_kwargs: {"checked": 1, "due": 1, "attempted": 1, "pushed": 0, "failed": 1, "skipped": 1},
+        lambda **_kwargs: {"checked": 1, "due": 1, "attempted": 1, "pushed": 0, "failed": 1, "skipped": 1, "quiet_hours_deferred": 0},
     )
 
     resp = client.post("/deadlines/sweep")

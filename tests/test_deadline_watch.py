@@ -43,7 +43,7 @@ def test_fires_today_checkpoint():
         return True
 
     result = deadline_watch.check_and_push(now=date(2026, 7, 20), push_fn=push_fn)
-    assert result == {"checked": 1, "due": 1, "attempted": 1, "pushed": 1, "failed": 0, "skipped": 0}
+    assert result == {"checked": 1, "due": 1, "attempted": 1, "pushed": 1, "failed": 0, "skipped": 0, "quiet_hours_deferred": 0}
     assert pushes[0]["title"] == "Deadline T-7d"
     assert pushes[0]["kind"] == "info"
 
@@ -59,7 +59,7 @@ def test_skips_already_sent():
         return True
 
     result = deadline_watch.check_and_push(now=date(2026, 7, 20), push_fn=push_fn)
-    assert result == {"checked": 1, "due": 1, "attempted": 0, "pushed": 0, "failed": 0, "skipped": 1}
+    assert result == {"checked": 1, "due": 1, "attempted": 0, "pushed": 0, "failed": 0, "skipped": 1, "quiet_hours_deferred": 0}
     assert pushes == []
 
 
@@ -86,7 +86,7 @@ def test_push_failure_counts_skipped():
         return False
 
     result = deadline_watch.check_and_push(now=date(2026, 7, 20), push_fn=push_fn)
-    assert result == {"checked": 1, "due": 1, "attempted": 1, "pushed": 0, "failed": 1, "skipped": 1}
+    assert result == {"checked": 1, "due": 1, "attempted": 1, "pushed": 0, "failed": 1, "skipped": 0, "quiet_hours_deferred": 0}
 
 
 @pytest.mark.parametrize(

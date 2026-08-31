@@ -218,10 +218,20 @@ async def lifespan(app: FastAPI):
                 await check_due()
 
             async def _action_check_deadlines():
+                from gateway.brief_scheduler import load_brief_timezone
                 from gateway.deadline_watch import check_and_push
 
-                result = await asyncio.to_thread(check_and_push)
+                # Use the user's configured timezone to compute "today" for deadline checkpoints
+                user_tz = load_brief_timezone()
+                from datetime import datetime
+                today = datetime.now(user_tz).date()
+                result = await asyncio.to_thread(check_and_push, now=today)
                 if int(result.get("attempted", 0)) > 0 and int(result.get("pushed", 0)) == 0:
+                    # Distinguish quiet-hours deferral from actual failure
+                    if int(result.get("quiet_hours_deferred", 0)) > 0:
+                        raise automation_actions.ConditionFalse(
+                            f"Deadline warning(s) due but deferred by quiet-hours policy ({result.get('quiet_hours_deferred')} deferred)."
+                        )
                     raise automation_actions.SourceUnavailable(
                         "A deadline warning was due, but nothing was delivered to a configured push channel."
                     )

@@ -39,6 +39,7 @@ def check_and_push(
     pushed = 0
     failed = 0
     skipped = 0
+    quiet_hours_deferred = 0
 
     for deadline in deadline_store.list_open(status="open"):
         checked += 1
@@ -47,7 +48,10 @@ def check_and_push(
             skipped += 1
             continue
         due += 1
-        if deadline_store.escalation_already_sent(deadline["id"], checkpoint):
+
+        # Atomically claim this checkpoint before attempting delivery
+        claimed = deadline_store.claim_escalation(deadline["id"], checkpoint)
+        if not claimed:
             skipped += 1
             continue
 
@@ -55,7 +59,7 @@ def check_and_push(
         message = _format_message(deadline, checkpoint)
         dedupe_key = f"deadline-{deadline['id']}-{checkpoint}"
         try:
-            ok = sender(
+            result = sender(
                 message,
                 title=f"Deadline {checkpoint}",
                 kind="info" if checkpoint in {"T-7d", "T-3d"} else "alert",
@@ -63,7 +67,14 @@ def check_and_push(
             )
         except Exception as exc:  # noqa: BLE001 — a push failure must not crash the cron
             logger.error("push failed for deadline %s: %s", deadline["id"], exc)
-            ok = False
+            result = {"ok": False, "reason": "exception"}
+
+        if isinstance(result, dict):
+            ok = result.get("ok", False)
+            reason = result.get("reason", "unknown")
+        else:
+            ok = result
+            reason = "unknown"
 
         if ok:
             deadline_store.record_escalation(deadline["id"], checkpoint)
@@ -71,7 +82,10 @@ def check_and_push(
             pushed += 1
         else:
             failed += 1
-            skipped += 1
+            if reason == "quiet_hours":
+                quiet_hours_deferred += 1
+            # Release the claim so a retry can be attempted
+            deadline_store.release_escalation_claim(deadline["id"], checkpoint)
 
     return {
         "checked": checked,
@@ -80,6 +94,7 @@ def check_and_push(
         "pushed": pushed,
         "failed": failed,
         "skipped": skipped,
+        "quiet_hours_deferred": quiet_hours_deferred,
     }
 
 

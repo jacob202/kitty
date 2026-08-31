@@ -123,7 +123,12 @@ def generate_and_deliver_brief() -> str:
     try:
         from gateway.push import push_to_jacob
 
-        if not push_to_jacob(text, kind="info", title="Kitty Morning Brief"):
+        result = push_to_jacob(text, kind="info", title="Kitty Morning Brief")
+        if isinstance(result, dict):
+            ok = result.get("ok", False)
+        else:
+            ok = result
+        if not ok:
             raise SourceUnavailable(
                 "No configured push channel accepted the brief "
                 "(set PUSH_IMESSAGE_RECIPIENT or PUSHOVER_USER_KEY/PUSHOVER_API_TOKEN)"
