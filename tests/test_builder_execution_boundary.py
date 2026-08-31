@@ -321,3 +321,67 @@ pathlib.Path(os.environ['KB_REVIEW_RESULT_PATH']).write_text(json.dumps({
     }
     assert not worktree_write.exists()
     assert not outside.exists()
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
+def test_sandboxed_worker_can_exec_interpreter_through_alias_directory(tmp_path: Path) -> None:
+    """A venv whose interpreter points through an alias directory must run.
+
+    uv installs `cpython-3.12-*` as a symlink to `cpython-3.12.14-*`, and
+    Seatbelt authorises the exec against the alias spelling, not the real one.
+    """
+    real_runtime = tmp_path / "cpython-9.9.9-none"
+    (real_runtime / "bin").mkdir(parents=True)
+    real_python = real_runtime / "bin" / "python"
+    real_python.write_text("#!/bin/sh\necho alias-interpreter-ran\n")
+    real_python.chmod(0o755)
+    alias_runtime = tmp_path / "cpython-9.9-none"
+    alias_runtime.symlink_to(real_runtime)
+
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    venv_python = venv / "bin" / "python"
+    venv_python.symlink_to(alias_runtime / "bin" / "python")
+
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    run_dir = tmp_path / "run"
+    env = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
+    env["PATH"] = f"{venv / 'bin'}:{env['PATH']}"
+
+    raw_command = [str(venv_python)]
+    profile = boundary.build_sandbox_profile(
+        worktree=worktree,
+        run_dir=run_dir,
+        command=raw_command,
+        environment=env,
+        extra_read_subpaths=[venv, alias_runtime],
+    )
+    assert f'(allow file-read* (subpath "{alias_runtime}"))' in profile
+
+    command = boundary.wrap_command(
+        raw_command,
+        worktree=worktree,
+        run_dir=run_dir,
+        environment=env,
+        extra_read_subpaths=[venv, alias_runtime],
+    )
+    completed = subprocess.run(command, cwd=worktree, env=env, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr
+    assert "alias-interpreter-ran" in completed.stdout
+
+
+def test_boundary_git_is_resolved_from_the_fixed_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Never the bare /usr/bin/git shim, and never a git the child chose."""
+    planted = tmp_path / "bin"
+    planted.mkdir()
+    (planted / "git").write_text("#!/bin/sh\nexit 0\n")
+    (planted / "git").chmod(0o755)
+    monkeypatch.setenv("PATH", str(planted))
+
+    resolved = boundary.boundary_git_executable()
+
+    assert resolved != str(planted / "git")
+    assert Path(resolved).is_file()
+    assert str(Path(resolved).parent) in boundary._SAFE_PATH.split(":")
