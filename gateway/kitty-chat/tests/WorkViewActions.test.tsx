@@ -3,13 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView, { rowAction, type RowAction } from '../src/components/WorkView'
 import type { GatewayWorkItem } from '../src/lib/work'
 
-const { useWorkSnapshot, useSupervisor, useBuilderAction, mutate } = vi.hoisted(() => ({
+const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction, mutate } = vi.hoisted(() => ({
   useWorkSnapshot: vi.fn(),
+  usePreflight: vi.fn(),
   useSupervisor: vi.fn(),
   useBuilderAction: vi.fn(),
   mutate: vi.fn(),
 }))
-vi.mock('../src/lib/work', () => ({ useWorkSnapshot, useSupervisor, useBuilderAction }))
+vi.mock('../src/lib/work', () => ({ useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction }))
 
 function item(overrides: Partial<GatewayWorkItem> = {}): GatewayWorkItem {
   return {
@@ -65,6 +66,8 @@ function renderWork(items: GatewayWorkItem[], supervisorData = supervisor()) {
 
 beforeEach(() => {
   useWorkSnapshot.mockReset()
+  usePreflight.mockReset()
+  usePreflight.mockReturnValue({ data: null, isPending: false, isError: false })
   useSupervisor.mockReset()
   useBuilderAction.mockReset()
   mutate.mockReset()
