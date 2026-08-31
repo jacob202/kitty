@@ -57,9 +57,11 @@ const MOBILE_BREAKPOINT = 900
 const ACTIVE_VIEW_STORAGE_KEY = 'kitty-active-view'
 
 function canonicalActiveView(view: string | null | undefined): string {
-  if (!view) return 'home'
+  // Conversation is the product's core job, so Chat is the arrival surface.
+  // A fresh boot lands on the composer, not a monitoring dashboard.
+  if (!view) return 'chat'
   const resolved = REDIRECTS[view] ?? view
-  return getView(resolved) ? resolved : 'home'
+  return getView(resolved) ? resolved : 'chat'
 }
 
 let chatCounter = 0
@@ -264,7 +266,7 @@ export function KittyProvider({ children }: { children: ReactNode }) {
   useEffect(() => setMounted(true), [])
 
   const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')])
-  const [activeView, setRawView] = useState('home')
+  const [activeView, setRawView] = useState('chat')
   const [viewPersistenceWarning, setViewPersistenceWarning] = useState<string | null>(null)
   const setActiveView = useCallback((v: string) => {
     const next = canonicalActiveView(v)

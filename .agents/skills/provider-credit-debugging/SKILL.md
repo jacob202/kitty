@@ -1,6 +1,6 @@
 ---
 name: provider-credit-debugging
-description: Debug AgentRouter, OpenRouter, 9router, DeepSeek, LiteLLM, OpenCode providers, API keys, credits, token usage, spend reports, and Kitty routing failures.
+description: Debug Kitty routing and provider/credit failures. USE WHEN the user reports or asks about: routing failures, wrong provider/model chosen, credits showing but requests failing, API key errors, token usage or spend looking wrong, AgentRouter, OpenRouter, 9router, DeepSeek, LiteLLM, or OpenCode misbehaving.
 ---
 
 # Provider credit debugging

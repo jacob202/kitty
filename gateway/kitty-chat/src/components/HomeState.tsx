@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText } from '@/lib/ui';
+import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText, buttonSecondary, buttonPrimary } from '@/lib/ui';
 import { CapturePanel } from '@/components/CapturePanel';
 import { BuilderGlance } from '@/components/BuilderSurface';
 import { InsightReturnCard } from '@/components/InsightReturnCard';
@@ -135,29 +135,8 @@ function SectionCard({
   );
 }
 
-const actionButtonStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-body)',
-  fontSize: 11,
-  fontWeight: 650,
-  padding: '5px 9px',
-  borderRadius: 8,
-  border: '1px solid var(--color-separator)',
-  cursor: 'pointer',
-  background: 'var(--color-surface)',
-  color: 'var(--color-text-secondary)',
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-body)',
-  fontSize: 12,
-  fontWeight: 650,
-  padding: '7px 12px',
-  borderRadius: 10,
-  border: 'none',
-  cursor: 'pointer',
-  background: 'var(--color-accent)',
-  color: 'var(--on-accent)',
-};
+const actionButtonStyle = buttonSecondary;
+const primaryButtonStyle = buttonPrimary;
 
 const homeEmptyState: React.CSSProperties = {
   ...emptyState,

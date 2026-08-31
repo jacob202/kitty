@@ -5,8 +5,8 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from gateway import deadline_extractor, deadline_store, deadline_sweep
-from gateway.deadline_store import DeadlineNotFound
+from gateway import deadline_extractor, deadline_sweep, deadline_store, storage_router
+from gateway.deadline_store import DeadlineError, DeadlineNotFound
 
 logger = logging.getLogger("kitty.routes.deadlines")
 
@@ -18,7 +18,7 @@ def _handle(fn, *args, **kwargs):
         return fn(*args, **kwargs)
     except DeadlineNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except deadline_store.DeadlineError as exc:
+    except DeadlineError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except deadline_extractor.DeadlineExtractorError as exc:
         logger.warning("deadline extraction failed: %s", exc)
@@ -42,7 +42,7 @@ def get_deadline(deadline_id: int) -> dict:
 
 @router.post("/deadlines/{deadline_id}/close")
 def close_deadline(deadline_id: int) -> dict:
-    return _handle(deadline_store.close, deadline_id)
+    return _handle(storage_router.close_deadline, deadline_id)
 
 
 @router.post("/deadlines/sweep")

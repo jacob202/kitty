@@ -83,4 +83,30 @@ export const emptyState: CSSProperties = {
   padding: '20px 0',
 }
 
+/** Secondary button — bordered, quiet. The workhorse of dashboard cards. */
+export const buttonSecondary: CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: 11,
+  fontWeight: 650,
+  padding: '5px 9px',
+  borderRadius: 8,
+  border: '1px solid var(--color-separator)',
+  cursor: 'pointer',
+  background: 'var(--color-surface)',
+  color: 'var(--color-text-secondary)',
+}
+
+/** Primary button — filled accent. One per card, the dominant action. */
+export const buttonPrimary: CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: 12,
+  fontWeight: 650,
+  padding: '7px 12px',
+  borderRadius: 10,
+  border: 'none',
+  cursor: 'pointer',
+  background: 'var(--color-accent)',
+  color: 'var(--on-accent)',
+}
+
 export const ACCENT = 'var(--primary)'

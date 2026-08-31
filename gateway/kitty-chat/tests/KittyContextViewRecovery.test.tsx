@@ -86,7 +86,7 @@ describe('Kitty active view recovery', () => {
       originalSetItem(key, value)
     })
     mountHarness()
-    await waitFor(() => expect(screen.getByTestId('active-view')).toHaveTextContent('home'))
+    await waitFor(() => expect(screen.getByTestId('active-view')).toHaveTextContent('chat'))
 
     act(() => screen.getByRole('button', { name: 'open builder' }).click())
 
@@ -96,7 +96,7 @@ describe('Kitty active view recovery', () => {
 
   it('allows the secondary Builder details surface without changing ordinary Builder routing', async () => {
     mountHarness()
-    await waitFor(() => expect(screen.getByTestId('active-view')).toHaveTextContent('home'))
+    await waitFor(() => expect(screen.getByTestId('active-view')).toHaveTextContent('chat'))
 
     act(() => screen.getByRole('button', { name: 'open builder details' }).click())
     expect(screen.getByTestId('active-view')).toHaveTextContent('builder-details')
@@ -114,12 +114,12 @@ describe('Kitty active view recovery', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(
       'This view cannot be remembered for reload because browser storage is unavailable.',
     ))
-    expect(screen.getByTestId('active-view')).toHaveTextContent('home')
+    expect(screen.getByTestId('active-view')).toHaveTextContent('chat')
   })
 
-  it('restores canonical Work after reload instead of falling back to Home', async () => {
+  it('restores canonical Work after reload instead of falling back to Chat', async () => {
     const first = mountHarness()
-    await waitFor(() => expect(screen.getByTestId('active-view')).toHaveTextContent('home'))
+    await waitFor(() => expect(screen.getByTestId('active-view')).toHaveTextContent('chat'))
 
     act(() => screen.getByRole('button', { name: 'open builder' }).click())
     expect(screen.getByTestId('active-view')).toHaveTextContent('work')

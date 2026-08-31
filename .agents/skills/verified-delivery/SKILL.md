@@ -1,6 +1,6 @@
 ---
 name: verified-delivery
-description: Use when implementing, repairing, reviewing, or claiming completion of software work where success must be demonstrated with reproducible evidence.
+description: Use when implementing, repairing, reviewing, or claiming completion of software work where success must be demonstrated with reproducible evidence. USE WHEN the user asks to implement, fix, build, repair, review, verify, or mark something done/finished/shipped; or wants proof a change actually works.
 ---
 
 # Verified Delivery
@@ -87,3 +87,12 @@ Use exactly one honest state:
 The classification must bind to the durable record, not only to this conversation. Where Kitty’s Builder owns the state, reconcile the classification with `initiative_status`, attempt/run states, decision events, and PR check runs; a claim must not contradict that durable state.
 
 Never use “done,” “fixed,” or “working” without binding the claim to reproducible evidence.
+
+## Flow into the surrounding skills
+
+This skill owns *how to prove* work. It hands off to the skills that own *when*:
+
+- When the verified (or blocked/failed) work ends a session, or the user says the session is wrapping up, run `.agents/skills/session-end/SKILL.md` to preserve evidence, continuity, and the next action.
+- When the user gives a bare `next`, `continue`, `resume`, or `do the next thing` after a bounded verified slice, run `.agents/skills/next/SKILL.md` to continue from the valid checkpoint — do not silently start new work.
+
+The terminal state from this skill (`verified`, `implemented, awaiting verification`, `blocked`, `failed`) is the input state those skills record; keep it bound to the durable record.

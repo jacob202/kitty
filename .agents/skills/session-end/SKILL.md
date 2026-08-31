@@ -294,7 +294,34 @@ Include:
 - workflow signals and owners;
 - exact verification results.
 
-## 10. Write `.claude/STATE.md`
+## 10. Write the release note
+
+If this session produced a user-visible change worth announcing, append one
+entry to `docs/release-notes/<DATE>.md` (create the file if absent). Derive it
+only from evidence already recorded in steps 3–9; do not invent outcomes.
+
+Each entry uses this shape, grouped under a `## <date>` heading:
+
+```markdown
+### <short imperative title, e.g. "Fix deadline sync">
+- **What changed:** <one or two plain sentences, no packet IDs, ports, env vars, or internal paths>
+- **Why:** <one sentence on the user-visible benefit>
+- **Verified:** <exact command + observed result, or the independent verdict>
+```
+
+Rules:
+
+- Only write an entry when the change is user-visible or behaviorally meaningful.
+  Skip pure internal refactors, typo fixes, and ephemera.
+- If the terminal state is `implemented, awaiting verification`, `blocked`, or
+  `failed`, either skip the note or mark it clearly `(unverified)` / `(blocked)` —
+  never present an unproven change as shipped.
+- Keep the note free of internal identifiers; this file is for humans reading a
+  changelog, not the agent working log.
+- Do not duplicate Builder-owned release/publication state here; link it when it
+  already owns the announcement.
+
+## 11. Write `.claude/STATE.md`
 
 Use checkpoint schema version 2 with `parallel_work` and `recommendations`
 always present. Include a concise section:
@@ -321,7 +348,7 @@ Requirements:
 - workflow-signal and effectiveness files are evidence history, not backlogs;
 - never copy Builder queue state into STATE as an interactive task list.
 
-## 11. Validate continuity and inspect Git
+## 12. Validate continuity and inspect Git
 
 Run:
 
@@ -335,7 +362,7 @@ Report uncommitted files and other workers' changes. Do not commit, push, delete
 clean, release leases, claim Builder work, or merge unless separately authorized
 or an approved Builder publication policy permits the bounded action.
 
-## 12. Confirm and stop
+## 13. Confirm and stop
 
 Report briefly:
 
@@ -345,6 +372,7 @@ Report briefly:
 4. deferred items and release conditions;
 5. effectiveness receipt ID/path and evidence gaps;
 6. workflow signals and status;
-7. every unavailable source.
+7. release note written (or skipped, with reason);
+8. every unavailable source.
 
 Then stop. Do not start another interactive assignment or Builder packet.

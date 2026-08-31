@@ -37,7 +37,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from gateway import plugin_registry, todo_store
+from gateway import deadline_store, plugin_registry, todo_store
 from gateway.paths import KITTY_TOKEN_LOG_FILE
 
 logger = logging.getLogger("kitty.storage_router")
@@ -118,6 +118,18 @@ def clear_todos() -> None:
     start = time.monotonic()
     todo_store.clear()
     _emit_telemetry("todos", "clear", ms=_ms_since(start))
+
+
+# --- Deadlines ---
+
+
+def close_deadline(deadline_id: int) -> dict:
+    if not isinstance(deadline_id, int) or isinstance(deadline_id, bool):
+        raise TypeError(f"deadline_id must be int, got {type(deadline_id).__name__}")
+    start = time.monotonic()
+    result = deadline_store.close(deadline_id)
+    _emit_telemetry("deadlines", "close", key=deadline_id, ms=_ms_since(start))
+    return result
 
 
 # --- Plugin settings ---
