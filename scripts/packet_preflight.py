@@ -59,6 +59,13 @@ PINNED_INTERPRETER = re.compile(r"\bpython3\.\d+\b")
 # never proved — docs/packets/014-make-the-gates-honest.md.
 NPM_RUN = re.compile(r"\bnpm\s+run\b")
 
+# A Builder worktree is a git worktree, and node_modules/ is gitignored, so it
+# is simply absent — verified in .worktrees/kittybuilder/kb_mtgatvyi_340e. The
+# runner exposes the Python venv to workers but has no equivalent for Node, so
+# every npx/npm gate fails or tries to reach the network from inside the
+# sandbox. Frontend proof belongs in the companion doc's Tier 2, run by CI.
+NODE_TOOLING = re.compile(r"\b(npx|npm)\b")
+
 # Deliberately broad and stem-matched. A false positive costs one directory
 # entry; a false negative costs a burned attempt and a permanently blocked task.
 CREATION_VERBS = re.compile(
@@ -232,6 +239,17 @@ def check_packet(
         if NPM_RUN.search(command):
             findings.append(
                 Finding("ERROR", pid, f"validation command uses 'npm run': {command!r} — it exits 194 silently")
+            )
+        elif NODE_TOOLING.search(command):
+            findings.append(
+                Finding(
+                    "ERROR",
+                    pid,
+                    f"validation command needs Node tooling: {command!r} — a Builder worktree has no "
+                    "node_modules (it is gitignored) and the runner exposes no Node toolchain, so this "
+                    "gate cannot run. Move the frontend proof to the companion doc's Tier 2 for CI, and "
+                    "leave Builder the Python gates it can actually execute.",
+                )
             )
         for target in command_targets(command):
             if path_kind(target, tracked) != "new":

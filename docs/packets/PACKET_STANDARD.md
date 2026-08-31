@@ -40,6 +40,7 @@ without new evidence that supersedes the old.
 | F6 | 178 queued and 34 blocked tasks sit selectable. Builder once ran a stale packet for nine attempts while the approved work was never materialised as a task. | queue status 2026-08-30; `artifacts/forensic-b8-wrong-assignment-2026-08-05.md` | §9 — a packet declares its own stop condition and stale-work guard |
 | F7 | The manifest validator accepts exactly five top-level keys and eight packet keys. Metadata added to JSON makes a packet unrunnable. | `gateway/builder_initiative.py` | §4 — schema is closed |
 | F8 | Six initiative versions share three packet IDs. Nothing can tell which is current from the files alone. | `kitty-recovery-001-builder-control-plane-v1..v6.json` | §4 — packet IDs are globally unique and never reused |
+| F9 | A Builder worktree has no `node_modules` — it is a git worktree and the directory is gitignored — and the runner exposes a Python venv but no Node toolchain. Every `npx` gate is unrunnable there. | verified absent in `.worktrees/kittybuilder/kb_mtgatvyi_340e/gateway/kitty-chat`; no `node_modules` handling anywhere in `builder_runner.py` or `builder_execution_boundary.py` | §6 — frontend gates live in the companion doc for CI, never in `validation_commands` |
 
 ---
 
@@ -155,9 +156,15 @@ Rules:
 1. **Use `python -m pytest`, never `python3.12 -m pytest`.** The runner exposes
    the repository venv to the worker; a hard-coded interpreter version is not on
    the worker's PATH and burns the entire time budget failing to be found.
-2. **Never `npm run <script>`.** It exits 194 silently in this repo and reports
-   a success it never proved (`docs/packets/014-make-the-gates-honest.md`). Use
-   `npx vitest run ...`, `npx tsc --noEmit`, `npx playwright test ...`.
+2. **No Node tooling at all — no `npx`, no `npm`.** A Builder worktree is a git
+   worktree and `node_modules/` is gitignored, so it is simply not there. The
+   runner exposes the Python venv to workers (`builder_runner.py`
+   `_validation_toolchain`) but has no equivalent for Node. Every `npx` gate
+   therefore fails, or tries to reach the network from inside the sandbox with a
+   ten-minute budget. Frontend proof is real and required — it just lives in the
+   companion doc's Tier 2 and runs in CI, not in `validation_commands` (F9).
+   `npm run` is doubly banned: it also exits 194 silently and reports a success
+   it never proved (`docs/packets/014-make-the-gates-honest.md`).
 3. **Name specific test files, not the whole suite.** A packet proves its own
    change. `python -m pytest tests/` is a 4,900-test wait, not a gate.
 4. **Every path a command names must exist, or be inside `allowed_paths`.**
@@ -167,14 +174,28 @@ Rules:
    current `main`, it proves nothing. Say in the companion doc which command
    fails today and what its current output is.
 
-Standard shapes:
+Every shape Builder can run today:
 
 ```
 python -m pytest -q tests/test_<subject>.py
+python -m pytest -q tests/test_<a>.py tests/test_<b>.py
+python -m ruff check <paths>
+```
+
+That is the whole list. The frontend commands below are real and must appear in
+the companion doc's Tier 2, where CI runs them — never in `validation_commands`:
+
+```
 cd gateway/kitty-chat && npx vitest run tests/<Subject>.test.tsx --reporter=dot
 cd gateway/kitty-chat && npx tsc --noEmit
 cd gateway/kitty-chat && npx playwright test tests/smoke/<subject>.spec.ts
 ```
+
+**Consequence for ownership.** A packet with no Python surface cannot prove
+itself inside Builder. Mark it `owner: interactive` in the companion doc and let
+a person or an interactive session build it. A packet with both halves is
+Builder-runnable: Builder proves the backend, CI proves the UI. Splitting a
+UI change from its backend change along that line is usually the right call.
 
 ---
 
