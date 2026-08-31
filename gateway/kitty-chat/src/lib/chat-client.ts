@@ -1,4 +1,4 @@
-import { Message, normalizeMemoryEvidence, type MemoryEvidence, type MessageAttachment, type ToolCall } from './types';
+import { Message, normalizeMemoryEvidence, type MemoryEvidence, type ToolCall } from './types';
 
 // All gateway calls go through the Next.js proxy route — avoids CORS and keeps key server-side
 const GATEWAY_BASE = '/proxy';
@@ -108,22 +108,7 @@ export async function* streamChat(
       ...(userMessageId === undefined ? {} : { user_message_id: userMessageId }),
       ...(conversationTitle === undefined ? {} : { conversation_title: conversationTitle }),
       ...(attachmentIds === undefined ? {} : { attachment_ids: attachmentIds }),
-      messages: messages.map((m) => {
-        const parts: Array<{ type: string; text?: string; image_url?: { url: string } }> = []
-        const stagedImages = (m.attachments ?? []).filter((a): a is MessageAttachment & { data_url: string } => Boolean(a.data_url))
-        if (stagedImages.length > 0) {
-          for (const image of stagedImages) {
-            parts.push({ type: 'image_url', image_url: { url: image.data_url } })
-          }
-        }
-        if (m.content) {
-          parts.push({ type: 'text', text: m.content })
-        }
-        return {
-          role: m.role,
-          content: parts.length > 0 && parts.some((part) => part.type === 'image_url') ? parts : m.content,
-        }
-      }),
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
     }),
     signal,
   });

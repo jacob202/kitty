@@ -30,7 +30,7 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
 describe('LIBRARY-CHAT-001: image attachment into chat', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('streamChat sends a data-URL image as an OpenAI image_url part (ready image reaches the model)', async () => {
+  it('sends a staged Library image by durable id and does not inline it twice', async () => {
     const sent: Array<{ body: string }> = []
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       sent.push({ body: String(init?.body) })
@@ -54,16 +54,14 @@ describe('LIBRARY-CHAT-001: image attachment into chat', () => {
       }),
     ]
     const chunks: string[] = []
-    for await (const chunk of streamChat('kitty-vision', history)) {
+    for await (const chunk of streamChat('kitty-vision', history, undefined, undefined, undefined, undefined, undefined, ['artifact_1'])) {
       if (chunk.content) chunks.push(chunk.content)
     }
 
     expect(chunks.join('')).toContain('I see the reference image.')
     const parsed = JSON.parse(sent[0].body)
-    expect(parsed.messages[0].content).toEqual([
-      { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } },
-      { type: 'text', text: 'what do you see?' },
-    ])
+    expect(parsed.attachment_ids).toEqual(['artifact_1'])
+    expect(parsed.messages[0].content).toBe('what do you see?')
   })
 
   it('does not send a plain text message upstream when an image part is present', async () => {

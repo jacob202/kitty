@@ -54,7 +54,6 @@ test('a ready image reaches the chat composer and an unusable file says why', as
         display_name: READY_PNG.display_name,
         media_type: 'image/png',
         size: READY_PNG.size_bytes,
-        data_url: 'data:image/png;base64,AAAA',
       },
     })
   );

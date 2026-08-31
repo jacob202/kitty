@@ -122,7 +122,7 @@ describe('LibraryView artifact truth', () => {
       if (url.includes('/proxy/chats/use-in-chat')) {
         return new Response(JSON.stringify({
           id: 'artifact_1', display_name: 'camera-reference.png',
-          media_type: 'image/png', size: 2048, data_url: 'data:image/png;base64,AAAA',
+          media_type: 'image/png', size: 2048,
         }), { status: 200, headers: { 'Content-Type': 'application/json' } })
       }
       return new Response('not found', { status: 404 })

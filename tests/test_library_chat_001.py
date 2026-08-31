@@ -7,8 +7,6 @@ Covers the backend half of the pilot acceptance:
   3. The chat-completions route injects resolved image parts into the outgoing
      user message when attachment_ids are supplied.
 """
-import base64
-
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -53,10 +51,7 @@ class TestUseInChat:
         assert body["display_name"] == "camera-reference.png"
         assert body["media_type"] == "image/png"
         assert body["size"] == artifact["size_bytes"]
-        assert body["data_url"].startswith("data:image/png;base64,")
-        # The data URL must actually decode to the file bytes.
-        raw = base64.b64decode(body["data_url"].split(",", 1)[1])
-        assert raw.startswith(b"\x89PNG\r\n\x1a\n")
+        assert "data_url" not in body
 
     def test_ready_jpeg_and_webp_are_supported(self, chat_client, tmp_path):
         for name, mime in (("a.jpg", "image/jpeg"), ("a.webp", "image/webp")):

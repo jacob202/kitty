@@ -250,7 +250,7 @@ def _recover_messages(conversation_id: str) -> list[dict]:
     return recovered
 
 
-def _resolve_chat_image_attachment(artifact_id: str) -> dict:
+def _resolve_chat_image_attachment(artifact_id: str, *, include_data_url: bool = True) -> dict:
     """Resolve a stored artifact to a chat-ready image attachment.
 
     Raises a plain-language HTTPException for any artifact that cannot be used
@@ -291,6 +291,14 @@ def _resolve_chat_image_attachment(artifact_id: str) -> dict:
     path = Path(storage_uri)
     if not path.is_file():
         raise HTTPException(status_code=409, detail="That saved file is missing from disk.")
+    attachment = {
+        "id": artifact["id"],
+        "display_name": artifact.get("display_name") or path.name,
+        "media_type": media_type,
+        "size": size_bytes,
+    }
+    if not include_data_url:
+        return attachment
     try:
         encoded = base64.b64encode(path.read_bytes()).decode("ascii")
     except OSError as exc:
@@ -298,13 +306,7 @@ def _resolve_chat_image_attachment(artifact_id: str) -> dict:
         raise HTTPException(
             status_code=409, detail="That saved file could not be read right now."
         ) from exc
-    return {
-        "id": artifact["id"],
-        "display_name": artifact.get("display_name") or path.name,
-        "media_type": media_type,
-        "size": size_bytes,
-        "data_url": f"data:{media_type};base64,{encoded}",
-    }
+    return {**attachment, "data_url": f"data:{media_type};base64,{encoded}"}
 
 
 def _format_bytes(size: int) -> str:
@@ -320,11 +322,11 @@ async def use_in_chat(request: Request) -> dict:
     """Resolve a saved artifact into a chat-ready image attachment.
 
     This is the Library → Chat bridge for LIBRARY-CHAT-001. It validates type
-    and size before any network dispatch, returns the exact
-    ``MessageAttachment`` shape the composer already renders, and carries the
-    image bytes as a data URL so the chat send can build an OpenAI image part
-    from the same object that appears in the composer. Errors are plain
-    language with no internal paths, ids, or status codes.
+    and size before any network dispatch and returns only the attachment
+    metadata the composer renders. The durable artifact id is resolved to image
+    bytes later, inside the trusted completions route, so the model receives the
+    image exactly once. Errors are plain language with no internal paths, ids,
+    or status codes.
     """
     try:
         body = await request.json()
@@ -335,7 +337,7 @@ async def use_in_chat(request: Request) -> dict:
     artifact_id = body.get("artifact_id")
     if not isinstance(artifact_id, str) or not artifact_id.strip():
         raise HTTPException(status_code=400, detail="artifact_id is required")
-    return _resolve_chat_image_attachment(artifact_id.strip())
+    return _resolve_chat_image_attachment(artifact_id.strip(), include_data_url=False)
 
 
 @router.get("/chats/{chat_id}/messages")

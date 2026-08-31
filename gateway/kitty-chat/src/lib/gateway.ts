@@ -1568,13 +1568,9 @@ export interface GatewayArtifact {
   error?: string | null
 }
 
-/** A Library artifact resolved into a chat-ready image attachment by
- *  POST /chats/use-in-chat. The `data_url` carries the image bytes so the
- *  chat send can build an OpenAI image part from the same object the composer
- *  shows. */
-export interface ChatImageAttachment extends MessageAttachment {
-  data_url: string
-}
+/** Metadata for a Library image staged into the Chat composer. The Gateway
+ *  resolves the durable artifact bytes only when the message is sent. */
+export type ChatImageAttachment = MessageAttachment
 
 /** The route already writes its rejection reasons for a person to read, so the
  *  render boundary shows `detail` verbatim rather than collapsing every 4xx
