@@ -245,6 +245,18 @@ class TestAutoRouting:
         assert decision.recipe.max_characters >= 2
         assert decision.recipe.provider == "flux2"
 
+    def test_auto_route_respects_live_provider_allowlist(self, override_db):
+        seed_default_recipes()
+        decision = auto_route(available_providers={"drawthings"})
+        assert decision.recipe is not None
+        assert decision.recipe.provider == "drawthings"
+
+        with pytest.raises(RecipeError, match="provider.*not currently available"):
+            auto_route(
+                preferred_recipe="comfyui_sdxl_standard",
+                available_providers={"drawthings"},
+            )
+
     def test_no_available_recipes_raises(self, override_db):
         seed_default_recipes()
         recipes = list_recipes()

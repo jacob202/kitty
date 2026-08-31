@@ -571,7 +571,7 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: activeSession, request: text,
-          recipe_id: selectedRecipeId || undefined,
+          recipe_id: selectedRecipeId || estimate?.recipe_id || undefined,
         }),
       })) as AgentDecision
 

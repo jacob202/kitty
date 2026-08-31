@@ -424,14 +424,18 @@ def auto_route(
     identity_mode: str = "balanced",
     operation: str = "txt2img",
     preferred_recipe: str | None = None,
+    available_providers: set[str] | None = None,
 ) -> RoutingDecision:
     """Select the best recipe for a generation request.
 
     Deterministic for the same input and database state.
     """
     recipes = list_recipes(available_only=True)
-    if not recipes:
-        raise RecipeError("no image recipes are available")
+    live_providers = (
+        {provider.strip().lower() for provider in available_providers}
+        if available_providers is not None
+        else None
+    )
 
     # If user prefers a specific recipe and it's available, capability
     # requirements still win over preference. A preferred one-character recipe
@@ -441,6 +445,11 @@ def auto_route(
         if not r.is_available:
             raise RecipeError(
                 f"recipe {r.recipe_id!r} is not available; refusing to reroute an explicit selection"
+            )
+        if live_providers is not None and r.provider not in live_providers:
+            raise RecipeError(
+                f"recipe {r.recipe_id!r} provider {r.provider!r} is not currently available; "
+                "refusing to reroute an explicit selection"
             )
         if has_character and (
             not r.supports_characters or r.max_characters < character_count
@@ -454,6 +463,11 @@ def auto_route(
                 f"recipe {r.recipe_id!r} does not support img2img"
             )
         return RoutingDecision(r.recipe_id, r, "Selected by user preference")
+
+    if live_providers is not None:
+        recipes = [r for r in recipes if r.provider in live_providers]
+    if not recipes:
+        raise RecipeError("no image recipes are available for currently available providers")
 
     # Identity-first: choose the strongest recipe that can truthfully carry the
     # full cast, not merely any recipe with character support.

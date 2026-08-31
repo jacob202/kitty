@@ -502,3 +502,24 @@ class TestRegistry:
         assert "registry" in context
         assert "available_guidance_tags" in context
         assert "a portrait" in context
+
+
+def test_route_recipe_passes_live_provider_allowlist(monkeypatch):
+    from gateway import image_agent, image_recipes
+
+    seen = {}
+    recipe = type("Recipe", (), {"provider": "openai", "supports_img2img": True})()
+    monkeypatch.setattr(
+        image_recipes,
+        "auto_route",
+        lambda **kwargs: seen.update(kwargs) or type(
+            "Decision", (), {"recipe": recipe, "recipe_id": "openai_gpt_image_2"}
+        )(),
+    )
+
+    image_agent._route_recipe(
+        has_character=False, preferred_recipe=None, operation="txt2img",
+        quality_tier="quality", identity_mode="balanced",
+        available_providers={"openai"},
+    )
+    assert seen["available_providers"] == {"openai"}
