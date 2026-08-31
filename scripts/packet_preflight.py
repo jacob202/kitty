@@ -66,11 +66,13 @@ NPM_RUN = re.compile(r"\bnpm\s+run\b")
 # sandbox. Frontend proof belongs in the companion doc's Tier 2, run by CI.
 NODE_TOOLING = re.compile(r"\b(npx|npm)\b")
 
-# Deliberately broad and stem-matched. A false positive costs one directory
-# entry; a false negative costs a burned attempt and a permanently blocked task.
+# Language that means a new file is likely. Kept to verbs that genuinely imply
+# creation: vaguer ones ("make", "show", "support") fire on packets that only
+# edit existing files and would push authors into widening their fence, which is
+# the opposite of the point. Anything not matched still gets a WARN.
 CREATION_VERBS = re.compile(
-    r"\b(add|creat|introduc|implement|build|expos|writ|generat|author|"
-    r"mak|show|surfac|render|support|wire|provid|emit|persist)",
+    r"\b(add|creat|introduc|implement|build|writ|generat|author|"
+    r"new (module|file|endpoint|route|component|script|helper|test))",
     re.IGNORECASE,
 )
 
@@ -164,8 +166,9 @@ def check_packet(
     packet: dict,
     *,
     tracked: set[str],
-    seen_ids: dict[str, str],
+    seen_ids: dict[tuple[str, str], str],
     manifest_name: str,
+    initiative_id: str,
 ) -> list[Finding]:
     findings: list[Finding] = []
     pid = str(packet.get("id") or "<no id>")
@@ -176,12 +179,17 @@ def check_packet(
             Finding("ERROR", pid, f"unknown packet keys {sorted(unknown)} — the validator rejects these")
         )
 
-    if pid in seen_ids:
+    identity = (initiative_id, pid)
+    if identity in seen_ids:
         findings.append(
-            Finding("ERROR", pid, f"packet id already used in {seen_ids[pid]} — ids are globally unique and never reused")
+            Finding(
+                "ERROR",
+                pid,
+                f"duplicate packet id {pid!r} in initiative {initiative_id!r}; first seen in {seen_ids[identity]}",
+            )
         )
     else:
-        seen_ids[pid] = manifest_name
+        seen_ids[identity] = manifest_name
 
     allowed = [str(p) for p in (packet.get("allowed_paths") or [])]
     criteria = packet.get("acceptance_criteria") or []
@@ -294,7 +302,9 @@ def check_packet(
     return findings
 
 
-def check_manifest(path: Path, *, tracked: set[str], seen_ids: dict[str, str]) -> list[Finding]:
+def check_manifest(
+    path: Path, *, tracked: set[str], seen_ids: dict[tuple[str, str], str]
+) -> list[Finding]:
     findings: list[Finding] = []
     try:
         manifest = json.loads(path.read_text())
@@ -311,6 +321,7 @@ def check_manifest(path: Path, *, tracked: set[str], seen_ids: dict[str, str]) -
     if unknown:
         findings.append(Finding("ERROR", "", f"unknown top-level keys {sorted(unknown)} — the validator rejects these"))
 
+    initiative_id = str(manifest.get("initiative_id") or "<no initiative>")
     packets = manifest.get("packets") or []
     if not packets:
         findings.append(Finding("ERROR", "", "manifest declares no packets"))
@@ -318,7 +329,13 @@ def check_manifest(path: Path, *, tracked: set[str], seen_ids: dict[str, str]) -
     for packet in packets:
         if isinstance(packet, dict):
             findings.extend(
-                check_packet(packet, tracked=tracked, seen_ids=seen_ids, manifest_name=path.name)
+                check_packet(
+                    packet,
+                    tracked=tracked,
+                    seen_ids=seen_ids,
+                    manifest_name=path.name,
+                    initiative_id=initiative_id,
+                )
             )
 
     # Two packets that can run concurrently must not share a fence.
@@ -363,7 +380,7 @@ def main() -> int:
     if not tracked:
         print("WARNING: could not read HEAD; path-existence checks are disabled", file=sys.stderr)
 
-    seen_ids: dict[str, str] = {}
+    seen_ids: dict[tuple[str, str], str] = {}
     errors = 0
     warnings = 0
 

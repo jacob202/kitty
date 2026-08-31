@@ -39,7 +39,7 @@ without new evidence that supersedes the old.
 | F5 | Every gateway refusal reached the screen as `Gateway returned 415`, because the shared fetch helper throws before reading the response body. Jacob does not code; a status code is not an answer. | `gateway/kitty-chat/src/lib/gateway.ts` `gfetch`, fixed in `8fa7da78` | §7 — "no raw error" is an acceptance criterion, not a nicety |
 | F6 | 178 queued and 34 blocked tasks sit selectable. Builder once ran a stale packet for nine attempts while the approved work was never materialised as a task. | queue status 2026-08-30; `artifacts/forensic-b8-wrong-assignment-2026-08-05.md` | §9 — a packet declares its own stop condition and stale-work guard |
 | F7 | The manifest validator accepts exactly five top-level keys and eight packet keys. Metadata added to JSON makes a packet unrunnable. | `gateway/builder_initiative.py` | §4 — schema is closed |
-| F8 | Six initiative versions share three packet IDs. Nothing can tell which is current from the files alone. | `kitty-recovery-001-builder-control-plane-v1..v6.json` | §4 — packet IDs are globally unique and never reused |
+| F8 | Builder durable identity is `(initiative_id, packet_id)`, but an older worker-identity verifier looked up its allowlist by `packet_id` alone. Reusing `BUILDER-PREFLIGHT-proto` across initiative versions then caused a false duplicate/identity rejection. | PR #699 / `52327705 fix(builder): scope worker identity by initiative and packet`; `initiative_packets` primary key | §4 — treat packet identity as the composite pair everywhere |
 | F9 | A Builder worktree has no `node_modules` — it is a git worktree and the directory is gitignored — and the runner exposes a Python venv but no Node toolchain. Every `npx` gate is unrunnable there. | verified absent in `.worktrees/kittybuilder/kb_mtgatvyi_340e/gateway/kitty-chat`; no `node_modules` handling anywhere in `builder_runner.py` or `builder_execution_boundary.py` | §6 — frontend gates live in the companion doc for CI, never in `validation_commands` |
 
 ---
@@ -74,7 +74,7 @@ Exactly these packet keys, nothing else:
 
 ```json
 {
-  "id": "GLOBALLY-UNIQUE-ID",
+  "id": "PACKET-ID-WITHIN-THIS-INITIATIVE",
   "title": "...",
   "objective": "...",
   "depends_on": [],
@@ -103,8 +103,10 @@ to `-proto` to silence it.
 
 **Identity rules.**
 
-- A packet ID is globally unique across every manifest in `docs/initiatives/`,
-  forever. A revision gets a *new* ID, never a reused one (F8).
+- Durable packet identity is **`(initiative_id, packet_id)`**. A packet ID must be
+  unique inside its initiative/manifest, but the same `packet_id` may appear in
+  a different initiative. Never key allowlists, receipts, reviews, or lookups by
+  `packet_id` alone (F8).
 - An initiative revision gets a new file and a new `initiative_id` ending `-vN`.
   The superseded one is recorded in the companion doc, never by silently
   editing the old JSON.
@@ -173,6 +175,11 @@ Rules:
 5. **The gate must fail before the change and pass after.** If it passes on
    current `main`, it proves nothing. Say in the companion doc which command
    fails today and what its current output is.
+
+Historical manifests under `data/kittybuilder/manifests/` preserve the runtime
+contracts they were authored with. Some still contain `python3.12` commands or
+paid routes; they are evidence, **not templates for new packets**. New authoring
+follows this standard and `scripts/packet_preflight.py`.
 
 Every shape Builder can run today:
 
@@ -278,8 +285,10 @@ paid model override outright (`gateway/builder_loop.py`
 `_sanitize_free_adapter_env`). The free ladder tries seven models in order
 before giving up (`scripts/kittybuilder_opencode_worker.sh`).
 
-Leave `policy.routing` as `{"model": null, "provider": null}` and the packet
-runs free. That is correct for the large majority of work.
+For free work, **omit `policy.routing`**. `{}` or a `null` routing key also
+validate, but omission is the canonical authoring shape. Never write explicit
+null subkeys such as `{"model": null, "provider": null}`: Builder rejects them
+because a present `model` or `provider` must be a non-empty string.
 
 Ask for paid only when the packet's own text can justify it:
 
@@ -356,7 +365,7 @@ the next worker resumes.
 ## 13. Authoring checklist
 
 - [ ] One sentence of §3 written and it needs no comma splice
-- [ ] Packet ID is globally unique across all of `docs/initiatives/`
+- [ ] Packet ID is unique within this initiative; all identity references use `(initiative_id, packet_id)`
 - [ ] Every file the packet creates is in `allowed_paths` (§5)
 - [ ] Test paths are in `allowed_paths`
 - [ ] No `.claude/`, `data/`, secrets, or workflow paths
