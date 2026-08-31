@@ -37,9 +37,10 @@ does not activate a mission or apply a Builder manifest.
 
 Verified 2026-08-30 against the finished PR #705 implementation:
 
-- Approved packet base SHA: `29ffba5a49115644e93bb444fdfcf25e295ff5ee`.
+- Pilot implementation base SHA: `39e42ca55f0dd04a2e13bc8f1ecf32588ba8b149`.
 - Integrated main at reconciliation: `1013dbd41c28710f08451b8a683d703272270385`.
-- PR #705 implementation checkpoint: `a851e647c71666df404f7ecc7819956c414e9a72`.
+- Exact reviewed implementation checkpoint before this receipt-only correction:
+  `29ffba5a49115644e93bb444fdfcf25e295ff5ee`.
 - The implementation changes the 11 reconciled pilot/support paths listed
   below, plus the separately approved two-file Vision exception.
 - Final publication and Product Acceptance evidence is bound externally to the
