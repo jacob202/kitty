@@ -5,6 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from gateway import automation_runs, cron, undo_journal
+
 router = APIRouter(tags=["cron"])
 
 
@@ -31,16 +33,14 @@ def _validate_timezone(timezone: str | None) -> dict:
 
 @router.get("/cron/schedules")
 async def cron_list_schedules():
-    from gateway.cron import list_schedules
 
-    return {"schedules": list_schedules()}
+    return {"schedules": cron.list_schedules()}
 
 
 @router.get("/cron/actions")
 async def cron_list_actions():
-    from gateway.cron import get_actions
 
-    return {"actions": get_actions()}
+    return {"actions": cron.get_actions()}
 
 
 @router.get("/cron/runs")
@@ -49,32 +49,28 @@ async def cron_list_runs(
     action: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
 ):
-    from gateway.automation_runs import list_runs
 
-    return {"runs": list_runs(automation_id=automation_id, action=action, limit=limit)}
+    return {"runs": automation_runs.list_runs(automation_id=automation_id, action=action, limit=limit)}
 
 
 @router.get("/cron/schedule/{sid}/status")
 async def cron_schedule_status(sid: str):
-    from gateway.automation_runs import list_runs
-    from gateway.cron import explain_schedule, list_schedules
 
-    schedule_row = next((row for row in list_schedules() if row["id"] == sid), None)
+    schedule_row = next((row for row in cron.list_schedules() if row["id"] == sid), None)
     if schedule_row is None:
         raise HTTPException(status_code=404, detail=f"Schedule not found: {sid}")
-    runs = list_runs(automation_id=sid, limit=1)
+    runs = automation_runs.list_runs(automation_id=sid, limit=1)
     return {
         "schedule": schedule_row,
-        "execution": explain_schedule(schedule_row),
+        "execution": cron.explain_schedule(schedule_row),
         "latest_run": runs[0] if runs else None,
     }
 
 
 @router.post("/cron/schedule")
 async def cron_create_schedule(payload: ScheduleRequest):
-    from gateway.cron import schedule
 
-    sid = schedule(
+    sid = cron.schedule(
         name=payload.name,
         action=payload.action,
         schedule_type=payload.schedule_type,
@@ -86,15 +82,13 @@ async def cron_create_schedule(payload: ScheduleRequest):
 
 @router.delete("/cron/schedule/{sid}")
 async def cron_delete_schedule(sid: str):
-    from gateway.cron import remove
 
-    ok = remove(sid)
+    ok = cron.remove(sid)
     return {"ok": ok}
 
 
 @router.patch("/cron/schedule/{sid}")
 async def cron_update_schedule(sid: str, payload: ScheduleRequest):
-    from gateway import undo_journal
 
     try:
         journal_id = undo_journal.update_automation_with_undo(
@@ -112,7 +106,6 @@ async def cron_update_schedule(sid: str, payload: ScheduleRequest):
 
 @router.post("/cron/schedule/{sid}/toggle")
 async def cron_toggle_schedule(sid: str):
-    from gateway import cron, undo_journal
 
     try:
         journal_id = undo_journal.toggle_automation_with_undo(sid)
