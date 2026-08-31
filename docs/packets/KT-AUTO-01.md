@@ -14,18 +14,20 @@ Trust the Automations screen: if it says the morning brief went out, it went out
 Three linked untruths in the one automation Jacob actually depends on.
 
 1. `gateway/brief_scheduler.py:125-133` — when `push_to_jacob` accepts on no channel, the code logs a warning and returns the brief text anyway, so `gateway/automation_actions.py` records the run as `completed`. The status vocabulary already has the right word: `ACTION_RESULT_STATUSES` at `gateway/automation_actions.py:17` is `{"completed", "source_unavailable", "condition_false"}`. Nothing new needs inventing.
-2. `gateway/app.py:292-298` — every gateway start calls `cron.ensure_schedule` with `load_brief_time()` read from `config/user_profile.json`, and no route or UI writes that file. Change the brief time in the app and the next restart silently reverts it.
-3. `gateway/cron.py:151-166` — the duplicate check keys on the exact tuple of action, schedule type, schedule value and metadata. Edit a seeded schedule and the key no longer matches, so the next startup seeds a second copy of it.
+2. `gateway/app.py:292-298` — every gateway start calls `cron.ensure_schedule` with `load_brief_time()` read from `config/user_profile.json`. Change the brief time and the next restart silently reverts it.
+3. `gateway/cron.py:151-166` — this is the dedupe inside `cron.schedule()`, used by the five seed calls at `gateway/app.py:299-303`. It keys on the exact tuple of action, schedule type, schedule value and metadata, so editing a seeded schedule changes the key and the next startup seeds a second copy.
 
 All three verified present at the base SHA above.
 
+**Two traps.** `ensure_schedule` (defect 2) and `schedule` (defect 3) are different functions with different jobs; do not conflate them. And `ensure_schedule`'s always-overwrite behaviour is deliberate, not the bug — `tests/test_cron.py::TestCron::test_ensure_schedule_updates_one_stable_automation_identity` asserts it, that file is in this packet's own gate, and changing the function would fail the very test meant to prove the fix. Defect 2 is fixed at the call site in `gateway/app.py`, nowhere else.
+
 ## Plan
 1. Read `gateway/brief_scheduler.py`, `gateway/automation_actions.py`, `gateway/cron.py`, and the cron-registration block at the end of `gateway/app.py`.
-2. Write the failing tests first: a brief run with no accepting channel records `source_unavailable`; a brief time changed after first start survives a restart; editing a seeded schedule then restarting leaves one row, not two. Run them and watch them fail.
+2. Write the failing tests first: a brief run with no accepting channel records `source_unavailable`; a morning-brief schedule whose time was changed in its row survives a restart; editing one of the five seeded schedules then restarting leaves one row, not two. Run them and watch them fail.
 3. Make the brief action return `source_unavailable` when no channel accepted, and `completed` when one did. The reason a person reads must not require knowing what a "channel" is.
-4. Make startup stop overwriting a schedule that has been changed since it was seeded, while still seeding it on a machine that has none.
-5. Make seeding recognise an existing seeded schedule that has since been edited, instead of adding a second one.
-6. Re-run the four named test files.
+4. In `gateway/app.py` only, seed the morning brief from the profile when no schedule for that action exists, and leave an existing row alone on every later start. Do not touch `cron.ensure_schedule`.
+5. Make `cron.schedule`'s seeding recognise an existing seeded schedule that has since been edited, instead of adding a second one.
+6. Re-run the four named test files, including the `ensure_schedule` test with its assertions unmodified.
 
 The risk is step 4 and 5: you need a way to tell "seeded and untouched" from "seeded and then edited" without deleting anything. Preserve every existing schedule and run row — do not resolve duplicates by pruning.
 
