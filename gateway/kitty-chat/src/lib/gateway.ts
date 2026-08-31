@@ -932,7 +932,7 @@ export async function fetchGatewayPrompts(): Promise<GatewayPromptTemplate[]> {
 // ── Monitors ─────────────────────────────────────────────────────────────────
 
 export interface GatewayMonitor {
-  watch_id: string
+  id: string
   url: string
   label: string
   keywords?: string[]

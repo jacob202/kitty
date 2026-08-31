@@ -3,6 +3,7 @@
 import type { GatewayLoop } from '@/lib/gateway'
 import { CronPanel } from './CronPanel'
 import { LoopWatch } from './LoopWatch'
+import { MonitorPanel } from './MonitorPanel'
 
 interface Props {
   isMobile: boolean
@@ -42,6 +43,11 @@ export default function AutomationsView({ isMobile, loops, loopsLoading, loopsEr
               isLoading={loopsLoading}
             />
           )}
+        </section>
+
+        <section aria-labelledby="automation-monitors-heading" style={{ display: 'grid', gap: 10 }}>
+          <h2 id="automation-monitors-heading" style={sectionHeadingStyle}>Monitors</h2>
+          <MonitorPanel />
         </section>
       </div>
     </div>

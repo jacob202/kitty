@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { TodoPanel } from './TodoPanel'
 
 // -- lazy-loaded view components ------------------------------------------------
 
@@ -82,8 +83,9 @@ export function ViewRenderer({
       case 'chat':
         return <ChatView {...chatProps} compact={isMobile} />
       case 'work':
-      case 'tasks':
         return <WorkView isMobile={isMobile} onNavigate={homeProps?.onNavigate} />
+      case 'tasks':
+        return <div style={pad}><TodoPanel /></div>
       case 'studio':
       case 'images':
         return <StudioView isMobile={isMobile} />

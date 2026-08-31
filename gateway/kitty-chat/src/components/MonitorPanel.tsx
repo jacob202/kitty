@@ -38,7 +38,7 @@ export function MonitorPanel() {
       {monitors.length > 0 ? (
         <div style={{ display: 'grid', gap: 5 }}>
           {monitors.map(m => (
-            <div key={m.watch_id} style={rowStyle}>
+            <div key={m.id} style={rowStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={labelStyle}>{m.label}</span>
                 <span style={{ ...statusStyle, color: m.last_match ? 'var(--cat-ginger)' : 'var(--ink-2)' }}>
@@ -47,7 +47,7 @@ export function MonitorPanel() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
                 <span style={urlStyle}>{m.url.replace(/^https?:\/\//, '').slice(0, 40)}</span>
-                <button onClick={() => removeMonitor.mutate(m.watch_id)} style={removeButtonStyle}>×</button>
+                <button aria-label={`remove monitor ${m.label}`} onClick={() => removeMonitor.mutate(m.id)} style={removeButtonStyle}>×</button>
               </div>
             </div>
           ))}

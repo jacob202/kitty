@@ -38,7 +38,7 @@ export function TodoPanel() {
               title={t.content}
               status={t.status === 'in_progress' ? 'working' : 'scheduled'}
               statusDetail={t.active_form ?? undefined}
-              onRetry={() => completeTodo.mutate(t.id)}
+              onComplete={() => completeTodo.mutate(t.id)}
             />
           ))}
         </div>
