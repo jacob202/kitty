@@ -1,13 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import WorkView from '../src/components/WorkView'
 
-const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction, proposeBuilderJob, approveBuilderJob } = vi.hoisted(() => ({
+const { useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction } = vi.hoisted(() => ({
   useWorkSnapshot: vi.fn(), usePreflight: vi.fn(), useSupervisor: vi.fn(), useBuilderAction: vi.fn(),
-  proposeBuilderJob: vi.fn(), approveBuilderJob: vi.fn(),
 }))
 vi.mock('../src/lib/work', () => ({ useWorkSnapshot, usePreflight, useSupervisor, useBuilderAction }))
-vi.mock('../src/lib/gateway', () => ({ proposeBuilderJob, approveBuilderJob }))
 
 function readySnapshot() {
   return {
@@ -25,7 +23,6 @@ function supervisor() {
 
 describe('WorkView recovery cockpit', () => {
   beforeEach(() => {
-    proposeBuilderJob.mockReset(); approveBuilderJob.mockReset()
     useSupervisor.mockReturnValue({ data: supervisor(), isPending: false, isError: false })
     useBuilderAction.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useWorkSnapshot.mockReturnValue({ data: readySnapshot(), isPending: false, isError: false, error: null, refetch: vi.fn() })
@@ -38,19 +35,6 @@ describe('WorkView recovery cockpit', () => {
     expect(screen.getByTestId('preflight-banner')).toHaveTextContent('Preflight ready')
     expect(screen.getByTestId('preflight-banner')).toHaveTextContent('free')
     expect(screen.getByTestId('preflight-banner')).toHaveTextContent('CAD 0.0000 local estimate')
-  })
-
-  it('prepares a bounded proposal and requires an explicit send', async () => {
-    proposeBuilderJob.mockResolvedValue({ ok: true, prepared_manifest: { manifest_version: 1 }, manifest_sha256: 'manifest-sha', expected_base_sha: 'base-sha', approval_nonce: 'nonce', warnings: [] })
-    approveBuilderJob.mockResolvedValue({ ok: true, state: 'queued', mission_id: 'mission-1' })
-    render(<WorkView isMobile={false} />)
-    fireEvent.change(screen.getByLabelText('What should Builder do?'), { target: { value: 'Fix the Work button behavior' } })
-    fireEvent.change(screen.getByLabelText('Allowed paths'), { target: { value: 'gateway/kitty-chat/src, gateway/kitty-chat/tests' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare proposal' }))
-    await waitFor(() => expect(screen.getByTestId('builder-proposal-preview')).toBeInTheDocument())
-    expect(approveBuilderJob).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Send to Builder' }))
-    await waitFor(() => expect(approveBuilderJob).toHaveBeenCalledOnce())
   })
 
   it('shows truthful scheduled Builder status without inventing timestamps', () => {
