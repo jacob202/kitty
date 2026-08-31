@@ -8,6 +8,9 @@ vi.mock('../src/components/CronPanel', () => ({
 vi.mock('../src/components/LoopWatch', () => ({
   LoopWatch: ({ title }: { title?: string }) => <div>{title}</div>,
 }))
+vi.mock('../src/components/MonitorPanel', () => ({
+  MonitorPanel: () => <div>monitor manager</div>,
+}))
 
 afterEach(cleanup)
 
@@ -26,6 +29,8 @@ describe('AutomationsView', () => {
     expect(screen.getByRole('heading', { name: 'Schedules' })).toBeVisible()
     expect(screen.getByText('schedule manager full')).toBeVisible()
     expect(screen.getByText('Background routines')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Monitors' })).toBeVisible()
+    expect(screen.getByText('monitor manager')).toBeVisible()
   })
 })
 

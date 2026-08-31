@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from unittest.mock import patch
 
+import pytest
+
 
 class TestBriefScheduler:
     def test_load_brief_time_defaults_to_0800(self, tmp_path, monkeypatch):
@@ -53,7 +55,7 @@ class TestBriefScheduler:
         }
 
         with patch("gateway.brief.generate_brief", return_value=fake_brief):
-            with patch("gateway.push.push_to_jacob", return_value=False):
+            with patch("gateway.push.push_to_jacob", return_value=True):
                 text = brief_scheduler.generate_and_deliver_brief()
 
         assert f"Brief for {today}" in text
@@ -77,15 +79,35 @@ class TestBriefScheduler:
         assert "- kitty: write the migration" in text
 
     def test_generate_and_deliver_brief_reaches_push_facade_exactly_once(self, monkeypatch):
-        from gateway import brief_scheduler
+        from gateway.brief_scheduler import generate_and_deliver_brief
 
         fake_brief = {"date": "2026-07-04", "intention": "Ship the phone channel"}
         with patch("gateway.brief.generate_brief", return_value=fake_brief):
             with patch("gateway.push.push_to_jacob", return_value=True) as mock_push:
-                text = brief_scheduler.generate_and_deliver_brief()
+                text = generate_and_deliver_brief()
 
         mock_push.assert_called_once()
         args, kwargs = mock_push.call_args
         assert args[0] == text
         assert kwargs["kind"] == "info"
         assert kwargs["title"] == "Kitty Morning Brief"
+
+    def test_generate_and_deliver_brief_raises_source_unavailable_when_no_channel(self, monkeypatch):
+        from gateway.automation_actions import SourceUnavailable
+        from gateway.brief_scheduler import generate_and_deliver_brief
+
+        fake_brief = {"date": "2026-07-04", "intention": "Ship the phone channel"}
+        with patch("gateway.brief.generate_brief", return_value=fake_brief):
+            with patch("gateway.push.push_to_jacob", return_value=False):
+                with pytest.raises(SourceUnavailable, match="No configured push channel"):
+                    generate_and_deliver_brief()
+
+    def test_generate_and_deliver_brief_raises_source_unavailable_on_push_error(self, monkeypatch):
+        from gateway.automation_actions import SourceUnavailable
+        from gateway.brief_scheduler import generate_and_deliver_brief
+
+        fake_brief = {"date": "2026-07-04", "intention": "Ship the phone channel"}
+        with patch("gateway.brief.generate_brief", return_value=fake_brief):
+            with patch("gateway.push.push_to_jacob", side_effect=RuntimeError("network down")):
+                with pytest.raises(SourceUnavailable, match="push notification failed"):
+                    generate_and_deliver_brief()

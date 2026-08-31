@@ -17,6 +17,7 @@ const SURFACE_LABELS: Record<string, string> = {
   library: 'Library',
   automations: 'Automations',
   settings: 'Settings',
+  tasks: 'Tasks',
 }
 
 interface Props {

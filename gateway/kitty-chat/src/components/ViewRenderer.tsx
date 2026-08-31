@@ -18,6 +18,7 @@ const TutorShell = dynamic(() => import('./TutorShell'))
 const JournalPanel = dynamic(() => import('./JournalPanel'))
 const TerminalView = dynamic(() => import('./TerminalView'))
 const AgentWorkspacePanel = dynamic(() => import('./AgentWorkspacePanel').then((mod) => mod.AgentWorkspacePanel))
+const TodoPanel = dynamic(() => import('./TodoPanel').then((mod) => mod.TodoPanel))
 
 // -- view renderer --------------------------------------------------------------
 
@@ -82,8 +83,9 @@ export function ViewRenderer({
       case 'chat':
         return <ChatView {...chatProps} compact={isMobile} />
       case 'work':
-      case 'tasks':
         return <WorkView isMobile={isMobile} onNavigate={homeProps?.onNavigate} />
+      case 'tasks':
+        return <div style={pad}><TodoPanel /></div>
       case 'studio':
       case 'images':
         return <StudioView isMobile={isMobile} />

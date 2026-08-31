@@ -143,32 +143,54 @@ def schedule(
     schedule_value: str = "07:00",
     metadata: Optional[dict] = None,
 ) -> str:
-    """Schedule a recurring task. Returns schedule_id."""
+    """Schedule a recurring task. Returns schedule_id.
+
+    Reuses an existing row when EITHER:
+    (A) the stable seed name is the same — preserves edited seeded schedules
+    (B) the original complete tuple (action + schedule_type + schedule_value + metadata) is identical — exact-match idempotency
+    """
     init_db()
     sid = str(uuid.uuid4())[:8]
     now = time.time()
+    metadata_json = json.dumps(metadata or {})
 
     with kitty_db.connect(KITTY_DB_FILE) as conn:
-        existing = conn.execute(
+        # (A) Seed name match: reuse existing row with same name (preserves user edits)
+        existing_by_name = conn.execute(
+            f"SELECT id FROM {TABLE} WHERE name = ? LIMIT 1",
+            (name,),
+        ).fetchone()
+        if existing_by_name:
+            logger.info(
+                "Cron schedule with name %r already exists (id=%s); reusing seed identity",
+                name,
+                existing_by_name[0],
+            )
+            return existing_by_name[0]
+
+        # (B) Full tuple match: exact-match idempotency across different callers
+        existing_by_tuple = conn.execute(
             f"SELECT id FROM {TABLE} "
             "WHERE action = ? AND schedule_type = ? AND schedule_value = ? AND metadata = ? "
             "LIMIT 1",
-            (action, schedule_type, schedule_value, json.dumps(metadata or {})),
+            (action, schedule_type, schedule_value, metadata_json),
         ).fetchone()
-        if existing:
+        if existing_by_tuple:
             logger.warning(
-                "Cron schedule for action %r (%s %s) already exists (id=%s); skipping duplicate",
+                "Cron schedule for action %r (%s %s %s) already exists (id=%s); skipping duplicate",
                 action,
                 schedule_type,
                 schedule_value,
-                existing[0],
+                metadata_json,
+                existing_by_tuple[0],
             )
-            return existing[0]
+            return existing_by_tuple[0]
+
         conn.execute(
             f"INSERT INTO {TABLE} "
             "(id, name, action, schedule_type, schedule_value, metadata, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (sid, name, action, schedule_type, schedule_value, json.dumps(metadata or {}), now),
+            (sid, name, action, schedule_type, schedule_value, metadata_json, now),
         )
         conn.commit()
 

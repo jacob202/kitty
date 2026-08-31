@@ -1,6 +1,6 @@
 'use client'
 import { type ReactNode } from 'react'
-import { MessageCircle, ArrowRight, RotateCcw, Play, X } from 'lucide-react'
+import { MessageCircle, ArrowRight, RotateCcw, Play, X, Check } from 'lucide-react'
 
 export type WorkStatus = 'working' | 'needs_user' | 'scheduled' | 'paused' | 'failed' | 'completed' | 'unavailable' | 'degraded' | 'canceled'
 
@@ -20,6 +20,7 @@ export interface WorkCardProps {
   progress?: number
   artifacts?: WorkArtifact[]
   onRetry?: () => void
+  onComplete?: () => void
   onResume?: () => void
   onCancel?: () => void
   onNavigate?: () => void
@@ -50,6 +51,7 @@ export function WorkCard({
   progress,
   artifacts,
   onRetry,
+  onComplete,
   onResume,
   onCancel,
   onNavigate,
@@ -184,7 +186,7 @@ export function WorkCard({
           </div>
         )}
 
-        {(onRetry || onResume || onCancel) && (
+        {(onRetry || onComplete || onResume || onCancel) && (
           <div style={{
             display: 'flex',
             gap: 8,
@@ -192,6 +194,9 @@ export function WorkCard({
           }}>
             {onRetry && (
               <WorkAction onClick={onRetry} icon={<RotateCcw size={12} />} label="retry" />
+            )}
+            {onComplete && (
+              <WorkAction onClick={onComplete} icon={<Check size={12} />} label="complete" />
             )}
             {onResume && (
               <WorkAction onClick={onResume} icon={<Play size={12} />} label="resume" />
