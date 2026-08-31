@@ -6,13 +6,24 @@ shapes) is unchanged.
 """
 from __future__ import annotations
 
+import base64
 import json
+import logging
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 
 from gateway import artifact_store, chat_lifecycle, chats_store
 
+logger = logging.getLogger("kitty.routes.chats")
+
 router = APIRouter(tags=["chats"])
+
+# LIBRARY-CHAT-001: images that can be attached from Library into a chat
+# message. The chat-completions path turns each into an OpenAI image_url part,
+# so only raster image types the model can actually read are allowed.
+CHAT_IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
+CHAT_IMAGE_MAX_BYTES = 5 * 1024 * 1024  # 5 MiB
 
 
 def _recover_memory_items(raw_memory: object) -> list[dict[str, str]]:
@@ -237,6 +248,117 @@ def _recover_messages(conversation_id: str) -> list[dict]:
         recovered.append(message)
 
     return recovered
+
+
+def _resolve_chat_image_attachment(artifact_id: str, *, include_data_url: bool = True) -> dict:
+    """Resolve a stored artifact to a chat-ready image attachment.
+
+    Raises a plain-language HTTPException for any artifact that cannot be used
+    in chat: unknown id, not an image, unsupported image type, not ready, or
+    over the 5 MiB pilot limit. The caller decides whether the artifact also
+    needs to exist as a registered attachment before dispatch.
+    """
+    artifact = artifact_store.get_artifact(artifact_id)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="That saved file no longer exists.")
+    if artifact.get("state") != "ready":
+        raise HTTPException(
+            status_code=409,
+            detail="That saved file is not ready to use in chat yet.",
+        )
+    media_type = artifact.get("media_type") or "application/octet-stream"
+    if not media_type.startswith("image/"):
+        raise HTTPException(
+            status_code=415,
+            detail="Only images can be attached into a chat message from Library.",
+        )
+    if media_type not in CHAT_IMAGE_MIME_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail="That image type isn't supported in chat yet — use PNG, JPEG, or WebP.",
+        )
+    size_bytes = artifact.get("size_bytes")
+    if not isinstance(size_bytes, int) or size_bytes <= 0:
+        raise HTTPException(status_code=409, detail="That saved file has no readable size.")
+    if size_bytes > CHAT_IMAGE_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"That image is {_format_bytes(size_bytes)} — chat attachments are limited to 5 MB.",
+        )
+    storage_uri = artifact.get("storage_uri")
+    if not storage_uri:
+        raise HTTPException(status_code=409, detail="That saved file has no readable content.")
+    path = Path(storage_uri)
+    if not path.is_file():
+        raise HTTPException(status_code=409, detail="That saved file is missing from disk.")
+    try:
+        actual_size = path.stat().st_size
+    except OSError as exc:
+        logger.warning("could not stat artifact %s for chat: %s", artifact_id, exc)
+        raise HTTPException(
+            status_code=409, detail="That saved file could not be read right now."
+        ) from exc
+    if actual_size <= 0:
+        raise HTTPException(status_code=409, detail="That saved file has no readable size.")
+    if actual_size > CHAT_IMAGE_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"That image is {_format_bytes(actual_size)} — chat attachments are limited to 5 MB.",
+        )
+    attachment = {
+        "id": artifact["id"],
+        "display_name": artifact.get("display_name") or path.name,
+        "media_type": media_type,
+        "size": actual_size,
+    }
+    if not include_data_url:
+        return attachment
+    try:
+        with path.open("rb") as handle:
+            content = handle.read(CHAT_IMAGE_MAX_BYTES + 1)
+    except OSError as exc:
+        logger.warning("could not read artifact %s for chat: %s", artifact_id, exc)
+        raise HTTPException(
+            status_code=409, detail="That saved file could not be read right now."
+        ) from exc
+    if len(content) > CHAT_IMAGE_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="That image grew beyond the 5 MB chat attachment limit.",
+        )
+    encoded = base64.b64encode(content).decode("ascii")
+    return {**attachment, "data_url": f"data:{media_type};base64,{encoded}"}
+
+
+def _format_bytes(size: int) -> str:
+    if size < 1024:
+        return f"{size} B"
+    if size < 1024 * 1024:
+        return f"{size / 1024:.1f} KB"
+    return f"{size / (1024 * 1024):.1f} MB"
+
+
+@router.post("/chats/use-in-chat")
+async def use_in_chat(request: Request) -> dict:
+    """Resolve a saved artifact into a chat-ready image attachment.
+
+    This is the Library → Chat bridge for LIBRARY-CHAT-001. It validates type
+    and size before any network dispatch and returns only the attachment
+    metadata the composer renders. The durable artifact id is resolved to image
+    bytes later, inside the trusted completions route, so the model receives the
+    image exactly once. Errors are plain language with no internal paths, ids,
+    or status codes.
+    """
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="invalid JSON body") from exc
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="request body must be an object")
+    artifact_id = body.get("artifact_id")
+    if not isinstance(artifact_id, str) or not artifact_id.strip():
+        raise HTTPException(status_code=400, detail="artifact_id is required")
+    return _resolve_chat_image_attachment(artifact_id.strip(), include_data_url=False)
 
 
 @router.get("/chats/{chat_id}/messages")

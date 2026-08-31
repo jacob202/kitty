@@ -324,7 +324,14 @@ def agentrouter_model_for_request(request_model: str | None) -> str:
 
 
 def _openrouter_fallback_model(litellm_model: str) -> str:
-    """Map LiteLLM-only model ids to OpenRouter-compatible ids."""
+    """Map LiteLLM-only model ids to OpenRouter-compatible ids.
+
+    ``KITTY_OPENROUTER_DIRECT_MODEL`` is a text-lane override. Vision keeps its
+    dedicated multimodal route so an inexpensive text model cannot silently
+    replace the model required to inspect an attached image.
+    """
+    if litellm_model == "kitty-vision":
+        return _LITELLM_TO_OPENROUTER[litellm_model]
     direct = os.environ.get("KITTY_OPENROUTER_DIRECT_MODEL", "").strip()
     if direct:
         return direct
