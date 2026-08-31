@@ -56,7 +56,8 @@ When both are clean, load it for real:
 ./kitty builder initiative apply docs/initiatives/<file>.json
 ```
 
-That creates one job per packet. It does not start anything yet.
+That creates one job per packet. The apply command itself does not run a worker,
+but a loaded scheduled supervisor may claim eligible work on its next tick.
 
 ---
 
@@ -74,13 +75,18 @@ order before giving up.
 
 **Overnight, unattended:**
 
-Nothing to press. A scheduled job already wakes every 15 minutes and picks up
-eligible work. It is a launchd agent called `com.kitty.builder.supervisor`.
-Confirm it is loaded:
+When the scheduled supervisor is installed and loaded, launchd wakes it every
+15 minutes (`StartInterval` 900) to pick up eligible work. It is a launchd agent
+called `com.kitty.builder.supervisor`. Confirm it is loaded:
 
 ```bash
 launchctl list | grep kitty.builder
 ```
+
+If that command prints no `com.kitty.builder.supervisor` row, unattended
+execution is **not** active; Builder does not silently install the LaunchAgent
+for you. Use a manual run/tick until host setup installs and loads the canonical
+plist.
 
 To run one round by hand instead of waiting:
 
@@ -158,8 +164,23 @@ launchctl unload ~/Library/LaunchAgents/com.kitty.builder.supervisor.plist
 
 ---
 
-## What Builder will never do on its own
+## What the implementation worker will never do
 
-It cannot push, open a pull request, or merge. It cannot touch your secrets,
-your session files, or anything under `data/`. Publishing is yours alone, every
-time. If something claims a packet "shipped", check GitHub — not the report.
+The model-controlled implementation worker cannot push, open a pull request,
+merge, touch secrets/session files, or write runtime state under `data/`.
+Publication is a separate trusted host stage.
+
+An operator can deliberately publish successful packets with:
+
+```bash
+./kitty builder initiative run <initiative-id> --free --publish --gate manual
+```
+
+`--gate manual` pushes/creates or updates the PR and parks for human merge.
+`--gate auto` enables the separate CP-06 evidence-gated merge path, which
+requires exact-head approval evidence and performs post-merge validation with
+an automatic revert on red. Neither behavior is something the implementation
+worker may trigger by editing code or its result receipt.
+
+If something claims a packet "shipped", verify the linked PR/merge state on
+GitHub rather than trusting the worker report alone.
