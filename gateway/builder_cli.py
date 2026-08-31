@@ -28,6 +28,25 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from gateway import (
+    brief,
+    builder_attempt,
+    builder_brief,
+    builder_contract,
+    builder_doctor,
+    builder_initiative,
+    builder_loop,
+    builder_paid_routing,
+    builder_publish,
+    builder_queue,
+    builder_report,
+    builder_run,
+    builder_runner,
+    compute_governor,
+    paths,
+)
+from gateway import builder_supervisor as bs
+
 # Exit code for ``initiative run`` when the initiative is paused awaiting a
 # ``needs_decision`` operator decision. Distinct from generic failure (1) and
 # ordinary completion (0): the run is durably parked and a human decision is
@@ -123,9 +142,8 @@ def _resolve_loop_commands(
                 "--paid selects governed worker/reviewer models and provider; "
                 "drop --worker-command/--review-command/--model/--provider or drop --paid"
             )
-        from gateway.builder_paid_routing import resolve_paid_route
 
-        route = resolve_paid_route(args.tier)
+        route = builder_paid_routing.resolve_paid_route(args.tier)
         worker_command, review_command = _free_adapter_commands()
         return worker_command, review_command, route, _paid_adapter_env(route)
     if args.free:
@@ -175,12 +193,11 @@ def _cmd_not_enabled(args: argparse.Namespace) -> int:
 
 
 def _cmd_brief(args: argparse.Namespace) -> int:
-    from gateway.brief import build_worker_brief
 
     packet: dict[str, Any] = {}
     if args.packet:
         packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
-    print(build_worker_brief(" ".join(args.task), packet))
+    print(brief.build_worker_brief(" ".join(args.task), packet))
     return 0
 
 
@@ -190,17 +207,16 @@ def _cmd_brief(args: argparse.Namespace) -> int:
 
 
 def _cmd_contract_validate(args: argparse.Namespace) -> int:
-    from gateway.builder_contract import ContractError, load_contract, run_contract
 
     try:
-        spec = load_contract(Path(args.path))
-    except ContractError as exc:
+        spec = builder_contract.load_contract(Path(args.path))
+    except builder_contract.ContractError as exc:
         print(f"contract load error: {exc}", file=sys.stderr)
         return 1
 
     try:
-        result = run_contract(spec)
-    except ContractError as exc:
+        result = builder_contract.run_contract(spec)
+    except builder_contract.ContractError as exc:
         print(f"contract error: {exc}", file=sys.stderr)
         return 1
 
@@ -214,7 +230,6 @@ def _cmd_contract_validate(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_add(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import create_task
 
     try:
         acceptance = _parse_json_array(args.acceptance)
@@ -224,7 +239,7 @@ def _cmd_queue_add(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        task = create_task(
+        task = builder_queue.create_task(
             args.title,
             description=args.description,
             acceptance_criteria=acceptance,
@@ -248,11 +263,6 @@ def _cmd_queue_add(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_edit(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
-        IllegalTransitionError,
-        TaskNotFoundError,
-        edit_task,
-    )
 
     kwargs: dict[str, Any] = {}
 
@@ -276,14 +286,14 @@ def _cmd_queue_edit(args: argparse.Namespace) -> int:
             return 1
 
     try:
-        task = edit_task(args.id, **kwargs)
+        task = builder_queue.edit_task(args.id, **kwargs)
         if args.json:
             print(json.dumps(task, indent=2, default=str))
         else:
             print(f"Edited task {task['id']}")
             _print_task_summary(task)
         return 0
-    except (ValueError, TaskNotFoundError, IllegalTransitionError) as exc:
+    except (ValueError, builder_queue.TaskNotFoundError, builder_queue.IllegalTransitionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -294,9 +304,8 @@ def _cmd_queue_edit(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_list(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import list_tasks
 
-    tasks = list_tasks(state=args.state, include_archived=args.include_archived)
+    tasks = builder_queue.list_tasks(state=args.state, include_archived=args.include_archived)
 
     if args.json:
         print(json.dumps(tasks, indent=2, default=str))
@@ -315,9 +324,8 @@ def _cmd_queue_list(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_show(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import get_task
 
-    task = get_task(args.id)
+    task = builder_queue.get_task(args.id)
     if task is None:
         print(f"error: task not found: {args.id}", file=sys.stderr)
         return 1
@@ -335,15 +343,9 @@ def _cmd_queue_show(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_claim(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
-        IllegalTransitionError,
-        LeaseConflictError,
-        TaskNotFoundError,
-        claim_task,
-    )
 
     try:
-        task = claim_task(
+        task = builder_queue.claim_task(
             args.id,
             args.worker,
             lease_seconds=args.lease_seconds,
@@ -354,7 +356,7 @@ def _cmd_queue_claim(args: argparse.Namespace) -> int:
             print(f"Claimed task {task['id']} for {args.worker}")
             _print_task_summary(task)
         return 0
-    except (TaskNotFoundError, LeaseConflictError, IllegalTransitionError) as exc:
+    except (builder_queue.TaskNotFoundError, builder_queue.LeaseConflictError, builder_queue.IllegalTransitionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -365,10 +367,9 @@ def _cmd_queue_claim(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_claim_next(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import claim_next
 
     try:
-        task = claim_next(
+        task = builder_queue.claim_next(
             args.worker,
             lease_seconds=args.lease_seconds,
         )
@@ -396,14 +397,9 @@ def _cmd_queue_claim_next(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_release(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
-        LeaseConflictError,
-        TaskNotFoundError,
-        worker_release_task,
-    )
 
     try:
-        task = worker_release_task(
+        task = builder_queue.worker_release_task(
             args.id,
             args.lease_token,
             args.claim_version,
@@ -414,7 +410,7 @@ def _cmd_queue_release(args: argparse.Namespace) -> int:
             print(f"Released task {task['id']}")
             _print_task_summary(task)
         return 0
-    except (TaskNotFoundError, LeaseConflictError) as exc:
+    except (builder_queue.TaskNotFoundError, builder_queue.LeaseConflictError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -425,21 +421,16 @@ def _cmd_queue_release(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_operator_release(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
-        IllegalTransitionError,
-        TaskNotFoundError,
-        operator_release_task,
-    )
 
     try:
-        task = operator_release_task(args.id, reason=args.reason)
+        task = builder_queue.operator_release_task(args.id, reason=args.reason)
         if args.json:
             print(json.dumps(task, indent=2, default=str))
         else:
             print(f"Operator-released task {task['id']}")
             _print_task_summary(task)
         return 0
-    except (TaskNotFoundError, IllegalTransitionError) as exc:
+    except (builder_queue.TaskNotFoundError, builder_queue.IllegalTransitionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -450,12 +441,6 @@ def _cmd_queue_operator_release(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_transition(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
-        IllegalTransitionError,
-        LeaseConflictError,
-        TaskNotFoundError,
-        worker_transition_task,
-    )
 
     payload: dict[str, Any] | None = None
     if args.payload_json is not None:
@@ -466,7 +451,7 @@ def _cmd_queue_transition(args: argparse.Namespace) -> int:
             return 1
 
     try:
-        task = worker_transition_task(
+        task = builder_queue.worker_transition_task(
             args.id,
             args.state,
             args.lease_token,
@@ -479,7 +464,7 @@ def _cmd_queue_transition(args: argparse.Namespace) -> int:
             print(f"Transitioned task {task['id']} to {task['state']}")
             _print_task_summary(task)
         return 0
-    except (TaskNotFoundError, LeaseConflictError, IllegalTransitionError) as exc:
+    except (builder_queue.TaskNotFoundError, builder_queue.LeaseConflictError, builder_queue.IllegalTransitionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -490,11 +475,10 @@ def _cmd_queue_transition(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_events(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import TaskNotFoundError, list_events
 
     try:
-        events = list_events(args.id)
-    except TaskNotFoundError as exc:
+        events = builder_queue.list_events(args.id)
+    except builder_queue.TaskNotFoundError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -527,15 +511,14 @@ def _warn_if_backup_stale(total_tasks: int) -> None:
     if total_tasks == 0:
         return
 
-    from gateway.paths import BUILDER_QUEUE_DB
 
-    backup_dir = BUILDER_QUEUE_DB.parent / "backups"
+    backup_dir = paths.BUILDER_QUEUE_DB.parent / "backups"
     backups = sorted(
         backup_dir.glob("builder_queue_*.db"),
         key=lambda p: p.stat().st_mtime,
     )
     hint = (
-        "Back up with: sqlite3 " + str(BUILDER_QUEUE_DB)
+        "Back up with: sqlite3 " + str(paths.BUILDER_QUEUE_DB)
         + ' "VACUUM INTO \'' + str(backup_dir) + "/builder_queue_"
         + _dt.date.today().strftime("%Y%m%d") + ".db'\""
     )
@@ -555,9 +538,8 @@ def _warn_if_backup_stale(total_tasks: int) -> None:
 
 
 def _cmd_queue_status(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import queue_status
 
-    status = queue_status()
+    status = builder_queue.queue_status()
     _warn_if_backup_stale(status["total"])
     if args.json:
         print(json.dumps(status, indent=2, default=str))
@@ -581,9 +563,8 @@ def _cmd_queue_status(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_doctor(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import find_silent_transitions
 
-    silent = find_silent_transitions()
+    silent = builder_queue.find_silent_transitions()
 
     if args.json:
         print(json.dumps({"silent_transitions": silent}, indent=2, default=str))
@@ -609,10 +590,9 @@ def _cmd_queue_doctor(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_archive(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import archive_tasks
 
     try:
-        result = archive_tasks(args.state, older_than_days=args.older_than)
+        result = builder_queue.archive_tasks(args.state, older_than_days=args.older_than)
         if args.json:
             print(json.dumps(result, indent=2, default=str))
         else:
@@ -630,17 +610,15 @@ def _cmd_queue_archive(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_brief(args: argparse.Namespace) -> int:
-    from gateway.builder_brief import render_worker_brief
-    from gateway.builder_queue import get_pr_links, get_task, list_events
 
-    task = get_task(args.id)
+    task = builder_queue.get_task(args.id)
     if task is None:
         print(f"error: task not found: {args.id}", file=sys.stderr)
         return 1
 
-    events = list_events(args.id)
-    pr_links = get_pr_links(args.id)
-    brief = render_worker_brief(task, events, pr_links, branch=args.branch)
+    events = builder_queue.list_events(args.id)
+    pr_links = builder_queue.get_pr_links(args.id)
+    brief = builder_brief.render_worker_brief(task, events, pr_links, branch=args.branch)
 
     if args.json:
         print(json.dumps({"task_id": args.id, "brief": brief}, indent=2))
@@ -655,12 +633,6 @@ def _cmd_queue_brief(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_attach_report(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
-        IllegalTransitionError,
-        LeaseConflictError,
-        TaskNotFoundError,
-        attach_final_report,
-    )
 
     if (args.report_json is None) == (args.report_file is None):
         print(
@@ -684,7 +656,7 @@ def _cmd_queue_attach_report(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        task = attach_final_report(
+        task = builder_queue.attach_final_report(
             args.id,
             report or {},
             lease_token=args.lease_token,
@@ -698,9 +670,9 @@ def _cmd_queue_attach_report(args: argparse.Namespace) -> int:
         return 0
     except (
         ValueError,
-        TaskNotFoundError,
-        LeaseConflictError,
-        IllegalTransitionError,
+        builder_queue.TaskNotFoundError,
+        builder_queue.LeaseConflictError,
+        builder_queue.IllegalTransitionError,
     ) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -712,10 +684,9 @@ def _cmd_queue_attach_report(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_attach_pr(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import TaskNotFoundError, attach_pr
 
     try:
-        link = attach_pr(
+        link = builder_queue.attach_pr(
             args.id,
             args.pr,
             pr_url=args.url,
@@ -728,15 +699,14 @@ def _cmd_queue_attach_pr(args: argparse.Namespace) -> int:
         else:
             print(f"Attached PR #{link['pr_number']} to task {args.id}")
         return 0
-    except (ValueError, TaskNotFoundError) as exc:
+    except (ValueError, builder_queue.TaskNotFoundError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
 
 def _cmd_queue_sync_pr(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import sync_pr_status
 
-    result = sync_pr_status()
+    result = builder_queue.sync_pr_status()
     if args.json:
         print(json.dumps(result, indent=2, default=str))
         return 0 if not result["errors"] else 1
@@ -751,9 +721,8 @@ def _cmd_queue_sync_pr(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_reconcile_merges(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import detect_merged_prs
 
-    result = detect_merged_prs()
+    result = builder_queue.detect_merged_prs()
     if args.json:
         print(json.dumps(result, indent=2, default=str))
         return 0 if not result["errors"] else 1
@@ -772,18 +741,16 @@ def _cmd_queue_reconcile_merges(args: argparse.Namespace) -> int:
 
 def _cmd_queue_publish(args: argparse.Namespace) -> int:
     """Operator-gated push + PR create/update (KB-S4). Never merges."""
-    from gateway.builder_publish import PublishError, publish_task
-    from gateway.builder_queue import TaskNotFoundError
 
     try:
-        result = publish_task(
+        result = builder_publish.publish_task(
             args.id,
             remote=args.remote,
             base=args.base,
             title=args.title,
             dry_run=args.dry_run,
         )
-    except (PublishError, TaskNotFoundError, ValueError) as exc:
+    except (builder_publish.PublishError, builder_queue.TaskNotFoundError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -815,9 +782,8 @@ def _cmd_queue_publish(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_recover(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import recover_durable_issues
 
-    result = recover_durable_issues()
+    result = builder_queue.recover_durable_issues()
     if args.json:
         print(json.dumps(result, indent=2, default=str))
     else:
@@ -874,14 +840,9 @@ def _cmd_queue_recover(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_operator_cancel(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
-        IllegalTransitionError,
-        TaskNotFoundError,
-        operator_cancel_task,
-    )
 
     try:
-        task = operator_cancel_task(
+        task = builder_queue.operator_cancel_task(
             args.id,
             reason=args.reason or "operator cancel from CLI",
             actor="cli",
@@ -891,7 +852,7 @@ def _cmd_queue_operator_cancel(args: argparse.Namespace) -> int:
         else:
             print(f"Cancelled task {task['id']}")
         return 0
-    except (ValueError, TaskNotFoundError, IllegalTransitionError) as exc:
+    except (ValueError, builder_queue.TaskNotFoundError, builder_queue.IllegalTransitionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -902,12 +863,6 @@ def _cmd_queue_operator_cancel(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_run(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
-        IllegalTransitionError,
-        LeaseConflictError,
-        TaskNotFoundError,
-    )
-    from gateway.builder_runner import RunnerError, run_worker
 
     command = list(args.worker_command or [])
     if command and command[0] == "--":
@@ -921,7 +876,7 @@ def _cmd_queue_run(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        run = run_worker(
+        run = builder_runner.run_worker(
             args.id,
             command,
             worker=args.worker,
@@ -932,10 +887,10 @@ def _cmd_queue_run(args: argparse.Namespace) -> int:
             heartbeat_seconds=args.heartbeat_seconds,
         )
     except (
-        TaskNotFoundError,
-        LeaseConflictError,
-        IllegalTransitionError,
-        RunnerError,
+        builder_queue.TaskNotFoundError,
+        builder_queue.LeaseConflictError,
+        builder_queue.IllegalTransitionError,
+        builder_runner.RunnerError,
         ValueError,
     ) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -949,9 +904,8 @@ def _cmd_queue_run(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_runs(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import list_runs
 
-    runs = list_runs(task_id=args.task, state=args.state)
+    runs = builder_queue.list_runs(task_id=args.task, state=args.state)
     if args.json:
         print(json.dumps(runs, indent=2, default=str))
     else:
@@ -964,9 +918,8 @@ def _cmd_queue_runs(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_show_run(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import get_run
 
-    run = get_run(args.run_id)
+    run = builder_queue.get_run(args.run_id)
     if run is None:
         print(f"error: run not found: {args.run_id}", file=sys.stderr)
         return 1
@@ -990,12 +943,10 @@ def _cmd_queue_show_run(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_cancel_run(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import RunNotFoundError
-    from gateway.builder_runner import RunnerError, request_cancel
 
     try:
-        run = request_cancel(args.run_id, kill=args.kill)
-    except (RunNotFoundError, RunnerError, ValueError) as exc:
+        run = builder_runner.request_cancel(args.run_id, kill=args.kill)
+    except (builder_queue.RunNotFoundError, builder_runner.RunnerError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -1017,11 +968,10 @@ def _cmd_queue_cancel_run(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_clean_worktree(args: argparse.Namespace) -> int:
-    from gateway.builder_runner import RunnerError, remove_worktree
 
     try:
-        path = remove_worktree(args.id)
-    except RunnerError as exc:
+        path = builder_runner.remove_worktree(args.id)
+    except builder_runner.RunnerError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(f"Removed clean worktree {path}")
@@ -1117,28 +1067,21 @@ def _print_task_summary(
 
 
 def _cmd_initiative_validate(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import (
-        ManifestError,
-        load_manifest,
-        manifest_sha256,
-        validate_manifest,
-        warn_manifest,
-    )
 
     try:
-        manifest = load_manifest(Path(args.manifest))
-    except ManifestError as exc:
+        manifest = builder_initiative.load_manifest(Path(args.manifest))
+    except builder_initiative.ManifestError as exc:
         for error in exc.errors:
             print(f"error: {error}", file=sys.stderr)
         return 1
 
-    errors = validate_manifest(manifest)
+    errors = builder_initiative.validate_manifest(manifest)
     if errors:
         for error in errors:
             print(f"error: {error}", file=sys.stderr)
         return 1
 
-    warnings = warn_manifest(manifest)
+    warnings = builder_initiative.warn_manifest(manifest)
     for warning in warnings:
         print(f"warning: {warning}", file=sys.stderr)
 
@@ -1149,7 +1092,7 @@ def _cmd_initiative_validate(args: argparse.Namespace) -> int:
                     "valid": True,
                     "initiative_id": manifest["initiative_id"],
                     "packet_count": len(manifest["packets"]),
-                    "manifest_sha256": manifest_sha256(manifest),
+                    "manifest_sha256": builder_initiative.manifest_sha256(manifest),
                     "warnings": warnings,
                 },
                 indent=2,
@@ -1161,27 +1104,21 @@ def _cmd_initiative_validate(args: argparse.Namespace) -> int:
     print(
         f"OK: initiative {manifest['initiative_id']!r}, "
         f"{len(manifest['packets'])} packet(s), "
-        f"sha256 {manifest_sha256(manifest)}"
+        f"sha256 {builder_initiative.manifest_sha256(manifest)}"
     )
     return 0
 
 
 def _cmd_initiative_apply(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import (
-        InitiativeConflictError,
-        ManifestError,
-        apply_manifest,
-        load_manifest,
-    )
 
     try:
-        manifest = load_manifest(Path(args.manifest))
-        result = apply_manifest(manifest, dry_run=args.dry_run)
-    except ManifestError as exc:
+        manifest = builder_initiative.load_manifest(Path(args.manifest))
+        result = builder_initiative.apply_manifest(manifest, dry_run=args.dry_run)
+    except builder_initiative.ManifestError as exc:
         for error in exc.errors:
             print(f"error: {error}", file=sys.stderr)
         return 1
-    except InitiativeConflictError as exc:
+    except builder_initiative.InitiativeConflictError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -1201,25 +1138,16 @@ def _cmd_initiative_apply(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_list(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import (
-        InitiativeNotFoundError,
-        initiative_status,
-        list_initiatives,
-    )
 
-    initiatives = list_initiatives()
+    initiatives = builder_initiative.list_initiatives()
 
     if args.needs_attention:
-        from gateway.builder_initiative import (
-            InitiativeNotFoundError,
-            initiative_status,
-        )
 
         filtered: list[dict[str, Any]] = []
         for item in initiatives:
             try:
-                status = initiative_status(item["id"])
-            except InitiativeNotFoundError:
+                status = builder_initiative.initiative_status(item["id"])
+            except builder_initiative.InitiativeNotFoundError:
                 continue
             if status.get("state") == "paused" or status.get("stop_class") == "needs_decision":
                 filtered.append(item)
@@ -1241,8 +1169,8 @@ def _cmd_initiative_list(args: argparse.Namespace) -> int:
         # Fetch per-initiative health/stop_class for the compact indicator.
         # N+1 is acceptable here: the list is typically short (single digits).
         try:
-            status = initiative_status(item["id"])
-        except InitiativeNotFoundError:
+            status = builder_initiative.initiative_status(item["id"])
+        except builder_initiative.InitiativeNotFoundError:
             status = {}
         stop_class = status.get("stop_class")
         health = status.get("health") or {}
@@ -1266,9 +1194,8 @@ def _cmd_initiative_list(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_show(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import get_initiative
 
-    initiative = get_initiative(args.id)
+    initiative = builder_initiative.get_initiative(args.id)
     if initiative is None:
         print(f"error: initiative not found: {args.id}", file=sys.stderr)
         return 1
@@ -1287,14 +1214,10 @@ def _cmd_initiative_show(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_status(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import (
-        InitiativeNotFoundError,
-        initiative_status,
-    )
 
     try:
-        status = initiative_status(args.id)
-    except InitiativeNotFoundError as exc:
+        status = builder_initiative.initiative_status(args.id)
+    except builder_initiative.InitiativeNotFoundError as exc:
         print(f"error: initiative not found: {exc}", file=sys.stderr)
         return 1
 
@@ -1354,12 +1277,10 @@ def _cmd_initiative_status(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_report(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import InitiativeNotFoundError
-    from gateway.builder_report import generate_report
 
     try:
-        path = generate_report(args.id)
-    except InitiativeNotFoundError as exc:
+        path = builder_report.generate_report(args.id)
+    except builder_initiative.InitiativeNotFoundError as exc:
         print(f"error: initiative not found: {exc}", file=sys.stderr)
         return 1
 
@@ -1371,9 +1292,8 @@ def _cmd_initiative_report(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_attempts(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import list_attempts
 
-    attempts = list_attempts(args.id, args.packet)
+    attempts = builder_attempt.list_attempts(args.id, args.packet)
     if args.json:
         print(json.dumps(attempts, indent=2, default=str))
         return 0
@@ -1391,11 +1311,10 @@ def _cmd_initiative_attempts(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_start_attempt(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import AttemptError, start_attempt
 
     try:
-        attempt = start_attempt(args.id, args.packet)
-    except AttemptError as exc:
+        attempt = builder_attempt.start_attempt(args.id, args.packet)
+    except builder_attempt.AttemptError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     if args.json:
@@ -1409,11 +1328,10 @@ def _cmd_initiative_start_attempt(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_grant_attempt(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import AttemptError, grant_attempt
 
     try:
-        granted = grant_attempt(args.id, args.packet, reason=args.reason)
-    except AttemptError as exc:
+        granted = builder_attempt.grant_attempt(args.id, args.packet, reason=args.reason)
+    except builder_attempt.AttemptError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     if args.json:
@@ -1436,26 +1354,20 @@ def _load_result_file(path: str) -> dict[str, Any]:
 
 
 def _cmd_initiative_record(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import (
-        AttemptError,
-        ResultContractError,
-        record_implementation_result,
-        record_review_result,
-    )
 
     record = (
-        record_implementation_result
+        builder_attempt.record_implementation_result
         if args.initiative_command == "record-implementation"
-        else record_review_result
+        else builder_attempt.record_review_result
     )
     try:
         result = _load_result_file(args.file)
         attempt = record(args.attempt_id, result)
-    except ResultContractError as exc:
+    except builder_attempt.ResultContractError as exc:
         for error in exc.errors:
             print(f"error: {error}", file=sys.stderr)
         return 1
-    except (OSError, ValueError, json.JSONDecodeError, AttemptError) as exc:
+    except (OSError, ValueError, json.JSONDecodeError, builder_attempt.AttemptError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     if args.json:
@@ -1466,15 +1378,11 @@ def _cmd_initiative_record(args: argparse.Namespace) -> int:
 
 
 def _governor_db_path(args: argparse.Namespace) -> Path:
-    from gateway.compute_governor import default_db_path
 
-    return Path(args.governor_db) if args.governor_db else default_db_path()
+    return Path(args.governor_db) if args.governor_db else compute_governor.default_db_path()
 
 
 def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import AttemptError
-    from gateway.builder_loop import LoopError, run_packet
-    from gateway.builder_runner import RunnerError
 
     try:
         worker_command, review_command, paid_route, adapter_env = _resolve_loop_commands(args)
@@ -1499,7 +1407,7 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
         print(f"watch: starting {args.id}/{args.packet}")
 
     try:
-        result = run_packet(
+        result = builder_loop.run_packet(
             args.id,
             args.packet,
             worker_command=worker_command,
@@ -1521,7 +1429,7 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
             governor_db=None if args.no_governor else _governor_db_path(args),
             governor_override=args.governor_override,
         )
-    except (LoopError, RunnerError, AttemptError, ValueError) as exc:
+    except (builder_loop.LoopError, builder_runner.RunnerError, builder_attempt.AttemptError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -1545,7 +1453,6 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_run(args: argparse.Namespace) -> int:
-    from gateway.builder_run import STOP_NEEDS_DECISION, run_initiative
 
     try:
         worker_command, review_command, paid_route, adapter_env = _resolve_loop_commands(args)
@@ -1567,7 +1474,7 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
     )
 
     try:
-        summary = run_initiative(
+        summary = builder_run.run_initiative(
             args.id,
             worker_command=worker_command,
             review_command=review_command,
@@ -1608,21 +1515,20 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
             print(
                 f"  {entry['outcome']}: {args.id}/{entry['packet_id']}"
             )
-        if summary.get("stop_class") == STOP_NEEDS_DECISION:
+        if summary.get("stop_class") == builder_run.STOP_NEEDS_DECISION:
             print(
                 f"needs operator decision: {args.id} is durably paused",
                 file=sys.stderr,
             )
-    if summary.get("stop_class") == STOP_NEEDS_DECISION:
+    if summary.get("stop_class") == builder_run.STOP_NEEDS_DECISION:
         return EXIT_NEEDS_DECISION
     return 0 if summary["outcome"] in {"idle", "paused"} else 1
 
 
 def _cmd_initiative_pause(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import pause_initiative
 
     try:
-        pause_initiative(args.id, args.reason)
+        builder_initiative.pause_initiative(args.id, args.reason)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -1631,10 +1537,9 @@ def _cmd_initiative_pause(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_resume(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import resume_initiative
 
     try:
-        resume_initiative(args.id)
+        builder_initiative.resume_initiative(args.id)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -1643,10 +1548,8 @@ def _cmd_initiative_resume(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_doctor(args: argparse.Namespace) -> int:
-    from gateway.builder_doctor import run_doctor
-    from gateway.paths import ROOT
 
-    result = run_doctor(repo_root=ROOT)
+    result = builder_doctor.run_doctor(repo_root=paths.ROOT)
 
     if args.json:
         print(json.dumps(result, indent=2, default=str))
@@ -1670,15 +1573,14 @@ def _cmd_initiative_doctor(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_run_validation(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import AttemptError, run_validation
 
     try:
-        attempt = run_validation(
+        attempt = builder_attempt.run_validation(
             args.attempt_id,
             cwd=Path(args.cwd) if args.cwd else None,
             timeout_seconds=args.timeout,
         )
-    except AttemptError as exc:
+    except builder_attempt.AttemptError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     validation = attempt["validation"]
@@ -1693,11 +1595,10 @@ def _cmd_initiative_run_validation(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_close_attempt(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import AttemptError, close_attempt
 
     try:
-        attempt = close_attempt(args.attempt_id, args.outcome)
-    except AttemptError as exc:
+        attempt = builder_attempt.close_attempt(args.attempt_id, args.outcome)
+    except builder_attempt.AttemptError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     if args.json:
@@ -1709,7 +1610,6 @@ def _cmd_initiative_close_attempt(args: argparse.Namespace) -> int:
 
 def _cmd_supervisor_tick(args: argparse.Namespace) -> int:
     """Run one supervisor tick: lock, select active initiatives, launch <=2 runs."""
-    from gateway import builder_supervisor as bs
 
     try:
         receipt = bs.tick(max_runs=args.max_runs)
@@ -1737,7 +1637,6 @@ def _cmd_supervisor_tick(args: argparse.Namespace) -> int:
 
 def _cmd_supervisor_status(args: argparse.Namespace) -> int:
     """Read-only supervisor projection: initiatives, eligible work, active runs."""
-    from gateway import builder_supervisor as bs
 
     projection = bs.status(initiative_prefix=args.initiative_prefix)
     if args.json:
@@ -1779,16 +1678,14 @@ def _cmd_supervisor_status(args: argparse.Namespace) -> int:
 
 def _init_queue_db() -> None:
     """Initialize the queue DB safely before command dispatch."""
-    from gateway.builder_queue import init_db
 
-    init_db()
+    builder_queue.init_db()
 
 
 def _init_initiative_db() -> None:
     """Initialize queue + initiative schema before initiative dispatch."""
-    from gateway.builder_initiative import init_db
 
-    init_db()
+    builder_initiative.init_db()
 
 
 # ---------------------------------------------------------------------------
