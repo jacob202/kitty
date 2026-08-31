@@ -289,13 +289,20 @@ async def lifespan(app: FastAPI):
             register_action("insights.return_due", _action_insights_return_due)
             from gateway.brief_scheduler import load_brief_time, load_brief_timezone
 
-            cron.ensure_schedule(
-                "morning brief",
-                "brief.deliver",
-                "daily",
-                load_brief_time(),
-                {"timezone": load_brief_timezone().key},
-            )
+            # Seed the morning brief only when no schedule for that action
+            # exists yet. An existing row — possibly edited by the user — is
+            # left alone on every later start so manual time changes survive
+            # restarts instead of being overwritten from the profile.
+            if not any(
+                s.get("action") == "brief.deliver" for s in cron.list_schedules()
+            ):
+                cron.ensure_schedule(
+                    "morning brief",
+                    "brief.deliver",
+                    "daily",
+                    load_brief_time(),
+                    {"timezone": load_brief_timezone().key},
+                )
             cron.schedule("brief cache refresh", "brief.refresh", "interval", "15")
             cron.schedule("insights return due", "insights.return_due", "interval", "15")
             cron.schedule("web monitor due checks", "monitors.check", "interval", "5")
