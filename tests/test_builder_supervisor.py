@@ -437,6 +437,7 @@ def test_status_projection(repo: Path, db_path: Path) -> None:
 
 
 def test_scheduler_status_reads_installed_launchagent(repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bs.sys, "platform", "darwin")
     plist_path = tmp_path / "com.kitty.builder.supervisor.plist"
     plist_path.write_bytes(bs.render_supervisor_plist_bytes(repo))
 
@@ -458,7 +459,8 @@ def test_scheduler_status_reads_installed_launchagent(repo: Path, tmp_path: Path
     assert result["next_run_at"] is None
 
 
-def test_scheduler_status_reports_missing_plist(repo: Path, tmp_path: Path) -> None:
+def test_scheduler_status_reports_missing_plist(repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bs.sys, "platform", "darwin")
     result = bs.scheduler_status(repo, plist_path=tmp_path / "missing.plist")
     assert result["installed"] is False
     assert result["healthy"] is False
