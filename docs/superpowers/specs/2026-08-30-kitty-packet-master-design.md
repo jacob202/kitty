@@ -39,9 +39,9 @@ Verified 2026-08-30 against the finished PR #705 implementation:
 
 - Pilot implementation base SHA: `39e42ca55f0dd04a2e13bc8f1ecf32588ba8b149`.
 - Integrated main at reconciliation: `1013dbd41c28710f08451b8a683d703272270385`.
-- Exact reviewed implementation checkpoint before this receipt-only correction:
-  `29ffba5a49115644e93bb444fdfcf25e295ff5ee`.
-- The implementation changes the 11 reconciled pilot/support paths listed
+- Exact Task 3A code/test implementation checkpoint before this receipt
+  reconciliation: `27b08709`.
+- The implementation changes the 13 reconciled pilot/support paths listed
   below, plus the separately approved two-file Vision exception.
 - Final publication and Product Acceptance evidence is bound externally to the
   resulting PR head; this document cannot contain its own final content SHA.
@@ -118,14 +118,16 @@ retry is explicit and never duplicates a sent attachment.
 
 ### Final pilot/support receipt
 
-These are the 11 actual pilot/support paths in the final receipt:
+These are the 13 actual pilot/support paths in the final receipt:
 
 - `docs/superpowers/specs/2026-08-30-kitty-packet-master-design.md`
 - `gateway/kitty-chat/src/components/LibraryView.tsx`
+- `gateway/kitty-chat/src/lib/chat-client.ts`
 - `gateway/kitty-chat/src/lib/gateway.ts`
 - `gateway/kitty-chat/src/lib/types.ts`
 - `gateway/kitty-chat/src/state/KittyContext.tsx`
 - `gateway/kitty-chat/tests/LibraryView.test.tsx`
+- `gateway/kitty-chat/tests/chatClient.test.ts`
 - `gateway/kitty-chat/tests/library-chat-001.test.tsx`
 - `gateway/kitty-chat/tests/smoke/library-chat-001.spec.ts`
 - `gateway/routes/chats.py`
@@ -169,7 +171,7 @@ Builder changes, credentials, live DB migration, or broad visual polish.
 ### Validation and evidence
 
 Run `pytest -q tests/test_library_chat_001.py`,
-`npm test -- --run tests/LibraryView.test.tsx tests/library-chat-001.test.tsx`
+`npm test -- --run tests/LibraryView.test.tsx tests/library-chat-001.test.tsx tests/chatClient.test.ts`
 from `gateway/kitty-chat`, the repository's existing focused UI command, and
 `git diff --check`. Record exact output, base and final SHA, changed paths, and
 one independent review bound to final SHA. Running-app proof must cover desktop
@@ -211,7 +213,7 @@ validation/review/runtime proof → final receipt with one next action.
 - Truthfulness: zero raw errors, false success, or client-only attachment after
   reload in the acceptance matrix.
 - Recovery: failed send has one explicit retry and zero duplicate sends.
-- Scope: zero paths outside the reconciled 11-path pilot receipt plus the
+- Scope: zero paths outside the reconciled 13-path pilot receipt plus the
   explicit two-file Vision exception.
 - Efficiency: no second implementation owner and no stale-SHA review accepted.
 - Builder escalation quality: every Builder change has a flow-break record and
