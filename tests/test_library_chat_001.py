@@ -114,7 +114,9 @@ class TestUseInChat:
 
 
 class TestCompletionInjection:
-    def test_attachment_ids_inject_image_parts_into_user_message(self, chat_client, tmp_path, monkeypatch):
+    def test_auto_with_pilot_image_selects_vision_and_injects_one_image_part(
+        self, chat_client, tmp_path, monkeypatch
+    ):
         artifact = _register_image(tmp_path)
         # Avoid the network: the injected payload is what we assert on.
         captured: dict = {}
@@ -128,22 +130,131 @@ class TestCompletionInjection:
         r = chat_client.post(
             "/api/chat/completions",
             json={
-                "model": "kitty-vision",
+                "model": "kitty-auto",
                 "stream": True,
                 "attachment_ids": [artifact["id"]],
+                "image_attachment_ids": [artifact["id"]],
                 "messages": [{"role": "user", "content": "what do you see?"}],
             },
         )
         assert r.status_code == 200
+        assert captured["payload"]["model"] == "kitty-vision"
         messages = captured["payload"]["messages"]
         user = [m for m in messages if m["role"] == "user"][-1]
         parts = user["content"]
         assert isinstance(parts, list)
-        assert any(
-            part.get("type") == "image_url" and part["image_url"]["url"].startswith("data:image/png;base64,")
+        assert len([
+            part
             for part in parts
+            if part.get("type") == "image_url"
+            and part["image_url"]["url"].startswith("data:image/png;base64,")
+        ]) == 1
+        assert {
+            "type": "text",
+            "text": "what do you see?",
+        } in parts
+        assert "image_attachment_ids" not in captured["payload"]
+
+    def test_missing_pilot_image_finalizes_failed_turn_and_never_dispatches(
+        self, chat_client, monkeypatch
+    ):
+        called = []
+        finished = []
+        errors = []
+
+        async def fake_stream(payload):
+            called.append(payload)
+            yield b"data: [DONE]\n"
+
+        handle = completions_route.chat_lifecycle.TurnHandle(
+            "chat-1", "turn-1", "attempt-1", 1
         )
-        assert {"type": "text", "text": "what do you see?"} in parts
+
+        def fake_finish(actual_handle, **kwargs):
+            finished.append((actual_handle, kwargs))
+
+        monkeypatch.setattr(completions_route, "iter_chat_completions_stream", fake_stream)
+        monkeypatch.setattr(completions_route.chat_lifecycle, "start_turn", lambda **_: handle)
+        monkeypatch.setattr(completions_route.chat_lifecycle, "finish_turn", fake_finish)
+        monkeypatch.setattr(completions_route.chats_store, "get_chat", lambda _: {"id": "chat-1"})
+        monkeypatch.setattr("gateway.buddy.on_request_error", lambda: errors.append(True))
+
+        r = chat_client.post(
+            "/api/chat/completions",
+            json={
+                "model": "kitty-auto",
+                "stream": True,
+                "conversation_id": "chat-1",
+                "attachment_ids": ["artifact_stale"],
+                "image_attachment_ids": ["artifact_stale"],
+                "messages": [{"role": "user", "content": "what do you see?"}],
+            },
+        )
+        assert r.status_code == 404
+        assert called == []
+        assert len(finished) == 1
+        assert finished[0][0] == handle
+        assert finished[0][1]["status"] == "failed"
+        assert "404" in finished[0][1]["error"]
+        assert r.json()["detail"]["kind"] == "attachment"
+        assert "Remove it" in r.json()["detail"]["message"]
+        assert errors
+
+    def test_generic_pdf_attachment_reaches_upstream_without_image_resolution(
+        self, chat_client, tmp_path, monkeypatch
+    ):
+        path = tmp_path / "notes.pdf"
+        path.write_bytes(b"%PDF-1.4\nnotes")
+        artifact = artifact_store.register_file(
+            path,
+            kind="document",
+            media_type="application/pdf",
+            project_id=1,
+            created_by="test",
+        )
+        captured = []
+
+        async def fake_stream(payload):
+            captured.append(payload)
+            yield b"data: [DONE]\n"
+
+        monkeypatch.setattr(completions_route, "iter_chat_completions_stream", fake_stream)
+        r = chat_client.post(
+            "/api/chat/completions",
+            json={
+                "model": "kitty-default",
+                "stream": True,
+                "attachment_ids": [artifact["id"]],
+                "messages": [{"role": "user", "content": "summarize this"}],
+            },
+        )
+        assert r.status_code == 200
+        assert len(captured) == 1
+        assert captured[0]["attachment_ids"] == [artifact["id"]]
+        assert captured[0]["messages"][-1]["content"] == "summarize this"
+
+    def test_two_pilot_images_are_rejected_before_upstream_dispatch(
+        self, chat_client, monkeypatch
+    ):
+        called = []
+
+        async def fake_stream(payload):
+            called.append(payload)
+            yield b"data: [DONE]\n"
+
+        monkeypatch.setattr(completions_route, "iter_chat_completions_stream", fake_stream)
+        r = chat_client.post(
+            "/api/chat/completions",
+            json={
+                "model": "kitty-auto",
+                "stream": True,
+                "attachment_ids": ["image-a", "image-b"],
+                "image_attachment_ids": ["image-a", "image-b"],
+                "messages": [{"role": "user", "content": "compare these"}],
+            },
+        )
+        assert r.status_code == 400
+        assert called == []
 
     def test_bad_attachment_id_fails_before_dispatch(self, chat_client, monkeypatch):
         called = []
@@ -160,9 +271,11 @@ class TestCompletionInjection:
                 "model": "kitty-vision",
                 "stream": True,
                 "attachment_ids": ["artifact_does_not_exist"],
+                "image_attachment_ids": ["artifact_does_not_exist"],
                 "messages": [{"role": "user", "content": "what do you see?"}],
             },
         )
         assert r.status_code == 404
         assert called == []
-        assert "no longer exists" in r.json()["detail"]
+        assert r.json()["detail"]["kind"] == "attachment"
+        assert "Remove it" in r.json()["detail"]["message"]

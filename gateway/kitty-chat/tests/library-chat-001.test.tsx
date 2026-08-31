@@ -61,6 +61,7 @@ describe('LIBRARY-CHAT-001: image attachment into chat', () => {
     expect(chunks.join('')).toContain('I see the reference image.')
     const parsed = JSON.parse(sent[0].body)
     expect(parsed.attachment_ids).toEqual(['artifact_1'])
+    expect(parsed.image_attachment_ids).toEqual(['artifact_1'])
     expect(parsed.messages[0].content).toBe('what do you see?')
   })
 

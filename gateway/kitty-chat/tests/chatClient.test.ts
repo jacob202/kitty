@@ -146,6 +146,45 @@ describe('streamChat truthful failure recovery', () => {
     ).rejects.toMatchObject({ kind: 'routing', userMessage: expect.stringContaining('different model') })
   })
 
+  it('maps a structured attachment 4xx to restage copy', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({
+          detail: {
+            kind: 'attachment',
+            message: 'Kitty could not use that image. Remove it and stage the image again.',
+          },
+        }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+    const messages: Message[] = [{
+      id: 'm1',
+      role: 'user',
+      content: 'what do you see?',
+      timestamp: new Date(),
+      attachments: [{
+        id: 'artifact_1',
+        display_name: 'camera-reference.png',
+        media_type: 'image/png',
+        size: 2048,
+      }],
+    }]
+    await expect(
+      (async () => {
+        const out: StreamChunk[] = []
+        for await (const chunk of streamChat('kitty-auto', messages, undefined, undefined, undefined, undefined, undefined, ['artifact_1'])) out.push(chunk)
+        return out
+      })()
+    ).rejects.toMatchObject({
+      kind: 'attachment',
+      userMessage: expect.stringMatching(/remove|restage/i),
+    })
+  })
+
   it('throws friendly upstream copy on 5xx', async () => {
     vi.stubGlobal(
       'fetch',

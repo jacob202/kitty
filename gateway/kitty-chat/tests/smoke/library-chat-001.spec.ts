@@ -252,6 +252,7 @@ test('failed image send retries once with the same attachment and reload restore
     .toBeVisible({ timeout: 10_000 });
   expect(sentBodies).toHaveLength(1);
   expect(sentBodies[0].attachment_ids).toEqual([READY_PNG.id]);
+  expect(sentBodies[0].image_attachment_ids).toEqual([READY_PNG.id]);
 
   await page.getByRole('button', { name: /retry message/i }).click();
   await expect(page.locator('.msg-in').filter({ hasText: /I can see the image\./i }).first())
@@ -259,6 +260,7 @@ test('failed image send retries once with the same attachment and reload restore
 
   expect(sentBodies).toHaveLength(2);
   expect(sentBodies[1].attachment_ids).toEqual([READY_PNG.id]);
+  expect(sentBodies[1].image_attachment_ids).toEqual([READY_PNG.id]);
 
   await page.reload();
   await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });

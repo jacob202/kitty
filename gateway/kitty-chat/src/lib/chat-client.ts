@@ -16,7 +16,7 @@ export interface StreamChunk {
 }
 
 /** Machine-readable chat-turn failure kinds. Mirrors gateway/chat_errors.py. */
-export type ChatErrorKind = 'routing' | 'upstream' | 'network' | 'cut-off';
+export type ChatErrorKind = 'routing' | 'upstream' | 'network' | 'cut-off' | 'attachment';
 
 /** User-facing copy per failure kind, written for a phone screen. */
 const FRIENDLY_CHAT_MESSAGES: Record<ChatErrorKind, string> = {
@@ -27,6 +27,8 @@ const FRIENDLY_CHAT_MESSAGES: Record<ChatErrorKind, string> = {
   network:
     "Kitty couldn't reach its gateway. Check that Kitty is running, then tap retry — your message is saved.",
   'cut-off': "Kitty's reply was cut off before it finished. Tap retry to continue.",
+  attachment:
+    'Kitty could not use that image. Remove it and stage the image again.',
 };
 
 export type ChatFriendlyError = { kind: ChatErrorKind; userMessage: string };
@@ -72,6 +74,15 @@ async function notOkError(response: Response): Promise<ChatSendError> {
     const parsed = JSON.parse(raw);
     const inner = parsed?.error && typeof parsed.error === 'object' ? parsed.error : parsed;
     detail = String(inner?.message ?? inner?.detail ?? raw).slice(0, 300);
+    const structured = parsed?.error && typeof parsed.error === 'object'
+      ? parsed.error
+      : parsed?.detail && typeof parsed.detail === 'object'
+        ? parsed.detail
+        : parsed;
+    const structuredKind = structured?.kind;
+    if (structuredKind === 'attachment') {
+      return new ChatSendError('attachment', FRIENDLY_CHAT_MESSAGES.attachment, detail);
+    }
   } catch {
     // not JSON — keep raw status text
   }
@@ -97,6 +108,23 @@ export async function* streamChat(
   conversationTitle?: string,
   attachmentIds?: string[],
 ): AsyncGenerator<StreamChunk> {
+  const latestUserMessage = [...messages].reverse().find((message) => message.role === 'user');
+  const latestAttachments = latestUserMessage?.attachments ?? [];
+  const pilotAttachmentIds = attachmentIds && latestAttachments.length === 1
+    ? (() => {
+      const attachment = latestAttachments[0];
+      const isPilotType = ['image/png', 'image/jpeg', 'image/webp'].includes(attachment.media_type);
+      const size = attachment.size;
+      return isPilotType
+        && typeof size === 'number'
+        && Number.isFinite(size)
+        && size > 0
+        && size <= 5 * 1024 * 1024
+        && attachmentIds.includes(attachment.id)
+        ? [attachment.id]
+        : undefined;
+    })()
+    : undefined;
   const response = await fetch(`${GATEWAY_BASE}/api/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -108,6 +136,7 @@ export async function* streamChat(
       ...(userMessageId === undefined ? {} : { user_message_id: userMessageId }),
       ...(conversationTitle === undefined ? {} : { conversation_title: conversationTitle }),
       ...(attachmentIds === undefined ? {} : { attachment_ids: attachmentIds }),
+      ...(pilotAttachmentIds === undefined ? {} : { image_attachment_ids: pilotAttachmentIds }),
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     }),
     signal,
