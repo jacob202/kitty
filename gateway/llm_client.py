@@ -24,7 +24,7 @@ from typing import Any, Callable
 import httpx
 from dotenv import dotenv_values, load_dotenv
 
-from gateway import model_routing
+from gateway import chat_errors, http_client, model_routing, observability, provider_prefs
 from gateway.paths import LITELLM_BASE, LITELLM_KEY, PROJECT_ROOT
 from gateway.settings import get_settings
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
@@ -578,9 +578,8 @@ def provider_is_configured(provider: ProviderConfig) -> bool:
 
 def effective_provider_order() -> list[str]:
     """The try-order after applying Jacob's saved preference."""
-    from gateway.provider_prefs import resolve_order
 
-    return resolve_order(tuple(PROVIDERS.keys()), PROVIDER_FALLBACK_ORDER)
+    return provider_prefs.resolve_order(tuple(PROVIDERS.keys()), PROVIDER_FALLBACK_ORDER)
 
 
 def _is_agentrouter_disabled() -> bool:
@@ -715,14 +714,13 @@ def _call_provider(
 
 def selected_provider_name() -> str | None:
     """Return Jacob's exact provider selection, or None for automatic routing."""
-    from gateway.provider_prefs import active_provider, is_disabled
 
-    name = active_provider()
+    name = provider_prefs.active_provider()
     if name is None:
         return None
     if name not in PROVIDERS:
         raise ProviderChainExhausted([f"selected provider {name!r} is unknown"])
-    if is_disabled(name):
+    if provider_prefs.is_disabled(name):
         raise ProviderChainExhausted([f"selected provider {name!r} is disabled"])
     if provider_is_environment_disabled(name):
         raise ProviderChainExhausted(["selected provider 'agentrouter' is disabled by environment"])
@@ -876,9 +874,8 @@ def call_llm(
 
 
 def chat(model: str, messages: list[dict], max_tokens: int = 500, temperature: float = 0.7) -> str:
-    from gateway.observability import record_chat
 
-    with record_chat(model, operation="llm.chat") as _call:
+    with observability.record_chat(model, operation="llm.chat") as _call:
         return call_llm(messages, model=model, max_tokens=max_tokens, temperature=temperature)
 
 
@@ -936,10 +933,9 @@ async def chat_completions_non_stream(payload: dict[str, Any]) -> dict[str, Any]
             "model": selected,
         }
 
-    from gateway.http_client import get_http_client
 
     try:
-        client = await get_http_client()
+        client = await http_client.get_http_client()
         resp = await client.post(
             f"{LITELLM_BASE}/v1/chat/completions",
             json=payload,
@@ -1016,7 +1012,6 @@ async def iter_chat_completions_stream(payload: dict[str, Any]):
     route can emit a user-facing error event instead of an empty/half stream
     that the phone renders as opaque "stream closed without [DONE]" copy.
     """
-    from gateway.chat_errors import ChatErrorKind, ChatTurnError
 
     selected = selected_provider_name()
     try:
@@ -1039,8 +1034,8 @@ async def iter_chat_completions_stream(payload: dict[str, Any]):
                     metadata={"route": "gateway_chat_selected_provider"},
                 )
             except ProviderChainExhausted as exc:
-                raise ChatTurnError(
-                    kind=ChatErrorKind.ROUTING,
+                raise chat_errors.ChatTurnError(
+                    kind=chat_errors.ChatErrorKind.ROUTING,
                     detail=f"selected provider {selected!r} could not answer: {exc}",
                 ) from exc
             direct_chunk = {
@@ -1053,9 +1048,8 @@ async def iter_chat_completions_stream(payload: dict[str, Any]):
             yield b"data: [DONE]\n\n"
             return
 
-        from gateway.http_client import get_http_client
 
-        client = await get_http_client()
+        client = await http_client.get_http_client()
         async with client.stream(
             "POST",
             f"{LITELLM_BASE}/v1/chat/completions",
@@ -1063,7 +1057,7 @@ async def iter_chat_completions_stream(payload: dict[str, Any]):
             headers={"Authorization": f"Bearer {LITELLM_KEY}"},
         ) as resp:
             if not (200 <= resp.status_code < 300):
-                _raise_upstream_status(resp, ChatErrorKind, ChatTurnError)
+                _raise_upstream_status(resp, chat_errors.ChatErrorKind, chat_errors.ChatTurnError)
             async for chunk in resp.aiter_lines():
                 if not chunk or not chunk.startswith("data: "):
                     continue
@@ -1072,18 +1066,18 @@ async def iter_chat_completions_stream(payload: dict[str, Any]):
                     yield chunk.encode("utf-8") + b"\n\n"
                     break
                 yield chunk.encode("utf-8") + b"\n\n"
-    except ChatTurnError:
+    except chat_errors.ChatTurnError:
         raise
     except httpx.HTTPError as exc:
-        raise ChatTurnError.from_exception(
+        raise chat_errors.ChatTurnError.from_exception(
             exc,
-            kind=ChatErrorKind.UPSTREAM,
+            kind=chat_errors.ChatErrorKind.UPSTREAM,
             detail=f"LiteLLM chat stream failed: {exc}",
         ) from exc
     except Exception as exc:  # noqa: BLE001 — surfaced verbatim to the route
-        raise ChatTurnError.from_exception(
+        raise chat_errors.ChatTurnError.from_exception(
             exc,
-            kind=ChatErrorKind.UPSTREAM,
+            kind=chat_errors.ChatErrorKind.UPSTREAM,
             detail=f"chat stream failed: {exc}",
         ) from exc
 
