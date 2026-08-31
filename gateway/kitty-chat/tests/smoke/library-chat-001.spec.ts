@@ -103,3 +103,175 @@ test('a failure with no reason is translated instead of leaked', async ({ page }
   }));
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.width + 1);
 });
+
+test('failed image send retries once with the same attachment and reload restores it', async ({ page }) => {
+  const sentBodies: Array<Record<string, unknown>> = [];
+  let persistedChats: Array<Record<string, unknown>> = [];
+  const persistedLifecycle: Record<string, Array<Record<string, unknown>>> = {};
+
+  // Sending is intentionally disabled when model availability is unknown.
+  // Give this frontend-only smoke a truthful available-model contract so the
+  // composer exercises the real send/retry path without contacting a provider.
+  await page.route('**/proxy/api/models', (route) =>
+    route.fulfill({ json: { data: [{ id: 'kitty-default' }] } })
+  );
+  await page.route('**/proxy/models/picker', (route) =>
+    route.fulfill({
+      json: {
+        schema_version: 1,
+        source: 'library-chat-smoke',
+        discovery: { state: 'available', reason: null, checked_at: null },
+        claims: { role_tags: 'heuristic', alternatives: 'cost-screened only' },
+        presets: [{
+          role: 'auto', label: 'Daily Kitty', route: 'kitty-default',
+          purpose: 'Everyday use.', kind: 'router', provider: null, model: null,
+          configured: true, catalogue: null, catalogue_state: 'not_applicable', alternatives: [],
+        }],
+      },
+    })
+  );
+  await page.route('**/proxy/runtime/**', (route) =>
+    route.fulfill({
+      json: {
+        revision: 'library-chat-smoke',
+        connections: { gateway: { state: 'available', reason: null } },
+        inference: { available_models: { state: 'available', value: ['kitty-default'] } },
+        tools: { state: 'available' },
+        context: { active_project: { value: null } },
+        execution: { builder: { value: null, state: 'available' } },
+      },
+    })
+  );
+
+  await page.route('**/proxy/chats/use-in-chat', (route) =>
+    route.fulfill({
+      json: {
+        id: READY_PNG.id,
+        display_name: READY_PNG.display_name,
+        media_type: READY_PNG.media_type,
+        size: READY_PNG.size_bytes,
+      },
+    })
+  );
+
+  await page.route('**/proxy/chats/*/messages', (route) => {
+    const url = new URL(route.request().url());
+    const parts = url.pathname.split('/');
+    const chatId = decodeURIComponent(parts[parts.length - 2] ?? '');
+    return route.fulfill({
+      json: {
+        conversation_id: chatId,
+        messages: persistedLifecycle[chatId] ?? [],
+      },
+    });
+  });
+
+  await page.route('**/proxy/chats', (route) => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      if (typeof body.id === 'string') {
+        persistedChats = persistedChats.filter((chat) => chat.id !== body.id);
+        persistedChats.push(body);
+      }
+      return route.fulfill({ json: { ok: true } });
+    }
+    return route.fulfill({ json: { chats: persistedChats } });
+  });
+
+  await page.route('**/proxy/api/chat/completions', (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    sentBodies.push(body);
+
+    if (sentBodies.length === 1) {
+      return route.fulfill({
+        status: 503,
+        json: { detail: 'provider unavailable' },
+      });
+    }
+
+    const chatId = String(body.conversation_id);
+    const now = Math.floor(Date.now() / 1000);
+    const rawMessages = Array.isArray(body.messages) ? body.messages : [];
+    const latestUser = [...rawMessages].reverse().find(
+      (message): message is { role: string; content: string } =>
+        typeof message === 'object' && message !== null &&
+        (message as { role?: unknown }).role === 'user' &&
+        typeof (message as { content?: unknown }).content === 'string'
+    );
+
+    persistedChats = [{
+      id: chatId,
+      title: String(body.conversation_title ?? 'image chat'),
+      model: String(body.model ?? 'kitty-default'),
+      color: 'teal',
+      createdAt: new Date(now * 1000).toISOString(),
+      updatedAt: new Date(now * 1000).toISOString(),
+      messages: [],
+    }];
+    persistedLifecycle[chatId] = [
+      {
+        id: String(body.user_message_id),
+        role: 'user',
+        content: latestUser?.content ?? '',
+        created_at: now,
+        status: 'succeeded',
+        attachments: [{
+          id: READY_PNG.id,
+          display_name: READY_PNG.display_name,
+          media_type: READY_PNG.media_type,
+          size: READY_PNG.size_bytes,
+        }],
+      },
+      {
+        id: 'assistant-image-retry',
+        role: 'assistant',
+        content: 'I can see the image.',
+        created_at: now + 1,
+        model: 'kitty-default',
+        status: 'succeeded',
+        attachments: [],
+      },
+    ];
+
+    return route.fulfill({
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+      body: 'data: {"choices":[{"delta":{"content":"I can see the image."}}]}\n\ndata: [DONE]\n\n',
+    });
+  });
+
+  await openLibrary(page);
+  await page.getByRole('button', { name: /use camera-reference\.png in chat$/i }).click();
+
+  const composer = page.locator('textarea').first();
+  await expect(composer).toBeVisible({ timeout: 10_000 });
+  await composer.fill('what do you see?');
+  await page.getByRole('button', { name: /send message/i }).click();
+
+  await expect(page.locator('.msg-in').filter({ hasText: /model provider couldn't finish/i }).first())
+    .toBeVisible({ timeout: 10_000 });
+  expect(sentBodies).toHaveLength(1);
+  expect(sentBodies[0].attachment_ids).toEqual([READY_PNG.id]);
+
+  await page.getByRole('button', { name: /retry message/i }).click();
+  await expect(page.locator('.msg-in').filter({ hasText: /I can see the image\./i }).first())
+    .toBeVisible({ timeout: 10_000 });
+
+  expect(sentBodies).toHaveLength(2);
+  expect(sentBodies[1].attachment_ids).toEqual([READY_PNG.id]);
+
+  await page.reload();
+  await expect(page.locator('main')).toBeVisible({ timeout: 15_000 });
+  const chatButton = page.getByRole('button', { name: /^chat$/i }).first();
+  if (await chatButton.isVisible()) await chatButton.click();
+
+  await expect(page.getByText(READY_PNG.display_name).first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('.msg-in').filter({ hasText: /I can see the image\./i }).first())
+    .toBeVisible({ timeout: 10_000 });
+
+  const overflow = await page.evaluate(() => ({
+    width: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.width + 1);
+});
