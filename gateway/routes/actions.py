@@ -92,6 +92,14 @@ def get_actions(status: str | None = None, limit: int = 50) -> dict:
     return {"actions": action_queue.list_actions(status=status, limit=limit)}
 
 
+@router.get("/actions/{action_id}")
+def get_action(action_id: int) -> dict:
+    action = action_queue.get(action_id)
+    if action is None:
+        raise HTTPException(status_code=404, detail=f"no action with id {action_id}")
+    return action
+
+
 @router.post("/actions/propose")
 def post_propose(payload: ProposeRequest) -> dict:
     return _handle(
