@@ -67,4 +67,56 @@ describe('MonitorPanel', () => {
     renderPanel()
     expect(screen.getByText(/couldn't remove monitor/i)).toBeInTheDocument()
   })
+
+  it('shows paused for disabled monitors', () => {
+    vi.mocked(queries.useMonitors).mockReturnValue({
+      data: [{ id: 'row-1', url: 'https://example.com', label: 'Example', last_keyword_matched: false, enabled: false }],
+      isPending: false,
+      isError: false,
+    } as never)
+    renderPanel()
+    expect(screen.getByText('paused')).toBeInTheDocument()
+  })
+
+  it('shows watching for enabled monitors without keyword match', () => {
+    vi.mocked(queries.useMonitors).mockReturnValue({
+      data: [{ id: 'row-2', url: 'https://example.com', label: 'Example', last_keyword_matched: false, enabled: true }],
+      isPending: false,
+      isError: false,
+    } as never)
+    renderPanel()
+    expect(screen.getByText('watching')).toBeInTheDocument()
+  })
+
+  it('shows hit for enabled monitors with keyword match', () => {
+    vi.mocked(queries.useMonitors).mockReturnValue({
+      data: [{ id: 'row-3', url: 'https://example.com', label: 'Example', last_keyword_matched: true, enabled: true }],
+      isPending: false,
+      isError: false,
+    } as never)
+    renderPanel()
+    expect(screen.getByText('hit')).toBeInTheDocument()
+  })
+
+  it('defaults to watching when enabled field is missing', () => {
+    vi.mocked(queries.useMonitors).mockReturnValue({
+      data: [{ id: 'row-4', url: 'https://example.com', label: 'Example', last_keyword_matched: false }],
+      isPending: false,
+      isError: false,
+    } as never)
+    renderPanel()
+    expect(screen.getByText('watching')).toBeInTheDocument()
+  })
+
+  it('disables remove button while mutation is pending', () => {
+    vi.mocked(queries.useRemoveMonitor).mockReturnValue({ mutate: vi.fn(), isPending: true } as never)
+    renderPanel()
+    expect(screen.getByRole('button', { name: /remove/i })).toBeDisabled()
+  })
+
+  it('enables remove button when mutation is not pending', () => {
+    vi.mocked(queries.useRemoveMonitor).mockReturnValue({ mutate: vi.fn(), isPending: false } as never)
+    renderPanel()
+    expect(screen.getByRole('button', { name: /remove/i })).not.toBeDisabled()
+  })
 })

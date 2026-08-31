@@ -940,11 +940,15 @@ export interface GatewayMonitor {
   last_checked?: number | null
   last_hash?: string | null
   last_keyword_matched?: boolean
+  enabled?: boolean
 }
 
 export async function fetchGatewayMonitors(): Promise<GatewayMonitor[]> {
   const json = await gfetch<{ watches?: GatewayMonitor[] }>('/monitors')
-  return json.watches ?? []
+  if (!Array.isArray(json.watches)) {
+    throw new Error('Gateway /monitors returned an invalid payload: expected a watches array')
+  }
+  return json.watches
 }
 
 export async function addGatewayMonitor(url: string, label: string): Promise<string> {

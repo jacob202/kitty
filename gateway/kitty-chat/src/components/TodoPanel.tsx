@@ -11,6 +11,8 @@ export function TodoPanel() {
   const completeTodo = useCompleteTodo()
   const deleteTodo = useDeleteTodo()
   const [input, setInput] = useState('')
+  const [clearDoneError, setClearDoneError] = useState(false)
+  const [clearingDone, setClearingDone] = useState(false)
 
   if (todosQuery.isPending) return <p style={noticeStyle}>loading todos…</p>
   if (todosQuery.isError) return (
@@ -30,9 +32,19 @@ export function TodoPanel() {
     addTodo.mutate(content, { onSuccess: result => { if (result) setInput('') } })
   }
 
+  async function handleClearDone() {
+    if (done.length === 0 || clearingDone) return
+    setClearingDone(true)
+    setClearDoneError(false)
+    const results = await Promise.allSettled(done.map(d => deleteTodo.mutateAsync(d.id)))
+    const anyFailed = results.some(r => r.status === 'rejected')
+    setClearDoneError(anyFailed)
+    setClearingDone(false)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {(completeTodo.isError || addTodo.isError || deleteTodo.isError) && (
+      {(completeTodo.isError || addTodo.isError || clearDoneError) && (
         <p style={errorStyle}>
           {completeTodo.isError ? "Couldn't complete todo right now." : addTodo.isError ? "Couldn't add todo right now." : "Couldn't clear completed todos right now."}
         </p>
@@ -62,10 +74,11 @@ export function TodoPanel() {
         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', margin: 0 }}>
           {done.length} completed —{' '}
           <button
-            onClick={() => done.forEach(d => deleteTodo.mutate(d.id))}
-            style={{ background: 'none', border: 'none', color: 'var(--c-red)', cursor: 'pointer', fontSize: 11, padding: 0 }}
+            onClick={handleClearDone}
+            disabled={clearingDone}
+            style={{ background: 'none', border: 'none', color: 'var(--c-red)', cursor: clearingDone ? 'not-allowed' : 'pointer', fontSize: 11, padding: 0, opacity: clearingDone ? 0.5 : 1 }}
           >
-            clear done
+            {clearingDone ? 'clearing…' : 'clear done'}
           </button>
         </p>
       )}

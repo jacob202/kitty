@@ -10,6 +10,7 @@ export function MonitorPanel() {
 
   const monitors = monitorsQuery.data ?? []
   const adding = addMonitor.isPending
+  const removing = removeMonitor.isPending
 
   const [url, setUrl] = useState('')
   const [label, setLabel] = useState('')
@@ -49,13 +50,13 @@ export function MonitorPanel() {
             <div key={m.id} style={rowStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={labelStyle}>{m.label}</span>
-                <span style={{ ...statusStyle, color: m.last_keyword_matched ? 'var(--cat-ginger)' : 'var(--ink-2)' }}>
-                  {m.last_keyword_matched ? 'hit' : 'watching'}
+                <span style={{ ...statusStyle, color: m.enabled === false ? 'var(--ink-2)' : m.last_keyword_matched ? 'var(--cat-ginger)' : 'var(--ink-2)' }}>
+                  {m.enabled === false ? 'paused' : m.last_keyword_matched ? 'hit' : 'watching'}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
                 <span style={urlStyle}>{m.url.replace(/^https?:\/\//, '').slice(0, 40)}</span>
-                <button aria-label={`remove monitor ${m.label}`} onClick={() => removeMonitor.mutate(m.id)} style={removeButtonStyle}>×</button>
+                <button aria-label={`remove monitor ${m.label}`} onClick={() => removeMonitor.mutate(m.id)} disabled={removing} style={removeButtonStyle}>×</button>
               </div>
             </div>
           ))}

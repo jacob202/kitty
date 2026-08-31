@@ -9,6 +9,7 @@ import {
   buildGatewayModels,
   fetchGatewayModels,
   fetchGatewaySearch,
+  fetchGatewayMonitors,
   summarizeGatewaySearch,
 } from '../src/lib/gateway'
 
@@ -78,6 +79,48 @@ describe('gateway integration helpers', () => {
   })
 })
 
+describe('fetchGatewayMonitors', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('throws on malformed payload missing watches array', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ other_field: 'value' }), { status: 200 }),
+    )
+
+    await expect(fetchGatewayMonitors()).rejects.toThrow('Gateway /monitors returned an invalid payload: expected a watches array')
+  })
+
+  it('throws on malformed payload with non-array watches', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ watches: 'not-an-array' }), { status: 200 }),
+    )
+
+    await expect(fetchGatewayMonitors()).rejects.toThrow('Gateway /monitors returned an invalid payload: expected a watches array')
+  })
+
+  it('returns empty array when watches is explicitly empty array', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ watches: [] }), { status: 200 }),
+    )
+
+    const result = await fetchGatewayMonitors()
+    expect(result).toEqual([])
+  })
+
+  it('returns watches array on valid payload', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ watches: [{ id: '1', url: 'https://example.com', label: 'Example' }] }), { status: 200 }),
+    )
+
+    const result = await fetchGatewayMonitors()
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('1')
+  })
+})
+
 describe('fetchGatewaySearch abort', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
@@ -86,6 +129,7 @@ describe('fetchGatewaySearch abort', () => {
       clearTimeout: globalThis.clearTimeout,
     })
   })
+
   afterEach(() => { vi.unstubAllGlobals() })
 
   it('returns neutral payload when caller aborts before fetch completes', async () => {

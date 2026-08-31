@@ -60,4 +60,43 @@ describe('TodoPanel', () => {
     renderPanel()
     expect(screen.getByText(/couldn't complete todo/i)).toBeInTheDocument()
   })
+
+  it('clears all completed todos by calling delete for each', async () => {
+    const deleteTodo = vi.fn()
+    const deleteTodoAsync = vi.fn().mockResolvedValue(undefined)
+    vi.mocked(queries.useTodos).mockReturnValue({
+      data: [
+        { id: 1, content: 'done 1', status: 'completed' },
+        { id: 2, content: 'done 2', status: 'completed' },
+        { id: 3, content: 'active', status: 'pending' },
+      ],
+      isPending: false,
+      isError: false,
+    } as never)
+    vi.mocked(queries.useDeleteTodo).mockReturnValue({ mutate: deleteTodo, mutateAsync: deleteTodoAsync, isPending: false } as never)
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: /clear done/i }))
+    await waitFor(() => expect(deleteTodoAsync).toHaveBeenCalledTimes(2))
+    expect(deleteTodoAsync).toHaveBeenCalledWith(1)
+    expect(deleteTodoAsync).toHaveBeenCalledWith(2)
+  })
+
+  it('shows error when any clear-done deletion fails', async () => {
+    const deleteTodo = vi.fn()
+    const deleteTodoAsync = vi.fn()
+      .mockImplementationOnce(() => Promise.resolve()) // first succeeds
+      .mockImplementationOnce(() => Promise.reject(new Error('delete failed'))) // second fails
+    vi.mocked(queries.useTodos).mockReturnValue({
+      data: [
+        { id: 1, content: 'done 1', status: 'completed' },
+        { id: 2, content: 'done 2', status: 'completed' },
+      ],
+      isPending: false,
+      isError: false,
+    } as never)
+    vi.mocked(queries.useDeleteTodo).mockReturnValue({ mutate: deleteTodo, mutateAsync: deleteTodoAsync, isPending: false, isError: false } as never)
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: /clear done/i }))
+    await waitFor(() => expect(screen.getByText(/couldn't clear completed todos/i)).toBeInTheDocument())
+  })
 })
