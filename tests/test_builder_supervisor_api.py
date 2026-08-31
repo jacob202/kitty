@@ -9,7 +9,7 @@ supervisor lock ever touches live Builder state.
 from __future__ import annotations
 
 import asyncio
-import time
+import threading
 
 import pytest
 from fastapi import FastAPI
@@ -55,8 +55,11 @@ def _counts(monkeypatch, *, now: int, on_hold: int):
 
 class TestSupervisorControlPlaneSummary:
     def test_route_does_not_block_event_loop_while_collecting_system_status(self, monkeypatch):
+        release_summary = threading.Event()
+
         def slow_summary():
-            time.sleep(0.2)
+            if not release_summary.wait(timeout=1.0):
+                raise AssertionError("event-loop heartbeat did not run while summary was collecting")
             return {
                 "active_runs": [], "eligible_now": 0, "on_hold": 0,
                 "lock_path": "/tmp/supervisor.lock", "scheduler_enabled": True,
@@ -67,18 +70,16 @@ class TestSupervisorControlPlaneSummary:
         monkeypatch.setattr("gateway.builder_supervisor.control_plane_summary", slow_summary)
 
         async def exercise():
-            started = time.monotonic()
-            heartbeat_at = None
             async def heartbeat():
-                nonlocal heartbeat_at
-                await asyncio.sleep(0.02)
-                heartbeat_at = time.monotonic() - started
-            heartbeat_task = asyncio.create_task(heartbeat())
-            await builder_route.builder_supervisor_status()
-            await heartbeat_task
-            return heartbeat_at
+                await asyncio.sleep(0)
+                release_summary.set()
 
-        assert asyncio.run(exercise()) < 0.1
+            heartbeat_task = asyncio.create_task(heartbeat())
+            result = await builder_route.builder_supervisor_status()
+            await heartbeat_task
+            return result
+
+        assert asyncio.run(exercise())["schema_version"] == 1
 
     def test_route_avoids_the_full_per_initiative_status_scan(self, client, monkeypatch):
         def expensive_status_must_not_run():
