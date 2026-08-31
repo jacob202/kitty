@@ -19,6 +19,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
+from gateway import context_enrichment, deadline_store, llm_client, memory_graph, next_step, notify
+
 # Optional: trafilatura pulls clean article body text from a URL so the brief
 # can be more than headline-only. Opt-in via BRIEF_ENRICH_ARTICLES=1 because it
 # adds 2–4s of HTTP at brief refresh time.
@@ -266,9 +268,8 @@ class DefaultLLMClient:
     def complete(
         self, *, model: str, messages: List[dict], max_tokens: int, temperature: float
     ) -> str:
-        from gateway.llm_client import chat
 
-        return chat(
+        return llm_client.chat(
             model=model,
             messages=messages,
             max_tokens=max_tokens,
@@ -327,18 +328,13 @@ def synthesize_brief_with_llm(
     ``llm`` is injectable for tests/non-default models; when omitted the brief
     uses the default ``DEFAULT_LLM_CLIENT`` (``gateway.llm_client.chat``).
     """
-    from gateway.context_enrichment import (
-        calendar_today_text_sync,
-        todos_text_sync,
-        weather_text_sync,
-    )
 
     llm_client = llm or DEFAULT_LLM_CLIENT
 
     news_text = "\n".join([f"- {h.title}" for h in headlines[:6]])
-    calendar_text = calendar_today_text_sync()
-    weather_text = weather_text_sync()
-    todos_text = todos_text_sync()
+    calendar_text = context_enrichment.calendar_today_text_sync()
+    weather_text = context_enrichment.weather_text_sync()
+    todos_text = context_enrichment.todos_text_sync()
     recent_journal = _fetch_recent_journal_text(limit=3)
 
     sections: list[str] = [f"News:\n{news_text}"]
@@ -387,9 +383,8 @@ No bullet points. No headers. No "Certainly!" or "Great question!". Contractions
 def _fetch_memory_snippet() -> str:
     """Fetch unified context for brief synthesis."""
     try:
-        from gateway.memory_graph import unified_context
 
-        return _run_async(unified_context("morning brief"))
+        return _run_async(memory_graph.unified_context("morning brief"))
     except Exception:
         logger.warning("_fetch_memory_snippet: unified_context failed")
         return ""
@@ -508,7 +503,6 @@ def get_next_steps_section(limit: int = 3) -> list[dict]:
     available. Skips projects with no stored step (never refreshed under this
     packet) rather than fabricating one.
     """
-    from gateway import next_step
 
     return next_step.select_steps(limit=limit)
 
@@ -519,7 +513,6 @@ def get_deadlines_section(limit: int = 3) -> list[dict]:
     Ordered by due_date ascending. High/medium confidence first; needs_jacob
     items are surfaced only if there are fewer than `limit` confident items.
     """
-    from gateway import deadline_store
 
     open_deadlines = deadline_store.list_open(status="open")
     needs_jacob = deadline_store.list_needs_jacob()
@@ -793,10 +786,9 @@ def generate_brief(news_source: NewsSource | None = None) -> dict:
 
     # Push to phone if notify is configured
     try:
-        from gateway.notify import is_configured, send_brief
 
-        if is_configured():
-            send_brief(brief_text)
+        if notify.is_configured():
+            notify.send_brief(brief_text)
     except Exception:
         logger.exception("brief notification delivery failed")
 
