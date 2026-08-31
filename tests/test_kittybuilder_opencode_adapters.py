@@ -269,6 +269,37 @@ def test_worker_stages_and_validates_local_context(tmp_path: Path):
     assert not list(tmp_path.glob(".kittybuilder-*"))
 
 
+def test_worker_result_handoff_does_not_depend_on_cp_metadata_copy(tmp_path: Path):
+    _init_git_repo(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    result = tmp_path / "runner" / "implementation.json"
+    result.parent.mkdir()
+    fake = _fake_opencode(tmp_path)
+    fake_cp = tmp_path / "cp"
+    fake_cp.write_text(
+        "#!/bin/sh\n"
+        "case \"$2\" in\n"
+        "  */implementation.json) echo \"cp: $2: Operation not permitted\" >&2; exit 1 ;;\n"
+        "esac\n"
+        "exec /bin/cp \"$@\"\n",
+        encoding="utf-8",
+    )
+    fake_cp.chmod(0o755)
+
+    completed = subprocess.run(
+        [str(WORKER)],
+        cwd=tmp_path,
+        env=_env(fake, bundle=bundle, context=context, result=result),
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(result.read_text(encoding="utf-8"))["status"] == "completed"
+
+
 def test_worker_delegates_declared_validation_to_trusted_builder(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
