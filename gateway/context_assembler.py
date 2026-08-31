@@ -175,6 +175,14 @@ class ContextBundle:
     warnings: list[str] = field(default_factory=list)
     injected_memory_items: list[MemoryEvidence] = field(default_factory=list)
     context_budget: dict[str, object] = field(default_factory=dict)
+    context_health: dict[str, object] = field(
+        default_factory=lambda: {
+            "mode": "full",
+            "degraded_sources": [],
+            "budget_clipped": False,
+            "warning_count": 0,
+        }
+    )
 
 
 @dataclass
@@ -244,6 +252,52 @@ def _filter_items_by_policy(
 def _join_blocks(*blocks: str) -> str:
     """Concatenate non-empty blocks with a blank line between them."""
     return "\n\n".join(b for b in blocks if b)
+
+
+def _warning_source(warning: str) -> str | None:
+    """Extract a bounded source id without leaking exception detail."""
+    if warning.startswith("context_budget:"):
+        return None
+    head, sep, remainder = warning.partition(":")
+    if not sep:
+        return "unknown"
+    if head == "memory_graph":
+        head, _sep, _detail = remainder.partition(":")
+    name = head.strip().strip("_")
+    if name.endswith("_block"):
+        name = name[: -len("_block")]
+    return name or "unknown"
+
+
+def _degraded_sources(warnings: list[str]) -> list[str]:
+    return sorted(
+        {source for warning in warnings if (source := _warning_source(warning))}
+    )
+
+
+def _context_degradation_marker(sources: list[str]) -> str:
+    joined = ",".join(sources)
+    return (
+        f'<kitty_context_state mode="degraded" unavailable_sources="{joined}">'
+        "Some optional context sources were unavailable for this turn. "
+        "Do not imply you used missing context; mention the limitation only if it "
+        "materially affects the answer."
+        "</kitty_context_state>"
+    )
+
+
+def _context_health(warnings: list[str]) -> dict[str, object]:
+    sources = _degraded_sources(warnings)
+    budget_clipped = any(warning.startswith("context_budget:") for warning in warnings)
+    source_warning_count = sum(
+        not warning.startswith("context_budget:") for warning in warnings
+    )
+    return {
+        "mode": "degraded" if sources else "full",
+        "degraded_sources": sources,
+        "budget_clipped": budget_clipped,
+        "warning_count": source_warning_count,
+    }
 
 
 def _budget_units(text: str) -> int:
@@ -425,6 +479,14 @@ async def assemble_context(
         enrichment_blocks, enrichment_warnings = await run_enrichments(deps.enrichments, message)
     warnings.extend(enrichment_warnings)
 
+    source_degradation = _degraded_sources(warnings)
+    if source_degradation:
+        # Put reliability truth first inside the domain block so ordinary
+        # tail-clipping cannot erase the fact that context was partial.
+        domain_block = _join_blocks(
+            _context_degradation_marker(source_degradation), domain_block
+        )
+
     enrichment_share = _CONTEXT_BLOCK_SHARES["enrichments"]
     each_enrichment_share = (
         enrichment_share / len(enrichment_blocks) if enrichment_blocks else 0.0
@@ -455,6 +517,7 @@ async def assemble_context(
         warnings=warnings,
         injected_memory_items=injected_memory_items,
         context_budget=budget_evidence,
+        context_health=_context_health(warnings),
     )
 
 

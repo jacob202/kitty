@@ -190,3 +190,59 @@ def test_health_surface_route_returns_projection(monkeypatch):
     assert "degraded" in body
     assert "still_functional" in body
     assert "pending_grants" in body
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_health_degrades_on_open_circuit_without_claiming_remote_probe(monkeypatch):
+    import gateway.health_surface as health_surface
+    import gateway.mcp_tool_bridge as mcp
+
+    monkeypatch.setattr(
+        mcp,
+        "tool_health_snapshot",
+        lambda: {
+            "state": "degraded",
+            "configured_servers": 2,
+            "open_circuits": [
+                {
+                    "server": "search",
+                    "tool": "query",
+                    "consecutive_failures": 3,
+                    "retry_after_seconds": 20.0,
+                    "probe_due": False,
+                    "last_error": "timeout",
+                }
+            ],
+            "remote_health_probed": False,
+        },
+    )
+
+    domain = await health_surface._mcp_tools_source()
+
+    assert domain.status == "degraded"
+    assert "1 tool circuit" in domain.reason
+    assert domain.detail["remote_health_probed"] is False
+    assert domain.detail["open_circuits"][0]["tool"] == "query"
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_health_with_no_servers_is_available_but_not_live_probed(monkeypatch):
+    import gateway.health_surface as health_surface
+    import gateway.mcp_tool_bridge as mcp
+
+    monkeypatch.setattr(
+        mcp,
+        "tool_health_snapshot",
+        lambda: {
+            "state": "available",
+            "configured_servers": 0,
+            "open_circuits": [],
+            "remote_health_probed": False,
+        },
+    )
+
+    domain = await health_surface._mcp_tools_source()
+
+    assert domain.status == "available"
+    assert "no MCP servers configured" in domain.reason
+    assert domain.detail["remote_health_probed"] is False

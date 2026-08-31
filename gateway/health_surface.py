@@ -247,6 +247,31 @@ async def _ollama_source() -> HealthDomain:
         )
 
 
+async def _mcp_tools_source() -> HealthDomain:
+    """Project MCP cutoff truth without pretending configured servers are live."""
+    from gateway import mcp_tool_bridge
+
+    snapshot = mcp_tool_bridge.tool_health_snapshot()
+    open_circuits = snapshot.get("open_circuits", [])
+    configured = int(snapshot.get("configured_servers", 0))
+    if open_circuits:
+        count = len(open_circuits)
+        return HealthDomain(
+            "mcp_tools",
+            "degraded",
+            reason=f"{count} tool circuit{'s' if count != 1 else ''} open; remote health is not proactively probed",
+            detail=snapshot,
+        )
+    if configured == 0:
+        reason = "no MCP servers configured; remote health is not proactively probed"
+    else:
+        reason = (
+            f"{configured} MCP server{'s' if configured != 1 else ''} configured; "
+            "no tool circuits open; remote health is not proactively probed"
+        )
+    return HealthDomain("mcp_tools", "available", reason=reason, detail=snapshot)
+
+
 async def _pending_grants_source() -> HealthDomain:
     from gateway import action_grants
 
@@ -300,6 +325,7 @@ def default_sources() -> dict[str, HealthSource]:
         "image_providers": _image_providers_source,
         "image_queue": _image_queue_source,
         "ollama": _ollama_source,
+        "mcp_tools": _mcp_tools_source,
         "pending_grants": _pending_grants_source,
     }
 
