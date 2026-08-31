@@ -18,8 +18,8 @@ from fastapi import HTTPException
 
 from gateway import artifact_store, image_jobs, image_plan_store
 from gateway import image_sessions as sessions
-from gateway.image_plan_types import build_image_plan
 from gateway.image_plan_store import PlanStoreError, persist_plan, require_approved_plan
+from gateway.image_plan_types import build_image_plan
 from gateway.image_policy import (
     AdultConfirmationRequiredError,
     ConsentRequiredError,

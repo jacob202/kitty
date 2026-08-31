@@ -360,8 +360,8 @@ def _build_and_persist_plan(
     requested_changes: list[str] | None = None,
     protected_traits: list[str] | None = None,
 ) -> Any:
-    from gateway.image_plan_types import ImagePlanError, build_image_plan
     from gateway.image_plan_store import PlanStoreError, persist_plan
+    from gateway.image_plan_types import ImagePlanError, build_image_plan
 
     try:
         plan = build_image_plan(
