@@ -38,6 +38,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn
@@ -993,6 +994,45 @@ def run_worker(
     lease_token = task["lease_token"]
     claim_version = task["claim_version"]
 
+    # Worktree creation and context preparation can legitimately take longer
+    # than one lease interval. Keep ownership alive from the moment we claim
+    # the task, not only after the model process has started.
+    prelaunch_stop = threading.Event()
+    prelaunch_errors: list[Exception] = []
+
+    def _prelaunch_heartbeat() -> None:
+        while not prelaunch_stop.wait(heartbeat_seconds):
+            try:
+                bq.renew_lease(
+                    task_id,
+                    lease_token,
+                    claim_version,
+                    lease_seconds=lease_seconds,
+                    db_path=db_path,
+                )
+            except Exception as exc:
+                prelaunch_errors.append(exc)
+                return
+
+    prelaunch_thread = threading.Thread(
+        target=_prelaunch_heartbeat,
+        name=f"builder-prelaunch-heartbeat-{task_id}",
+        daemon=True,
+    )
+    prelaunch_thread.start()
+
+    def _stop_prelaunch_heartbeat(*, check_error: bool) -> None:
+        prelaunch_stop.set()
+        prelaunch_thread.join(timeout=max(1.0, heartbeat_seconds * 2))
+        if prelaunch_thread.is_alive():
+            raise RunnerError(f"prelaunch heartbeat did not stop for task {task_id}")
+        if check_error and prelaunch_errors:
+            exc = prelaunch_errors[0]
+            raise RunnerError(
+                f"prelaunch lease heartbeat failed for task {task_id}: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+
     try:
         root = _repo_root(repo_root).resolve()
         configured_repo = task.get("repo_path")
@@ -1013,7 +1053,8 @@ def run_worker(
             reuse_dirty=reuse_dirty_worktree,
         )
     except Exception:
-        # Nothing started yet — hand the claim back cleanly.
+        # Nothing started yet — stop lease maintenance and hand the claim back.
+        _stop_prelaunch_heartbeat(check_error=False)
         bq.worker_release_task(task_id, lease_token, claim_version, db_path=db_path)
         raise
 
@@ -1081,7 +1122,17 @@ def run_worker(
             payload={"run_id": run_id, "worker": worker},
             db_path=db_path,
         )
+        _stop_prelaunch_heartbeat(check_error=True)
+        # Hand the process-monitoring loop a full fresh lease window.
+        bq.renew_lease(
+            task_id,
+            lease_token,
+            claim_version,
+            lease_seconds=lease_seconds,
+            db_path=db_path,
+        )
     except Exception as exc:
+        _stop_prelaunch_heartbeat(check_error=False)
         if run is None:
             try:
                 bq.worker_release_task(

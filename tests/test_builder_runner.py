@@ -642,13 +642,17 @@ class TestRunWorker:
     ):
         task = _queued_task(db_path)
         call_count = [0]
+        real_renew = bq.renew_lease
 
         def fail_renew(task_id, lease_token, claim_version, *,
                         lease_seconds=300, db_path=None):
             call_count[0] += 1
-            if call_count[0] > 3:
+            # With a command that exits immediately and a long heartbeat
+            # interval, call 1 is the prelaunch freshening and call 2 is the
+            # post-process fence this test is specifically exercising.
+            if call_count[0] == 2:
                 raise RuntimeError("post-loop renewal failure")
-            return bq.renew_lease(
+            return real_renew(
                 task_id, lease_token, claim_version,
                 lease_seconds=lease_seconds, db_path=db_path,
             )
@@ -657,8 +661,8 @@ class TestRunWorker:
 
         with pytest.raises(br.RunnerError, match="monitoring failed"):
             br.run_worker(
-                task["id"], ["sleep", "2"],
-                timeout_seconds=30, lease_seconds=10, heartbeat_seconds=0.1,
+                task["id"], ["true"],
+                timeout_seconds=30, lease_seconds=30, heartbeat_seconds=10,
                 repo_root=repo, db_path=db_path,
             )
 
@@ -886,14 +890,39 @@ class TestRunWorker:
         assert refreshed["state"] == bq.QUEUED
         assert bq.list_runs(task_id=task["id"], db_path=db_path) == []
 
+    def test_prelaunch_setup_heartbeats_lease_before_worker_start(
+        self, repo: Path, db_path: Path, monkeypatch
+    ):
+        task = _queued_task(db_path)
+        real_ensure = br.ensure_worktree
+
+        def slow_ensure(*args, **kwargs):
+            path = real_ensure(*args, **kwargs)
+            time.sleep(1.2)
+            return path
+
+        monkeypatch.setattr(br, "ensure_worktree", slow_ensure)
+        run = br.run_worker(
+            task["id"],
+            ["true"],
+            timeout_seconds=30,
+            lease_seconds=1,
+            heartbeat_seconds=0.1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_EXITED
+        assert run["last_heartbeat_at"] is not None
+
     def test_heartbeat_renews_lease_during_run(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
         run = br.run_worker(
             task["id"],
-            ["sleep", "0.8"],
+            ["sleep", "2.5"],
             timeout_seconds=30,
-            lease_seconds=0.5,  # would expire mid-run without heartbeat
-            heartbeat_seconds=0.1,
+            lease_seconds=2,  # would expire mid-run without heartbeat
+            heartbeat_seconds=0.2,
             repo_root=repo,
             db_path=db_path,
         )
