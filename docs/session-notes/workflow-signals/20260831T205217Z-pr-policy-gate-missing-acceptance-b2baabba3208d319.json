@@ -1,0 +1,20 @@
+{
+  "category": "missing_automation",
+  "evidence": "PR #726 (feat/wow-capability-launcher-20260831) failed policy-gate with 'user-facing PR requires completed product acceptance' -- its description has no Product acceptance section at all. PR #725 failed the same gate first with '2 acceptance checkbox(es) unchecked' before being fixed and rerun.",
+  "fingerprint": "22e54a682b2b8f20",
+  "id": "wfs_20260831t205217z_22e54a682b2b8f20_b2baabba3208d319",
+  "impact": "User-facing PRs from the overnight wow-campaign are being opened without the policy-required product-acceptance section filled in. Costs a CI round trip and investigation time per PR; hit twice out of 9 open PRs this session.",
+  "occurrence_count": 1,
+  "promotion_reason": "single non-critical observation; collect another occurrence",
+  "promotion_status": "observe",
+  "recorded_at": "2026-08-31T20:52:17.232007Z",
+  "schema_version": 1,
+  "severity": "low",
+  "source_session": "claude/pr-conflicts-review-8v3ms2-2026-08-31",
+  "stable_key": "pr-policy-gate-missing-acceptance",
+  "store_scope": "repo-fallback",
+  "suggested_change": "Add a local pre-push check, or a PR template with the Product acceptance section pre-filled with unchecked boxes, so a user-facing PR cannot be opened without the section present.",
+  "summary": "User-facing PRs are opened without the required product-acceptance section, so the first CI signal is a generic policy-gate failure instead of the real gap.",
+  "verified_by": "read policy-gate job logs for PR #725 and #726 (mcp__github__get_job_logs), confirmed exact failure text",
+  "window_days": 30
+}
