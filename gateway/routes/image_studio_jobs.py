@@ -9,8 +9,19 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from gateway import image_batches, image_estimates, image_recipes
+from gateway import (
+    flux2_targets,
+    image_batches,
+    image_estimates,
+    image_gen,
+    image_iteration,
+    image_jobs,
+    image_recipes,
+    image_sessions,
+    undo_journal,
+)
 from gateway.image_runner import FLUX_EDIT_MODEL, FLUX_GENERATE_MODEL, OPENROUTER_IMAGE_MODEL
+from gateway.routes import extended
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["image-studio-jobs"])
@@ -68,9 +79,8 @@ def _exact_model_id(provider: str) -> str | None:
     if provider == "flux":
         return FLUX_GENERATE_MODEL
     if provider == "comfyui":
-        from gateway.image_gen import SDXL_PHOTONIC
 
-        return SDXL_PHOTONIC
+        return image_gen.SDXL_PHOTONIC
     # Draw Things chooses its installed model at runtime. Returning None is
     # more honest than grouping observations under a made-up family label.
     return None
@@ -80,23 +90,21 @@ def _iteration_model_id(recipe: object, *, operation: str) -> str | None:
     """Resolve the exact model the current recipe would dispatch without doing I/O."""
     provider = str(getattr(recipe, "provider", "")).strip().lower()
     if provider == "flux2":
-        from gateway.flux2_targets import Flux2TargetError, resolve_flux2_target
 
         target_id = getattr(recipe, "execution_target", None)
         if not target_id:
             return None
         try:
-            return resolve_flux2_target(str(target_id)).model_id
-        except Flux2TargetError:
+            return flux2_targets.resolve_flux2_target(str(target_id)).model_id
+        except flux2_targets.Flux2TargetError:
             return None
     if provider == "flux":
         return FLUX_EDIT_MODEL if operation == "img2img" else FLUX_GENERATE_MODEL
     if provider == "openrouter":
         return OPENROUTER_IMAGE_MODEL
     if provider == "comfyui":
-        from gateway.image_gen import SDXL_PHOTONIC
 
-        return SDXL_PHOTONIC
+        return image_gen.SDXL_PHOTONIC
     if provider in {"airforce", "fal", "drawthings"}:
         try:
             from mcp.imagen.engines import get
@@ -119,7 +127,6 @@ def _validate_iteration_route(request: dict) -> None:
     if not recipe_id or not parent_id:
         raise HTTPException(status_code=409, detail="source route cannot be proven for this iteration")
 
-    from gateway import image_jobs
 
     source = image_jobs.get_job(str(parent_id))
     if source is None:
@@ -234,26 +241,22 @@ async def studio_cancel_batch(batch_id: str) -> dict:
 
 @router.delete("/studio/sessions/{session_id}/anchor")
 async def studio_clear_anchor(session_id: str) -> dict:
-    from gateway import undo_journal
-    from gateway.image_sessions import ImageSessionError, SessionNotFoundError, require_session
-    from gateway.routes.extended import session_payload
 
     try:
         journal_id = undo_journal.clear_anchor_with_undo(session_id)
-        session = require_session(session_id)
-    except (SessionNotFoundError, undo_journal.UndoNotFound) as exc:
+        session = image_sessions.require_session(session_id)
+    except (image_sessions.SessionNotFoundError, undo_journal.UndoNotFound) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ImageSessionError as exc:
+    except image_sessions.ImageSessionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    result = session_payload(session)
+    result = extended.session_payload(session)
     result["undo_journal_id"] = journal_id
     return result
 
 
 def _iteration_error(exc: Exception) -> HTTPException:
-    from gateway.image_jobs import JobNotFoundError
 
-    if isinstance(exc, JobNotFoundError):
+    if isinstance(exc, image_jobs.JobNotFoundError):
         return HTTPException(status_code=404, detail=str(exc))
     return HTTPException(status_code=400, detail=str(exc))
 
@@ -261,13 +264,10 @@ def _iteration_error(exc: Exception) -> HTTPException:
 @router.post("/studio/jobs/{job_id}/duplicate")
 async def studio_duplicate_job(job_id: str) -> dict:
     """Enqueue an independent re-run of a succeeded job's approved plan."""
-    from gateway import image_iteration
-    from gateway.image_jobs import ImageJobError
-    from gateway.image_sessions import ImageSessionError
 
     try:
         batch = image_iteration.enqueue_duplicate(job_id)
-    except (ImageJobError, ImageSessionError) as exc:
+    except (image_jobs.ImageJobError, image_sessions.ImageSessionError) as exc:
         raise _iteration_error(exc) from exc
     return {"batch": batch}
 
@@ -275,13 +275,10 @@ async def studio_duplicate_job(job_id: str) -> dict:
 @router.post("/studio/jobs/{job_id}/retry")
 async def studio_retry_job(job_id: str) -> dict:
     """Enqueue a fresh attempt of a succeeded job's generation intent."""
-    from gateway import image_iteration
-    from gateway.image_jobs import ImageJobError
-    from gateway.image_sessions import ImageSessionError
 
     try:
         batch = image_iteration.enqueue_retry(job_id)
-    except (ImageJobError, ImageSessionError) as exc:
+    except (image_jobs.ImageJobError, image_sessions.ImageSessionError) as exc:
         raise _iteration_error(exc) from exc
     return {"batch": batch}
 
@@ -308,8 +305,6 @@ async def execute_studio_batch_request(request: dict) -> dict:
     The queue stores the estimate-time provider/model for audit, but actual job
     metadata after routing remains the source of truth for observations.
     """
-    from gateway import image_jobs
-    from gateway.routes.extended import StudioGenerateRequest, studio_generate
 
     _validate_iteration_route(request)
     payload = {
@@ -322,7 +317,7 @@ async def execute_studio_batch_request(request: dict) -> dict:
     }
     lineage_parent_id = request.get("lineage_parent_id")
     started = time.monotonic()
-    result = await studio_generate(StudioGenerateRequest(**payload))
+    result = await extended.studio_generate(extended.StudioGenerateRequest(**payload))
     duration = max(time.monotonic() - started, 0.001)
 
     job_id = result.get("job_id")
