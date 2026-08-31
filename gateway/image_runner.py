@@ -18,7 +18,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from gateway import image_jobs
+from gateway import (
+    flux2_transport,
+    image_character_contracts,
+    image_gen,
+    image_jobs,
+    image_policy,
+    image_sessions,
+    runpod_worker,
+)
+from gateway import paths as _paths
 from gateway.image_jobs import ImageJobStatus
 
 
@@ -112,9 +121,8 @@ async def run(
     private work to a hosted provider.
     """
     engine = engine.strip().lower()
-    from gateway.image_policy import validate_image_execution_policy
 
-    validate_image_execution_policy(
+    image_policy.validate_image_execution_policy(
         content_lane, consent_basis, adult_confirmed, engine
     )
     if engine not in ENGINES:
@@ -226,9 +234,8 @@ async def run_edit(
     call: a private plan may only land here, and a direct invocation of this
     function cannot be coerced into a hosted fallback.
     """
-    from gateway.image_policy import validate_image_execution_policy
 
-    validate_image_execution_policy(
+    image_policy.validate_image_execution_policy(
         content_lane, consent_basis, adult_confirmed, "kitty_worker"
     )
 
@@ -240,9 +247,8 @@ async def run_edit(
 
     owns_worker = worker is None
     if worker is None:
-        from gateway.runpod_worker import client_from_env
 
-        worker = client_from_env()
+        worker = runpod_worker.client_from_env()
 
     source_bytes, source_name = _read_anchor_artifact(anchor_job_id)
 
@@ -352,7 +358,6 @@ def _read_anchor_artifact(anchor_job_id: str) -> tuple[bytes, str]:
 
 
 def _persist_artifact(job_id: str, filename: str, data: bytes) -> Path:
-    from gateway import paths as _paths
 
     out_dir = _paths.DATA_DIR / "images" / job_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -506,12 +511,11 @@ async def _run_comfyui(
     intent_json: str | None = None,
 ) -> JobResult:
     """Standard ComfyUI generation path (no character)."""
-    from gateway.image_gen import generate, is_available
 
-    if not await is_available():
+    if not await image_gen.is_available():
         raise ImageRunnerError("ComfyUI is not running")
 
-    result = await generate(
+    result = await image_gen.generate(
         prompt,
         parent_id=parent_id,
         guidance_tags=guidance_tags,
@@ -540,22 +544,16 @@ async def _run_comfyui_character(
     intent_json: str | None = None,
 ) -> JobResult:
     """Generate through the exact stored character contract."""
-    from gateway.image_character_contracts import (
-        CharacterContractError,
-        comfyui_character_runtime_status,
-        resolve_comfyui_character,
-    )
-    from gateway.image_gen import generate_with_character, is_available
 
-    if not await is_available():
+    if not await image_gen.is_available():
         raise ImageRunnerError("ComfyUI is not running")
 
     try:
-        resolved = resolve_comfyui_character(character_id)
-    except CharacterContractError as exc:
+        resolved = image_character_contracts.resolve_comfyui_character(character_id)
+    except image_character_contracts.CharacterContractError as exc:
         raise ImageRunnerError(str(exc)) from exc
 
-    ready, readiness_reason = await comfyui_character_runtime_status()
+    ready, readiness_reason = await image_character_contracts.comfyui_character_runtime_status()
     if not ready:
         raise ImageRunnerError(
             "ComfyUI is running but its identity workflow is not ready: "
@@ -573,7 +571,7 @@ async def _run_comfyui_character(
         if isinstance(part, str) and part.strip()
     )
 
-    result = await generate_with_character(
+    result = await image_gen.generate_with_character(
         prompt=final_prompt,
         character_ref_path=resolved["reference_path"],
         identity_mode=resolved["identity_mode"],
@@ -662,11 +660,10 @@ def _attach_job_to_session_before_dispatch(job_id: str, session_id: str | None) 
     """Persist Studio ownership before any provider call can become billable."""
     if session_id is None:
         return
-    from gateway.image_sessions import ImageSessionError, attach_job
 
     try:
-        attach_job(session_id, job_id)
-    except ImageSessionError as exc:
+        image_sessions.attach_job(session_id, job_id)
+    except image_sessions.ImageSessionError as exc:
         raise ImageDispatchNotSubmittedError(str(exc)) from exc
 
 
@@ -774,19 +771,15 @@ async def recover_bfl_job(job_id: str) -> JobResult:
         and not isinstance(reserved_cost, bool)
         and cost_usd is not None
     ):
-        from gateway.image_sessions import (
-            ImageSessionError,
-            finalize_recovered_paid_job,
-        )
 
         try:
-            finalize_recovered_paid_job(
+            image_sessions.finalize_recovered_paid_job(
                 receipt_session_id,
                 job_id,
                 reserved_cost_usd=float(reserved_cost),
                 actual_cost_usd=cost_usd,
             )
-        except ImageSessionError as exc:
+        except image_sessions.ImageSessionError as exc:
             message = f"BFL artifact recovered but spend settlement remains unresolved: {exc}"
             _mark_unknown(job_id, message)
             raise ImageProviderOutcomeUnknownError(message) from exc
@@ -1379,7 +1372,6 @@ async def _run_flux2(
 
     import httpx
 
-    from gateway import flux2_transport
 
     enabled, reason = flux2_images_available()
     if not enabled:
