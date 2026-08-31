@@ -30,11 +30,14 @@ not in the CLI, so the CLI surface stays fixed.
 from __future__ import annotations
 
 import errno
+import hashlib
 import json
 import os
 import plistlib
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +78,124 @@ def _lock_path(db_path: Path | None) -> Path:
     """One OS lock per Builder data dir, alongside the queue DB."""
     queue_db = Path(db_path) if db_path is not None else default_db_path()
     return queue_db.parent / "supervisor.lock"
+
+
+def _task_dispatch_lock_path(task_id: str, db_path: Path | None) -> Path:
+    """Stable per-task lock path used only to fence duplicate supervisor spawns."""
+    queue_db = Path(db_path) if db_path is not None else default_db_path()
+    digest = hashlib.sha256(task_id.encode("utf-8")).hexdigest()[:24]
+    return queue_db.parent / "dispatch-locks" / f"{digest}.lock"
+
+
+class TaskDispatchLock:
+    """Process-lifetime fence for one supervisor-dispatched task.
+
+    The parent acquires this before Popen and passes the descriptor to the
+    detached Kitty process. The parent then closes its copy; the child keeps
+    the lock until the packet CLI exits. This prevents a later supervisor tick
+    from spawning the same task while durable Builder startup is still in
+    progress, without inventing a second queue state machine.
+    """
+
+    def __init__(self, task_id: str, db_path: Path | None = None) -> None:
+        self._path = _task_dispatch_lock_path(task_id, db_path)
+        self._fh: Any = None
+        self.acquired = False
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    @property
+    def fileno(self) -> int:
+        if self._fh is None:
+            raise RuntimeError("dispatch lock is not open")
+        return self._fh.fileno()
+
+    def __enter__(self) -> "TaskDispatchLock":
+        import fcntl
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._fh = open(self._path, "a+", encoding="utf-8")
+        try:
+            fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.acquired = True
+        except OSError as exc:
+            self._fh.close()
+            self._fh = None
+            if exc.errno not in {errno.EAGAIN, errno.EACCES}:
+                raise
+        return self
+
+    def handoff_to_child(self) -> None:
+        """Close only the parent fd after Popen; the child keeps the flock."""
+        if self._fh is None or not self.acquired:
+            raise RuntimeError("cannot hand off an unacquired dispatch lock")
+        self._fh.close()
+        self._fh = None
+        self.acquired = False
+
+    def __exit__(self, *_exc_info: Any) -> None:
+        if self._fh is not None:
+            import fcntl
+            try:
+                fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+            finally:
+                self._fh.close()
+            self._fh = None
+
+
+def _task_dispatch_is_locked(task_id: str, db_path: Path | None) -> bool:
+    """Return whether another live supervisor child owns this task fence."""
+    with TaskDispatchLock(task_id, db_path) as lock:
+        return not lock.acquired
+
+
+def _scheduler_enabled() -> bool | None:
+    """Return launchd scheduler truth: loaded, absent/disabled, or unknown."""
+    if os.environ.get("KITTY_BUILDER_QUEUE_ENABLED", "1") == "0":
+        return False
+    try:
+        result = subprocess.run(
+            ["launchctl", "print", f"gui/{os.getuid()}/{SUPERVISOR_LABEL}"],
+            capture_output=True, text=True, timeout=2, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode == 0:
+        return True
+    detail = (result.stderr or "").lower()
+    if "could not find service" in detail or "not found" in detail:
+        return False
+    return None
+
+
+def _wait_for_durable_claim(
+    task_id: str, process: subprocess.Popen[Any], *, initial_claim_version: int,
+    db_path: Path | None, timeout_seconds: float = 10.0,
+) -> dict[str, Any]:
+    """Wait until the detached child has durably claimed its queue task."""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        task = bq.get_task(task_id, db_path=db_path)
+        if task is not None and int(task.get("claim_version") or 0) > initial_claim_version:
+            return task
+        if process.poll() is not None:
+            raise SupervisorError(f"Builder child {process.pid} exited before durably claiming task {task_id}")
+        time.sleep(0.05)
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    else:
+        try:
+            process.wait(timeout=2.0)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=2.0)
+    raise SupervisorError(f"Builder child {process.pid} did not durably claim task {task_id} within {timeout_seconds:g}s")
 
 
 class SupervisorLock:
@@ -204,6 +325,13 @@ def _dispatch_candidate(
             "task_id": str(packet["task_id"]), "reason": "task_missing",
         }
     task_state = str(task["state"])
+    if _task_dispatch_is_locked(str(packet["task_id"]), db_path):
+        return None, {
+            "initiative_id": initiative_id,
+            "packet_id": str(packet["packet_id"]),
+            "task_id": str(packet["task_id"]),
+            "reason": "dispatch_in_progress",
+        }
     if task_state not in {bq.QUEUED, bq.BLOCKED}:
         return None, {
             "initiative_id": initiative_id, "packet_id": str(packet["packet_id"]),
@@ -296,6 +424,10 @@ def _launch_run(
     The detached child owns ``builder_loop.run_packet`` and therefore creates
     the attempt bundle, validation evidence, reviewer binding, and durable run
     state. The supervisor owns only dispatch and returns promptly.
+
+    Before launching, verifies the task is still in a dispatchable state.
+    The supervisor holds an exclusive lock during this check-and-launch
+    window, so no other tick can change the task state concurrently.
     """
     del worker, model  # the canonical free CLI owns worker/model routing
     root = (repo_root or repo_root_default()).resolve()
@@ -306,6 +438,27 @@ def _launch_run(
     initiative_id = str(packet["initiative_id"])
     packet_id = str(packet["packet_id"])
     task_id = str(packet["task_id"])
+
+    task = bq.get_task(task_id, db_path=db_path)
+    if task is None:
+        raise SupervisorError(
+            f"task {task_id} disappeared before launch"
+        )
+    task_state = str(task["state"])
+    initial_claim_version = int(task.get("claim_version") or 0)
+    if task_state not in {bq.QUEUED, bq.BLOCKED}:
+        raise SupervisorError(
+            f"task {task_id} is {task_state}, not dispatchable; "
+            "another process claimed it"
+        )
+    if task_state == bq.BLOCKED and not ba.list_stale_attempts(
+        initiative_id, packet_id, db_path=db_path
+    ):
+        raise SupervisorError(
+            f"blocked task {task_id} has no stale attempt; "
+            "operator release is required"
+        )
+
     command = [
         str(kitty), "builder", "initiative", "run-packet",
         initiative_id, packet_id, "--free", "--json",
@@ -316,21 +469,32 @@ def _launch_run(
     child_env = os.environ.copy()
     if db_path is not None:
         child_env["KITTY_BUILDER_DATA_DIR"] = str(Path(db_path).resolve().parent)
-    with log_path.open("ab") as log_handle:
-        process = subprocess.Popen(
-            command,
-            cwd=str(root),
-            stdin=subprocess.DEVNULL,
-            stdout=log_handle,
-            stderr=subprocess.STDOUT,
-            env=child_env,
-            shell=False,
-            start_new_session=True,
-            close_fds=True,
-        )
+    with TaskDispatchLock(task_id, db_path) as dispatch_lock:
+        if not dispatch_lock.acquired:
+            raise SupervisorError(
+                f"task {task_id} already has a supervisor dispatch in progress"
+            )
+        with log_path.open("ab") as log_handle:
+            process = subprocess.Popen(
+                command,
+                cwd=str(root),
+                stdin=subprocess.DEVNULL,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                env=child_env,
+                shell=False,
+                start_new_session=True,
+                close_fds=True,
+                pass_fds=(dispatch_lock.fileno,),
+            )
+        dispatch_lock.handoff_to_child()
+    claimed = _wait_for_durable_claim(
+        task_id, process, initial_claim_version=initial_claim_version, db_path=db_path
+    )
     return {
         "status": "dispatched",
         "launcher_pid": process.pid,
+        "claim_version": int(claimed["claim_version"]),
         "initiative_id": initiative_id,
         "packet_id": packet_id,
         "task_id": task_id,
@@ -451,6 +615,9 @@ def control_plane_summary(db_path: Path | None = None) -> dict[str, Any]:
         "on_hold": counts["on_hold"],
         "lock_path": str(_lock_path(db_path)),
         "budget": budget_summary(),
+        # Work needs this to say whether anything runs without being asked.
+        # Sourcing it here keeps the ten-second poll to a single call.
+        "scheduler_enabled": _scheduler_enabled(),
     }
 
 
@@ -482,6 +649,7 @@ def status(db_path: Path | None = None) -> dict[str, Any]:
         "lock": {"path": str(_lock_path(db_path))},
         "initiatives": rollup,
         "active_runs": active_runs,
+        "scheduler_enabled": _scheduler_enabled(),
     }
 
 

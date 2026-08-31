@@ -211,6 +211,29 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_one_active_per_task
     ON runs(task_id)
     WHERE state IN ('starting', 'running', 'cancel_requested');
 
+-- Agent-operable side-effect receipts. This is Builder execution evidence,
+-- not a second queue: one row identifies one logical operation across retries.
+CREATE TABLE IF NOT EXISTS operation_receipts (
+    invocation_id TEXT PRIMARY KEY,
+    operation TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_fingerprint TEXT NOT NULL,
+    request_json TEXT NOT NULL,
+    effect_class TEXT NOT NULL CHECK (effect_class IN ('none', 'idempotent', 'reconcilable', 'at_most_once')),
+    status TEXT NOT NULL CHECK (status IN ('requested', 'accepted', 'running', 'succeeded', 'failed', 'unknown')),
+    result_json TEXT,
+    verification_json TEXT,
+    last_error TEXT,
+    started_at TIMESTAMP,
+    ended_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (operation, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_operation_receipts_status
+    ON operation_receipts(status, updated_at);
+
 -- Branch leases: exclusive per packet within an initiative, per worker
 -- within an initiative, and unique per branch and worktree globally.
 -- base_sha is verification metadata only; several packets may share it.

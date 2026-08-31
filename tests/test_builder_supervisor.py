@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -61,14 +62,14 @@ def _apply(
     packets: list[dict[str, Any]],
     *,
     repo_root: Path | None = None,
-) -> None:
+) -> dict[str, Any]:
     manifest = {
         "manifest_version": 1,
         "initiative_id": initiative_id,
         "title": f"Initiative {initiative_id}",
         "packets": packets,
     }
-    bi.apply_manifest(manifest, db_path=db_path, repo_root=repo_root)
+    return bi.apply_manifest(manifest, db_path=db_path, repo_root=repo_root)
 
 
 def test_lock_basic(db_path: Path) -> None:
@@ -256,9 +257,13 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
     kitty = repo / "kitty"
     kitty.write_text("#!/bin/sh\n", encoding="utf-8")
     kitty.chmod(0o755)
-    packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": "task-1"}
+    result_apply = _apply(db_path, "test-init-1", [_packet("p1")], repo_root=repo)
+    task_id = result_apply["packets"][0]["task_id"]
+    packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": task_id}
 
-    with patch("gateway.builder_supervisor.subprocess.Popen") as popen:
+    with patch("gateway.builder_supervisor.subprocess.Popen") as popen, patch.object(
+        bs, "_wait_for_durable_claim", return_value={"claim_version": 1}
+    ):
         popen.return_value.pid = 4321
         result = bs._launch_run(packet, repo_root=repo, db_path=db_path)
 
@@ -266,11 +271,124 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
     assert argv == [str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1", "--free", "--json"]
     assert popen.call_args.kwargs["start_new_session"] is True
     assert popen.call_args.kwargs["shell"] is False
+    assert len(popen.call_args.kwargs["pass_fds"]) == 1
     assert result["status"] == "dispatched"
     assert result["launcher_pid"] == 4321
-    assert result["task_id"] == "task-1"
+    assert result["task_id"] == task_id
 
 
+def test_launch_run_refuses_when_task_already_claimed(repo: Path, db_path: Path) -> None:
+    """_launch_run must not launch if the task left dispatchable state."""
+    kitty = repo / "kitty"
+    kitty.write_text("#!/bin/sh\n", encoding="utf-8")
+    kitty.chmod(0o755)
+    result_apply = _apply(db_path, "test-init-1", [_packet("p1")], repo_root=repo)
+    task_id = result_apply["packets"][0]["task_id"]
+    # Claim the task so it is no longer dispatchable
+    bq.claim_task(task_id, "other-worker", db_path=db_path)
+    packet = {"initiative_id": "test-init-1", "packet_id": "p1", "task_id": task_id}
+
+    with pytest.raises(bs.SupervisorError, match="not dispatchable"):
+        bs._launch_run(packet, repo_root=repo, db_path=db_path)
+
+
+
+def test_wait_for_durable_claim_timeout_terminates_the_detached_process_group(monkeypatch) -> None:
+    class FakeProcess:
+        pid = 4321
+        def poll(self):
+            return None
+        def wait(self, timeout=None):
+            self.wait_timeout = timeout
+            return 0
+
+    process = FakeProcess()
+    monkeypatch.setattr(bs.bq, "get_task", lambda *_args, **_kwargs: {"id": "task-1", "state": bq.QUEUED, "claim_version": 3})
+    clock = iter([0.0, 2.0])
+    monkeypatch.setattr(bs.time, "monotonic", lambda: next(clock))
+    killed = []
+    monkeypatch.setattr(bs.os, "killpg", lambda pgid, sig: killed.append((pgid, sig)))
+
+    with pytest.raises(bs.SupervisorError, match="did not durably claim"):
+        bs._wait_for_durable_claim(
+            "task-1", process, initial_claim_version=3, db_path=None, timeout_seconds=1.0
+        )
+
+    assert killed == [(4321, bs.signal.SIGTERM)]
+    assert process.wait_timeout == 2.0
+
+
+def test_wait_for_durable_claim_requires_claim_version_to_advance(monkeypatch) -> None:
+    class FakeProcess:
+        pid = 4321
+        def poll(self):
+            return None
+        def terminate(self):
+            raise AssertionError("claimed child must not be terminated")
+
+    rows = iter([
+        {"id": "task-1", "state": bq.QUEUED, "claim_version": 3},
+        {"id": "task-1", "state": bq.CLAIMED, "claim_version": 4},
+    ])
+    monkeypatch.setattr(bs.bq, "get_task", lambda *_args, **_kwargs: next(rows))
+    monkeypatch.setattr(bs.time, "sleep", lambda _seconds: None)
+
+    claim = bs._wait_for_durable_claim(
+        "task-1", FakeProcess(), initial_claim_version=3, db_path=None, timeout_seconds=1.0
+    )
+    assert claim["claim_version"] == 4
+
+
+def test_scheduler_state_comes_from_loaded_launchd_job(monkeypatch) -> None:
+    class Result:
+        returncode = 0
+        stderr = ""
+    monkeypatch.delenv("KITTY_BUILDER_QUEUE_ENABLED", raising=False)
+    monkeypatch.setattr(bs.subprocess, "run", lambda *args, **kwargs: Result())
+    assert bs._scheduler_enabled() is True
+
+
+def test_scheduler_state_is_false_when_queue_kill_switch_is_off(monkeypatch) -> None:
+    monkeypatch.setenv("KITTY_BUILDER_QUEUE_ENABLED", "0")
+    assert bs._scheduler_enabled() is False
+
+
+def test_scheduler_state_is_unknown_when_launchctl_is_unavailable(monkeypatch) -> None:
+    monkeypatch.delenv("KITTY_BUILDER_QUEUE_ENABLED", raising=False)
+    monkeypatch.setattr(bs.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError()))
+    assert bs._scheduler_enabled() is None
+
+
+
+def test_task_dispatch_lock_handoff_stays_held_until_child_exits(db_path: Path) -> None:
+    with bs.TaskDispatchLock("task-1", db_path) as lock:
+        assert lock.acquired
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(0.6)"],
+            pass_fds=(lock.fileno,),
+            close_fds=True,
+        )
+        lock.handoff_to_child()
+
+    with bs.TaskDispatchLock("task-1", db_path) as contender:
+        assert contender.acquired is False
+
+    child.wait(timeout=3)
+    with bs.TaskDispatchLock("task-1", db_path) as contender:
+        assert contender.acquired is True
+
+
+def test_dispatch_candidate_skips_live_supervisor_child_fence(db_path: Path) -> None:
+    packet = {"initiative_id": "init-1", "packet_id": "p1", "task_id": "task-1", "seq": 1}
+    initiative = {"id": "init-1", "state": bi.INITIATIVE_ACTIVE}
+    with patch.object(bs, "active_initiatives", return_value=[initiative]):
+        with patch.object(bi, "next_packet", return_value=packet):
+            with patch.object(bq, "get_task", return_value={"id": "task-1", "state": bq.QUEUED}):
+                with bs.TaskDispatchLock("task-1", db_path):
+                    selected, skipped = bs._select_packets(db_path, max_runs=1)
+
+    assert selected == []
+    assert [entry["reason"] for entry in skipped] == ["dispatch_in_progress"]
 
 def test_supervisor_launcher_defaults_to_repo_venv() -> None:
     launcher = (Path(__file__).parents[1] / "scripts" / "start_builder_supervisor.sh").read_text()

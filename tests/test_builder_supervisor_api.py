@@ -8,6 +8,9 @@ supervisor lock ever touches live Builder state.
 
 from __future__ import annotations
 
+import asyncio
+import time
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -22,11 +25,12 @@ def client():
     return TestClient(app)
 
 
-def _projection(*, initiatives, active_runs):
+def _projection(*, initiatives, active_runs, scheduler_enabled=True):
     return {
         "lock": {"path": "/data/kittybuilder/supervisor.lock"},
         "initiatives": initiatives,
         "active_runs": active_runs,
+        "scheduler_enabled": scheduler_enabled,
     }
 
 
@@ -50,6 +54,31 @@ def _counts(monkeypatch, *, now: int, on_hold: int):
 
 
 class TestSupervisorControlPlaneSummary:
+    def test_route_does_not_block_event_loop_while_collecting_system_status(self, monkeypatch):
+        def slow_summary():
+            time.sleep(0.2)
+            return {
+                "active_runs": [], "eligible_now": 0, "on_hold": 0,
+                "lock_path": "/tmp/supervisor.lock", "scheduler_enabled": True,
+                "budget": {},
+            }
+
+        monkeypatch.setattr("gateway.builder_supervisor.control_plane_summary", slow_summary)
+
+        async def exercise():
+            started = time.monotonic()
+            heartbeat_at = None
+            async def heartbeat():
+                nonlocal heartbeat_at
+                await asyncio.sleep(0.02)
+                heartbeat_at = time.monotonic() - started
+            heartbeat_task = asyncio.create_task(heartbeat())
+            await builder_route.builder_supervisor_status()
+            await heartbeat_task
+            return heartbeat_at
+
+        assert asyncio.run(exercise()) < 0.1
+
     def test_route_avoids_the_full_per_initiative_status_scan(self, client, monkeypatch):
         def expensive_status_must_not_run():
             raise AssertionError("full supervisor status scan must not run on the Work poll path")
@@ -62,6 +91,7 @@ class TestSupervisorControlPlaneSummary:
                 "eligible_now": 2,
                 "on_hold": 6,
                 "lock_path": "/data/kittybuilder/supervisor.lock",
+                "scheduler_enabled": True,
                 "budget": {
                     "weekly_budget_cad": 6.0,
                     "estimated_spend_cad": 0.25,
@@ -90,6 +120,7 @@ class TestSupervisorStatusEndpoint:
             "eligible_now": now,
             "on_hold": on_hold,
             "lock_path": "/data/kittybuilder/supervisor.lock",
+            "scheduler_enabled": True,
             "budget": {
                 "weekly_budget_cad": 6.0,
                 "estimated_spend_cad": 0.25,
@@ -118,6 +149,7 @@ class TestSupervisorStatusEndpoint:
             "on_hold": 0,
             "last_tick_at": None,
             "lock_path": "/data/kittybuilder/supervisor.lock",
+            "scheduler_enabled": True,
             "budget": {
                 "weekly_budget_cad": 6.0,
                 "estimated_spend_cad": 0.25,
@@ -255,7 +287,7 @@ class TestSupervisorTickEndpoint:
         body = response.json()
         assert body["ok"] is False
         assert body["started"] == []
-        assert "canonical worker adapter missing" in body["error"]
+        assert "worker script is missing" in body["error"]
 
     def test_launch_error_entries_surface_as_ok_false(self, client, monkeypatch):
         receipt = {
@@ -284,5 +316,5 @@ class TestSupervisorTickEndpoint:
         assert response.status_code == 200
         body = response.json()
         assert body["ok"] is False
-        assert "Kitty launcher missing" in body["error"]
+        assert "Kitty launcher is missing" in body["error"]
         assert body["detail"] == receipt

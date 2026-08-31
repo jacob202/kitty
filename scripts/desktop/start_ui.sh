@@ -43,6 +43,15 @@ cd "${UI_DIR}"
 BUILD_STAMP=".next/BUILD_ID"
 BUILD_SOURCE_STAMP=".next/KITTY_SOURCE_SHA"
 
+assert_clean_ui_source() {
+  local dirty
+  dirty="$(git -C "${ROOT_DIR}" status --porcelain --untracked-files=normal -- gateway/kitty-chat 2>/dev/null || true)"
+  if [[ -n "${dirty}" ]]; then
+    echo "[start_ui] Error: refusing to build uncommitted Kitty UI source because the build could not be attributed to a clean commit." >&2
+    return 1
+  fi
+}
+
 record_build_source() {
   local source_sha
   source_sha="$(git -C "${ROOT_DIR}" rev-parse HEAD 2>/dev/null || true)"
@@ -61,6 +70,7 @@ done
 
 if [[ ! -f "${BUILD_STAMP}" ]]; then
   echo "[start_ui] no usable build in ${UI_DIR}/.next — building"
+  assert_clean_ui_source
   npm run build
   record_build_source
 else
@@ -69,6 +79,7 @@ else
   stale_input="$(find "${build_inputs[@]}" -newer "${BUILD_STAMP}" -print 2>/dev/null | head -1 || true)"
   if [[ -n "${stale_input}" ]]; then
     echo "[start_ui] ${stale_input} is newer than the last build — rebuilding"
+    assert_clean_ui_source
     npm run build
     record_build_source
   elif [[ ! -f "${BUILD_SOURCE_STAMP}" ]]; then
@@ -78,6 +89,7 @@ else
     # unknown, and a build whose source cannot be named cannot back any claim
     # about what the running UI contains. Rebuild so build identity is provable.
     echo "[start_ui] build has no source stamp — rebuilding to make it identifiable"
+    assert_clean_ui_source
     npm run build
     record_build_source
   else
