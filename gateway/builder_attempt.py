@@ -128,7 +128,9 @@ def _ensure_attempt_columns(conn: sqlite3.Connection) -> None:
 
 def init_db(db_path: Path | None = None) -> None:
     """Ensure initiative schema plus the attempts table exist. Idempotent."""
-    # Local import avoids an import-time cycle: initiative projections consume
+    # Deliberately local: gateway.builder_initiative imports builder_attempt at
+    # module scope (line 35), so hoisting this closes an import-time cycle
+    # (builder_attempt <-> builder_initiative). Initiative projections consume
     # attempt state, while attempt schema creation only needs initiative init.
     from gateway import builder_initiative
 
