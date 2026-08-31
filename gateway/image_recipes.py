@@ -286,6 +286,11 @@ def _ensure_db() -> None:
 
 def _hosted_default_available(provider: str) -> bool | None:
     """Runtime availability for built-in hosted recipes we can preflight cheaply."""
+    if provider == "flux2":
+        from gateway.image_runner import flux2_images_available
+
+        available, _ = flux2_images_available()
+        return available
     if provider not in {"airforce", "fal", "openai"}:
         return None
     from gateway.image_runner import hosted_image_configured
