@@ -53,6 +53,84 @@ async def test_estimate_uses_exact_provider_model_and_scales_batch(monkeypatch) 
 
 
 @pytest.mark.asyncio
+async def test_estimate_flux2_klein_returns_exact_model_id(monkeypatch) -> None:
+    """FLUX.2 Klein recipe resolves its execution_target to the exact BFL model id."""
+    from gateway.routes import image_studio_jobs as routes
+
+    recipe = SimpleNamespace(
+        provider="flux2",
+        recipe_id="bfl_flux2_draft",
+        execution_target="flux2-klein-4b-h",
+    )
+    monkeypatch.setattr(
+        routes.image_recipes,
+        "auto_route",
+        lambda **_: SimpleNamespace(
+            recipe=recipe, recipe_id="bfl_flux2_draft", reason="draft fast path"
+        ),
+    )
+    seen: dict = {}
+
+    def fake_estimate(provider: str, *, model_id: str | None, operation: str):
+        seen.update(provider=provider, model_id=model_id, operation=operation)
+        return {
+            "cost": {"state": "known", "usd": 0.02, "basis": "observed", "samples": 4},
+            "duration": {"state": "known", "seconds": 5, "basis": "observed", "samples": 4},
+        }
+
+    monkeypatch.setattr(routes.image_estimates, "estimate", fake_estimate)
+    result = await routes.studio_estimate(routes.StudioEstimateRequest())
+
+    assert seen == {
+        "provider": "flux2",
+        "model_id": "flux-2-klein-4b",
+        "operation": "txt2img",
+    }
+    assert result["model_id"] == "flux-2-klein-4b"
+    assert result["recipe_id"] == "bfl_flux2_draft"
+    assert result["routing_reason"] == "draft fast path"
+
+
+@pytest.mark.asyncio
+async def test_estimate_flux2_pro_returns_exact_model_id(monkeypatch) -> None:
+    """FLUX.2 Pro recipe resolves its execution_target to the exact BFL model id."""
+    from gateway.routes import image_studio_jobs as routes
+
+    recipe = SimpleNamespace(
+        provider="flux2",
+        recipe_id="bfl_flux2_final",
+        execution_target="flux2-pro-h",
+    )
+    monkeypatch.setattr(
+        routes.image_recipes,
+        "auto_route",
+        lambda **_: SimpleNamespace(
+            recipe=recipe, recipe_id="bfl_flux2_final", reason="quality final path"
+        ),
+    )
+    seen: dict = {}
+
+    def fake_estimate(provider: str, *, model_id: str | None, operation: str):
+        seen.update(provider=provider, model_id=model_id, operation=operation)
+        return {
+            "cost": {"state": "known", "usd": 0.05, "basis": "observed", "samples": 4},
+            "duration": {"state": "known", "seconds": 10, "basis": "observed", "samples": 4},
+        }
+
+    monkeypatch.setattr(routes.image_estimates, "estimate", fake_estimate)
+    result = await routes.studio_estimate(routes.StudioEstimateRequest())
+
+    assert seen == {
+        "provider": "flux2",
+        "model_id": "flux-2-pro",
+        "operation": "txt2img",
+    }
+    assert result["model_id"] == "flux-2-pro"
+    assert result["recipe_id"] == "bfl_flux2_final"
+    assert result["routing_reason"] == "quality final path"
+
+
+@pytest.mark.asyncio
 async def test_create_batch_returns_queued_without_running_provider(monkeypatch) -> None:
     from gateway.routes import image_studio_jobs as routes
 
