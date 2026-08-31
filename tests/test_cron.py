@@ -122,27 +122,29 @@ class TestSchedule:
         assert rows[0]["schedule_type"] == "interval"
         assert rows[0]["schedule_value"] == "60"
 
-    def test_schedule_same_action_different_value_not_collapsed(self, tmp_kitty_db):
+    def test_schedule_same_action_different_value_remains_distinct(self, tmp_kitty_db):
         from gateway.cron import list_schedules, schedule
 
         sid_a = schedule("sched-a", "insights.return_due", "interval", "15")
         sid_b = schedule("sched-b", "insights.return_due", "interval", "30")
 
-        assert sid_a != sid_b
+        assert sid_b != sid_a  # different schedule_value -> distinct schedules
         rows = list_schedules()
         assert len(rows) == 2
         values = {r["schedule_value"] for r in rows}
         assert values == {"15", "30"}
 
-    def test_schedule_same_action_different_type_not_collapsed(self, tmp_kitty_db):
+    def test_schedule_same_action_different_type_remains_distinct(self, tmp_kitty_db):
         from gateway.cron import list_schedules, schedule
 
         sid_a = schedule("sched-a", "notify.daily", "daily", "08:00")
         sid_b = schedule("sched-b", "notify.daily", "interval", "60")
 
-        assert sid_a != sid_b
+        assert sid_b != sid_a  # different schedule_type -> distinct schedules
         rows = list_schedules()
         assert len(rows) == 2
+        types = {r["schedule_type"] for r in rows}
+        assert types == {"daily", "interval"}
 
     def test_schedule_gateway_startup_does_not_create_duplicates(self, tmp_kitty_db):
         from gateway.cron import list_schedules, schedule
@@ -155,6 +157,51 @@ class TestSchedule:
         assert len(rows) == 1
         assert rows[0]["action"] == "insights.return_due"
         assert rows[0]["schedule_value"] == "15"
+
+    def test_schedule_same_seed_name_after_edit_returns_same_id_preserves_value(self, tmp_kitty_db):
+        """schedule() must reuse existing row when seed name matches (edited schedule preserved)."""
+        from gateway import db as kitty_db
+        from gateway.cron import list_schedules, schedule
+
+        # Seed a schedule with a stable name
+        sid1 = schedule("morning brief", "brief.deliver", "daily", "08:00", {"timezone": "America/Regina"})
+        rows = list_schedules()
+        assert len(rows) == 1
+        assert rows[0]["schedule_value"] == "08:00"
+
+        # User edits the schedule_value directly in DB (simulating UI/API edit)
+        with kitty_db.connect(tmp_kitty_db) as conn:
+            conn.execute(
+                "UPDATE cron_schedules SET schedule_value = ? WHERE id = ?",
+                ("07:30", sid1),
+            )
+            conn.commit()
+
+        # Restart: schedule() called again with same seed name but original profile value
+        # Must return same ID and preserve the EDITED value (07:30), not overwrite with 08:00
+        sid2 = schedule("morning brief", "brief.deliver", "daily", "08:00", {"timezone": "America/Regina"})
+
+        assert sid2 == sid1  # same stable identity
+        rows = list_schedules()
+        assert len(rows) == 1
+        assert rows[0]["schedule_value"] == "07:30"  # user edit preserved, not overwritten
+
+    def test_schedule_same_action_type_value_different_metadata_and_names_remain_distinct(self, tmp_kitty_db):
+        """schedule() must NOT collapse rows when metadata differs, even if action/type/value match."""
+        from gateway.cron import list_schedules, schedule
+
+        # Two schedules with identical action/type/value but DIFFERENT metadata AND different names
+        sid_a = schedule("sched-a", "brief.deliver", "daily", "08:00", {"timezone": "America/Regina"})
+        sid_b = schedule("sched-b", "brief.deliver", "daily", "08:00", {"timezone": "America/Toronto"})
+
+        # Must remain distinct (different metadata)
+        assert sid_b != sid_a
+        rows = list_schedules()
+        assert len(rows) == 2
+        metadatas = {r["metadata"] for r in rows}
+        assert len(metadatas) == 2
+        names = {r["name"] for r in rows}
+        assert names == {"sched-a", "sched-b"}
 
 
 class TestRemove:
