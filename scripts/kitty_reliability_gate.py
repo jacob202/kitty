@@ -95,6 +95,7 @@ def run_gate(repetitions: int, *, json_out: Path | None = None) -> dict:
     if not 1 <= repetitions <= MAX_REPETITIONS:
         raise ValueError(f"repetitions must be between 1 and {MAX_REPETITIONS}")
 
+    start_head = _git_head()
     runs: list[dict] = []
     command = [sys.executable, "-m", "pytest", *FIXED_SCENARIOS, "-q", "--tb=short"]
     for _index in range(repetitions):
@@ -126,14 +127,19 @@ def run_gate(repetitions: int, *, json_out: Path | None = None) -> dict:
             }
         )
 
+    end_head = _git_head()
     receipt = {
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         **summarize_repetitions(
             runs,
-            head_sha=_git_head(),
+            head_sha=start_head,
             scenario_ids=FIXED_SCENARIOS,
         ),
+        "end_head_sha": end_head,
+        "head_unchanged": start_head == end_head,
     }
+    if not receipt["head_unchanged"]:
+        receipt["all_passed"] = False
     if json_out is not None:
         _atomic_write_json(json_out, receipt)
     return receipt
