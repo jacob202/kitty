@@ -7,12 +7,13 @@
     {
       "id": "KT-RESTORE-01",
       "title": "Restoring a backup gives back exactly what was backed up",
-      "objective": "gateway/storage_sync.py:187 import_all documents that it replaces every migrated store, but gateway/storage_sync.py:97 import_memories calls add_memory per record and the journal import behaves the same way, so restoring a snapshot appends to whatever is already there. Restoring the same file twice leaves three copies of every memory. Change import_all so each migrated store ends holding exactly the snapshot's records and nothing else, and make the operation safe to repeat. Separately, gateway/storage_sync.py:65 export_preferences is a placeholder returning an empty dict while the module advertises exporting user data, so every export silently omits preferences: return the real preference records. Do not change the snapshot file format version, and do not add a UI surface for backup or restore, which is an open product decision. This packet creates no new production files; every change lands in the modules named above.",
+      "objective": "gateway/storage_sync.py:187 import_all documents that it replaces every migrated store, but gateway/storage_sync.py:97 import_memories calls add_memory per record and the journal import behaves the same way, so restoring a snapshot appends to whatever is already there. Restoring the same file twice leaves three copies of every memory. Change import_all so each migrated store ends holding exactly the snapshot's records and nothing else, and make the operation safe to repeat. Replacement is only safe once the export is complete: gateway/storage_sync.py:50 export_memories and gateway/storage_sync.py:54 export_journal_entries both pass limit=1000, so on an installation holding more than a thousand records a replacing import would permanently delete everything the snapshot left out. Make both exports exhaustive, or fail loudly rather than write a partial snapshot, before replacement semantics go in. Separately, gateway/storage_sync.py:65 export_preferences is a placeholder returning an empty dict while the module advertises exporting user data. The store it must round-trip is the preferences namespace of gateway/explicit_memory.py, read with list_memories(namespace='preferences') and restored with remember(..., namespace='preferences'); that is Kitty's own record of Jacob's choices. The repository config files config/PREFERENCES.md, config/providers.json and config/user_profile.json are explicitly out of scope: they are versioned in git and are not this snapshot's job. Do not change the snapshot file format version, and do not add a UI surface for backup or restore, which is an open product decision. This packet creates no new production files; every change lands in the modules named above.",
       "depends_on": [],
       "acceptance_criteria": [
         "Importing the same snapshot twice leaves every migrated store with the same record count as importing it once.",
         "After an import, each migrated store contains the snapshot's records and no record that was present only before the import.",
-        "export_preferences returns the stored preference records, and a preference present before an export round-trip is present after it.",
+        "An export of a store holding more than 1000 memories and more than 1000 journal entries contains every record, and a round-trip of that snapshot loses none of them.",
+        "export_preferences returns the explicit_memory records in the preferences namespace, and a preference present before an export round-trip is present after it.",
         "A snapshot with a wrong or missing format version is still rejected exactly as it is today.",
         "A failure part-way through an import reports what failed in plain language and does not leave a store holding a mixture of old and new records.",
         "No new HTTP route, CLI command, or UI surface is introduced.",
@@ -20,7 +21,7 @@
       ],
       "allowed_paths": [
         "gateway/storage_sync.py",
-        "tests"
+        "tests/test_storage_sync.py"
       ],
       "policy": {
         "max_attempts": 2,
@@ -50,7 +51,10 @@
         "gateway/cron.py",
         "gateway/brief_scheduler.py",
         "gateway/automation_actions.py",
-        "tests"
+        "tests/test_brief_scheduler.py",
+        "tests/test_cron.py",
+        "tests/test_automation_actions.py",
+        "tests/test_app_automation_supervision.py"
       ],
       "policy": {
         "max_attempts": 2,
@@ -63,7 +67,7 @@
     {
       "id": "KT-DEADLINE-01",
       "title": "The deadline warning actually reaches the phone",
-      "objective": "gateway/deadline_watch.py exports check_and_push, which escalates an approaching deadline to Jacob's phone. Nothing in production calls it: gateway/app.py registers cron actions for brief.deliver, brief.refresh, insights.return_due, monitors.check, inbox.scan, traces.compact, mail.poll, github.poll, experts.poll and prefetch.warm, and the string deadline does not appear in that file at all. The two reachable manual paths are also wired off, and they do not call the deadline watch at all: gateway/routes/deadlines.py:49 post_sweep defaults push to False and calls gateway/deadline_sweep.py sweep(), a different module that discovers new deadlines from documents and mail signals and pushes its own once-a-day summary under the dedupe key sweep-{date}; the kitty launcher's sweep command at line 685 calls that same sweep with push_fn=None. Do three things. Register the deadline watch as a scheduled automation action in gateway/app.py alongside the existing ones. Keep deadline_sweep's discovery scan exactly as it is, but make escalation flow through deadline_watch.check_and_push so a sweep reports every open deadline that has crossed a checkpoint rather than only the single most urgent one, and remove deadline_sweep's own summary push so exactly one notification path remains. Turn push on by default in both the route and the CLI so pressing sweep or running the command does the whole job. Reuse the existing push facade and its quiet-hours and dedupe behaviour, and do not change what counts as an approaching deadline. This packet creates no new production files; every change lands in the modules named above.",
+      "objective": "gateway/deadline_watch.py exports check_and_push, which escalates an approaching deadline to Jacob's phone. Nothing in production calls it: gateway/app.py registers cron actions for brief.deliver, brief.refresh, insights.return_due, monitors.check, inbox.scan, traces.compact, mail.poll, github.poll, experts.poll and prefetch.warm, and the string deadline does not appear in that file at all. The two reachable manual paths are also wired off, and they do not call the deadline watch at all: gateway/routes/deadlines.py:49 post_sweep defaults push to False and calls gateway/deadline_sweep.py sweep(), a different module that discovers new deadlines from documents and mail signals and pushes its own once-a-day summary under the dedupe key sweep-{date}; the kitty launcher's sweep command at line 685 calls that same sweep with push_fn=None. Do three things. Register the deadline watch as a scheduled automation action in gateway/app.py alongside the existing ones. Keep deadline_sweep's discovery scan exactly as it is, but make escalation flow through deadline_watch.check_and_push so a sweep reports every open deadline that has crossed a checkpoint rather than only the single most urgent one, and remove deadline_sweep's own summary push so exactly one notification path remains. Turn push on by default in both the route and the CLI so pressing sweep or running the command does the whole job. Two things must be true before escalation runs unattended. First, gateway/deadline_watch.py:56 sends every checkpoint as kind='alert', and gateway/push.py:173 applies quiet hours only to kind='info', so a T-7 warning would wake Jacob at night; docs/packets/017-benefits-rails-urgent-sweep.md:91-96 already fixes the contract as info at T-7 and T-3 and alert at T-1 and day-of, so restore those kinds. Second, check_and_push swallows push failures and returns a plain dict, and gateway/automation_actions.py _normalize_result turns any plain value into completed, so a scheduled run that delivered nothing would claim success; the scheduled action must record source_unavailable when nothing was delivered. Reuse the existing push facade and its dedupe behaviour, and do not change what counts as an approaching deadline. This packet creates no new production files; every change lands in the modules named above.",
       "depends_on": [
         "KT-AUTO-01"
       ],
@@ -72,7 +76,9 @@
         "The sweep route escalates by default, and its response says how many deadlines were escalated.",
         "The kitty sweep command escalates by the same path as the route, not a separate one.",
         "With no push channel configured, the sweep reports plainly that nothing could be delivered and does not claim it escalated anything.",
-        "Quiet hours and duplicate suppression continue to behave exactly as the push facade already defines them; exactly one notification path remains, and the sweep-{date} summary push is gone.",
+        "A scheduled deadline run that escalated nothing because no channel accepted records source_unavailable, not completed.",
+        "A T-7 or T-3 checkpoint is sent as kind='info' and is therefore held during quiet hours; a T-1 or day-of checkpoint is sent as kind='alert' and is not.",
+        "Duplicate suppression continues to behave exactly as the push facade already defines it; exactly one notification path remains, and the sweep-{date} summary push is gone.",
         "The document and mail discovery scan a sweep performs still runs and still records the deadlines it finds.",
         "A deadline outside the escalation window still produces no push.",
         "python -m pytest -q tests/test_deadline_watch.py tests/test_deadline_sweep.py tests/test_deadlines_routes.py tests/test_brief_deadlines.py tests/test_cron.py passes."
@@ -83,7 +89,11 @@
         "gateway/routes/deadlines.py",
         "gateway/app.py",
         "kitty",
-        "tests"
+        "tests/test_deadline_watch.py",
+        "tests/test_deadline_sweep.py",
+        "tests/test_deadlines_routes.py",
+        "tests/test_brief_deadlines.py",
+        "tests/test_cron.py"
       ],
       "policy": {
         "max_attempts": 2,

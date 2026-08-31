@@ -20,17 +20,24 @@ Both components are complete and unreachable.
 
 Grepping the whole of `gateway/kitty-chat/src` for either name finds no importer outside the component files themselves. Verified at the base SHA above: both files exist, neither is mounted.
 
-This is the cheapest real value in the slate — no invention, only wiring — which is also why it ranks below the three truthfulness packets.
+**This is not pure wiring. Two defects make both panels non-functional as they stand**, and mounting them unchanged would ship exactly the read-only-dashboard failure Jacob has already ruled out.
+
+- **Monitors cannot be removed.** The `watches` table's primary key is `id` (`gateway/web_monitor.py:48`) and `list_watches()` returns `SELECT *`, so every row carries `id`. `MonitorPanel.tsx:41` keys rows on `m.watch_id` and line 50 sends `m.watch_id` to the delete mutation. Every existing monitor renders with an undefined key and every remove targets `undefined`.
+- **Completing a todo is labelled "retry".** `TodoPanel.tsx:41` passes the completion mutation through `WorkCard`'s `onRetry` prop, and `WorkCard.tsx:194` renders that prop as a rotate icon labelled `retry`. There is no control on the screen that says it completes anything.
+
+Both must be fixed in this packet. It is still the cheapest real value in the slate, but it is not free, which is part of why it ranks below the three truthfulness packets.
 
 ## Plan
-1. Confirm PR #716 does not own the file that routes Tasks. It owns `WorkView.tsx`; if its changed-file list has grown to include the routing file, stop and wait for it to land.
-2. Read both components and the view/navigation registry.
-3. Mount `TodoPanel` where Tasks currently redirects to Work, and give `MonitorPanel` a reachable destination.
-4. Extend `gateway/kitty-chat/tests/` with a test per panel: it renders, and its primary control is enabled and does its thing.
-5. Check both at an iPhone-class width — no horizontal overflow, no control under the tab bar.
+1. Confirm PR #716 does not own the file that routes Tasks. It owns `WorkView.tsx`; if its changed-file list has grown to include the routing file, stop and wait for it to land. (As of 2026-08-31 #716 is closed unmerged, so this is likely already clear.)
+2. Read both components, `WorkCard.tsx`, and the view/navigation registry.
+3. Fix the monitor identifier so rows key on and delete by the identifier the gateway actually returns.
+4. Give completion its own control with an accessible label that says "complete", rather than borrowing `onRetry`.
+5. Mount `TodoPanel` where Tasks currently redirects to Work, and give `MonitorPanel` a reachable destination.
+6. Extend `gateway/kitty-chat/tests/` with a test per panel: it renders; removing a monitor calls the delete endpoint with the real identifier; the completion control exposes an accessible name containing "complete" and fires the completion mutation.
+7. Check both at an iPhone-class width — no horizontal overflow, no control under the tab bar.
 
 ## Not in scope
-Redesigning either panel. Changing the todo or monitor backends. Touching `WorkView.tsx` or `work.ts` — PR #716 owns those. Adding new navigation destinations beyond what these two need.
+Redesigning either panel beyond the two defects above. Changing the todo or monitor backends — the identifier fix belongs on the frontend, which is where the mismatch is. Touching `WorkView.tsx` or `work.ts`. Adding new navigation destinations beyond what these two need.
 
 ## Verification
 **Tier 1 — mechanical.** Not available to Builder. For a person or Codex: `cd gateway/kitty-chat && npx vitest run tests/TodoPanel.test.tsx tests/MonitorPanel.test.tsx --reporter=dot` and `npx tsc --noEmit`.

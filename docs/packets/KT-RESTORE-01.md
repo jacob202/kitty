@@ -13,19 +13,22 @@ Restore a backup and get back exactly what he backed up, instead of a second cop
 ## Why this is the next thing
 `gateway/storage_sync.py:187` — `import_all` is documented as replacing every migrated store. It does not. `gateway/storage_sync.py:97` — `import_memories` calls `add_memory` once per record, and the journal import behaves the same way, so a restore is an append. Restore the same file twice and every memory exists three times. This is the only defect in the slate that damages durable data permanently and silently, which is why it goes first.
 
-Separately, `gateway/storage_sync.py:65` — `export_preferences` returns `{}` with a docstring calling it a placeholder, while the module header advertises exporting user data. Every backup taken so far is missing preferences and says nothing about it.
+**Replacement is only safe once the export is complete.** `gateway/storage_sync.py:50` and `:54` cap the memory and journal exports at `limit=1000`. Turning append into replace on top of a truncated snapshot converts today's duplicate-copies bug into permanent deletion the moment Jacob passes a thousand records. Make the exports exhaustive first, or fail loudly rather than write a partial snapshot. This ordering is not optional.
+
+Separately, `gateway/storage_sync.py:65` — `export_preferences` returns `{}` with a docstring calling it a placeholder, while the module header advertises exporting user data. Every backup taken so far is missing preferences and says nothing about it. The store to round-trip is the `preferences` namespace of `gateway/explicit_memory.py` — `list_memories(namespace="preferences")` to read, `remember(..., namespace="preferences")` to restore. That module is imported, not edited, so it stays outside the fence. `config/PREFERENCES.md`, `config/providers.json` and `config/user_profile.json` are repository files kept in git; they are not this snapshot's job.
 
 Verified present at the base SHA above.
 
 ## Plan
 1. Read `gateway/storage_sync.py` end to end. Note which stores `import_all` covers and how each one currently writes.
-2. Write the failing tests first in `tests/test_storage_sync.py`: import the same snapshot twice and assert the record counts equal a single import; assert a record present only before the import is gone afterwards; assert `export_preferences` returns real records. Run them and watch them fail.
-3. Change each per-store import so the store ends holding the snapshot's records and nothing else. Replace, do not append.
-4. Make a part-way failure safe: a store must not be left holding a mixture of old and new records, and the error must say in plain language which store failed.
-5. Implement `export_preferences` against the real preferences store.
-6. Re-run the tests and the rest of `tests/test_storage_sync.py`.
+2. Write the failing tests first in `tests/test_storage_sync.py`: a store holding more than 1000 memories and more than 1000 journal entries round-trips with nothing lost; importing the same snapshot twice gives the record counts of a single import; a record present only before the import is gone afterwards; `export_preferences` returns real records. Run them and watch them fail.
+3. Make the memory and journal exports exhaustive, or fail loudly instead of writing a partial snapshot. Do this before step 4.
+4. Change each per-store import so the store ends holding the snapshot's records and nothing else. Replace, do not append.
+5. Make a part-way failure safe: a store must not be left holding a mixture of old and new records, and the error must say in plain language which store failed.
+6. Implement `export_preferences` against the `preferences` namespace of `gateway/explicit_memory.py`.
+7. Re-run the tests and the rest of `tests/test_storage_sync.py`.
 
-The risk is step 3: "replace" must not become "delete everything, then fail". Handle the failure path before you delete anything.
+The risk is step 4: "replace" must not become "delete everything, then fail". Handle the failure path before you delete anything — and never ship step 4 without step 3.
 
 ## Not in scope
 The snapshot file format or its version check. Any HTTP route, CLI command, or UI for backup and restore — whether backup becomes a real screen is an open product decision (`XCUT-B003`). Any store `import_all` does not already cover.

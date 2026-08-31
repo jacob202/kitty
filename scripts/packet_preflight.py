@@ -79,9 +79,20 @@ CREATION_VERBS = re.compile(
 # A well-written objective states its non-goals — "do not add a UI surface",
 # "rather than adding a duplicate". Those are prohibitions, so counting them as
 # creation language forces the author to widen a fence the packet never needed.
+# The verb has to be the one the negation governs. Allowing filler words in
+# between lets an unrelated later request be swallowed: "without delay,
+# implement a helper" would read as a prohibition on implementing.
 NEGATED_CREATION = re.compile(
-    r"\b(?:do not|does not|don't|never|without|rather than|instead of)\s+(?:\w+\s+){0,3}?"
+    r"\b(?:do not|does not|don't|never|without|rather than|instead of)\s+(?:\w+ly\s+)?"
     r"(?:add|creat|introduc|implement|build|writ|generat|author)\w*",
+    re.IGNORECASE,
+)
+
+# Naming a new artifact outright contradicts an edit-only declaration. The
+# declaration is trusted against the vaguer verbs above but never against
+# these, so a self-contradicting packet still fails before Builder acts on it.
+EXPLICIT_NEW_ARTIFACT = re.compile(
+    r"\bnew (module|file|endpoint|route|component|script|helper|test)\b",
     re.IGNORECASE,
 )
 
@@ -96,6 +107,11 @@ EDIT_ONLY_DECLARATION = re.compile(r"creates? no new (?:production )?files?", re
 def implies_new_file(text: str) -> bool:
     """True when the text asks for something new, ignoring stated non-goals."""
     return bool(CREATION_VERBS.search(NEGATED_CREATION.sub(" ", text)))
+
+
+def demands_new_file(text: str) -> bool:
+    """True when the text names a new artifact, ignoring stated non-goals."""
+    return bool(EXPLICIT_NEW_ARTIFACT.search(NEGATED_CREATION.sub(" ", text)))
 
 
 class Finding:
@@ -240,6 +256,12 @@ def check_packet(
         creates = implies_new_file(objective) or any(
             implies_new_file(str(c)) for c in criteria
         )
+        # A declaration cannot excuse a fence the same packet asks to break.
+        demands_new = demands_new_file(objective) or any(
+            demands_new_file(str(c)) for c in criteria
+        )
+        if demands_new:
+            declared_edit_only = False
         by_subsystem: dict[str, list[str]] = {}
         for path in prod:
             by_subsystem.setdefault(subsystem(path), []).append(path)

@@ -37,7 +37,7 @@ The content of the brief. The push facade itself, including quiet hours and dedu
 ## Verification
 **Tier 1 — mechanical.** `python -m pytest -q tests/test_brief_scheduler.py tests/test_cron.py tests/test_automation_actions.py tests/test_app_automation_supervision.py`. Today nothing asserts the three behaviours above; the tests you add must fail against the base SHA and pass after.
 
-**Tier 2 — running app.** Add or extend a spec under `gateway/kitty-chat/tests/smoke/` covering the Automations screen showing a `source_unavailable` brief run as not-delivered. Builder cannot run this — it has no `node_modules` — so it runs in CI. Record here that it is CI-proved, not worker-proved.
+**Tier 2 — running app.** A spec under `gateway/kitty-chat/tests/smoke/` must cover the Automations screen showing a `source_unavailable` brief run as not-delivered. **This is not the Builder worker's job and that directory is deliberately outside its fence** — Builder worktrees have no `node_modules`, so a worker could neither run the spec nor prove it. The spec is authored by the interactive or Codex lane before Tier 3, and this packet is not blocked on it. Record it as CI-proved, never worker-proved.
 
 **Tier 3 — product acceptance.** Required (D-008). An independent reviewer, on the running product at desktop and iPhone-class widths: set a brief time, restart Kitty, confirm the time held; then with no push channel configured, run the brief and confirm the screen does not claim it was delivered.
 
