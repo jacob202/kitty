@@ -812,6 +812,19 @@ def test_openrouter_fallback_model_uses_env():
     assert result == "custom-model"
 
 
+def test_openrouter_direct_override_does_not_replace_vision_route():
+    """A text-model override must not send image turns to a text-only model."""
+    from gateway.llm_client import _openrouter_fallback_model
+
+    with patch.dict(
+        "os.environ",
+        {"KITTY_OPENROUTER_DIRECT_MODEL": "nvidia/nemotron-3-ultra-550b-a55b:free"},
+        clear=True,
+    ):
+        result = _openrouter_fallback_model("kitty-vision")
+    assert result == "mistralai/mistral-small-3.2-24b-instruct"
+
+
 def test_openrouter_fallback_model_falls_back_to_map():
     """No env set -> uses _LITELLM_TO_OPENROUTER mapping or passes through."""
     from gateway.llm_client import _openrouter_fallback_model
