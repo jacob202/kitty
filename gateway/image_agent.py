@@ -322,6 +322,7 @@ def _route_recipe(
     operation: str,
     quality_tier: str,
     identity_mode: str,
+    available_providers: set[str] | None = None,
 ) -> Any:
     from gateway import image_recipes
 
@@ -333,6 +334,7 @@ def _route_recipe(
             identity_mode=identity_mode,
             operation=operation,
             preferred_recipe=preferred_recipe,
+            available_providers=available_providers,
         )
     except image_recipes.RecipeError as exc:
         raise CapabilityError(str(exc)) from exc
@@ -443,6 +445,7 @@ def _observe_anchor(session: Any) -> str:
 def _decide_generate(
     payload: dict[str, Any], session: Any, budget: AgentBudget, rounds: int,
     preferred_recipe: str | None = None,
+    available_providers: set[str] | None = None,
 ) -> AgentDecision:
     _check_budget(session, budget, "generate")
 
@@ -466,6 +469,7 @@ def _decide_generate(
         operation="txt2img",
         quality_tier="quality",
         identity_mode="balanced",
+        available_providers=available_providers,
     )
     stored = _build_and_persist_plan(
         session.session_id,
@@ -492,6 +496,7 @@ def _decide_generate(
 def _decide_edit(
     payload: dict[str, Any], session: Any, budget: AgentBudget, rounds: int,
     preferred_recipe: str | None = None,
+    available_providers: set[str] | None = None,
 ) -> AgentDecision:
     _check_budget(session, budget, "edit")
 
@@ -522,6 +527,7 @@ def _decide_edit(
         operation="img2img",
         quality_tier="quality",
         identity_mode="balanced",
+        available_providers=available_providers,
     )
     provider = str(getattr(decision.recipe, "provider", "") or "").strip().lower()
     provider_handles_image_input = provider in {"openai", "openrouter", "flux", "flux2"}
@@ -606,6 +612,7 @@ def decide(
     request: str,
     *,
     preferred_recipe: str | None = None,
+    available_providers: set[str] | None = None,
     budget: AgentBudget | None = None,
     llm: Callable[[list[dict[str, str]]], str] | None = None,
     max_rounds: int = MAX_ROUNDS,
@@ -653,6 +660,7 @@ def decide(
             decision = _finalize(
                 payload, action, session, budget, round_index,
                 preferred_recipe=preferred_recipe,
+                available_providers=available_providers,
             )
             decision.observations = observations
             _persist_decision(session_id, decision)
@@ -689,14 +697,17 @@ def _finalize(
     rounds: int,
     *,
     preferred_recipe: str | None = None,
+    available_providers: set[str] | None = None,
 ) -> AgentDecision:
     if action == "generate":
         return _decide_generate(
-            payload, session, budget, rounds, preferred_recipe=preferred_recipe
+            payload, session, budget, rounds, preferred_recipe=preferred_recipe,
+            available_providers=available_providers,
         )
     if action == "edit":
         return _decide_edit(
-            payload, session, budget, rounds, preferred_recipe=preferred_recipe
+            payload, session, budget, rounds, preferred_recipe=preferred_recipe,
+            available_providers=available_providers,
         )
     if action == "cancel":
         reason = _require_text(payload, "reason", action)

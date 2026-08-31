@@ -23,6 +23,9 @@ def test_batch_request_accepts_only_ui_supported_decision_values() -> None:
 async def test_estimate_uses_exact_provider_model_and_scales_batch(monkeypatch) -> None:
     from gateway.routes import image_studio_jobs as routes
 
+    async def live_providers():
+        return {"openrouter"}
+    monkeypatch.setattr(routes, "_runtime_available_providers", live_providers)
     recipe = SimpleNamespace(provider="openrouter", recipe_id="hosted", model_family="gemini-image")
     monkeypatch.setattr(
         routes.image_recipes,
@@ -53,9 +56,43 @@ async def test_estimate_uses_exact_provider_model_and_scales_batch(monkeypatch) 
 
 
 @pytest.mark.asyncio
+async def test_estimate_passes_live_provider_allowlist_to_routing(monkeypatch) -> None:
+    from gateway.routes import image_studio_jobs as routes
+
+    async def live_providers():
+        return {"openai"}
+    monkeypatch.setattr(routes, "_runtime_available_providers", live_providers)
+    routed = {}
+    recipe = SimpleNamespace(
+        provider="openai", recipe_id="openai_gpt_image_2", model_family="gpt-image-2",
+        execution_target=None, supports_img2img=True,
+    )
+    monkeypatch.setattr(
+        routes.image_recipes,
+        "auto_route",
+        lambda **kwargs: routed.update(kwargs) or SimpleNamespace(
+            recipe=recipe, recipe_id=recipe.recipe_id, reason="live route"
+        ),
+    )
+    monkeypatch.setattr(
+        routes.image_estimates, "estimate",
+        lambda *args, **kwargs: {
+            "cost": {"state": "unknown", "usd": None},
+            "duration": {"state": "unknown", "seconds": None},
+        },
+    )
+
+    await routes.studio_estimate(routes.StudioEstimateRequest())
+    assert routed["available_providers"] == {"openai"}
+
+
+@pytest.mark.asyncio
 async def test_img2img_estimate_uses_selected_recipe_operation_and_exact_model(monkeypatch) -> None:
     from gateway.routes import image_studio_jobs as routes
 
+    async def live_providers():
+        return {"openai"}
+    monkeypatch.setattr(routes, "_runtime_available_providers", live_providers)
     recipe = SimpleNamespace(
         provider="openai", recipe_id="openai_gpt_image_2", model_family="gpt-image-2",
         execution_target=None, supports_img2img=True,

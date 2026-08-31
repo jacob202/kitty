@@ -910,8 +910,12 @@ async def studio_agent_turn(req: AgentTurnRequest):
     from gateway.image_sessions import SessionNotFoundError
 
     try:
+        from gateway.routes.image_studio_jobs import _runtime_available_providers
+
+        available_providers = await _runtime_available_providers()
         decision = decide(
-            req.session_id, req.request, preferred_recipe=req.recipe_id
+            req.session_id, req.request, preferred_recipe=req.recipe_id,
+            available_providers=available_providers,
         )
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

@@ -160,8 +160,21 @@ def _validate_iteration_route(request: dict) -> None:
         raise HTTPException(status_code=409, detail="source route model changed; refusing to reroute the iteration")
 
 
+async def _runtime_available_providers() -> set[str]:
+    """Return provider ids whose actual execution transports are ready now."""
+    from gateway.routes.extended import image_status
+
+    status = await image_status()
+    return {
+        str(engine.get("name", "")).strip().lower()
+        for engine in status.get("engines", [])
+        if engine.get("available") is True and engine.get("name")
+    }
+
+
 async def studio_estimate(req: StudioEstimateRequest) -> dict:
     try:
+        available_providers = await _runtime_available_providers()
         decision = image_recipes.auto_route(
             has_character=bool(req.character_id),
             character_count=1 if req.character_id else 0,
@@ -169,6 +182,7 @@ async def studio_estimate(req: StudioEstimateRequest) -> dict:
             identity_mode=req.identity,
             operation=req.operation,
             preferred_recipe=req.recipe_id,
+            available_providers=available_providers,
         )
     except image_recipes.RecipeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

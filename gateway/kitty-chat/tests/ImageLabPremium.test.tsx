@@ -111,6 +111,34 @@ describe('Image Lab premium workspace', () => {
     )).toBe(true)
   })
 
+  it('carries the Auto preflight recipe into the agent plan request', async () => {
+    window.localStorage.clear()
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const target = String(url)
+      const method = init?.method ?? 'GET'
+      if (target === '/proxy/studio/recipes') return { ok: true, status: 200, json: async () => ({ recipes: [
+        { recipe_id: 'openrouter_auto', display_name: 'OpenRouter image', provider: 'openrouter', quality_tier: 'quality', supports_img2img: true, is_available: true },
+      ] }) }
+      if (target === '/proxy/studio/characters') return { ok: true, status: 200, json: async () => ({ characters: [] }) }
+      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => ({ ...estimate, recipe_id: 'openrouter_auto' }) }
+      if (target === '/proxy/studio/sessions' && method === 'POST') return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_auto', turns: [], jobs: [] }) }
+      if (target === '/proxy/studio/agent') return { ok: true, status: 200, json: async () => ({ action: 'generate', session_id: 'imgses_auto', summary: 'Rendering.', plan_id: 'plan_auto', recipe_id: 'openrouter_auto', protected_traits: [], requested_changes: [] }) }
+      if (target === '/proxy/studio/batches' && method === 'POST') return { ok: true, status: 200, json: async () => ({ batch_id: 'batch_auto', session_id: 'imgses_auto', status: 'queued', count: 1, estimate: estimate.estimate, request: { prompt: 'auto route portrait' }, items: [] }) }
+      return { ok: true, status: 200, json: async () => ({}) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ImageLab />)
+    await screen.findByTestId('image-lab-preflight')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Image request' }), { target: { value: 'auto route portrait' } })
+    fireEvent.click(screen.getByTestId('image-lab-send'))
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) =>
+      String(url) === '/proxy/studio/agent'
+      && JSON.parse(String((init as RequestInit | undefined)?.body ?? '{}')).recipe_id === 'openrouter_auto'
+    )).toBe(true))
+  })
+
   it('disables recipes whose live engine is offline even when registry metadata says available', async () => {
     vi.mocked(queries.useImageStatus).mockReturnValue({
       data: { available: true, engines: [
