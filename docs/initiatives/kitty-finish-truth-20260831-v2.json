@@ -1,6 +1,6 @@
 {
   "manifest_version": 1,
-  "initiative_id": "kitty-finish-truth-20260831-v1",
+  "initiative_id": "kitty-finish-truth-20260831-v2",
   "title": "Kitty tells the truth: restore, automations, and the deadline alert",
   "description": "Three verified defects where Kitty reports success it did not achieve or quietly loses what Jacob gave it. Restore claims to replace a backup and appends it instead, so restoring twice triples the data. The morning brief records completion even when no phone channel accepted it, and Jacob's edited brief time is overwritten from a config file on every restart. The deadline escalation that the phone-channel work exists for is fully implemented and never called by anything in production. Every premise was re-verified against origin/main 295b92fc33a3f1b93da86f3c6bb5fbb54e367105 before authoring. Selected by the 2026-08-31 product-director pass from finding IDs XCUT-B004, XCUT-B005, AUTO-B001, AUTO-B002, AUTO-B004, MOBILE-B001 and MAIL-B001.",
   "packets": [

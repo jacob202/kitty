@@ -1,6 +1,6 @@
 # KT-DEADLINE-01 — The deadline warning actually reaches the phone
 
-**Initiative:** `kitty-finish-truth-20260831-v1`
+**Initiative:** `kitty-finish-truth-20260831-v2`
 **Owner:** builder
 **Depends on:** `KT-AUTO-01` (both edit the cron-registration block in `gateway/app.py`)
 **Free or paid:** free

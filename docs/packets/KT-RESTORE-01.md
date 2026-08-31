@@ -1,6 +1,6 @@
 # KT-RESTORE-01 — Restoring a backup gives back exactly what was backed up
 
-**Initiative:** `kitty-finish-truth-20260831-v1`
+**Initiative:** `kitty-finish-truth-20260831-v2`
 **Owner:** builder
 **Depends on:** none
 **Free or paid:** free

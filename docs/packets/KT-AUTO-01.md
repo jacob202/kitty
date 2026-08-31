@@ -1,6 +1,6 @@
 # KT-AUTO-01 — Automations stop reporting success they did not achieve
 
-**Initiative:** `kitty-finish-truth-20260831-v1`
+**Initiative:** `kitty-finish-truth-20260831-v2`
 **Owner:** builder
 **Depends on:** none
 **Free or paid:** free
