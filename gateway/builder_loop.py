@@ -368,7 +368,11 @@ def _reconcile_stale_attempts(
         # point — archive it into the attempt dir, then reset the worktree so
         # the next attempt starts clean.
         worktree_evidence = archive_and_reset_worktree(
-            worktree_path(task_id, repo_root=repo_root), attempt_dir_path
+            worktree_path(task_id, repo_root=repo_root),
+            attempt_dir_path,
+            reset_sha=ba.get_packet_base_sha(
+                attempt["initiative_id"], attempt["packet_id"], db_path=db_path
+            ),
         )
 
         lease_id = attempt.get("lease_id")
@@ -1115,6 +1119,38 @@ def run_packet(
                 "attempts": history,
             }
 
+        # If a non-repairable attempt consumed the final retry slot, there is
+        # no next attempt to prepare. Preserve its worktree exactly as evidence
+        # for operator review instead of resetting it merely to discover the
+        # budget is exhausted on the following claim.
+        if history and not history[-1].get("repairable"):
+            if ba.attempt_budget_remaining(initiative_id, packet_id, db_path=db_path) <= 0:
+                reason = "attempt budget exhausted; final failed worktree preserved for operator review"
+                _governor_settle(
+                    initiative_id,
+                    packet_id,
+                    base_sha=base_sha,
+                    governor_db=governor_db,
+                    decision=governor_decision,
+                    outcome=LOOP_EXHAUSTED,
+                    attempts=history,
+                    model=model,
+                    provider=provider,
+                    risk_class=governor_risk_class,
+                    projected_cost_cad=governor_projected_cost_cad,
+                    requested_route=governor_requested_route,
+                    override_reason=governor_override,
+                )
+                return {
+                    "outcome": LOOP_EXHAUSTED,
+                    "initiative_id": initiative_id,
+                    "packet_id": packet_id,
+                    "task_id": task_id,
+                    "task_state": (bq.get_task(task_id, db_path=db_path) or {}).get("state"),
+                    "reason": reason,
+                    "attempts": history,
+                }
+
         # Choose this attempt's worktree disposition from the previous attempt
         # BEFORE anything is durably opened, so a failed cleanup can never
         # strand a new attempt or its lease (P1-2). Only an explicitly
@@ -1135,7 +1171,9 @@ def run_packet(
                 prior_dir = _attempt_dir(task_id, prior["attempt_id"], db_path)
                 try:
                     worktree_evidence = archive_and_reset_worktree(
-                        worktree_path(task_id, repo_root=repo_root), prior_dir
+                        worktree_path(task_id, repo_root=repo_root),
+                        prior_dir,
+                        reset_sha=base_sha,
                     )
                 except Exception as exc:
                     _record_infrastructure_failure(
@@ -1735,7 +1773,9 @@ def run_packet(
                     manifest["failure"] = _text_evidence(reason)
                     write_run_manifest(manifest_path, manifest)
                     worktree_evidence = archive_and_reset_worktree(
-                        worktree_path(task_id, repo_root=repo_root), attempt_dir
+                        worktree_path(task_id, repo_root=repo_root),
+                        attempt_dir,
+                        reset_sha=base_sha,
                     )
                     _close_bound_attempt(attempt, lease, ba.ATTEMPT_CRASHED, db_path=db_path)
                     _record_infrastructure_failure(

@@ -598,7 +598,10 @@ cmd_resume() {
 }
 
 cmd_builder() {
-  local python_bin="$KITTY_ROOT/venv/bin/python"
+  # Honor an explicit PYTHON_BIN override; the launcher header already defaults
+  # PYTHON_BIN to the venv python, so behavior is unchanged unless a caller
+  # pins the interpreter deliberately.
+  local python_bin="${PYTHON_BIN:-$KITTY_ROOT/venv/bin/python}"
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12)"
   fi

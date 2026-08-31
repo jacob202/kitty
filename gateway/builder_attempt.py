@@ -19,8 +19,10 @@ task, with audit entries in the existing append-only events table.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -377,6 +379,24 @@ def _build_bundle_on_conn(
             _prior_attempt_summary(r) for r in reversed(priors)
         ],
     }
+
+
+def attempt_budget_remaining(
+    initiative_id: str, packet_id: str, db_path: Path | None = None
+) -> int:
+    """Return remaining budget-consuming attempts without mutating state."""
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        packet = _packet_row(conn, initiative_id, packet_id)
+        policy = json.loads(packet["policy_json"]) if packet["policy_json"] else {}
+        max_attempts = int(policy.get("max_attempts", DEFAULT_MAX_ATTEMPTS))
+        used_for_budget = _attempt_count(
+            conn, initiative_id, packet_id, exclude_crashed=True
+        )
+        return max(0, max_attempts - used_for_budget)
+    finally:
+        conn.close()
 
 
 def build_context_bundle(
@@ -1017,6 +1037,15 @@ def run_validation(
                 "or pass an explicit --cwd"
             )
 
+    validation_env = dict(os.environ)
+    python_bin = str(Path(sys.executable).parent)
+    inherited_path = validation_env.get("PATH", "")
+    validation_env["PATH"] = (
+        f"{python_bin}:{inherited_path}" if inherited_path else python_bin
+    )
+    if sys.prefix != sys.base_prefix:
+        validation_env["VIRTUAL_ENV"] = sys.prefix
+
     results: list[dict[str, Any]] = []
     for command in commands:
         started = time.monotonic()
@@ -1036,6 +1065,7 @@ def run_validation(
                 capture_output=True,
                 text=True,
                 timeout=timeout_seconds,
+                env=validation_env,
             )
             exit_code: int | None = proc.returncode
             output = (proc.stdout or "") + (proc.stderr or "")

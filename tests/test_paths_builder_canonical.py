@@ -29,6 +29,11 @@ def test_builder_launcher_exports_canonical_builder_data_dir(tmp_path: Path) -> 
     env.pop("KITTY_DATA_ROOT", None)
     env.pop("KITTY_BUILDER_DATA_DIR", None)
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    # Pin the stub interpreter: on a checkout with venv/bin/python present the
+    # launcher would otherwise run the real builder CLI (whose git calls hit
+    # the stub and crash), and the test would measure the machine, not the
+    # launcher's data-dir resolution.
+    env["PYTHON_BIN"] = str(fake_bin / "python3.12")
 
     result = subprocess.run(
         [str(ROOT / "kitty"), "builder", "initiative", "doctor", "--json"],
@@ -60,6 +65,7 @@ def test_builder_launcher_honors_data_root_before_canonical_checkout(tmp_path: P
     env["KITTY_DATA_ROOT"] = str(data_root)
     env.pop("KITTY_BUILDER_DATA_DIR", None)
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    env["PYTHON_BIN"] = str(fake_bin / "python3.12")
 
     result = subprocess.run(
         [str(ROOT / "kitty"), "builder", "queue", "recover", "--json"],

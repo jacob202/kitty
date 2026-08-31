@@ -93,15 +93,17 @@ Do not read the runner-owned paths outside this worktree.
 
 Implement only the packet in that bundle. Stay within its allowed paths and
 acceptance criteria. Do not push, merge, delete files, touch secrets/env files,
-or inspect private runtime data. Run the declared validation commands and any
-focused tests that materially prove the change.
+or inspect private runtime data. Do not run the packet's declared validation
+commands yourself; trusted Builder orchestration runs the declared validation commands
+after your implementation receipt. You may run lightweight focused checks when
+readily available, but unavailable test tooling is not an implementation failure.
 
 Before you finish, write a JSON object to ${local_result} with exactly this
 shape (contract_version must be 1):
-{"contract_version":1,"status":"completed" or "failed","summary":"...","diff_summary":"...","validation":{"passed":true,"output":"..."},"claims":["..."]}
+{"contract_version":1,"status":"completed" or "failed","summary":"...","diff_summary":"...","claims":["..."]}
 
-Use status=failed if the implementation or validation cannot honestly pass.
-Then give a concise final report.
+Use status=failed only when the implementation itself cannot honestly complete.
+Builder will validate it independently. Then give a concise final report.
 EOF
 )
 
