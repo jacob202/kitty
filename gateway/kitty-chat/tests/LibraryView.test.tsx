@@ -64,6 +64,38 @@ describe('LibraryView artifact truth', () => {
     cleanup()
   })
 
+  it('opens a Markdown artifact in a reusable canvas and closes it', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/proxy/artifacts/artifact_md/content')) {
+        return new Response('# Build plan\n\nShip the canvas.', {
+          status: 200,
+          headers: { 'Content-Type': 'text/markdown' },
+        })
+      }
+      if (url.includes('/proxy/artifacts')) {
+        return new Response(JSON.stringify({
+          artifacts: [{
+            id: 'artifact_md', project_id: 7, kind: 'document', media_type: 'text/markdown',
+            display_name: 'build-plan.md', state: 'ready', size_bytes: 128, created_at: 1787259000,
+            created_by: 'research', conversation_id: 'chat-1', metadata: {}, error: null,
+          }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('not found', { status: 404 })
+    }))
+
+    renderLibrary()
+
+    fireEvent.click(await screen.findByRole('button', { name: /open build-plan\.md/i }))
+    const canvas = await screen.findByRole('dialog', { name: /build-plan\.md/i })
+    expect(within(canvas).getByRole('heading', { name: 'Build plan' })).toBeVisible()
+    expect(within(canvas).getByText('Ship the canvas.')).toBeVisible()
+
+    fireEvent.click(within(canvas).getByRole('button', { name: /close artifact/i }))
+    expect(screen.queryByRole('dialog', { name: /build-plan\.md/i })).not.toBeInTheDocument()
+  })
+
   it('shows canonical artifacts even when the knowledge index is degraded', async () => {
     renderLibrary()
 
