@@ -1590,6 +1590,18 @@ export interface GatewayProjectResume {
   deadlines: GatewayProjectSection<GatewayProjectDeadline>
 }
 
+export function artifactContentUrl(artifactId: string): string {
+  return `${GATEWAY_BASE}/artifacts/${encodeURIComponent(artifactId)}/content`
+}
+
+export async function fetchArtifactText(artifactId: string): Promise<string> {
+  const response = await fetch(artifactContentUrl(artifactId))
+  if (!response.ok) {
+    throw new Error(`Gateway returned ${response.status} ${response.statusText}`.trim())
+  }
+  return await response.text()
+}
+
 export interface GatewayArtifact {
   id: string
   project_id: number | null

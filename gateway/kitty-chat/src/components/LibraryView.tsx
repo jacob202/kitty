@@ -1,6 +1,7 @@
 'use client'
 import { useState, type CSSProperties } from 'react'
 import { DocumentsPanel } from '@/components/DocumentsPanel'
+import { ArtifactCanvas, canPreviewArtifact } from '@/components/artifacts/ArtifactCanvas'
 import { useArtifacts } from '@/lib/queries'
 import type { GatewayArtifact, ChatImageAttachment } from '@/lib/gateway'
 import { useArtifactInChat } from '@/lib/gateway'
@@ -12,6 +13,7 @@ const CHAT_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 export default function LibraryView({ isMobile }: { isMobile: boolean }) {
   const { setAttachments, setActiveView } = useKitty()
   const [useError, setUseError] = useState<string | null>(null)
+  const [selectedArtifact, setSelectedArtifact] = useState<GatewayArtifact | null>(null)
   const pad = isMobile ? '20px 16px 124px' : '32px 40px 48px'
   const artifacts = useArtifacts()
   const recentArtifacts = [...(artifacts.data ?? [])].sort((a, b) => b.created_at - a.created_at)
@@ -62,7 +64,12 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
         {recentArtifacts.length > 0 && (
           <ul aria-label="Recent artifacts" style={artifactListStyle}>
             {recentArtifacts.map(artifact => (
-              <ArtifactRow key={artifact.id} artifact={artifact} onUseInChat={() => void handleUseInChat(artifact)} />
+              <ArtifactRow
+                key={artifact.id}
+                artifact={artifact}
+                onOpen={() => setSelectedArtifact(artifact)}
+                onUseInChat={() => void handleUseInChat(artifact)}
+              />
             ))}
           </ul>
         )}
@@ -72,6 +79,15 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
           </p>
         )}
       </section>
+
+      {selectedArtifact && (
+        <ArtifactCanvas
+          artifact={selectedArtifact}
+          isMobile={isMobile}
+          onClose={() => setSelectedArtifact(null)}
+          onUseInChat={isChatReady(selectedArtifact) ? () => void handleUseInChat(selectedArtifact) : undefined}
+        />
+      )}
 
       <section aria-labelledby="library-knowledge-heading" style={sectionStyle}>
         <div>
@@ -90,12 +106,13 @@ function artifactErrorMessage(error: unknown): string {
   return describeFailure(error)
 }
 
-function ArtifactRow({ artifact, onUseInChat }: { artifact: GatewayArtifact; onUseInChat: () => void }) {
+function ArtifactRow({ artifact, onOpen, onUseInChat }: { artifact: GatewayArtifact; onOpen: () => void; onUseInChat: () => void }) {
   const ingestion = typeof artifact.metadata?.ingestion_status === 'string' ? artifact.metadata.ingestion_status : null
   const created = new Date(artifact.created_at * 1000)
   const state = humanize(artifact.state)
   const isImage = artifact.media_type.startsWith('image/')
-  const chatReady = isImage && artifact.state === 'ready' && CHAT_IMAGE_TYPES.has(artifact.media_type)
+  const chatReady = isChatReady(artifact)
+  const previewReady = canPreviewArtifact(artifact)
   const chatUnavailableReason = !isImage
     ? 'Only images can be attached into a chat message from Library.'
     : artifact.state !== 'ready'
@@ -120,6 +137,16 @@ function ArtifactRow({ artifact, onUseInChat }: { artifact: GatewayArtifact; onU
         </div>
 
         <div style={artifactActionsStyle}>
+          {previewReady && (
+            <button
+              type="button"
+              onClick={onOpen}
+              aria-label={`Open ${artifact.display_name}`}
+              style={openButtonStyle}
+            >
+              Open
+            </button>
+          )}
           {chatReady ? (
             <button
               type="button"
@@ -156,6 +183,13 @@ function ArtifactRow({ artifact, onUseInChat }: { artifact: GatewayArtifact; onU
       </article>
     </li>
   )
+}
+
+
+function isChatReady(artifact: GatewayArtifact): boolean {
+  return artifact.media_type.startsWith('image/')
+    && artifact.state === 'ready'
+    && CHAT_IMAGE_TYPES.has(artifact.media_type)
 }
 
 function artifactTypeLabel(artifact: GatewayArtifact): string {
@@ -206,6 +240,7 @@ const timeStyle: CSSProperties = { color: 'var(--color-text-secondary)', fontSiz
 const detailsStyle: CSSProperties = { marginTop: 8, color: 'var(--color-text-secondary)', fontSize: 12 }
 const detailsSummaryStyle: CSSProperties = { cursor: 'pointer', minHeight: 32, display: 'inline-flex', alignItems: 'center', fontWeight: 600 }
 const artifactActionsStyle: CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px 12px', flexWrap: 'wrap', marginTop: 10 }
+const openButtonStyle: CSSProperties = { minHeight: 44, border: 'none', background: 'var(--color-accent)', color: 'white', borderRadius: 'var(--r-control)', padding: '8px 13px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }
 const useButtonStyle: CSSProperties = { minHeight: 44, border: '1px solid var(--color-separator)', background: 'var(--color-surface)', color: 'var(--color-accent)', borderRadius: 'var(--r-control)', padding: '8px 12px', fontSize: 13, fontWeight: 650, cursor: 'pointer' }
 const openUnavailableStyle: CSSProperties = { color: 'var(--color-text-secondary)', fontSize: 11, lineHeight: 1.4, maxWidth: 460 }
 const technicalGridStyle: CSSProperties = { marginTop: 6, paddingLeft: 14, display: 'flex', gap: '4px 14px', flexWrap: 'wrap', fontFamily: 'var(--font-mono)', fontSize: 10, overflowWrap: 'anywhere' }
