@@ -21,6 +21,8 @@ class Capability(BaseModel):
 
 
 _CORE_CAPABILITIES = (
+    Capability(id="home", label="home", description="See what matters now and what Kitty recommends next.", category="navigate", launch="view", view="home"),
+    Capability(id="chat", label="chat", description="Open the main Kitty conversation workspace.", category="navigate", launch="view", view="chat"),
     Capability(id="work", label="work", description="Run and inspect delegated Kitty work.", category="work", launch="view", view="work"),
     Capability(id="projects", label="projects", description="Resume a project with its context and outputs.", category="work", launch="view", view="projects"),
     Capability(id="image-lab", label="image lab", description="Create, edit, compare, and reuse images.", category="create", launch="view", view="studio"),
@@ -29,6 +31,7 @@ _CORE_CAPABILITIES = (
     Capability(id="agents", label="agents", description="Open Kitty's shared agent workspace.", category="work", launch="view", view="agents"),
     Capability(id="tutor", label="tutor", description="Learn with Kitty's tutoring workspace.", category="knowledge", launch="view", view="tutor"),
     Capability(id="journal", label="journal", description="Write and revisit journal entries.", category="personal", launch="view", view="journal"),
+    Capability(id="settings", label="settings", description="Manage Kitty runtime, providers, tools, and preferences.", category="navigate", launch="view", view="settings"),
 )
 
 

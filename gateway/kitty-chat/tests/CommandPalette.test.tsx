@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { fetchGatewaySearch } from '../src/lib/gateway'
+import { fetchCapabilities, fetchGatewaySearch } from '../src/lib/gateway'
 
 vi.mock('../src/lib/gateway', () => ({
+  fetchCapabilities: vi.fn(),
   fetchGatewaySearch: vi.fn(),
 }))
 
@@ -11,6 +12,8 @@ import { CommandPalette } from '../src/components/CommandPalette'
 
 beforeEach(() => {
   vi.mocked(fetchGatewaySearch).mockReset()
+  vi.mocked(fetchCapabilities).mockReset()
+  vi.mocked(fetchCapabilities).mockResolvedValue({ capabilities: [], fromLiveGateway: true, error: null } as never)
   vi.stubGlobal('ResizeObserver', class {
     observe() {}
     unobserve() {}
@@ -24,6 +27,41 @@ afterEach(() => {
 })
 
 describe('CommandPalette', () => {
+  it('loads live capabilities and delegates their launch behavior', async () => {
+    const onLaunchCapability = vi.fn()
+    vi.mocked(fetchCapabilities).mockResolvedValue({
+      capabilities: [
+        { id: 'work', label: 'work', description: 'Run and inspect delegated Kitty work.', category: 'work', launch: 'view', view: 'work' },
+        { id: 'skill:agent-council', label: 'agent council', description: 'Ask multiple agents for independent judgment.', category: 'skills', launch: 'skill', skill_name: 'agent-council' },
+      ],
+      fromLiveGateway: true,
+      error: null,
+    } as never)
+
+    render(
+      <CommandPalette
+        chats={[]}
+        onNewChat={vi.fn()}
+        onSelectChat={vi.fn()}
+        onViewChange={vi.fn()}
+        onToggleSidebar={vi.fn()}
+        onLaunchCapability={onLaunchCapability}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByText('agent council')).toBeVisible()
+    expect(screen.getByText('Ask multiple agents for independent judgment.')).toBeVisible()
+    fireEvent.click(screen.getByText('agent council'))
+
+    expect(onLaunchCapability).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'skill:agent-council',
+      launch: 'skill',
+      skill_name: 'agent-council',
+    }))
+  })
+
   it('does not expose Builder as a second normal-user destination', () => {
     render(
       <CommandPalette

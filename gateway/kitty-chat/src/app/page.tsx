@@ -195,6 +195,17 @@ export default function KittyChat() {
         onSelectChat={k.handleSelectChat}
         onViewChange={k.setActiveView}
         onToggleSidebar={k.handleToggleSidebar}
+        onLaunchCapability={(capability) => {
+          if (capability.launch === 'view' && capability.view) {
+            k.setActiveView(capability.view)
+            return
+          }
+          if (capability.launch === 'skill' && capability.skill_name) {
+            k.setActiveView('chat')
+            k.setInput(`Use skill: ${capability.skill_name}\n\n`)
+            window.setTimeout(() => k.textareaRef.current?.focus(), 0)
+          }
+        }}
         open={cmdPaletteOpen}
         onOpenChange={setCmdPaletteOpen}
       />

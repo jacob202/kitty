@@ -667,3 +667,16 @@ def test_explicit_skill_directive_loads_the_exact_installed_skill(monkeypatch):
     hint = _default_skill_hint("Use skill: agent-council\n\nHelp me choose an approach")
 
     assert hint == "## Selected skill\nagent-council\n\nCOUNCIL SYSTEM INSTRUCTIONS"
+
+
+def test_unknown_explicit_skill_does_not_substitute_a_fuzzy_skill(monkeypatch):
+    from gateway import context_assembler
+
+    monkeypatch.setattr(context_assembler.skill_registry, "get", lambda _name: None)
+    monkeypatch.setattr(
+        context_assembler.skill_registry,
+        "suggest",
+        lambda *_args, **_kwargs: [{"name": "different-skill", "description": "Wrong skill."}],
+    )
+
+    assert _default_skill_hint("Use skill: missing-skill\n\nDo the thing") == ""

@@ -205,11 +205,13 @@ def _default_skill_hint(message: str) -> str:
     if explicit:
         name = explicit.group(1)
         try:
-            if skill_registry.get(name):
-                rendered = skill_registry.invoke(name)
-                prompt = str(rendered.get("prompt", "")).strip()
-                if prompt:
-                    return f"## Selected skill\n{name}\n\n{prompt}"
+            if not skill_registry.get(name):
+                return ""
+            rendered = skill_registry.invoke(name)
+            prompt = str(rendered.get("prompt", "")).strip()
+            if prompt:
+                return f"## Selected skill\n{name}\n\n{prompt}"
+            return ""
         except Exception:
             return ""
 
