@@ -16,14 +16,30 @@ import { ViewRenderer } from '@/components/ViewRenderer'
 import { StatusBar } from '@/components/StatusBar'
 import { WobFilters, PaperGrain } from '@/components/WobFilters'
 import { CatCorner } from '@/components/CrayonCat'
-import { useActivity } from '@/lib/queries'
+import { useActivity, useArtifacts } from '@/lib/queries'
+import type { ContextCandidate } from '@/lib/context-references'
 
 export default function KittyChat() {
   const k = useKitty()
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
   const activity = useActivity()
+  const artifacts = useArtifacts(40)
   const activityAttentionCount = (activity.data?.counts.waiting ?? 0) + (activity.data?.counts.failed ?? 0)
+  const contextCandidates: ContextCandidate[] = [
+    ...k.projects.map((project) => ({
+      kind: 'project' as const, id: String(project.id), label: project.name,
+      description: `Project · ${project.status}`,
+    })),
+    ...(artifacts.data ?? []).map((artifact) => ({
+      kind: 'artifact' as const, id: artifact.id, label: artifact.display_name,
+      description: `Artifact · ${artifact.kind}`,
+    })),
+    ...k.chats.filter((chat) => chat.id !== k.activeChatId).slice(-20).reverse().map((chat) => ({
+      kind: 'chat' as const, id: chat.id, label: chat.title || 'Untitled conversation',
+      description: 'Conversation',
+    })),
+  ]
   const modelUnavailable = !k.modelGateway.live || k.availableModels.length === 0
 
   return (
@@ -182,6 +198,10 @@ export default function KittyChat() {
               attachments={k.attachments}
               onAddFiles={k.handleAddFiles}
               onRemoveAttachment={k.handleRemoveAttachment}
+              contextCandidates={contextCandidates}
+              contextRefs={k.contextRefs}
+              onAddContextRef={k.handleAddContextRef}
+              onRemoveContextRef={k.handleRemoveContextRef}
               models={k.availableModels}
               overrideModel={k.overrideModel}
               onOverrideModel={k.setOverrideModel}
