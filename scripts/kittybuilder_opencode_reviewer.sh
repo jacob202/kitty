@@ -92,6 +92,18 @@ bundle_sha=$(shasum -a 256 "${local_bundle}" | cut -d ' ' -f1)
 impl_sha=$(shasum -a 256 "${local_impl}" | cut -d ' ' -f1)
 context_sha=$(shasum -a 256 "${local_context}" | cut -d ' ' -f1)
 review_context_sha=$(shasum -a 256 "${local_review_context}" | cut -d ' ' -f1)
+base_sha=$(python3 - "${local_context}" <<'PY_BASE'
+import json
+import sys
+from pathlib import Path
+
+manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+base = ((manifest.get("lease") or {}).get("base_sha") or "").strip()
+if len(base) != 40 or any(c not in "0123456789abcdef" for c in base):
+    raise SystemExit("ERROR: reviewer run manifest has no valid lease.base_sha")
+print(base)
+PY_BASE
+)
 prompt=$(cat <<EOF
 You are an independent, read-only KittyBuilder reviewer in an isolated
 worktree. Do not edit files, commit, push, merge, or touch secrets.
@@ -104,14 +116,20 @@ Bundle SHA-256: ${bundle_sha}
 Implementation result SHA-256: ${impl_sha}
 Manifest SHA-256: ${context_sha}
 Reviewer binding SHA-256: ${review_context_sha}
+Packet base SHA: ${base_sha}
 Review HEAD (must remain unchanged): ${KB_REVIEW_SHA}
 Review diff SHA-256 (must remain unchanged): ${KB_REVIEW_DIFF_SHA256}
 These are staged local copies for task ${KB_TASK_ID}, attempt ${KB_ATTEMPT_ID}.
-Inspect the current diff and run focused tests if useful.
+The implementation is already committed by trusted Builder orchestration. Inspect
+the committed packet diff from ${base_sha}..${KB_REVIEW_SHA}; do not treat a diff
+from Review HEAD to itself as the packet diff, and never run git add/stage/commit. Run focused
+tests if useful.
 
-Write a JSON object to ${local_review} with exactly this shape
-(contract_version must be 1):
+The reviewer agent intentionally has no write/edit tool. After deciding the
+verdict, use the bash tool to run python3. Write a JSON object to ${local_review} with exactly
+this shape (contract_version must be 1); do not call an unavailable write/edit tool:
 {"contract_version":1,"verdict":"approve" or "request_changes" or "reject","summary":"...","findings":[{"severity":"critical" or "major" or "minor","note":"..."}]}
+This result contract is the only worktree write permitted to the reviewer.
 
 Approve only if the acceptance criteria and validation evidence are honest.
 EOF
@@ -125,6 +143,7 @@ fingerprint() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMEOUT_RUNNER="${SCRIPT_DIR}/run_with_timeout.py"
 review_budget=${KB_REVIEW_TIMEOUT_SECONDS:-900}
+model_startup_timeout=${KB_REVIEW_MODEL_STARTUP_TIMEOUT_SECONDS:-30}
 
 # The ladder exists for models that never get started, and those fail within
 # seconds. Dividing the budget by the model count instead gave the model doing
@@ -149,8 +168,9 @@ for model in "${models[@]}"; do
   slot_seconds=$(model_timeout)
   echo "=== ${lane_label} reviewer attempt: ${model} (${slot_seconds}s slot) ==="
   set +e
-  python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" \
-    opencode run --auto --agent "${adapter_agent}" --model "${model}" \
+  python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" --success-json "${local_review}" \
+    --json-events --startup-timeout "${model_startup_timeout}" \
+    opencode run --format json --auto --agent "${adapter_agent}" --model "${model}" \
     --title "KittyBuilder ${lane_label} packet reviewer" "${prompt}" </dev/null
   rc=$?
   set -e

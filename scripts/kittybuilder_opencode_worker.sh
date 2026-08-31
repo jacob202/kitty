@@ -115,6 +115,7 @@ fingerprint() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMEOUT_RUNNER="${SCRIPT_DIR}/run_with_timeout.py"
 worker_budget=${KB_WORKER_TIMEOUT_SECONDS:-3600}
+model_startup_timeout=${KB_MODEL_STARTUP_TIMEOUT_SECONDS:-30}
 
 # The ladder exists for models that never get started — unavailable, refusing,
 # erroring — and those fail within seconds. Dividing the budget by the model
@@ -141,8 +142,9 @@ for model in "${models[@]}"; do
   slot_seconds=$(model_timeout)
   echo "=== ${lane_label} builder attempt: ${model} (${slot_seconds}s slot) ==="
   set +e
-  python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" \
-    opencode run --auto --agent "${adapter_agent}" --model "${model}" \
+  python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" --success-json "${local_result}" \
+    --json-events --startup-timeout "${model_startup_timeout}" \
+    opencode run --format json --auto --agent "${adapter_agent}" --model "${model}" \
     --title "KittyBuilder ${lane_label} packet worker" "${prompt}" </dev/null
   rc=$?
   set -e
