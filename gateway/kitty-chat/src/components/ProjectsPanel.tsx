@@ -3,15 +3,17 @@ import { useState, type CSSProperties } from 'react'
 import { useProjects, useProjectNextSteps, useProjectResume, useRefreshProject } from '@/lib/queries'
 import type { GatewayNextStep, GatewayProject } from '@/lib/gateway'
 import { Button } from '@/components/ui/Button'
-import { RefreshCw } from 'lucide-react'
+import { ArrowRight, RefreshCw } from 'lucide-react'
 import { describeFailure } from '@/lib/failure-copy'
 import { projectNextStepCopy, projectSummaryCopy } from '@/lib/project-copy'
+import { ProjectWorkspace } from '@/components/projects/ProjectWorkspace'
 
-export function ProjectsPanel() {
+export function ProjectsPanel({ onNavigate = () => {}, isMobile = false }: { onNavigate?: (view: string) => void; isMobile?: boolean }) {
   const projectsQuery = useProjects()
   const refresh = useRefreshProject()
   const projects = projectsQuery.data ?? []
   const nextSteps = useProjectNextSteps(projects)
+  const [workspace, setWorkspace] = useState<{ project: GatewayProject; nextStep: GatewayNextStep | null } | null>(null)
 
   if (projectsQuery.isLoading) {
     return <p style={mutedStyle}>loading projects…</p>
@@ -46,9 +48,21 @@ export function ProjectsPanel() {
               nextStep={nextSteps[index]?.data ?? null}
               nextPending={nextSteps[index]?.isPending ?? false}
               nextError={nextSteps[index]?.isError ?? false}
+              onOpenWorkspace={() => setWorkspace({ project: p, nextStep: nextSteps[index]?.data ?? null })}
             />
           ))}
         </section>
+      )}
+      {workspace && (
+        <ProjectWorkspace
+          project={workspace.project}
+          nextStep={workspace.nextStep}
+          onClose={() => setWorkspace(null)}
+          onNavigate={onNavigate}
+          onRefresh={() => refresh.mutate(workspace.project.id)}
+          refreshing={refresh.isPending && refresh.variables === workspace.project.id}
+          isMobile={isMobile}
+        />
       )}
     </div>
   )
@@ -62,6 +76,7 @@ function ProjectCard({
   nextStep,
   nextPending,
   nextError,
+  onOpenWorkspace,
 }: {
   project: GatewayProject
   onRefresh: () => void
@@ -70,6 +85,7 @@ function ProjectCard({
   nextStep: GatewayNextStep | null
   nextPending: boolean
   nextError: boolean
+  onOpenWorkspace: () => void
 }) {
   const [contextOpen, setContextOpen] = useState(false)
   const touched = project.last_touched
@@ -94,9 +110,14 @@ function ProjectCard({
           </div>
           {touched && <span style={metaStyle}>touched {touched}</span>}
         </div>
-        <Button onClick={onRefresh} variant="ghost" size="md" disabled={refreshing} icon={<RefreshCw size={14} />}>
-          {refreshing ? 'refreshing…' : 'refresh'}
-        </Button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Button onClick={onOpenWorkspace} variant="primary" size="md" icon={<ArrowRight size={14} />}>
+            Open workspace
+          </Button>
+          <Button onClick={onRefresh} variant="ghost" size="md" disabled={refreshing} icon={<RefreshCw size={14} />}>
+            {refreshing ? 'refreshing…' : 'refresh'}
+          </Button>
+        </div>
       </div>
 
       {summary && <p style={summaryStyle}>{summary}</p>}
