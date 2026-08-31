@@ -183,6 +183,8 @@ export default function KittyChat() {
                 onDecideInChat: k.handleDecideInChat,
                 onNavigate: k.setActiveView,
                 onExpertClick: (expert: any) => { k.handleNewExpertChat(expert); k.setActiveView('chat') },
+                onOpenProject: (projectId: number) => { k.handleSelectProject(projectId); k.setActiveView('projects') },
+                onPromptSelect: (text: string) => { k.setActiveView('chat'); k.handlePromptSelect(text) },
               }}
               builderProps={{ onBack: () => k.setActiveView('work') }}
               selectedAgentSessionId={selectedAgentSessionId}

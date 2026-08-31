@@ -45,6 +45,8 @@ interface ViewRendererProps {
     onDecideInChat: (entry: any) => void
     onNavigate: (view: string) => void
     onExpertClick?: (expert: any) => void
+    onOpenProject?: (projectId: number) => void
+    onPromptSelect?: (text: string) => void
   }
   builderProps?: { onBack: () => void }
   workProps?: { isMobile: boolean }

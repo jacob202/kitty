@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText } from '@/lib/ui';
 import { CapturePanel } from '@/components/CapturePanel';
 import { BuilderGlance } from '@/components/BuilderSurface';
-import { InsightReturnCard } from '@/components/InsightReturnCard';
+import { HomeIntelligence } from '@/components/HomeIntelligence';
 import { useDashboardConfig } from '@/hooks/useDashboardConfig';
 import { describeFailure } from '@/lib/failure-copy';
 import { projectNextStepCopy } from '@/lib/project-copy';
@@ -35,6 +35,8 @@ import {
   useExpertList,
   useSignals,
   useGatewayWeather,
+  useIntelligence,
+  useRefreshIntelligenceConnections,
 } from '@/lib/queries';
 import type {
   GatewayAction,
@@ -1923,6 +1925,8 @@ interface Props {
   onDecideInChat?: (entry: GatewayTriageEntry) => void;
   onNavigate?: (view: string) => void;
   onExpertClick?: (expert: ExpertProfile) => void;
+  onOpenProject?: (projectId: number) => void;
+  onPromptSelect?: (text: string) => void;
 }
 
 export function HomeState({
@@ -1931,10 +1935,14 @@ export function HomeState({
   onDecideInChat = () => {},
   onNavigate = () => {},
   onExpertClick,
+  onOpenProject = () => {},
+  onPromptSelect = () => {},
 }: Props) {
   const { visibleTiles } = useDashboardConfig();
   const weatherQuery = useGatewayWeather();
   const repairs = useRepairs();
+  const intelligence = useIntelligence();
+  const refreshConnections = useRefreshIntelligenceConnections();
   const weather = weatherQuery.data?.weather;
   const systemNeedsAttention = !repairs.isPending && (
     repairs.isError ||
@@ -2004,6 +2012,14 @@ export function HomeState({
 
         {visibleTiles['health'] !== false && <HealthStrip />}
 
+        <HomeIntelligence
+          projection={intelligence.data}
+          onOpenProject={onOpenProject}
+          onDiscuss={onPromptSelect}
+          onFindConnections={() => refreshConnections.mutate()}
+          findingConnections={refreshConnections.isPending}
+        />
+
         <section
           data-testid="home-primary-overview"
           aria-label="Daily priorities"
@@ -2028,7 +2044,6 @@ export function HomeState({
         <details data-testid="home-more-context" style={homeDisclosureStyle}>
           <summary style={homeSummaryStyle}>More context</summary>
           <div style={{ ...homeDisclosureGridStyle, gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))' }}>
-            {visibleTiles['insight-loop'] !== false && <InsightReturnCard />}
             {visibleTiles['what-changed'] !== false && <WhatChanged />}
             {visibleTiles['active-projects'] !== false && <ExpertStrip onExpertClick={onExpertClick ?? (() => {})} />}
           </div>
