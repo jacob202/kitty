@@ -344,6 +344,26 @@ export type GatewayCapabilitiesPayload = {
   error: string | null
 }
 
+export type GatewayActivityState = 'waiting' | 'running' | 'failed' | 'completed'
+
+export interface GatewayActivityItem {
+  id: string
+  source: 'action' | 'automation' | 'agent' | 'builder' | string
+  source_id: string
+  title: string
+  detail: string | null
+  state: GatewayActivityState
+  raw_state: string
+  occurred_at: number
+  destination: string
+}
+
+export interface GatewayActivityProjection {
+  items: GatewayActivityItem[]
+  counts: { total: number; waiting: number; running: number; failed: number; completed: number }
+  sources: Record<string, { state: 'available' | 'unavailable'; reason: string | null }>
+}
+
 export interface GatewayWeather {
   temp_c?: number
   feels_like_c?: number
@@ -981,6 +1001,10 @@ export async function addGatewayMonitor(url: string, label: string): Promise<str
 
 export async function removeGatewayMonitor(watchId: string): Promise<void> {
   await gfetch(`/monitor/${watchId}`, { method: 'DELETE' })
+}
+
+export async function fetchActivity(limit = 40): Promise<GatewayActivityProjection> {
+  return await gfetch<GatewayActivityProjection>(`/activity?limit=${limit}`)
 }
 
 export async function fetchCapabilities(): Promise<GatewayCapabilitiesPayload> {

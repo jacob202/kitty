@@ -36,6 +36,8 @@ interface Props {
   isMobile?: boolean
   catState?: CatState
   onCommandPalette?: () => void
+  onActivity?: () => void
+  activityAttentionCount?: number
   runtimeState?: 'available' | 'unavailable' | 'degraded' | 'stale' | 'unknown'
   runtimeDetail?: string
   activeProject?: { id: number; name: string } | null
@@ -54,6 +56,8 @@ export function TopBar({
   activeView,
   catState = 'idle',
   onCommandPalette,
+  onActivity,
+  activityAttentionCount = 0,
   isMobile = false,
   onToggleSidebar,
   runtimeState = 'unknown',
@@ -101,6 +105,7 @@ export function TopBar({
           <span style={{ flex: 1 }} />
           <StateBadge state={catState} />
           <RuntimeBadge state={runtimeState} detail={runtimeDetail} compact />
+          {onActivity && <ActivityButton count={activityAttentionCount} onClick={onActivity} compact />}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, maxWidth: '100%' }} data-testid="topbar-workspace-row">
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -152,6 +157,7 @@ export function TopBar({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {onActivity && <ActivityButton count={activityAttentionCount} onClick={onActivity} />}
         <button
           onClick={onCommandPalette}
           title="command palette — search or jump anywhere"
@@ -276,6 +282,23 @@ function RuntimeBadge({
 }
 
 
+function ActivityButton({ count, onClick, compact = false }: { count: number; onClick: () => void; compact?: boolean }) {
+  const label = count > 0 ? `Open activity, ${count} need attention` : 'Open activity'
+  return (
+    <button type="button" aria-label={label} onClick={onClick} style={compact ? iconBtnStyle : chipBtnStyle}>
+      {compact ? (
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700 }}>{count > 0 ? count : '•'}</span>
+      ) : (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          Activity
+          {count > 0 && <span style={activityCountStyle}>{count}</span>}
+        </span>
+      )}
+    </button>
+  )
+}
+
+
 const chipBtnStyle: CSSProperties = {
   fontFamily: 'var(--font-body)',
   fontSize: 12,
@@ -286,6 +309,8 @@ const chipBtnStyle: CSSProperties = {
   background: 'var(--color-surface)',
   cursor: 'pointer',
 }
+
+const activityCountStyle: CSSProperties = { minWidth: 18, height: 18, padding: '0 5px', borderRadius: 99, background: 'var(--color-warning)', color: 'var(--color-background, var(--bg))', display: 'inline-grid', placeItems: 'center', fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 800 }
 
 const iconBtnStyle: CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',

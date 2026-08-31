@@ -10,15 +10,20 @@ import { BottomNav } from '@/components/BottomNav'
 import { SessionSidebar } from '@/components/SessionSidebar'
 import { OnboardingModal } from '@/components/OnboardingModal'
 import { CommandPalette } from '@/components/CommandPalette'
+import { ActivityCenter } from '@/components/activity/ActivityCenter'
 import { KittyRuntimeProvider } from '@/components/KittyRuntimeProvider'
 import { ViewRenderer } from '@/components/ViewRenderer'
 import { StatusBar } from '@/components/StatusBar'
 import { WobFilters, PaperGrain } from '@/components/WobFilters'
 import { CatCorner } from '@/components/CrayonCat'
+import { useActivity } from '@/lib/queries'
 
 export default function KittyChat() {
   const k = useKitty()
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
+  const [activityOpen, setActivityOpen] = useState(false)
+  const activity = useActivity()
+  const activityAttentionCount = (activity.data?.counts.waiting ?? 0) + (activity.data?.counts.failed ?? 0)
   const modelUnavailable = !k.modelGateway.live || k.availableModels.length === 0
 
   return (
@@ -97,6 +102,8 @@ export default function KittyChat() {
             runtimeState={k.runtimeQuery.data?.connections.gateway.state ?? 'unknown'}
             runtimeDetail={k.runtimeQuery.data?.connections.gateway.reason ?? (k.runtimeQuery.error instanceof Error ? k.runtimeQuery.error.message : undefined)}
             onCommandPalette={() => setCmdPaletteOpen(true)}
+            onActivity={() => setActivityOpen(true)}
+            activityAttentionCount={activityAttentionCount}
           />
 
           {k.activeView === 'chat' && !k.isMobile && (
@@ -188,6 +195,15 @@ export default function KittyChat() {
         {k.catState === 'working' ? 'Kitty is working' : k.catState === 'broke' ? 'Kitty needs attention' : k.catState === 'done' ? 'Kitty completed the task' : ''}
       </div>
       <PaperGrain />
+
+      <ActivityCenter
+        open={activityOpen}
+        projection={activity.data}
+        isLoading={activity.isLoading}
+        error={activity.error}
+        onClose={() => setActivityOpen(false)}
+        onNavigate={(view) => { k.setActiveView(view); setActivityOpen(false) }}
+      />
 
       <CommandPalette
         chats={k.chats}

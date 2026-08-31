@@ -13,6 +13,7 @@ import {
   fetchGatewayUsageSummary,
   fetchGatewayRuntimeManifest,
   fetchGatewaySearch,
+  fetchActivity,
   fetchGatewayWeather,
   // todos
   fetchGatewayTodos,
@@ -538,6 +539,15 @@ export function useGenerateImage() {
     mutationFn: (args: string | { prompt: string; engine: string }) =>
       typeof args === 'string' ? generateImage(args) : generateImage(args.prompt, args.engine),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['image', 'history'] }),
+  })
+}
+
+export function useActivity() {
+  return useQuery({
+    queryKey: ['activity'],
+    queryFn: () => fetchActivity(),
+    refetchInterval: 10_000,
+    retry: false,
   })
 }
 

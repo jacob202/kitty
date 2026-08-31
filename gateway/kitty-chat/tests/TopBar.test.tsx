@@ -1,5 +1,5 @@
 import { render, screen, within, cleanup } from '@testing-library/react'
-import { describe, expect, it, afterEach } from 'vitest'
+import { describe, expect, it, afterEach, vi } from 'vitest'
 import { TopBar } from '../src/components/TopBar'
 import { MODELS } from '../src/lib/types'
 
@@ -7,6 +7,8 @@ function renderTopBar(
   isMobile: boolean,
   activeView = 'chat',
   runtimeState: 'available' | 'unavailable' | 'degraded' | 'stale' | 'unknown' = 'available',
+  onActivity?: () => void,
+  activityAttentionCount = 0,
 ) {
   return render(
     <TopBar
@@ -20,6 +22,8 @@ function renderTopBar(
       onKittyModeChange={() => {}}
       isMobile={isMobile}
       runtimeState={runtimeState}
+      onActivity={onActivity}
+      activityAttentionCount={activityAttentionCount}
       onToggleSidebar={() => {}}
       onSelectProject={() => {}}
       activeProject={{ id: 1, name: 'kitty-gateway-rebuild' }}
@@ -51,6 +55,21 @@ describe('TopBar surface hierarchy', () => {
     expect(within(toolbar).getByText('Tasks')).toBeInTheDocument()
     expect(within(toolbar).queryByRole('heading')).not.toBeInTheDocument()
     expect(screen.queryByText('kitty')).not.toBeInTheDocument()
+  })
+})
+
+describe('TopBar activity entry point', () => {
+  afterEach(cleanup)
+
+  it('shows the attention count and opens the global activity surface', () => {
+    const onActivity = vi.fn()
+    renderTopBar(false, 'chat', 'available', onActivity, 3)
+
+    const button = screen.getByRole('button', { name: 'Open activity, 3 need attention' })
+    expect(button).toHaveTextContent('Activity')
+    expect(button).toHaveTextContent('3')
+    button.click()
+    expect(onActivity).toHaveBeenCalledTimes(1)
   })
 })
 
