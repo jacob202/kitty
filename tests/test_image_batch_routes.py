@@ -53,6 +53,73 @@ async def test_estimate_uses_exact_provider_model_and_scales_batch(monkeypatch) 
 
 
 @pytest.mark.asyncio
+async def test_img2img_estimate_uses_selected_recipe_operation_and_exact_model(monkeypatch) -> None:
+    from gateway.routes import image_studio_jobs as routes
+
+    recipe = SimpleNamespace(
+        provider="openai", recipe_id="openai_gpt_image_2", model_family="gpt-image-2",
+        execution_target=None, supports_img2img=True,
+    )
+    routed = {}
+    monkeypatch.setattr(
+        routes.image_recipes,
+        "auto_route",
+        lambda **kwargs: routed.update(kwargs) or SimpleNamespace(
+            recipe=recipe, recipe_id=recipe.recipe_id, reason="user selected"
+        ),
+    )
+    seen = {}
+    monkeypatch.setattr(
+        routes.image_estimates, "estimate",
+        lambda provider, *, model_id, operation: seen.update(
+            provider=provider, model_id=model_id, operation=operation
+        ) or {
+            "cost": {"state": "unknown", "usd": None},
+            "duration": {"state": "unknown", "seconds": None},
+        },
+    )
+
+    result = await routes.studio_estimate(routes.StudioEstimateRequest(
+        operation="img2img", recipe_id="openai_gpt_image_2"
+    ))
+
+    assert routed["operation"] == "img2img"
+    assert seen == {
+        "provider": "openai", "model_id": routes.OPENAI_IMAGE_MODEL, "operation": "img2img"
+    }
+    assert result["operation"] == "img2img"
+
+
+@pytest.mark.asyncio
+async def test_batch_preflight_uses_approved_plan_operation_and_recipe(monkeypatch) -> None:
+    from gateway import image_plans
+    from gateway.routes import image_studio_jobs as routes
+
+    plan = SimpleNamespace(operation="img2img", recipe_id="openai_gpt_image_2", character_id=None)
+    monkeypatch.setattr(image_plans, "require_approved_plan", lambda plan_id, session_id: plan)
+    seen = {}
+    async def fake_preflight(req):
+        seen.update(operation=req.operation, recipe_id=req.recipe_id)
+        return {
+            "provider": "openai", "model_id": "gpt-image-2",
+            "recipe_id": "openai_gpt_image_2", "routing_reason": "selected", "count": 1,
+            "per_image_estimate": {
+                "cost": {"state": "unknown", "usd": None},
+                "duration": {"state": "unknown", "seconds": None},
+            },
+            "estimate": {}, "operation": "img2img",
+        }
+    monkeypatch.setattr(routes, "studio_estimate", fake_preflight)
+    monkeypatch.setattr(routes.image_batches, "create_batch", lambda *args, **kwargs: {"batch_id": "b", "status": "queued"})
+
+    await routes.studio_create_batch(routes.StudioBatchRequest(
+        prompt="edit", plan_id="plan_1", session_id="session_1"
+    ))
+
+    assert seen == {"operation": "img2img", "recipe_id": "openai_gpt_image_2"}
+
+
+@pytest.mark.asyncio
 async def test_create_batch_returns_queued_without_running_provider(monkeypatch) -> None:
     from gateway.routes import image_studio_jobs as routes
 

@@ -270,3 +270,22 @@ async def test_mcp_tool_configuration_error_is_degraded_even_without_open_circui
     assert domain.status == "degraded"
     assert "1 MCP configuration error" in domain.reason
     assert domain.detail["remote_health_probed"] is False
+
+
+@pytest.mark.asyncio
+async def test_image_provider_health_includes_openai_image_lane(monkeypatch):
+    import gateway.health_surface as health_surface
+    import gateway.image_runner as image_runner
+
+    for name in (
+        "airforce_images_available", "fal_images_available", "openrouter_images_available",
+        "flux_images_available", "flux2_images_available",
+    ):
+        monkeypatch.setattr(image_runner, name, lambda: (False, "off"))
+    monkeypatch.setattr(image_runner, "openai_images_available", lambda: (True, ""))
+
+    domain = await health_surface._image_providers_source()
+
+    assert domain.status == "available"
+    assert domain.detail["openai"] == {"ok": True, "reason": ""}
+    assert "1/6 provider(s) ready" in domain.reason

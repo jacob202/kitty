@@ -68,6 +68,24 @@ class TestRecipeRegistry:
         assert fal.provider == "fal"
         assert fal.supports_characters is True
 
+
+    def test_openai_gpt_image_2_recipe_is_config_gated_and_edit_capable(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_IMAGE_OPENAI_ENABLED", "1")
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        seed_default_recipes()
+        recipe = get_recipe("openai_gpt_image_2")
+        assert recipe.provider == "openai"
+        assert recipe.model_family == "gpt-image-2"
+        assert recipe.supports_img2img is True
+        assert recipe.supports_characters is True
+        assert recipe.is_available is True
+
+    def test_openai_recipe_stays_unavailable_without_key(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_IMAGE_OPENAI_ENABLED", "1")
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        seed_default_recipes()
+        assert get_recipe("openai_gpt_image_2").is_available is False
+
     def test_list_available_only(self, override_db):
         seed_default_recipes()
         recipes = list_recipes(available_only=True)
@@ -114,6 +132,12 @@ class TestAutoRouting:
         decision = auto_route(preferred_recipe="comfyui_sd15_standard")
         assert decision.recipe_id == "comfyui_sd15_standard"
         assert "user preference" in decision.reason.lower()
+
+    def test_explicit_unavailable_recipe_fails_instead_of_rerouting(self, override_db):
+        seed_default_recipes()
+        set_recipe_available("openai_gpt_image_2", False)
+        with pytest.raises(RecipeError, match="not available"):
+            auto_route(preferred_recipe="openai_gpt_image_2")
 
     def test_fast_tier(self, override_db):
         seed_default_recipes()
