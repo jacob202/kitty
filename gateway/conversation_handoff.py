@@ -24,7 +24,6 @@ import re
 from datetime import UTC, datetime
 from typing import Any
 
-from gateway import builder_initiative as bi
 from mcp.builder import commands as _commands
 from mcp.builder import context as _context
 from mcp.builder import repo_tools
@@ -135,8 +134,8 @@ def propose(
     client would see. There is exactly one approval mechanism system-wide.
     """
     try:
-        root = repo_tools.repo_root()
-        base_sha = bi.resolve_base_sha(root)
+        repo_tools.repo_root()
+        base_sha = repo_tools.repo_head()
     except Exception as exc:
         return receipt(
             "conversation_propose",
@@ -203,6 +202,7 @@ def propose(
         plan_path=plan["artifact_path"],
         plan_sha=plan["commit_sha"],
         expected_base_sha=base_sha,
+        base_scope="checkout",
     )
     prepared["objective"] = objective.strip()
     prepared["design"] = {"path": design["artifact_path"], "sha": design["commit_sha"]}
@@ -240,6 +240,7 @@ def approve(
         expected_manifest_sha=expected_manifest_sha,
         expected_base_sha=expected_base_sha,
         approval_nonce=approval_nonce,
+        base_scope="checkout",
     )
 
 

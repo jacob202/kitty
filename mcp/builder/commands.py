@@ -12,7 +12,7 @@ import hmac
 import json
 import re
 import subprocess
-from typing import Any
+from typing import Any, Literal
 
 from gateway import builder_initiative as bi
 from gateway.builder_commands import (
@@ -161,11 +161,16 @@ def mission_prepare(
     plan_path: str,
     plan_sha: str,
     expected_base_sha: str,
+    base_scope: Literal["builder", "checkout"] = "builder",
 ) -> dict[str, Any]:
     """Validate and bind an immutable Mission candidate without creating queue work."""
     try:
         root = repo_tools.repo_root()
-        current_base = bi.resolve_base_sha(root)
+        current_base = (
+            repo_tools.repo_head()
+            if base_scope == "checkout"
+            else bi.resolve_base_sha(root)
+        )
         if current_base != expected_base_sha:
             return receipt(
                 "mission_prepare",
@@ -235,11 +240,16 @@ def mission_approve(
     expected_manifest_sha: str,
     expected_base_sha: str,
     approval_nonce: str,
+    base_scope: Literal["builder", "checkout"] = "builder",
 ) -> dict[str, Any]:
     """Apply only the exact prepared Mission version approved by the client/user."""
     try:
         root = repo_tools.repo_root()
-        current_base = bi.resolve_base_sha(root)
+        current_base = (
+            repo_tools.repo_head()
+            if base_scope == "checkout"
+            else bi.resolve_base_sha(root)
+        )
         if current_base != expected_base_sha:
             return receipt(
                 "mission_approve",
@@ -285,7 +295,9 @@ def mission_approve(
                 next_action="Run mission_prepare again and approve the exact returned nonce.",
             )
         _verify_bound_artifacts(refs, base_sha=expected_base_sha)
-        applied = bi.apply_manifest(prepared_manifest, repo_root=root)
+        applied = bi.apply_manifest(
+            prepared_manifest, repo_root=root, base_sha=expected_base_sha
+        )
         return receipt(
             "mission_approve",
             ok=True,
