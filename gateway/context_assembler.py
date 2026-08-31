@@ -31,6 +31,7 @@ Failure handling (the partial-result contract):
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
@@ -266,6 +267,7 @@ def _warning_source(warning: str) -> str | None:
     name = head.strip().strip("_")
     if name.endswith("_block"):
         name = name[: -len("_block")]
+    name = re.sub(r"[^A-Za-z0-9_.-]+", "-", name)[:64]
     return name or "unknown"
 
 

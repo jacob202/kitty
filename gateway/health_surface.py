@@ -253,7 +253,16 @@ async def _mcp_tools_source() -> HealthDomain:
 
     snapshot = mcp_tool_bridge.tool_health_snapshot()
     open_circuits = snapshot.get("open_circuits", [])
+    configuration_errors = snapshot.get("configuration_errors", [])
     configured = int(snapshot.get("configured_servers", 0))
+    if configuration_errors:
+        count = len(configuration_errors)
+        return HealthDomain(
+            "mcp_tools",
+            "degraded",
+            reason=f"{count} MCP configuration error{'s' if count != 1 else ''}; remote health is not proactively probed",
+            detail=snapshot,
+        )
     if open_circuits:
         count = len(open_circuits)
         return HealthDomain(
