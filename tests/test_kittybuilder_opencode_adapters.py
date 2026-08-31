@@ -1048,3 +1048,24 @@ def test_worker_gives_the_working_model_the_whole_budget(tmp_path: Path):
     # The 1000s budget less a 60s write-out reserve, not 1000/4. The exact
     # value moves with the second or two the adapter spends starting up.
     assert 900 <= int(slot.group(1)) <= 940
+
+
+def test_adapters_never_hand_their_result_over_through_a_shell_redirect():
+    """`cat src > dest` is denied under Seatbelt with the bash Builder resolves.
+
+    It creates the runner-owned file, then fails with EPERM. On 2026-08-31
+    that recorded a failed run for a finished packet whose 52 tests were
+    green: the adapter printed "Free builder completed" and died on
+    `cat: stdout: Operation not permitted`. Apple's /bin/bash does not
+    reproduce it, so only the shell Builder actually uses exposes the trap.
+    The destination must be opened by the process that writes it.
+    """
+    for script, variable in (
+        (WORKER, "KB_RESULT_PATH"),
+        (REVIEWER, "KB_REVIEW_RESULT_PATH"),
+    ):
+        text = script.read_text(encoding="utf-8")
+        assert f'> "${{{variable}}}"' not in text, (
+            f"{script.name} hands its result over through a shell redirect"
+        )
+        assert f'handoff "${{{variable}}}"' in text or f'"${{{variable}}}"' in text

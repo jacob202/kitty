@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -385,3 +386,52 @@ def test_boundary_git_is_resolved_from_the_fixed_path(monkeypatch: pytest.Monkey
     assert resolved != str(planted / "git")
     assert Path(resolved).is_file()
     assert str(Path(resolved).parent) in boundary._SAFE_PATH.split(":")
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
+def test_sandboxed_child_can_hand_a_result_file_to_the_runner(tmp_path: Path) -> None:
+    """The adapters' result handoff must survive the sandbox.
+
+    Under the bash Builder actually resolves from its own PATH, a shell
+    redirect into an exec'd binary (`cat src > dest`) creates the runner-owned
+    file and then fails with EPERM, while Apple's /bin/bash does not — so the
+    trap is invisible unless the test uses the same shell Builder does. On
+    2026-08-31 it lost a finished packet whose 52 tests were all green. A
+    process that opens the destination itself is unaffected.
+    """
+    shell = shutil.which("bash", path=boundary._SAFE_PATH)
+    assert shell, "Builder resolves bash from its own fixed PATH"
+
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    run_dir = tmp_path / "run"
+    source = worktree / "result.json"
+    source.write_text('{"contract_version": 1, "status": "completed"}\n')
+    # Runner-owned: outside both the worktree and the run directory, exactly
+    # like the attempt artifact directory the adapters write into.
+    destination = tmp_path / "runner-owned" / "implementation.json"
+    destination.parent.mkdir()
+
+    env = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
+    env["KB_SRC"] = str(source)
+    env["KB_DEST"] = str(destination)
+    raw_command = [
+        shell,
+        "-c",
+        'python3 -c "'
+        "import sys,pathlib;"
+        "pathlib.Path(sys.argv[2]).write_bytes(pathlib.Path(sys.argv[1]).read_bytes())"
+        '" "$KB_SRC" "$KB_DEST"',
+    ]
+    command = boundary.wrap_command(
+        raw_command,
+        worktree=worktree,
+        run_dir=run_dir,
+        environment=env,
+        write_paths=[destination],
+    )
+
+    completed = subprocess.run(command, cwd=worktree, env=env, capture_output=True, text=True)
+
+    assert completed.returncode == 0, completed.stderr
+    assert destination.read_text() == source.read_text()
