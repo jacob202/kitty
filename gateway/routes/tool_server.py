@@ -17,7 +17,18 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, Field
 
+from gateway import builder_status as builder_state
+from gateway import (
+    builder_status_readonly,
+    explicit_memory,
+    knowledge,
+    memory_graph,
+    next_step,
+    project_store,
+    tutor,
+)
 from gateway.paths import BUILDER_QUEUE_DB
+from gateway.routes import calendar
 
 logger = logging.getLogger("kitty.tool_server")
 
@@ -80,12 +91,10 @@ async def search_memory(
     limit: int = Query(default=5, ge=1, le=_TOOL_RESULT_LIMIT),
 ) -> dict:
     """Search the unified memory graph, including journal, inbox, todos, and facts."""
-    from gateway.explicit_memory import search as search_explicit
-    from gateway.memory_graph import unified_context
 
     try:
-        context = await unified_context(query, _record=False)
-        explicit = search_explicit(query, limit=limit)
+        context = await memory_graph.unified_context(query, _record=False)
+        explicit = explicit_memory.search(query, limit=limit)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"memory search failed: {exc}") from exc
     return {
@@ -104,11 +113,10 @@ async def search_memory(
 @router.post("/memory/remember", operation_id="remember", summary="Remember something about Jacob")
 def remember(body: RememberRequest) -> dict:
     """Store user-confirmed memory without requiring the semantic backend."""
-    from gateway.explicit_memory import remember as remember_explicit
 
     source_kind = "user_correction" if body.supersedes_id else "user_explicit"
     try:
-        row = remember_explicit(
+        row = explicit_memory.remember(
             body.text,
             namespace=body.namespace,
             memory_key=body.memory_key,
@@ -138,10 +146,9 @@ async def search_notes(
     limit: int = Query(default=5, ge=1, le=_TOOL_RESULT_LIMIT),
 ) -> dict:
     """Retrieval over material deliberately ingested into Kitty's knowledge base."""
-    from gateway.knowledge import search as _search
 
     try:
-        chunks = await _search(query, limit=limit)
+        chunks = await knowledge.search(query, limit=limit)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"note search failed: {exc}") from exc
     return {
@@ -156,10 +163,9 @@ async def search_notes(
 @router.get("/projects", operation_id="list_projects", summary="List Jacob's projects")
 def list_projects(status: str | None = None) -> dict:
     """Projects Kitty tracks, with life/admin work ahead of code work (ADR 0016)."""
-    from gateway.project_store import list_projects as _list
 
     try:
-        projects = _list(status)
+        projects = project_store.list_projects(status)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"project read failed: {exc}") from exc
 
@@ -180,10 +186,9 @@ def list_projects(status: str | None = None) -> dict:
 )
 def project_next_step(project_id: int) -> dict:
     """One concrete next action, with an explicit normal empty state."""
-    from gateway.next_step import get as _get
 
     try:
-        step = _get(project_id)
+        step = next_step.get(project_id)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"next step read failed: {exc}") from exc
     if step is None:
@@ -198,10 +203,9 @@ def project_next_step(project_id: int) -> dict:
 @router.get("/calendar/today", operation_id="calendar_today", summary="Jacob's schedule today")
 async def calendar_today() -> dict:
     """Today's events. ``available: false`` means the calendar is not connected."""
-    from gateway.routes.calendar import calendar_today as _today
 
     try:
-        return await _today()
+        return await calendar.calendar_today()
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"calendar read failed: {exc}") from exc
 
@@ -209,7 +213,6 @@ async def calendar_today() -> dict:
 @router.get("/tutor/ask", operation_id="ask_tutor", summary="Ask Kitty's Tutor, grounded in ingested docs")
 async def ask_tutor(topic: str = Query(min_length=1, max_length=500)) -> dict:
     """Answer from ingested documents and state honestly when none are available."""
-    from gateway import tutor
 
     try:
         return await tutor.ask(topic)
@@ -222,10 +225,9 @@ async def ask_tutor(topic: str = Query(min_length=1, max_length=500)) -> dict:
 @router.get("/builder/status", operation_id="builder_status", summary="What KittyBuilder is doing")
 def builder_status() -> dict:
     """A bounded, genuinely read-only control-plane summary."""
-    from gateway.builder_status import build_control_plane_summary
 
     try:
-        snapshot = build_control_plane_summary(db_path=BUILDER_QUEUE_DB)
+        snapshot = builder_state.build_control_plane_summary(db_path=BUILDER_QUEUE_DB)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail=f"builder unavailable: {exc}") from exc
     except Exception as exc:
@@ -256,10 +258,9 @@ def builder_status() -> dict:
 )
 def builder_mission_result(mission_id: str) -> dict:
     """Return Builder's read-only projection for one Mission/initiative."""
-    from gateway.builder_status_readonly import build_status_snapshot_readonly
 
     try:
-        snapshot = build_status_snapshot_readonly(db_path=BUILDER_QUEUE_DB)
+        snapshot = builder_status_readonly.build_status_snapshot_readonly(db_path=BUILDER_QUEUE_DB)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail=f"Builder unavailable: {exc}") from exc
     except Exception as exc:
