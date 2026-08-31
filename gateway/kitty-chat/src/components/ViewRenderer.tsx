@@ -16,6 +16,7 @@ const LibraryView = dynamic(() => import('./LibraryView'))
 const AutomationsView = dynamic(() => import('./AutomationsView'))
 const TutorShell = dynamic(() => import('./TutorShell'))
 const JournalPanel = dynamic(() => import('./JournalPanel'))
+const ResearchView = dynamic(() => import('./ResearchView'))
 const TerminalView = dynamic(() => import('./TerminalView'))
 const AgentWorkspacePanel = dynamic(() => import('./AgentWorkspacePanel').then((mod) => mod.AgentWorkspacePanel))
 const TodoPanel = dynamic(() => import('./TodoPanel').then((mod) => mod.TodoPanel))
@@ -112,6 +113,8 @@ export function ViewRenderer({
       return <TutorShell isMobile={isMobile} />
     case 'journal':
       return <div style={pad}><JournalPanel /></div>
+    case 'research':
+      return <ResearchView isMobile={isMobile} />
     case 'terminal':
         return <TerminalView isMobile={isMobile} />
       default:

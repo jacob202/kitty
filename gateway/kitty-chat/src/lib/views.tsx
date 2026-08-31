@@ -5,7 +5,7 @@ import type { ComponentType } from 'react'
 export type ViewId =
   | 'home' | 'chat' | 'builder' | 'builder-details' | 'settings'
   | 'work' | 'studio' | 'library' | 'automations'
-  | 'tasks' | 'tools' | 'terminal' | 'projects' | 'docs' | 'providers' | 'agents' | 'images' | 'tutor' | 'journal'
+  | 'tasks' | 'tools' | 'terminal' | 'projects' | 'docs' | 'providers' | 'agents' | 'images' | 'tutor' | 'journal' | 'research'
 
 export interface ViewEntry {
   component: ComponentType<any>
@@ -38,6 +38,7 @@ export const VIEWS: Record<ViewId, ViewEntry> = {
   images:    { component: PlaceholderView, title: 'Images',   icon: 'studio',   railSlot: false },
   tutor:     { component: PlaceholderView, title: 'Tutor',    icon: 'settings', railSlot: false },
   journal:   { component: PlaceholderView, title: 'Journal',  icon: 'settings', railSlot: false },
+  research:  { component: PlaceholderView, title: 'Research', icon: 'library', railSlot: false },
 }
 
 export const RAIL_VIEWS: ViewId[] = ['home', 'chat', 'work', 'projects', 'studio', 'library', 'automations', 'settings']

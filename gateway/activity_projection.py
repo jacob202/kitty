@@ -110,6 +110,36 @@ def _agent_items() -> list[dict[str, Any]]:
     return items
 
 
+def _research_items() -> list[dict[str, Any]]:
+    from gateway import research_runs
+
+    rows = research_runs.list_runs(limit=30)
+    items = []
+    for row in rows:
+        raw = str(row.get("status") or "unknown")
+        if raw == "running":
+            state = "running"
+        elif raw == "completed":
+            state = "completed"
+        elif raw in {"failed", "interrupted"}:
+            state = "failed"
+        else:
+            state = "running"
+        detail = _bounded(row.get("error")) or f"Stage: {row.get('stage') or 'unknown'}"
+        items.append({
+            "id": f"research:{row['id']}",
+            "source": "research",
+            "source_id": str(row["id"]),
+            "title": _bounded(row.get("topic"), 120) or "Research run",
+            "detail": detail,
+            "state": state,
+            "raw_state": str(row.get("stage") or raw),
+            "occurred_at": float(row.get("updated_at") or row.get("created_at") or 0),
+            "destination": "research",
+        })
+    return items
+
+
 def _builder_items() -> list[dict[str, Any]]:
     from gateway.builder_status import build_control_plane_summary
 
@@ -144,6 +174,7 @@ def build_activity_projection(*, limit: int = 40) -> dict[str, Any]:
         "actions": _action_items,
         "automations": _automation_items,
         "agents": _agent_items,
+        "research": _research_items,
         "builder": _builder_items,
     }
     items: list[dict[str, Any]] = []

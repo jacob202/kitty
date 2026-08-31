@@ -14,6 +14,8 @@ import {
   fetchGatewayRuntimeManifest,
   fetchGatewaySearch,
   fetchActivity,
+  fetchResearchRuns,
+  startResearch,
   fetchIntelligence,
   refreshIntelligenceConnections,
   fetchGatewayWeather,
@@ -543,6 +545,27 @@ export function useGenerateImage() {
     mutationFn: (args: string | { prompt: string; engine: string }) =>
       typeof args === 'string' ? generateImage(args) : generateImage(args.prompt, args.engine),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['image', 'history'] }),
+  })
+}
+
+export function useResearchRuns() {
+  return useQuery({
+    queryKey: ['research', 'runs'],
+    queryFn: () => fetchResearchRuns(),
+    refetchInterval: 3_000,
+    retry: false,
+  })
+}
+
+export function useStartResearch() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { topic: string; project_id?: number | null }) => startResearch(input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['research', 'runs'] })
+      void qc.invalidateQueries({ queryKey: ['activity'] })
+      void qc.invalidateQueries({ queryKey: ['artifacts'] })
+    },
   })
 }
 

@@ -22,7 +22,8 @@ def test_capabilities_projects_core_surfaces_and_discovered_skills(monkeypatch):
     assert response.status_code == 200
     capabilities = response.json()["capabilities"]
     by_id = {item["id"]: item for item in capabilities}
-    assert {"home", "chat", "settings"} <= set(by_id)
+    assert {"home", "chat", "settings", "research"} <= set(by_id)
+    assert by_id["research"]["view"] == "research"
     assert by_id["work"]["launch"] == "view"
     assert by_id["image-lab"]["view"] == "studio"
     assert by_id["skill:agent-council"] == {

@@ -31,6 +31,7 @@ _CORE_CAPABILITIES = (
     Capability(id="agents", label="agents", description="Open Kitty's shared agent workspace.", category="work", launch="view", view="agents"),
     Capability(id="tutor", label="tutor", description="Learn with Kitty's tutoring workspace.", category="knowledge", launch="view", view="tutor"),
     Capability(id="journal", label="journal", description="Write and revisit journal entries.", category="personal", launch="view", view="journal"),
+    Capability(id="research", label="research", description="Run deep research with live sources, progress, and a durable report.", category="knowledge", launch="view", view="research"),
     Capability(id="settings", label="settings", description="Manage Kitty runtime, providers, tools, and preferences.", category="navigate", launch="view", view="settings"),
 )
 
