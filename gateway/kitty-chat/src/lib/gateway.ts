@@ -364,6 +364,22 @@ export interface GatewayActivityProjection {
   sources: Record<string, { state: 'available' | 'unavailable'; reason: string | null }>
 }
 
+export interface GatewayIntelligenceItem {
+  id: string
+  source: 'deadline' | 'insight' | 'magic' | 'life' | string
+  title: string
+  detail: string
+  destination: string
+  project_id: number | null
+  prompt: string
+}
+
+export interface GatewayIntelligenceProjection {
+  items: GatewayIntelligenceItem[]
+  counts: { shown: number; total_candidates: number }
+  sources: Record<string, { state: 'available' | 'unavailable'; reason: string | null }>
+}
+
 export interface GatewayWeather {
   temp_c?: number
   feels_like_c?: number
@@ -1091,6 +1107,14 @@ export async function removeGatewayMonitor(watchId: string): Promise<void> {
 
 export async function fetchActivity(limit = 40): Promise<GatewayActivityProjection> {
   return await gfetch<GatewayActivityProjection>(`/activity?limit=${limit}`)
+}
+
+export async function fetchIntelligence(limit = 3): Promise<GatewayIntelligenceProjection> {
+  return await gfetch<GatewayIntelligenceProjection>(`/intelligence?limit=${limit}`)
+}
+
+export async function refreshIntelligenceConnections(): Promise<GatewayIntelligenceProjection> {
+  return await gfetch<GatewayIntelligenceProjection>('/intelligence/refresh-connections', { method: 'POST' }, 60_000)
 }
 
 export async function fetchCapabilities(): Promise<GatewayCapabilitiesPayload> {
