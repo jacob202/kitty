@@ -11,6 +11,8 @@ import time
 
 from fastapi import APIRouter
 
+from gateway import action_queue, builder_queue, paths, signal_store
+
 logger = logging.getLogger("kitty.repairs")
 router = APIRouter(tags=["repairs"])
 
@@ -26,17 +28,7 @@ def list_repairs():
     sys.path.insert(0, str(ROOT))
 
     try:
-        from gateway.doctor import (
-            Check,
-            check_codegraph,
-            check_disk,
-            check_env,
-            check_gateway_freshness,
-            check_mem0,
-            check_services,
-            check_venv,
-            load_env,
-        )
+        from gateway import doctor
     except ImportError:
         logger.error("cannot import doctor checks", exc_info=True)
         return {
@@ -45,15 +37,15 @@ def list_repairs():
             "repairs": [],
         }
 
-    env = load_env()
-    checks: list[Check] = []
-    checks.extend(check_env(env))
-    checks.extend(check_disk())
-    checks.extend(check_services(env))
-    checks.extend(check_mem0(env))
-    checks.extend(check_venv())
-    checks.extend(check_codegraph())
-    checks.extend(check_gateway_freshness())
+    env = doctor.load_env()
+    checks: list[doctor.Check] = []
+    checks.extend(doctor.check_env(env))
+    checks.extend(doctor.check_disk())
+    checks.extend(doctor.check_services(env))
+    checks.extend(doctor.check_mem0(env))
+    checks.extend(doctor.check_venv())
+    checks.extend(doctor.check_codegraph())
+    checks.extend(doctor.check_gateway_freshness())
     checks.extend(_check_builder_health())
     checks.extend(_check_queue_backup_age())
 
@@ -306,9 +298,8 @@ def _check_builder_health() -> list:
         detail: str
 
     try:
-        from gateway.builder_queue import find_silent_transitions
 
-        transitions = find_silent_transitions()
+        transitions = builder_queue.find_silent_transitions()
         if transitions:
             return [Check(
                 "WARN",
@@ -334,8 +325,7 @@ def _check_queue_backup_age() -> list:
         name: str
         detail: str
 
-    from gateway.paths import DATA_DIR
-    backup = DATA_DIR / "queue.db.backup"
+    backup = paths.DATA_DIR / "queue.db.backup"
     if not backup.exists():
         return [Check("PASS", "queue:backup-age", "No queue backup found — not applicable")]
     age_seconds = time.time() - backup.stat().st_mtime
@@ -353,7 +343,6 @@ async def dismiss_repair(body: dict):
     the signal processed so it doesn't reappear on next poll."""
     repair_id = body.get("repair_id", "unknown")
     try:
-        from gateway.action_queue import execute, propose
 
         if isinstance(repair_id, str) and repair_id.startswith("signal-"):
             signal_id_str = repair_id.replace("signal-", "", 1)
@@ -363,21 +352,20 @@ async def dismiss_repair(body: dict):
                 raise ValueError(
                     f"signal repair id {repair_id!r} has a non-numeric signal id"
                 ) from exc
-            from gateway import signal_store
 
             # Must not be swallowed: an unmarked signal reappears on the next
             # poll, so a silently failed mark reports a dismissal that did not
             # happen.
             signal_store.mark_processed(signal_id)
 
-        action = propose(
+        action = action_queue.propose(
             source_kind="repairs",
             kind="repair.dismiss",
             title=f"Repair dismissed: {repair_id}",
             preview=f"User dismissed a repair item: {repair_id}",
             payload={"label": repair_id, "check_name": repair_id},
         )
-        execute(action["id"])
+        action_queue.execute(action["id"])
         return {"ok": True, "action_id": action["id"]}
     except Exception as exc:
         logger.warning("Failed to propose/execute dismiss action: %s", exc)
@@ -389,15 +377,14 @@ async def run_repair_check(body: dict):
     """Re-run a specific health check through the action queue."""
     check_name = body.get("check_name", "unknown")
     try:
-        from gateway.action_queue import execute, propose
-        action = propose(
+        action = action_queue.propose(
             source_kind="repairs",
             kind="repair.check",
             title=f"Repair check: {check_name}",
             preview=f"User requested re-check of: {check_name}",
             payload={"check_name": check_name},
         )
-        execute(action["id"])
+        action_queue.execute(action["id"])
         return {"ok": True, "action_id": action["id"]}
     except Exception as exc:
         logger.warning("Failed to propose/execute repair check: %s", exc)
