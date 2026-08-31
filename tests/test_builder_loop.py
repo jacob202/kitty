@@ -1270,6 +1270,7 @@ class TestNoStaleArtifactReuse:
         assert "B.txt" in delta
         assert "A.txt" not in delta
 
+    @pytest.mark.skipif(__import__("sys").platform != "darwin", reason="Seatbelt proof is macOS-specific")
     def test_reviewer_mutation_is_blocked_before_it_can_taint_worktree(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
