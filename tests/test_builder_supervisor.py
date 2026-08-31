@@ -406,6 +406,20 @@ def test_budget_summary_initializes_an_empty_compute_ledger(tmp_path: Path, monk
     assert ledger.exists()
 
 
+def test_control_plane_summary_disables_scheduler_actions_when_contract_is_unhealthy(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(bs, "dispatchable_counts", lambda _db=None: {"now": 1, "on_hold": 0})
+    monkeypatch.setattr(bs, "active_runs_summary", lambda _db=None: [])
+    monkeypatch.setattr(bs, "budget_summary", lambda: {})
+    monkeypatch.setattr(bs, "_scheduler_enabled", lambda: True)
+    monkeypatch.setattr(bs, "scheduler_status", lambda: {"healthy": False, "loaded": True, "installed": True})
+    monkeypatch.setattr(bs, "_lock_path", lambda _db=None: tmp_path / "supervisor.lock")
+
+    summary = bs.control_plane_summary()
+
+    assert summary["scheduler_enabled"] is False
+    assert summary["scheduler"]["healthy"] is False
+
+
 def test_status_projection(repo: Path, db_path: Path) -> None:
     """status() returns initiatives, eligible packets, active runs."""
     _apply(db_path, "test-init-1", [_packet("p1"), _packet("p2")], repo_root=repo)

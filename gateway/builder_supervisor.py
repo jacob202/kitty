@@ -886,16 +886,24 @@ def control_plane_summary(db_path: Path | None = None) -> dict[str, Any]:
     needs active runs, launchable counts, lock identity, and budget truth.
     """
     counts = dispatchable_counts(db_path)
+    scheduler = scheduler_status()
+    loaded_state = _scheduler_enabled()
+    scheduler_enabled = (
+        loaded_state
+        if loaded_state is not True
+        else bool(scheduler.get("healthy"))
+    )
     return {
         "active_runs": active_runs_summary(db_path),
         "eligible_now": counts["now"],
         "on_hold": counts["on_hold"],
         "lock_path": str(_lock_path(db_path)),
         "budget": budget_summary(),
-        # Work needs the compact boolean for existing action semantics and the
-        # detailed projection for truthful scheduler observability.
-        "scheduler_enabled": _scheduler_enabled(),
-        "scheduler": scheduler_status(),
+        # A loaded but stale/mismatched LaunchAgent is not a usable scheduler
+        # for Work actions. Keep the action boolean consistent with the detailed
+        # scheduler health projection so the UI never suppresses its fallback.
+        "scheduler_enabled": scheduler_enabled,
+        "scheduler": scheduler,
     }
 
 
