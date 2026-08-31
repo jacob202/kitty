@@ -8,10 +8,10 @@ from gateway.memory_graph import (
     JournalAdapter,
     KnowledgeAdapter,
     MemoryAdapter,
-    MemoryGraph,
     Source,
     TodosAdapter,
     TracesAdapter,
+    search_all,
     unified_context,
 )
 
@@ -72,7 +72,7 @@ async def test_unified_context_aggregation():
 
 @pytest.mark.asyncio
 async def test_search_all_structure():
-    """MemoryGraph.search_all returns a GraphResult with all six keys."""
+    """search_all returns a GraphResult with all six keys."""
     with (
         patch.object(
             MemoryAdapter,
@@ -97,7 +97,7 @@ async def test_search_all_structure():
         patch.object(TodosAdapter, "fetch", new=AsyncMock(return_value=[])),
         patch.object(InboxAdapter, "fetch", new=AsyncMock(return_value=[])),
     ):
-        result = await MemoryGraph().search_all("test")
+        result = await search_all("test")
         assert "memory" in result.results
         assert "knowledge" in result.results
         assert "journal" in result.results

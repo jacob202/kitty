@@ -88,7 +88,8 @@ async def test_project_truth_renders_before_stale_semantic_memory():
             )
         ],
     }
-    rendered = memory_graph._format_unified_items(results, query="Kitty #552 status")
+    sections, _rendered = memory_graph.select_unified_items(results, query="Kitty #552 status")
+    rendered = "\n\n".join(sections)
     assert rendered.index("Kitty project status") < rendered.index("Old recollection")
 
 

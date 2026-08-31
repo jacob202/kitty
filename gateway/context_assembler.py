@@ -51,9 +51,9 @@ from gateway.memory_graph import (
     CONTEXT_TOKEN_CAP,
     Item,
     MemoryEvidence,
-    MemoryGraph,
     StoreAdapter,
-    _select_unified_items,
+    search_all,
+    select_unified_items,
 )
 from gateway.memory_policy import should_surface
 from gateway.personality import personality_block
@@ -199,12 +199,16 @@ class ContextBundle:
 
 @dataclass
 class _AssemblerDeps:
-    """Internal: the seams a test can swap to drive the orchestrator."""
+    """Internal: the seams a test can swap to drive the orchestrator.
+
+    ``adapters`` is forwarded to :func:`gateway.memory_graph.search_all` —
+    the module's one retrieval entry point — so tests cross the same seam
+    production retrieval does.
+    """
 
     adapters: list[StoreAdapter] | None = None
     enrichments: tuple[EnrichmentFn, ...] = DEFAULT_ENRICHMENTS
     skill_hint_fn: SkillHintFn | None = None
-    graph_cls: type[MemoryGraph] = MemoryGraph
 
 
 def _explicit_skill_name(message: str) -> str | None:
@@ -533,13 +537,12 @@ async def assemble_context(
     memory_block = ""
 
     if tier != "trivial":
-        graph = deps.graph_cls(deps.adapters)
-        graph_result = await graph.search_all(message)
+        graph_result = await search_all(message, adapters=deps.adapters)
         warnings.extend(f"memory_graph:{err}" for err in graph_result.errors)
 
         cap = 2400 if tier == "deep" else CONTEXT_TOKEN_CAP
         filtered_results = _filter_items_by_policy(graph_result.results, message)
-        memory_sections, injected_memory_items = _select_unified_items(
+        memory_sections, injected_memory_items = select_unified_items(
             filtered_results, cap
         )
         memory_block = "\n\n".join(memory_sections)

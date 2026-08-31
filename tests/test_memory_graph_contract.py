@@ -15,11 +15,11 @@ from gateway.memory_graph import (
     JournalAdapter,
     KnowledgeAdapter,
     MemoryAdapter,
-    MemoryGraph,
     SignalsAdapter,
     Source,
     TodosAdapter,
     WeaveAdapter,
+    search_all,
 )
 
 # ── Failure isolation contract ───────────────────────────────────────────────
@@ -31,93 +31,83 @@ class TestAdapterFailureIsolation:
 
     @pytest.mark.asyncio
     async def test_signals_adapter_failure_isolated(self):
-        graph = MemoryGraph(adapters=[SignalsAdapter()])
         with patch.object(
             SignalsAdapter, "fetch", new=AsyncMock(side_effect=RuntimeError("db down"))
         ):
-            result = await graph.search_all("test")
+            result = await search_all("test", adapters=[SignalsAdapter()])
             assert "signals" in result.errors[0]
             assert result.results.get("signals") == []
 
     @pytest.mark.asyncio
     async def test_weave_adapter_failure_isolated(self):
-        graph = MemoryGraph(adapters=[WeaveAdapter()])
         with patch.object(
             WeaveAdapter, "fetch", new=AsyncMock(side_effect=RuntimeError("weave exploded"))
         ):
-            result = await graph.search_all("test")
+            result = await search_all("test", adapters=[WeaveAdapter()])
             assert "facts" in result.errors[0]
             assert result.results.get("facts") == []
 
     @pytest.mark.asyncio
     async def test_knowledge_adapter_failure_isolated(self):
-        graph = MemoryGraph(adapters=[KnowledgeAdapter()])
         with patch.object(
             KnowledgeAdapter, "fetch", new=AsyncMock(side_effect=RuntimeError("chroma oom"))
         ):
-            result = await graph.search_all("test")
+            result = await search_all("test", adapters=[KnowledgeAdapter()])
             assert "knowledge" in result.errors[0]
             assert result.results.get("knowledge") == []
 
     @pytest.mark.asyncio
     async def test_memory_adapter_failure_isolated(self):
-        graph = MemoryGraph(adapters=[MemoryAdapter()])
         with patch.object(
             MemoryAdapter, "fetch", new=AsyncMock(side_effect=RuntimeError("mem0 down"))
         ):
-            result = await graph.search_all("test")
+            result = await search_all("test", adapters=[MemoryAdapter()])
             assert "memory" in result.errors[0]
             assert result.results.get("memory") == []
 
     @pytest.mark.asyncio
     async def test_journal_adapter_failure_isolated(self):
-        graph = MemoryGraph(adapters=[JournalAdapter()])
         with patch.object(
             JournalAdapter, "fetch", new=AsyncMock(side_effect=RuntimeError("sqlite locked"))
         ):
-            result = await graph.search_all("test")
+            result = await search_all("test", adapters=[JournalAdapter()])
             assert "journal" in result.errors[0]
             assert result.results.get("journal") == []
 
     @pytest.mark.asyncio
     async def test_todos_adapter_failure_isolated(self):
-        graph = MemoryGraph(adapters=[TodosAdapter()])
         with patch.object(
             TodosAdapter, "fetch", new=AsyncMock(side_effect=RuntimeError("todo boom"))
         ):
-            result = await graph.search_all("test")
+            result = await search_all("test", adapters=[TodosAdapter()])
             assert "todos" in result.errors[0]
             assert result.results.get("todos") == []
 
     @pytest.mark.asyncio
     async def test_inbox_adapter_failure_isolated(self):
-        graph = MemoryGraph(adapters=[InboxAdapter()])
         with patch.object(
             InboxAdapter, "fetch", new=AsyncMock(side_effect=RuntimeError("inbox gone"))
         ):
-            result = await graph.search_all("test")
+            result = await search_all("test", adapters=[InboxAdapter()])
             assert "inbox" in result.errors[0]
             assert result.results.get("inbox") == []
 
     @pytest.mark.asyncio
     async def test_multiple_failures_all_isolated(self):
         """Multiple adapter failures are all captured in errors."""
-        adapters = [SignalsAdapter(), WeaveAdapter()]
-        graph = MemoryGraph(adapters=adapters)
         with (
             patch.object(SignalsAdapter, "fetch", new=AsyncMock(side_effect=RuntimeError("a"))),
             patch.object(WeaveAdapter, "fetch", new=AsyncMock(side_effect=RuntimeError("b"))),
         ):
-            result = await graph.search_all("test")
+            result = await search_all("test", adapters=[SignalsAdapter(), WeaveAdapter()])
             assert len(result.errors) == 2
 
     @pytest.mark.asyncio
     async def test_success_still_works(self):
         """Successful adapters return items normally."""
         items = [Item(text="hello", source=Source.MEMORY)]
-        graph = MemoryGraph(adapters=[MemoryAdapter()])
         with patch.object(MemoryAdapter, "fetch", new=AsyncMock(return_value=items)):
-            result = await graph.search_all("test")
+            result = await search_all("test", adapters=[MemoryAdapter()])
             assert result.results["memory"] == items
             assert result.errors == []
 

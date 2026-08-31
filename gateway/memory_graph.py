@@ -2,25 +2,44 @@
 
 Phase 2 deepening (per
 ``docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md``):
-the read path now exposes one entry point (``gateway.context_assembler``)
-and one item shape (``Item``). The adapters return ``list[Item]``; the
-``format_items`` and ``correlate`` methods are gone from the adapter
-contract — formatting lives in the assembler, not in the stores. This
-module still owns the per-store retrieval and the concurrent fan-in.
+the read path exposes one item shape (``Item``). The adapters return
+``list[Item]``; the ``format_items`` and ``correlate`` methods are gone
+from the adapter contract — formatting lives in the assembler, not in
+the stores. This module still owns the per-store retrieval and the
+concurrent fan-in.
 
-Public surface:
+One retrieval entry point:
+
+- :func:`search_all` — the single entry point for cross-store retrieval.
+  Returns a :class:`GraphResult` keyed by adapter name. Everything else
+  is built on top of it.
+
+Named adapters over the entry point:
+
+- :func:`unified_context` — the prompt-rendering adapter over
+  :func:`search_all` for callers that want the formatted memory string
+  rather than raw retrieval. It adds the prompt-specific concerns on top
+  of the same retrieval: prefetch-cache read-through, prompt rendering,
+  and query recording for the prefetcher. It is not a second retrieval
+  path.
+
+Shared selection rule:
+
+- :func:`select_unified_items` — the render gates (top-5 per store,
+  Privacy Gate, Token-Aware Budgeting) in one walk, shared with
+  ``gateway.context_assembler``.
+
+Shapes and seams:
 
 - :class:`Item` — the uniform result shape every adapter returns.
 - :class:`Source` — enum of store sources, used in :attr:`Item.source`.
 - :class:`StoreAdapter` — abstract base. Subclasses implement
   :meth:`name` and :meth:`fetch`. The legacy ``format_items`` and
   ``correlate`` are removed.
-- :class:`GraphResult` — what :meth:`MemoryGraph.search_all` returns.
-- :func:`unified_context` — convenience wrapper around
-  :class:`MemoryGraph` returning a formatted string.
-- :func:`_format_unified_items` — free function used by the assembler
-  to render a :class:`GraphResult` as the memory section.
-- :func:`_truncate_text` — token-cap aware truncation.
+- :class:`GraphResult` — what :func:`search_all` returns.
+- :class:`MemoryGraph` — internal engine behind :func:`search_all`
+  (adapter registry + concurrent fan-in). Not a caller entry point;
+  callers (and tests) cross the :func:`search_all` seam.
 """
 
 from __future__ import annotations
@@ -624,23 +643,14 @@ class GraphResult:
 class MemoryGraph:
     """Deep memory graph module.
 
-    High-leverage entry point for all context retrieval. The store
-    adapters are implementation details; the only thing callers touch is
-    :meth:`search_all` (returning a :class:`GraphResult`) and
-    :meth:`unified_context` (returning a formatted string).
+    Internal engine behind :func:`search_all`: it owns the adapter
+    registry and the concurrent fan-in. Callers do not instantiate this
+    directly — they call the module-level :func:`search_all`, which
+    serves the shared instance or a caller-supplied adapter list.
     """
 
     def __init__(self, adapters: list[StoreAdapter] | None = None):
         self._adapters = adapters or _default_adapters()
-
-    async def unified_context(self, query: str) -> str:
-        """Get unified context from all stores as a formatted string.
-
-        Kept for callers that want the legacy single-string return shape.
-        The new assemblers use :meth:`search_all` directly.
-        """
-        result = await self.search_all(query)
-        return _format_unified_items(result.results, query=query)
 
     async def search_all(self, query: str) -> GraphResult:
         """Search all stores concurrently.
@@ -676,31 +686,45 @@ class MemoryGraph:
         return result
 
 
-# --- Global instance for backward compatibility ---
+# --- The one entry point, plus its prompt-rendering adapter ---
 
 _graph: MemoryGraph | None = None
 
 
 def _get_graph() -> MemoryGraph:
+    """Lazily build the shared graph so default-adapter construction
+    (including the optional MemPalace probe) happens once, not per query."""
     global _graph
     if _graph is None:
         _graph = MemoryGraph()
     return _graph
 
 
-# --- Public API (backward compatible) ---
+async def search_all(
+    query: str, *, adapters: list[StoreAdapter] | None = None
+) -> GraphResult:
+    """The single entry point for cross-store retrieval. Returns GraphResult.
 
-
-async def search_all(query: str) -> GraphResult:
-    """Public module-level entry point for cross-store search. Returns GraphResult."""
-    return await _get_graph().search_all(query)
+    With no ``adapters`` this serves the shared graph instance; tests (and
+    the assembler's internal seam) may pass an explicit adapter list, which
+    is fanned in through a transient graph. Per-adapter failures become
+    entries in ``GraphResult.errors`` so the caller can surface them; no
+    exception escapes for store-level failures.
+    """
+    if adapters is None:
+        return await _get_graph().search_all(query)
+    return await MemoryGraph(adapters).search_all(query)
 
 
 async def unified_context(query: str, *, _record: bool = True) -> str:
-    """Return unified context from all stores as a formatted string.
+    """Prompt-rendering adapter over :func:`search_all`.
 
-    Checks the predictive prefetch cache first; on a miss, computes the context,
-    caches it, and (for real asks) records the query so the prefetcher learns.
+    Same retrieval as :func:`search_all` — this is not a second path. The
+    difference is what wraps the raw :class:`GraphResult` for prompt use:
+    a read-through of the predictive prefetch cache, prompt rendering via
+    :func:`_format_unified_items`, and (for real asks, ``_record=True``)
+    recording the query so the prefetcher learns. Speculative callers that
+    must not feed the learner pass ``_record=False``.
     """
     from gateway import prefetcher
 
@@ -712,11 +736,12 @@ async def unified_context(query: str, *, _record: bool = True) -> str:
     # write, instead of this call silently resurrecting the pre-correction
     # answer it started with (C4-03 follow-up).
     generation = prefetcher.current_generation()
-    result = await _get_graph().unified_context(query)
-    prefetcher.put_cached(query, result, generation=generation)
+    result = await search_all(query)
+    rendered = _format_unified_items(result.results, query=query)
+    prefetcher.put_cached(query, rendered, generation=generation)
     if _record:
         prefetcher.record(query)
-    return result
+    return rendered
 
 
 # --- Free functions used by the assembler ---
@@ -745,7 +770,7 @@ def _is_sensitive(item: Item, query_terms: set[str]) -> bool:
     return False
 
 
-def _select_unified_items(
+def select_unified_items(
     results: dict[str, list[Item]], cap: int = CONTEXT_TOKEN_CAP, query: str = ""
 ) -> tuple[list[str], list[MemoryEvidence]]:
     """Apply the render gates (top-5 per store, Privacy Gate, Token-Aware
@@ -820,18 +845,7 @@ def _format_unified_items(results: dict[str, list[Item]], cap: int = CONTEXT_TOK
 
     Uses Token-Aware Budgeting and a Privacy Gate.
     """
-    sections, _ = _select_unified_items(results, cap=cap, query=query)
+    sections, _ = select_unified_items(results, cap=cap, query=query)
     if not sections:
         return ""
     return "\n\n".join(sections)
-
-
-def _fetch_traces(query: str) -> list[Item]:
-    return TracesAdapter()._fetch_traces(query)
-
-
-def search_entries(query: str) -> list[dict[str, Any]]:
-    """Legacy shim for tests — delegates to journal."""
-    from gateway.journal import search_entries as journal_search
-
-    return journal_search(query)

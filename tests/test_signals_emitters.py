@@ -110,11 +110,12 @@ class TestMemoryGraphReadsSignals:
             payload={"message": "Keep shipping"},
         )
 
-        from gateway.memory_graph import SignalsAdapter, _format_unified_items
+        from gateway.memory_graph import SignalsAdapter, select_unified_items
 
         adapter = SignalsAdapter()
         items = await adapter.fetch("")
-        formatted = _format_unified_items({"signals": items})
+        sections, _rendered = select_unified_items({"signals": items})
+        formatted = "\n\n".join(sections)
         assert "## Signals" in formatted
         assert "unseen" in formatted
         assert "Keep shipping" in formatted

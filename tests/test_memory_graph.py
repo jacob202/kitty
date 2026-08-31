@@ -18,14 +18,14 @@ from gateway.memory_graph import (
     JournalAdapter,
     KnowledgeAdapter,
     MemoryAdapter,
-    MemoryGraph,
     ProjectAdapter,
     SignalsAdapter,
     Source,
     StoreAdapter,
     TodosAdapter,
     TracesAdapter,
-    _fetch_traces,
+    search_all,
+    select_unified_items,
     unified_context,
 )
 
@@ -44,7 +44,7 @@ def _isolate_prefetch_cache(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_search_all_returns_all_keys():
-    """``MemoryGraph.search_all`` should always return the canonical store keys
+    """``search_all`` should always return the canonical store keys
     and each value should be a ``list[Item]``."""
     with (
         patch.object(ProjectAdapter, "fetch", new=AsyncMock(return_value=[])),
@@ -57,8 +57,7 @@ async def test_search_all_returns_all_keys():
         patch.object(InboxAdapter, "fetch", new=AsyncMock(return_value=[])),
         patch.object(SignalsAdapter, "fetch", new=AsyncMock(return_value=[])),
     ):
-        graph = MemoryGraph()
-        result = await graph.search_all("test query")
+        result = await search_all("test query")
         assert set(result.results.keys()) == {
             "projects",
             "explicit_memory",
@@ -86,7 +85,7 @@ async def test_failure_isolation():
         patch.object(TodosAdapter, "fetch", new=AsyncMock(return_value=[])),
         patch.object(InboxAdapter, "fetch", new=AsyncMock(return_value=[])),
     ):
-        result = await MemoryGraph().search_all("test query")
+        result = await search_all("test query")
         assert result.results["memory"] == []
         assert len(result.results["knowledge"]) == 1
         assert result.results["knowledge"][0].text == "found it"
@@ -108,7 +107,7 @@ async def test_slow_optional_store_is_bounded(monkeypatch):
 
     monkeypatch.setattr(memory_graph_module, "STORE_FETCH_TIMEOUT_SECONDS", 0.01)
     result = await asyncio.wait_for(
-        MemoryGraph([SlowAdapter()]).search_all("hello"), timeout=0.2
+        search_all("hello", adapters=[SlowAdapter()]), timeout=0.2
     )
 
     assert result.results["slow"] == []
@@ -125,9 +124,11 @@ async def test_unified_context_race_with_invalidation_does_not_repopulate_cache(
     release = asyncio.Event()
 
     class _SlowGraph:
-        async def unified_context(self, query):
+        async def search_all(self, query):
             await release.wait()
-            return "STALE-CONTEXT"
+            return GraphResult(
+                results={"memory": [Item(text="STALE-CONTEXT", source=Source.MEMORY)]}
+            )
 
     monkeypatch.setattr(memory_graph_module, "_get_graph", lambda: _SlowGraph())
 
@@ -138,7 +139,7 @@ async def test_unified_context_race_with_invalidation_does_not_repopulate_cache(
     release.set()
     result = await task
 
-    assert result == "STALE-CONTEXT"  # the in-flight caller still gets its answer
+    assert "STALE-CONTEXT" in result  # the in-flight caller still gets its answer
     assert prefetcher.get_cached("q") is None  # but it must not poison the cache
 
 
@@ -153,7 +154,7 @@ async def test_knowledge_adapter_does_not_block_event_loop(monkeypatch):
     monkeypatch.setattr("gateway.knowledge.search", blocking_search)
     monkeypatch.setattr(memory_graph_module, "STORE_FETCH_TIMEOUT_SECONDS", 0.01)
     result = await asyncio.wait_for(
-        MemoryGraph([KnowledgeAdapter()]).search_all("hello"), timeout=0.2
+        search_all("hello", adapters=[KnowledgeAdapter()]), timeout=0.2
     )
 
     assert result.results["knowledge"] == []
@@ -193,7 +194,7 @@ async def test_unified_context_formatting():
     }
 
     with patch.object(
-        MemoryGraph,
+        memory_graph_module,
         "search_all",
         new=AsyncMock(return_value=GraphResult(results=mock_results)),
     ):
@@ -224,7 +225,7 @@ async def test_token_budget_truncation():
     }
 
     with patch.object(
-        MemoryGraph,
+        memory_graph_module,
         "search_all",
         new=AsyncMock(return_value=GraphResult(results=mock_results)),
     ):
@@ -288,7 +289,7 @@ async def test_real_trace_fetch_smoke(tmp_path, monkeypatch):
             + "\n"
         )
 
-    items = _fetch_traces("hvac")
+    items = TracesAdapter()._fetch_traces("hvac")
 
     assert len(items) == 1
     assert all(isinstance(it, Item) for it in items)
@@ -392,7 +393,7 @@ def test_select_unified_items_budgets_by_score_not_adapter_order():
     low = Item(text="low relevance", source=Source.KNOWLEDGE, score=0.1)
     high = Item(text="high relevance", source=Source.KNOWLEDGE, score=0.9)
 
-    sections, rendered = memory_graph_module._select_unified_items(
+    sections, rendered = select_unified_items(
         {"knowledge": [low, high]}, cap=1000, query=""
     )
 
@@ -468,7 +469,7 @@ async def test_project_adapter_propagates_corrupt_scope_as_degraded_store(_proje
     project_store.init_db()
     project_context._write_active_project_id(999999)  # points at nothing
 
-    result = await MemoryGraph([ProjectAdapter()]).search_all("hello")
+    result = await search_all("hello", adapters=[ProjectAdapter()])
 
     assert result.results["projects"] == []
     assert result.degraded_stores == ["projects"]

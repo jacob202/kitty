@@ -9,9 +9,9 @@ This module exercises the partial-result contract end to end:
 - total failure: 0/15 sources succeed, ``assert_not_total_failure`` raises
 - end-to-end with a fake fan-in (3 in-memory adapters + 2 fake enrichments)
 
-The file also keeps the legacy ``_format_unified_items`` coverage that used
-to live in ``test_context_builder.py`` — that function is now the assembler's
-memory renderer.
+The file also keeps the legacy ``select_unified_items`` coverage that used
+to live in ``test_context_builder.py`` — that function is now the shared
+memory renderer (promoted from private ``_select_unified_items``).
 """
 
 import pytest
@@ -32,8 +32,7 @@ from gateway.memory_graph import (
     Source,
     StoreAdapter,
     TracesAdapter,
-    _format_unified_items,
-    _truncate_text,
+    select_unified_items,
 )
 
 # ---------------------------------------------------------------------------
@@ -289,29 +288,35 @@ async def test_end_to_end_with_fake_fan_in():
 
 
 # ---------------------------------------------------------------------------
-# The legacy _format_unified_items / _truncate_text coverage moved here
+# The legacy select_unified_items / text-truncation coverage moved here
 # ---------------------------------------------------------------------------
 
 
 def test_truncate_short_text_unchanged():
-    text = "hello world"
-    assert _truncate_text(text, 500) == text
+    sections, rendered = select_unified_items(
+        {Source.MEMORY.value: [Item(text="hello world", source=Source.MEMORY)]}, cap=500
+    )
+    assert rendered[0]["text"] == "hello world"
 
 
 def test_truncate_long_text_ends_with_ellipsis():
     long_text = "x" * 10000
-    result = _truncate_text(long_text, 100)
-    assert result.endswith("…")
-    assert len(result) < len(long_text)
+    sections, rendered = select_unified_items(
+        {Source.MEMORY.value: [Item(text=long_text, source=Source.MEMORY)]}, cap=100
+    )
+    assert rendered[0]["text"].endswith("…")
+    assert len(rendered[0]["text"]) < len(long_text)
 
 
 def test_format_unified_empty_results_returns_empty():
-    assert _format_unified_items({}) == ""
+    sections, _rendered = select_unified_items({})
+    assert sections == []
 
 
 def test_format_unified_memory_only():
     results = {Source.MEMORY.value: [Item(text="Jacob owns a 2010 Honda", source=Source.MEMORY)]}
-    formatted = _format_unified_items(results)
+    sections, _rendered = select_unified_items(results)
+    formatted = "\n\n".join(sections)
     assert "## Memory" in formatted
     assert "2010 Honda" in formatted
 
@@ -335,7 +340,7 @@ def test_format_unified_all_sections():
             )
         ],
     }
-    formatted = _format_unified_items(results)
+    formatted = "\n\n".join(select_unified_items(results)[0])
     assert "## Memory" in formatted
     assert "## Knowledge" in formatted
     assert "## Journal" in formatted
@@ -344,7 +349,7 @@ def test_format_unified_all_sections():
 
 def test_format_unified_respects_token_cap():
     results = {Source.MEMORY.value: [Item(text="x" * 10000, source=Source.MEMORY)]}
-    formatted = _format_unified_items(results)
+    formatted = "\n\n".join(select_unified_items(results)[0])
     assert len(formatted) < 10000
 
 
@@ -354,7 +359,7 @@ def test_format_unified_skips_empty_sources():
         Source.MEMORY.value: [Item(text="present", source=Source.MEMORY)],
         Source.KNOWLEDGE.value: [],
     }
-    formatted = _format_unified_items(results)
+    formatted = "\n\n".join(select_unified_items(results)[0])
     assert "## Memory" in formatted
     assert "## Knowledge" not in formatted
 
@@ -530,7 +535,7 @@ def test_memory_graph_py_diff_is_cap_parameterization_only():
     content = mg_path.read_text()
 
     assert "CONTEXT_TOKEN_CAP" in content
-    # The assembler passes a computed cap to _select_unified_items; the
+    # The assembler passes a computed cap to select_unified_items; the
     # graph module itself should still define the default constant.
     assert "CONTEXT_TOKEN_CAP: int = 1200" in content
 

@@ -5,6 +5,7 @@ import time
 import pytest
 
 from gateway import memory_graph, prefetcher
+from gateway.memory_graph import GraphResult
 
 FP = prefetcher.Fingerprint(time_slot="1-2", git_branch="feat/x", recent_files=("a.py", "b.py"))
 
@@ -140,9 +141,9 @@ async def test_unified_context_returns_warm_cache_without_computing(monkeypatch)
     hit_graph = {"called": False}
 
     class _FakeGraph:
-        async def unified_context(self, query):
+        async def search_all(self, query):
             hit_graph["called"] = True
-            return "COLD"
+            return GraphResult(results={})
 
     monkeypatch.setattr(memory_graph, "_get_graph", lambda: _FakeGraph())
 
