@@ -781,3 +781,30 @@ def test_cli_release_requires_known_lane(capsys) -> None:
 
     assert rc == 2
     assert "unknown lane" in capsys.readouterr().err.lower()
+
+
+def test_load_remote_main_sha_requires_full_sha() -> None:
+    def runner(args, *, cwd=None, timeout=30):
+        assert args == ["gh", "api", "/repos/jacob202/kitty/commits/main", "--jq", ".sha"]
+        return ac.CommandResult(0, SHA_B + "\n", "")
+
+    sha, gap = ac.load_remote_main_sha("jacob202/kitty", runner=runner)
+
+    assert gap is None
+    assert sha == SHA_B
+
+
+def test_base_freshness_gap_detects_stale_origin_main() -> None:
+    identity = ac.RepoIdentity(SHA_A, SHA_A, "feat/coord", "coord-wt")
+
+    gap = ac.base_freshness_gap(identity, SHA_B)
+
+    assert gap is not None
+    assert gap.source == "git_base"
+    assert SHA_A[:12] in gap.reason
+    assert SHA_B[:12] in gap.reason
+
+
+def test_base_freshness_gap_accepts_matching_remote() -> None:
+    identity = ac.RepoIdentity(SHA_A, SHA_B, "feat/coord", "coord-wt")
+    assert ac.base_freshness_gap(identity, SHA_A) is None

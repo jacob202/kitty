@@ -1103,6 +1103,13 @@ def collect_live_survey(
     identity, identity_gap = read_repo_identity(repo_root, base_ref=base_ref, runner=runner)
     if identity_gap:
         gaps.append(identity_gap)
+    remote_main_sha, remote_main_gap = load_remote_main_sha(repo, runner=runner)
+    if remote_main_gap:
+        gaps.append(remote_main_gap)
+    elif identity is not None and remote_main_sha is not None:
+        freshness_gap = base_freshness_gap(identity, remote_main_sha)
+        if freshness_gap:
+            gaps.append(freshness_gap)
 
     events, event_gaps = load_github_lane_events(repo, issue, runner=runner)
     gaps.extend(event_gaps)
@@ -1343,3 +1350,30 @@ def main(
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def load_remote_main_sha(
+    repo: str,
+    *,
+    runner: Callable[..., CommandResult] = _run_command,
+) -> tuple[str | None, EvidenceGap | None]:
+    result = runner(
+        ["gh", "api", f"/repos/{repo}/commits/main", "--jq", ".sha"]
+    )
+    if result.returncode != 0:
+        reason = result.stderr.strip() or result.stdout.strip() or "remote main lookup failed"
+        return None, EvidenceGap("github_main", reason)
+    sha = result.stdout.strip()
+    if not SHA_RE.fullmatch(sha):
+        return None, EvidenceGap("github_main", "remote main did not resolve to a full SHA")
+    return sha, None
+
+
+def base_freshness_gap(identity: RepoIdentity, remote_main_sha: str) -> EvidenceGap | None:
+    if identity.base_sha == remote_main_sha:
+        return None
+    return EvidenceGap(
+        "git_base",
+        "local base is stale: "
+        f"{identity.base_sha[:12]} != GitHub main {remote_main_sha[:12]}; run git fetch origin",
+    )
