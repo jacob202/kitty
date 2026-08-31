@@ -29,26 +29,31 @@ class DeepResearcher:
             self._client = httpx.AsyncClient(timeout=20)
         return self._client
 
-    async def technical_deep_dive(self, topic: str, ingest: bool = False) -> str:
-        """Conduct technical research and optionally promote it to knowledge."""
+    async def technical_deep_dive_report(self, topic: str, progress=None) -> dict:
+        """Run research and return structured evidence without promoting it to memory."""
         logger.info("Starting deep technical dive: %s", topic)
-
-        # 1. Search for high-authority sources
+        if progress:
+            progress("searching", None)
         urls = await self._find_sources(topic)
         if not urls:
-            return "I couldn't find any external sources for that topic."
-
-        # 2. Scrape the top technical results
+            return {"summary": "I couldn't find any external sources for that topic.", "sources": [], "findings": ""}
+        if progress:
+            progress("reading", urls)
         findings = await self._scrape_sources(urls)
         if not findings:
-            return "I found sources but couldn't extract any meaningful technical data."
-
-        # 3. Synthesize. Persistence is a separate, explicit step.
+            return {"summary": "I found sources but couldn't extract any meaningful technical data.", "sources": urls, "findings": ""}
+        if progress:
+            progress("synthesizing", urls)
         summary = self._synthesize_findings(topic, findings)
+        return {"summary": summary, "sources": urls, "findings": findings}
 
-        if not ingest:
+    async def technical_deep_dive(self, topic: str, ingest: bool = False) -> str:
+        """Conduct technical research and optionally promote it to knowledge."""
+        report = await self.technical_deep_dive_report(topic)
+        summary = report["summary"]
+        findings = report["findings"]
+        if not ingest or not findings:
             return summary
-
         ingested = await self._ingest_findings(topic, findings, summary)
         if ingested:
             return f"{summary}\n\nSaved to Kitty's knowledge base."
