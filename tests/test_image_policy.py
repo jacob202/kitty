@@ -16,10 +16,10 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-from gateway import artifact_store, image_jobs, image_plans
+from gateway import artifact_store, image_jobs, image_plan_store
 from gateway import image_sessions as sessions
-from gateway.image_plan import build_image_plan
-from gateway.image_plans import PlanStoreError, persist_plan, require_approved_plan
+from gateway.image_plan_store import PlanStoreError, persist_plan, require_approved_plan
+from gateway.image_plan_types import build_image_plan
 from gateway.image_policy import (
     AdultConfirmationRequiredError,
     ConsentRequiredError,
@@ -48,7 +48,7 @@ def _fresh_db(tmp_path: Path):
     conn = sqlite3.connect(str(test_db))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    image_plans._ensure_db(conn)
+    image_plan_store._ensure_db(conn)
     conn.commit()
     conn.close()
 
@@ -171,7 +171,7 @@ class TestSafeBackcompat:
         assert stored.consent_basis is None
         assert stored.adult_confirmed is False
 
-        resumed = image_plans.require_plan(stored.plan_id)
+        resumed = image_plan_store.require_plan(stored.plan_id)
         assert resumed.content_lane == "safe"
         assert resumed.consent_basis is None
         assert resumed.adult_confirmed is False
@@ -189,7 +189,7 @@ class TestSafeBackcompat:
                 (stored.plan_id,),
             )
             conn.commit()
-        resumed = image_plans.require_plan(stored.plan_id)
+        resumed = image_plan_store.require_plan(stored.plan_id)
         assert resumed.content_lane == "safe"
         assert resumed.consent_basis is None
         assert resumed.adult_confirmed is False
@@ -274,7 +274,7 @@ class TestDurableRoundTripDispatch:
     def test_private_plan_round_trips_each_consent_basis(self, tmp_path: Path, basis: str):
         s, anchor = _private_session_with_anchor(tmp_path)
         stored = _persist_private_plan(s, anchor, consent_basis=basis)
-        resumed = image_plans.require_plan(stored.plan_id)
+        resumed = image_plan_store.require_plan(stored.plan_id)
         assert resumed.content_lane == "private_adult"
         assert resumed.consent_basis == basis
         assert resumed.adult_confirmed is True
@@ -723,7 +723,7 @@ class TestKeywordsHaveZeroAuthority:
                 adult_confirmed=True,
             )
         )
-        resumed = image_plans.require_plan(result["plan_id"])
+        resumed = image_plan_store.require_plan(result["plan_id"])
         assert resumed.content_lane == "private_adult"
         assert resumed.consent_basis == "synthetic"
         assert resumed.adult_confirmed is True

@@ -677,7 +677,7 @@ async def studio_plan(req: PlanPreviewRequest):
     ``plan_id`` owned by that session, so ``/studio/generate`` can later
     dispatch from the approved plan instead of mutable form state.
     """
-    from gateway.image_plan import ImagePlanError, build_image_plan
+    from gateway.image_plan_types import ImagePlanError, build_image_plan
 
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(status_code=400, detail="prompt must not be empty")
@@ -695,13 +695,13 @@ async def studio_plan(req: PlanPreviewRequest):
     except ImagePlanError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    from gateway.image_guidance import available_guidance_tags
+    from gateway.image_guidance_bank import available_guidance_tags
 
     result = plan.to_dict()
     result["available_guidance_tags"] = available_guidance_tags()
 
     if req.session_id:
-        from gateway.image_plans import PlanStoreError, persist_plan
+        from gateway.image_plan_store import PlanStoreError, persist_plan
 
         try:
             stored = persist_plan(req.session_id, plan)
@@ -924,7 +924,7 @@ async def studio_generate(req: StudioGenerateRequest):
     approved_edit_anchor: str | None = None
     character_ref_path: str | None = None
     if req.plan_id:
-        from gateway.image_plans import (
+        from gateway.image_plan_store import (
             PlanNotApprovedError,
             PlanNotFoundError,
             PlanSessionMismatchError,

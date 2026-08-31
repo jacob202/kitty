@@ -10,7 +10,7 @@ in ``gateway/routes/extended.py``) — what was missing was a way to actually
 build the two-character ``ImagePlan`` that exercises that path.
 
 This script persists exactly that plan through the real, already-approved
-trust boundary (``gateway.image_plans.persist_plan`` -> the same
+trust boundary (``gateway.image_plan_store.persist_plan`` -> the same
 ``/studio/generate`` dispatch every other approved plan goes through). It
 adds no new architecture, no new engine, and performs no network call
 itself — real generation only happens when ``--dispatch`` is passed, and
@@ -48,7 +48,7 @@ def build_two_character_plan(
     identity-assignment scorer (``gateway.image_scorers.make_assignment_scorer``)
     has a stable cast_slot -> position mapping to check the render against.
     """
-    from gateway.image_plans import persist_plan
+    from gateway.image_plan_store import persist_plan
 
     character_a_ref = Path(character_a_ref)
     character_b_ref = Path(character_b_ref)
