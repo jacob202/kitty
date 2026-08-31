@@ -14,7 +14,7 @@ references deterministically by cast depth, and fails closed when a required
 capability is absent.
 
 No import of any external selector: the mechanism is adapted from the
-role/capability model already defined in ``gateway.image_plan``
+role/capability model already defined in ``gateway.image_plan_types``
 (``ALLOWED_REFERENCE_ROLES``) and ``gateway.image_recipes`` (the
 ``supports_*_refs`` capability flags).  It stays a pure decision layer —
 byte resolution and renderer dispatch remain in the existing route/runner
@@ -26,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Sequence
 
-from gateway.image_plan import ALLOWED_REFERENCE_ROLES
+from gateway.image_plan_types import ALLOWED_REFERENCE_ROLES
 
 # Roles that carry a subject's identity; these are mandatory for any character
 # cast and are gated on the recipe's character support.
