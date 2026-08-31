@@ -200,6 +200,65 @@ def _message_text(content: object) -> str:
     )
 
 
+def _attach_images_to_user_message(
+    messages: list[dict],
+    image_parts: list[dict],
+) -> list[dict]:
+    """Attach resolved image parts to the latest user message.
+
+    The chat route receives ``attachment_ids`` (durable artifact ids) and the
+    wire messages only carry text. This splices the resolved image parts into
+    the current user message so the model actually sees the image. The user
+    text stays a text part so every existing text consumer keeps working.
+    """
+    if not image_parts:
+        return messages
+    updated = list(messages)
+    for index in range(len(updated) - 1, -1, -1):
+        message = updated[index]
+        if message.get("role") != "user":
+            continue
+        content = message.get("content", "")
+        if isinstance(content, str):
+            parts = [{"type": "text", "text": content}] if content else []
+        elif isinstance(content, list):
+            parts = list(content)
+        else:
+            parts = []
+        parts.extend(image_parts)
+        updated[index] = {**message, "content": parts}
+        return updated
+    return updated
+
+
+def _resolve_attachment_image_parts(attachment_ids: list[str]) -> list[dict]:
+    """Turn durable artifact ids into OpenAI image_url parts.
+
+    Reuses the same type/size/state validation as the Library → chat bridge
+    (``gateway/routes/chats.py``) so a Library-staged image and a direct
+    ``attachment_ids`` send agree on what is attachable. Any failure raises a
+    plain-language HTTPException before the request is dispatched upstream.
+    """
+    from gateway.routes.chats import _resolve_chat_image_attachment
+
+    parts: list[dict] = []
+    for artifact_id in attachment_ids:
+        attachment = _resolve_chat_image_attachment(artifact_id)
+        data_url = attachment.get("data_url")
+        if not isinstance(data_url, str) or not data_url:
+            raise HTTPException(
+                status_code=409,
+                detail="That saved file could not be prepared for chat.",
+            )
+        parts.append({"type": "image_url", "image_url": {"url": data_url}})
+    return parts
+
+
+_ATTACHMENT_FAILURE_MESSAGE = (
+    "Kitty couldn't use that image. Remove it and stage the image again."
+)
+
+
 class CloseSessionRequest(BaseModel):
     messages: list[dict] = Field(default_factory=list)
     session_id: str = ""
@@ -294,6 +353,41 @@ async def chat_completions(request: Request):
             turn_has_image = _has_image(content)
             break
 
+    raw_attachment_ids = body.get("attachment_ids")
+    if raw_attachment_ids is not None:
+        if not isinstance(raw_attachment_ids, list) or not all(
+            isinstance(a, str) for a in raw_attachment_ids
+        ):
+            raise HTTPException(
+                status_code=400, detail="attachment_ids must be a list of strings"
+            )
+        attachment_ids = [a for a in raw_attachment_ids if a.strip()]
+    else:
+        attachment_ids = None
+    raw_image_attachment_ids = body.get("image_attachment_ids")
+    if raw_image_attachment_ids is not None:
+        if not isinstance(raw_image_attachment_ids, list) or not all(
+            isinstance(a, str) for a in raw_image_attachment_ids
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="image_attachment_ids must be a list of strings",
+            )
+        image_attachment_ids = [a.strip() for a in raw_image_attachment_ids if a.strip()]
+        if len(image_attachment_ids) != 1:
+            raise HTTPException(
+                status_code=400,
+                detail="image_attachment_ids must contain exactly one nonblank id",
+            )
+        if attachment_ids is None or image_attachment_ids[0] not in attachment_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="image_attachment_ids must reference an attachment_ids entry",
+            )
+        turn_has_image = True
+    else:
+        image_attachment_ids = None
+
     # KX-05-02 / KX-06-01: detect repairs/signals intent and inject the current feed
     if _is_repairs_intent(user_text):
         repairs_context = _build_repairs_context()
@@ -363,17 +457,6 @@ async def chat_completions(request: Request):
     conversation_title = body.get("conversation_title", "")
     if not isinstance(conversation_title, str):
         raise HTTPException(status_code=400, detail="conversation_title must be a string")
-    raw_attachment_ids = body.get("attachment_ids")
-    if raw_attachment_ids is not None:
-        if not isinstance(raw_attachment_ids, list) or not all(
-            isinstance(a, str) for a in raw_attachment_ids
-        ):
-            raise HTTPException(
-                status_code=400, detail="attachment_ids must be a list of strings"
-            )
-        attachment_ids = [a for a in raw_attachment_ids if a.strip()]
-    else:
-        attachment_ids = None
     manifest_project = runtime_manifest["context"]["active_project"]["value"]
     scoped_project_id = raw_project_id
     if scoped_project_id is None and isinstance(manifest_project, dict):
@@ -408,6 +491,42 @@ async def chat_completions(request: Request):
         except Exception:
             on_request_error()
             raise
+
+    resolved_parts: list[dict] = []
+    if image_attachment_ids:
+        try:
+            resolved_parts = _resolve_attachment_image_parts(image_attachment_ids)
+        except HTTPException as exc:
+            if lifecycle_handle is not None and not lifecycle_done:
+                _finish_lifecycle_or_raise(
+                    lifecycle_handle,
+                    status="failed",
+                    assistant_text="",
+                    error=(
+                        f"attachment resolution failed ({exc.status_code}): "
+                        f"{exc.detail}"
+                    ),
+                )
+                lifecycle_done = True
+            on_request_error()
+            raise HTTPException(
+                status_code=exc.status_code,
+                detail={"kind": "attachment", "message": _ATTACHMENT_FAILURE_MESSAGE},
+            ) from exc
+        except Exception as exc:
+            if lifecycle_handle is not None and not lifecycle_done:
+                _finish_lifecycle_or_raise(
+                    lifecycle_handle,
+                    status="failed",
+                    assistant_text="",
+                    error=f"attachment resolution failed: {exc}",
+                )
+                lifecycle_done = True
+            on_request_error()
+            raise HTTPException(
+                status_code=400,
+                detail={"kind": "attachment", "message": _ATTACHMENT_FAILURE_MESSAGE},
+            ) from exc
 
     from gateway.context_assembler import (
         TOTAL_CONTEXT_TOKEN_CAPS,
@@ -462,6 +581,7 @@ async def chat_completions(request: Request):
         "conversation_title",
         "user_message_id",
         "content_class",
+        "image_attachment_ids",
     }
     if not caller_supplies_tools:
         # Nothing on this side executes a tool call, so an unaccompanied schema
@@ -474,6 +594,11 @@ async def chat_completions(request: Request):
         "model": model,
         "stream": stream,
     }
+
+    if resolved_parts:
+        payload["messages"] = _attach_images_to_user_message(
+            payload["messages"], resolved_parts
+        )
 
     selected_provider = selected_provider_name()
     provider_label = selected_provider or "auto"

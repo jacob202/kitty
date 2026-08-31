@@ -714,7 +714,11 @@ if (activeChatId) window.localStorage.setItem('kitty-active-chat-id', activeChat
     const existing = branches[key] ?? []
     branches[key] = [...existing, oldBranch]
     updateChat(activeChat.id, (c) => ({ ...c, messages: prefix, retryBranches: branches, updatedAt: new Date() }))
-    void runStream({ ...activeChat, messages: prefix, retryBranches: branches }, prefix, activeChat.title)
+    // Re-send the attachments the user originally sent with this message so a
+    // retry delivers the same image, exactly once (LIBRARY-CHAT-001 criterion 3).
+    const retriedUserMessage = [...prefix].reverse().find((m) => m.role === 'user')
+    const retryAttachmentIds = (retriedUserMessage?.attachments ?? []).map((a) => a.id)
+    void runStream({ ...activeChat, messages: prefix, retryBranches: branches }, prefix, activeChat.title, retryAttachmentIds)
   }, [activeChat, isStreaming, updateChat, runStream])
 
   const handleSwitchBranch = useCallback((messageIndex: number, branchIndex: number) => {

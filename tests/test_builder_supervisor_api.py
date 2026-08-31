@@ -9,7 +9,7 @@ supervisor lock ever touches live Builder state.
 from __future__ import annotations
 
 import asyncio
-import time
+import threading
 
 import pytest
 from fastapi import FastAPI
@@ -55,29 +55,31 @@ def _counts(monkeypatch, *, now: int, on_hold: int):
 
 class TestSupervisorControlPlaneSummary:
     def test_route_does_not_block_event_loop_while_collecting_system_status(self, monkeypatch):
+        release_summary = threading.Event()
+
         def slow_summary():
-            time.sleep(0.2)
+            if not release_summary.wait(timeout=1.0):
+                raise AssertionError("event-loop heartbeat did not run while summary was collecting")
             return {
                 "active_runs": [], "eligible_now": 0, "on_hold": 0,
                 "lock_path": "/tmp/supervisor.lock", "scheduler_enabled": True,
+                "scheduler": {"supported": True, "installed": True, "loaded": True, "healthy": True, "label": "com.kitty.builder.supervisor", "plist_path": "/tmp/supervisor.plist", "start_interval_seconds": 900, "run_at_load": True, "last_exit_status": 0, "pid": None, "last_tick_at": None, "next_run_at": None, "reason": None},
                 "budget": {},
             }
 
         monkeypatch.setattr("gateway.builder_supervisor.control_plane_summary", slow_summary)
 
         async def exercise():
-            started = time.monotonic()
-            heartbeat_at = None
             async def heartbeat():
-                nonlocal heartbeat_at
-                await asyncio.sleep(0.02)
-                heartbeat_at = time.monotonic() - started
-            heartbeat_task = asyncio.create_task(heartbeat())
-            await builder_route.builder_supervisor_status()
-            await heartbeat_task
-            return heartbeat_at
+                await asyncio.sleep(0)
+                release_summary.set()
 
-        assert asyncio.run(exercise()) < 0.1
+            heartbeat_task = asyncio.create_task(heartbeat())
+            result = await builder_route.builder_supervisor_status()
+            await heartbeat_task
+            return result
+
+        assert asyncio.run(exercise())["schema_version"] == 1
 
     def test_route_avoids_the_full_per_initiative_status_scan(self, client, monkeypatch):
         def expensive_status_must_not_run():
@@ -92,6 +94,7 @@ class TestSupervisorControlPlaneSummary:
                 "on_hold": 6,
                 "lock_path": "/data/kittybuilder/supervisor.lock",
                 "scheduler_enabled": True,
+                "scheduler": {"supported": True, "installed": True, "loaded": True, "healthy": True, "label": "com.kitty.builder.supervisor", "plist_path": "/tmp/supervisor.plist", "start_interval_seconds": 900, "run_at_load": True, "last_exit_status": 0, "pid": None, "last_tick_at": None, "next_run_at": None, "reason": None},
                 "budget": {
                     "weekly_budget_cad": 6.0,
                     "estimated_spend_cad": 0.25,
@@ -121,6 +124,7 @@ class TestSupervisorStatusEndpoint:
             "on_hold": on_hold,
             "lock_path": "/data/kittybuilder/supervisor.lock",
             "scheduler_enabled": True,
+            "scheduler": {"supported": True, "installed": True, "loaded": True, "healthy": True, "label": "com.kitty.builder.supervisor", "plist_path": "/tmp/supervisor.plist", "start_interval_seconds": 900, "run_at_load": True, "last_exit_status": 0, "pid": None, "last_tick_at": None, "next_run_at": None, "reason": None},
             "budget": {
                 "weekly_budget_cad": 6.0,
                 "estimated_spend_cad": 0.25,
@@ -148,6 +152,8 @@ class TestSupervisorStatusEndpoint:
             "eligible_now": 1,
             "on_hold": 0,
             "last_tick_at": None,
+            "next_run_at": None,
+            "scheduler": {"supported": True, "installed": True, "loaded": True, "healthy": True, "label": "com.kitty.builder.supervisor", "plist_path": "/tmp/supervisor.plist", "start_interval_seconds": 900, "run_at_load": True, "last_exit_status": 0, "pid": None, "last_tick_at": None, "next_run_at": None, "reason": None},
             "lock_path": "/data/kittybuilder/supervisor.lock",
             "scheduler_enabled": True,
             "budget": {
@@ -318,3 +324,33 @@ class TestSupervisorTickEndpoint:
         assert body["ok"] is False
         assert "Kitty launcher is missing" in body["error"]
         assert body["detail"] == receipt
+
+
+class TestPreflightEndpoint:
+    def test_returns_read_only_preflight_projection(self, client, monkeypatch):
+        expected = {
+            "action": "run",
+            "route": "free",
+            "estimated_cost_cad": 0.0,
+            "cost_basis": "local estimate — not a provider invoice",
+            "reasons": [],
+            "packet": {"initiative_id": "init-a", "packet_id": "p1"},
+            "budget": {"weekly_budget_cad": 6.0, "remaining_cad": 6.0, "within_budget": True, "basis": "local estimate"},
+            "eligibility": {"state": "eligible", "blocked_by": []},
+            "data_quality": {"state": "complete", "issues": []},
+        }
+        monkeypatch.setattr(
+            "gateway.builder_supervisor.preflight_packet",
+            lambda initiative_id, packet_id, **kwargs: expected,
+        )
+        response = client.get("/builder/preflight/init-a/p1")
+        assert response.status_code == 200
+        assert response.json() == expected
+
+    def test_preflight_failure_is_explicit(self, client, monkeypatch):
+        def boom(*_args, **_kwargs):
+            raise RuntimeError("preflight unavailable")
+        monkeypatch.setattr("gateway.builder_supervisor.preflight_packet", boom)
+        response = client.get("/builder/preflight/init-a/p1")
+        assert response.status_code == 500
+        assert "preflight unavailable" in response.json()["detail"]

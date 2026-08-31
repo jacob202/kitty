@@ -406,6 +406,20 @@ def test_budget_summary_initializes_an_empty_compute_ledger(tmp_path: Path, monk
     assert ledger.exists()
 
 
+def test_control_plane_summary_disables_scheduler_actions_when_contract_is_unhealthy(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(bs, "dispatchable_counts", lambda _db=None: {"now": 1, "on_hold": 0})
+    monkeypatch.setattr(bs, "active_runs_summary", lambda _db=None: [])
+    monkeypatch.setattr(bs, "budget_summary", lambda: {})
+    monkeypatch.setattr(bs, "_scheduler_enabled", lambda: True)
+    monkeypatch.setattr(bs, "scheduler_status", lambda: {"healthy": False, "loaded": True, "installed": True})
+    monkeypatch.setattr(bs, "_lock_path", lambda _db=None: tmp_path / "supervisor.lock")
+
+    summary = bs.control_plane_summary()
+
+    assert summary["scheduler_enabled"] is False
+    assert summary["scheduler"]["healthy"] is False
+
+
 def test_status_projection(repo: Path, db_path: Path) -> None:
     """status() returns initiatives, eligible packets, active runs."""
     _apply(db_path, "test-init-1", [_packet("p1"), _packet("p2")], repo_root=repo)
@@ -419,6 +433,38 @@ def test_status_projection(repo: Path, db_path: Path) -> None:
     assert initiatives[0]["derived_state"] == bi.INITIATIVE_ACTIVE
     assert len(initiatives[0]["eligible_packets"]) == 2
 
+
+
+
+def test_scheduler_status_reads_installed_launchagent(repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bs.sys, "platform", "darwin")
+    plist_path = tmp_path / "com.kitty.builder.supervisor.plist"
+    plist_path.write_bytes(bs.render_supervisor_plist_bytes(repo))
+
+    class Completed:
+        returncode = 0
+        stdout = "pid = 123\nlast exit code = 0\n"
+        stderr = ""
+
+    monkeypatch.setattr(bs.subprocess, "run", lambda *args, **kwargs: Completed())
+    result = bs.scheduler_status(repo, plist_path=plist_path)
+
+    assert result["installed"] is True
+    assert result["loaded"] is True
+    assert result["healthy"] is True
+    assert result["start_interval_seconds"] == 900
+    assert result["pid"] == 123
+    assert result["last_exit_status"] == 0
+    assert result["last_tick_at"] is None
+    assert result["next_run_at"] is None
+
+
+def test_scheduler_status_reports_missing_plist(repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bs.sys, "platform", "darwin")
+    result = bs.scheduler_status(repo, plist_path=tmp_path / "missing.plist")
+    assert result["installed"] is False
+    assert result["healthy"] is False
+    assert "not installed" in result["reason"]
 
 def test_render_supervisor_plist(tmp_path: Path) -> None:
     """render_supervisor_plist returns valid plist dict."""
