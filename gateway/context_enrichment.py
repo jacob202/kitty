@@ -28,6 +28,19 @@ import asyncio
 import logging
 from typing import Awaitable, Callable
 
+from gateway import (
+    ambient,
+    calendar_integration,
+    health_parser,
+    imessage,
+    learning,
+    life_awareness,
+    nudge,
+    patterns,
+    todo_store,
+    weather,
+)
+
 logger = logging.getLogger("kitty.context_enrichment")
 
 EnrichmentFn = Callable[[str], Awaitable[str | None]]
@@ -42,55 +55,47 @@ def _append(base: str, block: str, *, join: str = "\n\n") -> str:
 
 
 async def _calendar_block(_message: str) -> str | None:
-    from gateway.calendar_integration import get_upcoming_text, is_available
 
-    if not is_available():
+    if not calendar_integration.is_available():
         return None
-    return await asyncio.to_thread(get_upcoming_text, 3)
+    return await asyncio.to_thread(calendar_integration.get_upcoming_text, 3)
 
 
 async def _weather_block(_message: str) -> str | None:
-    from gateway.weather import get_weather_text
 
-    return await asyncio.to_thread(get_weather_text)
+    return await asyncio.to_thread(weather.get_weather_text)
 
 
 async def _todos_block(_message: str) -> str | None:
-    from gateway.todo_store import get_todos_text
 
-    return get_todos_text()
+    return todo_store.get_todos_text()
 
 
 async def _imessage_block(_message: str) -> str | None:
-    from gateway.imessage import get_recent_text, is_available
 
-    if not is_available():
+    if not imessage.is_available():
         return None
-    return await asyncio.to_thread(get_recent_text, 4)
+    return await asyncio.to_thread(imessage.get_recent_text, 4)
 
 
 async def _health_block(_message: str) -> str | None:
-    from gateway.health_parser import get_health_text
 
-    return get_health_text()
+    return health_parser.get_health_text()
 
 
 async def _ambient_block(_message: str) -> str | None:
-    from gateway.ambient import get_ambient_text
 
-    return get_ambient_text()
+    return ambient.get_ambient_text()
 
 
 async def _patterns_block(_message: str) -> str | None:
-    from gateway.patterns import get_insight_text
 
-    return await asyncio.to_thread(get_insight_text, 30)
+    return await asyncio.to_thread(patterns.get_insight_text, 30)
 
 
 async def _learning_block(_message: str) -> str | None:
-    from gateway.learning import init_stats
 
-    stats = init_stats()
+    stats = learning.init_stats()
     level = stats.get("user_level", 1)
     score = stats.get("absorption_score", 0)
     mastered = stats.get("topics_mastered", [])
@@ -103,9 +108,8 @@ async def _learning_block(_message: str) -> str | None:
 
 
 async def _nudges_block(_message: str) -> str | None:
-    from gateway.nudge import get_pending
 
-    pending = get_pending()
+    pending = nudge.get_pending()
     if not pending:
         return None
     lines = "\n".join(f"- {n['message']}" for n in pending[:2])
@@ -113,9 +117,8 @@ async def _nudges_block(_message: str) -> str | None:
 
 
 async def _meeting_block(_message: str) -> str | None:
-    from gateway.life_awareness import meeting_block_text
 
-    return meeting_block_text()
+    return life_awareness.meeting_block_text()
 
 
 async def _openviking_block(message: str) -> str | None:
@@ -215,9 +218,8 @@ _CALENDAR_UNAVAILABLE = "⚠ Calendar unavailable"
 
 def weather_text_sync() -> str:
     try:
-        from gateway.weather import get_weather_text
 
-        return get_weather_text() or ""
+        return weather.get_weather_text() or ""
     except Exception as exc:
         logger.warning("weather enrichment failed: %s", exc)
         return _WEATHER_UNAVAILABLE
@@ -225,9 +227,8 @@ def weather_text_sync() -> str:
 
 def todos_text_sync() -> str:
     try:
-        from gateway.todo_store import get_todos_text
 
-        return get_todos_text() or ""
+        return todo_store.get_todos_text() or ""
     except Exception as exc:
         logger.warning("todos enrichment failed: %s", exc)
         return _TODOS_UNAVAILABLE
@@ -236,11 +237,10 @@ def todos_text_sync() -> str:
 def calendar_today_text_sync() -> str:
     """Today's calendar events as a formatted string for brief prompts."""
     try:
-        from gateway.calendar_integration import get_today, is_available
 
-        if not is_available():
+        if not calendar_integration.is_available():
             return ""
-        events = get_today()
+        events = calendar_integration.get_today()
         if not events:
             return ""
         lines = ["Today's Schedule:"] + [
