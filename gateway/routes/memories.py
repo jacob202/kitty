@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from gateway import errors, explicit_memory, memory, memory_explain, undo_journal
 from gateway.errors import StorageNotFound
 
 router = APIRouter(tags=["memories"])
@@ -39,7 +40,6 @@ def _explicit_api_row(row: dict) -> dict:
 @router.get("/memories")
 async def list_memories(namespace: Optional[str] = None, limit: int = 50) -> dict:
     """List explicit memory first; semantic-memory outages are reported, not hidden."""
-    from gateway import explicit_memory, memory
 
     bounded = 1000 if limit == 0 else max(1, min(limit, 1000))
     explicit_rows = explicit_memory.list_memories(namespace=namespace, limit=bounded)
@@ -68,7 +68,6 @@ async def delete_memory(memory_id: str) -> dict:
     """Forget governed explicit memory, or delete a legacy semantic memory."""
     undo_journal_id: str | None = None
     if memory_id.startswith("exp_"):
-        from gateway import undo_journal
 
         try:
             undo_journal_id = undo_journal.forget_memory_with_undo(memory_id)
@@ -79,9 +78,8 @@ async def delete_memory(memory_id: str) -> dict:
                 details={"memory_id": memory_id},
             ) from exc
     else:
-        from gateway.memory import delete_memory as delete_semantic_memory
 
-        deleted = delete_semantic_memory(memory_id)
+        deleted = memory.delete_memory(memory_id)
 
     if not deleted:
         raise StorageNotFound(
@@ -97,28 +95,23 @@ async def delete_memory(memory_id: str) -> dict:
 @router.get("/memories/{memory_id}/explain")
 async def explain_memory(memory_id: str) -> dict:
     """Explain why a governed memory is remembered: source, authority, state, supersession."""
-    from gateway.errors import StorageNotFound as NotFound
-    from gateway.memory_explain import explain
 
     if not memory_id.startswith("exp_"):
-        raise NotFound(
+        raise errors.StorageNotFound(
             f"memory {memory_id!r} was not found",
             details={"memory_id": memory_id},
         )
-    from gateway.explicit_memory import ExplicitMemoryNotFound
 
     try:
-        explanation = explain(memory_id)
-    except ExplicitMemoryNotFound as exc:
-        raise NotFound(str(exc), details={"memory_id": memory_id}) from exc
+        explanation = memory_explain.explain(memory_id)
+    except explicit_memory.ExplicitMemoryNotFound as exc:
+        raise errors.StorageNotFound(str(exc), details={"memory_id": memory_id}) from exc
     return {"memory": explanation}
 
 
 @router.post("/memories/{memory_id}/correct")
 async def correct_memory(memory_id: str, body: CorrectMemoryRequest) -> dict:
     """Correct a remembered fact through the governed correction/supersession path."""
-    from gateway import undo_journal
-    from gateway.memory_explain import explain
 
     try:
         journal_id = undo_journal.correct_memory_with_undo(
@@ -133,15 +126,14 @@ async def correct_memory(memory_id: str, body: CorrectMemoryRequest) -> dict:
     corrected_id = entry.get("after", {}).get("id") if entry else None
     if not corrected_id:
         raise RuntimeError(f"undo journal {journal_id!r} lost corrected memory id")
-    return {"memory": explain(corrected_id), "undo_journal_id": journal_id}
+    return {"memory": memory_explain.explain(corrected_id), "undo_journal_id": journal_id}
 
 
 @router.post("/memories/{memory_id}/pin")
 async def pin_memory(memory_id: str, body: PinMemoryRequest) -> dict:
     """Pin or unpin a governed memory so it stays at the top of future recall."""
-    from gateway.explicit_memory import set_pinned
 
-    updated = set_pinned(memory_id, pinned=body.pinned)
+    updated = explicit_memory.set_pinned(memory_id, pinned=body.pinned)
     if not updated:
         raise StorageNotFound(
             f"memory {memory_id!r} was not found",
