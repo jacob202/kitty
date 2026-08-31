@@ -57,6 +57,7 @@ _COMMAND_ARGUMENTS: dict[str, frozenset[str]] = {
     "publish": frozenset({"task_id", "actor", "reason"}),
     "recover_stale": frozenset({"actor", "expected_version"}),
     "reconcile_merges": frozenset({"actor"}),
+    "preflight": frozenset({"initiative_id", "packet_id"}),
 }
 
 

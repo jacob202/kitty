@@ -717,3 +717,56 @@ def summarize_receipts(entries: Sequence[dict[str, Any]]) -> str:
         f"{e['subject_ref']}@{str(e['head_sha'])[:12]}  retries={e['retries']}"
         for e in entries
     )
+
+
+# ---------------------------------------------------------------------------
+# Preflight projection — read-only route/cost estimation for a packet.
+#
+# Pure and stateless: no receipts created, no budget mutated. The returned
+# cost is a local estimate derived from Kitty's own token ledger and is
+# never presented as a provider invoice.
+# ---------------------------------------------------------------------------
+
+
+def preflight_route_and_cost(
+    *,
+    risk_class: str = "routine",
+    requested_route: str | None = None,
+    db_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """Project the route and estimated CAD cost for a packet before launch.
+
+    Returns a dict with ``projected_route``, ``estimated_cost_cad`` (labelled
+    as a local estimate), ``weekly_budget_cad``, ``remaining_cad``, and a
+    ``within_budget`` flag. Free work is clearly estimated at CAD 0.
+
+    ``db_path`` defaults to the governor's ledger. An explicit path lets
+    callers use an isolated test database.
+    """
+    effective_db = str(db_path) if db_path is not None else str(default_db_path())
+    config = load_reserve_config(ROOT_CONFIG_PATH)
+    reserve = reserve_from_ledger(effective_db, config)
+
+    # Determine the projected route the same way decide() would.
+    wants_frontier = (
+        requested_route == ROUTE_FRONTIER
+        or risk_class in _FRONTIER_RISK_CLASSES
+    )
+    if requested_route == ROUTE_FREE:
+        projected = ROUTE_FREE
+    elif wants_frontier:
+        projected = ROUTE_FRONTIER
+    else:
+        projected = ROUTE_CHEAP
+
+    estimated_cost = estimate_pass_cost_cad(projected)
+    within_budget = estimated_cost <= reserve.remaining_cad
+
+    return {
+        "projected_route": projected,
+        "estimated_cost_cad": round(estimated_cost, 6),
+        "estimated_cost_cad_label": "local estimate — not a provider invoice",
+        "weekly_budget_cad": round(reserve.weekly_budget_cad, 4),
+        "remaining_cad": round(reserve.remaining_cad, 4),
+        "within_budget": within_budget,
+    }
