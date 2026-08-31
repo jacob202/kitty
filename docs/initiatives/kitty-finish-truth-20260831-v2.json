@@ -1,0 +1,107 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-finish-truth-20260831-v2",
+  "title": "Kitty tells the truth: restore, automations, and the deadline alert",
+  "description": "Three verified defects where Kitty reports success it did not achieve or quietly loses what Jacob gave it. Restore claims to replace a backup and appends it instead, so restoring twice triples the data. The morning brief records completion even when no phone channel accepted it, and Jacob's edited brief time is overwritten from a config file on every restart. The deadline escalation that the phone-channel work exists for is fully implemented and never called by anything in production. Every premise was re-verified against origin/main 295b92fc33a3f1b93da86f3c6bb5fbb54e367105 before authoring. Selected by the 2026-08-31 product-director pass from finding IDs XCUT-B004, XCUT-B005, AUTO-B001, AUTO-B002, AUTO-B004, MOBILE-B001 and MAIL-B001.",
+  "packets": [
+    {
+      "id": "KT-RESTORE-01",
+      "title": "Restoring a backup gives back exactly what was backed up",
+      "objective": "gateway/storage_sync.py:187 import_all documents that it replaces every migrated store, but gateway/storage_sync.py:97 import_memories calls add_memory per record and the journal import behaves the same way, so restoring a snapshot appends to whatever is already there. Restoring the same file twice leaves three copies of every memory. Change import_all so each migrated store ends holding exactly the snapshot's records and nothing else, and make the operation safe to repeat. Replacement is only safe once the export is complete: gateway/storage_sync.py:50 export_memories and gateway/storage_sync.py:54 export_journal_entries both pass limit=1000, so on an installation holding more than a thousand records a replacing import would permanently delete everything the snapshot left out. Make both exports exhaustive, or fail loudly rather than write a partial snapshot, before replacement semantics go in. Separately, gateway/storage_sync.py:65 export_preferences is a placeholder returning an empty dict while the module advertises exporting user data. The store it must round-trip is the preferences namespace of gateway/explicit_memory.py, read with list_memories(namespace='preferences') and restored with remember(..., namespace='preferences'); that is Kitty's own record of Jacob's choices. The repository config files config/PREFERENCES.md, config/providers.json and config/user_profile.json are explicitly out of scope: they are versioned in git and are not this snapshot's job. Do not change the snapshot file format version, and do not add a UI surface for backup or restore, which is an open product decision. This packet creates no new production files; every change lands in the modules named above.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Importing the same snapshot twice leaves every migrated store with the same record count as importing it once.",
+        "After an import, each migrated store contains the snapshot's records and no record that was present only before the import.",
+        "An export of a store holding more than 1000 memories and more than 1000 journal entries contains every record, and a round-trip of that snapshot loses none of them.",
+        "export_preferences returns the explicit_memory records in the preferences namespace, and a preference present before an export round-trip is present after it.",
+        "A snapshot with a wrong or missing format version is still rejected exactly as it is today.",
+        "A failure part-way through an import reports what failed in plain language and does not leave a store holding a mixture of old and new records.",
+        "No new HTTP route, CLI command, or UI surface is introduced.",
+        "python -m pytest -q tests/test_storage_sync.py passes."
+      ],
+      "allowed_paths": [
+        "gateway/storage_sync.py",
+        "tests/test_storage_sync.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 30
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_storage_sync.py"
+      ]
+    },
+    {
+      "id": "KT-AUTO-01",
+      "title": "Automations stop reporting success they did not achieve",
+      "objective": "Three linked untruths in scheduled work. First, gateway/brief_scheduler.py:125-133 logs a warning and returns the brief text even when push_to_jacob accepted on no channel, so gateway/automation_actions.py records the run as completed; the existing ACTION_RESULT_STATUSES vocabulary already has source_unavailable for this, so report that instead of completed when no channel accepted the brief. Second, gateway/app.py:292-298 calls cron.ensure_schedule on every gateway start using load_brief_time() from config/user_profile.json, so an edited brief time is silently reverted on the next restart. Fix this at the call site in gateway/app.py only: seed the morning brief from the profile when no schedule for that action exists yet, and leave an existing row alone on every later start. Do not change what cron.ensure_schedule itself does. Its always-overwrite contract is deliberate and is asserted by tests/test_cron.py::TestCron::test_ensure_schedule_updates_one_stable_automation_identity, which must keep passing unmodified. Third, and separately from ensure_schedule, gateway/cron.py:151-166 is the dedupe inside cron.schedule() used by the five seed calls at gateway/app.py:299-303; it keys on the exact tuple of action, schedule_type, schedule_value and metadata, so editing one of those five schedules changes the key and the next startup seeds a second copy. Seeding must recognise an existing seeded schedule that has been edited rather than adding a duplicate. Keep every existing schedule and run row; do not delete or prune rows to resolve duplicates. This packet creates no new production files; every change lands in the modules named above.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "When no push channel accepts the morning brief, the automation run records source_unavailable rather than completed, and the reason is readable without knowing what a channel is.",
+        "When a push channel does accept the brief, the run still records completed exactly as it does today.",
+        "A morning-brief schedule whose time was changed in its schedule row after first start survives a gateway restart unchanged.",
+        "A first start on a machine with no schedules still seeds the brief schedule from the profile.",
+        "tests/test_cron.py::TestCron::test_ensure_schedule_updates_one_stable_automation_identity passes with its assertions unmodified.",
+        "Editing a seeded schedule and restarting the gateway leaves exactly one schedule for that action, not two.",
+        "No existing schedule row or automation run row is deleted by this change.",
+        "python -m pytest -q tests/test_brief_scheduler.py tests/test_cron.py tests/test_automation_actions.py tests/test_app_automation_supervision.py passes."
+      ],
+      "allowed_paths": [
+        "gateway/app.py",
+        "gateway/cron.py",
+        "gateway/brief_scheduler.py",
+        "gateway/automation_actions.py",
+        "tests/test_brief_scheduler.py",
+        "tests/test_cron.py",
+        "tests/test_automation_actions.py",
+        "tests/test_app_automation_supervision.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 25
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_brief_scheduler.py tests/test_cron.py tests/test_automation_actions.py tests/test_app_automation_supervision.py"
+      ]
+    },
+    {
+      "id": "KT-DEADLINE-01",
+      "title": "The deadline warning actually reaches the phone",
+      "objective": "gateway/deadline_watch.py exports check_and_push, which escalates an approaching deadline to Jacob's phone. Nothing in production calls it: gateway/app.py registers cron actions for brief.deliver, brief.refresh, insights.return_due, monitors.check, inbox.scan, traces.compact, mail.poll, github.poll, experts.poll and prefetch.warm, and the string deadline does not appear in that file at all. The two reachable manual paths are also wired off, and they do not call the deadline watch at all: gateway/routes/deadlines.py:49 post_sweep defaults push to False and calls gateway/deadline_sweep.py sweep(), a different module that discovers new deadlines from documents and mail signals and pushes its own once-a-day summary under the dedupe key sweep-{date}; the kitty launcher's sweep command at line 685 calls that same sweep with push_fn=None. Do three things. Register the deadline watch as a scheduled automation action in gateway/app.py alongside the existing ones. Keep deadline_sweep's discovery scan exactly as it is, but make escalation flow through deadline_watch.check_and_push so a sweep reports every open deadline that has crossed a checkpoint rather than only the single most urgent one, and remove deadline_sweep's own summary push so exactly one notification path remains. Turn push on by default in both the route and the CLI so pressing sweep or running the command does the whole job. Two things must be true before escalation runs unattended. First, gateway/deadline_watch.py:56 sends every checkpoint as kind='alert', and gateway/push.py:173 applies quiet hours only to kind='info', so a T-7 warning would wake Jacob at night; docs/packets/017-benefits-rails-urgent-sweep.md:91-96 already fixes the contract as info at T-7 and T-3 and alert at T-1 and day-of, so restore those kinds. Second, check_and_push swallows push failures and returns a plain dict, and gateway/automation_actions.py _normalize_result turns any plain value into completed, so a scheduled run that delivered nothing would claim success; the scheduled action must record source_unavailable when nothing was delivered. Reuse the existing push facade and its dedupe behaviour, and do not change what counts as an approaching deadline. This packet creates no new production files; every change lands in the modules named above.",
+      "depends_on": [
+        "KT-AUTO-01"
+      ],
+      "acceptance_criteria": [
+        "A registered scheduled action runs the deadline watch and calls the push facade for a deadline inside the escalation window.",
+        "The sweep route escalates by default, and its response says how many deadlines were escalated.",
+        "The kitty sweep command escalates by the same path as the route, not a separate one.",
+        "With no push channel configured, the sweep reports plainly that nothing could be delivered and does not claim it escalated anything.",
+        "A scheduled deadline run that escalated nothing because no channel accepted records source_unavailable, not completed.",
+        "A T-7 or T-3 checkpoint is sent as kind='info' and is therefore held during quiet hours; a T-1 or day-of checkpoint is sent as kind='alert' and is not.",
+        "Duplicate suppression continues to behave exactly as the push facade already defines it; exactly one notification path remains, and the sweep-{date} summary push is gone.",
+        "The document and mail discovery scan a sweep performs still runs and still records the deadlines it finds.",
+        "A deadline outside the escalation window still produces no push.",
+        "python -m pytest -q tests/test_deadline_watch.py tests/test_deadline_sweep.py tests/test_deadlines_routes.py tests/test_brief_deadlines.py tests/test_cron.py passes."
+      ],
+      "allowed_paths": [
+        "gateway/deadline_watch.py",
+        "gateway/deadline_sweep.py",
+        "gateway/routes/deadlines.py",
+        "gateway/app.py",
+        "kitty",
+        "tests/test_deadline_watch.py",
+        "tests/test_deadline_sweep.py",
+        "tests/test_deadlines_routes.py",
+        "tests/test_brief_deadlines.py",
+        "tests/test_cron.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 20
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_deadline_watch.py tests/test_deadline_sweep.py tests/test_deadlines_routes.py tests/test_brief_deadlines.py tests/test_cron.py"
+      ]
+    }
+  ]
+}

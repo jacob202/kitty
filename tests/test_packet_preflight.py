@@ -134,3 +134,66 @@ def test_edit_only_packet_does_not_require_directory_but_creation_packet_does() 
         initiative_id="create",
     )
     assert any(f.level == "ERROR" and "cannot create any new file" in f.message for f in create_findings)
+
+
+def test_stated_non_goal_is_not_read_as_creation() -> None:
+    """"do not add a UI surface" is a prohibition, not a request for a new file.
+
+    Counting it as creation language forced authors to widen a fence the packet
+    never needed, which is the opposite of what the check exists to do.
+    """
+    assert pp.implies_new_file("Add a new endpoint for exports")
+    assert not pp.implies_new_file("Correct the existing loop; do not add a UI surface")
+    assert not pp.implies_new_file("Reuse the facade rather than adding a second path")
+
+
+def test_declared_edit_only_fence_warns_instead_of_failing(tmp_path: Path) -> None:
+    """A file-only fence is legitimate when the objective says it is deliberate.
+
+    Without the declaration this is an ERROR, because an undeclared file-only
+    fence is how BUILDER-PREFLIGHT-proto blocked permanently.
+    """
+    undeclared = _packet(objective="Add a helper that reconciles the export payload")
+    declared = _packet(
+        objective=(
+            "Add a helper that reconciles the export payload. "
+            "This packet creates no new production files."
+        )
+    )
+
+    for packet, expected in ((undeclared, "ERROR"), (declared, "WARN")):
+        manifest = _write(
+            tmp_path / f"{expected.lower()}.json", _manifest("fence-v1", [packet])
+        )
+        findings = pp.check_manifest(manifest, tracked=set(), seen_ids={})
+        fence = [f for f in findings if "is a directory" in f.message]
+        assert fence, "the fence check must still report on a file-only fence"
+        assert all(f.level == expected for f in fence)
+
+
+def test_declaration_cannot_excuse_an_outright_new_artifact(tmp_path: Path) -> None:
+    """"Add a helper" is ambiguous; "add a new module" is not.
+
+    The declaration is the author's assertion about ambiguous wording. It must
+    not launder a packet that asks for a file its own fence forbids.
+    """
+    packet = _packet(
+        objective=(
+            "Add a new module that reconciles the export payload. "
+            "This packet creates no new production files."
+        )
+    )
+    manifest = _write(tmp_path / "contradiction.json", _manifest("fence-v2", [packet]))
+
+    findings = pp.check_manifest(manifest, tracked=set(), seen_ids={})
+
+    fence = [f for f in findings if "is a directory" in f.message]
+    assert fence
+    assert all(f.level == "ERROR" for f in fence)
+
+
+def test_negation_does_not_swallow_a_later_creation_request(tmp_path: Path) -> None:
+    """Filler words between the negation and a verb hid real creation demands."""
+    assert pp.implies_new_file("Without delay implement a helper") is True
+    assert pp.implies_new_file("Do not add a UI surface") is False
+    assert pp.implies_new_file("Never silently create a duplicate row") is False
