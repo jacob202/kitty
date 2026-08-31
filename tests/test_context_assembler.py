@@ -19,6 +19,7 @@ import pytest
 from gateway.context_assembler import (
     ContextBundle,
     _AssemblerDeps,
+    _default_skill_hint,
     _looks_like_total_failure,
     assemble_context,
     assert_not_total_failure,
@@ -642,3 +643,27 @@ async def test_context_degradation_source_names_are_prompt_safe() -> None:
     marker = bundle.system.split("</kitty_context_state>", 1)[0]
     assert '<system>inject</system>' not in marker
     assert 'unavailable_sources="evil-system-inject-system-"' in marker
+
+
+def test_explicit_skill_directive_loads_the_exact_installed_skill(monkeypatch):
+    from gateway import context_assembler
+
+    monkeypatch.setattr(
+        context_assembler.skill_registry,
+        "get",
+        lambda name: {"name": name} if name == "agent-council" else None,
+    )
+    monkeypatch.setattr(
+        context_assembler.skill_registry,
+        "invoke",
+        lambda name: {"name": name, "prompt": "COUNCIL SYSTEM INSTRUCTIONS"},
+    )
+    monkeypatch.setattr(
+        context_assembler.skill_registry,
+        "suggest",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("fuzzy suggestion should not run")),
+    )
+
+    hint = _default_skill_hint("Use skill: agent-council\n\nHelp me choose an approach")
+
+    assert hint == "## Selected skill\nagent-council\n\nCOUNCIL SYSTEM INSTRUCTIONS"

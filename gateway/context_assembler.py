@@ -197,7 +197,22 @@ class _AssemblerDeps:
 
 
 def _default_skill_hint(message: str) -> str:
-    """A one-line pointer to a reasoning skill whose triggers match ``message``."""
+    """Resolve an explicit installed skill, otherwise suggest one from triggers."""
+    explicit = re.search(
+        r"(?im)^\s*use skill:\s*([a-z0-9][a-z0-9._-]*)\s*$",
+        message,
+    )
+    if explicit:
+        name = explicit.group(1)
+        try:
+            if skill_registry.get(name):
+                rendered = skill_registry.invoke(name)
+                prompt = str(rendered.get("prompt", "")).strip()
+                if prompt:
+                    return f"## Selected skill\n{name}\n\n{prompt}"
+        except Exception:
+            return ""
+
     try:
         matches = skill_registry.suggest(message, limit=1)
     except Exception:
