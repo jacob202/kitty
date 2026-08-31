@@ -241,5 +241,21 @@ if [[ "${before}" != "${after}" || "${before_status}" != "${after_status}" || "$
   exit 1
 fi
 
-cat "${candidate}" > "${KB_REVIEW_RESULT_PATH}"
+# Seatbelt denies write() on a descriptor a process inherited across execve,
+# so `cat src > dest` creates the runner-owned result file and then fails with
+# "cat: stdout: Operation not permitted" — which is what happened on
+# 2026-08-31 to the first worker that ever finished a packet: 52/52 tests
+# green, and the result never reached the runner. A process that opens the
+# destination itself is allowed, so hand the file over through python3, which
+# this adapter already depends on.
+handoff() {
+  python3 - "$1" "$2" <<'HANDOFF_PY'
+import sys
+from pathlib import Path
+
+Path(sys.argv[2]).write_bytes(Path(sys.argv[1]).read_bytes())
+HANDOFF_PY
+}
+
+handoff "${candidate}" "${KB_REVIEW_RESULT_PATH}"
 rm -f "${candidate}"
