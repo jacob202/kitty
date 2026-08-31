@@ -1055,8 +1055,12 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                   <option value="">Auto route</option>
                   {recipes.map(recipe => {
                     const editIncompatible = Boolean(anchorJobId) && !recipe.supports_img2img
-                    const disabled = !recipe.is_available || editIncompatible
-                    const suffix = !recipe.is_available ? ' — unavailable' : editIncompatible ? ' — no img2img' : ''
+                    const runtimeEngine = (status.data?.engines ?? []).find(engine => engine.name === recipe.provider)
+                    const runtimeUnavailable = runtimeEngine?.available === false
+                    const disabled = !recipe.is_available || runtimeUnavailable || editIncompatible
+                    const suffix = (!recipe.is_available || runtimeUnavailable)
+                      ? ' — unavailable'
+                      : editIncompatible ? ' — no img2img' : ''
                     return <option key={recipe.recipe_id} value={recipe.recipe_id} disabled={disabled}>{recipe.display_name}{suffix}</option>
                   })}
                 </select>
