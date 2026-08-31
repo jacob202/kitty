@@ -620,6 +620,48 @@ def test_reviewer_copies_only_a_valid_immutable_review(tmp_path: Path):
     assert not list(tmp_path.glob(".kittybuilder-review-*"))
 
 
+def test_reviewer_result_handoff_does_not_depend_on_cross_directory_mv(tmp_path: Path):
+    _init_git_repo(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    implementation = tmp_path / "implementation.json"
+    implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
+    review = tmp_path / "runner" / "review.json"
+    review.parent.mkdir()
+    fake = _fake_opencode(tmp_path)
+    fake_mv = tmp_path / "mv"
+    fake_mv.write_text(
+        "#!/bin/sh\n"
+        "echo \"mv: $2: Operation not permitted\" >&2\n"
+        "exit 1\n",
+        encoding="utf-8",
+    )
+    fake_mv.chmod(0o755)
+    binding = _review_binding(tmp_path)
+    env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
+    env.update(
+        {
+            "KB_IMPL_RESULT_PATH": str(implementation),
+            "KB_REVIEW_RESULT_PATH": str(review),
+            "FAKE_OPENCODE_REVIEW": "1",
+            "KB_REVIEW_CONTEXT_PATH": str(binding),
+            "KB_REVIEW_SHA": subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True,
+                capture_output=True, text=True,
+            ).stdout.strip(),
+            "KB_REVIEW_DIFF_SHA256": "0" * 64,
+        }
+    )
+
+    completed = subprocess.run(
+        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(review.read_text(encoding="utf-8"))["verdict"] == "approve"
+
+
 def test_reviewer_rejects_worktree_mutation_and_does_not_publish_review(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"

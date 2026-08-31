@@ -180,7 +180,7 @@ print(result["status"])
 PY
 )
 
-cp "${local_result}" "${KB_RESULT_PATH}"
+cat "${local_result}" > "${KB_RESULT_PATH}"
 
 # Drop the runner's own staging files BEFORE inspecting git status below —
 # otherwise they'd show up as untracked changes and get swept into the

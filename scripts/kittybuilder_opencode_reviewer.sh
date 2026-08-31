@@ -238,4 +238,5 @@ if [[ "${before}" != "${after}" || "${before_status}" != "${after_status}" || "$
   exit 1
 fi
 
-mv "${candidate}" "${KB_REVIEW_RESULT_PATH}"
+cat "${candidate}" > "${KB_REVIEW_RESULT_PATH}"
+rm -f "${candidate}"
