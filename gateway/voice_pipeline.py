@@ -17,6 +17,8 @@ from typing import Dict, List, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from gateway import context_assembler, domain_router, llm_client, self_review, stt, tts, voice_gate
+
 logger = logging.getLogger("kitty.voice_pipeline")
 
 # --- Deep entry point result types ---
@@ -105,9 +107,8 @@ class STTAdapter:
 
     def transcribe(self, audio_bytes: bytes, filename: str = "audio.webm") -> dict:
         """Transcribe raw audio bytes. Returns {text, language, duration}."""
-        from gateway.stt import transcribe_bytes
 
-        return transcribe_bytes(audio_bytes, filename)
+        return stt.transcribe_bytes(audio_bytes, filename)
 
 
 class TTSAdapter:
@@ -115,9 +116,8 @@ class TTSAdapter:
 
     async def synthesize(self, text: str, voice: str = "kitty", speed: float = 1.0) -> bytes:
         """Async synthesis — returns MP3 bytes."""
-        from gateway.tts import synthesize_async
 
-        return await synthesize_async(text, voice=voice, speed=speed)
+        return await tts.synthesize_async(text, voice=voice, speed=speed)
 
 
 class VoiceGateAdapter:
@@ -125,9 +125,8 @@ class VoiceGateAdapter:
 
     def filter(self, text: str) -> tuple[str, List[str]]:
         """Filter response text. Returns (cleaned_text, violations)."""
-        from gateway.voice_gate import filter_response
 
-        result = filter_response(text)
+        result = voice_gate.filter_response(text)
         return result.cleaned, result.violations
 
 
@@ -186,19 +185,12 @@ class VoicePipeline:
 
         # 2. LLM response
         try:
-            from gateway.context_assembler import get_system_prompt
-            from gateway.domain_router import classify_domain
-            from gateway.llm_client import (
-                chat_completions_non_stream,
-                extract_assistant_text,
-                route_model,
-            )
 
             if domain is None:
-                domain = classify_domain(user_text)
+                domain = domain_router.classify_domain(user_text)
 
-            system_prompt = await get_system_prompt(user_text, domain=domain)
-            model = route_model(user_text)
+            system_prompt = await context_assembler.get_system_prompt(user_text, domain=domain)
+            model = llm_client.route_model(user_text)
 
             llm_messages: List[Dict[str, str]] = [
                 {"role": "system", "content": system_prompt},
@@ -213,8 +205,8 @@ class VoicePipeline:
                 "messages": llm_messages,
             }
 
-            data = await chat_completions_non_stream(payload)
-            reply = extract_assistant_text(data)
+            data = await llm_client.chat_completions_non_stream(payload)
+            reply = llm_client.extract_assistant_text(data)
 
             # Gate filtering
             reply, violations = self._gate.filter(reply)
@@ -344,9 +336,8 @@ class VoicePipeline:
 
         # Log interaction
         try:
-            from gateway.self_review import record_interaction
 
-            record_interaction(result.user_text, result.assistant_text)
+            self_review.record_interaction(result.user_text, result.assistant_text)
         except Exception:
             logger.debug("voice: failed to record interaction", exc_info=True)
 
