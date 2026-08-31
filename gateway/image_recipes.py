@@ -63,6 +63,7 @@ class Recipe:
             "execution_target": self.execution_target,
             "quality_tier": self.quality_tier,
             "operation": self.operation,
+            "supports_img2img": self.supports_img2img,
             "supports_characters": self.supports_characters,
             "max_characters": self.max_characters,
             "supports_pose_refs": self.supports_pose_refs,
@@ -171,6 +172,29 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "priority": 5,
     },
     {
+        "recipe_id": "openai_gpt_image_2",
+        "display_name": "GPT-Image-2 (OpenAI)",
+        "description": "OpenAI's current high-fidelity image generation and editing model.",
+        "provider": "openai",
+        "model_family": "gpt-image-2",
+        "quality_tier": "quality",
+        "expected_speed": "seconds",
+        "default_width": 1024,
+        "default_height": 1024,
+        "max_width": 1536,
+        "max_height": 1536,
+        "supported_aspects": ["1:1", "3:2", "2:3"],
+        "supports_img2img": True,
+        "supports_characters": True,
+        "max_characters": 1,
+        "supports_style_refs": True,
+        "supports_variation": True,
+        "identity_strength": 92,
+        "license_notes": "GPT-Image-2 via OpenAI Images API; hosted paid usage.",
+        "is_available": False,
+        "priority": 50,
+    },
+    {
         "recipe_id": "airforce_grok_imagine_2",
         "display_name": "Grok Imagine Image 2.0 (Airforce)",
         "description": "Low-cost hosted general image generation through Api.Airforce.",
@@ -262,7 +286,7 @@ def _ensure_db() -> None:
 
 def _hosted_default_available(provider: str) -> bool | None:
     """Runtime availability for built-in hosted recipes we can preflight cheaply."""
-    if provider not in {"airforce", "fal"}:
+    if provider not in {"airforce", "fal", "openai"}:
         return None
     from gateway.image_runner import hosted_image_configured
 
@@ -408,19 +432,23 @@ def auto_route(
     # requirements still win over preference. A preferred one-character recipe
     # must never collapse a two-character intent into a single identity lane.
     if preferred_recipe:
-        try:
-            r = get_recipe(preferred_recipe)
-        except RecipeError:
-            r = None
-        if r is not None and r.is_available:
-            if has_character and (
-                not r.supports_characters or r.max_characters < character_count
-            ):
-                raise RecipeError(
-                    f"recipe {r.recipe_id!r} supports {r.max_characters} "
-                    f"character(s); requested {character_count}"
-                )
-            return RoutingDecision(r.recipe_id, r, "Selected by user preference")
+        r = get_recipe(preferred_recipe)
+        if not r.is_available:
+            raise RecipeError(
+                f"recipe {r.recipe_id!r} is not available; refusing to reroute an explicit selection"
+            )
+        if has_character and (
+            not r.supports_characters or r.max_characters < character_count
+        ):
+            raise RecipeError(
+                f"recipe {r.recipe_id!r} supports {r.max_characters} "
+                f"character(s); requested {character_count}"
+            )
+        if operation == "img2img" and not r.supports_img2img:
+            raise RecipeError(
+                f"recipe {r.recipe_id!r} does not support img2img"
+            )
+        return RoutingDecision(r.recipe_id, r, "Selected by user preference")
 
     # Identity-first: choose the strongest recipe that can truthfully carry the
     # full cast, not merely any recipe with character support.

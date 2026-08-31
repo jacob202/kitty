@@ -230,14 +230,18 @@ async def image_status():
     from gateway.image_runner import (
         airforce_images_available,
         fal_images_available,
+        flux2_images_available,
         flux_images_available,
+        openai_images_available,
         openrouter_images_available,
     )
 
     airforce_available, airforce_reason = airforce_images_available()
     flux_available, flux_reason = flux_images_available()
+    flux2_available, flux2_reason = flux2_images_available()
     fal_available, fal_reason = fal_images_available()
     hosted_available, hosted_reason = openrouter_images_available()
+    openai_available, openai_reason = openai_images_available()
     engines = [
         {
             "name": "comfyui",
@@ -266,6 +270,15 @@ async def image_status():
             "cost_per_image_usd": 0.025,
         },
         {
+            "name": "flux2",
+            "label": "FLUX.2 (Klein 4B / Pro)",
+            "available": flux2_available,
+            "unavailable_reason": flux2_reason or None,
+            "draft_cost_1mp_usd": 0.014,
+            "final_cost_1mp_usd": 0.03,
+            "supports_img2img": True,
+        },
+        {
             "name": "fal",
             "label": "FLUX PuLID via fal",
             "available": fal_available,
@@ -283,14 +296,24 @@ async def image_status():
             "unavailable_reason": hosted_reason or None,
             "cost_per_image_usd": 0.067,
         },
+        {
+            "name": "openai",
+            "label": "GPT-Image-2 via OpenAI",
+            "available": openai_available,
+            "unavailable_reason": openai_reason or None,
+            "cost_per_image_usd": 0.25,
+            "cost_basis": "conservative high-quality reservation ceiling; actual token usage reconciles after success",
+        },
     ]
     available = (
         comfy_available
         or drawthings_available
         or airforce_available
         or flux_available
+        or flux2_available
         or fal_available
         or hosted_available
+        or openai_available
     )
     # Local first when it is up (free), then the cheapest hosted lane.
     if comfy_available:
@@ -301,10 +324,14 @@ async def image_status():
         backend = "airforce"
     elif flux_available:
         backend = "flux"
+    elif flux2_available:
+        backend = "flux2"
     elif fal_available:
         backend = "fal"
     elif hosted_available:
         backend = "openrouter"
+    elif openai_available:
+        backend = "openai"
     else:
         backend = "comfyui"
     return {"available": available, "backend": backend, "engines": engines}
@@ -734,6 +761,7 @@ class AgentTurnRequest(BaseModel):
 
     session_id: str
     request: str
+    recipe_id: Optional[str] = None
 
 
 class AnchorRequest(BaseModel):
@@ -882,7 +910,9 @@ async def studio_agent_turn(req: AgentTurnRequest):
     from gateway.image_sessions import SessionNotFoundError
 
     try:
-        decision = decide(req.session_id, req.request)
+        decision = decide(
+            req.session_id, req.request, preferred_recipe=req.recipe_id
+        )
     except SessionNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except BudgetRefusedError as exc:
@@ -1370,6 +1400,7 @@ async def studio_generate(req: StudioGenerateRequest):
                 intent_json=job_intent_json,
                 session_id=req.session_id if paid_attempt_reserved else None,
                 reserved_cost_usd=estimated_cost if paid_attempt_reserved else None,
+                quality_tier=req.quality,
             )
         elif operation == "img2img":
             if approved_edit_anchor is None:
@@ -1377,18 +1408,46 @@ async def studio_generate(req: StudioGenerateRequest):
                     status_code=500,
                     detail="approved img2img plan lost its validated anchor before dispatch",
                 )
-            result = await run_edit(
-                prompt,
-                anchor_job_id=approved_edit_anchor,
-                recipe=recipe,
-                negative_prompt=req.negative_prompt,
-                content_lane=content_lane,
-                consent_basis=consent_basis,
-                adult_confirmed=adult_confirmed,
-                project_id=project_id,
-                plan_id=job_plan_id,
-                intent_json=job_intent_json,
-            )
+            # Safe hosted recipes that explicitly support image input must execute
+            # through their approved provider. Private-adult edits remain pinned to
+            # run_edit()/kitty_worker by the policy-derived execution_target above.
+            if content_lane == "safe" and engine in {"openai", "openrouter", "flux"}:
+                try:
+                    source_image, _source_name = read_anchor_artifact(approved_edit_anchor)
+                except ImageRunnerError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+                result = await run(
+                    engine,
+                    prompt,
+                    recipe=recipe,
+                    character_id=character_id,
+                    character_ref_path=character_ref_path,
+                    negative_prompt=req.negative_prompt,
+                    parent_id=approved_edit_anchor,
+                    source_image=source_image,
+                    content_lane=content_lane,
+                    consent_basis=consent_basis,
+                    adult_confirmed=adult_confirmed,
+                    project_id=project_id,
+                    plan_id=job_plan_id,
+                    intent_json=job_intent_json,
+                    session_id=req.session_id if paid_attempt_reserved else None,
+                    reserved_cost_usd=estimated_cost if paid_attempt_reserved else None,
+                    quality_tier=req.quality,
+                )
+            else:
+                result = await run_edit(
+                    prompt,
+                    anchor_job_id=approved_edit_anchor,
+                    recipe=recipe,
+                    negative_prompt=req.negative_prompt,
+                    content_lane=content_lane,
+                    consent_basis=consent_basis,
+                    adult_confirmed=adult_confirmed,
+                    project_id=project_id,
+                    plan_id=job_plan_id,
+                    intent_json=job_intent_json,
+                )
         else:
             result = await run(
                 engine,

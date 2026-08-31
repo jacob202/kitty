@@ -34,8 +34,10 @@ async def test_image_status_reports_each_engine(monkeypatch):
         "drawthings",
         "airforce",
         "flux",
+        "flux2",
         "fal",
         "openrouter",
+        "openai",
     ]
     by_name = {engine["name"]: engine for engine in result["engines"]}
     assert by_name["comfyui"]["available"] is True
@@ -44,6 +46,8 @@ async def test_image_status_reports_each_engine(monkeypatch):
     assert by_name["flux"]["available"] is False
     assert by_name["flux"]["unavailable_reason"]
     assert by_name["flux"]["cost_per_image_usd"] < by_name["openrouter"]["cost_per_image_usd"]
+    assert by_name["flux2"]["draft_cost_1mp_usd"] == pytest.approx(0.014)
+    assert by_name["flux2"]["final_cost_1mp_usd"] == pytest.approx(0.03)
     # PuLID is billed per output megapixel, rounded up. Kitty's default 1:1
     # square_hd output is 1024x1024 (>1 MP), so it incurs two billable MP.
     fal = by_name["fal"]
@@ -73,7 +77,7 @@ async def test_offline_local_engines_say_what_to_do_next(monkeypatch):
 
     assert result["available"] is False
     by_name = {engine["name"]: engine for engine in result["engines"]}
-    for name in ("comfyui", "drawthings", "airforce", "flux", "fal", "openrouter"):
+    for name in ("comfyui", "drawthings", "airforce", "flux", "flux2", "fal", "openrouter", "openai"):
         assert by_name[name]["available"] is False
         assert by_name[name]["unavailable_reason"], f"{name} is offline without a reason"
     assert "Start ComfyUI" in by_name["comfyui"]["unavailable_reason"]

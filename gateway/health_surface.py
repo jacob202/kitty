@@ -172,6 +172,7 @@ async def _image_providers_source() -> HealthDomain:
         "airforce": image_runner.airforce_images_available,
         "fal": image_runner.fal_images_available,
         "openrouter": image_runner.openrouter_images_available,
+        "openai": image_runner.openai_images_available,
         "flux": image_runner.flux_images_available,
         "flux2": image_runner.flux2_images_available,
     }
