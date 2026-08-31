@@ -7,6 +7,8 @@ Covers the backend half of the pilot acceptance:
   3. The chat-completions route injects resolved image parts into the outgoing
      user message when attachment_ids are supplied.
 """
+from pathlib import Path
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -78,6 +80,16 @@ class TestUseInChat:
     def test_over_5mb_image_is_rejected_before_dispatch(self, chat_client, tmp_path):
         artifact = _register_image(tmp_path, name="huge.png", media_type="image/png", size=5 * 1024 * 1024 + 1)
         r = chat_client.post("/chats/use-in-chat", json={"artifact_id": artifact["id"]})
+        assert r.status_code == 413
+        assert "5 MB" in r.json()["detail"]
+
+    def test_file_that_grows_over_limit_after_registration_is_rejected(self, chat_client, tmp_path):
+        artifact = _register_image(tmp_path, size=1024)
+        path = Path(artifact["storage_uri"])
+        path.write_bytes(b"0" * (5 * 1024 * 1024 + 1))
+
+        r = chat_client.post("/chats/use-in-chat", json={"artifact_id": artifact["id"]})
+
         assert r.status_code == 413
         assert "5 MB" in r.json()["detail"]
 

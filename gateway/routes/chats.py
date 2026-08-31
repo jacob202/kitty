@@ -291,21 +291,42 @@ def _resolve_chat_image_attachment(artifact_id: str, *, include_data_url: bool =
     path = Path(storage_uri)
     if not path.is_file():
         raise HTTPException(status_code=409, detail="That saved file is missing from disk.")
+    try:
+        actual_size = path.stat().st_size
+    except OSError as exc:
+        logger.warning("could not stat artifact %s for chat: %s", artifact_id, exc)
+        raise HTTPException(
+            status_code=409, detail="That saved file could not be read right now."
+        ) from exc
+    if actual_size <= 0:
+        raise HTTPException(status_code=409, detail="That saved file has no readable size.")
+    if actual_size > CHAT_IMAGE_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"That image is {_format_bytes(actual_size)} — chat attachments are limited to 5 MB.",
+        )
     attachment = {
         "id": artifact["id"],
         "display_name": artifact.get("display_name") or path.name,
         "media_type": media_type,
-        "size": size_bytes,
+        "size": actual_size,
     }
     if not include_data_url:
         return attachment
     try:
-        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        with path.open("rb") as handle:
+            content = handle.read(CHAT_IMAGE_MAX_BYTES + 1)
     except OSError as exc:
         logger.warning("could not read artifact %s for chat: %s", artifact_id, exc)
         raise HTTPException(
             status_code=409, detail="That saved file could not be read right now."
         ) from exc
+    if len(content) > CHAT_IMAGE_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="That image grew beyond the 5 MB chat attachment limit.",
+        )
+    encoded = base64.b64encode(content).decode("ascii")
     return {**attachment, "data_url": f"data:{media_type};base64,{encoded}"}
 
 
