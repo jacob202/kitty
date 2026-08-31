@@ -82,6 +82,7 @@ async def test_gateway_registers_inbox_scan_with_cron_not_private_loop(monkeypat
     actions: dict[str, object] = {}
     schedules: list[tuple] = []
     monkeypatch.setattr(cron, "register_action", lambda name, fn, **_kwargs: actions.__setitem__(name, fn))
+    monkeypatch.setattr(cron, "list_schedules", lambda: [])
     monkeypatch.setattr(cron, "ensure_schedule", lambda *args, **kwargs: "brief-id")
     monkeypatch.setattr(cron, "schedule", lambda *args, **kwargs: schedules.append(args) or "sid")
     monkeypatch.setattr(cron, "start", lambda: None)
@@ -134,6 +135,7 @@ async def test_gateway_uses_cron_as_the_only_morning_brief_timer(monkeypatch):
     actions: dict[str, object] = {}
     schedules: list[tuple[tuple, dict]] = []
     monkeypatch.setattr(cron, "register_action", lambda name, fn, **_kwargs: actions.__setitem__(name, fn))
+    monkeypatch.setattr(cron, "list_schedules", lambda: [])
     monkeypatch.setattr(
         cron,
         "ensure_schedule",
@@ -149,6 +151,52 @@ async def test_gateway_uses_cron_as_the_only_morning_brief_timer(monkeypatch):
         assert morning == [
             (("morning brief", "brief.deliver", "daily", "08:00", {"timezone": "America/Toronto"}), {})
         ]
+
+
+@pytest.mark.asyncio
+async def test_gateway_preserves_existing_morning_brief_schedule_on_startup(monkeypatch):
+    """An existing brief.deliver row prevents profile reseeding on restart."""
+    import gateway.app as app_module
+    import gateway.cron as cron
+    import gateway.image_batches as image_batches
+    import gateway.image_recipes as image_recipes
+    import gateway.telegram_bot as telegram_bot
+
+    monkeypatch.setenv("KITTY_ENV", "development")
+    monkeypatch.setattr(app_module, "validate_dirs", lambda: None)
+    monkeypatch.setattr(app_module, "validate_env", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_image_jobs_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_image_batches_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_agent_workspace_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_chat_turns_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_autonomy_sessions_on_startup", lambda: None)
+    monkeypatch.setattr(app_module, "_reconcile_actions_on_startup", lambda: None)
+    monkeypatch.setattr(image_recipes, "seed_default_recipes", lambda: None)
+    monkeypatch.setattr(telegram_bot, "is_configured", lambda: False)
+
+    async def forever(*_args, **_kwargs):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(image_batches, "worker_loop", forever)
+    monkeypatch.setattr(cron, "register_action", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        cron,
+        "list_schedules",
+        lambda: [{"id": "brief-existing", "name": "morning brief", "action": "brief.deliver",
+                  "schedule_type": "daily", "schedule_value": "07:30"}],
+    )
+    ensure_calls: list[tuple] = []
+    monkeypatch.setattr(
+        cron,
+        "ensure_schedule",
+        lambda *args, **kwargs: ensure_calls.append((args, kwargs)) or "brief-id",
+    )
+    monkeypatch.setattr(cron, "schedule", lambda *args, **kwargs: "sid")
+    monkeypatch.setattr(cron, "start", lambda: None)
+
+    async with app_module.lifespan(app_module.app):
+        assert ensure_calls == []
+
 
 
 @pytest.mark.asyncio

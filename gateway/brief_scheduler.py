@@ -11,6 +11,7 @@ import logging
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from gateway.automation_actions import SourceUnavailable
 from gateway.paths import PROJECT_ROOT
 
 logger = logging.getLogger("kitty.brief_scheduler")
@@ -123,11 +124,13 @@ def generate_and_deliver_brief() -> str:
         from gateway.push import push_to_jacob
 
         if not push_to_jacob(text, kind="info", title="Kitty Morning Brief"):
-            logger.warning(
-                "Brief push not delivered — no configured channel accepted it "
+            raise SourceUnavailable(
+                "No configured push channel accepted the brief "
                 "(set PUSH_IMESSAGE_RECIPIENT or PUSHOVER_USER_KEY/PUSHOVER_API_TOKEN)"
             )
+    except SourceUnavailable:
+        raise
     except Exception as e:
-        logger.warning("Brief push notification failed: %s", e)
+        raise SourceUnavailable(f"Brief push notification failed: {e}") from e
 
     return text
