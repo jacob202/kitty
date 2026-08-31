@@ -17,6 +17,19 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
+from gateway import (
+    action_grants,
+    automation_supervisor,
+    cron,
+    http_client,
+    image_jobs,
+    image_runner,
+    mcp_tool_bridge,
+    memory,
+    paths,
+)
+from gateway import db as kitty_db
+
 logger = logging.getLogger("kitty.health_surface")
 
 # Statuses that mean "needs attention" for overall/degraded derivation.
@@ -46,13 +59,11 @@ def _now_iso() -> str:
 async def _gateway_source() -> HealthDomain:
     """Gateway is serving (this projection is served by it); LiteLLM is the
     real dependency, probed exactly like GET /health does."""
-    from gateway.http_client import get_http_client
-    from gateway.paths import LITELLM_BASE
 
     litellm_reachable = False
     try:
-        client = await get_http_client()
-        resp = await client.get(f"{LITELLM_BASE}/health/readiness", timeout=1.5)
+        client = await http_client.get_http_client()
+        resp = await client.get(f"{paths.LITELLM_BASE}/health/readiness", timeout=1.5)
         litellm_reachable = resp.status_code == 200
     except Exception:  # noqa: BLE001 — any failure means "not reachable"
         logger.warning("health surface: LiteLLM unreachable")
@@ -68,11 +79,9 @@ async def _gateway_source() -> HealthDomain:
 
 
 async def _database_source() -> HealthDomain:
-    from gateway import db as kitty_db
-    from gateway.paths import KITTY_DB_FILE
 
     try:
-        with kitty_db.connect(KITTY_DB_FILE) as conn:
+        with kitty_db.connect(paths.KITTY_DB_FILE) as conn:
             conn.execute("SELECT 1").fetchone()
     except Exception as exc:  # noqa: BLE001
         return HealthDomain(
@@ -83,7 +92,6 @@ async def _database_source() -> HealthDomain:
 
 
 async def _memory_source() -> HealthDomain:
-    from gateway import memory
 
     try:
         memory._probe_memory_backend()
@@ -99,10 +107,9 @@ async def _memory_source() -> HealthDomain:
 
 
 async def _supervisor_source() -> HealthDomain:
-    from gateway.automation_supervisor import supervisor
 
     # Fail loud: a snapshot that raises must never collapse into "green".
-    snapshot = supervisor.snapshot()
+    snapshot = automation_supervisor.supervisor.snapshot()
     if not snapshot:
         return HealthDomain(
             "automation_supervisor", "unknown",
@@ -124,10 +131,8 @@ async def _supervisor_source() -> HealthDomain:
 
 
 async def _cron_source() -> HealthDomain:
-    from gateway import cron
-    from gateway.automation_supervisor import supervisor
 
-    status = supervisor.get_status("cron")
+    status = automation_supervisor.supervisor.get_status("cron")
     schedule_count = 0
     try:
         schedule_count = len(cron.list_schedules())
@@ -142,17 +147,15 @@ async def _cron_source() -> HealthDomain:
 
 
 async def _telegram_source() -> HealthDomain:
-    from gateway.automation_supervisor import supervisor
 
-    status = supervisor.get_status("telegram")
+    status = automation_supervisor.supervisor.get_status("telegram")
     return HealthDomain("telegram", status["status"], reason=status["reason"])
 
 
 async def _image_lab_source() -> HealthDomain:
-    from gateway.automation_supervisor import supervisor
 
     entries = {
-        "image-batch-worker": supervisor.get_status("image-batch-worker"),
+        "image-batch-worker": automation_supervisor.supervisor.get_status("image-batch-worker"),
     }
     if not entries:
         return HealthDomain("image_lab", "unknown", reason="no image workers tracked")
@@ -166,7 +169,6 @@ async def _image_lab_source() -> HealthDomain:
 
 
 async def _image_providers_source() -> HealthDomain:
-    from gateway import image_runner
 
     probes = {
         "airforce": image_runner.airforce_images_available,
@@ -200,12 +202,11 @@ async def _image_providers_source() -> HealthDomain:
 
 
 async def _image_queue_source() -> HealthDomain:
-    from gateway.image_jobs import ImageJobError, list_queue, list_unknown
 
     try:
-        queued = len(list_queue())
-        unknown = len(list_unknown())
-    except ImageJobError as exc:
+        queued = len(image_jobs.list_queue())
+        unknown = len(image_jobs.list_unknown())
+    except image_jobs.ImageJobError as exc:
         return HealthDomain(
             "image_queue", "degraded",
             reason=f"queue read failed: {exc}",
@@ -249,7 +250,6 @@ async def _ollama_source() -> HealthDomain:
 
 async def _mcp_tools_source() -> HealthDomain:
     """Project MCP cutoff truth without pretending configured servers are live."""
-    from gateway import mcp_tool_bridge
 
     snapshot = mcp_tool_bridge.tool_health_snapshot()
     open_circuits = snapshot.get("open_circuits", [])
@@ -282,7 +282,6 @@ async def _mcp_tools_source() -> HealthDomain:
 
 
 async def _pending_grants_source() -> HealthDomain:
-    from gateway import action_grants
 
     try:
         grants = action_grants.list_grants(include_inactive=False)
