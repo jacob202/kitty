@@ -14,6 +14,8 @@ import {
   fetchGatewayRuntimeManifest,
   fetchGatewaySearch,
   fetchActivity,
+  fetchIntelligence,
+  refreshIntelligenceConnections,
   fetchGatewayWeather,
   // todos
   fetchGatewayTodos,
@@ -575,6 +577,23 @@ export function useActivity() {
     queryFn: () => fetchActivity(),
     refetchInterval: 10_000,
     retry: false,
+  })
+}
+
+export function useIntelligence() {
+  return useQuery({
+    queryKey: ['intelligence'],
+    queryFn: () => fetchIntelligence(3),
+    refetchInterval: 60_000,
+    retry: false,
+  })
+}
+
+export function useRefreshIntelligenceConnections() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: refreshIntelligenceConnections,
+    onSuccess: (projection) => qc.setQueryData(['intelligence'], projection),
   })
 }
 
