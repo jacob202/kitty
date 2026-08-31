@@ -15,6 +15,7 @@ def _db(tmp_path, monkeypatch):
         cron,
         explicit_memory,
         image_characters,
+        todo_store,
         undo_journal,
     )
 
@@ -24,6 +25,8 @@ def _db(tmp_path, monkeypatch):
     monkeypatch.setattr(cron, "KITTY_DB_FILE", db)
     monkeypatch.setattr(explicit_memory, "DB_FILE", db)
     monkeypatch.setattr(image_characters, "KITTY_DB_FILE", db)
+    # snapshot_todo / delete_by_id read from todo_store; point it at the temp DB.
+    monkeypatch.setattr(todo_store, "TODO_DB_FILE", db)
     kitty_db.migrate(db_file=db)
     return db
 
