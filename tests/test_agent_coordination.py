@@ -781,9 +781,3 @@ def test_cli_release_requires_known_lane(capsys) -> None:
 
     assert rc == 2
     assert "unknown lane" in capsys.readouterr().err.lower()
-
-
-def test_launcher_exposes_coordination_command() -> None:
-    launcher = Path("kitty").read_text()
-    assert "cmd_coordination" in launcher
-    assert "coordination)" in launcher

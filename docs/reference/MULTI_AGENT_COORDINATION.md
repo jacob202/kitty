@@ -30,6 +30,40 @@ does not need a second GitHub lease.
 A private chat statement or internal plan is not an ownership claim other
 agents can rely on.
 
+### Machine-readable interactive claims
+
+New interactive claims should use `scripts/agent_coordination.py`. The script
+publishes the same human-readable marker plus a hidden versioned
+`kitty-lane:v1` JSON event in issue #490. Legacy prose markers remain evidence
+during migration, but only v1 events are machine-enforced claims.
+
+Use the registry before writing:
+
+```bash
+python3.12 scripts/agent_coordination.py survey --format markdown
+python3.12 scripts/agent_coordination.py claim \
+  --lane-id <stable-id> --owner <agent-id> --lane '<scope>' --output '<pr-or-artifact>' \
+  --path 'gateway/example/**' --lease-minutes 180
+```
+
+`claim` is a dry-run unless `--post` is supplied. A posted `OWN` claim fails
+closed if GitHub, git/worktree, PR, or Builder scope evidence is unavailable,
+or if a live scope overlaps. After posting it re-reads #490; if another claim
+won a concurrent race by durable GitHub ordering, the loser releases itself.
+
+Refresh only while actively working, and release when ownership ends:
+
+```bash
+python3.12 scripts/agent_coordination.py refresh --lane-id <id> --owner <agent-id> --post
+python3.12 scripts/agent_coordination.py release --lane-id <id> --owner <agent-id> --post
+```
+
+Path claims are exact repo-relative paths or deterministic `/**` subtrees.
+Arbitrary globs, parent traversal, absolute paths, and empty scopes are invalid.
+The registry also projects open PR files, unpublished worktrees, and active
+Builder `allowed_paths` as collision evidence. Builder leases remain Builder
+authority; the registry never creates a second Builder lease or execution state.
+
 ## Establish truth before work
 
 Inspect the evidence relevant to the lane before mutation:
