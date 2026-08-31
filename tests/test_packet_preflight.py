@@ -51,7 +51,8 @@ def test_same_packet_id_is_allowed_in_different_initiatives(tmp_path: Path) -> N
     first_errors = _errors(pp.check_manifest(first, tracked=tracked, seen_ids=seen))
     second_errors = _errors(pp.check_manifest(second, tracked=tracked, seen_ids=seen))
 
-    assert not any("packet id already used" in error for error in first_errors + second_errors)
+    assert first_errors == []
+    assert second_errors == []
 
 
 def test_duplicate_packet_id_is_rejected_within_one_initiative(tmp_path: Path) -> None:
