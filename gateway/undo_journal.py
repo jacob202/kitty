@@ -17,6 +17,7 @@ import secrets
 import time
 from typing import Any
 
+from gateway import cron, explicit_memory, image_characters, image_sessions
 from gateway import db as kitty_db
 from gateway.paths import KITTY_DB_FILE
 
@@ -137,7 +138,6 @@ def list_history(
 
 
 def snapshot_memory(memory_id: str) -> dict[str, Any]:
-    from gateway import explicit_memory
 
     row = explicit_memory.get(memory_id, include_inactive=True)
     if row is None:
@@ -156,7 +156,6 @@ def snapshot_memory(memory_id: str) -> dict[str, Any]:
 
 
 def snapshot_character(character_id: str) -> dict[str, Any]:
-    from gateway import image_characters
 
     char = image_characters.get_character(character_id)
     return {
@@ -169,7 +168,6 @@ def snapshot_character(character_id: str) -> dict[str, Any]:
 
 
 def snapshot_automation(sid: str) -> dict[str, Any]:
-    from gateway import cron
 
     for row in cron.list_schedules():
         if row.get("id") == sid:
@@ -178,7 +176,6 @@ def snapshot_automation(sid: str) -> dict[str, Any]:
 
 
 def snapshot_anchor(session_id: str) -> dict[str, Any]:
-    from gateway import image_sessions
 
     session = image_sessions.get_session(session_id)
     if session is None:
@@ -199,7 +196,6 @@ def _restore(entry: dict[str, Any]) -> dict[str, Any]:
     before = entry["before"]
 
     if entity_type == "character":
-        from gateway import image_characters
 
         image_characters.restore_character_profile(
             entity_id,
@@ -212,7 +208,6 @@ def _restore(entry: dict[str, Any]) -> dict[str, Any]:
         return {"entity_type": entity_type, "entity_id": entity_id, "restored": "character"}
 
     if entity_type == "automation":
-        from gateway import cron
 
         if operation == "toggle":
             current = [r for r in cron.list_schedules() if r.get("id") == entity_id]
@@ -234,7 +229,6 @@ def _restore(entry: dict[str, Any]) -> dict[str, Any]:
         return {"entity_type": entity_type, "entity_id": entity_id, "restored": "automation"}
 
     if entity_type == "memory":
-        from gateway import explicit_memory
 
         if operation == "forget":
             if before.get("sensitivity") == "sensitive":
@@ -267,7 +261,6 @@ def _restore(entry: dict[str, Any]) -> dict[str, Any]:
         raise UndoError(f"unsupported memory operation: {operation!r}")
 
     if entity_type == "image":
-        from gateway import image_sessions
 
         anchor_job_id = before.get("anchor_job_id")
         if anchor_job_id:
@@ -355,7 +348,6 @@ def undo(journal_id: str) -> dict[str, Any]:
 
 
 def forget_memory_with_undo(memory_id: str) -> str:
-    from gateway import explicit_memory
 
     before = snapshot_memory(memory_id)
     if not explicit_memory.forget(memory_id):
@@ -366,7 +358,6 @@ def forget_memory_with_undo(memory_id: str) -> str:
 def correct_memory_with_undo(
     memory_id: str, text: str, *, memory_key: str | None = None
 ) -> str:
-    from gateway import explicit_memory
 
     before = snapshot_memory(memory_id)
     try:
@@ -391,7 +382,6 @@ def correct_memory_with_undo(
 
 
 def update_character_with_undo(character_id: str, **fields: Any) -> str:
-    from gateway import image_characters
 
     before = snapshot_character(character_id)
     image_characters.update_character(character_id, **fields)
@@ -408,7 +398,6 @@ def update_automation_with_undo(
     *,
     metadata: dict[str, Any] | None = None,
 ) -> str:
-    from gateway import cron
 
     before = snapshot_automation(sid)
     if not cron.update(
@@ -420,7 +409,6 @@ def update_automation_with_undo(
 
 
 def toggle_automation_with_undo(sid: str) -> str:
-    from gateway import cron
 
     before = snapshot_automation(sid)
     result = cron.toggle(sid)
@@ -431,7 +419,6 @@ def toggle_automation_with_undo(sid: str) -> str:
 
 
 def set_anchor_with_undo(session_id: str, job_id: str) -> str:
-    from gateway import image_sessions
 
     before = snapshot_anchor(session_id)
     image_sessions.set_anchor(session_id, job_id)
@@ -440,7 +427,6 @@ def set_anchor_with_undo(session_id: str, job_id: str) -> str:
 
 
 def clear_anchor_with_undo(session_id: str) -> str:
-    from gateway import image_sessions
 
     before = snapshot_anchor(session_id)
     image_sessions.clear_anchor(session_id)
