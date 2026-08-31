@@ -26,11 +26,13 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import threading
 from pathlib import Path
 
 from gateway.paths import BUILDER_QUEUE_DB
 
 logger = logging.getLogger("kitty.builder_queue_db")
+_INIT_LOCK = threading.Lock()
 
 # ---------------------------------------------------------------------------
 # State constants (Section 4.3 — legal state machine)
@@ -258,8 +260,8 @@ CREATE TABLE IF NOT EXISTS branch_leases (
 # ---------------------------------------------------------------------------
 
 _PRAGMAS = (
+    "PRAGMA busy_timeout=30000;",
     "PRAGMA journal_mode=WAL;",
-    "PRAGMA busy_timeout=5000;",
     "PRAGMA foreign_keys=ON;",
     "PRAGMA synchronous=NORMAL;",
 )
@@ -467,13 +469,17 @@ def init_db(db_path: Path | None = None) -> None:
     """
     path = Path(db_path) if db_path is not None else _default_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
-    try:
-        _apply_pragmas(conn)
-        _apply_schema(conn)
-        conn.commit()
-    finally:
-        conn.close()
+    # Schema bootstrap performs DDL and journal-mode setup. Serialize threads in
+    # one process and give other Builder processes a real busy window instead
+    # of exposing a transient "database is locked" during concurrent startup.
+    with _INIT_LOCK:
+        conn = sqlite3.connect(str(path), timeout=30.0)
+        try:
+            _apply_pragmas(conn)
+            _apply_schema(conn)
+            conn.commit()
+        finally:
+            conn.close()
     logger.info("Initialized KittyBuilder queue DB at %s", path)
 
 
@@ -487,7 +493,7 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
     """
     path = Path(db_path) if db_path is not None else _default_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
+    conn = sqlite3.connect(str(path), timeout=30.0)
     conn.row_factory = sqlite3.Row
     _apply_pragmas(conn)
     return conn

@@ -74,6 +74,9 @@ if model in hang_models:
 
     time.sleep(float(os.environ.get("FAKE_OPENCODE_HANG_SECONDS", "2")))
 prompt = args[-1]
+prompt_log = os.environ.get("FAKE_OPENCODE_PROMPT_LOG", "")
+if prompt_log:
+    Path(prompt_log).write_text(prompt, encoding="utf-8")
 match = re.search(r"[Ww]rite a JSON object to (.+?) with exactly", prompt)
 if not match:
     raise SystemExit("prompt did not contain a contract output path")
@@ -264,6 +267,31 @@ def test_worker_stages_and_validates_local_context(tmp_path: Path):
     assert completed.returncode == 0, completed.stderr
     assert json.loads(result.read_text()) ["status"] == "completed"
     assert not list(tmp_path.glob(".kittybuilder-*"))
+
+
+def test_worker_delegates_declared_validation_to_trusted_builder(tmp_path: Path):
+    _init_git_repo(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text(
+        '{"objective":"safe","packet_id":"pkt-1","validation_commands":["python -m pytest -q"]}\n',
+        encoding="utf-8",
+    )
+    context = _manifest(bundle)
+    result = tmp_path / "runner" / "implementation.json"
+    result.parent.mkdir()
+    fake = _fake_opencode(tmp_path)
+    prompt_log = tmp_path / "prompt.txt"
+    env = _env(fake, bundle=bundle, context=context, result=result)
+    env["FAKE_OPENCODE_PROMPT_LOG"] = str(prompt_log)
+
+    completed = subprocess.run(
+        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    prompt = prompt_log.read_text(encoding="utf-8")
+    assert "trusted Builder orchestration runs the declared validation commands" in prompt
+    assert "Run the declared validation commands" not in prompt
 
 
 def test_worker_leaves_completed_change_for_trusted_parent_commit(tmp_path: Path):
@@ -833,7 +861,11 @@ def test_reviewer_honours_explicit_paid_agent_and_model(tmp_path: Path):
 
 def _wait_without_closing_stdin(proc: subprocess.Popen[str]) -> tuple[str, str]:
     try:
-        proc.wait(timeout=1)
+        # Generous budget: the adapter chain spawns several interpreters
+        # before exiting. Only a worker that blocks on the still-open parent
+        # stdin pipe should ever hit this timeout — that regression must stay
+        # loud, but a fast machine should not be the pass/fail boundary.
+        proc.wait(timeout=30)
     except subprocess.TimeoutExpired:
         proc.terminate()
         try:

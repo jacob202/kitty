@@ -65,6 +65,45 @@ class TestEnsureWorktree:
         )
         assert head.stdout.strip() == "kittybuilder/kb_t1_aaaa"
 
+    def test_worktree_add_allows_checkout_longer_than_generic_git_timeout(self, repo: Path):
+        real_run = subprocess.run
+        observed_timeouts = []
+
+        def guarded_run(args, *positional, **kwargs):
+            if list(args[:3]) == ["git", "worktree", "add"]:
+                observed_timeouts.append(kwargs.get("timeout"))
+                if (kwargs.get("timeout") or 0) <= 15:
+                    raise subprocess.TimeoutExpired(args, kwargs.get("timeout"))
+            return real_run(args, *positional, **kwargs)
+
+        with patch.object(br.subprocess, "run", side_effect=guarded_run):
+            path = br.ensure_worktree(
+                "kb_slow_checkout", "kittybuilder/kb_slow_checkout", repo_root=repo
+            )
+
+        assert path.exists()
+        assert observed_timeouts and observed_timeouts[0] > 15
+
+    def test_worktree_add_timeout_removes_partial_initializing_tree(self, repo: Path):
+        real_run = subprocess.run
+        task_id = "kb_partial_timeout"
+        path = repo / ".worktrees" / "kittybuilder" / task_id
+
+        def timed_out_run(args, *positional, **kwargs):
+            if list(args[:3]) == ["git", "worktree", "add"]:
+                path.mkdir(parents=True, exist_ok=True)
+                (path / "partial.txt").write_text("incomplete checkout\n")
+                raise subprocess.TimeoutExpired(args, kwargs.get("timeout"))
+            return real_run(args, *positional, **kwargs)
+
+        with patch.object(br.subprocess, "run", side_effect=timed_out_run):
+            with pytest.raises(br.RunnerError, match="worktree add timed out"):
+                br.ensure_worktree(
+                    task_id, f"kittybuilder/{task_id}", repo_root=repo
+                )
+
+        assert not path.exists()
+
     def test_reuses_clean_worktree(self, repo: Path):
         p1 = br.ensure_worktree("kb_t2_aaaa", "kittybuilder/kb_t2_aaaa", repo_root=repo)
         p2 = br.ensure_worktree("kb_t2_aaaa", "kittybuilder/kb_t2_aaaa", repo_root=repo)
@@ -132,6 +171,41 @@ class TestEnsureWorktree:
                     repo_root=repo,
                     reuse_dirty=True,
                 )
+
+    def test_archive_reset_returns_committed_changes_to_durable_base(
+        self, repo: Path, tmp_path: Path
+    ):
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        path = br.ensure_worktree(
+            "kb_reset_base", "kittybuilder/kb_reset_base", repo_root=repo
+        )
+        (path / "committed.txt").write_text("must not leak into retry\n")
+        subprocess.run(["git", "add", "committed.txt"], cwd=path, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "worker commit"], cwd=path, check=True)
+        assert br.worktree_head(path) != base_sha
+
+        evidence = tmp_path / "attempt-evidence"
+        result = br.archive_and_reset_worktree(
+            path, evidence, reset_sha=base_sha
+        )
+
+        assert result["state"] == "archived_and_reset"
+        assert br.worktree_head(path) == base_sha
+        assert not (path / "committed.txt").exists()
+        assert "committed.txt" in (evidence / "crashed-worktree.patch").read_text()
+        assert subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout == ""
 
     def test_remove_clean_worktree(self, repo: Path):
         path = br.ensure_worktree("kb_t5_aaaa", "kittybuilder/kb_t5_aaaa", repo_root=repo)
@@ -202,6 +276,28 @@ class TestRunWorker:
         assert refreshed is not None
         assert refreshed["state"] == bq.QUEUED
         assert bq.list_runs(task_id=task["id"], db_path=db_path) == []
+
+    def test_worker_uses_repo_validation_venv_python(self, repo: Path, db_path: Path):
+        venv_bin = repo / "venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        python = venv_bin / "python"
+        python.write_text("#!/bin/sh\necho repo-validation-python\n")
+        python.chmod(0o755)
+
+        task = _queued_task(db_path)
+        run = br.run_worker(
+            task["id"],
+            ["sh", "-c", "python --version"],
+            worker="test-worker",
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_EXITED
+        log = Path(run["log_path"]).read_text()
+        assert "repo-validation-python" in log
 
     def test_successful_run_blocks_task_with_report(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
@@ -546,13 +642,17 @@ class TestRunWorker:
     ):
         task = _queued_task(db_path)
         call_count = [0]
+        real_renew = bq.renew_lease
 
         def fail_renew(task_id, lease_token, claim_version, *,
                         lease_seconds=300, db_path=None):
             call_count[0] += 1
-            if call_count[0] > 3:
+            # With a command that exits immediately and a long heartbeat
+            # interval, call 1 is the prelaunch freshening and call 2 is the
+            # post-process fence this test is specifically exercising.
+            if call_count[0] == 2:
                 raise RuntimeError("post-loop renewal failure")
-            return bq.renew_lease(
+            return real_renew(
                 task_id, lease_token, claim_version,
                 lease_seconds=lease_seconds, db_path=db_path,
             )
@@ -561,8 +661,8 @@ class TestRunWorker:
 
         with pytest.raises(br.RunnerError, match="monitoring failed"):
             br.run_worker(
-                task["id"], ["sleep", "2"],
-                timeout_seconds=30, lease_seconds=10, heartbeat_seconds=0.1,
+                task["id"], ["true"],
+                timeout_seconds=30, lease_seconds=30, heartbeat_seconds=10,
                 repo_root=repo, db_path=db_path,
             )
 
@@ -790,14 +890,39 @@ class TestRunWorker:
         assert refreshed["state"] == bq.QUEUED
         assert bq.list_runs(task_id=task["id"], db_path=db_path) == []
 
+    def test_prelaunch_setup_heartbeats_lease_before_worker_start(
+        self, repo: Path, db_path: Path, monkeypatch
+    ):
+        task = _queued_task(db_path)
+        real_ensure = br.ensure_worktree
+
+        def slow_ensure(*args, **kwargs):
+            path = real_ensure(*args, **kwargs)
+            time.sleep(1.2)
+            return path
+
+        monkeypatch.setattr(br, "ensure_worktree", slow_ensure)
+        run = br.run_worker(
+            task["id"],
+            ["true"],
+            timeout_seconds=30,
+            lease_seconds=1,
+            heartbeat_seconds=0.1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_EXITED
+        assert run["last_heartbeat_at"] is not None
+
     def test_heartbeat_renews_lease_during_run(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
         run = br.run_worker(
             task["id"],
-            ["sleep", "0.8"],
+            ["sleep", "2.5"],
             timeout_seconds=30,
-            lease_seconds=0.5,  # would expire mid-run without heartbeat
-            heartbeat_seconds=0.1,
+            lease_seconds=2,  # would expire mid-run without heartbeat
+            heartbeat_seconds=0.2,
             repo_root=repo,
             db_path=db_path,
         )
