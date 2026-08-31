@@ -1,0 +1,307 @@
+{
+  "head": "c28b522ea6ded60b9da69cd3548a2d9a41a72e09",
+  "uiSourceEquivalentToHead": true,
+  "reviewer": "independent fresh-browser Playwright task-completion lane; no implementation edits or source access during task execution",
+  "goal": "Recover blocked Builder work from Work, understand the resulting ready state, and recover when the Gateway becomes unavailable.",
+  "desktop": {
+    "blockedVisible": true,
+    "overflowBefore": false,
+    "before": "Home\nChat\nWork\nProjects\nImage Lab\nLibrary\nAutomations\nSettings\nj\nWork\nidle\nconnected\n⌘K\nkitty\nbenefits-admin\nDaily Kitty\nWork\n\nWhat is moving, blocked, and finished in Builder.\n\nBuilder available · observed 12:34 AM\nBuilder details\nBuilder status is unknown.\nCould not reach Builder's supervisor. Check the gateway connection.\n1 blocked\nNeeds you\n1\nAcceptance Work action\nblocked\nAcceptance fixture.\nTry again\nCancel task\nDetails",
+    "retryStatus": 200,
+    "retryBody": {
+      "ok": true,
+      "action": "requeue",
+      "task_id": "kb_mtgv3s8o_2e47",
+      "error": null,
+      "detail": "task kb_mtgv3s8o_2e47 requeued",
+      "event_id": null,
+      "evidence": {
+        "new_state": "queued"
+      }
+    },
+    "after": "Home\nChat\nWork\nProjects\nImage Lab\nLibrary\nAutomations\nSettings\nj\nWork\nidle\nconnected\n⌘K\nkitty\nbenefits-admin\nDaily Kitty\nWork\n\nWhat is moving, blocked, and finished in Builder.\n\nBuilder available · observed 12:34 AM\nBuilder details\nBuilder is not scheduled.\nAutomatic passes are off. 1 job is ready to run.\nRun ready work now\nScheduled Builder: needs attention\nevery 15 min\nloaded\nlast exit 0\ninstalled LaunchAgent does not match Kitty's supported scheduler contract\nlast tick time unavailable\nnext run time unavailable\n1 ready\nIn progress\n1\nAcceptance Work action\nready\nReady for Builder to claim.\nReady to go, but Builder is not scheduled. Use Run ready work now above to start a global pass.\nCancel task\nPreflight ready\nfree\nCAD 0.0000 local estimate\nDetails",
+    "overflowAfter": false,
+    "reloadReady": true,
+    "reloadOverflow": false,
+    "reload": "Home\nChat\nWork\nProjects\nImage Lab\nLibrary\nAutomations\nSettings\nj\nWork\nidle\nconnected\n⌘K\nkitty\nbenefits-admin\nDaily Kitty\nWork\n\nWhat is moving, blocked, and finished in Builder.\n\nBuilder available · observed 12:34 AM\nBuilder details\nBuilder status is unknown.\nCould not reach Builder's supervisor. Check the gateway connection.\n1 ready\nIn progress\n1\nAcceptance Work action\nready\nReady for Builder to claim.\nReady to go, but Kitty can't verify whether Builder is scheduled. Use Run ready work now above if you want a global pass now.\nCancel task\nDetails"
+  },
+  "mobile": {
+    "overflow": false,
+    "workVisible": true,
+    "manualRunVisible": true,
+    "text": "Home\nChat\nWork\nImage Lab\nLibrary\nMore\nkitty\nidle\nkitty\nbenefits-admin\nDaily Kitty\nWork\n\nWhat is moving, blocked, and finished in Builder.\n\nBuilder available · observed 12:34 AM\nBuilder details\nBuilder is not scheduled.\nAutomatic passes are off. 1 job is ready to run.\nRun ready work now\nScheduled Builder: needs attention\nevery 15 min\nloaded\nlast exit 0\ninstalled LaunchAgent does not match Kitty's supported scheduler contract\nlast tick time unavailable\nnext run time unavailable\n1 ready\nIn progress\n1\nAcceptance Work action\nready\nReady for Builder to claim.\nReady to go, but Builder is not scheduled. Use Run ready work now above to start a global pass.\nCancel task\nPreflight ready\nfree\nCAD 0.0000 local estimate\nDetails"
+  },
+  "outage": {
+    "retryVisible": true,
+    "text": "Home\nChat\nWork\nProjects\nImage Lab\nLibrary\nAutomations\nSettings\nj\nWork\nidle\nconnected\n⌘K\nkitty\nbenefits-admin\nDaily Kitty\nWork\n\nWhat is moving, blocked, and finished in Builder.\n\nBuilder available · observed 12:34 AM\nBuilder details\nBuilder status is unknown.\nCould not reach Builder's supervisor. Check the gateway connection.\nScheduled Builder status is unavailable.\nWork is unavailable right now. Retry to reconnect to Builder.\nretry\nTechnical details\n1 ready\nIn progress\n1\nAcceptance Work action\nready\nReady for Builder to claim.\nReady to go, but Builder is not scheduled. Use Run ready work now above to start a global pass.\nCancel task\nPreflight ready\nfree\nCAD 0.0000 local estimate\nPreflight is unavailable; Builder should not start this packet until the check succeeds.\nDetails",
+    "recoveredWorkError": 0,
+    "recoveredSupervisorUnknown": 0,
+    "recoveredSchedulerUnavailable": 0,
+    "recoveredPreflightUnavailable": 0,
+    "recoveredText": "Home\nChat\nWork\nProjects\nImage Lab\nLibrary\nAutomations\nSettings\nj\nWork\nidle\nconnected\n⌘K\nkitty\nbenefits-admin\nDaily Kitty\nWork\n\nWhat is moving, blocked, and finished in Builder.\n\nBuilder available · observed 12:34 AM\nBuilder details\nBuilder is not scheduled.\nAutomatic passes are off. 1 job is ready to run.\nRun ready work now\nScheduled Builder: needs attention\nevery 15 min\nloaded\nlast exit 0\ninstalled LaunchAgent does not match Kitty's supported scheduler contract\nlast tick time unavailable\nnext run time unavailable\n1 ready\nIn progress\n1\nAcceptance Work action\nready\nReady for Builder to claim.\nReady to go, but Builder is not scheduled. Use Run ready work now above to start a global pass.\nCancel task\nPreflight ready\nfree\nCAD 0.0000 local estimate\nDetails"
+  },
+  "unexpected": [],
+  "expectedOutage": [
+    "desktop 500 /proxy/work",
+    "desktop 500 /proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+    "desktop 500 /proxy/builder/supervisor",
+    "desktop 500 /proxy/work",
+    "mobile 500 /proxy/work",
+    "mobile 500 /proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+    "mobile 500 /proxy/builder/supervisor",
+    "desktop 500 /proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+    "desktop 500 /proxy/builder/supervisor",
+    "mobile 500 /proxy/work",
+    "mobile 500 /proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+    "mobile 500 /proxy/builder/supervisor",
+    "desktop 500 /proxy/work",
+    "desktop 500 /proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+    "desktop 500 /proxy/builder/supervisor",
+    "mobile 500 /proxy/work",
+    "mobile 500 /proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+    "mobile 500 /proxy/builder/supervisor"
+  ],
+  "relevantResponses": [
+    {
+      "label": "desktop",
+      "url": "/proxy/health",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/work",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/supervisor",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/command",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/work",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/supervisor",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/health",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/work",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/supervisor",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/health",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/work",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/builder/supervisor",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/work",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/supervisor",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/work",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/work",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/builder/supervisor",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/supervisor",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/work",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/builder/supervisor",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/work",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/supervisor",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/work",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/builder/supervisor",
+      "status": 500,
+      "outage": true
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/work",
+      "status": 200,
+      "outage": true
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/builder/supervisor",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/builder/preflight/ACCEPTANCE-WORK-707/P1",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/work",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "mobile",
+      "url": "/proxy/builder/supervisor",
+      "status": 200,
+      "outage": false
+    },
+    {
+      "label": "desktop",
+      "url": "/proxy/work",
+      "status": 200,
+      "outage": false
+    }
+  ],
+  "pass": true
+}
