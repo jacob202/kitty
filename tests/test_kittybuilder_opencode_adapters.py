@@ -861,7 +861,11 @@ def test_reviewer_honours_explicit_paid_agent_and_model(tmp_path: Path):
 
 def _wait_without_closing_stdin(proc: subprocess.Popen[str]) -> tuple[str, str]:
     try:
-        proc.wait(timeout=1)
+        # Generous budget: the adapter chain spawns several interpreters
+        # before exiting. Only a worker that blocks on the still-open parent
+        # stdin pipe should ever hit this timeout — that regression must stay
+        # loud, but a fast machine should not be the pass/fail boundary.
+        proc.wait(timeout=30)
     except subprocess.TimeoutExpired:
         proc.terminate()
         try:

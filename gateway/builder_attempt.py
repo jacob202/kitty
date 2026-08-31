@@ -381,6 +381,24 @@ def _build_bundle_on_conn(
     }
 
 
+def attempt_budget_remaining(
+    initiative_id: str, packet_id: str, db_path: Path | None = None
+) -> int:
+    """Return remaining budget-consuming attempts without mutating state."""
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        packet = _packet_row(conn, initiative_id, packet_id)
+        policy = json.loads(packet["policy_json"]) if packet["policy_json"] else {}
+        max_attempts = int(policy.get("max_attempts", DEFAULT_MAX_ATTEMPTS))
+        used_for_budget = _attempt_count(
+            conn, initiative_id, packet_id, exclude_crashed=True
+        )
+        return max(0, max_attempts - used_for_budget)
+    finally:
+        conn.close()
+
+
 def build_context_bundle(
     initiative_id: str, packet_id: str, db_path: Path | None = None
 ) -> dict[str, Any]:
