@@ -1,9 +1,19 @@
-"""Kitty ImageGuidance — curated generation guidance as versioned Markdown.
+"""Kitty ImageGuidance Bank — curated generation guidance as versioned Markdown.
 
 Adapted from GenEvolve's KnowledgeTool / SkillBank pattern
 (``genevolve/knowledge_tool.py:19-113``).  Kitty's version is local-first:
 guidance is plain Markdown under a configured directory, loaded once at
 import time, and never fetched from an external source.
+
+Pointers:
+  - this module was renamed from ``image_guidance.py`` to ``image_guidance_bank.py``
+  - ``GuidanceBank`` is the static bank of curated generation-guidance Markdown files;
+    each ``<tag>.md`` file contains expert prompt-writing or composition guidance
+    for one proven failure category (layout, text rendering, count accuracy, etc.).
+  - ``available_guidance_tags()`` and ``get_guidance()`` are the public API;
+    they route through the singleton ``_guidance_bank`` instance.
+  - The guidance directory default was updated from ``image_guidance`` to
+    ``image_guidance_bank`` to match the new module filename.
 """
 
 from __future__ import annotations
@@ -11,7 +21,7 @@ from __future__ import annotations
 from pathlib import Path
 
 # Default guidance directory — ship only the tags we have evidence for.
-_DEFAULT_GUIDANCE_DIR = Path(__file__).resolve().parent / "image_guidance"
+_DEFAULT_GUIDANCE_DIR = Path(__file__).resolve().parent / "image_guidance_bank"
 _DEFAULT_GUIDANCE_DIR.mkdir(parents=True, exist_ok=True)
 
 

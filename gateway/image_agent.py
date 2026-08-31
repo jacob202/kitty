@@ -360,8 +360,8 @@ def _build_and_persist_plan(
     requested_changes: list[str] | None = None,
     protected_traits: list[str] | None = None,
 ) -> Any:
-    from gateway.image_plan import ImagePlanError, build_image_plan
-    from gateway.image_plans import PlanStoreError, persist_plan
+    from gateway.image_plan_types import ImagePlanError, build_image_plan
+    from gateway.image_plan_store import PlanStoreError, persist_plan
 
     try:
         plan = build_image_plan(
@@ -386,7 +386,7 @@ def _build_and_persist_plan(
 
 
 def _observe_list_assets(session: Any) -> str:
-    from gateway import image_guidance, image_sessions
+    from gateway import image_guidance_bank, image_sessions
 
     registry = session_registry(session)
     jobs = image_sessions.list_session_jobs(session.session_id)
@@ -399,13 +399,13 @@ def _observe_list_assets(session: Any) -> str:
             ],
             "protected_traits": session.protected_traits,
             "requested_changes": session.requested_changes,
-            "available_guidance_tags": image_guidance.available_guidance_tags(),
+            "available_guidance_tags": image_guidance_bank.available_guidance_tags(),
         }
     )
 
 
 def _observe_guidance(tag: str) -> str:
-    from gateway.image_guidance import available_guidance_tags, get_guidance
+    from gateway.image_guidance_bank import available_guidance_tags, get_guidance
 
     content = get_guidance(tag)
     if content is None:
@@ -576,7 +576,7 @@ def _persist_decision(session_id: str, decision: AgentDecision) -> None:
 
 
 def _build_context(session: Any) -> str:
-    from gateway import image_guidance, image_sessions
+    from gateway import image_guidance_bank, image_sessions
 
     turns = image_sessions.list_turns(session.session_id)
     return json.dumps(
@@ -589,7 +589,7 @@ def _build_context(session: Any) -> str:
             "attempt_count": session.attempt_count,
             "spend_usd": session.spend_usd,
             "edit_workflow_available": edit_workflow_available(),
-            "available_guidance_tags": image_guidance.available_guidance_tags(),
+            "available_guidance_tags": image_guidance_bank.available_guidance_tags(),
             "history": [
                 {"role": t.role.value, "content": t.content, "job_id": t.job_id}
                 for t in turns

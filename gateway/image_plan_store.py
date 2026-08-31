@@ -7,6 +7,9 @@ This module persists the approved ``ImagePlan`` under a stable ``plan_id`` owned
 by the session that created it, and A2's dispatch path reads the render inputs
 from the stored plan — never from the live form.
 
+This module now imports ``ALLOWED_REFERENCE_ROLES`` from ``gateway.image_plan_types``
+instead of ``gateway.image_plan``, reflecting the module rename.
+
 Boundaries:
 - This module owns plan persistence only. ``image_jobs`` remains the record of
   what was rendered, and ``image_runner`` remains the only dispatch path.
@@ -31,7 +34,7 @@ from typing import Any
 
 from gateway import db as kitty_db
 from gateway import paths as _paths
-from gateway.image_plan import ALLOWED_REFERENCE_ROLES
+from gateway.image_plan_types import ALLOWED_REFERENCE_ROLES
 from gateway.image_policy import ConsentBasis, ContentLane
 from gateway.paths import DB_MIGRATIONS_DIR
 
