@@ -115,8 +115,3 @@ gateway/kitty-chat/test-results/
 # Personal reference photos — never in git. Live at ~/kitty-services/faces/
 config/imagen/faces/*/
 docs/session-notes/workflow-signals/.workflow-signals.lock
-
-# Per-session agent checkpoint files — local state, never versioned.
-# They change every session and conflict on every parallel merge.
-.claude/STATE.md
-.claude/HANDOFF.md
