@@ -118,6 +118,12 @@ async def _meeting_block(_message: str) -> str | None:
     return meeting_block_text()
 
 
+async def _openviking_block(message: str) -> str | None:
+    from gateway.openviking_shadow import context_block
+
+    return await context_block(message)
+
+
 _ENRICHMENTS: tuple[EnrichmentFn, ...] = (
     _calendar_block,
     _weather_block,
@@ -129,6 +135,7 @@ _ENRICHMENTS: tuple[EnrichmentFn, ...] = (
     _learning_block,
     _nudges_block,
     _meeting_block,
+    _openviking_block,
 )
 
 # Public alias used by ``gateway.context_assembler``.
