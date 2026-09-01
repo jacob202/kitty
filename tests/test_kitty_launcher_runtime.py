@@ -102,3 +102,10 @@ def test_status_distinguishes_configured_but_stopped_launchd(tmp_path) -> None:
 
     assert result.returncode == 0
     assert "supervisor   launchd-configured-stopped (com.kitty.desktop.*)" in result.stdout
+
+
+def test_sweep_command_uses_the_same_deadline_orchestration_as_the_route() -> None:
+    block = SCRIPT.split("cmd_sweep() {", 1)[1].split("}\n", 1)[0]
+    assert "from gateway.routes.deadlines import post_sweep" in block
+    assert "report = post_sweep()" in block
+    assert "gateway.deadline_sweep" not in block

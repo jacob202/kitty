@@ -30,3 +30,15 @@ CREATE TABLE IF NOT EXISTS deadline_escalations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_deadline_escalations_deadline_id ON deadline_escalations (deadline_id);
+
+-- Pending escalations for atomic claim/release before delivery (KT-DEADLINE-01)
+CREATE TABLE IF NOT EXISTS pending_escalations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    deadline_id INTEGER NOT NULL REFERENCES deadlines(id) ON DELETE CASCADE,
+    checkpoint TEXT NOT NULL,
+    claimed_at REAL NOT NULL,
+    claimed INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(deadline_id, checkpoint, claimed)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pending_escalations_deadline_id ON pending_escalations (deadline_id);
