@@ -189,24 +189,6 @@ def snapshot_anchor(session_id: str) -> dict[str, Any]:
     }
 
 
-def snapshot_todo(todo_id: int) -> dict[str, Any]:
-    from gateway import todo_store
-
-    todo = todo_store.get()
-    for t in todo:
-        if t["id"] == todo_id:
-            return {
-                "id": t["id"],
-                "content": t["content"],
-                "status": t["status"],
-                "active_form": t["active_form"],
-                "sort_order": t["sort_order"],
-                "created_at": t["created_at"],
-                "updated_at": t["updated_at"],
-            }
-    raise UndoNotFound(f"todo not found: {todo_id}")
-
-
 # --- restore dispatch --------------------------------------------------------
 
 
