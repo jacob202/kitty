@@ -1689,6 +1689,12 @@ export interface GatewayProjectWorkItem {
 export interface GatewayProjectWork {
   items: GatewayProjectWorkItem[]
   total_items: number
+  source?: {
+    kind?: string
+    state?: string
+    reason?: string
+    integrity?: { state?: string; partial_packets?: number; total_packets?: number }
+  }
 }
 
 export interface GatewayProjectConversation {
@@ -1891,7 +1897,10 @@ export async function fetchProjectResume(projectId: number): Promise<GatewayProj
 }
 
 /** Blocks on git + LLM composition server-side — give it a long timeout. */
-export async function refreshProject(projectId: number): Promise<{ next_step?: { ok: boolean; step?: string; error?: string } }> {
+export async function refreshProject(projectId: number): Promise<{
+  sources?: Record<string, { ok: boolean; error?: string }>
+  next_step?: { ok: boolean; step?: string; error?: string }
+}> {
   return await gfetch(`/projects/${projectId}/refresh`, { method: 'POST' }, 60_000)
 }
 

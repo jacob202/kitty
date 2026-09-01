@@ -3,15 +3,43 @@ import { useState, type CSSProperties } from 'react'
 import { useProjects, useProjectNextSteps, useProjectResume, useRefreshProject } from '@/lib/queries'
 import type { GatewayNextStep, GatewayProject } from '@/lib/gateway'
 import { Button } from '@/components/ui/Button'
-import { RefreshCw } from 'lucide-react'
+import { ArrowRight, RefreshCw } from 'lucide-react'
 import { describeFailure } from '@/lib/failure-copy'
 import { projectNextStepCopy, projectSummaryCopy } from '@/lib/project-copy'
+import { ProjectWorkspace } from '@/components/projects/ProjectWorkspace'
 
-export function ProjectsPanel() {
+export function ProjectsPanel({
+  onNavigate = () => {},
+  onStartChat = () => {},
+  isMobile = false,
+}: {
+  onNavigate?: (view: string) => void
+  onStartChat?: () => void
+  isMobile?: boolean
+}) {
   const projectsQuery = useProjects()
   const refresh = useRefreshProject()
   const projects = projectsQuery.data ?? []
   const nextSteps = useProjectNextSteps(projects)
+  const [workspaceProjectId, setWorkspaceProjectId] = useState<number | null>(null)
+  const workspaceIndex = workspaceProjectId === null ? -1 : projects.findIndex(project => project.id === workspaceProjectId)
+  const workspaceProject = workspaceIndex >= 0 ? projects[workspaceIndex] : null
+  const workspaceNextStep = workspaceIndex >= 0 ? nextSteps[workspaceIndex]?.data ?? null : null
+  const workspaceNextError = workspaceIndex >= 0 ? nextSteps[workspaceIndex]?.isError ?? false : false
+  const degradedRefreshSources = workspaceProject && refresh.variables === workspaceProject.id
+    ? Object.entries(refresh.data?.sources ?? {})
+      .filter(([, source]) => source.ok === false)
+      .map(([name, source]) => `${name}: ${source.error?.trim() || 'unavailable'}`)
+    : []
+  const workspaceRefreshError = workspaceProject && refresh.variables === workspaceProject.id
+    ? refresh.isError
+      ? `Couldn't refresh this project — ${describeFailure(refresh.error)}`
+      : refresh.data?.next_step?.ok === false
+        ? `Project refreshed, but Kitty couldn't update the next step — ${refresh.data.next_step.error?.trim() || 'No reason was provided.'}`
+        : degradedRefreshSources.length > 0
+          ? `Project refreshed with unavailable sources — ${degradedRefreshSources.join('; ')}`
+          : null
+    : null
 
   if (projectsQuery.isLoading) {
     return <p style={mutedStyle}>loading projects…</p>
@@ -46,9 +74,24 @@ export function ProjectsPanel() {
               nextStep={nextSteps[index]?.data ?? null}
               nextPending={nextSteps[index]?.isPending ?? false}
               nextError={nextSteps[index]?.isError ?? false}
+              onOpenWorkspace={() => setWorkspaceProjectId(p.id)}
             />
           ))}
         </section>
+      )}
+      {workspaceProject && (
+        <ProjectWorkspace
+          project={workspaceProject}
+          nextStep={workspaceNextStep}
+          nextError={workspaceNextError}
+          onClose={() => setWorkspaceProjectId(null)}
+          onNavigate={onNavigate}
+          onStartChat={onStartChat}
+          onRefresh={() => refresh.mutate(workspaceProject.id)}
+          refreshing={refresh.isPending && refresh.variables === workspaceProject.id}
+          refreshError={workspaceRefreshError}
+          isMobile={isMobile}
+        />
       )}
     </div>
   )
@@ -62,6 +105,7 @@ function ProjectCard({
   nextStep,
   nextPending,
   nextError,
+  onOpenWorkspace,
 }: {
   project: GatewayProject
   onRefresh: () => void
@@ -70,6 +114,7 @@ function ProjectCard({
   nextStep: GatewayNextStep | null
   nextPending: boolean
   nextError: boolean
+  onOpenWorkspace: () => void
 }) {
   const [contextOpen, setContextOpen] = useState(false)
   const touched = project.last_touched
@@ -94,9 +139,14 @@ function ProjectCard({
           </div>
           {touched && <span style={metaStyle}>touched {touched}</span>}
         </div>
-        <Button onClick={onRefresh} variant="ghost" size="md" disabled={refreshing} icon={<RefreshCw size={14} />}>
-          {refreshing ? 'refreshing…' : 'refresh'}
-        </Button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <Button onClick={onOpenWorkspace} variant="primary" size="md" icon={<ArrowRight size={14} />}>
+            Open workspace
+          </Button>
+          <Button onClick={onRefresh} variant="ghost" size="md" disabled={refreshing} icon={<RefreshCw size={14} />}>
+            {refreshing ? 'refreshing…' : 'refresh'}
+          </Button>
+        </div>
       </div>
 
       {summary && <p style={summaryStyle}>{summary}</p>}
