@@ -136,7 +136,7 @@ def test_change_scope_comes_from_the_canonical_classifier() -> None:
         assert key in outputs, key
 
 
-def test_model_review_uses_paid_flash_for_standalone_top_and_sensitive_heads() -> None:
+def test_model_review_uses_paid_flash_for_merge_boundaries_and_sensitive_heads() -> None:
     text, workflow = _workflow("pr-agent-review.yml")
     review = workflow["jobs"]["agent-review"]
     review_if = str(review["if"])
@@ -287,9 +287,10 @@ def test_stack_merge_gate_accepts_skipped_expensive_jobs_only_between_boundaries
     assert "stack layer defers full validation to cumulative top" in script
 
 
-def test_stacked_agent_review_runs_on_top_or_sensitive_layers() -> None:
+def test_stacked_agent_review_runs_at_merge_boundaries_or_sensitive_layers() -> None:
     _, workflow = _workflow("pr-agent-review.yml")
     condition = str(workflow["jobs"]["agent-review"]["if"])
     assert "github.event.pull_request.stack == null" in condition
+    assert "github.event.pull_request.stack.base.ref == github.event.pull_request.base.ref" in condition
     assert "github.event.pull_request.stack.position == github.event.pull_request.stack.size" in condition
     assert "needs.scope.outputs.sensitive == 'true'" in condition
