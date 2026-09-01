@@ -15,6 +15,7 @@ import { ViewRenderer } from '@/components/ViewRenderer'
 import { StatusBar } from '@/components/StatusBar'
 import { WobFilters, PaperGrain } from '@/components/WobFilters'
 import { CatCorner } from '@/components/CrayonCat'
+import { composeSkillLaunchInput } from '@/lib/capability-launch'
 
 export default function KittyChat() {
   const k = useKitty()
@@ -195,6 +196,17 @@ export default function KittyChat() {
         onSelectChat={k.handleSelectChat}
         onViewChange={k.setActiveView}
         onToggleSidebar={k.handleToggleSidebar}
+        onLaunchCapability={(capability) => {
+          if (capability.launch === 'view' && capability.view) {
+            k.setActiveView(capability.view)
+            return
+          }
+          if (capability.launch === 'skill' && capability.skill_name) {
+            k.setActiveView('chat')
+            k.setInput(composeSkillLaunchInput(k.input, capability.skill_name))
+            window.setTimeout(() => k.textareaRef.current?.focus(), 0)
+          }
+        }}
         open={cmdPaletteOpen}
         onOpenChange={setCmdPaletteOpen}
       />

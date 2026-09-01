@@ -141,12 +141,12 @@ def test_opencode_config_has_separate_free_and_paid_agents():
     assert agents["paid-builder"]["model"] == "openrouter/deepseek/deepseek-v4-flash"
     assert agents["paid-reviewer"]["model"] == "openrouter/minimax/minimax-m3"
     assert agents["paid-reviewer"]["permission"]["edit"] == "deny"
-    assert agents["pr-reviewer"]["model"] == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+    assert agents["pr-reviewer"]["model"] == "openrouter/deepseek/deepseek-v4-flash"
     assert agents["pr-reviewer"]["permission"]["edit"] == "deny"
     assert agents["pr-reviewer"]["permission"]["bash"] == "deny"
 
 
-def test_real_cheap_route_uses_deepseek_flash_and_independent_reviewer():
+def test_real_cheap_route_uses_the_refreshed_independent_pair():
     # The actual production config, not the synthetic _policy() fixture above.
     route = bpr.resolve_paid_route("cheap")
 
@@ -161,6 +161,27 @@ def test_real_frontier_route_is_unchanged():
 
     assert route.worker_model == "openrouter/deepseek/deepseek-v4-pro"
     assert route.reviewer_model == "openrouter/qwen/qwen3.7-max"
+
+
+def test_free_workers_doc_prices_the_real_cheap_pair():
+    route = bpr.resolve_paid_route("cheap")
+    text = (Path(__file__).resolve().parents[1] / "docs" / "FREE_WORKERS.md").read_text()
+
+    assert "DeepSeek V4 Flash + MiniMax M3" in text
+    assert f"CAD {route.projected_cost_cad:.4f}" in text
+    assert "about **CAD 1.97**" not in text
+
+
+@pytest.mark.parametrize("name", ["AGENTS.md", "CLAUDE.md", "CODEX.md"])
+def test_agent_guidance_records_reviewer_router_policy(name: str):
+    text = (Path(__file__).resolve().parents[1] / name).read_text().lower()
+
+    assert "openrouter is the preferred router" in text
+    assert "agentrouter is dead" in text
+    assert "freebuff" in text and "optional" in text
+    assert "9router" in text and "optional" in text
+    assert "deepseek-v4-flash-0731" in text
+    assert "do not" in text
 
 
 def test_escalation_compacts_weak_trajectory_to_durable_artifacts():

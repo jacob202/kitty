@@ -807,6 +807,35 @@ def _governor_gate(
         override_reason=override_reason,
     )
     if decision.action in {cg.ACTION_RUN, cg.ACTION_DOWNGRADE}:
+        if (
+            requested_route in {cg.ROUTE_CHEAP, cg.ROUTE_FRONTIER}
+            and decision.route in {cg.ROUTE_CHEAP, cg.ROUTE_FRONTIER}
+        ):
+            from gateway.builder_paid_routing import resolve_paid_route
+
+            configured_cost = resolve_paid_route(decision.route).projected_cost_cad
+            if configured_cost > reserve.remaining_cad:
+                reasons = (
+                    *decision.reasons,
+                    f"configured paid route projects CAD {configured_cost:.4f} against "
+                    f"CAD {reserve.remaining_cad:.4f} left this week",
+                )
+                bq.append_event(
+                    task_id,
+                    "compute_governor_refused",
+                    payload={
+                        "action": cg.ACTION_DEFER,
+                        "reasons": list(reasons),
+                        "dispatch_hash": decision.dispatch_hash,
+                        "base_sha": base_sha,
+                        "counts_toward_budget": False,
+                    },
+                    db_path=db_path,
+                )
+                raise LoopError(
+                    f"compute governor defers {initiative_id}/{packet_id} at "
+                    f"{base_sha[:12]}: " + "; ".join(reasons)
+                )
         return decision
 
     bq.append_event(
