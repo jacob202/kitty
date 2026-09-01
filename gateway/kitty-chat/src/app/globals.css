@@ -5,6 +5,9 @@
    composer ends up underneath it. */
 :root {
   --bottom-nav-height: calc(56px + env(safe-area-inset-bottom, 0px));
+  --overlay-backdrop: rgba(12, 15, 24, 0.44);
+  --overlay-backdrop-strong: rgba(8, 10, 16, 0.70);
+  --shadow-overlay: 0 24px 64px rgba(15, 20, 32, 0.22);
 }
 
 /* ── KITTY THEMES: semantic color contract ───────────────────── */

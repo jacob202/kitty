@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { ArrowRight, BriefcaseBusiness, MessageSquare, RefreshCw, X } from 'lucide-react'
 
 import { ArtifactCanvas, canPreviewArtifact } from '@/components/artifacts/ArtifactCanvas'
 import { Button } from '@/components/ui/Button'
 import { describeFailure } from '@/lib/failure-copy'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
 import type { GatewayArtifact, GatewayNextStep, GatewayProject, GatewayProjectArtifact } from '@/lib/gateway'
 import { useProjectResume, useSetActiveProject } from '@/lib/queries'
 
@@ -29,11 +30,7 @@ export function ProjectWorkspace({
   const [selectedArtifact, setSelectedArtifact] = useState<GatewayArtifact | null>(null)
   const [activationError, setActivationError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !selectedArtifact) onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose, selectedArtifact])
+  const dialogRef = useDialogFocus({ open: true, enabled: !selectedArtifact, onClose })
 
   const artifacts = useMemo(
     () => (resume.data?.artifacts ?? []).map(item => toArtifact(project.id, item)),
@@ -52,10 +49,9 @@ export function ProjectWorkspace({
 
   return (
     <div style={backdropStyle} onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
-      <section role="dialog" aria-modal="true" aria-label={`${project.name} project workspace`} style={panelStyle}>
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-label={`${project.name} project workspace`} style={panelStyle}>
         <header style={headerStyle}>
           <div style={{ minWidth: 0 }}>
-            <div style={eyebrowStyle}>project workspace</div>
             <h2 style={titleStyle}>{project.name}</h2>
             <p style={summaryStyle}>{project.summary || 'No project summary yet.'}</p>
           </div>
@@ -174,11 +170,10 @@ function SourceWarning({ label, message }: { label: string; message: string }) {
   return <div role="status" style={warningStyle}><strong>{label} unavailable.</strong> {message}</div>
 }
 
-const backdropStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 1225, background: 'rgba(0,0,0,0.42)', display: 'flex', justifyContent: 'flex-end' }
-const panelStyle: CSSProperties = { width: 'min(760px, 100vw)', height: '100%', background: 'var(--color-background, var(--bg))', borderLeft: '1px solid var(--color-separator, var(--line))', boxShadow: '-20px 0 50px rgba(0,0,0,0.22)', display: 'flex', flexDirection: 'column', minWidth: 0 }
-const headerStyle: CSSProperties = { padding: '18px 20px 14px', display: 'flex', justifyContent: 'space-between', gap: 16, borderBottom: '1px solid var(--color-separator, var(--line))' }
-const eyebrowStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-text-secondary, var(--ink-2))' }
-const titleStyle: CSSProperties = { margin: '3px 0 0', fontFamily: 'var(--font-display)', fontSize: 26, color: 'var(--color-text-primary, var(--ink))' }
+const backdropStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 1225, background: 'var(--overlay-backdrop)', display: 'flex', justifyContent: 'flex-end' }
+const panelStyle: CSSProperties = { width: 'min(760px, 100vw)', height: '100%', background: 'var(--color-background, var(--bg))', borderLeft: '1px solid var(--color-separator, var(--line))', boxShadow: 'var(--shadow-overlay)', display: 'flex', flexDirection: 'column', minWidth: 0 }
+const headerStyle: CSSProperties = { padding: '16px 20px 14px', display: 'flex', justifyContent: 'space-between', gap: 16, borderBottom: '1px solid var(--color-separator, var(--line))' }
+const titleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 26, color: 'var(--color-text-primary, var(--ink))' }
 const summaryStyle: CSSProperties = { margin: '6px 0 0', maxWidth: 620, fontSize: 13, lineHeight: 1.5, color: 'var(--color-text-secondary, var(--ink-2))' }
 const iconButtonStyle: CSSProperties = { width: 44, height: 44, border: '1px solid var(--color-separator, var(--line))', borderRadius: 'var(--r-control, 8px)', background: 'var(--color-surface, var(--surface))', color: 'var(--color-text-primary, var(--ink))', display: 'grid', placeItems: 'center', cursor: 'pointer', flexShrink: 0 }
 const toolbarStyle: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 8, padding: '12px 20px', borderBottom: '1px solid var(--color-separator, var(--line))' }

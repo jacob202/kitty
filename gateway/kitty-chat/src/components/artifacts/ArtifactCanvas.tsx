@@ -11,6 +11,7 @@ import {
   type GatewayArtifact,
 } from '@/lib/gateway'
 import { describeFailure } from '@/lib/failure-copy'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
 
 const PREVIEWABLE_MEDIA = new Set([
   'application/pdf',
@@ -46,13 +47,7 @@ export function ArtifactCanvas({
   const [text, setText] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const dialogRef = useDialogFocus({ open: true, onClose })
 
   useEffect(() => {
     if (!isText) {
@@ -74,6 +69,7 @@ export function ArtifactCanvas({
   return (
     <div style={backdropStyle} onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={artifact.display_name}
@@ -81,7 +77,6 @@ export function ArtifactCanvas({
       >
         <header style={headerStyle}>
           <div style={{ minWidth: 0 }}>
-            <div style={eyebrowStyle}>artifact</div>
             <h2 style={titleStyle}>{artifact.display_name}</h2>
             <div style={metaStyle}>{artifact.media_type} · {formatBytes(artifact.size_bytes)}</div>
           </div>
@@ -135,11 +130,10 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const backdropStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0, 0, 0, 0.48)', display: 'flex', justifyContent: 'flex-end' }
-const canvasStyle: CSSProperties = { height: '100%', background: 'var(--color-background, var(--bg))', borderLeft: '1px solid var(--color-separator, var(--line))', boxShadow: '-20px 0 50px rgba(0,0,0,0.22)', display: 'flex', flexDirection: 'column', minWidth: 0 }
-const headerStyle: CSSProperties = { minHeight: 76, padding: '16px 18px', borderBottom: '1px solid var(--color-separator, var(--line))', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }
-const eyebrowStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--color-text-secondary, var(--ink-2))' }
-const titleStyle: CSSProperties = { margin: '3px 0 0', fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--color-text-primary, var(--ink))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+const backdropStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 1200, background: 'var(--overlay-backdrop)', display: 'flex', justifyContent: 'flex-end' }
+const canvasStyle: CSSProperties = { height: '100%', background: 'var(--color-background, var(--bg))', borderLeft: '1px solid var(--color-separator, var(--line))', boxShadow: 'var(--shadow-overlay)', display: 'flex', flexDirection: 'column', minWidth: 0 }
+const headerStyle: CSSProperties = { minHeight: 68, padding: '12px 16px 12px 18px', borderBottom: '1px solid var(--color-separator, var(--line))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }
+const titleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 20, color: 'var(--color-text-primary, var(--ink))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 const metaStyle: CSSProperties = { marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-secondary, var(--ink-2))' }
 const iconButtonStyle: CSSProperties = { width: 44, height: 44, border: '1px solid var(--color-separator, var(--line))', borderRadius: 'var(--r-control, 8px)', background: 'var(--color-surface, var(--surface))', color: 'var(--color-text-primary, var(--ink))', display: 'grid', placeItems: 'center', cursor: 'pointer', flexShrink: 0 }
 const bodyStyle: CSSProperties = { flex: 1, minHeight: 0, overflow: 'auto', padding: 22 }

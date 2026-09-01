@@ -81,11 +81,17 @@ describe('ProjectWorkspace', () => {
     renderWorkspace()
 
     expect(screen.getByRole('dialog', { name: /kitty project workspace/i })).toBeVisible()
+    expect(screen.queryByText('project workspace', { exact: true })).not.toBeInTheDocument()
     expect(screen.getByText('Ship the project workspace.')).toBeVisible()
     expect(screen.getByText('Repo steal')).toBeVisible()
     expect(screen.getByText('Review Wave 4')).toBeVisible()
     expect(screen.getByText('Wave 4')).toBeVisible()
     expect(screen.getByText('plan.md')).toBeVisible()
+  })
+
+  it('moves keyboard focus into the project workspace when it opens', () => {
+    renderWorkspace()
+    expect(screen.getByRole('button', { name: 'Close project workspace' })).toHaveFocus()
   })
 
   it('activates the project before continuing in chat', async () => {

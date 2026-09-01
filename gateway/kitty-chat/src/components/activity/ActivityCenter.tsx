@@ -1,8 +1,9 @@
-import { useEffect, type CSSProperties } from 'react'
+import { type CSSProperties } from 'react'
 import { X } from 'lucide-react'
 
 import type { GatewayActivityItem, GatewayActivityProjection, GatewayActivityState } from '@/lib/gateway'
 import { describeFailure } from '@/lib/failure-copy'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
 
 const GROUPS: Array<{ state: GatewayActivityState; label: string }> = [
   { state: 'waiting', label: 'Needs you' },
@@ -26,22 +27,16 @@ export function ActivityCenter({
   onClose: () => void
   onNavigate: (view: string) => void
 }) {
-  useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  const dialogRef = useDialogFocus({ open, onClose })
 
   if (!open) return null
   const unavailable = Object.entries(projection?.sources ?? {}).filter(([, source]) => source.state === 'unavailable')
 
   return (
     <div style={backdropStyle} onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
-      <section role="dialog" aria-modal="true" aria-label="Activity" style={panelStyle}>
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="Activity" style={panelStyle}>
         <header style={headerStyle}>
           <div>
-            <div style={eyebrowStyle}>live work</div>
             <h2 style={titleStyle}>Activity</h2>
             <p style={subtitleStyle}>What Kitty is doing, what needs you, and what just finished.</p>
           </div>
@@ -97,11 +92,10 @@ function humanize(value: string): string {
   return value.replace(/[_-]+/g, ' ')
 }
 
-const backdropStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 1250, background: 'rgba(0,0,0,0.42)', display: 'flex', justifyContent: 'flex-end' }
-const panelStyle: CSSProperties = { width: 'min(520px, 100vw)', height: '100%', background: 'var(--color-background, var(--bg))', borderLeft: '1px solid var(--color-separator, var(--line))', boxShadow: '-20px 0 50px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column' }
-const headerStyle: CSSProperties = { padding: 18, borderBottom: '1px solid var(--color-separator, var(--line))', display: 'flex', justifyContent: 'space-between', gap: 16 }
-const eyebrowStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-text-secondary, var(--ink-2))' }
-const titleStyle: CSSProperties = { margin: '3px 0 0', fontFamily: 'var(--font-display)', fontSize: 24, color: 'var(--color-text-primary, var(--ink))' }
+const backdropStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 1250, background: 'var(--overlay-backdrop)', display: 'flex', justifyContent: 'flex-end' }
+const panelStyle: CSSProperties = { width: 'min(520px, 100vw)', height: '100%', background: 'var(--color-background, var(--bg))', borderLeft: '1px solid var(--color-separator, var(--line))', boxShadow: 'var(--shadow-overlay)', display: 'flex', flexDirection: 'column' }
+const headerStyle: CSSProperties = { padding: '18px 20px', borderBottom: '1px solid var(--color-separator, var(--line))', display: 'flex', justifyContent: 'space-between', gap: 16 }
+const titleStyle: CSSProperties = { margin: 0, fontFamily: 'var(--font-display)', fontSize: 24, color: 'var(--color-text-primary, var(--ink))' }
 const subtitleStyle: CSSProperties = { margin: '5px 0 0', fontSize: 12, color: 'var(--color-text-secondary, var(--ink-2))', lineHeight: 1.4 }
 const closeStyle: CSSProperties = { width: 44, height: 44, border: '1px solid var(--color-separator, var(--line))', borderRadius: 'var(--r-control, 8px)', background: 'var(--color-surface, var(--surface))', color: 'var(--color-text-primary, var(--ink))', display: 'grid', placeItems: 'center', cursor: 'pointer' }
 const bodyStyle: CSSProperties = { flex: 1, minHeight: 0, overflowY: 'auto', padding: 18, display: 'flex', flexDirection: 'column', gap: 22 }

@@ -39,6 +39,7 @@ describe('ArtifactCanvas', () => {
 
     const image = screen.getByRole('img', { name: 'reference.png' })
     expect(image).toHaveAttribute('src', '/proxy/artifacts/artifact%2Fimage%20one/content')
+    expect(screen.queryByText('artifact', { exact: true })).not.toBeInTheDocument()
   })
 
   it('renders a PDF inline through the artifact-id content route', () => {
@@ -46,6 +47,11 @@ describe('ArtifactCanvas', () => {
 
     const frame = screen.getByTitle('Preview report.pdf')
     expect(frame).toHaveAttribute('src', '/proxy/artifacts/artifact%2Fimage%20one/content')
+  })
+
+  it('moves keyboard focus into the canvas when it opens', () => {
+    render(<ArtifactCanvas artifact={artifact()} isMobile={false} onClose={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Close artifact' })).toHaveFocus()
   })
 
   it('uses the full viewport width on mobile and closes on Escape', () => {

@@ -28,6 +28,7 @@ describe('ActivityCenter', () => {
 
     const dialog = screen.getByRole('dialog', { name: /activity/i })
     expect(within(dialog).getByText('Needs you')).toBeVisible()
+    expect(within(dialog).queryByText('live work', { exact: true })).not.toBeInTheDocument()
     expect(within(dialog).getByText('In motion')).toBeVisible()
     expect(within(dialog).getByText('Recently finished')).toBeVisible()
     expect(within(dialog).getByText('Approve calendar event')).toBeVisible()
@@ -49,6 +50,11 @@ describe('ActivityCenter', () => {
 
     expect(screen.getByText(/some activity sources are unavailable/i)).toBeVisible()
     expect(screen.getByText(/actions db unavailable/i)).toBeVisible()
+  })
+
+  it('moves keyboard focus into the activity panel when it opens', () => {
+    render(<ActivityCenter open projection={projection as any} isLoading={false} error={null} onClose={vi.fn()} onNavigate={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Close activity' })).toHaveFocus()
   })
 
   it('closes on Escape', () => {
