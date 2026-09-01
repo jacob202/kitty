@@ -4,10 +4,18 @@ from unittest.mock import patch
 
 
 def _fresh_buddy(tmp_path):
-    """Import buddy with a clean in-memory state (buddy_store I/O patched out)."""
+    """Import buddy with a clean in-memory state (buddy_store I/O patched out).
+
+    The fresh import temporarily replaces `gateway.buddy` in sys.modules; the
+    original module object is restored before returning. Otherwise the freshly
+    imported module leaks into the registry and breaks modules that bound
+    gateway.buddy at import time (e.g. routes.completions), whose monkeypatch
+    (e.g. test_library_chat_001 `buddy.on_request_error`) then misses.
+    """
+    saved = {}
     for key in list(sys.modules.keys()):
         if key == 'gateway.buddy' or key.startswith('gateway.buddy.'):
-            del sys.modules[key]
+            saved[key] = sys.modules.pop(key)
 
     with patch('gateway.paths.DATA_DIR', tmp_path), \
          patch('gateway.buddy_store.get_state', return_value={
@@ -20,6 +28,16 @@ def _fresh_buddy(tmp_path):
             "mood": "idle", "energy": 100, "session_turns": 0,
             "total_turns": 0, "last_active_ts": 0.0, "drift_count": 0,
         })
+
+    sys.modules.update(saved)
+
+    import gateway as _gateway
+    for key, mod in saved.items():
+        if key.startswith("gateway.buddy"):
+            attr = key.rsplit(".", 1)[-1]
+            if getattr(_gateway, attr, None) is not mod:
+                setattr(_gateway, attr, mod)
+
     return b
 
 
