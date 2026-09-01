@@ -28,6 +28,7 @@ REVIEW_FINDING_LIMIT = 5
 SNAPSHOT_QUERY_COUNT = 10
 _MESSAGE_CAP = 500
 _OBJECTIVE_CAP = 1200
+_PLACEHOLDER_CAP = 80
 _PATH_PATTERN = re.compile(r"(?<![A-Za-z0-9_])/(?:[^\s/]+/)+[^\s/]+")
 _SECRET_ASSIGNMENT_PATTERN = re.compile(
     r"(?i)\b(api[_-]?key|access[_-]?token|token|secret|password|authorization)"
@@ -1217,18 +1218,83 @@ def _recovery_actions(
     return actions
 
 
+def _event_title_key(event_type: str) -> str:
+    """Return a stable semantic title_key for the given event type."""
+    _TITLE_KEYS: dict[str, str] = {
+        "infrastructure_failed": "event_infrastructure",
+        "run_max_retries_exhausted": "event_exhaustion",
+        "retry_exhausted": "event_exhaustion",
+        "scope_violation": "event_scope",
+        "run_scope_violation": "event_scope",
+        "identity_failed": "event_identity",
+        "run_lease_lost": "event_identity",
+        "initiative_decision": "event_decision",
+        "worker_failed": "event_implementation",
+        "run_failed": "event_implementation",
+    }
+    return _TITLE_KEYS.get(event_type, "event_unknown")
+
+
+def _event_placeholders(
+    event_type: str, payload: dict[str, Any]
+) -> dict[str, str]:
+    """Extract event-specific placeholder values from the already-loaded payload."""
+    placeholders: dict[str, str] = {}
+    if event_type == "scope_violation":
+        reason = _event_reason(payload) or ""
+        if reason:
+            placeholders["reason"] = reason
+        paths = payload.get("paths", payload.get("scope_violations", []))
+        if paths and isinstance(paths, list):
+            for i, path in enumerate(paths[:3]):
+                safe = _safe_message(str(path), cap=_PLACEHOLDER_CAP)
+                if safe:
+                    placeholders[f"path_{i + 1}"] = safe
+            if len(paths) > 3:
+                remaining = _safe_message(str(len(paths) - 3), cap=_PLACEHOLDER_CAP)
+                if remaining:
+                    placeholders["extra_count"] = remaining
+    elif event_type in {"identity_failed", "run_lease_lost"}:
+        reason = _event_reason(payload) or ""
+        if reason:
+            placeholders["reason"] = reason
+    elif event_type in {"infrastructure_failed", "worker_failed", "run_failed"}:
+        reason = _event_reason(payload) or ""
+        if reason:
+            placeholders["reason"] = reason
+    elif event_type in {"run_max_retries_exhausted", "retry_exhausted"}:
+        reason = _event_reason(payload) or ""
+        if reason:
+            placeholders["reason"] = reason
+        attempts = payload.get("attempts")
+        if isinstance(attempts, int):
+            placeholders["attempts"] = str(attempts)
+        max_attempts = payload.get("max_attempts")
+        if isinstance(max_attempts, int):
+            placeholders["max_attempts"] = str(max_attempts)
+    elif event_type == "initiative_decision":
+        decision = _known_string(payload, "decision")
+        if decision:
+            placeholders["decision"] = decision
+        reason = _event_reason(payload) or ""
+        if reason:
+            placeholders["reason"] = reason
+    return placeholders
+
+
 def _event_projection(
     row: sqlite3.Row | None,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     if row is None:
         return None, []
     payload, issue = _decode_optional_object(row["payload_json"], "event payload")
+    event_type = row["type"]
     reason = _event_reason(payload or {})
     counts_toward_budget = (payload or {}).get("counts_toward_budget")
     return (
         {
             "id": row["id"],
-            "type": row["type"],
+            "type": event_type,
             "created_at": row["created_at"],
             "reason": reason,
             "counts_toward_budget": (
@@ -1236,6 +1302,8 @@ def _event_projection(
                 if isinstance(counts_toward_budget, bool)
                 else None
             ),
+            "title_key": _event_title_key(event_type),
+            "placeholders": _event_placeholders(event_type, payload or {}),
         },
         [issue] if issue else [],
     )

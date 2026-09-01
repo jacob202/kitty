@@ -230,6 +230,10 @@ def test_snapshot_exposes_bounded_attempt_evidence_and_omits_unsafe_fields(tmp_p
     assert packet["run"]["state"] == "running"
     assert packet["last_event"]["type"] == "infrastructure_failed"
     assert packet["last_event"]["reason"] == "worker could not read [path]"
+    assert packet["last_event"]["title_key"] == "event_infrastructure"
+    assert packet["last_event"]["placeholders"] == {
+        "reason": "worker could not read [path]",
+    }
     assert packet["failure_kind"] == "infrastructure"
     assert "worktree_path" not in packet["lease"]
     assert "command" not in packet["run"]
