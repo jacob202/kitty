@@ -5,11 +5,19 @@ cold-start checks and `verified-delivery` owns completion language.
 
 ## Load by task
 
-1. Prove `workspace_global` access first. When the room is available, use
-   `./kitty context --agent --skip-legacy-continuity` for code work; add
-   `--compact --skip-builder` for informational or planning work. When the room
-   is unavailable, report that and use the strict legacy-compatible receipt
-   instead; treat unknowns as unknowns.
+1. Prove `workspace_global` access first, then choose the receipt from the actual
+   continuation source:
+   - when an unread GAR handoff or known durable thread identifies the
+     assignment, use `./kitty context --agent --skip-legacy-continuity` for code
+     work; add `--compact --skip-builder` for informational/planning work;
+   - when GAR is available but no durable room locator exists yet and a legacy
+     checkpoint is needed as the compatibility fallback, run the strict
+     `./kitty context --agent` receipt and trust the checkpoint only if that
+     validation succeeds;
+   - when GAR is unavailable, report that and use the same strict compatibility
+     receipt.
+   Treat unknowns as unknowns. A legacy-skipping receipt never validates a
+   legacy fallback.
 2. Classify the request:
    - informational: authority map plus directly relevant authority;
    - planning: add roadmap, active mission, and a deterministically located
@@ -43,9 +51,9 @@ failures and blockers, and one concrete next action. Publish those facts as the
 final validated `workspace_global` result/handoff after final verification, not
 before compatibility writes or validation. On resume, retrieve the known room
 thread or unread direct handoff and validate it against live Git and runtime
-state. When no durable room locator exists yet, use the validated legacy
-compatibility checkpoint rather than pretending the global recent window is an
-assignment index.
+state. When no durable room locator exists yet, use the strict-receipt-validated
+legacy compatibility checkpoint rather than pretending the global recent window
+is an assignment index.
 
 Use exactly one completion state: `verified`, `implemented, awaiting
 verification`, `blocked`, or `failed`. Do not infer runtime success from code
