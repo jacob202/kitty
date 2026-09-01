@@ -596,11 +596,17 @@ export function useActions(status?: string) {
   })
 }
 
+const TERMINAL_ACTION_STATUSES = new Set(['executed', 'failed', 'rejected', 'unknown'])
+
+export function actionRefetchInterval(status: string | undefined): number | false {
+  return status && TERMINAL_ACTION_STATUSES.has(status) ? false : 5_000
+}
+
 export function useAction(actionId: number) {
   return useQuery({
     queryKey: ['actions', 'one', actionId],
     queryFn: () => fetchAction(actionId),
-    refetchInterval: 5_000,
+    refetchInterval: query => actionRefetchInterval(query.state.data?.status),
     retry: false,
   })
 }

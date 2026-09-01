@@ -217,6 +217,17 @@ def reload_registry() -> None:
     _REGISTRY = _build_registry()
 
 
+def effective_risk_tier(kind: str) -> str | None:
+    """Return the tier enforced *now* for a registered action kind.
+
+    Action rows retain the tier stamped when proposed for audit history, but
+    execution deliberately consults the current signed registry. UI callers
+    need both values so they never offer a control the executor will refuse.
+    """
+    entry = _registry().get(kind)
+    return entry[0] if entry is not None else None
+
+
 # --- Lifecycle -------------------------------------------------------------
 
 

@@ -19,9 +19,12 @@ export function ActionCard({ actionId }: { actionId: number }) {
 
   const item = action.data
   const busy = approve.isPending || reject.isPending || execute.isPending
-  const canApprove = item.status === 'proposed' && item.risk_tier === 'T2'
-  const canRun = item.status === 'approved' || (item.status === 'proposed' && item.risk_tier !== 'T2')
-  const terminal = ['executed', 'failed', 'rejected', 'outcome_unknown'].includes(item.status)
+  const effectiveTier = item.effective_risk_tier === undefined ? item.risk_tier : item.effective_risk_tier
+  const canApprove = item.status === 'proposed' && effectiveTier === 'T2'
+  const canRun = effectiveTier !== null && (item.status === 'approved' || (item.status === 'proposed' && (effectiveTier === 'T0' || effectiveTier === 'T1')))
+  const canReject = item.status === 'proposed'
+  const terminal = ['executed', 'failed', 'rejected', 'unknown'].includes(item.status)
+  const mutationError = approve.error ?? reject.error ?? execute.error
 
   return (
     <section aria-label={`Action: ${item.title}`} style={cardStyle}>
@@ -31,7 +34,7 @@ export function ActionCard({ actionId }: { actionId: number }) {
           <div style={titleStyle}>{item.title}</div>
           <p style={previewStyle}>{item.preview}</p>
         </div>
-        <span style={tierStyle}><ShieldAlert size={12} /> {item.risk_tier}</span>
+        <span style={tierStyle}><ShieldAlert size={12} /> {effectiveTier ?? 'unavailable'}</span>
       </div>
 
       <div style={statusRowStyle}>
@@ -46,24 +49,27 @@ export function ActionCard({ actionId }: { actionId: number }) {
 
       {item.result && <div style={resultStyle}>{item.result}</div>}
 
-      {!terminal && (canApprove || canRun) && (
+      {!terminal && (canApprove || canRun || canReject) && (
         <div style={actionsStyle}>
           {canApprove && (
-            <>
-              <button aria-label="Approve action" disabled={busy} onClick={() => approve.mutate(item.id)} style={primaryButtonStyle}>
-                <Check size={14} /> Approve
-              </button>
-              <button aria-label="Reject action" disabled={busy} onClick={() => reject.mutate(item.id)} style={secondaryButtonStyle}>
-                <X size={14} /> Reject
-              </button>
-            </>
+            <button aria-label="Approve action" disabled={busy} onClick={() => approve.mutate(item.id)} style={primaryButtonStyle}>
+              <Check size={14} /> Approve
+            </button>
           )}
           {canRun && (
             <button aria-label="Run approved action" disabled={busy} onClick={() => execute.mutate(item.id)} style={primaryButtonStyle}>
               <Play size={14} /> Run
             </button>
           )}
+          {canReject && (
+            <button aria-label="Reject action" disabled={busy} onClick={() => reject.mutate(item.id)} style={secondaryButtonStyle}>
+              <X size={14} /> Reject
+            </button>
+          )}
         </div>
+      )}
+      {mutationError && (
+        <div role="alert" style={errorStyle}>Action did not change — {describeFailure(mutationError)}</div>
       )}
       {item.status === 'executing' && <div style={mutedStyle}>Running…</div>}
     </section>
@@ -76,7 +82,7 @@ function humanize(value: string): string {
 
 function statusStyle(status: string): CSSProperties {
   const color = status === 'executed' ? 'var(--color-success)'
-    : status === 'failed' || status === 'outcome_unknown' ? 'var(--color-destructive)'
+    : status === 'failed' || status === 'unknown' ? 'var(--color-destructive)'
       : status === 'proposed' ? 'var(--color-warning)' : 'var(--color-text-secondary)'
   return { fontSize: 12, fontWeight: 700, color }
 }
@@ -94,5 +100,6 @@ const summaryStyle: CSSProperties = { cursor: 'pointer', minHeight: 32, display:
 const payloadStyle: CSSProperties = { margin: '6px 0 0', padding: 10, borderRadius: 8, background: 'var(--color-surface-elevated)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'var(--font-mono)', fontSize: 10.5, lineHeight: 1.5, color: 'var(--color-text-primary)' }
 const resultStyle: CSSProperties = { padding: 10, borderRadius: 8, background: 'var(--color-surface-elevated)', fontSize: 12.5, lineHeight: 1.45, color: 'var(--color-text-primary)' }
 const actionsStyle: CSSProperties = { display: 'flex', gap: 8, flexWrap: 'wrap' }
+const errorStyle: CSSProperties = { padding: 9, borderRadius: 8, border: '1px solid var(--color-destructive)', color: 'var(--color-destructive)', fontSize: 12, lineHeight: 1.4 }
 const primaryButtonStyle: CSSProperties = { minHeight: 44, border: 'none', borderRadius: 9, padding: '8px 13px', background: 'var(--color-accent)', color: 'var(--on-accent)', display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 700 }
 const secondaryButtonStyle: CSSProperties = { minHeight: 44, border: '1px solid var(--color-separator)', borderRadius: 9, padding: '8px 13px', background: 'var(--color-surface)', color: 'var(--color-text-primary)', display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 650 }

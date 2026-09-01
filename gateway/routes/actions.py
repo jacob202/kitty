@@ -166,7 +166,10 @@ def get_action(action_id: int) -> dict:
     action = action_queue.get(action_id)
     if action is None:
         raise HTTPException(status_code=404, detail=f"no action with id {action_id}")
-    return action
+    return {
+        **action,
+        "effective_risk_tier": action_queue.effective_risk_tier(action["kind"]),
+    }
 
 
 @router.post("/actions/grants")

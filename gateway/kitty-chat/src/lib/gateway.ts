@@ -1520,6 +1520,7 @@ export interface GatewayAction {
   preview: string
   payload: Record<string, unknown>
   risk_tier: 'T0' | 'T1' | 'T2'
+  effective_risk_tier?: 'T0' | 'T1' | 'T2' | null
   status: string
   result: string | null
   decided_at: number | null

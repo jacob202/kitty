@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from gateway import chat_lifecycle, chats_store
+from gateway import action_queue, artifact_store, chat_lifecycle, chats_store
 from gateway.chat_errors import (
     FRIENDLY_MESSAGES,
     ChatErrorKind,
@@ -43,6 +43,114 @@ file operation, or external action ran unless an execution result is present in 
 conversation. When execution is required, state plainly that tools are unavailable
 in this chat runtime.
 """.strip()
+
+
+_DURABLE_CHAT_OBJECT_LIMIT = 6
+
+
+def _one_line(value: object, limit: int = 120) -> str:
+    text = " ".join(str(value or "").split())
+    return text[:limit]
+
+
+def _durable_chat_object_system(
+    *,
+    conversation_id: str | None,
+    user_message_id: str | None,
+    project_id: int | None,
+    project_name: str | None,
+) -> str:
+    """Describe authoritative objects this turn may reference by durable id.
+
+    This is a read-only producer. It does not create actions/artifacts and it
+    never asks the model to invent an id. Cards rendered from these fences
+    re-read ActionQueue/ArtifactStore before showing state or controls.
+    """
+    source_ids = {value for value in (conversation_id, user_message_id) if value}
+    project_scope_ids = {str(project_id)} if project_id is not None else set()
+    if project_name:
+        project_scope_ids.add(project_name)
+
+    try:
+        actions = []
+        for row in action_queue.list_actions(limit=50):
+            chat_owned = (
+                row.get("source_kind") == "chat" and row.get("source_id") in source_ids
+            )
+            project_owned = (
+                bool(project_scope_ids)
+                and row.get("scope_type") == "project"
+                and str(row.get("scope_id") or "") in project_scope_ids
+            )
+            if chat_owned or project_owned:
+                actions.append(row)
+                if len(actions) >= _DURABLE_CHAT_OBJECT_LIMIT:
+                    break
+
+        artifacts: list[dict] = []
+        seen_artifacts: set[str] = set()
+        artifact_batches: list[list[dict]] = []
+        if conversation_id:
+            artifact_batches.append(
+                artifact_store.list_artifacts(
+                    conversation_id=conversation_id, limit=_DURABLE_CHAT_OBJECT_LIMIT
+                )
+            )
+        if project_id is not None:
+            artifact_batches.append(
+                artifact_store.list_artifacts(
+                    project_id=project_id, limit=_DURABLE_CHAT_OBJECT_LIMIT
+                )
+            )
+        for batch in artifact_batches:
+            for row in batch:
+                artifact_id = str(row.get("id") or "")
+                if not artifact_id or artifact_id in seen_artifacts:
+                    continue
+                seen_artifacts.add(artifact_id)
+                artifacts.append(row)
+                if len(artifacts) >= _DURABLE_CHAT_OBJECT_LIMIT:
+                    break
+            if len(artifacts) >= _DURABLE_CHAT_OBJECT_LIMIT:
+                break
+    except Exception as exc:
+        logger.warning("durable chat object inventory unavailable: %s", exc)
+        return ""
+
+    if not actions and not artifacts:
+        return ""
+
+    lines = [
+        "## Durable objects available to this chat turn",
+        "The Gateway supplied the exact IDs below. When one is naturally relevant to your answer, "
+        "you may render its live card using the exact fence shown for that object. Never invent, "
+        "guess, alter, or reuse an ID that is not listed here. A fence is only a reference; do not "
+        "claim an action ran or an artifact succeeded unless its supplied state/result says so.",
+    ]
+    if actions:
+        lines.extend(("", "Available actions:"))
+        for row in actions:
+            action_id = int(row["id"])
+            effective_tier = action_queue.effective_risk_tier(str(row.get("kind") or ""))
+            lines.append(
+                f'- {_one_line(row.get("title"))} · status={_one_line(row.get("status"))} '
+                f'· tier={effective_tier or "unavailable"} · exact reference:'
+            )
+            lines.append(f'```kitty-action\n{{"action_id":{action_id}}}\n```')
+    if artifacts:
+        lines.extend(("", "Available artifacts:"))
+        for row in artifacts:
+            artifact_id = str(row["id"])
+            lines.append(
+                f'- {_one_line(row.get("display_name"))} · state={_one_line(row.get("state"))} '
+                f'· media={_one_line(row.get("media_type"))} · exact reference:'
+            )
+            lines.append(
+                "```kitty-artifact\n"
+                + json.dumps({"artifact_id": artifact_id}, ensure_ascii=False, separators=(",", ":"))
+                + "\n```"
+            )
+    return "\n".join(lines)
 
 
 def _message_budget_units(message: dict) -> int:
@@ -547,7 +655,21 @@ async def chat_completions(request: Request):
         )
         assert_not_total_failure(bundle)
         runtime_system = compact_runtime_context(runtime_manifest)
-        tool_system = "" if caller_supplies_tools else _NO_TOOL_EXECUTOR_SYSTEM
+        project_name = (
+            manifest_project.get("name")
+            if isinstance(manifest_project, dict) and isinstance(manifest_project.get("name"), str)
+            else None
+        )
+        durable_object_system = _durable_chat_object_system(
+            conversation_id=conversation_id,
+            user_message_id=user_message_id,
+            project_id=scoped_project_id,
+            project_name=project_name,
+        )
+        tool_parts = [] if caller_supplies_tools else [_NO_TOOL_EXECUTOR_SYSTEM]
+        if durable_object_system:
+            tool_parts.append(durable_object_system)
+        tool_system = "\n\n".join(tool_parts)
         enriched, final_budget_warnings = _fit_final_model_messages(
             bundle_system=bundle.system,
             runtime_system=runtime_system,

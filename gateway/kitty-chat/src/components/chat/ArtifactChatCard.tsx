@@ -17,7 +17,8 @@ export function ArtifactChatCard({ artifactId, isMobile }: { artifactId: string;
   }
 
   const item = artifact.data
-  const previewable = canPreviewArtifact(item)
+  const failed = item.state === 'failed'
+  const previewable = !failed && canPreviewArtifact(item)
 
   return (
     <>
@@ -30,7 +31,9 @@ export function ArtifactChatCard({ artifactId, isMobile }: { artifactId: string;
             <div style={metaStyle}>{item.media_type} · {formatBytes(item.size_bytes)} · {item.state}</div>
           </div>
         </div>
-        {previewable ? (
+        {failed ? (
+          <div role="alert" style={errorStyle}>{item.error || 'Artifact processing failed.'}</div>
+        ) : previewable ? (
           <button type="button" aria-label="Open artifact" onClick={() => setOpen(true)} style={buttonStyle}>
             <Maximize2 size={14} /> Open
           </button>
@@ -55,4 +58,5 @@ const headerStyle: CSSProperties = { display: 'flex', gap: 10, alignItems: 'flex
 const eyebrowStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-secondary)' }
 const titleStyle: CSSProperties = { marginTop: 3, fontSize: 15, fontWeight: 750, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
 const metaStyle: CSSProperties = { marginTop: 4, fontSize: 11, color: 'var(--color-text-secondary)' }
+const errorStyle: CSSProperties = { fontSize: 12, lineHeight: 1.4, color: 'var(--color-destructive)', overflowWrap: 'anywhere' }
 const buttonStyle: CSSProperties = { minHeight: 44, justifySelf: 'start', border: '1px solid var(--color-separator)', borderRadius: 9, padding: '8px 13px', background: 'var(--color-surface)', color: 'var(--color-text-primary)', display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 650 }

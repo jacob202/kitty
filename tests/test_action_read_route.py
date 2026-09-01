@@ -45,3 +45,28 @@ def test_missing_action_read_is_404(client):
 
     assert response.status_code == 404
     assert "no action" in response.json()["detail"].lower()
+
+
+def test_read_action_reports_current_effective_tier(client, monkeypatch):
+    proposed = client.post(
+        "/actions/propose",
+        json={
+            "source_kind": "chat",
+            "kind": "todo.create",
+            "title": "Add follow-up",
+            "preview": "Create the follow-up todo",
+            "payload": {"content": "Call Alex tomorrow"},
+        },
+    ).json()
+    assert proposed["risk_tier"] == "T0"
+
+    registry = dict(action_queue._registry())
+    _, executor = registry["todo.create"]
+    registry["todo.create"] = ("T2", executor)
+    monkeypatch.setattr(action_queue, "_REGISTRY", registry)
+
+    response = client.get(f"/actions/{proposed['id']}")
+
+    assert response.status_code == 200
+    assert response.json()["risk_tier"] == "T0"
+    assert response.json()["effective_risk_tier"] == "T2"

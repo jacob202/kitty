@@ -33,4 +33,16 @@ describe('ArtifactChatCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open artifact' }))
     expect(screen.getByRole('dialog', { name: 'research-report.md' })).toBeInTheDocument()
   })
+
+  it('shows the recorded failure reason for failed artifacts', () => {
+    vi.mocked(useArtifact).mockReturnValue({
+      data: { ...artifact, state: 'failed', error: 'PDF conversion failed' },
+      isLoading: false, isError: false,
+    } as never)
+    render(<ArtifactChatCard artifactId="artifact_1" isMobile={false} />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('PDF conversion failed')
+    expect(screen.queryByText(/Preview unavailable/i)).not.toBeInTheDocument()
+  })
+
 })
