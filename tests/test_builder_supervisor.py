@@ -269,7 +269,7 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
         result = bs._launch_run(packet, repo_root=repo, db_path=db_path)
 
     argv = popen.call_args.args[0]
-    assert argv == [str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1", "--json"]
+    assert argv == [str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1", "--free", "--json"]
     assert popen.call_args.kwargs["start_new_session"] is True
     assert popen.call_args.kwargs["shell"] is False
     assert len(popen.call_args.kwargs["pass_fds"]) == 1
