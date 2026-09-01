@@ -79,6 +79,36 @@ describe('CommandPalette', () => {
     expect(screen.queryByText('builder')).not.toBeInTheDocument()
   })
 
+  it('shows capability discovery details and retries the live catalog', async () => {
+    vi.mocked(fetchCapabilities)
+      .mockResolvedValueOnce({ capabilities: [], fromLiveGateway: false, error: 'Gateway 503: catalog unavailable' } as never)
+      .mockResolvedValueOnce({
+        capabilities: [{ id: 'image-lab', label: 'image lab', description: 'Create images.', category: 'create', launch: 'view', view: 'studio' }],
+        fromLiveGateway: true,
+        error: null,
+      } as never)
+
+    render(
+      <CommandPalette
+        chats={[]}
+        onNewChat={vi.fn()}
+        onSelectChat={vi.fn()}
+        onViewChange={vi.fn()}
+        onToggleSidebar={vi.fn()}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByText('live capabilities unavailable — navigation fallback shown.')).toBeVisible()
+    expect(screen.getByText('Gateway 503: catalog unavailable')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('technical details'))
+    expect(screen.getByText('Gateway 503: catalog unavailable')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'retry capabilities' }))
+    expect(await screen.findByText('image lab')).toBeVisible()
+    expect(fetchCapabilities).toHaveBeenCalledTimes(2)
+  })
+
   it('shows canonical Kitty search results while typing', async () => {
     vi.mocked(fetchGatewaySearch).mockResolvedValue({
       snapshot: null,
