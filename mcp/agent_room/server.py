@@ -12,7 +12,13 @@ def _client_identity() -> str:
     identity = os.environ.get("KITTY_AGENT_ROOM_IDENTITY", "").strip()
     if not identity:
         raise RuntimeError("KITTY_AGENT_ROOM_IDENTITY must name this MCP client")
-    return agent_workspace.validate_global_participant(identity)
+    identity = agent_workspace.validate_global_participant(identity)
+    if agent_workspace.global_sender_kind(identity) != "agent":
+        allowed = ", ".join(agent["id"] for agent in agent_workspace.GLOBAL_AGENTS)
+        raise agent_workspace.AgentWorkspaceError(
+            f"MCP identity must be one of: {allowed}"
+        )
+    return identity
 
 
 def _server_host() -> str:

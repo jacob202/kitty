@@ -113,3 +113,10 @@ def test_streamable_http_refuses_public_bind(monkeypatch: pytest.MonkeyPatch, ro
         server.main()
 
     assert instance.run_calls == []
+
+
+def test_user_identity_is_not_valid_for_agent_mcp(monkeypatch, room_db):
+    with pytest.raises(
+        agent_workspace.AgentWorkspaceError, match="MCP identity must be one of"
+    ):
+        _load_server(monkeypatch, "jacob")
