@@ -49,6 +49,22 @@ DEFAULT_AGENTS: tuple[dict[str, str], ...] = (
     },
 )
 
+GLOBAL_WORKSPACE_ID = "workspace_global"
+GLOBAL_WORKSPACE_NAME = "Global Agent Room"
+GLOBAL_WORKSPACE_OBJECTIVE = (
+    "Shared durable coordination for Jacob, ChatGPT, Claude, Codex, Kitty, and authorized agents."
+)
+GLOBAL_AGENTS: tuple[dict[str, str | None], ...] = (
+    {"id": "chatgpt", "display_name": "ChatGPT", "role": "external", "model": None},
+    {"id": "claude", "display_name": "Claude", "role": "external", "model": None},
+    {"id": "codex", "display_name": "Codex", "role": "external", "model": None},
+    {"id": "kitty", "display_name": "Kitty", "role": "principal", "model": None},
+)
+_GLOBAL_AGENT_IDS = frozenset(agent["id"] for agent in GLOBAL_AGENTS)
+_GLOBAL_USER_IDS = frozenset({"jacob"})
+_GLOBAL_PARTICIPANT_IDS = _GLOBAL_AGENT_IDS | _GLOBAL_USER_IDS
+_RECEIPT_STATES = {"seen", "acknowledged"}
+
 _SENDER_KINDS = {"user", "agent", "system"}
 _MESSAGE_KINDS = {"prompt", "plan", "handoff", "review", "result", "status"}
 _TURN_STATUSES = {"running", "completed", "failed", "interrupted"}
@@ -120,6 +136,286 @@ def create_workspace(*, name: str, objective: str | None) -> dict[str, Any]:
         )
         conn.commit()
     return get_workspace(workspace_id)
+
+
+def ensure_global_workspace() -> dict[str, Any]:
+    """Create the one canonical global room and roster exactly once."""
+    init_db()
+    now = time.time()
+    created = False
+    with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT 1 FROM agent_workspaces WHERE id = ?", (GLOBAL_WORKSPACE_ID,)
+        ).fetchone()
+        if row is None:
+            conn.execute(
+                """
+                INSERT INTO agent_workspaces
+                    (id, name, objective, status, created_at, updated_at)
+                VALUES (?, ?, ?, 'active', ?, ?)
+                """,
+                (
+                    GLOBAL_WORKSPACE_ID,
+                    GLOBAL_WORKSPACE_NAME,
+                    GLOBAL_WORKSPACE_OBJECTIVE,
+                    now,
+                    now,
+                ),
+            )
+            created = True
+        for agent in GLOBAL_AGENTS:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO agent_workspace_agents
+                    (workspace_id, agent_id, display_name, role, model, status,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'available', ?, ?)
+                """,
+                (
+                    GLOBAL_WORKSPACE_ID,
+                    agent["id"],
+                    agent["display_name"],
+                    agent["role"],
+                    agent["model"],
+                    now,
+                    now,
+                ),
+            )
+        if created:
+            _append_event(
+                conn,
+                workspace_id=GLOBAL_WORKSPACE_ID,
+                event_type="workspace_created",
+                actor_kind="system",
+                actor_id="gateway",
+                metadata={"agent_ids": [agent["id"] for agent in GLOBAL_AGENTS]},
+                now=now,
+            )
+        conn.commit()
+    return get_workspace(GLOBAL_WORKSPACE_ID)
+
+
+def global_sender_kind(participant_id: str) -> str:
+    participant_id = _required_text(participant_id, "participant_id", 200)
+    if participant_id in _GLOBAL_USER_IDS:
+        return "user"
+    if participant_id in _GLOBAL_AGENT_IDS:
+        return "agent"
+    raise AgentWorkspaceError(f"unknown global participant {participant_id}")
+
+
+def validate_global_participant(participant_id: str) -> str:
+    participant_id = _required_text(participant_id, "participant_id", 200)
+    if participant_id not in _GLOBAL_PARTICIPANT_IDS:
+        raise AgentWorkspaceError(f"unknown global participant {participant_id}")
+    return participant_id
+
+
+def post_global_message(
+    *,
+    sender_id: str,
+    content: str,
+    message_kind: str,
+    recipient_id: str | None = None,
+    parent_message_id: str | None = None,
+) -> dict[str, Any]:
+    ensure_global_workspace()
+    sender_id = validate_global_participant(sender_id)
+    if recipient_id is not None:
+        recipient_id = validate_global_participant(recipient_id)
+    return append_message(
+        GLOBAL_WORKSPACE_ID,
+        sender_kind=global_sender_kind(sender_id),
+        sender_id=sender_id,
+        recipient_id=recipient_id,
+        content=content,
+        message_kind=message_kind,
+        parent_message_id=parent_message_id,
+    )
+
+
+def _global_participant_joined_at(conn: Any, participant_id: str) -> float:
+    if participant_id in _GLOBAL_USER_IDS:
+        row = conn.execute(
+            "SELECT created_at FROM agent_workspaces WHERE id = ?",
+            (GLOBAL_WORKSPACE_ID,),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            """
+            SELECT created_at FROM agent_workspace_agents
+            WHERE workspace_id = ? AND agent_id = ?
+            """,
+            (GLOBAL_WORKSPACE_ID, participant_id),
+        ).fetchone()
+    if row is None:
+        raise AgentWorkspaceError(f"unknown global participant {participant_id}")
+    return float(row["created_at"])
+
+
+def _with_receipt_state(row: Any) -> dict[str, Any]:
+    result = dict(row)
+    if result.get("acknowledged_at") is not None:
+        result["receipt_state"] = "acknowledged"
+    elif result.get("seen_at") is not None:
+        result["receipt_state"] = "seen"
+    else:
+        result["receipt_state"] = "sent"
+    return result
+
+
+def list_inbox(
+    participant_id: str, *, unread_only: bool = False, limit: int = 100
+) -> list[dict[str, Any]]:
+    participant_id = validate_global_participant(participant_id)
+    if not isinstance(unread_only, bool):
+        raise AgentWorkspaceError("unread_only must be a boolean")
+    if isinstance(limit, bool) or limit <= 0 or limit > 500:
+        raise AgentWorkspaceError("limit must be between 1 and 500")
+    ensure_global_workspace()
+    with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
+        joined_at = _global_participant_joined_at(conn, participant_id)
+        rows = conn.execute(
+            """
+            SELECT m.*, r.seen_at, r.acknowledged_at
+            FROM agent_workspace_messages AS m
+            LEFT JOIN agent_workspace_message_receipts AS r
+              ON r.message_id = m.id AND r.participant_id = ?
+            WHERE m.workspace_id = ?
+              AND m.sender_id <> ?
+              AND m.created_at >= ?
+              AND (m.recipient_id = ? OR m.recipient_id IS NULL)
+              AND (? = 0 OR r.seen_at IS NULL)
+            ORDER BY m.created_at DESC, m.id DESC
+            LIMIT ?
+            """,
+            (
+                participant_id,
+                GLOBAL_WORKSPACE_ID,
+                participant_id,
+                joined_at,
+                participant_id,
+                1 if unread_only else 0,
+                limit,
+            ),
+        ).fetchall()
+    return [_with_receipt_state(row) for row in reversed(rows)]
+
+
+def record_receipt(
+    message_id: str, participant_id: str, state: str
+) -> dict[str, Any]:
+    message_id = _required_text(message_id, "message_id", 200)
+    participant_id = validate_global_participant(participant_id)
+    state = _required_text(state, "state", 30)
+    if state not in _RECEIPT_STATES:
+        raise AgentWorkspaceError(f"state must be one of {sorted(_RECEIPT_STATES)}")
+    ensure_global_workspace()
+    now = time.time()
+    with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        message = conn.execute(
+            "SELECT * FROM agent_workspace_messages WHERE id = ? AND workspace_id = ?",
+            (message_id, GLOBAL_WORKSPACE_ID),
+        ).fetchone()
+        if message is None:
+            raise AgentWorkspaceError(f"message {message_id} does not belong to global room")
+        joined_at = _global_participant_joined_at(conn, participant_id)
+        addressed = (
+            message["sender_id"] != participant_id
+            and float(message["created_at"]) >= joined_at
+            and (message["recipient_id"] is None or message["recipient_id"] == participant_id)
+        )
+        if not addressed:
+            raise AgentWorkspaceError(
+                f"message {message_id} is not addressed to participant {participant_id}"
+            )
+        if state == "seen":
+            conn.execute(
+                """
+                INSERT INTO agent_workspace_message_receipts
+                    (message_id, participant_id, seen_at, acknowledged_at)
+                VALUES (?, ?, ?, NULL)
+                ON CONFLICT(message_id, participant_id) DO UPDATE SET
+                    seen_at = COALESCE(agent_workspace_message_receipts.seen_at, excluded.seen_at)
+                """,
+                (message_id, participant_id, now),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO agent_workspace_message_receipts
+                    (message_id, participant_id, seen_at, acknowledged_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(message_id, participant_id) DO UPDATE SET
+                    seen_at = COALESCE(agent_workspace_message_receipts.seen_at, excluded.seen_at),
+                    acknowledged_at = COALESCE(
+                        agent_workspace_message_receipts.acknowledged_at, excluded.acknowledged_at
+                    )
+                """,
+                (message_id, participant_id, now, now),
+            )
+        conn.commit()
+        row = conn.execute(
+            """
+            SELECT message_id, participant_id, seen_at, acknowledged_at
+            FROM agent_workspace_message_receipts
+            WHERE message_id = ? AND participant_id = ?
+            """,
+            (message_id, participant_id),
+        ).fetchone()
+    assert row is not None
+    return _with_receipt_state(row)
+
+
+def list_thread(message_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
+    message_id = _required_text(message_id, "message_id", 200)
+    if isinstance(limit, bool) or limit <= 0 or limit > 500:
+        raise AgentWorkspaceError("limit must be between 1 and 500")
+    ensure_global_workspace()
+    with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
+        current = conn.execute(
+            "SELECT * FROM agent_workspace_messages WHERE id = ? AND workspace_id = ?",
+            (message_id, GLOBAL_WORKSPACE_ID),
+        ).fetchone()
+        if current is None:
+            raise AgentWorkspaceError(f"message {message_id} does not belong to global room")
+        visited: set[str] = set()
+        while current["parent_message_id"] is not None:
+            current_id = str(current["id"])
+            if current_id in visited:
+                raise AgentWorkspaceError(f"message {message_id} has a cyclic parent chain")
+            visited.add(current_id)
+            parent_id = str(current["parent_message_id"])
+            current = conn.execute(
+                "SELECT * FROM agent_workspace_messages WHERE id = ? AND workspace_id = ?",
+                (parent_id, GLOBAL_WORKSPACE_ID),
+            ).fetchone()
+            if current is None:
+                raise AgentWorkspaceError(
+                    f"parent message {parent_id} does not belong to global room"
+                )
+        root_id = str(current["id"])
+        rows = conn.execute(
+            """
+            WITH RECURSIVE thread_ids(id) AS (
+                SELECT ?
+                UNION ALL
+                SELECT m.id
+                FROM agent_workspace_messages AS m
+                JOIN thread_ids AS t ON m.parent_message_id = t.id
+                WHERE m.workspace_id = ?
+            )
+            SELECT m.*
+            FROM agent_workspace_messages AS m
+            JOIN thread_ids AS t ON t.id = m.id
+            ORDER BY m.created_at ASC, m.id ASC
+            LIMIT ?
+            """,
+            (root_id, GLOBAL_WORKSPACE_ID, limit),
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def get_workspace(workspace_id: str) -> dict[str, Any]:
