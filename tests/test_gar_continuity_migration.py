@@ -28,11 +28,11 @@ def _canonical_worktree() -> Path:
     return Path(first).resolve()
 
 
-def test_gar_first_receipt_does_not_load_legacy_checkpoints(monkeypatch):
-    def fail_if_loaded(*_args, **_kwargs):
-        raise AssertionError("legacy checkpoint loader must be skipped")
+def test_gar_first_receipt_makes_legacy_checkpoint_failures_non_blocking(monkeypatch):
+    def malformed_checkpoint(*_args, **_kwargs):
+        raise ValueError("synthetic malformed legacy checkpoint")
 
-    monkeypatch.setattr(cr, "_load_checkpoint", fail_if_loaded)
+    monkeypatch.setattr(cr._legacy, "_load_checkpoint", malformed_checkpoint)
     inspection = cr.inspect_continuity(
         ROOT,
         expected_canonical=_canonical_worktree(),
@@ -43,6 +43,7 @@ def test_gar_first_receipt_does_not_load_legacy_checkpoints(monkeypatch):
     assert inspection["handoff"] is None
     assert not any(
         check.name.startswith(("state:", "handoff:", "checkpoint:"))
+        or check.name == "mission:active_state"
         for check in inspection["checks"]
     )
 
