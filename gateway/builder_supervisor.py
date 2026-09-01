@@ -128,10 +128,18 @@ def _pid_alive(pid: object) -> bool:
 def _read_replenisher_receipt(db_path: Path | None = None) -> dict[str, Any] | None:
     path = replenisher_receipt_path(db_path)
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
         return None
-    return data if isinstance(data, dict) else None
+    except OSError as exc:
+        raise SupervisorError(f"replenisher receipt unreadable: {type(exc).__name__}") from exc
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise SupervisorError("replenisher receipt contains invalid JSON") from exc
+    if not isinstance(data, dict):
+        raise SupervisorError("replenisher receipt must contain a JSON object")
+    return data
 
 
 def _write_replenisher_receipt(receipt: dict[str, Any], db_path: Path | None = None) -> None:
@@ -177,13 +185,16 @@ def replenishment_projection(
     }
     if not needed:
         return {**base, "reason": "runway_healthy"}
-    receipt = _read_replenisher_receipt(db_path)
+    try:
+        receipt = _read_replenisher_receipt(db_path)
+    except SupervisorError as exc:
+        return {**base, "reason": "receipt_unreadable", "error": str(exc)}
     if receipt and _pid_alive(receipt.get("pid")):
         return {**base, "reason": "author_in_flight", "pid": int(receipt["pid"])}
     try:
         configured = _trusted_slate_author_argv(repo_root)
-    except SupervisorError:
-        return {**base, "reason": "invalid_author_config"}
+    except SupervisorError as exc:
+        return {**base, "reason": "invalid_author_config", "error": str(exc)}
     if configured is None:
         return {**base, "reason": "no_author_configured"}
     return {**base, "reason": "author_ready", "executable": configured[1]}

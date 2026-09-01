@@ -191,15 +191,15 @@ def _classify_builder_status(
                     buckets, "running", initiative_id=initiative_id,
                     packet_id=packet_id, task_id=task_id,
                 )
-        elif packet_id in pending:
-            _append(
-                buckets, "pending_backend", initiative_id=initiative_id,
-                packet_id=packet_id, task_id=task_id, reason="dependency_wait",
-            )
         elif initiative.get("state") == bi.INITIATIVE_PAUSED:
             _append(
                 buckets, "collision_held", initiative_id=initiative_id,
                 packet_id=packet_id, task_id=task_id, reason="initiative_paused",
+            )
+        elif packet_id in pending:
+            _append(
+                buckets, "pending_backend", initiative_id=initiative_id,
+                packet_id=packet_id, task_id=task_id, reason="dependency_wait",
             )
         else:
             _append(

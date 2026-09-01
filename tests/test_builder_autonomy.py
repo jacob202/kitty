@@ -326,3 +326,22 @@ def test_usable_builder_runway_excludes_interactive_held_and_operator_blocked() 
         }
     }
     assert aut.usable_builder_runway(runway) == 6
+
+
+def test_paused_pending_packets_do_not_inflate_usable_runway(monkeypatch) -> None:
+    gates = [{"id": "paused", "state": bi.INITIATIVE_PAUSED, "superseded_by": None}]
+    status = _status(
+        pending=["p1", "p2"],
+        evidence={
+            "p1": {"task_id": "t1", "current_state": "queued", "review_approved": False, "pr_opened": False},
+            "p2": {"task_id": "t2", "current_state": "queued", "review_approved": False, "pr_opened": False},
+        },
+    )
+    monkeypatch.setattr(aut.bi, "list_initiative_gates", lambda _db=None: gates)
+    monkeypatch.setattr(aut.bi, "initiative_status", lambda iid, db_path=None: status)
+
+    runway = aut.runway_snapshot()
+
+    assert runway["counts"]["pending_backend"] == 0
+    assert runway["counts"]["collision_held"] == 2
+    assert aut.usable_builder_runway(runway) == 0

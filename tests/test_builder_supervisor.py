@@ -900,6 +900,7 @@ def test_replenishment_rejects_author_outside_trusted_repo(repo: Path, db_path: 
     assert result["replenishment_needed"] is True
     assert result["launched"] is False
     assert result["reason"] == "invalid_author_config"
+    assert result["error"] == "slate author executable must live inside the trusted repo"
 
 
 def test_replenishment_is_single_flight_and_receipt_redacts_argv(repo: Path, db_path: Path, monkeypatch) -> None:
@@ -924,10 +925,12 @@ def test_replenishment_is_single_flight_and_receipt_redacts_argv(repo: Path, db_
         assert receipt["executable"] == "scripts/author.sh"
         assert "do-not-log" not in json.dumps(receipt)
     finally:
-        try:
-            os.kill(int(first.get("pid") or 0), 9)
-        except (OSError, ValueError):
-            pass
+        pid = first.get("pid")
+        if isinstance(pid, int) and not isinstance(pid, bool) and pid > 0:
+            try:
+                os.kill(pid, 9)
+            except OSError:
+                pass
 
 
 def test_replenishment_healthy_never_launches(repo: Path, db_path: Path, monkeypatch) -> None:
@@ -940,3 +943,31 @@ def test_replenishment_healthy_never_launches(repo: Path, db_path: Path, monkeyp
         "usable_runway": 6,
         "target": 6,
     }
+
+
+def test_replenishment_fails_closed_on_malformed_existing_receipt(repo: Path, db_path: Path, monkeypatch) -> None:
+    scripts = repo / "scripts"
+    scripts.mkdir()
+    author = scripts / "author.sh"
+    author.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    author.chmod(0o755)
+    monkeypatch.setenv(bs.SLATE_AUTHOR_ARGV_ENV, json.dumps(["scripts/author.sh"]))
+    receipt = bs.replenisher_receipt_path(db_path)
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    receipt.write_text("{not-json", encoding="utf-8")
+
+    result = bs.replenish_runway_if_needed(usable_runway=0, target=6, repo_root=repo, db_path=db_path)
+
+    assert result["launched"] is False
+    assert result["reason"] == "receipt_unreadable"
+    assert "invalid JSON" in result["error"]
+
+
+def test_replenishment_preserves_safe_author_config_error(repo: Path, db_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv(bs.SLATE_AUTHOR_ARGV_ENV, "not-json")
+
+    result = bs.replenish_runway_if_needed(usable_runway=0, target=6, repo_root=repo, db_path=db_path)
+
+    assert result["launched"] is False
+    assert result["reason"] == "invalid_author_config"
+    assert result["error"] == "slate author argv must be valid JSON"
