@@ -1,0 +1,75 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-opens-the-doors-20260831-v3",
+  "title": "Kitty tells the truth about life context and nudges",
+  "description": "Third immutable backend wave. These packets preserve existing list-style internal APIs while making user-facing projections distinguish healthy-empty from source failure. Exact paths were checked against all open PRs on 2026-08-31 and had no ownership collision.",
+  "base_sha": "f5b2f38c098dcdd7f46d1d58abb672ef15b75c5f",
+  "packets": [
+    {
+      "manifest": {
+        "id": "KF-LIFE-01",
+        "title": "Life awareness distinguishes an empty calendar from an unavailable one",
+        "objective": "gateway/life_awareness.py today_events() intentionally returns a list and currently returns [] both when the calendar is available with zero events and when calendar_integration.is_available() is false. Preserve today_events() compatibility, but add one bounded source-health seam so today_summary(), do_not_disturb_status(), and morning_proactive() carry explicit calendar availability/state alongside the existing events/event_count fields. Update gateway/routes/life.py only as needed so /life/check exposes that same truth. Do not infer that the user is free merely because the calendar source is unavailable; existing booleans may remain for compatibility only when accompanied by explicit availability metadata. Do not add a store, migration, scheduler, provider, or frontend change. This packet creates no new files.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "When calendar integration is available and returns no events, life projections report calendar available/healthy and event_count 0.",
+          "When calendar integration is unavailable, life projections explicitly report the calendar source unavailable/degraded instead of presenting the empty event list as healthy truth.",
+          "today_events() remains a list-returning compatibility API for existing callers.",
+          "do_not_disturb_status(), today_summary(), and morning_proactive() expose the same calendar source truth; /life/check carries it through without fabricating an event or meeting.",
+          "Existing meeting detection, life-step suggestions, cache invalidation, and generated-text fallbacks remain compatible.",
+          "python -m pytest -q tests/test_life_awareness.py passes."
+        ],
+        "allowed_paths": [
+          "gateway/life_awareness.py",
+          "gateway/routes/life.py",
+          "tests/test_life_awareness.py"
+        ],
+        "policy": {
+          "max_attempts": 2,
+          "priority": 40
+        },
+        "validation_commands": [
+          "python -m pytest -q tests/test_life_awareness.py",
+          "python -m ruff check gateway/life_awareness.py gateway/routes/life.py tests/test_life_awareness.py"
+        ]
+      },
+      "finding": "today_events() maps calendar unavailable to [], and today_summary/DND/morning projections currently have no source-health field, so unavailable and genuinely empty are observationally identical.",
+      "stop": "If truthful source state requires changing calendar_integration itself, app.py, life_cron.py, or a frontend surface, stop and report that dependency instead.",
+      "recovery": "Read/projection contract plus tests only; no durable product data changes."
+    },
+    {
+      "manifest": {
+        "id": "KF-NUDGE-01",
+        "title": "Nudges distinguish healthy silence from detector failure",
+        "objective": "gateway/nudge.py check() is a widely used list-returning API, but each detector catches exceptions and returns [], making detector failure indistinguishable from no applicable nudges. Preserve check() and get_pending() compatibility for app/context callers. Add a bounded status/projection API that runs the same detectors while reporting per-source failure/degradation without fabricating nudges, then have GET /nudges in gateway/routes/integrations.py return that truthful status while retaining the existing nudges key. Dismissal semantics and deterministic nudge ids must remain unchanged. Do not add a store, migration, scheduler, provider, or frontend change. This packet creates no new files.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Healthy detectors with no applicable nudges produce nudges: [] and an explicitly healthy source status.",
+          "If one detector fails, healthy detector results are still returned and the response identifies the failed/degraded detector rather than claiming healthy emptiness.",
+          "check() and get_pending() remain list-returning compatibility APIs for existing app and context-enrichment callers.",
+          "GET /nudges retains a nudges key and adds bounded degradation/error metadata sourced from the nudge engine.",
+          "Dismissed nudges remain filtered, deterministic ids remain stable, and detector failure never creates a fake nudge.",
+          "python -m pytest -q tests/test_nudge.py tests/test_integrations_routes.py tests/test_signals_emitters.py passes."
+        ],
+        "allowed_paths": [
+          "gateway/nudge.py",
+          "gateway/routes/integrations.py",
+          "tests/test_nudge.py",
+          "tests/test_integrations_routes.py",
+          "tests/test_signals_emitters.py"
+        ],
+        "policy": {
+          "max_attempts": 2,
+          "priority": 35
+        },
+        "validation_commands": [
+          "python -m pytest -q tests/test_nudge.py tests/test_integrations_routes.py tests/test_signals_emitters.py",
+          "python -m ruff check gateway/nudge.py gateway/routes/integrations.py tests/test_nudge.py tests/test_integrations_routes.py tests/test_signals_emitters.py"
+        ]
+      },
+      "finding": "All three nudge detector paths collapse internal exceptions to [], so check() and GET /nudges cannot tell healthy silence from partial detector failure.",
+      "stop": "If source health requires changing app startup or adding durable health storage, stop; this packet is an in-process projection/transport repair only.",
+      "recovery": "Read/projection behavior plus tests only; existing dismissal JSON remains untouched."
+    }
+  ]
+}
