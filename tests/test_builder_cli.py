@@ -1787,13 +1787,13 @@ class TestInitiativePaidPreset:
         assert rc == 0
         kwargs = mock_rp.call_args.kwargs
         assert kwargs["worker"] == "opencode-paid-cheap"
-        assert kwargs["model"] == "openrouter/xiaomi/mimo-v2.5"
+        assert kwargs["model"] == "openrouter/deepseek/deepseek-v4-flash"
         assert kwargs["provider"] == "openrouter"
         assert kwargs["governor_risk_class"] == "routine"
         assert kwargs["adapter_env"]["KITTYBUILDER_AGENT"] == "paid-builder"
         assert kwargs["adapter_env"]["KITTYBUILDER_REVIEW_AGENT"] == "paid-reviewer"
         assert kwargs["adapter_env"]["KITTYBUILDER_MODEL"] == (
-            "openrouter/xiaomi/mimo-v2.5"
+            "openrouter/deepseek/deepseek-v4-flash"
         )
 
     def test_run_packet_frontier_is_explicit_paid_escalation(self):
