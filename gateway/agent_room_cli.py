@@ -61,6 +61,34 @@ def _parser() -> argparse.ArgumentParser:
     ack.add_argument("--as", dest="participant_id", required=True)
     ack.add_argument("message_id")
     _json_flag(ack)
+
+    # Presence subcommands
+    checkin = sub.add_parser("checkin")
+    checkin.add_argument("--as", dest="participant_id", required=True)
+    checkin.add_argument("--session-id", dest="session_id", required=True)
+    checkin.add_argument("--runtime")
+    checkin.add_argument("--role")
+    checkin.add_argument("--lane", dest="lane_id")
+    checkin.add_argument("--ref", dest="exact_ref")
+    checkin.add_argument("--summary")
+    checkin.add_argument("--status", dest="declared_status")
+    _json_flag(checkin)
+
+    heartbeat = sub.add_parser("heartbeat")
+    heartbeat.add_argument("--as", dest="participant_id", required=True)
+    heartbeat.add_argument("--session-id", dest="session_id", required=True)
+    _json_flag(heartbeat)
+
+    checkout = sub.add_parser("checkout")
+    checkout.add_argument("--as", dest="participant_id", required=True)
+    checkout.add_argument("--session-id", dest="session_id", required=True)
+    _json_flag(checkout)
+
+    presence = sub.add_parser("presence")
+    presence.add_argument("--as", dest="participant_id")
+    presence.add_argument("--limit", type=int, default=100)
+    _json_flag(presence)
+
     return parser
 
 
@@ -194,6 +222,30 @@ def _dispatch(args: argparse.Namespace) -> Any:
     if args.command == "ack":
         return agent_workspace.record_receipt(
             args.message_id, args.participant_id, "acknowledged"
+        )
+    if args.command == "checkin":
+        return agent_workspace.check_in(
+            participant_id=args.participant_id,
+            session_id=args.session_id,
+            runtime=args.runtime,
+            role=args.role,
+            lane_id=args.lane_id,
+            exact_ref=args.exact_ref,
+            summary=args.summary,
+            declared_status=args.declared_status,
+        )
+    if args.command == "heartbeat":
+        return agent_workspace.heartbeat(
+            args.session_id, args.participant_id
+        )
+    if args.command == "checkout":
+        return agent_workspace.checkout(
+            args.session_id, args.participant_id
+        )
+    if args.command == "presence":
+        return agent_workspace.list_presence(
+            participant_id=args.participant_id,
+            limit=args.limit,
         )
     raise AgentRoomCliError(f"unsupported command {args.command}")
 

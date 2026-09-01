@@ -169,3 +169,77 @@ def update_global_receipt(message_id: str, request: GlobalReceiptRequest) -> dic
         )
     except agent_workspace.AgentWorkspaceError as exc:
         raise HTTPException(status_code=_global_error_status(exc), detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Presence session endpoints
+# ---------------------------------------------------------------------------
+
+
+class PresenceCheckInRequest(BaseModel):
+    participant_id: str = Field(min_length=1, max_length=200)
+    session_id: str = Field(min_length=1, max_length=200)
+    runtime: str | None = Field(default=None, max_length=100)
+    role: str | None = Field(default=None, max_length=100)
+    lane_id: str | None = Field(default=None, max_length=100)
+    exact_ref: str | None = Field(default=None, max_length=200)
+    summary: str | None = Field(default=None, max_length=6_000)
+    declared_status: str | None = Field(default=None, max_length=50)
+
+
+class PresenceHeartbeatRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=200)
+    participant_id: str = Field(min_length=1, max_length=200)
+
+
+class PresenceCheckoutRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=200)
+    participant_id: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/agent-room/global/presence/checkin", status_code=status.HTTP_201_CREATED)
+def presence_checkin(request: PresenceCheckInRequest) -> dict:
+    try:
+        return agent_workspace.check_in(
+            participant_id=request.participant_id,
+            session_id=request.session_id,
+            runtime=request.runtime,
+            role=request.role,
+            lane_id=request.lane_id,
+            exact_ref=request.exact_ref,
+            summary=request.summary,
+            declared_status=request.declared_status,
+        )
+    except agent_workspace.AgentWorkspaceError as exc:
+        raise HTTPException(status_code=_global_error_status(exc), detail=str(exc)) from exc
+
+
+@router.post("/agent-room/global/presence/heartbeat")
+def presence_heartbeat(request: PresenceHeartbeatRequest) -> dict:
+    try:
+        return agent_workspace.heartbeat(
+            request.session_id, request.participant_id
+        )
+    except agent_workspace.AgentWorkspaceError as exc:
+        raise HTTPException(status_code=_global_error_status(exc), detail=str(exc)) from exc
+
+
+@router.post("/agent-room/global/presence/checkout")
+def presence_checkout(request: PresenceCheckoutRequest) -> dict:
+    try:
+        return agent_workspace.checkout(
+            request.session_id, request.participant_id
+        )
+    except agent_workspace.AgentWorkspaceError as exc:
+        raise HTTPException(status_code=_global_error_status(exc), detail=str(exc)) from exc
+
+
+@router.get("/agent-room/global/presence")
+def get_presence(
+    participant_id: str | None = Query(default=None, min_length=1, max_length=200),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict:
+    try:
+        return {"presence": agent_workspace.list_presence(participant_id, limit=limit)}
+    except agent_workspace.AgentWorkspaceError as exc:
+        raise HTTPException(status_code=_global_error_status(exc), detail=str(exc)) from exc

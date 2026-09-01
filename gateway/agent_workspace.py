@@ -59,11 +59,19 @@ GLOBAL_AGENTS: tuple[dict[str, str | None], ...] = (
     {"id": "claude", "display_name": "Claude", "role": "external", "model": None},
     {"id": "codex", "display_name": "Codex", "role": "external", "model": None},
     {"id": "kitty", "display_name": "Kitty", "role": "principal", "model": None},
+    {"id": "dsh", "display_name": "DSH", "role": "principal", "model": None},
 )
 _GLOBAL_AGENT_IDS = frozenset(agent["id"] for agent in GLOBAL_AGENTS)
 _GLOBAL_USER_IDS = frozenset({"jacob"})
 _GLOBAL_PARTICIPANT_IDS = _GLOBAL_AGENT_IDS | _GLOBAL_USER_IDS
+# Retired participants can read and have receipts recorded but cannot send new
+# messages or be addressed in new posts. Claude is retired for active routing
+# while remaining a valid historical participant.
+_RETIRED_PARTICIPANT_IDS: frozenset[str] = frozenset({"claude"})
+_ACTIVE_SENDER_IDS = _GLOBAL_PARTICIPANT_IDS - _RETIRED_PARTICIPANT_IDS
 _RECEIPT_STATES = {"seen", "acknowledged"}
+
+PRESENCE_TTL: float = 120.0  # seconds; heartbeat age determines active vs stale
 
 _SENDER_KINDS = {"user", "agent", "system"}
 _MESSAGE_KINDS = {"prompt", "plan", "handoff", "review", "result", "status"}
@@ -206,9 +214,21 @@ def global_sender_kind(participant_id: str) -> str:
 
 
 def validate_global_participant(participant_id: str) -> str:
+    """Accept any known participant, including retired ones (for reads/receipts)."""
     participant_id = _required_text(participant_id, "participant_id", 200)
     if participant_id not in _GLOBAL_PARTICIPANT_IDS:
         raise AgentWorkspaceError(f"unknown global participant {participant_id}")
+    return participant_id
+
+
+def validate_active_participant(participant_id: str) -> str:
+    """Accept only active (non-retired) participants for sending/addressing."""
+    participant_id = validate_global_participant(participant_id)
+    if participant_id in _RETIRED_PARTICIPANT_IDS:
+        raise AgentWorkspaceError(
+            f"participant {participant_id} is retired and cannot be used for "
+            f"active routing"
+        )
     return participant_id
 
 
@@ -221,9 +241,9 @@ def post_global_message(
     parent_message_id: str | None = None,
 ) -> dict[str, Any]:
     ensure_global_workspace()
-    sender_id = validate_global_participant(sender_id)
+    sender_id = validate_active_participant(sender_id)
     if recipient_id is not None:
-        recipient_id = validate_global_participant(recipient_id)
+        recipient_id = validate_active_participant(recipient_id)
     return append_message(
         GLOBAL_WORKSPACE_ID,
         sender_kind=global_sender_kind(sender_id),
@@ -1373,6 +1393,290 @@ def _model_context(workspace_id: str) -> list[dict[str, Any]]:
         for message in messages
     )
     return context
+
+
+# ---------------------------------------------------------------------------
+# Session presence – explicit durable checkin/heartbeat/checkout
+# ---------------------------------------------------------------------------
+
+_VALID_DECLARED_STATUSES = frozenset({"active", "idle", "blocked", "ending"})
+_VALID_ROLES = frozenset({"OWN", "REVIEW", "INTEGRATE", "DEPENDENCY"})
+
+_MAX_SUMMARY_LENGTH = 6_000
+
+
+def _compute_presence_state(
+    *,
+    ended_at: float | None,
+    heartbeat_at: float,
+    now: float | None = None,
+) -> str:
+    """Derive presence_state from the row data, never store it directly.
+
+    Deterministic threshold: ended_at wins, then heartbeat age vs TTL.
+    """
+    if ended_at is not None:
+        return "ended"
+    age = (now if now is not None else time.time()) - heartbeat_at
+    return "active" if age < PRESENCE_TTL else "stale"
+
+
+def check_in(
+    *,
+    participant_id: str,
+    session_id: str,
+    runtime: str | None = None,
+    role: str | None = None,
+    lane_id: str | None = None,
+    exact_ref: str | None = None,
+    summary: str | None = None,
+    declared_status: str | None = None,
+) -> dict[str, Any]:
+    """Upsert a presence session record. Rejects retired participants.
+
+    A duplicate session_id from a different participant_id is rejected.
+    started_at is set once on creation and never overwritten by heartbeat.
+    """
+    participant_id = validate_active_participant(participant_id)
+    session_id = _required_text(session_id, "session_id", 200)
+    if runtime is not None:
+        runtime = _bounded_text(runtime, "runtime", 100)
+    if role is not None:
+        role = _bounded_text(role, "role", 50)
+        if role not in _VALID_ROLES:
+            raise AgentWorkspaceError(
+                f"role must be one of {sorted(_VALID_ROLES)}"
+            )
+    if lane_id is not None:
+        lane_id = _bounded_text(lane_id, "lane_id", 100)
+    if exact_ref is not None:
+        exact_ref = _bounded_text(exact_ref, "exact_ref", 200)
+    if summary is not None:
+        summary = _bounded_text(summary, "summary", _MAX_SUMMARY_LENGTH)
+    if declared_status is not None:
+        declared_status = _bounded_text(declared_status, "declared_status", 50)
+        if declared_status not in _VALID_DECLARED_STATUSES:
+            raise AgentWorkspaceError(
+                f"declared_status must be one of {sorted(_VALID_DECLARED_STATUSES)}"
+            )
+
+    now = time.time()
+    init_db()
+    with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        # Reject session_id reuse by a different participant
+        existing = conn.execute(
+            "SELECT participant_id FROM agent_workspace_presence_sessions "
+            "WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if existing is not None:
+            if existing["participant_id"] != participant_id:
+                raise AgentWorkspaceError(
+                    f"session {session_id} already belongs to participant "
+                    f"{existing['participant_id']}"
+                )
+            # Reject resurrection: a checked-out session_id cannot be reused.
+            existing_ended = conn.execute(
+                "SELECT ended_at FROM agent_workspace_presence_sessions WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if existing_ended is not None and existing_ended["ended_at"] is not None:
+                raise AgentWorkspaceError(
+                    f"session {session_id} has already ended; require a new session_id"
+                )
+        conn.execute(
+            """
+            INSERT INTO agent_workspace_presence_sessions
+                (session_id, participant_id, runtime, role, lane_id, exact_ref,
+                 summary, declared_status, started_at, heartbeat_at, ended_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+            ON CONFLICT(session_id) DO UPDATE SET
+                heartbeat_at = excluded.heartbeat_at,
+                runtime = COALESCE(excluded.runtime, agent_workspace_presence_sessions.runtime),
+                role = COALESCE(excluded.role, agent_workspace_presence_sessions.role),
+                lane_id = COALESCE(excluded.lane_id, agent_workspace_presence_sessions.lane_id),
+                exact_ref = COALESCE(excluded.exact_ref, agent_workspace_presence_sessions.exact_ref),
+                summary = COALESCE(excluded.summary, agent_workspace_presence_sessions.summary),
+                declared_status = COALESCE(
+                    excluded.declared_status, agent_workspace_presence_sessions.declared_status
+                ),
+                ended_at = NULL
+            """,
+            (
+                session_id,
+                participant_id,
+                runtime,
+                role,
+                lane_id,
+                exact_ref,
+                summary,
+                declared_status,
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM agent_workspace_presence_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+    assert row is not None
+    result = dict(row)
+    result["presence_state"] = _compute_presence_state(
+        ended_at=result.get("ended_at"),
+        heartbeat_at=result["heartbeat_at"],
+        now=now,
+    )
+    return result
+
+
+def heartbeat(
+    session_id: str,
+    participant_id: str,
+) -> dict[str, Any]:
+    """Refresh heartbeat_at for an active presence session.
+
+    Requires participant_id to verify the caller owns this session.
+    Raises AgentWorkspaceError if the session does not exist, has ended,
+    or the participant_id does not match.
+    """
+    session_id = _required_text(session_id, "session_id", 200)
+    participant_id = validate_active_participant(participant_id)
+    now = time.time()
+    init_db()
+    with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT * FROM agent_workspace_presence_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if row is None:
+            raise AgentWorkspaceError(f"presence session {session_id} not found")
+        if row["ended_at"] is not None:
+            raise AgentWorkspaceError(
+                f"presence session {session_id} has already ended"
+            )
+        if row["participant_id"] != participant_id:
+            raise AgentWorkspaceError(
+                f"session {session_id} belongs to participant "
+                f"{row['participant_id']}, not {participant_id}"
+            )
+        conn.execute(
+            "UPDATE agent_workspace_presence_sessions SET heartbeat_at = ? WHERE session_id = ?",
+            (now, session_id),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM agent_workspace_presence_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+    assert row is not None
+    result = dict(row)
+    result["presence_state"] = _compute_presence_state(
+        ended_at=result.get("ended_at"),
+        heartbeat_at=result["heartbeat_at"],
+        now=now,
+    )
+    return result
+
+
+def checkout(
+    session_id: str,
+    participant_id: str,
+) -> dict[str, Any]:
+    """End a presence session. Sets ended_at and updates heartbeat_at.
+
+    Requires participant_id to verify the caller owns this session.
+    Raises AgentWorkspaceError if the session does not exist, has ended,
+    or the participant_id does not match.
+    """
+    session_id = _required_text(session_id, "session_id", 200)
+    participant_id = validate_active_participant(participant_id)
+    now = time.time()
+    init_db()
+    with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT * FROM agent_workspace_presence_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if row is None:
+            raise AgentWorkspaceError(f"presence session {session_id} not found")
+        if row["ended_at"] is not None:
+            raise AgentWorkspaceError(
+                f"presence session {session_id} has already ended"
+            )
+        if row["participant_id"] != participant_id:
+            raise AgentWorkspaceError(
+                f"session {session_id} belongs to participant "
+                f"{row['participant_id']}, not {participant_id}"
+            )
+        conn.execute(
+            """
+            UPDATE agent_workspace_presence_sessions
+            SET ended_at = ?, heartbeat_at = ?
+            WHERE session_id = ?
+            """,
+            (now, now, session_id),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM agent_workspace_presence_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+    assert row is not None
+    result = dict(row)
+    result["presence_state"] = _compute_presence_state(
+        ended_at=result.get("ended_at"),
+        heartbeat_at=result["heartbeat_at"],
+        now=now,
+    )
+    return result
+
+
+def list_presence(
+    participant_id: str | None = None,
+    *,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """List presence sessions, optionally filtered by participant_id."""
+    if participant_id is not None:
+        participant_id = validate_global_participant(participant_id)
+    if isinstance(limit, bool) or limit <= 0 or limit > 500:
+        raise AgentWorkspaceError("limit must be between 1 and 500")
+    init_db()
+    now = time.time()
+    with kitty_db.connect(WORKSPACE_DB_FILE) as conn:
+        if participant_id is not None:
+            rows = conn.execute(
+                """
+                SELECT * FROM agent_workspace_presence_sessions
+                WHERE participant_id = ?
+                ORDER BY heartbeat_at DESC, session_id DESC
+                LIMIT ?
+                """,
+                (participant_id, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT * FROM agent_workspace_presence_sessions
+                ORDER BY heartbeat_at DESC, session_id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+    results = []
+    for row in rows:
+        item = dict(row)
+        item["presence_state"] = _compute_presence_state(
+            ended_at=item.get("ended_at"),
+            heartbeat_at=item["heartbeat_at"],
+            now=now,
+        )
+        results.append(item)
+    return results
 
 
 def _record_event(

@@ -33,22 +33,23 @@ def _json_stdout(captured):
 
 
 def test_cli_round_trip_post_inbox_reply_ack_and_thread(room_db, capsys):
+    # Use codex as the active recipient (Claude is retired)
     code, captured = _run([
-        "post", "--as", "chatgpt", "--to", "claude", "--kind", "handoff",
+        "post", "--as", "chatgpt", "--to", "codex", "--kind", "handoff",
         "Review the global room protocol.", "--json",
     ], capsys)
     assert code == 0
     root = _json_stdout(captured)
     assert root["sender_id"] == "chatgpt"
-    assert root["recipient_id"] == "claude"
+    assert root["recipient_id"] == "codex"
     code, captured = _run(
-        ["inbox", "--as", "claude", "--unread", "--json"], capsys
+        ["inbox", "--as", "codex", "--unread", "--json"], capsys
     )
     assert code == 0
     assert [item["id"] for item in _json_stdout(captured)] == [root["id"]]
 
     code, captured = _run([
-        "reply", "--as", "claude", "--to", "chatgpt", "--kind", "review",
+        "reply", "--as", "codex", "--to", "chatgpt", "--kind", "review",
         root["id"], "The protocol looks coherent.", "--json",
     ], capsys)
     assert code == 0
@@ -56,14 +57,14 @@ def test_cli_round_trip_post_inbox_reply_ack_and_thread(room_db, capsys):
     assert reply["parent_message_id"] == root["id"]
 
     code, captured = _run(
-        ["ack", "--as", "claude", root["id"], "--json"], capsys
+        ["ack", "--as", "codex", root["id"], "--json"], capsys
     )
     assert code == 0
     receipt = _json_stdout(captured)
     assert receipt["receipt_state"] == "acknowledged"
 
     code, captured = _run(
-        ["inbox", "--as", "claude", "--unread", "--json"], capsys
+        ["inbox", "--as", "codex", "--unread", "--json"], capsys
     )
     assert code == 0
     assert _json_stdout(captured) == []
@@ -83,7 +84,7 @@ def test_cli_json_ensure_status_recent_and_invalid_participant(room_db, capsys):
     assert code == 0
     status = _json_stdout(captured)
     assert status["id"] == "workspace_global"
-    assert status["participants"] == ["chatgpt", "claude", "codex", "kitty"]
+    assert status["participants"] == ["chatgpt", "claude", "codex", "kitty", "dsh"]
 
     code, captured = _run(["recent", "--json"], capsys)
     assert code == 0
