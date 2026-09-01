@@ -110,6 +110,12 @@ def test_dsh_launcher_uses_ephemeral_home_user_preset_and_secret_free_openrouter
     assert 'mktemp -d' in launcher
 
 
+def test_dsh_launcher_resolves_preset_from_execution_worktree() -> None:
+    launcher = (Path(__file__).parents[1] / "scripts" / "kittybuilder_dsh.sh").read_text()
+    assert 'git rev-parse --show-toplevel' in launcher
+    assert 'preset_source="${execution_root}/config/dsh/presets/${preset}/agent.cordis.yml"' in launcher
+
+
 def test_preflight_accepts_requested_route_override(monkeypatch: pytest.MonkeyPatch) -> None:
     import inspect
     assert "requested_route" in inspect.signature(bs.preflight_packet).parameters
