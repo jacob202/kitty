@@ -237,7 +237,7 @@ function MessageContent({ content, isUser, chatId, messageIndex, compact }: { co
     ),
     th: ({ children }) => <th style={thStyle}>{children}</th>,
     td: ({ children }) => <td style={tdStyle}>{children}</td>,
-    pre: ({ children }) => <CodeBlock chatId={chatId} messageIndex={messageIndex} isMobile={compact}>{children}</CodeBlock>,
+    pre: ({ children }) => <CodeBlock chatId={chatId} messageIndex={messageIndex} isMobile={compact} isUser={isUser}>{children}</CodeBlock>,
     code: ({ className, children, ...props }) => {
       const isBlock = typeof className === 'string' && className.startsWith('language-')
       if (isBlock) {
@@ -245,7 +245,7 @@ function MessageContent({ content, isUser, chatId, messageIndex, compact }: { co
       }
       return <code style={inlineCodeStyle} {...props}>{children}</code>
     },
-  }), [chatId, messageIndex, compact])
+  }), [chatId, messageIndex, compact, isUser])
 
   return (
     <div style={{
@@ -263,7 +263,7 @@ function MessageContent({ content, isUser, chatId, messageIndex, compact }: { co
   )
 }
 
-function CodeBlock({ children, chatId, messageIndex, isMobile }: { children: ReactNode; chatId: string; messageIndex: number; isMobile: boolean }) {
+function CodeBlock({ children, chatId, messageIndex, isMobile, isUser }: { children: ReactNode; chatId: string; messageIndex: number; isMobile: boolean; isUser: boolean }) {
   const [copied, setCopied] = useState(false)
   const preRef = useRef<HTMLPreElement>(null)
 
@@ -283,7 +283,7 @@ function CodeBlock({ children, chatId, messageIndex, isMobile }: { children: Rea
 
   // Typed object fences carry only durable ids. The card re-reads the
   // authoritative Gateway row, so chat text never becomes execution truth.
-  if (lang === ARTIFACT_REFERENCE_LANG) {
+  if (!isUser && lang === ARTIFACT_REFERENCE_LANG) {
     try {
       const reference = JSON.parse(rawText) as { artifact_id?: unknown }
       if (typeof reference.artifact_id !== 'string' || !reference.artifact_id.trim()) {
@@ -304,7 +304,7 @@ function CodeBlock({ children, chatId, messageIndex, isMobile }: { children: Rea
     }
   }
 
-  if (lang === ACTION_REFERENCE_LANG) {
+  if (!isUser && lang === ACTION_REFERENCE_LANG) {
     try {
       const reference = JSON.parse(rawText) as { action_id?: unknown }
       if (!Number.isInteger(reference.action_id) || Number(reference.action_id) <= 0) {

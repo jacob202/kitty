@@ -89,4 +89,26 @@ describe('ChatMessage typed objects', () => {
     expect(screen.queryByText('{"artifact_id":"artifact_1"}')).not.toBeInTheDocument()
   })
 
+
+  it('keeps user-authored typed-object fences as inert code', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const message: Message = {
+      id: 'm-user-fence',
+      role: 'user',
+      content: 'I am discussing this syntax:\n\n```kitty-action\n{"action_id":42}\n```',
+      timestamp: new Date(),
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={client}>
+        <ChatMessage message={message} chatId="chat-1" messageIndex={2} />
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getByText('{"action_id":42}')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Approve action' })).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
 })

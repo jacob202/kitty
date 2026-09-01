@@ -466,6 +466,34 @@ def reconcile_stale_executing() -> int:
         return int(cursor.rowcount or 0)
 
 
+def list_actions_scoped(
+    *, source_ids: set[str] | None = None, project_scope_ids: set[str] | None = None, limit: int = 50
+) -> list[dict[str, Any]]:
+    """Return newest actions matching chat-source or project scope, then apply limit."""
+    source_values = sorted(value for value in (source_ids or set()) if value)
+    project_values = sorted(value for value in (project_scope_ids or set()) if value)
+    if not source_values and not project_values:
+        return []
+    clauses: list[str] = []
+    params: list[Any] = []
+    if source_values:
+        marks = ",".join("?" for _ in source_values)
+        clauses.append(f"(source_kind = 'chat' AND source_id IN ({marks}))")
+        params.extend(source_values)
+    if project_values:
+        marks = ",".join("?" for _ in project_values)
+        clauses.append(f"(scope_type = 'project' AND scope_id IN ({marks}))")
+        params.extend(project_values)
+    params.append(limit)
+    init_db()
+    with kitty_db.connect(ACTIONS_DB_FILE) as conn:
+        rows = conn.execute(
+            f"SELECT {_COLUMNS} FROM actions WHERE {' OR '.join(clauses)} ORDER BY id DESC LIMIT ?",
+            tuple(params),
+        ).fetchall()
+    return [_row_to_action(row) for row in rows]
+
+
 def list_actions(status: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
     init_db()
     with kitty_db.connect(ACTIONS_DB_FILE) as conn:

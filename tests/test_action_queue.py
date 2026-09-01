@@ -348,3 +348,28 @@ def test_unknown_actions_are_terminal_and_cannot_be_re_executed():
 
     with pytest.raises(action_queue.ActionStateError):
         action_queue.execute(action["id"])
+
+
+
+def test_list_actions_scoped_filters_before_limit():
+    scoped = action_queue.propose(
+        source_kind="chat",
+        source_id="message-target",
+        kind="todo.create",
+        title="Scoped older action",
+        preview="target",
+        payload={"content": "target"},
+    )
+    for index in range(55):
+        action_queue.propose(
+            source_kind="chat",
+            source_id=f"other-{index}",
+            kind="todo.create",
+            title=f"Other {index}",
+            preview="other",
+            payload={"content": f"other-{index}"},
+        )
+
+    rows = action_queue.list_actions_scoped(source_ids={"message-target"}, limit=6)
+
+    assert [row["id"] for row in rows] == [scoped["id"]]
