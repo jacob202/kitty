@@ -24,6 +24,7 @@ def test_global_room_is_stable_idempotent_and_has_real_agent_roster(room_db):
     assert [agent["id"] for agent in first["agents"]] == [
         "chatgpt", "claude", "codex", "kitty"
     ]
+    assert {agent["status"] for agent in first["agents"]} == {"registered"}
     assert all(agent["model"] is None for agent in first["agents"])
     assert len(agent_workspace.list_events("workspace_global")) == 1
 

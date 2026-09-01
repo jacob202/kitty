@@ -449,7 +449,13 @@ def get_workspace(workspace_id: str) -> dict[str, Any]:
         finally:
             conn.commit()
     result = dict(workspace)
-    result["agents"] = [{**agent, "id": agent.pop("agent_id")} for agent in agents]
+    projected_agents = [{**agent, "id": agent.pop("agent_id")} for agent in agents]
+    if workspace_id == GLOBAL_WORKSPACE_ID:
+        # The legacy schema calls roster membership "available", but external
+        # participants may be offline or quota-blocked. Expose membership, not
+        # fabricated presence, on the canonical global-room projection.
+        projected_agents = [{**agent, "status": "registered"} for agent in projected_agents]
+    result["agents"] = projected_agents
     result["messages"] = messages
     result["events"] = events
     result["turns"] = turns
