@@ -1,9 +1,10 @@
 'use client'
 import { Component, type ReactNode } from 'react'
+import { describeFailure } from '@/lib/failure-copy'
 
 interface Props {
   children: ReactNode
-  fallback?: (error: Error, reset: () => void) => ReactNode
+  fallback?: (message: string, reset: () => void) => ReactNode
   name?: string
 }
 
@@ -29,9 +30,9 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     const { error } = this.state
     if (error) {
-      if (this.props.fallback) return this.props.fallback(error, this.reset)
+      if (this.props.fallback) return this.props.fallback(describeFailure(error), this.reset)
       return (
-        <div style={{
+        <div role="alert" style={{
           margin: 16,
           padding: '14px 16px',
           background: 'var(--bg)',
@@ -42,9 +43,9 @@ export class ErrorBoundary extends Component<Props, State> {
           fontSize: 12,
         }}>
           <div style={{ color: 'var(--c-red)', fontWeight: 700, marginBottom: 6 }}>
-            Something crashed{this.props.name ? ` in ${this.props.name}` : ''}
+            Something went wrong{this.props.name ? ` in ${this.props.name}` : ''}
           </div>
-          <div style={{ marginBottom: 10 }}>{error.message}</div>
+          <div style={{ marginBottom: 10 }}>{describeFailure(error)}</div>
           <button
             onClick={this.reset}
             style={{
