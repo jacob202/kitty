@@ -80,6 +80,18 @@ class TestRecipeRegistry:
         assert recipe.supports_characters is True
         assert recipe.is_available is True
 
+    def test_worker_edit_recipe_is_explicit_and_comfy_recipes_are_generation_only(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_WORKER_URL", "https://worker.invalid")
+        monkeypatch.setenv("KITTY_WORKER_BEARER_TOKEN", "t" * 48)
+        seed_default_recipes()
+        worker = get_recipe("kitty_worker_img2img")
+        assert worker.provider == "kitty_worker"
+        assert worker.operation == "img2img"
+        assert worker.supports_img2img is True
+        assert get_recipe("comfyui_sdxl_standard").supports_img2img is False
+        assert get_recipe("comfyui_pulid_sdxl").supports_img2img is False
+        assert get_recipe("comfyui_sd15_standard").supports_img2img is False
+
     def test_openai_recipe_stays_unavailable_without_key(self, override_db, monkeypatch):
         monkeypatch.setenv("KITTY_IMAGE_OPENAI_ENABLED", "1")
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -244,6 +256,28 @@ class TestAutoRouting:
         assert decision.recipe.supports_characters is True
         assert decision.recipe.max_characters >= 2
         assert decision.recipe.provider == "flux2"
+
+    def test_preferred_edit_only_recipe_is_rejected_for_text_to_image(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_WORKER_URL", "https://worker.invalid")
+        monkeypatch.setenv("KITTY_WORKER_BEARER_TOKEN", "t" * 48)
+        seed_default_recipes()
+        with pytest.raises(RecipeError, match="does not support txt2img"):
+            auto_route(
+                operation="txt2img",
+                preferred_recipe="kitty_worker_img2img",
+                available_providers={"kitty_worker"},
+            )
+
+    def test_img2img_auto_route_skips_text_only_recipes(self, override_db, monkeypatch):
+        monkeypatch.setenv("KITTY_WORKER_URL", "https://worker.invalid")
+        monkeypatch.setenv("KITTY_WORKER_BEARER_TOKEN", "t" * 48)
+        seed_default_recipes()
+        decision = auto_route(
+            operation="img2img", available_providers={"comfyui", "kitty_worker"}
+        )
+        assert decision.recipe is not None
+        assert decision.recipe.provider == "kitty_worker"
+        assert decision.recipe.supports_img2img is True
 
     def test_auto_route_respects_live_provider_allowlist(self, override_db):
         seed_default_recipes()
