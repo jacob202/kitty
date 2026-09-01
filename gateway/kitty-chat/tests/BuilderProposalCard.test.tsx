@@ -226,4 +226,36 @@ describe('BuilderProposalCard', () => {
     expect(await screen.findByText('Compile as Builder Mission')).toBeInTheDocument()
     expect(gateway.resumeBuilderJob).not.toHaveBeenCalled()
   })
+
+  it('offers an Open in Work handoff once the job is durable', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-handoff-1')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-handoff-1', state: 'in_progress' },
+      current_work: { state: 'running' },
+    })
+    const onOpenWork = vi.fn()
+
+    renderWithQueryClient(
+      <BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} onOpenWork={onOpenWork} />,
+    )
+
+    const button = await screen.findByTestId('builder-proposal-open-work')
+    fireEvent.click(button)
+    expect(onOpenWork).toHaveBeenCalledOnce()
+  })
+
+  it('omits the Open in Work button when the host has no Work navigation', async () => {
+    window.localStorage.setItem('kitty.builder-proposal.chat-1.0', 'conv-no-nav-1')
+    vi.mocked(gateway.resumeBuilderJob).mockResolvedValue({
+      ok: true,
+      mission: { id: 'conv-no-nav-1', state: 'in_progress' },
+    })
+
+    renderWithQueryClient(<BuilderProposalCard task={task} chatId="chat-1" messageIndex={0} />)
+
+    // The durable status still renders; only the handoff action is absent.
+    expect(await screen.findByText(/conv-no-nav-1/)).toBeInTheDocument()
+    expect(screen.queryByTestId('builder-proposal-open-work')).not.toBeInTheDocument()
+  })
 })

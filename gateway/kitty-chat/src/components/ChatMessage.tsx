@@ -31,9 +31,12 @@ interface Props {
   /** Total branches (current + saved). */
   totalBranches?: number
   onSwitchBranch?: (branchIndex: number) => void
+  /** Switch the app to the Work view; forwarded to an approved Builder proposal
+   *  card so the chat handoff to durable job tracking is one click. */
+  onOpenWork?: () => void
 }
 
-export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, chatId, messageIndex, compact = false, branchCount = 0, totalBranches = 0, onSwitchBranch }: Props) {
+export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, chatId, messageIndex, compact = false, branchCount = 0, totalBranches = 0, onSwitchBranch, onOpenWork }: Props) {
   const isUser = message.role === 'user'
   const isKitty = !isUser
   const attachments = message.attachments ?? []
@@ -117,7 +120,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               <TypingDots />
             ) : (
               <>
-                <MessageContent content={message.content} isUser={isUser} chatId={chatId} messageIndex={messageIndex} compact={compact} />
+                <MessageContent content={message.content} isUser={isUser} chatId={chatId} messageIndex={messageIndex} compact={compact} onOpenWork={onOpenWork} />
                 {message.toolCalls && message.toolCalls.length > 0 && (
                   <ToolCallList toolCalls={message.toolCalls} isStreaming={isStreaming} />
                 )}
@@ -218,7 +221,7 @@ const MARKDOWN_REHYPE_PLUGINS: NonNullable<ComponentProps<typeof ReactMarkdown>[
   [rehypeHighlight, { detect: true, ignoreMissing: true }],
 ]
 
-function MessageContent({ content, isUser, chatId, messageIndex, compact }: { content: string; isUser: boolean; chatId: string; messageIndex: number; compact: boolean }) {
+function MessageContent({ content, isUser, chatId, messageIndex, compact, onOpenWork }: { content: string; isUser: boolean; chatId: string; messageIndex: number; compact: boolean; onOpenWork?: () => void }) {
   const components = useMemo<Components>(() => ({
     p: ({ children }) => <p style={pStyle}>{children}</p>,
     h1: ({ children }) => <h1 style={h1Style}>{children}</h1>,
@@ -237,7 +240,7 @@ function MessageContent({ content, isUser, chatId, messageIndex, compact }: { co
     ),
     th: ({ children }) => <th style={thStyle}>{children}</th>,
     td: ({ children }) => <td style={tdStyle}>{children}</td>,
-    pre: ({ children }) => <CodeBlock chatId={chatId} messageIndex={messageIndex} isMobile={compact} isUser={isUser}>{children}</CodeBlock>,
+    pre: ({ children }) => <CodeBlock chatId={chatId} messageIndex={messageIndex} isMobile={compact} isUser={isUser} onOpenWork={onOpenWork}>{children}</CodeBlock>,
     code: ({ className, children, ...props }) => {
       const isBlock = typeof className === 'string' && className.startsWith('language-')
       if (isBlock) {
@@ -245,7 +248,7 @@ function MessageContent({ content, isUser, chatId, messageIndex, compact }: { co
       }
       return <code style={inlineCodeStyle} {...props}>{children}</code>
     },
-  }), [chatId, messageIndex, compact, isUser])
+  }), [chatId, messageIndex, compact, isUser, onOpenWork])
 
   return (
     <div style={{
@@ -263,7 +266,7 @@ function MessageContent({ content, isUser, chatId, messageIndex, compact }: { co
   )
 }
 
-function CodeBlock({ children, chatId, messageIndex, isMobile, isUser }: { children: ReactNode; chatId: string; messageIndex: number; isMobile: boolean; isUser: boolean }) {
+function CodeBlock({ children, chatId, messageIndex, isMobile, isUser, onOpenWork }: { children: ReactNode; chatId: string; messageIndex: number; isMobile: boolean; isUser: boolean; onOpenWork?: () => void }) {
   const [copied, setCopied] = useState(false)
   const preRef = useRef<HTMLPreElement>(null)
 
@@ -332,7 +335,7 @@ function CodeBlock({ children, chatId, messageIndex, isMobile, isUser }: { child
   if (lang === BUILDER_PROPOSAL_LANG) {
     try {
       const task = JSON.parse(rawText) as BuilderProposalTask
-      return <BuilderProposalCard task={task} chatId={chatId} messageIndex={messageIndex} />
+      return <BuilderProposalCard task={task} chatId={chatId} messageIndex={messageIndex} onOpenWork={onOpenWork} />
     } catch {
       return (
         <div style={codeBoxStyle}>

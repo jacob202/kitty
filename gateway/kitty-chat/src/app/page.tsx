@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useKitty } from '@/state/KittyContext'
 import { TopBar } from '@/components/TopBar'
 import { ThreadGoal } from '@/components/ThreadGoal'
@@ -21,6 +21,11 @@ import { useActivity } from '@/lib/queries'
 
 export default function KittyChat() {
   const k = useKitty()
+  // Stable across renders: ChatMessage memoizes its markdown component map on
+  // this reference, and an inline arrow here would remount every card button
+  // (dropping in-flight clicks) on each parent render. setActiveView from
+  // context is itself useCallback'd with no deps.
+  const openWorkView = useCallback(() => k.setActiveView('work'), [k.setActiveView])
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
   const [selectedAgentSessionId, setSelectedAgentSessionId] = useState<number | null>(null)
@@ -151,6 +156,7 @@ export default function KittyChat() {
                 onSwitchBranch: k.handleSwitchBranch,
                 onStartClick: () => k.textareaRef.current?.focus(),
                 onChipClick: (chip: string) => { k.setInput(chip); k.textareaRef.current?.focus() },
+                onOpenWork: openWorkView,
               }}
               homeProps={{
                 preferredName: k.preferredName,
