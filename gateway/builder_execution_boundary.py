@@ -173,7 +173,12 @@ def build_sandbox_profile(
         "/var",
     }
     # Seatbelt requires directory metadata traversal to reach explicitly
-    # readable executables/venvs; metadata access does not grant file content.
+    # readable paths; metadata access does not grant file content. Trusted
+    # command-support directories may live outside the packet worktree.
+    for read_path in read_subpaths:
+        variant = Path(read_path).resolve()
+        metadata_literals.add(str(variant))
+        metadata_literals.update(str(parent) for parent in variant.parents)
     for path in (launch_executable, resolved_executable, worktree, run_dir, *extra_read_subpaths):
         for variant in (Path(path).absolute(), Path(path).resolve()):
             metadata_literals.add(str(variant))
@@ -252,6 +257,10 @@ def _command_support_read_paths(command: Sequence[str], worktree: Path) -> set[s
         if resolved.is_relative_to(worktree):
             continue
         paths.add(str(resolved.parent))
+        if candidate.name in {"kittybuilder_dsh_worker.sh", "kittybuilder_dsh_reviewer.sh"}:
+            dsh_config = resolved.parent.parent / "config" / "dsh"
+            if dsh_config.is_dir():
+                paths.add(str(dsh_config.resolve()))
     return paths
 
 
