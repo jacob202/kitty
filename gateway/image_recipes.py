@@ -100,7 +100,7 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "max_width": 1024,
         "max_height": 1024,
         "supported_aspects": ["1:1", "3:2", "2:3", "16:9"],
-        "supports_img2img": True,
+        "supports_img2img": False,
         "supports_variation": True,
         "is_available": False,
         "priority": 10,
@@ -119,7 +119,7 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "max_width": 1920,
         "max_height": 1920,
         "supported_aspects": ["1:1", "3:2", "2:3", "16:9", "9:16"],
-        "supports_img2img": True,
+        "supports_img2img": False,
         "supports_characters": True,
         "max_characters": 1,
         "supports_pose_refs": True,
@@ -145,7 +145,7 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "default_height": 1024,
         "max_width": 1920,
         "max_height": 1920,
-        "supports_img2img": True,
+        "supports_img2img": False,
         "supports_characters": True,
         "max_characters": 1,
         "supports_variation": True,
@@ -170,6 +170,28 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "supports_variation": True,
         "is_available": False,
         "priority": 5,
+    },
+    {
+        "recipe_id": "kitty_worker_img2img",
+        "display_name": "Kitty Image Worker (edit)",
+        "description": "Private authenticated Image Lab worker for source-image edits.",
+        "provider": "kitty_worker",
+        "model_family": "kitty-image-worker",
+        "operation": "img2img",
+        "quality_tier": "quality",
+        "expected_speed": "remote worker",
+        "default_width": 1024,
+        "default_height": 1024,
+        "max_width": 2048,
+        "max_height": 2048,
+        "supported_aspects": ["1:1", "3:2", "2:3", "16:9", "9:16"],
+        "supports_img2img": True,
+        "supports_characters": True,
+        "max_characters": 1,
+        "identity_strength": 90,
+        "license_notes": "Kitty-controlled authenticated worker using the image_to_image_v1 workflow.",
+        "is_available": False,
+        "priority": 45,
     },
     {
         "recipe_id": "openai_gpt_image_2",
@@ -291,6 +313,11 @@ def _hosted_default_available(provider: str) -> bool | None:
 
         available, _ = flux2_images_available()
         return available
+    if provider == "kitty_worker":
+        from gateway.image_agent import edit_workflow_available
+        from gateway.runpod_worker import worker_is_configured
+
+        return worker_is_configured() and edit_workflow_available()
     if provider not in {"airforce", "fal", "openai"}:
         return None
     from gateway.image_runner import hosted_image_configured
@@ -358,6 +385,15 @@ def seed_default_recipes() -> int:
             )
             if cur.rowcount > 0:
                 count += 1
+            if r["recipe_id"] in {
+                "comfyui_sd15_standard",
+                "comfyui_sdxl_standard",
+                "comfyui_pulid_sdxl",
+            }:
+                conn.execute(
+                    "UPDATE image_recipes SET supports_img2img = ?, updated_at = ? WHERE recipe_id = ?",
+                    (int(r.get("supports_img2img", False)), now, r["recipe_id"]),
+                )
             if r["recipe_id"] in {"bfl_flux2_draft", "bfl_flux2_pro"}:
                 # These are built-in capability facts, not user preferences.
                 # Reconcile existing databases that seeded the recipes before
@@ -462,12 +498,23 @@ def auto_route(
             raise RecipeError(
                 f"recipe {r.recipe_id!r} does not support img2img"
             )
+        if operation == "txt2img" and r.operation == "img2img":
+            raise RecipeError(
+                f"recipe {r.recipe_id!r} does not support txt2img"
+            )
         return RoutingDecision(r.recipe_id, r, "Selected by user preference")
 
     if live_providers is not None:
         recipes = [r for r in recipes if r.provider in live_providers]
+    if operation == "img2img":
+        recipes = [r for r in recipes if r.supports_img2img]
+    elif operation == "txt2img":
+        recipes = [r for r in recipes if r.operation != "img2img"]
     if not recipes:
-        raise RecipeError("no image recipes are available for currently available providers")
+        raise RecipeError(
+            f"no image recipes are available for operation {operation!r} "
+            "on currently available providers"
+        )
 
     # Identity-first: choose the strongest recipe that can truthfully carry the
     # full cast, not merely any recipe with character support.

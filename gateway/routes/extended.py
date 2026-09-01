@@ -207,6 +207,47 @@ DRAWTHINGS_OFFLINE_REASON = (
     "Draw Things is not answering. Open the Draw Things app, turn on its API "
     "server, then check again."
 )
+KITTY_WORKER_UNCONFIGURED_REASON = (
+    "Kitty image worker is not configured. Set KITTY_WORKER_URL and "
+    "KITTY_WORKER_BEARER_TOKEN, then restart Kitty."
+)
+KITTY_WORKER_WORKFLOW_REASON = (
+    "Kitty image worker edit workflow is unavailable. Install image_to_image_v1 "
+    "before using the private edit lane."
+)
+KITTY_WORKER_OFFLINE_REASON = (
+    "Kitty image worker is configured but not ready. Check the worker health "
+    "endpoint and image_to_image_v1 bundle."
+)
+
+
+async def _kitty_worker_runtime_status() -> tuple[bool, str | None]:
+    """Probe the authenticated edit worker without exposing endpoint/token details."""
+    import httpx
+
+    from gateway.image_agent import edit_workflow_available
+    from gateway.runpod_control import RunPodConfigurationError
+    from gateway.runpod_worker import (
+        RunPodWorkerError,
+        client_from_env,
+        worker_is_configured,
+    )
+
+    if not worker_is_configured():
+        return False, KITTY_WORKER_UNCONFIGURED_REASON
+    if not edit_workflow_available():
+        return False, KITTY_WORKER_WORKFLOW_REASON
+
+    client = None
+    try:
+        client = client_from_env(timeout_seconds=3.0)
+        await client.assert_ready()
+    except (RunPodWorkerError, RunPodConfigurationError, httpx.HTTPError):
+        return False, KITTY_WORKER_OFFLINE_REASON
+    finally:
+        if client is not None:
+            await client.aclose()
+    return True, None
 
 
 @router.get("/image/status")
@@ -242,6 +283,7 @@ async def image_status():
     fal_available, fal_reason = fal_images_available()
     hosted_available, hosted_reason = openrouter_images_available()
     openai_available, openai_reason = openai_images_available()
+    kitty_worker_available, kitty_worker_reason = await _kitty_worker_runtime_status()
     engines = [
         {
             "name": "comfyui",
@@ -254,6 +296,15 @@ async def image_status():
             "label": "Draw Things",
             "available": drawthings_available,
             "unavailable_reason": None if drawthings_available else DRAWTHINGS_OFFLINE_REASON,
+            "supports_img2img": True,
+        },
+        {
+            "name": "kitty_worker",
+            "label": "Kitty Image Worker",
+            "available": kitty_worker_available,
+            "unavailable_reason": kitty_worker_reason,
+            "supports_img2img": True,
+            "edit_only": True,
         },
         {
             "name": "airforce",
@@ -315,6 +366,14 @@ async def image_status():
         or hosted_available
         or openai_available
     )
+    edit_available = (
+        drawthings_available
+        or kitty_worker_available
+        or flux_available
+        or flux2_available
+        or hosted_available
+        or openai_available
+    )
     # Local first when it is up (free), then the cheapest hosted lane.
     if comfy_available:
         backend = "comfyui"
@@ -334,7 +393,12 @@ async def image_status():
         backend = "openai"
     else:
         backend = "comfyui"
-    return {"available": available, "backend": backend, "engines": engines}
+    return {
+        "available": available,
+        "edit_available": edit_available,
+        "backend": backend,
+        "engines": engines,
+    }
 
 
 @router.post("/image/generate")
@@ -1415,7 +1479,7 @@ async def studio_generate(req: StudioGenerateRequest):
             # Safe hosted recipes that explicitly support image input must execute
             # through their approved provider. Private-adult edits remain pinned to
             # run_edit()/kitty_worker by the policy-derived execution_target above.
-            if content_lane == "safe" and engine in {"openai", "openrouter", "flux"}:
+            if content_lane == "safe" and engine in {"openai", "openrouter", "flux", "drawthings"}:
                 try:
                     source_image, _source_name = read_anchor_artifact(approved_edit_anchor)
                 except ImageRunnerError as exc:

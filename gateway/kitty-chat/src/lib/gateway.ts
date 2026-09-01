@@ -1476,10 +1476,13 @@ export interface ImageEngineStatus {
   label: string
   available: boolean
   unavailable_reason?: string | null
+  supports_img2img?: boolean
+  edit_only?: boolean
 }
 
 export interface ImageStatus {
   available: boolean
+  edit_available: boolean
   backend?: string
   engines?: ImageEngineStatus[]
 }
@@ -1491,11 +1494,13 @@ export async function fetchImageStatus(): Promise<ImageStatus> {
   // "start ComfyUI" recovery, which sends the user down the wrong path.
   const json = await gfetch<{
     available?: boolean
+    edit_available?: boolean
     backend?: string
     engines?: ImageEngineStatus[]
   }>('/image/status')
   return {
     available: json.available === true,
+    edit_available: json.edit_available === true,
     backend: json.backend,
     engines: json.engines ?? [],
   }

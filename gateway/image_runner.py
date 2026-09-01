@@ -165,6 +165,7 @@ async def run(
             prompt,
             recipe=recipe,
             parent_id=parent_id,
+            source_image=source_image,
             project_id=project_id,
             plan_id=plan_id,
             intent_json=intent_json,
@@ -459,6 +460,7 @@ async def _run_drawthings(
     *,
     recipe: Any | None = None,
     parent_id: str | None = None,
+    source_image: bytes | None = None,
     project_id: int | None = None,
     plan_id: str | None = None,
     intent_json: str | None = None,
@@ -475,7 +477,7 @@ async def _run_drawthings(
     workflow_template_id = recipe.workflow_template_id if recipe else None
     job = image_jobs.create_job(
         provider="drawthings",
-        operation="variation" if parent_id else "txt2img",
+        operation="img2img" if source_image is not None else ("variation" if parent_id else "txt2img"),
         prompt=prompt,
         parent_id=parent_id,
         model_id=getattr(drawthings, "model_name", None),
@@ -487,7 +489,24 @@ async def _run_drawthings(
     try:
         image_jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
         image_jobs.transition(job.job_id, ImageJobStatus.RUNNING)
-        data = await drawthings.generate_async(prompt)
+        if source_image is not None:
+            import tempfile
+
+            source_path: Path | None = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".img", delete=False) as handle:
+                    handle.write(source_image)
+                    source_path = Path(handle.name)
+                data = await drawthings.generate_async(
+                    prompt,
+                    init_image=source_path,
+                    denoising_strength=DEFAULT_EDIT_DENOISE,
+                )
+            finally:
+                if source_path is not None:
+                    source_path.unlink(missing_ok=True)
+        else:
+            data = await drawthings.generate_async(prompt)
         path = await asyncio.to_thread(save_image, data, prefix="drawthings")
         image_jobs.update_job(job.job_id, output_path=str(path))
         image_jobs.register_canonical_artifact(job.job_id, project_id=project_id)

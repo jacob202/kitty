@@ -7,28 +7,6 @@ import * as queries from '../src/lib/queries'
 vi.mock('../src/lib/queries', async () => {
   const actual = await vi.importActual<typeof queries>('../src/lib/queries')
   return { ...actual, useImageStatus: vi.fn() }
-  it('restores a legacy anchor preview from the job canonical artifact', async () => {
-    window.localStorage.setItem('kitty-image-lab-session', 'imgses_legacy')
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      const target = String(url)
-      if (target === '/proxy/studio/recipes') return { ok: true, status: 200, json: async () => ({ recipes: [] }) }
-      if (target === '/proxy/studio/characters') return { ok: true, status: 200, json: async () => ({ characters: [] }) }
-      if (target === '/proxy/studio/sessions/imgses_legacy') return { ok: true, status: 200, json: async () => ({
-        session_id: 'imgses_legacy', anchor_job_id: 'job_old', anchor_artifact_id: 'provider_asset_old', turns: [],
-        jobs: [{ job_id: 'job_old', canonical_artifact_id: 'artifact_image_job_old' }],
-      }) }
-      if (target.startsWith('/proxy/studio/batches?')) return { ok: true, status: 200, json: async () => ({ batches: [] }) }
-      if (target === '/proxy/studio/estimate') return { ok: true, status: 200, json: async () => estimate }
-      return { ok: true, status: 200, json: async () => ({}) }
-    }))
-
-    render(<ImageLab />)
-
-    expect(await screen.findByRole('img', { name: 'Selected edit source' })).toHaveAttribute(
-      'src', '/proxy/artifacts/artifact_image_job_old/content',
-    )
-  })
-
 })
 
 const estimate = {
@@ -49,7 +27,7 @@ function uploadResult() {
 function makeFetch() {
   return vi.fn(async (url: string, init?: RequestInit) => {
     const target = String(url)
-    if (target === '/proxy/studio/recipes') return { ok: true, status: 200, json: async () => ({ recipes: [] }) }
+    if (target === '/proxy/studio/recipes') return { ok: true, status: 200, json: async () => ({ recipes: [{ recipe_id: 'kitty_worker_img2img', display_name: 'Kitty Image Worker (edit)', provider: 'kitty_worker', operation: 'img2img', quality_tier: 'quality', supports_img2img: true, supports_characters: true, max_characters: 1, is_available: true }] }) }
     if (target === '/proxy/studio/characters') return { ok: true, status: 200, json: async () => ({ characters: [] }) }
     if (target === '/proxy/studio/sessions/imgses_1') return { ok: true, status: 200, json: async () => ({ session_id: 'imgses_1', anchor_job_id: null, anchor_artifact_id: null, turns: [], jobs: [] }) }
     if (target.startsWith('/proxy/studio/batches?')) return { ok: true, status: 200, json: async () => ({ batches: [] }) }
@@ -68,6 +46,39 @@ describe('Image Lab external edit source', () => {
     } as never)
   })
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); window.localStorage.clear() })
+
+  it('enables edit-only worker after a source is selected without enabling text-to-image', async () => {
+    vi.mocked(queries.useImageStatus).mockReturnValue({
+      data: {
+        available: false,
+        edit_available: true,
+        engines: [
+          { name: 'kitty_worker', label: 'Kitty Image Worker', available: true, supports_img2img: true, edit_only: true },
+        ],
+      },
+      isPending: false, isError: false, refetch: vi.fn(),
+    } as never)
+    const fetchMock = makeFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    render(<ImageLab />)
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Image request' }), {
+      target: { value: 'change only the jacket' },
+    })
+    expect(screen.getByTestId('image-lab-send')).toBeDisabled()
+    expect(screen.getByTestId('image-lab-send')).toHaveTextContent('Generation unavailable')
+    const route = screen.getByRole('combobox', { name: 'generation route' })
+    await waitFor(() => expect(route.querySelector('option[value="kitty_worker_img2img"]')).toBeDisabled())
+    expect(route.querySelector('option[value="kitty_worker_img2img"]')).toHaveTextContent('edit only')
+
+    const file = new File(['image'], 'source.png', { type: 'image/png' })
+    fireEvent.change(await screen.findByLabelText('Upload source image'), { target: { files: [file] } })
+    await screen.findByRole('img', { name: 'Selected edit source' })
+
+    await waitFor(() => expect(screen.getByTestId('image-lab-send')).not.toBeDisabled())
+    expect(screen.getByTestId('image-lab-send')).toHaveTextContent('Generate')
+    expect(route.querySelector('option[value="kitty_worker_img2img"]')).not.toBeDisabled()
+  })
 
   it('uploads a source image, previews its artifact, and switches preflight to img2img', async () => {
     const fetchMock = makeFetch()

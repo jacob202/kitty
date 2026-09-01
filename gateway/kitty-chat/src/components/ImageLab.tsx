@@ -288,8 +288,9 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
   const [charUploading, setCharUploading] = useState(false)
   const [refQuality, setRefQuality] = useState<RefQuality | null>(null)
 
-  const enginesAvailable = status.data?.available === true
-    || (status.data?.engines ?? []).some(engine => engine.available)
+  const enginesAvailable = anchorJobId
+    ? (status.data?.edit_available ?? status.data?.available) === true
+    : status.data?.available === true
   // "no engine is online" on its own leaves the user with nothing to do. The
   // gateway already knows why each engine is down; carry that through instead
   // of dropping it.
@@ -1055,12 +1056,14 @@ export function ImageLab({ compact = false }: { compact?: boolean } = {}) {
                   <option value="">Auto route</option>
                   {recipes.map(recipe => {
                     const editIncompatible = Boolean(anchorJobId) && !recipe.supports_img2img
+                    const createIncompatible = !anchorJobId && recipe.operation === 'img2img'
                     const runtimeEngine = (status.data?.engines ?? []).find(engine => engine.name === recipe.provider)
                     const runtimeUnavailable = runtimeEngine?.available === false
-                    const disabled = !recipe.is_available || runtimeUnavailable || editIncompatible
+                    const disabled = !recipe.is_available || runtimeUnavailable || editIncompatible || createIncompatible
                     const suffix = (!recipe.is_available || runtimeUnavailable)
                       ? ' — unavailable'
-                      : editIncompatible ? ' — no img2img' : ''
+                      : editIncompatible ? ' — no img2img'
+                        : createIncompatible ? ' — edit only' : ''
                     return <option key={recipe.recipe_id} value={recipe.recipe_id} disabled={disabled}>{recipe.display_name}{suffix}</option>
                   })}
                 </select>
