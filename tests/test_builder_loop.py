@@ -54,6 +54,9 @@ def db_path(tmp_path: Path) -> Path:
 def _apply(db_path: Path, *, max_attempts: int = 2,
            validation_commands: list[str] | None = None,
            allowed_paths: list[str] | None = None,
+           forbidden_symbols: list[str] | None = None,
+           required_symbols: list[str] | None = None,
+           forbidden_paths: list[str] | None = None,
            repo_root: Path | None = None) -> str:
     """Apply a one-packet manifest; returns the packet's task_id."""
     manifest = {
@@ -69,6 +72,9 @@ def _apply(db_path: Path, *, max_attempts: int = 2,
                 "allowed_paths":
                     allowed_paths if allowed_paths is not None else ["done.txt"],
                 "policy": {"max_attempts": max_attempts},
+                "forbidden_symbols": forbidden_symbols or [],
+                "required_symbols": required_symbols or [],
+                "forbidden_paths": forbidden_paths or [],
                 "validation_commands":
                     validation_commands
                     if validation_commands is not None
@@ -2716,3 +2722,41 @@ def test_completed_worker_change_is_parent_committed_before_review(
         text=True,
     ).stdout.splitlines()
     assert any("[LP-1]" in subject and "trusted parent" in subject for subject in subjects)
+
+
+def test_forbidden_symbol_fails_before_reviewer(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _apply(
+        db_path,
+        max_attempts=1,
+        forbidden_symbols=["def snapshot_todo("],
+        repo_root=repo,
+    )
+    worker = _script(
+        tmp_path,
+        "forbidden-symbol.sh",
+        "printf 'def snapshot_todo(todo_id):\\n    return todo_id\\n' > done.txt\n"
+        f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+    )
+    reviewer = _approve_reviewer(tmp_path)
+    review_calls: list[object] = []
+    monkeypatch.setattr(
+        bl,
+        "_run_review_command",
+        lambda *args, **kwargs: review_calls.append((args, kwargs)),
+    )
+
+    result = bl.run_packet(
+        INITIATIVE, PACKET,
+        worker_command=worker,
+        review_command=reviewer,
+        repo_root=repo,
+        db_path=db_path,
+    )
+
+    assert result["outcome"] == "exhausted"
+    assert result["attempts"][0]["failure"] == "deterministic contract gate failed"
+    assert result["attempts"][0]["contract_gate"]["passed"] is False
+    assert "def snapshot_todo(" in result["attempts"][0]["contract_gate"]["forbidden_symbols_found"]
+    assert review_calls == []

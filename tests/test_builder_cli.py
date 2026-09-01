@@ -1862,3 +1862,65 @@ def test_paid_route_cannot_bypass_compute_governor(capsys):
     assert rc == 1
     assert "governor" in capsys.readouterr().err.lower()
     mock_run.assert_not_called()
+
+
+def test_supervisor_status_accepts_initiative_prefix_and_forwards_it(capsys) -> None:
+    parser = build_parser()
+    args = parser.parse_args([
+        "supervisor", "status", "--initiative-prefix", "kitty-opens-the-doors-20260831-v", "--json"
+    ])
+    assert args.initiative_prefix == "kitty-opens-the-doors-20260831-v"
+
+    projection = {
+        "lock": {"path": "/tmp/supervisor.lock"},
+        "initiatives": [],
+        "active_runs": [],
+        "scheduler_enabled": True,
+        "autonomy": {},
+    }
+    with patch("gateway.builder_supervisor.status", return_value=projection) as status_mock:
+        rc = main([
+            "supervisor", "status", "--initiative-prefix", "kitty-opens-the-doors-20260831-v", "--json"
+        ])
+    assert rc == 0
+    status_mock.assert_called_once_with(initiative_prefix="kitty-opens-the-doors-20260831-v")
+    assert json.loads(capsys.readouterr().out) == projection
+
+
+def test_supervisor_status_human_prints_runway_summary(capsys) -> None:
+    projection = {
+        "lock": {"path": "/tmp/supervisor.lock"},
+        "initiatives": [],
+        "active_runs": [],
+        "scheduler_enabled": True,
+        "autonomy": {
+            "runway": {
+                "counts": {
+                    "safe_backend_runnable": 2,
+                    "interactive_frontend": 3,
+                    "collision_held": 4,
+                    "operator_blocked": 1,
+                    "running": 1,
+                    "pending_backend": 2,
+                },
+                "actionable": 5,
+                "low_water": True,
+                "caught_up": False,
+            },
+            "refill": {"needed": True, "target_candidates": 12},
+            "publication_inbox": [{"packet_id": "P1"}],
+        },
+    }
+    with patch("gateway.builder_supervisor.status", return_value=projection):
+        rc = main(["supervisor", "status"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "runway:" in out
+    assert "actionable=5" in out
+    assert "backend=2" in out
+    assert "frontend=3" in out
+    assert "held=4" in out
+    assert "operator_blocked=1" in out
+    assert "publication_inbox=1" in out
+    assert "refill_target=12" in out

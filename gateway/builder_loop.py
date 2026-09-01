@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from gateway import builder_attempt as ba
+from gateway import builder_contract_gate as bcg
 from gateway import builder_execution_boundary as beb
 from gateway import builder_identity as bid
 from gateway import builder_initiative as bi
@@ -924,6 +925,15 @@ def run_packet(
         ) from exc
     bundle_preview = ba.build_context_bundle(initiative_id, packet_id, db_path=db_path)
     task_id = bundle_preview["task_id"]
+    initiative_contract = bi.get_initiative(initiative_id, db_path=db_path) or {}
+    packet_contract = next(
+        (
+            packet
+            for packet in initiative_contract.get("packets", [])
+            if packet.get("packet_id") == packet_id
+        ),
+        {},
+    )
 
     task = bq.get_task(task_id, db_path=db_path)
     if task is None:
@@ -1664,6 +1674,31 @@ def run_packet(
             else:
                 if trusted_commit_sha is not None:
                     entry["trusted_parent_commit_sha"] = trusted_commit_sha
+
+        if failure is None:
+            try:
+                contract_gate = bcg.evaluate_contract_checks(
+                    expected_worktree,
+                    base_sha=base_sha,
+                    forbidden_symbols=packet_contract.get("forbidden_symbols"),
+                    required_symbols=packet_contract.get("required_symbols"),
+                    forbidden_paths=packet_contract.get("forbidden_paths"),
+                )
+            except bcg.ContractGateError as exc:
+                failure = f"deterministic contract gate could not run: {exc}"
+            else:
+                entry["contract_gate"] = contract_gate
+                manifest["contract_gate"] = contract_gate
+                write_run_manifest(manifest_path, manifest)
+                if not contract_gate["passed"]:
+                    failure = "deterministic contract gate failed"
+                    repairable = True
+                    bq.append_event(
+                        task_id,
+                        "contract_gate_failed",
+                        payload={"attempt_id": attempt_id, **contract_gate},
+                        db_path=db_path,
+                    )
 
         if failure is None and _runtime_budget_expired(deadline_monotonic):
             failure = "initiative runtime budget exceeded"

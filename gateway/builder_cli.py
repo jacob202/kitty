@@ -1739,7 +1739,7 @@ def _cmd_supervisor_status(args: argparse.Namespace) -> int:
     """Read-only supervisor projection: initiatives, eligible work, active runs."""
     from gateway import builder_supervisor as bs
 
-    projection = bs.status()
+    projection = bs.status(initiative_prefix=args.initiative_prefix)
     if args.json:
         print(json.dumps(projection, indent=2, default=str))
         return 0
@@ -1750,6 +1750,29 @@ def _cmd_supervisor_status(args: argparse.Namespace) -> int:
         print(
             f"  {initiative['initiative_id']:<40} "
             f"{initiative['derived_state']:<10} eligible={eligible}"
+        )
+    autonomy = projection.get("autonomy") or {}
+    runway = autonomy.get("runway") or {}
+    counts = runway.get("counts") or {}
+    if counts:
+        print(
+            "runway: "
+            f"actionable={runway.get('actionable', 0)} "
+            f"backend={counts.get('safe_backend_runnable', 0)} "
+            f"frontend={counts.get('interactive_frontend', 0)} "
+            f"held={counts.get('collision_held', 0)} "
+            f"operator_blocked={counts.get('operator_blocked', 0)} "
+            f"running={counts.get('running', 0)} "
+            f"pending={counts.get('pending_backend', 0)} "
+            f"low_water={bool(runway.get('low_water'))} "
+            f"caught_up={bool(runway.get('caught_up'))}"
+        )
+        inbox = autonomy.get("publication_inbox") or []
+        refill = autonomy.get("refill") or {}
+        print(
+            f"decisions: publication_inbox={len(inbox)} "
+            f"refill_needed={bool(refill.get('needed'))} "
+            f"refill_target={int(refill.get('target_candidates') or 0)}"
         )
     return 0
 
@@ -2120,7 +2143,10 @@ COMMANDS: list[CommandSpec] = [
                  _a("--json", "output JSON", action="store_true")]),
     CommandSpec("supervisor-status", "supervisor", "status",
                 "read-only supervisor projection (initiatives, eligible work, active runs)",
-                _cmd_supervisor_status, [_a("--json", "output JSON", action="store_true")]),
+                _cmd_supervisor_status, [
+                    _a("--initiative-prefix", "scope autonomy runway/publication projection to initiative IDs with this prefix", default=None),
+                    _a("--json", "output JSON", action="store_true"),
+                ]),
 ]
 
 
