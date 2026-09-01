@@ -1,6 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ENV_ROOT="${KITTY_BUILDER_REPO_ROOT:-${REPO_ROOT}}"
+if [[ -z "${OPENROUTER_API_KEY:-}" && -f "${ENV_ROOT}/.env" ]]; then
+  OPENROUTER_API_KEY="$(
+    "${PYTHON_BIN:-$(command -v python3.12 || command -v python3 || echo python3)}" - "${ENV_ROOT}/.env" <<'PY_KEY'
+import sys
+from dotenv import dotenv_values
+
+value = dotenv_values(sys.argv[1]).get("OPENROUTER_API_KEY")
+if value:
+    print(value, end="")
+PY_KEY
+  )"
+  [[ -n "${OPENROUTER_API_KEY}" ]] && export OPENROUTER_API_KEY
+fi
+
 preset=""
 provider="openrouter"
 model=""

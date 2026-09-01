@@ -43,6 +43,7 @@ import time
 from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn
 
+from gateway import agent_workspace as agent_workspace
 from gateway import builder_execution_boundary as beb
 from gateway import builder_queue as bq
 from gateway import builder_scope as bs
@@ -963,6 +964,58 @@ async def run_agent_preset(
         }
 
 
+
+def _dsh_presence_session_id(run_id: str, worker: str | None) -> str | None:
+    """Map a real DSH Builder run to one durable Agent Room presence session."""
+    if not str(worker or "").startswith("dsh-"):
+        return None
+    return f"builder-{run_id}"
+
+
+def _presence_issue(action: str, exc: Exception) -> str:
+    return f"{action}:{type(exc).__name__}:{exc}"
+
+
+def _presence_check_in(
+    *, run_id: str, worker: str | None, task_id: str, start_sha: str, model: str | None
+) -> tuple[str | None, list[str]]:
+    session_id = _dsh_presence_session_id(run_id, worker)
+    if session_id is None:
+        return None, []
+    try:
+        agent_workspace.check_in(
+            participant_id="dsh",
+            session_id=session_id,
+            runtime="kittybuilder-dsh",
+            role="OWN",
+            lane_id=task_id,
+            exact_ref=start_sha,
+            summary=f"KittyBuilder run {run_id} using {model or 'configured model'}",
+            declared_status="active",
+        )
+    except Exception as exc:
+        return session_id, [_presence_issue("checkin", exc)]
+    return session_id, []
+
+
+def _presence_heartbeat(session_id: str | None, issues: list[str]) -> None:
+    if session_id is None:
+        return
+    try:
+        agent_workspace.heartbeat(session_id, "dsh")
+    except Exception as exc:
+        issues.append(_presence_issue("heartbeat", exc))
+
+
+def _presence_checkout(session_id: str | None, issues: list[str]) -> None:
+    if session_id is None:
+        return
+    try:
+        agent_workspace.checkout(session_id, "dsh")
+    except Exception as exc:
+        issues.append(_presence_issue("checkout", exc))
+
+
 def run_worker(
     task_id: str,
     command: list[str],
@@ -1269,6 +1322,8 @@ def run_worker(
     outcome = bq.RUN_FAILED
     exit_code: int | None = None
     started = time.monotonic()
+    presence_session_id: str | None = None
+    presence_issues: list[str] = []
 
     try:
         log_fh = open(log_path, "wb")
@@ -1351,6 +1406,13 @@ def run_worker(
                 expected_states=frozenset({bq.RUN_STARTING}),
                 db_path=db_path,
             )
+            presence_session_id, presence_issues = _presence_check_in(
+                run_id=run_id,
+                worker=worker,
+                task_id=task_id,
+                start_sha=start_sha,
+                model=model,
+            )
         except bq.RunStateConflictError as exc:
             try:
                 current = bq.get_run(run_id, db_path=db_path)
@@ -1409,6 +1471,7 @@ def run_worker(
                             db_path=db_path,
                         )
                         bq.update_run(run_id, mark_heartbeat=True, db_path=db_path)
+                        _presence_heartbeat(presence_session_id, presence_issues)
                     except bq.LeaseConflictError:
                         # We no longer own the task (operator released / another
                         # worker). Stop the worker; do not touch task state.
@@ -1544,6 +1607,8 @@ def run_worker(
                     f"context validation failed: {'; '.join(context_issues)}"
                 )
 
+    _presence_checkout(presence_session_id, presence_issues)
+
     report = {
         "run_id": run_id,
         "outcome": outcome,
@@ -1565,6 +1630,7 @@ def run_worker(
         "worktree_state": worktree_state,
         "context_issues": context_issues,
         "context_injected": inject_context,
+        "presence_issues": presence_issues,
     }
     if control_error is not None:
         report["error"] = f"{type(control_error).__name__}: {control_error}"

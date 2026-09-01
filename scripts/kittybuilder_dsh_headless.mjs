@@ -60,6 +60,7 @@ export function apply(ctx, config) {
       ...fallback,
       provider: process.env.KITTY_DSH_PROVIDER || fallback.provider,
       model: process.env.KITTY_DSH_MODEL || fallback.model,
+      reasoningEffort: process.env.KITTY_DSH_REASONING_EFFORT || fallback.reasoningEffort || 'high',
     }
     const presetId = process.env.KITTY_DSH_PRESET || presets.defaultId
     const sessionId = SessionId(`session-${randomUUID()}`)

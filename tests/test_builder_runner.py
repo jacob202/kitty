@@ -336,6 +336,69 @@ class TestRunWorker:
         assert "run_exited" in [event["type"] for event in run_events]
         assert all(event["run_id"] == run["id"] for event in run_events)
 
+
+    def test_dsh_run_self_publishes_presence_lifecycle(self, repo: Path, db_path: Path, monkeypatch):
+        task = _queued_task(db_path)
+        calls: list[tuple[str, str]] = []
+
+        def check_in(**kwargs):
+            calls.append(("checkin", kwargs["session_id"]))
+            return kwargs
+
+        def heartbeat(session_id, participant_id):
+            calls.append(("heartbeat", session_id))
+            assert participant_id == "dsh"
+            return {"session_id": session_id}
+
+        def checkout(session_id, participant_id):
+            calls.append(("checkout", session_id))
+            assert participant_id == "dsh"
+            return {"session_id": session_id}
+
+        monkeypatch.setattr(br.agent_workspace, "check_in", check_in)
+        monkeypatch.setattr(br.agent_workspace, "heartbeat", heartbeat)
+        monkeypatch.setattr(br.agent_workspace, "checkout", checkout)
+
+        run = br.run_worker(
+            task["id"],
+            ["sh", "-c", "sleep 0.25"],
+            worker="dsh-free",
+            model="openrouter/free",
+            timeout_seconds=10,
+            lease_seconds=2,
+            heartbeat_seconds=0.05,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        session_id = f"builder-{run['id']}"
+        assert calls[0] == ("checkin", session_id)
+        assert any(kind == "heartbeat" for kind, _ in calls)
+        assert calls[-1] == ("checkout", session_id)
+        assert run["final_report"]["presence_issues"] == []
+
+    def test_dsh_presence_failure_never_becomes_execution_authority(self, repo: Path, db_path: Path, monkeypatch):
+        task = _queued_task(db_path)
+        monkeypatch.setattr(
+            br.agent_workspace,
+            "check_in",
+            lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("room unavailable")),
+        )
+
+        run = br.run_worker(
+            task["id"],
+            ["true"],
+            worker="dsh-free",
+            timeout_seconds=10,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_EXITED
+        assert run["final_report"]["presence_issues"]
+        assert run["final_report"]["presence_issues"][0].startswith("checkin:RuntimeError")
+
     def test_failed_run_blocks_with_worker_failed(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
         run = br.run_worker(
