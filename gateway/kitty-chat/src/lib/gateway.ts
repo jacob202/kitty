@@ -709,7 +709,7 @@ export interface AgentWorkspaceAgent {
   display_name: string
   role: string
   model: string | null
-  status: 'available' | 'paused' | 'retired'
+  status: 'available' | 'paused' | 'retired' | 'registered'
 }
 
 export interface AgentWorkspaceMessage {
@@ -759,6 +759,29 @@ export interface AgentWorkspace {
   messages: AgentWorkspaceMessage[]
   events: AgentWorkspaceEvent[]
   turns: AgentWorkspaceTurn[]
+}
+
+export type AgentRoomReceiptState = 'sent' | 'seen' | 'acknowledged'
+
+export interface AgentRoomInboxMessage extends AgentWorkspaceMessage {
+  seen_at: number | null
+  acknowledged_at: number | null
+  receipt_state: AgentRoomReceiptState
+}
+
+export interface AgentRoomReceipt {
+  message_id: string
+  participant_id: string
+  seen_at: number | null
+  acknowledged_at: number | null
+  receipt_state: AgentRoomReceiptState
+}
+
+export interface GlobalAgentMessageInput {
+  recipientId: string | null
+  content: string
+  messageKind: AgentWorkspaceMessage['message_kind']
+  parentMessageId?: string | null
 }
 
 async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
@@ -913,6 +936,69 @@ export async function runAgentWorkspaceTurn(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, user_id: 'jacob' }),
+  })
+}
+
+export async function fetchGlobalAgentRoom(): Promise<AgentWorkspace> {
+  return gfetch<AgentWorkspace>('/agent-room/global')
+}
+
+export async function fetchGlobalAgentMessages(limit = 100): Promise<AgentWorkspaceMessage[]> {
+  const json = await gfetch<{ messages?: AgentWorkspaceMessage[] }>(`/agent-room/global/messages?limit=${limit}`)
+  if (!Array.isArray(json.messages)) {
+    throw new Error('Gateway global-room messages returned an invalid payload: expected a messages array')
+  }
+  return json.messages
+}
+
+export async function fetchGlobalAgentInbox(
+  unreadOnly = false,
+  limit = 100,
+): Promise<AgentRoomInboxMessage[]> {
+  const json = await gfetch<{ messages?: AgentRoomInboxMessage[] }>(
+    `/agent-room/global/inbox/jacob?unread_only=${unreadOnly}&limit=${limit}`,
+  )
+  if (!Array.isArray(json.messages)) {
+    throw new Error('Gateway global-room inbox returned an invalid payload: expected a messages array')
+  }
+  return json.messages
+}
+
+export async function fetchGlobalAgentThread(
+  messageId: string,
+  limit = 100,
+): Promise<AgentWorkspaceMessage[]> {
+  const json = await gfetch<{ messages?: AgentWorkspaceMessage[] }>(
+    `/agent-room/global/threads/${encodeURIComponent(messageId)}?limit=${limit}`,
+  )
+  if (!Array.isArray(json.messages)) {
+    throw new Error('Gateway global-room thread returned an invalid payload: expected a messages array')
+  }
+  return json.messages
+}
+
+export async function postGlobalAgentMessage(input: GlobalAgentMessageInput): Promise<AgentWorkspaceMessage> {
+  return gfetch<AgentWorkspaceMessage>('/agent-room/global/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sender_id: 'jacob',
+      recipient_id: input.recipientId,
+      content: input.content,
+      message_kind: input.messageKind,
+      parent_message_id: input.parentMessageId ?? null,
+    }),
+  })
+}
+
+export async function updateGlobalAgentReceipt(
+  messageId: string,
+  state: Exclude<AgentRoomReceiptState, 'sent'>,
+): Promise<AgentRoomReceipt> {
+  return gfetch<AgentRoomReceipt>(`/agent-room/global/messages/${encodeURIComponent(messageId)}/receipts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ participant_id: 'jacob', state }),
   })
 }
 
