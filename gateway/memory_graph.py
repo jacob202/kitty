@@ -80,6 +80,7 @@ class Source(str, Enum):
     INBOX = "inbox"
     MEMORY_PALACE = "memory_palace"
     SIGNALS = "signals"
+    CHATS = "chats"
     FACTS = "facts"
 
     def __str__(self) -> str:  # pragma: no cover - trivial
