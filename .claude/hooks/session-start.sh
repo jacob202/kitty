@@ -36,6 +36,21 @@ fi
 # Bail early if not in a git repo (nothing useful to inject).
 git rev-parse --git-dir >/dev/null 2>&1 || exit 0
 
+# Claude Code passes hook context on stdin. Record a per-session start marker in
+# tmp storage so the Stop hook can distinguish this session's GAR receipts from
+# older room traffic without touching the repository.
+HOOK_INPUT=$(cat 2>/dev/null || true)
+SESSION_ID=""
+if command -v jq >/dev/null 2>&1 && [ -n "$HOOK_INPUT" ]; then
+  SESSION_ID=$(printf '%s' "$HOOK_INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+fi
+SAFE_SESSION_ID=$(printf '%s' "$SESSION_ID" | tr -cd 'A-Za-z0-9._-')
+GAR_STATE_DIR="${KITTY_GAR_STATE_DIR:-${TMPDIR:-/tmp}/kitty-gar-lifecycle}"
+if [ -n "$SAFE_SESSION_ID" ]; then
+  mkdir -p "$GAR_STATE_DIR" 2>/dev/null || true
+  date +%s > "$GAR_STATE_DIR/$SAFE_SESSION_ID.start" 2>/dev/null || true
+fi
+
 VERBOSE="${DOTCLAUDE_SESSION_VERBOSE:-0}"
 CONTEXT=""
 
@@ -85,4 +100,29 @@ if [ "$VERBOSE" = "1" ]; then
 fi
 
 [ -n "$CONTEXT" ] && echo "$CONTEXT"
+
+# workspace_global is the primary mutable cross-agent continuation channel.
+# SessionStart fires both for new sessions and resumes, so inject a bounded recent
+# window plus Claude's unread direct inbox every time. Never auto-ack here: the
+# model must actually receive/read the injected message before acknowledgement.
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+ROOM_CLI="${KITTY_ROOM_CLI:-$PROJECT_ROOT/kitty}"
+if [ -x "$ROOM_CLI" ]; then
+  GAR_OK=1
+  RECENT=$("$ROOM_CLI" room recent --limit 12 2>/dev/null) || GAR_OK=0
+  INBOX=$("$ROOM_CLI" room inbox --as claude --unread --limit 12 2>/dev/null) || GAR_OK=0
+  if [ "$GAR_OK" = "1" ]; then
+    echo ""
+    echo "[GAR] workspace_global recent:"
+    [ -n "$RECENT" ] && echo "$RECENT" || echo "(no recent messages)"
+    echo "[GAR] unread for claude:"
+    [ -n "$INBOX" ] && echo "$INBOX" || echo "(none)"
+    echo "[GAR] Read relevant context; ACK direct messages only after receipt. Builder executes work; #490 owns collisions."
+  else
+    echo "[GAR] workspace_global unavailable at session start; do not treat that as an empty room."
+  fi
+else
+  echo "[GAR] workspace_global unavailable at session start; Kitty room CLI not found."
+fi
+
 exit 0
