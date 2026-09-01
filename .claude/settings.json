@@ -29,6 +29,10 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/block-dangerous-commands.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/block-polling.sh"
           }
         ]
       },
@@ -137,7 +141,7 @@
       }
     }
   },
-  "sessionStart": "python3.11 -m pytest tests/ -q --tb=line 2>/dev/null | tail -1 || true",
+  "sessionStart": "git status --porcelain | wc -l | tr -d ' ' | xargs -I{} echo 'uncommitted files: {}'",
   "autoSave": true,
   "terminalIntegration": true
 }

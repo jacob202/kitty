@@ -566,6 +566,8 @@ async def chat_completions(request: Request):
 
     from gateway.context_assembler import (
         TOTAL_CONTEXT_TOKEN_CAPS,
+        SelectedSkillTooLargeError,
+        SkillSelectionError,
         assemble_context,
         assert_not_total_failure,
     )
@@ -604,6 +606,15 @@ async def chat_completions(request: Request):
             if enriched and enriched[0].get("role") == "system"
             else ""
         )
+        selected_skill_block = getattr(bundle, "selected_skill_block", None)
+        if (
+            isinstance(selected_skill_block, str)
+            and selected_skill_block
+            and selected_skill_block not in system_prompt
+        ):
+            raise SelectedSkillTooLargeError(
+                "Selected skill instructions cannot fit alongside the current chat context"
+            )
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:
             _finish_lifecycle_or_raise(
@@ -614,6 +625,10 @@ async def chat_completions(request: Request):
             )
             lifecycle_done = True
         on_request_error()
+        if isinstance(exc, SkillSelectionError):
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if isinstance(exc, SelectedSkillTooLargeError):
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
         raise
 
     stripped = {
