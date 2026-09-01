@@ -14,11 +14,14 @@ from gateway import search as unified_search
 router = APIRouter(tags=["search"])
 
 _SECTION_TO_STORE = {
+    "projects": "projects",
     "memories": "memory",
     "knowledge": "knowledge",
     "journal": "journal",
+    "traces": "traces",
     "todos": "todos",
     "inbox": "inbox",
+    "signals": "signals",
 }
 
 
