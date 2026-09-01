@@ -1,0 +1,2 @@
+# Match Kitty's existing FastMCP v1 bridge API.
+mcp[cli]>=1.27,<2
