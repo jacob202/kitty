@@ -1,4 +1,4 @@
-"""Cold-model acceptance using only repository authorities and a context receipt."""
+"""Cold-model acceptance using repository authorities plus GAR-first context."""
 
 from __future__ import annotations
 
@@ -40,8 +40,12 @@ def _section_body(document: str, heading: str) -> str:
 
 
 def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
-    """No chat or inherited model memory is used by this acceptance contract."""
-    receipt = build_context_receipt(ROOT, expected_canonical=_canonical_worktree())
+    """GAR-first cold start must not depend on inherited model/checkpoint state."""
+    receipt = build_context_receipt(
+        ROOT,
+        expected_canonical=_canonical_worktree(),
+        include_legacy_continuity=False,
+    )
     failed = [
         check
         for check in receipt["continuity"]["checks"]
@@ -69,9 +73,17 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     assert authorities["continuation"] == ".claude/HANDOFF.md"
     assert ".claude/STATE.md" not in reading_order
     assert ".claude/HANDOFF.md" not in reading_order
+    assert receipt["continuity"]["state"] is None
+    assert receipt["continuity"]["handoff"] is None
+    assert receipt["next_action"] is None
+    assert receipt["recommendations"] is None
+    assert receipt["evidence"]["checkpoint_source"] == []
+
     start_here = (ROOT / "START_HERE.md").read_text(encoding="utf-8")
     assert "workspace_global" in start_here
-    assert "primary mutable" in start_here
+    assert "--unread" in start_here
+    assert "room_thread" in start_here
+    assert "--skip-legacy-continuity" in start_here
 
     documents = {
         concern: (ROOT / path).read_text(encoding="utf-8")
@@ -92,12 +104,7 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     assert "What's shipped" in documents["live_status"] or "Shipped" in documents["live_status"]
     assert "Builder investigation" in documents["live_status"]
     # 5. What is active?
-    # Asserting the mission's title would break on every legitimate mission
-    # change. The cold-start question is "is a mission declared and readable",
-    # so check the document's shape and let the receipt below prove liveness.
     assert documents["active_mission"].startswith("# Active Mission — ")
-    # A heading alone is not an answer: both sections were once added empty to
-    # satisfy this check, which left a cold reader with no objective to read.
     assert _section_body(documents["active_mission"], "## Objective")
     assert _section_body(documents["active_mission"], "## Acceptance Contract")
     mission_status = receipt["continuity"]["active_mission"]["status"]
@@ -106,11 +113,11 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     }
     terminal_statuses = {"succeeded", "failed", "cancelled", "superseded"}
     assert mission_status in active_statuses | terminal_statuses
-    # 6. What is next? Active/blocked missions may name the action that advances or
-    # unblocks them. A terminal mission must not fabricate resumable work.
-    assert isinstance(receipt["next_action"], str) and receipt["next_action"]
-    if mission_status in terminal_statuses:
-        assert receipt["next_action"].casefold() in {"none", "n/a"}
+    # 6. What is next? The receipt deliberately does not answer this in GAR mode;
+    # START_HERE routes continuation through unread/direct room handoffs or a
+    # known durable thread locator, with legacy checkpoint fallback only while
+    # scoped room retrieval is still being built.
+    assert receipt["next_action"] is None
     # 7. What is stale or uncertain?
     assert receipt["unknowns"]
     assert "git.origin_main.remote_freshness" in {
