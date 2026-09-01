@@ -1510,6 +1510,17 @@ class TestRecoveryBudget:
         assert task["state"] == bq.BLOCKED
         assert task["blocked_reason"] == "recovery_budget_exhausted"
 
+    def test_paid_route_propagates_only_openrouter_provider_credential(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "sentinel-openrouter")
+        monkeypatch.setenv("GITHUB_TOKEN", "must-not-propagate")
+
+        _route, _worker, env = bl._configure_paid_route("cheap", "opencode-paid-cheap", {})
+
+        assert env["OPENROUTER_API_KEY"] == "sentinel-openrouter"
+        assert "GITHUB_TOKEN" not in env
+
     def test_paid_route_ignores_prior_free_provider_exhaustion(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):

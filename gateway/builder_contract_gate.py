@@ -40,7 +40,7 @@ def _overlap(left: str, right: str) -> bool:
 
 
 def _changed_paths(worktree: Path, base_sha: str) -> list[str]:
-    output = _git(worktree, "diff", "--name-only", f"{base_sha}..HEAD")
+    output = _git(worktree, "diff", "--no-renames", "--name-only", f"{base_sha}..HEAD")
     return [line.strip() for line in output.splitlines() if line.strip()]
 
 

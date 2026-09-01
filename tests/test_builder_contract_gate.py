@@ -50,3 +50,11 @@ def test_changed_text_fails_closed_when_changed_file_cannot_be_read(tmp_path: Pa
         assert "unreadable.py" in str(exc)
     else:
         raise AssertionError("unreadable changed file must fail closed")
+
+
+def test_changed_paths_disables_rename_detection(monkeypatch, tmp_path: Path) -> None:
+    calls = []
+    monkeypatch.setattr(gate, "_git", lambda _wt, *args: calls.append(args) or "old/path.py\nnew/path.py\n")
+
+    assert gate._changed_paths(tmp_path, "a" * 40) == ["old/path.py", "new/path.py"]
+    assert calls == [("diff", "--no-renames", "--name-only", f"{'a' * 40}..HEAD")]

@@ -743,6 +743,9 @@ def _configure_paid_route(
 
     route = resolve_paid_route(tier)
     env = dict(adapter_env)
+    openrouter_api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if openrouter_api_key:
+        env["OPENROUTER_API_KEY"] = openrouter_api_key
     env.update(
         {
             "KITTYBUILDER_AGENT": "paid-builder",
