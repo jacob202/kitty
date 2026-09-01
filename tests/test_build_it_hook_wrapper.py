@@ -225,7 +225,12 @@ def test_settings_wires_both_gates_after_kitty_hooks() -> None:
     assert len(scanners) == 2, "expected scan-secrets.sh in both the Bash and Write|Edit groups"
     assert max(scanners) < evidence_lint
 
-    stop_commands = [h["command"] for group in settings["hooks"]["Stop"] for h in group["hooks"]]
+    stop_commands = [
+        h["command"]
+        for group in settings["hooks"]["Stop"]
+        for h in group["hooks"]
+        if h.get("type") == "command"
+    ]
     assert stop_commands.index("bash .claude/hooks/session-stop.sh") < next(
         i for i, c in enumerate(stop_commands) if "turn-end-gate.py" in c
     )
