@@ -63,13 +63,13 @@ def _parse_json_object(value: str | None) -> dict[str, Any] | None:
 
 
 _FREE_ADAPTER_SCRIPTS = (
-    "scripts/kittybuilder_opencode_worker.sh",
-    "scripts/kittybuilder_opencode_reviewer.sh",
+    "scripts/kittybuilder_dsh_worker.sh",
+    "scripts/kittybuilder_dsh_reviewer.sh",
 )
 
 
 def _free_adapter_commands() -> tuple[list[str], list[str]]:
-    """Resolve the free OpenCode adapter scripts in this checkout."""
+    """Resolve the free DSH adapter scripts in this checkout."""
     root = Path(__file__).resolve().parents[1]
     commands: list[list[str]] = []
     for rel in _FREE_ADAPTER_SCRIPTS:
@@ -97,15 +97,15 @@ def _paid_adapter_env(route: Any) -> dict[str, str]:
         "KITTYBUILDER_AGENT": "paid-builder",
         "KITTYBUILDER_REVIEW_AGENT": "paid-reviewer",
         "KITTYBUILDER_MODEL": route.worker_model,
-        "KITTYBUILDER_REVIEW_MODEL": route.reviewer_model,
+        "KITTYBUILDER_REVIEW_MODEL": "",
         "KITTYBUILDER_MODELS": "",
-        "KITTYBUILDER_REVIEW_MODELS": "",
+        "KITTYBUILDER_REVIEW_MODELS": " ".join(route.reviewer_candidates),
     }
 
 
 def _is_explicit_free_model(model: str) -> bool:
-    return model == "openrouter/free" or model.endswith(":free") or (
-        model.startswith("opencode/") and model.endswith("-free")
+    return model == "openrouter/free" or (
+        model.startswith("openrouter/") and model.endswith(":free")
     )
 
 
@@ -131,7 +131,7 @@ def _resolve_loop_commands(
     if args.free:
         if args.worker_command or args.review_command:
             raise ValueError(
-                "--free already selects the OpenCode adapter scripts; "
+                "--free already selects the DSH adapter scripts; "
                 "drop --worker-command/--review-command or drop --free"
             )
         if args.model and not _is_explicit_free_model(args.model):
@@ -1483,9 +1483,9 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
         return 1
     worker = args.worker
     if args.free and worker == "packet-loop":
-        worker = "opencode-free"
+        worker = "dsh-free"
     elif paid_route is not None and worker == "packet-loop":
-        worker = f"opencode-paid-{paid_route.tier}"
+        worker = f"dsh-paid-{paid_route.tier}"
     selected_model = paid_route.worker_model if paid_route is not None else args.model
     selected_provider = paid_route.provider if paid_route is not None else args.provider
     governor_risk_class = (
@@ -1554,9 +1554,9 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
         return 1
     worker = args.worker
     if args.free and worker == "packet-loop":
-        worker = "opencode-free"
+        worker = "dsh-free"
     elif paid_route is not None and worker == "packet-loop":
-        worker = f"opencode-paid-{paid_route.tier}"
+        worker = f"dsh-paid-{paid_route.tier}"
     selected_model = paid_route.worker_model if paid_route is not None else args.model
     selected_provider = paid_route.provider if paid_route is not None else args.provider
     governor_risk_class = (
@@ -1739,7 +1739,7 @@ def _cmd_supervisor_status(args: argparse.Namespace) -> int:
     """Read-only supervisor projection: initiatives, eligible work, active runs."""
     from gateway import builder_supervisor as bs
 
-    projection = bs.status()
+    projection = bs.status(initiative_prefix=args.initiative_prefix)
     if args.json:
         print(json.dumps(projection, indent=2, default=str))
         return 0
@@ -1750,6 +1750,29 @@ def _cmd_supervisor_status(args: argparse.Namespace) -> int:
         print(
             f"  {initiative['initiative_id']:<40} "
             f"{initiative['derived_state']:<10} eligible={eligible}"
+        )
+    autonomy = projection.get("autonomy") or {}
+    runway = autonomy.get("runway") or {}
+    counts = runway.get("counts") or {}
+    if counts:
+        print(
+            "runway: "
+            f"actionable={runway.get('actionable', 0)} "
+            f"backend={counts.get('safe_backend_runnable', 0)} "
+            f"frontend={counts.get('interactive_frontend', 0)} "
+            f"held={counts.get('collision_held', 0)} "
+            f"operator_blocked={counts.get('operator_blocked', 0)} "
+            f"running={counts.get('running', 0)} "
+            f"pending={counts.get('pending_backend', 0)} "
+            f"low_water={bool(runway.get('low_water'))} "
+            f"caught_up={bool(runway.get('caught_up'))}"
+        )
+        inbox = autonomy.get("publication_inbox") or []
+        refill = autonomy.get("refill") or {}
+        print(
+            f"decisions: publication_inbox={len(inbox)} "
+            f"refill_needed={bool(refill.get('needed'))} "
+            f"refill_target={int(refill.get('target_candidates') or 0)}"
         )
     return 0
 
@@ -2052,7 +2075,7 @@ COMMANDS: list[CommandSpec] = [
                 _cmd_initiative_run_packet,
                 [_a("id", "initiative ID"),
                  _a("packet", "packet ID"),
-                 _a("--free", "use the free OpenCode adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
+                 _a("--free", "use the free DSH adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
                  _a("--paid", "use the governed paid OpenRouter worker/reviewer route", action="store_true"),
                  _a("--tier", "with --paid: value tier (cheap default) or explicit frontier escalation", choices=["cheap", "frontier"], default="cheap"),
                  _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
@@ -2083,7 +2106,7 @@ COMMANDS: list[CommandSpec] = [
                 "implement/validate/review (S3b) then operator-gated publish (S4b)",
                 _cmd_initiative_run,
                 [_a("id", "initiative ID"),
-                 _a("--free", "use the free OpenCode adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
+                 _a("--free", "use the free DSH adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
                  _a("--paid", "use the governed paid OpenRouter worker/reviewer route", action="store_true"),
                  _a("--tier", "with --paid: value tier (cheap default) or explicit frontier escalation", choices=["cheap", "frontier"], default="cheap"),
                  _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
@@ -2120,7 +2143,10 @@ COMMANDS: list[CommandSpec] = [
                  _a("--json", "output JSON", action="store_true")]),
     CommandSpec("supervisor-status", "supervisor", "status",
                 "read-only supervisor projection (initiatives, eligible work, active runs)",
-                _cmd_supervisor_status, [_a("--json", "output JSON", action="store_true")]),
+                _cmd_supervisor_status, [
+                    _a("--initiative-prefix", "scope autonomy runway/publication projection to initiative IDs with this prefix", default=None),
+                    _a("--json", "output JSON", action="store_true"),
+                ]),
 ]
 
 

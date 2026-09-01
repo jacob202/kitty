@@ -301,7 +301,7 @@ def _ensure_branch_lease_initiative_id(conn: sqlite3.Connection) -> None:
     Also drops any orphan ``idx_branch_leases_worker`` unique index that
     survived a prior migration. That index makes ``worker_id`` globally
     unique instead of per-initiative, blocking any second initiative from
-    using the same worker preset (e.g. ``opencode-free``).
+    using the same worker preset (e.g. ``dsh-free``).
     """
     cols = {row[1] for row in conn.execute("PRAGMA table_info(branch_leases)")}
     indexes = {

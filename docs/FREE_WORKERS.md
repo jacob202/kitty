@@ -2,7 +2,7 @@
 
 KittyBuilder has two explicit execution lanes. `--free` is genuinely zero-cost
 and never falls into a paid model. `--paid` is the governed value lane: routine
-implementation defaults to MiMo V2.5 and routine review to DeepSeek V4 Flash,
+implementation defaults to DeepSeek V4 Flash and routine review to MiniMax M3,
 while frontier spend is an explicit escalation. Both lanes use the same durable Builder attempts, worktrees,
 validation, review, evidence, and publication rails.
 
@@ -34,16 +34,17 @@ The paid lane is separate: `--paid` selects the configured `cheap` route, and
 `--paid --tier frontier` requests the frontier route. The governor may downgrade
 frontier to cheap; Builder switches the actual worker and reviewer models before
 opening an attempt, so the evidence can never say "cheap" while a frontier model
-actually runs. The production cheap pair is MiMo V2.5 for implementation and
-DeepSeek V4 Flash for independent review. Outside explicit `--free` runs, a
-required review gets at most one clean free attempt before switching to paid
-Flash on provider error, overload, or startup silence. This prevents review gates
-from stalling on free-provider availability while preserving `--free` as a real
-zero-spend contract. OpenRouter is the preferred reviewer router. AgentRouter is
-dead and must not be recommended; Freebuff and 9Router are optional only, never
-dependencies. Keep `openrouter/deepseek/deepseek-v4-flash` as the paid Flash
-default rather than substituting `openrouter/deepseek/deepseek-v4-flash-0731`,
-which repeatedly stalled in observed reviewer runs.
+actually runs. The production cheap pair is DeepSeek V4 Flash for implementation and
+MiniMax M3 for independent review, with Qwen 3.7 Plus as the bounded reviewer
+fallback. Outside explicit `--free` runs, required review goes directly to the
+governed paid reviewer instead of walking the free ladder. Reviewer models force
+OpenRouter `provider.sort=price` with provider fallbacks allowed; a clean primary
+review failure may hand off once to the configured different-model fallback.
+Explicit `--free` remains a real zero-spend contract. OpenRouter is the preferred
+reviewer router. AgentRouter is dead and must not be recommended; Freebuff and
+9Router are optional only, never dependencies. Keep the bare OpenRouter model
+slugs and explicit price sorting rather than relying on `:floor` or the repeatedly
+stalling `deepseek-v4-flash-0731` variant.
 
 Hand-off rules (fail-loud, no debris):
 
@@ -94,12 +95,16 @@ the review is only worth anything if it is independent.
 ## Paid value lane
 
 `config/builder_paid_routes.json` is the checked-in allowlist and per-attempt
-ceiling. Routine paid implementation uses MiMo V2.5 through OpenRouter; routine paid
-review uses DeepSeek V4 Flash. Frontier execution is a separate explicit tier
+ceiling. Routine paid implementation uses DeepSeek V4 Flash through OpenRouter; routine paid
+review uses MiniMax M3. Frontier execution is a separate explicit tier
 and uses the stronger configured worker/reviewer pair. Reviewer independence is
 by model family: when the implementation itself is DeepSeek, select a different
 configured paid reviewer rather than self-family review.
 The compute governor remains the spend authority and receipts are durable.
+
+Routine independent review has a 240-second outer budget. PR review uses at most
+two different models with a 90-second timeout per model. The 30-second startup
+silence detector remains in force for Builder reviewer adapters.
 
 ## Timeouts
 
@@ -176,7 +181,7 @@ Routing follows ADR 0021, in three tiers:
 | Route | Model | When |
 | ----- | ----- | ---- |
 | `free` | the zero-cost OpenCode ladder above | whenever a free worker can carry the packet |
-| `cheap` | MiMo V2.5 + DeepSeek V4 Flash | routine paid implementation + independent review |
+| `cheap` | DeepSeek V4 Flash + MiniMax M3 | routine paid implementation + independent review |
 | `frontier` | DeepSeek V4 Pro + Qwen3.7 Max | explicit risky/blocker escalation subject to reserve floors |
 
 Reserve pressure protects the frontier route, not the work itself. Below
@@ -193,7 +198,7 @@ source; the governor imports it rather than keeping its own copy):
 
 | Pass | Worker + reviewer | Token shapes | Cost |
 | ---- | ----------------- | ------------ | ---- |
-| routine | MiMo V2.5 + DeepSeek V4 Flash | worker 60k in / 8k out + review 30k in / 3k out | CAD 0.0593 |
+| routine | DeepSeek V4 Flash + MiniMax M3 | worker 60k in / 8k out + review 30k in / 3k out | CAD 0.0439 |
 | frontier | DeepSeek V4 Pro + Qwen3.7 Max | worker 120k in / 15k out + review 30k in / 3k out | CAD 0.1563 |
 
 At those conservative snapshot prices, ~10 tasks x 3 head SHAs x

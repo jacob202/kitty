@@ -283,7 +283,7 @@ leave running only if all of this is true:
 Free is the default and the fence is enforced in code: the free lane rejects a
 paid model override outright (`gateway/builder_loop.py`
 `_sanitize_free_adapter_env`). The free ladder tries seven models in order
-before giving up (`scripts/kittybuilder_opencode_worker.sh`).
+before giving up (`scripts/kittybuilder_dsh_worker.sh`).
 
 For free work, **omit `policy.routing`**. `{}` or a `null` routing key also
 validate, but omission is the canonical authoring shape. Never write explicit

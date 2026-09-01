@@ -22,8 +22,8 @@ RESOURCE_MAP: list[tuple[str, list[str], list[str]]] = [
     (
         "gateway/builder_",
         [
-            "scripts/kittybuilder_opencode_worker.sh",
-            "scripts/kittybuilder_opencode_reviewer.sh",
+            "scripts/kittybuilder_dsh_worker.sh",
+            "scripts/kittybuilder_dsh_reviewer.sh",
             "scripts/opencode_free_train.sh",
         ],
         ["catchup", "debug-fix"],

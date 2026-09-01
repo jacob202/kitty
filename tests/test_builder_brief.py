@@ -106,7 +106,7 @@ class TestRenderWorkerBrief:
 class TestCp07ResourcesForPaths:
     def test_mapped_prefix_returns_scripts_and_skills(self):
         result = resources_for_paths(["gateway/builder_loop.py"])
-        assert "scripts/kittybuilder_opencode_worker.sh" in result["scripts"]
+        assert "scripts/kittybuilder_dsh_worker.sh" in result["scripts"]
         assert "catchup" in result["skills"]
 
     def test_unmapped_path_returns_empty_never_a_guess(self):
@@ -121,7 +121,7 @@ class TestCp07ResourcesForPaths:
         result = resources_for_paths(
             ["gateway/builder_run.py", "gateway/builder_loop.py"]
         )
-        assert result["scripts"].count("scripts/kittybuilder_opencode_worker.sh") == 1
+        assert result["scripts"].count("scripts/kittybuilder_dsh_worker.sh") == 1
 
     def test_multiple_matching_prefixes_union(self):
         result = resources_for_paths(["gateway/builder_x.py", "tests/test_x.py"])
@@ -134,7 +134,7 @@ class TestCp07ResourcesInBrief:
         task = _task(allowed_paths=["gateway/builder_loop.py"])
         brief = render_worker_brief(task, [], [])
         assert "Resources (CP-07)" in brief
-        assert "scripts/kittybuilder_opencode_worker.sh" in brief
+        assert "scripts/kittybuilder_dsh_worker.sh" in brief
         assert "catchup" in brief
         assert "cite which you used" in brief
 

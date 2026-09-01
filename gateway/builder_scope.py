@@ -73,7 +73,7 @@ def normalize_allowed_paths(allowed_paths: Any) -> list[str]:
 # check gained this exemption.
 SESSION_STATE_RESIDUE = frozenset({".claude/STATE.md", ".claude/HANDOFF.md"})
 
-# The --free worker adapter (scripts/kittybuilder_opencode_worker.sh) stages
+# The --free DSH worker adapter (scripts/kittybuilder_dsh_worker.sh) stages
 # the task bundle/context/result as .kittybuilder-{bundle,context,result}-
 # <attempt_id>.json at the worktree root so the model can read them via a
 # relative path, and cleans them up before finishing. A run that's killed or

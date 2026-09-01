@@ -383,7 +383,7 @@ def run_initiative(
     provider: str | None = None,
     timeout_seconds: int = 3600,
     validation_timeout_seconds: int = 900,
-    review_timeout_seconds: int = 900,
+    review_timeout_seconds: int = 240,
     publish: bool = False,
     gate: str = GATE_AUTO,
     max_initiative_attempts: int | None = None,

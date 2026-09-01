@@ -4,17 +4,20 @@
   "routes": {
     "cheap": {
       "provider": "openrouter",
-      "worker_model": "openrouter/xiaomi/mimo-v2.5",
-      "reviewer_model": "openrouter/deepseek/deepseek-v4-flash",
+      "worker_model": "openrouter/deepseek/deepseek-v4-flash",
+      "reviewer_model": "openrouter/minimax/minimax-m3",
       "governor_route": "cheap",
-      "max_projected_cad_per_attempt": 0.10
+      "max_projected_cad_per_attempt": 0.1,
+      "reviewer_fallback_models": [
+        "openrouter/qwen/qwen3.7-plus"
+      ]
     },
     "frontier": {
       "provider": "openrouter",
       "worker_model": "openrouter/deepseek/deepseek-v4-pro",
       "reviewer_model": "openrouter/qwen/qwen3.7-max",
       "governor_route": "frontier",
-      "max_projected_cad_per_attempt": 0.50
+      "max_projected_cad_per_attempt": 0.5
     }
   }
 }

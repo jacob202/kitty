@@ -148,6 +148,9 @@ def preflight_worktree(
 def _repo_root(repo_root: Path | None) -> Path:
     if repo_root is not None:
         return Path(repo_root)
+    runtime_override = os.environ.get("KITTY_BUILDER_REPO_ROOT")
+    if runtime_override:
+        return Path(runtime_override).expanduser().resolve()
     out = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,

@@ -107,6 +107,18 @@ def test_required_checks_run_in_the_merge_queue() -> None:
         assert "github.event_name == 'merge_group'" in condition, name
 
 
+def test_agent_review_uses_paid_model_fallbacks_and_bounded_timeout() -> None:
+    text, workflow = _workflow("pr-agent-review.yml")
+    env = workflow["jobs"]["agent-review"]["steps"][-1]["env"]
+
+    assert env["PR_REVIEW_MODEL"] == "openrouter/deepseek/deepseek-v4-flash"
+    assert env["PR_REVIEW_FALLBACK_MODEL"] == "openrouter/minimax/minimax-m3"
+    assert env["PR_REVIEW_DEEPSEEK_MODEL"] == "openrouter/minimax/minimax-m3"
+    assert env["PR_REVIEW_DEEPSEEK_FALLBACK_MODEL"] == "openrouter/qwen/qwen3.7-plus"
+    assert env["PR_REVIEW_MODEL_TIMEOUT_SECONDS"] == "90"
+    assert "PR_REVIEW_REQUEST_ATTEMPTS" not in text
+
+
 def test_agent_review_does_not_rerun_for_a_merge_queue_requeue() -> None:
     """Re-spending the model review budget every time a PR is requeued behind
     another merge would be pure waste — the exact-head evidence it already
