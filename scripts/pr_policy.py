@@ -120,7 +120,10 @@ def evaluate_policy(
     violations: list[str] = []
 
     if author != "dependabot[bot]" and _is_user_facing(changed_files):
-        acceptance = _section(body, "Product acceptance (required only when `gateway/kitty-chat/src/` or `public/` changes)")
+        for heading in ("Product acceptance (required only when `gateway/kitty-chat/src/` or `public/` changes)", "Product acceptance (required for user-facing changes)"):
+            acceptance = _section(body, heading)
+            if acceptance:
+                break
         if not acceptance:
             violations.append("user-facing PR requires completed product acceptance")
         else:
