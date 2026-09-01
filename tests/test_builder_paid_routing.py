@@ -138,7 +138,7 @@ def test_opencode_config_has_separate_free_and_paid_agents():
 
     assert agents["free-builder"]["model"].endswith("-free")
     assert agents["free-reviewer"]["model"].endswith("-free")
-    assert agents["paid-builder"]["model"] == "openrouter/xiaomi/mimo-v2.5"
+    assert agents["paid-builder"]["model"] == "openrouter/deepseek/deepseek-v4-flash"
     assert agents["paid-reviewer"]["model"] == "openrouter/minimax/minimax-m3"
     assert agents["paid-reviewer"]["permission"]["edit"] == "deny"
     assert agents["pr-reviewer"]["model"] == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
@@ -146,11 +146,11 @@ def test_opencode_config_has_separate_free_and_paid_agents():
     assert agents["pr-reviewer"]["permission"]["bash"] == "deny"
 
 
-def test_real_cheap_route_uses_the_refreshed_independent_pair():
+def test_real_cheap_route_uses_deepseek_flash_and_independent_reviewer():
     # The actual production config, not the synthetic _policy() fixture above.
     route = bpr.resolve_paid_route("cheap")
 
-    assert route.worker_model == "openrouter/xiaomi/mimo-v2.5"
+    assert route.worker_model == "openrouter/deepseek/deepseek-v4-flash"
     assert route.reviewer_model == "openrouter/minimax/minimax-m3"
     assert route.worker_model != route.reviewer_model
     assert 0 < route.projected_cost_cad <= route.max_projected_cost_cad == 0.10

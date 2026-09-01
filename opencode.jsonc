@@ -45,7 +45,7 @@
     },
     "paid-builder": {
       "description": "Governed Kitty implementation using an explicitly selected paid OpenRouter model",
-      "model": "openrouter/xiaomi/mimo-v2.5",
+      "model": "openrouter/deepseek/deepseek-v4-flash",
       "prompt": "Work only inside the current isolated Kitty worktree. Read AGENTS.md, .claude/HANDOFF.md, .claude/STATE.md, and the supplied task card before editing. Implement only the bounded packet and run its exact validation. Use only the model selected by the governed paid route. Never push, merge, broaden scope, touch secrets or env files, inspect runtime personal data, ask questions, or spawn subagents.",
       "permission": {
         "edit": "allow",

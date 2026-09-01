@@ -522,7 +522,7 @@ def _launch_run(
 
     command = [
         str(kitty), "builder", "initiative", "run-packet",
-        initiative_id, packet_id, "--free", "--json",
+        initiative_id, packet_id, "--paid", "--tier", "cheap", "--json",
     ]
     log_dir = root / "data" / "kittybuilder" / "supervisor-launch"
     log_dir.mkdir(parents=True, exist_ok=True)
