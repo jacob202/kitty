@@ -46,14 +46,14 @@ on a separate trust boundary.
 
 Before compaction or handoff, preserve the outcome contract and non-goals,
 accepted decisions and their authority, current branch/worktree, and SHA plus
-implementation state, exact verification commands and results, unresolved
-failures and blockers, and one concrete next action. Publish those facts as the
-final validated `workspace_global` result/handoff after final verification, not
-before compatibility writes or validation. On resume, retrieve the known room
-thread or unread direct handoff and validate it against live Git and runtime
-state. When no durable room locator exists yet, use the strict-receipt-validated
-legacy compatibility checkpoint rather than pretending the global recent window
-is an assignment index.
+implementation state, exact verification commands and results, unresolved failures and blockers,
+and one concrete next action. Publish those facts as the final validated
+`workspace_global` result/handoff after final verification, not before
+compatibility writes or validation. On resume, retrieve the known room thread or
+unread direct handoff and validate it against live Git and runtime state. When no
+durable room locator exists yet, use the strict-receipt-validated legacy
+compatibility checkpoint rather than pretending the global recent window is an
+assignment index.
 
 Use exactly one completion state: `verified`, `implemented, awaiting
 verification`, `blocked`, or `failed`. Do not infer runtime success from code
