@@ -160,21 +160,24 @@ def push_to_jacob(
     title: str = "Kitty",
     url: str | None = None,
     dedupe_key: str | None = None,
-) -> bool:
+) -> bool | dict:
     """Deliver ``message`` to Jacob's phone. Returns True iff a channel accepted it.
 
     ``url`` is passed through to channels that support it (Pushover); iMessage
     has no separate url field and ignores it.
+
+    Returns dict with {"ok": bool, "reason": str} when detailed result needed,
+    otherwise bool for backward compatibility.
     """
     if dedupe_key and _already_sent(dedupe_key):
         logger.info("push deduped: %s", dedupe_key)
-        return True
+        return {"ok": True, "reason": "deduped"}
 
     if kind == "info":
         window = _quiet_hours_window()
         if window and _in_quiet_hours(window, datetime.now()):
             logger.info("push deferred (quiet hours %s): %s", window, title)
-            return False
+            return {"ok": False, "reason": "quiet_hours"}
 
     for channel in _channels():
         sender = _SENDERS.get(channel)
@@ -188,7 +191,7 @@ def push_to_jacob(
             ok = False
         _log_attempt(kind=kind, title=title, channel=channel, ok=ok, dedupe_key=dedupe_key)
         if ok:
-            return True
+            return {"ok": True, "reason": "delivered"}
 
     logger.error("all push channels failed for %r (kind=%s)", title, kind)
-    return False
+    return {"ok": False, "reason": "no_channels"}
