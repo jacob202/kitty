@@ -58,10 +58,20 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
         "roadmap": "docs/ROADMAP.md",
         "live_status": "docs/PROJECT_STATUS.md",
         "active_mission": "docs/ACTIVE_MISSION.md",
-        "session_checkpoint": ".claude/STATE.md",
     }
     assert {key: authorities[key] for key in required_sources} == required_sources
     assert all(path in reading_order for path in required_sources.values())
+
+    # Live cross-agent continuity is runtime state in workspace_global, not a
+    # mandatory versioned-document read. Legacy checkpoints remain addressable
+    # for compatibility but must not return to the default cold-start payload.
+    assert authorities["session_checkpoint"] == ".claude/STATE.md"
+    assert authorities["continuation"] == ".claude/HANDOFF.md"
+    assert ".claude/STATE.md" not in reading_order
+    assert ".claude/HANDOFF.md" not in reading_order
+    start_here = (ROOT / "START_HERE.md").read_text(encoding="utf-8")
+    assert "workspace_global" in start_here
+    assert "primary mutable" in start_here
 
     documents = {
         concern: (ROOT / path).read_text(encoding="utf-8")

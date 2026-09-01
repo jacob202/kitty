@@ -47,10 +47,13 @@ git status --short --branch
 bash scripts/session_end_survey.sh
 ```
 
-Read `.claude/STATE.md` and `.claude/HANDOFF.md` only while their branch, HEAD,
-worktree, PR, and invalidation conditions remain valid. Inspect open PRs,
-worktrees, and Builder's read-only projection to detect collisions—not to find
-new work for this session.
+Use `workspace_global` as the primary mutable continuation source: inspect the
+relevant recent/thread/inbox messages and acknowledge what this agent actually
+received. Read `.claude/STATE.md` and `.claude/HANDOFF.md` only as compatibility
+fallback when the room is unavailable or a tool explicitly requires them, and
+only while their branch, HEAD, worktree, PR, and invalidation conditions remain
+valid. Inspect open PRs, worktrees, and Builder's read-only projection to detect
+collisions—not to find new work for this session.
 
 A failed or unavailable source stays failed or unavailable. Do not convert it
 into an empty queue, clean state, or permission to improvise.
@@ -60,10 +63,12 @@ into an empty queue, clean state, or permission to improvise.
 Continue in this order:
 
 1. the explicit assignment in the current conversation;
-2. a valid non-terminal checkpoint owned by this interactive tool/session;
-3. the current branch's documented next action when it still matches live state;
-4. a concrete recovery or review action for this interactive assignment;
-5. an explicit no-op explaining that no valid interactive assignment exists.
+2. a relevant valid `workspace_global` thread/handoff for this interactive
+   assignment;
+3. a valid non-terminal legacy checkpoint owned by this interactive tool/session;
+4. the current branch's documented next action when it still matches live state;
+5. a concrete recovery or review action for this interactive assignment;
+6. an explicit no-op explaining that no valid interactive assignment exists.
 
 Do not silently substitute:
 

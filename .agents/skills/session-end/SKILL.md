@@ -279,22 +279,39 @@ next Builder packet.” Builder schedules its own approved queue. An explicit
 Builder operator action may be recommended only when the evidence shows a
 specific blocked Builder condition requiring intervention.
 
-## 9. Write `.claude/HANDOFF.md`
+## 9. Post the durable Global Agent Room handoff
 
-Include:
+Post one concise `handoff` or `result` to `workspace_global` before writing any
+legacy compatibility checkpoint. Prefer the Agent Room MCP when configured;
+otherwise use `./kitty room post --as <identity> --kind handoff '<content>'`.
+Include only durable facts another agent needs to resume safely:
+
+- exact outcome and changed paths;
+- execution owner plus branch/worktree and exact HEAD;
+- exact verification/review/publication evidence;
+- blockers or unavailable evidence;
+- one concrete next action;
+- explicit `DO NOT REDO` boundaries when useful.
+
+Use a direct message only when one registered agent specifically owns the next
+response; otherwise broadcast. Continue an existing discussion with a thread
+reply. Acknowledgement means received, never task completion.
+
+## 10. Write legacy `.claude/HANDOFF.md` compatibility snapshot
+
+While existing validators/adapters still consume it, keep this snapshot minimal
+and mirror the already-posted room handoff. Include:
 
 - exact outcomes and changed paths;
 - this session's execution owner;
-- in-flight work and other owners;
-- blockers and recovery;
-- one next move for this interactive assignment;
-- deferred items and release checks;
-- KB entries consulted/used/stale;
-- effectiveness receipt path and evidence gaps;
-- workflow signals and owners;
-- exact verification results.
+- blockers and one next move;
+- exact verification results;
+- the relevant Global Agent Room message/thread id when available.
 
-## 10. Write `.claude/STATE.md`
+Do not use this file as a multi-agent mailbox or duplicate a long session
+narrative into it.
+
+## 11. Write legacy `.claude/STATE.md` compatibility snapshot
 
 Use checkpoint schema version 2 with `parallel_work` and `recommendations`
 always present. Include a concise section:
@@ -317,11 +334,12 @@ Requirements:
 - at most three recommendations;
 - deferred entries have safe release checks; ready entries have null checks;
 - `next_action` matches the highest ready recommendation or is an explicit no-op;
-- recommendations remain the only cross-session next-step channel;
+- recommendations are compatibility metadata; the relevant `workspace_global`
+  handoff/thread is the primary cross-session continuation channel;
 - workflow-signal and effectiveness files are evidence history, not backlogs;
 - never copy Builder queue state into STATE as an interactive task list.
 
-## 11. Validate continuity and inspect Git
+## 12. Validate continuity and inspect Git
 
 Run:
 
@@ -335,16 +353,17 @@ Report uncommitted files and other workers' changes. Do not commit, push, delete
 clean, release leases, claim Builder work, or merge unless separately authorized
 or an approved Builder publication policy permits the bounded action.
 
-## 12. Confirm and stop
+## 13. Confirm and stop
 
 Report briefly:
 
-1. files written;
-2. execution owner and exact task/branch state;
-3. next interactive move;
-4. deferred items and release conditions;
-5. effectiveness receipt ID/path and evidence gaps;
-6. workflow signals and status;
-7. every unavailable source.
+1. Global Agent Room handoff/result message id or an explicit unavailable state;
+2. compatibility files written;
+3. execution owner and exact task/branch state;
+4. next interactive move;
+5. deferred items and release conditions;
+6. effectiveness receipt ID/path and evidence gaps;
+7. workflow signals and status;
+8. every unavailable source.
 
 Then stop. Do not start another interactive assignment or Builder packet.

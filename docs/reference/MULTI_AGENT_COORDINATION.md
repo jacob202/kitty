@@ -4,11 +4,14 @@ This is an operational supplement to `AGENTS.md`, not a competing authority.
 `AGENTS.md` owns implementation ownership and Builder/Gateway boundaries. This
 file defines how concurrent agents discover and coordinate that ownership.
 
-## Live coordination surface
+## Live coordination surfaces
 
-Use GitHub issue #490 (`[coordination] Kitty campaign live lanes`) for changing
-campaign state and active lane markers. Do not bake temporary campaign facts
-into this file.
+Use `workspace_global` for durable cross-agent communication: questions,
+handoffs, status, review requests, results, direct messages, and thread replies.
+Use GitHub issue #490 (`[coordination] Kitty campaign live lanes`) for the
+authoritative interactive ownership/collision markers. The room does not replace
+Builder execution state, #490 ownership, or Git/GitHub publication evidence. Do
+not bake temporary campaign facts into this file.
 
 Before substantial implementation, establish a durable ownership marker:
 
@@ -41,12 +44,13 @@ Inspect the evidence relevant to the lane before mutation:
 
 Never let prose override fresher durable evidence.
 
-`.claude/STATE.md` and `.claude/HANDOFF.md` are read-mostly historical inputs.
-Verify their `head_sha`, branch, timestamp, and claims against current truth
-before relying on them. Normal implementation work does not edit them. The
-supported interactive `session-end` workflow may update them as its continuity
-output; Builder work edits them only when its packet explicitly owns those
-paths.
+`workspace_global` is the primary mutable handoff source. At start/resume, read
+only relevant recent/thread/inbox messages and acknowledge what was actually
+received. `.claude/STATE.md` and `.claude/HANDOFF.md` are legacy compatibility
+inputs while existing tooling still consumes them. Verify their `head_sha`,
+branch, timestamp, and claims before relying on them; they never override fresher
+room, GitHub, Builder, or local evidence. Normal implementation work does not
+edit them.
 
 ## Collision rule
 
@@ -96,7 +100,8 @@ execution state machines.
 
 ## Handoff and completion
 
-When ownership changes, record only durable facts:
+When ownership changes, record only durable facts in `workspace_global` and
+update #490 when the interactive ownership/collision marker itself changes:
 
 `OWNER NEXT / VERIFIED STATE / EXACT BASE-HEAD / DONE / DO NEXT / DO NOT REDO / BLOCKERS`
 

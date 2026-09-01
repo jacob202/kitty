@@ -16,14 +16,34 @@ Before relying on inherited context:
 
 1. Verify the canonical checkout and current worktree.
 2. Inspect `git status --short --branch`, HEAD, worktrees, and `origin/main`.
-3. Run `./kitty context --agent`; stop on failed freshness checks.
-4. Follow the receipt's reading order beginning with `docs/AUTHORITY_MAP.md`.
-5. Read `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, and `.claude/STATE.md`.
-6. Read `.claude/HANDOFF.md` only while its identity remains valid.
-7. Inspect Builder through supported read-only projections when Builder state is
+3. Check `workspace_global` for relevant recent messages and this agent's inbox;
+   acknowledge messages that were received.
+4. Run `./kitty context --agent`; stop on failed freshness checks.
+5. Follow the receipt's reading order beginning with `docs/AUTHORITY_MAP.md`.
+6. Read `docs/ROADMAP.md` and `docs/ACTIVE_MISSION.md` when relevant.
+7. Treat `.claude/STATE.md` and `.claude/HANDOFF.md` as compatibility fallback,
+   not primary live continuity; load them only when a skill/tool explicitly
+   requires them or the room is unavailable, and validate their identity first.
+8. Inspect Builder through supported read-only projections when Builder state is
    relevant.
-8. Re-verify scope, execution ownership, evidence, and authorization before
+9. Re-verify scope, execution ownership, evidence, and authorization before
    mutation.
+
+## Global Agent Room
+
+For Kitty work, `workspace_global` is the default durable communication channel
+with Jacob, ChatGPT, Codex, and Kitty. With the configured Agent Room MCP, use
+`room_status`, `room_recent`, `room_inbox`, `room_thread`, `room_post`,
+`room_reply`, and `room_ack`. The MCP identity is pinned; do not impersonate
+another participant.
+
+At start/resume, read only the room context relevant to the assignment and ack
+messages you actually received. During work, use direct messages for a specific
+owner, broadcasts when everyone needs the information, and thread replies for
+continuations. Before stopping substantial work, post the verified result or
+handoff. `registered` means membership only, never online presence. The room is
+communication, not execution: Builder owns engineering tasks/leases, #490 owns
+interactive collision/ownership, and Git/GitHub own publication evidence.
 
 ## Context engineering default
 
@@ -230,39 +250,25 @@ Proceed with every unblocked part before asking.
     proof of learning. Tokens, cost, quality, and time remain `null` unless
     supported by evidence; cohort differences are observational, not causal.
 
-## Session state
+## Continuity compatibility
 
-Read `.claude/HANDOFF.md` and `.claude/STATE.md` at session start, but trust them
-only while identity and invalidation conditions remain valid. They are shared
-continuity files, not a Builder queue or session diary. Builder workers must not
-edit `.claude/`.
+`workspace_global` is the primary live cross-agent and cross-session continuity
+surface. Prefer its relevant threads and inbox over loading a whole shared
+checkpoint file. Mutable current status and handoffs should be posted there.
 
-Both files are marked `merge=ours` in `.gitattributes`, so a merge keeps the
-current branch's checkpoint instead of conflicting on two agents' rewrites of the
-same lines. That driver is per-clone config, not carried by the repo — run
-`git config merge.ours.driver true` once; `scripts/preflight.sh` reports when it
-is missing. After a merge the checkpoint describes the branch you were on, so
-re-validate it with `scripts/check_continuity_state.py` before trusting it.
+`.claude/STATE.md` and `.claude/HANDOFF.md` remain tracked compatibility
+artifacts while existing validators, adapters, and the session-end workflow still
+consume them. They are not the default source for current coordination and must
+never override fresher room, Git, GitHub, Builder, or runtime evidence. Do not
+manually rewrite them during ordinary work. If the session-end skill requires a
+compatibility snapshot, write it once at the end, validate it, and keep it
+minimal. Builder workers edit these files only when their packet explicitly owns
+those paths.
 
-**Write `.claude/STATE.md` and `.claude/HANDOFF.md` once per session, at session
-end.** Not on every milestone, not to log progress, not to record a thought.
-Gather every fact first, then write both files in one pass.
-
-The one exception is repair: if `scripts/check_continuity_state.py` rejects what
-you wrote, fix it and re-validate until it passes. A checkpoint that fails its
-own validator is worse than churn — it turns the test suite red and leaves the
-next session an invalid continuation point.
-
-At session end:
-
-- record the single execution owner;
-- record KB entries consulted, used, and stale/wrong;
-- write one idempotent KB effectiveness receipt;
-- preserve exact tests, review, PR, token/cost, and outcome evidence;
-- record workflow signals separately from execution authority;
-- leave one interactive next action or explicit no-op;
-- never turn bare continuation into Builder queue consumption;
-- carry no recommendation that is your own unfinished work — do it instead.
+If a legacy checkpoint is used, verify branch, HEAD, worktree, PR, timestamp,
+and invalidation conditions before relying on it. The `merge=ours` driver remains
+a compatibility safeguard for those files, not a reason to use them as a live
+multi-agent mailbox.
 
 ## Token discipline
 

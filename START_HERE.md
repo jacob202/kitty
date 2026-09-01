@@ -14,24 +14,30 @@ live evidence; it does not duplicate current state.
    `docs/reference/MULTI_AGENT_COORDINATION.md`, check its live coordination
    issue, and inspect the relevant Builder/local ownership state before
    claiming an implementation lane.
-3. Run the receipt for the task class. Informational/planning work may use
+3. Check `workspace_global` for relevant recent activity and this agent's inbox
+   using the Agent Room MCP when configured or the `kitty room` CLI otherwise.
+   Acknowledge messages actually received. The room is the primary mutable
+   handoff/coordination surface; if it is unavailable, report that rather than
+   fabricating room state.
+4. Run the receipt for the task class. Informational/planning work may use
    `./kitty context --agent --compact --skip-builder`; code or Builder work
    uses full `./kitty context --agent`. A failed, unknown, stale, or
    contradictory receipt remains unverified; handoff prose cannot repair it.
-4. Read only the authority files required by the task, using the receipt's
+5. Read only the authority files required by the task, using the receipt's
    order. For code changes, use the complete order below.
-5. Read `docs/ACTIVE_MISSION.md` when the task is product or implementation
+6. Read `docs/ACTIVE_MISSION.md` when the task is product or implementation
    work. Confirm scope, approval, base SHA, evidence, and authorization.
-6. Inspect Builder through supported read-only commands only when Builder
+7. Inspect Builder through supported read-only commands only when Builder
    state, execution ownership, or collision risk matters.
-7. Immediately before mutation, re-check live branch/HEAD, scope, owner,
+8. Immediately before mutation, re-check live branch/HEAD, scope, owner,
    authorization, and the exact files to change.
 
 ## Task routing
 
 - Informational: run the receipt and load the directly relevant authority.
-- Planning: add `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, and the current
-  checkpoint only when relevant.
+- Planning: add `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, and relevant
+  `workspace_global` threads; use legacy checkpoint files only when explicitly
+  needed for compatibility.
 - Code change: load the full order, then the outcome contract and narrow code or
   test surface. Run focused verification after each coherent change.
 - Builder work: use explicit intent (`builder status`, `builder next`,
@@ -49,9 +55,13 @@ live evidence; it does not duplicate current state.
 6. [`docs/ROADMAP.md`](docs/ROADMAP.md)
 7. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
 8. [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md)
-9. [`.claude/STATE.md`](.claude/STATE.md)
-10. [`.claude/HANDOFF.md`](.claude/HANDOFF.md) — only if its identity is valid
 <!-- kitty-reading-order:end -->
+
+`workspace_global` is the primary mutable cross-agent handoff and communication
+surface and is checked separately because it is runtime state, not versioned
+document authority. `.claude/STATE.md` and `.claude/HANDOFF.md` are legacy
+compatibility checkpoints: read them only when a skill/tool explicitly requires
+them or the room is unavailable, and validate their identity before use.
 
 `docs/reference/MULTI_AGENT_COORDINATION.md` is an operational coordination
 supplement, not another authority file. Its live issue is mutable campaign

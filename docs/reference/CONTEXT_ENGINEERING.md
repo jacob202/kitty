@@ -10,7 +10,8 @@ cold-start checks and `verified-delivery` owns completion language.
    --skip-builder`; treat unknowns as unknowns.
 2. Classify the request:
    - informational: authority map plus directly relevant authority;
-   - planning: add roadmap, active mission, and checkpoint when relevant;
+   - planning: add roadmap, active mission, and relevant `workspace_global`
+     threads; use legacy checkpoint files only when compatibility requires them;
    - code change: use the full `START_HERE.md` order.
 3. Load the smallest code, test, runtime, or Builder surface that answers the
    open question. Expand only when evidence requires it.
@@ -33,12 +34,13 @@ on a separate trust boundary.
 
 ## Handoff and completion
 
-Before compaction or handoff, preserve the outcome contract and non-goals,
-accepted decisions and their authority, current branch/worktree, and SHA plus
-implementation state,
-exact verification commands and results, unresolved failures and blockers, and
-one concrete next action. On resume, validate that record against live Git and
-runtime state.
+Before compaction or handoff, post a concise durable result/handoff to
+`workspace_global` containing the outcome contract and non-goals, accepted
+decisions and their authority, current branch/worktree and SHA plus
+implementation state, exact verification results, unresolved failures/blockers,
+and one concrete next action. On resume, retrieve only the relevant room thread
+and validate it against live Git and runtime state. Legacy `.claude` checkpoints
+are compatibility snapshots, not the primary handoff channel.
 
 Use exactly one completion state: `verified`, `implemented, awaiting
 verification`, `blocked`, or `failed`. Do not infer runtime success from code
