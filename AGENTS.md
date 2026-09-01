@@ -31,11 +31,12 @@ When a handoff or current assignment supplies a durable locator, load that exact
 conversation with `room_thread` or `./kitty room thread <message_id> --json`.
 Use `room_recent` only for bounded shared situational context; the newest global
 window is not an assignment index. If no unread handoff or durable locator
-exists, use the validated legacy compatibility checkpoint until scoped room
-retrieval replaces that fallback. Acknowledge messages actually received;
-acknowledgement means received, not completed. Use direct messages for a
-specific owner, broadcasts for shared context, and replies for an existing
-thread.
+exists and legacy checkpoint fallback is required, run the strict `./kitty
+context --agent` receipt and use the checkpoint only when that validation
+succeeds. A legacy-skipping receipt never validates a legacy fallback.
+Acknowledge messages actually received; acknowledgement means received, not
+completed. Use direct messages for a specific owner, broadcasts for shared
+context, and replies for an existing thread.
 
 Before ending or handing off substantial work, post a concise verified result or
 handoff to the room with exact SHA/evidence, blockers, and next action when
