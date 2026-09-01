@@ -2540,6 +2540,44 @@ def test_governor_dispatch_preserves_paid_risk_class():
     assert dispatch.risk_class == "risky"
 
 
+def test_paid_builder_gate_uses_full_configured_pair_cost(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+):
+    governor_db = tmp_path / "governor-pair-budget" / "receipts.db"
+    task_id = _apply(db_path, repo_root=repo)
+    base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+    assert base_sha is not None
+
+    # The generic governor's legacy cheap estimate fits in four cents, but the
+    # configured MiMo + DeepSeek review pair costs about six cents. Builder must
+    # gate on the route it will actually execute rather than under-budgeting it.
+    monkeypatch.setattr(
+        bl.cg,
+        "reserve_from_ledger",
+        lambda *_args, **_kwargs: bl.cg.ReserveState(
+            weekly_budget_cad=6.0, estimated_spend_cad=5.96
+        ),
+    )
+
+    with pytest.raises(bl.LoopError, match="configured paid route projects"):
+        bl._governor_gate(
+            INITIATIVE,
+            PACKET,
+            task_id,
+            base_sha=base_sha,
+            governor_db=governor_db,
+            risk_class="routine",
+            requested_route="cheap",
+            override_reason=None,
+            db_path=db_path,
+        )
+
+    events = bq.list_events(task_id, db_path=db_path)
+    refused = [e for e in events if e["type"] == "compute_governor_refused"]
+    assert refused
+    assert "configured paid route projects" in refused[-1]["payload"]["reasons"][-1]
+
+
 def test_paid_route_decision_and_cost_are_durable_before_worker(
     repo: Path, db_path: Path, tmp_path: Path
 ):

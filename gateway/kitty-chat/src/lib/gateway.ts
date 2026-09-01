@@ -326,6 +326,24 @@ export type GatewaySearchPayload = {
   error: string | null
 }
 
+export type GatewayCapabilityLaunch = 'view' | 'skill'
+
+export interface GatewayCapability {
+  id: string
+  label: string
+  description: string
+  category: string
+  launch: GatewayCapabilityLaunch
+  view?: string
+  skill_name?: string
+}
+
+export type GatewayCapabilitiesPayload = {
+  capabilities: GatewayCapability[]
+  fromLiveGateway: boolean
+  error: string | null
+}
+
 export interface GatewayWeather {
   temp_c?: number
   feels_like_c?: number
@@ -1030,6 +1048,26 @@ export async function addGatewayMonitor(url: string, label: string): Promise<str
 
 export async function removeGatewayMonitor(watchId: string): Promise<void> {
   await gfetch(`/monitor/${watchId}`, { method: 'DELETE' })
+}
+
+export async function fetchCapabilities(): Promise<GatewayCapabilitiesPayload> {
+  try {
+    const json = await gfetch<{ capabilities?: GatewayCapability[] }>('/capabilities')
+    if (!Array.isArray(json.capabilities)) {
+      throw new Error('Gateway /capabilities returned an invalid payload')
+    }
+    const capabilities = json.capabilities.filter((item) => (
+      item
+      && typeof item.id === 'string'
+      && typeof item.label === 'string'
+      && typeof item.description === 'string'
+      && typeof item.category === 'string'
+      && (item.launch === 'view' || item.launch === 'skill')
+    ))
+    return { capabilities, fromLiveGateway: true, error: null }
+  } catch (err) {
+    return { capabilities: [], fromLiveGateway: false, error: describeFetchError(err, null) }
+  }
 }
 
 export async function fetchGatewaySearch(
