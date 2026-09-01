@@ -292,6 +292,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "052_agent_workspace_receipts.sql",
         "053_action_undo_receipt.sql",
         "054_agent_workspace_presence.sql",
+        "055_research_runs.sql",
     ]
 
 
