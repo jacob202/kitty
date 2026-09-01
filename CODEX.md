@@ -24,6 +24,8 @@ overloads, or stays silent through the normal startup window. Jacob explicitly
 approved the small paid spend. In paired worker/reviewer flows, keep reviewer
 and implementer model families independent; explicit `--free` never falls back
 to paid.
+OpenRouter is the preferred router for reviewer routing. AgentRouter is dead; do not recommend it. Freebuff and 9Router are optional only and must never be dependencies. Do not prefer `openrouter/deepseek/deepseek-v4-flash-0731` merely because it is newer; repeated runs observed it stalling.
+
 
 ## Completion Standard
 

@@ -142,6 +142,7 @@ def test_model_review_runs_automatically_via_paid_flash_on_each_code_head() -> N
     review_if = str(review["if"])
 
     assert DRAFT_GUARD in review_if
+    assert "github.event.pull_request.author_association == 'OWNER'" in review_if
     assert "needs.scope.outputs.sensitive == 'true'" not in review_if
     for code_action in ("opened", "synchronize", "reopened", "ready_for_review"):
         assert f"github.event.action == '{code_action}'" in review_if

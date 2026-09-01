@@ -89,6 +89,8 @@ activity within the normal startup window, use
 paid review spend. For paired worker/reviewer flows, preserve model-family independence: do not
 use DeepSeek to review a DeepSeek implementation when another configured paid
 reviewer is available. `--free` remains genuinely free and must never silently spend.
+OpenRouter is the preferred router for reviewer routing. AgentRouter is dead; do not recommend it. Freebuff and 9Router are optional only and must never be dependencies. Do not prefer `openrouter/deepseek/deepseek-v4-flash-0731` merely because it is newer; repeated runs observed it stalling.
+
 
 ## Auth and environment
 

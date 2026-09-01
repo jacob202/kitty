@@ -163,6 +163,27 @@ def test_real_frontier_route_is_unchanged():
     assert route.reviewer_model == "openrouter/qwen/qwen3.7-max"
 
 
+def test_free_workers_doc_prices_the_real_cheap_pair():
+    route = bpr.resolve_paid_route("cheap")
+    text = (Path(__file__).resolve().parents[1] / "docs" / "FREE_WORKERS.md").read_text()
+
+    assert "MiMo V2.5 + DeepSeek V4 Flash" in text
+    assert f"CAD {route.projected_cost_cad:.4f}" in text
+    assert "about **CAD 1.97**" not in text
+
+
+@pytest.mark.parametrize("name", ["AGENTS.md", "CLAUDE.md", "CODEX.md"])
+def test_agent_guidance_records_reviewer_router_policy(name: str):
+    text = (Path(__file__).resolve().parents[1] / name).read_text().lower()
+
+    assert "openrouter is the preferred router" in text
+    assert "agentrouter is dead" in text
+    assert "freebuff" in text and "optional" in text
+    assert "9router" in text and "optional" in text
+    assert "deepseek-v4-flash-0731" in text
+    assert "do not" in text
+
+
 def test_escalation_compacts_weak_trajectory_to_durable_artifacts():
     plan = bpr.plan_handoff("cheap", "frontier")
     assert plan.context_mode == "artifacts_compact"

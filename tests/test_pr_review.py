@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from scripts import pr_review
@@ -191,6 +193,70 @@ def test_prompt_rejects_generic_speculative_review_noise() -> None:
 
 def test_default_github_reviewer_uses_paid_flash_model() -> None:
     assert pr_review.DEFAULT_REVIEW_MODEL == "openrouter/deepseek/deepseek-v4-flash"
+
+
+def test_deepseek_implementation_routes_to_independent_qwen_reviewer() -> None:
+    assert pr_review.select_review_model(
+        "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/deepseek/deepseek-v4-pro",
+    ) == "openrouter/qwen/qwen3.7-max"
+
+
+def test_builder_event_exposes_recorded_implementation_model() -> None:
+    event = {
+        "pull_request": {
+            "body": """## KittyBuilder task `kb_test`
+
+## Final report
+
+```json
+{"model": "openrouter/deepseek/deepseek-v4-pro"}
+```
+"""
+        }
+    }
+
+    assert pr_review.implementation_model_from_event(event) == (
+        "openrouter/deepseek/deepseek-v4-pro"
+    )
+
+
+def test_review_chunk_uses_independent_model_for_deepseek_builder_event(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps(
+            {
+                "pull_request": {
+                    "body": """## KittyBuilder task `kb_test`
+
+## Final report
+
+```json
+{"model": "openrouter/deepseek/deepseek-v4-pro"}
+```
+"""
+                }
+            }
+        )
+    )
+    calls: list[list[str]] = []
+
+    class Result:
+        returncode = 0
+        stdout = pr_review.NO_FINDINGS + "\n"
+        stderr = ""
+
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(
+        pr_review.subprocess, "run", lambda command, **_kwargs: calls.append(command) or Result()
+    )
+
+    assert pr_review._review_chunk("diff") == pr_review.NO_FINDINGS
+    command = calls[0]
+    assert command[command.index("--model") + 1] == "openrouter/qwen/qwen3.7-max"
 
 
 def test_exact_head_override_requires_label_full_sha_and_reason() -> None:
