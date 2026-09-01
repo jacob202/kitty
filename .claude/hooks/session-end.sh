@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # SessionEnd — last-chance durability for workspace_global.
 #
-# The normal path is model-owned: when substantial assigned work finishes,
-# Claude runs the session-end skill and posts a verified handoff/result carrying
-# this session's gar-session:<id> token. SessionEnd cannot block termination, so
-# this hook only supplies a durable fallback if that normal handoff is absent.
+# Normal completion is model-owned: the Stop completion check sends Claude back
+# to run /session-end only when substantial assigned work is genuinely done.
+# SessionEnd cannot block termination, so this command hook only supplies a
+# durable fallback if that normal token-bearing handoff is absent.
 
 set -uo pipefail
 
@@ -26,13 +26,11 @@ SAFE_SESSION_ID=$(printf '%s' "$SESSION_ID" | tr -cd 'A-Za-z0-9._-')
 
 TOKEN="gar-session:$SAFE_SESSION_ID"
 GAR_STATE_DIR="${KITTY_GAR_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/kitty/gar-lifecycle}"
-PENDING_DIR="$GAR_STATE_DIR/pending"
+GAR_OUTBOX_DIR="${KITTY_GAR_OUTBOX_DIR:-$GAR_STATE_DIR/outbox}"
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 ROOM_CLI="${KITTY_ROOM_CLI:-$PROJECT_ROOT/kitty}"
 
-# If the model already completed the normal session-end workflow, do not create
-# a duplicate fallback. The token makes this check safe across concurrent Claude
-# sessions sharing the same registered GAR identity.
+# Matching token means the model already ran the normal session-end workflow.
 if [ -x "$ROOM_CLI" ]; then
   RECENT_JSON=$("$ROOM_CLI" room recent --limit 100 --json 2>/dev/null || true)
   if [ -n "$RECENT_JSON" ] && printf '%s' "$RECENT_JSON" | jq -e --arg token "$TOKEN" '
@@ -42,7 +40,7 @@ if [ -x "$ROOM_CLI" ]; then
       and ((.content // "") | contains($token))
     )
   ' >/dev/null 2>&1; then
-    rm -f "$GAR_STATE_DIR/$SAFE_SESSION_ID.start" "$PENDING_DIR/$SAFE_SESSION_ID.txt" 2>/dev/null || true
+    rm -f "$GAR_STATE_DIR/$SAFE_SESSION_ID.start" "$GAR_OUTBOX_DIR/$SAFE_SESSION_ID.json" 2>/dev/null || true
     exit 0
   fi
 fi
@@ -68,19 +66,25 @@ else
 fi
 FALLBACK="[$TOKEN] Automatic SessionEnd fallback (reason=$REASON). $SUMMARY"
 
-# SessionEnd cannot block. Prefer GAR; if it is unavailable or rejects the post,
-# persist the exact fallback locally so the next SessionStart can replay it.
 if [ -x "$ROOM_CLI" ]; then
   if "$ROOM_CLI" room post --as claude --kind handoff "$FALLBACK" >/dev/null 2>&1; then
-    rm -f "$GAR_STATE_DIR/$SAFE_SESSION_ID.start" "$PENDING_DIR/$SAFE_SESSION_ID.txt" 2>/dev/null || true
+    rm -f "$GAR_STATE_DIR/$SAFE_SESSION_ID.start" "$GAR_OUTBOX_DIR/$SAFE_SESSION_ID.json" 2>/dev/null || true
     exit 0
   fi
 fi
 
-if mkdir -p "$PENDING_DIR" 2>/dev/null && printf '%s\n' "$FALLBACK" > "$PENDING_DIR/$SAFE_SESSION_ID.txt" 2>/dev/null; then
-  echo "[GAR] workspace_global handoff queued locally for replay on next SessionStart." >&2
-else
-  echo "[GAR] CRITICAL: could not post or persist SessionEnd fallback for $SAFE_SESSION_ID." >&2
+# SessionEnd cannot block, so failed delivery becomes a durable local outbox
+# record. SessionStart replays these before reading new room context.
+if mkdir -p "$GAR_OUTBOX_DIR" 2>/dev/null; then
+  TMP_OUTBOX="$GAR_OUTBOX_DIR/.${SAFE_SESSION_ID}.$$"
+  if jq -n --arg content "$FALLBACK" --arg session_id "$SAFE_SESSION_ID" \
+      '{session_id:$session_id,content:$content}' > "$TMP_OUTBOX" 2>/dev/null \
+      && mv "$TMP_OUTBOX" "$GAR_OUTBOX_DIR/$SAFE_SESSION_ID.json" 2>/dev/null; then
+    echo "[GAR] workspace_global handoff queued locally for replay on next SessionStart." >&2
+    exit 0
+  fi
+  rm -f "$TMP_OUTBOX" 2>/dev/null || true
 fi
 
+echo "[GAR] CRITICAL: could not post or persist SessionEnd fallback for $SAFE_SESSION_ID." >&2
 exit 0
