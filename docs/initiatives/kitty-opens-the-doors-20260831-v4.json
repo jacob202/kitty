@@ -1,0 +1,35 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-opens-the-doors-20260831-v4",
+  "title": "Kitty exposes the exact Image Lab default without colliding with active chat and scheduler work",
+  "description": "Fourth immutable backend wave. KF-DEFAULT-01 closes the remaining truth gap in Image Lab route selection. KF-SCHEDULE-01 and KF-COUNCIL-01 are compiled as held companion docs because active PRs own their required integration seams; held packets are intentionally omitted from the Builder manifest.",
+  "packets": [
+    {
+      "id": "KF-DEFAULT-01",
+      "title": "Image Lab names the exact default route before it renders",
+      "objective": "The Image Lab estimate path already uses image_recipes.auto_route() and returns recipe_id, provider and routing_reason, but gateway/routes/image_studio_jobs.py resolves model_id from provider alone. That resolver knows openrouter, legacy flux and comfyui, but returns null for FLUX.2 even though the selected recipe carries an execution_target that gateway.flux2_targets can resolve exactly; the same file already has the recipe-aware _iteration_model_id() seam used for retry truth. Make studio_estimate use one recipe-aware, no-I/O model-resolution path so a deterministically known route returns its exact model id before dispatch. Preserve a truthful null only for providers whose model genuinely is selected at runtime. Keep auto_route as the single recipe/default authority and preserve its routing_reason verbatim. Do not dispatch a provider, probe the network, add a recipe registry, change spend policy, or change Image Lab frontend state. This packet creates no new files.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "A FLUX.2 Klein estimate returns recipe_id bfl_flux2_draft, provider flux2, exact model_id flux-2-klein-4b, and the auto_route routing_reason without dispatching a provider.",
+        "A FLUX.2 Pro estimate returns exact model_id flux-2-pro from the recipe execution target rather than null.",
+        "Existing OpenRouter, legacy FLUX and ComfyUI estimate model ids remain compatible.",
+        "A provider whose model is genuinely selected only at runtime may still return model_id null; Kitty does not invent an identifier.",
+        "Explicit recipe preference and the existing auto_route quality/identity/default decision remain the only recipe-selection authority.",
+        "Cost and duration estimation still receive the same selected provider and the newly truthful exact model id, and no network/provider generation call occurs.",
+        "python -m pytest -q tests/test_image_batch_routes.py passes."
+      ],
+      "allowed_paths": [
+        "gateway/routes/image_studio_jobs.py",
+        "tests/test_image_batch_routes.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 30
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_image_batch_routes.py",
+        "python -m ruff check gateway/routes/image_studio_jobs.py tests/test_image_batch_routes.py"
+      ]
+    }
+  ]
+}
