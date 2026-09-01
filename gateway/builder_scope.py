@@ -82,6 +82,7 @@ WORKER_STAGING_PREFIXES = (
     ".kittybuilder-bundle-",
     ".kittybuilder-context-",
     ".kittybuilder-result-",
+    ".kittybuilder-prompt-",
 )
 
 # OpenCode writes a per-run continuation receipt in the worktree while a worker

@@ -198,7 +198,7 @@ source; the governor imports it rather than keeping its own copy):
 
 | Pass | Worker + reviewer | Token shapes | Cost |
 | ---- | ----------------- | ------------ | ---- |
-| routine | DeepSeek V4 Flash + MiniMax M3 | worker 60k in / 8k out + review 30k in / 3k out | CAD 0.0439 |
+| routine | DeepSeek V4 Flash + MiniMax M3 | worker 60k in / 8k out + review 30k in / 3k out | CAD 0.0624 |
 | frontier | DeepSeek V4 Pro + Qwen3.7 Max | worker 120k in / 15k out + review 30k in / 3k out | CAD 0.1563 |
 
 At those conservative snapshot prices, ~10 tasks x 3 head SHAs x

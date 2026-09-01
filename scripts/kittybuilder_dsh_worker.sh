@@ -37,7 +37,6 @@ else
   models=(
     "openrouter/poolside/laguna-xs-2.1:free"
     "openrouter/tencent/hy3:free"
-    "openrouter/free"
   )
 fi
 
@@ -123,9 +122,13 @@ worker_budget=${KB_WORKER_TIMEOUT_SECONDS:-3600}
 # working earns what is left; one that fails cleanly leaves it for the next.
 # The reserve keeps enough budget for the result file to be written.
 model_timeout() {
+  local model_index=$1
   local elapsed=$((SECONDS - budget_started))
-  local reserve=$((worker_budget / 10))
-  (( reserve < 60 )) || reserve=60
+  local remaining_models=$((${#models[@]} - model_index))
+  local reserve=$((remaining_models * 60))
+  local base_reserve=$((worker_budget / 10))
+  (( base_reserve < 60 )) || base_reserve=60
+  (( reserve > base_reserve )) || reserve=$base_reserve
   local remaining=$((worker_budget - elapsed - reserve))
   (( remaining > 0 )) || remaining=1
   echo "${remaining}"
@@ -135,9 +138,10 @@ model_timeout() {
 # no result written and no change to HEAD or the worktree. Falling back over
 # partial work would let a second model build on debris the first left behind.
 chosen_model=""
-for model in "${models[@]}"; do
+for model_index in "${!models[@]}"; do
+  model="${models[$model_index]}"
   before="$(fingerprint)"
-  slot_seconds=$(model_timeout)
+  slot_seconds=$(model_timeout "$model_index")
   echo "=== ${lane_label} builder attempt: ${model} (${slot_seconds}s slot) ==="
   set +e
   python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" --success-json "${local_result}" \
