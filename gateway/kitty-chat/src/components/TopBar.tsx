@@ -299,7 +299,7 @@ function RuntimeBadge({
 
 function ActivityButton({ count, incomplete, onClick, compact = false }: { count: number; incomplete: boolean; onClick: () => void; compact?: boolean }) {
   const label = incomplete
-    ? `Open activity, status incomplete; ${count} known to need attention`
+    ? `Open activity, status partial; ${count} known to need attention`
     : count > 0 ? `Open activity, ${count} need attention` : 'Open activity'
   return (
     <button type="button" aria-label={label} onClick={onClick} style={compact ? iconBtnStyle : chipBtnStyle}>

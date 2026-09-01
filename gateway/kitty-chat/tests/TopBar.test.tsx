@@ -64,9 +64,9 @@ describe('TopBar surface hierarchy', () => {
 describe('TopBar activity entry point', () => {
   afterEach(cleanup)
 
-  it('shows incomplete status instead of presenting partial counts as complete', () => {
+  it('shows partial status without colliding with task complete controls', () => {
     renderTopBar(false, 'chat', 'available', vi.fn(), 3, true)
-    const button = screen.getByRole('button', { name: /activity.*incomplete.*3 known/i })
+    const button = screen.getByRole('button', { name: /activity.*partial.*3 known/i })
     expect(button).toHaveTextContent('Activity')
     expect(button).toHaveTextContent('?')
   })
