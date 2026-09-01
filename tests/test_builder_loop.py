@@ -1510,6 +1510,32 @@ class TestRecoveryBudget:
         assert task["state"] == bq.BLOCKED
         assert task["blocked_reason"] == "recovery_budget_exhausted"
 
+    def test_paid_route_ignores_prior_free_provider_exhaustion(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        for _ in range(3):
+            self._crash(
+                task_id,
+                db_path,
+                reason="all configured free worker providers were unavailable",
+            )
+
+        result = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=_good_worker(tmp_path),
+            review_command=_approve_reviewer(tmp_path),
+            repo_root=repo,
+            db_path=db_path,
+            governor_db=tmp_path / "governor-paid-recovery" / "receipts.db",
+            model="openrouter/deepseek/deepseek-v4-flash",
+            provider="openrouter",
+            governor_requested_route="cheap",
+        )
+
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+
     def test_non_identical_crashes_do_not_stop_the_run(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):

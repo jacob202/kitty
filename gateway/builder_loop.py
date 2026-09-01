@@ -311,7 +311,7 @@ def _consecutive_identical_crashes(
                 break
             reason = this_reason
             count += 1
-        elif etype == "run_exited":
+        elif etype in {"run_exited", "recovery_lane_changed"}:
             break
     return count, reason
 
@@ -983,6 +983,25 @@ def run_packet(
     crash_count, crash_reason = _consecutive_identical_crashes(
         task_id, db_path=db_path
     )
+    if (
+        governor_requested_route in {cg.ROUTE_CHEAP, cg.ROUTE_FRONTIER}
+        and crash_count
+        and crash_reason.startswith("all configured free ")
+        and crash_reason.endswith("providers were unavailable")
+    ):
+        bq.append_event(
+            task_id,
+            "recovery_lane_changed",
+            payload={
+                "from": "free",
+                "to": "paid",
+                "requested_route": governor_requested_route,
+                "cleared_crash_count": crash_count,
+                "previous_reason": crash_reason,
+            },
+            db_path=db_path,
+        )
+        crash_count, crash_reason = 0, ""
     if max_consecutive_recoveries > 0 and crash_count >= max_consecutive_recoveries:
         blocker = (
             f"recovery budget exhausted: {crash_count} consecutive identical "
