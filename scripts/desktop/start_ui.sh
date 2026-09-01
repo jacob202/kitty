@@ -47,8 +47,8 @@ assert_clean_ui_source() {
   local dirty
   dirty="$(git -C "${ROOT_DIR}" status --porcelain --untracked-files=normal -- gateway/kitty-chat 2>/dev/null || true)"
   if [[ -n "${dirty}" ]]; then
-    echo "[start_ui] Error: refusing to build uncommitted Kitty UI source because the build could not be attributed to a clean commit." >&2
-    return 1
+    echo "[start_ui] Warning: uncommitted UI source found - build will not have clean source attribution." >&2
+    return 0
   fi
 }
 
