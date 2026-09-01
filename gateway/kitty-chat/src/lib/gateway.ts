@@ -1520,6 +1520,8 @@ export interface GatewayAction {
   preview: string
   payload: Record<string, unknown>
   risk_tier: 'T0' | 'T1' | 'T2'
+  effective_risk_tier?: 'T0' | 'T1' | 'T2' | null
+  execution_decision?: { outcome: 'allow' | 'ask' | 'deny'; basis: string }
   status: string
   result: string | null
   decided_at: number | null
@@ -1534,6 +1536,10 @@ export async function fetchActions(status?: string): Promise<GatewayAction[]> {
   const url = status ? `/actions?status=${status}` : '/actions'
   const json = await gfetch<{ actions: GatewayAction[] }>(url)
   return json.actions ?? []
+}
+
+export async function fetchAction(id: number): Promise<GatewayAction> {
+  return gfetch<GatewayAction>(`/actions/${id}`)
 }
 
 export async function approveAction(id: number): Promise<GatewayAction> {
@@ -1838,26 +1844,33 @@ export async function fetchArtifacts(limit = 100): Promise<GatewayArtifact[]> {
     throw new Error('Saved files returned an invalid response')
   }
 
-  return json.artifacts.map((item): GatewayArtifact => {
-    if (
-      !isRecord(item)
-      || typeof item.id !== 'string'
-      || (item.project_id !== null && typeof item.project_id !== 'number')
-      || typeof item.kind !== 'string'
-      || typeof item.media_type !== 'string'
-      || typeof item.display_name !== 'string'
-      || typeof item.state !== 'string'
-      || typeof item.size_bytes !== 'number'
-      || typeof item.created_at !== 'number'
-      || typeof item.created_by !== 'string'
-    ) {
-      throw new Error('Saved files returned an invalid response')
-    }
-    return {
-      ...item,
-      metadata: isRecord(item.metadata) ? item.metadata : {},
-    } as GatewayArtifact
-  })
+  return json.artifacts.map(normalizeGatewayArtifact)
+}
+
+export async function fetchArtifact(artifactId: string): Promise<GatewayArtifact> {
+  const json = await gfetch<unknown>(`/artifacts/${encodeURIComponent(artifactId)}`)
+  return normalizeGatewayArtifact(json)
+}
+
+function normalizeGatewayArtifact(item: unknown): GatewayArtifact {
+  if (
+    !isRecord(item)
+    || typeof item.id !== 'string'
+    || (item.project_id !== null && typeof item.project_id !== 'number')
+    || typeof item.kind !== 'string'
+    || typeof item.media_type !== 'string'
+    || typeof item.display_name !== 'string'
+    || typeof item.state !== 'string'
+    || typeof item.size_bytes !== 'number'
+    || typeof item.created_at !== 'number'
+    || typeof item.created_by !== 'string'
+  ) {
+    throw new Error('Saved files returned an invalid response')
+  }
+  return {
+    ...item,
+    metadata: isRecord(item.metadata) ? item.metadata : {},
+  } as GatewayArtifact
 }
 
 export async function fetchActiveProject(): Promise<GatewayActiveProjectPayload> {

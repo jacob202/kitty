@@ -1,0 +1,139 @@
+import { cleanup, render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { ChatMessage } from '../src/components/ChatMessage'
+import type { Message } from '../src/lib/types'
+
+describe('ChatMessage typed objects', () => {
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
+
+  it('renders a kitty-action reference as the authoritative live action card', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).includes('/proxy/actions/42')) {
+        return new Response(JSON.stringify({
+          id: 42,
+          created_at: 1,
+          source_kind: 'chat',
+          source_id: 'message-7',
+          kind: 'calendar.event.create',
+          title: 'Schedule dentist',
+          preview: 'Create a dentist appointment.',
+          payload: { title: 'Dentist' },
+          risk_tier: 'T2',
+          status: 'proposed',
+          result: null,
+          decided_at: null,
+          executed_at: null,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('not found', { status: 404 })
+    })
+    const message: Message = {
+      id: 'm-action',
+      role: 'assistant',
+      content: 'I prepared this action.\n\n```kitty-action\n{"action_id":42}\n```',
+      timestamp: new Date(),
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={client}>
+        <ChatMessage message={message} chatId="chat-1" messageIndex={0} />
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByText('Schedule dentist')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve action' })).toBeInTheDocument()
+    expect(screen.queryByText('{"action_id":42}')).not.toBeInTheDocument()
+  })
+
+  it('renders a kitty-artifact reference as an openable durable object', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).includes('/proxy/artifacts/artifact_1')) {
+        return new Response(JSON.stringify({
+          id: 'artifact_1',
+          project_id: 7,
+          kind: 'document',
+          media_type: 'text/markdown',
+          display_name: 'research-report.md',
+          state: 'ready',
+          size_bytes: 2048,
+          created_at: 1787259000,
+          created_by: 'research',
+          metadata: {},
+          error: null,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('not found', { status: 404 })
+    })
+    const message: Message = {
+      id: 'm-artifact',
+      role: 'assistant',
+      content: 'Your report is ready.\n\n```kitty-artifact\n{"artifact_id":"artifact_1"}\n```',
+      timestamp: new Date(),
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={client}>
+        <ChatMessage message={message} chatId="chat-1" messageIndex={1} compact />
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByText('research-report.md')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open artifact' })).toBeInTheDocument()
+    expect(screen.queryByText('{"artifact_id":"artifact_1"}')).not.toBeInTheDocument()
+  })
+
+
+  it('keeps user-authored typed-object fences as inert code', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const message: Message = {
+      id: 'm-user-fence',
+      role: 'user',
+      content: 'I am discussing this syntax:\n\n```kitty-action\n{"action_id":42}\n```',
+      timestamp: new Date(),
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={client}>
+        <ChatMessage message={message} chatId="chat-1" messageIndex={2} />
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getByText('{"action_id":42}')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Approve action' })).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('preserves the exact durable artifact id rather than trimming it', async () => {
+    const requested: string[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      requested.push(String(input))
+      return new Response('not found', { status: 404 })
+    })
+    const message: Message = {
+      id: 'm-artifact-spaces',
+      role: 'assistant',
+      content: 'Reference.\n\n```kitty-artifact\n{"artifact_id":" artifact_1 "}\n```',
+      timestamp: new Date(),
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={client}>
+        <ChatMessage message={message} chatId="chat-1" messageIndex={2} />
+      </QueryClientProvider>,
+    )
+
+    await screen.findByRole('alert')
+    expect(requested.some(url => url.includes('/proxy/artifacts/%20artifact_1%20'))).toBe(true)
+    expect(requested.some(url => url.endsWith('/proxy/artifacts/artifact_1'))).toBe(false)
+  })
+
+})

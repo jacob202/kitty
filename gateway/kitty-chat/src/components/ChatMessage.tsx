@@ -10,8 +10,12 @@ import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/quer
 import { CatFaceBadge, type CatState } from './CrayonCat'
 import { ToolCallList } from './ToolCallBlock'
 import { BuilderProposalCard, type BuilderProposalTask } from './builder/BuilderProposalCard'
+import { ActionCard } from './chat/ActionCard'
+import { ArtifactChatCard } from './chat/ArtifactChatCard'
 
 const BUILDER_PROPOSAL_LANG = 'kitty-builder-proposal'
+const ACTION_REFERENCE_LANG = 'kitty-action'
+const ARTIFACT_REFERENCE_LANG = 'kitty-artifact'
 
 interface Props {
   message: Message
@@ -113,7 +117,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               <TypingDots />
             ) : (
               <>
-                <MessageContent content={message.content} isUser={isUser} chatId={chatId} messageIndex={messageIndex} />
+                <MessageContent content={message.content} isUser={isUser} chatId={chatId} messageIndex={messageIndex} compact={compact} />
                 {message.toolCalls && message.toolCalls.length > 0 && (
                   <ToolCallList toolCalls={message.toolCalls} isStreaming={isStreaming} />
                 )}
@@ -214,7 +218,7 @@ const MARKDOWN_REHYPE_PLUGINS: NonNullable<ComponentProps<typeof ReactMarkdown>[
   [rehypeHighlight, { detect: true, ignoreMissing: true }],
 ]
 
-function MessageContent({ content, isUser, chatId, messageIndex }: { content: string; isUser: boolean; chatId: string; messageIndex: number }) {
+function MessageContent({ content, isUser, chatId, messageIndex, compact }: { content: string; isUser: boolean; chatId: string; messageIndex: number; compact: boolean }) {
   const components = useMemo<Components>(() => ({
     p: ({ children }) => <p style={pStyle}>{children}</p>,
     h1: ({ children }) => <h1 style={h1Style}>{children}</h1>,
@@ -233,7 +237,7 @@ function MessageContent({ content, isUser, chatId, messageIndex }: { content: st
     ),
     th: ({ children }) => <th style={thStyle}>{children}</th>,
     td: ({ children }) => <td style={tdStyle}>{children}</td>,
-    pre: ({ children }) => <CodeBlock chatId={chatId} messageIndex={messageIndex}>{children}</CodeBlock>,
+    pre: ({ children }) => <CodeBlock chatId={chatId} messageIndex={messageIndex} isMobile={compact} isUser={isUser}>{children}</CodeBlock>,
     code: ({ className, children, ...props }) => {
       const isBlock = typeof className === 'string' && className.startsWith('language-')
       if (isBlock) {
@@ -241,7 +245,7 @@ function MessageContent({ content, isUser, chatId, messageIndex }: { content: st
       }
       return <code style={inlineCodeStyle} {...props}>{children}</code>
     },
-  }), [chatId, messageIndex])
+  }), [chatId, messageIndex, compact, isUser])
 
   return (
     <div style={{
@@ -259,7 +263,7 @@ function MessageContent({ content, isUser, chatId, messageIndex }: { content: st
   )
 }
 
-function CodeBlock({ children, chatId, messageIndex }: { children: ReactNode; chatId: string; messageIndex: number }) {
+function CodeBlock({ children, chatId, messageIndex, isMobile, isUser }: { children: ReactNode; chatId: string; messageIndex: number; isMobile: boolean; isUser: boolean }) {
   const [copied, setCopied] = useState(false)
   const preRef = useRef<HTMLPreElement>(null)
 
@@ -274,6 +278,50 @@ function CodeBlock({ children, chatId, messageIndex }: { children: ReactNode; ch
       rawText = inner
     } else if (Array.isArray(inner)) {
       rawText = inner.filter((part): part is string => typeof part === 'string').join('')
+    }
+  }
+
+  // Typed object fences carry only durable ids. The card re-reads the
+  // authoritative Gateway row, so chat text never becomes execution truth.
+  if (!isUser && lang === ARTIFACT_REFERENCE_LANG) {
+    try {
+      const reference = JSON.parse(rawText) as { artifact_id?: unknown }
+      if (typeof reference.artifact_id !== 'string' || !reference.artifact_id.trim()) {
+        throw new Error('invalid artifact id')
+      }
+      return <ArtifactChatCard artifactId={reference.artifact_id} isMobile={isMobile} />
+    } catch {
+      return (
+        <div style={codeBoxStyle}>
+          <div style={codeBoxHeaderStyle}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
+              invalid artifact reference
+            </span>
+          </div>
+          <pre style={preStyle}>{children}</pre>
+        </div>
+      )
+    }
+  }
+
+  if (!isUser && lang === ACTION_REFERENCE_LANG) {
+    try {
+      const reference = JSON.parse(rawText) as { action_id?: unknown }
+      if (!Number.isInteger(reference.action_id) || Number(reference.action_id) <= 0) {
+        throw new Error('invalid action id')
+      }
+      return <ActionCard actionId={Number(reference.action_id)} />
+    } catch {
+      return (
+        <div style={codeBoxStyle}>
+          <div style={codeBoxHeaderStyle}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
+              invalid action reference
+            </span>
+          </div>
+          <pre style={preStyle}>{children}</pre>
+        </div>
+      )
     }
   }
 
