@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from gateway import image_jobs, image_plans, image_runner
+from gateway import image_jobs, image_plan_store, image_runner
 from gateway import image_sessions as sessions
 from gateway.image_runner import ImageRunnerError, run_edit
 from gateway.runpod_worker import WorkerImage, WorkerJob, WorkerOutput
@@ -37,7 +37,7 @@ def _fresh_db(tmp_path: Path, monkeypatch):
 
     conn = sqlite3.connect(str(test_db))
     conn.row_factory = sqlite3.Row
-    image_plans._ensure_db(conn)
+    image_plan_store._ensure_db(conn)
     conn.commit()
     conn.close()
     yield test_db

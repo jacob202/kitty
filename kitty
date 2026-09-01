@@ -681,8 +681,8 @@ cmd_usage() {
 cmd_sweep() {
   PYTHONPATH="$KITTY_ROOT${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON_BIN" -c '
 import json
-from gateway.deadline_sweep import sweep
-report = sweep(push_fn=None)
+from gateway.routes.deadlines import post_sweep
+report = post_sweep()
 print(json.dumps(report, indent=2, default=str))
 '
 }

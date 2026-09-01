@@ -7,9 +7,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from gateway import image_plans
+from gateway import image_plan_store
 from gateway import image_sessions as sessions
-from gateway.image_plan import (
+from gateway.image_plan_types import (
     CastSlot,
     ImagePlanError,
     ReferenceBinding,
@@ -78,7 +78,7 @@ def isolated_plan_db(tmp_path: Path, monkeypatch):
     conn = sqlite3.connect(db)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    image_plans._ensure_db(conn)
+    image_plan_store._ensure_db(conn)
     conn.commit()
     conn.close()
     return db
@@ -86,14 +86,14 @@ def isolated_plan_db(tmp_path: Path, monkeypatch):
 
 def test_persisted_intent_round_trips_across_store_reopen(isolated_plan_db) -> None:
     session = sessions.create_session(title="intent")
-    stored = image_plans.persist_plan(
+    stored = image_plan_store.persist_plan(
         session.session_id,
         build_image_plan("portrait in window light"),
     )
 
     assert stored.intent["intent_version"] == 1
     assert stored.intent["operation"] == "txt2img"
-    resumed = image_plans.require_plan(stored.plan_id)
+    resumed = image_plan_store.require_plan(stored.plan_id)
     assert resumed.intent == stored.intent
 
     with sqlite3.connect(isolated_plan_db) as conn:
@@ -123,7 +123,7 @@ def test_build_plan_carries_edit_contract_in_intent() -> None:
 
 def test_corrupt_persisted_intent_fails_loud(isolated_plan_db) -> None:
     session = sessions.create_session(title="intent corruption")
-    stored = image_plans.persist_plan(
+    stored = image_plan_store.persist_plan(
         session.session_id,
         build_image_plan("portrait"),
     )
@@ -135,8 +135,8 @@ def test_corrupt_persisted_intent_fails_loud(isolated_plan_db) -> None:
         )
         conn.commit()
 
-    with pytest.raises(image_plans.PlanMalformedError, match="intent_version"):
-        image_plans.require_plan(stored.plan_id)
+    with pytest.raises(image_plan_store.PlanMalformedError, match="intent_version"):
+        image_plan_store.require_plan(stored.plan_id)
 
 
 @pytest.mark.asyncio
@@ -154,7 +154,7 @@ async def test_stored_intent_not_mutable_session_drives_flux2_compiler(
         requested_changes=["approved change"],
         protected_traits=["approved face"],
     )
-    stored = image_plans.persist_plan(session.session_id, plan)
+    stored = image_plan_store.persist_plan(session.session_id, plan)
     sessions.update_session(
         session.session_id,
         requested_changes=["MUTATED change"],
@@ -282,7 +282,7 @@ async def test_flux2_compiler_uses_typed_reference_roles_and_order(
             "budget_request": {},
         },
     }
-    stored = image_plans.persist_plan(session.session_id, plan)
+    stored = image_plan_store.persist_plan(session.session_id, plan)
 
     recipe = SimpleNamespace(
         recipe_id="flux2_test",
@@ -397,8 +397,8 @@ def test_persist_plan_rejects_unknown_reference_role(isolated_plan_db) -> None:
         }
     ]
 
-    with pytest.raises(image_plans.PlanStoreError, match="unsupported role"):
-        image_plans.persist_plan(session.session_id, payload)
+    with pytest.raises(image_plan_store.PlanStoreError, match="unsupported role"):
+        image_plan_store.persist_plan(session.session_id, payload)
 
 
 @pytest.mark.parametrize("weight", [True, -0.1, 0.0, 1.01, 999.0, float("inf"), float("nan")])
@@ -418,8 +418,8 @@ def test_persist_plan_rejects_invalid_reference_weight(isolated_plan_db, weight)
         }
     ]
 
-    with pytest.raises(image_plans.PlanStoreError, match="weight"):
-        image_plans.persist_plan(session.session_id, payload)
+    with pytest.raises(image_plan_store.PlanStoreError, match="weight"):
+        image_plan_store.persist_plan(session.session_id, payload)
 
 def test_build_plan_emits_two_character_cast_with_independent_primary_refs(monkeypatch) -> None:
     from gateway import image_characters as characters
@@ -526,8 +526,8 @@ def test_persist_plan_rejects_cross_character_reference_binding(isolated_plan_db
         {"reference_id": "ref_a", "role": "identity", "cast_slot": "subject_2", "weight": None},
     ]
 
-    with pytest.raises(image_plans.PlanStoreError, match="belongs to character 'char_b'.*subject_1.*char_a"):
-        image_plans.persist_plan(session.session_id, payload)
+    with pytest.raises(image_plan_store.PlanStoreError, match="belongs to character 'char_b'.*subject_1.*char_a"):
+        image_plan_store.persist_plan(session.session_id, payload)
 
 
 def test_persist_plan_rejects_invalid_cast_placement(isolated_plan_db) -> None:
@@ -544,8 +544,8 @@ def test_persist_plan_rejects_invalid_cast_placement(isolated_plan_db) -> None:
         }
     ]
 
-    with pytest.raises(image_plans.PlanStoreError, match="position|depth_order"):
-        image_plans.persist_plan(session.session_id, payload)
+    with pytest.raises(image_plan_store.PlanStoreError, match="position|depth_order"):
+        image_plan_store.persist_plan(session.session_id, payload)
 
 
 @pytest.mark.asyncio
@@ -616,7 +616,7 @@ async def test_dispatch_fails_closed_on_unsupported_reference_capability(
             "budget_request": {},
         },
     }
-    stored = image_plans.persist_plan(session.session_id, plan)
+    stored = image_plan_store.persist_plan(session.session_id, plan)
 
     recipe = SimpleNamespace(
         recipe_id="flux2_test",

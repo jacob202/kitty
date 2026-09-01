@@ -1196,6 +1196,34 @@ describe('HomeState', () => {
     expect(mutate).toHaveBeenCalled();
   });
 
+  it('shows how many deadline warnings the sweep actually delivered', () => {
+    (useDeadlineSweep as Mock).mockReturnValue({
+      isPending: false,
+      mutate: vi.fn(),
+      data: {
+        found: 1, open: 1, needs_jacob: 0, top: null, blind_spots: [], generated_at: 'now',
+        escalated: 1, escalation_failed: 0, delivery_status: 'delivered',
+        delivery_message: '1 deadline warning delivered.',
+      },
+    });
+    render(<HomeState />);
+    expect(screen.getByText('1 deadline warning delivered.')).toBeInTheDocument();
+  });
+
+  it('says plainly when a due warning could not reach any phone channel', () => {
+    (useDeadlineSweep as Mock).mockReturnValue({
+      isPending: false,
+      mutate: vi.fn(),
+      data: {
+        found: 1, open: 1, needs_jacob: 0, top: null, blind_spots: [], generated_at: 'now',
+        escalated: 0, escalation_failed: 1, delivery_status: 'source_unavailable',
+        delivery_message: 'A deadline warning was due, but nothing was delivered. Check notification setup and try again.',
+      },
+    });
+    render(<HomeState />);
+    expect(screen.getByText(/nothing was delivered/i)).toBeInTheDocument();
+  });
+
   // ── error-before-loading regressions ──
 
   it("shows session context error even when another query is still loading (was: 'loading…' forever)", () => {

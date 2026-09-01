@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-from gateway import image_jobs, image_plans
+from gateway import image_jobs, image_plan_store
 from gateway import image_sessions as sessions
-from gateway.image_plan import build_image_plan
-from gateway.image_plans import PlanMalformedError, PlanStoreError, persist_plan
+from gateway.image_plan_store import PlanMalformedError, PlanStoreError, persist_plan
+from gateway.image_plan_types import build_image_plan
 from gateway.routes import extended
 
 
@@ -26,7 +26,7 @@ def _fresh_db(tmp_path: Path):
     conn = sqlite3.connect(str(test_db))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    image_plans._ensure_db(conn)
+    image_plan_store._ensure_db(conn)
     conn.commit()
     conn.close()
 
@@ -63,7 +63,7 @@ def test_txt2img_row_with_anchor_fails_loud_when_reloaded():
         conn.commit()
 
     with pytest.raises(PlanMalformedError, match="txt2img.*anchor_job_id"):
-        image_plans.require_plan(stored.plan_id)
+        image_plan_store.require_plan(stored.plan_id)
 
 
 @pytest.mark.asyncio
