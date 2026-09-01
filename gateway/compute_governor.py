@@ -276,9 +276,16 @@ def default_db_path() -> Path:
 def connect(db_path: Path | str = COMPUTE_GOVERNOR_DB) -> sqlite3.Connection:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, timeout=30.0)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    # journal_mode changes require an exclusive lock during first-time setup.
+    # Configure SQLite's busy handler before touching that pragma so concurrent
+    # process/thread initializers wait instead of failing spuriously. Avoid the
+    # write-like pragma entirely once another initializer has enabled WAL.
+    conn.execute("PRAGMA busy_timeout=30000")
+    journal_mode = str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower()
+    if journal_mode != "wal":
+        conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 

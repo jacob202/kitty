@@ -73,6 +73,26 @@ class TestCaptureFile:
         assert inbox_lines[0]["type"] == "local_path"
         assert inbox_lines[0]["source_path"] == str(txt)
 
+
+    def test_capture_local_path_preserves_previewable_media_type(self, client, tmp_path, monkeypatch):
+        from gateway.routes import capture
+
+        txt = tmp_path / "data" / "captures" / "note.txt"
+        txt.parent.mkdir(parents=True, exist_ok=True)
+        txt.write_text("hello world")
+        recorded = {}
+
+        def register_file(path, **kwargs):
+            recorded.update(kwargs)
+            return {"id": "artifact-local"}
+
+        monkeypatch.setattr(capture.artifact_store, "register_file", register_file)
+
+        response = client.post("/capture/file", data={"path": str(txt)})
+
+        assert response.status_code == 200
+        assert recorded["media_type"] == "text/plain"
+
     def test_capture_rejects_missing_file_and_path(self, client):
         response = client.post("/capture/file")
         assert response.status_code == 400

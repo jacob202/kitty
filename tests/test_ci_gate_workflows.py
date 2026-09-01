@@ -148,14 +148,14 @@ def test_change_scope_comes_from_the_canonical_classifier() -> None:
         assert key in outputs, key
 
 
-def test_model_review_runs_automatically_via_paid_flash_on_each_code_head() -> None:
+def test_model_review_uses_paid_flash_for_merge_boundaries_and_sensitive_heads() -> None:
     text, workflow = _workflow("pr-agent-review.yml")
     review = workflow["jobs"]["agent-review"]
     review_if = str(review["if"])
 
     assert DRAFT_GUARD in review_if
     assert "github.event.pull_request.author_association == 'OWNER'" in review_if
-    assert "needs.scope.outputs.sensitive == 'true'" not in review_if
+    assert "needs.scope.outputs.sensitive == 'true'" in review_if
     for code_action in ("opened", "synchronize", "reopened", "ready_for_review"):
         assert f"github.event.action == '{code_action}'" in review_if
     for metadata_action in ("edited", "labeled", "unlabeled"):
@@ -270,3 +270,39 @@ def test_no_workflow_interpolates_untrusted_pull_request_text_into_a_shell() -> 
 def test_only_the_repository_owner_can_spend_the_comment_agent_key() -> None:
     _, workflow = _workflow("opencode.yml")
     assert "author_association == 'OWNER'" in workflow["jobs"]["opencode"]["if"]
+
+
+def test_stacked_prs_run_expensive_validation_only_at_merge_boundaries() -> None:
+    text, workflow = _workflow("tests.yml")
+    top = "github.event.pull_request.stack.position == github.event.pull_request.stack.size"
+    lowest = "github.event.pull_request.stack.base.ref == github.event.pull_request.base.ref"
+    unstacked = "github.event.pull_request.stack == null"
+    for name in ("pytest", "pytest-integration", "typecheck", "kitty-chat"):
+        condition = str(workflow["jobs"][name]["if"])
+        assert top in condition, name
+        assert lowest in condition, name
+        assert unstacked in condition, name
+    assert top in text
+    assert lowest in text
+
+    # Ruff remains the cheap per-layer guard; merge boundaries run the full suites.
+    lint_condition = str(workflow["jobs"]["lint"]["if"])
+    assert top not in lint_condition
+
+
+def test_stack_merge_gate_accepts_skipped_expensive_jobs_only_between_boundaries() -> None:
+    text, workflow = _workflow("tests.yml")
+    gate = workflow["jobs"]["merge-gate"]
+    assert "STACK_FULL_VALIDATION" in gate["env"]
+    script = "\n".join(str(step.get("run", "")) for step in gate["steps"])
+    assert 'if [[ "$STACK_FULL_VALIDATION" == "true" ]]' in script
+    assert "stack layer defers full validation to cumulative top" in script
+
+
+def test_stacked_agent_review_runs_at_merge_boundaries_or_sensitive_layers() -> None:
+    _, workflow = _workflow("pr-agent-review.yml")
+    condition = str(workflow["jobs"]["agent-review"]["if"])
+    assert "github.event.pull_request.stack == null" in condition
+    assert "github.event.pull_request.stack.base.ref == github.event.pull_request.base.ref" in condition
+    assert "github.event.pull_request.stack.position == github.event.pull_request.stack.size" in condition
+    assert "needs.scope.outputs.sensitive == 'true'" in condition

@@ -81,3 +81,92 @@ class TestGetArtifact:
         r = client.get("/artifacts/nonexistent-id")
         assert r.status_code == 404
         assert "does not exist" in r.json()["detail"]
+
+
+class TestArtifactContent:
+    def test_serves_registered_ready_text_by_artifact_id(self, client):
+        artifact_id = client.get("/artifacts").json()["artifacts"][0]["id"]
+
+        response = client.get(f"/artifacts/{artifact_id}/content")
+
+        assert response.status_code == 200
+        assert response.text == "hello world"
+        assert response.headers["content-type"].startswith("text/plain")
+
+    def test_missing_backing_file_fails_closed(self, client):
+        artifact = client.get("/artifacts").json()["artifacts"][0]
+        from pathlib import Path
+        Path(artifact["storage_uri"]).unlink()
+
+        response = client.get(f"/artifacts/{artifact['id']}/content")
+
+        assert response.status_code == 404
+        assert "missing from disk" in response.json()["detail"].lower()
+
+    def test_non_ready_artifact_is_not_served(self, client, monkeypatch):
+        artifact = client.get("/artifacts").json()["artifacts"][0]
+        original = artifact_store.get_artifact
+
+        def get_artifact(artifact_id):
+            value = original(artifact_id)
+            if value is not None:
+                value["state"] = "processing"
+            return value
+
+        monkeypatch.setattr(artifact_store, "get_artifact", get_artifact)
+
+        response = client.get(f"/artifacts/{artifact['id']}/content")
+
+        assert response.status_code == 409
+        assert "not ready" in response.json()["detail"].lower()
+
+
+    def test_content_route_round_trips_artifact_ids_with_slashes(self, client, tmp_path):
+        source = tmp_path / "slash-id.txt"
+        source.write_text("slash safe")
+        artifact_store.register_file(
+            source, kind="text", media_type="text/plain", project_id=None,
+            created_by="test", artifact_id="folder/item",
+        )
+
+        response = client.get("/artifacts/folder%2Fitem/content")
+
+        assert response.status_code == 200
+        assert response.text == "slash safe"
+
+    def test_changed_backing_file_fails_closed(self, client):
+        artifact = client.get("/artifacts").json()["artifacts"][0]
+        from pathlib import Path
+        path = Path(artifact["storage_uri"])
+        path.write_text("HELLO WORLD")
+
+        response = client.get(f"/artifacts/{artifact['id']}/content")
+
+        assert response.status_code == 409
+        assert "changed on disk" in response.json()["detail"].lower()
+
+    def test_oversized_text_preview_is_rejected_before_materializing(self, client, monkeypatch):
+        artifact = client.get("/artifacts").json()["artifacts"][0]
+        monkeypatch.setattr(artifacts_route, "MAX_TEXT_PREVIEW_BYTES", 4)
+
+        response = client.get(f"/artifacts/{artifact['id']}/content")
+
+        assert response.status_code == 413
+        assert "too large to preview" in response.json()["detail"].lower()
+
+    def test_active_html_content_is_not_previewable(self, client, monkeypatch):
+        artifact = client.get("/artifacts").json()["artifacts"][0]
+        original = artifact_store.get_artifact
+
+        def get_artifact(artifact_id):
+            value = original(artifact_id)
+            if value is not None:
+                value["media_type"] = "text/html"
+            return value
+
+        monkeypatch.setattr(artifact_store, "get_artifact", get_artifact)
+
+        response = client.get(f"/artifacts/{artifact['id']}/content")
+
+        assert response.status_code == 415
+        assert "preview" in response.json()["detail"].lower()
