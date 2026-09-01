@@ -368,6 +368,66 @@ def _dispatch_candidate(
     return packet, None
 
 
+def _admission_skip(
+    packet: dict[str, Any],
+    *,
+    db_path: Path | None = None,
+    repo_root: Path | None = None,
+    github_truth: dict[str, Any] | None = None,
+    current_main_sha: str | None = None,
+    current_main_error: str | None = None,
+) -> dict[str, Any] | None:
+    if github_truth is not None and not github_truth.get("available"):
+        return {
+            "initiative_id": str(packet["initiative_id"]),
+            "packet_id": str(packet["packet_id"]),
+            "task_id": str(packet["task_id"]),
+            "reason": "github_truth_unavailable",
+            "error": github_truth.get("error"),
+        }
+    if github_truth is not None:
+        task = bq.get_task(str(packet["task_id"]), db_path=db_path)
+        if task is not None:
+            branch = default_branch_name(task)
+            pr = (github_truth.get("by_head") or {}).get(branch)
+            if isinstance(pr, dict) and (pr.get("state") == "OPEN" or pr.get("mergedAt")):
+                return {
+                    "initiative_id": str(packet["initiative_id"]),
+                    "packet_id": str(packet["packet_id"]),
+                    "task_id": str(packet["task_id"]),
+                    "reason": "github_pr_already_exists",
+                    "branch": branch,
+                    "pr_number": pr.get("number"),
+                    "pr_state": pr.get("state"),
+                    "merged_at": pr.get("mergedAt"),
+                }
+    if repo_root is not None:
+        if current_main_error is not None:
+            return {
+                "initiative_id": str(packet["initiative_id"]),
+                "packet_id": str(packet["packet_id"]),
+                "task_id": str(packet["task_id"]),
+                "reason": "main_truth_unavailable",
+                "error": current_main_error,
+            }
+        preflight = preflight_packet(
+            str(packet["initiative_id"]), str(packet["packet_id"]),
+            db_path=db_path, repo_root=repo_root, current_main_sha=current_main_sha,
+            requested_route="cheap",
+        )
+        if preflight.get("action") != PREFLIGHT_RUN:
+            return {
+                "initiative_id": str(packet["initiative_id"]),
+                "packet_id": str(packet["packet_id"]),
+                "task_id": str(packet["task_id"]),
+                "reason": "preflight_blocked",
+                "preflight_action": preflight.get("action"),
+                "reasons": preflight.get("reasons") or [],
+                "freshness": preflight.get("freshness") or {},
+            }
+    return None
+
+
 def _select_packets(
     db_path: Path | None = None, *, max_runs: int = MAX_RUNS_PER_TICK,
     repo_root: Path | None = None, github_truth: dict[str, Any] | None = None,
@@ -384,76 +444,33 @@ def _select_packets(
         if packet is None:
             skipped.append(skip)  # type: ignore[arg-type]
             continue
-
-        if github_truth is not None and not github_truth.get("available"):
-            skipped.append({
-                "initiative_id": str(packet["initiative_id"]),
-                "packet_id": str(packet["packet_id"]),
-                "task_id": str(packet["task_id"]),
-                "reason": "github_truth_unavailable",
-                "error": github_truth.get("error"),
-            })
+        admission_skip = _admission_skip(
+            packet, db_path=db_path, repo_root=repo_root, github_truth=github_truth,
+            current_main_sha=current_main_sha, current_main_error=current_main_error,
+        )
+        if admission_skip is not None:
+            skipped.append(admission_skip)
             continue
-
-        if github_truth is not None:
-            task = bq.get_task(str(packet["task_id"]), db_path=db_path)
-            if task is not None:
-                branch = default_branch_name(task)
-                pr = (github_truth.get("by_head") or {}).get(branch)
-                if isinstance(pr, dict) and (
-                    pr.get("state") == "OPEN" or pr.get("mergedAt")
-                ):
-                    skipped.append({
-                        "initiative_id": str(packet["initiative_id"]),
-                        "packet_id": str(packet["packet_id"]),
-                        "task_id": str(packet["task_id"]),
-                        "reason": "github_pr_already_exists",
-                        "branch": branch,
-                        "pr_number": pr.get("number"),
-                        "pr_state": pr.get("state"),
-                        "merged_at": pr.get("mergedAt"),
-                    })
-                    continue
-
-        if repo_root is not None:
-            if current_main_error is not None:
-                skipped.append({
-                    "initiative_id": str(packet["initiative_id"]),
-                    "packet_id": str(packet["packet_id"]),
-                    "task_id": str(packet["task_id"]),
-                    "reason": "main_truth_unavailable",
-                    "error": current_main_error,
-                })
-                continue
-            preflight = preflight_packet(
-                str(packet["initiative_id"]), str(packet["packet_id"]),
-                db_path=db_path, repo_root=repo_root,
-                current_main_sha=current_main_sha,
-            )
-            if preflight.get("action") != PREFLIGHT_RUN:
-                skipped.append({
-                    "initiative_id": str(packet["initiative_id"]),
-                    "packet_id": str(packet["packet_id"]),
-                    "task_id": str(packet["task_id"]),
-                    "reason": "preflight_blocked",
-                    "preflight_action": preflight.get("action"),
-                    "reasons": preflight.get("reasons") or [],
-                    "freshness": preflight.get("freshness") or {},
-                })
-                continue
         selected.append(packet)
     return selected, skipped
 
 
-def dispatchable_counts(db_path: Path | None = None) -> dict[str, int]:
-    """How much work a tick could start now, and how much its project blocks.
-
-    ``now`` is what ticks would actually dispatch if they ran until nothing
-    was left; ``on_hold`` is work that is dispatchable in every respect except
-    that its initiative is paused, so no tick will ever pick it up. Both use
-    :func:`_dispatch_candidate`, so these numbers cannot disagree with what a
-    tick does.
-    """
+def dispatchable_counts(
+    db_path: Path | None = None,
+    *,
+    repo_root: Path | None = None,
+    github_truth: dict[str, Any] | None = None,
+    current_main_sha: str | None = None,
+    current_main_error: str | None = None,
+) -> dict[str, int]:
+    """How much work is admitted now, optionally using fresh external truth."""
+    if repo_root is not None and github_truth is None:
+        github_truth = github_truth_snapshot(repo_root)
+    if repo_root is not None and github_truth and github_truth.get("available") and current_main_sha is None and current_main_error is None:
+        try:
+            current_main_sha = _fresh_main_sha(repo_root)
+        except Exception as exc:
+            current_main_error = f"{type(exc).__name__}: {exc}"
     now = 0
     on_hold = 0
     for initiative in bi.list_initiative_gates(db_path):
@@ -464,6 +481,11 @@ def dispatchable_counts(db_path: Path | None = None) -> dict[str, int]:
             continue
         packet, _ = _dispatch_candidate(str(initiative["id"]), db_path)
         if packet is None:
+            continue
+        if _admission_skip(
+            packet, db_path=db_path, repo_root=repo_root, github_truth=github_truth,
+            current_main_sha=current_main_sha, current_main_error=current_main_error,
+        ) is not None:
             continue
         if stored_state == bi.INITIATIVE_ACTIVE:
             now += 1
@@ -791,11 +813,15 @@ def github_truth_snapshot(
     runner = run_cmd or subprocess.run
     args = [
         "gh", "pr", "list", "--state", "all", "--limit", str(GITHUB_PR_SNAPSHOT_LIMIT),
-        "--json", "number,state,mergedAt,headRefName,headRefOid,baseRefName,url",
+        "--json", "number,state,mergedAt,headRefName,headRefOid,baseRefName,url,isCrossRepository",
     ]
     try:
+        child_env = os.environ.copy()
+        child_env.pop("GH_TOKEN", None)
+        child_env.pop("GITHUB_TOKEN", None)
         result = runner(
-            args, cwd=repo_root, capture_output=True, text=True, timeout=20, check=False
+            args, cwd=repo_root, capture_output=True, text=True, timeout=20, check=False,
+            env=child_env,
         )
     except Exception as exc:
         return {"available": False, "error": f"{type(exc).__name__}: {exc}", "by_head": {}}
@@ -806,6 +832,14 @@ def github_truth_snapshot(
         rows = json.loads(result.stdout or "[]")
     except json.JSONDecodeError as exc:
         return {"available": False, "error": f"invalid gh JSON: {exc}", "by_head": {}}
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        return {
+            "available": False,
+            "complete": False,
+            "error": "GitHub PR snapshot must be an array of objects",
+            "by_head": {},
+            "pr_count": 0,
+        }
     if len(rows) >= GITHUB_PR_SNAPSHOT_LIMIT:
         return {
             "available": False,
@@ -827,7 +861,7 @@ def github_truth_snapshot(
 
     by_head: dict[str, dict[str, Any]] = {}
     for row in rows:
-        if not isinstance(row, dict) or not row.get("headRefName"):
+        if row.get("isCrossRepository") or not row.get("headRefName"):
             continue
         head = str(row["headRefName"])
         current = by_head.get(head)
@@ -850,6 +884,7 @@ def preflight_packet(
     repo_root: Path | None = None,
     ledger_db_path: Path | str | None = None,
     current_main_sha: str | None = None,
+    requested_route: str | None = None,
 ) -> dict[str, Any]:
     """Read-only packet review before Builder creates an attempt or run.
 
@@ -971,12 +1006,12 @@ def preflight_packet(
                     f"current main is {current_head[:12]} and changed {preview}."
                 )
 
-    requested_route = _packet_route(target, cg)
+    effective_route = requested_route or _packet_route(target, cg)
     cost = cg.preflight_route_and_cost(
-        requested_route=requested_route,
+        requested_route=effective_route,
         db_path=ledger_db_path,
     )
-    if requested_route != cg.ROUTE_FREE and not cost["within_budget"]:
+    if effective_route != cg.ROUTE_FREE and not cost["within_budget"]:
         reasons.append(
             f"Estimated CAD {cost['estimated_cost_cad']:.4f} exceeds the remaining weekly budget "
             f"of CAD {cost['remaining_cad']:.4f}."

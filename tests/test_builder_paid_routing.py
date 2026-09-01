@@ -237,7 +237,7 @@ def test_task_classes_select_bounded_harness_profiles():
 
 
 def test_execution_routing_plan_exposes_ordered_candidates_handoff_and_harness(tmp_path: Path):
-    payload = _policy()
+    payload = _policy(cheap_cap=0.13)
     payload["routes"]["cheap"]["worker_fallback_models"] = [
         "openrouter/xiaomi/mimo-v2.5"
     ]
@@ -262,7 +262,7 @@ def test_execution_routing_plan_exposes_ordered_candidates_handoff_and_harness(t
     )
     assert plan.handoff.context_mode == "artifacts_compact"
     assert plan.harness.name == "coding"
-    assert plan.to_policy_dict()["max_projected_cost_cad"] == 0.10
+    assert plan.to_policy_dict()["max_projected_cost_cad"] == 0.13
 
 
 def test_fallback_candidates_fail_closed_on_malformed_or_duplicate_models(tmp_path: Path):
@@ -299,5 +299,14 @@ def test_fallback_candidates_must_all_fit_attempt_ceiling(tmp_path: Path):
         "openrouter/qwen/qwen3.7-max"
     ]
 
+    with pytest.raises(bpr.PaidRoutingError, match="ceiling"):
+        bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, payload))
+
+
+def test_fallback_projection_reserves_every_sequential_candidate(tmp_path: Path, monkeypatch):
+    payload = _policy(cheap_cap=0.07)
+    payload["routes"]["cheap"]["worker_fallback_models"] = ["openrouter/xiaomi/mimo-v2.5"]
+    payload["routes"]["cheap"]["reviewer_fallback_models"] = ["openrouter/minimax/minimax-m3"]
+    monkeypatch.setattr(bpr, "_projected_attempt_cost_cad", lambda *_args: 0.02)
     with pytest.raises(bpr.PaidRoutingError, match="ceiling"):
         bpr.resolve_paid_route("cheap", config_path=_write(tmp_path, payload))

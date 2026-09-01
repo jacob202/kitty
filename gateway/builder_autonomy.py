@@ -35,7 +35,7 @@ def load_packet_registry(repo_root: Path) -> list[dict[str, Any]]:
             raise PacketRegistryError(f"cannot read packet registry {path.name}: {exc}") from exc
         if not isinstance(slate, dict):
             raise PacketRegistryError(f"packet registry {path.name} must contain an object")
-        packets = slate.get("packets") or []
+        packets = slate.get("packets", [])
         if not isinstance(packets, list):
             raise PacketRegistryError(f"packet registry {path.name} packets must be a list")
         initiative_id = slate.get("initiative_id")

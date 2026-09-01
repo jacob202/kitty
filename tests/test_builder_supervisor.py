@@ -871,3 +871,15 @@ def test_preflight_allows_blocked_task_with_fenced_stale_attempt(
     )
 
     assert result["action"] == bs.PREFLIGHT_RUN
+
+
+def test_dispatchable_counts_with_live_truth_applies_same_preflight_as_tick(repo: Path, db_path: Path, monkeypatch):
+    _apply(db_path, "live-count", [_packet("p1")], repo_root=repo)
+    monkeypatch.setattr(bs, "preflight_packet", lambda *_a, **_k: {"action": bs.PREFLIGHT_BLOCKED, "reasons": ["budget"]})
+    counts = bs.dispatchable_counts(
+        db_path,
+        repo_root=repo,
+        github_truth={"available": True, "by_head": {}, "error": None},
+        current_main_sha=subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip(),
+    )
+    assert counts["now"] == 0

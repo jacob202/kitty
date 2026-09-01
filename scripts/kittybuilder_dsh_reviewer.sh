@@ -30,7 +30,7 @@ elif [[ -n "${KITTYBUILDER_REVIEW_MODELS:-}" ]]; then
   read -r -a models <<<"${KITTYBUILDER_REVIEW_MODELS}"
 else
   models=(
-    "openrouter/free"
+    "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
   )
 fi
 before=$(git rev-parse HEAD)
@@ -152,9 +152,13 @@ review_budget=${KB_REVIEW_TIMEOUT_SECONDS:-240}
 # half-finished packet on 2026-08-31. The reserve keeps enough budget left for
 # the review file to be written.
 model_timeout() {
+  local model_index=$1
   local elapsed=$((SECONDS - budget_started))
-  local reserve=$((review_budget / 10))
-  (( reserve < 60 )) || reserve=60
+  local remaining_models=$((${#models[@]} - model_index))
+  local reserve=$((remaining_models * 30))
+  local base_reserve=$((review_budget / 10))
+  (( base_reserve < 30 )) || base_reserve=30
+  (( reserve > base_reserve )) || reserve=$base_reserve
   local remaining=$((review_budget - elapsed - reserve))
   (( remaining > 0 )) || remaining=1
   echo "${remaining}"
@@ -164,9 +168,10 @@ model_timeout() {
 # cleanly: no review written and no worktree mutation. A written review file
 # is never discarded in favour of another model, and any mutation is fatal.
 chosen_model=""
-for model in "${models[@]}"; do
+for model_index in "${!models[@]}"; do
+  model="${models[$model_index]}"
   attempt_before="$(fingerprint)"
-  slot_seconds=$(model_timeout)
+  slot_seconds=$(model_timeout "$model_index")
   echo "=== ${lane_label} reviewer attempt: ${model} (${slot_seconds}s slot) ==="
   set +e
   review_output=$(python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" \

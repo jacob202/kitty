@@ -248,6 +248,27 @@ def _projected_attempt_cost_cad(
     return worker_cost + reviewer_cost
 
 
+
+def _projected_worker_cost_cad(governor_route: str, model: str) -> float:
+    shape = cg.TYPICAL_PASS_TOKENS[governor_route]
+    try:
+        return cg.estimate_cost_cad(
+            _pricing_model(model), input_tokens=shape["input"], output_tokens=shape["output"]
+        )
+    except cg.GovernorError as exc:
+        raise PaidRoutingError(f"cannot project paid route cost: {exc}") from exc
+
+
+def _projected_reviewer_cost_cad(model: str) -> float:
+    try:
+        return cg.estimate_cost_cad(
+            _pricing_model(model),
+            input_tokens=_REVIEW_TOKEN_SHAPE["input"],
+            output_tokens=_REVIEW_TOKEN_SHAPE["output"],
+        )
+    except cg.GovernorError as exc:
+        raise PaidRoutingError(f"cannot project paid route cost: {exc}") from exc
+
 def resolve_paid_route(
     tier: str = "cheap", *, config_path: Path = PAID_ROUTES_PATH
 ) -> PaidRoute:
@@ -310,11 +331,11 @@ def resolve_paid_route(
         route.get("max_projected_cad_per_attempt"),
         f"paid route {tier!r}.max_projected_cad_per_attempt",
     )
-    projected = max(
-        _projected_attempt_cost_cad(governor_route, worker, reviewer)
-        for worker in worker_candidates
-        for reviewer in reviewer_candidates
-    )
+    # Candidates are tried sequentially, so reserve the worst case where every
+    # worker fallback and every reviewer fallback is attempted once.
+    projected = sum(
+        _projected_worker_cost_cad(governor_route, worker) for worker in worker_candidates
+    ) + sum(_projected_reviewer_cost_cad(reviewer) for reviewer in reviewer_candidates)
     if projected > ceiling:
         raise PaidRoutingError(
             f"paid route {tier!r} candidate set projects CAD {projected:.4f} per attempt, "

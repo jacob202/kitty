@@ -587,6 +587,7 @@ def _run_review_command(
             cwd / f".kittybuilder-review-{name}-{attempt_id}.json"
             for name in ("bundle", "impl", "context", "binding", "result")
         )
+        write_paths.append(cwd / f".kittybuilder-review-prompt-{attempt_id}.txt")
     try:
         wrapped = beb.wrap_command(
             command,
@@ -715,6 +716,17 @@ def _worker_provider_exhaustion_reason(
     return f"all configured {lane} worker providers were unavailable"
 
 
+def _review_provider_exhaustion_reason(
+    requested_route: str | None, adapter_env: dict[str, str]
+) -> str:
+    """Describe reviewer exhaustion from the route that actually ran."""
+    paid = requested_route in {cg.ROUTE_CHEAP, cg.ROUTE_FRONTIER} or (
+        adapter_env.get("KITTYBUILDER_REVIEW_AGENT") == "paid-reviewer"
+    )
+    lane = "paid" if paid else "free"
+    return f"all configured {lane} reviewer providers were unavailable"
+
+
 def _sanitize_free_adapter_env(adapter_env: dict[str, str]) -> dict[str, str]:
     """Force the free lane to remain free even for direct library callers."""
     for key in ("KITTYBUILDER_MODEL", "KITTYBUILDER_REVIEW_MODEL"):
@@ -725,7 +737,24 @@ def _sanitize_free_adapter_env(adapter_env: dict[str, str]) -> dict[str, str]:
         for model in adapter_env.get(key, "").split():
             if not _is_explicit_free_model(model):
                 raise LoopError(f"free route rejects paid model override {model!r}")
-    return {
+    worker_models = {
+        model for model in (
+            adapter_env.get("KITTYBUILDER_MODEL", "").strip(),
+            *adapter_env.get("KITTYBUILDER_MODELS", "").split(),
+        ) if model
+    }
+    reviewer_models = {
+        model for model in (
+            adapter_env.get("KITTYBUILDER_REVIEW_MODEL", "").strip(),
+            *adapter_env.get("KITTYBUILDER_REVIEW_MODELS", "").split(),
+        ) if model
+    }
+    overlap = sorted(worker_models & reviewer_models)
+    if overlap:
+        raise LoopError(
+            f"free reviewer must remain independent from worker models; overlap={overlap}"
+        )
+    sanitized = {
         "KITTYBUILDER_AGENT": "free-builder",
         "KITTYBUILDER_REVIEW_AGENT": "free-reviewer",
         "KITTYBUILDER_MODEL": adapter_env.get("KITTYBUILDER_MODEL", ""),
@@ -733,6 +762,10 @@ def _sanitize_free_adapter_env(adapter_env: dict[str, str]) -> dict[str, str]:
         "KITTYBUILDER_MODELS": adapter_env.get("KITTYBUILDER_MODELS", ""),
         "KITTYBUILDER_REVIEW_MODELS": adapter_env.get("KITTYBUILDER_REVIEW_MODELS", ""),
     }
+    openrouter_api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if openrouter_api_key:
+        sanitized["OPENROUTER_API_KEY"] = openrouter_api_key
+    return sanitized
 
 
 def _configure_paid_route(
@@ -2005,7 +2038,9 @@ def run_packet(
                     history=history,
                     manifest=manifest,
                     manifest_path=manifest_path,
-                    reason="all configured free reviewer providers were unavailable",
+                    reason=_review_provider_exhaustion_reason(
+                    governor_requested_route, effective_adapter_env
+                ),
                     phase="review_provider_exhaustion",
                     db_path=db_path,
                 )
