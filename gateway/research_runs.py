@@ -78,7 +78,12 @@ def list_runs(*, limit: int = 20, project_id: int | None = None) -> list[dict[st
                 'SELECT * FROM research_runs WHERE project_id = ? ORDER BY created_at DESC LIMIT ?',
                 (project_id, bounded),
             ).fetchall()
-    return [_row(row) for row in rows if row is not None]
+    result: list[dict[str, Any]] = []
+    for row in rows:
+        item = _row(row)
+        if item is not None:
+            result.append(item)
+    return result
 
 
 def update_stage(run_id: str, *, stage: str, sources: list[str] | None = None, updated_at: float | None = None) -> dict[str, Any]:
