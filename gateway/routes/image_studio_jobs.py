@@ -158,7 +158,15 @@ async def studio_estimate(req: StudioEstimateRequest) -> dict:
 
     recipe = decision.recipe
     provider = recipe.provider if recipe else "comfyui"
-    model_id = _exact_model_id(provider)
+    # When a recipe is present, resolve the exact model from the recipe's
+    # execution_target rather than the provider alone; FLUX.2 carries a
+    # target that _iteration_model_id can resolve without I/O.  The
+    # no-recipe fallback keeps the original provider-only path.
+    model_id = (
+        _iteration_model_id(recipe, operation="txt2img")
+        if recipe
+        else _exact_model_id(provider)
+    )
     per_image = image_estimates.estimate(
         provider, model_id=model_id, operation="txt2img"
     )
