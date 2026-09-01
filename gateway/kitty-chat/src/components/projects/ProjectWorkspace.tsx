@@ -14,6 +14,7 @@ export function ProjectWorkspace({
   nextStep,
   onClose,
   onNavigate,
+  onStartChat = () => {},
   onRefresh,
   refreshing = false,
   refreshError = null,
@@ -23,6 +24,7 @@ export function ProjectWorkspace({
   nextStep: GatewayNextStep | null
   onClose: () => void
   onNavigate: (view: string) => void
+  onStartChat?: () => void
   onRefresh?: () => void
   refreshing?: boolean
   refreshError?: string | null
@@ -56,7 +58,9 @@ export function ProjectWorkspace({
     setActivationError(null)
     try {
       await setActiveProject.mutateAsync(project.id)
-      if (mountedRef.current) onNavigate(view)
+      if (!mountedRef.current) return
+      if (view === 'chat') onStartChat()
+      onNavigate(view)
     } catch (err) {
       if (mountedRef.current) setActivationError(describeFailure(err))
     }
@@ -64,7 +68,15 @@ export function ProjectWorkspace({
 
   return (
     <div style={backdropStyle} onMouseDown={(event) => { if (event.currentTarget === event.target) closeWorkspace() }}>
-      <section ref={dialogRef} role="dialog" aria-modal="true" aria-label={`${project.name} project workspace`} style={panelStyle}>
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${project.name} project workspace`}
+        aria-hidden={selectedArtifact ? true : undefined}
+        inert={selectedArtifact ? true : undefined}
+        style={panelStyle}
+      >
         <header style={headerStyle}>
           <div style={{ minWidth: 0 }}>
             <div style={eyebrowStyle}>project workspace</div>
@@ -187,7 +199,7 @@ function SourceWarning({ label, message }: { label: string; message: string }) {
   return <div role="status" style={warningStyle}><strong>{label} unavailable.</strong> {message}</div>
 }
 
-const backdropStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 1225, background: 'rgba(0,0,0,0.42)', display: 'flex', justifyContent: 'flex-end' }
+const backdropStyle: CSSProperties = { position: 'fixed', inset: 0, zIndex: 950, background: 'rgba(0,0,0,0.42)', display: 'flex', justifyContent: 'flex-end' }
 const panelStyle: CSSProperties = { width: 'min(760px, 100vw)', height: '100%', background: 'var(--color-background, var(--bg))', borderLeft: '1px solid var(--color-separator, var(--line))', boxShadow: '-20px 0 50px rgba(0,0,0,0.22)', display: 'flex', flexDirection: 'column', minWidth: 0 }
 const headerStyle: CSSProperties = { padding: '18px 20px 14px', display: 'flex', justifyContent: 'space-between', gap: 16, borderBottom: '1px solid var(--color-separator, var(--line))' }
 const eyebrowStyle: CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-text-secondary, var(--ink-2))' }
