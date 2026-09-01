@@ -65,7 +65,31 @@ def _parse_event_time(ts_str: str, _date_ref: str | None = None) -> float:
         return time.time()
 
 
+def _calendar_source_state() -> dict:
+    """Return calendar availability metadata for projection consumers.
+
+    Returns {"available": bool, "state": "healthy"|"unavailable"}.
+    An unavailable source means the empty event list is *not* a reliable
+    signal that the user is free — callers must not infer freedom from it.
+    """
+    try:
+        from gateway.calendar_integration import is_available
+        available = is_available()
+    except Exception:
+        available = False
+    return {
+        "available": available,
+        "state": "healthy" if available else "unavailable",
+    }
+
+
 def today_events() -> list[dict]:
+    """Return today's calendar events as a list.
+
+    Compatibility API: always returns a list. Callers that need to know
+    *why* the list is empty should check ``_calendar_source_state()`` or
+    the ``calendar_source`` field on projection dicts.
+    """
     from gateway.calendar_integration import get_today, is_available
     if not is_available():
         return []
@@ -120,6 +144,7 @@ def do_not_disturb_status() -> dict:
     if _DND_CACHE is not None:
         return _DND_CACHE
     events = today_events()
+    calendar_source = _calendar_source_state()
     in_meeting = _is_in_meeting(events)
     current = None
     next_free = None
@@ -132,6 +157,7 @@ def do_not_disturb_status() -> dict:
         "current_meeting": current,
         "next_free": next_free,
         "event_count": len(events),
+        "calendar_source": calendar_source,
         "checked_at": time.time(),
     }
     _DND_CACHE = status
@@ -227,6 +253,7 @@ def morning_proactive() -> dict:
     if _PROACTIVE_CACHE is not None:
         return _PROACTIVE_CACHE
     events = today_events()
+    calendar_source = _calendar_source_state()
     steps = _life_project_steps_today()
     recap = yesterday_recap()
     now = datetime.now(timezone.utc).isoformat()
@@ -234,6 +261,7 @@ def morning_proactive() -> dict:
         "now": now,
         "event_count": len(events),
         "events": events[:10],
+        "calendar_source": calendar_source,
         "life_steps": steps,
         "yesterday": {
             "signal_count": recap.get("signal_count", 0),
@@ -419,6 +447,7 @@ def invalidate_caches() -> None:
 
 def today_summary() -> dict:
     events = today_events()
+    calendar_source = _calendar_source_state()
     in_meeting = _is_in_meeting(events)
     steps = _life_project_steps_today()
     return {
@@ -428,4 +457,5 @@ def today_summary() -> dict:
         "in_meeting": in_meeting,
         "current_meeting": current_meeting() if in_meeting else None,
         "life_steps": steps[:3],
+        "calendar_source": calendar_source,
     }

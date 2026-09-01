@@ -58,6 +58,9 @@ class TestDoNotDisturb:
             status = life_awareness.do_not_disturb_status()
         assert status["do_not_disturb"] is False
         assert status["in_meeting"] is False
+        assert "calendar_source" in status
+        assert "available" in status["calendar_source"]
+        assert "state" in status["calendar_source"]
 
     def test_dnd_true_during_meeting(self):
         now = time.time()
@@ -161,6 +164,9 @@ class TestMorningProactive:
         assert "life_steps" in result
         assert "proactive_suggestions" in result
         assert isinstance(result["proactive_suggestions"], list)
+        assert "calendar_source" in result
+        assert "available" in result["calendar_source"]
+        assert "state" in result["calendar_source"]
 
     def test_proactive_with_life_steps(self):
         with patch.object(life_awareness, "today_events", return_value=[]), \
@@ -274,6 +280,9 @@ class TestTodaySummary:
         assert "event_count" in summary
         assert "in_meeting" in summary
         assert summary["in_meeting"] is False
+        assert "calendar_source" in summary
+        assert "available" in summary["calendar_source"]
+        assert "state" in summary["calendar_source"]
 
 
 class TestFallbackText:
@@ -404,3 +413,106 @@ class TestLifeRoutesContract:
         assert resp.status_code == 200
         assert resp.json()["in_meeting"] is True
         assert resp.json()["meeting"]["title"] == "1:1"
+
+    def test_life_check_carries_calendar_source(self, client):
+        with patch("gateway.calendar_integration.is_available", return_value=True), \
+             patch.object(life_awareness, "today_events", return_value=[]), \
+             patch.object(life_awareness, "_life_project_steps_today", return_value=[]), \
+             patch.object(life_awareness, "_yesterday_signals", return_value=[]), \
+             patch.object(life_awareness, "_yesterday_journal", return_value=[]):
+            resp = client.get("/life/check")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "calendar_source" in data
+        assert data["calendar_source"]["available"] is True
+        assert data["calendar_source"]["state"] == "healthy"
+
+
+class TestCalendarSource:
+    """Calendar availability seam: projections carry source-health metadata."""
+
+    def test_calendar_source_healthy_when_available(self):
+        with patch("gateway.calendar_integration.is_available", return_value=True):
+            source = life_awareness._calendar_source_state()
+        assert source["available"] is True
+        assert source["state"] == "healthy"
+
+    def test_calendar_source_unavailable_when_integration_absent(self):
+        with patch("gateway.calendar_integration.is_available", return_value=False):
+            source = life_awareness._calendar_source_state()
+        assert source["available"] is False
+        assert source["state"] == "unavailable"
+
+    def test_calendar_source_unavailable_on_import_error(self):
+        with patch("gateway.calendar_integration.is_available", side_effect=ImportError("no calendar")):
+            source = life_awareness._calendar_source_state()
+        assert source["available"] is False
+        assert source["state"] == "unavailable"
+
+    def test_today_summary_available_no_events_reports_healthy(self):
+        with patch("gateway.calendar_integration.is_available", return_value=True), \
+             patch.object(life_awareness, "today_events", return_value=[]), \
+             patch.object(life_awareness, "_life_project_steps_today", return_value=[]):
+            summary = life_awareness.today_summary()
+        assert summary["event_count"] == 0
+        assert summary["calendar_source"]["available"] is True
+        assert summary["calendar_source"]["state"] == "healthy"
+
+    def test_today_summary_unavailable_reports_source_state(self):
+        with patch("gateway.calendar_integration.is_available", return_value=False), \
+             patch.object(life_awareness, "today_events", return_value=[]), \
+             patch.object(life_awareness, "_life_project_steps_today", return_value=[]):
+            summary = life_awareness.today_summary()
+        assert summary["calendar_source"]["available"] is False
+        assert summary["calendar_source"]["state"] == "unavailable"
+
+    def test_dnd_calendar_source_available(self):
+        with patch("gateway.calendar_integration.is_available", return_value=True), \
+             patch.object(life_awareness, "today_events", return_value=[]):
+            status = life_awareness.do_not_disturb_status()
+        assert status["calendar_source"]["available"] is True
+        assert status["calendar_source"]["state"] == "healthy"
+
+    def test_dnd_calendar_source_unavailable(self):
+        with patch("gateway.calendar_integration.is_available", return_value=False), \
+             patch.object(life_awareness, "today_events", return_value=[]):
+            status = life_awareness.do_not_disturb_status()
+        assert status["calendar_source"]["available"] is False
+        assert status["calendar_source"]["state"] == "unavailable"
+
+    def test_proactive_calendar_source_available(self):
+        with patch("gateway.calendar_integration.is_available", return_value=True), \
+             patch.object(life_awareness, "today_events", return_value=[]), \
+             patch.object(life_awareness, "_life_project_steps_today", return_value=[]), \
+             patch.object(life_awareness, "yesterday_recap", return_value={
+                 "has_data": False, "signal_count": 0, "journal_count": 0,
+             }):
+            result = life_awareness.morning_proactive()
+        assert result["calendar_source"]["available"] is True
+        assert result["calendar_source"]["state"] == "healthy"
+
+    def test_proactive_calendar_source_unavailable(self):
+        with patch("gateway.calendar_integration.is_available", return_value=False), \
+             patch.object(life_awareness, "today_events", return_value=[]), \
+             patch.object(life_awareness, "_life_project_steps_today", return_value=[]), \
+             patch.object(life_awareness, "yesterday_recap", return_value={
+                 "has_data": False, "signal_count": 0, "journal_count": 0,
+             }):
+            result = life_awareness.morning_proactive()
+        assert result["calendar_source"]["available"] is False
+        assert result["calendar_source"]["state"] == "unavailable"
+
+    def test_today_events_still_returns_list(self):
+        """today_events() compatibility API must always return a list."""
+        with patch("gateway.calendar_integration.is_available", return_value=False):
+            events = life_awareness.today_events()
+        assert isinstance(events, list)
+        assert events == []
+
+    def test_existing_dnd_caches_result(self):
+        """Cache behavior remains compatible after calendar_source addition."""
+        with patch("gateway.calendar_integration.is_available", return_value=True), \
+             patch.object(life_awareness, "today_events", return_value=[]) as mock:
+            life_awareness.do_not_disturb_status()
+            life_awareness.do_not_disturb_status()
+        mock.assert_called_once()

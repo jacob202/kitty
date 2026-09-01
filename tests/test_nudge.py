@@ -99,13 +99,14 @@ def test_repeated_research_below_threshold(tmp_path):
     assert len(nudges) == 0
 
 
-def test_milestone_nudges_no_crash():
-    """_check_milestones runs without crashing even when deps fail."""
-    from gateway.nudge import _check_milestones
-    with patch("gateway.nudge._check_milestones", wraps=_check_milestones):
-        # builder.list_builds will fail in CI — should be caught silently
-        result = _check_milestones()
-    assert isinstance(result, list)
+def test_milestone_detector_handles_dep_failures():
+    """_run_detector catches _PartialFailure from _check_milestones gracefully."""
+    from gateway.nudge import _check_milestones, _run_detector
+    # builder_initiative will fail in CI; _check_milestones raises _PartialFailure
+    nudges, status = _run_detector("milestones", _check_milestones)
+    assert isinstance(nudges, list)
+    # At least one sub-check likely fails in CI
+    assert status["status"] in ("healthy", "degraded", "failed")
 
 
 
@@ -141,3 +142,72 @@ def test_nudge_id_is_deterministic():
         with patch("gateway.nudge.LOG_FILE", log):
             nudges = _check_repeated_research()
     assert nudges[0]["id"] == expected_id
+
+
+# --- check_with_status tests ---
+
+
+def test_check_with_status_all_healthy():
+    """check_with_status returns healthy status when detectors find nothing."""
+    from gateway.nudge import check_with_status
+
+    with patch("gateway.nudge._check_repeated_research", return_value=[]), \
+         patch("gateway.nudge._check_dropped_threads", return_value=[]), \
+         patch("gateway.nudge._check_milestones", return_value=[]):
+        result = check_with_status()
+
+    assert result["nudges"] == []
+    assert result["sources"]["repeated_research"]["status"] == "healthy"
+    assert result["sources"]["dropped_threads"]["status"] == "healthy"
+    assert result["sources"]["milestones"]["status"] == "healthy"
+
+
+def test_check_with_status_detector_failure():
+    """check_with_status reports failed detector while returning healthy ones."""
+    from gateway.nudge import check_with_status
+
+    with patch("gateway.nudge._check_repeated_research", side_effect=RuntimeError("boom")), \
+         patch("gateway.nudge._check_dropped_threads", return_value=[{"id": "x", "type": "t", "message": "m"}]), \
+         patch("gateway.nudge._check_milestones", return_value=[]):
+        result = check_with_status()
+
+    assert len(result["nudges"]) == 1
+    assert result["nudges"][0]["id"] == "x"
+    assert result["sources"]["repeated_research"]["status"] == "failed"
+    assert "boom" in result["sources"]["repeated_research"]["error"]
+    assert result["sources"]["dropped_threads"]["status"] == "healthy"
+    assert result["sources"]["milestones"]["status"] == "healthy"
+
+
+def test_check_with_status_partial_failure():
+    """check_with_status reports degraded when detector has partial failure."""
+    from gateway.nudge import _PartialFailure, check_with_status
+
+    exc = _PartialFailure([{"id": "y", "type": "t", "message": "m"}], ["memory"])
+    with patch("gateway.nudge._check_repeated_research", return_value=[]), \
+         patch("gateway.nudge._check_dropped_threads", return_value=[]), \
+         patch("gateway.nudge._check_milestones", side_effect=exc):
+        result = check_with_status()
+
+    assert len(result["nudges"]) == 1
+    assert result["nudges"][0]["id"] == "y"
+    assert result["sources"]["milestones"]["status"] == "degraded"
+    assert "memory" in result["sources"]["milestones"]["error"]
+
+
+def test_check_with_status_dismissed_nudges_filtered(tmp_path):
+    """check_with_status filters dismissed nudges from results."""
+    from gateway.nudge import check_with_status, dismiss
+
+    store = tmp_path / "nudge_state.json"
+    fake_nudges = [{"id": "nudge-b", "type": "milestone", "message": "hi"}]
+
+    with patch("gateway.nudge.NUDGE_STORE", store):
+        with patch("gateway.nudge._check_repeated_research", return_value=fake_nudges):
+            with patch("gateway.nudge._check_dropped_threads", return_value=[]):
+                with patch("gateway.nudge._check_milestones", return_value=[]):
+                    dismiss("nudge-b")
+                    result = check_with_status()
+
+    assert not any(n["id"] == "nudge-b" for n in result["nudges"])
+    assert result["sources"]["repeated_research"]["status"] == "healthy"
