@@ -15,7 +15,7 @@ import type { Page } from '@playwright/test';
  */
 
 const PRIMARY_DESTINATIONS = ['Home', 'Chat', 'Work', 'Image Lab', 'Library'] as const;
-const SECONDARY_DESTINATIONS = ['Projects', 'Automations', 'Settings'] as const;
+const SECONDARY_DESTINATIONS = ['Projects', 'Agents', 'Automations', 'Settings'] as const;
 const DESTINATIONS = [...PRIMARY_DESTINATIONS, ...SECONDARY_DESTINATIONS] as const;
 
 const GATEWAY_STUBS = [
@@ -204,6 +204,10 @@ test.describe('phone dogfood — slice 1', () => {
     for (const label of DESTINATIONS) {
       await openDestination(page, label);
       await expect(page.locator('main')).toBeVisible();
+      if (label === 'Agents') {
+        await expect(nav.getByRole('button', { name: 'More', exact: true })).toHaveAttribute('aria-current', 'page');
+        await expect(page.getByRole('heading', { name: 'Global Agent Room', exact: true })).toBeVisible();
+      }
       // Async content (sources list, model chips, usage) can land after the view
       // mounts; a single early measurement would miss overflow that appears once
       // the data renders. Take a second reading and fail on any offender from
