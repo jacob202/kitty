@@ -257,6 +257,10 @@ def _command_support_read_paths(command: Sequence[str], worktree: Path) -> set[s
         if resolved.is_relative_to(worktree):
             continue
         paths.add(str(resolved.parent))
+        if candidate.name in {"kittybuilder_dsh_worker.sh", "kittybuilder_dsh_reviewer.sh"}:
+            dsh_config = resolved.parent.parent / "config" / "dsh"
+            if dsh_config.is_dir():
+                paths.add(str(dsh_config.resolve()))
     return paths
 
 
