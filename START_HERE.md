@@ -20,16 +20,21 @@ live evidence; it does not duplicate current state.
    exact conversation with `room_thread` or `./kitty room thread <message_id>
    --json`. Use recent messages only for bounded shared situational context;
    the newest global window is not an assignment index. Acknowledge messages
-   actually received. If no unread handoff or durable locator exists, the
-   validated legacy compatibility checkpoint may still be used until scoped
-   room retrieval lands. If the room itself is unavailable, report that rather
+   actually received. If the room itself is unavailable, report that rather
    than fabricating room state.
-4. Run the receipt for the task class. When `workspace_global` was proven
-   available, code work uses `./kitty context --agent --skip-legacy-continuity`;
-   informational/planning work may add `--compact --skip-builder`. When the
-   room is unavailable, use the strict legacy-compatible receipt instead. A
-   failed, unknown, stale, or contradictory required source remains unverified;
-   handoff prose cannot repair it.
+4. Choose the receipt mode from the continuation source:
+   - GAR available **and** an unread handoff/known durable thread identifies the
+     assignment: code work uses `./kitty context --agent
+     --skip-legacy-continuity`; informational/planning work may add `--compact
+     --skip-builder`.
+   - GAR available but there is **no** unread handoff or durable locator and the
+     legacy checkpoint is needed as the temporary continuation fallback: run
+     the strict `./kitty context --agent` receipt first and use that checkpoint
+     only if its validation succeeds.
+   - GAR unavailable: use the strict `./kitty context --agent` compatibility
+     receipt and report the room as unavailable.
+   A failed, unknown, stale, or contradictory required source remains
+   unverified; handoff prose cannot repair it.
 5. Read only the authority files required by the task, using the receipt's
    order. For code changes, use the complete order below.
 6. Read `docs/ACTIVE_MISSION.md` when the task is product or implementation
@@ -44,7 +49,7 @@ live evidence; it does not duplicate current state.
 - Informational: run the receipt and load the directly relevant authority.
 - Planning: add `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, and a known
   `workspace_global` thread/handoff when one exists; use legacy checkpoint files
-  only for the explicit compatibility fallback above.
+  only through the strict validated compatibility fallback above.
 - Code change: load the full order, then the outcome contract and narrow code or
   test surface. Run focused verification after each coherent change.
 - Builder work: use explicit intent (`builder status`, `builder next`,
@@ -79,8 +84,10 @@ state and must be revalidated against current GitHub/Builder/Mac truth.
 ```bash
 git status --short --branch
 ./kitty room inbox --as <identity> --unread --json
-./kitty context --agent --compact --skip-builder --skip-legacy-continuity  # GAR available
-# ./kitty context --agent                                                 # GAR unavailable fallback
+# Known GAR handoff/thread:
+./kitty context --agent --compact --skip-builder --skip-legacy-continuity
+# No GAR locator yet, or GAR unavailable and legacy fallback is required:
+./kitty context --agent
 ```
 
 Use `./kitty builder initiative doctor --json` only for Builder-relevant work.
