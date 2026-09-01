@@ -100,9 +100,9 @@ def build_generation_context(job_id: str) -> GenerationContext:
 
     preset_id = job.preset_id
     if preset_id is None and job.plan_id:
-        from gateway import image_plans
+        from gateway import image_plan_store
 
-        plan = image_plans.get_plan(job.plan_id)
+        plan = image_plan_store.get_plan(job.plan_id)
         if plan is not None:
             preset_id = plan.recipe_id
 

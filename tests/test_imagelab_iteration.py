@@ -284,11 +284,11 @@ def test_iteration_batch_carries_source_negative_prompt(monkeypatch):
 def test_generation_context_recovers_recipe_lock_from_approved_plan(monkeypatch):
     from types import SimpleNamespace
 
-    from gateway import image_iteration, image_plans
+    from gateway import image_iteration, image_plan_store
 
     src = _succeeded_job(preset_id=None)
     monkeypatch.setattr(
-        image_plans,
+        image_plan_store,
         "get_plan",
         lambda plan_id: SimpleNamespace(recipe_id="bfl_flux2_draft") if plan_id == PLAN_ID else None,
     )

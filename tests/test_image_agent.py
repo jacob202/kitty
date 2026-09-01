@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from gateway import image_agent, image_jobs, image_plans, image_recipes
+from gateway import image_agent, image_jobs, image_plan_store, image_recipes
 from gateway import image_sessions as sessions
 from gateway.image_agent import (
     AgentBudget,
@@ -44,7 +44,7 @@ def _fresh_db(tmp_path: Path, monkeypatch):
     conn = sqlite3.connect(str(test_db))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    image_plans._ensure_db(conn)
+    image_plan_store._ensure_db(conn)
     conn.commit()
     conn.close()
 
@@ -174,7 +174,7 @@ class TestGenerate:
         assert decision.rounds_used == 1
         assert decision.guidance_tags == ["text_rendering"]
 
-        stored = image_plans.require_approved_plan(decision.plan_id, s.session_id)
+        stored = image_plan_store.require_approved_plan(decision.plan_id, s.session_id)
         assert stored.original_prompt == "a portrait in golden-hour light"
         assert stored.guidance_tags == ["text_rendering"]
 
@@ -304,7 +304,7 @@ class TestEditCapability:
         assert decision.anchor_job_id == anchor
         assert decision.protected_traits == ["face", "clothing"]
 
-        stored = image_plans.require_approved_plan(decision.plan_id, s.session_id)
+        stored = image_plan_store.require_approved_plan(decision.plan_id, s.session_id)
         assert stored.intent["operation"] == "img2img"
         assert stored.intent["protected_traits"] == ["face", "clothing"]
         assert stored.intent["requested_changes"] == ["broader build"]

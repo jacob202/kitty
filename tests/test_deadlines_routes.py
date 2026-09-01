@@ -82,11 +82,55 @@ def test_close_deadline(client):
     assert resp.json()["status"] == "closed"
 
 
-def test_sweep_endpoint(client, monkeypatch):
-    def fake_sweep(*, push_fn, llm_fn=None, now=None, project_id=2):
-        return {"open": 0, "blind_spots": [], "top": None}
+def test_sweep_endpoint_escalates_by_default_and_reports_delivered_count(client, monkeypatch):
+    def fake_sweep(*, llm_fn=None, now=None, project_id=2, push_fn=None):
+        assert push_fn is None
+        return {"found": 1, "open": 1, "needs_jacob": 0, "blind_spots": [], "top": None, "generated_at": "now"}
+
+    def fake_watch(*, push_fn, now=None):
+        assert callable(push_fn)
+        return {"checked": 1, "due": 1, "attempted": 1, "pushed": 1, "failed": 0, "skipped": 0, "quiet_hours_deferred": 0}
 
     monkeypatch.setattr("gateway.routes.deadlines.deadline_sweep.sweep", fake_sweep)
+    monkeypatch.setattr("gateway.routes.deadlines.deadline_watch.check_and_push", fake_watch)
     resp = client.post("/deadlines/sweep")
+
     assert resp.status_code == 200
-    assert resp.json()["open"] == 0
+    assert resp.json()["open"] == 1
+    assert resp.json()["escalated"] == 1
+    assert resp.json()["delivery_status"] == "delivered"
+    assert "1 deadline warning delivered" in resp.json()["delivery_message"]
+
+
+def test_sweep_endpoint_reports_when_due_warning_could_not_be_delivered(client, monkeypatch):
+    monkeypatch.setattr(
+        "gateway.routes.deadlines.deadline_sweep.sweep",
+        lambda **_kwargs: {"found": 1, "open": 1, "needs_jacob": 0, "blind_spots": [], "top": None, "generated_at": "now"},
+    )
+    monkeypatch.setattr(
+        "gateway.routes.deadlines.deadline_watch.check_and_push",
+        lambda **_kwargs: {"checked": 1, "due": 1, "attempted": 1, "pushed": 0, "failed": 1, "skipped": 1, "quiet_hours_deferred": 0},
+    )
+
+    resp = client.post("/deadlines/sweep")
+
+    assert resp.status_code == 200
+    assert resp.json()["escalated"] == 0
+    assert resp.json()["delivery_status"] == "source_unavailable"
+    assert "nothing was delivered" in resp.json()["delivery_message"].lower()
+
+
+def test_sweep_endpoint_can_skip_escalation_explicitly(client, monkeypatch):
+    monkeypatch.setattr(
+        "gateway.routes.deadlines.deadline_sweep.sweep",
+        lambda **_kwargs: {"found": 0, "open": 0, "needs_jacob": 0, "blind_spots": [], "top": None, "generated_at": "now"},
+    )
+
+    def should_not_run(**_kwargs):
+        raise AssertionError("deadline watch must not run when push=false")
+
+    monkeypatch.setattr("gateway.routes.deadlines.deadline_watch.check_and_push", should_not_run)
+    resp = client.post("/deadlines/sweep?push=false")
+
+    assert resp.status_code == 200
+    assert resp.json()["delivery_status"] == "not_requested"
