@@ -276,6 +276,9 @@ class TestEditCapability:
     ):
         """A prompt-only reroll is not an edit — issue #336's explicit fail case."""
         monkeypatch.setattr(image_agent, "_WORKFLOWS_DIR", tmp_path / "workflows")
+        # Defense-in-depth case: even if a stale registry row still says the
+        # worker edit recipe is available, the missing workflow bundle must win.
+        image_recipes.set_recipe_available("kitty_worker_img2img", True)
         s = sessions.create_session(title="edit")
         sessions.set_anchor(s.session_id, _succeeded_job(s.session_id, tmp_path))
 
@@ -289,7 +292,12 @@ class TestEditCapability:
             }
         )
         with pytest.raises(CapabilityError, match="image_to_image_v1"):
-            decide(s.session_id, "broader build", llm=_scripted(raw))
+            decide(
+                s.session_id,
+                "broader build",
+                llm=_scripted(raw),
+                available_providers={"comfyui", "kitty_worker"},
+            )
 
     def test_hosted_openai_edit_does_not_depend_on_local_worker_bundle(
         self, tmp_path: Path, monkeypatch

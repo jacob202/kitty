@@ -530,7 +530,7 @@ def _decide_edit(
         available_providers=available_providers,
     )
     provider = str(getattr(decision.recipe, "provider", "") or "").strip().lower()
-    provider_handles_image_input = provider in {"openai", "openrouter", "flux", "flux2"}
+    provider_handles_image_input = provider in {"openai", "openrouter", "flux", "flux2", "drawthings"}
     if not provider_handles_image_input and not edit_workflow_available():
         raise CapabilityError(
             f"no {EDIT_WORKFLOW_ID!r} workflow bundle is installed, so the "
