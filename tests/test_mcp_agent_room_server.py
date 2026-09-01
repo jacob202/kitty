@@ -65,10 +65,10 @@ def test_server_registers_exact_room_tools_and_pins_identity(monkeypatch, room_d
 
 def test_room_tools_share_domain_truth_without_sender_override(monkeypatch, room_db):
     root = agent_workspace.post_global_message(
-        sender_id="chatgpt", recipient_id="claude",
+        sender_id="chatgpt", recipient_id="dsh",
         content="Review this protocol.", message_kind="handoff",
     )
-    server = _load_server(monkeypatch, "claude")
+    server = _load_server(monkeypatch, "dsh")
 
     inbox = server.room_inbox(unread_only=True)
     assert [item["id"] for item in inbox] == [root["id"]]
@@ -76,15 +76,15 @@ def test_room_tools_share_domain_truth_without_sender_override(monkeypatch, room
     reply = server.room_reply(
         root["id"], "Looks good.", recipient_id="chatgpt", message_kind="review"
     )
-    assert reply["sender_id"] == "claude"
+    assert reply["sender_id"] == "dsh"
     assert reply["parent_message_id"] == root["id"]
 
     receipt = server.room_ack(root["id"])
-    assert receipt["participant_id"] == "claude"
+    assert receipt["participant_id"] == "dsh"
     assert receipt["receipt_state"] == "acknowledged"
     assert server.room_inbox(unread_only=True) == []
 
-    thread = server.room_thread(reply["id"])
+    thread = server.room_thread(reply["id"] )
     assert [item["id"] for item in thread] == [root["id"], reply["id"]]
 
 
