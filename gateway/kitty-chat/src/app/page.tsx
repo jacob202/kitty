@@ -23,6 +23,7 @@ export default function KittyChat() {
   const k = useKitty()
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
+  const [selectedAgentSessionId, setSelectedAgentSessionId] = useState<number | null>(null)
   const activity = useActivity()
   const activityAttentionCount = (activity.data?.counts.waiting ?? 0) + (activity.data?.counts.failed ?? 0)
   const activityIncomplete = Boolean(activity.error) || Object.values(activity.data?.sources ?? {}).some(source => source.state === 'unavailable')
@@ -157,6 +158,7 @@ export default function KittyChat() {
                 onExpertClick: (expert: any) => { k.handleNewExpertChat(expert); k.setActiveView('chat') },
               }}
               builderProps={{ onBack: () => k.setActiveView('work') }}
+              selectedAgentSessionId={selectedAgentSessionId}
               toolsProps={{
                 loops: k.loops, insights: k.insights, promptTemplates: k.promptTemplates,
                 onLoopToggle: k.handleLoopToggle, onInsightDismiss: k.handleInsightDismiss,
@@ -205,7 +207,14 @@ export default function KittyChat() {
         isLoading={activity.isLoading}
         error={activity.error}
         onClose={() => setActivityOpen(false)}
-        onNavigate={(view) => { k.setActiveView(view); setActivityOpen(false) }}
+        onNavigate={(item) => {
+          if (item.source === 'agent') {
+            const sessionId = Number(item.source_id)
+            setSelectedAgentSessionId(Number.isInteger(sessionId) && sessionId > 0 ? sessionId : null)
+          }
+          k.setActiveView(item.destination)
+          setActivityOpen(false)
+        }}
       />
 
       <CommandPalette

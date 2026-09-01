@@ -40,7 +40,7 @@ def test_activity_projection_normalizes_existing_authorities():
     assert body['items'][0]['destination'] == 'home'
     assert body['items'][1]['destination'] == 'work'
     assert body['items'][2]['destination'] == 'automations'
-    assert body['items'][3]['destination'] == 'agents'
+    assert body['items'][3]['destination'] == 'agent-sessions'
     assert all(source['state'] == 'available' for source in body['sources'].values())
 
 
@@ -145,6 +145,30 @@ def test_activity_projection_cancelled_agents_and_superseded_builder_are_not_att
     assert states['builder:legacy'] == 'completed'
     assert body['counts']['waiting'] == 0
     assert body['counts']['failed'] == 0
+
+
+def test_activity_projection_fetches_unresolved_agents_outside_recent_history():
+    recent = [
+        {'session_id': 100 + i, 'goal': f'recent {i}', 'status': 'completed', 'created_at': 100 + i, 'updated_at': 100 + i}
+        for i in range(30)
+    ]
+    old_failed = {'session_id': 7, 'goal': 'Old failed agent', 'status': 'failed', 'created_at': 1.0, 'updated_at': 2.0}
+
+    def list_agents(limit=30, *, statuses=None):
+        return [old_failed] if statuses else recent
+
+    with (
+        patch('gateway.action_queue.list_actions', return_value=[]),
+        patch('gateway.automation_runs.list_runs', return_value=[]),
+        patch('gateway.agent_runner.list_agents', side_effect=list_agents),
+        patch('gateway.builder_status.build_control_plane_summary', return_value={'initiatives': [], 'queue': {}}),
+    ):
+        body = activity_projection.build_activity_projection(limit=4)
+
+    assert body['items'][0]['id'] == 'agent:7'
+    assert body['items'][0]['state'] == 'failed'
+    assert body['items'][0]['destination'] == 'agent-sessions'
+    assert body['counts']['failed'] == 1
 
 
 def test_activity_projection_does_not_hide_programming_errors_as_partial_success():

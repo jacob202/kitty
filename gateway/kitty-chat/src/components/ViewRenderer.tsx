@@ -18,6 +18,7 @@ const TutorShell = dynamic(() => import('./TutorShell'))
 const JournalPanel = dynamic(() => import('./JournalPanel'))
 const TerminalView = dynamic(() => import('./TerminalView'))
 const AgentWorkspacePanel = dynamic(() => import('./AgentWorkspacePanel').then((mod) => mod.AgentWorkspacePanel))
+const AgentSessionsPanel = dynamic(() => import('./AgentSessionsPanel').then((mod) => mod.AgentSessionsPanel))
 const TodoPanel = dynamic(() => import('./TodoPanel').then((mod) => mod.TodoPanel))
 
 // -- view renderer --------------------------------------------------------------
@@ -46,6 +47,7 @@ interface ViewRendererProps {
   }
   builderProps?: { onBack: () => void }
   workProps?: { isMobile: boolean }
+  selectedAgentSessionId?: number | null
   toolsProps?: {
     loops: any[]
     insights: any[]
@@ -70,6 +72,7 @@ export function ViewRenderer({
   homeProps,
   builderProps,
   workProps,
+  selectedAgentSessionId = null,
   toolsProps,
 }: ViewRendererProps) {
   const isMobile = compact
@@ -95,6 +98,8 @@ export function ViewRenderer({
         return <WorkView isMobile={isMobile} onNavigate={homeProps?.onNavigate} />
       case 'agents':
         return <AgentWorkspacePanel />
+      case 'agent-sessions':
+        return <AgentSessionsPanel selectedSessionId={selectedAgentSessionId} isMobile={isMobile} />
       case 'library':
       case 'docs':
         return <LibraryView isMobile={isMobile} />

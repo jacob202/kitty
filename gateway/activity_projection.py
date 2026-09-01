@@ -119,8 +119,15 @@ def _automation_items() -> list[dict[str, Any]]:
 def _agent_items() -> list[dict[str, Any]]:
     from gateway import agent_runner
 
+    rows = list(agent_runner.list_agents(limit=30))
+    rows.extend(
+        agent_runner.list_agents(
+            limit=30, statuses=frozenset({"active", "failed", "interrupted"})
+        )
+    )
+    rows = _dedupe(rows, "session_id")
     items = []
-    for row in agent_runner.list_agents(limit=30):
+    for row in rows:
         raw = str(row.get("status") or "unknown")
         if raw == "active":
             state = "running"
@@ -134,7 +141,7 @@ def _agent_items() -> list[dict[str, Any]]:
             "id": f"agent:{row['session_id']}", "source": "agent", "source_id": str(row["session_id"]),
             "title": _bounded(row.get("goal"), 120) or "Agent session", "detail": None,
             "state": state, "raw_state": raw,
-            "occurred_at": _timestamp(row.get("updated_at") or row.get("created_at")), "destination": "agents",
+            "occurred_at": _timestamp(row.get("updated_at") or row.get("created_at")), "destination": "agent-sessions",
         })
     return items
 

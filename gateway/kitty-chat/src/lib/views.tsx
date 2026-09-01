@@ -5,7 +5,7 @@ import type { ComponentType } from 'react'
 export type ViewId =
   | 'home' | 'chat' | 'builder' | 'builder-details' | 'settings'
   | 'work' | 'studio' | 'library' | 'automations'
-  | 'tasks' | 'tools' | 'terminal' | 'projects' | 'docs' | 'providers' | 'agents' | 'images' | 'tutor' | 'journal'
+  | 'tasks' | 'tools' | 'terminal' | 'projects' | 'docs' | 'providers' | 'agents' | 'agent-sessions' | 'images' | 'tutor' | 'journal'
 
 export interface ViewEntry {
   component: ComponentType<any>
@@ -35,6 +35,7 @@ export const VIEWS: Record<ViewId, ViewEntry> = {
   docs:      { component: PlaceholderView, title: 'Docs',     icon: 'library',  railSlot: false },
   providers: { component: PlaceholderView, title: 'Providers',icon: 'settings', railSlot: false },
   agents:    { component: PlaceholderView, title: 'Agents',   icon: 'settings', railSlot: false },
+  'agent-sessions': { component: PlaceholderView, title: 'Agent session', icon: 'settings', railSlot: false },
   images:    { component: PlaceholderView, title: 'Images',   icon: 'studio',   railSlot: false },
   tutor:     { component: PlaceholderView, title: 'Tutor',    icon: 'settings', railSlot: false },
   journal:   { component: PlaceholderView, title: 'Journal',  icon: 'settings', railSlot: false },

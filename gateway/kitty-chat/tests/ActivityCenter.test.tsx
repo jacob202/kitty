@@ -34,7 +34,7 @@ describe('ActivityCenter', () => {
     expect(within(dialog).getByText('Kitty polish')).toBeVisible()
 
     fireEvent.click(within(dialog).getByRole('button', { name: /open kitty polish/i }))
-    expect(onNavigate).toHaveBeenCalledWith('work')
+    expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ source: 'builder', destination: 'work', source_id: 'kitty' }))
   })
 
   it('shows partial-source truth instead of an empty-success claim', () => {

@@ -25,7 +25,7 @@ export function ActivityCenter({
   isLoading: boolean
   error: unknown
   onClose: () => void
-  onNavigate: (view: string) => void
+  onNavigate: (item: GatewayActivityItem) => void
 }) {
   const dialogRef = useDialogFocus({ open, onClose })
 
@@ -73,7 +73,7 @@ export function ActivityCenter({
   )
 }
 
-function ActivityRow({ item, onNavigate }: { item: GatewayActivityItem; onNavigate: (view: string) => void }) {
+function ActivityRow({ item, onNavigate }: { item: GatewayActivityItem; onNavigate: (item: GatewayActivityItem) => void }) {
   return (
     <article style={rowStyle}>
       <div style={{ minWidth: 0, flex: 1 }}>
@@ -84,7 +84,7 @@ function ActivityRow({ item, onNavigate }: { item: GatewayActivityItem; onNaviga
         <div style={itemTitleStyle}>{item.title}</div>
         {item.detail && <div style={detailStyle}>{item.detail}</div>}
       </div>
-      <button type="button" aria-label={`Open ${item.title}`} onClick={() => onNavigate(item.destination)} style={openStyle}>Open</button>
+      <button type="button" aria-label={`Open ${item.title}`} onClick={() => onNavigate(item)} style={openStyle}>Open</button>
     </article>
   )
 }

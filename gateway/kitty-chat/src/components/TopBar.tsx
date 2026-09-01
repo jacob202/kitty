@@ -19,6 +19,7 @@ const SURFACE_LABELS: Record<string, string> = {
   automations: 'Automations',
   settings: 'Settings',
   tasks: 'Tasks',
+  'agent-sessions': 'Agent session',
 }
 
 interface Props {
