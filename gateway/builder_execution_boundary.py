@@ -175,8 +175,8 @@ def build_sandbox_profile(
     # Seatbelt requires directory metadata traversal to reach explicitly
     # readable paths; metadata access does not grant file content. Trusted
     # command-support directories may live outside the packet worktree.
-    for path in read_subpaths:
-        variant = Path(path).resolve()
+    for read_path in read_subpaths:
+        variant = Path(read_path).resolve()
         metadata_literals.add(str(variant))
         metadata_literals.update(str(parent) for parent in variant.parents)
     for path in (launch_executable, resolved_executable, worktree, run_dir, *extra_read_subpaths):
