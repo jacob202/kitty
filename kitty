@@ -264,6 +264,12 @@ ensure_gateway_secret() {
   fi
 }
 
+# ── ANSI color codes ──────────────────────────────────────────────────────────
+GREEN=[92m
+RED=[91m
+YELLOW=[93m
+RESET=[0m
+
 # ── Subcommands ───────────────────────────────────────────────────────────────
 
 startup_identity() {

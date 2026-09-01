@@ -222,6 +222,16 @@ button, input, textarea, select { font: inherit; }
   from { opacity: 0; transform: scale(.96); }
   to   { opacity: 1; transform: scale(1); }
 }
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(110deg, var(--surface) 30%, var(--surface-2) 50%, var(--surface) 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
 
 .cat-idle    { animation: bob 4.2s ease-in-out infinite; }
 .cat-working { animation: throb 1.1s ease-in-out infinite; }
@@ -271,6 +281,11 @@ textarea::placeholder { color: var(--ink-2); opacity: .8; }
   100% { transform: scale(1); opacity: 1; }
 }
 
+@keyframes cat-eye-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .cat-idle svg {
   animation: cat-breathe 4s ease-in-out infinite;
 }
@@ -286,6 +301,11 @@ textarea::placeholder { color: var(--ink-2); opacity: .8; }
 .cat-broke svg {
   opacity: 0.85;
   filter: saturate(0.6);
+}
+
+.cat-eye-pulse {
+  animation: cat-eye-pulse 1.4s ease-in-out infinite;
+  transform-origin: center;
 }
 
 .cat-animate { transition: opacity 0.3s ease; }
