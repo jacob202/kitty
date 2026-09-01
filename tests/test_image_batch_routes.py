@@ -129,11 +129,11 @@ async def test_img2img_estimate_uses_selected_recipe_operation_and_exact_model(m
 
 @pytest.mark.asyncio
 async def test_batch_preflight_uses_approved_plan_operation_and_recipe(monkeypatch) -> None:
-    from gateway import image_plans
+    from gateway import image_plan_store
     from gateway.routes import image_studio_jobs as routes
 
     plan = SimpleNamespace(operation="img2img", recipe_id="openai_gpt_image_2", character_id=None)
-    monkeypatch.setattr(image_plans, "require_approved_plan", lambda plan_id, session_id: plan)
+    monkeypatch.setattr(image_plan_store, "require_approved_plan", lambda plan_id, session_id: plan)
     seen = {}
     async def fake_preflight(req):
         seen.update(operation=req.operation, recipe_id=req.recipe_id)
@@ -154,6 +154,23 @@ async def test_batch_preflight_uses_approved_plan_operation_and_recipe(monkeypat
     ))
 
     assert seen == {"operation": "img2img", "recipe_id": "openai_gpt_image_2"}
+
+
+@pytest.mark.asyncio
+async def test_batch_preflight_rejects_unknown_approved_plan_operation(monkeypatch) -> None:
+    from gateway import image_plan_store
+    from gateway.routes import image_studio_jobs as routes
+
+    plan = SimpleNamespace(operation="video", recipe_id="openai_gpt_image_2", character_id=None)
+    monkeypatch.setattr(image_plan_store, "require_approved_plan", lambda plan_id, session_id: plan)
+
+    with pytest.raises(routes.HTTPException) as exc_info:
+        await routes.studio_create_batch(routes.StudioBatchRequest(
+            prompt="edit", plan_id="plan_1", session_id="session_1"
+        ))
+
+    assert exc_info.value.status_code == 400
+    assert "unknown operation" in str(exc_info.value.detail)
 
 
 @pytest.mark.asyncio

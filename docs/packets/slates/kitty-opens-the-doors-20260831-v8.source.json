@@ -1,0 +1,356 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-opens-the-doors-20260831-v8",
+  "title": "Open the finished intelligence doors in the UI",
+  "description": "Reproducible manifest-less A-series interactive companions. These contracts are compiled now but held behind their named stacked-PR/backend owners so current work is verified/reused instead of duplicated.",
+  "base_sha": "f5b2f38c098dcdd7f46d1d58abb672ef15b75c5f",
+  "packets": [
+    {
+      "lane": "interactive",
+      "hold_reason": "The active visible-product stack (#729, #731, #732, #733 and #735) currently owns shared gateway.ts/queries.ts and related surfaces. Compile the contract now, but refresh base and exact path fence after the stack lands before implementation. Backend KF-WHY-01 is also still in review as PR #738.",
+      "outcome": "Jacob can tap \u201cwhy?\u201d on work that did not happen, see the evidenced reason, and take the next step without leaving the row.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/why-not.spec.ts` at desktop and iPhone-14 widths. Exercise the primary action plus unavailable/degraded truth; no document-level horizontal scroll and no obscured primary control.",
+      "tier3": "An independent reviewer completes the visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-WHY-02",
+        "title": "Ask a failed automation or work row why, then act on the answer",
+        "objective": "Wire the existing why endpoints into the automation and Work row actions. A row that did not run gets one visible \u201cwhy?\u201d affordance that opens Status, Reason, Timestamp, bounded Evidence and the backend-provided Next step; when the next step maps to an existing action, render that action on the same card instead of sending Jacob to logs or CLI. Preserve the owning automation/Work state as authority and do not create a client explanation engine. Add the targeted browser smoke file named in this packet.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Automation and Work rows that can silently not-happen expose a visible why action.",
+          "The explanation shows status, reason, timestamp, bounded evidence and next step from the Gateway contract.",
+          "A backend-provided executable next step is actionable in place; an unavailable action is stated plainly rather than fabricated.",
+          "Loading, error and unexplained states are distinct and recoverable.",
+          "Existing automation retry/run controls and Work actions keep their current semantics."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/AutomationsView.tsx",
+          "gateway/kitty-chat/src/components/WorkView.tsx",
+          "gateway/kitty-chat/src/lib/gateway.ts",
+          "gateway/kitty-chat/src/lib/queries.ts",
+          "gateway/kitty-chat/tests/AutomationsView.test.tsx",
+          "gateway/kitty-chat/tests/WorkViewActions.test.tsx",
+          "gateway/kitty-chat/tests/smoke/why-not.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/AutomationsView.test.tsx tests/WorkViewActions.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/why-not.spec.ts"
+        ]
+      },
+      "finding": "The why endpoints exist and the frontend already has automation/work actions, but no row offers the explanation as an in-place user action.",
+      "stop": "Stop if the owning stacked PR has not landed, if the required route contract changed, or if implementation would create a second source of truth instead of projecting the existing subsystem.",
+      "recovery": "Frontend projection/state only plus targeted tests and smoke. Revert packet-owned UI edits if the authoritative backend contract cannot be consumed truthfully; do not mutate durable user data to make the smoke pass."
+    },
+    {
+      "lane": "interactive",
+      "hold_reason": "PR #733 owns HomeIntelligence/HomeState and may already satisfy part of this packet; backend KF-LIFE-01 is also awaiting operator review. After #733 and KF-LIFE-01 resolve, verify first and implement only the remaining acceptance gap.",
+      "outcome": "Jacob can see the useful part of today and what is coming on Home, then act on it directly without being shown a calendar dump.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/life-home.spec.ts` at desktop and iPhone-14 widths. Exercise the primary action plus unavailable/degraded truth; no document-level horizontal scroll and no obscured primary control.",
+      "tier3": "An independent reviewer completes the visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-LIFE-02",
+        "title": "Home shows today, what is coming, and evening reflection as actions",
+        "objective": "Finish the Life door on the Home intelligence surface after the current Home stack lands. Project today context, the next meaningful upcoming item and evening reflection only when the backend says the source is available; each visible suggestion carries its existing action id/target and is executable from the card. Healthy empty and source unavailable must render differently. Reuse the selective Home intelligence surface from PR #733 if it lands; do not add another dashboard section. Add the targeted smoke file named here.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Today context appears only when it has something meaningful to say.",
+          "Upcoming and evening-reflection notices carry an in-place action when the backend supplies one.",
+          "Calendar/source unavailable is not rendered as a free day or healthy empty state.",
+          "The Home surface remains selective and bounded rather than becoming a life-data dashboard.",
+          "No automatic paid/model call is triggered by merely opening Home."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/HomeState.tsx",
+          "gateway/kitty-chat/src/components/HomeIntelligence.tsx",
+          "gateway/kitty-chat/src/lib/gateway.ts",
+          "gateway/kitty-chat/src/lib/queries.ts",
+          "gateway/kitty-chat/tests/HomeState.test.tsx",
+          "gateway/kitty-chat/tests/HomeIntelligence.test.tsx",
+          "gateway/kitty-chat/tests/smoke/life-home.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/HomeState.test.tsx tests/HomeIntelligence.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/life-home.spec.ts"
+        ]
+      },
+      "finding": "Life awareness is routed but Home did not expose its full actionable today/upcoming/evening contract; PR #733 now partially surfaces life-aware proactive suggestions.",
+      "stop": "Stop if the owning stacked PR has not landed, if the required route contract changed, or if implementation would create a second source of truth instead of projecting the existing subsystem.",
+      "recovery": "Frontend projection/state only plus targeted tests and smoke. Revert packet-owned UI edits if the authoritative backend contract cannot be consumed truthfully; do not mutate durable user data to make the smoke pass."
+    },
+    {
+      "lane": "interactive",
+      "hold_reason": "PR #729 owns the Activity Center/gateway.ts/queries.ts. Let it land first, then extend that surface rather than creating a competing timeline UI.",
+      "outcome": "Jacob can open Activity and answer \u201cwhat has Kitty actually done?\u201d in one chronological place, opening or undoing an entry when the backend truly supports it.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/activity-timeline.spec.ts` at desktop and iPhone-14 widths. Exercise the primary action plus unavailable/degraded truth; no document-level horizontal scroll and no obscured primary control.",
+      "tier3": "An independent reviewer completes the visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-TIMELINE-01",
+        "title": "Activity becomes the truthful \u201cwhat has Kitty actually done?\u201d timeline",
+        "objective": "Use the Activity Center introduced by PR #729 as the UI door for gateway/activity_timeline.py instead of creating a second activity product. Add the unified chronological evidence feed, bounded filters and deep links to the owning surface. Where a timeline entry exposes a real undo journal id/action, offer Undo in place; otherwise only Open is shown. Keep the newer /activity attention projection for live \u201cneeds you/in motion\u201d grouping and add timeline as history, not a competing authority. Add the smoke file named here.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "One Activity surface can show recent chronological evidence across the existing ledgers.",
+          "Timeline entries open the owning object/surface using stable ids.",
+          "Undo is shown only when a real undo action/journal entry exists.",
+          "A failed source degrades the timeline honestly instead of turning the whole feed into fake empty.",
+          "The existing Activity attention groups from PR #729 remain intact."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/activity/ActivityCenter.tsx",
+          "gateway/kitty-chat/src/lib/gateway.ts",
+          "gateway/kitty-chat/src/lib/queries.ts",
+          "gateway/kitty-chat/tests/ActivityCenter.test.tsx",
+          "gateway/kitty-chat/tests/smoke/activity-timeline.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/ActivityCenter.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/activity-timeline.spec.ts"
+        ]
+      },
+      "finding": "gateway/activity_timeline.py and /activity/timeline already exist with no frontend caller, while PR #729 independently adds a live Activity Center over a smaller set of authorities.",
+      "stop": "Stop if the owning stacked PR has not landed, if the required route contract changed, or if implementation would create a second source of truth instead of projecting the existing subsystem.",
+      "recovery": "Frontend projection/state only plus targeted tests and smoke. Revert packet-owned UI edits if the authoritative backend contract cannot be consumed truthfully; do not mutate durable user data to make the smoke pass."
+    },
+    {
+      "lane": "interactive",
+      "hold_reason": "PR #733 owns the intended Home surface and KF-NUDGE-01 is queued. Release only after both contracts stabilize, then reuse them rather than adding a new nudge store/surface.",
+      "outcome": "Jacob can see a useful nudge, do the suggested thing or dismiss it, and the card stays truthful about whether its sources worked.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/nudges.spec.ts` at desktop and iPhone-14 widths. Exercise the primary action plus unavailable/degraded truth; no document-level horizontal scroll and no obscured primary control.",
+      "tier3": "An independent reviewer completes the visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-NUDGE-02",
+        "title": "Nudges appear as dismissible action cards, not ambient prose",
+        "objective": "Project pending nudges into the selective Home intelligence surface as bounded action cards. Each card shows the nudge\u2019s reason and concrete action, can be dismissed using the existing dismissal authority, and never claims successful delivery if the source/detector is degraded. Reuse the Home intelligence card shape from PR #733 if present; do not create a separate Nudge page or local dismissal store. Add the smoke file named here.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "A pending nudge renders as one bounded Home action card with a concrete next action.",
+          "Dismiss removes the nudge through the existing backend contract and remains gone after reload.",
+          "Detector/source degradation is visible and never represented as \u201cno nudges\u201d.",
+          "Duplicate nudges do not render twice.",
+          "Opening Home alone does not trigger a model call or duplicate push delivery."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/HomeIntelligence.tsx",
+          "gateway/kitty-chat/src/components/HomeState.tsx",
+          "gateway/kitty-chat/src/lib/gateway.ts",
+          "gateway/kitty-chat/src/lib/queries.ts",
+          "gateway/kitty-chat/tests/HomeIntelligence.test.tsx",
+          "gateway/kitty-chat/tests/smoke/nudges.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/HomeIntelligence.test.tsx tests/HomeState.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/nudges.spec.ts"
+        ]
+      },
+      "finding": "The nudge engine is complete but had no UI caller; PR #733 creates the selective Home surface that should own this kind of notice.",
+      "stop": "Stop if the owning stacked PR has not landed, if the required route contract changed, or if implementation would create a second source of truth instead of projecting the existing subsystem.",
+      "recovery": "Frontend projection/state only plus targeted tests and smoke. Revert packet-owned UI edits if the authoritative backend contract cannot be consumed truthfully; do not mutate durable user data to make the smoke pass."
+    },
+    {
+      "lane": "interactive",
+      "hold_reason": "PR #733 appears to implement this outcome and owns gateway/magic_kitty.py plus the Home intelligence UI. Do not duplicate it; release only as a post-merge verification/follow-up packet.",
+      "outcome": "Jacob can see a meaningful connection Kitty noticed across projects and act on it without Home secretly spending tokens.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/magic-kitty.spec.ts` at desktop and iPhone-14 widths. Exercise the primary action plus unavailable/degraded truth; no document-level horizontal scroll and no obscured primary control.",
+      "tier3": "An independent reviewer completes the visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-MAGIC-01",
+        "title": "Cross-project connections are visible and actionable from Home",
+        "objective": "Verify PR #733 against the original Magic Kitty door before writing new code. The desired result is one selective \u201cKitty noticed\u201d connection card backed by cached gateway/magic_kitty.py output, with the owning projects visible and an action that moves the connection into Chat or opens the relevant project. The card must never auto-trigger the Magic LLM on Home load; explicit refresh/find-connections remains user-triggered. If #733 already satisfies every criterion, close this packet as superseded instead of changing code. Add a smoke only for any remaining acceptance gap.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Cached cross-project connections can appear on Home without an automatic model call.",
+          "The connection opens the relevant project or moves into Chat with a prepared prompt.",
+          "An explicit find-connections action refreshes Magic when the user asks.",
+          "No duplicate Magic card is added if PR #733 already owns the outcome.",
+          "If #733 satisfies all criteria, the correct implementation outcome is verification/closure with no product diff."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/HomeIntelligence.tsx",
+          "gateway/kitty-chat/src/components/HomeState.tsx",
+          "gateway/kitty-chat/tests/HomeIntelligence.test.tsx",
+          "gateway/kitty-chat/tests/smoke/magic-kitty.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/HomeIntelligence.test.tsx tests/HomeState.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/magic-kitty.spec.ts"
+        ]
+      },
+      "finding": "The original audit found Magic Kitty complete but unreachable; PR #733 now explicitly includes cached Magic connections and a find-connections action.",
+      "stop": "Stop if the owning stacked PR has not landed, if the required route contract changed, or if implementation would create a second source of truth instead of projecting the existing subsystem.",
+      "recovery": "Frontend projection/state only plus targeted tests and smoke. Revert packet-owned UI edits if the authoritative backend contract cannot be consumed truthfully; do not mutate durable user data to make the smoke pass."
+    },
+    {
+      "lane": "interactive",
+      "hold_reason": "PR #731 owns ChatMessage/gateway.ts/queries.ts. Refresh after that stacked Chat PR lands before implementing memory actions.",
+      "outcome": "Jacob can inspect a remembered fact and pin it, correct it, understand why Kitty remembers it, or forget it from the same place.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/memory-actions.spec.ts` at desktop and iPhone-14 widths. Exercise the primary action plus unavailable/degraded truth; no document-level horizontal scroll and no obscured primary control.",
+      "tier3": "An independent reviewer completes the visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-MEMORY-01",
+        "title": "A remembered fact can be pinned, corrected, explained, or forgotten in place",
+        "objective": "Extend the existing memory evidence block in Chat so the same durable memory row exposes Pin, Correct, Explain and Forget. Use the existing /memories/{id}/pin, /correct, /explain and delete contracts; correction is an explicit edit flow, explain shows bounded provenance/reason, and pin state is truthful after reload. Preserve the existing forget grace behavior until the durable undo companion replaces it; do not create a client memory store. Add the smoke file named here.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "A durable memory row exposes pin, correct, explain and forget actions when it has a memory id.",
+          "Pin reflects durable backend state after reload.",
+          "Correct edits the governed memory through the backend and shows the updated text without inventing a second copy.",
+          "Explain reveals bounded provenance/reason and has an honest unavailable/error state.",
+          "Forget keeps its destructive confirmation/grace behavior and does not silently become permanent on one tap."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/ChatMessage.tsx",
+          "gateway/kitty-chat/src/lib/gateway.ts",
+          "gateway/kitty-chat/src/lib/queries.ts",
+          "gateway/kitty-chat/tests/ChatMessage.test.tsx",
+          "gateway/kitty-chat/tests/MemoryForget.test.tsx",
+          "gateway/kitty-chat/tests/smoke/memory-actions.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/ChatMessage.test.tsx tests/MemoryForget.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/memory-actions.spec.ts"
+        ]
+      },
+      "finding": "The backend has pin/correct/explain/delete, but ChatMessage wires only delete; pin/correct/explain have no frontend caller.",
+      "stop": "Stop if the owning stacked PR has not landed, if the required route contract changed, or if implementation would create a second source of truth instead of projecting the existing subsystem.",
+      "recovery": "Frontend projection/state only plus targeted tests and smoke. Revert packet-owned UI edits if the authoritative backend contract cannot be consumed truthfully; do not mutate durable user data to make the smoke pass."
+    },
+    {
+      "lane": "interactive",
+      "hold_reason": "The active visible-product stack (#729, #731, #732, #733 and #735) currently owns shared gateway.ts/queries.ts and related surfaces. Compile the contract now, but refresh base and exact path fence after the stack lands before implementation.",
+      "outcome": "Jacob can fill in and revise Kitty\u2019s mission/goals/values profile in Settings instead of editing config files by hand.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/telos.spec.ts` at desktop and iPhone-14 widths. Exercise the primary action plus unavailable/degraded truth; no document-level horizontal scroll and no obscured primary control.",
+      "tier3": "An independent reviewer completes the visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-TELOS-01",
+        "title": "Mission, goals, and values are editable inside Kitty",
+        "objective": "Add a focused Telos editor to the existing Settings/identity area using GET /telos and POST /telos/{section}. Present the interview sections progressively, save each section through the existing backend, and show saved/current state after reload. Never expose config file paths or ask Jacob to hand-edit markdown. Do not create a second profile schema or store. Add the smoke file named here.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "The current Telos profile loads in Settings without exposing filesystem/config details.",
+          "Jacob can edit each supported Telos section and save through the existing endpoint.",
+          "Saved values survive reload because the UI re-reads the backend authority.",
+          "Missing/empty sections invite completion without pretending the profile is complete.",
+          "Backend validation errors are shown in plain language and preserve the unsaved edit."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/SettingsPanel.tsx",
+          "gateway/kitty-chat/src/lib/gateway.ts",
+          "gateway/kitty-chat/src/lib/queries.ts",
+          "gateway/kitty-chat/tests/SettingsPanel.test.tsx",
+          "gateway/kitty-chat/tests/smoke/telos.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/SettingsPanel.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/telos.spec.ts"
+        ]
+      },
+      "finding": "The Telos interview/routes exist, but there is no frontend caller; today the profile is effectively an internal/config-only capability.",
+      "stop": "Stop if the owning stacked PR has not landed, if the required route contract changed, or if implementation would create a second source of truth instead of projecting the existing subsystem.",
+      "recovery": "Frontend projection/state only plus targeted tests and smoke. Revert packet-owned UI edits if the authoritative backend contract cannot be consumed truthfully; do not mutate durable user data to make the smoke pass."
+    },
+    {
+      "lane": "interactive",
+      "hold_reason": "PR #733 owns the personal-intelligence Home surface and shared query files. Land it first, then add Patterns as another ranked notice only if it earns space.",
+      "outcome": "Jacob can ask for a weekly or annual mirror and see only patterns Kitty has enough history to support.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/patterns.spec.ts` at desktop and iPhone-14 widths. Exercise the primary action plus unavailable/degraded truth; no document-level horizontal scroll and no obscured primary control.",
+      "tier3": "An independent reviewer completes the visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-PATTERNS-01",
+        "title": "Kitty can show the weekly and annual patterns it actually has evidence for",
+        "objective": "Surface the existing /patterns/weekly and /patterns/annual projections inside the selective personal-intelligence experience, not as a statistics dashboard. Show the strongest bounded pattern plus evidence period and an explicit \u201cnot enough history yet\u201d state when the backend cannot support a claim. Any suggested next action must use an existing action/deep link. Do not infer mood or productivity beyond the backend result. Add the smoke file named here.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Weekly and annual views show only patterns returned by the backend.",
+          "Insufficient history renders an explicit warm \u201cnot enough history yet\u201d state rather than fake zero/normal.",
+          "Evidence period/source context is visible enough to understand what the pattern is based on.",
+          "A surfaced action uses an existing action/deep link; the UI does not invent behavioral advice.",
+          "The surface stays bounded/selective and does not become a dense analytics dashboard."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/HomeIntelligence.tsx",
+          "gateway/kitty-chat/src/lib/gateway.ts",
+          "gateway/kitty-chat/src/lib/queries.ts",
+          "gateway/kitty-chat/tests/HomeIntelligence.test.tsx",
+          "gateway/kitty-chat/tests/smoke/patterns.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/HomeIntelligence.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/patterns.spec.ts"
+        ]
+      },
+      "finding": "gateway/patterns.py and the weekly/annual routes are complete but have no frontend reference.",
+      "stop": "Stop if the owning stacked PR has not landed, if the required route contract changed, or if implementation would create a second source of truth instead of projecting the existing subsystem.",
+      "recovery": "Frontend projection/state only plus targeted tests and smoke. Revert packet-owned UI edits if the authoritative backend contract cannot be consumed truthfully; do not mutate durable user data to make the smoke pass."
+    },
+    {
+      "lane": "interactive",
+      "hold_reason": "PR #733 owns the selective intelligence surface and shared query files. Release after that stack lands and confirm Chronicle tips still have an action contract worth surfacing.",
+      "outcome": "Jacob can see one useful \u201cyou could use Kitty better this way\u201d tip and apply it directly instead of discovering the feature by accident.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/chronicle.spec.ts` at desktop and iPhone-14 widths. Exercise the primary action plus unavailable/degraded truth; no document-level horizontal scroll and no obscured primary control.",
+      "tier3": "An independent reviewer completes the visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-CHRONICLE-01",
+        "title": "Chronicle tips become one-click improvements, not hidden advice",
+        "objective": "Surface /chronicle/tips through the selective personal-intelligence experience. Each tip is bounded plain-language advice about using Kitty better and must carry the concrete existing action/deep link that applies it; tips without an executable destination stay out of the primary card feed. Provide dismiss/acknowledge only if the backend already has durable semantics\u2014do not create a local dismissed-tips registry. Add the smoke file named here.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "A Chronicle tip can appear as a bounded personal-intelligence card when it has a concrete action.",
+          "The action opens or executes the existing owning capability; no read-only dead-end tip card is introduced.",
+          "No tip is fabricated when Chronicle returns none or is unavailable.",
+          "The UI does not create a second durable dismissal/seen store.",
+          "The surface remains selective and hides when there is nothing useful to say."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/HomeIntelligence.tsx",
+          "gateway/kitty-chat/src/lib/gateway.ts",
+          "gateway/kitty-chat/src/lib/queries.ts",
+          "gateway/kitty-chat/tests/HomeIntelligence.test.tsx",
+          "gateway/kitty-chat/tests/smoke/chronicle.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/HomeIntelligence.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/chronicle.spec.ts"
+        ]
+      },
+      "finding": "The Chronicle service and /chronicle/tips route are complete, but there is no frontend caller.",
+      "stop": "Stop if the owning stacked PR has not landed, if the required route contract changed, or if implementation would create a second source of truth instead of projecting the existing subsystem.",
+      "recovery": "Frontend projection/state only plus targeted tests and smoke. Revert packet-owned UI edits if the authoritative backend contract cannot be consumed truthfully; do not mutate durable user data to make the smoke pass."
+    }
+  ]
+}
