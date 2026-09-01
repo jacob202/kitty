@@ -325,7 +325,7 @@ async def studio_create_batch(req: StudioBatchRequest) -> dict:
             raise HTTPException(
                 status_code=400, detail="a planned image batch requires session_id"
             )
-        from gateway.image_plans import (
+        from gateway.image_plan_store import (
             PlanNotApprovedError,
             PlanNotFoundError,
             PlanSessionMismatchError,
