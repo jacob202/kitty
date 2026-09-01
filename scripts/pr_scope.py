@@ -202,6 +202,34 @@ def scope_for_event(event: dict[str, Any], event_name: str, token: str) -> Scope
         number = int(pull_request.get("number") or 0)
         if not number:
             raise RuntimeError("pull_request payload is missing a number")
+
+        stack = pull_request.get("stack")
+        if stack is not None:
+            if not isinstance(stack, dict):
+                print("Pull request stack metadata is malformed; validating at full scope.")
+                return FULL_SCOPE
+            try:
+                position = int(stack["position"])
+                size = int(stack["size"])
+            except (KeyError, TypeError, ValueError):
+                print("Pull request stack position is unresolved; validating at full scope.")
+                return FULL_SCOPE
+            if size < 1 or position < 1 or position > size:
+                print("Pull request stack position is invalid; validating at full scope.")
+                return FULL_SCOPE
+            if position == size:
+                base = stack.get("base") or {}
+                head = pull_request.get("head") or {}
+                if not isinstance(base, dict) or not isinstance(head, dict):
+                    print("Stack top is missing cumulative comparison SHAs; validating at full scope.")
+                    return FULL_SCOPE
+                base_sha = str(base.get("sha") or "")
+                head_sha = str(head.get("sha") or "")
+                if not re.fullmatch(r"[0-9a-f]{40}", head_sha):
+                    print("Stack top head SHA is unresolved; validating at full scope.")
+                    return FULL_SCOPE
+                return push_scope(owner, name, base_sha, head_sha, token)
+
         return classify(pull_request_files(owner, name, number, token))
 
     merge_group = event.get("merge_group")
