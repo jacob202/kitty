@@ -3,15 +3,21 @@ import { createContext, useContext, useState, useCallback, useRef, type ReactNod
 
 type ToastType = 'success' | 'error' | 'info'
 
-interface Toast {
+export interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
+export interface Toast {
   id: number
   message: string
   type: ToastType
+  action?: ToastAction  // e.g. { label: 'Undo', onClick: () => revert() }
 }
 
 interface ToastContextValue {
   toasts: Toast[]
-  showToast: (message: string, type?: ToastType) => void
+  showToast: (message: string, type?: ToastType, action?: ToastAction) => void
   dismissToast: (id: number) => void
 }
 
@@ -21,9 +27,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const toastId = useRef(0)
 
-  const showToast = useCallback((message: string, type: ToastType = 'info') => {
+  const showToast = useCallback((message: string, type: ToastType = 'info', action?: ToastAction) => {
     const id = ++toastId.current
-    setToasts((prev) => [...prev, { id, message, type }])
+    setToasts((prev) => [...prev, { id, message, type, action }])
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id))
     }, 3000)
@@ -71,10 +77,21 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
         ...typeStyles[toast.type],
         animation: 'toastIn 0.25s ease-out',
       }}
-      onClick={() => onDismiss(toast.id)}
     >
       <span style={messageStyle}>{toast.message}</span>
-      <span style={dismissStyle}>✕</span>
+      {toast.action && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            toast.action!.onClick()
+            onDismiss(toast.id)
+          }}
+          style={actionStyle}
+        >
+          {toast.action.label}
+        </button>
+      )}
+      <span style={dismissStyle} onClick={() => onDismiss(toast.id)}>x</span>
     </div>
   )
 }
@@ -103,12 +120,23 @@ const toastStyle: CSSProperties = {
   fontWeight: 500,
   boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
   pointerEvents: 'auto',
-  cursor: 'pointer',
 }
 
 const messageStyle: CSSProperties = {
   flex: 1,
   wordBreak: 'break-word',
+}
+
+const actionStyle: CSSProperties = {
+  background: 'rgba(255,255,255,0.2)',
+  border: 'none',
+  borderRadius: 6,
+  padding: '4px 10px',
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: 'pointer',
+  color: 'inherit',
+  whiteSpace: 'nowrap',
 }
 
 const dismissStyle: CSSProperties = {
@@ -117,6 +145,7 @@ const dismissStyle: CSSProperties = {
   fontWeight: 700,
   lineHeight: 1,
   flexShrink: 0,
+  cursor: 'pointer',
 }
 
 const globalStyleEl = typeof document !== 'undefined' ? document.getElementById('toast-keyframes') : null
