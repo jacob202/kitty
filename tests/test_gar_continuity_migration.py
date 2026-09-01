@@ -96,11 +96,12 @@ def test_bootloader_uses_deterministic_room_discovery_before_recent_context():
         assert "--unread" in text
         assert "room_thread" in text
         assert "durable locator" in text
+        assert "strict" in text
     assert "--skip-legacy-continuity" in start_here
 
 
 def test_context_engineering_preserves_verified_delivery_contract():
-    text = CONTEXT_ENGINEERING.read_text(encoding="utf-8")
+    text = " ".join(CONTEXT_ENGINEERING.read_text(encoding="utf-8").split())
     for required in (
         "outcome contract and non-goals",
         "accepted decisions and their authority",
