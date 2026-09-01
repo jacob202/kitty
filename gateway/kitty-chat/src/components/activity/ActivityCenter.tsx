@@ -50,7 +50,7 @@ export function ActivityCenter({
           {unavailable.length > 0 && (
             <div role="status" style={warningStyle}>
               <strong>Some activity sources are unavailable.</strong>
-              {unavailable.map(([name, source]) => <div key={name}>{name}: {source.reason ?? 'unavailable'}</div>)}
+              {unavailable.map(([name]) => <div key={name}>{sourceUnavailableCopy(name)}</div>)}
             </div>
           )}
           {projection && projection.items.length === 0 && <p style={mutedStyle}>No recent activity.</p>}
@@ -71,6 +71,16 @@ export function ActivityCenter({
       </section>
     </div>
   )
+}
+
+function sourceUnavailableCopy(source: string): string {
+  switch (source) {
+    case 'actions': return 'Action activity is temporarily unavailable.'
+    case 'automations': return 'Automation activity is temporarily unavailable.'
+    case 'agents': return 'Agent activity is temporarily unavailable.'
+    case 'builder': return 'Work activity is temporarily unavailable.'
+    default: return 'Some activity is temporarily unavailable.'
+  }
 }
 
 function ActivityRow({ item, onNavigate }: { item: GatewayActivityItem; onNavigate: (item: GatewayActivityItem) => void }) {

@@ -130,6 +130,11 @@ def test_control_plane_summary_reads_queue_and_initiatives(tmp_path: Path):
             "superseded_by": None,
             "superseded_at": None,
             "packet_count": 1,
+            "counts": {
+                "total": 1, "queued": 1, "claimed": 0, "running": 0,
+                "blocked": 0, "pr_opened": 0, "awaiting_review": 0,
+                "done": 0, "failed": 0, "cancelled": 0, "exhausted": 0,
+            },
             "updated_at": summary["initiatives"][0]["updated_at"],
         }
     ]

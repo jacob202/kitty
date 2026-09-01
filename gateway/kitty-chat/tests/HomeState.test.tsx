@@ -811,6 +811,27 @@ describe('HomeState', () => {
     expect(screen.getByText('unavailable')).toBeInTheDocument();
   });
 
+  it('fetches unresolved action statuses directly so old failures cannot be crowded out by terminal history', () => {
+    const failedAction = {
+      id: 77, title: 'Old failed action', preview: 'needs review', kind: 'note.draft',
+      risk_tier: 'T1', source_kind: 'agent', status: 'failed', created_at: '',
+      source_id: null, payload: {}, result: 'provider failed', decided_at: null, executed_at: null,
+    };
+    (useActions as Mock).mockImplementation((status?: string) => ({
+      data: status === 'failed' ? [failedAction] : [],
+      isPending: false, isError: false, isFetched: true, refetch: vi.fn(),
+    }));
+
+    render(<HomeState />);
+
+    expect(useActions).toHaveBeenCalledWith('approved');
+    expect(useActions).toHaveBeenCalledWith('failed');
+    expect(useActions).toHaveBeenCalledWith('unknown');
+    expect(useActions).toHaveBeenCalledWith('outcome_unknown');
+    expect(screen.getByText('Old failed action')).toBeVisible();
+    expect(screen.getByText('provider failed')).toBeVisible();
+  });
+
   it('shows proposed actions with approve and reject buttons in needs you', () => {
     const action = {
       id: 1,
@@ -838,6 +859,21 @@ describe('HomeState', () => {
     expect(screen.getByRole('button', { name: /approve Deploy to prod/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /reject Deploy to prod/i })).toBeInTheDocument();
   });
+
+  it('fetches each unresolved action status separately so older repairs survive history limits', () => {
+    const failedAction = { id: 88, title: 'Old failed action', preview: 'Needs repair', kind: 'note.draft', risk_tier: 'T1', source_kind: 'agent', status: 'failed', created_at: '', source_id: null, payload: {}, result: 'old durable failure', decided_at: null, executed_at: null }
+    ;(useActions as Mock).mockImplementation((status?: string) => ({
+      data: status === 'failed' ? [failedAction] : [],
+      isPending: false, isError: false, isFetched: true, refetch: vi.fn(),
+    }))
+
+    render(<HomeState />)
+
+    const requested = (useActions as Mock).mock.calls.map(([status]) => status)
+    expect(requested).toEqual(expect.arrayContaining(['proposed', 'approved', 'failed', 'unknown', 'outcome_unknown']))
+    expect(screen.getByText('Old failed action')).toBeInTheDocument()
+    expect(screen.getByText('old durable failure')).toBeInTheDocument()
+  })
 
   it('keeps stranded approved and failed actions visible with truthful recovery controls', () => {
     (useActions as Mock).mockReturnValue({

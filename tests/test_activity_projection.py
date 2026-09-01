@@ -180,3 +180,68 @@ def test_activity_projection_does_not_hide_programming_errors_as_partial_success
     ):
         with pytest.raises(ValueError, match='bad action shape'):
             activity_projection.build_activity_projection()
+
+
+def test_builder_active_with_only_queued_packets_is_waiting_not_running():
+    counts = {
+        'total': 1, 'queued': 1, 'claimed': 0, 'running': 0, 'blocked': 0,
+        'pr_opened': 0, 'awaiting_review': 0, 'done': 0, 'failed': 0,
+        'cancelled': 0, 'exhausted': 0,
+    }
+    with patch('gateway.builder_status.build_control_plane_summary', return_value={
+        'initiatives': [{
+            'initiative_id': 'queued-build', 'title': 'Queued build', 'state': 'active',
+            'pause_reason': None, 'superseded_by': None, 'updated_at': 7.0,
+            'packet_count': 1, 'counts': counts,
+        }],
+        'queue': {'queued': 1, 'running': 0},
+    }):
+        item = activity_projection._builder_items()[0]
+
+    assert item['state'] == 'waiting'
+
+
+def test_builder_active_with_claimed_or_running_packet_is_in_motion():
+    counts = {
+        'total': 1, 'queued': 0, 'claimed': 1, 'running': 0, 'blocked': 0,
+        'pr_opened': 0, 'awaiting_review': 0, 'done': 0, 'failed': 0,
+        'cancelled': 0, 'exhausted': 0,
+    }
+    with patch('gateway.builder_status.build_control_plane_summary', return_value={
+        'initiatives': [{
+            'initiative_id': 'claimed-build', 'title': 'Claimed build', 'state': 'active',
+            'pause_reason': None, 'superseded_by': None, 'updated_at': 8.0,
+            'packet_count': 1, 'counts': counts,
+        }],
+        'queue': {'queued': 0, 'claimed': 1},
+    }):
+        item = activity_projection._builder_items()[0]
+
+    assert item['state'] == 'running'
+
+
+def test_active_builder_with_only_queued_packets_is_waiting_not_running():
+    with (
+        patch('gateway.action_queue.list_actions', return_value=[]),
+        patch('gateway.automation_runs.list_runs', return_value=[]),
+        patch('gateway.agent_runner.list_agents', return_value=[]),
+        patch('gateway.builder_status.build_control_plane_summary', return_value={
+            'initiatives': [{
+                'initiative_id': 'queued-build', 'title': 'Queued build', 'state': 'active',
+                'pause_reason': None, 'superseded_by': None, 'updated_at': 10.0,
+                'packet_count': 1,
+                'counts': {
+                    'total': 1, 'queued': 1, 'claimed': 0, 'running': 0, 'blocked': 0,
+                    'pr_opened': 0, 'awaiting_review': 0, 'done': 0, 'failed': 0,
+                    'cancelled': 0, 'exhausted': 0,
+                },
+            }],
+            'queue': {'total': 1, 'queued': 1, 'claimed': 0, 'running': 0},
+        }),
+    ):
+        body = activity_projection.build_activity_projection(limit=20)
+
+    item = next(item for item in body['items'] if item['id'] == 'builder:queued-build')
+    assert item['state'] == 'waiting'
+    assert item['raw_state'] == 'queued'
+    assert 'queued' in (item['detail'] or '').lower()

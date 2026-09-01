@@ -154,22 +154,32 @@ def _builder_items() -> list[dict[str, Any]]:
     for initiative in snapshot.get("initiatives", []):
         raw = str(initiative.get("state") or "unknown")
         superseded_by = _bounded(initiative.get("superseded_by"), 120)
+        counts = initiative.get("counts") if isinstance(initiative.get("counts"), dict) else {}
         if superseded_by:
             state = "completed"
         elif raw in {"paused", "blocked"}:
             state = "waiting"
-        elif raw in {"failed", "exhausted"}:
+        elif raw in {"failed", "exhausted"} or any(int(counts.get(key, 0) or 0) for key in ("failed", "cancelled", "exhausted")):
             state = "failed"
         elif raw in {"completed", "done"}:
             state = "completed"
-        else:
+        elif any(int(counts.get(key, 0) or 0) for key in ("claimed", "running", "pr_opened", "awaiting_review")):
             state = "running"
+        else:
+            # `active` is an execution gate, not evidence that a worker exists.
+            # Queued/eligible (or otherwise idle) work is waiting until a
+            # claim/run/review facet proves motion.
+            state = "waiting"
         detail = f"Superseded by {superseded_by}" if superseded_by else _bounded(initiative.get("pause_reason"))
+        queued = int(counts.get("queued", 0) or 0)
+        if not detail and state == "waiting" and queued:
+            detail = "Queued in Work."
+        raw_state = "queued" if raw == "active" and state == "waiting" and queued else raw
         items.append({
             "id": f"builder:{initiative.get('initiative_id')}", "source": "builder",
             "source_id": str(initiative.get("initiative_id") or ""),
             "title": _bounded(initiative.get("title"), 120) or "Builder initiative", "detail": detail,
-            "state": state, "raw_state": raw, "occurred_at": _timestamp(initiative.get("updated_at")),
+            "state": state, "raw_state": raw_state, "occurred_at": _timestamp(initiative.get("updated_at")),
             "destination": "work",
         })
     return items

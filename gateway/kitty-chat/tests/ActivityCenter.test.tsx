@@ -37,10 +37,10 @@ describe('ActivityCenter', () => {
     expect(onNavigate).toHaveBeenCalledWith(expect.objectContaining({ source: 'builder', destination: 'work', source_id: 'kitty' }))
   })
 
-  it('shows partial-source truth instead of an empty-success claim', () => {
+  it('shows product-safe partial-source truth without leaking internal failure details', () => {
     render(<ActivityCenter
       open
-      projection={{ ...projection, sources: { ...projection.sources, actions: { state: 'unavailable', reason: 'actions db unavailable' } } } as any}
+      projection={{ ...projection, sources: { ...projection.sources, builder: { state: 'unavailable', reason: 'Builder queue database does not exist: /Users/jacob/private/builder_queue.db' } } } as any}
       isLoading={false}
       error={null}
       onClose={vi.fn()}
@@ -48,7 +48,9 @@ describe('ActivityCenter', () => {
     />)
 
     expect(screen.getByText(/some activity sources are unavailable/i)).toBeVisible()
-    expect(screen.getByText(/actions db unavailable/i)).toBeVisible()
+    expect(screen.getByText(/work activity is temporarily unavailable/i)).toBeVisible()
+    expect(screen.queryByText(/\/Users\/jacob/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/builder_queue\.db/)).not.toBeInTheDocument()
   })
 
   it('shows a refresh failure even when cached activity is still visible', () => {

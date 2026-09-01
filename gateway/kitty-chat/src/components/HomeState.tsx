@@ -1502,8 +1502,26 @@ function WhatChanged() {
 // ── Needs you (action queue) ─────────────────────────────────────────────────
 
 function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEntry) => void }) {
-  const { data: allActions = [], isError, isPending, error, refetch } = useActions();
-  const actions = allActions.filter((action: GatewayAction) => ['proposed', 'approved', 'failed', 'unknown', 'outcome_unknown'].includes(action.status));
+  // Each unresolved status is queried independently. `/actions` is a bounded
+  // history view, so filtering one all-status response can hide an older
+  // approval/failure behind newer terminal rows.
+  const proposedActions = useActions('proposed');
+  const approvedActions = useActions('approved');
+  const failedActions = useActions('failed');
+  const unknownActions = useActions('unknown');
+  const outcomeUnknownActions = useActions('outcome_unknown');
+  const actionQueries = [proposedActions, approvedActions, failedActions, unknownActions, outcomeUnknownActions];
+  const attentionStatuses = new Set(['proposed', 'approved', 'failed', 'unknown', 'outcome_unknown']);
+  const actions = Array.from(new Map(
+    actionQueries
+      .flatMap((query) => query.data ?? [])
+      .filter((action: GatewayAction) => attentionStatuses.has(action.status))
+      .map((action: GatewayAction) => [action.id, action] as const),
+  ).values());
+  const isPending = actionQueries.some((query) => query.isPending);
+  const isError = actionQueries.some((query) => query.isError);
+  const error = actionQueries.find((query) => query.isError)?.error;
+  const refetch = () => { actionQueries.forEach((query) => { void query.refetch?.(); }); };
   const needsJacob = useNeedsJacob();
   const approve = useApproveAction();
   const execute = useExecuteAction();

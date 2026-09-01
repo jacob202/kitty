@@ -253,6 +253,7 @@ def _control_plane_initiatives(conn: sqlite3.Connection) -> list[dict[str, Any]]
                 "superseded_by": initiative["superseded_by"],
                 "superseded_at": initiative["superseded_at"],
                 "packet_count": len(initiative["packets"]),
+                "counts": initiative["counts"],
                 "updated_at": initiative["updated_at"],
             }
             for initiative in initiatives
@@ -273,10 +274,43 @@ def _control_plane_initiatives(conn: sqlite3.Connection) -> list[dict[str, Any]]
                     (str(row["id"]),),
                 ).fetchone()["c"]
             ),
+            "counts": _base_initiative_counts(conn, str(row["id"])),
             "updated_at": row["updated_at"],
         }
         for row in initiative_rows
     ]
+
+
+def _base_initiative_counts(conn: sqlite3.Connection, initiative_id: str) -> dict[str, int]:
+    """Return per-initiative task truth when the detailed attempt schema is absent."""
+    rows = conn.execute(
+        """
+        SELECT t.state AS state, COUNT(*) AS count
+        FROM initiative_packets p
+        LEFT JOIN tasks t ON t.id = p.task_id
+        WHERE p.initiative_id = ?
+        GROUP BY t.state
+        """,
+        (initiative_id,),
+    ).fetchall()
+    per_state = {str(row["state"]): int(row["count"]) for row in rows if row["state"] is not None}
+    total = int(conn.execute(
+        "SELECT COUNT(*) AS c FROM initiative_packets WHERE initiative_id = ?",
+        (initiative_id,),
+    ).fetchone()["c"])
+    return {
+        "total": total,
+        "queued": per_state.get(bq.QUEUED, 0),
+        "claimed": per_state.get(bq.CLAIMED, 0),
+        "running": per_state.get(bq.RUNNING, 0),
+        "blocked": per_state.get(bq.BLOCKED, 0),
+        "pr_opened": per_state.get(bq.PR_OPENED, 0),
+        "awaiting_review": per_state.get(bq.AWAITING_REVIEW, 0),
+        "done": per_state.get(bq.DONE, 0),
+        "failed": per_state.get(bq.FAILED, 0),
+        "cancelled": per_state.get(bq.CANCELLED, 0),
+        "exhausted": 0,
+    }
 
 
 def _build_initiative_projection(
