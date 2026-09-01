@@ -47,6 +47,7 @@ import {
   deleteCronSchedule,
   toggleCronSchedule,
   retryAutomationRun,
+  fetchAutomationRun,
   fetchScheduleWhy,
   type CronScheduleType,
   // image
@@ -511,6 +512,15 @@ export function useToggleCronSchedule() {
   return useMutation({
     mutationFn: (id: string) => toggleCronSchedule(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cron', 'schedules'] }),
+  })
+}
+
+export function useAutomationRun(runId: string | null) {
+  return useQuery({
+    queryKey: ['automation-run', runId],
+    queryFn: () => fetchAutomationRun(runId as string),
+    enabled: runId !== null,
+    retry: false,
   })
 }
 

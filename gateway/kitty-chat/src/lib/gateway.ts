@@ -1235,6 +1235,27 @@ export async function toggleCronSchedule(id: string): Promise<void> {
   await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
 }
 
+export interface GatewayAutomationRun {
+  id: string
+  automation_id: string
+  action: string
+  trigger_kind: string
+  trigger_ref?: string | null
+  schedule_id?: string | null
+  started_at: number
+  completed_at?: number | null
+  status: string
+  duration_ms?: number | null
+  result_pointer?: string | null
+  error?: string | null
+}
+
+export async function fetchAutomationRun(runId: string): Promise<GatewayAutomationRun> {
+  const json = await gfetch<{ run?: GatewayAutomationRun }>(`/automations/runs/${encodeURIComponent(runId)}`)
+  if (!json.run) throw new Error(`gateway returned no automation run ${runId}`)
+  return json.run
+}
+
 export interface AutomationRetryResult {
   run: { id: string; status: string }
   retried_from: string

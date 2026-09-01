@@ -5,7 +5,7 @@ import { type CronScheduleType, type WhyStatus } from '@/lib/gateway'
 import {
   useCronSchedules, useCronActions, useCreateCronSchedule,
   useUpdateCronSchedule, useDeleteCronSchedule, useToggleCronSchedule,
-  useScheduleWhy, useRetryAutomationRun,
+  useScheduleWhy, useRetryAutomationRun, useAutomationRun,
 } from '@/lib/queries'
 
 function fmtLastRun(ts: number): string {
@@ -29,7 +29,7 @@ function valuePlaceholder(t: CronScheduleType): string {
   return '2026-06-01T09:00'
 }
 
-export function CronPanel({ variant = 'compact', isMobile = false }: { variant?: 'compact' | 'full'; isMobile?: boolean }) {
+export function CronPanel({ variant = 'compact', isMobile = false, selectedRunId = null }: { variant?: 'compact' | 'full'; isMobile?: boolean; selectedRunId?: string | null }) {
   const schedulesQuery = useCronSchedules()
   const actionsQuery = useCronActions()
   const createSchedule = useCreateCronSchedule()
@@ -37,6 +37,7 @@ export function CronPanel({ variant = 'compact', isMobile = false }: { variant?:
   const deleteSchedule = useDeleteCronSchedule()
   const toggleSchedule = useToggleCronSchedule()
   const retryRun = useRetryAutomationRun()
+  const selectedRun = useAutomationRun(selectedRunId)
 
   const schedules = schedulesQuery.data ?? []
   const actions = actionsQuery.data ?? []
@@ -134,6 +135,37 @@ export function CronPanel({ variant = 'compact', isMobile = false }: { variant?:
   return (
     <div data-testid={full ? 'automations-list' : undefined} style={{ display: 'grid', gap: full ? 14 : 8 }}>
       <p style={full ? fullSummaryStyle : summaryStyle}>{activeCount}/{schedules.length} active</p>
+
+      {selectedRunId ? (
+        <div data-testid="selected-automation-run" style={fullWhyBoxStyle}>
+          {selectedRun.isPending ? (
+            <p style={fullMetaStyle}>Loading selected run…</p>
+          ) : selectedRun.isError ? (
+            <p role="alert" style={fullMetaStyle}>This automation run is unavailable right now.</p>
+          ) : selectedRun.data ? (
+            <>
+              <p style={{ ...fullMetaStyle, fontWeight: 700 }}>{selectedRun.data.status.replace(/_/g, ' ')}</p>
+              <p style={fullNameStyle}>{selectedRun.data.action}</p>
+              <p style={fullMetaStyle}>Run {selectedRun.data.id}</p>
+              <p style={fullMetaStyle}>Automation {selectedRun.data.automation_id}</p>
+              {selectedRun.data.error ? <p role="status" style={fullMetaStyle}>{selectedRun.data.error}</p> : null}
+              {selectedRun.data.result_pointer ? <p style={fullMetaStyle}>Result: {selectedRun.data.result_pointer}</p> : null}
+              {['failed', 'interrupted', 'action_unavailable', 'source_unavailable', 'policy_refused'].includes(selectedRun.data.status) ? (
+                <button
+                  type="button"
+                  disabled={retryRun.isPending}
+                  onClick={() => {
+                    const confirmed = window.confirm('Retry this run as a fresh attempt? Only retry if you are comfortable repeating the action; a failed run may already have produced an external effect.')
+                    if (confirmed) retryRun.mutate(selectedRun.data.id)
+                  }}
+                  style={fullActionButtonStyle}
+                  aria-label={`Retry selected ${selectedRun.data.status} run`}
+                >{retryRun.isPending ? 'Retrying…' : 'Retry run'}</button>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Schedule list */}
       {schedules.length > 0 ? (

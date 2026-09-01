@@ -24,6 +24,7 @@ export default function KittyChat() {
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [activityOpen, setActivityOpen] = useState(false)
   const [selectedAgentSessionId, setSelectedAgentSessionId] = useState<number | null>(null)
+  const [selectedAutomationRunId, setSelectedAutomationRunId] = useState<string | null>(null)
   const activity = useActivity()
   const activityAttentionCount = (activity.data?.counts.waiting ?? 0) + (activity.data?.counts.failed ?? 0)
   const activityIncomplete = Boolean(activity.error) || Object.values(activity.data?.sources ?? {}).some(source => source.state === 'unavailable')
@@ -159,6 +160,7 @@ export default function KittyChat() {
               }}
               builderProps={{ onBack: () => k.setActiveView('work') }}
               selectedAgentSessionId={selectedAgentSessionId}
+              automationProps={{ selectedRunId: selectedAutomationRunId }}
               toolsProps={{
                 loops: k.loops, insights: k.insights, promptTemplates: k.promptTemplates,
                 onLoopToggle: k.handleLoopToggle, onInsightDismiss: k.handleInsightDismiss,
@@ -211,6 +213,9 @@ export default function KittyChat() {
           if (item.source === 'agent') {
             const sessionId = Number(item.source_id)
             setSelectedAgentSessionId(Number.isInteger(sessionId) && sessionId > 0 ? sessionId : null)
+          }
+          if (item.source === 'automation') {
+            setSelectedAutomationRunId(item.source_id)
           }
           k.setActiveView(item.destination)
           setActivityOpen(false)

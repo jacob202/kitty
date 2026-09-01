@@ -48,6 +48,7 @@ interface ViewRendererProps {
   builderProps?: { onBack: () => void }
   workProps?: { isMobile: boolean }
   selectedAgentSessionId?: number | null
+  automationProps?: { selectedRunId?: string | null }
   toolsProps?: {
     loops: any[]
     insights: any[]
@@ -73,6 +74,7 @@ export function ViewRenderer({
   builderProps,
   workProps,
   selectedAgentSessionId = null,
+  automationProps,
   toolsProps,
 }: ViewRendererProps) {
   const isMobile = compact
@@ -106,7 +108,7 @@ export function ViewRenderer({
       case 'projects':
         return <ProjectsView isMobile={isMobile} />
       case 'automations':
-        return <AutomationsView isMobile={isMobile} loops={toolsProps?.loops ?? []} loopsLoading={toolsProps?.loopsLoading ?? false} loopsError={toolsProps?.loopsError ?? null} onLoopToggle={toolsProps?.onLoopToggle ?? (() => {})} />
+        return <AutomationsView isMobile={isMobile} loops={toolsProps?.loops ?? []} loopsLoading={toolsProps?.loopsLoading ?? false} loopsError={toolsProps?.loopsError ?? null} onLoopToggle={toolsProps?.onLoopToggle ?? (() => {})} selectedRunId={automationProps?.selectedRunId ?? null} />
     case 'settings':
     case 'providers':
     case 'tools':
