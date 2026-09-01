@@ -4,6 +4,11 @@ import {
   isTrustedProxyRequest,
   resolveProxyConfig,
 } from '@/lib/gateway-proxy-config'
+import {
+  copyProxyHeaders,
+  PROXY_REQUEST_PASSTHROUGH_HEADERS,
+  PROXY_RESPONSE_PASSTHROUGH_HEADERS,
+} from '@/lib/gateway-proxy-headers'
 
 async function handler(
   req: NextRequest,
@@ -40,6 +45,7 @@ async function handler(
   headers.Authorization = `Bearer ${gatewaySecret}`
   const ct = req.headers.get('content-type')
   if (ct) headers['Content-Type'] = ct
+  Object.assign(headers, copyProxyHeaders(req.headers, PROXY_REQUEST_PASSTHROUGH_HEADERS))
 
   const body = req.method !== 'GET' && req.method !== 'HEAD' ? req.body : null
 
@@ -66,6 +72,7 @@ async function handler(
   ]
   const responseHeaders: Record<string, string> = {
     'Content-Type': upstream.headers.get('content-type') ?? 'application/json',
+    ...copyProxyHeaders(upstream.headers, PROXY_RESPONSE_PASSTHROUGH_HEADERS),
   }
   if (upstream.headers.get('content-type')?.includes('text/event-stream')) {
     responseHeaders['Cache-Control'] = 'no-cache'

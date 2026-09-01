@@ -16,8 +16,8 @@ import { ViewRenderer } from '@/components/ViewRenderer'
 import { StatusBar } from '@/components/StatusBar'
 import { WobFilters, PaperGrain } from '@/components/WobFilters'
 import { CatCorner } from '@/components/CrayonCat'
-import { useActivity } from '@/lib/queries'
 import { composeSkillLaunchInput } from '@/lib/capability-launch'
+import { useActivity } from '@/lib/queries'
 
 export default function KittyChat() {
   const k = useKitty()

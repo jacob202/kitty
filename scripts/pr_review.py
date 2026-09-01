@@ -18,7 +18,8 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-DEFAULT_REVIEW_MODEL = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+DEFAULT_REVIEW_MODEL = "openrouter/deepseek/deepseek-v4-flash"
+INDEPENDENT_REVIEW_MODEL = "openrouter/qwen/qwen3.7-max"
 DEFAULT_REVIEW_AGENT = "pr-reviewer"
 REVIEW_MODEL = os.environ.get("PR_REVIEW_MODEL", DEFAULT_REVIEW_MODEL)
 COMMENT_MARKER = "<!-- kitty-agent-pr-review -->"
@@ -52,6 +53,69 @@ in changed code shown in this chunk.
 Use concise bullets. If there are no actionable findings, respond with exactly:
 NO_ACTIONABLE_FINDINGS
 """
+
+
+def _model_family(model: str | None) -> str | None:
+    """Return a coarse provider/model family for independence checks."""
+    value = (model or "").strip().lower()
+    if not value:
+        return None
+    parts = [part for part in value.split("/") if part]
+    if len(parts) >= 3 and parts[0] in {"openrouter", "opencode"}:
+        return parts[1]
+    for family in ("deepseek", "qwen", "minimax", "xiaomi", "nvidia"):
+        if family in value:
+            return family
+    return parts[-1] if parts else None
+
+
+def select_review_model(preferred_model: str, implementation_model: str | None) -> str:
+    """Keep the preferred Flash reviewer unless it would self-review by family."""
+    preferred_family = _model_family(preferred_model)
+    implementation_family = _model_family(implementation_model)
+    if preferred_family and preferred_family == implementation_family:
+        return INDEPENDENT_REVIEW_MODEL
+    return preferred_model
+
+
+def implementation_model_from_event(event: dict[str, Any]) -> str | None:
+    """Read Builder's recorded implementation model from its generated PR body."""
+    pull_request = event.get("pull_request")
+    if not isinstance(pull_request, dict):
+        return None
+    body = str(pull_request.get("body") or "")
+    if "## KittyBuilder task `" not in body or "## Final report" not in body:
+        return None
+    match = re.search(
+        r"## Final report\s+```json\s*(\{.*?\})\s*```",
+        body,
+        re.DOTALL,
+    )
+    if not match:
+        return None
+    try:
+        report = json.loads(match.group(1))
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(report, dict):
+        return None
+    model = report.get("model")
+    return model.strip() if isinstance(model, str) and model.strip() else None
+
+
+def review_model_for_current_event() -> str:
+    """Select a fixed trusted reviewer from current event provenance when available."""
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if not event_path:
+        return REVIEW_MODEL
+    try:
+        with open(event_path, encoding="utf-8") as event_file:
+            event = json.load(event_file)
+    except (OSError, json.JSONDecodeError, TypeError):
+        return REVIEW_MODEL
+    if not isinstance(event, dict):
+        return REVIEW_MODEL
+    return select_review_model(REVIEW_MODEL, implementation_model_from_event(event))
 
 
 def parse_exact_head_override(body: str, labels: set[str], head_sha: str) -> str | None:
@@ -192,7 +256,8 @@ def _normalize_opencode_review(output: str) -> str | None:
 
 
 def _review_chunk(chunk: str) -> str | None:
-    if REVIEW_MODEL.startswith("openrouter/") and not os.environ.get("OPENROUTER_API_KEY"):
+    review_model = review_model_for_current_event()
+    if review_model.startswith("openrouter/") and not os.environ.get("OPENROUTER_API_KEY"):
         print("OPENROUTER_API_KEY not set — current-head OpenCode review cannot run.", file=sys.stderr)
         return None
 
@@ -210,7 +275,7 @@ def _review_chunk(chunk: str) -> str | None:
         "--agent",
         agent,
         "--model",
-        REVIEW_MODEL,
+        review_model,
         "--title",
         "Kitty automatic PR review",
         prompt,

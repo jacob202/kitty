@@ -534,3 +534,33 @@ def test_init_db_concurrently_migrates_legacy_policy_column(tmp_path: Path):
     with cg.connect(legacy) as conn:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(work_receipts)")}
     assert "policy_json" in columns
+
+
+def test_connect_sets_busy_timeout_before_wal(tmp_path: Path, monkeypatch):
+    calls: list[str] = []
+
+    class FakeCursor:
+        def fetchone(self):
+            return ("delete",)
+
+    class FakeConnection:
+        row_factory = None
+
+        def execute(self, sql: str):
+            calls.append(sql)
+            return FakeCursor()
+
+    fake = FakeConnection()
+
+    def fake_connect(path, *, timeout):
+        assert path == tmp_path / "busy.db"
+        assert timeout >= 30.0
+        return fake
+
+    monkeypatch.setattr(cg.sqlite3, "connect", fake_connect)
+    assert cg.connect(tmp_path / "busy.db") is fake
+    assert calls[:3] == [
+        "PRAGMA busy_timeout=30000",
+        "PRAGMA journal_mode",
+        "PRAGMA journal_mode=WAL",
+    ]

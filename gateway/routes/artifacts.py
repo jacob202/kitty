@@ -11,6 +11,8 @@ from gateway import artifact_store
 
 router = APIRouter(tags=["artifacts"])
 
+MAX_TEXT_PREVIEW_BYTES = 2 * 1024 * 1024
+
 
 @router.get("/artifacts")
 def get_artifacts(
@@ -32,6 +34,8 @@ def get_artifacts(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+
+_TEXT_PREVIEW_MEDIA_TYPES = {"text/markdown", "text/plain", "text/x-markdown"}
 
 _PREVIEW_MEDIA_TYPES = {
     "application/pdf",
@@ -60,16 +64,30 @@ def _preview_artifact(artifact_id: str) -> tuple[dict, Path]:
     path = Path(storage_uri)
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail=f"artifact {artifact_id} is missing from disk")
+
+    current_hash, current_size = artifact_store._hash_file(path)
+    registered_hash = str(artifact.get("content_hash") or "")
+    registered_size = artifact.get("size_bytes")
+    if current_hash != registered_hash or current_size != registered_size:
+        raise HTTPException(
+            status_code=409,
+            detail=f"artifact {artifact_id} changed on disk; refresh or re-import it before previewing",
+        )
+    if media_type in _TEXT_PREVIEW_MEDIA_TYPES and current_size > MAX_TEXT_PREVIEW_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"artifact {artifact_id} is too large to preview as text",
+        )
     return artifact, path
 
 
-@router.get("/artifacts/{artifact_id}/content")
+@router.get("/artifacts/{artifact_id:path}/content")
 def get_artifact_content(artifact_id: str) -> FileResponse:
     artifact, path = _preview_artifact(artifact_id)
     return FileResponse(path, media_type=str(artifact["media_type"]))
 
 
-@router.get("/artifacts/{artifact_id}")
+@router.get("/artifacts/{artifact_id:path}")
 def get_artifact(artifact_id: str) -> dict:
     artifact = artifact_store.get_artifact(artifact_id)
     if artifact is None:
