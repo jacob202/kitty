@@ -1502,7 +1502,8 @@ function WhatChanged() {
 // ── Needs you (action queue) ─────────────────────────────────────────────────
 
 function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEntry) => void }) {
-  const { data: actions = [], isError, isPending, error, refetch } = useActions('proposed');
+  const { data: allActions = [], isError, isPending, error, refetch } = useActions();
+  const actions = allActions.filter((action: GatewayAction) => ['proposed', 'approved', 'failed', 'unknown', 'outcome_unknown'].includes(action.status));
   const needsJacob = useNeedsJacob();
   const approve = useApproveAction();
   const execute = useExecuteAction();
@@ -1542,6 +1543,28 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
       setOutcomes((current) => ({ ...current, [action.id]: result }));
     } catch {
       // approve itself failed — button re-enables via finally, nothing ran
+    } finally {
+      setPendingId(null);
+    }
+  };
+
+  const handleRunApproved = async (action: GatewayAction) => {
+    setPendingId(action.id);
+    try {
+      const executed = await execute.mutateAsync(action.id);
+      setOutcomes((current) => ({
+        ...current,
+        [action.id]: {
+          title: action.title,
+          ok: executed.status === 'executed',
+          message: executed.result || (executed.status === 'executed' ? 'done' : `status: ${executed.status}`),
+        },
+      }));
+    } catch (err) {
+      setOutcomes((current) => ({
+        ...current,
+        [action.id]: { title: action.title, ok: false, message: err instanceof Error ? err.message : 'could not run this action' },
+      }));
     } finally {
       setPendingId(null);
     }
@@ -1635,42 +1658,26 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    disabled={isBusy}
-                    onClick={() => void handleApprove(action)}
-                    aria-label={`Approve ${action.title}`}
-                    style={{
-                      ...primaryButtonStyle,
-                      cursor: isBusy ? 'not-allowed' : 'pointer',
-                      opacity: isBusy ? 0.5 : 1,
-                    }}
-                  >
-                    {isBusy ? '…' : 'approve'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isBusy}
-                    onClick={() => void handleReject(action.id)}
-                    aria-label={`Reject ${action.title}`}
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      padding: '4px 12px',
-                      borderRadius: 4,
-                      border: '1px solid var(--line)',
-                      cursor: isBusy ? 'not-allowed' : 'pointer',
-                      background: 'transparent',
-                      color: 'var(--ink-2)',
-                      opacity: isBusy ? 0.5 : 1,
-                    }}
-                  >
-                    reject
-                  </button>
+                  {action.status === 'proposed' && (<>
+                    <button type="button" disabled={isBusy} onClick={() => void handleApprove(action)} aria-label={`Approve ${action.title}`} style={{ ...primaryButtonStyle, cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.5 : 1 }}>
+                      {isBusy ? '…' : 'approve'}
+                    </button>
+                    <button type="button" disabled={isBusy} onClick={() => void handleReject(action.id)} aria-label={`Reject ${action.title}`} style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, padding: '4px 12px', borderRadius: 4, border: '1px solid var(--line)', cursor: isBusy ? 'not-allowed' : 'pointer', background: 'transparent', color: 'var(--ink-2)', opacity: isBusy ? 0.5 : 1 }}>
+                      reject
+                    </button>
+                  </>)}
+                  {action.status === 'approved' && (
+                    <button type="button" disabled={isBusy} onClick={() => void handleRunApproved(action)} aria-label={`Run ${action.title}`} style={{ ...primaryButtonStyle, cursor: isBusy ? 'not-allowed' : 'pointer', opacity: isBusy ? 0.5 : 1 }}>
+                      {isBusy ? '…' : 'run now'}
+                    </button>
+                  )}
+                  {['failed', 'unknown', 'outcome_unknown'].includes(action.status) && (
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-warning)' }}>review required</span>
+                  )}
                 </div>
               </div>
               {action.preview && <div style={{ ...bodyText, fontSize: 12 }}>{action.preview}</div>}
+              {action.result && <div role="status" style={{ ...bodyText, fontSize: 12 }}>{action.result}</div>}
               {action.payload && Object.keys(action.payload).length > 0 && (
                 <div
                   style={{

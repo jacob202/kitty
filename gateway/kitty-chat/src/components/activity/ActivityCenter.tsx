@@ -1,8 +1,9 @@
-import { useEffect, type CSSProperties } from 'react'
+import { type CSSProperties } from 'react'
 import { X } from 'lucide-react'
 
 import type { GatewayActivityItem, GatewayActivityProjection, GatewayActivityState } from '@/lib/gateway'
 import { describeFailure } from '@/lib/failure-copy'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
 
 const GROUPS: Array<{ state: GatewayActivityState; label: string }> = [
   { state: 'waiting', label: 'Needs you' },
@@ -26,19 +27,14 @@ export function ActivityCenter({
   onClose: () => void
   onNavigate: (view: string) => void
 }) {
-  useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  const dialogRef = useDialogFocus({ open, onClose })
 
   if (!open) return null
   const unavailable = Object.entries(projection?.sources ?? {}).filter(([, source]) => source.state === 'unavailable')
 
   return (
     <div style={backdropStyle} onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
-      <section role="dialog" aria-modal="true" aria-label="Activity" style={panelStyle}>
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="Activity" style={panelStyle}>
         <header style={headerStyle}>
           <div>
             <div style={eyebrowStyle}>live work</div>
@@ -50,7 +46,7 @@ export function ActivityCenter({
 
         <div style={bodyStyle}>
           {isLoading && !projection && <p style={mutedStyle}>Reading Kitty activity…</p>}
-          {Boolean(error) && !projection && <p role="alert" style={errorStyle}>{describeFailure(error)}</p>}
+          {Boolean(error) && <p role="alert" style={errorStyle}>Activity may be out of date — {describeFailure(error)}</p>}
           {unavailable.length > 0 && (
             <div role="status" style={warningStyle}>
               <strong>Some activity sources are unavailable.</strong>

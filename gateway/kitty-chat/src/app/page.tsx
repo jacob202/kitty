@@ -25,6 +25,7 @@ export default function KittyChat() {
   const [activityOpen, setActivityOpen] = useState(false)
   const activity = useActivity()
   const activityAttentionCount = (activity.data?.counts.waiting ?? 0) + (activity.data?.counts.failed ?? 0)
+  const activityIncomplete = Boolean(activity.error) || Object.values(activity.data?.sources ?? {}).some(source => source.state === 'unavailable')
   const modelUnavailable = !k.modelGateway.live || k.availableModels.length === 0
 
   return (
@@ -105,6 +106,7 @@ export default function KittyChat() {
             onCommandPalette={() => setCmdPaletteOpen(true)}
             onActivity={() => setActivityOpen(true)}
             activityAttentionCount={activityAttentionCount}
+            activityIncomplete={activityIncomplete}
           />
 
           {k.activeView === 'chat' && !k.isMobile && (

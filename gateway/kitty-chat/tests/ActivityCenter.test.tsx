@@ -51,6 +51,22 @@ describe('ActivityCenter', () => {
     expect(screen.getByText(/actions db unavailable/i)).toBeVisible()
   })
 
+  it('shows a refresh failure even when cached activity is still visible', () => {
+    render(<ActivityCenter open projection={projection as any} isLoading={false} error={new Error('gateway offline')} onClose={vi.fn()} onNavigate={vi.fn()} />)
+    expect(screen.getByRole('alert')).toHaveTextContent(/activity may be out of date/i)
+    expect(screen.getByText('Approve calendar event')).toBeVisible()
+  })
+
+  it('moves focus inside the modal while open', () => {
+    const trigger = document.createElement('button')
+    trigger.textContent = 'Activity trigger'
+    document.body.appendChild(trigger)
+    trigger.focus()
+    render(<ActivityCenter open projection={projection as any} isLoading={false} error={null} onClose={vi.fn()} onNavigate={vi.fn()} />)
+    expect(screen.getByRole('button', { name: /close activity/i })).toHaveFocus()
+    trigger.remove()
+  })
+
   it('closes on Escape', () => {
     const onClose = vi.fn()
     render(<ActivityCenter open projection={projection as any} isLoading={false} error={null} onClose={onClose} onNavigate={vi.fn()} />)

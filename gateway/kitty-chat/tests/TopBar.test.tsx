@@ -9,6 +9,7 @@ function renderTopBar(
   runtimeState: 'available' | 'unavailable' | 'degraded' | 'stale' | 'unknown' = 'available',
   onActivity?: () => void,
   activityAttentionCount = 0,
+  activityIncomplete = false,
 ) {
   return render(
     <TopBar
@@ -24,6 +25,7 @@ function renderTopBar(
       runtimeState={runtimeState}
       onActivity={onActivity}
       activityAttentionCount={activityAttentionCount}
+      activityIncomplete={activityIncomplete}
       onToggleSidebar={() => {}}
       onCommandPalette={() => {}}
       onSelectProject={() => {}}
@@ -61,6 +63,13 @@ describe('TopBar surface hierarchy', () => {
 
 describe('TopBar activity entry point', () => {
   afterEach(cleanup)
+
+  it('shows incomplete status instead of presenting partial counts as complete', () => {
+    renderTopBar(false, 'chat', 'available', vi.fn(), 3, true)
+    const button = screen.getByRole('button', { name: /activity.*incomplete.*3 known/i })
+    expect(button).toHaveTextContent('Activity')
+    expect(button).toHaveTextContent('?')
+  })
 
   it('shows the attention count and opens the global activity surface', () => {
     const onActivity = vi.fn()

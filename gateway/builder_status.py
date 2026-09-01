@@ -250,6 +250,8 @@ def _control_plane_initiatives(conn: sqlite3.Connection) -> list[dict[str, Any]]
                 "title": initiative["title"],
                 "state": initiative["state"],
                 "pause_reason": initiative["pause_reason"],
+                "superseded_by": initiative["superseded_by"],
+                "superseded_at": initiative["superseded_at"],
                 "packet_count": len(initiative["packets"]),
                 "updated_at": initiative["updated_at"],
             }
@@ -262,6 +264,8 @@ def _control_plane_initiatives(conn: sqlite3.Connection) -> list[dict[str, Any]]
             "title": str(row["title"]),
             "state": str(row["state"]),
             "pause_reason": _safe_message(row["pause_reason"]),
+            "superseded_by": row["superseded_by"],
+            "superseded_at": row["superseded_at"],
             "packet_count": int(
                 conn.execute(
                     "SELECT COUNT(*) AS c FROM initiative_packets "

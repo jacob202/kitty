@@ -839,6 +839,21 @@ describe('HomeState', () => {
     expect(screen.getByRole('button', { name: /reject Deploy to prod/i })).toBeInTheDocument();
   });
 
+  it('keeps stranded approved and failed actions visible with truthful recovery controls', () => {
+    (useActions as Mock).mockReturnValue({
+      data: [
+        { id: 7, title: 'Approved calendar event', preview: 'Ready to run', kind: 'calendar.event.create', risk_tier: 'T2', source_kind: 'agent', status: 'approved', created_at: '', source_id: null, payload: {}, result: null, decided_at: null, executed_at: null },
+        { id: 8, title: 'Failed note', preview: 'Could not save', kind: 'note.draft', risk_tier: 'T1', source_kind: 'agent', status: 'failed', created_at: '', source_id: null, payload: {}, result: 'disk unavailable', decided_at: null, executed_at: null },
+      ],
+      isPending: false, isError: false, isFetched: true,
+    })
+    render(<HomeState />)
+    expect(screen.getByRole('button', { name: /run Approved calendar event/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /approve Approved calendar event/i })).not.toBeInTheDocument()
+    expect(screen.getByText('disk unavailable')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /approve Failed note/i })).not.toBeInTheDocument()
+  })
+
   it('shows the material payload arguments before approval (C7-F07)', () => {
     (useActions as Mock).mockReturnValue({
       data: [
