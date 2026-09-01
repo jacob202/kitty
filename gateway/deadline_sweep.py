@@ -18,12 +18,6 @@ LlmFn = Callable[[str], str]
 PushFn = Callable[..., bool]
 
 
-def _default_push(message: str, *, title: str, kind: str, dedupe_key: str) -> bool:
-    from gateway.push import push_to_jacob
-
-    return push_to_jacob(message, title=title, kind=kind, dedupe_key=dedupe_key)
-
-
 def _run_async(coro):
     """Run a coroutine from a sync context. Same seam as gateway/brief.py."""
     return asyncio.run(coro)
@@ -151,7 +145,13 @@ def sweep(
     now: date | None = None,
     project_id: int = 2,
 ) -> dict[str, Any]:
-    """Run the urgent-thing sweep and optionally push a summary."""
+    """Run deadline discovery only; escalation delivery belongs to deadline_watch.
+
+    ``push_fn`` is retained temporarily for compatibility with older callers,
+    but is intentionally ignored so discovery can never become a second
+    notification path.
+    """
+    del push_fn
     today = now if now is not None else date.today()
 
     doc_deadlines, doc_blind = _scan_documents(llm_fn, project_id)
@@ -177,23 +177,4 @@ def sweep(
         "generated_at": datetime.now().isoformat(),
     }
 
-    if push_fn is not None:
-        summary = _format_summary(report, today)
-        dedupe_key = f"sweep-{today.isoformat()}"
-        try:
-            push_fn(summary, title="Urgent-thing sweep", kind="alert", dedupe_key=dedupe_key)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("sweep push failed: %s", exc)
-
     return report
-
-
-def _format_summary(report: dict[str, Any], today: date) -> str:
-    lines = [f"Urgent-thing sweep for {today.isoformat()}"]
-    if report.get("top"):
-        top = report["top"]
-        lines.append(f"Top: {top['obligation']} — due {top['due_date']}")
-    lines.append(f"Open deadlines: {report['open']}; needs Jacob: {report['needs_jacob']}")
-    if report.get("blind_spots"):
-        lines.append("Blind spots: " + ", ".join(report["blind_spots"]))
-    return "\n".join(lines)

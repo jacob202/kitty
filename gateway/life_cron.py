@@ -9,23 +9,34 @@ def _run_evening_reflection() -> None:
     from gateway.push import push_to_jacob
 
     result = evening_reflection()
-    push_to_jacob(
+    push_result = push_to_jacob(
         result.get("reflection", "")[:300],
         kind="info",
         title="Kitty Evening Reflection",
     )
+    if isinstance(push_result, dict):
+        ok = push_result.get("ok", False)
+    else:
+        ok = push_result
+    if not ok:
+        raise Exception("Evening reflection push failed")
 
 
 def _run_morning_proactive() -> None:
     from gateway.life_awareness import morning_proactive
+    from gateway.push import push_to_jacob
 
     result = morning_proactive()
     suggestions = result.get("proactive_suggestions", [])
     if suggestions:
-        from gateway.push import push_to_jacob
-
         text = suggestions[0].get("text", "")
-        push_to_jacob(text, kind="info", title="Life Suggestion")
+        push_result = push_to_jacob(text, kind="info", title="Life Suggestion")
+        if isinstance(push_result, dict):
+            ok = push_result.get("ok", False)
+        else:
+            ok = push_result
+        if not ok:
+            raise Exception("Morning proactive push failed")
 
 
 async def _to_thread_attached(fn) -> None:
