@@ -279,34 +279,31 @@ next Builder packet.” Builder schedules its own approved queue. An explicit
 Builder operator action may be recommended only when the evidence shows a
 specific blocked Builder condition requiring intervention.
 
-## 9. Post the durable Global Agent Room handoff
+## 9. Prepare the Global Agent Room handoff
 
-Post one concise `handoff` or `result` to `workspace_global` before writing any
-legacy compatibility checkpoint. Prefer the Agent Room MCP when configured;
-otherwise use `./kitty room post --as <identity> --kind handoff '<content>'`.
-Include only durable facts another agent needs to resume safely:
+Prepare, but do **not** publish yet, one concise `handoff` or `result` payload for
+`workspace_global`. Include only durable facts another agent needs to resume
+safely:
 
 - exact outcome and changed paths;
-- execution owner plus branch/worktree and exact HEAD;
-- exact verification/review/publication evidence;
+- execution owner plus branch/worktree and current HEAD;
+- exact verification/review/publication evidence gathered so far;
 - blockers or unavailable evidence;
 - one concrete next action;
 - explicit `DO NOT REDO` boundaries when useful.
 
-Use a direct message only when one registered agent specifically owns the next
-response; otherwise broadcast. Continue an existing discussion with a thread
-reply. Acknowledgement means received, never task completion.
+Do not call the draft verified yet. Compatibility writes and final validation
+below can change the dirty-path inventory or reveal a failure.
 
 ## 10. Write legacy `.claude/HANDOFF.md` compatibility snapshot
 
 While existing validators/adapters still consume it, keep this snapshot minimal
-and mirror the already-posted room handoff. Include:
+and mirror the prepared room handoff. Include:
 
 - exact outcomes and changed paths;
 - this session's execution owner;
 - blockers and one next move;
-- exact verification results;
-- the relevant Global Agent Room message/thread id when available.
+- exact verification results known at this point.
 
 Do not use this file as a multi-agent mailbox or duplicate a long session
 narrative into it.
@@ -349,15 +346,31 @@ python3 scripts/check_continuity_state.py
 git status --short --branch
 ```
 
-Report uncommitted files and other workers' changes. Do not commit, push, delete,
-clean, release leases, claim Builder work, or merge unless separately authorized
-or an approved Builder publication policy permits the bounded action.
+Re-read HEAD and the complete dirty-path inventory after those commands. Report
+uncommitted files and other workers' changes. Do not commit, push, delete, clean,
+release leases, claim Builder work, or merge unless separately authorized or an
+approved Builder publication policy permits the bounded action.
 
-## 13. Confirm and stop
+## 13. Post the final Global Agent Room handoff
+
+Only now publish the durable room message. Prefer the Agent Room MCP when
+configured; otherwise use `./kitty room post --as <identity> --kind handoff
+'<content>'`. If a specific registered agent owns the next response, send a
+direct message; if continuing an existing discussion, reply to that exact
+thread; otherwise broadcast.
+
+The published content must use the final evidence from step 12: exact HEAD,
+dirty-path inventory, verification results, PR/publication state, blockers, and
+one concrete next action. If validation fails or becomes unavailable, publish a
+truthful `blocked` or `failed` result describing that failure; do not post the
+pre-validation success draft. Acknowledgement means received, never task
+completion.
+
+## 14. Confirm and stop
 
 Report briefly:
 
-1. Global Agent Room handoff/result message id or an explicit unavailable state;
+1. final Global Agent Room handoff/result message id or an explicit unavailable state;
 2. compatibility files written;
 3. execution owner and exact task/branch state;
 4. next interactive move;
