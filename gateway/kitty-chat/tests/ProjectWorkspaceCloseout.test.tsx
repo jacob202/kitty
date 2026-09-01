@@ -49,13 +49,17 @@ function client() {
   return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
 }
 
-function renderWorkspace(props: { onNavigate?: (view: string) => void; onStartChat?: () => void } = {}) {
+function renderWorkspace(props: {
+  onNavigate?: (view: string) => void
+  onStartChat?: () => void
+  onClose?: () => void
+} = {}) {
   return render(
     <QueryClientProvider client={client()}>
       <ProjectWorkspace
         project={project}
         nextStep={nextStep}
-        onClose={vi.fn()}
+        onClose={props.onClose ?? vi.fn()}
         onNavigate={props.onNavigate ?? vi.fn()}
         onStartChat={props.onStartChat}
       />
@@ -120,6 +124,22 @@ describe('Project workspace review closeout', () => {
     expect(order).toEqual(['activate', 'new-chat', 'navigate:chat'])
   })
 
+  it('does not let the workspace close while project activation is pending', () => {
+    const onClose = vi.fn()
+    vi.mocked(queries.useSetActiveProject).mockReturnValue({
+      mutateAsync: vi.fn(() => new Promise(() => {})),
+      isPending: true,
+      isError: false,
+      error: null,
+    } as never)
+    renderWorkspace({ onClose })
+
+    const close = screen.getByRole('button', { name: /close project workspace/i })
+    expect(close).toBeDisabled()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('stays below the global command palette and hides the parent dialog during artifact preview', () => {
     renderWorkspace()
     const dialog = screen.getByRole('dialog', { name: /kitty project workspace/i })
@@ -131,6 +151,47 @@ describe('Project workspace review closeout', () => {
     expect(dialog).toHaveAttribute('aria-hidden', 'true')
     expect(dialog).toHaveAttribute('inert')
     expect(screen.getByRole('dialog', { name: 'plan.png' })).toBeVisible()
+  })
+
+  it('surfaces a bulk next-step query failure instead of calling it an empty state', () => {
+    vi.mocked(queries.useProjectNextSteps).mockReturnValue([{
+      data: null, isPending: false, isError: true,
+    }] as never)
+    render(
+      <QueryClientProvider client={client()}>
+        <ProjectsPanel />
+      </QueryClientProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /open workspace/i }))
+
+    expect(screen.getByText(/couldn't read the next step/i)).toBeVisible()
+    expect(screen.queryByText(/no generated next step yet/i)).not.toBeInTheDocument()
+  })
+
+  it('surfaces degraded refresh sources with their returned context', () => {
+    vi.mocked(queries.useRefreshProject).mockReturnValue({
+      mutate: vi.fn(), isPending: false, variables: 1,
+      isError: false, error: null,
+      data: {
+        sources: {
+          memory: { ok: false, error: 'timed out after 10s' },
+          signals: { ok: false, error: 'signal store unavailable' },
+        },
+        next_step: { ok: true },
+      },
+    } as never)
+    render(
+      <QueryClientProvider client={client()}>
+        <ProjectsPanel />
+      </QueryClientProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /open workspace/i }))
+
+    const alerts = screen.getAllByRole('alert').map(alert => alert.textContent ?? '').join(' ')
+    expect(alerts).toMatch(/memory.*timed out after 10s/i)
+    expect(alerts).toMatch(/signals.*signal store unavailable/i)
   })
 
   it('surfaces the returned partial next-step refresh error detail', () => {
@@ -149,5 +210,32 @@ describe('Project workspace review closeout', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent(/project refreshed, but kitty couldn't update the next step/i)
     expect(screen.getByRole('alert')).toHaveTextContent(/model unavailable/i)
+  })
+
+  it('shows degraded Builder work truth even when no work rows remain', () => {
+    vi.mocked(queries.useProjectResume).mockReturnValue({
+      data: {
+        id: 1,
+        artifacts: [],
+        work: {
+          items: [],
+          total_items: 0,
+          source: {
+            kind: 'builder',
+            state: 'degraded',
+            reason: 'Builder snapshot integrity is partial: 1 of 2 packets are incomplete.',
+          },
+        },
+        conversations: { items: [], error: null },
+        deadlines: { items: [], error: null },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as never)
+    renderWorkspace()
+
+    expect(screen.getByRole('status')).toHaveTextContent(/builder work unavailable/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/1 of 2 packets are incomplete/i)
   })
 })
