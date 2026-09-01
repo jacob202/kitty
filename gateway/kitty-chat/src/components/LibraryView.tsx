@@ -67,7 +67,7 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
               <ArtifactRow
                 key={artifact.id}
                 artifact={artifact}
-                onOpen={() => setSelectedArtifact(artifact)}
+                onOpen={() => { setUseError(null); setSelectedArtifact(artifact) }}
                 onUseInChat={() => void handleUseInChat(artifact)}
               />
             ))}
@@ -86,6 +86,7 @@ export default function LibraryView({ isMobile }: { isMobile: boolean }) {
           isMobile={isMobile}
           onClose={() => setSelectedArtifact(null)}
           onUseInChat={isChatReady(selectedArtifact) ? () => void handleUseInChat(selectedArtifact) : undefined}
+          actionError={useError}
         />
       )}
 

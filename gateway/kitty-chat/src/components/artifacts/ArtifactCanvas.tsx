@@ -11,6 +11,7 @@ import {
   type GatewayArtifact,
 } from '@/lib/gateway'
 import { describeFailure } from '@/lib/failure-copy'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
 
 const PREVIEWABLE_MEDIA = new Set([
   'application/pdf',
@@ -32,11 +33,13 @@ export function ArtifactCanvas({
   isMobile,
   onClose,
   onUseInChat,
+  actionError,
 }: {
   artifact: GatewayArtifact
   isMobile: boolean
   onClose: () => void
   onUseInChat?: () => void
+  actionError?: string | null
 }) {
   const mediaType = artifact.media_type.toLowerCase()
   const isMarkdown = mediaType === 'text/markdown' || mediaType === 'text/x-markdown'
@@ -46,13 +49,7 @@ export function ArtifactCanvas({
   const [text, setText] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  const dialogRef = useDialogFocus<HTMLElement>({ open: true, onClose })
 
   useEffect(() => {
     if (!isText) {
@@ -61,12 +58,20 @@ export function ArtifactCanvas({
       return
     }
     let active = true
+    const controller = new AbortController()
     setText(null)
     setError(null)
-    void fetchArtifactText(artifact.id)
+    void fetchArtifactText(artifact.id, controller.signal)
       .then((value) => { if (active) setText(value) })
-      .catch((err) => { if (active) setError(describeFailure(err)) })
-    return () => { active = false }
+      .catch((err) => {
+        if (!active || (err instanceof Error && err.name === 'AbortError')) return
+        const explained = err instanceof Error && err.name === 'ArtifactPreviewRejection'
+        setError(explained ? err.message : describeFailure(err))
+      })
+    return () => {
+      active = false
+      controller.abort()
+    }
   }, [artifact.id, isText])
 
   const contentUrl = artifactContentUrl(artifact.id)
@@ -74,6 +79,7 @@ export function ArtifactCanvas({
   return (
     <div style={backdropStyle} onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={artifact.display_name}
@@ -91,10 +97,15 @@ export function ArtifactCanvas({
         </header>
 
         <div style={bodyStyle}>
-          {isImage && (
+          {isImage && !error && (
             <div style={imageStageStyle}>
               {/* The Gateway resolves the registered ArtifactStore path by id. */}
-              <img src={contentUrl} alt={artifact.display_name} style={imageStyle} />
+              <img
+                src={contentUrl}
+                alt={artifact.display_name}
+                style={imageStyle}
+                onError={() => setError('This saved image could not be loaded. Refresh Library or re-import the file.')}
+              />
             </div>
           )}
           {isPdf && (
@@ -104,7 +115,18 @@ export function ArtifactCanvas({
           {error && <p role="alert" style={errorStyle}>{error}</p>}
           {isMarkdown && text !== null && !error && (
             <article className="artifact-markdown" style={markdownStyle}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  img: ({ alt }) => (
+                    <span role="note" style={mutedStyle}>
+                      {alt ? `${alt}: ` : ''}Remote image blocked. Open it separately only if you trust the source.
+                    </span>
+                  ),
+                }}
+              >
+                {text}
+              </ReactMarkdown>
             </article>
           )}
           {mediaType === 'text/plain' && text !== null && !error && <pre style={preStyle}>{text}</pre>}
@@ -114,6 +136,7 @@ export function ArtifactCanvas({
         </div>
 
         <footer style={footerStyle}>
+          {actionError && <p role="alert" style={errorStyle}>{actionError}</p>}
           {onUseInChat && (
             <button type="button" onClick={onUseInChat} style={actionButtonStyle}>
               <MessageSquare size={14} /> Use in chat
@@ -150,6 +173,6 @@ const markdownStyle: CSSProperties = { maxWidth: 760, margin: '0 auto', fontFami
 const preStyle: CSSProperties = { margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.6, color: 'var(--color-text-primary, var(--ink))' }
 const mutedStyle: CSSProperties = { margin: 0, color: 'var(--color-text-secondary, var(--ink-2))', fontSize: 13 }
 const errorStyle: CSSProperties = { ...mutedStyle, color: 'var(--color-destructive)' }
-const footerStyle: CSSProperties = { minHeight: 68, padding: '12px 18px', borderTop: '1px solid var(--color-separator, var(--line))', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }
+const footerStyle: CSSProperties = { minHeight: 68, padding: '12px 18px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--color-separator, var(--line))', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }
 const actionButtonStyle: CSSProperties = { minHeight: 44, border: 'none', borderRadius: 'var(--r-control, 8px)', background: 'var(--color-accent, var(--primary))', color: 'white', padding: '9px 14px', display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontWeight: 650 }
 const secondaryActionStyle: CSSProperties = { minHeight: 44, border: '1px solid var(--color-separator, var(--line))', borderRadius: 'var(--r-control, 8px)', color: 'var(--color-text-primary, var(--ink))', textDecoration: 'none', padding: '9px 14px', display: 'inline-flex', alignItems: 'center', gap: 7, boxSizing: 'border-box', fontSize: 13, fontWeight: 650 }
