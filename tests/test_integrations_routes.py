@@ -42,7 +42,10 @@ def client(monkeypatch):
     )
 
     # Nudge
-    monkeypatch.setattr("gateway.nudge.get_pending", lambda: [])
+    monkeypatch.setattr(
+        "gateway.nudge.check_with_status",
+        lambda: {"nudges": [], "sources": {}},
+    )
     monkeypatch.setattr("gateway.nudge.dismiss", lambda nudge_id: None)
 
     # Health & patterns
@@ -172,7 +175,9 @@ class TestNudge:
     def test_list(self, client):
         r = client.get("/nudges")
         assert r.status_code == 200
-        assert "nudges" in r.json()
+        body = r.json()
+        assert "nudges" in body
+        assert "sources" in body
 
     def test_dismiss(self, client):
         r = client.post("/nudge/test-nudge/dismiss")
