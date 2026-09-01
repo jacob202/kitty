@@ -173,7 +173,7 @@ def _scheduler_enabled() -> bool | None:
 
 def _wait_for_durable_claim(
     task_id: str, process: subprocess.Popen[Any], *, initial_claim_version: int,
-    db_path: Path | None, timeout_seconds: float = 10.0,
+    db_path: Path | None, timeout_seconds: float = 60.0,
 ) -> dict[str, Any]:
     """Wait until the detached child has durably claimed its queue task."""
     deadline = time.monotonic() + timeout_seconds
