@@ -5,13 +5,15 @@ cold-start checks and `verified-delivery` owns completion language.
 
 ## Load by task
 
-1. Run the full `./kitty context --agent` for code/Builder work. For
-   informational or planning work, use `./kitty context --agent --compact
-   --skip-builder`; treat unknowns as unknowns.
+1. Prove `workspace_global` access first. When the room is available, use
+   `./kitty context --agent --skip-legacy-continuity` for code work; add
+   `--compact --skip-builder` for informational or planning work. When the room
+   is unavailable, report that and use the strict legacy-compatible receipt
+   instead; treat unknowns as unknowns.
 2. Classify the request:
    - informational: authority map plus directly relevant authority;
-   - planning: add roadmap, active mission, and relevant `workspace_global`
-     threads; use legacy checkpoint files only when compatibility requires them;
+   - planning: add roadmap, active mission, and a deterministically located
+     `workspace_global` handoff/thread when one exists;
    - code change: use the full `START_HERE.md` order.
 3. Load the smallest code, test, runtime, or Builder surface that answers the
    open question. Expand only when evidence requires it.
@@ -34,13 +36,16 @@ on a separate trust boundary.
 
 ## Handoff and completion
 
-Before compaction or handoff, post a concise durable result/handoff to
-`workspace_global` containing the outcome contract and non-goals, accepted
-decisions and their authority, current branch/worktree and SHA plus
-implementation state, exact verification results, unresolved failures/blockers,
-and one concrete next action. On resume, retrieve only the relevant room thread
-and validate it against live Git and runtime state. Legacy `.claude` checkpoints
-are compatibility snapshots, not the primary handoff channel.
+Before compaction or handoff, preserve the outcome contract and non-goals,
+accepted decisions and their authority, current branch/worktree, and SHA plus
+implementation state, exact verification commands and results, unresolved
+failures and blockers, and one concrete next action. Publish those facts as the
+final validated `workspace_global` result/handoff after final verification, not
+before compatibility writes or validation. On resume, retrieve the known room
+thread or unread direct handoff and validate it against live Git and runtime
+state. When no durable room locator exists yet, use the validated legacy
+compatibility checkpoint rather than pretending the global recent window is an
+assignment index.
 
 Use exactly one completion state: `verified`, `implemented, awaiting
 verification`, `blocked`, or `failed`. Do not infer runtime success from code
