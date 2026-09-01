@@ -2,8 +2,8 @@
 
 KittyBuilder has two explicit execution lanes. `--free` is genuinely zero-cost
 and never falls into a paid model. `--paid` is the governed value lane: routine
-work defaults to DeepSeek V4 Flash, while frontier spend is an explicit
-escalation. Both lanes use the same durable Builder attempts, worktrees,
+implementation defaults to MiMo V2.5 and routine review to DeepSeek V4 Flash,
+while frontier spend is an explicit escalation. Both lanes use the same durable Builder attempts, worktrees,
 validation, review, evidence, and publication rails.
 
 ## Who does what
@@ -34,7 +34,16 @@ The paid lane is separate: `--paid` selects the configured `cheap` route, and
 `--paid --tier frontier` requests the frontier route. The governor may downgrade
 frontier to cheap; Builder switches the actual worker and reviewer models before
 opening an attempt, so the evidence can never say "cheap" while a frontier model
-actually runs.
+actually runs. The production cheap pair is MiMo V2.5 for implementation and
+DeepSeek V4 Flash for independent review. Outside explicit `--free` runs, a
+required review gets at most one clean free attempt before switching to paid
+Flash on provider error, overload, or startup silence. This prevents review gates
+from stalling on free-provider availability while preserving `--free` as a real
+zero-spend contract. OpenRouter is the preferred reviewer router. AgentRouter is
+dead and must not be recommended; Freebuff and 9Router are optional only, never
+dependencies. Keep `openrouter/deepseek/deepseek-v4-flash` as the paid Flash
+default rather than substituting `openrouter/deepseek/deepseek-v4-flash-0731`,
+which repeatedly stalled in observed reviewer runs.
 
 Hand-off rules (fail-loud, no debris):
 
@@ -85,9 +94,11 @@ the review is only worth anything if it is independent.
 ## Paid value lane
 
 `config/builder_paid_routes.json` is the checked-in allowlist and per-attempt
-ceiling. Routine paid implementation uses DeepSeek V4 Flash through OpenRouter;
-review uses Qwen3.7 Plus for model-family independence. Frontier execution is a
-separate explicit tier and uses the stronger configured worker/reviewer pair.
+ceiling. Routine paid implementation uses MiMo V2.5 through OpenRouter; routine paid
+review uses DeepSeek V4 Flash. Frontier execution is a separate explicit tier
+and uses the stronger configured worker/reviewer pair. Reviewer independence is
+by model family: when the implementation itself is DeepSeek, select a different
+configured paid reviewer rather than self-family review.
 The compute governor remains the spend authority and receipts are durable.
 
 ## Timeouts
@@ -165,8 +176,8 @@ Routing follows ADR 0021, in three tiers:
 | Route | Model | When |
 | ----- | ----- | ---- |
 | `free` | the zero-cost OpenCode ladder above | whenever a free worker can carry the packet |
-| `cheap` | `deepseek/deepseek-v4-flash` | routine paid work — explicit value tier |
-| `frontier` | `deepseek/deepseek-v4-pro` | explicit risky/blocker escalation subject to reserve floors |
+| `cheap` | MiMo V2.5 + DeepSeek V4 Flash | routine paid implementation + independent review |
+| `frontier` | DeepSeek V4 Pro + Qwen3.7 Max | explicit risky/blocker escalation subject to reserve floors |
 
 Reserve pressure protects the frontier route, not the work itself. Below
 `frontier_floor_ratio` a frontier dispatch downgrades to Flash; below
@@ -180,19 +191,20 @@ downgrades on the arithmetic rather than the ratio.
 At the snapshot prices in `gateway/token_spend_report.py` (the single price
 source; the governor imports it rather than keeping its own copy):
 
-| Pass | Model | Tokens | Cost |
-| ---- | ----- | ------ | ---- |
-| routine | V4 Flash | 60k in / 8k out | CAD 0.0094 |
-| frontier | V4 Pro | 120k in / 15k out | CAD 0.0895 |
+| Pass | Worker + reviewer | Token shapes | Cost |
+| ---- | ----------------- | ------------ | ---- |
+| routine | MiMo V2.5 + DeepSeek V4 Flash | worker 60k in / 8k out + review 30k in / 3k out | CAD 0.0593 |
+| frontier | DeepSeek V4 Pro + Qwen3.7 Max | worker 120k in / 15k out + review 30k in / 3k out | CAD 0.1563 |
 
-A working week of ~10 tasks x 3 head SHAs x (plan + review + implement), at 85%
-routine, is about **CAD 1.97** — about **CAD 2.95** with 50% retry headroom. The budget
-is set to **CAD 6.00/week**, which puts the 25% frontier floor at CAD 4.50
-spent: above a normal week, so routine weeks never downgrade, and a bad week
-degrades to Flash instead of stopping. Thresholds live in
-`config/compute_governor.json`; a test fails if the modelled week ever exceeds
-the downgrade point, so a price change surfaces as a red build rather than a
-surprise bill.
+At those conservative snapshot prices, ~10 tasks x 3 head SHAs x
+(plan + review + implement), at 85% routine, models to about **CAD 6.65** — about
+**CAD 9.97** with 50% retry headroom. The configured **CAD 6.00/week** remains a
+hard reserve ceiling rather than a promise to fund that whole synthetic week:
+Builder gates each paid attempt on the full configured worker+reviewer pair and
+defers or downgrades before the remaining reserve can be overrun. Thresholds live in
+`config/compute_governor.json`. Generic governor route pricing and Builder's
+configured paid-pair pricing have separate regression tests, so route or price
+changes cannot silently turn into zero-cost or under-budgeted Builder receipts.
 
 ```bash
 ./kitty governor explain dispatch.json   # dry run: run / defer / downgrade / reject, with reasons

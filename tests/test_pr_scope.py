@@ -137,6 +137,51 @@ def test_pull_request_event_classifies_from_the_live_file_list(monkeypatch) -> N
     assert (scope.code, scope.frontend) == (True, True)
 
 
+def test_top_stack_event_classifies_cumulative_diff_from_stack_base(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_github_json(url: str, _token: str):
+        calls.append(url)
+        if f"/compare/{SHA}...{OTHER_SHA}" in url:
+            return {"files": [{"filename": "gateway/kitty-chat/src/app/page.tsx"}]}
+        if "/pulls/611/files?" in url:
+            return [{"filename": "docs/top-layer-only.md"}]
+        raise AssertionError(url)
+
+    monkeypatch.setattr(pr_scope, "_github_json", fake_github_json)
+    event = {
+        "repository": {"owner": {"login": "jacob202"}, "name": "kitty"},
+        "pull_request": {
+            "number": 611,
+            "head": {"sha": OTHER_SHA},
+            "stack": {"position": 3, "size": 3, "base": {"sha": SHA, "ref": "main"}},
+        },
+    }
+    scope = pr_scope.scope_for_event(event, "pull_request", "token")
+    assert (scope.code, scope.frontend, scope.user_facing) == (True, True, True)
+    assert any(f"/compare/{SHA}...{OTHER_SHA}" in url for url in calls)
+    assert not any("/pulls/611/files?" in url for url in calls)
+
+
+def test_non_top_stack_event_keeps_layer_scope(monkeypatch) -> None:
+    def fake_github_json(url: str, _token: str):
+        if "/pulls/611/files?" in url:
+            return [{"filename": "gateway/memory.py"}]
+        raise AssertionError(f"non-top stack layer must not use cumulative compare: {url}")
+
+    monkeypatch.setattr(pr_scope, "_github_json", fake_github_json)
+    event = {
+        "repository": {"owner": {"login": "jacob202"}, "name": "kitty"},
+        "pull_request": {
+            "number": 611,
+            "head": {"sha": OTHER_SHA},
+            "stack": {"position": 2, "size": 3, "base": {"sha": SHA, "ref": "main"}},
+        },
+    }
+    scope = pr_scope.scope_for_event(event, "pull_request", "token")
+    assert (scope.code, scope.frontend, scope.user_facing) == (True, False, False)
+
+
 def test_merge_group_event_classifies_from_queued_diff(monkeypatch) -> None:
     def fake_compare(url: str, _token: str):
         assert url.endswith(f"/compare/{SHA}...{OTHER_SHA}")

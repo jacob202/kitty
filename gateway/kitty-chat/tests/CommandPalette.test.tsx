@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { fetchGatewaySearch } from '../src/lib/gateway'
+import { fetchCapabilities, fetchGatewaySearch } from '../src/lib/gateway'
 
 vi.mock('../src/lib/gateway', () => ({
+  fetchCapabilities: vi.fn(),
   fetchGatewaySearch: vi.fn(),
 }))
 
@@ -11,6 +12,8 @@ import { CommandPalette } from '../src/components/CommandPalette'
 
 beforeEach(() => {
   vi.mocked(fetchGatewaySearch).mockReset()
+  vi.mocked(fetchCapabilities).mockReset()
+  vi.mocked(fetchCapabilities).mockResolvedValue({ capabilities: [], fromLiveGateway: true, error: null } as never)
   vi.stubGlobal('ResizeObserver', class {
     observe() {}
     unobserve() {}
@@ -24,6 +27,41 @@ afterEach(() => {
 })
 
 describe('CommandPalette', () => {
+  it('loads live capabilities and delegates their launch behavior', async () => {
+    const onLaunchCapability = vi.fn()
+    vi.mocked(fetchCapabilities).mockResolvedValue({
+      capabilities: [
+        { id: 'work', label: 'work', description: 'Run and inspect delegated Kitty work.', category: 'work', launch: 'view', view: 'work' },
+        { id: 'skill:agent-council', label: 'agent council', description: 'Ask multiple agents for independent judgment.', category: 'skills', launch: 'skill', skill_name: 'agent-council' },
+      ],
+      fromLiveGateway: true,
+      error: null,
+    } as never)
+
+    render(
+      <CommandPalette
+        chats={[]}
+        onNewChat={vi.fn()}
+        onSelectChat={vi.fn()}
+        onViewChange={vi.fn()}
+        onToggleSidebar={vi.fn()}
+        onLaunchCapability={onLaunchCapability}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByText('agent council')).toBeVisible()
+    expect(screen.getByText('Ask multiple agents for independent judgment.')).toBeVisible()
+    fireEvent.click(screen.getByText('agent council'))
+
+    expect(onLaunchCapability).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'skill:agent-council',
+      launch: 'skill',
+      skill_name: 'agent-council',
+    }))
+  })
+
   it('does not expose Builder as a second normal-user destination', () => {
     render(
       <CommandPalette
@@ -39,6 +77,36 @@ describe('CommandPalette', () => {
 
     expect(screen.getByText('work')).toBeVisible()
     expect(screen.queryByText('builder')).not.toBeInTheDocument()
+  })
+
+  it('shows capability discovery details and retries the live catalog', async () => {
+    vi.mocked(fetchCapabilities)
+      .mockResolvedValueOnce({ capabilities: [], fromLiveGateway: false, error: 'Gateway 503: catalog unavailable' } as never)
+      .mockResolvedValueOnce({
+        capabilities: [{ id: 'image-lab', label: 'image lab', description: 'Create images.', category: 'create', launch: 'view', view: 'studio' }],
+        fromLiveGateway: true,
+        error: null,
+      } as never)
+
+    render(
+      <CommandPalette
+        chats={[]}
+        onNewChat={vi.fn()}
+        onSelectChat={vi.fn()}
+        onViewChange={vi.fn()}
+        onToggleSidebar={vi.fn()}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByText('live capabilities unavailable — navigation fallback shown.')).toBeVisible()
+    expect(screen.getByText('Gateway 503: catalog unavailable')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('technical details'))
+    expect(screen.getByText('Gateway 503: catalog unavailable')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'retry capabilities' }))
+    expect(await screen.findByText('image lab')).toBeVisible()
+    expect(fetchCapabilities).toHaveBeenCalledTimes(2)
   })
 
   it('shows canonical Kitty search results while typing', async () => {

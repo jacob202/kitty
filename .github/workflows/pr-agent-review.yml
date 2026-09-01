@@ -47,8 +47,11 @@ jobs:
 
   agent-review:
     name: agent-review
-    # Review every new non-draft PR head automatically with a zero-cost OpenCode
-    # reviewer. Ordinary PRs do not depend on the model result; sensitive PRs
+    # Review standalone PRs and both merge boundaries of a stack automatically with
+    # the cheap paid OpenCode reviewer. Sensitive stack layers still get their own
+    # exact-head review. Review reliability is worth the tiny Flash cost; explicit Builder
+    # `--free` semantics remain separate and never silently spend. Ordinary PRs
+    # do not depend on the model result; sensitive PRs
     # still require exact-head approval evidence through policy-gate.
     #
     # Metadata events (edited/labeled/unlabeled) deliberately do not recall the
@@ -57,6 +60,11 @@ jobs:
     needs: scope
     if: >-
       ${{ github.event.pull_request.draft == false &&
+          github.event.pull_request.author_association == 'OWNER' &&
+          (github.event.pull_request.stack == null ||
+           github.event.pull_request.stack.base.ref == github.event.pull_request.base.ref ||
+           github.event.pull_request.stack.position == github.event.pull_request.stack.size ||
+           needs.scope.outputs.sensitive == 'true') &&
           (github.event.action == 'opened' ||
            github.event.action == 'synchronize' ||
            github.event.action == 'reopened' ||
@@ -88,7 +96,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          PR_REVIEW_MODEL: "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+          PR_REVIEW_MODEL: "openrouter/deepseek/deepseek-v4-flash"
           PR_REVIEW_AGENT: "pr-reviewer"
           PR_REVIEW_REQUEST_ATTEMPTS: "2"
         run: python scripts/pr_review.py

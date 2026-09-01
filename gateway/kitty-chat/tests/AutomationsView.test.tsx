@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import AutomationsView from '../src/components/AutomationsView'
 
 vi.mock('../src/components/CronPanel', () => ({
-  CronPanel: ({ variant }: { variant?: string }) => <div>schedule manager {variant}</div>,
+  CronPanel: ({ variant, selectedRunId }: { variant?: string; selectedRunId?: string | null }) => <div>schedule manager {variant} {selectedRunId ? `selected ${selectedRunId}` : ''}</div>,
 }))
 vi.mock('../src/components/LoopWatch', () => ({
   LoopWatch: ({ title }: { title?: string }) => <div>{title}</div>,
@@ -15,6 +15,20 @@ vi.mock('../src/components/MonitorPanel', () => ({
 afterEach(cleanup)
 
 describe('AutomationsView', () => {
+  it('passes an Activity-selected durable run to the schedule manager', () => {
+    render(
+      <AutomationsView
+        isMobile={false}
+        loops={[]}
+        loopsLoading={false}
+        onLoopToggle={vi.fn()}
+        selectedRunId="arun_old_failure"
+      />,
+    )
+
+    expect(screen.getByText(/schedule manager full selected arun_old_failure/i)).toBeVisible()
+  })
+
   it('presents schedules and background routines as one product surface', () => {
     render(
       <AutomationsView

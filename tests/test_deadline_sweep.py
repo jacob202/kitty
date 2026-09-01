@@ -93,7 +93,7 @@ def test_sweep_extracts_from_mail_signals():
     monkeypatch.undo()
 
 
-def test_sweep_pushes_summary():
+def test_sweep_discovery_never_owns_notification_delivery():
     deadline_store.upsert(
         {
             "project_id": 2,
@@ -112,7 +112,7 @@ def test_sweep_pushes_summary():
         pushes.append({"message": message, "title": title, "kind": kind})
         return True
 
-    deadline_sweep.sweep(now=date(2026, 7, 20), push_fn=push_fn)
-    assert len(pushes) == 1
-    assert pushes[0]["title"] == "Urgent-thing sweep"
-    assert "Pay rent" in pushes[0]["message"]
+    report = deadline_sweep.sweep(now=date(2026, 7, 20), push_fn=push_fn)
+
+    assert report["open"] == 1
+    assert pushes == []

@@ -326,6 +326,44 @@ export type GatewaySearchPayload = {
   error: string | null
 }
 
+export type GatewayCapabilityLaunch = 'view' | 'skill'
+
+export interface GatewayCapability {
+  id: string
+  label: string
+  description: string
+  category: string
+  launch: GatewayCapabilityLaunch
+  view?: string
+  skill_name?: string
+}
+
+export type GatewayCapabilitiesPayload = {
+  capabilities: GatewayCapability[]
+  fromLiveGateway: boolean
+  error: string | null
+}
+
+export type GatewayActivityState = 'waiting' | 'running' | 'failed' | 'completed'
+
+export interface GatewayActivityItem {
+  id: string
+  source: 'action' | 'automation' | 'agent' | 'builder' | string
+  source_id: string
+  title: string
+  detail: string | null
+  state: GatewayActivityState
+  raw_state: string
+  occurred_at: number
+  destination: string
+}
+
+export interface GatewayActivityProjection {
+  items: GatewayActivityItem[]
+  counts: { total: number; waiting: number; running: number; failed: number; completed: number }
+  sources: Record<string, { state: 'available' | 'unavailable'; reason: string | null }>
+}
+
 export interface GatewayWeather {
   temp_c?: number
   feels_like_c?: number
@@ -651,7 +689,7 @@ export async function fetchGatewayWeather(): Promise<GatewayWeatherPayload> {
 
 // ── Agents ───────────────────────────────────────────────────────────────────
 
-export type AgentStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type AgentStatus = 'active' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
 export type AgentType = 'explorer' | 'planner' | 'coder' | 'reviewer' | 'researcher'
 
 export interface AgentSession {
@@ -671,7 +709,7 @@ export interface AgentWorkspaceAgent {
   display_name: string
   role: string
   model: string | null
-  status: 'available' | 'paused' | 'retired'
+  status: 'available' | 'paused' | 'retired' | 'registered'
 }
 
 export interface AgentWorkspaceMessage {
@@ -721,6 +759,29 @@ export interface AgentWorkspace {
   messages: AgentWorkspaceMessage[]
   events: AgentWorkspaceEvent[]
   turns: AgentWorkspaceTurn[]
+}
+
+export type AgentRoomReceiptState = 'sent' | 'seen' | 'acknowledged'
+
+export interface AgentRoomInboxMessage extends AgentWorkspaceMessage {
+  seen_at: number | null
+  acknowledged_at: number | null
+  receipt_state: AgentRoomReceiptState
+}
+
+export interface AgentRoomReceipt {
+  message_id: string
+  participant_id: string
+  seen_at: number | null
+  acknowledged_at: number | null
+  receipt_state: AgentRoomReceiptState
+}
+
+export interface GlobalAgentMessageInput {
+  recipientId: string | null
+  content: string
+  messageKind: AgentWorkspaceMessage['message_kind']
+  parentMessageId?: string | null
 }
 
 async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
@@ -878,6 +939,69 @@ export async function runAgentWorkspaceTurn(
   })
 }
 
+export async function fetchGlobalAgentRoom(): Promise<AgentWorkspace> {
+  return gfetch<AgentWorkspace>('/agent-room/global')
+}
+
+export async function fetchGlobalAgentMessages(limit = 100): Promise<AgentWorkspaceMessage[]> {
+  const json = await gfetch<{ messages?: AgentWorkspaceMessage[] }>(`/agent-room/global/messages?limit=${limit}`)
+  if (!Array.isArray(json.messages)) {
+    throw new Error('Gateway global-room messages returned an invalid payload: expected a messages array')
+  }
+  return json.messages
+}
+
+export async function fetchGlobalAgentInbox(
+  unreadOnly = false,
+  limit = 100,
+): Promise<AgentRoomInboxMessage[]> {
+  const json = await gfetch<{ messages?: AgentRoomInboxMessage[] }>(
+    `/agent-room/global/inbox/jacob?unread_only=${unreadOnly}&limit=${limit}`,
+  )
+  if (!Array.isArray(json.messages)) {
+    throw new Error('Gateway global-room inbox returned an invalid payload: expected a messages array')
+  }
+  return json.messages
+}
+
+export async function fetchGlobalAgentThread(
+  messageId: string,
+  limit = 100,
+): Promise<AgentWorkspaceMessage[]> {
+  const json = await gfetch<{ messages?: AgentWorkspaceMessage[] }>(
+    `/agent-room/global/threads/${encodeURIComponent(messageId)}?limit=${limit}`,
+  )
+  if (!Array.isArray(json.messages)) {
+    throw new Error('Gateway global-room thread returned an invalid payload: expected a messages array')
+  }
+  return json.messages
+}
+
+export async function postGlobalAgentMessage(input: GlobalAgentMessageInput): Promise<AgentWorkspaceMessage> {
+  return gfetch<AgentWorkspaceMessage>('/agent-room/global/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sender_id: 'jacob',
+      recipient_id: input.recipientId,
+      content: input.content,
+      message_kind: input.messageKind,
+      parent_message_id: input.parentMessageId ?? null,
+    }),
+  })
+}
+
+export async function updateGlobalAgentReceipt(
+  messageId: string,
+  state: Exclude<AgentRoomReceiptState, 'sent'>,
+): Promise<AgentRoomReceipt> {
+  return gfetch<AgentRoomReceipt>(`/agent-room/global/messages/${encodeURIComponent(messageId)}/receipts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ participant_id: 'jacob', state }),
+  })
+}
+
 // ── Todos ────────────────────────────────────────────────────────────────────
 
 export interface GatewayTodo {
@@ -963,6 +1087,30 @@ export async function addGatewayMonitor(url: string, label: string): Promise<str
 
 export async function removeGatewayMonitor(watchId: string): Promise<void> {
   await gfetch(`/monitor/${watchId}`, { method: 'DELETE' })
+}
+
+export async function fetchActivity(limit = 40): Promise<GatewayActivityProjection> {
+  return await gfetch<GatewayActivityProjection>(`/activity?limit=${limit}`)
+}
+
+export async function fetchCapabilities(): Promise<GatewayCapabilitiesPayload> {
+  try {
+    const json = await gfetch<{ capabilities?: GatewayCapability[] }>('/capabilities')
+    if (!Array.isArray(json.capabilities)) {
+      throw new Error('Gateway /capabilities returned an invalid payload')
+    }
+    const capabilities = json.capabilities.filter((item) => (
+      item
+      && typeof item.id === 'string'
+      && typeof item.label === 'string'
+      && typeof item.description === 'string'
+      && typeof item.category === 'string'
+      && (item.launch === 'view' || item.launch === 'skill')
+    ))
+    return { capabilities, fromLiveGateway: true, error: null }
+  } catch (err) {
+    return { capabilities: [], fromLiveGateway: false, error: describeFetchError(err, null) }
+  }
 }
 
 export async function fetchGatewaySearch(
@@ -1171,6 +1319,27 @@ export async function updateCronSchedule(
 
 export async function toggleCronSchedule(id: string): Promise<void> {
   await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
+}
+
+export interface GatewayAutomationRun {
+  id: string
+  automation_id: string
+  action: string
+  trigger_kind: string
+  trigger_ref?: string | null
+  schedule_id?: string | null
+  started_at: number
+  completed_at?: number | null
+  status: string
+  duration_ms?: number | null
+  result_pointer?: string | null
+  error?: string | null
+}
+
+export async function fetchAutomationRun(runId: string): Promise<GatewayAutomationRun> {
+  const json = await gfetch<{ run?: GatewayAutomationRun }>(`/automations/runs/${encodeURIComponent(runId)}`)
+  if (!json.run) throw new Error(`gateway returned no automation run ${runId}`)
+  return json.run
 }
 
 export interface AutomationRetryResult {
@@ -1552,6 +1721,40 @@ export interface GatewayProjectResume {
   deadlines: GatewayProjectSection<GatewayProjectDeadline>
 }
 
+export function artifactContentUrl(artifactId: string): string {
+  return `${GATEWAY_BASE}/artifacts/${encodeURIComponent(artifactId)}/content`
+}
+
+export async function fetchArtifactText(artifactId: string, signal?: AbortSignal): Promise<string> {
+  const controller = new AbortController()
+  const abortFromCaller = () => controller.abort()
+  if (signal?.aborted) controller.abort()
+  else signal?.addEventListener('abort', abortFromCaller, { once: true })
+  const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+  try {
+    const response = await fetch(artifactContentUrl(artifactId), { signal: controller.signal })
+    if (!response.ok) {
+      let detail: unknown
+      try {
+        const body: unknown = await response.json()
+        detail = body && typeof body === 'object' ? (body as { detail?: unknown }).detail : null
+      } catch {
+        detail = null
+      }
+      if (typeof detail === 'string' && detail.trim()) {
+        const rejection = new Error(detail.slice(0, 300))
+        rejection.name = 'ArtifactPreviewRejection'
+        throw rejection
+      }
+      throw new Error(`Gateway returned ${response.status} ${response.statusText}`.trim())
+    }
+    return await response.text()
+  } finally {
+    window.clearTimeout(timeoutId)
+    signal?.removeEventListener('abort', abortFromCaller)
+  }
+}
+
 export interface GatewayArtifact {
   id: string
   project_id: number | null
@@ -1738,6 +1941,10 @@ export interface DeadlineSweepReport {
   top: GatewayDeadline | null
   blind_spots: string[]
   generated_at: string
+  escalated: number
+  escalation_failed: number
+  delivery_status: 'delivered' | 'partial' | 'source_unavailable' | 'nothing_due' | 'not_requested'
+  delivery_message: string
 }
 
 /** The sweep scans documents + mail via the LLM server-side — give it room. */

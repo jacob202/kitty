@@ -64,6 +64,38 @@ describe('LibraryView artifact truth', () => {
     cleanup()
   })
 
+  it('opens a Markdown artifact in a reusable canvas and closes it', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/proxy/artifacts/artifact_md/content')) {
+        return new Response('# Build plan\n\nShip the canvas.', {
+          status: 200,
+          headers: { 'Content-Type': 'text/markdown' },
+        })
+      }
+      if (url.includes('/proxy/artifacts')) {
+        return new Response(JSON.stringify({
+          artifacts: [{
+            id: 'artifact_md', project_id: 7, kind: 'document', media_type: 'text/markdown',
+            display_name: 'build-plan.md', state: 'ready', size_bytes: 128, created_at: 1787259000,
+            created_by: 'research', conversation_id: 'chat-1', metadata: {}, error: null,
+          }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('not found', { status: 404 })
+    }))
+
+    renderLibrary()
+
+    fireEvent.click(await screen.findByRole('button', { name: /open build-plan\.md/i }))
+    const canvas = await screen.findByRole('dialog', { name: /build-plan\.md/i })
+    expect(within(canvas).getByRole('heading', { name: 'Build plan' })).toBeVisible()
+    expect(within(canvas).getByText('Ship the canvas.')).toBeVisible()
+
+    fireEvent.click(within(canvas).getByRole('button', { name: /close artifact/i }))
+    expect(screen.queryByRole('dialog', { name: /build-plan\.md/i })).not.toBeInTheDocument()
+  })
+
   it('shows canonical artifacts even when the knowledge index is degraded', async () => {
     renderLibrary()
 
@@ -169,6 +201,32 @@ describe('LibraryView artifact truth', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('That saved file is missing from disk.')
     expect(setAttachments).not.toHaveBeenCalled()
     expect(setActiveView).not.toHaveBeenCalled()
+  })
+
+
+  it('surfaces a use-in-chat rejection inside an open canvas', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/proxy/artifacts')) {
+        return new Response(JSON.stringify({ artifacts: [{
+          id: 'artifact_gone', project_id: 7, kind: 'capture', media_type: 'image/png',
+          display_name: 'camera-reference.png', state: 'ready', size_bytes: 2048,
+          created_at: 1787259000, created_by: 'capture', conversation_id: 'chat-1',
+          metadata: {}, error: null,
+        }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.includes('/proxy/chats/use-in-chat')) {
+        return new Response(JSON.stringify({ detail: 'That saved file is missing from disk.' }), { status: 409, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('not found', { status: 404 })
+    }))
+
+    renderLibrary()
+    fireEvent.click(await screen.findByRole('button', { name: /open camera-reference\.png/i }))
+    const canvas = await screen.findByRole('dialog', { name: /camera-reference\.png/i })
+    fireEvent.click(within(canvas).getByRole('button', { name: /use in chat/i }))
+
+    expect(await within(canvas).findByRole('alert')).toHaveTextContent('That saved file is missing from disk.')
   })
 
   it('translates a use-in-chat failure that carries no reason', async () => {

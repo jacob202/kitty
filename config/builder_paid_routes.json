@@ -5,7 +5,7 @@
     "cheap": {
       "provider": "openrouter",
       "worker_model": "openrouter/xiaomi/mimo-v2.5",
-      "reviewer_model": "openrouter/minimax/minimax-m3",
+      "reviewer_model": "openrouter/deepseek/deepseek-v4-flash",
       "governor_route": "cheap",
       "max_projected_cad_per_attempt": 0.10
     },

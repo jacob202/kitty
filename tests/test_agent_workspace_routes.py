@@ -64,3 +64,93 @@ def test_workspace_routes_reject_missing_room(client):
     response = client.get("/agent-workspaces/workspace_missing")
 
     assert response.status_code == 404
+
+
+def test_global_room_routes_ensure_and_share_one_stable_room(client):
+    first = client.post("/agent-room/global/ensure")
+    second = client.get("/agent-room/global")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["id"] == second.json()["id"] == "workspace_global"
+    assert [agent["id"] for agent in first.json()["agents"]] == [
+        "chatgpt", "claude", "codex", "kitty"
+    ]
+
+
+def test_global_room_post_recent_and_inbox_are_one_durable_truth(client):
+    posted = client.post(
+        "/agent-room/global/messages",
+        json={
+            "sender_id": "chatgpt",
+            "recipient_id": "claude",
+            "message_kind": "handoff",
+            "content": "Review the room protocol.",
+        },
+    )
+    assert posted.status_code == 201
+    message_id = posted.json()["id"]
+
+    recent = client.get("/agent-room/global/messages?limit=10")
+    inbox = client.get("/agent-room/global/inbox/claude?unread_only=true&limit=10")
+    inbox_again = client.get("/agent-room/global/inbox/claude?unread_only=true&limit=10")
+
+    assert [item["id"] for item in recent.json()["messages"]] == [message_id]
+    assert [item["id"] for item in inbox.json()["messages"]] == [message_id]
+    assert inbox_again.json() == inbox.json()
+
+def test_global_room_receipt_route_changes_unread_state_explicitly(client):
+    posted = client.post(
+        "/agent-room/global/messages",
+        json={"sender_id": "chatgpt", "recipient_id": "claude",
+              "message_kind": "status", "content": "Please acknowledge."},
+    )
+    message_id = posted.json()["id"]
+
+    seen = client.post(
+        f"/agent-room/global/messages/{message_id}/receipts",
+        json={"participant_id": "claude", "state": "seen"},
+    )
+    assert seen.status_code == 200
+    assert seen.json()["seen_at"] is not None
+    assert seen.json()["acknowledged_at"] is None
+    assert client.get("/agent-room/global/inbox/claude?unread_only=true").json() == {
+        "messages": []
+    }
+
+    acknowledged = client.post(
+        f"/agent-room/global/messages/{message_id}/receipts",
+        json={"participant_id": "claude", "state": "acknowledged"},
+    )
+    assert acknowledged.status_code == 200
+    assert acknowledged.json()["seen_at"] == seen.json()["seen_at"]
+    assert acknowledged.json()["acknowledged_at"] is not None
+
+
+def test_global_room_thread_and_invalid_recipient_routes(client):
+    root = client.post(
+        "/agent-room/global/messages",
+        json={"sender_id": "chatgpt", "message_kind": "prompt", "content": "Root"},
+    ).json()
+    reply = client.post(
+        "/agent-room/global/messages",
+        json={
+            "sender_id": "claude", "recipient_id": "chatgpt",
+            "message_kind": "review", "content": "Reply",
+            "parent_message_id": root["id"],
+        },
+    ).json()
+
+    thread = client.get(f"/agent-room/global/threads/{reply['id']}")
+    assert thread.status_code == 200
+    assert [item["id"] for item in thread.json()["messages"]] == [root["id"], reply["id"]]
+
+    invalid = client.post(
+        "/agent-room/global/messages",
+        json={
+            "sender_id": "chatgpt", "recipient_id": "imaginary",
+            "message_kind": "status", "content": "Nope",
+        },
+    )
+    assert invalid.status_code == 400
+    assert "participant" in invalid.json()["detail"]

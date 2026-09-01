@@ -16,6 +16,7 @@ vi.mock('../src/lib/gateway', async () => {
     deleteCronSchedule: vi.fn(),
     toggleCronSchedule: vi.fn(),
     fetchScheduleWhy: vi.fn(),
+    fetchAutomationRun: vi.fn(),
     retryAutomationRun: vi.fn(),
   }
 })
@@ -70,6 +71,26 @@ describe('CronPanel', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+  })
+
+  it('renders and retries the exact Activity-selected durable run', async () => {
+    vi.mocked(gateway.fetchAutomationRun).mockResolvedValue({
+      id: 'arun_old_failure', automation_id: 'daily:old', action: 'brief.send',
+      trigger_kind: 'time', started_at: 10, completed_at: 11, status: 'failed',
+      duration_ms: 1000, error: 'provider unavailable', result_pointer: null,
+    })
+    vi.mocked(gateway.retryAutomationRun).mockResolvedValue({
+      run: { id: 'arun_retry', status: 'completed' }, retried_from: 'arun_old_failure',
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    renderWithQueryClient(<CronPanel variant="full" selectedRunId="arun_old_failure" />)
+
+    expect(await screen.findByTestId('selected-automation-run')).toHaveTextContent('brief.send')
+    expect(screen.getByTestId('selected-automation-run')).toHaveTextContent('arun_old_failure')
+    expect(screen.getByTestId('selected-automation-run')).toHaveTextContent('provider unavailable')
+    fireEvent.click(screen.getByRole('button', { name: /retry selected failed run/i }))
+    await waitFor(() => expect(gateway.retryAutomationRun).toHaveBeenCalledWith('arun_old_failure'))
   })
 
   it('renders schedules and active count', async () => {
