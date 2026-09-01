@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { describeFailure } from '@/lib/failure-copy'
 import {
   fetchGlobalAgentInbox,
   fetchGlobalAgentMessages,
@@ -291,7 +292,7 @@ function truncate(value: string, max: number): string {
 }
 
 function errorMessage(err: unknown, fallback: string): string {
-  return err instanceof Error && err.message ? err.message : fallback
+  return `${fallback}. ${describeFailure(err)}`
 }
 
 const shellStyle: CSSProperties = { flex: 1, minWidth: 0, width: '100%', boxSizing: 'border-box', padding: 'clamp(16px, 3vw, 32px)', display: 'grid', alignContent: 'start', gap: 16, overflowX: 'hidden' }

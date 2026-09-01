@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { REDIRECTS, getView } from '../src/lib/views'
+import { AgentWorkspacePanel } from '../src/components/AgentWorkspacePanel'
+import { REDIRECTS, VIEWS, getView } from '../src/lib/views'
+
+describe('view registry', () => {
+  it('maps Agents to the real Global Agent Room panel', () => {
+    expect(VIEWS.agents.component).toBe(AgentWorkspacePanel)
+  })
+
+  it('preserves the Research registry entry from PR #735', () => {
+    expect(getView('research')?.title).toBe('Research')
+  })
+})
 
 describe('view redirects', () => {
   it('redirects ordinary Builder navigation to Work', () => {

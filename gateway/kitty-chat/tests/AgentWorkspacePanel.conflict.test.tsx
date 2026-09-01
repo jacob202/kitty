@@ -28,7 +28,8 @@ it('preserves draft and reply context when a post is rejected', async () => {
   fireEvent.change(composer, { target: { value: 'Still working on it.' } })
   fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
-  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Gateway returned 409 Conflict'))
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Could not send the message. Kitty couldn't complete that request."))
+  expect(screen.queryByText(/Gateway returned/i)).not.toBeInTheDocument()
   expect(composer).toHaveValue('Still working on it.')
   expect(screen.getByText('Replying to Codex')).toBeInTheDocument()
 })

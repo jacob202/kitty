@@ -27,7 +27,8 @@ it('keeps the last transcript visible across a transient polling failure and ret
 
   await act(async () => { vi.advanceTimersByTime(3_000); await Promise.resolve(); await Promise.resolve() })
   expect(screen.getByText('Durable transcript.')).toBeInTheDocument()
-  expect(screen.getByRole('alert')).toHaveTextContent('temporary gateway disconnect')
+  expect(screen.getByRole('alert')).toHaveTextContent('Could not refresh the Global Agent Room. Something went wrong.')
+  expect(screen.queryByText('temporary gateway disconnect')).not.toBeInTheDocument()
 
   await act(async () => { vi.advanceTimersByTime(3_000); await Promise.resolve(); await Promise.resolve() })
   expect(fetchGlobalAgentMessages).toHaveBeenCalledTimes(3)
