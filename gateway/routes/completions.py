@@ -67,9 +67,9 @@ def _durable_chat_object_system(
     re-read ActionQueue/ArtifactStore before showing state or controls.
     """
     source_ids = {value for value in (conversation_id, user_message_id) if value}
+    # Project ids are the authoritative scope key. Names are not unique and
+    # must never make another same-named project's actions visible here.
     project_scope_ids = {str(project_id)} if project_id is not None else set()
-    if project_name:
-        project_scope_ids.add(project_name)
 
     actions = action_queue.list_actions_scoped(
         source_ids=source_ids,

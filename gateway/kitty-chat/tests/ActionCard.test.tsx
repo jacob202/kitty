@@ -14,6 +14,9 @@ vi.mock('../src/lib/queries', () => ({
 const approve = vi.fn()
 const reject = vi.fn()
 const execute = vi.fn()
+const approveReset = vi.fn()
+const rejectReset = vi.fn()
+const executeReset = vi.fn()
 
 function action(status = 'proposed') {
   return {
@@ -39,9 +42,12 @@ describe('ActionCard', () => {
     approve.mockReset()
     reject.mockReset()
     execute.mockReset()
-    vi.mocked(useApproveAction).mockReturnValue({ mutate: approve, isPending: false, isError: false, error: null } as never)
-    vi.mocked(useRejectAction).mockReturnValue({ mutate: reject, isPending: false, isError: false, error: null } as never)
-    vi.mocked(useExecuteAction).mockReturnValue({ mutate: execute, isPending: false, isError: false, error: null } as never)
+    approveReset.mockReset()
+    rejectReset.mockReset()
+    executeReset.mockReset()
+    vi.mocked(useApproveAction).mockReturnValue({ mutate: approve, reset: approveReset, isPending: false, isError: false, error: null } as never)
+    vi.mocked(useRejectAction).mockReturnValue({ mutate: reject, reset: rejectReset, isPending: false, isError: false, error: null } as never)
+    vi.mocked(useExecuteAction).mockReturnValue({ mutate: execute, reset: executeReset, isPending: false, isError: false, error: null } as never)
   })
 
   afterEach(cleanup)
@@ -138,12 +144,37 @@ describe('ActionCard', () => {
   it('surfaces failed action mutations instead of making a click look ignored', () => {
     vi.mocked(useAction).mockReturnValue({ data: action(), isLoading: false, isError: false } as never)
     vi.mocked(useApproveAction).mockReturnValue({
-      mutate: approve, isPending: false, isError: true, error: new Error('Gateway returned 409 Conflict'),
+      mutate: approve, reset: approveReset, isPending: false, isError: true, error: new Error('Gateway returned 409 Conflict'),
     } as never)
     render(<ActionCard actionId={42} />)
 
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent(/couldn|went wrong|conflict/i)
+  })
+
+  it('hides Run while an allowed action is already executing', () => {
+    vi.mocked(useAction).mockReturnValue({
+      data: { ...action('executing'), execution_decision: { outcome: 'allow', basis: 'baseline_tier' } },
+      isLoading: false, isError: false,
+    } as never)
+    render(<ActionCard actionId={42} />)
+
+    expect(screen.getByText('Running…')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run approved action' })).not.toBeInTheDocument()
+  })
+
+  it('clears stale mutation errors before a different valid operation', () => {
+    vi.mocked(useAction).mockReturnValue({ data: action(), isLoading: false, isError: false } as never)
+    vi.mocked(useExecuteAction).mockReturnValue({
+      mutate: execute, reset: executeReset, isPending: false, isError: true, error: new Error('stale run failure'),
+    } as never)
+    render(<ActionCard actionId={42} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve action' }))
+    expect(approveReset).toHaveBeenCalled()
+    expect(rejectReset).toHaveBeenCalled()
+    expect(executeReset).toHaveBeenCalled()
+    expect(approve).toHaveBeenCalledWith(42)
   })
 
   it('treats restart-reconciled unknown outcomes as terminal and unsafe', () => {

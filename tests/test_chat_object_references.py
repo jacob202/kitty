@@ -50,7 +50,7 @@ def test_durable_chat_object_prompt_lists_only_scoped_real_ids(monkeypatch):
     assert '"action_id":42' in block
     assert "Schedule dentist" in block
     assert scope["source_ids"] == {"chat-1", "message-7"}
-    assert scope["project_scope_ids"] == {"7", "kitty"}
+    assert scope["project_scope_ids"] == {"7"}
     assert scope["limit"] == completions_route._DURABLE_CHAT_OBJECT_LIMIT
     assert "kitty-artifact" in block
     assert '"artifact_id":"artifact_report"' in block

@@ -24,14 +24,20 @@ export function ActionCard({ actionId }: { actionId: number }) {
   const canApprove = item.status === 'proposed' && (
     executionOutcome === 'ask' || (executionOutcome === undefined && effectiveTier === 'T2')
   )
-  const canRun = effectiveTier !== null && (
+  const executableStatus = item.status === 'proposed' || item.status === 'approved'
+  const canRun = effectiveTier !== null && executableStatus && (
     executionOutcome !== undefined
       ? executionOutcome === 'allow'
       : item.status === 'approved' || (item.status === 'proposed' && (effectiveTier === 'T0' || effectiveTier === 'T1'))
   )
   const canReject = item.status === 'proposed'
   const terminal = ['executed', 'failed', 'rejected', 'unknown'].includes(item.status)
-  const mutationError = approve.error ?? reject.error ?? execute.error
+  const mutationError = terminal ? null : approve.error ?? reject.error ?? execute.error
+  const resetMutationErrors = () => {
+    approve.reset()
+    reject.reset()
+    execute.reset()
+  }
 
   return (
     <section aria-label={`Action: ${item.title}`} style={cardStyle}>
@@ -59,17 +65,17 @@ export function ActionCard({ actionId }: { actionId: number }) {
       {!terminal && (canApprove || canRun || canReject) && (
         <div style={actionsStyle}>
           {canApprove && (
-            <button aria-label="Approve action" disabled={busy} onClick={() => approve.mutate(item.id)} style={primaryButtonStyle}>
+            <button aria-label="Approve action" disabled={busy} onClick={() => { resetMutationErrors(); approve.mutate(item.id) }} style={primaryButtonStyle}>
               <Check size={14} /> Approve
             </button>
           )}
           {canRun && (
-            <button aria-label="Run approved action" disabled={busy} onClick={() => execute.mutate(item.id)} style={primaryButtonStyle}>
+            <button aria-label="Run approved action" disabled={busy} onClick={() => { resetMutationErrors(); execute.mutate(item.id) }} style={primaryButtonStyle}>
               <Play size={14} /> Run
             </button>
           )}
           {canReject && (
-            <button aria-label="Reject action" disabled={busy} onClick={() => reject.mutate(item.id)} style={secondaryButtonStyle}>
+            <button aria-label="Reject action" disabled={busy} onClick={() => { resetMutationErrors(); reject.mutate(item.id) }} style={secondaryButtonStyle}>
               <X size={14} /> Reject
             </button>
           )}
