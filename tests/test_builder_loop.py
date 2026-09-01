@@ -169,7 +169,7 @@ def _open_attempts(db_path: Path | None = None) -> list[dict]:
 
 def _approve_reviewer(tmp_path: Path) -> list[str]:
     # Enforce the same required-env contract as
-    # scripts/kittybuilder_opencode_reviewer.sh so a wiring regression in
+    # scripts/kittybuilder_dsh_reviewer.sh so a wiring regression in
     # _run_review_command's env_extra fails loudly in every reviewer test.
     return _script(
         tmp_path,
@@ -1516,7 +1516,7 @@ class TestRecoveryBudget:
         monkeypatch.setenv("OPENROUTER_API_KEY", "sentinel-openrouter")
         monkeypatch.setenv("GITHUB_TOKEN", "must-not-propagate")
 
-        _route, _worker, env = bl._configure_paid_route("cheap", "opencode-paid-cheap", {})
+        _route, _worker, env = bl._configure_paid_route("cheap", "dsh-paid-cheap", {})
 
         assert env["OPENROUTER_API_KEY"] == "sentinel-openrouter"
         assert "GITHUB_TOKEN" not in env

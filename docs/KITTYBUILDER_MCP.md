@@ -302,6 +302,6 @@ CLI surface (via `./kitty builder supervisor` or the start script):
 - `tick` — run one supervisor pass
 - `status` — read-only projection of initiatives/eligible work/active runs
 
-The supervisor dispatches only the free OpenCode worker adapter. It has no
+The supervisor dispatches the governed Builder packet loop through the DSH worker adapter. It has no
 model selection, no paid routing, no interactive mode. Publication and merge
 remain manual operations outside the supervisor's scope.

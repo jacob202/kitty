@@ -325,7 +325,7 @@ def _review_chunk(chunk: str) -> str | None:
             )
         except (subprocess.TimeoutExpired, OSError) as exc:
             print(
-                f"OpenCode reviewer {review_model} infrastructure error: "
+                f"DSH reviewer {review_model} infrastructure error: "
                 f"{type(exc).__name__}: {exc}",
                 file=sys.stderr,
             )
@@ -335,7 +335,7 @@ def _review_chunk(chunk: str) -> str | None:
                 return verdict
             detail = (result.stderr or result.stdout).strip()[:300]
             print(
-                f"OpenCode reviewer {review_model} failed (exit {result.returncode})"
+                f"DSH reviewer {review_model} failed (exit {result.returncode})"
                 + (f": {detail}" if detail else ""),
                 file=sys.stderr,
             )

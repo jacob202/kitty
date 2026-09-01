@@ -61,11 +61,11 @@ SUPERVISOR_START_INTERVAL = 900  # seconds between ticks; no KeepAlive
 GITHUB_PR_SNAPSHOT_LIMIT = 1000
 LOGIN_SAFE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-# The canonical run is the free OpenCode worker adapter; it is the only
+# The canonical run is the free DSH worker adapter; it is the only
 # executable the supervisor may dispatch. The env mirrors the free route's
 # adapter env (see builder_cli._free_adapter_env) without importing the CLI.
-_FREE_ADAPTER_SCRIPT = "scripts/kittybuilder_opencode_worker.sh"
-_FREE_REVIEWER_SCRIPT = "scripts/kittybuilder_opencode_reviewer.sh"
+_FREE_ADAPTER_SCRIPT = "scripts/kittybuilder_dsh_worker.sh"
+_FREE_REVIEWER_SCRIPT = "scripts/kittybuilder_dsh_reviewer.sh"
 
 
 class SupervisorError(RuntimeError):
@@ -262,7 +262,7 @@ def canonical_reviewer_command(repo_root: Path | None = None) -> list[str]:
 
 
 def canonical_adapter_env(model: str | None = None) -> dict[str, str]:
-    """Child-only adapter env for the canonical free OpenCode worker."""
+    """Child-only adapter env for the canonical free DSH worker."""
     return {
         "KITTYBUILDER_AGENT": "free-builder",
         "KITTYBUILDER_REVIEW_AGENT": "free-reviewer",

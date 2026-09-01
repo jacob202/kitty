@@ -1335,13 +1335,13 @@ class TestInitiativeFreePreset:
         kwargs = mock_rp.call_args.kwargs
         assert kwargs["worker_command"][0] == "bash"
         assert kwargs["worker_command"][1].endswith(
-            "scripts/kittybuilder_opencode_worker.sh"
+            "scripts/kittybuilder_dsh_worker.sh"
         )
         assert kwargs["review_command"][0] == "bash"
         assert kwargs["review_command"][1].endswith(
-            "scripts/kittybuilder_opencode_reviewer.sh"
+            "scripts/kittybuilder_dsh_reviewer.sh"
         )
-        assert kwargs["worker"] == "opencode-free"
+        assert kwargs["worker"] == "dsh-free"
 
     def test_run_packet_rejects_free_plus_explicit_worker_command(self, capsys):
         rc = main([
@@ -1365,12 +1365,12 @@ class TestInitiativeFreePreset:
         ) as mock_rp:
             rc = main([
                 "initiative", "run-packet", "init-1", "p1",
-                "--free", "--model", "opencode/mimo-v2.5-free", "--json",
+                "--free", "--model", "openrouter/poolside/laguna-xs-2.1:free", "--json",
             ])
 
         assert rc == 0
         assert mock_rp.call_args.kwargs["adapter_env"]["KITTYBUILDER_MODEL"] == (
-            "opencode/mimo-v2.5-free"
+            "openrouter/poolside/laguna-xs-2.1:free"
         )
         assert os.environ["KITTYBUILDER_MODEL"] == "sentinel"
 
@@ -1383,12 +1383,12 @@ class TestInitiativeFreePreset:
         assert rc == 0
         kwargs = mock_run.call_args.kwargs
         assert kwargs["worker_command"][1].endswith(
-            "scripts/kittybuilder_opencode_worker.sh"
+            "scripts/kittybuilder_dsh_worker.sh"
         )
         assert kwargs["review_command"][1].endswith(
-            "scripts/kittybuilder_opencode_reviewer.sh"
+            "scripts/kittybuilder_dsh_reviewer.sh"
         )
-        assert kwargs["worker"] == "opencode-free"
+        assert kwargs["worker"] == "dsh-free"
 
 
 class TestInitiativeRunExitContract:
@@ -1786,7 +1786,7 @@ class TestInitiativePaidPreset:
 
         assert rc == 0
         kwargs = mock_rp.call_args.kwargs
-        assert kwargs["worker"] == "opencode-paid-cheap"
+        assert kwargs["worker"] == "dsh-paid-cheap"
         assert kwargs["model"] == "openrouter/deepseek/deepseek-v4-flash"
         assert kwargs["provider"] == "openrouter"
         assert kwargs["governor_risk_class"] == "routine"
@@ -1809,7 +1809,7 @@ class TestInitiativePaidPreset:
 
         assert rc == 0
         kwargs = mock_rp.call_args.kwargs
-        assert kwargs["worker"] == "opencode-paid-frontier"
+        assert kwargs["worker"] == "dsh-paid-frontier"
         assert kwargs["model"] == "openrouter/deepseek/deepseek-v4-pro"
         assert kwargs["provider"] == "openrouter"
         assert kwargs["governor_risk_class"] == "risky"
@@ -1827,6 +1827,18 @@ class TestInitiativePaidPreset:
 
         assert rc == 1
         assert "--paid" in capsys.readouterr().err
+
+
+def test_free_preset_rejects_an_opencode_only_model_alias(capsys):
+    with patch("gateway.builder_loop.run_packet") as mock_run:
+        rc = main([
+            "initiative", "run-packet", "init-1", "p1",
+            "--free", "--model", "opencode/mimo-v2.5-free",
+        ])
+
+    assert rc == 1
+    assert "free model" in capsys.readouterr().err.lower()
+    mock_run.assert_not_called()
 
 
 def test_free_preset_rejects_a_paid_model_override(capsys):

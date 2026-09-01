@@ -756,8 +756,8 @@ def _configure_paid_route(
             "KITTYBUILDER_REVIEW_MODELS": " ".join(route.reviewer_candidates),
         }
     )
-    if worker.startswith("opencode-paid-"):
-        worker = f"opencode-paid-{route.tier}"
+    if worker.startswith("dsh-paid-"):
+        worker = f"dsh-paid-{route.tier}"
     return route, worker, env
 
 

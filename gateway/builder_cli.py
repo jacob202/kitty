@@ -63,13 +63,13 @@ def _parse_json_object(value: str | None) -> dict[str, Any] | None:
 
 
 _FREE_ADAPTER_SCRIPTS = (
-    "scripts/kittybuilder_opencode_worker.sh",
-    "scripts/kittybuilder_opencode_reviewer.sh",
+    "scripts/kittybuilder_dsh_worker.sh",
+    "scripts/kittybuilder_dsh_reviewer.sh",
 )
 
 
 def _free_adapter_commands() -> tuple[list[str], list[str]]:
-    """Resolve the free OpenCode adapter scripts in this checkout."""
+    """Resolve the free DSH adapter scripts in this checkout."""
     root = Path(__file__).resolve().parents[1]
     commands: list[list[str]] = []
     for rel in _FREE_ADAPTER_SCRIPTS:
@@ -104,8 +104,8 @@ def _paid_adapter_env(route: Any) -> dict[str, str]:
 
 
 def _is_explicit_free_model(model: str) -> bool:
-    return model == "openrouter/free" or model.endswith(":free") or (
-        model.startswith("opencode/") and model.endswith("-free")
+    return model == "openrouter/free" or (
+        model.startswith("openrouter/") and model.endswith(":free")
     )
 
 
@@ -131,7 +131,7 @@ def _resolve_loop_commands(
     if args.free:
         if args.worker_command or args.review_command:
             raise ValueError(
-                "--free already selects the OpenCode adapter scripts; "
+                "--free already selects the DSH adapter scripts; "
                 "drop --worker-command/--review-command or drop --free"
             )
         if args.model and not _is_explicit_free_model(args.model):
@@ -1483,9 +1483,9 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
         return 1
     worker = args.worker
     if args.free and worker == "packet-loop":
-        worker = "opencode-free"
+        worker = "dsh-free"
     elif paid_route is not None and worker == "packet-loop":
-        worker = f"opencode-paid-{paid_route.tier}"
+        worker = f"dsh-paid-{paid_route.tier}"
     selected_model = paid_route.worker_model if paid_route is not None else args.model
     selected_provider = paid_route.provider if paid_route is not None else args.provider
     governor_risk_class = (
@@ -1554,9 +1554,9 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
         return 1
     worker = args.worker
     if args.free and worker == "packet-loop":
-        worker = "opencode-free"
+        worker = "dsh-free"
     elif paid_route is not None and worker == "packet-loop":
-        worker = f"opencode-paid-{paid_route.tier}"
+        worker = f"dsh-paid-{paid_route.tier}"
     selected_model = paid_route.worker_model if paid_route is not None else args.model
     selected_provider = paid_route.provider if paid_route is not None else args.provider
     governor_risk_class = (
@@ -2075,7 +2075,7 @@ COMMANDS: list[CommandSpec] = [
                 _cmd_initiative_run_packet,
                 [_a("id", "initiative ID"),
                  _a("packet", "packet ID"),
-                 _a("--free", "use the free OpenCode adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
+                 _a("--free", "use the free DSH adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
                  _a("--paid", "use the governed paid OpenRouter worker/reviewer route", action="store_true"),
                  _a("--tier", "with --paid: value tier (cheap default) or explicit frontier escalation", choices=["cheap", "frontier"], default="cheap"),
                  _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
@@ -2106,7 +2106,7 @@ COMMANDS: list[CommandSpec] = [
                 "implement/validate/review (S3b) then operator-gated publish (S4b)",
                 _cmd_initiative_run,
                 [_a("id", "initiative ID"),
-                 _a("--free", "use the free OpenCode adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
+                 _a("--free", "use the free DSH adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
                  _a("--paid", "use the governed paid OpenRouter worker/reviewer route", action="store_true"),
                  _a("--tier", "with --paid: value tier (cheap default) or explicit frontier escalation", choices=["cheap", "frontier"], default="cheap"),
                  _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
