@@ -249,7 +249,7 @@ def _init_git_repo(tmp_path: Path) -> Path:
 
 
 class TestBaseSHAResolution:
-    def test_prefers_local_main_when_it_is_ahead_of_origin_main(self, tmp_path: Path):
+    def test_prefers_origin_main_when_local_main_is_ahead(self, tmp_path: Path):
         repo = _init_git_repo(tmp_path)
         subprocess.run(["git", "checkout", "-q", "-b", "main"], cwd=repo, check=True)
         (repo / "base.txt").write_text("base\n")
@@ -264,7 +264,97 @@ class TestBaseSHAResolution:
         local_sha = subprocess.run(["git", "rev-parse", "main"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
 
         assert local_sha != remote_sha
-        assert bi.resolve_base_sha(repo) == local_sha
+        assert bi.resolve_base_sha(repo) == remote_sha
+
+
+    def test_prefers_origin_main_when_local_main_is_behind(self, tmp_path: Path):
+        repo = _init_git_repo(tmp_path)
+        subprocess.run(["git", "checkout", "-q", "-b", "main"], cwd=repo, check=True)
+        (repo / "base.txt").write_text("base\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=repo, check=True)
+        local_sha = subprocess.run(
+            ["git", "rev-parse", "main"], cwd=repo, capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+        subprocess.run(["git", "checkout", "-q", "-b", "remote-tip"], cwd=repo, check=True)
+        (repo / "remote.txt").write_text("remote ahead\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "remote ahead"], cwd=repo, check=True)
+        remote_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+        ).stdout.strip()
+        subprocess.run(
+            ["git", "update-ref", "refs/remotes/origin/main", remote_sha], cwd=repo, check=True
+        )
+        subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
+
+        assert local_sha != remote_sha
+        assert bi.resolve_base_sha(repo) == remote_sha
+
+    def test_refreshes_configured_origin_before_resolving(self, tmp_path: Path):
+        remote = tmp_path / "remote.git"
+        repo = tmp_path / "repo"
+        other = tmp_path / "other"
+        remote.mkdir()
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", "--bare"], cwd=remote, check=True)
+        _init_git_repo(repo)
+        subprocess.run(["git", "checkout", "-q", "-b", "main"], cwd=repo, check=True)
+        (repo / "base.txt").write_text("base\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=repo, check=True)
+        subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=repo, check=True)
+        subprocess.run(["git", "push", "-q", "-u", "origin", "main"], cwd=repo, check=True)
+        subprocess.run(["git", "symbolic-ref", "HEAD", "refs/heads/main"], cwd=remote, check=True)
+        stale_sha = subprocess.run(
+            ["git", "rev-parse", "origin/main"], cwd=repo, capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+        subprocess.run(["git", "clone", "-q", str(remote), str(other)], check=True)
+        subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=other, check=True)
+        subprocess.run(["git", "config", "user.name", "t"], cwd=other, check=True)
+        (other / "remote.txt").write_text("fresh remote\n")
+        subprocess.run(["git", "add", "."], cwd=other, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "fresh remote"], cwd=other, check=True)
+        subprocess.run(["git", "push", "-q", "origin", "main"], cwd=other, check=True)
+        fresh_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=other, capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+        assert stale_sha != fresh_sha
+        assert subprocess.run(
+            ["git", "rev-parse", "origin/main"], cwd=repo, capture_output=True, text=True, check=True
+        ).stdout.strip() == stale_sha
+        assert bi.resolve_base_sha(repo) == fresh_sha
+        assert subprocess.run(
+            ["git", "rev-parse", "origin/main"], cwd=repo, capture_output=True, text=True, check=True
+        ).stdout.strip() == fresh_sha
+
+    def test_prefers_origin_main_when_histories_diverge(self, tmp_path: Path):
+        repo = _init_git_repo(tmp_path)
+        subprocess.run(["git", "checkout", "-q", "-b", "main"], cwd=repo, check=True)
+        (repo / "base.txt").write_text("base\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=repo, check=True)
+
+        subprocess.run(["git", "checkout", "-q", "-b", "remote-tip"], cwd=repo, check=True)
+        (repo / "remote.txt").write_text("remote\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "remote"], cwd=repo, check=True)
+        remote_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True
+        ).stdout.strip()
+        subprocess.run(
+            ["git", "update-ref", "refs/remotes/origin/main", remote_sha], cwd=repo, check=True
+        )
+
+        subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
+        (repo / "local.txt").write_text("local\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "local"], cwd=repo, check=True)
+
+        assert bi.resolve_base_sha(repo) == remote_sha
 
 
 class TestWarnings:

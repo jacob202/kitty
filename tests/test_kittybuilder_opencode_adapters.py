@@ -31,6 +31,7 @@ def _manifest(bundle: Path, *, task_id: str = "task-1", attempt_id: str = "7") -
                 "task_id": task_id,
                 "attempt_id": int(attempt_id),
                 "bundle_sha256": digest,
+                "lease": {"base_sha": "0" * 40},
                 "context": {"task_bundle": {"sha256": digest}},
             }
         ),
@@ -67,6 +68,14 @@ if model in fail_models:
     if os.environ.get("FAKE_OPENCODE_FAIL_MUTATE"):
         Path("partial-work.txt").write_text("partial\\n", encoding="utf-8")
     raise SystemExit(1)
+json_error_models = set(
+    filter(None, os.environ.get("FAKE_OPENCODE_JSON_ERROR_MODELS", "").split(","))
+)
+if model in json_error_models:
+    import time
+
+    print(json.dumps({"type": "error", "error": {"name": "UnknownError"}}), flush=True)
+    time.sleep(float(os.environ.get("FAKE_OPENCODE_HANG_SECONDS", "30")))
 hang_models = set(
     filter(None, os.environ.get("FAKE_OPENCODE_HANG_MODELS", "").split(","))
 )
@@ -96,6 +105,10 @@ else:
     status = os.environ.get("FAKE_OPENCODE_STATUS", "completed")
     payload = {"contract_version": 1, "status": status, "summary": "ok"}
 output.write_text(json.dumps(payload), encoding="utf-8")
+if os.environ.get("FAKE_OPENCODE_HANG_AFTER_RESULT"):
+    import time
+
+    time.sleep(float(os.environ.get("FAKE_OPENCODE_HANG_SECONDS", "30")))
 """,
         encoding="utf-8",
     )
@@ -180,6 +193,165 @@ def test_timeout_runner_kills_descendant_process_group(tmp_path: Path):
     else:
         raise AssertionError(f"timed-out descendant {pid} is still running: {state}")
 
+
+
+
+def test_timeout_runner_treats_valid_success_json_as_completion(tmp_path: Path):
+    result = tmp_path / "result.json"
+    child_pid = tmp_path / "child.pid"
+    script = tmp_path / "write-result-then-hang.py"
+    script.write_text(
+        "import json, os, subprocess, sys, time\n"
+        "from pathlib import Path\n"
+        "child = subprocess.Popen(['sleep', '30'])\n"
+        "Path(sys.argv[2]).write_text(str(child.pid), encoding='utf-8')\n"
+        "Path(sys.argv[1]).write_text(json.dumps({}), encoding='utf-8')\n"
+        "time.sleep(0.3)\n"
+        "Path(sys.argv[1]).write_text(json.dumps({'contract_version': 1, 'status': 'completed'}), encoding='utf-8')\n"
+        "time.sleep(30)\n",
+        encoding="utf-8",
+    )
+
+    started = time.monotonic()
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(TIMEOUT_RUNNER),
+            "10",
+            "--success-json",
+            str(result),
+            sys.executable,
+            str(script),
+            str(result),
+            str(child_pid),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    elapsed = time.monotonic() - started
+
+    assert completed.returncode == 0, completed.stderr
+    assert 0.25 <= elapsed < 2
+    assert json.loads(result.read_text(encoding="utf-8")) == {
+        "contract_version": 1,
+        "status": "completed",
+    }
+    pid = int(child_pid.read_text(encoding="utf-8"))
+    for _ in range(20):
+        state = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "stat="],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if not state or state.startswith("Z"):
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError(f"success-completed descendant {pid} is still running: {state}")
+
+
+
+def test_timeout_runner_json_error_event_stops_hung_command(tmp_path: Path):
+    script = tmp_path / "error-then-hang.py"
+    script.write_text(
+        "import json, time\n"
+        "print(json.dumps({'type': 'error', 'error': {'name': 'UnknownError'}}), flush=True)\n"
+        "time.sleep(30)\n",
+        encoding="utf-8",
+    )
+
+    started = time.monotonic()
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(TIMEOUT_RUNNER),
+            "10",
+            "--json-events",
+            sys.executable,
+            str(script),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    elapsed = time.monotonic() - started
+
+    assert completed.returncode == 75
+    assert elapsed < 2
+    assert '"type": "error"' in completed.stdout
+
+
+def test_timeout_runner_startup_timeout_requires_meaningful_json_event(tmp_path: Path):
+    script = tmp_path / "step-start-then-hang.py"
+    script.write_text(
+        "import json, time\n"
+        "print(json.dumps({'type': 'step_start'}), flush=True)\n"
+        "time.sleep(30)\n",
+        encoding="utf-8",
+    )
+
+    started = time.monotonic()
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(TIMEOUT_RUNNER),
+            "10",
+            "--json-events",
+            "--startup-timeout",
+            "0.5",
+            sys.executable,
+            str(script),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    elapsed = time.monotonic() - started
+
+    assert completed.returncode == 124
+    assert 0.4 <= elapsed < 2
+
+
+def test_timeout_runner_activity_disables_startup_timeout(tmp_path: Path):
+    result = tmp_path / "result.json"
+    script = tmp_path / "activity-then-result.py"
+    script.write_text(
+        "import json, sys, time\n"
+        "from pathlib import Path\n"
+        "print(json.dumps({'type': 'step_start'}), flush=True)\n"
+        "time.sleep(0.1)\n"
+        "print(json.dumps({'type': 'tool_use'}), flush=True)\n"
+        "time.sleep(0.7)\n"
+        "Path(sys.argv[1]).write_text(json.dumps({'contract_version': 1, 'status': 'completed'}), encoding='utf-8')\n"
+        "time.sleep(30)\n",
+        encoding="utf-8",
+    )
+
+    started = time.monotonic()
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(TIMEOUT_RUNNER),
+            "5",
+            "--success-json",
+            str(result),
+            "--json-events",
+            "--startup-timeout",
+            "0.3",
+            sys.executable,
+            str(script),
+            str(result),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    elapsed = time.monotonic() - started
+
+    assert completed.returncode == 0, completed.stderr
+    assert 0.7 <= elapsed < 2
+    assert json.loads(result.read_text())["status"] == "completed"
 
 
 def test_timeout_runner_closes_child_stdin_when_parent_stdin_stays_open(tmp_path: Path):
@@ -268,6 +440,31 @@ def test_worker_stages_and_validates_local_context(tmp_path: Path):
     assert completed.returncode == 0, completed.stderr
     assert json.loads(result.read_text()) ["status"] == "completed"
     assert not list(tmp_path.glob(".kittybuilder-*"))
+
+
+
+def test_worker_stops_model_after_valid_result_contract(tmp_path: Path):
+    _init_git_repo(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    result = tmp_path / "runner" / "implementation.json"
+    result.parent.mkdir()
+    fake = _fake_opencode(tmp_path)
+    env = _env(fake, bundle=bundle, context=context, result=result)
+    env["FAKE_OPENCODE_HANG_AFTER_RESULT"] = "1"
+    env["FAKE_OPENCODE_HANG_SECONDS"] = "30"
+    env["KB_WORKER_TIMEOUT_SECONDS"] = "10"
+
+    started = time.monotonic()
+    completed = subprocess.run(
+        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=5
+    )
+    elapsed = time.monotonic() - started
+
+    assert completed.returncode == 0, completed.stderr
+    assert elapsed < 2
+    assert json.loads(result.read_text(encoding="utf-8"))["status"] == "completed"
 
 
 def test_worker_result_handoff_does_not_depend_on_cp_metadata_copy(tmp_path: Path):
@@ -514,21 +711,58 @@ def test_worker_times_out_silent_model_and_falls_through(tmp_path: Path):
     env.update(
         {
             "KITTYBUILDER_MODELS": "free-a free-b",
-            "KB_WORKER_TIMEOUT_SECONDS": "2",
+            "KB_WORKER_TIMEOUT_SECONDS": "10",
+            "KB_MODEL_STARTUP_TIMEOUT_SECONDS": "1",
             "FAKE_OPENCODE_HANG_MODELS": "free-a",
-            "FAKE_OPENCODE_HANG_SECONDS": "3",
+            "FAKE_OPENCODE_HANG_SECONDS": "30",
             "FAKE_OPENCODE_MODEL_LOG": str(model_log),
         }
     )
 
+    started = time.monotonic()
     completed = subprocess.run(
-        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=8
+        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=5
     )
+    elapsed = time.monotonic() - started
 
     assert completed.returncode == 0, completed.stderr
+    assert elapsed < 3
     assert json.loads(result.read_text())["status"] == "completed"
     assert model_log.read_text() == "free-b"
     assert "timed out" in completed.stderr
+    assert "trying the next free model" in completed.stderr
+
+
+
+def test_worker_json_error_event_falls_through_without_burning_budget(tmp_path: Path):
+    _init_git_repo(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    result = tmp_path / "implementation.json"
+    fake = _fake_opencode(tmp_path)
+    model_log = tmp_path.parent / f"{tmp_path.name}-json-error-model-used.txt"
+    env = _env(fake, bundle=bundle, context=context, result=result)
+    env.update(
+        {
+            "KITTYBUILDER_MODELS": "free-a free-b",
+            "KB_WORKER_TIMEOUT_SECONDS": "10",
+            "FAKE_OPENCODE_JSON_ERROR_MODELS": "free-a",
+            "FAKE_OPENCODE_HANG_SECONDS": "30",
+            "FAKE_OPENCODE_MODEL_LOG": str(model_log),
+        }
+    )
+
+    started = time.monotonic()
+    completed = subprocess.run(
+        [str(WORKER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=5
+    )
+    elapsed = time.monotonic() - started
+
+    assert completed.returncode == 0, completed.stderr
+    assert elapsed < 2
+    assert json.loads(result.read_text())["status"] == "completed"
+    assert model_log.read_text() == "free-b"
     assert "trying the next free model" in completed.stderr
 
 
@@ -582,6 +816,49 @@ def test_worker_forced_single_model_disables_the_ladder(tmp_path: Path):
     assert not result.exists()
 
 
+
+def test_reviewer_prompt_uses_available_bash_for_result_contract(tmp_path: Path):
+    _init_git_repo(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    implementation = tmp_path / "implementation.json"
+    implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
+    review = tmp_path / "review.json"
+    fake = _fake_opencode(tmp_path)
+    binding = _review_binding(tmp_path)
+    prompt_log = tmp_path.parent / f"{tmp_path.name}-review-prompt.txt"
+    env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
+    env.update(
+        {
+            "KB_IMPL_RESULT_PATH": str(implementation),
+            "KB_REVIEW_RESULT_PATH": str(review),
+            "FAKE_OPENCODE_REVIEW": "1",
+            "FAKE_OPENCODE_PROMPT_LOG": str(prompt_log),
+            "KB_REVIEW_CONTEXT_PATH": str(binding),
+            "KB_REVIEW_SHA": subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True,
+                capture_output=True, text=True,
+            ).stdout.strip(),
+            "KB_REVIEW_DIFF_SHA256": "0" * 64,
+        }
+    )
+
+    completed = subprocess.run(
+        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    prompt = prompt_log.read_text(encoding="utf-8")
+    assert "no write/edit tool" in prompt
+    assert "use the bash tool to run python3" in prompt
+    assert "never run git add/stage/commit" in prompt
+    assert "from Review HEAD to itself" in prompt
+    assert "`git diff HEAD`" not in prompt
+    assert "Packet base SHA:" in prompt
+    assert str(tmp_path / ".kittybuilder-review-result-7.json") in prompt
+
+
 def test_reviewer_copies_only_a_valid_immutable_review(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
@@ -618,6 +895,48 @@ def test_reviewer_copies_only_a_valid_immutable_review(tmp_path: Path):
 
     assert completed.returncode == 0, completed.stderr
     assert json.loads(review.read_text())["verdict"] == "approve"
+    assert not list(tmp_path.glob(".kittybuilder-review-*"))
+
+
+
+def test_reviewer_stops_model_after_valid_review_contract(tmp_path: Path):
+    _init_git_repo(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    implementation = tmp_path / "implementation.json"
+    implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
+    review = tmp_path / "runner" / "review.json"
+    review.parent.mkdir()
+    fake = _fake_opencode(tmp_path)
+    binding = _review_binding(tmp_path)
+    env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
+    env.update(
+        {
+            "KB_IMPL_RESULT_PATH": str(implementation),
+            "KB_REVIEW_RESULT_PATH": str(review),
+            "FAKE_OPENCODE_REVIEW": "1",
+            "FAKE_OPENCODE_HANG_AFTER_RESULT": "1",
+            "FAKE_OPENCODE_HANG_SECONDS": "30",
+            "KB_REVIEW_TIMEOUT_SECONDS": "10",
+            "KB_REVIEW_CONTEXT_PATH": str(binding),
+            "KB_REVIEW_SHA": subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True,
+                capture_output=True, text=True,
+            ).stdout.strip(),
+            "KB_REVIEW_DIFF_SHA256": "0" * 64,
+        }
+    )
+
+    started = time.monotonic()
+    completed = subprocess.run(
+        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=5
+    )
+    elapsed = time.monotonic() - started
+
+    assert completed.returncode == 0, completed.stderr
+    assert elapsed < 2
+    assert json.loads(review.read_text(encoding="utf-8"))["verdict"] == "approve"
     assert not list(tmp_path.glob(".kittybuilder-review-*"))
 
 
@@ -773,6 +1092,51 @@ def test_reviewer_falls_through_ladder_on_clean_model_failure(tmp_path: Path):
     assert "Review completed with rev-b" in completed.stdout
 
 
+
+def test_reviewer_json_error_event_falls_through_without_burning_budget(tmp_path: Path):
+    _init_git_repo(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    implementation = tmp_path / "implementation.json"
+    implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
+    review = tmp_path / "review.json"
+    fake = _fake_opencode(tmp_path)
+    binding = _review_binding(tmp_path)
+    model_log = tmp_path.parent / f"{tmp_path.name}-review-json-error-model-used.txt"
+    env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
+    env.update(
+        {
+            "KB_IMPL_RESULT_PATH": str(implementation),
+            "KB_REVIEW_RESULT_PATH": str(review),
+            "FAKE_OPENCODE_REVIEW": "1",
+            "KITTYBUILDER_REVIEW_MODELS": "rev-a rev-b",
+            "KB_REVIEW_TIMEOUT_SECONDS": "10",
+            "FAKE_OPENCODE_JSON_ERROR_MODELS": "rev-a",
+            "FAKE_OPENCODE_HANG_SECONDS": "30",
+            "FAKE_OPENCODE_MODEL_LOG": str(model_log),
+            "KB_REVIEW_CONTEXT_PATH": str(binding),
+            "KB_REVIEW_SHA": subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True,
+                capture_output=True, text=True,
+            ).stdout.strip(),
+            "KB_REVIEW_DIFF_SHA256": "0" * 64,
+        }
+    )
+
+    started = time.monotonic()
+    completed = subprocess.run(
+        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=5
+    )
+    elapsed = time.monotonic() - started
+
+    assert completed.returncode == 0, completed.stderr
+    assert elapsed < 2
+    assert json.loads(review.read_text())["verdict"] == "approve"
+    assert model_log.read_text() == "rev-b"
+    assert "trying the next free model" in completed.stderr
+
+
 def test_reviewer_times_out_silent_model_and_falls_through(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
@@ -791,9 +1155,10 @@ def test_reviewer_times_out_silent_model_and_falls_through(tmp_path: Path):
             "KB_REVIEW_RESULT_PATH": str(review),
             "FAKE_OPENCODE_REVIEW": "1",
             "KITTYBUILDER_REVIEW_MODELS": "rev-a rev-b",
-            "KB_REVIEW_TIMEOUT_SECONDS": "2",
+            "KB_REVIEW_TIMEOUT_SECONDS": "10",
+            "KB_REVIEW_MODEL_STARTUP_TIMEOUT_SECONDS": "1",
             "FAKE_OPENCODE_HANG_MODELS": "rev-a",
-            "FAKE_OPENCODE_HANG_SECONDS": "3",
+            "FAKE_OPENCODE_HANG_SECONDS": "30",
             "FAKE_OPENCODE_MODEL_LOG": str(model_log),
             "KB_REVIEW_CONTEXT_PATH": str(binding),
             "KB_REVIEW_SHA": subprocess.run(
@@ -804,11 +1169,14 @@ def test_reviewer_times_out_silent_model_and_falls_through(tmp_path: Path):
         }
     )
 
+    started = time.monotonic()
     completed = subprocess.run(
-        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=8
+        [str(REVIEWER)], cwd=tmp_path, env=env, capture_output=True, text=True, timeout=5
     )
+    elapsed = time.monotonic() - started
 
     assert completed.returncode == 0, completed.stderr
+    assert elapsed < 3
     assert json.loads(review.read_text())["verdict"] == "approve"
     assert model_log.read_text() == "rev-b"
     assert "timed out" in completed.stderr
