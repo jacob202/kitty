@@ -31,7 +31,8 @@ def build_projection(limit: int = 3) -> dict[str, Any]:
 
     due, sources["insight"] = _source(insight_loop.list_due)
     for row in due if isinstance(due, list) else []:
-        payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
+        payload_value = row.get("payload")
+        payload: dict[str, Any] = payload_value if isinstance(payload_value, dict) else {}
         text = str(payload.get("text") or "A saved thought is ready to revisit")
         category = str(payload.get("category") or "insight").replace("_", " ")
         candidates.append({
@@ -42,12 +43,13 @@ def build_projection(limit: int = 3) -> dict[str, Any]:
 
     magic, sources["magic"] = _source(magic_kitty.cached_connections)
     for row in magic if isinstance(magic, list) else []:
-        confidence = row.get("confidence") if isinstance(row.get("confidence"), (int, float)) else 0.5
+        confidence_value = row.get("confidence")
+        confidence = float(confidence_value) if isinstance(confidence_value, (int, float)) else 0.5
         title = str(row.get("title") or "Projects are connected")
         detail = str(row.get("detail") or row.get("source") or "Cross-project connection")
         candidates.append({
             "id": f"magic:{row.get('insight_id') or title}", "source": "magic",
-            "score": 70.0 + max(0.0, min(float(confidence), 1.0)) * 20.0,
+            "score": 70.0 + max(0.0, min(confidence, 1.0)) * 20.0,
             "title": title, "detail": detail, "destination": "chat", "project_id": None,
             "prompt": f"Explore this cross-project connection with me: {title}. {detail}",
         })
