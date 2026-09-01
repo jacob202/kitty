@@ -111,4 +111,29 @@ describe('ChatMessage typed objects', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  it('preserves the exact durable artifact id rather than trimming it', async () => {
+    const requested: string[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      requested.push(String(input))
+      return new Response('not found', { status: 404 })
+    })
+    const message: Message = {
+      id: 'm-artifact-spaces',
+      role: 'assistant',
+      content: 'Reference.\n\n```kitty-artifact\n{"artifact_id":" artifact_1 "}\n```',
+      timestamp: new Date(),
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={client}>
+        <ChatMessage message={message} chatId="chat-1" messageIndex={2} />
+      </QueryClientProvider>,
+    )
+
+    await screen.findByRole('alert')
+    expect(requested.some(url => url.includes('/proxy/artifacts/%20artifact_1%20'))).toBe(true)
+    expect(requested.some(url => url.endsWith('/proxy/artifacts/artifact_1'))).toBe(false)
+  })
+
 })

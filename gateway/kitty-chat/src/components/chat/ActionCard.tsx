@@ -20,8 +20,15 @@ export function ActionCard({ actionId }: { actionId: number }) {
   const item = action.data
   const busy = approve.isPending || reject.isPending || execute.isPending
   const effectiveTier = item.effective_risk_tier === undefined ? item.risk_tier : item.effective_risk_tier
-  const canApprove = item.status === 'proposed' && effectiveTier === 'T2'
-  const canRun = effectiveTier !== null && (item.status === 'approved' || (item.status === 'proposed' && (effectiveTier === 'T0' || effectiveTier === 'T1')))
+  const executionOutcome = item.execution_decision?.outcome
+  const canApprove = item.status === 'proposed' && (
+    executionOutcome === 'ask' || (executionOutcome === undefined && effectiveTier === 'T2')
+  )
+  const canRun = effectiveTier !== null && (
+    executionOutcome !== undefined
+      ? executionOutcome === 'allow'
+      : item.status === 'approved' || (item.status === 'proposed' && (effectiveTier === 'T0' || effectiveTier === 'T1'))
+  )
   const canReject = item.status === 'proposed'
   const terminal = ['executed', 'failed', 'rejected', 'unknown'].includes(item.status)
   const mutationError = approve.error ?? reject.error ?? execute.error

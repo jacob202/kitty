@@ -289,7 +289,7 @@ function CodeBlock({ children, chatId, messageIndex, isMobile, isUser }: { child
       if (typeof reference.artifact_id !== 'string' || !reference.artifact_id.trim()) {
         throw new Error('invalid artifact id')
       }
-      return <ArtifactChatCard artifactId={reference.artifact_id.trim()} isMobile={isMobile} />
+      return <ArtifactChatCard artifactId={reference.artifact_id} isMobile={isMobile} />
     } catch {
       return (
         <div style={codeBoxStyle}>

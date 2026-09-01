@@ -166,9 +166,24 @@ def get_action(action_id: int) -> dict:
     action = action_queue.get(action_id)
     if action is None:
         raise HTTPException(status_code=404, detail=f"no action with id {action_id}")
+    effective_tier = action_queue.effective_risk_tier(action["kind"])
+    if effective_tier is None:
+        execution_decision = {"outcome": "deny", "basis": "unavailable_tier"}
+    else:
+        decision = action_grants.evaluate(
+            capability=action["kind"],
+            tier=effective_tier,
+            status=action["status"],
+            scope_type=action["scope_type"],
+            scope_id=action["scope_id"],
+            session_id=action["session_id"],
+            estimated_cost_usd=action["estimated_cost_usd"],
+        )
+        execution_decision = {"outcome": decision.outcome, "basis": decision.basis}
     return {
         **action,
-        "effective_risk_tier": action_queue.effective_risk_tier(action["kind"]),
+        "effective_risk_tier": effective_tier,
+        "execution_decision": execution_decision,
     }
 
 

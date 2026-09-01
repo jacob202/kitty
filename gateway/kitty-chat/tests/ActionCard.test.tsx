@@ -104,6 +104,37 @@ describe('ActionCard', () => {
     expect(screen.getByRole('button', { name: 'Run approved action' })).toBeInTheDocument()
   })
 
+
+  it('uses the current grant decision for proposed action controls', () => {
+    vi.mocked(useAction).mockReturnValue({
+      data: {
+        ...action(), risk_tier: 'T0', effective_risk_tier: 'T0',
+        execution_decision: { outcome: 'ask', basis: 'scoped_ask' },
+      },
+      isLoading: false, isError: false,
+    } as never)
+    render(<ActionCard actionId={42} />)
+
+    expect(screen.getByRole('button', { name: 'Approve action' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reject action' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run approved action' })).not.toBeInTheDocument()
+  })
+
+  it('does not offer Run when a scoped grant denies the action', () => {
+    vi.mocked(useAction).mockReturnValue({
+      data: {
+        ...action(), risk_tier: 'T0', effective_risk_tier: 'T0',
+        execution_decision: { outcome: 'deny', basis: 'scoped_deny' },
+      },
+      isLoading: false, isError: false,
+    } as never)
+    render(<ActionCard actionId={42} />)
+
+    expect(screen.getByRole('button', { name: 'Reject action' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Approve action' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run approved action' })).not.toBeInTheDocument()
+  })
+
   it('surfaces failed action mutations instead of making a click look ignored', () => {
     vi.mocked(useAction).mockReturnValue({ data: action(), isLoading: false, isError: false } as never)
     vi.mocked(useApproveAction).mockReturnValue({

@@ -70,3 +70,60 @@ def test_read_action_reports_current_effective_tier(client, monkeypatch):
     assert response.status_code == 200
     assert response.json()["risk_tier"] == "T0"
     assert response.json()["effective_risk_tier"] == "T2"
+
+
+def test_read_action_reports_current_grant_decision(client):
+    proposed = client.post(
+        "/actions/propose",
+        json={
+            "source_kind": "chat",
+            "kind": "todo.create",
+            "title": "Add follow-up",
+            "preview": "Create the follow-up todo",
+            "payload": {"content": "Call Alex tomorrow"},
+        },
+    ).json()
+
+    baseline = client.get(f"/actions/{proposed['id']}").json()
+    assert baseline["execution_decision"]["outcome"] == "allow"
+
+    action_grants.create_grant(
+        capability="todo.create",
+        decision="ask",
+        granted_tier="T0",
+        reason="ask every time",
+        created_by="user",
+    )
+    asking = client.get(f"/actions/{proposed['id']}").json()
+    assert asking["execution_decision"] == {"outcome": "ask", "basis": "scoped_ask"}
+
+    approved = client.post(f"/actions/{proposed['id']}/approve").json()
+    assert approved["status"] == "approved"
+    after_approval = client.get(f"/actions/{proposed['id']}").json()
+    assert after_approval["execution_decision"]["outcome"] == "allow"
+    assert after_approval["execution_decision"]["basis"] == "one_shot_approval"
+
+
+def test_read_action_reports_scoped_deny(client):
+    proposed = client.post(
+        "/actions/propose",
+        json={
+            "source_kind": "chat",
+            "kind": "todo.create",
+            "title": "Add follow-up",
+            "preview": "Create the follow-up todo",
+            "payload": {"content": "Call Alex tomorrow"},
+        },
+    ).json()
+    action_grants.create_grant(
+        capability="todo.create",
+        decision="deny",
+        granted_tier="T0",
+        reason="never here",
+        created_by="user",
+    )
+
+    response = client.get(f"/actions/{proposed['id']}")
+
+    assert response.status_code == 200
+    assert response.json()["execution_decision"] == {"outcome": "deny", "basis": "scoped_deny"}

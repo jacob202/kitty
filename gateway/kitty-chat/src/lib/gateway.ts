@@ -1521,6 +1521,7 @@ export interface GatewayAction {
   payload: Record<string, unknown>
   risk_tier: 'T0' | 'T1' | 'T2'
   effective_risk_tier?: 'T0' | 'T1' | 'T2' | null
+  execution_decision?: { outcome: 'allow' | 'ask' | 'deny'; basis: string }
   status: string
   result: string | null
   decided_at: number | null
