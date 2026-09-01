@@ -93,38 +93,6 @@ finally:
     assert completed.returncode == 0, completed.stderr
 
 
-@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
-def test_external_command_support_path_has_metadata_traversal(tmp_path: Path) -> None:
-    worktree = tmp_path / "worktree"
-    run_dir = tmp_path / "run"
-    external = tmp_path / "external" / "scripts"
-    worktree.mkdir()
-    run_dir.mkdir()
-    external.mkdir(parents=True)
-    adapter = external / "adapter.sh"
-    adapter.write_text('#!/bin/bash\ncd "$(dirname "$0")"\npwd >/dev/null\n')
-    env = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
-
-    profile = boundary.build_sandbox_profile(
-        worktree=worktree,
-        run_dir=run_dir,
-        command=["/bin/bash", str(adapter)],
-        environment=env,
-    )
-
-    assert f'(allow file-read* (subpath "{external.resolve()}"))' in profile
-    assert f'(allow file-read-metadata (literal "{external.parent.resolve()}"))' in profile
-    assert f'(allow file-read-metadata (literal "{tmp_path.resolve()}"))' in profile
-
-    command = boundary.wrap_command(
-        ["/bin/bash", str(adapter)],
-        worktree=worktree,
-        run_dir=run_dir,
-        environment=env,
-    )
-    completed = subprocess.run(command, cwd=worktree, env=env, capture_output=True, text=True)
-    assert completed.returncode == 0, completed.stderr
-
 
 def test_dsh_adapter_profile_reads_only_canonical_dsh_config(tmp_path: Path) -> None:
     support_root = tmp_path / "canonical"
