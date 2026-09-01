@@ -1,0 +1,97 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-opens-the-doors-20260831-v2",
+  "title": "Kitty opens three safe doors: undo, why-not, and search",
+  "description": "Second immutable wave after v1/KF-GLANCE-01 was applied. This wave contains only backend packets with no active PR path collision at origin/main f5b2f38c098dcdd7f46d1d58abb672ef15b75c5f. KF-SCHEDULE-01 is deliberately held because PR #725 and #735 both touch gateway/app.py. Frontend companions remain manifest-less.",
+  "packets": [
+    {
+      "id": "KF-UNDO-01",
+      "title": "The automatic todo action can be undone",
+      "objective": "Today todo.create is the only registered T0 action. gateway/action_queue.py creates the todo and returns only a human-readable string, discarding the created todo identity. gateway/undo_journal.py rejects entity_type 'todo', so the mutation cannot be journalled even though /undo/{journal_id} already restores other recorded mutations. Extend the existing undo journal for the todo-create case only: record the created todo using its real database id, make undo of that create remove exactly that todo through the existing storage write seam, and return a non-empty undo_journal_id with the successful action result while preserving the existing status and human-readable result text. Do not create a second action store or generic transaction framework. Do not change T1/T2 approval semantics. This packet creates no new files.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Executing a proposed T0 todo.create still records status executed and its existing readable success result, and now also returns a non-empty undo_journal_id.",
+        "POST /undo/{journal_id} for that receipt removes exactly the todo created by that action and leaves unrelated todos unchanged.",
+        "A second undo of the same receipt is refused by the existing already-undone guard rather than silently succeeding.",
+        "The undo history accepts entity_type todo and records before/after evidence without adding a parallel store.",
+        "T1 and T2 action approval/execution behavior is unchanged.",
+        "python -m pytest -q tests/test_undo_restore.py tests/test_undo_route_wiring.py tests/test_action_queue.py tests/test_actions_route.py passes."
+      ],
+      "allowed_paths": [
+        "gateway/undo_journal.py",
+        "gateway/action_queue.py",
+        "tests/test_undo_restore.py",
+        "tests/test_undo_route_wiring.py",
+        "tests/test_action_queue.py",
+        "tests/test_actions_route.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 40
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_undo_restore.py tests/test_undo_route_wiring.py tests/test_action_queue.py tests/test_actions_route.py",
+        "python -m ruff check gateway/undo_journal.py gateway/action_queue.py tests/test_undo_restore.py tests/test_undo_route_wiring.py tests/test_action_queue.py tests/test_actions_route.py"
+      ]
+    },
+    {
+      "id": "KF-WHY-01",
+      "title": "Work can explain why it did not run",
+      "objective": "gateway/why_not.py can explain cron schedules and registered automation actions, but Work rows have no equivalent explanation path even though gateway/work_projection.py already projects each Builder initiative with state, blocker, next_action, validation/review evidence and source identity. Add a framework-free work-item explanation function that derives only from the existing Builder status/work projection, then expose it from gateway/routes/work.py as a bounded why endpoint for one initiative id. Use the same Explanation fields already used by why_not: status, reason, relevant_at, action/automation where meaningful, evidence, next_step. Never fabricate a reason: if the durable projection lacks enough evidence, return an explicit unknown/insufficient-evidence explanation. Unknown initiative ids return not-found. Do not create an explanation store or mutate Builder state. This packet creates no new files.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "A blocked Work item explains the projected blocker in plain language and carries the projected next action when one exists.",
+        "A failed Work item cites durable validation/review/run evidence rather than inferring a cause from UI state.",
+        "A ready, active, paused, waiting, or completed item returns a truthful status-specific explanation without creating any run rows or Builder events.",
+        "When Builder has not recorded enough evidence to answer why, the response says that explicitly instead of inventing a cause.",
+        "An unknown initiative id returns the route's normal not-found response.",
+        "Existing schedule/action why endpoints keep their current contract.",
+        "python -m pytest -q tests/test_why_not.py tests/test_work_routes.py tests/test_work_projection.py passes."
+      ],
+      "allowed_paths": [
+        "gateway/why_not.py",
+        "gateway/routes/work.py",
+        "tests/test_why_not.py",
+        "tests/test_work_routes.py",
+        "tests/test_work_projection.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 35
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_why_not.py tests/test_work_routes.py tests/test_work_projection.py",
+        "python -m ruff check gateway/why_not.py gateway/routes/work.py tests/test_why_not.py tests/test_work_routes.py tests/test_work_projection.py"
+      ]
+    },
+    {
+      "id": "KF-SEARCH-01",
+      "title": "Search returns every default store it actually searched",
+      "objective": "gateway/memory_graph.py default MemoryGraph fans out to nine canonical stores: projects, explicit_memory, memory, knowledge, journal, traces, todos, inbox and signals. gateway/search.py RAW_TO_SECTION maps only memory/knowledge/journal/todos/inbox, and gateway/routes/search.py flattens only those same five sections, so hits from projects, explicit_memory, traces and signals are silently dropped even though the response reports those stores were searched. Normalize all nine default stores without changing memory_graph: merge explicit_memory hits into the visible memories section while preserving each hit's source/provenance, and add stable project, trace and signal sections/kinds that the HTTP route also returns. Preserve the global result limit and round-robin balancing across stores, failure isolation, degraded_stores, errors and provenance. Remove the dead RAW_TO_SECTION alias only if tests prove no producer emits it. This packet creates no new files.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "A hit from explicit_memory appears in search results as a memory while retaining source explicit_memory and its metadata/provenance.",
+        "Hits from projects, traces and signals are returned rather than silently discarded.",
+        "The HTTP /search response can surface all nine default MemoryGraph stores while preserving its global limit and round-robin balancing.",
+        "A degraded or failed store still cannot suppress healthy results from other stores, and errors/degraded_stores remain truthful.",
+        "Existing memory, knowledge, journal, todo and inbox hit shapes remain compatible.",
+        "gateway/memory_graph.py is unchanged.",
+        "python -m pytest -q tests/test_search.py tests/test_memory_graph.py passes."
+      ],
+      "allowed_paths": [
+        "gateway/search.py",
+        "gateway/routes/search.py",
+        "tests/test_search.py",
+        "tests/test_memory_graph.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 30
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_search.py tests/test_memory_graph.py",
+        "python -m ruff check gateway/search.py gateway/routes/search.py tests/test_search.py tests/test_memory_graph.py"
+      ]
+    }
+  ]
+}

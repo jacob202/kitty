@@ -16,20 +16,27 @@ from gateway import memory_graph
 logger = logging.getLogger("kitty.search")
 
 SECTION_TO_KIND = {
+    "projects": "project",
     "memories": "memory",
     "knowledge": "knowledge",
     "journal": "journal",
+    "traces": "trace",
     "todos": "todo",
     "inbox": "capture",
+    "signals": "signal",
 }
 
 RAW_TO_SECTION = {
+    "projects": "projects",
+    "explicit_memory": "memories",  # merged into memories section
     "memory": "memories",
     "memories": "memories",
     "knowledge": "knowledge",
     "journal": "journal",
+    "traces": "traces",
     "todos": "todos",
     "inbox": "inbox",
+    "signals": "signals",
 }
 
 
@@ -121,11 +128,14 @@ async def async_search(query: str, limit: int = 5) -> dict[str, Any]:
     raw = await memory_graph.search_all(query)
 
     results: dict[str, Any] = {
+        "projects": [],
         "memories": [],
         "knowledge": [],
         "journal": [],
+        "traces": [],
         "todos": [],
         "inbox": [],
+        "signals": [],
         "query": query,
         "stores": list(raw.results.keys()),
         "errors": list(raw.errors),
@@ -137,24 +147,35 @@ async def async_search(query: str, limit: int = 5) -> dict[str, Any]:
         if not section or not isinstance(items, list):
             continue
         kind = SECTION_TO_KIND[section]
-        results[section] = [
+        hits = [
             _item_to_hit(kind, item)
             for item in items[:limit]
             if isinstance(item, memory_graph.Item)
         ]
+        # explicit_memory merges into memories preserving source/provenance
+        if raw_key == "explicit_memory":
+            for hit in hits:
+                if "metadata" not in hit:
+                    hit["metadata"] = {}
+                hit["metadata"]["source_kind"] = "explicit_memory"
+            results["memories"].extend(hits)
+        else:
+            results[section].extend(hits)
     return results
 
 
 def _item_to_hit(kind: str, item: memory_graph.Item) -> dict[str, Any]:
     """Convert a memory_graph.Item into the stable search hit shape."""
     source = str(item.source)
-    if kind == "knowledge":
+    if kind == "project":
+        title = item.metadata.get("project_id", source)
+    elif kind == "knowledge":
         title = item.metadata.get("source", source)
     elif kind == "journal":
         title = str(item.ts) if item.ts else "Journal entry"
     elif kind in ("todo", "capture"):
         text = item.text
-        title = (text[:80] + "\u2026") if len(text) > 80 else text
+        title = (text[:80] + "…") if len(text) > 80 else text
     else:
         title = source
     return {

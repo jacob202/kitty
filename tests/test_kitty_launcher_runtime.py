@@ -109,3 +109,11 @@ def test_sweep_command_uses_the_same_deadline_orchestration_as_the_route() -> No
     assert "from gateway.routes.deadlines import post_sweep" in block
     assert "report = post_sweep()" in block
     assert "gateway.deadline_sweep" not in block
+
+
+def test_room_command_uses_global_agent_room_cli() -> None:
+    assert "cmd_room() {" in SCRIPT
+    block = SCRIPT.split("cmd_room() {", 1)[1].split("\n}\n", 1)[0]
+    assert "-m gateway.agent_room_cli" in block
+    assert 'room)      shift; cmd_room "$@" ;;' in SCRIPT
+    assert "kitty room" in SCRIPT
