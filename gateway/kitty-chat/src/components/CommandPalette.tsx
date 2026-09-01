@@ -157,6 +157,8 @@ export function CommandPalette({
         position: 'fixed',
         inset: 0,
         background: 'rgba(0, 0, 0, 0.6)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
         zIndex: 1400,
         display: 'flex',
         alignItems: 'flex-start',

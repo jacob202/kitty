@@ -121,6 +121,37 @@ def last_session_note() -> str:
     return files[-1].name[:32] if files else "(none yet)"
 
 
+# ── ANSI helpers (stdlib only, no external deps) ──────────────────────
+GREEN = "\033[92m"
+RED = "\033[91m"
+YELLOW = "\033[93m"
+CYAN = "\033[96m"
+BOLD = "\033[1m"
+RESET = "\033[0m"
+
+
+def section(title: str) -> None:
+    """Print a bold cyan section header with an underline."""
+    print(f"\n{BOLD}{CYAN}{title}{RESET}")
+    print(f"{CYAN}{'─' * len(title)}{RESET}")
+
+
+def status_badge(ok: bool, label: str = "") -> str:
+    """Return a green ✓ or red ✗ badge, optionally with a label."""
+    badge = f"{GREEN}✓{RESET}" if ok else f"{RED}✗{RESET}"
+    return f"{badge} {label}" if label else badge
+
+
+def format_table(rows: list[tuple[str, str]], indent: int = 2) -> None:
+    """Print a left-aligned two-column table with the first column padded."""
+    if not rows:
+        return
+    pad = max(len(r[0]) for r in rows) + 2
+    prefix = " " * indent
+    for a, b in rows:
+        print(f"{prefix}{a:<{pad}}{b}")
+
+
 def main() -> int:
     with cf.ThreadPoolExecutor(max_workers=3) as ex:
         f_prs = ex.submit(open_prs)
@@ -137,15 +168,58 @@ def main() -> int:
             return ", ".join(items)
         return ", ".join(items[:limit]) + f" (+{len(items) - limit} more)"
 
-    print(f"Kitty — {dt.date.today().isoformat()}\n")
-    print(f"Branch:       {branch} {'[dirty]' if dirty else '(clean)'}")
-    print(f"Open PRs:     {'; '.join(f_prs.result())}")
-    print(f"Tests:        {f_tests.result()}")
-    print(f"Services:     {f_doc.result()}")
-    print(f"Active pkt:   {active}")
-    print(f"Blocked:      {join_short(blocked)}")
-    print(f"Local-only:   {join_short(local)}")
-    print(f"Last session: {last_session_note()}")
+    # ── Header ────────────────────────────────────────────────────────
+    print(f"{BOLD}Kitty{RESET} — {dt.date.today().isoformat()}")
+
+    # ── Git & PRs ─────────────────────────────────────────────────────
+    section("Git")
+    format_table([
+        ("Branch:", f"{branch} {YELLOW}[dirty]{RESET}" if dirty else f"{branch} (clean)"),
+    ])
+
+    prs = f_prs.result()
+    pr_summary = "; ".join(prs) if prs else "(none)"
+    format_table([
+        ("Open PRs:", pr_summary),
+    ])
+
+    # ── Tests ─────────────────────────────────────────────────────────
+    section("Tests")
+    tests = f_tests.result()
+    test_ok = bool(re.search(r"\d+ collected", tests)) and "failed" not in tests.lower()
+    format_table([
+        ("Collected:", f"{status_badge(test_ok)} {tests}"),
+    ])
+
+    # ── Services ──────────────────────────────────────────────────────
+    section("Services")
+    doctor = f_doc.result()
+    # doctor summary is "pass=N warn=M fail=K"
+    m = re.match(r"pass=(\d+) warn=(\d+) fail=(\d+)", doctor)
+    if m:
+        p, w, f = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        parts = []
+        parts.append(f"{GREEN}{p} pass{RESET}" if p else f"{p} pass")
+        parts.append(f"{YELLOW}{w} warn{RESET}" if w else f"{w} warn")
+        parts.append(f"{RED}{f} fail{RESET}" if f else f"{f} fail")
+        format_table([("Checks:", ", ".join(parts))])
+    else:
+        format_table([("Checks:", doctor)])
+
+    # ── Packets ───────────────────────────────────────────────────────
+    section("Packets")
+    format_table([
+        ("Active:", active),
+        ("Blocked:", join_short(blocked)),
+    ])
+
+    # ── Misc ──────────────────────────────────────────────────────────
+    section("Workspace")
+    format_table([
+        ("Local-only:", join_short(local)),
+        ("Last session:", last_session_note()),
+    ])
+
     return 0
 
 
