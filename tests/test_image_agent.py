@@ -189,7 +189,7 @@ class TestGenerate:
         )
 
         assert decision.recipe_id == "openai_gpt_image_2"
-        stored = image_plans.require_approved_plan(decision.plan_id, s.session_id)
+        stored = image_plan_store.require_approved_plan(decision.plan_id, s.session_id)
         assert stored.recipe_id == "openai_gpt_image_2"
 
     def test_generate_records_the_turns_and_last_plan(self):
