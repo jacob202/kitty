@@ -24,20 +24,27 @@ execution, or collision risk.
 ## Global Agent Room
 
 `workspace_global` is the primary mutable cross-agent communication channel for
-Kitty work. After checkout/Git verification at start or resume, check relevant
-room activity and your inbox. Prefer the Agent Room MCP tools when configured;
-otherwise use `./kitty room recent --json` and `./kitty room inbox --as
-<identity> --json`. Acknowledge relevant messages explicitly; acknowledgement
-means received, not completed. Use direct messages for a specific owner,
-broadcasts for shared context, and replies for an existing thread.
+Kitty work. After checkout/Git verification at start or resume, discover new
+work through the unread inbox first. Prefer the Agent Room MCP tools when
+configured; otherwise use `./kitty room inbox --as <identity> --unread --json`.
+When a handoff or current assignment supplies a durable locator, load that exact
+conversation with `room_thread` or `./kitty room thread <message_id> --json`.
+Use `room_recent` only for bounded shared situational context; the newest global
+window is not an assignment index. If no unread handoff or durable locator
+exists, use the validated legacy compatibility checkpoint until scoped room
+retrieval replaces that fallback. Acknowledge messages actually received;
+acknowledgement means received, not completed. Use direct messages for a
+specific owner, broadcasts for shared context, and replies for an existing
+thread.
 
 Before ending or handing off substantial work, post a concise verified result or
 handoff to the room with exact SHA/evidence, blockers, and next action when
-relevant. Mutable handoffs, current-lane status, and cross-agent questions belong
-in the room instead of being duplicated across startup markdown. Do not infer
-online presence from `registered`. Builder remains execution/task/lease
-authority, GitHub issue #490 remains interactive ownership/collision authority,
-and Git/GitHub remain publication evidence.
+relevant. Publish the final handoff only after final validation so its evidence
+matches the state another agent will resume. Mutable handoffs, current-lane
+status, and cross-agent questions belong in the room instead of being duplicated
+across startup markdown. Do not infer online presence from `registered`. Builder
+remains execution/task/lease authority, GitHub issue #490 remains interactive
+ownership/collision authority, and Git/GitHub remain publication evidence.
 
 ## Scope and code quality
 
