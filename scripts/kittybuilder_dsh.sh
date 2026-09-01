@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ENV_ROOT="${KITTY_BUILDER_REPO_ROOT:-${REPO_ROOT}}"
+source "${REPO_ROOT}/gateway/lib/load_env_safe.sh"
+load_env_assignments "${ENV_ROOT}/.env"
+
 preset=""
 provider="openrouter"
 model=""

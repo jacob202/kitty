@@ -284,3 +284,45 @@ def test_load_packet_registry_does_not_infer_live_work_from_retained_packet_docs
     )
 
     assert aut.load_packet_registry(tmp_path) == []
+
+
+def test_usable_builder_runway_counts_only_executable_pipeline_work(monkeypatch) -> None:
+    gates = [{"id": "active", "state": bi.INITIATIVE_ACTIVE, "superseded_by": None}]
+    status = _status(
+        eligible=["queued"],
+        recovery=["recoverable"],
+        in_progress=["review"],
+        pending=["pending"],
+        blocked=["operator"],
+        evidence={
+            "queued": {"task_id": "t1", "current_state": "queued", "review_approved": False, "pr_opened": False},
+            "recoverable": {"task_id": "t2", "current_state": "blocked", "review_approved": False, "pr_opened": False},
+            "review": {"task_id": "t3", "current_state": "awaiting_review", "review_approved": False, "pr_opened": False},
+            "pending": {"task_id": "t4", "current_state": "queued", "review_approved": False, "pr_opened": False},
+            "operator": {"task_id": "t5", "current_state": "blocked", "review_approved": False, "pr_opened": False},
+        },
+    )
+    monkeypatch.setattr(aut.bi, "list_initiative_gates", lambda _db=None: gates)
+    monkeypatch.setattr(aut.bi, "initiative_status", lambda iid, db_path=None: status)
+
+    runway = aut.runway_snapshot()
+
+    assert runway["counts"]["safe_backend_runnable"] == 2
+    assert runway["counts"]["running"] == 1
+    assert runway["counts"]["pending_backend"] == 1
+    assert runway["counts"]["operator_blocked"] == 1
+    assert aut.usable_builder_runway(runway) == 4
+
+
+def test_usable_builder_runway_excludes_interactive_held_and_operator_blocked() -> None:
+    runway = {
+        "counts": {
+            "safe_backend_runnable": 2,
+            "running": 1,
+            "pending_backend": 3,
+            "operator_blocked": 10,
+            "collision_held": 8,
+            "interactive_frontend": 7,
+        }
+    }
+    assert aut.usable_builder_runway(runway) == 6

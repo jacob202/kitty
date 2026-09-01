@@ -8,6 +8,7 @@ never touches the production queue (CI-safe).
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -883,3 +884,59 @@ def test_dispatchable_counts_with_live_truth_applies_same_preflight_as_tick(repo
         current_main_sha=subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip(),
     )
     assert counts["now"] == 0
+
+
+def test_replenishment_reports_low_water_without_config(repo: Path, db_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv(bs.SLATE_AUTHOR_ARGV_ENV, raising=False)
+    result = bs.replenish_runway_if_needed(usable_runway=2, target=6, repo_root=repo, db_path=db_path)
+    assert result["replenishment_needed"] is True
+    assert result["launched"] is False
+    assert result["reason"] == "no_author_configured"
+
+
+def test_replenishment_rejects_author_outside_trusted_repo(repo: Path, db_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv(bs.SLATE_AUTHOR_ARGV_ENV, json.dumps(["/bin/echo", "nope"]))
+    result = bs.replenish_runway_if_needed(usable_runway=0, target=6, repo_root=repo, db_path=db_path)
+    assert result["replenishment_needed"] is True
+    assert result["launched"] is False
+    assert result["reason"] == "invalid_author_config"
+
+
+def test_replenishment_is_single_flight_and_receipt_redacts_argv(repo: Path, db_path: Path, monkeypatch) -> None:
+    scripts = repo / "scripts"
+    scripts.mkdir()
+    author = scripts / "author.sh"
+    author.write_text("#!/bin/sh\nsleep 30\n", encoding="utf-8")
+    author.chmod(0o755)
+    monkeypatch.setenv(bs.SLATE_AUTHOR_ARGV_ENV, json.dumps(["scripts/author.sh", "--secret", "do-not-log"]))
+
+    first = bs.replenish_runway_if_needed(usable_runway=1, target=6, repo_root=repo, db_path=db_path)
+    try:
+        assert first["launched"] is True
+        assert first["reason"] == "low_water_launched"
+        assert first["pid"] > 0
+        second = bs.replenish_runway_if_needed(usable_runway=1, target=6, repo_root=repo, db_path=db_path)
+        assert second["launched"] is False
+        assert second["reason"] == "author_in_flight"
+        assert second["pid"] == first["pid"]
+        receipt = json.loads(bs.replenisher_receipt_path(db_path).read_text(encoding="utf-8"))
+        assert receipt["argv_count"] == 3
+        assert receipt["executable"] == "scripts/author.sh"
+        assert "do-not-log" not in json.dumps(receipt)
+    finally:
+        try:
+            os.kill(int(first.get("pid") or 0), 9)
+        except (OSError, ValueError):
+            pass
+
+
+def test_replenishment_healthy_never_launches(repo: Path, db_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv(bs.SLATE_AUTHOR_ARGV_ENV, "not-json")
+    result = bs.replenish_runway_if_needed(usable_runway=6, target=6, repo_root=repo, db_path=db_path)
+    assert result == {
+        "replenishment_needed": False,
+        "launched": False,
+        "reason": "runway_healthy",
+        "usable_runway": 6,
+        "target": 6,
+    }

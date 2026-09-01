@@ -294,6 +294,22 @@ def runway_snapshot(
     }
 
 
+def usable_builder_runway(runway: dict[str, Any]) -> int:
+    """Count durable backend work that can progress without operator intervention.
+
+    Runnable and recoverable packets are already classified into
+    ``safe_backend_runnable``. ``running`` also covers claimed/running/review
+    pipeline states, while ``pending_backend`` is dependency-gated work inside
+    an active non-superseded initiative. Operator-blocked, collision-held, and
+    interactive work deliberately do not inflate unattended runway.
+    """
+    counts = runway.get("counts") or {}
+    return sum(
+        int(counts.get(name) or 0)
+        for name in ("safe_backend_runnable", "running", "pending_backend")
+    )
+
+
 def refill_request(
     runway: dict[str, Any], *, target_candidates: int = REFILL_TARGET_DEFAULT
 ) -> dict[str, Any]:

@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any
 
 from gateway import builder_attempt as ba
+from gateway import builder_autonomy as bau
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 from gateway.builder_brief import default_branch_name
@@ -60,6 +61,11 @@ SUPERVISOR_LABEL = "com.kitty.builder.supervisor"
 SUPERVISOR_START_INTERVAL = 900  # seconds between ticks; no KeepAlive
 GITHUB_PR_SNAPSHOT_LIMIT = 1000
 LOGIN_SAFE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+RUNWAY_TARGET_DEFAULT = 6
+RUNWAY_TARGET_ENV = "KITTY_BUILDER_RUNWAY_TARGET"
+SLATE_AUTHOR_ARGV_ENV = "KITTY_BUILDER_SLATE_AUTHOR_ARGV_JSON"
+REPLENISHER_RECEIPT_FILE = "replenisher-status.json"
+REPLENISHER_LOG_FILE = "replenisher.log"
 
 # The canonical run is the free DSH worker adapter; it is the only
 # executable the supervisor may dispatch. The env mirrors the free route's
@@ -80,6 +86,149 @@ def _lock_path(db_path: Path | None) -> Path:
     """One OS lock per Builder data dir, alongside the queue DB."""
     queue_db = Path(db_path) if db_path is not None else default_db_path()
     return queue_db.parent / "supervisor.lock"
+
+
+def replenisher_receipt_path(db_path: Path | None = None) -> Path:
+    queue_db = Path(db_path) if db_path is not None else default_db_path()
+    return queue_db.parent / REPLENISHER_RECEIPT_FILE
+
+
+def _replenisher_log_path(db_path: Path | None = None) -> Path:
+    queue_db = Path(db_path) if db_path is not None else default_db_path()
+    return queue_db.parent / REPLENISHER_LOG_FILE
+
+
+def _runway_target() -> tuple[int, str | None]:
+    raw = os.environ.get(RUNWAY_TARGET_ENV, "").strip()
+    if not raw:
+        return RUNWAY_TARGET_DEFAULT, None
+    try:
+        value = int(raw)
+    except ValueError:
+        return RUNWAY_TARGET_DEFAULT, "invalid_runway_target"
+    if not 1 <= value <= 100:
+        return RUNWAY_TARGET_DEFAULT, "invalid_runway_target"
+    return value, None
+
+
+def _pid_alive(pid: object) -> bool:
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _read_replenisher_receipt(db_path: Path | None = None) -> dict[str, Any] | None:
+    path = replenisher_receipt_path(db_path)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _write_replenisher_receipt(receipt: dict[str, Any], db_path: Path | None = None) -> None:
+    path = replenisher_receipt_path(db_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(path.suffix + ".tmp")
+    temp.write_text(json.dumps(receipt, sort_keys=True) + "\n", encoding="utf-8")
+    temp.replace(path)
+
+
+def _trusted_slate_author_argv(repo_root: Path) -> tuple[list[str], str] | None:
+    raw = os.environ.get(SLATE_AUTHOR_ARGV_ENV, "").strip()
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SupervisorError("slate author argv must be valid JSON") from exc
+    if not isinstance(value, list) or not value or any(not isinstance(item, str) or not item for item in value):
+        raise SupervisorError("slate author argv must be a non-empty JSON string array")
+    root = repo_root.resolve()
+    executable = Path(value[0])
+    resolved = (root / executable).resolve() if not executable.is_absolute() else executable.resolve()
+    try:
+        relative = resolved.relative_to(root)
+    except ValueError as exc:
+        raise SupervisorError("slate author executable must live inside the trusted repo") from exc
+    if not resolved.is_file() or not os.access(resolved, os.X_OK):
+        raise SupervisorError("slate author executable is missing or not executable")
+    argv = [str(resolved), *value[1:]]
+    return argv, str(relative)
+
+
+def replenishment_projection(
+    *, usable_runway: int, target: int, repo_root: Path, db_path: Path | None = None
+) -> dict[str, Any]:
+    needed = usable_runway < target
+    base: dict[str, Any] = {
+        "replenishment_needed": needed,
+        "usable_runway": usable_runway,
+        "target": target,
+        "launched": False,
+    }
+    if not needed:
+        return {**base, "reason": "runway_healthy"}
+    receipt = _read_replenisher_receipt(db_path)
+    if receipt and _pid_alive(receipt.get("pid")):
+        return {**base, "reason": "author_in_flight", "pid": int(receipt["pid"])}
+    try:
+        configured = _trusted_slate_author_argv(repo_root)
+    except SupervisorError:
+        return {**base, "reason": "invalid_author_config"}
+    if configured is None:
+        return {**base, "reason": "no_author_configured"}
+    return {**base, "reason": "author_ready", "executable": configured[1]}
+
+
+def replenish_runway_if_needed(
+    *, usable_runway: int, target: int, repo_root: Path, db_path: Path | None = None
+) -> dict[str, Any]:
+    projection = replenishment_projection(
+        usable_runway=usable_runway, target=target, repo_root=repo_root, db_path=db_path
+    )
+    if projection["reason"] != "author_ready":
+        return projection
+    configured = _trusted_slate_author_argv(repo_root)
+    if configured is None:  # defensive; projection already proved configured
+        return {**projection, "reason": "no_author_configured"}
+    argv, executable = configured
+    log_path = _replenisher_log_path(db_path)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with log_path.open("ab") as log_handle:
+            process = subprocess.Popen(
+                argv, cwd=str(repo_root.resolve()), stdin=subprocess.DEVNULL,
+                stdout=log_handle, stderr=subprocess.STDOUT, shell=False,
+                start_new_session=True, close_fds=True, env=os.environ.copy(),
+            )
+    except Exception as exc:
+        return {
+            **projection, "reason": "launch_failed", "error_type": type(exc).__name__,
+        }
+    receipt = {
+        "pid": process.pid,
+        "started_at": time.time(),
+        "code_root": str(repo_root.resolve()),
+        "executable": executable,
+        "argv_count": len(argv),
+        "usable_runway": usable_runway,
+        "target": target,
+    }
+    _write_replenisher_receipt(receipt, db_path)
+    return {
+        "replenishment_needed": True, "usable_runway": usable_runway, "target": target,
+        "launched": True, "reason": "low_water_launched", "pid": process.pid,
+        "executable": executable,
+    }
 
 
 def _task_dispatch_lock_path(task_id: str, db_path: Path | None) -> Path:
@@ -620,6 +769,36 @@ def tick(
                 current_main_sha = _fresh_main_sha(root)
             except Exception as exc:
                 current_main_error = f"{type(exc).__name__}: {exc}"
+        reconciliation = {
+            "github_available": bool(truth.get("available")),
+            "github_error": truth.get("error"),
+            "github_pr_count": truth.get("pr_count", len(truth.get("by_head") or {})),
+            "main_sha": current_main_sha,
+            "main_error": current_main_error,
+        }
+        runway = bau.runway_snapshot(
+            db_path=db_path, reconciliation=reconciliation, github_truth=truth
+        )
+        usable_runway = bau.usable_builder_runway(runway)
+        runway_target, runway_target_error = _runway_target()
+        if runway_target_error:
+            replenishment = {
+                "replenishment_needed": usable_runway < runway_target,
+                "usable_runway": usable_runway, "target": runway_target,
+                "launched": False, "reason": runway_target_error,
+            }
+        elif not truth.get("available"):
+            replenishment = {
+                "replenishment_needed": usable_runway < runway_target,
+                "usable_runway": usable_runway, "target": runway_target,
+                "launched": False, "reason": "truth_unavailable",
+            }
+        else:
+            replenishment = replenish_runway_if_needed(
+                usable_runway=usable_runway, target=runway_target,
+                repo_root=root, db_path=db_path,
+            )
+
         scanned = [
             {"initiative_id": str(initiative["id"]), "state": bi.INITIATIVE_ACTIVE}
             for initiative in active_initiatives(db_path)
@@ -656,13 +835,11 @@ def tick(
             "scanned_initiatives": scanned,
             "launched": launched,
             "skipped": skipped,
-            "reconciliation": {
-                "github_available": bool(truth.get("available")),
-                "github_error": truth.get("error"),
-                "github_pr_count": truth.get("pr_count", len(truth.get("by_head") or {})),
-                "main_sha": current_main_sha,
-                "main_error": current_main_error,
-            },
+            "reconciliation": reconciliation,
+            "repo_root": str(root),
+            "usable_runway": usable_runway,
+            "runway_target": runway_target,
+            "replenishment": replenishment,
             "duplicate_tick": False,
         }
 
@@ -1089,6 +1266,9 @@ def scheduler_status(
         "last_tick_at": None,
         "next_run_at": None,
         "reason": None,
+        "code_root": str(root),
+        "installed_working_directory": None,
+        "contract_matches": False,
     }
     if sys.platform != "darwin":
         result["reason"] = "scheduled Builder execution is supported on macOS launchd only"
@@ -1106,7 +1286,9 @@ def scheduler_status(
     result["run_at_load"] = installed.get("RunAtLoad")
     expected = render_supervisor_plist(root)
     contract_keys = ("Label", "ProgramArguments", "WorkingDirectory", "RunAtLoad", "StartInterval")
+    result["installed_working_directory"] = installed.get("WorkingDirectory")
     contract_ok = all(installed.get(key) == expected.get(key) for key in contract_keys) and "KeepAlive" not in installed
+    result["contract_matches"] = contract_ok
 
     domain = f"gui/{os.getuid()}/{SUPERVISOR_LABEL}"
     try:
@@ -1223,6 +1405,24 @@ def status(
             }
         )
     active_runs = active_runs_summary(db_path)
+    usable_runway = bau.usable_builder_runway(runway)
+    runway_target, runway_target_error = _runway_target()
+    if runway_target_error:
+        replenishment = {
+            "replenishment_needed": usable_runway < runway_target,
+            "usable_runway": usable_runway, "target": runway_target,
+            "launched": False, "reason": runway_target_error,
+        }
+    elif not truth.get("available"):
+        replenishment = {
+            "replenishment_needed": usable_runway < runway_target,
+            "usable_runway": usable_runway, "target": runway_target,
+            "launched": False, "reason": "truth_unavailable",
+        }
+    else:
+        replenishment = replenishment_projection(
+            usable_runway=usable_runway, target=runway_target, repo_root=root, db_path=db_path
+        )
     return {
         "lock": {"path": str(_lock_path(db_path))},
         "initiatives": rollup,
@@ -1232,6 +1432,9 @@ def status(
             "reconciliation": reconciliation,
             "registry_contracts": len(scoped_registry),
             "runway": runway,
+            "usable_runway": usable_runway,
+            "runway_target": runway_target,
+            "replenishment": replenishment,
             "refill": bau.refill_request(runway),
             "publication_inbox": bau.publication_inbox(
                 db_path=db_path, github_truth=truth, initiative_prefix=initiative_prefix
