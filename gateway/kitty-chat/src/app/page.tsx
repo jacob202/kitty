@@ -17,6 +17,7 @@ import { StatusBar } from '@/components/StatusBar'
 import { WobFilters, PaperGrain } from '@/components/WobFilters'
 import { CatCorner } from '@/components/CrayonCat'
 import { useActivity } from '@/lib/queries'
+import { composeSkillLaunchInput } from '@/lib/capability-launch'
 
 export default function KittyChat() {
   const k = useKitty()
@@ -218,7 +219,7 @@ export default function KittyChat() {
           }
           if (capability.launch === 'skill' && capability.skill_name) {
             k.setActiveView('chat')
-            k.setInput(`Use skill: ${capability.skill_name}\n\n`)
+            k.setInput(composeSkillLaunchInput(k.input, capability.skill_name))
             window.setTimeout(() => k.textareaRef.current?.focus(), 0)
           }
         }}

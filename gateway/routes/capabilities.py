@@ -50,6 +50,15 @@ def _skill_capability(skill: dict) -> Capability:
 
 @router.get("/capabilities")
 async def list_capabilities():
-    skills = [_skill_capability(skill) for skill in skill_registry.discover() if str(skill.get("name", "")).strip()]
+    # This route promises a *live* catalog, so do not project the registry's
+    # process cache after skills are installed/removed/edited. Dynamic skills
+    # are opt-in because Kitty Chat has no tool executor: advertising an
+    # arbitrary disk skill as launchable would make a promise Chat cannot keep.
+    discovered = skill_registry.discover(force_refresh=True)
+    skills = [
+        _skill_capability(skill)
+        for skill in discovered
+        if str(skill.get("name", "")).strip() and skill.get("chat_launchable") is True
+    ]
     skills.sort(key=lambda item: item.label)
     return {"capabilities": [*map(lambda item: item.model_dump(exclude_none=True), _CORE_CAPABILITIES), *map(lambda item: item.model_dump(exclude_none=True), skills)]}

@@ -1,5 +1,12 @@
 # Kitty Repository Rules for AI Models
 
+## CRITICAL: Never poll CI
+
+- Use `gh pr checks <N> --watch` (one command, exits when checks finish).
+- Use `gh pr merge <N> --auto` to let GitHub merge when checks pass.
+- NEVER `until`/`while`/`for` loops with `sleep` around `gh pr` commands.
+  (Blocked by .claude/hooks/block-polling.sh.)
+
 ## CRITICAL: Before ANY Push
 
 1. **ALWAYS run the relevant tests locally before pushing:**
