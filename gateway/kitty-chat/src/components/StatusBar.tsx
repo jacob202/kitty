@@ -189,6 +189,20 @@ export function StatusBar({
     return <div role="status" style={rowStyle}>saved</div>
   }
 
+  // Everything is fine — show a subtle online indicator
+  if (showChatSignals && !confirmedOffline && !briefUnavailable) {
+    return (
+      <div role="status" style={{ ...rowStyle, justifyContent: 'flex-end', gap: 6 }}>
+        <span style={{
+          width: 6, height: 6, borderRadius: '50%%',
+          background: 'var(--c-green, #22c55e)',
+          display: 'inline-block', flexShrink: 0,
+        }} />
+        <span>connected</span>
+      </div>
+    )
+  }
+
   return null
 }
 

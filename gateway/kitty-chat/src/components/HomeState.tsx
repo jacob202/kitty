@@ -951,7 +951,7 @@ function WhatsNext({
           </span>
       <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
-            {greeting(new Date().getHours())}{preferredName ? `, ${preferredName}` : ''} — not enough signal yet
+            {greeting(new Date().getHours())}{preferredName ? `, ${preferredName}` : ''} — home is quiet for now
           </span>
         <span>
               nothing proposed, no decisions waiting, no project next-steps, and today's list

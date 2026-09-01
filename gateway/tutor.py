@@ -187,6 +187,51 @@ def grade_answer(
 # ── Memory: confidence logging + spaced repetition ────────────────────────────
 
 
+# ── SM-2 Spaced Repetition (Anki algorithm) ────────────────────────────────────
+
+def _sm2_next_interval(
+    repetition: int, ef: float, quality: int, current_interval: int = 1
+) -> tuple[int, float, int]:
+    """SM-2: compute (new_interval, new_ef, new_repetition).
+
+    quality is 0-5 (we map correct=4, incorrect=1).
+    """
+    new_ef = ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+    if new_ef < 1.3:
+        new_ef = 1.3
+    if quality < 3:
+        return (1, new_ef, 0)
+    rep = repetition + 1
+    if rep == 1:
+        new_i = 1
+    elif rep == 2:
+        new_i = 6
+    else:
+        new_i = round(current_interval * new_ef)
+    return (new_i, new_ef, rep)
+
+
+def _sm2_schedule(term: str, correct: bool, conn: sqlite3.Connection) -> None:
+    """Apply SM-2 scheduling after a quiz attempt. Updates vocabulary_terms."""
+    row = conn.execute(
+        "SELECT ef, repetition, interval FROM vocabulary_terms WHERE term=?",
+        (term,)
+    ).fetchone()
+    ef = float(row[0]) if row else 2.5
+    rep = int(row[1]) if row else 0
+    cur_interval = int(row[2]) if row else 1
+    quality = 4 if correct else 1
+    new_interval, new_ef, new_rep = _sm2_next_interval(rep, ef, quality, cur_interval)
+    now = datetime.now(timezone.utc)
+    conn.execute(
+        "UPDATE vocabulary_terms SET ef=?, repetition=?, interval=?, "
+        "next_review=?, last_score=? WHERE term=?",
+        (new_ef, new_rep, new_interval,
+         (now + timedelta(days=new_interval)).isoformat(),
+         1 if correct else 3, term)
+    )
+
+
 def _conn() -> sqlite3.Connection:
     MEMORY_DB.parent.mkdir(parents=True, exist_ok=True)
     conn = db_connect(MEMORY_DB)
@@ -202,6 +247,20 @@ def _conn() -> sqlite3.Connection:
         "CREATE TABLE IF NOT EXISTS tutor_attempts ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, term TEXT, correct INTEGER, ts TEXT)"
     )
+    # SM-2 columns (ef, repetition, interval) added after the HEIST session.
+    # Tolerate older DBs.
+    try:
+        conn.execute("ALTER TABLE vocabulary_terms ADD COLUMN ef REAL DEFAULT 2.5")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute("ALTER TABLE vocabulary_terms ADD COLUMN repetition INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute("ALTER TABLE vocabulary_terms ADD COLUMN interval INTEGER DEFAULT 1")
+    except sqlite3.OperationalError:
+        pass
     # mastery column added after the first DTH-04 release; tolerate older DBs.
     try:
         conn.execute("ALTER TABLE vocabulary_terms ADD COLUMN mastery REAL DEFAULT 0")
@@ -335,18 +394,18 @@ def log_attempt(
         mastery = compute_mastery(correctness)
         if kp_type in (KnowledgeType.CONCEPT, KnowledgeType.DESIGN) and correct:
             mastery = 1.0
-        # last_score 1 = got it, 3 = lost -> drives review cadence.
+        # SM-2 scheduling (replaces fixed-interval KNOWLEDGE_TYPE_INTERVALS)
         last = 1 if correct else 3
-        days = KNOWLEDGE_TYPE_INTERVALS[kp_type][last]
-        next_review = (now + timedelta(days=days)).isoformat()
+        # Ensure the row exists so _sm2_schedule can UPDATE it
         conn.execute(
             "INSERT INTO vocabulary_terms (term, subject, last_score, next_review, mastery) "
             "VALUES (?,?,?,?,?) "
             "ON CONFLICT(term) DO UPDATE SET "
             "last_score=excluded.last_score, next_review=excluded.next_review, "
             "mastery=excluded.mastery",
-            (term, subject, last, next_review, mastery),
+            (term, subject, last, "", mastery),
         )
+        _sm2_schedule(term, correct, conn)
     return mastery
 
 
