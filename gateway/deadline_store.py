@@ -246,6 +246,56 @@ def escalation_already_sent(deadline_id: int, checkpoint: str) -> bool:
     return row is not None
 
 
+def claim_escalation(deadline_id: int, checkpoint: str) -> bool:
+    """Atomically claim an escalation checkpoint for delivery.
+
+    Returns True if this caller won the claim, False if already claimed/completed.
+    Uses a unique constraint on (deadline_id, checkpoint, claimed=1) to ensure
+    only one concurrent caller can hold the claim.
+    """
+    init_db()
+    now = _now_ts()
+    with kitty_db.connect(DEADLINES_DB_FILE) as conn:
+        # Check if already sent (completed)
+        sent = conn.execute(
+            "SELECT 1 FROM deadline_escalations WHERE deadline_id = ? AND checkpoint = ? AND pushed_at IS NOT NULL",
+            (deadline_id, checkpoint),
+        ).fetchone()
+        if sent:
+            return False
+
+        # Try to insert or update claim row with claimed=1
+        # Using UPSERT with a unique constraint on (deadline_id, checkpoint, claimed)
+        # We'll use a pending_escalations table to track in-flight claims
+        conn.execute(
+            """
+            INSERT INTO pending_escalations (deadline_id, checkpoint, claimed_at, claimed)
+            VALUES (?, ?, ?, 1)
+            ON CONFLICT(deadline_id, checkpoint, claimed) WHERE claimed = 1 DO NOTHING
+            """,
+            (deadline_id, checkpoint, now),
+        )
+        conn.commit()
+
+        # Verify we got the claim
+        row = conn.execute(
+            "SELECT 1 FROM pending_escalations WHERE deadline_id = ? AND checkpoint = ? AND claimed = 1",
+            (deadline_id, checkpoint),
+        ).fetchone()
+        return row is not None
+
+
+def release_escalation_claim(deadline_id: int, checkpoint: str) -> None:
+    """Release a failed escalation claim so it can be retried."""
+    init_db()
+    with kitty_db.connect(DEADLINES_DB_FILE) as conn:
+        conn.execute(
+            "DELETE FROM pending_escalations WHERE deadline_id = ? AND checkpoint = ? AND claimed = 1",
+            (deadline_id, checkpoint),
+        )
+        conn.commit()
+
+
 def _require(deadline_id: int) -> dict[str, Any]:
     deadline = get(deadline_id)
     if deadline is None:

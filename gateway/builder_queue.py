@@ -97,6 +97,7 @@ from .builder_queue_runs import (  # noqa: F401
     generate_run_id,
     get_run,
     list_runs,
+    process_identity_matches,
     recover_interrupted_runs,
     update_run,
 )
@@ -154,6 +155,7 @@ __all__ = [
     "attach_final_report",
     "attach_pr",
     "capture_process_identity",
+    "process_identity_matches",
     "claim_branch_lease",
     "create_run",
     "create_task",

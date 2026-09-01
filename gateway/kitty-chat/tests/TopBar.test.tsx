@@ -25,6 +25,7 @@ function renderTopBar(
       onActivity={onActivity}
       activityAttentionCount={activityAttentionCount}
       onToggleSidebar={() => {}}
+      onCommandPalette={() => {}}
       onSelectProject={() => {}}
       activeProject={{ id: 1, name: 'kitty-gateway-rebuild' }}
       projects={[{ id: 1, name: 'kitty-gateway-rebuild' }]}
@@ -126,6 +127,11 @@ describe('TopBar runtime badge', () => {
 
 describe('TopBar mobile two-row header (#346)', () => {
   afterEach(cleanup)
+  it('keeps the capability launcher reachable on touch layouts', () => {
+    renderTopBar(true)
+    expect(screen.getByRole('button', { name: 'Open command palette' })).toBeInTheDocument()
+  })
+
   it('moves the workspace and model controls out of the cramped identity row', () => {
     renderTopBar(true)
 

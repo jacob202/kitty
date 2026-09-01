@@ -428,3 +428,304 @@ def test_why_routes_are_mounted_on_gateway(automation_db, supervisor_control):
     body = response.json()["explanation"]
     assert body["status"] == "not_due"
     assert body["automation"] == sid
+
+
+# ---------------------------------------------------------------------------
+# Work-item explanations: derive only from the existing Builder work projection
+# ---------------------------------------------------------------------------
+
+
+def _work_snapshot_for(items):
+    """Build a minimal projected work snapshot for testing."""
+    return {
+        "schema_version": 1,
+        "observed_at": "2026-08-13T12:00:00Z",
+        "valid_until": "2026-08-13T12:00:30Z",
+        "source": {"kind": "builder", "state": "available", "snapshot_schema_version": 2},
+        "counts": {"total": len(items), "active": 0, "paused": 0, "failed": 0, "blocked": 0, "completed": 0, "ready": 0, "waiting": 0},
+        "items": items,
+    }
+
+
+def _work_item(
+    initiative_id,
+    *,
+    state="ready",
+    blocker=None,
+    next_action="claim",
+    current_run=None,
+    packet_id=None,
+    failure_kind=None,
+    updated_at="2026-08-13T12:00:00Z",
+):
+    """Build a minimal projected work item for testing."""
+    packet = None
+    if packet_id is not None:
+        packet = {
+            "id": packet_id,
+            "title": f"title-{packet_id}",
+            "objective": f"objective-{packet_id}",
+            "task_id": f"task-{packet_id}",
+            "task_state": "queued",
+            "eligibility": {"state": "eligible", "blocked_by": []},
+            "failure_kind": failure_kind,
+            "next_action": next_action,
+            "updated_at": updated_at,
+        }
+    return {
+        "id": initiative_id,
+        "title": f"initiative {initiative_id}",
+        "state": state,
+        "source": {"kind": "builder", "initiative_id": initiative_id, "packet_id": packet_id},
+        "current_packet": packet,
+        "current_run": current_run,
+        "blocker": blocker,
+        "next_action": next_action,
+        "evidence": {
+            "validation": None,
+            "review": None,
+            "publication": None,
+            "approval": {"state": "unavailable", "reason": "no binding"},
+        },
+        "data_quality": {"state": "complete", "issues": []},
+        "updated_at": updated_at,
+    }
+
+
+def test_explain_work_item_blocked():
+    from gateway.why_not import explain_work_item
+
+    item = _work_item(
+        "blocked-1",
+        state="blocked",
+        blocker={"state": "blocked", "reason": "dependency: dep-1", "blocked_by": ["dep-1"]},
+        next_action="wait for dep-1",
+        packet_id="pkt-blocked",
+    )
+
+    explanation = explain_work_item(_work_snapshot_for([item]), "blocked-1")
+
+    assert explanation.status == "blocked"
+    assert "dependency: dep-1" in explanation.reason
+    assert explanation.automation == "pkt-blocked"
+    assert explanation.evidence["blocker"]["state"] == "blocked"
+    assert explanation.next_step == "wait for dep-1"
+    assert explanation.relevant_at is not None
+
+
+def test_explain_work_item_failed_cites_validation():
+    from gateway.why_not import explain_work_item
+
+    item = _work_item(
+        "failed-1",
+        state="failed",
+        packet_id="pkt-failed",
+        failure_kind="validation",
+    )
+    item["evidence"]["validation"] = {
+        "status": "failed",
+        "command_count": 2,
+        "failed_command_count": 1,
+        "summary": "1 validation command failed (exit 1).",
+    }
+
+    explanation = explain_work_item(_work_snapshot_for([item]), "failed-1")
+
+    assert explanation.status == "failed"
+    assert "validation failed" in explanation.reason
+    assert explanation.automation == "pkt-failed"
+    assert explanation.evidence["validation"]["status"] == "failed"
+
+
+def test_explain_work_item_failed_cites_review():
+    from gateway.why_not import explain_work_item
+
+    item = _work_item(
+        "failed-review",
+        state="failed",
+        packet_id="pkt-review",
+        failure_kind="review",
+    )
+    item["evidence"]["review"] = {
+        "verdict": "reject",
+        "summary": "Code quality insufficient.",
+        "findings": [],
+    }
+
+    explanation = explain_work_item(_work_snapshot_for([item]), "failed-review")
+
+    assert explanation.status == "failed"
+    assert "review rejected" in explanation.reason
+
+
+def test_explain_work_item_failed_insufficient_evidence():
+    from gateway.why_not import explain_work_item
+
+    item = _work_item(
+        "failed-unknown",
+        state="failed",
+        packet_id="pkt-unknown",
+    )
+
+    explanation = explain_work_item(_work_snapshot_for([item]), "failed-unknown")
+
+    assert explanation.status == "failed"
+    assert "not recorded enough evidence" in explanation.reason
+
+
+def test_explain_work_item_active_with_run():
+    from gateway.why_not import explain_work_item
+
+    run = {"id": 42, "state": "running", "started_at": "2026-08-13T11:58:00Z"}
+    item = _work_item(
+        "active-1",
+        state="active",
+        current_run=run,
+        packet_id="pkt-active",
+    )
+
+    explanation = explain_work_item(_work_snapshot_for([item]), "active-1")
+
+    assert explanation.status == "active"
+    assert "run 42" in explanation.reason
+    assert explanation.automation == "pkt-active"
+
+
+def test_explain_work_item_ready():
+    from gateway.why_not import explain_work_item
+
+    item = _work_item(
+        "ready-1",
+        state="ready",
+        next_action="claim",
+        packet_id="pkt-ready",
+    )
+
+    explanation = explain_work_item(_work_snapshot_for([item]), "ready-1")
+
+    assert explanation.status == "ready"
+    assert "eligible" in explanation.reason
+    assert "claim" in explanation.next_step
+
+
+def test_explain_work_item_paused():
+    from gateway.why_not import explain_work_item
+
+    item = _work_item(
+        "paused-1",
+        state="paused",
+        blocker={"state": "blocked", "reason": "operator paused the initiative"},
+        next_action="resume the initiative",
+        packet_id="pkt-paused",
+    )
+
+    explanation = explain_work_item(_work_snapshot_for([item]), "paused-1")
+
+    assert explanation.status == "paused"
+    assert "operator paused" in explanation.reason
+    assert explanation.next_step == "resume the initiative"
+
+
+def test_explain_work_item_waiting():
+    from gateway.why_not import explain_work_item
+
+    item = _work_item("waiting-1", state="waiting", packet_id="pkt-waiting")
+
+    explanation = explain_work_item(_work_snapshot_for([item]), "waiting-1")
+
+    assert explanation.status == "waiting"
+    assert "waiting" in explanation.reason.lower()
+
+
+def test_explain_work_item_completed():
+    from gateway.why_not import explain_work_item
+
+    item = _work_item("completed-1", state="completed", packet_id="pkt-done")
+
+    explanation = explain_work_item(_work_snapshot_for([item]), "completed-1")
+
+    assert explanation.status == "completed"
+    assert "complete" in explanation.reason.lower()
+    assert explanation.automation == "pkt-done"
+
+
+def test_explain_work_item_unknown_initiative_raises_work_not_found():
+    from gateway.why_not import WorkNotFound, explain_work_item
+
+    with pytest.raises(WorkNotFound, match="not found"):
+        explain_work_item(_work_snapshot_for([]), "does-not-exist")
+
+
+def test_explain_work_item_unknown_state_returns_insufficient_evidence():
+    from gateway.why_not import explain_work_item
+
+    item = _work_item("mystery-1", state="bogus", packet_id="pkt-mystery")
+
+    explanation = explain_work_item(_work_snapshot_for([item]), "mystery-1")
+
+    assert explanation.status == "insufficient_evidence"
+    assert "not recorded enough evidence" in explanation.reason
+
+
+@pytest.mark.asyncio
+async def test_work_why_route_returns_explanation(monkeypatch):
+    from gateway.routes import work as work_route
+
+    item = _work_item(
+        "route-test",
+        state="blocked",
+        blocker={"state": "blocked", "reason": "blocked by dep-2"},
+        packet_id="pkt-route",
+    )
+    monkeypatch.setattr(
+        work_route,
+        "build_status_snapshot",
+        lambda: {
+            "schema_version": 2,
+            "integrity": {"state": "complete", "partial_packets": 0, "total_packets": 0},
+            "queue": {},
+            "initiatives": [],
+        },
+    )
+    monkeypatch.setattr(
+        work_route,
+        "project_work_snapshot",
+        lambda _snap: _work_snapshot_for([item]),
+    )
+
+    payload = await work_route.work_why("route-test")
+
+    explanation = payload["explanation"]
+    assert explanation["status"] == "blocked"
+    assert "blocked by dep-2" in explanation["reason"]
+    assert explanation["automation"] == "pkt-route"
+    assert set(
+        ("status", "reason", "relevant_at", "automation", "evidence", "next_step")
+    ) <= set(explanation)
+
+
+@pytest.mark.asyncio
+async def test_work_why_route_404s_for_unknown_initiative(monkeypatch):
+    from fastapi import HTTPException
+
+    from gateway.routes import work as work_route
+
+    monkeypatch.setattr(
+        work_route,
+        "build_status_snapshot",
+        lambda: {
+            "schema_version": 2,
+            "integrity": {"state": "complete", "partial_packets": 0, "total_packets": 0},
+            "queue": {},
+            "initiatives": [],
+        },
+    )
+    monkeypatch.setattr(
+        work_route,
+        "project_work_snapshot",
+        lambda _snap: _work_snapshot_for([]),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await work_route.work_why("does-not-exist")
+    assert exc.value.status_code == 404

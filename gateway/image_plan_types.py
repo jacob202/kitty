@@ -1,12 +1,21 @@
-"""Kitty ImagePlan — bounded plan → renderer boundary.
+"""Kitty ImagePlan types — plan type definitions and builder for the
+bounded plan → renderer boundary.
 
 Adapted from GenEvolve's ``GenEvolveResult`` and ``_finalize_answer``
 (``genevolve/agent.py:150-171, 357-391``).  Kitty's version is local-first:
 references are validated local character IDs, guidance is curated Markdown,
 and dispatch always goes through the existing ``image_runner.run()`` lifecycle.
 
-The plan is a validated, serialisable preview that the user can inspect
+The plan type is a validated, serialisable preview that the user can inspect
 and approve before generation begins — it never calls a renderer on its own.
+
+Pointers:
+  - plan type (this module) vs plan store (image_plan_store): the type defines
+    the shape and validation; the store persists approved plans under stable IDs.
+  - ``ImageIntent`` is provider-neutral; the renderer receives the refined prompt
+    + resolved references separately — the plan type never embeds renderer args.
+  - Content-lane defaults to SAFE (ADR 0040 #8) so callers that don't opt in are
+    never private; the builder deliberately does not derive a lane from prompt text.
 """
 
 from __future__ import annotations
@@ -178,7 +187,7 @@ def build_image_plan(
     import math
 
     from gateway import image_characters as ic
-    from gateway.image_guidance import available_guidance_tags
+    from gateway.image_guidance_bank import available_guidance_tags
     from gateway.image_policy import ContentLane
 
     if operation not in {"txt2img", "img2img"}:
@@ -446,7 +455,7 @@ def _refine_prompt(
     guidance are appended as separate sentences so the renderer can parse them
     independently — never modify the user's text.
     """
-    from gateway.image_guidance import get_guidance
+    from gateway.image_guidance_bank import get_guidance
 
     parts: list[str] = [prompt]
 
