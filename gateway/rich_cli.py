@@ -27,7 +27,6 @@ Usage:
 from __future__ import annotations
 
 import contextlib
-import time
 from typing import Any, Generator, Sequence
 
 
@@ -35,25 +34,35 @@ from typing import Any, Generator, Sequence
 # Kitty may run without rich installed in non-interactive mode.
 def _rich():
     """Lazy import: returns (Console, Panel, Table, Progress, SpinnerColumn, ...)."""
+    from rich.columns import Columns as _Columns
     from rich.console import Console as _Console
+    from rich.layout import Layout as _Layout
+    from rich.live import Live as _Live
+    from rich.markdown import Markdown as _Markdown
     from rich.panel import Panel as _Panel
-    from rich.table import Table as _Table
+    from rich.progress import (
+        BarColumn as _BarColumn,
+    )
     from rich.progress import (
         Progress as _Progress,
+    )
+    from rich.progress import (
         SpinnerColumn as _SpinnerColumn,
+    )
+    from rich.progress import (
         TextColumn as _TextColumn,
-        BarColumn as _BarColumn,
+    )
+    from rich.progress import (
         TimeRemainingColumn as _TimeRemainingColumn,
+    )
+    from rich.progress import (
         TransferSpeedColumn as _TransferSpeedColumn,
     )
-    from rich.live import Live as _Live
-    from rich.layout import Layout as _Layout
-    from rich.columns import Columns as _Columns
-    from rich.text import Text as _Text
-    from rich.syntax import Syntax as _Syntax
-    from rich.markdown import Markdown as _Markdown
     from rich.prompt import Prompt as _Prompt
     from rich.status import Status as _Status
+    from rich.syntax import Syntax as _Syntax
+    from rich.table import Table as _Table
+    from rich.text import Text as _Text
     return (
         _Console, _Panel, _Table, _Progress, _SpinnerColumn,
         _TextColumn, _BarColumn, _TimeRemainingColumn, _TransferSpeedColumn,
