@@ -113,6 +113,11 @@ def _to_str_list(value: object) -> list[str]:
     return []
 
 
+def _to_bool(value: object) -> bool:
+    """Only an explicit YAML boolean opts a skill into a boolean capability."""
+    return value if isinstance(value, bool) else False
+
+
 def _parse_skill_file(path: Path) -> dict | None:
     """Parse a SKILL.md file and return skill metadata dict."""
     try:
@@ -133,6 +138,10 @@ def _parse_skill_file(path: Path) -> dict | None:
         "when_to_use": _to_str(meta.get("when_to_use")),
         "model": _to_str_or_none(meta.get("model")),
         "allowed_tools": _to_str_list(meta.get("allowed_tools")),
+        # Kitty Chat currently has no tool executor. A skill is therefore not
+        # launcher-safe merely because it exists on disk: its owner must opt in
+        # only after the prompt is known to be executable in this runtime.
+        "chat_launchable": _to_bool(meta.get("chat_launchable")),
         "license": _to_str_or_none(meta.get("license")),
         "compatibility": _to_str_or_none(meta.get("compatibility")),
         "path": str(path),

@@ -289,7 +289,8 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "049_automation_runs_payload.sql",
         "050_automation_runs_watch_disabled_status.sql",
         "051_undo_journal.sql",
-        "052_research_runs.sql",
+        "052_agent_workspace_receipts.sql",
+        "053_research_runs.sql",
     ]
 
 
