@@ -1590,6 +1590,40 @@ export interface GatewayProjectResume {
   deadlines: GatewayProjectSection<GatewayProjectDeadline>
 }
 
+export function artifactContentUrl(artifactId: string): string {
+  return `${GATEWAY_BASE}/artifacts/${encodeURIComponent(artifactId)}/content`
+}
+
+export async function fetchArtifactText(artifactId: string, signal?: AbortSignal): Promise<string> {
+  const controller = new AbortController()
+  const abortFromCaller = () => controller.abort()
+  if (signal?.aborted) controller.abort()
+  else signal?.addEventListener('abort', abortFromCaller, { once: true })
+  const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS)
+  try {
+    const response = await fetch(artifactContentUrl(artifactId), { signal: controller.signal })
+    if (!response.ok) {
+      let detail: unknown
+      try {
+        const body: unknown = await response.json()
+        detail = body && typeof body === 'object' ? (body as { detail?: unknown }).detail : null
+      } catch {
+        detail = null
+      }
+      if (typeof detail === 'string' && detail.trim()) {
+        const rejection = new Error(detail.slice(0, 300))
+        rejection.name = 'ArtifactPreviewRejection'
+        throw rejection
+      }
+      throw new Error(`Gateway returned ${response.status} ${response.statusText}`.trim())
+    }
+    return await response.text()
+  } finally {
+    window.clearTimeout(timeoutId)
+    signal?.removeEventListener('abort', abortFromCaller)
+  }
+}
+
 export interface GatewayArtifact {
   id: string
   project_id: number | null

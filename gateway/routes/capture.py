@@ -36,6 +36,21 @@ ALLOWED_MIME_TYPES = {
 
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
+CAPTURE_MEDIA_BY_EXTENSION = {
+    ".pdf": "application/pdf",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+}
+
+
+def _capture_media_type(path: Path) -> str | None:
+    return CAPTURE_MEDIA_BY_EXTENSION.get(path.suffix.lower())
+
 
 def _capture_allowed_roots() -> list[Path]:
     """Return current allowed capture roots (respects runtime DATA_DIR changes)."""
@@ -257,7 +272,7 @@ async def post_capture_file(
     artifact = artifact_store.register_file(
         Path(source_path),
         kind="attachment",
-        media_type=file.content_type if file is not None else None,
+        media_type=file.content_type if file is not None else _capture_media_type(Path(source_path)),
         project_id=project_id,
         created_by="capture.file",
         source_ref=capture_id,
