@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from gateway import agent_workspace
+from gateway import agent_room_cli, agent_workspace
 
 ROOT = Path(__file__).resolve().parents[1]
 START_HOOK = ROOT / ".claude/hooks/session-start.sh"
@@ -23,7 +23,7 @@ def room_db(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     return db_file
 
 
-def test_direct_only_inbox_cannot_be_starved_by_broadcasts(room_db) -> None:
+def test_direct_only_cli_inbox_cannot_be_starved_by_broadcasts(room_db) -> None:
     agent_workspace.ensure_global_workspace()
     direct = agent_workspace.post_global_message(
         sender_id="chatgpt",
@@ -38,7 +38,7 @@ def test_direct_only_inbox_cannot_be_starved_by_broadcasts(room_db) -> None:
             message_kind="status",
         )
 
-    inbox = agent_workspace.list_inbox("claude", unread_only=True, direct_only=True, limit=1)
+    inbox = agent_room_cli._direct_inbox("claude", unread_only=True, limit=1)
 
     assert [item["id"] for item in inbox] == [direct["id"]]
 
@@ -139,6 +139,27 @@ def test_session_start_fetches_direct_unread_separately(tmp_path: Path) -> None:
     assert "room inbox --as claude --unread --direct --limit 12" in log
     assert "please review" in result.stdout
     assert "gar-session:sess-start" in result.stdout
+    assert "Do not wait for Jacob to say session end" in result.stdout
+
+
+def test_session_start_reports_room_unavailable_without_erasing_pending(tmp_path: Path) -> None:
+    pending = tmp_path / "state/pending"
+    pending.mkdir(parents=True)
+    queued = pending / "old-session.txt"
+    queued.write_text("durable pending handoff", encoding="utf-8")
+
+    result = _run(
+        START_HOOK,
+        {"session_id": "sess-down", "hook_event_name": "SessionStart"},
+        tmp_path,
+        KITTY_STUB_RECENT_RC="1",
+        KITTY_STUB_INBOX_RC="1",
+        KITTY_STUB_POST_RC="1",
+    )
+
+    assert result.returncode == 0
+    assert queued.exists()
+    assert "workspace_global unavailable" in result.stdout
 
 
 def test_session_end_posts_fallback_only_at_real_session_end(tmp_path: Path) -> None:
