@@ -105,9 +105,10 @@ async def sync_import(request: Request):
 
 @router.get("/nudges")
 async def nudge_list():
-    from gateway.nudge import get_pending
+    from gateway.nudge import check_with_status
 
-    return {"nudges": get_pending()}
+    result = check_with_status()
+    return {"nudges": result["nudges"], "sources": result["sources"]}
 
 
 @router.post("/nudge/{nudge_id}/dismiss")
