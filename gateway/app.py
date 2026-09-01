@@ -227,6 +227,26 @@ async def lifespan(app: FastAPI):
 
                 await check_due()
 
+            async def _action_check_deadlines():
+                from gateway.brief_scheduler import load_brief_timezone
+                from gateway.deadline_watch import check_and_push
+
+                # Use the user's configured timezone to compute "today" for deadline checkpoints
+                user_tz = load_brief_timezone()
+                from datetime import datetime
+                today = datetime.now(user_tz).date()
+                result = await asyncio.to_thread(check_and_push, now=today)
+                if int(result.get("attempted", 0)) > 0 and int(result.get("pushed", 0)) == 0:
+                    # Distinguish quiet-hours deferral from actual failure
+                    if int(result.get("quiet_hours_deferred", 0)) > 0:
+                        raise automation_actions.ConditionFalse(
+                            f"Deadline warning(s) due but deferred by quiet-hours policy ({result.get('quiet_hours_deferred')} deferred)."
+                        )
+                    raise automation_actions.SourceUnavailable(
+                        "A deadline warning was due, but nothing was delivered to a configured push channel."
+                    )
+                return result
+
             async def _action_memory_consolidate():
                 from gateway.memory_consolidation import nightly_dream
 
@@ -261,6 +281,7 @@ async def lifespan(app: FastAPI):
             register_action("brief.refresh", _action_refresh_brief)
             register_action("nudges.check", _action_check_nudges)
             register_action("monitors.check", _action_check_monitors)
+            register_action("deadline_watch.check_and_push", _action_check_deadlines, tier="T1")
             register_action("memory.consolidate", _action_memory_consolidate)
             register_action("traces.compact", _action_compact_traces)
             register_action("inbox.triage", _action_triage_inbox)
@@ -316,6 +337,7 @@ async def lifespan(app: FastAPI):
             cron.schedule("brief cache refresh", "brief.refresh", "interval", "15")
             cron.schedule("insights return due", "insights.return_due", "interval", "15")
             cron.schedule("web monitor due checks", "monitors.check", "interval", "5")
+            cron.schedule("deadline watch", "deadline_watch.check_and_push", "daily", "09:00")
             cron.schedule("iCloud inbox scan", "inbox.scan", "interval", "0.5")
             cron.schedule("trace log compaction", "traces.compact", "daily", "03:30")
             def _cron_factory():

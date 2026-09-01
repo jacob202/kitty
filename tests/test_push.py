@@ -69,7 +69,8 @@ class TestPushToJacob:
         _clear_log(monkeypatch, tmp_path)
         monkeypatch.setenv("PUSH_CHANNELS", "imessage,pushover")
         with patch.dict(push._SENDERS, {"imessage": lambda *_: False, "pushover": lambda *_: True}):
-            assert push.push_to_jacob("hi") is True
+            result = push.push_to_jacob("hi")
+            assert result == {"ok": True, "reason": "delivered"}
 
     def test_falls_back_when_first_channel_fails(self, monkeypatch, tmp_path):
         _clear_log(monkeypatch, tmp_path)
@@ -85,14 +86,16 @@ class TestPushToJacob:
             return True
 
         with patch.dict(push._SENDERS, {"imessage": fail, "pushover": succeed}):
-            assert push.push_to_jacob("hi") is True
+            result = push.push_to_jacob("hi")
+            assert result == {"ok": True, "reason": "delivered"}
         assert calls == ["imessage", "pushover"]
 
     def test_all_channels_down_returns_false(self, monkeypatch, tmp_path):
         _clear_log(monkeypatch, tmp_path)
         monkeypatch.setenv("PUSH_CHANNELS", "imessage,pushover")
         with patch.dict(push._SENDERS, {"imessage": lambda *_: False, "pushover": lambda *_: False}):
-            assert push.push_to_jacob("hi") is False
+            result = push.push_to_jacob("hi")
+            assert result == {"ok": False, "reason": "no_channels"}
 
     def test_channel_raising_is_treated_as_failure_not_propagated(self, monkeypatch, tmp_path):
         _clear_log(monkeypatch, tmp_path)
@@ -102,7 +105,8 @@ class TestPushToJacob:
             raise RuntimeError("transport exploded")
 
         with patch.dict(push._SENDERS, {"imessage": boom, "pushover": lambda *_: True}):
-            assert push.push_to_jacob("hi") is True
+            result = push.push_to_jacob("hi")
+            assert result == {"ok": True, "reason": "delivered"}
 
     def test_every_attempt_logged(self, monkeypatch, tmp_path):
         _clear_log(monkeypatch, tmp_path)
@@ -120,7 +124,8 @@ class TestPushToJacob:
         _clear_log(monkeypatch, tmp_path)
         monkeypatch.setenv("PUSH_CHANNELS", "carrier-pigeon,pushover")
         with patch.dict(push._SENDERS, {"pushover": lambda *_: True}):
-            assert push.push_to_jacob("hi") is True
+            result = push.push_to_jacob("hi")
+            assert result == {"ok": True, "reason": "delivered"}
 
     def test_quiet_hours_defers_info_and_does_not_touch_channels(self, monkeypatch, tmp_path):
         _clear_log(monkeypatch, tmp_path)
@@ -131,7 +136,7 @@ class TestPushToJacob:
         called = []
         with patch.dict(push._SENDERS, {"imessage": lambda *_: called.append(1) or True}):
             result = push.push_to_jacob("hi", kind="info")
-        assert result is False
+            assert result == {"ok": False, "reason": "quiet_hours"}
         assert called == []
 
     def test_quiet_hours_does_not_defer_alert(self, monkeypatch, tmp_path):
@@ -142,24 +147,29 @@ class TestPushToJacob:
         profile.write_text('{"quiet_hours": "23:00-08:00"}', encoding="utf-8")
         monkeypatch.setattr(push, "USER_PROFILE_PATH", profile)
         with patch.dict(push._SENDERS, {"imessage": lambda *_: True}):
-            assert push.push_to_jacob("wake up", kind="alert") is True
+            result = push.push_to_jacob("wake up", kind="alert")
+            assert result == {"ok": True, "reason": "delivered"}
 
     def test_dedupe_suppresses_repeat_within_24h(self, monkeypatch, tmp_path):
         _clear_log(monkeypatch, tmp_path)
         monkeypatch.setenv("PUSH_CHANNELS", "imessage")
         calls = []
         with patch.dict(push._SENDERS, {"imessage": lambda *_: calls.append(1) or True}):
-            assert push.push_to_jacob("hi", dedupe_key="daily-brief") is True
-            assert push.push_to_jacob("hi", dedupe_key="daily-brief") is True
+            result1 = push.push_to_jacob("hi", dedupe_key="daily-brief")
+            result2 = push.push_to_jacob("hi", dedupe_key="daily-brief")
+            assert result1 == {"ok": True, "reason": "delivered"}
+            assert result2 == {"ok": True, "reason": "deduped"}
         assert calls == [1]
 
     def test_dedupe_does_not_suppress_after_a_failed_attempt(self, monkeypatch, tmp_path):
         _clear_log(monkeypatch, tmp_path)
         monkeypatch.setenv("PUSH_CHANNELS", "imessage")
         with patch.dict(push._SENDERS, {"imessage": lambda *_: False}):
-            assert push.push_to_jacob("hi", dedupe_key="daily-brief") is False
+            result1 = push.push_to_jacob("hi", dedupe_key="daily-brief")
+            assert result1 == {"ok": False, "reason": "no_channels"}
         with patch.dict(push._SENDERS, {"imessage": lambda *_: True}):
-            assert push.push_to_jacob("hi", dedupe_key="daily-brief") is True
+            result2 = push.push_to_jacob("hi", dedupe_key="daily-brief")
+            assert result2 == {"ok": True, "reason": "delivered"}
 
     def test_url_passed_through_to_pushover_not_imessage(self, monkeypatch, tmp_path):
         _clear_log(monkeypatch, tmp_path)

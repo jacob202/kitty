@@ -16,9 +16,9 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-from gateway import image_jobs, image_plans
+from gateway import image_jobs, image_plan_store
 from gateway import image_sessions as sessions
-from gateway.image_plans import (
+from gateway.image_plan_store import (
     PlanMalformedError,
     PlanNotApprovedError,
     PlanNotFoundError,
@@ -43,7 +43,7 @@ def _fresh_db(tmp_path: Path):
     conn = sqlite3.connect(str(test_db))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    image_plans._ensure_db(conn)
+    image_plan_store._ensure_db(conn)
     conn.commit()
     conn.close()
 
@@ -53,7 +53,7 @@ def _fresh_db(tmp_path: Path):
 
 
 def _build_plan(character_id: str | None = None):
-    from gateway.image_plan import build_image_plan
+    from gateway.image_plan_types import build_image_plan
 
     return build_image_plan(
         "a cozy portrait in soft light",
@@ -70,7 +70,7 @@ class TestPersistAndLoad:
 
         assert stored.plan_id.startswith("imgplan_")
         assert stored.session_id == s.session_id
-        assert stored.status is PlanStatus.APPROVED
+        assert stored.status == PlanStatus.APPROVED
         assert stored.guidance_tags == ["text_rendering"]
         assert "soft light" in stored.refined_prompt
         assert stored.original_prompt == "a cozy portrait in soft light"
@@ -81,14 +81,14 @@ class TestPersistAndLoad:
         plan = _build_plan()
         stored = persist_plan(s.session_id, plan)
 
-        resumed = image_plans.require_plan(stored.plan_id)
+        resumed = image_plan_store.require_plan(stored.plan_id)
         assert resumed.refined_prompt == stored.refined_prompt
         assert resumed.guidance_tags == ["text_rendering"]
         assert resumed.session_id == s.session_id
-        assert resumed.status is PlanStatus.APPROVED
+        assert resumed.status == PlanStatus.APPROVED
 
     def test_get_plan_returns_none_for_unknown(self):
-        assert image_plans.get_plan("imgplan_nope") is None
+        assert image_plan_store.get_plan("imgplan_nope") is None
 
     def test_persist_requires_existing_session(self):
         with pytest.raises(PlanStoreError, match="session"):
@@ -183,7 +183,7 @@ class TestEditPlanRoundTrip:
         assert stored.operation == "img2img"
         assert stored.anchor_job_id == anchor
 
-        resumed = image_plans.require_plan(stored.plan_id)
+        resumed = image_plan_store.require_plan(stored.plan_id)
         assert resumed.operation == "img2img"
         assert resumed.anchor_job_id == anchor
 
@@ -193,7 +193,7 @@ class TestEditPlanRoundTrip:
 
         assert stored.operation == "txt2img"
         assert stored.anchor_job_id is None
-        assert image_plans.require_plan(stored.plan_id).operation == "txt2img"
+        assert image_plan_store.require_plan(stored.plan_id).operation == "txt2img"
 
     def test_persist_rejects_unknown_operation(self):
         s = sessions.create_session()
@@ -219,7 +219,7 @@ class TestEditPlanRoundTrip:
             conn.commit()
 
         with pytest.raises(PlanMalformedError, match="unknown operation"):
-            image_plans.require_plan(stored.plan_id)
+            image_plan_store.require_plan(stored.plan_id)
 
 
 class TestRoutePlanPersistence:
@@ -234,7 +234,7 @@ class TestRoutePlanPersistence:
             )
         )
         assert result["plan_id"].startswith("imgplan_")
-        resumed = image_plans.require_plan(result["plan_id"])
+        resumed = image_plan_store.require_plan(result["plan_id"])
         assert resumed.session_id == s.session_id
 
     @pytest.mark.asyncio

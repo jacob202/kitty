@@ -1883,6 +1883,10 @@ export interface DeadlineSweepReport {
   top: GatewayDeadline | null
   blind_spots: string[]
   generated_at: string
+  escalated: number
+  escalation_failed: number
+  delivery_status: 'delivered' | 'partial' | 'source_unavailable' | 'nothing_due' | 'not_requested'
+  delivery_message: string
 }
 
 /** The sweep scans documents + mail via the LLM server-side — give it room. */

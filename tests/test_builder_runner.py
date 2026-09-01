@@ -1149,6 +1149,46 @@ class TestRequestCancel:
         with pytest.raises(ValueError, match="not active"):
             br.request_cancel(run["id"], db_path=db_path)
 
+    def test_cancel_allows_same_pid_after_exec_changes_command(
+        self, db_path: Path, monkeypatch
+    ):
+        import os
+
+        task = _queued_task(db_path)
+        claimed = bq.claim_task(task["id"], "runner", db_path=db_path)
+        run = bq.create_run(
+            task["id"],
+            ["sleep", "60"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        started = "Mon Aug 31 17:43:26 2026"
+        bq.update_run(
+            run["id"],
+            state=bq.RUN_RUNNING,
+            pid=os.getpid(),
+            process_identity=f"{started} /usr/bin/sandbox-exec -p profile bash worker.sh",
+            db_path=db_path,
+        )
+        monkeypatch.setattr(
+            bq,
+            "capture_process_identity",
+            lambda _pid: f"{started} bash worker.sh",
+        )
+        signals: list[tuple[int, int]] = []
+        monkeypatch.setattr(
+            br.os, "killpg", lambda pid, sig: signals.append((pid, sig))
+        )
+
+        cancelled = br.request_cancel(run["id"], db_path=db_path)
+
+        assert cancelled["state"] == bq.RUN_CANCEL_REQUESTED
+        assert cancelled["signal_sent"] is True
+        assert cancelled["signal_status"] == "signal_sent"
+        assert len(signals) == 1
+        assert signals[0][0] == os.getpid()
+
     def test_cancel_refuses_to_signal_reused_pid(
         self, db_path: Path, monkeypatch
     ):
