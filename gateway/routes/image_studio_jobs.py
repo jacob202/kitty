@@ -334,7 +334,14 @@ async def studio_create_batch(req: StudioBatchRequest) -> dict:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except (PlanSessionMismatchError, PlanNotApprovedError, PlanStoreError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        operation = plan.operation
+        if plan.operation == "txt2img":
+            operation = "txt2img"
+        elif plan.operation == "img2img":
+            operation = "img2img"
+        else:
+            raise HTTPException(
+                status_code=400, detail=f"approved image plan has unknown operation {plan.operation!r}"
+            )
         recipe_id = plan.recipe_id
         character_id = plan.character_id
 
