@@ -12,6 +12,7 @@ corrective exercises the real resolver and proves:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -21,7 +22,7 @@ from scripts import resolve_next_work as rnw
 
 # -- Receipt-layer assertions (secondary evidence only) -------------------------
 
-NOW = __import__("datetime").datetime(2026, 8, 2, 0, 0)
+NOW = datetime(2026, 8, 2, 2, 0, tzinfo=timezone.utc)
 
 
 def _receipt_store(tmp_path: Path) -> kb.Store:
@@ -252,14 +253,14 @@ def test_builder_and_interactive_evidence_stay_separate_but_cross_referenced(
     assert owners == {"interactive", "builder"}
     assert len(sessions) == 2
     assert len(results) == 2
-    summary = kb.summarize_receipts(receipts)
+    summary = kb.summarize_receipts(receipts, now=NOW)
     assert summary["execution_owners"] == {"interactive": 1, "builder": 1}
 
 
 def test_unknown_measurements_stay_unknown_not_zero(tmp_path: Path) -> None:
     store = _receipt_store(tmp_path)
     kb.record_receipt(_base_payload(), store=store)
-    summary = kb.summarize_receipts(kb.load_receipts(store.path))
+    summary = kb.summarize_receipts(kb.load_receipts(store.path), now=NOW)
     assert summary["efficiency"]["total_tokens"] is None
     assert summary["efficiency"]["estimated_cost_usd"] is None
     assert any(

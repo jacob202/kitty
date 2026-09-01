@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import { Model, STREAMING_LABEL } from '@/lib/types'
 import { StateBadge, type CatState } from './CrayonCat'
 import { ModelSelectorCmdk } from './ModelSelectorCmdk'
+import { Search } from 'lucide-react'
 
 const SURFACE_LABELS: Record<string, string> = {
   home: 'Home',
@@ -103,6 +104,17 @@ export function TopBar({
             flexShrink: 0,
           }}>kitty</span>
           <span style={{ flex: 1 }} />
+          {onCommandPalette && (
+            <button
+              type="button"
+              aria-label="Open command palette"
+              title="Search Kitty"
+              onClick={onCommandPalette}
+              style={iconBtnStyle}
+            >
+              <Search size={18} />
+            </button>
+          )}
           <StateBadge state={catState} />
           <RuntimeBadge state={runtimeState} detail={runtimeDetail} compact />
           {onActivity && <ActivityButton count={activityAttentionCount} onClick={onActivity} compact />}

@@ -597,7 +597,7 @@ class TestPrivateLane:
             references=[], content_lane="private_adult",
             consent_basis="synthetic", adult_confirmed=True, anchor_job_id="job_anchor",
         )
-        monkeypatch.setattr("gateway.image_plans.require_approved_plan", lambda *a, **k: plan)
+        monkeypatch.setattr("gateway.image_plan_store.require_approved_plan", lambda *a, **k: plan)
         monkeypatch.setattr("gateway.image_sessions.list_session_jobs",
                             lambda *a, **k: [SimpleNamespace(job_id="job_anchor")])
         monkeypatch.setattr("gateway.image_jobs.get_job",
@@ -766,7 +766,7 @@ async def test_studio_session_create_exposes_explicit_project_scope():
 
 
 def _persist_two_character_flux2_plan(tmp_path: Path, *, refs_per_character: int = 1, recipe_id: str = "flux2_test"):
-    from gateway import image_plans
+    from gateway import image_plan_store
 
     session = image_sessions.create_session(title="two-character flux2")
     references = []
@@ -840,7 +840,7 @@ def _persist_two_character_flux2_plan(tmp_path: Path, *, refs_per_character: int
             "budget_request": {},
         },
     }
-    return session, image_plans.persist_plan(session.session_id, payload)
+    return session, image_plan_store.persist_plan(session.session_id, payload)
 
 
 class TestMultiCharacterFlux2Route:
