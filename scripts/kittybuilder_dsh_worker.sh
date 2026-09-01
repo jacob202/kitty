@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+budget_started=${SECONDS}
+
+# KittyBuilder DeepSeek Harness worker adapter. The queue runner owns the worktree and
+# contract paths; route selection supplies a free or paid agent/model through
+# the child environment.
+
+: "${KB_BUNDLE_PATH:?KB_BUNDLE_PATH is required}"
+: "${KB_RESULT_PATH:?KB_RESULT_PATH is required}"
+: "${KB_CONTEXT_MANIFEST_PATH:?KB_CONTEXT_MANIFEST_PATH is required}"
+: "${KB_ATTEMPT_ID:?KB_ATTEMPT_ID is required}"
+: "${KB_TASK_ID:?KB_TASK_ID is required}"
+
+if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
+  echo "ERROR: the Builder worker must run inside the task's isolated git worktree" >&2
+  exit 1
+fi
+
+adapter_agent="${KITTYBUILDER_AGENT:-free-builder}"
+if [[ "${adapter_agent}" == "paid-builder" ]]; then
+  lane_label="paid"
+  completion_label="Paid"
+else
+  lane_label="free"
+  completion_label="Free"
+fi
+
+# Free-model ladder: KITTYBUILDER_MODEL forces exactly one model,
+# KITTYBUILDER_MODELS (space-separated) replaces the default ladder.
+if [[ -n "${KITTYBUILDER_MODEL:-}" ]]; then
+  models=("${KITTYBUILDER_MODEL}")
+elif [[ -n "${KITTYBUILDER_MODELS:-}" ]]; then
+  read -r -a models <<<"${KITTYBUILDER_MODELS}"
+else
+  models=(
+    "openrouter/poolside/laguna-xs-2.1:free"
+    "openrouter/tencent/hy3:free"
+    "openrouter/free"
+  )
+fi
+
+local_bundle="${PWD}/.kittybuilder-bundle-${KB_ATTEMPT_ID}.json"
+local_context="${PWD}/.kittybuilder-context-${KB_ATTEMPT_ID}.json"
+local_result="${PWD}/.kittybuilder-result-${KB_ATTEMPT_ID}.json"
+local_prompt="${PWD}/.kittybuilder-prompt-${KB_ATTEMPT_ID}.txt"
+for staging_path in "${local_bundle}" "${local_context}" "${local_result}" "${local_prompt}"; do
+  if [[ -e "${staging_path}" ]]; then
+    echo "ERROR: staging path already exists: ${staging_path}" >&2
+    exit 1
+  fi
+done
+trap 'rm -f "${local_bundle}" "${local_context}" "${local_result}" "${local_prompt}"' EXIT
+cp "${KB_BUNDLE_PATH}" "${local_bundle}"
+cp "${KB_CONTEXT_MANIFEST_PATH}" "${local_context}"
+
+python3 - "${local_bundle}" "${local_context}" "${KB_TASK_ID}" "${KB_ATTEMPT_ID}" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+bundle_path = Path(sys.argv[1])
+manifest_path = Path(sys.argv[2])
+task_id = sys.argv[3]
+attempt_id = sys.argv[4]
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+if manifest.get("task_id") != task_id:
+    raise SystemExit(f"context manifest task mismatch: {manifest.get('task_id')!r} != {task_id!r}")
+if str(manifest.get("attempt_id")) != attempt_id:
+    raise SystemExit(f"context manifest attempt mismatch: {manifest.get('attempt_id')!r} != {attempt_id!r}")
+actual = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
+expected = manifest.get("bundle_sha256")
+nested = (manifest.get("context") or {}).get("task_bundle", {}).get("sha256")
+if actual != expected or actual != nested:
+    raise SystemExit("context bundle hash does not match the run manifest")
+PY
+
+bundle_sha=$(shasum -a 256 "${local_bundle}" | cut -d ' ' -f1)
+context_sha=$(shasum -a 256 "${local_context}" | cut -d ' ' -f1)
+prompt=$(cat <<EOF
+You are a KittyBuilder implementation worker in an isolated worktree.
+
+Read AGENTS.md, .claude/HANDOFF.md, and .claude/STATE.md before editing.
+Read the packet context bundle at: ${local_bundle}
+Read the run/context manifest at: ${local_context}
+The local bundle SHA-256 is ${bundle_sha}; the local manifest SHA-256 is ${context_sha}.
+Do not read the runner-owned paths outside this worktree.
+
+Implement only the packet in that bundle. Stay within its allowed paths and
+acceptance criteria. Do not push, merge, delete files, touch secrets/env files,
+or inspect private runtime data. Do not run the packet's declared validation
+commands yourself; trusted Builder orchestration runs the declared validation commands
+after your implementation receipt. You may run lightweight focused checks when
+readily available, but unavailable test tooling is not an implementation failure.
+
+Before you finish, write a JSON object to ${local_result} with exactly this
+shape (contract_version must be 1):
+{"contract_version":1,"status":"completed" or "failed","summary":"...","diff_summary":"...","claims":["..."]}
+
+Use status=failed only when the implementation itself cannot honestly complete.
+Builder will validate it independently. Then give a concise final report.
+EOF
+)
+printf '%s' "${prompt}" > "${local_prompt}"
+
+fingerprint() {
+  git rev-parse HEAD
+  git status --porcelain=v1 --untracked-files=all
+}
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TIMEOUT_RUNNER="${SCRIPT_DIR}/run_with_timeout.py"
+DSH_LAUNCHER="${SCRIPT_DIR}/kittybuilder_dsh.sh"
+worker_budget=${KB_WORKER_TIMEOUT_SECONDS:-3600}
+
+# The ladder exists for models that never get started — unavailable, refusing,
+# erroring — and those fail within seconds. Dividing the budget by the model
+# count instead handed the model doing the actual work a fraction of the time
+# and killed it mid-edit: on 2026-08-31 the first model to answer got 599s of
+# a 3600s budget and timed out with the packet half done. A model that is
+# working earns what is left; one that fails cleanly leaves it for the next.
+# The reserve keeps enough budget for the result file to be written.
+model_timeout() {
+  local elapsed=$((SECONDS - budget_started))
+  local reserve=$((worker_budget / 10))
+  (( reserve < 60 )) || reserve=60
+  local remaining=$((worker_budget - elapsed - reserve))
+  (( remaining > 0 )) || remaining=1
+  echo "${remaining}"
+}
+
+# A model may hand off to the next free model only when it failed cleanly:
+# no result written and no change to HEAD or the worktree. Falling back over
+# partial work would let a second model build on debris the first left behind.
+chosen_model=""
+for model in "${models[@]}"; do
+  before="$(fingerprint)"
+  slot_seconds=$(model_timeout)
+  echo "=== ${lane_label} builder attempt: ${model} (${slot_seconds}s slot) ==="
+  set +e
+  python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" --success-json "${local_result}" \
+    bash "${DSH_LAUNCHER}" --preset kitty-forge --provider openrouter --model "${model}" \
+    --permission workspace-write --task-file "${local_prompt}" </dev/null
+  rc=$?
+  set -e
+  if [[ ${rc} -eq 124 ]]; then
+    echo "WARNING: ${model} timed out after ${slot_seconds}s." >&2
+  fi
+  if [[ -f "${local_result}" ]]; then
+    if [[ ${rc} -ne 0 ]]; then
+      echo "ERROR: ${model} wrote ${local_result} but exited ${rc}; refusing the result and any fallback." >&2
+      exit 1
+    fi
+    chosen_model="${model}"
+    break
+  fi
+  after="$(fingerprint)"
+  if [[ "${after}" != "${before}" ]]; then
+    echo "ERROR: ${model} changed the worktree without writing ${local_result}; no fallback over partial work." >&2
+    exit 1
+  fi
+  echo "WARNING: ${model} exited ${rc} without a result or worktree change; trying the next ${lane_label} model." >&2
+done
+
+if [[ -z "${chosen_model}" ]]; then
+  echo "ERROR: every ${lane_label} model failed cleanly without producing a result: ${models[*]}" >&2
+  exit 75
+fi
+echo "${completion_label} builder completed with ${chosen_model}."
+
+result_status=$(python3 - "${local_result}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if not isinstance(result, dict) or result.get("contract_version") != 1:
+    raise SystemExit("ERROR: worker result is not a contract_version=1 object")
+if result.get("status") not in {"completed", "failed"}:
+    raise SystemExit("ERROR: worker result has an invalid status")
+print(result["status"])
+PY
+)
+
+# Seatbelt denies write() on a descriptor a process inherited across execve,
+# so `cat src > dest` creates the runner-owned result file and then fails with
+# "cat: stdout: Operation not permitted" — which is what happened on
+# 2026-08-31 to the first worker that ever finished a packet: 52/52 tests
+# green, and the result never reached the runner. A process that opens the
+# destination itself is allowed, so hand the file over through python3, which
+# this adapter already depends on.
+handoff() {
+  python3 - "$1" "$2" <<'HANDOFF_PY'
+import sys
+from pathlib import Path
+
+Path(sys.argv[2]).write_bytes(Path(sys.argv[1]).read_bytes())
+HANDOFF_PY
+}
+
+handoff "${local_result}" "${KB_RESULT_PATH}"
+
+# Drop the runner's own staging files BEFORE inspecting git status below —
+# otherwise they'd show up as untracked changes and get swept into the
+# commit. The EXIT trap still runs too (harmless no-op on an already-clean
+# set of paths); it stays as the safety net for every other exit path.
+rm -f "${local_bundle}" "${local_context}" "${local_result}" "${local_prompt}"
+
+# The model-controlled adapter never mutates Git metadata.  On a completed
+# result it may sanitize worktree-only runtime residue; trusted Builder
+# orchestration performs the packet-marked commit before validation/review.
+if [[ "${result_status}" == "completed" ]]; then
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+  SANITIZE_SCRIPT="${REPO_ROOT}/scripts/sanitize_builder_state.sh"
+  if [[ -x "${SANITIZE_SCRIPT}" ]]; then
+    bash "${SANITIZE_SCRIPT}"
+  fi
+fi

@@ -369,6 +369,21 @@ def _build_bundle_on_conn(
         "objective": packet["objective"],
         "acceptance_criteria": json.loads(packet["acceptance_criteria_json"]),
         "allowed_paths": json.loads(packet["allowed_paths_json"]),
+        "forbidden_symbols": (
+            json.loads(packet["forbidden_symbols_json"])
+            if "forbidden_symbols_json" in packet.keys() and packet["forbidden_symbols_json"]
+            else []
+        ),
+        "required_symbols": (
+            json.loads(packet["required_symbols_json"])
+            if "required_symbols_json" in packet.keys() and packet["required_symbols_json"]
+            else []
+        ),
+        "forbidden_paths": (
+            json.loads(packet["forbidden_paths_json"])
+            if "forbidden_paths_json" in packet.keys() and packet["forbidden_paths_json"]
+            else []
+        ),
         "policy": json.loads(packet["policy_json"]) if packet["policy_json"] else {},
         "validation_commands": (
             json.loads(packet["validation_commands_json"])

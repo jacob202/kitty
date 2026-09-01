@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from gateway import builder_attempt as ba
+from gateway import builder_contract_gate as bcg
 from gateway import builder_execution_boundary as beb
 from gateway import builder_identity as bid
 from gateway import builder_initiative as bi
@@ -61,7 +62,7 @@ from gateway.builder_runner import (
 )
 from gateway.paths import BUILDER_QUEUE_DB
 
-DEFAULT_REVIEW_TIMEOUT = 1800
+DEFAULT_REVIEW_TIMEOUT = 240
 
 # P027: consecutive identical infrastructure crashes tolerated before the
 # loop stops with a truthful blocker instead of recovering forever.
@@ -310,7 +311,7 @@ def _consecutive_identical_crashes(
                 break
             reason = this_reason
             count += 1
-        elif etype == "run_exited":
+        elif etype in {"run_exited", "recovery_lane_changed"}:
             break
     return count, reason
 
@@ -703,6 +704,17 @@ def _is_explicit_free_model(model: str) -> bool:
     )
 
 
+def _worker_provider_exhaustion_reason(
+    requested_route: str | None, adapter_env: dict[str, str]
+) -> str:
+    """Describe provider exhaustion using the lane that actually ran."""
+    paid = requested_route in {cg.ROUTE_CHEAP, cg.ROUTE_FRONTIER} or (
+        adapter_env.get("KITTYBUILDER_AGENT") == "paid-builder"
+    )
+    lane = "paid" if paid else "free"
+    return f"all configured {lane} worker providers were unavailable"
+
+
 def _sanitize_free_adapter_env(adapter_env: dict[str, str]) -> dict[str, str]:
     """Force the free lane to remain free even for direct library callers."""
     for key in ("KITTYBUILDER_MODEL", "KITTYBUILDER_REVIEW_MODEL"):
@@ -731,18 +743,21 @@ def _configure_paid_route(
 
     route = resolve_paid_route(tier)
     env = dict(adapter_env)
+    openrouter_api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if openrouter_api_key:
+        env["OPENROUTER_API_KEY"] = openrouter_api_key
     env.update(
         {
             "KITTYBUILDER_AGENT": "paid-builder",
             "KITTYBUILDER_REVIEW_AGENT": "paid-reviewer",
             "KITTYBUILDER_MODEL": route.worker_model,
-            "KITTYBUILDER_REVIEW_MODEL": route.reviewer_model,
+            "KITTYBUILDER_REVIEW_MODEL": "",
             "KITTYBUILDER_MODELS": "",
-            "KITTYBUILDER_REVIEW_MODELS": "",
+            "KITTYBUILDER_REVIEW_MODELS": " ".join(route.reviewer_candidates),
         }
     )
-    if worker.startswith("opencode-paid-"):
-        worker = f"opencode-paid-{route.tier}"
+    if worker.startswith("dsh-paid-"):
+        worker = f"dsh-paid-{route.tier}"
     return route, worker, env
 
 
@@ -953,6 +968,15 @@ def run_packet(
         ) from exc
     bundle_preview = ba.build_context_bundle(initiative_id, packet_id, db_path=db_path)
     task_id = bundle_preview["task_id"]
+    initiative_contract = bi.get_initiative(initiative_id, db_path=db_path) or {}
+    packet_contract: dict[str, Any] = next(
+        (
+            packet
+            for packet in initiative_contract.get("packets", [])
+            if packet.get("packet_id") == packet_id
+        ),
+        {},
+    )
 
     task = bq.get_task(task_id, db_path=db_path)
     if task is None:
@@ -1002,6 +1026,25 @@ def run_packet(
     crash_count, crash_reason = _consecutive_identical_crashes(
         task_id, db_path=db_path
     )
+    if (
+        governor_requested_route in {cg.ROUTE_CHEAP, cg.ROUTE_FRONTIER}
+        and crash_count
+        and crash_reason.startswith("all configured free ")
+        and crash_reason.endswith("providers were unavailable")
+    ):
+        bq.append_event(
+            task_id,
+            "recovery_lane_changed",
+            payload={
+                "from": "free",
+                "to": "paid",
+                "requested_route": governor_requested_route,
+                "cleared_crash_count": crash_count,
+                "previous_reason": crash_reason,
+            },
+            db_path=db_path,
+        )
+        crash_count, crash_reason = 0, ""
     if max_consecutive_recoveries > 0 and crash_count >= max_consecutive_recoveries:
         blocker = (
             f"recovery budget exhausted: {crash_count} consecutive identical "
@@ -1527,7 +1570,9 @@ def run_packet(
                 history=history,
                 manifest=manifest,
                 manifest_path=manifest_path,
-                reason="all configured free worker providers were unavailable",
+                reason=_worker_provider_exhaustion_reason(
+                    governor_requested_route, effective_adapter_env
+                ),
                 phase="worker_provider_exhaustion",
                 db_path=db_path,
             )
@@ -1694,6 +1739,31 @@ def run_packet(
                 if trusted_commit_sha is not None:
                     entry["trusted_parent_commit_sha"] = trusted_commit_sha
 
+        if failure is None:
+            try:
+                contract_gate = bcg.evaluate_contract_checks(
+                    expected_worktree,
+                    base_sha=base_sha,
+                    forbidden_symbols=packet_contract.get("forbidden_symbols"),
+                    required_symbols=packet_contract.get("required_symbols"),
+                    forbidden_paths=packet_contract.get("forbidden_paths"),
+                )
+            except bcg.ContractGateError as exc:
+                failure = f"deterministic contract gate could not run: {exc}"
+            else:
+                entry["contract_gate"] = contract_gate
+                manifest["contract_gate"] = contract_gate
+                write_run_manifest(manifest_path, manifest)
+                if not contract_gate["passed"]:
+                    failure = "deterministic contract gate failed"
+                    repairable = True
+                    bq.append_event(
+                        task_id,
+                        "contract_gate_failed",
+                        payload={"attempt_id": attempt_id, **contract_gate},
+                        db_path=db_path,
+                    )
+
         if failure is None and _runtime_budget_expired(deadline_monotonic):
             failure = "initiative runtime budget exceeded"
 
@@ -1723,6 +1793,31 @@ def run_packet(
                     "error": janitor_error,
                 }
             janitor_head_after = worktree_head(janitor_worktree)
+
+        if failure is None and publication_preflight:
+            try:
+                contract_gate = bcg.evaluate_contract_checks(
+                    expected_worktree,
+                    base_sha=base_sha,
+                    forbidden_symbols=packet_contract.get("forbidden_symbols"),
+                    required_symbols=packet_contract.get("required_symbols"),
+                    forbidden_paths=packet_contract.get("forbidden_paths"),
+                )
+            except bcg.ContractGateError as exc:
+                failure = f"deterministic contract gate could not run after janitor: {exc}"
+            else:
+                entry["contract_gate"] = contract_gate
+                manifest["contract_gate"] = contract_gate
+                write_run_manifest(manifest_path, manifest)
+                if not contract_gate["passed"]:
+                    failure = "deterministic contract gate failed after janitor"
+                    repairable = True
+                    bq.append_event(
+                        task_id,
+                        "contract_gate_failed",
+                        payload={"attempt_id": attempt_id, "phase": "post_janitor", **contract_gate},
+                        db_path=db_path,
+                    )
 
         if failure is None:
             extra_commands: list[str] = []

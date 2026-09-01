@@ -3,7 +3,7 @@
 **Status:** ratified 2026-07-26. Phase 1 artifact under `docs/ALIGNMENT_MAP.md`.
 
 The paid-model budget is exhausted. Unattended nightly execution therefore runs
-on the free OpenCode ladder (`docs/FREE_WORKERS.md`). Those models cannot
+on the free DSH/OpenRouter ladder (`docs/FREE_WORKERS.md`). Those models cannot
 reason, cannot hold a codebase in their head, and cannot be trusted to report
 their own success.
 

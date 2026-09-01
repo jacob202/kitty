@@ -1471,3 +1471,11 @@ class TestDetachedExecution:
             )
         refreshed = bq.get_task(task["id"], db_path=db_path)
         assert refreshed is not None and refreshed["state"] == bq.QUEUED
+
+
+def test_repo_root_honors_builder_runtime_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    canonical = tmp_path / "canonical"
+    canonical.mkdir()
+    monkeypatch.setenv("KITTY_BUILDER_REPO_ROOT", str(canonical))
+
+    assert br._repo_root(None) == canonical

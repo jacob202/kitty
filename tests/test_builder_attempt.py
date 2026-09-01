@@ -877,3 +877,20 @@ def test_get_open_attempt_for_task_tracks_attempt_lifecycle(db_path: Path):
 
     ba.close_attempt(attempt["id"], ba.ATTEMPT_ABORTED, db_path=db_path)
     assert ba.get_open_attempt_for_task(attempt["task_id"], db_path=db_path) is None
+
+
+def test_context_bundle_carries_deterministic_contract_checks(tmp_path: Path) -> None:
+    db_path = tmp_path / "builder.db"
+    manifest = _manifest()
+    manifest["initiative_id"] = "contract-bundle-v1"
+    manifest["packets"] = [dict(manifest["packets"][0])]
+    manifest["packets"][0]["forbidden_symbols"] = ["bad_helper("]
+    manifest["packets"][0]["required_symbols"] = ["GOOD_MARKER"]
+    manifest["packets"][0]["forbidden_paths"] = ["gateway/legacy"]
+    bi.apply_manifest(manifest, db_path=db_path, base_sha="0" * 40)
+
+    bundle = ba.build_context_bundle("contract-bundle-v1", PACKET, db_path=db_path)
+
+    assert bundle["forbidden_symbols"] == ["bad_helper("]
+    assert bundle["required_symbols"] == ["GOOD_MARKER"]
+    assert bundle["forbidden_paths"] == ["gateway/legacy"]

@@ -268,7 +268,7 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
         result = bs._launch_run(packet, repo_root=repo, db_path=db_path)
 
     argv = popen.call_args.args[0]
-    assert argv == [str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1", "--free", "--json"]
+    assert argv == [str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1", "--paid", "--tier", "cheap", "--json"]
     assert popen.call_args.kwargs["start_new_session"] is True
     assert popen.call_args.kwargs["shell"] is False
     assert len(popen.call_args.kwargs["pass_fds"]) == 1
@@ -393,6 +393,13 @@ def test_dispatch_candidate_skips_live_supervisor_child_fence(db_path: Path) -> 
 def test_supervisor_launcher_defaults_to_repo_venv() -> None:
     launcher = (Path(__file__).parents[1] / "scripts" / "start_builder_supervisor.sh").read_text()
     assert 'PYTHON="${KITTYBUILDER_PYTHON:-${REPO_ROOT}/venv/bin/python}"' in launcher
+
+
+def test_supervisor_launcher_loads_canonical_env_with_safe_loader() -> None:
+    launcher = (Path(__file__).parents[1] / "scripts" / "start_builder_supervisor.sh").read_text()
+    assert 'source "${REPO_ROOT}/gateway/lib/load_env_safe.sh"' in launcher
+    assert 'ENV_ROOT="${KITTY_BUILDER_REPO_ROOT:-${REPO_ROOT}}"' in launcher
+    assert 'load_env_assignments "${ENV_ROOT}/.env"' in launcher
 
 def test_budget_summary_initializes_an_empty_compute_ledger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     ledger = tmp_path / "compute-governor.db"
@@ -596,3 +603,271 @@ def test_superseded_initiative_is_not_launchable_or_counted_on_hold(repo: Path, 
 
     assert counts == {"now": 0, "on_hold": 0}
     assert selected == []
+
+
+def test_tick_skips_packet_when_current_main_changed_its_allowed_path(
+    repo: Path, db_path: Path
+) -> None:
+    _apply(db_path, "stale-init", [_packet("p1")], repo_root=repo)
+    (repo / "done.txt").write_text("new main behavior\n", encoding="utf-8")
+    subprocess.run(["git", "add", "done.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "touch packet path"], cwd=repo, check=True)
+
+    with patch.object(bs, "_launch_run") as launch:
+        with patch.object(bs, "github_truth_snapshot", return_value={"available": True, "by_head": {}, "error": None}):
+            receipt = bs.tick(db_path=db_path, repo_root=repo, max_runs=1)
+
+    launch.assert_not_called()
+    assert receipt["launched"] == []
+    assert receipt["skipped"][0]["reason"] == "preflight_blocked"
+    assert receipt["skipped"][0]["freshness"]["relevant_paths_changed"] == ["done.txt"]
+
+
+def test_tick_skips_packet_when_builder_branch_already_has_open_pr(
+    repo: Path, db_path: Path
+) -> None:
+    applied = _apply(db_path, "pr-init", [_packet("p1")], repo_root=repo)
+    task_id = applied["packets"][0]["task_id"]
+    from gateway.builder_brief import default_branch_name
+    task = bq.get_task(task_id, db_path=db_path)
+    assert task is not None
+    branch = default_branch_name(task)
+    truth = {
+        "available": True,
+        "error": None,
+        "by_head": {branch: {"number": 999, "state": "OPEN", "mergedAt": None, "headRefName": branch}},
+    }
+
+    with patch.object(bs, "github_truth_snapshot", return_value=truth):
+        with patch.object(bs, "_launch_run") as launch:
+            receipt = bs.tick(db_path=db_path, repo_root=repo, max_runs=1)
+
+    launch.assert_not_called()
+    assert receipt["launched"] == []
+    assert receipt["skipped"][0]["reason"] == "github_pr_already_exists"
+    assert receipt["skipped"][0]["pr_number"] == 999
+
+
+def test_status_exposes_read_only_autonomy_projection(repo: Path, db_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _apply(db_path, "autonomy-status", [_packet("p1")], repo_root=repo)
+    before = bq.get_task(bi.get_initiative("autonomy-status", db_path=db_path)["packets"][0]["task_id"], db_path=db_path)
+    monkeypatch.setattr(bs, "github_truth_snapshot", lambda _root: {"available": True, "error": None, "by_head": {}, "pr_count": 0})
+
+    projection = bs.status(db_path=db_path, repo_root=repo)
+
+    autonomy = projection["autonomy"]
+    assert autonomy["reconciliation"]["github_available"] is True
+    assert autonomy["runway"]["counts"]["safe_backend_runnable"] == 1
+    assert autonomy["refill"]["needed"] is True
+    assert autonomy["publication_inbox"] == []
+    after = bq.get_task(before["id"], db_path=db_path)
+    assert after["state"] == before["state"]
+    assert after["claim_version"] == before["claim_version"]
+
+
+def test_status_scopes_autonomy_projection_by_initiative_prefix(
+    repo: Path, db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _apply(db_path, "campaign-v1", [_packet("p1")], repo_root=repo)
+    _apply(db_path, "historical-v1", [_packet("p2")], repo_root=repo)
+    monkeypatch.setattr(
+        bs,
+        "github_truth_snapshot",
+        lambda _root: {"available": True, "error": None, "by_head": {}, "pr_count": 0},
+    )
+
+    projection = bs.status(
+        db_path=db_path, repo_root=repo, initiative_prefix="campaign-v"
+    )
+
+    runway = projection["autonomy"]["runway"]
+    assert runway["counts"]["safe_backend_runnable"] == 1
+    assert [item["initiative_id"] for item in runway["buckets"]["safe_backend_runnable"]] == ["campaign-v1"]
+    assert projection["autonomy"]["publication_inbox"] == []
+
+
+def test_github_truth_snapshot_requests_deep_history(repo: Path) -> None:
+    calls: list[list[str]] = []
+
+    class Result:
+        returncode = 0
+        stdout = "[]"
+        stderr = ""
+
+    def runner(args, **_kwargs):
+        calls.append(args)
+        return Result()
+
+    truth = bs.github_truth_snapshot(repo, run_cmd=runner)
+
+    assert truth["available"] is True
+    args = calls[0]
+    assert args[args.index("--limit") + 1] == str(bs.GITHUB_PR_SNAPSHOT_LIMIT)
+    assert bs.GITHUB_PR_SNAPSHOT_LIMIT >= 1000
+
+
+def test_tick_fails_closed_when_github_truth_is_unavailable(
+    repo: Path, db_path: Path
+) -> None:
+    _apply(db_path, "truth-init", [_packet("p1")], repo_root=repo)
+    unavailable = {"available": False, "error": "gh unavailable", "by_head": {}}
+
+    with patch.object(bs, "github_truth_snapshot", return_value=unavailable):
+        with patch.object(bs, "_launch_run") as launch:
+            receipt = bs.tick(db_path=db_path, repo_root=repo, max_runs=1)
+
+    launch.assert_not_called()
+    assert receipt["launched"] == []
+    assert receipt["skipped"][0]["reason"] == "github_truth_unavailable"
+    assert receipt["reconciliation"]["github_available"] is False
+
+
+def test_github_truth_snapshot_marks_limit_hit_incomplete(repo: Path) -> None:
+    rows = [
+        {"number": i + 1, "state": "CLOSED", "mergedAt": None, "headRefName": f"branch-{i}"}
+        for i in range(bs.GITHUB_PR_SNAPSHOT_LIMIT)
+    ]
+
+    class Result:
+        returncode = 0
+        stdout = json.dumps(rows)
+        stderr = ""
+
+    truth = bs.github_truth_snapshot(repo, run_cmd=lambda *_args, **_kwargs: Result())
+
+    assert truth["available"] is False
+    assert truth["complete"] is False
+    assert "limit" in truth["error"]
+
+
+def test_github_truth_snapshot_prefers_open_pr_for_reused_branch(repo: Path) -> None:
+    rows = [
+        {"number": 10, "state": "CLOSED", "mergedAt": None, "headRefName": "kittybuilder/task"},
+        {"number": 11, "state": "OPEN", "mergedAt": None, "headRefName": "kittybuilder/task"},
+    ]
+
+    class Result:
+        returncode = 0
+        stdout = json.dumps(rows)
+        stderr = ""
+
+    truth = bs.github_truth_snapshot(repo, run_cmd=lambda *_args, **_kwargs: Result())
+
+    assert truth["available"] is True
+    assert truth["by_head"]["kittybuilder/task"]["number"] == 11
+
+
+def test_tick_uses_one_fresh_main_snapshot_for_multiple_packets(
+    repo: Path, db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _apply(db_path, "snapshot-a", [_packet("p1")], repo_root=repo)
+    _apply(db_path, "snapshot-b", [_packet("p2")], repo_root=repo)
+    real_fresh = bs._fresh_main_sha
+    calls = 0
+
+    def counted_fresh(root: Path) -> str:
+        nonlocal calls
+        calls += 1
+        return real_fresh(root)
+
+    monkeypatch.setattr(bs, "_fresh_main_sha", counted_fresh)
+    monkeypatch.setattr(
+        bs,
+        "github_truth_snapshot",
+        lambda _root: {"available": True, "complete": True, "error": None, "by_head": {}, "pr_count": 0},
+    )
+    monkeypatch.setattr(
+        bs,
+        "_launch_run",
+        lambda packet, **_kwargs: {"status": "dispatched", "task_id": packet["task_id"]},
+    )
+
+    receipt = bs.tick(db_path=db_path, repo_root=repo, max_runs=2)
+
+    assert receipt["status"] == "ok"
+    assert len(receipt["launched"]) == 2
+    assert calls == 1
+
+
+def test_direct_supervisor_status_forwards_initiative_prefix(capsys) -> None:
+    projection = {
+        "lock": {"path": "/tmp/lock"},
+        "initiatives": [],
+        "active_runs": [],
+        "scheduler_enabled": True,
+        "autonomy": {},
+    }
+    with patch.object(bs, "status", return_value=projection) as status_mock:
+        rc = bs.main(["status", "--initiative-prefix", "campaign-v"])
+
+    assert rc == 0
+    status_mock.assert_called_once_with(initiative_prefix="campaign-v")
+    assert json.loads(capsys.readouterr().out) == projection
+
+
+def test_status_registry_count_respects_initiative_prefix(
+    repo: Path, db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from gateway import builder_autonomy as bau
+
+    monkeypatch.setattr(
+        bs,
+        "github_truth_snapshot",
+        lambda _root: {"available": True, "complete": True, "error": None, "by_head": {}, "pr_count": 0},
+    )
+    monkeypatch.setattr(
+        bau,
+        "load_packet_registry",
+        lambda _root: [
+            {"initiative_id": "campaign-v1", "packet_id": "UI-1", "lane": "interactive", "status": "unresolved"},
+            {"initiative_id": "history-v1", "packet_id": "UI-OLD", "lane": "interactive", "status": "unresolved"},
+        ],
+    )
+
+    projection = bs.status(
+        db_path=db_path, repo_root=repo, initiative_prefix="campaign-v"
+    )
+
+    assert projection["autonomy"]["registry_contracts"] == 1
+    assert projection["autonomy"]["runway"]["counts"]["interactive_frontend"] == 1
+
+
+def test_paths_overlap_treats_repo_root_as_wildcard() -> None:
+    assert bs._paths_overlap(".", "gateway/state_composer.py") is True
+    assert bs._paths_overlap("gateway/state_composer.py", ".") is True
+
+
+def test_changed_paths_reports_both_sides_of_rename(repo: Path) -> None:
+    old = repo / "old-name.txt"
+    old.write_text("before\n", encoding="utf-8")
+    subprocess.run(["git", "add", "old-name.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "add old name"], cwd=repo, check=True)
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+    subprocess.run(["git", "mv", "old-name.txt", "new-name.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "rename"], cwd=repo, check=True)
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+
+    assert set(bs._changed_paths(repo, base, head)) == {"old-name.txt", "new-name.txt"}
+
+
+def test_preflight_allows_blocked_task_with_fenced_stale_attempt(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    applied = _apply(db_path, "recover-init", [_packet("p1")], repo_root=repo)
+    task_id = applied["packets"][0]["task_id"]
+    real_task = bq.get_task(task_id, db_path=db_path)
+    assert real_task is not None
+    monkeypatch.setattr(bs.bq, "get_task", lambda *_args, **_kwargs: {**real_task, "state": bq.BLOCKED})
+    monkeypatch.setattr(bs.ba, "list_stale_attempts", lambda *_args, **_kwargs: [{"id": "stale-1"}])
+    monkeypatch.setattr(
+        bs.bi,
+        "derive_packet_eligibility",
+        lambda **_kwargs: {"state": "not_queued", "blocked_by": []},
+    )
+
+    result = bs.preflight_packet(
+        "recover-init", "p1", db_path=db_path,
+        ledger_db_path=tmp_path / "governor.db",
+    )
+
+    assert result["action"] == bs.PREFLIGHT_RUN

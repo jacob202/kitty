@@ -1676,3 +1676,66 @@ def test_resuming_superseded_initiative_explicitly_restores_it(db_path: Path):
     assert stored["state"] == bi.INITIATIVE_ACTIVE
     assert stored["superseded_by"] is None
     assert stored["superseded_at"] is None
+
+
+def test_packet_contract_checks_validate_and_persist(tmp_path: Path) -> None:
+    db_path = tmp_path / "builder.db"
+    manifest = {
+        "manifest_version": 1,
+        "initiative_id": "contract-checks-v1",
+        "title": "Contract checks",
+        "packets": [{
+            "id": "CC-1",
+            "title": "Guard implementation shape",
+            "objective": "Produce result.txt without forbidden helpers.",
+            "acceptance_criteria": ["result.txt exists"],
+            "allowed_paths": ["result.txt"],
+            "forbidden_symbols": ["def snapshot_todo("],
+            "required_symbols": ["SAFE_MARKER"],
+            "forbidden_paths": ["gateway/legacy"],
+            "validation_commands": ["test -f result.txt"],
+        }],
+    }
+
+    assert bi.validate_manifest(manifest) == []
+    bi.apply_manifest(manifest, db_path=db_path, base_sha="0" * 40)
+    stored = bi.get_initiative("contract-checks-v1", db_path=db_path)
+    assert stored is not None
+    packet = stored["packets"][0]
+    assert packet["forbidden_symbols"] == ["def snapshot_todo("]
+    assert packet["required_symbols"] == ["SAFE_MARKER"]
+    assert packet["forbidden_paths"] == ["gateway/legacy"]
+
+
+def test_contract_gate_columns_migrate_existing_packet_rows(db_path: Path) -> None:
+    result = bi.apply_manifest(_manifest(), db_path=db_path)
+    task_id = result["packets"][0]["task_id"]
+    conn = bq.connect(db_path)
+    try:
+        for column in (
+            "forbidden_symbols_json",
+            "required_symbols_json",
+            "forbidden_paths_json",
+        ):
+            conn.execute(f"ALTER TABLE initiative_packets DROP COLUMN {column}")
+        conn.commit()
+    finally:
+        conn.close()
+
+    bi.init_db(db_path)
+
+    conn = bq.connect(db_path)
+    try:
+        columns = {
+            str(row["name"])
+            for row in conn.execute("PRAGMA table_info(initiative_packets)").fetchall()
+        }
+        row = conn.execute(
+            "SELECT task_id, title FROM initiative_packets WHERE initiative_id = ? AND packet_id = ?",
+            ("kitty-alpha-v1", "KB-A1"),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert {"forbidden_symbols_json", "required_symbols_json", "forbidden_paths_json"} <= columns
+    assert row["task_id"] == task_id
+    assert row["title"] == "First packet"

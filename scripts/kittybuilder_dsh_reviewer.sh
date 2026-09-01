@@ -3,7 +3,7 @@ set -euo pipefail
 
 budget_started=${SECONDS}
 
-# Read-only independent reviewer for KittyBuilder packet attempts.
+# Read-only independent DeepSeek Harness reviewer for KittyBuilder packet attempts.
 
 : "${KB_BUNDLE_PATH:?KB_BUNDLE_PATH is required}"
 : "${KB_IMPL_RESULT_PATH:?KB_IMPL_RESULT_PATH is required}"
@@ -30,7 +30,7 @@ elif [[ -n "${KITTYBUILDER_REVIEW_MODELS:-}" ]]; then
   read -r -a models <<<"${KITTYBUILDER_REVIEW_MODELS}"
 else
   models=(
-    "opencode/nemotron-3-ultra-free"
+    "openrouter/free"
   )
 fi
 before=$(git rev-parse HEAD)
@@ -44,13 +44,14 @@ local_impl="${PWD}/.kittybuilder-review-impl-${KB_ATTEMPT_ID}.json"
 local_context="${PWD}/.kittybuilder-review-context-${KB_ATTEMPT_ID}.json"
 local_review_context="${PWD}/.kittybuilder-review-binding-${KB_ATTEMPT_ID}.json"
 local_review="${PWD}/.kittybuilder-review-result-${KB_ATTEMPT_ID}.json"
-for staging_path in "${local_bundle}" "${local_impl}" "${local_context}" "${local_review_context}" "${local_review}"; do
+local_prompt="${PWD}/.kittybuilder-review-prompt-${KB_ATTEMPT_ID}.txt"
+for staging_path in "${local_bundle}" "${local_impl}" "${local_context}" "${local_review_context}" "${local_review}" "${local_prompt}"; do
   if [[ -e "${staging_path}" ]]; then
     echo "ERROR: staging path already exists: ${staging_path}" >&2
     exit 1
   fi
 done
-trap 'rm -f "${local_bundle}" "${local_impl}" "${local_context}" "${local_review_context}" "${local_review}"' EXIT
+trap 'rm -f "${local_bundle}" "${local_impl}" "${local_context}" "${local_review_context}" "${local_review}" "${local_prompt}"' EXIT
 cp "${KB_BUNDLE_PATH}" "${local_bundle}"
 cp "${KB_IMPL_RESULT_PATH}" "${local_impl}"
 cp "${KB_CONTEXT_MANIFEST_PATH}" "${local_context}"
@@ -125,15 +126,15 @@ the committed packet diff from ${base_sha}..${KB_REVIEW_SHA}; do not treat a dif
 from Review HEAD to itself as the packet diff, and never run git add/stage/commit. Run focused
 tests if useful.
 
-The reviewer agent intentionally has no write/edit tool. After deciding the
-verdict, use the bash tool to run python3. Write a JSON object to ${local_review} with exactly
-this shape (contract_version must be 1); do not call an unavailable write/edit tool:
+You are running under a read-only filesystem policy. Do not write or edit any
+file. After deciding the verdict, make your FINAL RESPONSE exactly one JSON object
+with this shape (contract_version must be 1), with no Markdown fence or prose:
 {"contract_version":1,"verdict":"approve" or "request_changes" or "reject","summary":"...","findings":[{"severity":"critical" or "major" or "minor","note":"..."}]}
-This result contract is the only worktree write permitted to the reviewer.
 
 Approve only if the acceptance criteria and validation evidence are honest.
 EOF
 )
+printf '%s' "${prompt}" > "${local_prompt}"
 
 fingerprint() {
   git rev-parse HEAD
@@ -142,8 +143,8 @@ fingerprint() {
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMEOUT_RUNNER="${SCRIPT_DIR}/run_with_timeout.py"
+DSH_LAUNCHER="${SCRIPT_DIR}/kittybuilder_dsh.sh"
 review_budget=${KB_REVIEW_TIMEOUT_SECONDS:-240}
-model_startup_timeout=${KB_REVIEW_MODEL_STARTUP_TIMEOUT_SECONDS:-30}
 
 # The ladder exists for models that never get started, and those fail within
 # seconds. Dividing the budget by the model count instead gave the model doing
@@ -168,22 +169,38 @@ for model in "${models[@]}"; do
   slot_seconds=$(model_timeout)
   echo "=== ${lane_label} reviewer attempt: ${model} (${slot_seconds}s slot) ==="
   set +e
-  python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" --success-json "${local_review}" \
-    --json-events --startup-timeout "${model_startup_timeout}" \
-    opencode run --format json --auto --agent "${adapter_agent}" --model "${model}" \
-    --title "KittyBuilder ${lane_label} packet reviewer" "${prompt}" </dev/null
+  review_output=$(python3 "${TIMEOUT_RUNNER}" "${slot_seconds}" \
+    bash "${DSH_LAUNCHER}" --preset kitty-sprint --provider openrouter --model "${model}" \
+    --permission read-only --task-file "${local_prompt}" </dev/null)
   rc=$?
   set -e
   if [[ ${rc} -eq 124 ]]; then
     echo "WARNING: reviewer ${model} timed out after ${slot_seconds}s." >&2
   fi
-  if [[ -f "${local_review}" ]]; then
-    if [[ ${rc} -ne 0 ]]; then
-      echo "ERROR: reviewer ${model} wrote ${local_review} but exited ${rc}; refusing the review." >&2
-      exit 1
+  if [[ ${rc} -eq 0 && -n "${review_output}" ]]; then
+    if REVIEW_OUTPUT="${review_output}" python3 - "${local_review}" <<'PY_REVIEW_OUTPUT'
+import json
+import os
+import sys
+from pathlib import Path
+
+raw = os.environ.get("REVIEW_OUTPUT", "").strip()
+try:
+    review = json.loads(raw)
+except json.JSONDecodeError:
+    raise SystemExit(1)
+if not isinstance(review, dict) or review.get("contract_version") != 1:
+    raise SystemExit(1)
+if review.get("verdict") not in {"approve", "request_changes", "reject"}:
+    raise SystemExit(1)
+Path(sys.argv[1]).write_text(json.dumps(review), encoding="utf-8")
+PY_REVIEW_OUTPUT
+    then
+      chosen_model="${model}"
+      break
     fi
-    chosen_model="${model}"
-    break
+    rm -f "${local_review}"
+    echo "WARNING: reviewer ${model} returned invalid review JSON; trying the next ${lane_label} model." >&2
   fi
   attempt_after="$(fingerprint)"
   if [[ "${attempt_before}" != "${attempt_after}" ]]; then
@@ -249,9 +266,9 @@ PY
 fi
 
 candidate=$(mktemp "${TMPDIR:-/tmp}/kittybuilder-review.XXXXXX")
-trap 'rm -f "${local_bundle}" "${local_impl}" "${local_context}" "${local_review_context}" "${local_review}" "${candidate}"' EXIT
+trap 'rm -f "${local_bundle}" "${local_impl}" "${local_context}" "${local_review_context}" "${local_review}" "${local_prompt}" "${candidate}"' EXIT
 cp "${local_review}" "${candidate}"
-rm -f "${local_bundle}" "${local_impl}" "${local_context}" "${local_review_context}" "${local_review}"
+rm -f "${local_bundle}" "${local_impl}" "${local_context}" "${local_review_context}" "${local_review}" "${local_prompt}"
 
 after=$(git rev-parse HEAD)
 after_status=$(git status --porcelain=v1 --untracked-files=all -- . ':(exclude).omo/run-continuation/**')

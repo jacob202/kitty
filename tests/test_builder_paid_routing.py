@@ -138,8 +138,8 @@ def test_opencode_config_has_separate_free_and_paid_agents():
 
     assert agents["free-builder"]["model"].endswith("-free")
     assert agents["free-reviewer"]["model"].endswith("-free")
-    assert agents["paid-builder"]["model"] == "openrouter/xiaomi/mimo-v2.5"
-    assert agents["paid-reviewer"]["model"] == "openrouter/deepseek/deepseek-v4-flash"
+    assert agents["paid-builder"]["model"] == "openrouter/deepseek/deepseek-v4-flash"
+    assert agents["paid-reviewer"]["model"] == "openrouter/minimax/minimax-m3"
     assert agents["paid-reviewer"]["permission"]["edit"] == "deny"
     assert agents["pr-reviewer"]["model"] == "openrouter/deepseek/deepseek-v4-flash"
     assert agents["pr-reviewer"]["permission"]["edit"] == "deny"
@@ -150,10 +150,34 @@ def test_real_cheap_route_uses_the_refreshed_independent_pair():
     # The actual production config, not the synthetic _policy() fixture above.
     route = bpr.resolve_paid_route("cheap")
 
-    assert route.worker_model == "openrouter/xiaomi/mimo-v2.5"
-    assert route.reviewer_model == "openrouter/deepseek/deepseek-v4-flash"
+    assert route.worker_model == "openrouter/deepseek/deepseek-v4-flash"
+    assert route.reviewer_model == "openrouter/minimax/minimax-m3"
     assert route.worker_model != route.reviewer_model
     assert 0 < route.projected_cost_cad <= route.max_projected_cost_cad == 0.10
+
+
+def test_real_cheap_route_has_independent_paid_reviewer_fallback():
+    route = bpr.resolve_paid_route("cheap")
+
+    assert route.reviewer_candidates == (
+        "openrouter/minimax/minimax-m3",
+        "openrouter/qwen/qwen3.7-plus",
+    )
+    assert not (set(route.worker_candidates) & set(route.reviewer_candidates))
+
+
+def test_opencode_reviewer_models_force_openrouter_price_sort():
+    config = json.loads((Path(__file__).resolve().parents[1] / "opencode.jsonc").read_text())
+    models = config["provider"]["openrouter"]["models"]
+
+    for model in (
+        "deepseek/deepseek-v4-flash",
+        "minimax/minimax-m3",
+        "qwen/qwen3.7-plus",
+    ):
+        routing = models[model]["options"]["provider"]
+        assert routing["sort"] == "price"
+        assert routing["allow_fallbacks"] is True
 
 
 def test_real_frontier_route_is_unchanged():
@@ -167,7 +191,7 @@ def test_free_workers_doc_prices_the_real_cheap_pair():
     route = bpr.resolve_paid_route("cheap")
     text = (Path(__file__).resolve().parents[1] / "docs" / "FREE_WORKERS.md").read_text()
 
-    assert "MiMo V2.5 + DeepSeek V4 Flash" in text
+    assert "DeepSeek V4 Flash + MiniMax M3" in text
     assert f"CAD {route.projected_cost_cad:.4f}" in text
     assert "about **CAD 1.97**" not in text
 

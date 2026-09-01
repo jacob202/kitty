@@ -5,7 +5,7 @@
 # was 11 of the last 30 OpenCode sessions, every one launched manually.
 #
 # Deliberately conservative:
-#   --free        free OpenCode model ladder, $0
+#   --free        free DSH/OpenRouter model ladder, $0
 #   --gate manual work stops at the gate; nothing auto-publishes or auto-merges
 #   --max-runtime hard wall so a wedged run can't burn the night
 #   mkdir lock    two drains never overlap (macOS has no flock)

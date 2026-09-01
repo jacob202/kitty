@@ -54,6 +54,9 @@ def db_path(tmp_path: Path) -> Path:
 def _apply(db_path: Path, *, max_attempts: int = 2,
            validation_commands: list[str] | None = None,
            allowed_paths: list[str] | None = None,
+           forbidden_symbols: list[str] | None = None,
+           required_symbols: list[str] | None = None,
+           forbidden_paths: list[str] | None = None,
            repo_root: Path | None = None) -> str:
     """Apply a one-packet manifest; returns the packet's task_id."""
     manifest = {
@@ -69,6 +72,9 @@ def _apply(db_path: Path, *, max_attempts: int = 2,
                 "allowed_paths":
                     allowed_paths if allowed_paths is not None else ["done.txt"],
                 "policy": {"max_attempts": max_attempts},
+                "forbidden_symbols": forbidden_symbols or [],
+                "required_symbols": required_symbols or [],
+                "forbidden_paths": forbidden_paths or [],
                 "validation_commands":
                     validation_commands
                     if validation_commands is not None
@@ -163,7 +169,7 @@ def _open_attempts(db_path: Path | None = None) -> list[dict]:
 
 def _approve_reviewer(tmp_path: Path) -> list[str]:
     # Enforce the same required-env contract as
-    # scripts/kittybuilder_opencode_reviewer.sh so a wiring regression in
+    # scripts/kittybuilder_dsh_reviewer.sh so a wiring regression in
     # _run_review_command's env_extra fails loudly in every reviewer test.
     return _script(
         tmp_path,
@@ -1504,6 +1510,69 @@ class TestRecoveryBudget:
         assert task["state"] == bq.BLOCKED
         assert task["blocked_reason"] == "recovery_budget_exhausted"
 
+    def test_paid_route_propagates_only_openrouter_provider_credential(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setenv("OPENROUTER_API_KEY", "sentinel-openrouter")
+        monkeypatch.setenv("GITHUB_TOKEN", "must-not-propagate")
+
+        _route, _worker, env = bl._configure_paid_route("cheap", "dsh-paid-cheap", {})
+
+        assert env["OPENROUTER_API_KEY"] == "sentinel-openrouter"
+        assert "GITHUB_TOKEN" not in env
+
+    def test_paid_route_ignores_prior_free_provider_exhaustion(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        for _ in range(3):
+            self._crash(
+                task_id,
+                db_path,
+                reason="all configured free worker providers were unavailable",
+            )
+
+        result = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=_good_worker(tmp_path),
+            review_command=_approve_reviewer(tmp_path),
+            repo_root=repo,
+            db_path=db_path,
+            governor_db=tmp_path / "governor-paid-recovery" / "receipts.db",
+            model="openrouter/deepseek/deepseek-v4-flash",
+            provider="openrouter",
+            governor_requested_route="cheap",
+        )
+
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+
+    def test_paid_provider_exhaustion_is_classified_as_paid(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        unavailable = _script(tmp_path, "paid-provider-unavailable.sh", "exit 75\n")
+
+        result = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=unavailable,
+            repo_root=repo,
+            db_path=db_path,
+            governor_db=tmp_path / "governor-paid-provider" / "receipts.db",
+            model="openrouter/deepseek/deepseek-v4-flash",
+            provider="openrouter",
+            governor_requested_route="cheap",
+        )
+
+        assert result["outcome"] == bl.LOOP_PROVIDER_EXHAUSTED
+        assert result["reason"] == "all configured paid worker providers were unavailable"
+        failures = [
+            event for event in bq.list_events(task_id, db_path=db_path)
+            if event["type"] == "infrastructure_failed"
+        ]
+        assert failures[-1]["payload"]["reason"] == result["reason"]
+
     def test_non_identical_crashes_do_not_stop_the_run(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
@@ -2533,6 +2602,10 @@ class TestComputeGovernorGate:
         assert second["outcome"] == bl.LOOP_SUCCEEDED
 
 
+def test_default_review_budget_is_four_minutes():
+    assert bl.DEFAULT_REVIEW_TIMEOUT == 240
+
+
 def test_governor_dispatch_preserves_paid_risk_class():
     dispatch = bl._governor_dispatch(
         INITIATIVE, PACKET, base_sha="a" * 40, risk_class="risky"
@@ -2640,7 +2713,7 @@ def test_paid_frontier_downgrade_runs_the_authorized_cheap_route(
         tmp_path,
         "downgraded-worker.sh",
         ': "${KB_WORKER_TIMEOUT_SECONDS:?required}"\n'
-        'test "$KITTYBUILDER_MODEL" = "openrouter/xiaomi/mimo-v2.5"\n'
+        'test "$KITTYBUILDER_MODEL" = "openrouter/deepseek/deepseek-v4-flash"\n'
         'echo ok > done.txt\n'
         f'cat > "$KB_RESULT_PATH" <<\'EOF\'\n{_GOOD_IMPL}\nEOF\n',
     )
@@ -2663,7 +2736,7 @@ def test_paid_frontier_downgrade_runs_the_authorized_cheap_route(
     manifest = json.loads(
         Path(result["attempts"][0]["manifest_path"]).read_text(encoding="utf-8")
     )
-    assert manifest["model"] == "openrouter/xiaomi/mimo-v2.5"
+    assert manifest["model"] == "openrouter/deepseek/deepseek-v4-flash"
     assert manifest["governor"]["route"] == "cheap"
     assert manifest["governor"]["requested_route"] == "frontier"
 
@@ -2754,3 +2827,65 @@ def test_completed_worker_change_is_parent_committed_before_review(
         text=True,
     ).stdout.splitlines()
     assert any("[LP-1]" in subject and "trusted parent" in subject for subject in subjects)
+
+
+def test_forbidden_symbol_fails_before_reviewer(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _apply(
+        db_path,
+        max_attempts=1,
+        forbidden_symbols=["def snapshot_todo("],
+        repo_root=repo,
+    )
+    worker = _script(
+        tmp_path,
+        "forbidden-symbol.sh",
+        "printf 'def snapshot_todo(todo_id):\\n    return todo_id\\n' > done.txt\n"
+        f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+    )
+    reviewer = _approve_reviewer(tmp_path)
+    review_calls: list[object] = []
+    monkeypatch.setattr(
+        bl,
+        "_run_review_command",
+        lambda *args, **kwargs: review_calls.append((args, kwargs)),
+    )
+
+    result = bl.run_packet(
+        INITIATIVE, PACKET,
+        worker_command=worker,
+        review_command=reviewer,
+        repo_root=repo,
+        db_path=db_path,
+    )
+
+    assert result["outcome"] == "exhausted"
+    assert result["attempts"][0]["failure"] == "deterministic contract gate failed"
+    assert result["attempts"][0]["contract_gate"]["passed"] is False
+    assert "def snapshot_todo(" in result["attempts"][0]["contract_gate"]["forbidden_symbols_found"]
+    assert review_calls == []
+
+
+def test_publication_preflight_rechecks_contract_gate_after_janitor(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_publication_gate(repo, "exit 0\n")
+    _apply(db_path, max_attempts=1, repo_root=repo)
+    checks = [
+        {"passed": True, "changed_paths": [], "forbidden_symbols_found": [], "required_symbols_missing": [], "forbidden_paths_changed": []},
+        {"passed": False, "changed_paths": ["done.txt"], "forbidden_symbols_found": ["BAD"], "required_symbols_missing": [], "forbidden_paths_changed": []},
+    ]
+    monkeypatch.setattr(bl.bcg, "evaluate_contract_checks", lambda *_args, **_kwargs: checks.pop(0))
+    monkeypatch.setattr(
+        bl.bj, "apply_safe_repairs",
+        lambda *_args, **_kwargs: {"changed": True, "changed_paths": ["done.txt"], "commit_sha": "abc", "ruff_exit_code": 0},
+    )
+
+    result = bl.run_packet(
+        INITIATIVE, PACKET, worker_command=_good_worker(tmp_path),
+        repo_root=repo, db_path=db_path, publication_preflight=True,
+    )
+
+    assert checks == []
+    assert result["outcome"] != bl.LOOP_SUCCEEDED

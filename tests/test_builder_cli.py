@@ -1335,13 +1335,13 @@ class TestInitiativeFreePreset:
         kwargs = mock_rp.call_args.kwargs
         assert kwargs["worker_command"][0] == "bash"
         assert kwargs["worker_command"][1].endswith(
-            "scripts/kittybuilder_opencode_worker.sh"
+            "scripts/kittybuilder_dsh_worker.sh"
         )
         assert kwargs["review_command"][0] == "bash"
         assert kwargs["review_command"][1].endswith(
-            "scripts/kittybuilder_opencode_reviewer.sh"
+            "scripts/kittybuilder_dsh_reviewer.sh"
         )
-        assert kwargs["worker"] == "opencode-free"
+        assert kwargs["worker"] == "dsh-free"
 
     def test_run_packet_rejects_free_plus_explicit_worker_command(self, capsys):
         rc = main([
@@ -1365,12 +1365,12 @@ class TestInitiativeFreePreset:
         ) as mock_rp:
             rc = main([
                 "initiative", "run-packet", "init-1", "p1",
-                "--free", "--model", "opencode/mimo-v2.5-free", "--json",
+                "--free", "--model", "openrouter/poolside/laguna-xs-2.1:free", "--json",
             ])
 
         assert rc == 0
         assert mock_rp.call_args.kwargs["adapter_env"]["KITTYBUILDER_MODEL"] == (
-            "opencode/mimo-v2.5-free"
+            "openrouter/poolside/laguna-xs-2.1:free"
         )
         assert os.environ["KITTYBUILDER_MODEL"] == "sentinel"
 
@@ -1383,12 +1383,12 @@ class TestInitiativeFreePreset:
         assert rc == 0
         kwargs = mock_run.call_args.kwargs
         assert kwargs["worker_command"][1].endswith(
-            "scripts/kittybuilder_opencode_worker.sh"
+            "scripts/kittybuilder_dsh_worker.sh"
         )
         assert kwargs["review_command"][1].endswith(
-            "scripts/kittybuilder_opencode_reviewer.sh"
+            "scripts/kittybuilder_dsh_reviewer.sh"
         )
-        assert kwargs["worker"] == "opencode-free"
+        assert kwargs["worker"] == "dsh-free"
 
 
 class TestInitiativeRunExitContract:
@@ -1786,14 +1786,18 @@ class TestInitiativePaidPreset:
 
         assert rc == 0
         kwargs = mock_rp.call_args.kwargs
-        assert kwargs["worker"] == "opencode-paid-cheap"
-        assert kwargs["model"] == "openrouter/xiaomi/mimo-v2.5"
+        assert kwargs["worker"] == "dsh-paid-cheap"
+        assert kwargs["model"] == "openrouter/deepseek/deepseek-v4-flash"
         assert kwargs["provider"] == "openrouter"
         assert kwargs["governor_risk_class"] == "routine"
         assert kwargs["adapter_env"]["KITTYBUILDER_AGENT"] == "paid-builder"
         assert kwargs["adapter_env"]["KITTYBUILDER_REVIEW_AGENT"] == "paid-reviewer"
         assert kwargs["adapter_env"]["KITTYBUILDER_MODEL"] == (
-            "openrouter/xiaomi/mimo-v2.5"
+            "openrouter/deepseek/deepseek-v4-flash"
+        )
+        assert kwargs["adapter_env"]["KITTYBUILDER_REVIEW_MODEL"] == ""
+        assert kwargs["adapter_env"]["KITTYBUILDER_REVIEW_MODELS"] == (
+            "openrouter/minimax/minimax-m3 openrouter/qwen/qwen3.7-plus"
         )
 
     def test_run_packet_frontier_is_explicit_paid_escalation(self):
@@ -1805,7 +1809,7 @@ class TestInitiativePaidPreset:
 
         assert rc == 0
         kwargs = mock_rp.call_args.kwargs
-        assert kwargs["worker"] == "opencode-paid-frontier"
+        assert kwargs["worker"] == "dsh-paid-frontier"
         assert kwargs["model"] == "openrouter/deepseek/deepseek-v4-pro"
         assert kwargs["provider"] == "openrouter"
         assert kwargs["governor_risk_class"] == "risky"
@@ -1823,6 +1827,18 @@ class TestInitiativePaidPreset:
 
         assert rc == 1
         assert "--paid" in capsys.readouterr().err
+
+
+def test_free_preset_rejects_an_opencode_only_model_alias(capsys):
+    with patch("gateway.builder_loop.run_packet") as mock_run:
+        rc = main([
+            "initiative", "run-packet", "init-1", "p1",
+            "--free", "--model", "opencode/mimo-v2.5-free",
+        ])
+
+    assert rc == 1
+    assert "free model" in capsys.readouterr().err.lower()
+    mock_run.assert_not_called()
 
 
 def test_free_preset_rejects_a_paid_model_override(capsys):
@@ -1862,3 +1878,65 @@ def test_paid_route_cannot_bypass_compute_governor(capsys):
     assert rc == 1
     assert "governor" in capsys.readouterr().err.lower()
     mock_run.assert_not_called()
+
+
+def test_supervisor_status_accepts_initiative_prefix_and_forwards_it(capsys) -> None:
+    parser = build_parser()
+    args = parser.parse_args([
+        "supervisor", "status", "--initiative-prefix", "kitty-opens-the-doors-20260831-v", "--json"
+    ])
+    assert args.initiative_prefix == "kitty-opens-the-doors-20260831-v"
+
+    projection = {
+        "lock": {"path": "/tmp/supervisor.lock"},
+        "initiatives": [],
+        "active_runs": [],
+        "scheduler_enabled": True,
+        "autonomy": {},
+    }
+    with patch("gateway.builder_supervisor.status", return_value=projection) as status_mock:
+        rc = main([
+            "supervisor", "status", "--initiative-prefix", "kitty-opens-the-doors-20260831-v", "--json"
+        ])
+    assert rc == 0
+    status_mock.assert_called_once_with(initiative_prefix="kitty-opens-the-doors-20260831-v")
+    assert json.loads(capsys.readouterr().out) == projection
+
+
+def test_supervisor_status_human_prints_runway_summary(capsys) -> None:
+    projection = {
+        "lock": {"path": "/tmp/supervisor.lock"},
+        "initiatives": [],
+        "active_runs": [],
+        "scheduler_enabled": True,
+        "autonomy": {
+            "runway": {
+                "counts": {
+                    "safe_backend_runnable": 2,
+                    "interactive_frontend": 3,
+                    "collision_held": 4,
+                    "operator_blocked": 1,
+                    "running": 1,
+                    "pending_backend": 2,
+                },
+                "actionable": 5,
+                "low_water": True,
+                "caught_up": False,
+            },
+            "refill": {"needed": True, "target_candidates": 12},
+            "publication_inbox": [{"packet_id": "P1"}],
+        },
+    }
+    with patch("gateway.builder_supervisor.status", return_value=projection):
+        rc = main(["supervisor", "status"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "runway:" in out
+    assert "actionable=5" in out
+    assert "backend=2" in out
+    assert "frontend=3" in out
+    assert "held=4" in out
+    assert "operator_blocked=1" in out
+    assert "publication_inbox=1" in out
+    assert "refill_target=12" in out

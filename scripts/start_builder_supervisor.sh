@@ -25,6 +25,15 @@ elif ! command -v "${PYTHON}" >/dev/null 2>&1; then
   echo "error: supervisor Python not found on PATH: ${PYTHON}" >&2
   exit 1
 fi
+
+# The dedicated autonomy runtime deliberately contains no secrets. Reuse the
+# canonical Kitty dotenv through the same safe loader used by Gateway/LiteLLM
+# so paid OpenRouter children receive credentials without copying keys into the
+# runtime worktree, launchd plist, or OpenCode credential store.
+ENV_ROOT="${KITTY_BUILDER_REPO_ROOT:-${REPO_ROOT}}"
+source "${REPO_ROOT}/gateway/lib/load_env_safe.sh"
+load_env_assignments "${ENV_ROOT}/.env"
+
 cd "${REPO_ROOT}"
 
 usage() {

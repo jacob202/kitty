@@ -62,6 +62,9 @@ _PACKET_KEYS = frozenset(
         "depends_on",
         "acceptance_criteria",
         "allowed_paths",
+        "forbidden_symbols",
+        "required_symbols",
+        "forbidden_paths",
         "policy",
         "validation_commands",
     }
@@ -126,6 +129,9 @@ CREATE TABLE IF NOT EXISTS initiative_packets (
     depends_on_json TEXT NOT NULL,
     acceptance_criteria_json TEXT NOT NULL,
     allowed_paths_json TEXT NOT NULL,
+    forbidden_symbols_json TEXT,
+    required_symbols_json TEXT,
+    forbidden_paths_json TEXT,
     policy_json TEXT,
     validation_commands_json TEXT,
     base_sha TEXT,
@@ -144,10 +150,14 @@ def _ensure_packet_columns(conn: sqlite3.Connection) -> None:
         str(row["name"])
         for row in conn.execute("PRAGMA table_info(initiative_packets)").fetchall()
     }
-    if existing and "validation_commands_json" not in existing:
-        conn.execute(
-            "ALTER TABLE initiative_packets ADD COLUMN validation_commands_json TEXT"
-        )
+    for column in (
+        "forbidden_symbols_json",
+        "required_symbols_json",
+        "forbidden_paths_json",
+        "validation_commands_json",
+    ):
+        if existing and column not in existing:
+            conn.execute(f"ALTER TABLE initiative_packets ADD COLUMN {column} TEXT")
     if existing and "base_sha" not in existing:
         conn.execute("ALTER TABLE initiative_packets ADD COLUMN base_sha TEXT")
 
@@ -449,6 +459,27 @@ def validate_manifest(manifest: Any) -> list[str]:
             required=True,
         )
         for path in allowed:
+            _validate_allowed_path(path, label, errors)
+
+        _check_str_list(
+            packet.get("forbidden_symbols"),
+            f"{label}: forbidden_symbols",
+            errors,
+            required=False,
+        )
+        _check_str_list(
+            packet.get("required_symbols"),
+            f"{label}: required_symbols",
+            errors,
+            required=False,
+        )
+        forbidden_paths = _check_str_list(
+            packet.get("forbidden_paths"),
+            f"{label}: forbidden_paths",
+            errors,
+            required=False,
+        )
+        for path in forbidden_paths:
             _validate_allowed_path(path, label, errors)
 
         commands = _check_str_list(
@@ -925,9 +956,10 @@ def apply_manifest(
                 INSERT INTO initiative_packets (
                     initiative_id, packet_id, seq, title, objective,
                     depends_on_json, acceptance_criteria_json,
-                    allowed_paths_json, policy_json,
+                    allowed_paths_json, forbidden_symbols_json,
+                    required_symbols_json, forbidden_paths_json, policy_json,
                     validation_commands_json, base_sha, task_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     initiative_id,
@@ -938,6 +970,9 @@ def apply_manifest(
                     json.dumps(packet.get("depends_on") or []),
                     json.dumps(packet["acceptance_criteria"]),
                     json.dumps(packet["allowed_paths"]),
+                    json.dumps(packet.get("forbidden_symbols") or []),
+                    json.dumps(packet.get("required_symbols") or []),
+                    json.dumps(packet.get("forbidden_paths") or []),
                     json.dumps(policy) if policy else None,
                     json.dumps(validation_commands) if validation_commands else None,
                     durable_base_sha,
@@ -971,6 +1006,9 @@ def _row_to_packet(row: sqlite3.Row) -> dict[str, Any]:
         ("depends_on_json", "depends_on"),
         ("acceptance_criteria_json", "acceptance_criteria"),
         ("allowed_paths_json", "allowed_paths"),
+        ("forbidden_symbols_json", "forbidden_symbols"),
+        ("required_symbols_json", "required_symbols"),
+        ("forbidden_paths_json", "forbidden_paths"),
         ("policy_json", "policy"),
         ("validation_commands_json", "validation_commands"),
     ):

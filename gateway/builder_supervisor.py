@@ -44,6 +44,7 @@ from typing import Any
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
+from gateway.builder_brief import default_branch_name
 from gateway.builder_queue_runs import RUN_ACTIVE_STATES
 from gateway.paths import BUILDER_QUEUE_DB
 
@@ -57,13 +58,14 @@ SUPERVISOR_WORKER = "autonomous-supervisor"
 # launchd registration for the periodic supervisor tick.
 SUPERVISOR_LABEL = "com.kitty.builder.supervisor"
 SUPERVISOR_START_INTERVAL = 900  # seconds between ticks; no KeepAlive
+GITHUB_PR_SNAPSHOT_LIMIT = 1000
 LOGIN_SAFE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-# The canonical run is the free OpenCode worker adapter; it is the only
+# The canonical run is the free DSH worker adapter; it is the only
 # executable the supervisor may dispatch. The env mirrors the free route's
 # adapter env (see builder_cli._free_adapter_env) without importing the CLI.
-_FREE_ADAPTER_SCRIPT = "scripts/kittybuilder_opencode_worker.sh"
-_FREE_REVIEWER_SCRIPT = "scripts/kittybuilder_opencode_reviewer.sh"
+_FREE_ADAPTER_SCRIPT = "scripts/kittybuilder_dsh_worker.sh"
+_FREE_REVIEWER_SCRIPT = "scripts/kittybuilder_dsh_reviewer.sh"
 
 
 class SupervisorError(RuntimeError):
@@ -171,7 +173,7 @@ def _scheduler_enabled() -> bool | None:
 
 def _wait_for_durable_claim(
     task_id: str, process: subprocess.Popen[Any], *, initial_claim_version: int,
-    db_path: Path | None, timeout_seconds: float = 10.0,
+    db_path: Path | None, timeout_seconds: float = 60.0,
 ) -> dict[str, Any]:
     """Wait until the detached child has durably claimed its queue task."""
     deadline = time.monotonic() + timeout_seconds
@@ -260,7 +262,7 @@ def canonical_reviewer_command(repo_root: Path | None = None) -> list[str]:
 
 
 def canonical_adapter_env(model: str | None = None) -> dict[str, str]:
-    """Child-only adapter env for the canonical free OpenCode worker."""
+    """Child-only adapter env for the canonical free DSH worker."""
     return {
         "KITTYBUILDER_AGENT": "free-builder",
         "KITTYBUILDER_REVIEW_AGENT": "free-reviewer",
@@ -367,9 +369,11 @@ def _dispatch_candidate(
 
 
 def _select_packets(
-    db_path: Path | None = None, *, max_runs: int = MAX_RUNS_PER_TICK
+    db_path: Path | None = None, *, max_runs: int = MAX_RUNS_PER_TICK,
+    repo_root: Path | None = None, github_truth: dict[str, Any] | None = None,
+    current_main_sha: str | None = None, current_main_error: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Pick at most one next packet per active initiative, deterministically."""
+    """Pick admitted packets, skipping stale/external duplicates deterministically."""
     _validate_max_runs(max_runs)
     selected: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
@@ -380,6 +384,63 @@ def _select_packets(
         if packet is None:
             skipped.append(skip)  # type: ignore[arg-type]
             continue
+
+        if github_truth is not None and not github_truth.get("available"):
+            skipped.append({
+                "initiative_id": str(packet["initiative_id"]),
+                "packet_id": str(packet["packet_id"]),
+                "task_id": str(packet["task_id"]),
+                "reason": "github_truth_unavailable",
+                "error": github_truth.get("error"),
+            })
+            continue
+
+        if github_truth is not None:
+            task = bq.get_task(str(packet["task_id"]), db_path=db_path)
+            if task is not None:
+                branch = default_branch_name(task)
+                pr = (github_truth.get("by_head") or {}).get(branch)
+                if isinstance(pr, dict) and (
+                    pr.get("state") == "OPEN" or pr.get("mergedAt")
+                ):
+                    skipped.append({
+                        "initiative_id": str(packet["initiative_id"]),
+                        "packet_id": str(packet["packet_id"]),
+                        "task_id": str(packet["task_id"]),
+                        "reason": "github_pr_already_exists",
+                        "branch": branch,
+                        "pr_number": pr.get("number"),
+                        "pr_state": pr.get("state"),
+                        "merged_at": pr.get("mergedAt"),
+                    })
+                    continue
+
+        if repo_root is not None:
+            if current_main_error is not None:
+                skipped.append({
+                    "initiative_id": str(packet["initiative_id"]),
+                    "packet_id": str(packet["packet_id"]),
+                    "task_id": str(packet["task_id"]),
+                    "reason": "main_truth_unavailable",
+                    "error": current_main_error,
+                })
+                continue
+            preflight = preflight_packet(
+                str(packet["initiative_id"]), str(packet["packet_id"]),
+                db_path=db_path, repo_root=repo_root,
+                current_main_sha=current_main_sha,
+            )
+            if preflight.get("action") != PREFLIGHT_RUN:
+                skipped.append({
+                    "initiative_id": str(packet["initiative_id"]),
+                    "packet_id": str(packet["packet_id"]),
+                    "task_id": str(packet["task_id"]),
+                    "reason": "preflight_blocked",
+                    "preflight_action": preflight.get("action"),
+                    "reasons": preflight.get("reasons") or [],
+                    "freshness": preflight.get("freshness") or {},
+                })
+                continue
         selected.append(packet)
     return selected, skipped
 
@@ -461,7 +522,7 @@ def _launch_run(
 
     command = [
         str(kitty), "builder", "initiative", "run-packet",
-        initiative_id, packet_id, "--free", "--json",
+        initiative_id, packet_id, "--paid", "--tier", "cheap", "--json",
     ]
     log_dir = root / "data" / "kittybuilder" / "supervisor-launch"
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -528,11 +589,23 @@ def tick(
                 "skipped": [],
                 "duplicate_tick": True,
             }
+        root = (repo_root or repo_root_default()).resolve()
+        truth = github_truth_snapshot(root)
+        current_main_sha: str | None = None
+        current_main_error: str | None = None
+        if truth.get("available"):
+            try:
+                current_main_sha = _fresh_main_sha(root)
+            except Exception as exc:
+                current_main_error = f"{type(exc).__name__}: {exc}"
         scanned = [
             {"initiative_id": str(initiative["id"]), "state": bi.INITIATIVE_ACTIVE}
             for initiative in active_initiatives(db_path)
         ]
-        selected, skipped = _select_packets(db_path, max_runs=max_runs)
+        selected, skipped = _select_packets(
+            db_path, max_runs=max_runs, repo_root=root, github_truth=truth,
+            current_main_sha=current_main_sha, current_main_error=current_main_error,
+        )
         launched: list[dict[str, Any]] = []
         for packet in selected:
             entry: dict[str, Any] = {
@@ -561,6 +634,13 @@ def tick(
             "scanned_initiatives": scanned,
             "launched": launched,
             "skipped": skipped,
+            "reconciliation": {
+                "github_available": bool(truth.get("available")),
+                "github_error": truth.get("error"),
+                "github_pr_count": truth.get("pr_count", len(truth.get("by_head") or {})),
+                "main_sha": current_main_sha,
+                "main_error": current_main_error,
+            },
             "duplicate_tick": False,
         }
 
@@ -638,6 +718,130 @@ def _packet_route(packet: dict[str, Any], cg: Any) -> str:
     return cg.ROUTE_FREE
 
 
+def _fresh_main_sha(repo_root: Path) -> str:
+    """Return fresh origin/main when configured, otherwise local HEAD."""
+    origin = subprocess.run(
+        ["git", "remote", "get-url", "origin"], cwd=repo_root,
+        capture_output=True, text=True, timeout=10, check=False,
+    )
+    if origin.returncode == 0 and origin.stdout.strip():
+        fetch = subprocess.run(
+            ["git", "fetch", "--quiet", "origin", "main"], cwd=repo_root,
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+        if fetch.returncode != 0:
+            detail = (fetch.stderr or fetch.stdout or "unknown fetch error").strip()
+            raise SupervisorError(f"cannot refresh origin/main: {detail}")
+        ref = "origin/main"
+    else:
+        ref = "HEAD"
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", ref], cwd=repo_root,
+        capture_output=True, text=True, timeout=10, check=False,
+    )
+    sha = result.stdout.strip()
+    if result.returncode != 0 or len(sha) != 40:
+        detail = (result.stderr or result.stdout or "ref unavailable").strip()
+        raise SupervisorError(f"cannot resolve {ref}: {detail}")
+    return sha
+
+
+def _paths_overlap(path_a: str, path_b: str) -> bool:
+    a = tuple(part for part in Path(path_a).parts if part not in ("", "."))
+    b = tuple(part for part in Path(path_b).parts if part not in ("", "."))
+    if not a or not b:
+        return True
+    shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+    return longer[: len(shorter)] == shorter
+
+
+def _changed_paths(repo_root: Path, base_sha: str, current_sha: str) -> list[str]:
+    result = subprocess.run(
+        ["git", "diff", "--no-renames", "--name-only", f"{base_sha}..{current_sha}"],
+        cwd=repo_root, capture_output=True, text=True, timeout=20, check=False,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "git diff failed").strip()
+        raise SupervisorError(f"cannot compare packet base with current main: {detail}")
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def github_truth_snapshot(
+    repo_root: Path, *, run_cmd: Any | None = None
+) -> dict[str, Any]:
+    """One read-only GitHub snapshot keyed by head branch; never mutates Builder."""
+    if run_cmd is None:
+        origin = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if origin.returncode != 0 or not origin.stdout.strip():
+            return {
+                "available": True,
+                "complete": True,
+                "error": None,
+                "by_head": {},
+                "pr_count": 0,
+                "scope": "no_origin",
+            }
+    runner = run_cmd or subprocess.run
+    args = [
+        "gh", "pr", "list", "--state", "all", "--limit", str(GITHUB_PR_SNAPSHOT_LIMIT),
+        "--json", "number,state,mergedAt,headRefName,headRefOid,baseRefName,url",
+    ]
+    try:
+        result = runner(
+            args, cwd=repo_root, capture_output=True, text=True, timeout=20, check=False
+        )
+    except Exception as exc:
+        return {"available": False, "error": f"{type(exc).__name__}: {exc}", "by_head": {}}
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "gh pr list failed").strip()
+        return {"available": False, "error": detail, "by_head": {}}
+    try:
+        rows = json.loads(result.stdout or "[]")
+    except json.JSONDecodeError as exc:
+        return {"available": False, "error": f"invalid gh JSON: {exc}", "by_head": {}}
+    if len(rows) >= GITHUB_PR_SNAPSHOT_LIMIT:
+        return {
+            "available": False,
+            "complete": False,
+            "error": (
+                f"GitHub PR snapshot reached limit {GITHUB_PR_SNAPSHOT_LIMIT}; "
+                "refusing to treat a potentially truncated view as execution truth"
+            ),
+            "by_head": {},
+            "pr_count": len(rows),
+        }
+
+    def rank(row: dict[str, Any]) -> tuple[int, int]:
+        state = str(row.get("state") or "")
+        merged = bool(row.get("mergedAt"))
+        precedence = 3 if state == "OPEN" else 2 if merged else 1
+        number = int(row.get("number") or 0)
+        return precedence, number
+
+    by_head: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("headRefName"):
+            continue
+        head = str(row["headRefName"])
+        current = by_head.get(head)
+        if current is None or rank(row) > rank(current):
+            by_head[head] = row
+    return {
+        "available": True,
+        "complete": True,
+        "error": None,
+        "by_head": by_head,
+        "pr_count": len(rows),
+    }
+
+
 def preflight_packet(
     initiative_id: str,
     packet_id: str,
@@ -645,6 +849,7 @@ def preflight_packet(
     db_path: Path | None = None,
     repo_root: Path | None = None,
     ledger_db_path: Path | str | None = None,
+    current_main_sha: str | None = None,
 ) -> dict[str, Any]:
     """Read-only packet review before Builder creates an attempt or run.
 
@@ -725,7 +930,13 @@ def preflight_packet(
         )
     if issues:
         reasons.extend(f"Unsafe packet input: {issue}." for issue in issues)
-    if eligibility.get("state") != "eligible":
+    recovery_candidate = bool(
+        task is not None
+        and task.get("state") == bq.BLOCKED
+        and task_id
+        and ba.list_stale_attempts(initiative_id, packet_id, db_path=db_path)
+    )
+    if eligibility.get("state") != "eligible" and not recovery_candidate:
         blocked_by = eligibility.get("blocked_by") or []
         if blocked_by:
             reasons.append(
@@ -736,15 +947,28 @@ def preflight_packet(
 
     base_sha = target.get("base_sha")
     current_head: str | None = None
+    changed_paths: list[str] = []
+    relevant_paths_changed: list[str] = []
     if repo_root is not None and base_sha:
+        root = Path(repo_root).resolve()
         try:
-            current_head = _repo_head(Path(repo_root).resolve())
+            current_head = current_main_sha or _fresh_main_sha(root)
+            if current_head != base_sha:
+                changed_paths = _changed_paths(root, str(base_sha), current_head)
+                allowed_paths = list(target.get("allowed_paths") or [])
+                relevant_paths_changed = [
+                    changed
+                    for changed in changed_paths
+                    if any(_paths_overlap(changed, allowed) for allowed in allowed_paths)
+                ]
         except Exception as exc:
             reasons.append(f"Could not verify packet freshness: {exc}.")
         else:
-            if current_head != base_sha:
+            if relevant_paths_changed:
+                preview = ", ".join(relevant_paths_changed[:5])
                 reasons.append(
-                    f"Packet base {str(base_sha)[:12]} is stale; current code is {current_head[:12]}."
+                    f"Packet base {str(base_sha)[:12]} is stale in its allowed scope; "
+                    f"current main is {current_head[:12]} and changed {preview}."
                 )
 
     requested_route = _packet_route(target, cg)
@@ -781,6 +1005,10 @@ def preflight_packet(
             "task_id": task_id,
             "base_sha": base_sha,
             "current_head": current_head,
+        },
+        "freshness": {
+            "changed_paths": changed_paths,
+            "relevant_paths_changed": relevant_paths_changed,
         },
         "budget": {
             "weekly_budget_cad": cost["weekly_budget_cad"],
@@ -907,8 +1135,37 @@ def control_plane_summary(db_path: Path | None = None) -> dict[str, Any]:
     }
 
 
-def status(db_path: Path | None = None) -> dict[str, Any]:
-    """Read-only projection: initiatives, eligible work, active runs, lock."""
+def status(
+    db_path: Path | None = None, *, repo_root: Path | None = None,
+    initiative_prefix: str | None = None,
+) -> dict[str, Any]:
+    """Read-only projection: Builder state plus truthful autonomy runway."""
+    from gateway import builder_autonomy as bau
+
+    root = (repo_root or repo_root_default()).resolve()
+    truth = github_truth_snapshot(root)
+    reconciliation = {
+        "github_available": bool(truth.get("available")),
+        "github_error": truth.get("error"),
+        "github_pr_count": truth.get("pr_count", len(truth.get("by_head") or {})),
+    }
+    registry = bau.load_packet_registry(root)
+    scoped_registry = (
+        [
+            item
+            for item in registry
+            if str(item.get("initiative_id") or "").startswith(initiative_prefix)
+        ]
+        if initiative_prefix
+        else registry
+    )
+    runway = bau.runway_snapshot(
+        db_path=db_path,
+        packet_registry=scoped_registry,
+        reconciliation=reconciliation,
+        github_truth=truth,
+        initiative_prefix=initiative_prefix,
+    )
     initiatives = bi.list_initiatives(db_path)
     rollup: list[dict[str, Any]] = []
     for initiative in initiatives:
@@ -936,6 +1193,15 @@ def status(db_path: Path | None = None) -> dict[str, Any]:
         "initiatives": rollup,
         "active_runs": active_runs,
         "scheduler_enabled": _scheduler_enabled(),
+        "autonomy": {
+            "reconciliation": reconciliation,
+            "registry_contracts": len(scoped_registry),
+            "runway": runway,
+            "refill": bau.refill_request(runway),
+            "publication_inbox": bau.publication_inbox(
+                db_path=db_path, github_truth=truth, initiative_prefix=initiative_prefix
+            ),
+        },
     }
 
 
@@ -1000,7 +1266,14 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(receipt, indent=2, default=str, sort_keys=True))
         return 0 if receipt["status"] in {"ok", "locked"} else 1
     if args.command == "status":
-        print(json.dumps(status(), indent=2, default=str, sort_keys=True))
+        print(
+            json.dumps(
+                status(initiative_prefix=args.initiative_prefix),
+                indent=2,
+                default=str,
+                sort_keys=True,
+            )
+        )
         return 0
     return 2
 
@@ -1020,7 +1293,12 @@ def _build_parser() -> Any:
         default=MAX_RUNS_PER_TICK,
         help=f"max canonical runs per tick (default: {MAX_RUNS_PER_TICK})",
     )
-    sub.add_parser("status", help="read-only supervisor projection")
+    status_parser = sub.add_parser("status", help="read-only supervisor projection")
+    status_parser.add_argument(
+        "--initiative-prefix",
+        default=None,
+        help="scope autonomy runway/publication projection to initiative IDs with this prefix",
+    )
     launchd = sub.add_parser("launchd-plist", help="print the launchd plist XML")
     launchd.add_argument(
         "--repo-root",

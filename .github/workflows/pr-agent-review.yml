@@ -97,8 +97,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           PR_REVIEW_MODEL: "openrouter/deepseek/deepseek-v4-flash"
+          PR_REVIEW_FALLBACK_MODEL: "openrouter/minimax/minimax-m3"
+          PR_REVIEW_DEEPSEEK_MODEL: "openrouter/minimax/minimax-m3"
+          PR_REVIEW_DEEPSEEK_FALLBACK_MODEL: "openrouter/qwen/qwen3.7-plus"
+          PR_REVIEW_MODEL_TIMEOUT_SECONDS: "90"
           PR_REVIEW_AGENT: "pr-reviewer"
-          PR_REVIEW_REQUEST_ATTEMPTS: "2"
         run: python scripts/pr_review.py
 
   policy-gate:
