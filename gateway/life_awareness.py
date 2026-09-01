@@ -437,6 +437,11 @@ def emit_life_signal(kind: str, payload: dict | None = None) -> dict | None:
         return None
 
 
+def invalidate_proactive_cache() -> None:
+    global _PROACTIVE_CACHE
+    _PROACTIVE_CACHE = None
+
+
 def invalidate_caches() -> None:
     global _YESTERDAY_CACHE, _PROACTIVE_CACHE, _REFLECTION_CACHE, _DND_CACHE
     _YESTERDAY_CACHE = None

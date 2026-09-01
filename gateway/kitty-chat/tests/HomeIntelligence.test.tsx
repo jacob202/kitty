@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { HomeIntelligence } from '../src/components/HomeIntelligence'
+import { HomeIntelligence, filterIntelligenceProjection } from '../src/components/HomeIntelligence'
 
 const projection = {
   items: [
@@ -43,5 +43,31 @@ describe('HomeIntelligence', () => {
   it('stays out of the way when there is nothing meaningful to show', () => {
     render(<HomeIntelligence projection={{ ...projection, items: [], counts: { shown: 0, total_candidates: 0 } }} />)
     expect(screen.queryByRole('region', { name: 'Kitty noticed' })).not.toBeInTheDocument()
+  })
+
+  it('keeps connection discovery available when the ranked list is empty', () => {
+    const onFindConnections = vi.fn()
+    render(<HomeIntelligence
+      projection={{ ...projection, items: [], counts: { shown: 0, total_candidates: 0 } }}
+      onFindConnections={onFindConnections}
+    />)
+    expect(screen.getByRole('region', { name: 'Kitty noticed' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Find cross-project connections' }))
+    expect(onFindConnections).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows intelligence and refresh failures instead of silently disappearing', () => {
+    render(<HomeIntelligence error="Kitty noticed is unavailable right now." refreshError="Couldn’t refresh connections." />)
+    expect(screen.getByRole('region', { name: 'Kitty noticed' })).toBeInTheDocument()
+    expect(screen.getAllByRole('alert').map(node => node.textContent).join(' ')).toMatch(/unavailable|refresh/i)
+  })
+
+  it('filters notices whose owning dashboard tiles are hidden', () => {
+    const filtered = filterIntelligenceProjection(projection, {
+      deadlines: false,
+      'insight-loop': false,
+      today: false,
+    })
+    expect(filtered?.items.map(item => item.source)).toEqual(['magic'])
   })
 })

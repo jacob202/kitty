@@ -4,7 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText } from '@/lib/ui';
 import { CapturePanel } from '@/components/CapturePanel';
 import { BuilderGlance } from '@/components/BuilderSurface';
-import { HomeIntelligence } from '@/components/HomeIntelligence';
+import { HomeIntelligence, filterIntelligenceProjection } from '@/components/HomeIntelligence';
+import { InsightReturnCard } from '@/components/InsightReturnCard';
 import { useDashboardConfig } from '@/hooks/useDashboardConfig';
 import { describeFailure } from '@/lib/failure-copy';
 import { projectNextStepCopy } from '@/lib/project-copy';
@@ -1943,6 +1944,9 @@ export function HomeState({
   const repairs = useRepairs();
   const intelligence = useIntelligence();
   const refreshConnections = useRefreshIntelligenceConnections();
+  const intelligenceProjects = useProjects();
+  const visibleIntelligence = filterIntelligenceProjection(intelligence.data, visibleTiles);
+  const canFindConnections = (intelligenceProjects.data ?? []).some((project) => project.status === 'active');
   const weather = weatherQuery.data?.weather;
   const systemNeedsAttention = !repairs.isPending && (
     repairs.isError ||
@@ -2013,12 +2017,15 @@ export function HomeState({
         {visibleTiles['health'] !== false && <HealthStrip />}
 
         <HomeIntelligence
-          projection={intelligence.data}
+          projection={visibleIntelligence}
           onOpenProject={onOpenProject}
           onDiscuss={onPromptSelect}
-          onFindConnections={() => refreshConnections.mutate()}
+          onFindConnections={canFindConnections ? () => refreshConnections.mutate() : undefined}
           findingConnections={refreshConnections.isPending}
+          error={intelligence.isError ? 'Kitty noticed is unavailable right now.' : null}
+          refreshError={refreshConnections.error ? 'Couldn’t refresh connections. Try again.' : null}
         />
+        {visibleTiles['insight-loop'] !== false && <InsightReturnCard />}
 
         <section
           data-testid="home-primary-overview"

@@ -1318,6 +1318,11 @@ describe('HomeState', () => {
     expect(screen.getByText("what's next")).toBeInTheDocument();
   });
 
+  it('keeps due-insight lifecycle controls mounted', () => {
+    render(<HomeState />);
+    expect(screen.getByTestId('insight-return-card')).toBeInTheDocument();
+  });
+
   it('opens Work from the Builder glance', () => {
     const onNavigate = vi.fn();
     render(<HomeState onNavigate={onNavigate} />);

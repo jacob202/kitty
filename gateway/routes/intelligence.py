@@ -16,4 +16,4 @@ def get_intelligence(limit: int = 3) -> dict:
 @router.post("/intelligence/refresh-connections")
 def refresh_connections() -> dict:
     magic_kitty.discover_connections(force=True)
-    return intelligence_projection.build_projection(limit=3)
+    return intelligence_projection.build_projection(limit=3, ensure_source="magic")

@@ -13,7 +13,7 @@ def _source(call: Callable[[], list[dict] | dict]) -> tuple[list[dict] | dict, d
         return [], {"state": "unavailable", "reason": str(exc)}
 
 
-def build_projection(limit: int = 3) -> dict[str, Any]:
+def build_projection(limit: int = 3, ensure_source: str | None = None) -> dict[str, Any]:
     limit = max(1, min(int(limit), 5))
     candidates: list[dict[str, Any]] = []
     sources: dict[str, dict[str, str | None]] = {}
@@ -33,7 +33,7 @@ def build_projection(limit: int = 3) -> dict[str, Any]:
     for row in due if isinstance(due, list) else []:
         payload_value = row.get("payload")
         payload: dict[str, Any] = payload_value if isinstance(payload_value, dict) else {}
-        text = str(payload.get("text") or "A saved thought is ready to revisit")
+        text = str(payload.get("summary") or payload.get("text") or "A saved thought is ready to revisit")
         category = str(payload.get("category") or "insight").replace("_", " ")
         candidates.append({
             "id": f"insight:{row.get('id')}", "source": "insight", "score": 90.0,
@@ -54,6 +54,7 @@ def build_projection(limit: int = 3) -> dict[str, Any]:
             "prompt": f"Explore this cross-project connection with me: {title}. {detail}",
         })
 
+    life_awareness.invalidate_proactive_cache()
     proactive, sources["life"] = _source(life_awareness.morning_proactive)
     suggestions = proactive.get("proactive_suggestions", []) if isinstance(proactive, dict) else []
     priority_score = {"high": 75.0, "medium": 55.0, "low": 35.0}
@@ -70,8 +71,21 @@ def build_projection(limit: int = 3) -> dict[str, Any]:
             "prompt": f"Help me act on this: {text}",
         })
 
-    candidates.sort(key=lambda item: (-float(item["score"]), str(item["id"])))
-    items = [{key: value for key, value in item.items() if key != "score"} for item in candidates[:limit]]
+    for rank_order, item in enumerate(candidates):
+        item["_rank_order"] = rank_order
+    candidates.sort(key=lambda item: (-float(item["score"]), int(item["_rank_order"])))
+    selected = candidates[:limit]
+    if ensure_source and not any(item.get("source") == ensure_source for item in selected):
+        required = next((item for item in candidates if item.get("source") == ensure_source), None)
+        if required is not None:
+            if len(selected) >= limit:
+                selected = [*selected[:-1], required]
+            else:
+                selected = [*selected, required]
+    items = [
+        {key: value for key, value in item.items() if key not in {"score", "_rank_order"}}
+        for item in selected
+    ]
     return {
         "items": items,
         "counts": {"shown": len(items), "total_candidates": len(candidates)},

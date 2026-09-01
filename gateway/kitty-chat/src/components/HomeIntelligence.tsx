@@ -8,6 +8,8 @@ interface Props {
   onDiscuss?: (prompt: string) => void
   onFindConnections?: () => void
   findingConnections?: boolean
+  error?: string | null
+  refreshError?: string | null
 }
 
 const sourceLabel: Record<string, string> = {
@@ -23,10 +25,15 @@ export function HomeIntelligence({
   onDiscuss,
   onFindConnections,
   findingConnections = false,
+  error = null,
+  refreshError = null,
 }: Props) {
   const items = projection?.items.slice(0, 3) ?? []
-  if (items.length === 0) return null
-  const degraded = Object.values(projection?.sources ?? {}).some((source) => source.state === 'unavailable')
+  const unavailableSources = Object.entries(projection?.sources ?? {})
+    .filter(([, source]) => source.state === 'unavailable')
+    .map(([name]) => name)
+  const degraded = unavailableSources.length > 0
+  if (items.length === 0 && !onFindConnections && !error && !refreshError && !degraded) return null
 
   return (
     <section
@@ -59,7 +66,18 @@ export function HomeIntelligence({
           </button>
         )}
       </div>
-      <div style={{ borderTop: '1px solid var(--color-separator)' }}>
+      {(error || refreshError || degraded) && (
+        <div style={{ display: 'grid', gap: 6, padding: '0 14px 10px' }}>
+          {error && <div role="alert" style={{ fontSize: 11.5, color: 'var(--color-destructive)' }}>{error}</div>}
+          {refreshError && <div role="alert" style={{ fontSize: 11.5, color: 'var(--color-destructive)' }}>{refreshError}</div>}
+          {!error && degraded && (
+            <div role="status" style={{ fontSize: 11.5, color: 'var(--color-text-secondary)' }}>
+              Some signals are unavailable: {unavailableSources.join(', ')}.
+            </div>
+          )}
+        </div>
+      )}
+      {items.length > 0 && <div style={{ borderTop: '1px solid var(--color-separator)' }}>
         {items.map((item, index) => (
           <article
             key={item.id}
@@ -98,9 +116,27 @@ export function HomeIntelligence({
             ) : null}
           </article>
         ))}
-      </div>
+      </div>}
     </section>
   )
+}
+
+export function filterIntelligenceProjection(
+  projection: GatewayIntelligenceProjection | undefined,
+  visibleTiles: Record<string, boolean>,
+): GatewayIntelligenceProjection | undefined {
+  if (!projection) return projection
+  const visible = projection.items.filter((item) => {
+    if (item.source === 'deadline') return visibleTiles.deadlines !== false
+    if (item.source === 'insight') return visibleTiles['insight-loop'] !== false
+    if (item.source === 'life') return visibleTiles.today !== false
+    return true
+  })
+  return {
+    ...projection,
+    items: visible,
+    counts: { ...projection.counts, shown: Math.min(visible.length, 3) },
+  }
 }
 
 const actionStyle: React.CSSProperties = {
