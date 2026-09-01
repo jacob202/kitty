@@ -50,16 +50,17 @@ describe('BottomNav', () => {
     expect(more).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('menu', { name: 'More destinations' })).toBeVisible()
     expect(screen.getByRole('menuitem', { name: 'Projects' })).toBeVisible()
+    expect(screen.getByRole('menuitem', { name: 'Agents' })).toBeVisible()
     expect(screen.getByRole('menuitem', { name: 'Automations' })).toBeVisible()
     expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
 
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Automations' }))
-    expect(onViewChange).toHaveBeenCalledWith('automations')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Agents' }))
+    expect(onViewChange).toHaveBeenCalledWith('agents')
     expect(screen.queryByRole('menu', { name: 'More destinations' })).not.toBeInTheDocument()
   })
 
-  it('marks More current for secondary destinations', () => {
-    render(<BottomNav activeView="automations" onViewChange={onViewChange} />)
+  it.each(['automations', 'agents'])('marks More current for %s', (activeView) => {
+    render(<BottomNav activeView={activeView} onViewChange={onViewChange} />)
     expect(screen.getByLabelText('More')).toHaveAttribute('aria-current', 'page')
   })
 
