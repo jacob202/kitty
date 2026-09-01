@@ -1,83 +1,35 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AgentWorkspacePanel } from '../src/components/AgentWorkspacePanel'
-import type { AgentWorkspace } from '../src/lib/gateway'
 
-const createAgentWorkspace = vi.hoisted(() => vi.fn())
-const fetchAgentWorkspace = vi.hoisted(() => vi.fn())
-const runAgentWorkspaceTurn = vi.hoisted(() => vi.fn())
-
-vi.mock('../src/lib/gateway', () => ({
-  createAgentWorkspace,
-  fetchAgentWorkspace,
-  runAgentWorkspaceTurn,
-}))
+const fetchGlobalAgentRoom = vi.hoisted(() => vi.fn())
+const fetchGlobalAgentMessages = vi.hoisted(() => vi.fn())
+const fetchGlobalAgentInbox = vi.hoisted(() => vi.fn())
+const postGlobalAgentMessage = vi.hoisted(() => vi.fn())
+const updateGlobalAgentReceipt = vi.hoisted(() => vi.fn())
+vi.mock('../src/lib/gateway', () => ({ fetchGlobalAgentRoom, fetchGlobalAgentMessages, fetchGlobalAgentInbox, postGlobalAgentMessage, updateGlobalAgentReceipt }))
 
 beforeEach(() => {
-  const values = new Map<string, string>()
-  Object.defineProperty(window, 'localStorage', {
-    configurable: true,
-    value: {
-      getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => values.set(key, value),
-      removeItem: (key: string) => values.delete(key),
-      clear: () => values.clear(),
-    },
+  fetchGlobalAgentRoom.mockResolvedValue({
+    id: 'workspace_global', name: 'Global Agent Room', objective: null, status: 'active', created_at: 1, updated_at: 1,
+    agents: [{ id: 'codex', display_name: 'Codex', role: 'external', model: null, status: 'registered' }], messages: [], events: [], turns: [],
   })
+  fetchGlobalAgentMessages.mockResolvedValue([{ id: 'root', workspace_id: 'workspace_global', parent_message_id: null, sender_kind: 'agent', sender_id: 'codex', recipient_id: 'jacob', message_kind: 'review', content: 'Please reply.', created_at: 1 }])
+  fetchGlobalAgentInbox.mockResolvedValue([])
+  postGlobalAgentMessage.mockRejectedValue(new Error('Gateway returned 409 Conflict'))
 })
+afterEach(() => { cleanup(); vi.clearAllMocks() })
 
-afterEach(() => {
-  cleanup()
-  window.localStorage.clear()
-  createAgentWorkspace.mockReset()
-  fetchAgentWorkspace.mockReset()
-  runAgentWorkspaceTurn.mockReset()
-})
+it('preserves draft and reply context when a post is rejected', async () => {
+  render(<AgentWorkspacePanel />)
+  await waitFor(() => expect(screen.getByText('Please reply.')).toBeInTheDocument())
+  fireEvent.click(screen.getByRole('button', { name: 'Reply to Codex' }))
+  const composer = screen.getByPlaceholderText('Message the room or an agent…')
+  fireEvent.change(composer, { target: { value: 'Still working on it.' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
-function workspace(turns: AgentWorkspace['turns'] = []): AgentWorkspace {
-  return {
-    id: 'workspace_test',
-    name: 'Kitty Shared Room',
-    objective: 'Coordinate a verified outcome with dedicated agents.',
-    status: 'active',
-    created_at: 1,
-    updated_at: 1,
-    agents: [
-      { id: 'planner', display_name: 'Planner', role: 'planner', model: 'kitty-sonnet', status: 'available' },
-      { id: 'researcher', display_name: 'Researcher', role: 'researcher', model: 'kitty-default', status: 'available' },
-      { id: 'builder', display_name: 'Builder', role: 'builder', model: 'kitty-default', status: 'available' },
-      { id: 'reviewer', display_name: 'Reviewer', role: 'reviewer', model: 'kitty-sonnet', status: 'available' },
-    ],
-    messages: [],
-    events: [],
-    turns,
-  }
-}
-
-describe('AgentWorkspacePanel submission reconciliation', () => {
-  it('reloads durable room state after a rejected cross-tab submission', async () => {
-    const idle = workspace()
-    const running = workspace([{
-      id: 'turn_other_tab', workspace_id: idle.id, user_message_id: 'message_other_tab',
-      status: 'running', active_agent_id: 'planner', error_type: null,
-      error_message: null, started_at: 2, finished_at: null,
-    }])
-    window.localStorage.setItem('kitty.agent-workspace-id', idle.id)
-    fetchAgentWorkspace.mockResolvedValueOnce(idle).mockResolvedValueOnce(running)
-    runAgentWorkspaceTurn.mockRejectedValue(new Error('Gateway returned 409 Conflict'))
-
-    render(<AgentWorkspacePanel />)
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Kitty Shared Room' })).toBeInTheDocument())
-
-    fireEvent.change(screen.getByPlaceholderText('Ask the room to plan, research, and review…'), {
-      target: { value: 'Please do the next step.' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'send to room' }))
-
-    await waitFor(() => expect(fetchAgentWorkspace).toHaveBeenCalledTimes(2))
-    expect(screen.getByText('planner is working. Partial messages are saved as they arrive.')).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('Gateway returned 409 Conflict')
-    expect(screen.getByPlaceholderText('Ask the room to plan, research, and review…')).toHaveValue('Please do the next step.')
-  })
+  await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Could not send the message. Kitty couldn't complete that request."))
+  expect(screen.queryByText(/Gateway returned/i)).not.toBeInTheDocument()
+  expect(composer).toHaveValue('Still working on it.')
+  expect(screen.getByText('Replying to Codex')).toBeInTheDocument()
 })
