@@ -3,7 +3,7 @@ import { ProjectsPanel } from '@/components/ProjectsPanel'
 import { useKitty } from '@/state/KittyContext'
 
 export default function ProjectsView({ isMobile }: { isMobile: boolean }) {
-  const { setActiveView } = useKitty()
+  const { setActiveView, handleNewChat } = useKitty()
   const pad = isMobile ? '16px 12px 124px' : '24px 32px 40px'
 
   return (
@@ -19,7 +19,7 @@ export default function ProjectsView({ isMobile }: { isMobile: boolean }) {
             Keep context, next steps, files, and related work together. Execution stays in Work.
           </p>
         </header>
-        <ProjectsPanel onNavigate={setActiveView} isMobile={isMobile} />
+        <ProjectsPanel onNavigate={setActiveView} onStartChat={handleNewChat} isMobile={isMobile} />
       </div>
     </div>
   )
