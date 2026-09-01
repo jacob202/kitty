@@ -39,33 +39,41 @@ inspect or review Builder output without taking execution ownership.
 
 ## 1. Verify the current interactive checkpoint
 
-Run the normal bootloader from `START_HERE.md`:
+Run the normal bootloader from `START_HERE.md`. For an available Global Agent
+Room, the order is deliberately room first, legacy-free receipt second:
 
 ```bash
 git status --short --branch
-./kitty context --agent
+./kitty room inbox --as <identity> --unread --json
+# If the assignment or handoff gives a durable locator:
+./kitty room thread <message_id> --json
+./kitty context --agent --skip-legacy-continuity
 bash scripts/session_end_survey.sh
 ```
 
-Use `workspace_global` as the primary mutable continuation source: inspect the
-relevant recent/thread/inbox messages and acknowledge what this agent actually
-received. Read `.claude/STATE.md` and `.claude/HANDOFF.md` only as compatibility
-fallback when the room is unavailable or a tool explicitly requires them, and
-only while their branch, HEAD, worktree, PR, and invalidation conditions remain
-valid. Inspect open PRs, worktrees, and Builder's read-only projection to detect
-collisions—not to find new work for this session.
+Prefer the Agent Room MCP equivalents when configured. An unread direct handoff
+or a known `room_thread` message id is a deterministic continuation locator.
+Use `room_recent` only for bounded shared situational context; the newest global
+window is not an assignment index. If the room is available but no unread
+handoff or durable locator exists, use a validated `.claude/STATE.md` /
+`.claude/HANDOFF.md` checkpoint as the temporary compatibility fallback until
+scoped room retrieval replaces it. If the room itself is unavailable, report
+that and run the strict `./kitty context --agent` receipt instead.
 
-A failed or unavailable source stays failed or unavailable. Do not convert it
-into an empty queue, clean state, or permission to improvise.
+Inspect open PRs, worktrees, and Builder's read-only projection to detect
+collisions—not to find new work for this session. A failed or unavailable source
+stays failed or unavailable. Do not convert it into an empty queue, clean state,
+or permission to improvise.
 
 ## 2. Resolve what `next` means
 
 Continue in this order:
 
 1. the explicit assignment in the current conversation;
-2. a relevant valid `workspace_global` thread/handoff for this interactive
-   assignment;
-3. a valid non-terminal legacy checkpoint owned by this interactive tool/session;
+2. an unread direct `workspace_global` handoff or known durable room thread for
+   this interactive assignment;
+3. a valid non-terminal legacy compatibility checkpoint owned by this
+   interactive tool/session when no durable room locator exists yet;
 4. the current branch's documented next action when it still matches live state;
 5. a concrete recovery or review action for this interactive assignment;
 6. an explicit no-op explaining that no valid interactive assignment exists.
