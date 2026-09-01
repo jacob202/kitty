@@ -159,7 +159,7 @@ def test_review_diff_fails_closed_when_any_chunk_has_no_verdict(
     assert pr_review.review_diff("abcdefghij") is None
 
 
-def test_agent_review_workflow_uses_trusted_code_and_avoids_model_reruns_on_metadata() -> None:
+def test_agent_review_workflow_keeps_policy_gate_when_paid_review_is_disabled() -> None:
     from pathlib import Path
 
     workflow = (
@@ -170,12 +170,9 @@ def test_agent_review_workflow_uses_trusted_code_and_avoids_model_reruns_on_meta
     assert "\n  pull_request:\n" not in workflow
     assert "agent-review:" in workflow
     assert "name: agent-review" in workflow
+    assert "if: ${{ false }}" in workflow
     assert "continue-on-error: true" in workflow
     assert "github.event.repository.default_branch" in workflow
-    assert "github.event.action == 'synchronize'" in workflow
-    assert "github.event.action == 'edited'" not in workflow
-    assert "github.event.action == 'labeled'" not in workflow
-    assert "github.event.action == 'unlabeled'" not in workflow
     assert "policy-gate:" in workflow
     assert "name: policy-gate" in workflow
     assert "needs: [scope, agent-review]" in workflow

@@ -107,13 +107,10 @@ def test_required_checks_run_in_the_merge_queue() -> None:
         assert "github.event_name == 'merge_group'" in condition, name
 
 
-def test_agent_review_does_not_rerun_for_a_merge_queue_requeue() -> None:
-    """Re-spending the model review budget every time a PR is requeued behind
-    another merge would be pure waste — the exact-head evidence it already
-    produced during the PR's own review still applies."""
+def test_agent_review_is_disabled_without_removing_the_required_policy_check() -> None:
     _, workflow = _workflow("pr-agent-review.yml")
     review_if = str(workflow["jobs"]["agent-review"]["if"])
-    assert "github.event.action == 'checks_requested'" not in review_if
+    assert review_if == "${{ false }}"
 
 def test_python_latency_split_keeps_process_integration_required() -> None:
     text, workflow = _workflow("tests.yml")
@@ -136,30 +133,10 @@ def test_change_scope_comes_from_the_canonical_classifier() -> None:
         assert key in outputs, key
 
 
-def test_model_review_runs_automatically_via_paid_flash_on_each_code_head() -> None:
-    text, workflow = _workflow("pr-agent-review.yml")
+def test_paid_model_review_is_disabled() -> None:
+    _, workflow = _workflow("pr-agent-review.yml")
     review = workflow["jobs"]["agent-review"]
-    review_if = str(review["if"])
-
-    assert DRAFT_GUARD in review_if
-    assert "github.event.pull_request.author_association == 'OWNER'" in review_if
-    assert "needs.scope.outputs.sensitive == 'true'" not in review_if
-    for code_action in ("opened", "synchronize", "reopened", "ready_for_review"):
-        assert f"github.event.action == '{code_action}'" in review_if
-    for metadata_action in ("edited", "labeled", "unlabeled"):
-        assert f"github.event.action == '{metadata_action}'" not in review_if
-
-    setup_bun = next(step for step in review["steps"] if str(step.get("uses", "")).startswith("oven-sh/setup-bun@"))
-    assert setup_bun
-    install = next(step for step in review["steps"] if step.get("name") == "Install OpenCode")
-    assert "opencode-ai" in str(install.get("run", ""))
-
-    produce = next(step for step in review["steps"] if step.get("id") == "produce")
-    assert produce["run"] == "python scripts/pr_review.py"
-    assert produce["env"]["PR_REVIEW_MODEL"] == "openrouter/deepseek/deepseek-v4-flash"
-    assert "OPENROUTER_API_KEY" in produce["env"]
-    assert "OPENCODE_API_KEY" not in produce["env"]
-    assert "claude" not in text.lower()
+    assert str(review["if"]) == "${{ false }}"
 
 def test_legacy_claude_code_review_workflow_is_removed() -> None:
     assert not (WORKFLOWS / "claude-code-review.yml").exists()

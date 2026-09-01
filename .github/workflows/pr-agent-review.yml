@@ -47,23 +47,10 @@ jobs:
 
   agent-review:
     name: agent-review
-    # Review every new non-draft PR head automatically with the cheap paid OpenCode
-    # reviewer. Review reliability is worth the tiny Flash cost; explicit Builder
-    # `--free` semantics remain separate and never silently spend. Ordinary PRs
-    # do not depend on the model result; sensitive PRs
-    # still require exact-head approval evidence through policy-gate.
-    #
-    # Metadata events (edited/labeled/unlabeled) deliberately do not recall the
-    # model: policy-gate re-evaluates live PR state on those events, but the code
-    # head under review has not changed.
+    # Automatic model review is disabled to prevent unapproved OpenRouter charges.
+    # Keep the skipped job so policy-gate continues to report its required check.
     needs: scope
-    if: >-
-      ${{ github.event.pull_request.draft == false &&
-          github.event.pull_request.author_association == 'OWNER' &&
-          (github.event.action == 'opened' ||
-           github.event.action == 'synchronize' ||
-           github.event.action == 'reopened' ||
-           github.event.action == 'ready_for_review') }}
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 4
     continue-on-error: true
