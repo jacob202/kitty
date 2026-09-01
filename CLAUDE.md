@@ -79,6 +79,19 @@ ownership.
   review without pinging Jacob. Report after, not before. Builder may publish
   its approved packet branches only under ADRs 0018 and 0021.
 
+## Reviewer routing
+
+For merge-blocking, product-acceptance, or other independent review, reliability
+beats zero-cost routing. Outside explicit `--free` Builder work, try a free
+reviewer at most once; if it errors, overloads, or produces no meaningful model
+activity within the normal startup window, use
+`openrouter/deepseek/deepseek-v4-flash`. Jacob explicitly approved this small
+paid review spend. For paired worker/reviewer flows, preserve model-family independence: do not
+use DeepSeek to review a DeepSeek implementation when another configured paid
+reviewer is available. `--free` remains genuinely free and must never silently spend.
+OpenRouter is the preferred router for reviewer routing. AgentRouter is dead; do not recommend it. Freebuff and 9Router are optional only and must never be dependencies. Do not prefer `openrouter/deepseek/deepseek-v4-flash-0731` merely because it is newer; repeated runs observed it stalling.
+
+
 ## Auth and environment
 
 - Before `gh` or git push, check for a stale `GITHUB_TOKEN`; prefer keyring auth
