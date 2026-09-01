@@ -136,7 +136,7 @@ def test_change_scope_comes_from_the_canonical_classifier() -> None:
         assert key in outputs, key
 
 
-def test_model_review_runs_automatically_via_free_opencode_on_each_code_head() -> None:
+def test_model_review_runs_automatically_via_paid_flash_on_each_code_head() -> None:
     text, workflow = _workflow("pr-agent-review.yml")
     review = workflow["jobs"]["agent-review"]
     review_if = str(review["if"])
@@ -155,7 +155,7 @@ def test_model_review_runs_automatically_via_free_opencode_on_each_code_head() -
 
     produce = next(step for step in review["steps"] if step.get("id") == "produce")
     assert produce["run"] == "python scripts/pr_review.py"
-    assert produce["env"]["PR_REVIEW_MODEL"] == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+    assert produce["env"]["PR_REVIEW_MODEL"] == "openrouter/deepseek/deepseek-v4-flash"
     assert "OPENROUTER_API_KEY" in produce["env"]
     assert "OPENCODE_API_KEY" not in produce["env"]
     assert "claude" not in text.lower()

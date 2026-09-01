@@ -189,8 +189,8 @@ def test_prompt_rejects_generic_speculative_review_noise() -> None:
     assert "exact input" in prompt or "exact state" in prompt
 
 
-def test_default_github_reviewer_uses_free_opencode_model() -> None:
-    assert pr_review.DEFAULT_REVIEW_MODEL == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+def test_default_github_reviewer_uses_paid_flash_model() -> None:
+    assert pr_review.DEFAULT_REVIEW_MODEL == "openrouter/deepseek/deepseek-v4-flash"
 
 
 def test_exact_head_override_requires_label_full_sha_and_reason() -> None:
@@ -237,7 +237,7 @@ def test_agent_review_workflow_rechecks_override_metadata_without_recalling_mode
     assert "github.event.action == 'labeled'" not in workflow
     assert "github.event.action == 'unlabeled'" not in workflow
 
-def test_review_request_uses_restricted_opencode_agent_and_free_model(
+def test_review_request_uses_restricted_opencode_agent_and_paid_flash_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[list[str]] = []
@@ -258,7 +258,7 @@ def test_review_request_uses_restricted_opencode_agent_and_free_model(
     command = calls[0]
     assert command[:2] == ["opencode", "run"]
     assert command[command.index("--agent") + 1] == "pr-reviewer"
-    assert command[command.index("--model") + 1] == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+    assert command[command.index("--model") + 1] == "openrouter/deepseek/deepseek-v4-flash"
     assert "untrusted review data" in command[-1]
 
 

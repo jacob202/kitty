@@ -47,8 +47,10 @@ jobs:
 
   agent-review:
     name: agent-review
-    # Review every new non-draft PR head automatically with a zero-cost OpenCode
-    # reviewer. Ordinary PRs do not depend on the model result; sensitive PRs
+    # Review every new non-draft PR head automatically with the cheap paid OpenCode
+    # reviewer. Review reliability is worth the tiny Flash cost; explicit Builder
+    # `--free` semantics remain separate and never silently spend. Ordinary PRs
+    # do not depend on the model result; sensitive PRs
     # still require exact-head approval evidence through policy-gate.
     #
     # Metadata events (edited/labeled/unlabeled) deliberately do not recall the
@@ -88,7 +90,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          PR_REVIEW_MODEL: "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+          PR_REVIEW_MODEL: "openrouter/deepseek/deepseek-v4-flash"
           PR_REVIEW_AGENT: "pr-reviewer"
           PR_REVIEW_REQUEST_ATTEMPTS: "2"
         run: python scripts/pr_review.py

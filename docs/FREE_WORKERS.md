@@ -2,8 +2,8 @@
 
 KittyBuilder has two explicit execution lanes. `--free` is genuinely zero-cost
 and never falls into a paid model. `--paid` is the governed value lane: routine
-work defaults to DeepSeek V4 Flash, while frontier spend is an explicit
-escalation. Both lanes use the same durable Builder attempts, worktrees,
+implementation defaults to MiMo V2.5 and routine review to DeepSeek V4 Flash,
+while frontier spend is an explicit escalation. Both lanes use the same durable Builder attempts, worktrees,
 validation, review, evidence, and publication rails.
 
 ## Who does what
@@ -34,7 +34,12 @@ The paid lane is separate: `--paid` selects the configured `cheap` route, and
 `--paid --tier frontier` requests the frontier route. The governor may downgrade
 frontier to cheap; Builder switches the actual worker and reviewer models before
 opening an attempt, so the evidence can never say "cheap" while a frontier model
-actually runs.
+actually runs. The production cheap pair is MiMo V2.5 for implementation and
+DeepSeek V4 Flash for independent review. Outside explicit `--free` runs, a
+required review gets at most one clean free attempt before switching to paid
+Flash on provider error, overload, or startup silence. This prevents review gates
+from stalling on free-provider availability while preserving `--free` as a real
+zero-spend contract.
 
 Hand-off rules (fail-loud, no debris):
 
@@ -85,9 +90,11 @@ the review is only worth anything if it is independent.
 ## Paid value lane
 
 `config/builder_paid_routes.json` is the checked-in allowlist and per-attempt
-ceiling. Routine paid implementation uses DeepSeek V4 Flash through OpenRouter;
-review uses Qwen3.7 Plus for model-family independence. Frontier execution is a
-separate explicit tier and uses the stronger configured worker/reviewer pair.
+ceiling. Routine paid implementation uses MiMo V2.5 through OpenRouter; routine paid
+review uses DeepSeek V4 Flash. Frontier execution is a separate explicit tier
+and uses the stronger configured worker/reviewer pair. Reviewer independence is
+by model family: when the implementation itself is DeepSeek, select a different
+configured paid reviewer rather than self-family review.
 The compute governor remains the spend authority and receipts are durable.
 
 ## Timeouts

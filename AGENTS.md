@@ -37,6 +37,19 @@ asks for it or `/qg`/CI requires it. Runtime, UI, launch, and environment
 claims need their corresponding live proof. Never call work complete from
 inspection alone; use the final states in `verified-delivery`.
 
+## Reviewer routing
+
+Independent review is reliability-sensitive. Outside an explicitly requested
+`--free` Builder lane, do not spend the session walking flaky free-model
+ladders just to save pennies. Make at most one clean free-review attempt; on a
+provider error, overload, or no meaningful model activity within the normal
+startup window, switch to the paid OpenRouter reviewer
+`openrouter/deepseek/deepseek-v4-flash`. Jacob explicitly approved this spend.
+Keep review read-only. In paired worker/reviewer flows where the implementation
+model is known, keep the reviewer on a different model family; if the worker is
+DeepSeek, use another configured paid reviewer instead. Explicit `--free` still means zero paid fallback. Do not depend on
+Freebuff, 9Router, or any other optional service being available.
+
 ## Git, credentials, and irreversible actions
 
 The canonical checkout is an observation/integration point, not the default

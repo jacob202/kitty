@@ -18,7 +18,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-DEFAULT_REVIEW_MODEL = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+DEFAULT_REVIEW_MODEL = "openrouter/deepseek/deepseek-v4-flash"
 DEFAULT_REVIEW_AGENT = "pr-reviewer"
 REVIEW_MODEL = os.environ.get("PR_REVIEW_MODEL", DEFAULT_REVIEW_MODEL)
 COMMENT_MARKER = "<!-- kitty-agent-pr-review -->"
