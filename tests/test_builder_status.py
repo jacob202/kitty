@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import subprocess
 from pathlib import Path
 
@@ -126,10 +127,33 @@ def test_control_plane_summary_reads_queue_and_initiatives(tmp_path: Path):
             "title": "Builder UI test initiative",
             "state": "active",
             "pause_reason": None,
+            "superseded_by": None,
+            "superseded_at": None,
             "packet_count": 1,
+            "counts": {
+                "total": 1, "queued": 1, "claimed": 0, "running": 0,
+                "blocked": 0, "pr_opened": 0, "awaiting_review": 0,
+                "done": 0, "failed": 0, "cancelled": 0, "exhausted": 0,
+            },
             "updated_at": summary["initiatives"][0]["updated_at"],
         }
     ]
+
+
+def test_control_plane_summary_preserves_supersession_marker(tmp_path: Path):
+    db_path, _repo, _task_id = _apply_manifest(tmp_path)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE initiatives SET state = 'paused', superseded_by = ?, superseded_at = ? WHERE id = ?",
+            ("replacement", "2026-08-31 18:00:00", INITIATIVE_ID),
+        )
+        conn.commit()
+
+    summary = builder_status.build_control_plane_summary(db_path=db_path)
+
+    initiative = summary["initiatives"][0]
+    assert initiative["superseded_by"] == "replacement"
+    assert initiative["superseded_at"] == "2026-08-31 18:00:00"
 
 
 def test_snapshot_exposes_bounded_attempt_evidence_and_omits_unsafe_fields(tmp_path: Path):

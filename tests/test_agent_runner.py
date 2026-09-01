@@ -64,6 +64,24 @@ class TestListStop:
         agents = list_agents(limit=5)
         assert isinstance(agents, list)
 
+    def test_list_agents_can_filter_durable_statuses(self, tmp_path, monkeypatch):
+        import sqlite3
+
+        from gateway import autonomy_state
+
+        db_path = tmp_path / "agents.db"
+        monkeypatch.setattr(autonomy_state, "STATE_DB", db_path)
+        autonomy_state.init_db()
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("INSERT INTO autonomy_sessions (goal, status, created_at, updated_at) VALUES (?, ?, ?, ?)", ("done", "completed", 20.0, 20.0))
+            conn.execute("INSERT INTO autonomy_sessions (goal, status, created_at, updated_at) VALUES (?, ?, ?, ?)", ("broken", "failed", 10.0, 10.0))
+            conn.commit()
+
+        agents = list_agents(limit=10, statuses=frozenset({"failed"}))
+
+        assert [agent["goal"] for agent in agents] == ["broken"]
+        assert agents[0]["status"] == "failed"
+
     def test_stop_nonexistent_returns_false(self):
         assert stop(999999) is False
 

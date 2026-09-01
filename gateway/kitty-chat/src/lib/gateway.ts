@@ -344,6 +344,26 @@ export type GatewayCapabilitiesPayload = {
   error: string | null
 }
 
+export type GatewayActivityState = 'waiting' | 'running' | 'failed' | 'completed'
+
+export interface GatewayActivityItem {
+  id: string
+  source: 'action' | 'automation' | 'agent' | 'builder' | string
+  source_id: string
+  title: string
+  detail: string | null
+  state: GatewayActivityState
+  raw_state: string
+  occurred_at: number
+  destination: string
+}
+
+export interface GatewayActivityProjection {
+  items: GatewayActivityItem[]
+  counts: { total: number; waiting: number; running: number; failed: number; completed: number }
+  sources: Record<string, { state: 'available' | 'unavailable'; reason: string | null }>
+}
+
 export interface GatewayWeather {
   temp_c?: number
   feels_like_c?: number
@@ -669,7 +689,7 @@ export async function fetchGatewayWeather(): Promise<GatewayWeatherPayload> {
 
 // ── Agents ───────────────────────────────────────────────────────────────────
 
-export type AgentStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type AgentStatus = 'active' | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
 export type AgentType = 'explorer' | 'planner' | 'coder' | 'reviewer' | 'researcher'
 
 export interface AgentSession {
@@ -1069,6 +1089,10 @@ export async function removeGatewayMonitor(watchId: string): Promise<void> {
   await gfetch(`/monitor/${watchId}`, { method: 'DELETE' })
 }
 
+export async function fetchActivity(limit = 40): Promise<GatewayActivityProjection> {
+  return await gfetch<GatewayActivityProjection>(`/activity?limit=${limit}`)
+}
+
 export async function fetchCapabilities(): Promise<GatewayCapabilitiesPayload> {
   try {
     const json = await gfetch<{ capabilities?: GatewayCapability[] }>('/capabilities')
@@ -1295,6 +1319,27 @@ export async function updateCronSchedule(
 
 export async function toggleCronSchedule(id: string): Promise<void> {
   await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
+}
+
+export interface GatewayAutomationRun {
+  id: string
+  automation_id: string
+  action: string
+  trigger_kind: string
+  trigger_ref?: string | null
+  schedule_id?: string | null
+  started_at: number
+  completed_at?: number | null
+  status: string
+  duration_ms?: number | null
+  result_pointer?: string | null
+  error?: string | null
+}
+
+export async function fetchAutomationRun(runId: string): Promise<GatewayAutomationRun> {
+  const json = await gfetch<{ run?: GatewayAutomationRun }>(`/automations/runs/${encodeURIComponent(runId)}`)
+  if (!json.run) throw new Error(`gateway returned no automation run ${runId}`)
+  return json.run
 }
 
 export interface AutomationRetryResult {

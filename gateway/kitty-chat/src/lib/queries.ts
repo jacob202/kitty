@@ -13,6 +13,7 @@ import {
   fetchGatewayUsageSummary,
   fetchGatewayRuntimeManifest,
   fetchGatewaySearch,
+  fetchActivity,
   fetchGatewayWeather,
   // todos
   fetchGatewayTodos,
@@ -34,6 +35,7 @@ import {
   removeGatewayMonitor,
   // agents
   fetchAgentSessions,
+  fetchAgentStatus,
   spawnAgent,
   stopAgent,
   type AgentType,
@@ -45,6 +47,7 @@ import {
   deleteCronSchedule,
   toggleCronSchedule,
   retryAutomationRun,
+  fetchAutomationRun,
   fetchScheduleWhy,
   type CronScheduleType,
   // image
@@ -437,6 +440,15 @@ export function useAgentSessions(limit = 8) {
   })
 }
 
+export function useAgentStatus(sessionId: number | null) {
+  return useQuery({
+    queryKey: ['agent', sessionId],
+    queryFn: () => fetchAgentStatus(sessionId as number),
+    enabled: sessionId != null,
+    refetchInterval: 4_000,
+  })
+}
+
 export function useSpawnAgent() {
   const qc = useQueryClient()
   return useMutation({
@@ -450,7 +462,12 @@ export function useStopAgent() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (sessionId: number) => stopAgent(sessionId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['agents'] }),
+        qc.invalidateQueries({ queryKey: ['agent'] }),
+      ])
+    },
   })
 }
 
@@ -498,6 +515,15 @@ export function useToggleCronSchedule() {
   })
 }
 
+export function useAutomationRun(runId: string | null) {
+  return useQuery({
+    queryKey: ['automation-run', runId],
+    queryFn: () => fetchAutomationRun(runId as string),
+    enabled: runId !== null,
+    retry: false,
+  })
+}
+
 export function useRetryAutomationRun() {
   const qc = useQueryClient()
   return useMutation({
@@ -538,6 +564,15 @@ export function useGenerateImage() {
     mutationFn: (args: string | { prompt: string; engine: string }) =>
       typeof args === 'string' ? generateImage(args) : generateImage(args.prompt, args.engine),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['image', 'history'] }),
+  })
+}
+
+export function useActivity() {
+  return useQuery({
+    queryKey: ['activity'],
+    queryFn: () => fetchActivity(),
+    refetchInterval: 10_000,
+    retry: false,
   })
 }
 

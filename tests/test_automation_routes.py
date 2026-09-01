@@ -136,3 +136,29 @@ def test_automation_runs_route_exposes_non_cron_history(automation_env):
     assert response.status_code == 200
     assert [item["id"] for item in response.json()["runs"]] == [run["id"]]
     assert response.json()["runs"][0]["status"] == "condition_false"
+
+
+def test_automation_run_route_fetches_exact_durable_run(automation_env):
+    from fastapi.testclient import TestClient
+
+    from gateway import automation_runs
+    from gateway.app import app
+
+    old = automation_runs.begin_run(
+        automation_id='daily:old', action='brief.send', trigger_kind='time', started_at=10.0,
+    )
+    automation_runs.finish_run(old['id'], status='failed', error='provider unavailable', completed_at=11.0)
+    for i in range(60):
+        newer = automation_runs.begin_run(
+            automation_id=f'daily:new-{i}', action='brief.send', trigger_kind='time',
+            started_at=1000 + i,
+        )
+        automation_runs.finish_run(newer['id'], status='completed', completed_at=1100 + i)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get(f"/automations/runs/{old['id']}")
+
+    assert response.status_code == 200
+    assert response.json()['run']['id'] == old['id']
+    assert response.json()['run']['status'] == 'failed'
+    assert response.json()['run']['error'] == 'provider unavailable'
