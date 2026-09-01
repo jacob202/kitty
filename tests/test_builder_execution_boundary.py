@@ -120,6 +120,32 @@ def test_dsh_adapter_profile_reads_only_canonical_dsh_config(tmp_path: Path) -> 
     assert f'(allow file-read* (subpath "{support_root.resolve()}"))' not in profile
 
 
+def test_dsh_adapter_profile_reads_only_canonical_dsh_config(tmp_path: Path) -> None:
+    support_root = tmp_path / "canonical"
+    script_dir = support_root / "scripts"
+    config_dir = support_root / "config" / "dsh"
+    script_dir.mkdir(parents=True)
+    config_dir.mkdir(parents=True)
+    worker = script_dir / "kittybuilder_dsh_worker.sh"
+    worker.write_text("#!/bin/bash\n", encoding="utf-8")
+    (config_dir / "marker.yml").write_text("ok\n", encoding="utf-8")
+    worktree = tmp_path / "worktree"
+    run_dir = tmp_path / "run"
+    worktree.mkdir()
+    run_dir.mkdir()
+    env = boundary.build_child_environment(dict(os.environ), run_dir=run_dir)
+
+    profile = boundary.build_sandbox_profile(
+        worktree=worktree,
+        run_dir=run_dir,
+        command=["/bin/bash", str(worker)],
+        environment=env,
+    )
+
+    assert f'(allow file-read* (subpath "{config_dir.resolve()}"))' in profile
+    assert f'(allow file-read* (subpath "{support_root.resolve()}"))' not in profile
+
+
 def test_child_environment_is_explicit_and_secret_free(tmp_path: Path) -> None:
     source = dict(os.environ)
     source.update({"GATEWAY_SECRET": "sentinel", "OPENROUTER_API_KEY": "sentinel"})

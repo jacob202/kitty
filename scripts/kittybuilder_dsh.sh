@@ -59,8 +59,8 @@ if [[ "$provider" == "openrouter" && "$model" == openrouter/* && "$model" != "op
 fi
 
 task="$(cat "$task_file")"
-execution_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-preset_source="${execution_root}/config/dsh/presets/${preset}/agent.cordis.yml"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+preset_source="${repo_root}/config/dsh/presets/${preset}/agent.cordis.yml"
 [[ -f "$preset_source" ]] || { echo "ERROR: Kitty DSH preset missing: $preset_source" >&2; exit 1; }
 runtime_root="$(mktemp -d "${TMPDIR:-/tmp}/kitty-dsh-runtime.XXXXXX")"
 runtime_home="${runtime_root}/home"
