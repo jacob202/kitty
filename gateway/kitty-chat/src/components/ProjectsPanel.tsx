@@ -8,7 +8,15 @@ import { describeFailure } from '@/lib/failure-copy'
 import { projectNextStepCopy, projectSummaryCopy } from '@/lib/project-copy'
 import { ProjectWorkspace } from '@/components/projects/ProjectWorkspace'
 
-export function ProjectsPanel({ onNavigate = () => {}, isMobile = false }: { onNavigate?: (view: string) => void; isMobile?: boolean }) {
+export function ProjectsPanel({
+  onNavigate = () => {},
+  onStartChat = () => {},
+  isMobile = false,
+}: {
+  onNavigate?: (view: string) => void
+  onStartChat?: () => void
+  isMobile?: boolean
+}) {
   const projectsQuery = useProjects()
   const refresh = useRefreshProject()
   const projects = projectsQuery.data ?? []
@@ -21,7 +29,7 @@ export function ProjectsPanel({ onNavigate = () => {}, isMobile = false }: { onN
     ? refresh.isError
       ? `Couldn't refresh this project — ${describeFailure(refresh.error)}`
       : refresh.data?.next_step?.ok === false
-        ? "Project refreshed, but Kitty couldn't update the next step. Try Refresh again."
+        ? `Project refreshed, but Kitty couldn't update the next step — ${refresh.data.next_step.error?.trim() || 'No reason was provided.'}`
         : null
     : null
 
@@ -69,6 +77,7 @@ export function ProjectsPanel({ onNavigate = () => {}, isMobile = false }: { onN
           nextStep={workspaceNextStep}
           onClose={() => setWorkspaceProjectId(null)}
           onNavigate={onNavigate}
+          onStartChat={onStartChat}
           onRefresh={() => refresh.mutate(workspaceProject.id)}
           refreshing={refresh.isPending && refresh.variables === workspaceProject.id}
           refreshError={workspaceRefreshError}
