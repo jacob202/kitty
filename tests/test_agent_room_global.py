@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from gateway import agent_room_cli
-from gateway import agent_workspace
+from gateway import agent_room_cli, agent_workspace
 from gateway import db as kitty_db
 
 
