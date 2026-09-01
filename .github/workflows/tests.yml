@@ -14,10 +14,10 @@ on:
   workflow_dispatch:
 
 # Required work is scope-aware on every event, including pushes to main: the
-# scope of a merge is the scope of what it merged. Post-merge re-running of code
-# suites for a docs-only merge proves nothing, because the strict up-to-date
-# requirement means the merged tree is the tree the PR head already validated.
-# merge_group carries this same requirement into the merge queue: every job
+# scope of a merge is the scope of what it merged. For a registered PR stack,
+# GitHub exposes stack position metadata: expensive cumulative suites run at the
+# top layer, while cheap lint still guards each code layer. Standalone PRs keep
+# the full validation suite. merge_group carries the same required gate shape: every job
 # `merge-gate` needs must run there too, or the queue entry blocks forever
 # waiting for a check that never gets reported.
 concurrency:
@@ -51,7 +51,12 @@ jobs:
 
   pytest:
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: >-
+      ${{ needs.changes.outputs.code == 'true' &&
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.stack == null ||
+         github.event.pull_request.stack.base.ref == github.event.pull_request.base.ref ||
+         github.event.pull_request.stack.position == github.event.pull_request.stack.size) }}
     runs-on: ubuntu-latest
     env:
       # The continuity check defaults to ~/Projects/kitty; on CI runners the
@@ -103,7 +108,12 @@ jobs:
 
   pytest-integration:
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: >-
+      ${{ needs.changes.outputs.code == 'true' &&
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.stack == null ||
+         github.event.pull_request.stack.base.ref == github.event.pull_request.base.ref ||
+         github.event.pull_request.stack.position == github.event.pull_request.stack.size) }}
     runs-on: ubuntu-latest
     env:
       KITTY_EXPECTED_CANONICAL_CHECKOUT: ${{ github.workspace }}
@@ -163,7 +173,12 @@ jobs:
 
   typecheck:
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: >-
+      ${{ needs.changes.outputs.code == 'true' &&
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.stack == null ||
+         github.event.pull_request.stack.base.ref == github.event.pull_request.base.ref ||
+         github.event.pull_request.stack.position == github.event.pull_request.stack.size) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -195,7 +210,12 @@ jobs:
 
   kitty-chat:
     needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    if: >-
+      ${{ needs.changes.outputs.frontend == 'true' &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.stack == null ||
+           github.event.pull_request.stack.base.ref == github.event.pull_request.base.ref ||
+           github.event.pull_request.stack.position == github.event.pull_request.stack.size) }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -222,7 +242,13 @@ jobs:
   browser-smoke:
     runs-on: ubuntu-latest
     needs: [changes, kitty-chat]
-    if: ${{ always() && needs.changes.outputs.frontend == 'true' && needs.kitty-chat.result == 'success' }}
+    if: >-
+      ${{ always() && needs.changes.outputs.frontend == 'true' &&
+          needs.kitty-chat.result == 'success' &&
+          (github.event_name != 'pull_request' ||
+           github.event.pull_request.stack == null ||
+           github.event.pull_request.stack.base.ref == github.event.pull_request.base.ref ||
+           github.event.pull_request.stack.position == github.event.pull_request.stack.size) }}
     defaults:
       run:
         working-directory: gateway/kitty-chat
@@ -316,6 +342,7 @@ jobs:
       FRONTEND: ${{ needs.changes.outputs.frontend }}
       KITTY_CHAT_RESULT: ${{ needs.kitty-chat.result }}
       BROWSER_SMOKE_RESULT: ${{ needs.browser-smoke.result }}
+      STACK_FULL_VALIDATION: ${{ github.event_name != 'pull_request' || github.event.pull_request.stack == null || github.event.pull_request.stack.base.ref == github.event.pull_request.base.ref || github.event.pull_request.stack.position == github.event.pull_request.stack.size }}
     steps:
       - name: Aggregate required deterministic evidence
         shell: bash
@@ -324,15 +351,27 @@ jobs:
           [[ "$CHANGES_RESULT" == "success" ]] || { echo "changes must succeed; got $CHANGES_RESULT" >&2; exit 1; }
 
           if [[ "$CODE" == "true" ]]; then
-            for pair in \
-              "pytest:$PYTEST_RESULT" \
-              "pytest-integration:$PYTEST_INTEGRATION_RESULT" \
-              "lint:$LINT_RESULT" \
-              "typecheck:$TYPECHECK_RESULT"; do
-              name="${pair%%:*}"
-              result="${pair#*:}"
-              [[ "$result" == "success" ]] || { echo "$name must succeed for code scope; got $result" >&2; exit 1; }
-            done
+            [[ "$LINT_RESULT" == "success" ]] || { echo "lint must succeed for code scope; got $LINT_RESULT" >&2; exit 1; }
+            if [[ "$STACK_FULL_VALIDATION" == "true" ]]; then
+              for pair in \
+                "pytest:$PYTEST_RESULT" \
+                "pytest-integration:$PYTEST_INTEGRATION_RESULT" \
+                "typecheck:$TYPECHECK_RESULT"; do
+                name="${pair%%:*}"
+                result="${pair#*:}"
+                [[ "$result" == "success" ]] || { echo "$name must succeed for full code validation; got $result" >&2; exit 1; }
+              done
+            else
+              for pair in \
+                "pytest:$PYTEST_RESULT" \
+                "pytest-integration:$PYTEST_INTEGRATION_RESULT" \
+                "typecheck:$TYPECHECK_RESULT"; do
+                name="${pair%%:*}"
+                result="${pair#*:}"
+                [[ "$result" == "skipped" || "$result" == "success" ]] || { echo "unexpected $name result for stack layer: $result" >&2; exit 1; }
+              done
+              echo "stack layer defers full validation to cumulative top"
+            fi
           else
             for pair in \
               "pytest:$PYTEST_RESULT" \
@@ -347,8 +386,13 @@ jobs:
           fi
 
           if [[ "$FRONTEND" == "true" ]]; then
-            [[ "$KITTY_CHAT_RESULT" == "success" ]] || { echo "kitty-chat must succeed for frontend scope; got $KITTY_CHAT_RESULT" >&2; exit 1; }
-            [[ "$BROWSER_SMOKE_RESULT" == "success" ]] || { echo "browser-smoke must succeed for frontend scope; got $BROWSER_SMOKE_RESULT" >&2; exit 1; }
+            if [[ "$STACK_FULL_VALIDATION" == "true" ]]; then
+              [[ "$KITTY_CHAT_RESULT" == "success" ]] || { echo "kitty-chat must succeed for full frontend validation; got $KITTY_CHAT_RESULT" >&2; exit 1; }
+              [[ "$BROWSER_SMOKE_RESULT" == "success" ]] || { echo "browser-smoke must succeed for full frontend validation; got $BROWSER_SMOKE_RESULT" >&2; exit 1; }
+            else
+              [[ "$KITTY_CHAT_RESULT" == "skipped" || "$KITTY_CHAT_RESULT" == "success" ]] || { echo "unexpected kitty-chat result for stack layer: $KITTY_CHAT_RESULT" >&2; exit 1; }
+              [[ "$BROWSER_SMOKE_RESULT" == "skipped" || "$BROWSER_SMOKE_RESULT" == "success" ]] || { echo "unexpected browser-smoke result for stack layer: $BROWSER_SMOKE_RESULT" >&2; exit 1; }
+            fi
           else
             [[ "$KITTY_CHAT_RESULT" == "skipped" || "$KITTY_CHAT_RESULT" == "success" ]] || { echo "unexpected kitty-chat result: $KITTY_CHAT_RESULT" >&2; exit 1; }
             [[ "$BROWSER_SMOKE_RESULT" == "skipped" || "$BROWSER_SMOKE_RESULT" == "success" ]] || { echo "unexpected browser-smoke result: $BROWSER_SMOKE_RESULT" >&2; exit 1; }
