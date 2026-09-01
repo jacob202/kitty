@@ -129,11 +129,11 @@ async def test_img2img_estimate_uses_selected_recipe_operation_and_exact_model(m
 
 @pytest.mark.asyncio
 async def test_batch_preflight_uses_approved_plan_operation_and_recipe(monkeypatch) -> None:
-    from gateway import image_plans
+    from gateway import image_plan_store
     from gateway.routes import image_studio_jobs as routes
 
     plan = SimpleNamespace(operation="img2img", recipe_id="openai_gpt_image_2", character_id=None)
-    monkeypatch.setattr(image_plans, "require_approved_plan", lambda plan_id, session_id: plan)
+    monkeypatch.setattr(image_plan_store, "require_approved_plan", lambda plan_id, session_id: plan)
     seen = {}
     async def fake_preflight(req):
         seen.update(operation=req.operation, recipe_id=req.recipe_id)
