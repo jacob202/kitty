@@ -117,21 +117,27 @@ overhead. Fix: drop it; test on demand and before push.
 2. **Stop the session-start full pytest.** Removed from
    `.claude/settings.json`. Tests still run before push (rules.md) and on
    demand.
-3. **Untrack checkpoint files.** `.claude/STATE.md` and `.claude/HANDOFF.md`
-   added to `.gitignore`; they need one `git rm --cached` commit to stop
-   conflicting (needs a commit — see below).
+3. ~~Untrack checkpoint files~~ — attempted, reverted. `.claude/STATE.md`
+   and `.claude/HANDOFF.md` are deliberately tracked and shared: Kitty's own
+   continuity contract (`scripts/check_continuity_state.py`,
+   `gateway/context_receipt.py:85`) requires them in the checkout, and CI
+   fails without them. The conflict tax must be fixed structurally (merge
+   queue / fewer parallel branches) instead.
 4. **New rule in `.claude/rules.md`**: never poll; use --watch / --auto;
    merge queue is the target.
 
 ### Tier 2 — one-time setup (needs Jacob's go)
 
-5. **GitHub merge queue on main.** One-time ruleset change (ruleset
-   20193076): enable a merge queue so PRs stack and merge automatically in
-   order with CI on the merged result. Kills update-branch churn, most
-   conflict fixes, and the "waiting for the merge" tail. After this, the
-   standard flow becomes: open PR → `gh pr merge --auto` → done.
-6. **Commit the checkpoint-file untracking** (one small commit: remove
-   .claude/STATE.md + .claude/HANDOFF.md from git, keep them local).
+5. **GitHub merge queue on main.** Attempted 2026-09-01 via REST ruleset API
+   (both supported versions 2022-11-28 and 2026-03-10) and GraphQL — the
+   `merge_queue` rule is rejected with 422 "Invalid rule 'merge_queue'" and
+   the `updateMergeQueue` mutation is not in the schema for this repo/plan.
+   Likely a plan-eligibility limitation. CI is already `merge_group`-ready
+   (tests.yml, pr-agent-review.yml), so flipping this on later is a
+   two-minute change if the account gains access. Until then the standard
+   flow is: open PR → `gh pr merge --auto` → done (required checks
+   policy-gate + merge-gate are already enforced with strict-up-to-date).
+6. ~~Commit the checkpoint-file untracking~~ — superseded by item 3.
 
 ### Tier 3 — habit changes (biggest weekly payoff)
 
@@ -153,7 +159,9 @@ overhead. Fix: drop it; test on demand and before push.
 ## What success looks like (end of week)
 
 - Zero `sleep`/`until` polling loops in agent transcripts.
-- PRs merged via `--auto`/merge queue without update-branch churn.
-- No merge conflicts caused by checkpoint files.
+- PRs merged via `--auto` (merge queue if it becomes available) without
+  update-branch churn.
+- Checkpoint-file conflicts eliminated by sequencing (max 1–2 active
+  branches), since untracking breaks the continuity contract.
 - Fewer than 4 parallel feature branches at any time.
 - Sessions resume via `next`/handoff instead of re-surveying.
