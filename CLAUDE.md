@@ -16,14 +16,19 @@ Before relying on inherited context:
 
 1. Verify the canonical checkout and current worktree.
 2. Inspect `git status --short --branch`, HEAD, worktrees, and `origin/main`.
-3. Check `workspace_global` for relevant recent messages and this agent's inbox;
-   acknowledge messages that were received.
-4. Run `./kitty context --agent`; stop on failed freshness checks.
+3. Prove `workspace_global` access. Check Claude's unread inbox first; when a
+   handoff/current assignment supplies a durable message id, load that exact
+   `room_thread`. Use `room_recent` only for bounded shared situational context,
+   not as an assignment index. Acknowledge messages actually received.
+4. When the room is available, run `./kitty context --agent
+   --skip-legacy-continuity`; when the room is unavailable, report that and use
+   the strict `./kitty context --agent` compatibility receipt instead.
 5. Follow the receipt's reading order beginning with `docs/AUTHORITY_MAP.md`.
 6. Read `docs/ROADMAP.md` and `docs/ACTIVE_MISSION.md` when relevant.
 7. Treat `.claude/STATE.md` and `.claude/HANDOFF.md` as compatibility fallback,
-   not primary live continuity; load them only when a skill/tool explicitly
-   requires them or the room is unavailable, and validate their identity first.
+   not primary live continuity. Use them only when no durable room locator exists
+   yet or a compatibility tool explicitly requires them, and validate their
+   identity first.
 8. Inspect Builder through supported read-only projections when Builder state is
    relevant.
 9. Re-verify scope, execution ownership, evidence, and authorization before
@@ -37,20 +42,23 @@ with Jacob, ChatGPT, Codex, and Kitty. With the configured Agent Room MCP, use
 `room_reply`, and `room_ack`. The MCP identity is pinned; do not impersonate
 another participant.
 
-At start/resume, read only the room context relevant to the assignment and ack
-messages you actually received. During work, use direct messages for a specific
-owner, broadcasts when everyone needs the information, and thread replies for
-continuations. Before stopping substantial work, post the verified result or
-handoff. `registered` means membership only, never online presence. The room is
-communication, not execution: Builder owns engineering tasks/leases, #490 owns
-interactive collision/ownership, and Git/GitHub own publication evidence.
+At start/resume, use unread direct messages and a known thread id as the durable
+locator for the assignment; do not assume the newest global messages contain an
+older active handoff. During work, use direct messages for a specific owner,
+broadcasts when everyone needs the information, and thread replies for
+continuations. Before stopping substantial work, post the final verified result
+or handoff only after final validation. `registered` means membership only,
+never online presence. The room is communication, not execution: Builder owns
+engineering tasks/leases, #490 owns interactive collision/ownership, and
+Git/GitHub own publication evidence.
 
 ## Context engineering default
 
-Follow `docs/reference/CONTEXT_ENGINEERING.md`: begin with
-`./kitty context --agent`, load the minimum authority set for the task type, and
-expand only for unresolved evidence questions. For code changes, finish the full
-canonical reading order before mutation.
+Follow `docs/reference/CONTEXT_ENGINEERING.md`: after proving room availability,
+begin with `./kitty context --agent --skip-legacy-continuity`, load the minimum
+authority set for the task type, and expand only for unresolved evidence
+questions. If the room is unavailable, use the strict compatibility receipt.
+For code changes, finish the full canonical reading order before mutation.
 
 ## Two execution lanes
 
@@ -253,17 +261,19 @@ Proceed with every unblocked part before asking.
 ## Continuity compatibility
 
 `workspace_global` is the primary live cross-agent and cross-session continuity
-surface. Prefer its relevant threads and inbox over loading a whole shared
-checkpoint file. Mutable current status and handoffs should be posted there.
+surface. Prefer unread direct handoffs and known threads over loading a whole
+shared checkpoint file. Mutable current status and handoffs should be posted
+there only after their final validation evidence is known.
 
 `.claude/STATE.md` and `.claude/HANDOFF.md` remain tracked compatibility
 artifacts while existing validators, adapters, and the session-end workflow still
 consume them. They are not the default source for current coordination and must
 never override fresher room, Git, GitHub, Builder, or runtime evidence. Do not
-manually rewrite them during ordinary work. If the session-end skill requires a
-compatibility snapshot, write it once at the end, validate it, and keep it
-minimal. Builder workers edit these files only when their packet explicitly owns
-those paths.
+manually rewrite them during ordinary work. If no durable room locator exists
+yet, they remain the validated fallback until assignment-scoped GAR retrieval is
+implemented. If the session-end skill requires a compatibility snapshot, write
+it once at the end, validate it, and keep it minimal. Builder workers edit these
+files only when their packet explicitly owns those paths.
 
 If a legacy checkpoint is used, verify branch, HEAD, worktree, PR, timestamp,
 and invalidation conditions before relying on it. The `merge=ours` driver remains
