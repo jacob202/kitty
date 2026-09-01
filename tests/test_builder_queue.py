@@ -18,6 +18,7 @@ from gateway import _id_helpers
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
+from gateway import builder_queue_runs as bqr
 
 
 @pytest.fixture
@@ -2465,6 +2466,51 @@ class TestRunRecords:
         result = bq.recover_interrupted_runs(db_path=db_path)
         assert result["runs_interrupted"] == 0
         assert result["runs_unverified"] == 1
+
+    def test_recovery_keeps_live_pid_when_exec_changes_command(
+        self, db_path: Path, monkeypatch
+    ):
+        import os as _os
+
+        task = bq.create_task("worker exec changed command", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+        started = "Mon Aug 31 17:43:26 2026"
+        bq.update_run(
+            run["id"],
+            state=bq.RUN_RUNNING,
+            pid=_os.getpid(),
+            process_identity=f"{started} /usr/bin/sandbox-exec -p profile bash worker.sh",
+            db_path=db_path,
+        )
+        monkeypatch.setattr(
+            bqr,
+            "capture_process_identity",
+            lambda _pid: f"{started} bash worker.sh",
+        )
+
+        result = bq.recover_interrupted_runs(db_path=db_path)
+
+        assert result["runs_interrupted"] == 0
+        refreshed = bq.get_run(run["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["state"] == bq.RUN_RUNNING
+        refreshed_task = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed_task is not None
+        assert refreshed_task["state"] == bq.RUNNING
 
     def test_recovery_marks_reused_live_pid_interrupted(
         self, db_path: Path, monkeypatch

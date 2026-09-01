@@ -576,6 +576,16 @@ def _run_review_command(
     read_paths = [Path(env[key]) for key in read_keys if env.get(key)]
     write_keys = ("KB_REVIEW_RESULT_PATH", "KB_REVIEW_NOTE_PATH")
     write_paths = [Path(env[key]) for key in write_keys if env.get(key)]
+
+    # The canonical reviewer adapter stages runner-owned evidence as local
+    # copies because OpenCode denies external-directory access. Keep the source
+    # tree read-only while allowing only those exact, disposable staging files.
+    attempt_id = env_extra.get("KB_ATTEMPT_ID", "")
+    if attempt_id.isdigit():
+        write_paths.extend(
+            cwd / f".kittybuilder-review-{name}-{attempt_id}.json"
+            for name in ("bundle", "impl", "context", "binding", "result")
+        )
     try:
         wrapped = beb.wrap_command(
             command,

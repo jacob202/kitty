@@ -416,3 +416,189 @@ def explain_action(action: str, *, now: float | None = None) -> Explanation:
             next_step="register the action or fix its registration",
         )
     return _explain_manual_action(action, definition, now=current)
+
+
+# ---------------------------------------------------------------------------
+# Work-item explanations: derive only from the existing Builder work projection
+# ---------------------------------------------------------------------------
+
+
+class WorkNotFound(KeyError):
+    """No work item with the supplied initiative id exists."""
+
+
+def _parse_iso_timestamp(value: str | None) -> float | None:
+    """Parse an ISO-8601 timestamp string to a float epoch, or None."""
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        import datetime
+
+        return datetime.datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except (ValueError, TypeError):
+        return None
+
+
+def _work_evidence(item: dict[str, Any]) -> dict[str, Any]:
+    """Collect evidence from the work item's projected snapshot."""
+    evidence_block = item.get("evidence") or {}
+    return {
+        "validation": evidence_block.get("validation"),
+        "review": evidence_block.get("review"),
+        "publication": evidence_block.get("publication"),
+        "blocker": item.get("blocker"),
+        "data_quality": item.get("data_quality"),
+    }
+
+
+def _explain_blocked(item: dict[str, Any], packet_id: str | None) -> Explanation:
+    blocker = item.get("blocker") or {}
+    reason = blocker.get("reason") or "blocked by Builder eligibility"
+    next_action = item.get("next_action") or "resolve the blocker to proceed"
+    return Explanation(
+        status="blocked",
+        reason=reason,
+        relevant_at=_parse_iso_timestamp(item.get("updated_at")),
+        automation=packet_id,
+        evidence=_work_evidence(item),
+        next_step=next_action,
+    )
+
+
+def _explain_failed(item: dict[str, Any], packet_id: str | None) -> Explanation:
+    evidence = _work_evidence(item)
+    validation = evidence.get("validation")
+    review = evidence.get("review")
+
+    # Cite durable validation/review evidence when available.
+    if validation and validation.get("status") == "failed":
+        reason = f"validation failed: {validation.get('summary', 'no summary available')}"
+    elif review and review.get("verdict") in {"reject", "request_changes"}:
+        reason = f"review rejected: {review.get('summary', 'no summary available')}"
+    else:
+        failure_kind = (item.get("current_packet") or {}).get("failure_kind")
+        if failure_kind:
+            reason = f"implementation failed: {failure_kind}"
+        else:
+            reason = "implementation failed but Builder has not recorded enough evidence to determine the cause"
+
+    return Explanation(
+        status="failed",
+        reason=reason,
+        relevant_at=_parse_iso_timestamp(item.get("updated_at")),
+        automation=packet_id,
+        evidence=evidence,
+        next_step=item.get("next_action") or "investigate the failure and retry",
+    )
+
+
+def _explain_active(item: dict[str, Any], packet_id: str | None) -> Explanation:
+    current_run = item.get("current_run")
+    if current_run:
+        reason = f"work is in progress: run {current_run.get('id', 'unknown')} is {current_run.get('state', 'active')}"
+    else:
+        reason = "work is in progress"
+    return Explanation(
+        status="active",
+        reason=reason,
+        relevant_at=_parse_iso_timestamp(item.get("updated_at")),
+        automation=packet_id,
+        evidence=_work_evidence(item),
+        next_step="wait for the current run to complete",
+    )
+
+
+def _explain_ready(item: dict[str, Any], packet_id: str | None) -> Explanation:
+    packet = item.get("current_packet") or {}
+    next_action = item.get("next_action") or packet.get("next_action") or "claim"
+    return Explanation(
+        status="ready",
+        reason="work item is eligible and waiting to be claimed",
+        relevant_at=_parse_iso_timestamp(item.get("updated_at")),
+        automation=packet_id,
+        evidence=_work_evidence(item),
+        next_step=f"the next action is: {next_action}",
+    )
+
+
+def _explain_paused(item: dict[str, Any], packet_id: str | None) -> Explanation:
+    blocker = item.get("blocker") or {}
+    reason = blocker.get("reason") or "initiative is paused"
+    return Explanation(
+        status="paused",
+        reason=reason,
+        relevant_at=_parse_iso_timestamp(item.get("updated_at")),
+        automation=packet_id,
+        evidence=_work_evidence(item),
+        next_step=item.get("next_action") or "resume the initiative to continue",
+    )
+
+
+def _explain_waiting(item: dict[str, Any], packet_id: str | None) -> Explanation:
+    return Explanation(
+        status="waiting",
+        reason="work item is waiting for Builder to assign it to a worker",
+        relevant_at=_parse_iso_timestamp(item.get("updated_at")),
+        automation=packet_id,
+        evidence=_work_evidence(item),
+        next_step=item.get("next_action") or "wait for Builder to assign work",
+    )
+
+
+def _explain_completed(item: dict[str, Any], packet_id: str | None) -> Explanation:
+    return Explanation(
+        status="completed",
+        reason="work item has been completed",
+        relevant_at=_parse_iso_timestamp(item.get("updated_at")),
+        automation=packet_id,
+        evidence=_work_evidence(item),
+        next_step="nothing to do; the work is complete",
+    )
+
+
+def _explain_insufficient_evidence(item: dict[str, Any], packet_id: str | None) -> Explanation:
+    return Explanation(
+        status="insufficient_evidence",
+        reason="Builder has not recorded enough evidence to explain the current state of this work item",
+        relevant_at=_parse_iso_timestamp(item.get("updated_at")),
+        automation=packet_id,
+        evidence=_work_evidence(item),
+        next_step="inspect Builder state manually or wait for more evidence to be recorded",
+    )
+
+
+def explain_work_item(projected: dict[str, Any], initiative_id: str) -> Explanation:
+    """Explain one Builder work item: why it has its current status.
+
+    ``projected`` is the output of ``project_work_snapshot`` — a pre-built work
+    projection dict with an ``items`` list. Uses only the existing Builder
+    status/work projection — no fabrication, no new stores, no Builder state
+    mutation. Unknown initiative ids raise ``WorkNotFound``. When the projection
+    lacks evidence, an ``insufficient_evidence`` explanation is returned instead
+    of inventing a cause.
+    """
+    items = projected.get("items") or []
+    item = next((i for i in items if i.get("id") == initiative_id), None)
+
+    if item is None:
+        raise WorkNotFound(f"work item not found: {initiative_id}")
+
+    packet_id = (item.get("source") or {}).get("packet_id")
+    state = item.get("state") or "unknown"
+
+    explainers = {
+        "blocked": _explain_blocked,
+        "failed": _explain_failed,
+        "active": _explain_active,
+        "ready": _explain_ready,
+        "paused": _explain_paused,
+        "waiting": _explain_waiting,
+        "completed": _explain_completed,
+    }
+
+    explainer = explainers.get(state)
+    if explainer is not None:
+        return explainer(item, packet_id)
+
+    # Unknown or unrecognised state — be honest about the gap.
+    return _explain_insufficient_evidence(item, packet_id)
