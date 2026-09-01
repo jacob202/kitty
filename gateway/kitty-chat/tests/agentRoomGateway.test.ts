@@ -45,6 +45,29 @@ describe('global agent room gateway client', () => {
     expect((init as RequestInit).method).toBeUndefined()
   })
 
+
+  it('rejects malformed message and inbox payloads instead of erasing durable evidence', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(jsonResponse({ messages: null }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchGlobalAgentMessages()).rejects.toThrow(/expected a messages array/i)
+    await expect(fetchGlobalAgentInbox()).rejects.toThrow(/expected a messages array/i)
+  })
+
+  it('loads a durable thread for reply context', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ messages: [{ id: 'root' }, { id: 'reply' }] }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const gatewayModule = await import('../src/lib/gateway')
+    expect(typeof (gatewayModule as any).fetchGlobalAgentThread).toBe('function')
+    const thread = await (gatewayModule as any).fetchGlobalAgentThread('reply', 25)
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/proxy/agent-room/global/threads/reply?limit=25')
+    expect(thread).toHaveLength(2)
+  })
+
   it('posts direct and broadcast messages only as Jacob', async () => {
     const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({ id: 'message_1' }))
     vi.stubGlobal('fetch', fetchMock)

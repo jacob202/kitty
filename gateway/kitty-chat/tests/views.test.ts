@@ -7,8 +7,9 @@ describe('view registry', () => {
     expect(VIEWS.agents.component).toBe(AgentWorkspacePanel)
   })
 
-  it('preserves the Research registry entry from PR #735', () => {
+  it('preserves the Research registry entry from PR #735 without making the unfinished surface canonical', () => {
     expect(getView('research')?.title).toBe('Research')
+    expect(REDIRECTS.research).toBe('library')
   })
 })
 

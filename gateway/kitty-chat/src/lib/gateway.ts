@@ -925,7 +925,10 @@ export async function fetchGlobalAgentRoom(): Promise<AgentWorkspace> {
 
 export async function fetchGlobalAgentMessages(limit = 100): Promise<AgentWorkspaceMessage[]> {
   const json = await gfetch<{ messages?: AgentWorkspaceMessage[] }>(`/agent-room/global/messages?limit=${limit}`)
-  return json.messages ?? []
+  if (!Array.isArray(json.messages)) {
+    throw new Error('Gateway global-room messages returned an invalid payload: expected a messages array')
+  }
+  return json.messages
 }
 
 export async function fetchGlobalAgentInbox(
@@ -935,7 +938,23 @@ export async function fetchGlobalAgentInbox(
   const json = await gfetch<{ messages?: AgentRoomInboxMessage[] }>(
     `/agent-room/global/inbox/jacob?unread_only=${unreadOnly}&limit=${limit}`,
   )
-  return json.messages ?? []
+  if (!Array.isArray(json.messages)) {
+    throw new Error('Gateway global-room inbox returned an invalid payload: expected a messages array')
+  }
+  return json.messages
+}
+
+export async function fetchGlobalAgentThread(
+  messageId: string,
+  limit = 100,
+): Promise<AgentWorkspaceMessage[]> {
+  const json = await gfetch<{ messages?: AgentWorkspaceMessage[] }>(
+    `/agent-room/global/threads/${encodeURIComponent(messageId)}?limit=${limit}`,
+  )
+  if (!Array.isArray(json.messages)) {
+    throw new Error('Gateway global-room thread returned an invalid payload: expected a messages array')
+  }
+  return json.messages
 }
 
 export async function postGlobalAgentMessage(input: GlobalAgentMessageInput): Promise<AgentWorkspaceMessage> {

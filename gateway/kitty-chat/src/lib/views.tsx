@@ -56,6 +56,7 @@ export const REDIRECTS: Record<string, ViewId> = {
   images: 'studio',
   tutor: 'tutor',
   journal: 'journal',
+  research: 'library',
 }
 
 export function getView(id: string): ViewEntry | undefined {

@@ -8,6 +8,7 @@ import {
   fetchGlobalAgentInbox,
   fetchGlobalAgentMessages,
   fetchGlobalAgentRoom,
+  fetchGlobalAgentThread,
   postGlobalAgentMessage,
   updateGlobalAgentReceipt,
   type AgentRoomInboxMessage,
@@ -27,15 +28,19 @@ export function AgentWorkspacePanel() {
   const [room, setRoom] = useState<AgentWorkspace | null>(null)
   const [messages, setMessages] = useState<AgentWorkspaceMessage[]>([])
   const [inbox, setInbox] = useState<AgentRoomInboxMessage[]>([])
+  const [threadContext, setThreadContext] = useState<AgentWorkspaceMessage[]>([])
   const [recipientId, setRecipientId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [replyTarget, setReplyTarget] = useState<AgentWorkspaceMessage | null>(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [roomError, setRoomError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const mounted = useRef(true)
   const pollInFlight = useRef(false)
+  const mutationGeneration = useRef(0)
+  const requestedThreads = useRef(new Set<string>())
 
   const unreadIds = useMemo(
     () => new Set(inbox.filter((item) => item.seen_at === null).map((item) => item.id)),
@@ -45,8 +50,23 @@ export function AgentWorkspacePanel() {
     () => new Set(inbox.filter((item) => item.acknowledged_at !== null).map((item) => item.id)),
     [inbox],
   )
+  const acknowledgeableIds = useMemo(
+    () => new Set(inbox.filter((item) => item.acknowledged_at === null).map((item) => item.id)),
+    [inbox],
+  )
   const unreadCount = unreadIds.size
-  const messageById = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages])
+  const displayMessages = useMemo(() => {
+    const byId = new Map<string, AgentWorkspaceMessage>()
+    for (const item of messages) byId.set(item.id, item)
+    for (const item of inbox) if (!byId.has(item.id)) byId.set(item.id, item)
+    return [...byId.values()].sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id))
+  }, [messages, inbox])
+  const messageById = useMemo(() => {
+    const byId = new Map<string, AgentWorkspaceMessage>()
+    for (const item of threadContext) byId.set(item.id, item)
+    for (const item of displayMessages) byId.set(item.id, item)
+    return byId
+  }, [displayMessages, threadContext])
 
   useEffect(() => {
     mounted.current = true
@@ -58,8 +78,29 @@ export function AgentWorkspacePanel() {
     }
   }, [])
 
+  useEffect(() => {
+    for (const item of displayMessages) {
+      const parentId = item.parent_message_id
+      if (!parentId || messageById.has(parentId) || requestedThreads.current.has(item.id)) continue
+      requestedThreads.current.add(item.id)
+      void fetchGlobalAgentThread(item.id, 100)
+        .then((thread) => {
+          if (!mounted.current) return
+          setThreadContext((current) => {
+            const byId = new Map(current.map((entry) => [entry.id, entry]))
+            for (const entry of thread) byId.set(entry.id, entry)
+            return [...byId.values()]
+          })
+        })
+        .catch(() => {
+          requestedThreads.current.delete(item.id)
+        })
+    }
+  }, [displayMessages, messageById])
+
   async function loadInitial() {
     setLoading(true)
+    setRoomError(null)
     try {
       const [loadedRoom, recent, jacobInbox] = await Promise.all([
         fetchGlobalAgentRoom(),
@@ -70,9 +111,9 @@ export function AgentWorkspacePanel() {
       setRoom(loadedRoom)
       setMessages(recent)
       setInbox(jacobInbox)
-      setError(null)
+      setRoomError(null)
     } catch (err) {
-      if (mounted.current) setError(errorMessage(err, 'Could not load the Global Agent Room'))
+      if (mounted.current) setRoomError(errorMessage(err, 'Could not load the Global Agent Room'))
     } finally {
       if (mounted.current) setLoading(false)
     }
@@ -80,19 +121,22 @@ export function AgentWorkspacePanel() {
 
   async function pollRoom() {
     if (pollInFlight.current) return
+    const generation = mutationGeneration.current
     pollInFlight.current = true
     try {
       const [recent, jacobInbox] = await Promise.all([
         fetchGlobalAgentMessages(100),
         fetchGlobalAgentInbox(false, 100),
       ])
-      if (!mounted.current) return
+      if (!mounted.current || generation !== mutationGeneration.current) return
       setMessages(recent)
       setInbox(jacobInbox)
-      setError(null)
+      setRoomError(null)
     } catch (err) {
       // Polling is recovery-only: never erase the last durable transcript.
-      if (mounted.current) setError(errorMessage(err, 'Could not refresh the Global Agent Room'))
+      if (mounted.current && generation === mutationGeneration.current) {
+        setRoomError(errorMessage(err, 'Could not refresh the Global Agent Room'))
+      }
     } finally {
       pollInFlight.current = false
     }
@@ -107,7 +151,7 @@ export function AgentWorkspacePanel() {
     const content = draft.trim()
     if (!content || sending) return
     setSending(true)
-    setError(null)
+    setActionError(null)
     try {
       const posted = await postGlobalAgentMessage({
         recipientId,
@@ -116,13 +160,14 @@ export function AgentWorkspacePanel() {
         parentMessageId: replyTarget?.id ?? null,
       })
       if (!mounted.current) return
+      mutationGeneration.current += 1
       setMessages((current) => current.some((item) => item.id === posted.id) ? current : [...current, posted])
       setDraft('')
       setReplyTarget(null)
       await pollRoom()
     } catch (err) {
       // A failed post is not accepted: keep both the user's draft and thread target intact.
-      if (mounted.current) setError(errorMessage(err, 'Could not send the message'))
+      if (mounted.current) setActionError(errorMessage(err, 'Could not send the message'))
     } finally {
       if (mounted.current) setSending(false)
     }
@@ -131,10 +176,11 @@ export function AgentWorkspacePanel() {
   async function handleAcknowledge(message: AgentWorkspaceMessage) {
     if (acknowledgingId) return
     setAcknowledgingId(message.id)
-    setError(null)
+    setActionError(null)
     try {
       const receipt = await updateGlobalAgentReceipt(message.id, 'acknowledged')
       if (!mounted.current) return
+      mutationGeneration.current += 1
       setInbox((current) => current.map((item) => item.id === message.id ? {
         ...item,
         seen_at: receipt.seen_at,
@@ -142,10 +188,34 @@ export function AgentWorkspacePanel() {
         receipt_state: receipt.receipt_state,
       } : item))
     } catch (err) {
-      if (mounted.current) setError(errorMessage(err, 'Could not acknowledge the message'))
+      if (mounted.current) setActionError(errorMessage(err, 'Could not acknowledge the message'))
     } finally {
       if (mounted.current) setAcknowledgingId(null)
     }
+  }
+
+  if (!room) {
+    return (
+      <div style={shellStyle}>
+        <header style={headerStyle}>
+          <div>
+            <p style={eyebrowStyle}>agents · command center</p>
+            <h1 style={titleStyle}>Global Agent Room</h1>
+            <p style={subtitleStyle}>Connect to the durable room before Kitty reports membership or enables messaging.</p>
+          </div>
+        </header>
+        {loading ? (
+          <p style={mutedStyle}>Loading durable room…</p>
+        ) : (
+          <Card padding="md" ariaLabel="Global Agent Room recovery" style={sectionStyle}>
+            <h2 style={sectionTitleStyle}>Room unavailable</h2>
+            <p style={sectionNoteStyle}>Kitty could not verify the shared room. Retry to reconnect without creating another room.</p>
+            <div><Button ariaLabel="Retry Global Agent Room" onClick={() => void loadInitial()}>Retry</Button></div>
+          </Card>
+        )}
+        {roomError && <p role="alert" style={errorStyle}>{roomError}</p>}
+      </div>
+    )
   }
 
   return (
@@ -196,12 +266,12 @@ export function AgentWorkspacePanel() {
         </div>
 
         <div style={transcriptStyle} aria-live="polite">
-          {!loading && messages.length === 0 && <p style={mutedStyle}>No messages yet.</p>}
-          {messages.map((message) => {
+          {!loading && displayMessages.length === 0 && <p style={mutedStyle}>No messages yet.</p>}
+          {displayMessages.map((message) => {
             const parent = message.parent_message_id ? messageById.get(message.parent_message_id) : null
             const senderName = displayName(message.sender_id)
             const isJacob = message.sender_id === 'jacob'
-            const canAcknowledge = !isJacob && unreadIds.has(message.id) && !acknowledgedIds.has(message.id)
+            const canAcknowledge = !isJacob && acknowledgeableIds.has(message.id) && !acknowledgedIds.has(message.id)
             return (
               <article key={message.id} style={messageStyle(isJacob)}>
                 <div style={messageMetaStyle}>
@@ -277,7 +347,8 @@ export function AgentWorkspacePanel() {
         </div>
       </Card>
 
-      {error && <p role="alert" style={errorStyle}>{error}</p>}
+      {actionError && <p role="alert" style={errorStyle}>{actionError}</p>}
+      {roomError && <p role="alert" style={errorStyle}>{roomError}</p>}
     </div>
   )
 }
