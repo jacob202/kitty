@@ -1300,6 +1300,14 @@ function Deadlines() {
   }
 
   const open = deadlines.data?.deadlines ?? [];
+  const sweepOutcome = sweep.data ? (
+    <div
+      role={sweep.data.delivery_status === 'source_unavailable' ? 'alert' : 'status'}
+      style={{ marginTop: 8, color: sweep.data.delivery_status === 'source_unavailable' ? 'var(--cat-ginger)' : 'var(--ink-2)' }}
+    >
+      {sweep.data.delivery_message}
+    </div>
+  ) : null;
 
   if (open.length === 0) {
     return (
@@ -1307,6 +1315,7 @@ function Deadlines() {
         <div style={{ ...homeEmptyState, textAlign: 'left', padding: '12px 2px' }}>
           no deadlines tracked yet — sweep scans your documents and mail for due
           dates and obligations.
+          {sweepOutcome}
           {sweep.data && sweep.data.blind_spots.length > 0 && (
             <div style={{ marginTop: 8, color: 'var(--ink-2)' }}>
               last sweep found nothing — {sweep.data.blind_spots.join(', ')}
@@ -1341,6 +1350,7 @@ function Deadlines() {
           {nearest.confidence === 'needs_jacob' ? ' · needs your eyes' : ''}
         </div>
       </div>
+      {sweepOutcome}
       {rest.map((d: GatewayDeadline) => (
         <div
           key={d.id}

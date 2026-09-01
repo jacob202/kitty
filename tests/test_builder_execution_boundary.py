@@ -325,6 +325,73 @@ pathlib.Path(os.environ['KB_REVIEW_RESULT_PATH']).write_text(json.dumps({
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
+def test_review_command_allows_only_canonical_staging_files(tmp_path: Path) -> None:
+    from gateway import builder_loop as bl
+
+    worktree = tmp_path / "worktree"
+    review_dir = tmp_path / "review"
+    worktree.mkdir()
+    review_dir.mkdir()
+    result_path = review_dir / "review.json"
+    attempt_id = "42"
+    forbidden = worktree / "reviewer-source-write.txt"
+    script = r"""
+import json, os, pathlib
+attempt_id = os.environ['KB_ATTEMPT_ID']
+staging = [
+    pathlib.Path(f'.kittybuilder-review-bundle-{attempt_id}.json'),
+    pathlib.Path(f'.kittybuilder-review-impl-{attempt_id}.json'),
+    pathlib.Path(f'.kittybuilder-review-context-{attempt_id}.json'),
+    pathlib.Path(f'.kittybuilder-review-binding-{attempt_id}.json'),
+    pathlib.Path(f'.kittybuilder-review-result-{attempt_id}.json'),
+]
+written = []
+for path in staging:
+    try:
+        path.write_text('staged')
+        written.append(path.name)
+    except OSError:
+        pass
+try:
+    pathlib.Path(os.environ['TEST_FORBIDDEN']).write_text('escape')
+    forbidden_blocked = False
+except OSError:
+    forbidden_blocked = True
+pathlib.Path(os.environ['KB_REVIEW_RESULT_PATH']).write_text(json.dumps({
+    'written': written,
+    'forbidden_blocked': forbidden_blocked,
+}))
+for path in staging:
+    try:
+        path.unlink()
+    except OSError:
+        pass
+"""
+    error = bl._run_review_command(
+        [str(Path(sys.executable).resolve()), "-c", script],
+        cwd=worktree,
+        env_extra={
+            "KB_ATTEMPT_ID": attempt_id,
+            "KB_REVIEW_RESULT_PATH": str(result_path),
+            "TEST_FORBIDDEN": str(forbidden),
+        },
+        timeout_seconds=5,
+    )
+
+    assert error is None
+    result = json.loads(result_path.read_text())
+    assert result["written"] == [
+        f".kittybuilder-review-bundle-{attempt_id}.json",
+        f".kittybuilder-review-impl-{attempt_id}.json",
+        f".kittybuilder-review-context-{attempt_id}.json",
+        f".kittybuilder-review-binding-{attempt_id}.json",
+        f".kittybuilder-review-result-{attempt_id}.json",
+    ]
+    assert result["forbidden_blocked"] is True
+    assert not forbidden.exists()
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="Seatbelt proof is macOS-specific")
 def test_sandboxed_worker_can_exec_interpreter_through_alias_directory(tmp_path: Path) -> None:
     """A venv whose interpreter points through an alias directory must run.
 

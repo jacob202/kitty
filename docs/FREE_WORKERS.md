@@ -53,6 +53,8 @@ KITTYBUILDER_MODEL=opencode/mimo-v2.5-free          # force one builder model
 KITTYBUILDER_MODELS="modelA modelB"                  # replace the builder ladder
 KITTYBUILDER_REVIEW_MODEL=...                        # force one reviewer model (free adapter default stays free)
 KITTYBUILDER_REVIEW_MODELS="modelA modelB"           # replace the reviewer model list
+KB_MODEL_STARTUP_TIMEOUT_SECONDS=30                  # max silence before worker fallback
+KB_REVIEW_MODEL_STARTUP_TIMEOUT_SECONDS=30           # max silence before reviewer fallback
 ```
 
 `--free --model <id>` accepts only an explicitly free model identifier. Paid
@@ -91,16 +93,25 @@ The compute governor remains the spend authority and receipts are durable.
 ## Timeouts
 
 The worker timeout (`--timeout`, default 3600s) remains the hard budget for the
-whole ladder walk, not a fresh budget for every model. Builder passes the
-remaining worker/reviewer budget into the adapters. Each model receives a fair
-share of the time still available to the models that remain, so a silent or
-hung endpoint cannot consume the entire attempt and disable fallback.
+whole ladder walk, not a fresh budget for every model. A responsive model gets
+the remaining usable budget rather than an artificial `budget / model_count`
+slice, so real work is not killed mid-edit.
+
+OpenCode runs in JSON-event mode. A top-level provider `error` event fails that
+model immediately. A model that emits only local `step_start` bookkeeping and
+then stays silent has 30 seconds by default to produce meaningful model
+activity (`text`, `tool_use`, reasoning, or a finished step); otherwise Builder
+terminates it cleanly and tries the next model. Once meaningful activity begins,
+the startup deadline is disabled and the model keeps the remaining packet
+budget. The worker and reviewer startup windows can be tuned independently with
+`KB_MODEL_STARTUP_TIMEOUT_SECONDS` and
+`KB_REVIEW_MODEL_STARTUP_TIMEOUT_SECONDS`.
 
 A model that times out cleanly (no result contract and no worktree change) may
 hand off to the next model. Any partial work still stops fallback immediately.
-Forcing one model intentionally gives that single model the remaining whole
-budget. The outer Builder timeout remains authoritative and can terminate the
-adapter at the campaign deadline.
+A valid worker/reviewer contract is itself a completion signal: Builder stops a
+model process that lingers after writing the contract, validates the contract,
+and continues. The outer Builder timeout remains authoritative.
 
 ## Multi-Agent Orchestration via Orca
 

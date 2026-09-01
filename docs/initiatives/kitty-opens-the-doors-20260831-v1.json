@@ -1,0 +1,36 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-opens-the-doors-20260831-v1",
+  "title": "Kitty opens with one bounded Home read model",
+  "description": "Verified Wave 1A intentionally contains only the current-base packet with no active implementation-path collision. WARM, frontend GLANCE, optimistic UI, privacy, Chat tools, and restore remain separate held blueprints until their recorded collision or architecture gates clear.",
+  "packets": [
+    {
+      "id": "KF-GLANCE-01",
+      "title": "Home gets one bounded primary read model",
+      "objective": "Extend gateway/state_composer.py's existing independently-degraded /state/now composition with the missing primary Home read sections, using framework-free sources directly rather than importing route modules: proposed actions from action_queue.list_actions(status='proposed', limit=50); needs-Jacob decisions from triage.list_triaged(bucket='needs_jacob', limit=20); projects from project_store.list_projects(); project_next_steps containing next_step.select_steps(limit=3) plus next_step.get(project_id) for the first four active projects Home can display; and open deadlines from deadline_store.list_open(status='open'). Keep every section bounded and include scalar counts so /state/changes retains meaningful mechanical diffs: actions <=50, decisions <=20, active project rows <=4, selected next steps <=3 plus stored steps for those four projects, deadline rows <=4. Keep the existing todos.open_count and todos.latest keys and add only the first five open todo rows. Existing HTTP routes, stores, caches, registries, and production-file layout stay unchanged. Every source must still return either {ok: true, ...} or {ok: false, error} without raising the whole response. Preserve /state/changes across old snapshots and new section names. Fix the current latency trap too: compose_now calls future.result(timeout=SOURCE_TIMEOUT_SECONDS) sequentially, so several hung sources can multiply the advertised timeout; the full response must have one bounded wall-clock deadline while returning every section that completed in time. Session context, weather, health/system diagnostics, experts, Builder state and other secondary Home disclosures are out of scope. This packet creates no new files.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "compose_now returns actions, needs_jacob, projects, project_next_steps, todos and deadlines as independently healthy or failed sections with the bounded row limits and scalar counts in the objective; todos.open_count and todos.latest remain backward-compatible.",
+        "project_next_steps contains both the life-first selected top-three projection and stored next-step rows for the first four active projects, so What's Next and Active Projects need no per-project read fan-out.",
+        "A failure or timeout in any one new section returns ok=false with an error for that section and does not prevent completed sibling sections from being returned.",
+        "Two or more hung sources do not make compose_now wait SOURCE_TIMEOUT_SECONDS once per source; the response obeys one bounded wall-clock deadline.",
+        "A snapshot created before the new sections can still be compared by changes_since_snapshot without raising, and new scalar section health/count changes remain reportable.",
+        "No new HTTP route, production file, cache, registry or state store is introduced.",
+        "python -m pytest -q tests/test_state_composer.py tests/test_state_route.py passes."
+      ],
+      "allowed_paths": [
+        "gateway/state_composer.py",
+        "tests/test_state_composer.py",
+        "tests/test_state_route.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 30
+      },
+      "validation_commands": [
+        "python -m pytest -q tests/test_state_composer.py tests/test_state_route.py",
+        "python -m ruff check gateway/state_composer.py tests/test_state_composer.py tests/test_state_route.py"
+      ]
+    }
+  ]
+}

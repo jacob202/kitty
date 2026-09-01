@@ -194,20 +194,21 @@ class BaseSHAResolutionError(RuntimeError):
 
 
 def resolve_base_sha(repo_root: Path | None = None) -> str:
-    """Resolve an immutable full SHA from the current main branch HEAD.
+    """Resolve the immutable base SHA for a newly applied packet.
 
-    Reads local ``main`` first, falls back to ``origin/main``. Builder executes
-    against the canonical local checkout, which may intentionally be ahead of
-    the last pushed remote ref. The result is a full
-    40-character hex SHA (not a branch name) captured once at packet creation
-    time. This value is stored in ``initiative_packets.base_sha`` and is never
-    recomputed from live refs during execution, retry, or recovery.
-
-    Raises ``BaseSHAResolutionError`` if neither ref resolves to a valid SHA.
+    A configured ``origin`` is authoritative for Builder-created work: refresh
+    ``origin/main`` before binding the packet, then use that exact remote SHA.
+    This prevents local-only integration commits in a canonical checkout from
+    contaminating Builder branches and later pull requests. Repositories with
+    no configured ``origin`` (for example hermetic tests) may fall back to a
+    valid local ``origin/main`` ref or finally local ``main``. The selected full
+    SHA is captured once in ``initiative_packets.base_sha`` and remains
+    immutable for retries and recovery.
     """
     root = Path(repo_root) if repo_root else Path.cwd()
     failures: list[str] = []
-    for ref in ("main", "origin/main"):
+
+    def resolve(ref: str) -> str | None:
         result = subprocess.run(
             ["git", "rev-parse", "--verify", "--quiet", ref],
             cwd=root,
@@ -215,17 +216,52 @@ def resolve_base_sha(repo_root: Path | None = None) -> str:
             text=True,
             timeout=10,
         )
-        if result.returncode == 0:
-            sha = result.stdout.strip()
-            if len(sha) == 40 and all(c in "0123456789abcdef" for c in sha):
-                return sha
-            failures.append(f"{ref}: returned invalid SHA {sha!r}")
-        else:
+        if result.returncode != 0:
             detail = result.stderr.strip() or result.stdout.strip() or "ref not found"
             failures.append(f"{ref}: exit {result.returncode} ({detail})")
+            return None
+        sha = result.stdout.strip()
+        if len(sha) != 40 or any(c not in "0123456789abcdef" for c in sha):
+            failures.append(f"{ref}: returned invalid SHA {sha!r}")
+            return None
+        return sha
+
+    origin = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    has_origin = origin.returncode == 0 and bool(origin.stdout.strip())
+    if has_origin:
+        fetch = subprocess.run(
+            ["git", "fetch", "--quiet", "origin", "main"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if fetch.returncode != 0:
+            detail = fetch.stderr.strip() or fetch.stdout.strip() or "unknown fetch error"
+            raise BaseSHAResolutionError(
+                f"cannot refresh authoritative origin/main in {root}: {detail}"
+            )
+
+    remote_sha = resolve("origin/main")
+    if remote_sha:
+        return remote_sha
+    if has_origin:
+        raise BaseSHAResolutionError(
+            f"configured origin has no resolvable origin/main in {root}; "
+            + "; ".join(failures)
+        )
+
+    local_sha = resolve("main")
+    if local_sha:
+        return local_sha
     raise BaseSHAResolutionError(
-        f"cannot resolve durable packet base SHA in {root}; "
-        + "; ".join(failures)
+        f"cannot resolve durable packet base SHA in {root}; " + "; ".join(failures)
     )
 
 
