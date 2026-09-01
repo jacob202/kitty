@@ -132,7 +132,7 @@ def _exec_todo_create(payload: dict[str, Any]) -> tuple[str, str | None]:
     """
     content = str(payload["content"]).strip()
     todo = storage_router.add_todo(content)
-    todo_id = todo.get("id")
+    todo_id = int(todo["id"])
     result_text = f"todo created (id={todo_id}): {todo.get('content', content)}"
 
     # Record undo journal entry for the created todo
@@ -246,9 +246,9 @@ def _load_tiers() -> tuple[dict[str, str], set[str]]:
     return tiers, disabled
 
 
-def _build_registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], str]]]:
+def _build_registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, str | None]]]]:
     tiers, disabled = _load_tiers()
-    registry: dict[str, tuple[str, Callable[[dict[str, Any]], str]]] = {}
+    registry: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, str | None]]]] = {}
     for kind, fn in _EXECUTORS.items():
         if kind in disabled:
             raise ActionConfigError(
@@ -260,7 +260,7 @@ def _build_registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], str]]]:
     return registry
 
 
-def _registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], str]]]:
+def _registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, str | None]]]]:
     global _REGISTRY
     if _REGISTRY is None:
         _REGISTRY = _build_registry()
