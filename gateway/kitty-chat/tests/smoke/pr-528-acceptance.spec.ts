@@ -165,12 +165,21 @@ async function installHermeticStubs(
     if (path === '/studio/characters') {
       return json(route, { characters: [] })
     }
+    if (path === '/studio/recipes') return json(route, { recipes: [] })
     if (path === '/studio/estimate') {
+      const unknownEstimate = {
+        cost: { state: 'unknown', usd: null, basis: 'offline', samples: 0 },
+        duration: { state: 'unknown', seconds: null, basis: 'offline', samples: 0 },
+      }
       return json(route, {
-        estimate: {
-          cost: { state: 'unknown', usd: null, basis: 'offline', samples: 0 },
-          duration: { state: 'unknown', seconds: null, basis: 'offline', samples: 0 },
-        },
+        provider: 'comfyui',
+        model_id: null,
+        recipe_id: 'comfyui_txt2img',
+        routing_reason: 'hermetic offline estimate',
+        operation: 'txt2img',
+        count: 1,
+        per_image_estimate: unknownEstimate,
+        estimate: unknownEstimate,
       })
     }
     unexpectedPaths.push(`${method} ${path}`)
