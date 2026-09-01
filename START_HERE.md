@@ -14,24 +14,42 @@ live evidence; it does not duplicate current state.
    `docs/reference/MULTI_AGENT_COORDINATION.md`, check its live coordination
    issue, and inspect the relevant Builder/local ownership state before
    claiming an implementation lane.
-3. Run the receipt for the task class. Informational/planning work may use
-   `./kitty context --agent --compact --skip-builder`; code or Builder work
-   uses full `./kitty context --agent`. A failed, unknown, stale, or
-   contradictory receipt remains unverified; handoff prose cannot repair it.
-4. Read only the authority files required by the task, using the receipt's
+3. Prove `workspace_global` access. Discover new handoffs through this agent's
+   unread inbox first (`room_inbox` or `./kitty room inbox --as <identity>
+   --unread --json`). If the assignment supplies a durable locator, load that
+   exact conversation with `room_thread` or `./kitty room thread <message_id>
+   --json`. Use recent messages only for bounded shared situational context;
+   the newest global window is not an assignment index. Acknowledge messages
+   actually received. If the room itself is unavailable, report that rather
+   than fabricating room state.
+4. Choose the receipt mode from the continuation source:
+   - GAR available **and** an unread handoff/known durable thread identifies the
+     assignment: code work uses `./kitty context --agent
+     --skip-legacy-continuity`; informational/planning work may add `--compact
+     --skip-builder`.
+   - GAR available but there is **no** unread handoff or durable locator and the
+     legacy checkpoint is needed as the temporary continuation fallback: run
+     the strict `./kitty context --agent` receipt first and use that checkpoint
+     only if its validation succeeds.
+   - GAR unavailable: use the strict `./kitty context --agent` compatibility
+     receipt and report the room as unavailable.
+   A failed, unknown, stale, or contradictory required source remains
+   unverified; handoff prose cannot repair it.
+5. Read only the authority files required by the task, using the receipt's
    order. For code changes, use the complete order below.
-5. Read `docs/ACTIVE_MISSION.md` when the task is product or implementation
+6. Read `docs/ACTIVE_MISSION.md` when the task is product or implementation
    work. Confirm scope, approval, base SHA, evidence, and authorization.
-6. Inspect Builder through supported read-only commands only when Builder
+7. Inspect Builder through supported read-only commands only when Builder
    state, execution ownership, or collision risk matters.
-7. Immediately before mutation, re-check live branch/HEAD, scope, owner,
+8. Immediately before mutation, re-check live branch/HEAD, scope, owner,
    authorization, and the exact files to change.
 
 ## Task routing
 
 - Informational: run the receipt and load the directly relevant authority.
-- Planning: add `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, and the current
-  checkpoint only when relevant.
+- Planning: add `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, and a known
+  `workspace_global` thread/handoff when one exists; use legacy checkpoint files
+  only through the strict validated compatibility fallback above.
 - Code change: load the full order, then the outcome contract and narrow code or
   test surface. Run focused verification after each coherent change.
 - Builder work: use explicit intent (`builder status`, `builder next`,
@@ -49,9 +67,13 @@ live evidence; it does not duplicate current state.
 6. [`docs/ROADMAP.md`](docs/ROADMAP.md)
 7. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md)
 8. [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md)
-9. [`.claude/STATE.md`](.claude/STATE.md)
-10. [`.claude/HANDOFF.md`](.claude/HANDOFF.md) — only if its identity is valid
 <!-- kitty-reading-order:end -->
+
+`workspace_global` is the primary mutable cross-agent handoff and communication
+surface and is checked separately because it is runtime state, not versioned
+document authority. `.claude/STATE.md` and `.claude/HANDOFF.md` are legacy
+compatibility checkpoints: they are not mandatory reading, and they must never
+override fresher room, Git, GitHub, Builder, or runtime evidence.
 
 `docs/reference/MULTI_AGENT_COORDINATION.md` is an operational coordination
 supplement, not another authority file. Its live issue is mutable campaign
@@ -61,8 +83,11 @@ state and must be revalidated against current GitHub/Builder/Mac truth.
 
 ```bash
 git status --short --branch
-./kitty context --agent --compact --skip-builder  # informational/planning
-# ./kitty context --agent                                # code/Builder work
+./kitty room inbox --as <identity> --unread --json
+# Known GAR handoff/thread:
+./kitty context --agent --compact --skip-builder --skip-legacy-continuity
+# No GAR locator yet, or GAR unavailable and legacy fallback is required:
+./kitty context --agent
 ```
 
 Use `./kitty builder initiative doctor --json` only for Builder-relevant work.
