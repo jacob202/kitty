@@ -269,7 +269,7 @@ def test_launch_run_detaches_canonical_packet_loop(repo: Path, db_path: Path) ->
         result = bs._launch_run(packet, repo_root=repo, db_path=db_path)
 
     argv = popen.call_args.args[0]
-    assert argv == [str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1", "--paid", "--tier", "cheap", "--json"]
+    assert argv == [str(kitty), "builder", "initiative", "run-packet", "test-init-1", "p1", "--json"]
     assert popen.call_args.kwargs["start_new_session"] is True
     assert popen.call_args.kwargs["shell"] is False
     assert len(popen.call_args.kwargs["pass_fds"]) == 1
@@ -884,6 +884,28 @@ def test_dispatchable_counts_with_live_truth_applies_same_preflight_as_tick(repo
         current_main_sha=subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip(),
     )
     assert counts["now"] == 0
+
+
+def test_dispatchable_preflight_uses_free_route_by_default(repo: Path, db_path: Path, monkeypatch) -> None:
+    _apply(db_path, "free-route", [_packet("p1")], repo_root=repo)
+    seen: list[str | None] = []
+
+    def fake_preflight(*_args, **kwargs):
+        seen.append(kwargs.get("requested_route"))
+        return {"action": bs.PREFLIGHT_RUN, "reasons": []}
+
+    monkeypatch.setattr(bs, "preflight_packet", fake_preflight)
+    counts = bs.dispatchable_counts(
+        db_path,
+        repo_root=repo,
+        github_truth={"available": True, "by_head": {}, "error": None},
+        current_main_sha=subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+        ).stdout.strip(),
+    )
+
+    assert counts["now"] == 1
+    assert seen == ["free"]
 
 
 def test_replenishment_reports_low_water_without_config(repo: Path, db_path: Path, monkeypatch) -> None:

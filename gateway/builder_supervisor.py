@@ -573,7 +573,7 @@ def _admission_skip(
         preflight = preflight_packet(
             str(packet["initiative_id"]), str(packet["packet_id"]),
             db_path=db_path, repo_root=repo_root, current_main_sha=current_main_sha,
-            requested_route="cheap",
+            requested_route="free",
         )
         if preflight.get("action") != PREFLIGHT_RUN:
             return {
@@ -704,7 +704,7 @@ def _launch_run(
 
     command = [
         str(kitty), "builder", "initiative", "run-packet",
-        initiative_id, packet_id, "--paid", "--tier", "cheap", "--json",
+        initiative_id, packet_id, "--json",
     ]
     log_dir = root / "data" / "kittybuilder" / "supervisor-launch"
     log_dir.mkdir(parents=True, exist_ok=True)
