@@ -47,10 +47,10 @@ On a phone-sized Kitty viewport, a user can open More, choose Agents, and reach 
 |---|---|---|---|
 | AC-1 | PASS | `npm test -- tests/BottomNav.test.tsx` passed 9/9; mobile dogfood passed 5/5 and explicitly selected Agents before observing the `Global Agent Room` heading. Independent reviewer confirmed the route reaches the existing `AgentWorkspacePanel`. | None. |
 | AC-2 | PASS | The focused test covers `activeView="agents"`; mobile dogfood asserted More has `aria-current="page"` after selecting Agents. Independent reviewer confirmed the shared `SECONDARY_IDS` predicate. | None. |
-| AC-3 | PASS | Mobile dogfood passed 5/5 on the reviewed build, including the all-destinations overflow/nav-clearance sweep with Agents; desktop navigation smoke passed 2/2. Independent reviewer confirmed the degraded Agent Room path is covered. | None. |
+| AC-3 | PASS | Mobile dogfood passed 5/5 on the reviewed build, including the all-destinations overflow/nav-clearance sweep with Agents; a healthy running-app probe also passed at the 390px iPhone-class viewport with `390px` document width; desktop navigation smoke passed 2/2. Independent reviewer confirmed the degraded Agent Room path is covered. | None. |
 
 ## Final state
 
 - `verified`
 
-Evidence-bound summary: Full Vitest passed 95 files / 725 tests; `npm run build` exited 0 with TypeScript completed; mobile dogfood passed 5/5; desktop navigation smoke passed 2/2; `git diff --check` passed. A separate read-only reviewer inspected commit `dc91e4fe68cf0a6a2dd8bf86964c20c078f67d59`, reran the focused and mobile checks, found no Critical, Important, or Minor issues, and returned PASS for all three criteria.
+Evidence-bound summary: Full Vitest passed 95 files / 725 tests; `npm run build` exited 0 with TypeScript completed; mobile dogfood passed 5/5 in the degraded state; a healthy running-app probe passed at 390px; desktop navigation smoke passed 2/2; `git diff --check` passed. A separate read-only reviewer inspected commit `dc91e4fe68cf0a6a2dd8bf86964c20c078f67d59`, reran the focused and mobile checks, found no Critical, Important, or Minor issues, and returned PASS for all three criteria.
