@@ -1619,7 +1619,7 @@ def request_cancel(
         current_identity = bq.capture_process_identity(int(pid))
         if expected_identity is None:
             signal_status = "process_identity_missing"
-        elif current_identity != expected_identity:
+        elif not bq.process_identity_matches(expected_identity, current_identity):
             signal_status = "process_identity_mismatch"
         else:
             sig = signal.SIGKILL if kill else signal.SIGTERM
@@ -1710,7 +1710,7 @@ def _process_alive(pid: int, expected_identity: str | None) -> tuple[bool, str]:
         current = bq.capture_process_identity(int(pid))
     except Exception:
         return False, "process_identity_probe_error"
-    if current != expected_identity:
+    if not bq.process_identity_matches(expected_identity, current):
         return False, "process_identity_mismatch"
     return True, "alive"
 
