@@ -156,6 +156,30 @@ def test_real_cheap_route_uses_the_refreshed_independent_pair():
     assert 0 < route.projected_cost_cad <= route.max_projected_cost_cad == 0.10
 
 
+def test_real_cheap_route_has_independent_paid_reviewer_fallback():
+    route = bpr.resolve_paid_route("cheap")
+
+    assert route.reviewer_candidates == (
+        "openrouter/minimax/minimax-m3",
+        "openrouter/qwen/qwen3.7-plus",
+    )
+    assert not (set(route.worker_candidates) & set(route.reviewer_candidates))
+
+
+def test_opencode_reviewer_models_force_openrouter_price_sort():
+    config = json.loads((Path(__file__).resolve().parents[1] / "opencode.jsonc").read_text())
+    models = config["provider"]["openrouter"]["models"]
+
+    for model in (
+        "deepseek/deepseek-v4-flash",
+        "minimax/minimax-m3",
+        "qwen/qwen3.7-plus",
+    ):
+        routing = models[model]["options"]["provider"]
+        assert routing["sort"] == "price"
+        assert routing["allow_fallbacks"] is True
+
+
 def test_real_frontier_route_is_unchanged():
     route = bpr.resolve_paid_route("frontier")
 

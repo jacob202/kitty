@@ -1795,6 +1795,10 @@ class TestInitiativePaidPreset:
         assert kwargs["adapter_env"]["KITTYBUILDER_MODEL"] == (
             "openrouter/deepseek/deepseek-v4-flash"
         )
+        assert kwargs["adapter_env"]["KITTYBUILDER_REVIEW_MODEL"] == ""
+        assert kwargs["adapter_env"]["KITTYBUILDER_REVIEW_MODELS"] == (
+            "openrouter/minimax/minimax-m3 openrouter/qwen/qwen3.7-plus"
+        )
 
     def test_run_packet_frontier_is_explicit_paid_escalation(self):
         with patch("gateway.builder_loop.run_packet", return_value=self._RESULT) as mock_rp:

@@ -2565,6 +2565,10 @@ class TestComputeGovernorGate:
         assert second["outcome"] == bl.LOOP_SUCCEEDED
 
 
+def test_default_review_budget_is_four_minutes():
+    assert bl.DEFAULT_REVIEW_TIMEOUT == 240
+
+
 def test_governor_dispatch_preserves_paid_risk_class():
     dispatch = bl._governor_dispatch(
         INITIATIVE, PACKET, base_sha="a" * 40, risk_class="risky"

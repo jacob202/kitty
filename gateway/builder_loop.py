@@ -62,7 +62,7 @@ from gateway.builder_runner import (
 )
 from gateway.paths import BUILDER_QUEUE_DB
 
-DEFAULT_REVIEW_TIMEOUT = 1800
+DEFAULT_REVIEW_TIMEOUT = 240
 
 # P027: consecutive identical infrastructure crashes tolerated before the
 # loop stops with a truthful blocker instead of recovering forever.
@@ -737,9 +737,9 @@ def _configure_paid_route(
             "KITTYBUILDER_AGENT": "paid-builder",
             "KITTYBUILDER_REVIEW_AGENT": "paid-reviewer",
             "KITTYBUILDER_MODEL": route.worker_model,
-            "KITTYBUILDER_REVIEW_MODEL": route.reviewer_model,
+            "KITTYBUILDER_REVIEW_MODEL": "",
             "KITTYBUILDER_MODELS": "",
-            "KITTYBUILDER_REVIEW_MODELS": "",
+            "KITTYBUILDER_REVIEW_MODELS": " ".join(route.reviewer_candidates),
         }
     )
     if worker.startswith("opencode-paid-"):

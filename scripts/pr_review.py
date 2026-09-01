@@ -13,22 +13,32 @@ import os
 import re
 import subprocess
 import sys
-import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 DEFAULT_REVIEW_MODEL = "openrouter/deepseek/deepseek-v4-flash"
-INDEPENDENT_REVIEW_MODEL = "openrouter/qwen/qwen3.7-max"
+DEFAULT_REVIEW_FALLBACK_MODEL = "openrouter/minimax/minimax-m3"
+DEEPSEEK_REVIEW_MODEL = "openrouter/minimax/minimax-m3"
+DEEPSEEK_REVIEW_FALLBACK_MODEL = "openrouter/qwen/qwen3.7-plus"
 DEFAULT_REVIEW_AGENT = "pr-reviewer"
 REVIEW_MODEL = os.environ.get("PR_REVIEW_MODEL", DEFAULT_REVIEW_MODEL)
+REVIEW_FALLBACK_MODEL = os.environ.get(
+    "PR_REVIEW_FALLBACK_MODEL", DEFAULT_REVIEW_FALLBACK_MODEL
+)
+DEEPSEEK_INDEPENDENT_MODEL = os.environ.get(
+    "PR_REVIEW_DEEPSEEK_MODEL", DEEPSEEK_REVIEW_MODEL
+)
+DEEPSEEK_INDEPENDENT_FALLBACK_MODEL = os.environ.get(
+    "PR_REVIEW_DEEPSEEK_FALLBACK_MODEL", DEEPSEEK_REVIEW_FALLBACK_MODEL
+)
+REVIEW_MODEL_TIMEOUT_SECONDS = int(os.environ.get("PR_REVIEW_MODEL_TIMEOUT_SECONDS", "90"))
 COMMENT_MARKER = "<!-- kitty-agent-pr-review -->"
 NO_FINDINGS = "NO_ACTIONABLE_FINDINGS"
 REVIEW_PENDING = "__REVIEW_PENDING__"
 REVIEW_OVERRIDE_LABEL = "review/override-approved"
 MAX_REVIEW_CHARS = int(os.environ.get("PR_REVIEW_CHUNK_CHARS", "60000"))
 MAX_REVIEW_CHUNKS = int(os.environ.get("PR_REVIEW_MAX_CHUNKS", "12"))
-REVIEW_REQUEST_ATTEMPTS = int(os.environ.get("PR_REVIEW_REQUEST_ATTEMPTS", "2"))
 
 SYSTEM_PROMPT = """You are a strict independent code reviewer. Review only the supplied PR diff chunk.
 
@@ -69,13 +79,29 @@ def _model_family(model: str | None) -> str | None:
     return parts[-1] if parts else None
 
 
-def select_review_model(preferred_model: str, implementation_model: str | None) -> str:
-    """Keep the preferred Flash reviewer unless it would self-review by family."""
-    preferred_family = _model_family(preferred_model)
+def select_review_models(
+    preferred_model: str,
+    fallback_model: str,
+    implementation_model: str | None,
+) -> tuple[str, ...]:
+    """Return a bounded reviewer pair that is independent from the implementer."""
     implementation_family = _model_family(implementation_model)
-    if preferred_family and preferred_family == implementation_family:
-        return INDEPENDENT_REVIEW_MODEL
-    return preferred_model
+    if implementation_family == "deepseek":
+        candidates = (
+            DEEPSEEK_INDEPENDENT_MODEL,
+            DEEPSEEK_INDEPENDENT_FALLBACK_MODEL,
+        )
+    else:
+        candidates = (preferred_model, fallback_model)
+
+    selected: list[str] = []
+    for model in candidates:
+        if not model or model in selected:
+            continue
+        if implementation_family and _model_family(model) == implementation_family:
+            continue
+        selected.append(model)
+    return tuple(selected)
 
 
 def implementation_model_from_event(event: dict[str, Any]) -> str | None:
@@ -103,19 +129,21 @@ def implementation_model_from_event(event: dict[str, Any]) -> str | None:
     return model.strip() if isinstance(model, str) and model.strip() else None
 
 
-def review_model_for_current_event() -> str:
-    """Select a fixed trusted reviewer from current event provenance when available."""
+def review_models_for_current_event() -> tuple[str, ...]:
+    """Select a bounded trusted reviewer pair from current event provenance."""
+    implementation_model: str | None = None
     event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if not event_path:
-        return REVIEW_MODEL
-    try:
-        with open(event_path, encoding="utf-8") as event_file:
-            event = json.load(event_file)
-    except (OSError, json.JSONDecodeError, TypeError):
-        return REVIEW_MODEL
-    if not isinstance(event, dict):
-        return REVIEW_MODEL
-    return select_review_model(REVIEW_MODEL, implementation_model_from_event(event))
+    if event_path:
+        try:
+            with open(event_path, encoding="utf-8") as event_file:
+                event = json.load(event_file)
+            if isinstance(event, dict):
+                implementation_model = implementation_model_from_event(event)
+        except (OSError, json.JSONDecodeError, TypeError):
+            implementation_model = None
+    return select_review_models(
+        REVIEW_MODEL, REVIEW_FALLBACK_MODEL, implementation_model
+    )
 
 
 def parse_exact_head_override(body: str, labels: set[str], head_sha: str) -> str | None:
@@ -256,8 +284,13 @@ def _normalize_opencode_review(output: str) -> str | None:
 
 
 def _review_chunk(chunk: str) -> str | None:
-    review_model = review_model_for_current_event()
-    if review_model.startswith("openrouter/") and not os.environ.get("OPENROUTER_API_KEY"):
+    review_models = review_models_for_current_event()
+    if not review_models:
+        print("No independent PR reviewer model is configured.", file=sys.stderr)
+        return None
+    if any(model.startswith("openrouter/") for model in review_models) and not os.environ.get(
+        "OPENROUTER_API_KEY"
+    ):
         print("OPENROUTER_API_KEY not set — current-head OpenCode review cannot run.", file=sys.stderr)
         return None
 
@@ -268,45 +301,46 @@ def _review_chunk(chunk: str) -> str | None:
         "Review only its changed behavior.\n\n"
         f"```diff\n{chunk}\n```"
     )
-    command = [
-        "opencode",
-        "run",
-        "--auto",
-        "--agent",
-        agent,
-        "--model",
-        review_model,
-        "--title",
-        "Kitty automatic PR review",
-        prompt,
-    ]
 
-    for attempt in range(1, REVIEW_REQUEST_ATTEMPTS + 1):
+    for index, review_model in enumerate(review_models, start=1):
+        command = [
+            "opencode",
+            "run",
+            "--auto",
+            "--agent",
+            agent,
+            "--model",
+            review_model,
+            "--title",
+            "Kitty automatic PR review",
+            prompt,
+        ]
         try:
             result = subprocess.run(
                 command,
                 capture_output=True,
                 text=True,
-                timeout=90,
+                timeout=REVIEW_MODEL_TIMEOUT_SECONDS,
                 check=False,
             )
         except (subprocess.TimeoutExpired, OSError) as exc:
-            print(f"OpenCode reviewer infrastructure error: {type(exc).__name__}: {exc}", file=sys.stderr)
+            print(
+                f"OpenCode reviewer {review_model} infrastructure error: "
+                f"{type(exc).__name__}: {exc}",
+                file=sys.stderr,
+            )
         else:
             verdict = _normalize_opencode_review(result.stdout)
             if result.returncode == 0 and verdict:
                 return verdict
             detail = (result.stderr or result.stdout).strip()[:300]
             print(
-                f"OpenCode reviewer failed (exit {result.returncode})"
+                f"OpenCode reviewer {review_model} failed (exit {result.returncode})"
                 + (f": {detail}" if detail else ""),
                 file=sys.stderr,
             )
-
-        if attempt == REVIEW_REQUEST_ATTEMPTS:
-            return None
-        print(f"Retrying OpenCode reviewer ({attempt + 1}/{REVIEW_REQUEST_ATTEMPTS}).", file=sys.stderr)
-        time.sleep(1)
+        if index < len(review_models):
+            print(f"Falling back to independent reviewer {review_models[index]}.", file=sys.stderr)
 
     return None
 

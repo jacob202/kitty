@@ -18,12 +18,11 @@ Execute the approved KTF-001 mission in `docs/ACTIVE_MISSION.md` according to th
 ## Reviewer Routing
 
 Do not let a required independent review stall on free-provider roulette. Outside
-an explicit `--free` Builder lane, make one clean free attempt at most, then use
-`openrouter/deepseek/deepseek-v4-flash` for review if the free provider errors,
-overloads, or stays silent through the normal startup window. Jacob explicitly
-approved the small paid spend. In paired worker/reviewer flows, keep reviewer
-and implementer model families independent; explicit `--free` never falls back
-to paid.
+an explicit `--free` Builder lane, use the governed paid OpenRouter reviewer
+directly with price-first provider routing. Permit one clean fallback to a
+different reviewer model, never repeated retries of the same dead model. In
+paired worker/reviewer flows, keep model families independent; explicit `--free`
+never falls back to paid.
 OpenRouter is the preferred router for reviewer routing. AgentRouter is dead; do not recommend it. Freebuff and 9Router are optional only and must never be dependencies. Do not prefer `openrouter/deepseek/deepseek-v4-flash-0731` merely because it is newer; repeated runs observed it stalling.
 
 

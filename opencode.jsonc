@@ -101,5 +101,35 @@
         "resource": "openrouter"
       }
     ]
+  },
+  "provider": {
+    "openrouter": {
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "options": {
+            "provider": {
+              "sort": "price",
+              "allow_fallbacks": true
+            }
+          }
+        },
+        "minimax/minimax-m3": {
+          "options": {
+            "provider": {
+              "sort": "price",
+              "allow_fallbacks": true
+            }
+          }
+        },
+        "qwen/qwen3.7-plus": {
+          "options": {
+            "provider": {
+              "sort": "price",
+              "allow_fallbacks": true
+            }
+          }
+        }
+      }
+    }
   }
 }

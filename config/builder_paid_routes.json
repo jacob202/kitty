@@ -7,7 +7,10 @@
       "worker_model": "openrouter/deepseek/deepseek-v4-flash",
       "reviewer_model": "openrouter/minimax/minimax-m3",
       "governor_route": "cheap",
-      "max_projected_cad_per_attempt": 0.1
+      "max_projected_cad_per_attempt": 0.1,
+      "reviewer_fallback_models": [
+        "openrouter/qwen/qwen3.7-plus"
+      ]
     },
     "frontier": {
       "provider": "openrouter",

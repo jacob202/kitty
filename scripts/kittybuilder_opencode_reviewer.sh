@@ -142,7 +142,7 @@ fingerprint() {
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMEOUT_RUNNER="${SCRIPT_DIR}/run_with_timeout.py"
-review_budget=${KB_REVIEW_TIMEOUT_SECONDS:-900}
+review_budget=${KB_REVIEW_TIMEOUT_SECONDS:-240}
 model_startup_timeout=${KB_REVIEW_MODEL_STARTUP_TIMEOUT_SECONDS:-30}
 
 # The ladder exists for models that never get started, and those fail within

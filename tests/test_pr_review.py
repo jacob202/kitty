@@ -195,11 +195,15 @@ def test_default_github_reviewer_uses_paid_flash_model() -> None:
     assert pr_review.DEFAULT_REVIEW_MODEL == "openrouter/deepseek/deepseek-v4-flash"
 
 
-def test_deepseek_implementation_routes_to_independent_qwen_reviewer() -> None:
-    assert pr_review.select_review_model(
+def test_deepseek_implementation_routes_to_independent_paid_pair() -> None:
+    assert pr_review.select_review_models(
         "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/minimax/minimax-m3",
         "openrouter/deepseek/deepseek-v4-pro",
-    ) == "openrouter/qwen/qwen3.7-max"
+    ) == (
+        "openrouter/minimax/minimax-m3",
+        "openrouter/qwen/qwen3.7-plus",
+    )
 
 
 def test_builder_event_exposes_recorded_implementation_model() -> None:
@@ -256,7 +260,7 @@ def test_review_chunk_uses_independent_model_for_deepseek_builder_event(
 
     assert pr_review._review_chunk("diff") == pr_review.NO_FINDINGS
     command = calls[0]
-    assert command[command.index("--model") + 1] == "openrouter/qwen/qwen3.7-max"
+    assert command[command.index("--model") + 1] == "openrouter/minimax/minimax-m3"
 
 
 def test_exact_head_override_requires_label_full_sha_and_reason() -> None:
@@ -328,9 +332,9 @@ def test_review_request_uses_restricted_opencode_agent_and_paid_flash_model(
     assert "untrusted review data" in command[-1]
 
 
-def test_review_chunk_retries_transient_empty_opencode_output(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_review_chunk_falls_back_to_different_model_once(monkeypatch: pytest.MonkeyPatch) -> None:
     outputs = iter(["", pr_review.NO_FINDINGS + "\n"])
-    calls: list[int] = []
+    calls: list[tuple[list[str], int]] = []
 
     class Result:
         returncode = 0
@@ -339,16 +343,20 @@ def test_review_chunk_retries_transient_empty_opencode_output(monkeypatch: pytes
         def __init__(self, stdout: str) -> None:
             self.stdout = stdout
 
-    def fake_run(_command, **_kwargs):
-        calls.append(1)
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs["timeout"]))
         return Result(next(outputs))
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
     monkeypatch.setattr(pr_review.subprocess, "run", fake_run)
-    monkeypatch.setattr(pr_review.time, "sleep", lambda _seconds: None)
 
     assert pr_review._review_chunk("diff") == pr_review.NO_FINDINGS
-    assert len(calls) == 2
+    assert [call[0][call[0].index("--model") + 1] for call in calls] == [
+        "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/minimax/minimax-m3",
+    ]
+    assert [timeout for _command, timeout in calls] == [90, 90]
 
 
 

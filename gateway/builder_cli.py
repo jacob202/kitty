@@ -97,9 +97,9 @@ def _paid_adapter_env(route: Any) -> dict[str, str]:
         "KITTYBUILDER_AGENT": "paid-builder",
         "KITTYBUILDER_REVIEW_AGENT": "paid-reviewer",
         "KITTYBUILDER_MODEL": route.worker_model,
-        "KITTYBUILDER_REVIEW_MODEL": route.reviewer_model,
+        "KITTYBUILDER_REVIEW_MODEL": "",
         "KITTYBUILDER_MODELS": "",
-        "KITTYBUILDER_REVIEW_MODELS": "",
+        "KITTYBUILDER_REVIEW_MODELS": " ".join(route.reviewer_candidates),
     }
 
 
