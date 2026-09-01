@@ -91,6 +91,18 @@ class TestParseSkillFile:
         result = _parse_skill_file(path)
         assert result["allowed_tools"] == []
 
+    def test_chat_launchable_is_explicit_boolean_metadata(self, tmp_path):
+        path = tmp_path / "SKILL.md"
+        path.write_text("---\nname: test\nchat_launchable: true\n---\n\nBody")
+        result = _parse_skill_file(path)
+        assert result["chat_launchable"] is True
+
+    def test_chat_launchable_defaults_false_for_unmarked_skills(self, tmp_path):
+        path = tmp_path / "SKILL.md"
+        path.write_text("---\nname: test\n---\n\nBody")
+        result = _parse_skill_file(path)
+        assert result["chat_launchable"] is False
+
     def test_metadata_is_not_propagated(self, tmp_path):
         """metadata is spec-legal arbitrary YAML; passing it through let a
         few anchors/aliases turn a few hundred bytes into tens of megabytes

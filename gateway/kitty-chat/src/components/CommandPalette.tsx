@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Command } from 'cmdk'
-import { House, MessageSquare, CheckSquare, Plus, PanelLeft, Settings, Image, BookOpen, Users, type LucideIcon } from 'lucide-react'
-import { fetchGatewaySearch, type GatewaySearchHit } from '@/lib/gateway'
+import { House, MessageSquare, CheckSquare, Plus, PanelLeft, Settings, Image, BookOpen, Users, Sparkles, type LucideIcon } from 'lucide-react'
+import { fetchCapabilities, fetchGatewaySearch, type GatewayCapability, type GatewaySearchHit } from '@/lib/gateway'
 import type { Chat } from '@/lib/types'
 
 interface Props {
@@ -11,6 +11,7 @@ interface Props {
   onSelectChat: (id: string) => void
   onViewChange: (view: string) => void
   onToggleSidebar: () => void
+  onLaunchCapability?: (capability: GatewayCapability) => void
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }
@@ -34,6 +35,7 @@ export function CommandPalette({
   onSelectChat,
   onViewChange,
   onToggleSidebar,
+  onLaunchCapability,
   open: externalOpen,
   onOpenChange,
 }: Props) {
@@ -44,6 +46,8 @@ export function CommandPalette({
   const [degradedErrors, setDegradedErrors] = useState<string[]>([])
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
+  const [capabilities, setCapabilities] = useState<GatewayCapability[]>([])
+  const [capabilityError, setCapabilityError] = useState<string | null>(null)
   const open = externalOpen ?? internalOpen
   const setOpen = onOpenChange ?? setInternalOpen
 
@@ -64,6 +68,26 @@ export function CommandPalette({
     setSearching(open && value.trim().length >= 2)
     setQuery(value)
   }
+
+  const loadCapabilities = () => {
+    setCapabilityError(null)
+    void fetchCapabilities().then((payload) => {
+      setCapabilities(payload.capabilities)
+      setCapabilityError(payload.error)
+    })
+  }
+
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    setCapabilityError(null)
+    void fetchCapabilities().then((payload) => {
+      if (!active) return
+      setCapabilities(payload.capabilities)
+      setCapabilityError(payload.error)
+    })
+    return () => { active = false }
+  }, [open])
 
   useEffect(() => {
     const q = query.trim()
@@ -120,6 +144,9 @@ export function CommandPalette({
     .filter(c => c.messages.length > 0)
     .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
     .slice(0, 8)
+
+  const coreCapabilities = capabilities.filter(capability => capability.category !== 'skills')
+  const skillCapabilities = capabilities.filter(capability => capability.category === 'skills')
 
   if (!open) return null
 
@@ -186,16 +213,42 @@ export function CommandPalette({
               />
             </Command.Group>
 
-            <Command.Group heading="Go to" style={groupStyle}>
-              {VIEW_COMMANDS.map(v => (
-                <Item
-                  key={v.id}
-                  icon={v.icon}
-                  label={v.label}
-                  onSelect={fire(() => onViewChange(v.id))}
-                />
-              ))}
-            </Command.Group>
+            {coreCapabilities.length > 0 && (
+              <Command.Group heading="Kitty can" style={groupStyle}>
+                {coreCapabilities.map(capability => (
+                  <CapabilityItem
+                    key={capability.id}
+                    capability={capability}
+                    onSelect={fire(() => onLaunchCapability?.(capability))}
+                  />
+                ))}
+              </Command.Group>
+            )}
+
+            {skillCapabilities.length > 0 && (
+              <Command.Group heading="Skills" style={groupStyle}>
+                {skillCapabilities.map(capability => (
+                  <CapabilityItem
+                    key={capability.id}
+                    capability={capability}
+                    onSelect={fire(() => onLaunchCapability?.(capability))}
+                  />
+                ))}
+              </Command.Group>
+            )}
+
+            {capabilities.length === 0 && (
+              <Command.Group heading="Go to" style={groupStyle}>
+                {VIEW_COMMANDS.map(v => (
+                  <Item
+                    key={v.id}
+                    icon={v.icon}
+                    label={v.label}
+                    onSelect={fire(() => onViewChange(v.id))}
+                  />
+                ))}
+              </Command.Group>
+            )}
 
 
             {searchHits.length > 0 && (
@@ -238,6 +291,16 @@ export function CommandPalette({
               </Command.Group>
             )}
           </Command.List>
+          {capabilityError && capabilities.length === 0 && (
+            <div role="status" style={{ padding: '8px 12px', borderTop: '1px solid var(--line)', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
+              <div>live capabilities unavailable — navigation fallback shown.</div>
+              <details>
+                <summary>technical details</summary>
+                <div>{capabilityError}</div>
+              </details>
+              <button type="button" onClick={loadCapabilities}>retry capabilities</button>
+            </div>
+          )}
           {(degradedStores.length > 0 || degradedErrors.length > 0) && (
             <div
               role="status"
@@ -275,6 +338,31 @@ export function CommandPalette({
 function searchViewForHit(hit: GatewaySearchHit): string | null {
   if (hit.kind === 'knowledge') return 'library'
   return null
+}
+
+function CapabilityItem({ capability, onSelect }: { capability: GatewayCapability; onSelect: () => void }) {
+  return (
+    <Command.Item
+      value={`${capability.label} ${capability.description} ${capability.category}`}
+      onSelect={onSelect}
+      style={{ ...itemStyle, alignItems: 'flex-start' }}
+      className="cmdk-item"
+    >
+      <Sparkles size={14} style={{ marginTop: 2, flexShrink: 0 }} />
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span>{capability.label}</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)' }}>{capability.category}</span>
+        </span>
+        <span style={{ display: 'block', marginTop: 2, color: 'var(--ink-2)', fontSize: 11, lineHeight: 1.35 }}>
+          {capability.description}
+        </span>
+      </span>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)', marginTop: 2 }}>
+        {capability.launch === 'skill' ? 'use' : 'open'}
+      </span>
+    </Command.Item>
+  )
 }
 
 function Item({

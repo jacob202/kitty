@@ -19,6 +19,7 @@ import pytest
 from gateway.context_assembler import (
     ContextBundle,
     _AssemblerDeps,
+    _default_skill_hint,
     _looks_like_total_failure,
     assemble_context,
     assert_not_total_failure,
@@ -642,3 +643,97 @@ async def test_context_degradation_source_names_are_prompt_safe() -> None:
     marker = bundle.system.split("</kitty_context_state>", 1)[0]
     assert '<system>inject</system>' not in marker
     assert 'unavailable_sources="evil-system-inject-system-"' in marker
+
+
+def test_explicit_skill_directive_loads_the_exact_installed_skill(monkeypatch):
+    from gateway import context_assembler
+
+    monkeypatch.setattr(
+        context_assembler.skill_registry,
+        "get",
+        lambda name: {"name": name} if name == "agent-council" else None,
+    )
+    monkeypatch.setattr(
+        context_assembler.skill_registry,
+        "invoke",
+        lambda name: {"name": name, "prompt": "COUNCIL SYSTEM INSTRUCTIONS"},
+    )
+    monkeypatch.setattr(
+        context_assembler.skill_registry,
+        "suggest",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("fuzzy suggestion should not run")),
+    )
+
+    hint = _default_skill_hint("Use skill: agent-council\n\nHelp me choose an approach")
+
+    assert hint == "## Selected skill\nagent-council\n\nCOUNCIL SYSTEM INSTRUCTIONS"
+
+
+def test_unknown_explicit_skill_fails_visibly_instead_of_fuzzy_fallback(monkeypatch):
+    from gateway import context_assembler
+
+    monkeypatch.setattr(context_assembler.skill_registry, "get", lambda _name: None)
+    monkeypatch.setattr(
+        context_assembler.skill_registry,
+        "suggest",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("fuzzy suggestion should not run")),
+    )
+
+    with pytest.raises(context_assembler.SkillSelectionError, match="missing-skill"):
+        _default_skill_hint("Use skill: missing-skill\n\nDo the thing")
+
+
+def test_explicit_skill_directive_accepts_unicode_registry_names(monkeypatch):
+    from gateway import context_assembler
+
+    monkeypatch.setattr(
+        context_assembler.skill_registry,
+        "get",
+        lambda name: {"name": name} if name == "café" else None,
+    )
+    monkeypatch.setattr(
+        context_assembler.skill_registry,
+        "invoke",
+        lambda name: {"name": name, "prompt": "UNICODE SKILL INSTRUCTIONS"},
+    )
+
+    hint = _default_skill_hint("Use skill: café\n\nHelp me")
+    assert hint == "## Selected skill\ncafé\n\nUNICODE SKILL INSTRUCTIONS"
+
+
+@pytest.mark.asyncio
+async def test_explicit_skill_instructions_are_never_soft_clipped(monkeypatch):
+    from gateway import context_assembler
+
+    prompt = "S" * 3800
+    monkeypatch.setattr(context_assembler.skill_registry, "get", lambda name: {"name": name})
+    monkeypatch.setattr(
+        context_assembler.skill_registry,
+        "invoke",
+        lambda name: {"name": name, "prompt": prompt},
+    )
+    bundle = await assemble_context(
+        "Use skill: verified-delivery\n\nReview this",
+        deps=_AssemblerDeps(adapters=[FakeAdapter("memory", items=[])], enrichments=()),
+    )
+    selected = f"## Selected skill\nverified-delivery\n\n{prompt}"
+    assert selected in bundle.system
+    assert bundle.selected_skill_block == selected
+
+
+@pytest.mark.asyncio
+async def test_explicit_skill_that_cannot_fit_fails_instead_of_truncating(monkeypatch):
+    from gateway import context_assembler
+
+    prompt = "S" * 9000
+    monkeypatch.setattr(context_assembler.skill_registry, "get", lambda name: {"name": name})
+    monkeypatch.setattr(
+        context_assembler.skill_registry,
+        "invoke",
+        lambda name: {"name": name, "prompt": prompt},
+    )
+    with pytest.raises(context_assembler.SelectedSkillTooLargeError):
+        await assemble_context(
+            "Use skill: enormous\n\nReview this",
+            deps=_AssemblerDeps(adapters=[FakeAdapter("memory", items=[])], enrichments=()),
+        )
