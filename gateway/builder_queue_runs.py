@@ -6,8 +6,8 @@ lease lifecycle cut was \u00a72.2 second cut, into :mod:`gateway.builder_queue_l
 
 Owns the lifecycle of execution attempts against claimed tasks: create run,
 heartbeat / progress updates, finalize with fence-aware report attachment,
-PID-reuse fencing via ``capture_process_identity`` (process start time and
-command), and the
+PID-reuse fencing via ``capture_process_identity`` plus immutable process
+start-time comparison, and the
 ``recover_interrupted_runs`` operator-side crash-recovery scan. Also owns
 the run-state machine constants and lifecycle exception classes.
 
@@ -32,6 +32,7 @@ import logging
 import os
 import sqlite3
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -650,6 +651,37 @@ def capture_process_identity(pid: int) -> str | None:
     return identity
 
 
+def _process_start_stamp(identity: str | None) -> str | None:
+    """Extract the immutable ``ps lstart`` prefix from a stored identity.
+
+    macOS ``sandbox-exec`` commonly ``exec(2)``s the requested command in the
+    same PID. The command text therefore changes while the process is still the
+    same process. ``lstart`` survives exec and remains the PID-reuse fence.
+    """
+    if not identity:
+        return None
+    parts = str(identity).split()
+    if len(parts) < 5:
+        return None
+    stamp = " ".join(parts[:5])
+    try:
+        datetime.strptime(stamp, "%a %b %d %H:%M:%S %Y")
+    except ValueError:
+        return None
+    return stamp
+
+
+def process_identity_matches(expected: str | None, current: str | None) -> bool:
+    """Match one PID across ``exec`` while still fencing ordinary PID reuse."""
+    if not expected or not current:
+        return False
+    if expected == current:
+        return True
+    expected_start = _process_start_stamp(expected)
+    current_start = _process_start_stamp(current)
+    return expected_start is not None and expected_start == current_start
+
+
 def recover_interrupted_runs(
     db_path: Path | None = None,
     *,
@@ -740,7 +772,7 @@ def recover_interrupted_runs(
                                 {"run_id": run_id, "reason": "process_identity_unavailable"}
                             )
                             continue
-                    elif current_identity == expected_identity:
+                    elif process_identity_matches(expected_identity, current_identity):
                         continue
                     else:
                         reason = "process_identity_mismatch"
@@ -872,6 +904,7 @@ __all__ = [
     "RunNotFoundError",
     "RunStateConflictError",
     "capture_process_identity",
+    "process_identity_matches",
     "create_run",
     "finalize_run",
     "generate_run_id",
