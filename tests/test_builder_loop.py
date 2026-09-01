@@ -1536,6 +1536,32 @@ class TestRecoveryBudget:
 
         assert result["outcome"] == bl.LOOP_SUCCEEDED
 
+    def test_paid_provider_exhaustion_is_classified_as_paid(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        unavailable = _script(tmp_path, "paid-provider-unavailable.sh", "exit 75\n")
+
+        result = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=unavailable,
+            repo_root=repo,
+            db_path=db_path,
+            governor_db=tmp_path / "governor-paid-provider" / "receipts.db",
+            model="openrouter/deepseek/deepseek-v4-flash",
+            provider="openrouter",
+            governor_requested_route="cheap",
+        )
+
+        assert result["outcome"] == bl.LOOP_PROVIDER_EXHAUSTED
+        assert result["reason"] == "all configured paid worker providers were unavailable"
+        failures = [
+            event for event in bq.list_events(task_id, db_path=db_path)
+            if event["type"] == "infrastructure_failed"
+        ]
+        assert failures[-1]["payload"]["reason"] == result["reason"]
+
     def test_non_identical_crashes_do_not_stop_the_run(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):

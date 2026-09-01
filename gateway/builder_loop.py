@@ -704,6 +704,17 @@ def _is_explicit_free_model(model: str) -> bool:
     )
 
 
+def _worker_provider_exhaustion_reason(
+    requested_route: str | None, adapter_env: dict[str, str]
+) -> str:
+    """Describe provider exhaustion using the lane that actually ran."""
+    paid = requested_route in {cg.ROUTE_CHEAP, cg.ROUTE_FRONTIER} or (
+        adapter_env.get("KITTYBUILDER_AGENT") == "paid-builder"
+    )
+    lane = "paid" if paid else "free"
+    return f"all configured {lane} worker providers were unavailable"
+
+
 def _sanitize_free_adapter_env(adapter_env: dict[str, str]) -> dict[str, str]:
     """Force the free lane to remain free even for direct library callers."""
     for key in ("KITTYBUILDER_MODEL", "KITTYBUILDER_REVIEW_MODEL"):
@@ -1556,7 +1567,9 @@ def run_packet(
                 history=history,
                 manifest=manifest,
                 manifest_path=manifest_path,
-                reason="all configured free worker providers were unavailable",
+                reason=_worker_provider_exhaustion_reason(
+                    governor_requested_route, effective_adapter_env
+                ),
                 phase="worker_provider_exhaustion",
                 db_path=db_path,
             )
