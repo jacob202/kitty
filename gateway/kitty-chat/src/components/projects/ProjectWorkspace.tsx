@@ -12,6 +12,7 @@ import { useProjectResume, useSetActiveProject } from '@/lib/queries'
 export function ProjectWorkspace({
   project,
   nextStep,
+  nextError = false,
   onClose,
   onNavigate,
   onStartChat = () => {},
@@ -22,6 +23,7 @@ export function ProjectWorkspace({
 }: {
   project: GatewayProject
   nextStep: GatewayNextStep | null
+  nextError?: boolean
   onClose: () => void
   onNavigate: (view: string) => void
   onStartChat?: () => void
@@ -36,6 +38,7 @@ export function ProjectWorkspace({
   const [activationError, setActivationError] = useState<string | null>(null)
   const mountedRef = useRef(true)
   const closeWorkspace = () => {
+    if (setActiveProject.isPending) return
     mountedRef.current = false
     onClose()
   }
@@ -83,7 +86,7 @@ export function ProjectWorkspace({
             <h2 style={titleStyle}>{project.name}</h2>
             <p style={summaryStyle}>{summary}</p>
           </div>
-          <button type="button" aria-label="Close project workspace" onClick={closeWorkspace} style={iconButtonStyle}><X size={18} /></button>
+          <button type="button" aria-label="Close project workspace" onClick={closeWorkspace} disabled={setActiveProject.isPending} style={iconButtonStyle}><X size={18} /></button>
         </header>
 
         <div style={toolbarStyle}>
@@ -105,7 +108,9 @@ export function ProjectWorkspace({
         <div style={bodyStyle}>
           <section style={heroSectionStyle}>
             <div style={sectionLabelStyle}>what&apos;s next</div>
-            {nextCopy ? (
+            {nextError ? (
+              <div role="status" style={mutedStyle}>Couldn&apos;t read the next step — refresh the project to try again.</div>
+            ) : nextCopy ? (
               <>
                 <div style={nextStepStyle}>{nextCopy.step}</div>
                 {nextCopy.why && <div style={detailStyle}>{nextCopy.why}</div>}
@@ -149,6 +154,9 @@ export function ProjectWorkspace({
                 <WorkspaceRow key={item.id} title={item.title || item.id} detail={`${item.state}${item.next_action ? ` · ${item.next_action}` : ''}`} />
               ))}
             </WorkspaceSection>
+          )}
+          {resume.data?.work?.source?.state === 'degraded' && (
+            <SourceWarning label="Builder work" message={resume.data.work.source.reason || 'Builder work is partially unavailable.'} />
           )}
 
           {artifacts.length > 0 && (

@@ -157,7 +157,7 @@ export function CommandPalette({
         position: 'fixed',
         inset: 0,
         background: 'rgba(0, 0, 0, 0.6)',
-        zIndex: 1000,
+        zIndex: 1400,
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'center',
@@ -165,6 +165,9 @@ export function CommandPalette({
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
         onClick={e => e.stopPropagation()}
         style={{
           width: 520,

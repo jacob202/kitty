@@ -25,12 +25,20 @@ export function ProjectsPanel({
   const workspaceIndex = workspaceProjectId === null ? -1 : projects.findIndex(project => project.id === workspaceProjectId)
   const workspaceProject = workspaceIndex >= 0 ? projects[workspaceIndex] : null
   const workspaceNextStep = workspaceIndex >= 0 ? nextSteps[workspaceIndex]?.data ?? null : null
+  const workspaceNextError = workspaceIndex >= 0 ? nextSteps[workspaceIndex]?.isError ?? false : false
+  const degradedRefreshSources = workspaceProject && refresh.variables === workspaceProject.id
+    ? Object.entries(refresh.data?.sources ?? {})
+      .filter(([, source]) => source.ok === false)
+      .map(([name, source]) => `${name}: ${source.error?.trim() || 'unavailable'}`)
+    : []
   const workspaceRefreshError = workspaceProject && refresh.variables === workspaceProject.id
     ? refresh.isError
       ? `Couldn't refresh this project — ${describeFailure(refresh.error)}`
       : refresh.data?.next_step?.ok === false
         ? `Project refreshed, but Kitty couldn't update the next step — ${refresh.data.next_step.error?.trim() || 'No reason was provided.'}`
-        : null
+        : degradedRefreshSources.length > 0
+          ? `Project refreshed with unavailable sources — ${degradedRefreshSources.join('; ')}`
+          : null
     : null
 
   if (projectsQuery.isLoading) {
@@ -75,6 +83,7 @@ export function ProjectsPanel({
         <ProjectWorkspace
           project={workspaceProject}
           nextStep={workspaceNextStep}
+          nextError={workspaceNextError}
           onClose={() => setWorkspaceProjectId(null)}
           onNavigate={onNavigate}
           onStartChat={onStartChat}

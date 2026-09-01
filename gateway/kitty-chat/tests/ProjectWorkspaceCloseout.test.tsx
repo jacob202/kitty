@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -165,8 +165,9 @@ describe('Project workspace review closeout', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /open workspace/i }))
 
-    expect(screen.getByText(/couldn't read the next step/i)).toBeVisible()
-    expect(screen.queryByText(/no generated next step yet/i)).not.toBeInTheDocument()
+    const workspace = screen.getByRole('dialog', { name: /kitty project workspace/i })
+    expect(within(workspace).getByText(/couldn't read the next step/i)).toBeVisible()
+    expect(within(workspace).queryByText(/no generated next step yet/i)).not.toBeInTheDocument()
   })
 
   it('surfaces degraded refresh sources with their returned context', () => {

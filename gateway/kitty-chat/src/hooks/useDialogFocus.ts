@@ -51,6 +51,11 @@ export function useDialogFocus<T extends HTMLElement = HTMLElement>({ open, enab
     if (!dialog) return
 
     const onKeyDown = (event: KeyboardEvent) => {
+      const activeModals = Array.from(
+        document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]:not([aria-hidden="true"])'),
+      )
+      if (activeModals.length > 1 && activeModals[activeModals.length - 1] !== dialog) return
+
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
