@@ -926,7 +926,7 @@ def run_packet(
     bundle_preview = ba.build_context_bundle(initiative_id, packet_id, db_path=db_path)
     task_id = bundle_preview["task_id"]
     initiative_contract = bi.get_initiative(initiative_id, db_path=db_path) or {}
-    packet_contract = next(
+    packet_contract: dict[str, Any] = next(
         (
             packet
             for packet in initiative_contract.get("packets", [])

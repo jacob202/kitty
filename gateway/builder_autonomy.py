@@ -57,23 +57,23 @@ def load_packet_registry(repo_root: Path) -> list[dict[str, Any]]:
                 lines = path.read_text(encoding="utf-8").splitlines()[:20]
             except OSError:
                 continue
-            initiative_id: str | None = None
+            doc_initiative_id: str | None = None
             owner: str | None = None
             for line in lines:
                 if line.startswith("**Initiative:**") and "`" in line:
                     parts = line.split("`")
                     if len(parts) >= 3:
-                        initiative_id = parts[1].strip()
+                        doc_initiative_id = parts[1].strip()
                 elif line.startswith("**Owner:**"):
                     owner = line.split(":**", 1)[-1].strip()
-            if not initiative_id or not owner or not owner.lower().startswith("interactive"):
+            if not doc_initiative_id or not owner or not owner.lower().startswith("interactive"):
                 continue
             packet_id = path.stem
-            key = _packet_key(initiative_id, packet_id)
+            key = _packet_key(doc_initiative_id, packet_id)
             if key in known:
                 continue
             entry = {
-                "initiative_id": initiative_id,
+                "initiative_id": doc_initiative_id,
                 "packet_id": packet_id,
                 "lane": "interactive",
                 "status": "unresolved",
