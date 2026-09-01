@@ -1,0 +1,441 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-opens-the-doors-20260831-v7",
+  "title": "Instant, fearless, coherent, resumable Kitty UI",
+  "description": "Interactive B/C/D/E/F companions reconciled against the active visible-product stack, plus the durable chat-resume backend prerequisite. Pre-existing KF-GLANCE-02 and KF-OPTIMISTIC-01 docs from the earlier INSTANT wave are preserved rather than regenerated.",
+  "base_sha": "f5b2f38c098dcdd7f46d1d58abb672ef15b75c5f",
+  "packets": [
+    {
+      "lane": "interactive",
+      "outcome": "Jacob can move through Kitty without cards collapsing into spinners or waiting again for data Kitty could safely fetch on intent.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/no-spin.spec.ts` at desktop and iPhone-14 widths. Exercise the primary happy path, reload where relevant, and one degraded/error path; primary controls must remain visible and unobscured.",
+      "tier3": "An independent reviewer completes the user-visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-NOSPIN-01",
+        "title": "Loading preserves layout and intent prefetch removes avoidable waits",
+        "objective": "Replace bare loading strings on the primary Home/Work/Automations/Library transitions with skeletons that match final card geometry, and prefetch bounded read-only data on clear intent (hover/focus/touch-start/navigation intent) using the existing query keys. Never prefetch mutations, paid work, or large unbounded payloads. Keep degraded/error states distinct from loading. Add a smoke that asserts stable geometry and that intent prefetch avoids a duplicate visible wait.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Primary transitions use layout-matching skeletons instead of bare Loading text.",
+          "Skeletons reserve approximately the final geometry so content arrival does not cause disruptive layout jumps.",
+          "Intent prefetch uses existing query keys and only bounded read-only endpoints.",
+          "Prefetch failure is silent until the user actually opens the surface, where normal error truth applies.",
+          "No mutation, paid model call or unbounded dataset is prefetched."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/HomeState.tsx",
+          "gateway/kitty-chat/src/components/WorkView.tsx",
+          "gateway/kitty-chat/src/components/AutomationsView.tsx",
+          "gateway/kitty-chat/src/lib/queries.ts",
+          "gateway/kitty-chat/tests/HomeState.test.tsx",
+          "gateway/kitty-chat/tests/WorkViewProjection.test.tsx",
+          "gateway/kitty-chat/tests/AutomationsView.test.tsx",
+          "gateway/kitty-chat/tests/smoke/no-spin.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/HomeState.test.tsx tests/WorkViewProjection.test.tsx tests/AutomationsView.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/no-spin.spec.ts"
+        ]
+      },
+      "finding": "The audit found multiple bare Loading strings and zero prefetching, while the current stack is actively changing Home and shared queries.",
+      "stop": "Stop if the named owning PR/dependency has not landed, if the backend contract is not truthful enough to support the UI, or if the change would create a parallel source of truth.",
+      "recovery": "Frontend state/projection plus tests only. Revert packet-owned UI edits if the authoritative backend cannot support the acceptance contract; never alter durable product data to make the smoke pass.",
+      "hold_reason": "PR #733 owns HomeState and PRs #729/#731/#733/#735 own queries.ts. Release after that stack lands and recount remaining bare-loading cases instead of blindly fixing stale line numbers."
+    },
+    {
+      "lane": "interactive",
+      "outcome": "Jacob can let Kitty do reversible work, then undo it after it actually happened\u2014not just cancel a timer before the request fires.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/undo.spec.ts` at desktop and iPhone-14 widths. Exercise the primary happy path, reload where relevant, and one degraded/error path; primary controls must remain visible and unobscured.",
+      "tier3": "An independent reviewer completes the user-visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-UNDO-UI-01",
+        "title": "Completed reversible actions expose durable Undo and Undo history",
+        "objective": "Consume the backend undo_journal_id/action contract from mutation results instead of discarding it. Show an Undo affordance on completed reversible action results and expose recent undoable history from the existing journal authority. The current five-second pre-send \u201cundo forgetting\u201d timer is only cancellation-before-delete and must not be presented as durable undo after a mutation commits. Undo success re-reads the owning object; undo failure keeps the journal entry visible with the backend reason. Add the smoke file named here.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "A committed reversible mutation that returns an undo journal id exposes Undo on its result.",
+          "Undo calls the existing restore authority and refreshes the owning object/state from the server.",
+          "The existing pre-delete grace timer is labelled/treated as cancellation, not durable post-commit undo.",
+          "Recent undoable history is reachable without inventing a client journal.",
+          "Non-undoable actions never show a fake Undo control."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/ChatMessage.tsx",
+          "gateway/kitty-chat/src/components/chat/ActionCard.tsx",
+          "gateway/kitty-chat/src/lib/gateway.ts",
+          "gateway/kitty-chat/src/lib/queries.ts",
+          "gateway/kitty-chat/tests/ChatMessage.test.tsx",
+          "gateway/kitty-chat/tests/ActionCard.test.tsx",
+          "gateway/kitty-chat/tests/smoke/undo.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/ChatMessage.test.tsx tests/ActionCard.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/undo.spec.ts"
+        ]
+      },
+      "finding": "Backend memory delete already returned undo_journal_id while deleteMemory typed Promise<void>, and the backend Undo corrective wave extends undoability; PR #731 now owns Chat action rendering.",
+      "stop": "Stop if the named owning PR/dependency has not landed, if the backend contract is not truthful enough to support the UI, or if the change would create a parallel source of truth.",
+      "recovery": "Frontend state/projection plus tests only. Revert packet-owned UI edits if the authoritative backend cannot support the acceptance contract; never alter durable product data to make the smoke pass.",
+      "hold_reason": "PR #731 owns ChatMessage/ActionCard/gateway.ts/queries.ts and the corrective backend Undo owner must settle before UI integration. Release after both settle."
+    },
+    {
+      "lane": "interactive",
+      "outcome": "Jacob sees one coherent visual language on Home without losing the distinctions between work, context, health and actions.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/home-system.spec.ts` at desktop and iPhone-14 widths. Exercise the primary happy path, reload where relevant, and one degraded/error path; primary controls must remain visible and unobscured.",
+      "tier3": "An independent reviewer completes the user-visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-SYSTEM-01",
+        "title": "Home\u2019s bespoke cards collapse onto the shared visual/work primitives",
+        "objective": "Refactor Home\u2019s repeated card/status/loading/action shells to the existing shared UI primitives and WorkCard model where semantics match. Preserve the selective hierarchy and all current actions; this is not a redesign and must not flatten genuinely different content types into one generic card. Replace local status/loading/error chrome with Card, StatusBadge, AsyncState and Button where applicable, then delete only styles/renderers made redundant by the refactor. Add the smoke file named here.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Home uses shared Card/StatusBadge/AsyncState/Button primitives for equivalent states instead of maintaining duplicate chrome.",
+          "Work-like items use shared WorkCard where its status/action contract fits.",
+          "All existing Home actions, degraded states and selective hierarchy remain functionally equivalent.",
+          "No new generic abstraction is introduced merely to reduce line count.",
+          "Desktop and iPhone layouts retain clear delineation and no horizontal overflow."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/HomeState.tsx",
+          "gateway/kitty-chat/src/components/shared/WorkCard.tsx",
+          "gateway/kitty-chat/src/components/ui/Card.tsx",
+          "gateway/kitty-chat/src/components/ui/StatusBadge.tsx",
+          "gateway/kitty-chat/src/components/ui/AsyncState.tsx",
+          "gateway/kitty-chat/src/components/ui/Button.tsx",
+          "gateway/kitty-chat/tests/HomeState.test.tsx",
+          "gateway/kitty-chat/tests/WorkCard.test.tsx",
+          "gateway/kitty-chat/tests/smoke/home-system.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/HomeState.test.tsx tests/WorkCard.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/home-system.spec.ts"
+        ]
+      },
+      "finding": "Home contains multiple bespoke card renderers despite a mature token system and existing shared primitives; PR #733/#725 currently modify the same Home surface.",
+      "stop": "Stop if the named owning PR/dependency has not landed, if the backend contract is not truthful enough to support the UI, or if the change would create a parallel source of truth.",
+      "recovery": "Frontend state/projection plus tests only. Revert packet-owned UI edits if the authoritative backend cannot support the acceptance contract; never alter durable product data to make the smoke pass.",
+      "hold_reason": "PR #733 and PR #725 own HomeState. Let both land, then refactor the resulting current card set rather than the stale pre-stack version."
+    },
+    {
+      "lane": "interactive",
+      "outcome": "Jacob sees Builder as part of the same sophisticated Kitty system instead of a separate hand-built dashboard, without losing its deeper evidence controls.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/builder-system.spec.ts` at desktop and iPhone-14 widths. Exercise the primary happy path, reload where relevant, and one degraded/error path; primary controls must remain visible and unobscured.",
+      "tier3": "An independent reviewer completes the user-visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-SYSTEM-02",
+        "title": "Builder\u2019s seven card shapes use the shared work/status primitives",
+        "objective": "Refactor BuilderSurface\u2019s duplicated packet/initiative/status/action card chrome onto shared Card, StatusBadge, AsyncState, Button and WorkCard where semantics fit. Preserve Builder-specific evidence blocks, packet tree and operator controls as specialized content. Consume KF-COPY-01 title_key/placeholders when available, with the existing raw reason only in technical disclosure. Do not change Builder control-plane behavior or queue state. Add the smoke named here.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Equivalent Builder cards use shared primitives rather than locally duplicating border/status/action/loading chrome.",
+          "Builder-specific evidence and operator controls remain specialized and retain all current functionality.",
+          "WorkCard is used only where its status/action model matches; Builder control-plane semantics are not squeezed into an incompatible abstraction.",
+          "When title_key/placeholders are present, primary copy resolves through the client catalog and raw reason stays secondary/technical.",
+          "Desktop and iPhone Builder surfaces retain clear hierarchy and no horizontal overflow."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/BuilderSurface.tsx",
+          "gateway/kitty-chat/src/components/shared/WorkCard.tsx",
+          "gateway/kitty-chat/src/components/ui/Card.tsx",
+          "gateway/kitty-chat/src/components/ui/StatusBadge.tsx",
+          "gateway/kitty-chat/src/components/ui/AsyncState.tsx",
+          "gateway/kitty-chat/src/components/ui/Button.tsx",
+          "gateway/kitty-chat/tests/BuilderSurface.test.tsx",
+          "gateway/kitty-chat/tests/WorkCard.test.tsx",
+          "gateway/kitty-chat/tests/smoke/builder-system.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/BuilderSurface.test.tsx tests/WorkCard.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/builder-system.spec.ts"
+        ]
+      },
+      "finding": "BuilderSurface still owns many bespoke card renderers while the shared primitives and WorkCard already model the common state/action vocabulary.",
+      "stop": "Stop if the named owning PR/dependency has not landed, if the backend contract is not truthful enough to support the UI, or if the change would create a parallel source of truth.",
+      "recovery": "Frontend state/projection plus tests only. Revert packet-owned UI edits if the authoritative backend cannot support the acceptance contract; never alter durable product data to make the smoke pass."
+    },
+    {
+      "lane": "interactive",
+      "outcome": "Jacob can hit Cmd-K, find a real Kitty object or capability, and open/do the obvious thing instead of landing on \u201cpreview only.\u201d",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/palette-actions.spec.ts` at desktop and iPhone-14 widths. Exercise the primary happy path, reload where relevant, and one degraded/error path; primary controls must remain visible and unobscured.",
+      "tier3": "An independent reviewer completes the user-visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-PALETTE-01",
+        "title": "Cmd-K opens what it finds and runs safe actions instead of previewing dead rows",
+        "objective": "Build on the capability-first CommandPalette from PR #726. Preserve its live capability/Skill launch behavior, then make global search results actionable: map each supported hit kind (todo, governed memory, journal, inbox/knowledge) to its existing owning surface and stable id, and expose safe existing actions where the backend already supports them. Do not implement action execution by parsing labels or inventing new authority. Unsupported hits remain visible with a truthful reason rather than disabled \u201cpreview only\u201d with no path forward. Add the smoke named here.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Todo, governed memory, journal and inbox/knowledge search hits open their owning surface/object when a stable destination exists.",
+          "Safe palette actions call existing backend operations; no action is inferred from free-form result text.",
+          "PR #726 capability and Skill-launch behavior remains intact.",
+          "A hit with no valid destination says why it cannot be opened rather than silently disabling itself.",
+          "Keyboard navigation, Escape and mobile palette behavior remain correct."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/CommandPalette.tsx",
+          "gateway/kitty-chat/src/lib/gateway.ts",
+          "gateway/kitty-chat/tests/CommandPalette.test.tsx",
+          "gateway/kitty-chat/tests/smoke/palette-actions.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/CommandPalette.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/palette-actions.spec.ts"
+        ]
+      },
+      "finding": "The old palette found several object kinds but mapped only knowledge hits to a destination; PR #726 now owns CommandPalette and adds live capability launch without necessarily fixing those search dead ends.",
+      "stop": "Stop if the named owning PR/dependency has not landed, if the backend contract is not truthful enough to support the UI, or if the change would create a parallel source of truth.",
+      "recovery": "Frontend state/projection plus tests only. Revert packet-owned UI edits if the authoritative backend cannot support the acceptance contract; never alter durable product data to make the smoke pass.",
+      "hold_reason": "PR #726 owns CommandPalette and gateway.ts. After it lands, verify which original preview-only search gaps remain and extend that implementation rather than replacing it."
+    },
+    {
+      "lane": "interactive",
+      "outcome": "Jacob can reload Kitty and continue typing, reading and filtering from where he left off instead of reconstructing his place.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/place-persistence.spec.ts` at desktop and iPhone-14 widths. Exercise the primary happy path, reload where relevant, and one degraded/error path; primary controls must remain visible and unobscured.",
+      "tier3": "An independent reviewer completes the user-visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-PLACE-01",
+        "title": "Draft, scroll position, filters, and model choice survive a reload",
+        "objective": "Persist only the user\u2019s resumable UI place: per-chat draft text, conversation scroll anchor/position, durable surface filters and the selected model override/default needed to continue where they were. Use small versioned local/session storage records keyed by stable chat/view identity; do not duplicate server-owned messages, actions, projects or query data. Restore defensively when a referenced chat/view/model no longer exists. Clear ephemeral state at the correct lifecycle boundary (for example a sent draft). Add reload-focused component and Playwright coverage.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "An unsent draft in a chat survives reload and is scoped to that chat.",
+          "The active conversation restores near the prior scroll position without fighting new-message auto-scroll.",
+          "Supported Work/Library/Activity filters survive reload and invalid values fall back safely.",
+          "The selected valid model/default survives reload; unavailable models fail back to Kitty Auto/default truthfully.",
+          "Sending/clearing a draft removes stale persisted draft state and no server-owned conversation content is copied into localStorage."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/state/KittyContext.tsx",
+          "gateway/kitty-chat/src/components/InputBar.tsx",
+          "gateway/kitty-chat/src/lib/model-availability.ts",
+          "gateway/kitty-chat/tests/KittyContextViewRecovery.test.tsx",
+          "gateway/kitty-chat/tests/PlacePersistence.test.tsx",
+          "gateway/kitty-chat/tests/smoke/place-persistence.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/KittyContextViewRecovery.test.tsx tests/PlacePersistence.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/place-persistence.spec.ts"
+        ]
+      },
+      "finding": "Kitty persists navigation/theme/session ids but not the draft, scroll, filters or model choice that define where Jacob actually was in a workflow.",
+      "stop": "Stop if the named owning PR/dependency has not landed, if the backend contract is not truthful enough to support the UI, or if the change would create a parallel source of truth.",
+      "recovery": "Frontend state/projection plus tests only. Revert packet-owned UI edits if the authoritative backend cannot support the acceptance contract; never alter durable product data to make the smoke pass.",
+      "hold_reason": "PR #732 owns KittyContext/InputBar and changes durable composer context. Let it land before adding persistence so the saved draft/context format matches the final composer contract."
+    },
+    {
+      "lane": "held",
+      "hold_reason": "PR #732 owns gateway/routes/completions.py. Compile the prerequisite now but do not queue it until that PR lands and the base/path fence is refreshed.",
+      "outcome": "Kitty can finish and retain a reply even if Jacob reloads or closes the browser connection mid-generation.",
+      "manifest": {
+        "id": "KF-RESUME-BE-01",
+        "title": "A chat reply keeps producing durable output after the browser connection disappears",
+        "objective": "Create the backend prerequisite for KF-RESUME-01. The chat lifecycle already assigns durable turn/attempt ids and /api/chat/completions returns X-Kitty-Turn-ID/X-Kitty-Attempt-ID, while GET /chats/{id}/lifecycle can read the ledger; however assistant content is committed only when finish_turn runs at the end of the response stream. Refactor the streaming execution boundary so the provider producer is owned by a durable server-side turn task/buffer rather than the lifetime of one HTTP client connection. Persist bounded assistant progress/final output through the canonical chat lifecycle and make lifecycle reads expose enough status/content for a new client to reattach. A disconnected browser must not cancel a still-valid provider generation solely because its SSE consumer vanished. Preserve explicit cancellation semantics and fail closed on gateway restart/interrupted provider work. Do not create a second chat store or an unbounded in-memory transcript.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "A streaming turn has a durable turn id before content delivery and its producer is not cancelled solely by HTTP client disconnect.",
+          "Assistant progress/final output is bounded and recoverable through the canonical chat lifecycle authority.",
+          "GET /chats/{id}/lifecycle exposes enough turn status/content for a new client to determine running, completed, failed or interrupted truth.",
+          "Explicit user cancellation still stops generation and records a terminal state.",
+          "Gateway restart reconciles genuinely interrupted producer work instead of claiming it is still running.",
+          "Normal connected SSE clients still receive ordered chunks and one terminal completion/error."
+        ],
+        "allowed_paths": [
+          "gateway/chat_lifecycle.py",
+          "gateway/routes/completions.py",
+          "gateway/routes/chats.py",
+          "tests/test_chat_lifecycle.py",
+          "tests/test_chat_completions.py",
+          "tests/test_chats_routes.py"
+        ],
+        "policy": {
+          "max_attempts": 2,
+          "priority": 18
+        },
+        "validation_commands": [
+          "python -m pytest -q tests/test_chat_lifecycle.py tests/test_chat_completions.py tests/test_chats_routes.py",
+          "python -m ruff check gateway/chat_lifecycle.py gateway/routes/completions.py gateway/routes/chats.py tests/test_chat_lifecycle.py tests/test_chat_completions.py tests/test_chats_routes.py"
+        ]
+      },
+      "finding": "The durable lifecycle ledger and turn headers exist, but assistant text is only written on finish_turn; a browser disconnect can terminate the response generator before there is a durable answer to recover.",
+      "stop": "Do not implement while PR #732 owns gateway/routes/completions.py. After it lands, stop again if preserving the answer requires browser-local buffering, an unbounded in-memory task, or bypassing the canonical chat lifecycle ledger.",
+      "recovery": "Durable chat lifecycle/transport changes and tests only. No new provider credential or second conversation store; interrupted work must remain inspectable and retryable."
+    },
+    {
+      "lane": "interactive",
+      "outcome": "Jacob can reload in the middle of a long answer and come back to that same answer instead of losing the reply or accidentally sending it twice.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/chat-resume.spec.ts` at desktop and iPhone-14 widths. Exercise the primary happy path, reload where relevant, and one degraded/error path; primary controls must remain visible and unobscured.",
+      "tier3": "An independent reviewer completes the user-visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-RESUME-01",
+        "title": "Reload during a reply reattaches to the durable turn instead of losing it",
+        "objective": "Consume the durable lifecycle/turn contract from KF-RESUME-BE-01. Capture X-Kitty-Turn-ID/X-Kitty-Attempt-ID from the chat response, associate them with the active chat, and on mount/reload query the canonical lifecycle for any running/completed turn. Reattach/poll/stream from the backend-supported resume seam until the final assistant result is present; do not synthesize completion from local partial text. If the backend says interrupted or failed, render that terminal truth with Retry. Clear resume metadata only after terminal reconciliation. Add a reload-mid-stream Playwright smoke.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Reloading while a reply is running returns to the same durable turn rather than starting a duplicate turn.",
+          "When the server finishes the original turn, the final assistant answer appears exactly once after reload.",
+          "Interrupted/failed turns show their durable state and Retry; the UI never leaves an eternal typing indicator.",
+          "A completed turn clears local resume metadata after canonical reconciliation.",
+          "Normal send/retry/stop behavior remains correct when no reload occurs."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/lib/chat-client.ts",
+          "gateway/kitty-chat/src/state/KittyContext.tsx",
+          "gateway/kitty-chat/src/lib/gateway.ts",
+          "gateway/kitty-chat/tests/chatClient.test.ts",
+          "gateway/kitty-chat/tests/ResumeStream.test.tsx",
+          "gateway/kitty-chat/tests/smoke/chat-resume.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/chatClient.test.ts tests/ResumeStream.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/chat-resume.spec.ts"
+        ]
+      },
+      "finding": "isStreaming is browser-local state; although the Gateway emits durable turn headers and has lifecycle reads, the client does not capture/reconcile those ids on reload.",
+      "stop": "Stop if the named owning PR/dependency has not landed, if the backend contract is not truthful enough to support the UI, or if the change would create a parallel source of truth.",
+      "recovery": "Frontend state/projection plus tests only. Revert packet-owned UI edits if the authoritative backend cannot support the acceptance contract; never alter durable product data to make the smoke pass.",
+      "hold_reason": "Backend prerequisite KF-RESUME-BE-01 cannot start until PR #732 lands, and PR #732 also owns KittyContext. Release the UI packet only after the backend resume contract is proven."
+    },
+    {
+      "lane": "interactive",
+      "outcome": "Jacob\u2019s Home headline reflects his actual Kitty work/life context and can never show Claude Code\u2019s branch notes as his \u201clast session.\u201d",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/home-session-truth.spec.ts` at desktop and iPhone-14 widths. Exercise the primary happy path, reload where relevant, and one degraded/error path; primary controls must remain visible and unobscured.",
+      "tier3": "An independent reviewer completes the user-visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-SESSION-01",
+        "title": "Home\u2019s headline \u201cwhat\u2019s next\u201d uses Jacob\u2019s product session, not coding-agent handoff files",
+        "objective": "Remove the product Home dependency on /session/context when that endpoint is sourced from .claude/HANDOFF.md/.claude/STATE.md. Replace the hero input with product-owned truths already available to Home (life awareness, Work/Activity, projects, deadlines, returned insights, or a dedicated product session projection if one already exists after the stack lands). The headline must never label developer branch/handoff notes as Jacob\u2019s last session/next action. Preserve an honest empty state when no product next step is known. Add a smoke that seeds developer handoff text and proves it never appears on Home.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Home never renders .claude handoff/state content as Jacob\u2019s last session or next action.",
+          "The headline is driven only by product-owned user/session/work context.",
+          "When no product next step exists, Home says so honestly instead of falling back to developer notes.",
+          "Developer handoff files may continue serving coding agents; this packet does not repurpose or delete them.",
+          "The primary Home card remains actionable when a real product next step exists."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/HomeState.tsx",
+          "gateway/kitty-chat/src/lib/gateway.ts",
+          "gateway/kitty-chat/src/lib/queries.ts",
+          "gateway/kitty-chat/tests/HomeState.test.tsx",
+          "gateway/kitty-chat/tests/smoke/home-session-truth.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/HomeState.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/home-session-truth.spec.ts"
+        ]
+      },
+      "finding": "Home\u2019s headline calls useSessionContext, whose Gateway route parses the coding agent\u2019s .claude/HANDOFF.md and .claude/STATE.md, so developer scratchpad can be presented as Jacob\u2019s day.",
+      "stop": "Stop if the named owning PR/dependency has not landed, if the backend contract is not truthful enough to support the UI, or if the change would create a parallel source of truth.",
+      "recovery": "Frontend state/projection plus tests only. Revert packet-owned UI edits if the authoritative backend cannot support the acceptance contract; never alter durable product data to make the smoke pass.",
+      "hold_reason": "PR #733 owns HomeState and may change the headline inputs. Let it land, then verify this bug against the final Home tree before editing."
+    },
+    {
+      "lane": "interactive",
+      "outcome": "Jacob can open Image Lab, give it the image idea/reference, and hit one obvious Create button; expert controls are still there when he asks for them.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/image-lab-easy.spec.ts` at desktop and iPhone-14 widths. Exercise the primary happy path, reload where relevant, and one degraded/error path; primary controls must remain visible and unobscured.",
+      "tier3": "An independent reviewer completes the user-visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-EASY-01",
+        "title": "Image Lab has one obvious Create path with advanced knobs behind More",
+        "objective": "Simplify ImageLab\u2019s first-use hierarchy without removing capability. Keep prompt, reference/character context, output preview and one primary Create action visible. Move quality tier, identity strategy, count and route/model detail behind a clearly labelled More/Advanced disclosure, initialized from the backend\u2019s selected default/estimate rather than a duplicated frontend default. The disclosure must still show the chosen recipe/model and routing reason when available. Preserve edit/iterate, character binding, cost estimate and private-content policy flows. Add the smoke file named here.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "A new Image Lab session presents one obvious prompt/reference \u2192 Create path.",
+          "Quality, identity, count and route/model controls remain available under More/Advanced without being required for a normal generation.",
+          "The default selection and \u201cwhy\u201d come from the Gateway estimate/route contract rather than duplicated frontend logic.",
+          "Existing character, edit/iterate, estimate, cancellation and policy flows remain reachable.",
+          "Desktop and iPhone layouts keep Create visible and do not hide errors behind the advanced disclosure."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/components/ImageLab.tsx",
+          "gateway/kitty-chat/tests/ImageLab.test.tsx",
+          "gateway/kitty-chat/tests/ImageLabLayout.test.tsx",
+          "gateway/kitty-chat/tests/ImageLabRecovery.test.tsx",
+          "gateway/kitty-chat/tests/smoke/image-lab-easy.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/ImageLab.test.tsx tests/ImageLabLayout.test.tsx tests/ImageLabRecovery.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/image-lab-easy.spec.ts"
+        ]
+      },
+      "finding": "Image Lab exposes multiple quality/identity/count decisions up front even though the backend already auto-routes and explains the selected recipe; KF-DEFAULT-01 is queued to make exact model truth complete.",
+      "stop": "Stop if the named owning PR/dependency has not landed, if the backend contract is not truthful enough to support the UI, or if the change would create a parallel source of truth.",
+      "recovery": "Frontend state/projection plus tests only. Revert packet-owned UI edits if the authoritative backend cannot support the acceptance contract; never alter durable product data to make the smoke pass.",
+      "hold_reason": "KF-DEFAULT-01 is queued in v4. Compile now, but implement after its exact-default contract lands so the UI does not bake in another route decision."
+    },
+    {
+      "lane": "interactive",
+      "outcome": "Jacob never lands on a fake placeholder or inert error: a view works, redirects truthfully, or gives him the concrete action that fixes the problem.",
+      "tier2": "Run `gateway/kitty-chat/tests/smoke/view-deadends.spec.ts` at desktop and iPhone-14 widths. Exercise the primary happy path, reload where relevant, and one degraded/error path; primary controls must remain visible and unobscured.",
+      "tier3": "An independent reviewer completes the user-visible workflow in the running product at desktop and iPhone-14 widths and records Product Acceptance before merge.",
+      "manifest": {
+        "id": "KF-DEADEND-01",
+        "title": "Every registered view and error either works or points to a concrete fix",
+        "objective": "Reconcile the view registry after the visible-product stack lands. Remove PlaceholderView registrations that are no longer real destinations, wire real components only through the canonical ViewRenderer/views registry, and decide explicitly whether RightPanel and TerminalView remain supported surfaces or are removed from navigation/reachability. Audit primary error states touched by this reconciliation so each offers an existing recovery action/deep link when one exists; do not add generic \u201ctry again\u201d buttons that cannot work. Preserve direct links for supported views and a truthful fallback for retired ids. Add a navigation/dead-end smoke.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "No user-selectable registered view renders PlaceholderView as its final surface.",
+          "Each supported view id resolves to one real owning component; retired ids fail/redirect truthfully rather than showing an empty placeholder.",
+          "RightPanel and TerminalView are either deliberately reachable with a product reason or removed from dead navigation/registry paths.",
+          "Primary reconciled error states expose a concrete working recovery action when one exists.",
+          "Direct navigation and mobile/desktop ViewRenderer behavior remain covered."
+        ],
+        "allowed_paths": [
+          "gateway/kitty-chat/src/lib/views.tsx",
+          "gateway/kitty-chat/src/components/ViewRenderer.tsx",
+          "gateway/kitty-chat/src/components/RightPanel.tsx",
+          "gateway/kitty-chat/src/components/TerminalView.tsx",
+          "gateway/kitty-chat/tests/KittyContextViewRecovery.test.tsx",
+          "gateway/kitty-chat/tests/smoke/view-deadends.spec.ts"
+        ],
+        "policy": {
+          "max_attempts": 1,
+          "priority": 0
+        },
+        "validation_commands": [
+          "cd gateway/kitty-chat && npx vitest run tests/KittyContextViewRecovery.test.tsx --reporter=dot",
+          "cd gateway/kitty-chat && npx playwright test tests/smoke/view-deadends.spec.ts"
+        ]
+      },
+      "finding": "The registry still defines many PlaceholderView entries while real routing is split through ViewRenderer; RightPanel has no obvious caller and Terminal reachability is inconsistent. PRs #733 and #735 currently modify ViewRenderer/views.",
+      "stop": "Stop if the named owning PR/dependency has not landed, if the backend contract is not truthful enough to support the UI, or if the change would create a parallel source of truth.",
+      "recovery": "Frontend state/projection plus tests only. Revert packet-owned UI edits if the authoritative backend cannot support the acceptance contract; never alter durable product data to make the smoke pass.",
+      "hold_reason": "PR #733 owns ViewRenderer and PR #735 owns ViewRenderer/views.tsx. Let the stacked registry changes land, then re-audit reachability against the final tree."
+    }
+  ]
+}

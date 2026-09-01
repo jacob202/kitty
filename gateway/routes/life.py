@@ -92,11 +92,13 @@ async def list_life_events(limit: int = 20) -> dict:
 async def get_life_check() -> dict:
     dnd = life_awareness.do_not_disturb_status()
     proactive = life_awareness.morning_proactive()
+    calendar_source = dnd.get("calendar_source", {})
     return {
         "do_not_disturb": dnd["do_not_disturb"],
         "in_meeting": dnd["in_meeting"],
         "current_meeting": dnd.get("current_meeting"),
         "event_count": dnd.get("event_count", 0),
+        "calendar_source": calendar_source,
         "life_step_count": len(proactive.get("life_steps", [])),
         "proactive_suggestions": proactive.get("proactive_suggestions", []),
     }
