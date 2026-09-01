@@ -11,12 +11,11 @@ Public API:
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any
 
 from gateway import db as kitty_db
-from gateway.paths import KITTY_DB_FILE
 from gateway.memory_graph import Item, Source, StoreAdapter
+from gateway.paths import KITTY_DB_FILE
 
 logger = logging.getLogger("kitty.chat_search")
 
@@ -83,20 +82,22 @@ def search_chat_messages(
     _ensure_fts_exists()
 
     with kitty_db.connect(DB_FILE) as conn:
+        # FTS5 virtual tables don't support standard column aliasing in MATCH.
+        # Use the bare table name and qualify columns where needed.
         rows = conn.execute(
             f"""
             SELECT
-                f.message_id,
-                f.conversation_id,
-                f.content,
-                f.role,
-                f.created_at,
+                {_FTS_TABLE}.message_id,
+                {_FTS_TABLE}.conversation_id,
+                {_FTS_TABLE}.content,
+                {_FTS_TABLE}.role,
+                {_FTS_TABLE}.created_at,
                 COALESCE(c.title, '') AS chat_title,
-                f.rank
-            FROM {_FTS_TABLE} f
-            LEFT JOIN chat_conversations c ON c.id = f.conversation_id
-            WHERE f MATCH ?
-            ORDER BY f.rank
+                {_FTS_TABLE}.rank
+            FROM {_FTS_TABLE}
+            LEFT JOIN chat_conversations c ON c.id = {_FTS_TABLE}.conversation_id
+            WHERE {_FTS_TABLE} MATCH ?
+            ORDER BY {_FTS_TABLE}.rank
             LIMIT ?
             """,
             (query, limit),

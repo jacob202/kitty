@@ -24,6 +24,7 @@ SECTION_TO_KIND = {
     "todos": "todo",
     "inbox": "capture",
     "signals": "signal",
+    "chats": "chat_message",
 }
 
 RAW_TO_SECTION = {
@@ -37,6 +38,7 @@ RAW_TO_SECTION = {
     "todos": "todos",
     "inbox": "inbox",
     "signals": "signals",
+    "chats": "chats",
 }
 
 
@@ -136,6 +138,7 @@ async def async_search(query: str, limit: int = 5) -> dict[str, Any]:
         "todos": [],
         "inbox": [],
         "signals": [],
+        "chats": [],
         "query": query,
         "stores": list(raw.results.keys()),
         "errors": list(raw.errors),

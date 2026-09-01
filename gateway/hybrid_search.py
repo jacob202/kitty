@@ -31,8 +31,6 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-import time
-from pathlib import Path
 from typing import Any
 
 from gateway.paths import DATA_DIR
@@ -133,10 +131,10 @@ def vector_search(
 
     Returns results with cosine distance converted to a score in [0, 1].
     """
-    from gateway import knowledge as _knowledge
-
     # Use the existing async search
     import asyncio
+
+    from gateway import knowledge as _knowledge
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
