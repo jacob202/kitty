@@ -13,7 +13,17 @@ export function ProjectsPanel({ onNavigate = () => {}, isMobile = false }: { onN
   const refresh = useRefreshProject()
   const projects = projectsQuery.data ?? []
   const nextSteps = useProjectNextSteps(projects)
-  const [workspace, setWorkspace] = useState<{ project: GatewayProject; nextStep: GatewayNextStep | null } | null>(null)
+  const [workspaceProjectId, setWorkspaceProjectId] = useState<number | null>(null)
+  const workspaceIndex = workspaceProjectId === null ? -1 : projects.findIndex(project => project.id === workspaceProjectId)
+  const workspaceProject = workspaceIndex >= 0 ? projects[workspaceIndex] : null
+  const workspaceNextStep = workspaceIndex >= 0 ? nextSteps[workspaceIndex]?.data ?? null : null
+  const workspaceRefreshError = workspaceProject && refresh.variables === workspaceProject.id
+    ? refresh.isError
+      ? `Couldn't refresh this project — ${describeFailure(refresh.error)}`
+      : refresh.data?.next_step?.ok === false
+        ? "Project refreshed, but Kitty couldn't update the next step. Try Refresh again."
+        : null
+    : null
 
   if (projectsQuery.isLoading) {
     return <p style={mutedStyle}>loading projects…</p>
@@ -48,19 +58,20 @@ export function ProjectsPanel({ onNavigate = () => {}, isMobile = false }: { onN
               nextStep={nextSteps[index]?.data ?? null}
               nextPending={nextSteps[index]?.isPending ?? false}
               nextError={nextSteps[index]?.isError ?? false}
-              onOpenWorkspace={() => setWorkspace({ project: p, nextStep: nextSteps[index]?.data ?? null })}
+              onOpenWorkspace={() => setWorkspaceProjectId(p.id)}
             />
           ))}
         </section>
       )}
-      {workspace && (
+      {workspaceProject && (
         <ProjectWorkspace
-          project={workspace.project}
-          nextStep={workspace.nextStep}
-          onClose={() => setWorkspace(null)}
+          project={workspaceProject}
+          nextStep={workspaceNextStep}
+          onClose={() => setWorkspaceProjectId(null)}
           onNavigate={onNavigate}
-          onRefresh={() => refresh.mutate(workspace.project.id)}
-          refreshing={refresh.isPending && refresh.variables === workspace.project.id}
+          onRefresh={() => refresh.mutate(workspaceProject.id)}
+          refreshing={refresh.isPending && refresh.variables === workspaceProject.id}
+          refreshError={workspaceRefreshError}
           isMobile={isMobile}
         />
       )}

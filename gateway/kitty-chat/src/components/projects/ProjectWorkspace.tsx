@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ArrowRight, BriefcaseBusiness, MessageSquare, RefreshCw, X } from 'lucide-react'
 
 import { ArtifactCanvas, canPreviewArtifact } from '@/components/artifacts/ArtifactCanvas'
 import { Button } from '@/components/ui/Button'
 import { describeFailure } from '@/lib/failure-copy'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
+import { projectNextStepCopy, projectSummaryCopy } from '@/lib/project-copy'
 import type { GatewayArtifact, GatewayNextStep, GatewayProject, GatewayProjectArtifact } from '@/lib/gateway'
 import { useProjectResume, useSetActiveProject } from '@/lib/queries'
 
@@ -14,6 +16,7 @@ export function ProjectWorkspace({
   onNavigate,
   onRefresh,
   refreshing = false,
+  refreshError = null,
   isMobile = false,
 }: {
   project: GatewayProject
@@ -22,18 +25,27 @@ export function ProjectWorkspace({
   onNavigate: (view: string) => void
   onRefresh?: () => void
   refreshing?: boolean
+  refreshError?: string | null
   isMobile?: boolean
 }) {
   const resume = useProjectResume(project.id)
   const setActiveProject = useSetActiveProject()
   const [selectedArtifact, setSelectedArtifact] = useState<GatewayArtifact | null>(null)
   const [activationError, setActivationError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
+  const closeWorkspace = () => {
+    mountedRef.current = false
+    onClose()
+  }
+  const dialogRef = useDialogFocus<HTMLElement>({ open: true, enabled: !selectedArtifact, onClose: closeWorkspace })
 
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !selectedArtifact) onClose() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose, selectedArtifact])
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
+  const summary = projectSummaryCopy(project) || 'No project summary yet.'
+  const nextCopy = nextStep ? projectNextStepCopy(project, nextStep) : null
 
   const artifacts = useMemo(
     () => (resume.data?.artifacts ?? []).map(item => toArtifact(project.id, item)),
@@ -44,22 +56,22 @@ export function ProjectWorkspace({
     setActivationError(null)
     try {
       await setActiveProject.mutateAsync(project.id)
-      onNavigate(view)
+      if (mountedRef.current) onNavigate(view)
     } catch (err) {
-      setActivationError(describeFailure(err))
+      if (mountedRef.current) setActivationError(describeFailure(err))
     }
   }
 
   return (
-    <div style={backdropStyle} onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
-      <section role="dialog" aria-modal="true" aria-label={`${project.name} project workspace`} style={panelStyle}>
+    <div style={backdropStyle} onMouseDown={(event) => { if (event.currentTarget === event.target) closeWorkspace() }}>
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-label={`${project.name} project workspace`} style={panelStyle}>
         <header style={headerStyle}>
           <div style={{ minWidth: 0 }}>
             <div style={eyebrowStyle}>project workspace</div>
             <h2 style={titleStyle}>{project.name}</h2>
-            <p style={summaryStyle}>{project.summary || 'No project summary yet.'}</p>
+            <p style={summaryStyle}>{summary}</p>
           </div>
-          <button type="button" aria-label="Close project workspace" onClick={onClose} style={iconButtonStyle}><X size={18} /></button>
+          <button type="button" aria-label="Close project workspace" onClick={closeWorkspace} style={iconButtonStyle}><X size={18} /></button>
         </header>
 
         <div style={toolbarStyle}>
@@ -76,15 +88,16 @@ export function ProjectWorkspace({
           )}
         </div>
         {activationError && <p role="alert" style={errorBannerStyle}>{activationError}</p>}
+        {refreshError && <p role="alert" style={errorBannerStyle}>{refreshError}</p>}
 
         <div style={bodyStyle}>
           <section style={heroSectionStyle}>
             <div style={sectionLabelStyle}>what&apos;s next</div>
-            {nextStep ? (
+            {nextCopy ? (
               <>
-                <div style={nextStepStyle}>{nextStep.step}</div>
-                {nextStep.why && <div style={detailStyle}>{nextStep.why}</div>}
-                {nextStep.recent_win && <div style={winStyle}>Recent win · {nextStep.recent_win}</div>}
+                <div style={nextStepStyle}>{nextCopy.step}</div>
+                {nextCopy.why && <div style={detailStyle}>{nextCopy.why}</div>}
+                {nextCopy.recent_win && <div style={winStyle}>Recent win · {nextCopy.recent_win}</div>}
               </>
             ) : (
               <div style={mutedStyle}>No generated next step yet.</div>

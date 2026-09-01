@@ -1,4 +1,4 @@
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, afterEach, beforeEach, vi } from 'vitest'
 import { ProjectsPanel } from '../src/components/ProjectsPanel'
@@ -34,11 +34,12 @@ function renderPanel() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  return render(
+  const rendered = render(
     <QueryClientProvider client={client}>
       <ProjectsPanel />
     </QueryClientProvider>,
   )
+  return { ...rendered, client }
 }
 
 describe('ProjectsPanel recent files (Project Resume: Artifacts, slice 1)', () => {
@@ -289,6 +290,56 @@ describe('ProjectsPanel visual hierarchy', () => {
     renderPanel()
     fireEvent.click(screen.getByRole('button', { name: /open workspace/i }))
     expect(screen.getByRole('dialog', { name: /kitty project workspace/i })).toBeVisible()
+  })
+
+  it('keeps the open workspace derived from live project and next-step query state', () => {
+    let currentProject = project
+    let currentStep: any = null
+    vi.mocked(queries.useProjects).mockImplementation(() => ({
+      data: [currentProject], isLoading: false, isError: false, error: null,
+    }) as never)
+    vi.mocked(queries.useProjectNextSteps).mockImplementation(() => ([{
+      data: currentStep, isPending: false, isError: false,
+    }] as never))
+
+    const view = renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: /open workspace/i }))
+    expect(screen.getByText(/no generated next step yet/i)).toBeVisible()
+
+    currentProject = { ...project, summary: 'updated project summary', next_actions: ['New live action'] }
+    currentStep = { project_id: 1, step: 'new live next step', why: 'fresh query data', recent_win: '', delegable: false, generated_at: 2 }
+    view.rerender(
+      <QueryClientProvider client={view.client}>
+        <ProjectsPanel />
+      </QueryClientProvider>,
+    )
+
+    const workspace = screen.getByRole('dialog', { name: /kitty project workspace/i })
+    expect(within(workspace).getByText('updated project summary')).toBeVisible()
+    expect(within(workspace).getByText('new live next step')).toBeVisible()
+    expect(within(workspace).getByText('New live action')).toBeVisible()
+  })
+
+  it('surfaces rejected and partial next-step refresh failures inside the open workspace', () => {
+    vi.mocked(queries.useRefreshProject).mockReturnValue({
+      mutate: vi.fn(), isPending: false, variables: 1, isError: true,
+      error: new Error('Gateway returned 500 Internal Server Error'), data: undefined,
+    } as never)
+    const view = renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: /open workspace/i }))
+    expect(screen.getByRole('alert')).toHaveTextContent(/couldn.t refresh this project/i)
+    expect(screen.getByRole('alert')).toHaveTextContent(/service hit an error/i)
+
+    vi.mocked(queries.useRefreshProject).mockReturnValue({
+      mutate: vi.fn(), isPending: false, variables: 1, isError: false, error: null,
+      data: { next_step: { ok: false, error: 'model unavailable' } },
+    } as never)
+    view.rerender(
+      <QueryClientProvider client={view.client}>
+        <ProjectsPanel />
+      </QueryClientProvider>,
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent(/project refreshed, but kitty couldn't update the next step/i)
   })
 
   it('keeps project context closed until the user asks for it', () => {

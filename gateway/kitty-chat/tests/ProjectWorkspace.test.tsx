@@ -88,6 +88,61 @@ describe('ProjectWorkspace', () => {
     expect(screen.getByText('plan.md')).toBeVisible()
   })
 
+  it('sanitizes internal project step copy inside the workspace too', () => {
+    const internalStep: GatewayNextStep = {
+      ...nextStep,
+      step: 'Run `git status --short` and inspect the dirty branch.',
+      why: 'Check the repo before touching the branch.',
+      recent_win: 'The dirty branch already exists.',
+    }
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <ProjectWorkspace project={{ ...project, summary: 'dirty repo branch' }} nextStep={internalStep} onClose={vi.fn()} onNavigate={vi.fn()} />
+      </QueryClientProvider>,
+    )
+
+    const copy = document.body.textContent ?? ''
+    expect(copy).not.toMatch(/git status|\bdirty\b|\brepo\b|\bbranch\b/i)
+    expect(screen.getByText('Development work is in progress.')).toBeVisible()
+    expect(screen.getByText('Review the work already in progress before making more changes.')).toBeVisible()
+  })
+
+  it('does not navigate after the workspace unmounts while activation is pending', async () => {
+    let resolveActivation!: (value: unknown) => void
+    setActiveProject.mockImplementation(() => new Promise(resolve => { resolveActivation = resolve }))
+    const onNavigate = vi.fn()
+    const view = renderWorkspace(onNavigate)
+
+    fireEvent.click(screen.getByRole('button', { name: /continue in chat/i }))
+    view.unmount()
+    resolveActivation({ active_project: project })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(onNavigate).not.toHaveBeenCalled()
+  })
+
+  it('moves focus into the modal, traps Tab, and restores focus on close', () => {
+    const trigger = document.createElement('button')
+    trigger.textContent = 'Open project workspace'
+    document.body.appendChild(trigger)
+    trigger.focus()
+    const view = renderWorkspace()
+
+    const close = screen.getByRole('button', { name: /close project workspace/i })
+    expect(close).toHaveFocus()
+    const controls = screen.getAllByRole('button')
+    const last = controls[controls.length - 1]
+    last.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(close).toHaveFocus()
+
+    view.unmount()
+    expect(trigger).toHaveFocus()
+    trigger.remove()
+  })
+
   it('activates the project before continuing in chat', async () => {
     const onNavigate = vi.fn()
     renderWorkspace(onNavigate)
