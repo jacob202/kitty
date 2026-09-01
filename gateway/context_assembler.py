@@ -62,6 +62,14 @@ logger = logging.getLogger("kitty.context_assembler")
 
 SkillHintFn = Callable[[str], str]
 
+
+class SkillSelectionError(ValueError):
+    """An explicit ``Use skill:`` directive cannot be honored truthfully."""
+
+
+class SelectedSkillTooLargeError(ValueError):
+    """An explicit skill cannot fit without losing part of its instructions."""
+
 # Whole model-visible prompt caps. Memory has its own tighter selection budget,
 # but every other block must also fit inside one explicit request envelope.
 TOTAL_CONTEXT_TOKEN_CAPS: dict[str, int] = {
@@ -176,6 +184,9 @@ class ContextBundle:
     warnings: list[str] = field(default_factory=list)
     injected_memory_items: list[MemoryEvidence] = field(default_factory=list)
     context_budget: dict[str, object] = field(default_factory=dict)
+    # Exact model-visible block for an explicitly selected skill. The chat route
+    # uses this to fail closed if its final system-message budget would clip it.
+    selected_skill_block: str | None = None
     context_health: dict[str, object] = field(
         default_factory=lambda: {
             "mode": "full",
@@ -196,24 +207,38 @@ class _AssemblerDeps:
     graph_cls: type[MemoryGraph] = MemoryGraph
 
 
+def _explicit_skill_name(message: str) -> str | None:
+    """Return the exact registry name from one explicit directive line.
+
+    Skill Registry accepts Unicode names, so the launcher/parser must not use a
+    narrower ASCII grammar than the authority it projects.
+    """
+    match = re.search(r"(?im)^\s*use skill:\s*([^\r\n]+?)\s*$", message)
+    if not match:
+        return None
+    name = match.group(1).strip()
+    return name or None
+
+
 def _default_skill_hint(message: str) -> str:
     """Resolve an explicit installed skill, otherwise suggest one from triggers."""
-    explicit = re.search(
-        r"(?im)^\s*use skill:\s*([a-z0-9][a-z0-9._-]*)\s*$",
-        message,
-    )
-    if explicit:
-        name = explicit.group(1)
+    name = _explicit_skill_name(message)
+    if name is not None:
         try:
-            if not skill_registry.get(name):
-                return ""
+            skill = skill_registry.get(name)
+            if not skill:
+                raise SkillSelectionError(f"Skill not found: {name}")
             rendered = skill_registry.invoke(name)
+            if rendered.get("error"):
+                raise SkillSelectionError(str(rendered["error"]))
             prompt = str(rendered.get("prompt", "")).strip()
-            if prompt:
-                return f"## Selected skill\n{name}\n\n{prompt}"
-            return ""
-        except Exception:
-            return ""
+            if not prompt:
+                raise SkillSelectionError(f"Skill has no usable instructions: {name}")
+            return f"## Selected skill\n{name}\n\n{prompt}"
+        except SkillSelectionError:
+            raise
+        except Exception as exc:
+            raise SkillSelectionError(f"Skill unavailable: {name}: {exc}") from exc
 
     try:
         matches = skill_registry.suggest(message, limit=1)
@@ -346,7 +371,10 @@ def _truncate_context_block(text: str, limit: int) -> str:
 
 
 def _fit_context_blocks(
-    blocks: list[tuple[str, str, float]], *, tier: str
+    blocks: list[tuple[str, str, float]],
+    *,
+    tier: str,
+    required_full_names: set[str] | None = None,
 ) -> tuple[str, dict[str, object], list[str]]:
     """Fit named prompt blocks into a conservative whole-context budget."""
     if tier not in TOTAL_CONTEXT_TOKEN_CAPS:
@@ -357,15 +385,39 @@ def _fit_context_blocks(
     separator_units = max(0, len(present) - 1) * _budget_units("\n\n")
     payload_cap = max(0, token_cap - separator_units)
 
-    allocations: list[int] = []
-    for _name, block_text, share in present:
-        soft_cap = max(1, int(payload_cap * share))
-        allocations.append(min(_budget_units(block_text), soft_cap))
+    required_full_names = required_full_names or set()
+    required_units = sum(
+        _budget_units(block_text)
+        for name, block_text, _share in present
+        if name in required_full_names
+    )
+    if required_units > payload_cap:
+        names = ", ".join(sorted(required_full_names)) or "required context"
+        raise SelectedSkillTooLargeError(
+            f"Selected skill instructions cannot fit the {tier} context budget ({names})"
+        )
+
+    allocations: list[int] = [0] * len(present)
+    remaining_cap = payload_cap - required_units
+    flexible_share = sum(
+        share for name, _block_text, share in present if name not in required_full_names
+    )
+    for index, (name, block_text, share) in enumerate(present):
+        if name in required_full_names:
+            allocations[index] = _budget_units(block_text)
+            continue
+        if remaining_cap <= 0 or flexible_share <= 0:
+            allocations[index] = 0
+            continue
+        soft_cap = max(1, int(remaining_cap * (share / flexible_share)))
+        allocations[index] = min(_budget_units(block_text), soft_cap)
 
     leftover = max(0, payload_cap - sum(allocations))
-    for index, (_name, block_text, _share) in enumerate(present):
+    for index, (name, block_text, _share) in enumerate(present):
         if leftover <= 0:
             break
+        if name in required_full_names:
+            continue
         missing = _budget_units(block_text) - allocations[index]
         if missing <= 0:
             continue
@@ -468,7 +520,9 @@ async def assemble_context(
     personality = personality_block()
     user_block = user_context.load_user_context()
     hint_fn = deps.skill_hint_fn or _default_skill_hint
+    explicit_skill_name = _explicit_skill_name(message) if deps.skill_hint_fn is None else None
     hint = hint_fn(message)
+    selected_skill_block = hint if explicit_skill_name and hint else None
 
     # Trivial chats are deliberately context-light. The classifier has already
     # established that historical memory cannot materially improve this turn,
@@ -510,20 +564,29 @@ async def assemble_context(
     each_enrichment_share = (
         enrichment_share / len(enrichment_blocks) if enrichment_blocks else 0.0
     )
-    context_blocks: list[tuple[str, str, float]] = [
+    context_blocks: list[tuple[str, str, float]] = []
+    # An explicit selection is user intent, not a suggestion. Put it first so
+    # later final-message prefix fitting cannot silently discard it, and reserve
+    # its complete instructions at this layer.
+    if selected_skill_block:
+        context_blocks.append(("skill", hint, _CONTEXT_BLOCK_SHARES["skill"]))
+    context_blocks.extend([
         ("domain", domain_block, _CONTEXT_BLOCK_SHARES["domain"]),
         ("objective", objective_block, _CONTEXT_BLOCK_SHARES["objective"]),
         ("personality", personality, _CONTEXT_BLOCK_SHARES["personality"]),
         ("user_context", user_block, _CONTEXT_BLOCK_SHARES["user_context"]),
-        ("skill", hint, _CONTEXT_BLOCK_SHARES["skill"]),
-        ("memory", memory_block, _CONTEXT_BLOCK_SHARES["memory"]),
-    ]
+    ])
+    if not selected_skill_block:
+        context_blocks.append(("skill", hint, _CONTEXT_BLOCK_SHARES["skill"]))
+    context_blocks.append(("memory", memory_block, _CONTEXT_BLOCK_SHARES["memory"]))
     context_blocks.extend(
         (f"enrichment:{index}", block, each_enrichment_share)
         for index, block in enumerate(enrichment_blocks)
     )
     system, budget_evidence, _budget_warnings = _fit_context_blocks(
-        context_blocks, tier=tier
+        context_blocks,
+        tier=tier,
+        required_full_names={"skill"} if selected_skill_block else None,
     )
     budget_evidence["truncations"] = list(_budget_warnings)
     warnings.extend(_budget_warnings)
@@ -536,6 +599,7 @@ async def assemble_context(
         warnings=warnings,
         injected_memory_items=injected_memory_items,
         context_budget=budget_evidence,
+        selected_skill_block=selected_skill_block,
         context_health=_context_health(warnings),
     )
 
@@ -607,6 +671,8 @@ def build_worker_context(context_type: str, **kwargs) -> str:
 __all__ = [
     "ContextBundle",
     "SkillHintFn",
+    "SkillSelectionError",
+    "SelectedSkillTooLargeError",
     "assemble_context",
     "assert_not_total_failure",
     "get_system_prompt",
