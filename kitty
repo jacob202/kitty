@@ -397,6 +397,7 @@ cmd_ui() {
     echo "Starting UI on http://127.0.0.1:$UI_PORT ..."
     KITTY_UI_PORT="$UI_PORT" \
       KITTY_GATEWAY_URL="http://127.0.0.1:$GATEWAY_PORT" \
+      KITTY_UI_BIND_ALL=true \
       nohup bash "$KITTY_ROOT/scripts/desktop/start_ui.sh" \
         >"$LOG_DIR/ui.log" 2>&1 &
     echo $! >"$RUN_DIR/ui.pid"
@@ -465,7 +466,51 @@ cmd_down() {
   rm -f "$RUN_DIR/ui.pid" "$RUN_DIR/gateway.pid" "$RUN_DIR/litellm.pid"
 }
 
+cmd_status_quick() {
+  local fails=0
+  local ui_port="${UI_PORT:-4000}"
+
+  if http_ok "http://127.0.0.1:$GATEWAY_PORT/health"; then
+    local litellm_status="${GREEN}OK${RESET}"
+    if curl -sf --max-time 3 "http://127.0.0.1:$GATEWAY_PORT/health" 2>/dev/null | grep -q '"litellm_reachable": *true'; then
+      litellm_status="${GREEN}OK${RESET}"
+    else
+      litellm_status="${RED}FAIL${RESET}"
+    fi
+    printf "  %b Gateway  %b\n" "${GREEN}\xE2\x9C\x93${RESET}" "$litellm_status"
+  else
+    printf "  %b Gateway  %b\n" "${RED}\xE2\x9C\x97${RESET}" "${RED}FAIL${RESET}"
+    fails=1
+  fi
+
+  if http_ok "http://127.0.0.1:$LITELLM_PORT/health/readiness" -H "Authorization: Bearer $LITELLM_MASTER_KEY" 2>/dev/null; then
+    printf "  %b LiteLLM  %b\n" "${GREEN}\xE2\x9C\x93${RESET}" "${GREEN}OK${RESET}"
+  else
+    printf "  %b LiteLLM  %b\n" "${RED}\xE2\x9C\x97${RESET}" "${RED}FAIL${RESET}"
+  fi
+
+  if http_ok "http://127.0.0.1:$ui_port/"; then
+    printf "  %b UI       %b\n" "${GREEN}\xE2\x9C\x93${RESET}" "${GREEN}OK${RESET}"
+  else
+    printf "  %b UI       %b\n" "${RED}\xE2\x9C\x97${RESET}" "${RED}FAIL${RESET}"
+    fails=1
+  fi
+
+  local data_dir="$KITTY_ROOT/data"
+  if [[ -d "$data_dir" ]]; then
+    printf "  %b Data     %b\n" "${GREEN}\xE2\x9C\x93${RESET}" "${GREEN}OK${RESET}"
+  else
+    printf "  %b Data     %b\n" "${YELLOW}\xE2\x9A\xA0${RESET}" "${YELLOW}WARN${RESET}"
+  fi
+
+  return "$fails"
+}
+
 cmd_status() {
+  if [[ "${1:-}" == "--quick" ]]; then
+    cmd_status_quick
+    return $?
+  fi
   local sha authority_sha authority_relation dirty_state branch build_id build_source supervisor_mode svc_probe
   sha="$(git -C "$KITTY_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")"
   branch="$(git -C "$KITTY_ROOT" branch --show-current 2>/dev/null || true)"
@@ -960,7 +1005,7 @@ cmd_health() {
   local ui_port="${UI_PORT:-4000}"
 
   echo ""
-  echo "  ** Kitty Health Check **"
+  echo -e "  \033[1m** Kitty Health Check **\033[0m"
   echo ""
 
   # Gateway
@@ -969,32 +1014,32 @@ cmd_health() {
     if curl -sf --max-time 3 "http://127.0.0.1:$GATEWAY_PORT/health" 2>/dev/null | grep -q '"litellm_reachable": *true'; then
       litellm_status="OK"
     fi
-    echo "  [OK] Gateway    http://127.0.0.1:$GATEWAY_PORT  (LiteLLM: $litellm_status)"
+    echo -e "  ${GREEN}[OK]${RESET}   Gateway    http://127.0.0.1:$GATEWAY_PORT  (LiteLLM: $litellm_status)"
   else
-    echo "  [FAIL] Gateway    not responding"
+    echo -e "  ${RED}[FAIL]${RESET} Gateway    not responding"
     echo "        Try: kitty up"
     fails=1
   fi
 
   if http_ok "http://127.0.0.1:$LITELLM_PORT/health/readiness" -H "Authorization: Bearer $LITELLM_MASTER_KEY" 2>/dev/null; then
-    echo "  [OK] LiteLLM    http://127.0.0.1:$LITELLM_PORT"
+    echo -e "  ${GREEN}[OK]${RESET}   LiteLLM    http://127.0.0.1:$LITELLM_PORT"
   else
-    echo "  [FAIL] LiteLLM    not responding (models won't load)"
+    echo -e "  ${RED}[FAIL]${RESET} LiteLLM    not responding (models won't load)"
   fi
 
   if http_ok "http://127.0.0.1:$ui_port/"; then
-    echo "  [OK] UI         http://127.0.0.1:$ui_port"
+    echo -e "  ${GREEN}[OK]${RESET}   UI         http://127.0.0.1:$ui_port"
   else
-    echo "  [FAIL] UI         not responding"
+    echo -e "  ${RED}[FAIL]${RESET} UI         not responding"
     echo "        Try: kitty ui"
     fails=1
   fi
 
   local data_dir="$KITTY_ROOT/data"
   if [[ -d "$data_dir" ]]; then
-    echo "  [OK] Data dir   $data_dir"
+    echo -e "  ${GREEN}[OK]${RESET}   Data dir   $data_dir"
   else
-    echo "  [WARN] Data dir   $data_dir (missing)"
+    echo -e "  ${YELLOW}[WARN]${RESET} Data dir   $data_dir (missing)"
   fi
 
   local ts_ip=""
@@ -1005,17 +1050,17 @@ cmd_health() {
     ts_ip="$(ifconfig 2>/dev/null | awk '/inet 100\./ { print $2; exit }' || true)"
   fi
   if [[ -n "$ts_ip" ]] && http_ok "http://$ts_ip:$ui_port/" 2>/dev/null; then
-    echo "  [OK] Phone      http://$ts_ip:$ui_port  (via Tailscale)"
+    echo -e "  ${GREEN}[OK]${RESET}   Phone      http://$ts_ip:$ui_port  (via Tailscale)"
   elif [[ -n "$ts_ip" ]]; then
-    echo "  [WARN] Phone     Tailscale is up but UI not reachable on it"
+    echo -e "  ${YELLOW}[WARN]${RESET} Phone     Tailscale is up but UI not reachable on it"
     echo "        Try: make ui-tailnet"
   fi
 
   echo ""
   if [ "$fails" -eq 0 ]; then
-    echo "  All checks passed - Kitty is healthy!"
+    echo -e "  ${GREEN}All checks passed - Kitty is healthy!${RESET}"
   else
-    echo "  $fails check(s) failed. Fix the items above, then run: kitty health"
+    echo -e "  ${RED}$fails check(s) failed.${RESET} Fix the items above, then run: kitty health"
   fi
   return "$fails"
 }
@@ -1030,7 +1075,7 @@ case "${1:-start}" in
   up)        cmd_up ;;
   ui)        cmd_ui ;;
   down)      cmd_down ;;
-  status)    cmd_status ;;
+  status)    shift; cmd_status "$@" ;;
   doctor)    shift; cmd_doctor "$@" ;;
   context)   shift; cmd_context "$@" ;;
   logs)      cmd_logs ;;
