@@ -19,71 +19,45 @@ LOW_WATER_DEFAULT = 6
 REFILL_TARGET_DEFAULT = 12
 _DONE_REGISTRY_STATES = frozenset({"done", "landed", "merged", "superseded", "closed"})
 
+
+class PacketRegistryError(RuntimeError):
+    """Raised when compiled packet-registry evidence cannot be trusted."""
+
+
 def load_packet_registry(repo_root: Path) -> list[dict[str, Any]]:
-    """Read compiled source slates when present; missing slates are honest empty coverage."""
+    """Read compiled source slates only; malformed source evidence fails closed."""
     registry: list[dict[str, Any]] = []
     slate_dir = Path(repo_root) / "docs" / "packets" / "slates"
     for path in sorted(slate_dir.glob("*.source.json")):
         try:
             slate = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
+        except (OSError, json.JSONDecodeError) as exc:
+            raise PacketRegistryError(f"cannot read packet registry {path.name}: {exc}") from exc
+        if not isinstance(slate, dict):
+            raise PacketRegistryError(f"packet registry {path.name} must contain an object")
+        packets = slate.get("packets") or []
+        if not isinstance(packets, list):
+            raise PacketRegistryError(f"packet registry {path.name} packets must be a list")
         initiative_id = slate.get("initiative_id")
-        for item in slate.get("packets") or []:
+        for item in packets:
             if not isinstance(item, dict):
-                continue
+                raise PacketRegistryError(f"packet registry {path.name} contains a non-object packet")
             manifest = item.get("manifest") or {}
-            packet_id = manifest.get("id")
+            packet_id = manifest.get("id") if isinstance(manifest, dict) else None
             if not isinstance(packet_id, str) or not packet_id:
-                continue
+                raise PacketRegistryError(f"packet registry {path.name} contains a packet without manifest.id")
             entry: dict[str, Any] = {
                 "initiative_id": initiative_id,
                 "packet_id": packet_id,
                 "lane": item.get("lane") or "builder",
-                "status": "unresolved",
+                "status": item.get("status") or "unresolved",
             }
             if item.get("hold_reason"):
                 entry["hold_reason"] = item["hold_reason"]
+            if item.get("superseded_by"):
+                entry["superseded_by"] = item["superseded_by"]
             registry.append(entry)
-
-    known = {
-        _packet_key(str(item.get("initiative_id") or "registry"), str(item["packet_id"]))
-        for item in registry
-    }
-    packet_dir = Path(repo_root) / "docs" / "packets"
-    if packet_dir.is_dir():
-        for path in sorted(packet_dir.glob("*.md")):
-            try:
-                lines = path.read_text(encoding="utf-8").splitlines()[:20]
-            except OSError:
-                continue
-            doc_initiative_id: str | None = None
-            owner: str | None = None
-            for line in lines:
-                if line.startswith("**Initiative:**") and "`" in line:
-                    parts = line.split("`")
-                    if len(parts) >= 3:
-                        doc_initiative_id = parts[1].strip()
-                elif line.startswith("**Owner:**"):
-                    owner = line.split(":**", 1)[-1].strip()
-            if not doc_initiative_id or not owner or not owner.lower().startswith("interactive"):
-                continue
-            packet_id = path.stem
-            key = _packet_key(doc_initiative_id, packet_id)
-            if key in known:
-                continue
-            entry = {
-                "initiative_id": doc_initiative_id,
-                "packet_id": packet_id,
-                "lane": "interactive",
-                "status": "unresolved",
-            }
-            if "held" in owner.lower():
-                entry["hold_reason"] = "interactive packet doc marked held"
-            registry.append(entry)
-            known.add(key)
     return registry
-
 
 
 def _packet_key(initiative_id: str, packet_id: str) -> str:

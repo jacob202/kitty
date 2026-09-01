@@ -52,8 +52,10 @@ def _changed_text(worktree: Path, changed_paths: list[str]) -> str:
             continue
         try:
             chunks.append(path.read_text(encoding="utf-8"))
-        except (UnicodeDecodeError, OSError):
+        except UnicodeDecodeError:
             continue
+        except OSError as exc:
+            raise ContractGateError(f"cannot read changed file {rel}: {exc}") from exc
     return "\n".join(chunks)
 
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from gateway import builder_autonomy as aut
 from gateway import builder_initiative as bi
 
@@ -139,7 +141,6 @@ def test_load_packet_registry_reads_compiled_source_slates(tmp_path: Path) -> No
     assert registry == [
         {"initiative_id": "wave-v1", "packet_id": "UI-HOLD", "lane": "interactive", "status": "unresolved", "hold_reason": "PR collision"},
         {"initiative_id": "wave-v1", "packet_id": "BE-READY", "lane": "builder", "status": "unresolved"},
-        {"initiative_id": "wave-old", "packet_id": "UI-PRESERVED", "lane": "interactive", "status": "unresolved"},
     ]
 
 
@@ -162,7 +163,7 @@ def test_runway_does_not_count_builder_packet_with_existing_open_pr_as_actionabl
     assert runway["buckets"]["operator_blocked"][0]["reason"] == "github_pr_open"
 
 
-def test_load_packet_registry_falls_back_to_interactive_docs_without_slate_dir(tmp_path: Path) -> None:
+def test_load_packet_registry_does_not_synthesize_state_from_interactive_docs(tmp_path: Path) -> None:
     packet_dir = tmp_path / "docs" / "packets"
     packet_dir.mkdir(parents=True)
     (packet_dir / "UI-ONLY.md").write_text(
@@ -170,9 +171,7 @@ def test_load_packet_registry_falls_back_to_interactive_docs_without_slate_dir(t
         encoding="utf-8",
     )
 
-    assert aut.load_packet_registry(tmp_path) == [
-        {"initiative_id": "wave-v1", "packet_id": "UI-ONLY", "lane": "interactive", "status": "unresolved"}
-    ]
+    assert aut.load_packet_registry(tmp_path) == []
 
 
 def test_runway_can_scope_to_one_campaign_prefix(monkeypatch) -> None:
@@ -265,3 +264,23 @@ def test_unapplied_backend_registry_contract_is_not_actionable(monkeypatch) -> N
     assert runway["counts"]["operator_blocked"] == 1
     assert runway["buckets"]["operator_blocked"][0]["reason"] == "unapplied_registry_contract"
     assert runway["actionable"] == 0
+
+
+def test_load_packet_registry_fails_closed_on_malformed_source_slate(tmp_path: Path) -> None:
+    slate_dir = tmp_path / "docs" / "packets" / "slates"
+    slate_dir.mkdir(parents=True)
+    (slate_dir / "broken.source.json").write_text("{not-json", encoding="utf-8")
+
+    with pytest.raises(aut.PacketRegistryError, match="broken.source.json"):
+        aut.load_packet_registry(tmp_path)
+
+
+def test_load_packet_registry_does_not_infer_live_work_from_retained_packet_docs(tmp_path: Path) -> None:
+    packet_dir = tmp_path / "docs" / "packets"
+    packet_dir.mkdir(parents=True)
+    (packet_dir / "UI-OLD.md").write_text(
+        "# UI-OLD\n\n**Initiative:** `wave-v1`\n**Owner:** interactive\n",
+        encoding="utf-8",
+    )
+
+    assert aut.load_packet_registry(tmp_path) == []

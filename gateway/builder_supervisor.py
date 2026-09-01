@@ -750,14 +750,14 @@ def _paths_overlap(path_a: str, path_b: str) -> bool:
     a = tuple(part for part in Path(path_a).parts if part not in ("", "."))
     b = tuple(part for part in Path(path_b).parts if part not in ("", "."))
     if not a or not b:
-        return False
+        return True
     shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
     return longer[: len(shorter)] == shorter
 
 
 def _changed_paths(repo_root: Path, base_sha: str, current_sha: str) -> list[str]:
     result = subprocess.run(
-        ["git", "diff", "--name-only", f"{base_sha}..{current_sha}"],
+        ["git", "diff", "--no-renames", "--name-only", f"{base_sha}..{current_sha}"],
         cwd=repo_root, capture_output=True, text=True, timeout=20, check=False,
     )
     if result.returncode != 0:
@@ -930,7 +930,13 @@ def preflight_packet(
         )
     if issues:
         reasons.extend(f"Unsafe packet input: {issue}." for issue in issues)
-    if eligibility.get("state") != "eligible":
+    recovery_candidate = bool(
+        task is not None
+        and task.get("state") == bq.BLOCKED
+        and task_id
+        and ba.list_stale_attempts(initiative_id, packet_id, db_path=db_path)
+    )
+    if eligibility.get("state") != "eligible" and not recovery_candidate:
         blocked_by = eligibility.get("blocked_by") or []
         if blocked_by:
             reasons.append(

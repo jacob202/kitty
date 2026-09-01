@@ -1791,6 +1791,31 @@ def run_packet(
                 }
             janitor_head_after = worktree_head(janitor_worktree)
 
+        if failure is None and publication_preflight:
+            try:
+                contract_gate = bcg.evaluate_contract_checks(
+                    expected_worktree,
+                    base_sha=base_sha,
+                    forbidden_symbols=packet_contract.get("forbidden_symbols"),
+                    required_symbols=packet_contract.get("required_symbols"),
+                    forbidden_paths=packet_contract.get("forbidden_paths"),
+                )
+            except bcg.ContractGateError as exc:
+                failure = f"deterministic contract gate could not run after janitor: {exc}"
+            else:
+                entry["contract_gate"] = contract_gate
+                manifest["contract_gate"] = contract_gate
+                write_run_manifest(manifest_path, manifest)
+                if not contract_gate["passed"]:
+                    failure = "deterministic contract gate failed after janitor"
+                    repairable = True
+                    bq.append_event(
+                        task_id,
+                        "contract_gate_failed",
+                        payload={"attempt_id": attempt_id, "phase": "post_janitor", **contract_gate},
+                        db_path=db_path,
+                    )
+
         if failure is None:
             extra_commands: list[str] = []
             if publication_preflight:

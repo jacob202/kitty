@@ -37,3 +37,16 @@ def test_required_symbol_and_forbidden_path_are_mechanical(monkeypatch, tmp_path
     assert result["passed"] is False
     assert result["required_symbols_missing"] == ["SAFE_MARKER"]
     assert result["forbidden_paths_changed"] == ["gateway/legacy/x.py"]
+
+
+def test_changed_text_fails_closed_when_changed_file_cannot_be_read(tmp_path: Path, monkeypatch) -> None:
+    target = tmp_path / "unreadable.py"
+    target.write_text("SAFE_MARKER\n", encoding="utf-8")
+    monkeypatch.setattr(Path, "read_text", lambda self, **kwargs: (_ for _ in ()).throw(OSError("boom")))
+
+    try:
+        gate._changed_text(tmp_path, ["unreadable.py"])
+    except gate.ContractGateError as exc:
+        assert "unreadable.py" in str(exc)
+    else:
+        raise AssertionError("unreadable changed file must fail closed")

@@ -394,6 +394,13 @@ def test_supervisor_launcher_defaults_to_repo_venv() -> None:
     launcher = (Path(__file__).parents[1] / "scripts" / "start_builder_supervisor.sh").read_text()
     assert 'PYTHON="${KITTYBUILDER_PYTHON:-${REPO_ROOT}/venv/bin/python}"' in launcher
 
+
+def test_supervisor_launcher_loads_canonical_env_with_safe_loader() -> None:
+    launcher = (Path(__file__).parents[1] / "scripts" / "start_builder_supervisor.sh").read_text()
+    assert 'source "${REPO_ROOT}/gateway/lib/load_env_safe.sh"' in launcher
+    assert 'ENV_ROOT="${KITTY_BUILDER_REPO_ROOT:-${REPO_ROOT}}"' in launcher
+    assert 'load_env_assignments "${ENV_ROOT}/.env"' in launcher
+
 def test_budget_summary_initializes_an_empty_compute_ledger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     ledger = tmp_path / "compute-governor.db"
     monkeypatch.setenv("KITTY_COMPUTE_GOVERNOR_DB", str(ledger))
@@ -823,3 +830,44 @@ def test_status_registry_count_respects_initiative_prefix(
 
     assert projection["autonomy"]["registry_contracts"] == 1
     assert projection["autonomy"]["runway"]["counts"]["interactive_frontend"] == 1
+
+
+def test_paths_overlap_treats_repo_root_as_wildcard() -> None:
+    assert bs._paths_overlap(".", "gateway/state_composer.py") is True
+    assert bs._paths_overlap("gateway/state_composer.py", ".") is True
+
+
+def test_changed_paths_reports_both_sides_of_rename(repo: Path) -> None:
+    old = repo / "old-name.txt"
+    old.write_text("before\n", encoding="utf-8")
+    subprocess.run(["git", "add", "old-name.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "add old name"], cwd=repo, check=True)
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+    subprocess.run(["git", "mv", "old-name.txt", "new-name.txt"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "rename"], cwd=repo, check=True)
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+
+    assert set(bs._changed_paths(repo, base, head)) == {"old-name.txt", "new-name.txt"}
+
+
+def test_preflight_allows_blocked_task_with_fenced_stale_attempt(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    applied = _apply(db_path, "recover-init", [_packet("p1")], repo_root=repo)
+    task_id = applied["packets"][0]["task_id"]
+    real_task = bq.get_task(task_id, db_path=db_path)
+    assert real_task is not None
+    monkeypatch.setattr(bs.bq, "get_task", lambda *_args, **_kwargs: {**real_task, "state": bq.BLOCKED})
+    monkeypatch.setattr(bs.ba, "list_stale_attempts", lambda *_args, **_kwargs: [{"id": "stale-1"}])
+    monkeypatch.setattr(
+        bs.bi,
+        "derive_packet_eligibility",
+        lambda **_kwargs: {"state": "not_queued", "blocked_by": []},
+    )
+
+    result = bs.preflight_packet(
+        "recover-init", "p1", db_path=db_path,
+        ledger_db_path=tmp_path / "governor.db",
+    )
+
+    assert result["action"] == bs.PREFLIGHT_RUN

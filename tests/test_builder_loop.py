@@ -2854,3 +2854,27 @@ def test_forbidden_symbol_fails_before_reviewer(
     assert result["attempts"][0]["contract_gate"]["passed"] is False
     assert "def snapshot_todo(" in result["attempts"][0]["contract_gate"]["forbidden_symbols_found"]
     assert review_calls == []
+
+
+def test_publication_preflight_rechecks_contract_gate_after_janitor(
+    repo: Path, db_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_publication_gate(repo, "exit 0\n")
+    _apply(db_path, max_attempts=1, repo_root=repo)
+    checks = [
+        {"passed": True, "changed_paths": [], "forbidden_symbols_found": [], "required_symbols_missing": [], "forbidden_paths_changed": []},
+        {"passed": False, "changed_paths": ["done.txt"], "forbidden_symbols_found": ["BAD"], "required_symbols_missing": [], "forbidden_paths_changed": []},
+    ]
+    monkeypatch.setattr(bl.bcg, "evaluate_contract_checks", lambda *_args, **_kwargs: checks.pop(0))
+    monkeypatch.setattr(
+        bl.bj, "apply_safe_repairs",
+        lambda *_args, **_kwargs: {"changed": True, "changed_paths": ["done.txt"], "commit_sha": "abc", "ruff_exit_code": 0},
+    )
+
+    result = bl.run_packet(
+        INITIATIVE, PACKET, worker_command=_good_worker(tmp_path),
+        repo_root=repo, db_path=db_path, publication_preflight=True,
+    )
+
+    assert checks == []
+    assert result["outcome"] != bl.LOOP_SUCCEEDED
