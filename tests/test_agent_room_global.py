@@ -179,7 +179,7 @@ def test_global_reply_rejects_parent_from_another_workspace(room_db):
         agent_workspace.list_thread(other_message["id"])
 
 
-def test_direct_only_inbox_filters_before_limit(room_db):
+def test_direct_only_cli_inbox_filters_before_limit(room_db):
     agent_workspace.ensure_global_workspace()
     direct = agent_workspace.post_global_message(
         sender_id="jacob",
@@ -193,26 +193,23 @@ def test_direct_only_inbox_filters_before_limit(room_db):
         message_kind="status",
     )
 
-    inbox = agent_workspace.list_inbox(
-        "claude", unread_only=True, direct_only=True, limit=1
-    )
+    inbox = agent_room_cli._direct_inbox("claude", unread_only=True, limit=1)
 
     assert [item["id"] for item in inbox] == [direct["id"]]
 
 
-def test_room_cli_direct_only_flag_reaches_domain(monkeypatch: pytest.MonkeyPatch):
+def test_room_cli_direct_only_flag_uses_direct_inbox(monkeypatch: pytest.MonkeyPatch):
     seen = {}
 
-    def fake_list_inbox(participant_id, *, unread_only=False, direct_only=False, limit=100):
+    def fake_direct_inbox(participant_id, *, unread_only=False, limit=100):
         seen.update(
             participant_id=participant_id,
             unread_only=unread_only,
-            direct_only=direct_only,
             limit=limit,
         )
         return []
 
-    monkeypatch.setattr(agent_room_cli.agent_workspace, "list_inbox", fake_list_inbox)
+    monkeypatch.setattr(agent_room_cli, "_direct_inbox", fake_direct_inbox)
     args = agent_room_cli._parser().parse_args(
         ["inbox", "--as", "claude", "--unread", "--direct-only", "--limit", "1"]
     )
@@ -221,6 +218,5 @@ def test_room_cli_direct_only_flag_reaches_domain(monkeypatch: pytest.MonkeyPatc
     assert seen == {
         "participant_id": "claude",
         "unread_only": True,
-        "direct_only": True,
         "limit": 1,
     }
