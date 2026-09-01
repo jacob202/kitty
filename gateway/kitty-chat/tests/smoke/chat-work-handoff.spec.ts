@@ -175,9 +175,14 @@ test('chat proposal handoff opens the durable job in Work', async ({ page }, tes
 
   await handoff.click();
 
-  // Work surface mounted, showing the same job's row.
+  // Work surface mounted, showing the same job's row. Assert inside the Work
+  // group list, not the page: the objective string also appears in the chat
+  // card behind this view, so an unscoped locator would pass even if clicking
+  // the handoff never navigated anywhere.
   await expect(page.getByRole('heading', { name: 'Work' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(JOB_TITLE).first()).toBeVisible();
+  const workRows = page.getByTestId('work-group-list');
+  await expect(workRows.first()).toBeVisible();
+  await expect(workRows.getByText(JOB_TITLE).first()).toBeVisible();
 
   // No horizontal overflow at this viewport (mobile regression guard).
   const overflow = await page.evaluate(
